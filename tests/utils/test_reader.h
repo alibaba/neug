@@ -21,11 +21,6 @@
 #include <memory>
 #include <vector>
 
-#include <filesystem>
-#include <fstream>
-#include <memory>
-#include <vector>
-
 #include "neug/common/types/data_chunk.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/common/context.h"

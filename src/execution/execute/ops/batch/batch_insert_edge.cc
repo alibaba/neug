@@ -69,22 +69,6 @@ bool resolve_edge_triplet(const Schema& schema,
   return true;
 }
 
-std::vector<std::pair<int32_t, std::string>> build_total_edge_mappings(
-    const std::vector<std::pair<int32_t, std::string>>& source_mappings,
-    const std::vector<std::pair<int32_t, std::string>>& destination_mappings,
-    const std::vector<std::pair<int32_t, std::string>>& property_mappings) {
-  std::vector<std::pair<int32_t, std::string>> mappings;
-  mappings.reserve(source_mappings.size() + destination_mappings.size() +
-                   property_mappings.size());
-  mappings.insert(mappings.end(), source_mappings.begin(),
-                  source_mappings.end());
-  mappings.insert(mappings.end(), destination_mappings.begin(),
-                  destination_mappings.end());
-  mappings.insert(mappings.end(), property_mappings.begin(),
-                  property_mappings.end());
-  return mappings;
-}
-
 }  // namespace
 
 class BatchInsertEdgeOpr : public IOperator {
@@ -110,9 +94,8 @@ class BatchInsertEdgeOpr : public IOperator {
 
  private:
   physical::EdgeType edge_type_;
-  std::vector<std::pair<int32_t, std::string>> property_mappings_;
-  std::vector<std::pair<int32_t, std::string>> source_mappings_;
-  std::vector<std::pair<int32_t, std::string>> destination_mappings_;
+  std::vector<std::pair<int32_t, std::string>> property_mappings_,
+      source_mappings_, destination_mappings_;
   std::optional<BatchInsertSource> source_;
 };
 
@@ -132,8 +115,15 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
                         "BatchInsertEdge");
   }
 
-  auto mappings = build_total_edge_mappings(
-      source_mappings_, destination_mappings_, property_mappings_);
+  std::vector<std::pair<int32_t, std::string>> mappings;
+  mappings.reserve(source_mappings_.size() + destination_mappings_.size() +
+                   property_mappings_.size());
+  mappings.insert(mappings.end(), source_mappings_.begin(),
+                  source_mappings_.end());
+  mappings.insert(mappings.end(), destination_mappings_.begin(),
+                  destination_mappings_.end());
+  mappings.insert(mappings.end(), property_mappings_.begin(),
+                  property_mappings_.end());
   BatchInsertInput input;
   if (source_) {
     input = create_batch_insert_input(source_->state, *source_->read_function,

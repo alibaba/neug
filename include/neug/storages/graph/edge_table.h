@@ -193,7 +193,8 @@ class EdgeTable {
  private:
   bool TryBatchBuildEdges(const IndexerType& src_indexer,
                           const IndexerType& dst_indexer,
-                          const std::shared_ptr<IDataChunkSource>& source);
+                          const std::shared_ptr<IDataChunkSource>& source,
+                          vid_t src_vertex_capacity, vid_t dst_vertex_capacity);
 
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);

@@ -86,8 +86,8 @@ struct CsvPartitionPlanCache {
     std::shared_ptr<const CsvPartitionPlan> plan;
   };
 
-  std::mutex mutex;
-  std::unordered_map<int32_t, std::shared_ptr<Entry>> entries;
+  std::mutex mutex_;
+  std::unordered_map<int32_t, std::unique_ptr<Entry>> entries_;
 };
 
 namespace {
@@ -454,40 +454,31 @@ struct RowCounterState {
   }
 };
 
-/// Fast CSV row counter: scans raw bytes to count row boundaries
-/// without parsing fields.  Uses a quote-tracking state machine;
-/// parallelizes via speculative dual-state-machine scan for large files.
+/// Result of scanning a CSV file without materializing its fields.
 struct CsvScanResult {
   int64_t row_count = 0;
   std::vector<CsvPartitionRange> ranges;
 };
 
-class CsvRowCountCounter {
+/// Scans CSV bytes to count rows and optionally produce record-aligned ranges.
+/// csv-parser always recognizes RFC-style doubled quotes, so the scanner uses
+/// the same effective dialect instead of the legacy double_quote option.
+class CsvFileScanner {
  public:
-  // rows_to_skip is intentionally NOT a parameter: the counter counts
+  // rows_to_skip is intentionally NOT a parameter: the scanner counts
   // all non-empty rows.  The reader's skip_rows() handles skipping
   // separately, and RowNum() is only a pre-allocation hint, so a slight
   // overcount (by at most skip_rows, typically 1 for header) is safe.
-  CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
-                     bool /*double_quote*/, char delimiter,
-                     bool use_threads = true)
+  CsvFileScanner(std::string file_path, bool quoting, char quote_char,
+                 char delimiter, bool use_threads = true)
       : file_path_(std::move(file_path)),
         quoting_(quoting),
         quote_char_(quote_char),
-        // csv::CSVReader always uses RFC-style doubled quotes and exposes no
-        // switch for disabling that behavior. Partition planning must follow
-        // the parser's actual DFA even when the legacy DOUBLE_QUOTE option is
-        // false, otherwise a range can start in the middle of a record.
-        double_quote_(true),
         delimiter_(delimiter),
         use_threads_(use_threads) {}
 
-  int64_t count() const {
-    struct stat st;
-    if (stat(file_path_.c_str(), &st) != 0) {
-      THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
-    }
-    auto file_size = static_cast<size_t>(st.st_size);
+  int64_t count_rows() const {
+    const auto file_size = get_file_size();
     if (file_size == 0)
       return 0;
 
@@ -502,25 +493,20 @@ class CsvRowCountCounter {
     }
     if (num_threads <= 1)
       return count_single(file_size);
-    return count_parallel(file_size, num_threads);
+    return scan_parallel(file_size, num_threads, false).row_count;
   }
 
-  CsvScanResult ScanWithRanges(int32_t requested_partitions,
-                               int32_t scan_threads) const {
-    struct stat st;
-    if (stat(file_path_.c_str(), &st) != 0) {
-      THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
-    }
-    const auto file_size = static_cast<size_t>(st.st_size);
+  CsvScanResult scan_with_ranges(size_t file_size, int32_t requested_partitions,
+                                 int32_t scan_threads) const {
     CsvScanResult result;
     if (file_size == 0) {
       return result;
     }
-    const auto target_partitions = static_cast<size_t>(std::max<int64_t>(
-        1, std::min<int64_t>(requested_partitions,
-                             static_cast<int64_t>(file_size))));
-    const auto workers = static_cast<unsigned>(std::max<int64_t>(
-        1, std::min<int64_t>(scan_threads, static_cast<int64_t>(file_size))));
+    const auto target_partitions = std::min(
+        file_size,
+        static_cast<size_t>(std::max<int32_t>(1, requested_partitions)));
+    const auto workers = static_cast<unsigned>(std::min(
+        file_size, static_cast<size_t>(std::max<int32_t>(1, scan_threads))));
     if (workers == 1) {
       result.row_count = count_single(file_size);
       result.ranges.push_back({0, file_size, 0});
@@ -554,6 +540,18 @@ class CsvRowCountCounter {
     RowCounterState inside;   // assumed start inside quotes
   };
 
+  size_t get_file_size() const {
+    struct stat st;
+    if (stat(file_path_.c_str(), &st) != 0 || st.st_size < 0) {
+      THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
+    }
+    const auto file_size = static_cast<uintmax_t>(st.st_size);
+    if (file_size > std::numeric_limits<size_t>::max()) {
+      THROW_IO_EXCEPTION("CSV file is too large to address: " + file_path_);
+    }
+    return static_cast<size_t>(file_size);
+  }
+
   /// Read [start, end) from the file in 1 MB buffers, calling \p fn
   /// for each buffer.  Shared by count_single() and scan_chunk().
   template <typename Fn>
@@ -570,6 +568,9 @@ class CsvRowCountCounter {
       size_t to_read = std::min(kBufSize, end - pos);
       file.read(buffer.data(), to_read);
       auto bytes_read = static_cast<size_t>(file.gcount());
+      if (file.bad()) {
+        THROW_IO_EXCEPTION("Failed to scan CSV file: " + file_path_);
+      }
       if (bytes_read == 0)
         break;
       fn(buffer.data(), bytes_read);
@@ -597,6 +598,9 @@ class CsvRowCountCounter {
       size_t to_read = std::min(kScanBuf, end - pos);
       file.read(buf, to_read);
       auto n = static_cast<size_t>(file.gcount());
+      if (file.bad()) {
+        THROW_IO_EXCEPTION("Failed to scan CSV file: " + file_path_);
+      }
       if (n == 0)
         break;
       for (size_t i = 0; i < n; ++i) {
@@ -627,8 +631,8 @@ class CsvRowCountCounter {
   /// other is copied — both produce identical results.
   ChunkResult scan_chunk(size_t start, size_t end) const {
     ChunkResult res;
-    res.outside.init(false, quoting_, quote_char_, double_quote_, delimiter_);
-    res.inside.init(true, quoting_, quote_char_, double_quote_, delimiter_);
+    res.outside.init(false, quoting_, quote_char_, true, delimiter_);
+    res.inside.init(true, quoting_, quote_char_, true, delimiter_);
     if (quoting_) {
       scan_range(start, end, [&](const char* data, size_t n) {
         for (size_t i = 0; i < n; ++i) {
@@ -653,7 +657,7 @@ class CsvRowCountCounter {
   /// Single-threaded scan.
   int64_t count_single(size_t file_size) const {
     RowCounterState state;
-    state.init(false, quoting_, quote_char_, double_quote_, delimiter_);
+    state.init(false, quoting_, quote_char_, true, delimiter_);
     scan_range(0, file_size, [&](const char* data, size_t n) {
       for (size_t i = 0; i < n; ++i) {
         state.step(data[i]);
@@ -666,44 +670,6 @@ class CsvRowCountCounter {
   }
 
   /// Parallel scan with speculative dual state machines.
-  int64_t count_parallel(size_t file_size, unsigned num_threads) const {
-    return scan_parallel(file_size, num_threads, false).row_count;
-  }
-
-  CsvPartitionRange find_record_boundary(size_t start, size_t end,
-                                         int64_t start_row) const {
-    RowCounterState state;
-    state.init(true, quoting_, quote_char_, double_quote_, delimiter_);
-    size_t boundary = end;
-    bool found = false;
-    size_t position = start;
-    scan_range(start, end, [&](const char* data, size_t n) {
-      if (found) {
-        position += n;
-        return;
-      }
-      for (size_t i = 0; i < n; ++i) {
-        const auto before = state.count;
-        const char c = data[i];
-        state.step(c);
-        if (state.count != before) {
-          boundary = position + i + 1;
-          found = true;
-          break;
-        }
-      }
-      position += n;
-    });
-    if (found && boundary < end) {
-      std::ifstream file(file_path_, std::ios::binary);
-      file.seekg(static_cast<std::streamoff>(boundary));
-      if (file && file.peek() == '\n') {
-        ++boundary;
-      }
-    }
-    return {boundary, end, start_row + state.count};
-  }
-
   CsvScanResult scan_parallel(size_t file_size, unsigned num_threads,
                               bool build_ranges) const {
     // Compute newline-aligned chunk boundaries.
@@ -773,12 +739,13 @@ class CsvRowCountCounter {
     std::vector<std::pair<size_t, int64_t>> safe_bounds;
     safe_bounds.emplace_back(0, 0);
     for (unsigned i = 1; i < actual_threads; ++i) {
-      CsvPartitionRange safe{bounds[i], file_size, rows_before[i]};
-      if (starts_inside[i]) {
-        safe = find_record_boundary(bounds[i], file_size, rows_before[i]);
-      }
-      if (safe.start > safe_bounds.back().first && safe.start < file_size) {
-        safe_bounds.emplace_back(safe.start, safe.start_row);
+      // A nominal split is already positioned after a physical newline. It is
+      // a valid record boundary exactly when that newline was outside quotes.
+      // Unsafe splits are merged into the preceding range instead of rescanning
+      // the file tail to manufacture another boundary.
+      if (!starts_inside[i] && bounds[i] > safe_bounds.back().first &&
+          bounds[i] < file_size) {
+        safe_bounds.emplace_back(bounds[i], rows_before[i]);
       }
     }
     safe_bounds.emplace_back(file_size, total);
@@ -793,18 +760,30 @@ class CsvRowCountCounter {
   std::string file_path_;
   bool quoting_;
   char quote_char_;
-  bool double_quote_;
   char delimiter_;
   bool use_threads_;
 };
 
-class BoundedFileStreamBuf final : public std::streambuf {
+class CsvRangeStreamBuf final : public std::streambuf {
  public:
-  BoundedFileStreamBuf(const std::string& file_path, size_t start, size_t end)
-      : file_(file_path, std::ios::binary), remaining_(end - start) {
+  CsvRangeStreamBuf(const std::string& file_path, size_t start, size_t end)
+      : file_(file_path, std::ios::binary), file_path_(file_path) {
     if (!file_.is_open()) {
       THROW_IO_EXCEPTION("Failed to open CSV range: " + file_path);
     }
+    if (end < start) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid CSV byte range: [" +
+                                       std::to_string(start) + ", " +
+                                       std::to_string(end) + ")");
+    }
+    const auto max_offset =
+        static_cast<uintmax_t>(std::numeric_limits<std::streamoff>::max());
+    if (static_cast<uintmax_t>(start) > max_offset ||
+        static_cast<uintmax_t>(end) > max_offset) {
+      THROW_IO_EXCEPTION("CSV byte range exceeds stream offset limit: " +
+                         file_path);
+    }
+    remaining_ = end - start;
     file_.seekg(static_cast<std::streamoff>(start));
     if (!file_) {
       THROW_IO_EXCEPTION("Failed to seek CSV range: " + file_path);
@@ -823,31 +802,271 @@ class BoundedFileStreamBuf final : public std::streambuf {
     const auto requested = std::min(remaining_, buffer_.size());
     file_.read(buffer_.data(), static_cast<std::streamsize>(requested));
     const auto read = static_cast<size_t>(file_.gcount());
+    if (file_.bad()) {
+      THROW_IO_EXCEPTION("Failed to read CSV range: " + file_path_);
+    }
     if (read == 0) {
       remaining_ = 0;
       return traits_type::eof();
     }
     remaining_ -= read;
+    if (read < requested) {
+      remaining_ = 0;
+    }
     setg(buffer_.data(), buffer_.data(), buffer_.data() + read);
     return traits_type::to_int_type(*gptr());
   }
 
+  std::streamsize xsgetn(char_type* destination,
+                         std::streamsize count) override {
+    if (count <= 0) {
+      return 0;
+    }
+
+    std::streamsize total = 0;
+    const auto buffered = static_cast<size_t>(egptr() - gptr());
+    const auto from_buffer =
+        std::min(buffered, static_cast<size_t>(count - total));
+    if (from_buffer > 0) {
+      std::memcpy(destination, gptr(), from_buffer);
+      gbump(static_cast<int>(from_buffer));
+      total += static_cast<std::streamsize>(from_buffer);
+    }
+
+    if (total == count || remaining_ == 0) {
+      return total;
+    }
+    const auto requested =
+        std::min(remaining_, static_cast<size_t>(count - total));
+    file_.read(destination + total, static_cast<std::streamsize>(requested));
+    const auto read = static_cast<size_t>(file_.gcount());
+    if (file_.bad()) {
+      THROW_IO_EXCEPTION("Failed to read CSV range: " + file_path_);
+    }
+    remaining_ -= read;
+    if (read < requested) {
+      remaining_ = 0;
+    }
+    return total + static_cast<std::streamsize>(read);
+  }
+
  private:
   std::ifstream file_;
-  size_t remaining_;
-  std::array<char, 1 << 20> buffer_{};
+  std::string file_path_;
+  size_t remaining_ = 0;
+  std::array<char, 4096> buffer_{};
 };
 
-class BoundedFileStream final : public std::istream {
+class CsvRangeStream final : public std::istream {
  public:
-  BoundedFileStream(const std::string& file_path, size_t start, size_t end)
+  CsvRangeStream(const std::string& file_path, size_t start, size_t end)
       : std::istream(nullptr), buffer_(file_path, start, end) {
     rdbuf(&buffer_);
   }
 
  private:
-  BoundedFileStreamBuf buffer_;
+  CsvRangeStreamBuf buffer_;
 };
+
+}  // namespace
+
+namespace {
+
+std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
+    const std::vector<std::string>& file_paths, const CsvReadConfig& config,
+    int32_t producer_count) {
+  CHECK_GE(producer_count, 1);
+  auto plan = std::make_shared<CsvPartitionPlan>();
+
+  // producer_count is a budget for the complete COPY, not for every input
+  // file. Give every non-empty file one range, then split the currently
+  // largest range until the global producer budget is reached.
+  std::vector<uintmax_t> file_sizes(file_paths.size(), 0);
+  std::vector<int32_t> range_counts(file_paths.size(), 0);
+  size_t non_empty_files = 0;
+  for (size_t i = 0; i < file_paths.size(); ++i) {
+    std::error_code error;
+    file_sizes[i] = std::filesystem::file_size(file_paths[i], error);
+    if (error) {
+      THROW_IO_EXCEPTION("Failed to get file size: " + file_paths[i]);
+    }
+    if (file_sizes[i] > 0) {
+      range_counts[i] = 1;
+      ++non_empty_files;
+    }
+  }
+
+  size_t assigned_ranges = non_empty_files;
+  const size_t target_ranges =
+      std::max(non_empty_files, static_cast<size_t>(producer_count));
+  while (assigned_ranges < target_ranges) {
+    size_t best = file_paths.size();
+    long double best_range_bytes = -1;
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+      if (range_counts[i] <= 0 ||
+          static_cast<uintmax_t>(range_counts[i]) >= file_sizes[i]) {
+        continue;
+      }
+      const auto range_bytes =
+          static_cast<long double>(file_sizes[i]) / range_counts[i];
+      if (range_bytes > best_range_bytes) {
+        best = i;
+        best_range_bytes = range_bytes;
+      }
+    }
+    if (best == file_paths.size()) {
+      break;
+    }
+    ++range_counts[best];
+    ++assigned_ranges;
+  }
+
+  // Row counting/planning is a separate phase, so it can use the complete
+  // hardware budget. When there are many input files, H workers scan files
+  // concurrently. With fewer files, the same H budget is divided among
+  // intra-file speculative scans. scan_parallel() uses its caller for one
+  // byte range, therefore the number of active scanners never exceeds H.
+  const auto scan_budget = chunk_pipeline_detail::hardware_worker_count();
+  std::vector<int32_t> scan_threads(file_paths.size(), 0);
+  if (non_empty_files < static_cast<size_t>(scan_budget)) {
+    size_t assigned_scanners = 0;
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+      if (file_sizes[i] == 0) {
+        continue;
+      }
+      scan_threads[i] = std::max<int32_t>(1, range_counts[i]);
+      assigned_scanners += static_cast<size_t>(scan_threads[i]);
+    }
+    CHECK_LE(assigned_scanners, static_cast<size_t>(scan_budget));
+    while (assigned_scanners < static_cast<size_t>(scan_budget)) {
+      size_t best = file_paths.size();
+      long double best_scanner_bytes = -1;
+      for (size_t i = 0; i < file_paths.size(); ++i) {
+        if (scan_threads[i] <= 0 ||
+            static_cast<uintmax_t>(scan_threads[i]) >= file_sizes[i]) {
+          continue;
+        }
+        const auto scanner_bytes =
+            static_cast<long double>(file_sizes[i]) / scan_threads[i];
+        if (scanner_bytes > best_scanner_bytes) {
+          best = i;
+          best_scanner_bytes = scanner_bytes;
+        }
+      }
+      if (best == file_paths.size()) {
+        break;
+      }
+      ++scan_threads[best];
+      ++assigned_scanners;
+    }
+  } else {
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+      scan_threads[i] = file_sizes[i] == 0 ? 0 : 1;
+    }
+  }
+
+  std::vector<CsvScanResult> scans(file_paths.size());
+  std::atomic<size_t> next_file{0};
+  std::atomic<bool> scan_cancelled{false};
+  std::mutex scan_error_mutex;
+  std::exception_ptr scan_error;
+  auto capture_scan_error = [&](std::exception_ptr error) {
+    bool expected = false;
+    if (scan_cancelled.compare_exchange_strong(expected, true,
+                                               std::memory_order_acq_rel)) {
+      std::lock_guard<std::mutex> lock(scan_error_mutex);
+      scan_error = std::move(error);
+    }
+  };
+  auto scan_file = [&](size_t file_index) {
+    if (file_sizes[file_index] == 0) {
+      return;
+    }
+    if (file_sizes[file_index] > std::numeric_limits<size_t>::max()) {
+      THROW_IO_EXCEPTION("CSV file is too large to address: " +
+                         file_paths[file_index]);
+    }
+    scans[file_index] =
+        CsvFileScanner(file_paths[file_index], config.quoting,
+                       config.quote_char, config.delimiter, config.use_threads)
+            .scan_with_ranges(static_cast<size_t>(file_sizes[file_index]),
+                              std::max<int32_t>(1, range_counts[file_index]),
+                              std::max<int32_t>(1, scan_threads[file_index]));
+  };
+
+  std::vector<std::thread> planners;
+  if (non_empty_files >= static_cast<size_t>(scan_budget)) {
+    planners.reserve(static_cast<size_t>(scan_budget));
+    for (int32_t worker = 0; worker < scan_budget; ++worker) {
+      planners.emplace_back([&] {
+        try {
+          while (!scan_cancelled.load(std::memory_order_acquire)) {
+            const auto file_index =
+                next_file.fetch_add(1, std::memory_order_relaxed);
+            if (file_index >= file_paths.size()) {
+              break;
+            }
+            scan_file(file_index);
+          }
+        } catch (...) { capture_scan_error(std::current_exception()); }
+      });
+    }
+  } else {
+    planners.reserve(non_empty_files);
+    for (size_t i = 0; i < file_paths.size(); ++i) {
+      if (file_sizes[i] == 0) {
+        continue;
+      }
+      planners.emplace_back([&, i] {
+        try {
+          if (!scan_cancelled.load(std::memory_order_acquire)) {
+            scan_file(i);
+          }
+        } catch (...) { capture_scan_error(std::current_exception()); }
+      });
+    }
+  }
+  for (auto& planner : planners) {
+    planner.join();
+  }
+  if (scan_error) {
+    std::rethrow_exception(scan_error);
+  }
+
+  int64_t total = 0;
+  for (size_t i = 0; i < file_paths.size(); ++i) {
+    const auto& scan = scans[i];
+    if (scan.row_count < 0 ||
+        scan.row_count > std::numeric_limits<int64_t>::max() - total) {
+      total = kUnknownRowNum;
+    } else if (total != kUnknownRowNum) {
+      total += scan.row_count;
+    }
+
+    // SKIP is scoped per input file. Distribute it over record-aligned ranges
+    // so a short first range cannot leak rows that still need to be skipped
+    // into a later producer.
+    int64_t remaining_skip = std::max<int64_t>(0, config.skip_rows);
+    for (size_t range_index = 0; range_index < scan.ranges.size();
+         ++range_index) {
+      const auto& range = scan.ranges[range_index];
+      const auto range_end_row = range_index + 1 < scan.ranges.size()
+                                     ? scan.ranges[range_index + 1].start_row
+                                     : scan.row_count;
+      CHECK_GE(range_end_row, range.start_row);
+      const auto range_rows = range_end_row - range.start_row;
+      const auto range_skip = std::min(remaining_skip, range_rows);
+      remaining_skip -= range_skip;
+      plan->tasks.push_back({file_paths[i], range, range_skip});
+    }
+  }
+  plan->row_count = total;
+  VLOG(1) << "CSV partition plan: files=" << file_paths.size()
+          << ", ranges=" << plan->tasks.size()
+          << ", producers=" << producer_count << ", scan_budget=" << scan_budget
+          << ", rows=" << total;
+  return plan;
+}
 
 }  // namespace
 
@@ -856,203 +1075,17 @@ std::shared_ptr<const CsvPartitionPlan> CsvPartitionPlanCache::GetOrCreate(
     int32_t producer_count) {
   producer_count = std::clamp<int32_t>(
       producer_count, 1, chunk_pipeline_detail::hardware_worker_count());
-  std::shared_ptr<Entry> entry;
+  Entry* entry;
   {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto& cached = entries[producer_count];
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& cached = entries_[producer_count];
     if (!cached) {
-      cached = std::make_shared<Entry>();
+      cached = std::make_unique<Entry>();
     }
-    entry = cached;
+    entry = cached.get();
   }
-
   std::call_once(entry->once, [&] {
-    auto plan = std::make_shared<CsvPartitionPlan>();
-
-    // producer_count is a budget for the complete COPY, not for every input
-    // file. Give every non-empty file one range, then split the currently
-    // largest range until the global producer budget is reached.
-    std::vector<uintmax_t> file_sizes(file_paths.size(), 0);
-    std::vector<int32_t> range_counts(file_paths.size(), 0);
-    size_t non_empty_files = 0;
-    for (size_t i = 0; i < file_paths.size(); ++i) {
-      std::error_code error;
-      file_sizes[i] = std::filesystem::file_size(file_paths[i], error);
-      if (error) {
-        THROW_IO_EXCEPTION("Failed to get file size: " + file_paths[i]);
-      }
-      if (file_sizes[i] > 0) {
-        range_counts[i] = 1;
-        ++non_empty_files;
-      }
-    }
-
-    size_t assigned_ranges = non_empty_files;
-    const size_t target_ranges =
-        std::max(non_empty_files, static_cast<size_t>(producer_count));
-    while (assigned_ranges < target_ranges) {
-      size_t best = file_paths.size();
-      long double best_range_bytes = -1;
-      for (size_t i = 0; i < file_paths.size(); ++i) {
-        if (range_counts[i] <= 0 ||
-            static_cast<uintmax_t>(range_counts[i]) >= file_sizes[i]) {
-          continue;
-        }
-        const auto range_bytes =
-            static_cast<long double>(file_sizes[i]) / range_counts[i];
-        if (range_bytes > best_range_bytes) {
-          best = i;
-          best_range_bytes = range_bytes;
-        }
-      }
-      if (best == file_paths.size()) {
-        break;
-      }
-      ++range_counts[best];
-      ++assigned_ranges;
-    }
-
-    // Row counting/planning is a separate phase, so it can use the complete
-    // hardware budget. When there are many input files, H workers scan files
-    // concurrently. With fewer files, the same H budget is divided among
-    // intra-file speculative scans. scan_parallel() uses its caller for one
-    // byte range, therefore the number of active scanners never exceeds H.
-    const auto scan_budget = chunk_pipeline_detail::hardware_worker_count();
-    std::vector<int32_t> scan_threads(file_paths.size(), 0);
-    if (non_empty_files < static_cast<size_t>(scan_budget)) {
-      size_t assigned_scanners = 0;
-      for (size_t i = 0; i < file_paths.size(); ++i) {
-        if (file_sizes[i] == 0) {
-          continue;
-        }
-        scan_threads[i] = std::max<int32_t>(1, range_counts[i]);
-        assigned_scanners += static_cast<size_t>(scan_threads[i]);
-      }
-      CHECK_LE(assigned_scanners, static_cast<size_t>(scan_budget));
-      while (assigned_scanners < static_cast<size_t>(scan_budget)) {
-        size_t best = file_paths.size();
-        long double best_scanner_bytes = -1;
-        for (size_t i = 0; i < file_paths.size(); ++i) {
-          if (scan_threads[i] <= 0 ||
-              static_cast<uintmax_t>(scan_threads[i]) >= file_sizes[i]) {
-            continue;
-          }
-          const auto scanner_bytes =
-              static_cast<long double>(file_sizes[i]) / scan_threads[i];
-          if (scanner_bytes > best_scanner_bytes) {
-            best = i;
-            best_scanner_bytes = scanner_bytes;
-          }
-        }
-        if (best == file_paths.size()) {
-          break;
-        }
-        ++scan_threads[best];
-        ++assigned_scanners;
-      }
-    } else {
-      for (size_t i = 0; i < file_paths.size(); ++i) {
-        scan_threads[i] = file_sizes[i] == 0 ? 0 : 1;
-      }
-    }
-
-    std::vector<CsvScanResult> scans(file_paths.size());
-    std::atomic<size_t> next_file{0};
-    std::atomic<bool> scan_cancelled{false};
-    std::mutex scan_error_mutex;
-    std::exception_ptr scan_error;
-    auto capture_scan_error = [&](std::exception_ptr error) {
-      bool expected = false;
-      if (scan_cancelled.compare_exchange_strong(expected, true,
-                                                 std::memory_order_acq_rel)) {
-        std::lock_guard<std::mutex> lock(scan_error_mutex);
-        scan_error = std::move(error);
-      }
-    };
-    auto scan_file = [&](size_t file_index) {
-      if (file_sizes[file_index] == 0) {
-        return;
-      }
-      scans[file_index] =
-          CsvRowCountCounter(file_paths[file_index], config.quoting,
-                             config.quote_char, config.double_quote,
-                             config.delimiter, config.use_threads)
-              .ScanWithRanges(std::max<int32_t>(1, range_counts[file_index]),
-                              std::max<int32_t>(1, scan_threads[file_index]));
-    };
-
-    std::vector<std::thread> planners;
-    if (non_empty_files >= static_cast<size_t>(scan_budget)) {
-      planners.reserve(static_cast<size_t>(scan_budget));
-      for (int32_t worker = 0; worker < scan_budget; ++worker) {
-        planners.emplace_back([&] {
-          try {
-            while (!scan_cancelled.load(std::memory_order_acquire)) {
-              const auto file_index =
-                  next_file.fetch_add(1, std::memory_order_relaxed);
-              if (file_index >= file_paths.size()) {
-                break;
-              }
-              scan_file(file_index);
-            }
-          } catch (...) { capture_scan_error(std::current_exception()); }
-        });
-      }
-    } else {
-      planners.reserve(non_empty_files);
-      for (size_t i = 0; i < file_paths.size(); ++i) {
-        if (file_sizes[i] == 0) {
-          continue;
-        }
-        planners.emplace_back([&, i] {
-          try {
-            if (!scan_cancelled.load(std::memory_order_acquire)) {
-              scan_file(i);
-            }
-          } catch (...) { capture_scan_error(std::current_exception()); }
-        });
-      }
-    }
-    for (auto& planner : planners) {
-      planner.join();
-    }
-    if (scan_error) {
-      std::rethrow_exception(scan_error);
-    }
-
-    int64_t total = 0;
-    for (size_t i = 0; i < file_paths.size(); ++i) {
-      const auto& scan = scans[i];
-      if (scan.row_count < 0 ||
-          scan.row_count > std::numeric_limits<int64_t>::max() - total) {
-        total = kUnknownRowNum;
-      } else if (total != kUnknownRowNum) {
-        total += scan.row_count;
-      }
-
-      // SKIP is scoped per input file. Distribute it over record-aligned
-      // ranges so a short first range cannot leak rows that still need to be
-      // skipped into a later producer.
-      int64_t remaining_skip = std::max<int64_t>(0, config.skip_rows);
-      for (size_t range_index = 0; range_index < scan.ranges.size();
-           ++range_index) {
-        const auto& range = scan.ranges[range_index];
-        const auto range_end_row = range_index + 1 < scan.ranges.size()
-                                       ? scan.ranges[range_index + 1].start_row
-                                       : scan.row_count;
-        CHECK_GE(range_end_row, range.start_row);
-        const auto range_rows = range_end_row - range.start_row;
-        const auto range_skip = std::min(remaining_skip, range_rows);
-        remaining_skip -= range_skip;
-        plan->tasks.push_back({file_paths[i], range, range_skip});
-      }
-    }
-    plan->row_count = total;
-    VLOG(1) << "CSV partition plan: files=" << file_paths.size()
-            << ", ranges=" << plan->tasks.size()
-            << ", producers=" << producer_count
-            << ", scan_budget=" << scan_budget << ", rows=" << total;
-    entry->plan = std::move(plan);
+    entry->plan = build_csv_partition_plan(file_paths, config, producer_count);
   });
   return entry->plan;
 }
@@ -1078,7 +1111,6 @@ struct CsvSupplierRuntime {
         escape_char_(config.escape_char),
         quoting_(config.quoting),
         quote_char_(config.quote_char),
-        double_quote_(config.double_quote),
         delimiter_(config.delimiter),
         use_threads_(config.use_threads),
         range_(std::move(range)) {
@@ -1086,9 +1118,9 @@ struct CsvSupplierRuntime {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
     if (row_count_mode == CsvRowCountMode::kCountOnOpen) {
-      row_num_ = CsvRowCountCounter(file_path, quoting_, quote_char_,
-                                    double_quote_, delimiter_, use_threads_)
-                     .count();
+      row_num_ = CsvFileScanner(file_path, quoting_, quote_char_, delimiter_,
+                                use_threads_)
+                     .count_rows();
     }
     if (range_) {
       csv_format_.threading(false);
@@ -1157,9 +1189,12 @@ struct CsvSupplierRuntime {
 
   int64_t row_num() const {
     if (row_num_ == kUnknownRowNum) {
-      row_num_ = CsvRowCountCounter(file_path_, quoting_, quote_char_,
-                                    double_quote_, delimiter_, use_threads_)
-                     .count();
+      if (range_) {
+        return kUnknownRowNum;
+      }
+      row_num_ = CsvFileScanner(file_path_, quoting_, quote_char_, delimiter_,
+                                use_threads_)
+                     .count_rows();
     }
     return row_num_;
   }
@@ -1168,7 +1203,7 @@ struct CsvSupplierRuntime {
   void reset_reader() {
     try {
       if (range_) {
-        range_stream_ = std::make_unique<BoundedFileStream>(
+        range_stream_ = std::make_unique<CsvRangeStream>(
             file_path_, range_->start, range_->end);
         reader_ = std::make_unique<csv::CSVReader>(*range_stream_, csv_format_);
       } else {
@@ -1206,13 +1241,12 @@ struct CsvSupplierRuntime {
   char escape_char_ = '\\';
   bool quoting_ = false;
   char quote_char_ = '"';
-  bool double_quote_ = true;
   char delimiter_ = ',';
   bool use_threads_ = true;
   std::optional<CsvPartitionRange> range_;
   mutable int64_t row_num_ = kUnknownRowNum;
   int64_t current_row_number_ = 0;
-  std::unique_ptr<BoundedFileStream> range_stream_;
+  std::unique_ptr<CsvRangeStream> range_stream_;
   std::unique_ptr<csv::CSVReader> reader_;
 };
 

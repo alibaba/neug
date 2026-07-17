@@ -169,6 +169,8 @@ class CSVChunkSource final : public IDataChunkSource {
   std::vector<std::string> file_paths_;
   CsvReadConfig config_;
   std::vector<int32_t> projected_columns_;
+  // Source-local cache: file paths and partition-relevant config stay fixed
+  // across Open() calls; producer count selects the cached plan.
   std::shared_ptr<CsvPartitionPlanCache> partition_plan_cache_;
 };
 

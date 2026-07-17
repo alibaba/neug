@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
-#include <cmath>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -32,7 +31,6 @@
 #include <string>
 #include <vector>
 
-#include "neug/config.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
@@ -45,6 +43,10 @@
 
 namespace neug {
 
+namespace internal {
+class BundledEdgeCsrLoader;
+}
+
 // std::atomic<int> must have the same size as int on supported platforms
 // so that the degree_list buffer (persisted as int[]) can be safely
 // reinterpreted as atomic<int>[] for concurrent access.
@@ -52,11 +54,11 @@ static_assert(
     sizeof(std::atomic<int>) == sizeof(int),
     "atomic<int> must have the same size as int on supported platforms");
 
-template <typename EDATA_T>
-class MutableCsrBulkBuildAccess;
+namespace mutable_csr_detail {
 
-template <typename EDATA_T>
-class SingleMutableCsrBulkBuildAccess;
+int capacity_with_reserve(int degree);
+
+}  // namespace mutable_csr_detail
 
 template <typename EDATA_T>
 class MutableCsr : public TypedCsrBase<EDATA_T> {
@@ -243,7 +245,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  friend class MutableCsrBulkBuildAccess<EDATA_T>;
+  friend class internal::BundledEdgeCsrLoader;
 
   std::unique_ptr<SpinLock[]> locks_;
   std::shared_ptr<IDataContainer> adj_list_buffer_;
@@ -255,16 +257,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   CsrPrefetchPolicy prefetch_policy_;
 
   void refresh_prefetch_policy();
-  static int reserved_capacity(int degree) {
-    CHECK_GE(degree, 0);
-    if (degree == 0) {
-      return 0;
-    }
-    const auto reserved =
-        std::ceil(degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
-    CHECK_LE(reserved, static_cast<double>(std::numeric_limits<int>::max()));
-    return static_cast<int>(reserved);
-  }
 
   size_t vertex_capacity() const {
     if (!degree_list_) {
@@ -402,7 +394,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  friend class SingleMutableCsrBulkBuildAccess<EDATA_T>;
+  friend class internal::BundledEdgeCsrLoader;
 
   std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
@@ -500,232 +492,6 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   static std::string type_name() {
     return "empty_csr<" + type_name_string<EDATA_T>() + ">";
   }
-};
-
-/// Internal append-only access used while a fresh CSR is being bulk built.
-/// The CSR is not published until both passes complete, so this bypasses the
-/// incremental-growth path used by transactional updates.
-template <typename EDATA_T>
-class MutableCsrBulkBuildAccess {
- public:
-  using csr_t = MutableCsr<EDATA_T>;
-  using nbr_t = typename csr_t::nbr_t;
-  static constexpr bool kStoresEdges = true;
-  static constexpr bool kNeedsDegreeCount = true;
-  static constexpr bool kChecksSingleUniqueness = false;
-  static constexpr bool kTracksInputEdgeCount = false;
-
-  explicit MutableCsrBulkBuildAccess(csr_t& csr) : csr_(csr) {}
-
-  void PrepareBuild(vid_t vertex_count) {
-    CHECK(csr_.adj_list_buffer_ != nullptr);
-    CHECK(csr_.degree_list_ != nullptr);
-    CHECK(csr_.cap_list_ != nullptr);
-    CHECK(csr_.nbr_list_ != nullptr);
-    csr_.adj_list_buffer_->Resize(static_cast<size_t>(vertex_count) *
-                                  sizeof(nbr_t*));
-    csr_.degree_list_->Resize(static_cast<size_t>(vertex_count) * sizeof(int));
-    csr_.cap_list_->Resize(static_cast<size_t>(vertex_count) * sizeof(int));
-    csr_.locks_ = std::make_unique<SpinLock[]>(vertex_count);
-    refresh_metadata_ptrs();
-    CHECK(adj_lists_ != nullptr || vertex_count == 0);
-    CHECK(degrees_ != nullptr || vertex_count == 0);
-    CHECK(capacities_ != nullptr || vertex_count == 0);
-    for (vid_t i = 0; i < vertex_count; ++i) {
-      adj_lists_[i] = nullptr;
-      degrees_[i].store(0, std::memory_order_relaxed);
-      capacities_[i] = 0;
-    }
-    csr_.edge_num_.store(0, std::memory_order_relaxed);
-    csr_.unsorted_since_ = 0;
-  }
-
-  void CountSerial(vid_t src, int count = 1) {
-    CHECK_LT(src, vertex_capacity_);
-    CHECK_GT(count, 0);
-    auto degree = degrees_[src].load(std::memory_order_relaxed);
-    CHECK_LE(degree, std::numeric_limits<int>::max() - count);
-    degrees_[src].store(degree + count, std::memory_order_relaxed);
-  }
-
-  void CountConcurrent(vid_t src, int count = 1) {
-    CHECK_LT(src, vertex_capacity_);
-    CHECK_GT(count, 0);
-    const auto degree =
-        degrees_[src].fetch_add(count, std::memory_order_relaxed);
-    CHECK_LE(degree, std::numeric_limits<int>::max() - count);
-  }
-
-  void AllocateFromCounts() {
-    refresh_metadata_ptrs();
-    size_t total_capacity = 0;
-    for (size_t i = 0; i < vertex_capacity_; ++i) {
-      const auto degree = degrees_[i].load(std::memory_order_relaxed);
-      const auto reserved_capacity = csr_t::reserved_capacity(degree);
-      // During the fill pass cap_list_ stores the exact expected degree. This
-      // lets range reservations validate both passes without allocating a
-      // second O(V) metadata array. Finish() converts it to runtime capacity.
-      capacities_[i] = degree;
-      CHECK_LE(static_cast<size_t>(reserved_capacity),
-               std::numeric_limits<size_t>::max() - total_capacity);
-      total_capacity += static_cast<size_t>(reserved_capacity);
-    }
-    CHECK_LE(total_capacity,
-             std::numeric_limits<size_t>::max() / sizeof(nbr_t));
-    csr_.nbr_list_->Resize(total_capacity * sizeof(nbr_t));
-    nbrs_ = reinterpret_cast<nbr_t*>(csr_.nbr_list_->GetData());
-    CHECK(nbrs_ != nullptr || total_capacity == 0);
-
-    size_t offset = 0;
-    for (size_t i = 0; i < vertex_capacity_; ++i) {
-      const auto reserved_capacity = csr_t::reserved_capacity(capacities_[i]);
-      adj_lists_[i] = reserved_capacity == 0 ? nullptr : nbrs_ + offset;
-      offset += static_cast<size_t>(reserved_capacity);
-      degrees_[i].store(0, std::memory_order_relaxed);
-    }
-  }
-
-  int ReserveSerial(vid_t src, int count) {
-    CHECK_LT(src, vertex_capacity_);
-    CHECK_GT(count, 0);
-    const auto slot = degrees_[src].load(std::memory_order_relaxed);
-    CHECK_LE(slot, capacities_[src] - count);
-    degrees_[src].store(slot + count, std::memory_order_relaxed);
-    return slot;
-  }
-
-  int ReserveConcurrent(vid_t src, int count) {
-    CHECK_LT(src, vertex_capacity_);
-    CHECK_GT(count, 0);
-    CHECK_LE(count, capacities_[src]);
-    const auto slot = degrees_[src].fetch_add(count, std::memory_order_relaxed);
-    CHECK_LE(slot, capacities_[src] - count);
-    return slot;
-  }
-
-  void PutAt(vid_t src, int slot, vid_t dst, const EDATA_T& data,
-             timestamp_t ts) {
-    CHECK_LT(src, vertex_capacity_);
-    CHECK_GE(slot, 0);
-    CHECK_LT(slot, capacities_[src]);
-    auto& nbr = adj_lists_[src][slot];
-    nbr.neighbor = dst;
-    nbr.data = data;
-    nbr.timestamp.store(ts, std::memory_order_relaxed);
-  }
-
-  void PutSerial(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts) {
-    PutAt(src, ReserveSerial(src, 1), dst, data, ts);
-  }
-
-  void Finish() {
-    uint64_t edge_num = 0;
-    for (size_t i = 0; i < vertex_capacity_; ++i) {
-      const auto degree = degrees_[i].load(std::memory_order_relaxed);
-      CHECK_EQ(degree, capacities_[i])
-          << "Bulk edge count/fill mismatch for vertex " << i;
-      edge_num += static_cast<uint64_t>(degree);
-      capacities_[i] = csr_t::reserved_capacity(degree);
-    }
-    csr_.edge_num_.store(edge_num, std::memory_order_relaxed);
-    csr_.refresh_prefetch_policy();
-  }
-
- private:
-  void refresh_metadata_ptrs() {
-    vertex_capacity_ = csr_.vertex_capacity();
-    adj_lists_ = reinterpret_cast<nbr_t**>(
-        csr_.adj_list_buffer_ == nullptr ? nullptr
-                                         : csr_.adj_list_buffer_->GetData());
-    degrees_ = reinterpret_cast<std::atomic<int>*>(
-        csr_.degree_list_ == nullptr ? nullptr : csr_.degree_list_->GetData());
-    capacities_ = reinterpret_cast<int*>(
-        csr_.cap_list_ == nullptr ? nullptr : csr_.cap_list_->GetData());
-  }
-
-  csr_t& csr_;
-  size_t vertex_capacity_ = 0;
-  nbr_t** adj_lists_ = nullptr;
-  std::atomic<int>* degrees_ = nullptr;
-  int* capacities_ = nullptr;
-  nbr_t* nbrs_ = nullptr;
-};
-
-/// Append-only writer for single-edge CSR layouts. A preceding degree pass can
-/// use the timestamp field as a build-private seen marker. If every endpoint is
-/// unique, workers can then fill fixed vertex slots concurrently without
-/// locks. Duplicate endpoints require the ordered serial fill path to preserve
-/// the pre-existing last-write-wins behavior.
-template <typename EDATA_T>
-class SingleMutableCsrBulkBuildAccess {
- public:
-  using csr_t = SingleMutableCsr<EDATA_T>;
-  using nbr_t = typename csr_t::nbr_t;
-  static constexpr bool kStoresEdges = true;
-  static constexpr bool kNeedsDegreeCount = false;
-  static constexpr bool kChecksSingleUniqueness = true;
-  static constexpr bool kTracksInputEdgeCount = true;
-
-  explicit SingleMutableCsrBulkBuildAccess(csr_t& csr) : csr_(csr) {}
-
-  void PrepareBuild(vid_t vertex_count) {
-    CHECK(csr_.nbr_list_ != nullptr);
-    csr_.nbr_list_->Resize(static_cast<size_t>(vertex_count) * sizeof(nbr_t));
-    refresh_ptrs();
-    CHECK(nbrs_ != nullptr || vertex_count == 0);
-    for (vid_t i = 0; i < vertex_count; ++i) {
-      nbrs_[i].timestamp.store(INVALID_TIMESTAMP, std::memory_order_relaxed);
-    }
-    csr_.edge_num_.store(0, std::memory_order_relaxed);
-  }
-
-  void AllocateFromCounts() {}
-
-  bool CheckUniqueSerial(vid_t src) {
-    CHECK_LT(src, vertex_capacity_);
-    auto& timestamp = nbrs_[src].timestamp;
-    const auto previous = timestamp.load(std::memory_order_relaxed);
-    timestamp.store(0, std::memory_order_relaxed);
-    return previous != INVALID_TIMESTAMP;
-  }
-
-  bool CheckUniqueConcurrent(vid_t src) {
-    CHECK_LT(src, vertex_capacity_);
-    const auto previous =
-        nbrs_[src].timestamp.exchange(0, std::memory_order_relaxed);
-    return previous != INVALID_TIMESTAMP;
-  }
-
-  void PutSerial(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts) {
-    PutConcurrent(src, dst, data, ts);
-  }
-
-  void PutConcurrent(vid_t src, vid_t dst, const EDATA_T& data,
-                     timestamp_t ts) {
-    CHECK_LT(src, vertex_capacity_);
-    auto& nbr = nbrs_[src];
-    nbr.neighbor = dst;
-    nbr.data = data;
-    nbr.timestamp.store(ts, std::memory_order_relaxed);
-  }
-
-  void RecordFilledEdges(size_t count) {
-    csr_.edge_num_.fetch_add(static_cast<uint64_t>(count),
-                             std::memory_order_relaxed);
-  }
-
-  void Finish() { csr_.refresh_prefetch_policy(); }
-
- private:
-  void refresh_ptrs() {
-    vertex_capacity_ = csr_.vertex_capacity();
-    nbrs_ = reinterpret_cast<nbr_t*>(
-        csr_.nbr_list_ == nullptr ? nullptr : csr_.nbr_list_->GetData());
-  }
-
-  csr_t& csr_;
-  size_t vertex_capacity_ = 0;
-  nbr_t* nbrs_ = nullptr;
 };
 
 }  // namespace neug
