@@ -202,18 +202,6 @@ void NeugDB::Close() {
   }
 }
 
-bool NeugDB::Checkpoint() {
-  if (snapshot_store_ == nullptr ||
-      !snapshot_store_->CurrentSnapshot().NeedsDump()) {
-    return false;
-  }
-
-  const auto reopen_config = config_;
-  Close();
-  Open(reopen_config);
-  return true;
-}
-
 std::shared_ptr<Connection> NeugDB::Connect() {
   return connection_manager_->CreateConnection();
 }
@@ -229,7 +217,8 @@ void NeugDB::PrepareForServing() {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
   }
   CloseAllConnection();
-  if (config_.mode == DBMode::READ_WRITE) {
+  if (config_.mode == DBMode::READ_WRITE &&
+      snapshot_store_->CurrentSnapshot().NeedsDump()) {
     createCheckpointAndRefreshLiveGraph();
   }
   initQueryRuntime();

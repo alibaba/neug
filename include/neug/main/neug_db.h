@@ -222,12 +222,6 @@ class NeugDB {
   void Close();
 
   /**
-   * @brief Checkpoint and reopen the database only when needed.
-   * @return true when the database was checkpointed and reopened.
-   */
-  bool Checkpoint();
-
-  /**
    * @brief Check if the database is closed.
    * @return true if the database is closed.
    */
