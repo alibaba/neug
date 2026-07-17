@@ -1130,10 +1130,7 @@ bool PropertyGraph::AnyTableChanged() const {
 
 const Schema& PropertyGraph::schema() const { return schema_; }
 
-Schema& PropertyGraph::mutable_schema() {
-  schema_changes_.MarkModified();
-  return schema_;
-}
+Schema& PropertyGraph::mutable_schema() { return schema_; }
 
 vid_t PropertyGraph::LidNum(label_t vertex_label) const {
   schema_.ensure_vertex_label_valid(vertex_label);
