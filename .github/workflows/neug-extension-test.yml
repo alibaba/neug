@@ -102,7 +102,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;ci_out_of_tree"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;test_out_of_tree"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -115,7 +115,7 @@ jobs:
 
     - name: Verify out-of-tree extension artifact
       run: |
-        test -f "${GITHUB_WORKSPACE}/build/extension/ci_out_of_tree/libci_out_of_tree.neug_extension"
+        test -f "${GITHUB_WORKSPACE}/build/extension/test_out_of_tree/libtest_out_of_tree.neug_extension"
 
     - name: Run Extension C++ Test
       run: |
