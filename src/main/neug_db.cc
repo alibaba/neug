@@ -392,6 +392,10 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
 
 void NeugDB::createCheckpointAndRefreshLiveGraph() {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (!snapshot_store_->CurrentSnapshot().NeedsDump()) {
+    LOG(INFO) << "Skip checkpoint: schema and tables are clean";
+    return;
+  }
   auto previous_checkpoint = checkpoint_mgr_.CurrentCheckpoint();
   auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
   auto published_checkpoint =
