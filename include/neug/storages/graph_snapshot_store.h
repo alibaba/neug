@@ -27,6 +27,8 @@
 
 namespace neug {
 
+class Checkpoint;
+
 /**
  * @brief Fixed-size slot pool for MVCC PropertyGraph snapshots.
  *
@@ -43,7 +45,7 @@ namespace neug {
  * Concurrency:
  * - Lock-free PinCurrentSnapshot via optimistic pin + verify loop.
  * - Concurrent installs are NOT safe — VersionManager serializes
- *   updates via begin_update_commit (CAS 0→1), ensuring only one
+ *   updates via its update-execution state, ensuring only one
  *   update/compact can be in progress at a time.
  * - PublishSnapshot publishes the new slot BEFORE VersionManager advances
  *   read_ts_, so readers never see "new ts + old slot".
@@ -80,6 +82,36 @@ class GraphSnapshotStore {
     std::atomic<int> reader_count_{0};
   };
 
+  /**
+   * Scoped capability for destructive in-place maintenance.
+   *
+   * GraphSnapshotStore owns the precondition checks and grants this handle only
+   * after verifying that the current slot is safe for maintenance. The handle
+   * keeps the low-level mutable/reopen operations out of the public
+   * GraphSnapshotStore API while avoiding dependencies on higher-level
+   * coordinators.
+   */
+  class CheckpointMaintenanceHandle {
+   public:
+    CheckpointMaintenanceHandle(const CheckpointMaintenanceHandle&) = delete;
+    CheckpointMaintenanceHandle& operator=(const CheckpointMaintenanceHandle&) =
+        delete;
+    CheckpointMaintenanceHandle(CheckpointMaintenanceHandle&& other) noexcept;
+    CheckpointMaintenanceHandle& operator=(
+        CheckpointMaintenanceHandle&& other) noexcept;
+
+    PropertyGraph& MutableCurrentSnapshot();
+    void ReopenCurrentGraphFromCheckpoint(
+        std::shared_ptr<Checkpoint> checkpoint, MemoryLevel memory_level);
+
+   private:
+    friend class GraphSnapshotStore;
+
+    explicit CheckpointMaintenanceHandle(GraphSnapshotStore& store) noexcept;
+
+    GraphSnapshotStore* store_;
+  };
+
   /// @param slot_num  Pool capacity (default 128).
   /// @param initial_pg Published into slot 0.
   explicit GraphSnapshotStore(int slot_num,
@@ -98,7 +130,7 @@ class GraphSnapshotStore {
   /// Current PropertyGraph (for UpdateTransaction to Clone).
   /// No lock — VersionManager guarantees exclusive update access
   /// (update_state_==1, all inserters drained).
-  const PropertyGraph& CurrentSnapshot() const;
+  const PropertyGraph& CurrentSnapshot() const noexcept;
 
   /// Publish a COW PropertyGraph into a free slot and switch cur_slot_index_.
   /// Steps: reserve free slot -> prep-pin new slot -> write PG + build view
@@ -118,7 +150,23 @@ class GraphSnapshotStore {
     return !free_list_.empty();
   }
 
+  /**
+   * Begin checkpoint maintenance after external quiescence has been acquired.
+   *
+   * The caller must already hold the AP exclusive query lock or TP
+   * VersionManager compact lease or a drained update commit guard. This method
+   * verifies that the current slot has no ordinary pins and that every
+   * non-current slot has
+   * already been reclaimed, then returns a capability for the maintenance-only
+   * operations.
+   */
+  CheckpointMaintenanceHandle AcquireCheckpointMaintenance();
+
  private:
+  PropertyGraph& mutableCurrentSnapshot();
+  void reopenCurrentGraphFromCheckpoint(std::shared_ptr<Checkpoint> checkpoint,
+                                        MemoryLevel memory_level);
+
   int slot_num_;
   std::vector<SnapshotSlot> slots_;
   std::atomic<int> cur_slot_index_{0};
@@ -130,6 +178,7 @@ class GraphSnapshotStore {
   void returnFreeSlot(int slot_index);
   void UnpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);
+  SnapshotSlot& currentSlotForMaintenance();
 };
 
 /**

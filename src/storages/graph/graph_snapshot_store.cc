@@ -18,7 +18,7 @@
 #include <glog/logging.h>
 #include <utility>
 
-#include "neug/generated/proto/plan/error.pb.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -48,6 +48,37 @@ GraphSnapshotStore::~GraphSnapshotStore() {
     slot.storage_.reset();
     slot.view_ = GraphView();
   }
+}
+
+GraphSnapshotStore::SnapshotSlot&
+GraphSnapshotStore::currentSlotForMaintenance() {
+  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
+  auto& slot = slots_[slot_index];
+  if (slot.reader_count_.load(std::memory_order_acquire) != 1) {
+    THROW_INTERNAL_EXCEPTION(
+        "Current graph snapshot is still pinned during maintenance");
+  }
+  if (cur_slot_index_.load(std::memory_order_acquire) != slot_index) {
+    THROW_INTERNAL_EXCEPTION(
+        "Current graph snapshot changed during maintenance");
+  }
+
+  // A checkpoint reopens the current PropertyGraph in place and may remove
+  // the checkpoint generations backing older snapshots. External quiescence
+  // must therefore have drained and reclaimed every non-current slot, not
+  // merely removed readers from the current one.
+  for (int i = 0; i < slot_num_; ++i) {
+    if (i == slot_index) {
+      continue;
+    }
+    if (slots_[i].reader_count_.load(std::memory_order_acquire) != 0 ||
+        slots_[i].storage_ != nullptr) {
+      THROW_INTERNAL_EXCEPTION(
+          "Stale graph snapshot remains live during maintenance");
+    }
+  }
+  CHECK(slot.storage_ != nullptr);
+  return slot;
 }
 
 void GraphSnapshotStore::initFreeList() {
@@ -158,10 +189,60 @@ void GraphSnapshotStore::UnpinSnapshotByIndex(int slot_index) noexcept {
   }
 }
 
-const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
+const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const noexcept {
   int slot_index = cur_slot_index_.load(std::memory_order_acquire);
   CHECK(slots_[slot_index].storage_ != nullptr);
   return *slots_[slot_index].storage_;
+}
+
+GraphSnapshotStore::CheckpointMaintenanceHandle::CheckpointMaintenanceHandle(
+    GraphSnapshotStore& store) noexcept
+    : store_(&store) {}
+
+GraphSnapshotStore::CheckpointMaintenanceHandle::CheckpointMaintenanceHandle(
+    CheckpointMaintenanceHandle&& other) noexcept
+    : store_(other.store_) {
+  other.store_ = nullptr;
+}
+
+GraphSnapshotStore::CheckpointMaintenanceHandle&
+GraphSnapshotStore::CheckpointMaintenanceHandle::operator=(
+    CheckpointMaintenanceHandle&& other) noexcept {
+  if (this != &other) {
+    store_ = other.store_;
+    other.store_ = nullptr;
+  }
+  return *this;
+}
+
+PropertyGraph&
+GraphSnapshotStore::CheckpointMaintenanceHandle::MutableCurrentSnapshot() {
+  CHECK(store_ != nullptr);
+  return store_->mutableCurrentSnapshot();
+}
+
+void GraphSnapshotStore::CheckpointMaintenanceHandle::
+    ReopenCurrentGraphFromCheckpoint(std::shared_ptr<Checkpoint> checkpoint,
+                                     MemoryLevel memory_level) {
+  CHECK(store_ != nullptr);
+  store_->reopenCurrentGraphFromCheckpoint(std::move(checkpoint), memory_level);
+}
+
+GraphSnapshotStore::CheckpointMaintenanceHandle
+GraphSnapshotStore::AcquireCheckpointMaintenance() {
+  (void) currentSlotForMaintenance();
+  return CheckpointMaintenanceHandle(*this);
+}
+
+PropertyGraph& GraphSnapshotStore::mutableCurrentSnapshot() {
+  return *currentSlotForMaintenance().mutable_graph();
+}
+
+void GraphSnapshotStore::reopenCurrentGraphFromCheckpoint(
+    std::shared_ptr<Checkpoint> checkpoint, MemoryLevel memory_level) {
+  auto& slot = currentSlotForMaintenance();
+  slot.mutable_graph()->Open(std::move(checkpoint), memory_level);
+  slot.mutable_view().Rebuild(*slot.mutable_graph());
 }
 
 Status GraphSnapshotStore::PublishSnapshot(

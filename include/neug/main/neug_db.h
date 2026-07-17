@@ -21,6 +21,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
@@ -45,14 +46,12 @@
 namespace neug {
 class NeugDBService;
 class AppManager;
-class Checkpoint;
-class CheckpointSession;
+class CheckpointCoordinator;
 class Connection;
 class ConnectionManager;
 class FileLock;
 class IGraphPlanner;
 class IWalParser;
-class NeugDBSession;
 class QueryProcessor;
 class Schema;
 
@@ -124,10 +123,15 @@ class NeugDB {
    * the query processor and planner.
    *
    * **Data Directory Structure:**
-   * The data_dir should contain:
-   * - `graph.yaml`: Schema definition file
-   * - `snapshot/`: Vertex and edge data files
-   * - `wal/`: Write-ahead log files (optional, for recovery)
+   * Persistent state is organized into numbered checkpoint generations:
+   * ```
+   * data_dir/
+   * |-- checkpoint-N/          # current published generation
+   * `-- checkpoint-(N+1).next/ # transient staging generation, when present
+   * ```
+   * A published generation contains all persistent database state.
+   * NeuG opens the highest valid published generation.
+   * Writable recovery removes incomplete staging generations.
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -214,8 +218,10 @@ class NeugDB {
    * @endcode
    *
    * @note This method is idempotent - calling it multiple times is safe.
-   * @note After closing, the database cannot be reopened. Create a new
-   *       NeugDB instance to open the database again.
+   * @note After closing, the same NeugDB object may be opened again.
+   * @note Checkpoint-on-close is best effort. A checkpoint failure is logged
+   *       as an error and does not prevent the remaining resources from being
+   *       released.
    *
    * @since v0.1.0
    */
@@ -301,6 +307,9 @@ class NeugDB {
     return *snapshot_store_;
   }
 
+  CheckpointCoordinator& checkpoint_coordinator();
+  const CheckpointCoordinator& checkpoint_coordinator() const;
+
   std::string work_dir() const { return checkpoint_mgr_.db_dir(); }
 
   inline const NeugDBConfig& config() const { return config_; }
@@ -316,27 +325,33 @@ class NeugDB {
  private:
   void preprocessConfig();
   void initAllocators(const std::string& allocator_dir);
-  void openGraphAndIngestWals();
+  /**
+   * @brief Rotate every per-thread allocator onto the published checkpoint
+   * generation.
+   *
+   * Injected into CheckpointCoordinator as the mandatory post-reopen handler
+   * and invoked after every live-graph reopen (manual and recovery
+   * checkpoints), before retired generations are reclaimed. Must not throw:
+   * it runs in the checkpoint destructive phase where failure is fatal.
+   */
+  void reopenAllocators(const std::string& allocator_dir);
+  timestamp_t openGraphAndIngestWals();
   void ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlanner();
   void initQueryRuntime();
   void initPlannerAndQueryProcessor();
-  std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
-      CheckpointSession& checkpoint_session);
   /**
    * @brief Create a checkpoint and keep the DB open on the published graph.
    *
-   * This publishes the current live graph and reopens it from the published
-   * checkpoint so the live store owns checkpoint files. If reopening fails, the
-   * published checkpoint is discarded and the checkpoint manager is restored to
-   * the previous checkpoint generation; callers should treat the failure as
-   * fatal. It is shared by recovery checkpoint and AP-to-TP service
-   * preparation. A durable checkpoint is a transaction timeline reset boundary:
-   * it always compacts storage timestamps before dumping, and a successful
-   * checkpoint resets last_ts_ to 0. Must not be called while a NeugDBService
-   * is running.
+   * A recovery checkpoint publishes the recovered graph and switches the live
+   * runtime to the new generation before query service is initialized.
+   *
+   * A durable checkpoint is a transaction timeline reset boundary: it always
+   * compacts storage timestamps before dumping, and a successful checkpoint
+   * resets the recovered WAL timeline. Must not be called while a
+   * NeugDBService is running.
    */
-  void createCheckpointAndRefreshLiveGraph();
+  void createCheckpointAfterRecovery();
 
   /**
    * @brief Create a checkpoint while closing the DB.
@@ -347,15 +362,13 @@ class NeugDB {
    *
    * A durable checkpoint is a transaction timeline reset boundary: it always
    * compacts storage timestamps before dumping, and a successful checkpoint
-   * resets last_ts_ to 0. Must not be called while a NeugDBService is running.
+   * resets the recovered WAL timeline. Must not be called while a
+   * NeugDBService is running.
    */
   void createCheckpointOnClose();
 
-  friend class NeugDBSession;
   friend class neug::NeugDBService;
 
-  timestamp_t last_compaction_ts_;
-  timestamp_t last_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
   bool is_pure_memory_;
@@ -366,6 +379,9 @@ class NeugDB {
 
   // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
+  // Declared after its borrowed dependencies and before QueryProcessor, so it
+  // is destroyed after QueryProcessor and before the snapshot/allocators.
+  std::unique_ptr<CheckpointCoordinator> checkpoint_coordinator_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;

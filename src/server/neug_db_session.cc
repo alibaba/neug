@@ -39,6 +39,7 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/stored_procedure.pb.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/main/query_request.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -52,36 +53,52 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/encoder.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/pb_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
+// Ordering invariant for all transaction factories below: acquire the
+// VersionManager lease before touching snapshot, allocator, or WAL state,
+// because checkpoint maintenance may rotate that state while no lease is held.
 neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
-  uint32_t ts = version_manager_->acquire_read_timestamp();
-  SnapshotGuard guard(db_.graph_snapshot_store());
+  auto ts = version_manager_->acquire_read_timestamp();
+  SnapshotGuard guard(snapshot_store_);
   return neug::ReadTransaction(std::move(guard), *version_manager_, ts);
 }
 
 neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
-  uint32_t ts = version_manager_->acquire_insert_timestamp();
-  SnapshotGuard guard(db_.graph_snapshot_store());
-  return neug::InsertTransaction(std::move(guard), alloc_, logger_,
+  auto ts = version_manager_->acquire_insert_timestamp();
+  SnapshotGuard guard(snapshot_store_);
+  return neug::InsertTransaction(std::move(guard), alloc_, wal_writer_,
                                  *version_manager_, ts);
 }
 
 neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
-  uint32_t ts = version_manager_->acquire_update_timestamp();
-  auto cow_graph = db_.graph_snapshot_store().CurrentSnapshot().Clone();
-  return neug::UpdateTransaction(std::move(cow_graph), alloc_, logger_,
-                                 *version_manager_, db_.graph_snapshot_store(),
-                                 pipeline_cache_, ts);
+  return createUpdateTransaction(getUpdateTimestampGuard());
+}
+
+UpdateTimestampGuard NeugDBSession::getUpdateTimestampGuard() {
+  return UpdateTimestampGuard::Acquire(*version_manager_);
+}
+
+UpdateTransaction NeugDBSession::createUpdateTransaction(
+    UpdateTimestampGuard timestamp_guard) {
+  auto cow_graph = snapshot_store_.CurrentSnapshot().Clone();
+  return neug::UpdateTransaction(std::move(cow_graph), alloc_, wal_writer_,
+                                 std::move(timestamp_guard), snapshot_store_,
+                                 pipeline_cache_);
 }
 
 Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
                       const NeugDBConfig& db_config) {
+  if (flags.checkpoint() && mode != AccessMode::kUpdate) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "CHECKPOINT only accepts the default or update/u access "
+                  "mode");
+  }
   if (db_config.mode == DBMode::READ_ONLY) {
     if (!IsReadOnlyExecutionFlag(flags) || mode != AccessMode::kRead) {
       return neug::Status(
@@ -109,30 +126,23 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
   return Status::OK();
 }
 
-template <typename Transaction>
-inline neug::result<execution::Context> ExecutePipelineInTransaction(
-    execution::LocalQueryCache& pipeline_cache, const GraphStats& stats,
-    const std::string& query, AccessMode mode, const NeugDBConfig& db_config,
-    const rapidjson::Document& param_json_obj, neug::MetaDatas& result_schema,
-    Transaction& txn, IStorageInterface& storage_interface,
-    neug::QueryResponse* response) {
-  GS_AUTO(cache_value, pipeline_cache.Get(stats, query));
-  assert(cache_value != nullptr);
+inline neug::result<execution::Context> ExecutePreparedPipeline(
+    execution::CacheValue& cache_value, AccessMode mode,
+    const NeugDBConfig& db_config, const rapidjson::Document& param_json_obj,
+    IStorageInterface& storage_interface, neug::QueryResponse* response) {
   RETURN_STATUS_ERROR_IF_NOT_OK(
-      validate_flags(mode, cache_value->flags, db_config));
+      validate_flags(mode, cache_value.flags, db_config));
 
-  result_schema = cache_value->result_schema;
   auto params_map =
-      ParamsParser::ParseFromJsonObj(cache_value->params_type, param_json_obj);
-  const auto explain_mode = cache_value->explain_mode;
+      ParamsParser::ParseFromJsonObj(cache_value.params_type, param_json_obj);
+  const auto explain_mode = cache_value.explain_mode;
 
   // ================ EXPLAIN MODE =================
   // Build the operator tree only; the query is not executed.
   if (explain_mode == physical::ExplainMode::EXPLAIN) {
     auto tree_result =
-        cache_value->pipeline.explain_tree(storage_interface, params_map);
+        cache_value.pipeline.explain_tree(storage_interface, params_map);
     if (!tree_result) {
-      txn.Abort();
       RETURN_ERROR(tree_result.error());
     }
     if (tree_result.value()) {
@@ -140,10 +150,6 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
           execution::OprTimer::ToProfileResult(tree_result.value().get());
     }
     response->set_row_count(0);
-    if (!txn.Commit()) {
-      LOG(ERROR) << "transaction commit failed.";
-      RETURN_ERROR(neug::Status::InternalError("Transaction commit failed."));
-    }
     // Empty context: no data rows are produced for EXPLAIN.
     return execution::Context();
   }
@@ -154,15 +160,10 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
     timer_ptr = std::make_unique<execution::OprTimer>();
   }
 
-  auto ctx_res = cache_value->pipeline.Execute(
+  auto ctx_res = cache_value.pipeline.Execute(
       storage_interface, execution::Context(), params_map, timer_ptr.get());
   if (!ctx_res) {
-    txn.Abort();
     RETURN_ERROR(ctx_res.error());
-  }
-  if (!txn.Commit()) {
-    LOG(ERROR) << "transaction commit failed.";
-    RETURN_ERROR(neug::Status::InternalError("Transaction commit failed."));
   }
 
   if (explain_mode == physical::ExplainMode::PROFILE && timer_ptr) {
@@ -172,9 +173,23 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
   return ctx_res;
 }
 
+template <typename Transaction>
+inline Status CommitTransaction(Transaction& txn) {
+  if (!txn.Commit()) {
+    LOG(ERROR) << "transaction commit failed.";
+    return Status::InternalError("Transaction commit failed.");
+  }
+  return Status::OK();
+}
+
 neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
   const auto start = std::chrono::high_resolution_clock::now();
 
+  // Concurrency boundary: SessionGuard prevents reuse of this session, but it
+  // does not synchronize with checkpoint maintenance. Until Get*Transaction()
+  // acquires a VersionManager lease, do not access snapshot_store_, alloc_,
+  // wal_writer_, or other checkpoint-rotated state. Keep only
+  // request-local parsing and access-mode analysis in this pre-lease region.
   std::string query;
   AccessMode mode = AccessMode::kUnKnown;
   rapidjson::Document param_json_obj;
@@ -197,34 +212,94 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
   neug::QueryResponse* response =
       google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
 
-  neug::MetaDatas result_schema;
   if (mode == neug::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
     neug::StorageReadInterface gri(read_txn.view(), read_txn.timestamp());
-    GS_AUTO(ctx,
-            ExecutePipelineInTransaction(
-                pipeline_cache_, read_txn.statistic(), query, mode, db_config_,
-                param_json_obj, result_schema, read_txn, gri, response));
-    response->mutable_schema()->CopyFrom(result_schema);
+    GS_AUTO(cache_value, pipeline_cache_.Get(read_txn.statistic(), query));
+    GS_AUTO(ctx, ExecutePreparedPipeline(*cache_value, mode, db_config_,
+                                         param_json_obj, gri, response));
+    response->mutable_schema()->CopyFrom(cache_value->result_schema);
     neug::execution::Sink::sink_results(ctx, gri, response);
+    // StorageReadInterface and graph-backed result columns reference the
+    // transaction's pinned GraphView. Keep the read lease until result
+    // materialization has finished so checkpoint/compact cannot reopen the
+    // graph underneath the sink.
+    RETURN_STATUS_ERROR_IF_NOT_OK(CommitTransaction(read_txn));
   } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     neug::StorageTPInsertInterface gii(insert_txn);
-    GS_AUTO(ctx, ExecutePipelineInTransaction(
-                     pipeline_cache_, insert_txn.statistic(), query, mode,
-                     db_config_, param_json_obj, result_schema, insert_txn, gii,
-                     response));
+    GS_AUTO(cache_value, pipeline_cache_.Get(insert_txn.statistic(), query));
+    GS_AUTO(ctx, ExecutePreparedPipeline(*cache_value, mode, db_config_,
+                                         param_json_obj, gii, response));
+    (void) ctx;
+    RETURN_STATUS_ERROR_IF_NOT_OK(CommitTransaction(insert_txn));
   } else if (mode == AccessMode::kUpdate ||
              mode == AccessMode::kSchema) {  // Update mode
     CHECK(planner_ != nullptr);
-    auto update_txn = GetUpdateTransaction();
-    neug::StorageTPUpdateInterface gui(update_txn);
-    GS_AUTO(ctx, ExecutePipelineInTransaction(
-                     pipeline_cache_, update_txn.statistic(), query, mode,
-                     db_config_, param_json_obj, result_schema, update_txn, gui,
-                     response));
-    response->mutable_schema()->CopyFrom(result_schema);
-    neug::execution::Sink::sink_results(ctx, gui, response);
+    // Peek the plan under a short-lived read lease. EXPLAIN only builds the
+    // operator tree and never touches storage, so it is served without the
+    // global update lease and without a COW clone.
+    auto peek_txn = GetReadTransaction();
+    GS_AUTO(peek_value, pipeline_cache_.Get(peek_txn.statistic(), query));
+
+    if (peek_value->explain_mode == physical::ExplainMode::EXPLAIN) {
+      neug::StorageReadInterface gri(peek_txn.view(), peek_txn.timestamp());
+      GS_AUTO(ctx, ExecutePreparedPipeline(*peek_value, mode, db_config_,
+                                           param_json_obj, gri, response));
+      (void) ctx;
+      response->mutable_schema()->CopyFrom(peek_value->result_schema);
+      RETURN_STATUS_ERROR_IF_NOT_OK(CommitTransaction(peek_txn));
+    } else {
+      // Release the read lease before acquiring the update lease: another
+      // updater's commit phase drains readers, and spinning on the update
+      // state while holding a read timestamp would self-deadlock.
+      RETURN_STATUS_ERROR_IF_NOT_OK(CommitTransaction(peek_txn));
+      auto timestamp_guard = getUpdateTimestampGuard();
+      // Re-fetch under the update lease: the snapshot may have rotated since
+      // the peek, so the plan must match the snapshot the update clones.
+      GS_AUTO(cache_value,
+              pipeline_cache_.Get(GraphStats(snapshot_store_.CurrentSnapshot()),
+                                  query));
+
+      if (cache_value->flags.checkpoint()) {
+        RETURN_STATUS_ERROR_IF_NOT_OK(
+            validate_flags(mode, cache_value->flags, db_config_));
+
+        const bool profile_checkpoint =
+            cache_value->explain_mode == physical::ExplainMode::PROFILE;
+        execution::OprTimer checkpoint_timer;
+        execution::TimerUnit checkpoint_timer_unit;
+        if (profile_checkpoint) {
+          checkpoint_timer.set_name("Checkpoint");
+          checkpoint_timer_unit.start();
+        }
+
+        auto checkpoint_status =
+            checkpoint_coordinator_.ExecuteTpManual(std::move(timestamp_guard));
+        if (!checkpoint_status.ok()) {
+          RETURN_ERROR(checkpoint_status);
+        }
+
+        response->set_row_count(0);
+        response->mutable_schema()->CopyFrom(cache_value->result_schema);
+        if (profile_checkpoint) {
+          checkpoint_timer.record(checkpoint_timer_unit);
+          *response->mutable_profile_result() =
+              execution::OprTimer::ToProfileResult(&checkpoint_timer);
+        }
+      } else {
+        auto update_txn = createUpdateTransaction(std::move(timestamp_guard));
+        neug::StorageTPUpdateInterface gui(update_txn);
+        GS_AUTO(ctx, ExecutePreparedPipeline(*cache_value, mode, db_config_,
+                                             param_json_obj, gui, response));
+        response->mutable_schema()->CopyFrom(cache_value->result_schema);
+        neug::execution::Sink::sink_results(ctx, gui, response);
+        // StorageTPUpdateInterface references the transaction's COW graph and
+        // GraphView, which are reset by Commit(). Materialize the response
+        // first.
+        RETURN_STATUS_ERROR_IF_NOT_OK(CommitTransaction(update_txn));
+      }
+    }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +
@@ -244,8 +319,8 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
 int NeugDBSession::SessionId() const { return thread_id_; }
 
 neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
-  neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
-  return neug::CompactTransaction(db_.graph_snapshot_store(), logger_,
+  auto ts = version_manager_->acquire_compact_timestamp();
+  return neug::CompactTransaction(snapshot_store_, wal_writer_,
                                   *version_manager_, ts);
 }
 
@@ -254,5 +329,9 @@ double NeugDBSession::eval_duration() const {
 }
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
+
+void NeugDBSession::InvalidateGlobalQueryCache() {
+  pipeline_cache_.clearGlobalCache();
+}
 
 }  // namespace neug

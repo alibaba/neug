@@ -14,9 +14,16 @@
  */
 #pragma once
 
+#include <cstdlib>
+#include <deque>
+#include <exception>
+#include <memory>
+#include <new>
+#include <string>
+#include <vector>
+
 #include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
-#include "neug/main/neug_db.h"
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
@@ -25,24 +32,34 @@
 #include "bthread/bthread.h"
 
 namespace neug {
-class NeugDBService;
+class CheckpointCoordinator;
+class SessionPool;
 
-struct SessionLocalContext {
+inline constexpr size_t kSessionContextAlignment = 4096;
+
+struct alignas(kSessionContextAlignment) SessionLocalContext {
   SessionLocalContext(
-      NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
+      GraphSnapshotStore& snapshot_store,
+      std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<Allocator> alloc,
       std::shared_ptr<IVersionManager> version_manager, int thread_id,
-      std::unique_ptr<IWalWriter> in_logger, const NeugDBConfig& config_)
+      std::unique_ptr<IWalWriter> in_logger, const std::string& wal_uri,
+      CheckpointCoordinator& checkpoint_coordinator,
+      const NeugDBConfig& config_)
       : allocator(alloc),
         logger(std::move(in_logger)),
-        session(db, planner, global_query_cache, version_manager, *alloc,
-                *logger, config_, thread_id) {
-    logger->open();
+        session(snapshot_store, planner, global_query_cache, version_manager,
+                *alloc, *logger, checkpoint_coordinator, config_, thread_id) {
+    logger->open(wal_uri);
   }
   ~SessionLocalContext() {
     if (logger) {
-      logger->close();
+      try {
+        logger->close();
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "Failed to close session WAL writer: " << e.what();
+      } catch (...) { LOG(WARNING) << "Failed to close session WAL writer"; }
     }
   }
   std::shared_ptr<Allocator> allocator;
@@ -54,7 +71,8 @@ struct SessionLocalContext {
   char _padding2[(4096 - sizeof(NeugDBSession) % 4096) % 4096];
 };
 
-class SessionPool;
+static_assert(alignof(SessionLocalContext) == kSessionContextAlignment);
+static_assert(sizeof(SessionLocalContext) % kSessionContextAlignment == 0);
 
 /**
  * @brief RAII guard for session lifecycle management.
@@ -77,6 +95,8 @@ class SessionPool;
  *
  * **Thread Safety:** SessionGuard is move-only (non-copyable) to ensure
  * exclusive session ownership. Each guard should be used by a single thread.
+ * It only prevents concurrent reuse of a pool slot; it is not a VersionManager
+ * lease and does not exclude checkpoint or compaction maintenance.
  *
  * @see SessionPool for session pool management
  * @see NeugDBSession for query execution
@@ -139,28 +159,51 @@ class SessionGuard {
  */
 class SessionPool {
  public:
+  // checkpoint_coordinator is only forwarded to each NeugDBSession so that
+  // a session can initiate a database-wide checkpoint directly; the pool
+  // itself does not participate in the checkpoint protocol.
   explicit SessionPool(
-      NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
+      GraphSnapshotStore& snapshot_store,
+      CheckpointCoordinator& checkpoint_coordinator,
+      std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<IVersionManager> version_manager,
-      std::vector<std::shared_ptr<Allocator>>& allocators,
-      const NeugDBConfig& config) {
-    session_num_ = config.max_thread_num;
+      const std::vector<std::shared_ptr<Allocator>>& allocators,
+      const std::string& wal_uri, const NeugDBConfig& config)
+      : contexts_(nullptr), session_num_(config.max_thread_num) {
     WalWriterFactory::Init();
-    contexts_ = static_cast<SessionLocalContext*>(aligned_alloc(
-        4096, sizeof(SessionLocalContext) * config.max_thread_num));
-    for (int i = 0; i < config.max_thread_num; ++i) {
-      new (&contexts_[i]) SessionLocalContext(
-          db, planner, global_query_cache, allocators[i], version_manager, i,
-          WalWriterFactory::CreateWalWriter(db.graph().checkpoint().wal_dir(),
-                                            i),
-          config);
-    }
-    bthread_cond_init(&cond_, nullptr);
-    bthread_mutex_init(&mutex_, nullptr);
     for (size_t i = 0; i < session_num_; ++i) {
       available_sessions_.push_back(i);
     }
+
+    contexts_ = static_cast<SessionLocalContext*>(
+        aligned_alloc(kSessionContextAlignment,
+                      sizeof(SessionLocalContext) * config.max_thread_num));
+    if (contexts_ == nullptr) {
+      throw std::bad_alloc();
+    }
+
+    size_t constructed_contexts = 0;
+    try {
+      for (; constructed_contexts < session_num_; ++constructed_contexts) {
+        const auto thread_id = static_cast<int>(constructed_contexts);
+        new (&contexts_[constructed_contexts]) SessionLocalContext(
+            snapshot_store, planner, global_query_cache,
+            allocators.at(constructed_contexts), version_manager, thread_id,
+            WalWriterFactory::CreateWalWriter(wal_uri, thread_id), wal_uri,
+            checkpoint_coordinator, config);
+      }
+    } catch (...) {
+      while (constructed_contexts > 0) {
+        contexts_[--constructed_contexts].~SessionLocalContext();
+      }
+      free(contexts_);
+      contexts_ = nullptr;
+      throw;
+    }
+
+    bthread_cond_init(&cond_, nullptr);
+    bthread_mutex_init(&mutex_, nullptr);
     LOG(INFO) << "Initializing SessionPool with " << session_num_
               << " sessions.";
   }
@@ -199,12 +242,21 @@ class SessionPool {
     return ret;
   }
 
+  // Installs all service-owned state derived from a checkpoint: rotates every
+  // session-owned WAL writer to the new generation, then invalidates the
+  // global query cache through one session's local cache (every other session
+  // discards its local cache lazily on the next version check). Registered
+  // with CheckpointCoordinator as the activation handler at service startup;
+  // invoked on the TP manual checkpoint path after active transactions have
+  // been drained and the mandatory post-reopen handler has completed, while
+  // new transactions remain blocked, so cross-session WAL access is
+  // exclusive.
+  void RotateWalAndInvalidateCaches(const std::string& wal_uri);
+
  private:
   void ReleaseSession(size_t session_id);
 
   friend class SessionGuard;
-  friend class NeugDBService;
-
   SessionLocalContext* contexts_;
   size_t session_num_;
   std::deque<size_t> available_sessions_;

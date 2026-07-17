@@ -35,6 +35,7 @@
 #include "neug/storages/graph/property_graph_cow_state.h"
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/transaction_utils.h"
+#include "neug/transaction/update_timestamp_guard.h"
 #include "neug/transaction/wal/wal_builder.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -42,15 +43,14 @@
 namespace neug {
 
 class PropertyGraph;
-class IWalWriter;
-class IVersionManager;
 class Schema;
+class IWalWriter;
 
 /**
  * @brief Resource holder and lifecycle manager for update transactions.
  *
  * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
- * resources (WAL buffer, allocator, version manager, snapshot store).
+ * resources (WAL buffer, allocator, update timestamp guard, snapshot store).
  * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
  * which accesses UpdateTransaction's private members via friend declaration.
  *
@@ -78,19 +78,18 @@ class UpdateTransaction {
    *
    * @param cow_graph PropertyGraph COW clone
    * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
-   * @param vm Reference to version manager
+   * @param wal_writer Reference to the session-local WAL writer
+   * @param timestamp_guard RAII owner of the update timestamp
    * @param snapshot_store Reference to GraphSnapshotStore for commit
    * @param cache Reference to query cache
-   * @param timestamp Transaction timestamp
-   *
    * @note NeugDB is responsible for creating the COW copy via Clone()
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
-                    IWalWriter& logger, IVersionManager& vm,
+                    IWalWriter& wal_writer,
+                    UpdateTimestampGuard timestamp_guard,
                     GraphSnapshotStore& snapshot_store,
-                    execution::LocalQueryCache& cache, timestamp_t timestamp);
+                    execution::LocalQueryCache& cache);
 
   /**
    * @brief Destructor that calls Abort().
@@ -132,13 +131,13 @@ class UpdateTransaction {
   CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
     return cow_graph_->GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp_);
+                                                   edge_label, timestamp());
   }
 
   CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
     return cow_graph_->GetGenericIncomingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp_);
+                                                   edge_label, timestamp());
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
@@ -158,11 +157,10 @@ class UpdateTransaction {
   GraphView view_;
 
   Allocator& alloc_;
-  IWalWriter& logger_;
-  IVersionManager& vm_;
+  IWalWriter& wal_writer_;
+  UpdateTimestampGuard timestamp_guard_;
   GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
-  timestamp_t timestamp_;
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;
@@ -179,8 +177,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         ckp_(txn.ckp_),
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
-
-  void CreateCheckpoint() override;
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.

@@ -17,17 +17,40 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
-#include "neug/main/neug_db.h"
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/utils/pb_utils.h"
 
 namespace neug {
 
-result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
+namespace {
+
+// Validate JSON parameters against the declared parameter types and
+// build a typed ParamsMap; unknown keys are rejected.
+result<execution::ParamsMap> build_params_map(
+    const rapidjson::Value& parameters,
+    const execution::ParamsMetaMap& params_type) {
+  execution::ParamsMap params_map;
+  if (parameters.IsObject()) {
+    for (const auto& member : parameters.GetObject()) {
+      std::string key = member.name.GetString();
+      auto iter = params_type.find(key);
+      if (iter == params_type.end()) {
+        RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                                  "Unexpected parameter: " + key));
+      }
+      params_map.emplace(key, Value::FromJson(member.value, iter->second));
+    }
+  }
+  return params_map;
+}
+
+}  // namespace
+
+result<std::shared_ptr<execution::CacheValue>>
 QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
                                             const std::string& query_string,
-                                            const std::string& user_access_mode,
+                                            AccessMode access_mode,
                                             int32_t num_threads) {
   if (num_threads == 0) {
     num_threads = max_thread_num_;
@@ -40,13 +63,15 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
                               "Number of threads must be greater than 0"));
   }
 
-  auto access_mode = user_access_mode.empty()
-                         ? planner_->analyzeMode(query_string)
-                         : ParseAccessMode(user_access_mode);
   GraphStats stats(pg);
   GS_AUTO(cache_value, global_query_cache_->Get(stats, query_string));
   assert(cache_value);
   const auto& flags = cache_value->flags;
+  if (flags.checkpoint() && access_mode != AccessMode::kUpdate) {
+    RETURN_ERROR(neug::Status(
+        neug::StatusCode::ERR_INVALID_ARGUMENT,
+        "CHECKPOINT only accepts the default or update/u access mode"));
+  }
   // Explicit access_mode=read accepts read-only CALL (no procedure_call flag).
   // Unspecified mode: token-based analyzeMode still classifies CALL as update.
   if ((is_read_only_ || access_mode == AccessMode::kRead) &&
@@ -55,26 +80,29 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
         neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                      "Write queries are not supported in read-only mode"));
   }
-  return std::make_pair(access_mode, cache_value);
+  return cache_value;
 }
 
 result<QueryResult> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
-  SnapshotGuard guard(snapshot_store_);
-  GS_AUTO(access_mode_pipeline, check_and_retrieve_pipeline(
-                                    *guard.get().mutable_graph(), query_string,
-                                    user_access_mode, num_threads));
-  if (need_exclusive_lock(access_mode_pipeline.first)) {
+  const auto access_mode = resolve_access_mode(query_string, user_access_mode);
+  if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(guard, query_string, access_mode_pipeline.second,
-                            access_mode_pipeline.first, parameters,
-                            num_threads);
+    SnapshotGuard guard(snapshot_store_);
+    GS_AUTO(cache_value, check_and_retrieve_pipeline(
+                             *guard.get().mutable_graph(), query_string,
+                             access_mode, num_threads));
+    return execute_internal(guard, query_string, cache_value, access_mode,
+                            parameters, num_threads);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(guard, query_string, access_mode_pipeline.second,
-                            access_mode_pipeline.first, parameters,
-                            num_threads);
+    SnapshotGuard guard(snapshot_store_);
+    GS_AUTO(cache_value, check_and_retrieve_pipeline(
+                             *guard.get().mutable_graph(), query_string,
+                             access_mode, num_threads));
+    return execute_internal(guard, query_string, cache_value, access_mode,
+                            parameters, num_threads);
   }
 }
 
@@ -82,34 +110,25 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
                                             const std::string& user_access_mode,
                                             const rapidjson::Value& parameters,
                                             int32_t num_threads) {
-  SnapshotGuard guard(snapshot_store_);
-  GS_AUTO(access_mode_pipeline, check_and_retrieve_pipeline(
-                                    *guard.get().mutable_graph(), query_string,
-                                    user_access_mode, num_threads));
-  const auto& param_types = access_mode_pipeline.second->params_type;
-
-  execution::ParamsMap params_map;
-  if (parameters.IsObject()) {
-    for (const auto& member : parameters.GetObject()) {
-      std::string key = member.name.GetString();
-      auto iter = param_types.find(key);
-      if (iter == param_types.end()) {
-        RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                                  "Unexpected parameter: " + key));
-      }
-      params_map.emplace(key, Value::FromJson(member.value, iter->second));
-    }
-  }
-  if (need_exclusive_lock(access_mode_pipeline.first)) {
+  const auto access_mode = resolve_access_mode(query_string, user_access_mode);
+  if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(guard, query_string, access_mode_pipeline.second,
-                            access_mode_pipeline.first, params_map,
-                            num_threads);
+    SnapshotGuard guard(snapshot_store_);
+    GS_AUTO(cache_value, check_and_retrieve_pipeline(
+                             *guard.get().mutable_graph(), query_string,
+                             access_mode, num_threads));
+    GS_AUTO(params_map, build_params_map(parameters, cache_value->params_type));
+    return execute_internal(guard, query_string, cache_value, access_mode,
+                            params_map, num_threads);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(guard, query_string, access_mode_pipeline.second,
-                            access_mode_pipeline.first, params_map,
-                            num_threads);
+    SnapshotGuard guard(snapshot_store_);
+    GS_AUTO(cache_value, check_and_retrieve_pipeline(
+                             *guard.get().mutable_graph(), query_string,
+                             access_mode, num_threads));
+    GS_AUTO(params_map, build_params_map(parameters, cache_value->params_type));
+    return execute_internal(guard, query_string, cache_value, access_mode,
+                            params_map, num_threads);
   }
 }
 
@@ -120,7 +139,13 @@ result<QueryResult> QueryProcessor::execute_internal(
     const execution::ParamsMap& parameters, int32_t num_threads) {
   auto& slot = guard.get();
   auto& pg = *slot.mutable_graph();
-  StorageAPUpdateInterface graph(pg, slot.mutable_view(), 0, allocator_);
+  // Use the recovered WAL watermark as the visibility timestamp so data
+  // replayed from WAL (stamped with its original timestamp) stays visible;
+  // it returns to 0 together with the per-record timestamps after the next
+  // checkpoint.
+  StorageAPUpdateInterface graph(
+      pg, slot.mutable_view(),
+      checkpoint_coordinator_.recovered_wal_timestamp(), allocator_);
 
   google::protobuf::Arena arena;
   neug::QueryResponse* response =
@@ -132,6 +157,36 @@ result<QueryResult> QueryProcessor::execute_internal(
   if (explain_mode == physical::ExplainMode::EXPLAIN) {
     return execute_explain_mode(query_string, cache_value, parameters, graph,
                                 access_mode, pg, arena);
+  }
+
+  if (cache_value->flags.checkpoint()) {
+    // The ordinary pin was needed for compilation. Release it before
+    // checkpoint maintenance; the AP exclusive query lock remains held.
+    guard.release();
+
+    const bool profile_checkpoint =
+        explain_mode == physical::ExplainMode::PROFILE;
+    execution::OprTimer checkpoint_timer;
+    execution::TimerUnit checkpoint_timer_unit;
+    if (profile_checkpoint) {
+      checkpoint_timer.set_name("Checkpoint");
+      checkpoint_timer_unit.start();
+    }
+
+    auto status = checkpoint_coordinator_.ExecuteApManual();
+    if (!status.ok()) {
+      RETURN_ERROR(status);
+    }
+    global_query_cache_->clear();
+
+    response->set_row_count(0);
+    response->mutable_schema()->CopyFrom(cache_value->result_schema);
+    if (profile_checkpoint) {
+      checkpoint_timer.record(checkpoint_timer_unit);
+      *response->mutable_profile_result() =
+          execution::OprTimer::ToProfileResult(&checkpoint_timer);
+    }
+    return QueryResult::From(response->SerializeAsString());
   }
 
   // ================ NORMAL/PROFILE EXECUTION =================
@@ -173,6 +228,15 @@ bool QueryProcessor::need_exclusive_lock(AccessMode access_mode) {
     return false;
   }
   return true;  // For Insert and Update operations
+}
+
+AccessMode QueryProcessor::resolve_access_mode(
+    const std::string& query_string,
+    const std::string& user_access_mode) const {
+  auto mode = user_access_mode.empty() ? AccessMode::kUnKnown
+                                       : ParseAccessMode(user_access_mode);
+  return mode == AccessMode::kUnKnown ? planner_->analyzeMode(query_string)
+                                      : mode;
 }
 
 void QueryProcessor::update_compiler_meta_if_needed(

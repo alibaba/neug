@@ -2995,8 +2995,8 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     // deployment target which this build doesn't set).
     //
     // The UpdateTransaction must be fully owned by the writer thread:
-    // GetUpdateTransaction acquires VersionManager's update_state_
-    // exclusively (CAS 0→1) and Commit resets it (→0).
+    // GetUpdateTransaction changes VersionManager's update state from 0 to 1,
+    // and Commit restores it to 0.
     // Acquire+stage before the barrier preserves the
     // "post-race value staged in cow_graph" timing the test wants.
     std::atomic<int> ready{0};

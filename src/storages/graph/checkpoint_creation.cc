@@ -13,32 +13,35 @@
  * limitations under the License.
  */
 
-#include "neug/storages/checkpoint_session.h"
+#include "neug/storages/checkpoint_creation.h"
 
 #include <glog/logging.h>
-#include <utility>
 
 #include "neug/storages/checkpoint.h"
+#include "neug/storages/graph/property_graph.h"
 
 namespace neug {
 
-CheckpointSession::CheckpointSession(
-    CheckpointManager::StagingCheckpoint staging_checkpoint)
-    : staging_checkpoint_(std::move(staging_checkpoint)) {}
+CheckpointCreation::CheckpointCreation(CheckpointManager& checkpoint_manager)
+    : staging_checkpoint_(checkpoint_manager.CreateStagingCheckpoint()) {}
 
-CheckpointSession::~CheckpointSession() { staging_checkpoint_.Discard(); }
+CheckpointCreation::~CheckpointCreation() { staging_checkpoint_.Discard(); }
 
-CheckpointSession CheckpointSession::Begin(CheckpointManager& checkpoint_mgr) {
-  auto staging_checkpoint = checkpoint_mgr.CreateStagingCheckpoint();
-
-  return CheckpointSession(std::move(staging_checkpoint));
-}
-
-std::shared_ptr<Checkpoint> CheckpointSession::staging_checkpoint() const {
+std::shared_ptr<Checkpoint> CheckpointCreation::StagingCheckpoint() const {
   return staging_checkpoint_.checkpoint();
 }
 
-std::shared_ptr<Checkpoint> CheckpointSession::Commit() {
+std::string CheckpointCreation::TargetPublishedPath() const {
+  return staging_checkpoint_.TargetPublishedPath();
+}
+
+void CheckpointCreation::BuildFrom(PropertyGraph& graph,
+                                   timestamp_t compact_timestamp) {
+  graph.Compact(compact_timestamp);
+  graph.DumpAndClear(StagingCheckpoint());
+}
+
+std::shared_ptr<Checkpoint> CheckpointCreation::Publish() {
   if (published_checkpoint_ != nullptr) {
     return published_checkpoint_;
   }

@@ -15,6 +15,7 @@
 #include "neug/server/neug_db_service.h"
 
 #include <glog/logging.h>
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/server/brpc_service_mgr.h"
 
 #define STRINGIFY(x) #x
@@ -49,16 +50,26 @@ void NeugDBService::init(const ServiceConfig& config) {
 
   version_manager_ = std::make_shared<neug::VersionManager>();
   version_manager_->init_ts(
-      db_.last_ts_,
+      db_.checkpoint_coordinator().recovered_wal_timestamp(),
       db_config_.max_thread_num);  // We assume versions start from 1.
 
   session_pool_ = std::make_unique<neug::SessionPool>(
-      db_, db_.GetPlanner(), db_.GetQueryCache(), version_manager_,
-      db_.allocators_, db_config_);
+      db_.graph_snapshot_store(), db_.checkpoint_coordinator(),
+      db_.GetPlanner(), db_.GetQueryCache(), version_manager_, db_.allocators_,
+      db_.graph().checkpoint().wal_dir(), db_config_);
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
   hdl_mgr_->Init(config);
+
   service_config_ = config;
+
+  // Install the service-owned checkpoint activation handler last so a failed
+  // init() cannot leave the coordinator referencing a destroyed session pool
+  // (~NeugDBService does not run if this constructor throws).
+  db_.checkpoint_coordinator().SetActivationHandler(
+      [pool = session_pool_.get()](const std::string& wal_uri) {
+        pool->RotateWalAndInvalidateCaches(wal_uri);
+      });
 }
 
 NeugDBService::~NeugDBService() {
@@ -66,6 +77,13 @@ NeugDBService::~NeugDBService() {
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
+  }
+  // Clear before destroying the session pool referenced by the handler.
+  // ClearActivationHandler() waits for an in-flight invocation to finish.
+  // NeugDB::Close() destroys the coordinator and its handler, so the service
+  // may outlive a closed database without trying to clear it.
+  if (db_.checkpoint_coordinator_) {
+    db_.checkpoint_coordinator().ClearActivationHandler();
   }
 }
 

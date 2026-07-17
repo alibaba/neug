@@ -16,6 +16,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -166,5 +167,14 @@ class Checkpoint {
   std::unique_ptr<CheckpointManifest> meta_;
   std::unique_ptr<CheckpointFileManager> file_mgr_;
 };
+
+/// File name prefix for the allocator with @p allocator_id under
+/// @p allocator_dir, e.g. `<allocator_dir>/allocator_3_`.
+inline std::string allocator_prefix(const std::string& allocator_dir,
+                                    size_t allocator_id) {
+  return (std::filesystem::path(allocator_dir) /
+          ("allocator_" + std::to_string(allocator_id) + "_"))
+      .string();
+}
 
 }  // namespace neug

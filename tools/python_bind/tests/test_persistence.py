@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import csv
 import logging
 import shutil
 
@@ -25,6 +26,97 @@ from neug.database import Database
 from neug.session import Session
 
 logger = logging.getLogger(__name__)
+
+_ISSUE_651_FILE_ID = "b31986a61becd3c2c030ccadeca6f1f4a2419ffb"
+_ISSUE_651_FUNCTION_ID = "78ff0eb259fb0b9e7d24c5342ef277196ce8e4ad"
+
+
+def _write_csv(path, columns, row):
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=columns, quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+        writer.writerow(row)
+
+
+def _scalar(executor, query):
+    records = list(executor.execute(query))
+    assert records, f"Expected at least one row for query: {query}"
+    return records[0][0]
+
+
+def _published_checkpoint_dirs(db_dir):
+    return sorted(
+        path
+        for path in db_dir.iterdir()
+        if path.is_dir()
+        and path.name.startswith("checkpoint-")
+        and not path.name.endswith(".next")
+    )
+
+
+def _assert_single_published_checkpoint(db_dir, expected_generation=None):
+    checkpoints = _published_checkpoint_dirs(db_dir)
+    assert len(checkpoints) == 1
+    assert not any(path.name.endswith(".next") for path in db_dir.iterdir())
+    if expected_generation is not None:
+        assert checkpoints[0].name == f"checkpoint-{expected_generation}"
+
+
+def _create_issue_651_schema(executor):
+    for table in ["File", "Function", "Class", "Module"]:
+        executor.execute(f"CREATE NODE TABLE {table}(id STRING, PRIMARY KEY(id));")
+    executor.execute("CREATE REL TABLE DEFINES_FUNC(FROM File TO Function);")
+    executor.execute("CREATE REL TABLE DEFINES_CLASS(FROM File TO Class);")
+    executor.execute("CREATE REL TABLE BELONGS_TO(FROM File TO Module);")
+
+
+def _assert_issue_651_pk_lookups(executor):
+    assert _scalar(executor, "MATCH (n:File) RETURN count(n);") == 1
+    assert (
+        _scalar(
+            executor,
+            f"MATCH (n:File {{id: '{_ISSUE_651_FILE_ID}'}}) RETURN count(n);",
+        )
+        == 1
+    )
+    assert _scalar(executor, "MATCH (n:Function) RETURN count(n);") == 1
+    assert (
+        _scalar(
+            executor,
+            f"MATCH (n:Function {{id: '{_ISSUE_651_FUNCTION_ID}'}}) RETURN count(n);",
+        )
+        == 1
+    )
+
+
+def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path, db_dir):
+    file_csv = tmp_path / "File.csv"
+    function_csv = tmp_path / "Function.csv"
+    _write_csv(file_csv, ["id"], {"id": _ISSUE_651_FILE_ID})
+    _write_csv(function_csv, ["id"], {"id": _ISSUE_651_FUNCTION_ID})
+
+    _create_issue_651_schema(executor)
+    executor.execute(
+        f'COPY File FROM "{file_csv}" ' '(header=true, delim=",", escaping=false);'
+    )
+    executor.execute("CHECKPOINT;")
+    _assert_single_published_checkpoint(db_dir, 1)
+    assert _scalar(executor, "MATCH (n:File) RETURN count(n);") == 1
+    assert (
+        _scalar(
+            executor,
+            f"MATCH (n:File {{id: '{_ISSUE_651_FILE_ID}'}}) RETURN count(n);",
+        )
+        == 1
+    )
+
+    executor.execute(
+        f'COPY Function FROM "{function_csv}" '
+        '(header=true, delim=",", escaping=false);'
+    )
+    executor.execute("CHECKPOINT;")
+    _assert_single_published_checkpoint(db_dir, 2)
+    _assert_issue_651_pk_lookups(executor)
 
 
 def test_checkpoint(tmp_path):
@@ -116,6 +208,55 @@ def test_dirty_vertex_links_clean_edge_on_close(tmp_path):
     assert edges == [[1, 2, 0.5]]
     conn.close()
     db.close()
+
+
+def test_ap_checkpoint_preserves_pk_lookup_after_copy_between_checkpoints(tmp_path):
+    db_dir = tmp_path / "test_issue_651_ap_checkpoint_pk_lookup"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        _run_issue_651_checkpoint_copy_scenario(conn, tmp_path, db_dir)
+    finally:
+        conn.close()
+        db.close()
+
+    reopened_db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    reopened_conn = reopened_db.connect()
+    try:
+        _assert_issue_651_pk_lookups(reopened_conn)
+        _assert_single_published_checkpoint(db_dir, 2)
+    finally:
+        reopened_conn.close()
+        reopened_db.close()
+
+
+def test_ap_checkpoint_access_modes_and_explain_profile(tmp_path):
+    db_dir = tmp_path / "test_checkpoint_access_modes"
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        before_explain = _published_checkpoint_dirs(db_dir)
+        explain = conn.execute("EXPLAIN CHECKPOINT;")
+        assert explain.has_profile_result()
+        assert _published_checkpoint_dirs(db_dir) == before_explain
+
+        conn.execute("CHECKPOINT;", access_mode="update")
+        conn.execute("CHECKPOINT;", access_mode="u")
+
+        for mode in ["read", "r", "insert", "i", "schema", "s"]:
+            with pytest.raises(Exception, match="CHECKPOINT only accepts"):
+                conn.execute("CHECKPOINT;", access_mode=mode)
+
+        profile = conn.execute("PROFILE CHECKPOINT;")
+        assert profile.has_profile_result()
+        metrics = profile.get_profile_metrics()
+        assert len(metrics["operators"]) == 1
+        assert metrics["operators"][0]["operator_name"] == "Checkpoint"
+        _assert_single_published_checkpoint(db_dir, 3)
+    finally:
+        conn.close()
+        db.close()
 
 
 def test_recreate_vertex(tmp_path):

@@ -17,7 +17,7 @@
 
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
-#include "neug/utils/pb_utils.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
@@ -29,8 +29,14 @@ std::string Connection::GetSchema() const {
   }
   SnapshotGuard guard(snapshot_store_);
   auto yaml = guard.get().mutable_graph()->schema().to_yaml();
-  std::string ret = neug::get_json_string_from_yaml(yaml.value()).value();
-  return ret;
+  if (!yaml) {
+    THROW_RUNTIME_ERROR("Failed to get schema." + yaml.error().ToString());
+  }
+  auto schema = get_json_string_from_yaml(yaml.value());
+  if (!schema) {
+    THROW_RUNTIME_ERROR("Failed to get schema." + schema.error().ToString());
+  }
+  return std::move(schema).value();
 }
 
 void Connection::Close() {

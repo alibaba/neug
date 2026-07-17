@@ -59,10 +59,20 @@ Open the database from persistent storage.
 
 Initializes and opens the NeuG database from the specified data directory. This method loads the graph schema, vertex/edge data, and initializes the query processor and planner.
 
-**Data Directory Structure:** The data_dir should contain:
-- `graph.yaml`: `Schema` definition file
-- `snapshot/`: Vertex and edge data files
-- `wal/`: Write-ahead log files (optional, for recovery)
+**Data Directory Structure:** Persistent state is organized into numbered checkpoint generations:
+
+```text
+data_dir/
+├── checkpoint-N/
+│   ├── meta
+│   ├── snapshot/
+│   ├── runtime/
+│   ├── allocator/
+│   └── wal/
+└── checkpoint-(N+1).next/  # transient staging generation, when present
+```
+
+NeuG opens the highest valid published generation. A `.next` directory is not visible as the current checkpoint and is cleaned up during writable recovery if checkpoint creation did not complete.
 
 **Usage Example:** 
 ```cpp
@@ -135,7 +145,8 @@ db.Close();  // Persist data and cleanup
 
 - **Notes:**
   - This method is idempotent - calling it multiple times is safe.
-  - After closing, the database cannot be reopened. Create a new `NeugDB` instance to open the database again.
+  - After closing, the same `NeugDB` instance can be opened again.
+  - Checkpoint-on-close is best effort. If it fails, `Close()` logs an error, suppresses the exception, and continues releasing resources.
 
 - **Since:** v0.1.0
 

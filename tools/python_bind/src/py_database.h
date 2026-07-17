@@ -60,7 +60,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
     database->Open(config);
   }
 
-  ~PyDatabase() { close(); }
+  ~PyDatabase() noexcept;
 
   PyConnection connect();
 
