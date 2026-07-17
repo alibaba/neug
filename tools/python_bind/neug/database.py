@@ -339,6 +339,12 @@ class Database(object):
             )
         except KeyboardInterrupt:
             self.stop_serving()
+            raise
+        except Exception:
+            self._serving = False
+            raise
+        if blocking:
+            self._serving = False
         return endpoint
 
     def stop_serving(self):
