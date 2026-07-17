@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * 	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@
 #include "neug/common/types.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/table/table_function.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 
@@ -34,6 +35,8 @@ class Context;
 namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
+  // Resolve deferred $param args against query ParamsMap before execFunc.
+  virtual void bindParams(const execution::ParamsMap& /*params*/) {}
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
