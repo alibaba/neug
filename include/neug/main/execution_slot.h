@@ -32,7 +32,9 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -44,6 +46,7 @@ class Encoder;
 class PropertyGraph;
 class RefColumnBase;
 class AppManager;
+class CheckpointCoordinator;
 class IVersionManager;
 class NeugDB;
 class ExecutionSlot;
@@ -232,8 +235,9 @@ class ExecutionSlot {
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 IVersionManager& vm, Allocator& alloc,
                 QueryExecutionStrategy execution_strategy,
-                IWalWriter* wal_writer, const NeugDBConfig& config_,
-                int slot_id)
+                IWalWriter* wal_writer,
+                CheckpointCoordinator& checkpoint_coordinator,
+                const NeugDBConfig& config_, int slot_id)
       : snapshot_store_(snapshot_store),
         planner_(planner),
         pipeline_cache_(global_query_cache),
@@ -241,6 +245,7 @@ class ExecutionSlot {
         alloc_(alloc),
         execution_strategy_(execution_strategy),
         wal_writer_(wal_writer),
+        checkpoint_coordinator_(checkpoint_coordinator),
         db_config_(config_),
         slot_id_(slot_id),
         eval_duration_(0),
@@ -257,6 +262,8 @@ class ExecutionSlot {
   Status validatePlan(AccessMode mode,
                       const physical::ExecutionFlag& flags) const;
 
+  Status validateCheckpointRequest(AccessMode access_mode) const;
+
   Status executeCore(const std::string& query, AccessMode requested_mode,
                      const rapidjson::Value& parameters, int32_t num_threads,
                      QueryResponse& response);
@@ -268,6 +275,7 @@ class ExecutionSlot {
   Allocator& alloc_;
   const QueryExecutionStrategy execution_strategy_;
   IWalWriter* const wal_writer_;
+  CheckpointCoordinator& checkpoint_coordinator_;
   const NeugDBConfig& db_config_;
   int slot_id_;
 

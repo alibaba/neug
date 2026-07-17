@@ -26,6 +26,19 @@
 
 namespace neug {
 
+enum class QueryKind {
+  kRegular,
+  kCheckpoint,
+};
+
+struct QueryAnalysis {
+  AccessMode access_mode = AccessMode::kRead;
+  physical::ExplainMode explain_mode = physical::ExplainMode::NONE;
+  QueryKind kind = QueryKind::kRegular;
+
+  bool checkpoint() const { return kind == QueryKind::kCheckpoint; }
+};
+
 /**
  * @brief Graph planner interface. Receive the cypher query, and generate the
  * executable plan.
@@ -47,12 +60,10 @@ class IGraphPlanner {
       const std::string& query, const Schema* schema,
       const GraphStats& stats) = 0;
 
-  // Attempts to infer the execution access mode from the given query.
-  // The current implementation relies on static analysis of the query string
-  // and can only distinguish between "update" and "read" modes.
-  // Inferring an "insert" mode would require more complex operator
-  // combination analysis, which is not supported at the moment.
-  virtual AccessMode analyzeMode(const std::string& query) const = 0;
+  // Classifies schema-independent query properties without compiling a plan.
+  // Access-mode inference cannot distinguish insert from general update
+  // statements because that requires operator-combination analysis.
+  virtual QueryAnalysis analyzeQuery(const std::string& query) const = 0;
 };
 
 }  // namespace neug

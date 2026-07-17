@@ -70,9 +70,7 @@ class StubPlanner : public IGraphPlanner {
                         "StubPlanner does not compile plans");
   }
 
-  AccessMode analyzeMode(const std::string&) const override {
-    return AccessMode::kRead;
-  }
+  QueryAnalysis analyzeQuery(const std::string&) const override { return {}; }
 };
 
 class TPIndexTest : public ::testing::Test {

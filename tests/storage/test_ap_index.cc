@@ -203,6 +203,12 @@ class APIndexTest : public ::testing::Test {
         });
   }
 
+  void CheckpointGraph() {
+    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    graph_->DumpAndClear(staging.checkpoint());
+    staging.Commit();
+  }
+
   void CreatePersonTable() {
     CreateVertexTypeParamBuilder builder;
     auto status =
@@ -673,7 +679,7 @@ TEST_F(APIndexTest, IndexPersistsAfterCheckpointReopen) {
   EXPECT_EQ(SearchPersonNames(30),
             (std::vector<std::string>{"Alice", "Charlie"}));
 
-  ap_->CreateCheckpoint();
+  CheckpointGraph();
   ReopenGraph();
 
   EXPECT_NE(GetIndex("idx_person_age"), nullptr);
@@ -696,7 +702,7 @@ TEST_F(APIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   auto status = ap_->DeleteVertexType(person_label);
   ASSERT_TRUE(status.ok()) << status.ToString();
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
-  ap_->CreateCheckpoint();
+  CheckpointGraph();
   ReopenGraph();
 
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());

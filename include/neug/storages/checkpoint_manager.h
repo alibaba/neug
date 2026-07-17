@@ -106,19 +106,18 @@ class CheckpointManager {
   StagingCheckpoint CreateStagingCheckpoint();
 
   /**
-   * @brief Restore the in-memory current checkpoint to an older published
-   * checkpoint.
+   * @brief Point the manager at another already-published checkpoint.
    *
-   * Used by DB-level checkpoint creation after it removes a newer published
-   * checkpoint whose graph reopen failed.
+   * This is an explicit repair primitive. It does not undo a durable
+   * publication and is not used by the live checkpoint execution protocol.
    */
   void RestoreCurrentCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
 
   /**
    * @brief Best-effort cleanup of one published checkpoint that is not current.
    *
-   * Used by DB-level rollback after it restores the current checkpoint to a
-   * previous generation. Refuses to remove the current checkpoint.
+   * This is an explicit repair/maintenance primitive and refuses to remove the
+   * current checkpoint.
    */
   void CleanupPublishedCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
 

@@ -29,16 +29,21 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <mutex>
 #include <random>
 #include <thread>
 #include <utility>
 #include <vector>
 
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/timestamp_lease.h"
+#include "neug/transaction/version_manager.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"
 #include "unittest/utils.h"
 
@@ -108,6 +113,20 @@ Status PrepareAndPublishSnapshot(
   auto prepared = std::move(prepared_result).value();
   std::move(prepared).Publish();
   return Status::OK();
+}
+
+TEST_F(GraphSnapshotStoreConcurrencyTest,
+       MaintenanceAccessRejectsExistingReader) {
+  auto& pinned = store_->PinCurrentSnapshot();
+  CheckpointCoordinator coordinator(checkpoint_mgr_, *store_,
+                                    MemoryLevel::kInMemory,
+                                    [](const std::string&) {});
+  VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+  auto status = coordinator.PublishManualCheckpoint(
+      UpdateTimestampLease(version_manager));
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_INTERNAL_ERROR);
+  store_->UnpinSnapshot(pinned);
 }
 
 // 1. Heavy concurrent pin/unpin vs publish. Verifies PinCurrentSnapshot

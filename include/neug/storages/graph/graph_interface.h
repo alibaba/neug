@@ -862,11 +862,6 @@ class StorageUpdateInterface : public StorageReadInterface,
   }
 
   /**
-   * @brief Create a checkpoint of the current graph state.
-   */
-  virtual void CreateCheckpoint() = 0;
-
-  /**
    * @brief Create, bind, and populate an index.
    */
   virtual neug::result<StorageIndex*> CreateIndex(
@@ -944,8 +939,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         index_manager_(graph_.mutable_index_manager()),
         on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
-
-  void CreateCheckpoint() override;
 
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;

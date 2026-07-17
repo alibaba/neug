@@ -103,6 +103,7 @@ class ScriptedVersionManager : public IVersionManager {
   void drain_readers() override {}
   void finish_update_timestamp(uint32_t,
                                std::optional<uint32_t>) noexcept override {}
+  void finish_update_and_reset_timeline(uint32_t) noexcept override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
   void release_compact_timestamp(uint32_t) override {}
   void revert_compact_timestamp(uint32_t) override {}

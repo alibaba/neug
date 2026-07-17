@@ -2847,6 +2847,50 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
     EXPECT_EQ(cc_read_age(*svc, 999999), 42);
   }
 }
+
+TEST_F(NeugDBACIDTest, UpdateQueryPlansAfterPreviousUpdateCommits) {
+  std::string dir = work_dir_ + "/UpdatePlanSerialization";
+  NeugDB db;
+  auto svc = cc_init(db, dir, thread_num_);
+
+  auto first_slot = svc->AcquireExecutionSlot();
+  auto first_update = first_slot->GetUpdateTransaction();
+  StorageTPUpdateInterface first_storage(first_update);
+  CreateVertexTypeParamBuilder builder;
+  auto create_status = first_storage.CreateVertexType(
+      builder.VertexLabel("company")
+          .AddProperty("id", neug::Value::INT64(0))
+          .AddProperty("name", neug::Value::STRING(std::string("")))
+          .AddPrimaryKeyName("id")
+          .Build());
+  ASSERT_TRUE(create_status.ok()) << create_status.ToString();
+
+  std::atomic<bool> query_started{false};
+  std::atomic<bool> query_finished{false};
+  std::thread second_update([&] {
+    auto second_slot = svc->AcquireExecutionSlot();
+    query_started.store(true);
+    auto result = second_slot->ExecuteTransactionalRequest(
+        R"({"query":"MATCH (n:company) SET n.name = 'updated';","parameters":{}})");
+    if (!result) {
+      ADD_FAILURE() << result.error().ToString();
+    }
+    query_finished.store(true);
+  });
+
+  while (!query_started.load()) {
+    std::this_thread::yield();
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_FALSE(query_finished.load())
+      << "The second update must wait before planning against the committed "
+         "schema";
+
+  EXPECT_TRUE(first_update.Commit());
+  second_update.join();
+  EXPECT_TRUE(query_finished.load());
+}
+
 // Validates the design: a long-running ReadTransaction runs lock-free (no
 // mutex held during execution). A concurrent Update::Commit must therefore
 // complete promptly even while the reader is still pinned. This is the

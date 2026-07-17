@@ -50,6 +50,8 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
     return brpc::HTTP_STATUS_BAD_REQUEST;
   case neug::StatusCode::ERR_COMPILATION:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+  case neug::StatusCode::ERR_SERVICE_UNAVAILABLE:
+    return brpc::HTTP_STATUS_SERVICE_UNAVAILABLE;
   default:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   }
@@ -198,16 +200,26 @@ void InitializeBrpcServiceProtocols() {
 
 neug::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
     brpc::Controller* cntl) {
-  const auto& schema = neug_db_.schema();
-  auto yaml = schema.to_yaml();
+  (void) cntl;
+  auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
+  auto read_txn = slot_lease->GetReadTransaction();
+  auto yaml = read_txn.schema().to_yaml();
   if (!yaml) {
+    read_txn.Abort();
     RETURN_ERROR(yaml.error());
   }
-  return neug::get_json_string_from_yaml(yaml.value());
+  auto json = get_json_string_from_yaml(yaml.value());
+  if (!json) {
+    read_txn.Abort();
+    RETURN_ERROR(json.error());
+  }
+  read_txn.Commit();
+  return json;
 }
 
 neug::result<std::string> UnifiedServiceImpl::GetServiceStatusImpl(
     brpc::Controller* cntl) {
+  (void) cntl;
   // Implement the logic to get service status here
   // For now, return a placeholder string
   return std::string("{\"status\": \"OK\", \"version\": \"" NEUG_VERSION "\"}");

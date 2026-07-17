@@ -179,7 +179,7 @@ void GraphSnapshotStore::unpinSnapshotByIndex(int slot_index) noexcept {
   }
 }
 
-const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
+const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const noexcept {
   int slot_index = cur_slot_index_.load(std::memory_order_acquire);
   CHECK(slots_[slot_index].storage_ != nullptr);
   return *slots_[slot_index].storage_;
@@ -207,6 +207,56 @@ uint32_t GraphSnapshotStore::reserveSnapshotGeneration() {
       return current + 1;
     }
   }
+}
+
+GraphSnapshotStore::CheckpointMaintenanceContext::CheckpointMaintenanceContext(
+    SnapshotSlot& slot) noexcept
+    : slot_(slot) {}
+
+PropertyGraph&
+GraphSnapshotStore::CheckpointMaintenanceContext::MutableCurrentSnapshot() {
+  return *slot_.mutable_graph();
+}
+
+void GraphSnapshotStore::CheckpointMaintenanceContext::
+    ReopenCurrentGraphFromCheckpoint(std::shared_ptr<Checkpoint> checkpoint,
+                                     MemoryLevel memory_level) {
+  slot_.mutable_graph()->Open(std::move(checkpoint), memory_level);
+  slot_.mutable_view().Rebuild(*slot_.mutable_graph());
+}
+
+Status GraphSnapshotStore::WithCheckpointMaintenance(
+    CheckpointMaintenanceFn fn) {
+  CHECK(fn);
+  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
+  auto& slot = slots_[slot_index];
+  if (slot.reader_count_.load(std::memory_order_acquire) != 1) {
+    THROW_INTERNAL_EXCEPTION(
+        "Current graph snapshot is still pinned during maintenance");
+  }
+  if (cur_slot_index_.load(std::memory_order_acquire) != slot_index) {
+    THROW_INTERNAL_EXCEPTION(
+        "Current graph snapshot changed during maintenance");
+  }
+
+  // A checkpoint reopens the current PropertyGraph in place and may remove
+  // the checkpoint generations backing older snapshots. External quiescence
+  // must therefore have drained and reclaimed every non-current slot, not
+  // merely removed readers from the current one.
+  for (int i = 0; i < slot_num_; ++i) {
+    if (i == slot_index) {
+      continue;
+    }
+    if (slots_[i].reader_count_.load(std::memory_order_acquire) != 0 ||
+        slots_[i].storage_ != nullptr) {
+      THROW_INTERNAL_EXCEPTION(
+          "Stale graph snapshot remains live during maintenance");
+    }
+  }
+  CHECK(slot.storage_ != nullptr);
+
+  CheckpointMaintenanceContext context(slot);
+  return fn(context);
 }
 
 result<GraphSnapshotStore::PreparedSnapshot>

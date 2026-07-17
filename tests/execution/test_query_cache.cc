@@ -49,8 +49,9 @@ class BlockingPlanner final : public IGraphPlanner {
     return std::make_pair(std::move(plan), std::string{});
   }
 
-  AccessMode analyzeMode(const std::string&) const override {
-    return AccessMode::kRead;
+  QueryAnalysis analyzeQuery(const std::string&) const override {
+    return QueryAnalysis{AccessMode::kRead, physical::ExplainMode::NONE,
+                         QueryKind::kRegular};
   }
 
   bool WaitUntilBlockedCompileStarts() {

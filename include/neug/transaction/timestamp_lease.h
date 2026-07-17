@@ -43,15 +43,26 @@ class UpdateTimestampLease {
   void BeginCommit();
   void MakeUpdateExclusive();
   void Finish(std::optional<uint32_t> installed_snapshot_generation) noexcept;
+  /// Finish after storage and WAL have moved to a new timeline. The installed
+  /// snapshot generation is preserved while transaction visibility timestamps
+  /// restart from zero.
+  void FinishAndResetTimeline() noexcept;
 
  private:
+  enum class State {
+    kActive,
+    kCommitStarted,
+    kUpdateExclusive,
+    kInactive,
+  };
+
   void reset() noexcept;
 
   static constexpr uint32_t kInactiveTimestamp = UINT32_MAX;
 
   IVersionManager* version_manager_{nullptr};
   uint32_t timestamp_{kInactiveTimestamp};
-  bool commit_started_{false};
+  State state_{State::kInactive};
 };
 
 }  // namespace neug

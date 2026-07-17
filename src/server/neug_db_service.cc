@@ -20,6 +20,7 @@
 
 #include <bthread/bthread.h>
 
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/server/brpc_service_mgr.h"
 #include "neug/server/bthread_runtime_wait.h"
 #include "neug/transaction/version_manager.h"
@@ -81,12 +82,17 @@ void NeugDBService::init(const ServiceConfig& config) {
 
   execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
       db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
-      *db_.version_manager_, db_.allocators_,
+      *db_.version_manager_, *db_.checkpoint_coordinator_, db_.allocators_,
       db_.graph().checkpoint().wal_dir(), db_config_);
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
   hdl_mgr_->Init(config);
   service_config_ = config;
+
+  db_.checkpoint_coordinator_->SetActivationHandler(
+      [pool = execution_slot_pool_.get()](const std::string& wal_uri) {
+        pool->RotateWalWriters(wal_uri);
+      });
 }
 
 NeugDBService::~NeugDBService() {
@@ -94,6 +100,9 @@ NeugDBService::~NeugDBService() {
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
+  }
+  if (db_.checkpoint_coordinator_) {
+    db_.checkpoint_coordinator_->ClearActivationHandler();
   }
   execution_slot_pool_.reset();
   restoreNativeRuntimeWait();

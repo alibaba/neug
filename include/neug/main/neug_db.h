@@ -46,8 +46,7 @@
 namespace neug {
 class NeugDBService;
 class AppManager;
-class Checkpoint;
-class CheckpointSession;
+class CheckpointCoordinator;
 class Connection;
 class ConnectionManager;
 class FileLock;
@@ -330,34 +329,18 @@ class NeugDB {
  private:
   void preprocessConfig();
   void initAllocators(const std::string& allocator_dir);
-  void openGraphAndIngestWals();
-  void ingestWals(IWalParser& parser, PropertyGraph& graph);
+  void reopenAllocators(const std::string& allocator_dir);
+  void activateCheckpointGeneration(const std::string& allocator_dir);
+  timestamp_t openGraphAndIngestWals();
+  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlanner();
   void initQueryRuntime();
   void clearQueryRuntime() noexcept;
   void closeAllConnections();
   std::unique_ptr<ExecutionSlot> createExecutionSlot(size_t slot_id);
-  void initVersionManager();
+  void initVersionManager(timestamp_t initial_visibility_ts);
   void cleanupTemporaryWorkspace() noexcept;
-  std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
-      CheckpointSession& checkpoint_session);
-  /**
-   * @brief Create a checkpoint and keep the DB open on the published graph.
-   *
-   * This publishes the current live graph and reopens it from the published
-   * checkpoint so the live store owns checkpoint files. If reopening fails, the
-   * published checkpoint is discarded and the checkpoint manager is restored to
-   * the previous checkpoint generation; callers should treat the failure as
-   * fatal. It is shared by recovery checkpoint and AP-to-TP service
-   * preparation. A durable checkpoint is a transaction timeline reset boundary:
-   * it always compacts storage timestamps before dumping, and a successful
-   * checkpoint resets last_ts_ to 0. Must not be called while a NeugDBService
-   * is running.
-   *
-   * @return true if a new durable checkpoint was published, false if the live
-   * graph was clean and no transaction timeline boundary was created.
-   */
-  bool createCheckpointAndRefreshLiveGraph();
+  bool createCheckpointAfterRecovery();
 
   /**
    * @brief Create a checkpoint while closing the DB.
@@ -367,8 +350,8 @@ class NeugDB {
    * directories. It does not reopen a graph because the DB is shutting down.
    *
    * A durable checkpoint is a transaction timeline reset boundary: it always
-   * compacts storage timestamps before dumping, and a successful checkpoint
-   * resets last_ts_ to 0. Must not be called while a NeugDBService is running.
+   * compacts storage timestamps before dumping. Must not be called while a
+   * NeugDBService is running.
    */
   void createCheckpointOnClose();
 
@@ -408,8 +391,6 @@ class NeugDB {
   friend class ConnectionManager;
   friend class NeugDBService;
 
-  timestamp_t last_compaction_ts_;
-  timestamp_t last_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
   // True only while the current Open() owns a generated temporary workspace.
@@ -421,6 +402,7 @@ class NeugDB {
 
   // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
+  std::unique_ptr<CheckpointCoordinator> checkpoint_coordinator_;
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;

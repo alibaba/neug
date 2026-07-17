@@ -1,8 +1,19 @@
 # Transactions
 
-> Note: This file documents internal transaction implementation details. For
-> application-facing behavior, see
+> This file documents internal implementation details. For application-facing
+> behavior, see
 > [Transaction Management](../../../doc/source/transaction/transaction.md).
+
+For ordinary queries, the transactional `ExecutionSlot` strategy uses
+`ReadTransaction`, `InsertTransaction`, and `UpdateTransaction`. The direct
+strategy usually owns an `UpdateTimestampLease` or `ReadSnapshotLease` and uses
+`StorageReadInterface` or `StorageAPUpdateInterface`. `CompactTransaction` and
+`CheckpointCoordinator` implement maintenance paths.
+
+These objects use RAII: terminal operations disarm their resources, and
+destruction releases any active transaction or lease. Acquisition is ordered
+before graph access: read and insert timestamps are acquired before pinning a
+snapshot, while an update lease is acquired before cloning the current graph.
 
 ## Read Transaction
 
@@ -17,55 +28,99 @@ the capture and the pin, the generation mismatch is detected and the complete
 acquisition is retried. A transaction therefore cannot observe an old
 timestamp with a newly published snapshot.
 
-`ReadTransaction` provides a set of APIs to read the graph, including schema, topology, and properties.
+`Commit()` and `Abort()` both unpin the snapshot and release the active-reader
+count; destruction does the same for an active transaction. References backed
+by the pinned graph must not outlive the transaction.
 
 Commit, abort, and destruction all release the snapshot pin before unregistering
 the reader from `VersionManager`.
 
 ## Insert Transaction
 
-With an `InsertTransaction`, a set of vertices and edges can be inserted into the graph with the timestamp of transaction.
+`InsertTransaction` is an insert-only optimization. It receives a unique write
+timestamp, pins the current snapshot, and buffers vertex and edge operations in
+a local WAL archive without modifying the graph.
 
-After insertion, the transaction can be committed by calling `InsertTransaction::Commit()` or be aborted by calling `InsertTransaction::Abort()`.
+A non-empty `Commit()`:
 
-`InsertTransaction` does not provide interfaces to read the graph.
+1. appends the complete transaction record to the WAL;
+2. replays it into the pinned live graph with the transaction timestamp; and
+3. unpins the snapshot and completes the timestamp.
+
+Multiple inserts may run concurrently. They share the live graph with readers,
+so visibility depends on every read path filtering records newer than its read
+timestamp. Vertices added by the same transaction are tracked separately so
+subsequent edge inserts can resolve them before WAL replay.
+
+An empty commit only releases the transaction. `Abort()` or destruction
+discards buffered operations and completes the timestamp without applying them.
 
 ## Update Transaction
 
-With an `UpdateTransaction`, a specific version of the graph can be read. The version is determined by the timestamp of the transaction.
+Acquiring an update timestamp changes admission from `kOpen` to
+`kInsertsBlocked`, blocking new inserts and updates and waiting for active
+inserts to finish. Reads remain allowed. `ExecutionSlot` then clones the
+current `PropertyGraph`, and `StorageTPUpdateInterface` applies DML or DDL to
+that COW clone.
 
-Also, `UpdateTransaction` provides interfaces to insert and update vertices and edges.
+A non-empty `Commit()` checks snapshot-slot capacity, appends the finalized WAL,
+and calls `UpdateTimestampLease::BeginCommit()`. This changes admission to
+`kAllBlocked`, preventing new readers and writers while the clone is published.
+Readers that already hold a `SnapshotGuard` are not drained and continue using
+their pinned slot. The snapshot is published before the update timestamp is
+completed, so a reader cannot observe the new timestamp with the old snapshot.
 
-After insertion and update, the transaction can be committed by calling `UpdateTransaction::Commit()` or be aborted by calling `UpdateTransaction::Abort()`.
+Schema changes invalidate the shared query cache before publication. An empty
+commit, `Abort()`, or destruction discards the clone, completes the timestamp,
+and reopens admission without publishing a snapshot.
 
-`UpdateTransaction` mutates a copy-on-write `PropertyGraph` clone. Its changes are invisible until commit publishes the clone through `GraphSnapshotStore`.
+## Compact Transaction
 
-# Version Management
+Compaction enters `kAllBlocked` directly and drains active inserts and readers
+before pinning the live graph. Commit appends a compact WAL record, compacts the
+graph in place, rebuilds its `GraphView`, completes the timestamp, and reopens
+admission. Abort or destruction closes the timestamp gap and reopens admission
+without modifying the graph.
 
-## Visibility
+## Checkpoint Maintenance
 
-Graph records that participate in MVCC visibility are associated with a timestamp, which is the timestamp of the transaction that creates or publishes the record version.
+A manual checkpoint receives an active `UpdateTimestampLease` from
+`ExecutionSlot`. `CheckpointCoordinator` promotes it to `kAllBlocked`, drains
+readers, and runs maintenance only after `GraphSnapshotStore` verifies that no
+ordinary or stale snapshot pins remain.
 
-When reading graph data with a `ReadTransaction` or `UpdateTransaction`, only records with timestamp less than or equal to the transaction timestamp are visible.
+Maintenance compacts and dumps the live graph, publishes the checkpoint, and
+reopens the graph. The database handler then reopens allocators and invalidates
+the query cache; service mode additionally rotates execution-slot WAL writers.
+New transactions remain blocked until these steps finish. Success resets the
+timestamp timeline (`read_ts = 0`, next `write_ts = 1`) and reopens admission.
 
-## Synchronization
+Recovery and shutdown checkpoints rely on database lifecycle quiescence rather
+than a transaction lease. Shutdown does not reopen the graph or run activation
+handlers.
 
-There is no synchronization between read and insert transactions in the normal state. All read and insert transactions can be executed concurrently.
+## Version Management
 
-The `VersionManager` state machine has three effective states for read, insert, and update transactions:
+`VersionManager` uses an atomic admission state plus active-reader and
+active-inserter counters:
 
-| State | Meaning | New Reads | New Inserts | New Updates | Existing Reads |
-|-------|---------|-----------|-------------|-------------|----------------|
-| `kOpen` | Normal | allowed | allowed | allowed | continue |
-| `kInsertsBlocked` | Update execution | allowed | blocked | blocked | continue |
-| `kAllBlocked` | Update commit or compaction | blocked | blocked | blocked | continue |
+| Admission state | New reads | New inserts | New update/compact | Purpose |
+|---|---|---|---|---|
+| `kOpen` | allowed | allowed | one transition may enter | normal execution |
+| `kInsertsBlocked` | allowed | blocked | blocked | update execution; active inserts are drained |
+| `kAllBlocked` | blocked | blocked | blocked | update commit or in-place maintenance |
 
-When an `UpdateTransaction` is created, the admission state changes from `kOpen` to `kInsertsBlocked`. It waits for all in-flight insert transactions to finish, but does not block or wait for read transactions. New insert transactions and new update transactions are blocked during this phase; existing and new reads continue.
+An ordinary update does not drain readers already admitted before
+`kAllBlocked`; compact and manual checkpoint explicitly drain them before
+in-place maintenance. Contended acquisition uses `AdaptiveBackoff` with the
+runtime wait function configured for the current runtime.
 
-When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+`write_ts_` allocates unique write timestamps. `read_ts_` is the highest
+contiguous completed timestamp and is returned to new readers. Completion
+includes commit, abort, and empty transactions, but only commits modify graph
+state. `TimestampWindow` records out-of-order completions so a later writer
+cannot advance `read_ts_` past an earlier unfinished transaction.
 
-## Serializability
-
-For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
-
-For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.
+Insert commit appends WAL before replaying into the live graph. Update commit
+appends WAL before publishing its COW snapshot. Both complete their timestamps
+only after the graph change is visible.

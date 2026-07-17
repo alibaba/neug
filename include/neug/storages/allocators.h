@@ -21,6 +21,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "neug/config.h"
@@ -45,6 +46,24 @@ class ArenaAllocator {
         allocated_memory_(0),
         allocated_batches_(0) {}
   ~ArenaAllocator() {}
+
+  ArenaAllocator(const ArenaAllocator&) = delete;
+  ArenaAllocator& operator=(const ArenaAllocator&) = delete;
+
+  /// Release all backing state and reopen this allocator for a new checkpoint
+  /// generation without invalidating references to the allocator object.
+  /// @p prefix is passed by value so all allocation needed to construct it
+  /// happens before the old backing state is released.
+  void Reopen(MemoryLevel strategy, std::string prefix) noexcept {
+    mmap_buffers_.clear();
+    strategy_ = strategy;
+    prefix_ = std::move(prefix);
+    cur_buffer_ = nullptr;
+    cur_loc_ = 0;
+    cur_size_ = 0;
+    allocated_memory_ = 0;
+    allocated_batches_ = 0;
+  }
 
   void reserve(size_t cap) {
     if (cur_size_ - cur_loc_ >= cap) {

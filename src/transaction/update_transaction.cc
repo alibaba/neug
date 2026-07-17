@@ -398,6 +398,7 @@ void UpdateTransaction::release(
   }
   view_ = GraphView();
   cow_graph_.reset();
+  ckp_.reset();
 }
 
 Status StorageTPUpdateInterface::CreateVertexTypeImpl(
@@ -1457,25 +1458,6 @@ Status StorageTPUpdateInterface::prepareVertexDelete(
     }
   }
   return Status::OK();
-}
-
-void StorageTPUpdateInterface::CreateCheckpoint() {
-  if (wal_.op_num() != 0) {
-    THROW_INTERNAL_EXCEPTION(
-        "Checkpoint should be created in a update "
-        "transaction without any updates");
-  }
-  if (!cow_graph_->IsModified()) {
-    wal_.LogCheckpoint();
-    return;
-  }
-  auto ckp = cow_graph_->checkpoint_ptr();
-  auto memory_level = cow_graph_->memory_level();
-  cow_graph_->DumpAndClear(ckp);
-  cow_graph_->Open(ckp, memory_level);
-  mut_view_.Rebuild(*cow_graph_);
-  cow_graph_->ClearAllDirty();
-  wal_.LogCheckpoint();
 }
 
 result<std::vector<vid_t>> StorageTPUpdateInterface::BatchAddVerticesImpl(

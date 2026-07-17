@@ -48,18 +48,9 @@ Embedded mode is designed for analytical workloads where simplicity and single-q
 
 For statements involving substantial data writes (such as `COPY` for bulk loading), a failure mid-execution may result in partial data being written to memory. This is a known trade-off for AP workloads where the overhead of full rollback mechanisms is typically unnecessary.
 
-**Practical Workaround:** Since all writes are held in memory until an explicit `CHECKPOINT`, users can establish recovery points:
-
-```cypher
--- Create a recovery point before large operations
-CHECKPOINT;
-
--- Perform bulk data loading
-COPY Person FROM 'large_dataset.csv';
-
--- If an error occurs before this point, restart the database
--- to reload from the last checkpoint (all uncommitted changes are discarded)
-```
+In Embedded mode, checkpoints can be used as recovery points around large
+write operations. See [Checkpoints](checkpoint.md) for a safe recovery example
+and the interaction with `checkpoint_on_close`.
 
 #### Consistency
 
@@ -83,23 +74,7 @@ Changes are persisted to disk **only** after:
 - Database closure with `checkpoint_on_close=True` (default)
 
 For in-memory databases, durability is not applicable as data exists only in volatile memory.
-
-```python
-import neug
-
-db = neug.Database("/path/to/database")
-conn = db.connect()
-
-# Changes are in memory only
-conn.execute("CREATE (p:Person {name: 'Alice'})")
-
-# Explicit persistence to disk
-conn.execute("CHECKPOINT")
-
-# Or rely on automatic checkpoint at close
-conn.close()
-db.close()  # checkpoint_on_close=True by default
-```
+For usage and failure behavior, see [Checkpoints](checkpoint.md).
 
 ### Service Mode
 
@@ -123,7 +98,7 @@ NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable i
 | Insert | Concurrent with reads and other inserts. Waits if an update is in progress. |
 | Update | One at a time. Reads continue on a consistent snapshot. Inserts and other updates wait until the update finishes. |
 | Schema (DDL) | Same concurrency behavior as update. |
-| Checkpoint | Same concurrency behavior as update. |
+| Checkpoint | Exclusive maintenance. See [Checkpoints](checkpoint.md). |
 
 > Note: A read that arrives while an update is finishing may wait briefly,
 > typically at millisecond scale.
@@ -131,7 +106,8 @@ NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable i
 **Design Rationale:** This hybrid approach reflects the reality of graph workloads:
 
 - **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
-- **Updates, schema changes, and checkpoints** are relatively rare and are serialized, while reads continue on a consistent snapshot with only brief waits when they arrive as a write is finishing
+- **Updates and schema changes** are relatively rare and are serialized, while reads continue on a consistent snapshot with only brief waits when they arrive as a write is finishing
+- **Checkpoints** are database-level maintenance operations; their concurrency behavior is described in [Checkpoints](checkpoint.md)
 - Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
 
 ```python
@@ -156,7 +132,7 @@ All modifications are immediately persisted through **Write-Ahead Logging (WAL)*
 
 - Changes are logged to WAL before execution completes
 - Crash recovery automatically replays WAL to restore consistent state
-- No explicit checkpoint required for durability (but available for WAL consolidation)
+- No explicit checkpoint is required for durability; checkpoints are available for WAL consolidation. See [Checkpoints](checkpoint.md)
 
 ## Access Mode
 
@@ -171,24 +147,22 @@ When executing queries, you can specify an `access_mode` to control transaction 
 
 **Default Behavior:** If not specified, NeuG infers the appropriate mode. Explicitly specifying the correct mode enables better concurrency optimization in Service mode.
 
-**Access Mode Hierarchy:** Access modes follow a hierarchy where higher modes provide stronger guarantees but lower concurrency:
-
-```
-read < insert < update
-```
-
-`schema` uses the same serialized update path as `update`.
-
-- **Upward compatibility**: Using a higher access mode than required always works (e.g., `update` mode for a read-only query), but may reduce throughput due to stronger locking
-- **Downward restriction**: Using a lower access mode than required causes an error (e.g., `read` mode for an insert operation)
+**Access Mode Capabilities:** Access modes are operation-specific rather than a strict hierarchy. In Service mode, `read` and `insert` are narrow modes, while `update` and `schema` use the general serialized update path. Using a mode that does not support the planned operation returns an error.
 
 | Specified Mode | Actual Operation | Result |
 |----------------|------------------|--------|
 | `read` | read | ✅ OK |
-| `read` | insert/update | ❌ Error |
-| `insert` | read/insert | ✅ OK |
-| `insert` | update/schema | ❌ Error |
-| `update`/`schema` | any | ✅ OK (serialized update path) |
+| `read` | insert/update/schema/checkpoint | ❌ Error |
+| `insert` | insert | ✅ OK |
+| `insert` | read/update/schema/checkpoint | ❌ Error |
+| `update` | read/insert/update/schema/checkpoint | ✅ OK (serialized update path) |
+| `schema` | read/insert/update/schema | ✅ OK (serialized update path) |
+
+In Embedded mode, modes other than `read` primarily select shared versus exclusive query locking rather than distinct transaction implementations. Explicit `read` still rejects write operations, and the special `CHECKPOINT` restriction below applies in both deployment modes.
+
+`CHECKPOINT` is a special administrative statement. See
+[Checkpoints](checkpoint.md) for its accepted access modes and
+`EXPLAIN`/`PROFILE` behavior.
 
 ```python
 # Optimal: match access mode to operation for best concurrency
@@ -203,33 +177,8 @@ conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduc
 
 ### Embedded Mode: Checkpoint-Based
 
-All changes are held in memory until explicitly persisted:
-
-```python
-import neug
-
-db = neug.Database("/path/to/database")
-conn = db.connect()
-
-# Establish recovery point
-conn.execute("CHECKPOINT")
-
-# Perform operations (changes in memory)
-conn.execute("COPY Person FROM 'employees.csv'")
-conn.execute("COPY Company FROM 'companies.csv'")
-
-# Persist all changes to disk
-conn.execute("CHECKPOINT")
-
-conn.close()
-db.close()
-```
-
-**Checkpoint Characteristics:**
-- Creates an atomic snapshot of the current database state
-- Blocks other operations during execution
-- May require significant time for large datasets
-- Replaces the previous checkpoint atomically
+All changes are held in memory until a checkpoint persists them. See
+[Checkpoints](checkpoint.md) for usage, examples, and recovery behavior.
 
 ### Service Mode: WAL-Based
 
@@ -244,46 +193,18 @@ session = Session("http://localhost:10000/")
 session.execute("CREATE (p:Person {name: 'Alice'})")  # Persisted via WAL
 session.execute("CREATE (p:Person {name: 'Bob'})")    # Persisted via WAL
 
-# Optional: consolidate WAL into checkpoint for storage optimization
-session.execute("CHECKPOINT")
-
 session.close()
 ```
 
-**Service Mode Checkpoint:**
-- Does not block active reads
-- Briefly waits for in-flight inserts before starting
-- New reads and inserts wait briefly during checkpoint finalization
-- Consolidates WAL entries into a unified checkpoint
-- Clears processed WAL entries to reclaim storage
-- Does not affect the automatic durability of individual statements
+An optional checkpoint consolidates the WAL but is not required for statement
+durability. See [Checkpoints](checkpoint.md).
 
 ## Error Recovery
 
 ### Embedded Mode
 
-Recovery relies on the last successful checkpoint:
-
-```python
-import neug
-
-db = neug.Database("/path/to/database")
-conn = db.connect()
-
-conn.execute("CHECKPOINT")  # Recovery point
-
-try:
-    conn.execute("COPY LargeTable FROM 'huge_file.csv'")
-    conn.execute("CHECKPOINT")  # Commit if successful
-except Exception as e:
-    # Partial data may be in memory
-    # Close and reopen to restore from last checkpoint
-    conn.close()
-    db.close()
-    
-    db = neug.Database("/path/to/database")  # Restores from checkpoint
-    conn = db.connect()
-```
+Recovery relies on the last successful checkpoint. See
+[Recovering from a failed Embedded write](checkpoint.md) for an example.
 
 ### Service Mode
 
@@ -357,9 +278,9 @@ finally:
 |----------|-------------------|-------------------|
 | **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
-| **Isolation** | Exclusive write locks | MVCC for reads/inserts; serialized updates/DDL/checkpoints |
+| **Isolation** | Exclusive write locks | MVCC for reads/inserts; serialized updates/DDL; exclusive checkpoints |
 | **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
-| **Concurrent Reads** | Yes | Yes |
+| **Concurrent Reads** | Yes | Yes, except during exclusive checkpoint maintenance |
 | **Concurrent Inserts** | No | Yes, unless an update is active |
 | **Concurrent Updates** | No | No, updates are serialized while reads continue on consistent snapshots |
 | **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |

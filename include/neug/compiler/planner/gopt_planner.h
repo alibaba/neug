@@ -36,7 +36,7 @@ class GOptPlanner : public neug::IGraphPlanner {
       const std::string& query, const Schema* schema,
       const GraphStats& stats) override;
 
-  AccessMode analyzeMode(const std::string& query) const override;
+  QueryAnalysis analyzeQuery(const std::string& query) const override;
 
  private:
   std::unique_ptr<neug::main::MetadataManager> database;

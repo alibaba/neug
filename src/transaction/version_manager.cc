@@ -18,6 +18,10 @@
 #include <glog/logging.h>
 #include <limits>
 #include <mutex>
+#include <ostream>
+#include <thread>
+
+#include <glog/logging.h>
 
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
@@ -33,7 +37,8 @@ void VersionManager::init_ts(PublishedReadView initial_read_view,
   const uint32_t ts = initial_read_view.visibility_ts;
   if (ts == std::numeric_limits<uint32_t>::max()) {
     THROW_RUNTIME_ERROR(
-        "Transaction timestamp space exhausted; checkpoint/reset the timeline "
+        "Transaction timestamp space exhausted; checkpoint/reset the "
+        "timeline "
         "before reopening the database");
   }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
@@ -287,7 +292,12 @@ uint32_t VersionManager::acquire_update_timestamp() {
 }
 
 void VersionManager::begin_update_commit(uint32_t ts) {
-  (void) ts;
+  const uint64_t gate = operation_gate_state_.load(std::memory_order_acquire);
+  if (OperationGateWord::phase(gate) != AdmissionState::kInsertsBlocked ||
+      write_ts_.load(std::memory_order_acquire) != ts + 1) {
+    THROW_INTERNAL_EXCEPTION(
+        "begin_update_commit called without the matching update timestamp");
+  }
 
   // Block new readers before publishing the new snapshot. Existing readers
   // keep using their pinned snapshots; a racing reader is either counted
@@ -327,6 +337,28 @@ void VersionManager::finish_update_timestamp(
       return;
     }
   }
+}
+
+void VersionManager::finish_update_and_reset_timeline(uint32_t ts) noexcept {
+  const uint64_t gate = operation_gate_state_.load(std::memory_order_acquire);
+  CHECK(OperationGateWord::phase(gate) == AdmissionState::kAllBlocked);
+  CHECK_EQ(OperationGateWord::inserters(gate), 0U);
+  CHECK_EQ(write_ts_.load(std::memory_order_acquire), ts + 1);
+
+  write_ts_.store(1, std::memory_order_relaxed);
+  read_ts_.store(0, std::memory_order_relaxed);
+  ts_window_.init();
+  published_read_view_.store(
+      PackPublishedReadView(
+          {0, installed_snapshot_generation_.load(std::memory_order_relaxed)}),
+      std::memory_order_release);
+
+  // A reader delayed between its phase load and speculative fetch_add may
+  // still touch the reader count after drain_readers() returned. Preserve the
+  // packed counters while reopening admission so that its rollback cannot be
+  // lost. The release side of the CAS publishes the reset timeline first.
+  transition_admission_phase(AdmissionState::kAllBlocked,
+                             AdmissionState::kOpen);
 }
 
 uint32_t VersionManager::acquire_compact_timestamp() {

@@ -183,8 +183,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
-  void CreateCheckpoint() override;
-
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;

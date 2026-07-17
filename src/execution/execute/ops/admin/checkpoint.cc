@@ -33,9 +33,13 @@ class CheckpointOpr : public IOperator {
 neug::result<Context> CheckpointOpr::Eval(IStorageInterface& graph_interface,
                                           const ParamsMap& params,
                                           Context&& ctx, OprTimer* timer) {
-  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  graph.CreateCheckpoint();
-  return neug::result<Context>(std::move(ctx));
+  (void) graph_interface;
+  (void) params;
+  (void) ctx;
+  (void) timer;
+  RETURN_ERROR(neug::Status(
+      neug::StatusCode::ERR_ILLEGAL_OPERATION,
+      "CHECKPOINT must be executed by the database checkpoint executor"));
 }
 
 neug::result<OpBuildResultT> CheckpointOprBuilder::Build(

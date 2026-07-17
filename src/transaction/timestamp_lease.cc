@@ -25,7 +25,8 @@ namespace neug {
 
 UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
     : version_manager_(&version_manager),
-      timestamp_(version_manager.acquire_update_timestamp()) {
+      timestamp_(version_manager.acquire_update_timestamp()),
+      state_(State::kActive) {
   CHECK_NE(timestamp_, kInactiveTimestamp);
 }
 
@@ -33,39 +34,51 @@ UpdateTimestampLease::UpdateTimestampLease(
     UpdateTimestampLease&& other) noexcept
     : version_manager_(std::exchange(other.version_manager_, nullptr)),
       timestamp_(std::exchange(other.timestamp_, kInactiveTimestamp)),
-      commit_started_(std::exchange(other.commit_started_, false)) {}
+      state_(std::exchange(other.state_, State::kInactive)) {}
 
 UpdateTimestampLease::~UpdateTimestampLease() noexcept { reset(); }
 
 void UpdateTimestampLease::BeginCommit() {
   CHECK_NE(timestamp_, kInactiveTimestamp);
-  CHECK(!commit_started_);
+  CHECK(state_ == State::kActive);
   version_manager_->begin_update_commit(timestamp_);
-  commit_started_ = true;
+  state_ = State::kCommitStarted;
 }
 
 void UpdateTimestampLease::MakeUpdateExclusive() {
   BeginCommit();
   version_manager_->drain_readers();
+  state_ = State::kUpdateExclusive;
 }
 
 void UpdateTimestampLease::Finish(
     std::optional<uint32_t> installed_snapshot_generation) noexcept {
   CHECK_NE(timestamp_, kInactiveTimestamp);
-  CHECK(!installed_snapshot_generation || commit_started_);
+  CHECK(state_ != State::kInactive);
+  CHECK(!installed_snapshot_generation || state_ == State::kCommitStarted ||
+        state_ == State::kUpdateExclusive);
   version_manager_->finish_update_timestamp(timestamp_,
                                             installed_snapshot_generation);
   timestamp_ = kInactiveTimestamp;
-  commit_started_ = false;
+  state_ = State::kInactive;
+}
+
+void UpdateTimestampLease::FinishAndResetTimeline() noexcept {
+  CHECK_NE(timestamp_, kInactiveTimestamp);
+  CHECK(state_ == State::kUpdateExclusive);
+  version_manager_->finish_update_and_reset_timeline(timestamp_);
+  timestamp_ = kInactiveTimestamp;
+  state_ = State::kInactive;
 }
 
 void UpdateTimestampLease::reset() noexcept {
-  if (timestamp_ == kInactiveTimestamp) {
+  if (state_ == State::kInactive) {
     return;
   }
+  CHECK_NE(timestamp_, kInactiveTimestamp);
   version_manager_->finish_update_timestamp(timestamp_, std::nullopt);
   timestamp_ = kInactiveTimestamp;
-  commit_started_ = false;
+  state_ = State::kInactive;
 }
 
 }  // namespace neug

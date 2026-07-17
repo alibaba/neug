@@ -307,7 +307,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 // held, and proceeds once released.
 static void AssertCompactBlocksAcquire(
     neug::VersionManager& vm,
-    std::function<void(neug::VersionManager&)> acquire_fn,
+    std::function<uint32_t(neug::VersionManager&)> acquire_fn,
     std::function<void(neug::VersionManager&, uint32_t)> release_fn) {
   std::atomic<bool> worker_started{false};
   std::atomic<bool> worker_acquired{false};
@@ -318,9 +318,9 @@ static void AssertCompactBlocksAcquire(
   // Worker thread: try to acquire another timestamp
   std::thread worker([&]() {
     worker_started.store(true);
-    acquire_fn(vm);
+    const auto timestamp = acquire_fn(vm);
     worker_acquired.store(true);
-    release_fn(vm, 0);  // release immediately; ts value unused for read
+    release_fn(vm, timestamp);
   });
 
   // Wait for worker to start
@@ -356,7 +356,7 @@ TEST_F(CompactTransactionTest, CompactBlocksInsert) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::VersionManager& v) { v.acquire_insert_timestamp(); },
+      vm, [](neug::VersionManager& v) { return v.acquire_insert_timestamp(); },
       [](neug::VersionManager& v, uint32_t ts) {
         v.release_insert_timestamp(ts);
       });
@@ -366,7 +366,7 @@ TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::VersionManager& v) { v.acquire_update_timestamp(); },
+      vm, [](neug::VersionManager& v) { return v.acquire_update_timestamp(); },
       [](neug::VersionManager& v, uint32_t ts) {
         v.finish_update_timestamp(ts, std::nullopt);
       });
@@ -376,7 +376,7 @@ TEST_F(CompactTransactionTest, CompactBlocksCompact) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
   AssertCompactBlocksAcquire(
-      vm, [](neug::VersionManager& v) { v.acquire_compact_timestamp(); },
+      vm, [](neug::VersionManager& v) { return v.acquire_compact_timestamp(); },
       [](neug::VersionManager& v, uint32_t ts) {
         v.release_compact_timestamp(ts);
       });

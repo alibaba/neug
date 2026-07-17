@@ -169,5 +169,7 @@ Connect to the database asynchronously.
 close()
 ```
 
-Close the database connection and release all resources.
+Close the database and release all resources.
 All open connections and async connections will be closed automatically.
+
+For a read-write database with `checkpointOnClose: true`, this method creates a checkpoint before releasing the database resources. Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.

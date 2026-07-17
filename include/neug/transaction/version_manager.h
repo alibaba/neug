@@ -24,6 +24,8 @@
 
 namespace neug {
 
+class UpdateTimestampLease;
+
 /**
  * @brief Atomically published reader-visible state.
  *
@@ -96,6 +98,14 @@ class IVersionManager {
 
  protected:
   virtual RuntimeWaitFn runtime_wait_impl() const noexcept = 0;
+
+ private:
+  friend class UpdateTimestampLease;
+
+  /// Complete an exclusive update after external state has moved to a new
+  /// timeline. Preserve the current snapshot generation and publish visibility
+  /// timestamp zero before reopening admission.
+  virtual void finish_update_and_reset_timeline(uint32_t ts) noexcept = 0;
 };
 
 namespace detail {
@@ -229,6 +239,7 @@ class VersionManager : public IVersionManager {
  private:
   using AdmissionState = detail::AdmissionState;
   using OperationGateWord = detail::OperationGateWord;
+  void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
   int thread_num_;
   // These helpers may suspend the logical task. Callers must not hold an
