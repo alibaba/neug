@@ -649,19 +649,8 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  /// Narrow AP-only bulk-build entry points.  They intentionally do not
-  /// widen StorageInsertInterface: transactional stores keep their existing
-  /// COPY semantics and the execution fast path explicitly opts into AP.
-  bool CanBatchBuildVertices(label_t v_label_id) const;
-  Status BatchBuildVertices(label_t v_label_id,
-                            std::shared_ptr<IDataChunkSource> source);
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
                        std::shared_ptr<IDataChunkSupplier> supplier) override;
-  bool CanBatchBuildEdges(label_t src_label, label_t dst_label,
-                          label_t edge_label) const;
-  Status BatchBuildEdges(label_t src_label, label_t dst_label,
-                         label_t edge_label,
-                         std::shared_ptr<IDataChunkSource> source);
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdges(

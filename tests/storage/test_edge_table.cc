@@ -90,6 +90,10 @@ class EdgeTableTest : public ::testing::Test {
         "person", "comment", "create_none", {neug::DataTypeId::kInt32},
         {"data"}, neug::EdgeStrategy::kNone, neug::EdgeStrategy::kNone, true,
         true, std::nullopt, "edge label with no stored adjacency");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create_out_none", {neug::DataTypeId::kInt32},
+        {"data"}, neug::EdgeStrategy::kNone, neug::EdgeStrategy::kMultiple,
+        true, true, std::nullopt, "edge label with only incoming adjacency");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
     edge_label_empty_ = schema_.get_edge_label_id("create0");
@@ -99,6 +103,7 @@ class EdgeTableTest : public ::testing::Test {
     edge_label_single_ = schema_.get_edge_label_id("create_single");
     edge_label_single_both_ = schema_.get_edge_label_id("create_single_both");
     edge_label_none_ = schema_.get_edge_label_id("create_none");
+    edge_label_out_none_ = schema_.get_edge_label_id("create_out_none");
     allocator_dir_ =
         "/tmp/edge_table_test_allocator_" + std::to_string(::getpid()) + "_";
     ws.Open(temp_dir_.string());
@@ -155,11 +160,15 @@ class EdgeTableTest : public ::testing::Test {
     edge_table->BatchAddEdges(src_indexer, dst_indexer, supplier);
   }
 
+  void BatchBuild(std::shared_ptr<IDataChunkSource> source) {
+    edge_table->BatchAddEdges(src_indexer, dst_indexer,
+                              make_data_chunk_supplier(std::move(source)));
+  }
+
   void BatchBuild(std::vector<std::shared_ptr<neug::DataChunk>> chunks,
-                  int64_t estimated_bytes = -1) {
-    auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
-                                                         estimated_bytes);
-    edge_table->BatchBuildEdges(src_indexer, dst_indexer, std::move(source));
+                  int64_t estimated_bytes = kForceBulkBuildBytes) {
+    BatchBuild(std::make_shared<GeneratedChunkSource>(std::move(chunks),
+                                                      estimated_bytes));
   }
 
   size_t ExpectedBatchInsertCapacity(size_t inserted_edge_num) const {
@@ -270,7 +279,7 @@ class EdgeTableTest : public ::testing::Test {
   neug::Schema schema_;
   neug::label_t src_label_, dst_label_, edge_label_empty_, edge_label_int_,
       edge_label_str_, edge_label_str_int_, edge_label_single_,
-      edge_label_single_both_, edge_label_none_;
+      edge_label_single_both_, edge_label_none_, edge_label_out_none_;
   std::string allocator_dir_;
 
   const std::filesystem::path& temp_dir() const { return temp_dir_; }
@@ -747,17 +756,15 @@ TEST_F(EdgeTableTest, BatchBuildEdgesBundledWithParallelEncoding) {
   InitIndexers(*ckp, kSrcNum, kDstNum);
   ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), kSrcNum, kDstNum);
-  EXPECT_TRUE(edge_table->CanBatchBuild());
   auto source = std::make_shared<GeneratedChunkSource>(std::move(batches),
                                                        256LL * 1024 * 1024);
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  BatchBuild(source);
 
   EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
   EXPECT_EQ(source->OpenCount(), 2);
   ASSERT_EQ(source->OpenedProjections().size(), 2);
   EXPECT_EQ(source->OpenedProjections()[0], (std::vector<int32_t>{0, 1}));
   EXPECT_TRUE(source->OpenedProjections()[1].empty());
-  EXPECT_FALSE(edge_table->CanBatchBuild());
   std::vector<int64_t> output_srcs, output_dsts;
   OutputOutgoingEndpoints(output_srcs, output_dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(output_srcs.size(), kEdgeNum);
@@ -798,8 +805,8 @@ TEST_F(EdgeTableTest, BatchBuildEdgesParallelFillWithoutProperties) {
   ConstructEdgeTable(src_label_, dst_label_, edge_label_empty_);
   OpenEdgeTableInMemory(ckp, CheckpointManifest(), kVertexNum, kVertexNum);
   auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
-                                                       1024LL * 1024 * 1024);
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+                                                       kForceBulkBuildBytes);
+  BatchBuild(source);
 
   EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
   std::vector<int64_t> actual_srcs, actual_dsts;
@@ -826,16 +833,12 @@ TEST_F(EdgeTableTest, BatchBuildEdgesHandlesEmptyInput) {
   ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   OpenEdgeTableInMemory(ckp, CheckpointManifest(), kVertexNum, kVertexNum);
   auto source = std::make_shared<GeneratedChunkSource>(
-      std::vector<std::shared_ptr<DataChunk>>{}, 1024LL * 1024 * 1024);
+      std::vector<std::shared_ptr<DataChunk>>{}, kForceBulkBuildBytes);
 
-  EXPECT_TRUE(edge_table->CanBatchBuild());
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  BatchBuild(source);
 
   EXPECT_EQ(source->OpenCount(), 2);
   EXPECT_EQ(edge_table->EdgeNum(), 0);
-  // CanBatchBuild() is edge-count based, so a successfully published empty
-  // graph intentionally remains eligible for another bulk build.
-  EXPECT_TRUE(edge_table->CanBatchBuild());
   std::vector<int64_t> output_srcs, output_dsts;
   OutputOutgoingEndpoints(output_srcs, output_dsts, MAX_TIMESTAMP);
   EXPECT_TRUE(output_srcs.empty());
@@ -854,15 +857,47 @@ TEST_F(EdgeTableTest, BatchBuildEdgesSkipsSourceForNoAdjacency) {
   ConstructEdgeTable(src_label_, dst_label_, edge_label_none_);
   OpenEdgeTableInMemory(ckp, CheckpointManifest(), kVertexNum, kVertexNum);
   auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
-                                                       1024LL * 1024 * 1024);
+                                                       kForceBulkBuildBytes);
 
-  ASSERT_TRUE(edge_table->CanBatchBuild());
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  BatchBuild(source);
 
   EXPECT_EQ(source->OpenCount(), 0);
   EXPECT_TRUE(source->OpenedProjections().empty());
   EXPECT_EQ(edge_table->EdgeNum(), 0);
-  EXPECT_TRUE(edge_table->CanBatchBuild());
+}
+
+TEST_F(EdgeTableTest, SecondBatchFallsBackWhenIncomingCsrIsNotEmpty) {
+  auto ckp = make_checkpoint(workspace());
+  constexpr int64_t kVertexNum = 3;
+  InitIndexers(*ckp, kVertexNum, kVertexNum);
+  ConstructEdgeTable(src_label_, dst_label_, edge_label_out_none_);
+  OpenEdgeTableInMemory(ckp, CheckpointManifest(), kVertexNum, kVertexNum);
+
+  auto first_chunks = convert_to_data_chunks(
+      {split_column_to_chunks(std::vector<int64_t>{0}, 1),
+       split_column_to_chunks(std::vector<int64_t>{0}, 1),
+       split_column_to_chunks(std::vector<int32_t>{10}, 1)});
+  auto first_source = std::make_shared<GeneratedChunkSource>(
+      std::move(first_chunks), kForceBulkBuildBytes);
+  BatchBuild(first_source);
+  EXPECT_EQ(first_source->OpenCount(), 2);
+
+  auto second_chunks = convert_to_data_chunks(
+      {split_column_to_chunks(std::vector<int64_t>{1}, 1),
+       split_column_to_chunks(std::vector<int64_t>{1}, 1),
+       split_column_to_chunks(std::vector<int32_t>{20}, 1)});
+  auto second_source = std::make_shared<GeneratedChunkSource>(
+      std::move(second_chunks), kForceBulkBuildBytes);
+  BatchBuild(second_source);
+  EXPECT_EQ(second_source->OpenCount(), 1);
+
+  std::vector<int64_t> incoming_srcs, incoming_dsts;
+  std::vector<int32_t> incoming_data;
+  OutputIncomingEndpoints(incoming_srcs, incoming_dsts, MAX_TIMESTAMP);
+  OutputIncomingEdgeData(incoming_data, MAX_TIMESTAMP, 0);
+  EXPECT_EQ(incoming_srcs, (std::vector<int64_t>{0, 1}));
+  EXPECT_EQ(incoming_dsts, (std::vector<int64_t>{0, 1}));
+  EXPECT_EQ(incoming_data, (std::vector<int32_t>{10, 20}));
 }
 
 TEST_F(EdgeTableTest, BatchBuildEdgesParallelFillHandlesSupernodes) {
@@ -883,8 +918,8 @@ TEST_F(EdgeTableTest, BatchBuildEdgesParallelFillHandlesSupernodes) {
   ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   OpenEdgeTableInMemory(ckp, CheckpointManifest(), kVertexNum, kVertexNum);
   auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
-                                                       1024LL * 1024 * 1024);
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+                                                       kForceBulkBuildBytes);
+  BatchBuild(source);
 
   EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
   std::vector<int64_t> output_srcs, output_dsts;
@@ -921,76 +956,6 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildFillsUniqueSlotsAcrossChunks) {
     std::atomic<size_t> max_active{0};
   };
 
-  class ConcurrentChunkSupplier final : public IDataChunkSupplier {
-   public:
-    ConcurrentChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks,
-                            std::shared_ptr<SupplierActivity> activity)
-        : chunks_(std::move(chunks)), activity_(std::move(activity)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      const auto active =
-          activity_->active.fetch_add(1, std::memory_order_relaxed) + 1;
-      auto max_active = activity_->max_active.load(std::memory_order_relaxed);
-      while (max_active < active &&
-             !activity_->max_active.compare_exchange_weak(
-                 max_active, active, std::memory_order_relaxed)) {}
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
-      const auto index = next_.fetch_add(1, std::memory_order_relaxed);
-      activity_->active.fetch_sub(1, std::memory_order_relaxed);
-      return index < chunks_.size() ? chunks_[index] : nullptr;
-    }
-
-    int64_t RowNum() const override {
-      int64_t rows = 0;
-      for (const auto& chunk : chunks_) {
-        rows += static_cast<int64_t>(chunk->row_num());
-      }
-      return rows;
-    }
-
-    bool SupportsConcurrentGetNext() const override { return true; }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    std::shared_ptr<SupplierActivity> activity_;
-    std::atomic<size_t> next_{0};
-  };
-
-  class ConcurrentChunkSource final : public IDataChunkSource {
-   public:
-    explicit ConcurrentChunkSource(
-        std::vector<std::shared_ptr<DataChunk>> chunks)
-        : chunks_(std::move(chunks)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      auto activity = std::make_shared<SupplierActivity>();
-      activities_.push_back(activity);
-      return std::make_shared<ConcurrentChunkSupplier>(chunks_, activity);
-    }
-
-    std::shared_ptr<IDataChunkSupplier> Open(
-        const ChunkSourceOptions& options) const override {
-      opened_options_.push_back(options);
-      return IDataChunkSource::Open(options);
-    }
-
-    bool rewindable() const override { return true; }
-    int64_t EstimatedBytes() const override { return 1024LL * 1024 * 1024; }
-
-    const std::vector<ChunkSourceOptions>& OpenedOptions() const {
-      return opened_options_;
-    }
-
-    const std::vector<std::shared_ptr<SupplierActivity>>& Activities() const {
-      return activities_;
-    }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    mutable std::vector<ChunkSourceOptions> opened_options_;
-    mutable std::vector<std::shared_ptr<SupplierActivity>> activities_;
-  };
-
   auto ckp = make_checkpoint(workspace());
   constexpr int64_t kSrcNum = 512;
   constexpr int64_t kDstNum = 8;
@@ -1010,8 +975,34 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildFillsUniqueSlotsAcrossChunks) {
   InitIndexers(*ckp, kSrcNum, kDstNum);
   ConstructEdgeTable(src_label_, dst_label_, edge_label_single_);
   OpenEdgeTableInMemory(ckp, CheckpointManifest(), kSrcNum, kDstNum);
-  auto source = std::make_shared<ConcurrentChunkSource>(std::move(chunks));
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  auto shared_chunks =
+      std::make_shared<std::vector<std::shared_ptr<DataChunk>>>(
+          std::move(chunks));
+  std::vector<std::shared_ptr<SupplierActivity>> activities;
+  auto source = std::make_shared<TestChunkSource>(
+      [shared_chunks, &activities, kSrcNum](const ChunkSourceOptions&, size_t) {
+        auto activity = std::make_shared<SupplierActivity>();
+        activities.push_back(activity);
+        auto next = std::make_shared<std::atomic<size_t>>(0);
+        return std::make_shared<TestChunkSupplier>(
+            [shared_chunks, activity, next] {
+              const auto active =
+                  activity->active.fetch_add(1, std::memory_order_relaxed) + 1;
+              auto max_active =
+                  activity->max_active.load(std::memory_order_relaxed);
+              while (max_active < active &&
+                     !activity->max_active.compare_exchange_weak(
+                         max_active, active, std::memory_order_relaxed)) {}
+              std::this_thread::sleep_for(std::chrono::microseconds(100));
+              const auto index = next->fetch_add(1, std::memory_order_relaxed);
+              activity->active.fetch_sub(1, std::memory_order_relaxed);
+              return index < shared_chunks->size() ? (*shared_chunks)[index]
+                                                   : nullptr;
+            },
+            kSrcNum, true);
+      },
+      kForceBulkBuildBytes);
+  BatchBuild(source);
 
   ASSERT_EQ(source->OpenedOptions().size(), 2);
   EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
@@ -1019,9 +1010,9 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildFillsUniqueSlotsAcrossChunks) {
   EXPECT_EQ(source->OpenedOptions()[0].projected_columns,
             (std::vector<int32_t>{0, 1}));
   EXPECT_TRUE(source->OpenedOptions()[1].projected_columns.empty());
-  ASSERT_EQ(source->Activities().size(), 2);
-  EXPECT_GT(source->Activities()[0]->max_active.load(), 1);
-  EXPECT_GT(source->Activities()[1]->max_active.load(), 1);
+  ASSERT_EQ(activities.size(), 2);
+  EXPECT_GT(activities[0]->max_active.load(), 1);
+  EXPECT_GT(activities[1]->max_active.load(), 1);
   EXPECT_EQ(edge_table->EdgeNum(), kSrcNum);
 
   std::vector<int64_t> output_srcs, output_dsts;
@@ -1066,8 +1057,8 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildSkipsInvalidEndpoints) {
                                         split_column_to_chunks(dsts, 4),
                                         split_column_to_chunks(data, 4)});
   auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
-                                                       1024LL * 1024 * 1024);
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+                                                       kForceBulkBuildBytes);
+  BatchBuild(source);
 
   EXPECT_EQ(source->OpenCount(), 2);
   EXPECT_EQ(edge_table->EdgeNum(), 2);
@@ -1094,111 +1085,12 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildDetectsCrossWorkerDuplicate) {
         << "Cross-worker duplicate detection needs two consumer workers";
   }
 
-  class OrderedChunkSupplier final : public IDataChunkSupplier {
-   public:
-    explicit OrderedChunkSupplier(
-        std::vector<std::shared_ptr<DataChunk>> chunks)
-        : chunks_(std::move(chunks)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      if (next_ == chunks_.size()) {
-        return nullptr;
-      }
-      return chunks_[next_++];
-    }
-
-    int64_t RowNum() const override {
-      int64_t rows = 0;
-      for (const auto& chunk : chunks_) {
-        rows += static_cast<int64_t>(chunk->row_num());
-      }
-      return rows;
-    }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    size_t next_ = 0;
-  };
-
-  class BarrierChunkSupplier final : public IDataChunkSupplier {
-   public:
-    explicit BarrierChunkSupplier(
-        std::vector<std::shared_ptr<DataChunk>> chunks)
-        : chunks_(std::move(chunks)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      const auto index = next_.fetch_add(1, std::memory_order_relaxed);
-      if (index >= chunks_.size()) {
-        return nullptr;
-      }
-      if (index < 2) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        ++arrived_;
-        cv_.notify_all();
-        cv_.wait(lock, [&] { return arrived_ >= 2 || cancelled_; });
-        if (cancelled_) {
-          return nullptr;
-        }
-      }
-      return chunks_[index];
-    }
-
-    int64_t RowNum() const override {
-      int64_t rows = 0;
-      for (const auto& chunk : chunks_) {
-        rows += static_cast<int64_t>(chunk->row_num());
-      }
-      return rows;
-    }
-
-    bool SupportsConcurrentGetNext() const override { return true; }
-
-    void Cancel() override {
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-        cancelled_ = true;
-      }
-      cv_.notify_all();
-    }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    std::atomic<size_t> next_{0};
+  struct BarrierState {
+    std::atomic<size_t> next{0};
     std::mutex mutex_;
     std::condition_variable cv_;
     size_t arrived_ = 0;
     bool cancelled_ = false;
-  };
-
-  class CrossWorkerDuplicateSource final : public IDataChunkSource {
-   public:
-    explicit CrossWorkerDuplicateSource(
-        std::vector<std::shared_ptr<DataChunk>> chunks)
-        : chunks_(std::move(chunks)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      return std::make_shared<OrderedChunkSupplier>(chunks_);
-    }
-
-    std::shared_ptr<IDataChunkSupplier> Open(
-        const ChunkSourceOptions& options) const override {
-      opened_options_.push_back(options);
-      if (options.preserve_order) {
-        return std::make_shared<OrderedChunkSupplier>(chunks_);
-      }
-      return std::make_shared<BarrierChunkSupplier>(chunks_);
-    }
-
-    bool rewindable() const override { return true; }
-    int64_t EstimatedBytes() const override { return 1024LL * 1024 * 1024; }
-
-    const std::vector<ChunkSourceOptions>& OpenedOptions() const {
-      return opened_options_;
-    }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    mutable std::vector<ChunkSourceOptions> opened_options_;
   };
 
   auto ckp = make_checkpoint(workspace());
@@ -1211,8 +1103,48 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildDetectsCrossWorkerDuplicate) {
        split_column_to_chunks(std::vector<int64_t>{0, 1}, 2),
        split_column_to_chunks(std::vector<int32_t>{10, 20}, 2)});
   ASSERT_EQ(chunks.size(), 2);
-  auto source = std::make_shared<CrossWorkerDuplicateSource>(std::move(chunks));
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  auto shared_chunks =
+      std::make_shared<std::vector<std::shared_ptr<DataChunk>>>(
+          std::move(chunks));
+  auto source = std::make_shared<TestChunkSource>(
+      [shared_chunks](const ChunkSourceOptions& options, size_t) {
+        if (options.preserve_order) {
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<GeneratedChunkSupplier>(*shared_chunks, true));
+        }
+        auto state = std::make_shared<BarrierState>();
+        return std::shared_ptr<IDataChunkSupplier>(
+            std::make_shared<TestChunkSupplier>(
+                [shared_chunks, state] {
+                  const auto index =
+                      state->next.fetch_add(1, std::memory_order_relaxed);
+                  if (index >= shared_chunks->size()) {
+                    return std::shared_ptr<DataChunk>{};
+                  }
+                  if (index < 2) {
+                    std::unique_lock<std::mutex> lock(state->mutex_);
+                    ++state->arrived_;
+                    state->cv_.notify_all();
+                    state->cv_.wait(lock, [&] {
+                      return state->arrived_ >= 2 || state->cancelled_;
+                    });
+                    if (state->cancelled_) {
+                      return std::shared_ptr<DataChunk>{};
+                    }
+                  }
+                  return (*shared_chunks)[index];
+                },
+                2, true,
+                [state] {
+                  {
+                    std::lock_guard<std::mutex> lock(state->mutex_);
+                    state->cancelled_ = true;
+                  }
+                  state->cv_.notify_all();
+                }));
+      },
+      kForceBulkBuildBytes);
+  BatchBuild(source);
 
   ASSERT_EQ(source->OpenedOptions().size(), 2);
   EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
@@ -1228,66 +1160,6 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildDetectsCrossWorkerDuplicate) {
 }
 
 TEST_F(EdgeTableTest, SingleEdgeBulkBuildPreservesLastWriteOrderAcrossChunks) {
-  class OrderedChunkSupplier final : public IDataChunkSupplier {
-   public:
-    explicit OrderedChunkSupplier(
-        std::vector<std::shared_ptr<DataChunk>> chunks)
-        : chunks_(std::move(chunks)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      if (next_chunk_ == chunks_.size()) {
-        return nullptr;
-      }
-      return chunks_[next_chunk_++];
-    }
-
-    int64_t RowNum() const override {
-      int64_t rows = 0;
-      for (const auto& chunk : chunks_) {
-        rows += static_cast<int64_t>(chunk->row_num());
-      }
-      return rows;
-    }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    size_t next_chunk_ = 0;
-  };
-
-  class OrderedChunkSource final : public IDataChunkSource {
-   public:
-    explicit OrderedChunkSource(std::vector<std::shared_ptr<DataChunk>> chunks)
-        : chunks_(std::move(chunks)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      ++open_count_;
-      return std::make_shared<OrderedChunkSupplier>(chunks_);
-    }
-
-    std::shared_ptr<IDataChunkSupplier> Open(
-        const ChunkSourceOptions& options) const override {
-      opened_projections_.push_back(options.projected_columns);
-      opened_preserve_order_.push_back(options.preserve_order);
-      return IDataChunkSource::Open(options);
-    }
-
-    bool rewindable() const override { return true; }
-    int64_t EstimatedBytes() const override { return 1024LL * 1024 * 1024; }
-    size_t OpenCount() const { return open_count_; }
-    const std::vector<std::vector<int32_t>>& OpenedProjections() const {
-      return opened_projections_;
-    }
-    const std::vector<bool>& OpenedPreserveOrder() const {
-      return opened_preserve_order_;
-    }
-
-   private:
-    std::vector<std::shared_ptr<DataChunk>> chunks_;
-    mutable size_t open_count_ = 0;
-    mutable std::vector<std::vector<int32_t>> opened_projections_;
-    mutable std::vector<bool> opened_preserve_order_;
-  };
-
   auto ckp = make_checkpoint(workspace());
   InitIndexers(*ckp, 1, 3);
   ConstructEdgeTable(src_label_, dst_label_, edge_label_single_);
@@ -1300,8 +1172,15 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildPreservesLastWriteOrderAcrossChunks) {
                                         split_column_to_chunks(dsts, 3),
                                         split_column_to_chunks(data, 3)});
   ASSERT_EQ(chunks.size(), 3);
-  auto source = std::make_shared<OrderedChunkSource>(std::move(chunks));
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  auto shared_chunks =
+      std::make_shared<std::vector<std::shared_ptr<DataChunk>>>(
+          std::move(chunks));
+  auto source = std::make_shared<TestChunkSource>(
+      [shared_chunks](const ChunkSourceOptions&, size_t) {
+        return std::make_shared<GeneratedChunkSupplier>(*shared_chunks, true);
+      },
+      kForceBulkBuildBytes);
+  BatchBuild(source);
 
   std::vector<int64_t> output_srcs, output_dsts;
   std::vector<int32_t> output_data;
@@ -1311,10 +1190,12 @@ TEST_F(EdgeTableTest, SingleEdgeBulkBuildPreservesLastWriteOrderAcrossChunks) {
   ASSERT_EQ(output_dsts, (std::vector<int64_t>{2}));
   ASSERT_EQ(output_data, (std::vector<int32_t>{30}));
   EXPECT_EQ(source->OpenCount(), 2);
-  ASSERT_EQ(source->OpenedProjections().size(), 2);
-  EXPECT_EQ(source->OpenedProjections()[0], (std::vector<int32_t>{0, 1}));
-  EXPECT_TRUE(source->OpenedProjections()[1].empty());
-  EXPECT_EQ(source->OpenedPreserveOrder(), (std::vector<bool>{false, true}));
+  ASSERT_EQ(source->OpenedOptions().size(), 2);
+  EXPECT_EQ(source->OpenedOptions()[0].projected_columns,
+            (std::vector<int32_t>{0, 1}));
+  EXPECT_TRUE(source->OpenedOptions()[1].projected_columns.empty());
+  EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
+  EXPECT_TRUE(source->OpenedOptions()[1].preserve_order);
   EXPECT_EQ(edge_table->EdgeNum(), 3);
 }
 
@@ -1329,8 +1210,8 @@ TEST_F(EdgeTableTest, SingleOnlyBulkBuildPreservesBothDirections) {
        split_column_to_chunks(std::vector<int64_t>{0, 0, 1}, 1),
        split_column_to_chunks(std::vector<int32_t>{10, 20, 30}, 1)});
   auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
-                                                       1024LL * 1024 * 1024);
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+                                                       kForceBulkBuildBytes);
+  BatchBuild(source);
 
   EXPECT_EQ(source->OpenCount(), 1);
   ASSERT_EQ(source->OpenedProjections().size(), 1);
@@ -1355,34 +1236,6 @@ TEST_F(EdgeTableTest, SingleOnlyBulkBuildPreservesBothDirections) {
 }
 
 TEST_F(EdgeTableTest, BatchBuildEdgesFromPartitionedCsvInTwoPasses) {
-  class EstimatedBytesSource final : public IDataChunkSource {
-   public:
-    EstimatedBytesSource(std::shared_ptr<IDataChunkSource> source,
-                         int64_t estimated_bytes)
-        : source_(std::move(source)), estimated_bytes_(estimated_bytes) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      ++open_count_;
-      return source_->Open();
-    }
-
-    std::shared_ptr<IDataChunkSupplier> Open(
-        const ChunkSourceOptions& options) const override {
-      ++open_count_;
-      return source_->Open(options);
-    }
-
-    bool rewindable() const override { return source_->rewindable(); }
-    int64_t EstimatedBytes() const override { return estimated_bytes_; }
-    bool ParallelEnabled() const override { return source_->ParallelEnabled(); }
-    size_t OpenCount() const { return open_count_; }
-
-   private:
-    std::shared_ptr<IDataChunkSource> source_;
-    int64_t estimated_bytes_;
-    mutable size_t open_count_ = 0;
-  };
-
   auto ckp = make_checkpoint(workspace());
   constexpr int64_t kSrcNum = 100;
   constexpr int64_t kDstNum = 80;
@@ -1425,9 +1278,12 @@ TEST_F(EdgeTableTest, BatchBuildEdgesFromPartitionedCsvInTwoPasses) {
   // Force the large-file planner while keeping the fixture small. The wrapper
   // forwards both Open() calls to the same CSV source, so its cached partition
   // plan is reused by the count and fill passes.
-  auto source = std::make_shared<EstimatedBytesSource>(std::move(csv_source),
-                                                       1024LL * 1024 * 1024);
-  edge_table->BatchBuildEdges(src_indexer, dst_indexer, source);
+  auto source = std::make_shared<TestChunkSource>(
+      [csv_source](const ChunkSourceOptions& options, size_t) {
+        return csv_source->Open(options);
+      },
+      kForceBulkBuildBytes, csv_source->ParallelEnabled());
+  BatchBuild(source);
 
   EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
   EXPECT_EQ(source->OpenCount(), 2);
@@ -1454,39 +1310,6 @@ TEST_F(EdgeTableTest, BatchBuildEdgesFromPartitionedCsvInTwoPasses) {
 }
 
 TEST_F(EdgeTableTest, FailedBatchBuildDoesNotPublishStagedCsr) {
-  class ThrowingSupplier final : public IDataChunkSupplier {
-   public:
-    explicit ThrowingSupplier(std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      if (chunk_) {
-        return std::exchange(chunk_, nullptr);
-      }
-      throw std::runtime_error("injected bulk edge source failure");
-    }
-
-    int64_t RowNum() const override { return 1; }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-  };
-
-  class ThrowingSource final : public IDataChunkSource {
-   public:
-    explicit ThrowingSource(std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      return std::make_shared<ThrowingSupplier>(chunk_);
-    }
-
-    bool rewindable() const override { return true; }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-  };
-
   auto ckp = make_checkpoint(workspace());
   InitIndexers(*ckp, 1, 1);
   ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
@@ -1497,11 +1320,20 @@ TEST_F(EdgeTableTest, FailedBatchBuildDoesNotPublishStagedCsr) {
        split_column_to_chunks(std::vector<int32_t>{42}, 1)});
   ASSERT_EQ(chunks.size(), 1);
 
-  EXPECT_THROW(edge_table->BatchBuildEdges(
-                   src_indexer, dst_indexer,
-                   std::make_shared<ThrowingSource>(chunks.front())),
-               std::runtime_error);
-  EXPECT_TRUE(edge_table->CanBatchBuild());
+  auto source = std::make_shared<TestChunkSource>(
+      [chunk = chunks.front()](const ChunkSourceOptions&, size_t) {
+        auto remaining = std::make_shared<std::shared_ptr<DataChunk>>(chunk);
+        return std::make_shared<TestChunkSupplier>(
+            [remaining] {
+              if (*remaining) {
+                return std::exchange(*remaining, std::shared_ptr<DataChunk>{});
+              }
+              throw std::runtime_error("injected bulk edge source failure");
+            },
+            1);
+      },
+      kForceBulkBuildBytes);
+  EXPECT_THROW(BatchBuild(source), std::runtime_error);
   EXPECT_EQ(edge_table->EdgeNum(), 0);
 }
 
@@ -1512,72 +1344,6 @@ TEST_F(EdgeTableTest,
         << "Concurrent uniqueness cancellation needs two consumer workers";
   }
 
-  class ConcurrentSingleCheckThrowingSupplier final
-      : public IDataChunkSupplier {
-   public:
-    ConcurrentSingleCheckThrowingSupplier(std::shared_ptr<DataChunk> chunk,
-                                          std::atomic<size_t>& cancel_count)
-        : chunk_(std::move(chunk)), cancel_count_(cancel_count) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      const auto call = next_call_.fetch_add(1, std::memory_order_relaxed);
-      if (call == 0) {
-        return chunk_;
-      }
-      if (call == 1) {
-        throw std::runtime_error("injected concurrent uniqueness failure");
-      }
-      return nullptr;
-    }
-
-    int64_t RowNum() const override { return 1; }
-    bool SupportsConcurrentGetNext() const override { return true; }
-
-    void Cancel() override {
-      cancel_count_.fetch_add(1, std::memory_order_relaxed);
-    }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-    std::atomic<size_t>& cancel_count_;
-    std::atomic<size_t> next_call_{0};
-  };
-
-  class ConcurrentSingleCheckThrowingSource final : public IDataChunkSource {
-   public:
-    explicit ConcurrentSingleCheckThrowingSource(
-        std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      return std::make_shared<ConcurrentSingleCheckThrowingSupplier>(
-          chunk_, cancel_count_);
-    }
-
-    std::shared_ptr<IDataChunkSupplier> Open(
-        const ChunkSourceOptions& options) const override {
-      ++open_count_;
-      opened_options_.push_back(options);
-      return Open();
-    }
-
-    bool rewindable() const override { return true; }
-    int64_t EstimatedBytes() const override { return 1024LL * 1024 * 1024; }
-    size_t OpenCount() const { return open_count_; }
-    size_t CancelCount() const {
-      return cancel_count_.load(std::memory_order_relaxed);
-    }
-    const std::vector<ChunkSourceOptions>& OpenedOptions() const {
-      return opened_options_;
-    }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-    mutable size_t open_count_ = 0;
-    mutable std::atomic<size_t> cancel_count_{0};
-    mutable std::vector<ChunkSourceOptions> opened_options_;
-  };
-
   auto ckp = make_checkpoint(workspace());
   InitIndexers(*ckp, 1, 1);
   ConstructEdgeTable(src_label_, dst_label_, edge_label_single_);
@@ -1587,62 +1353,42 @@ TEST_F(EdgeTableTest,
        split_column_to_chunks(std::vector<int64_t>{0}, 1),
        split_column_to_chunks(std::vector<int32_t>{42}, 1)});
   ASSERT_EQ(chunks.size(), 1);
-  auto source =
-      std::make_shared<ConcurrentSingleCheckThrowingSource>(chunks.front());
+  std::atomic<size_t> cancel_count{0};
+  auto source = std::make_shared<TestChunkSource>(
+      [chunk = chunks.front(), &cancel_count](const ChunkSourceOptions&,
+                                              size_t) {
+        auto next_call = std::make_shared<std::atomic<size_t>>(0);
+        return std::make_shared<TestChunkSupplier>(
+            [chunk, next_call]() -> std::shared_ptr<DataChunk> {
+              const auto call =
+                  next_call->fetch_add(1, std::memory_order_relaxed);
+              if (call == 0) {
+                return chunk;
+              }
+              if (call == 1) {
+                throw std::runtime_error(
+                    "injected concurrent uniqueness failure");
+              }
+              return nullptr;
+            },
+            1, true,
+            [&cancel_count] {
+              cancel_count.fetch_add(1, std::memory_order_relaxed);
+            });
+      },
+      kForceBulkBuildBytes);
 
-  EXPECT_THROW(edge_table->BatchBuildEdges(src_indexer, dst_indexer, source),
-               std::runtime_error);
+  EXPECT_THROW(BatchBuild(source), std::runtime_error);
   EXPECT_EQ(source->OpenCount(), 1);
-  EXPECT_EQ(source->CancelCount(), 1);
+  EXPECT_EQ(cancel_count.load(std::memory_order_relaxed), 1);
   ASSERT_EQ(source->OpenedOptions().size(), 1);
   EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
   EXPECT_EQ(source->OpenedOptions()[0].projected_columns,
             (std::vector<int32_t>{0, 1}));
-  EXPECT_TRUE(edge_table->CanBatchBuild());
   EXPECT_EQ(edge_table->EdgeNum(), 0);
 }
 
 TEST_F(EdgeTableTest, SecondPassFailureDoesNotPublishAllocatedCsr) {
-  class ThrowAfterChunkSupplier final : public IDataChunkSupplier {
-   public:
-    explicit ThrowAfterChunkSupplier(std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      if (chunk_) {
-        return std::exchange(chunk_, nullptr);
-      }
-      throw std::runtime_error("injected second-pass failure");
-    }
-
-    int64_t RowNum() const override { return 1; }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-  };
-
-  class SecondPassThrowingSource final : public IDataChunkSource {
-   public:
-    explicit SecondPassThrowingSource(std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      ++open_count_;
-      if (open_count_ == 1) {
-        return std::make_shared<GeneratedChunkSupplier>(
-            std::vector<std::shared_ptr<DataChunk>>{chunk_});
-      }
-      return std::make_shared<ThrowAfterChunkSupplier>(chunk_);
-    }
-
-    bool rewindable() const override { return true; }
-    size_t OpenCount() const { return open_count_; }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-    mutable size_t open_count_ = 0;
-  };
-
   auto ckp = make_checkpoint(workspace());
   InitIndexers(*ckp, 1, 1);
   ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
@@ -1652,12 +1398,28 @@ TEST_F(EdgeTableTest, SecondPassFailureDoesNotPublishAllocatedCsr) {
        split_column_to_chunks(std::vector<int64_t>{0}, 1),
        split_column_to_chunks(std::vector<int32_t>{42}, 1)});
   ASSERT_EQ(chunks.size(), 1);
-  auto source = std::make_shared<SecondPassThrowingSource>(chunks.front());
+  auto source = std::make_shared<TestChunkSource>(
+      [chunk = chunks.front()](const ChunkSourceOptions&, size_t open_index) {
+        if (open_index == 0) {
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<GeneratedChunkSupplier>(
+                  std::vector<std::shared_ptr<DataChunk>>{chunk}));
+        }
+        auto remaining = std::make_shared<std::shared_ptr<DataChunk>>(chunk);
+        return std::shared_ptr<IDataChunkSupplier>(
+            std::make_shared<TestChunkSupplier>(
+                [remaining]() -> std::shared_ptr<DataChunk> {
+                  if (*remaining) {
+                    return std::exchange(*remaining, nullptr);
+                  }
+                  throw std::runtime_error("injected second-pass failure");
+                },
+                1));
+      },
+      kForceBulkBuildBytes);
 
-  EXPECT_THROW(edge_table->BatchBuildEdges(src_indexer, dst_indexer, source),
-               std::runtime_error);
+  EXPECT_THROW(BatchBuild(source), std::runtime_error);
   EXPECT_EQ(source->OpenCount(), 2);
-  EXPECT_TRUE(edge_table->CanBatchBuild());
   EXPECT_EQ(edge_table->EdgeNum(), 0);
 }
 
@@ -1666,70 +1428,6 @@ TEST_F(EdgeTableTest,
   if (std::thread::hardware_concurrency() < 2) {
     GTEST_SKIP() << "Concurrent supplier cancellation requires two workers";
   }
-
-  class ConcurrentThrowingSupplier final : public IDataChunkSupplier {
-   public:
-    ConcurrentThrowingSupplier(std::shared_ptr<DataChunk> chunk,
-                               std::atomic<size_t>& cancel_count)
-        : chunk_(std::move(chunk)), cancel_count_(cancel_count) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      const auto call = next_call_.fetch_add(1, std::memory_order_relaxed);
-      if (call == 0) {
-        return chunk_;
-      }
-      if (call == 1) {
-        throw std::runtime_error("injected concurrent fill failure");
-      }
-      return nullptr;
-    }
-
-    int64_t RowNum() const override { return 1; }
-    bool SupportsConcurrentGetNext() const override { return true; }
-
-    void Cancel() override {
-      cancel_count_.fetch_add(1, std::memory_order_relaxed);
-    }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-    std::atomic<size_t>& cancel_count_;
-    std::atomic<size_t> next_call_{0};
-  };
-
-  class ConcurrentSecondPassThrowingSource final : public IDataChunkSource {
-   public:
-    explicit ConcurrentSecondPassThrowingSource(
-        std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      return Open(ChunkSourceOptions());
-    }
-
-    std::shared_ptr<IDataChunkSupplier> Open(
-        const ChunkSourceOptions& /*options*/) const override {
-      ++open_count_;
-      if (open_count_ == 1) {
-        return std::make_shared<GeneratedChunkSupplier>(
-            std::vector<std::shared_ptr<DataChunk>>{chunk_});
-      }
-      return std::make_shared<ConcurrentThrowingSupplier>(chunk_,
-                                                          cancel_count_);
-    }
-
-    bool rewindable() const override { return true; }
-    int64_t EstimatedBytes() const override { return 1024LL * 1024 * 1024; }
-    size_t OpenCount() const { return open_count_; }
-    size_t CancelCount() const {
-      return cancel_count_.load(std::memory_order_relaxed);
-    }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-    mutable size_t open_count_ = 0;
-    mutable std::atomic<size_t> cancel_count_{0};
-  };
 
   auto ckp = make_checkpoint(workspace());
   InitIndexers(*ckp, 1, 1);
@@ -1740,14 +1438,40 @@ TEST_F(EdgeTableTest,
        split_column_to_chunks(std::vector<int64_t>{0}, 1),
        split_column_to_chunks(std::vector<int32_t>{42}, 1)});
   ASSERT_EQ(chunks.size(), 1);
-  auto source =
-      std::make_shared<ConcurrentSecondPassThrowingSource>(chunks.front());
+  std::atomic<size_t> cancel_count{0};
+  auto source = std::make_shared<TestChunkSource>(
+      [chunk = chunks.front(), &cancel_count](const ChunkSourceOptions&,
+                                              size_t open_index) {
+        if (open_index == 0) {
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<GeneratedChunkSupplier>(
+                  std::vector<std::shared_ptr<DataChunk>>{chunk}));
+        }
+        auto next_call = std::make_shared<std::atomic<size_t>>(0);
+        return std::shared_ptr<IDataChunkSupplier>(
+            std::make_shared<TestChunkSupplier>(
+                [chunk, next_call]() -> std::shared_ptr<DataChunk> {
+                  const auto call =
+                      next_call->fetch_add(1, std::memory_order_relaxed);
+                  if (call == 0) {
+                    return chunk;
+                  }
+                  if (call == 1) {
+                    throw std::runtime_error(
+                        "injected concurrent fill failure");
+                  }
+                  return nullptr;
+                },
+                1, true,
+                [&cancel_count] {
+                  cancel_count.fetch_add(1, std::memory_order_relaxed);
+                }));
+      },
+      kForceBulkBuildBytes);
 
-  EXPECT_THROW(edge_table->BatchBuildEdges(src_indexer, dst_indexer, source),
-               std::runtime_error);
+  EXPECT_THROW(BatchBuild(source), std::runtime_error);
   EXPECT_EQ(source->OpenCount(), 2);
-  EXPECT_EQ(source->CancelCount(), 1);
-  EXPECT_TRUE(edge_table->CanBatchBuild());
+  EXPECT_EQ(cancel_count.load(std::memory_order_relaxed), 1);
   EXPECT_EQ(edge_table->EdgeNum(), 0);
 }
 
@@ -1757,84 +1481,13 @@ TEST_F(EdgeTableTest,
     GTEST_SKIP() << "Bounded pipeline cancellation requires two consumers";
   }
 
-  class BlockingAfterChunkSupplier final : public IDataChunkSupplier {
-   public:
-    explicit BlockingAfterChunkSupplier(std::shared_ptr<DataChunk> chunk)
-        : chunk_(std::move(chunk)) {}
-
-    std::shared_ptr<DataChunk> GetNextChunk() override {
-      if (chunk_) {
-        return std::exchange(chunk_, nullptr);
-      }
-      std::unique_lock<std::mutex> lock(mutex_);
-      if (!cancelled_cv_.wait_for(lock, std::chrono::seconds(2),
-                                  [&] { return cancelled_; })) {
-        timed_out_.store(true, std::memory_order_relaxed);
-      }
-      return nullptr;
-    }
-
-    int64_t RowNum() const override { return 1; }
-
-    void Cancel() override {
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-        cancelled_ = true;
-      }
-      cancel_count_.fetch_add(1, std::memory_order_relaxed);
-      cancelled_cv_.notify_all();
-    }
-
-    size_t CancelCount() const {
-      return cancel_count_.load(std::memory_order_relaxed);
-    }
-    bool TimedOut() const { return timed_out_.load(std::memory_order_relaxed); }
-
-   private:
-    std::shared_ptr<DataChunk> chunk_;
-    mutable std::mutex mutex_;
-    std::condition_variable cancelled_cv_;
-    bool cancelled_ = false;
-    std::atomic<size_t> cancel_count_{0};
-    std::atomic<bool> timed_out_{false};
-  };
-
-  class NonConcurrentSecondPassFailureSource final : public IDataChunkSource {
-   public:
-    NonConcurrentSecondPassFailureSource(
-        std::shared_ptr<DataChunk> valid_chunk,
-        std::shared_ptr<DataChunk> invalid_chunk)
-        : valid_chunk_(std::move(valid_chunk)),
-          invalid_chunk_(std::move(invalid_chunk)) {}
-
-    std::shared_ptr<IDataChunkSupplier> Open() const override {
-      ++open_count_;
-      if (open_count_ == 1) {
-        return std::make_shared<GeneratedChunkSupplier>(
-            std::vector<std::shared_ptr<DataChunk>>{valid_chunk_});
-      }
-      second_pass_supplier_ =
-          std::make_shared<BlockingAfterChunkSupplier>(invalid_chunk_);
-      return second_pass_supplier_;
-    }
-
-    bool rewindable() const override { return true; }
-    int64_t EstimatedBytes() const override { return 1024LL * 1024 * 1024; }
-    size_t OpenCount() const { return open_count_; }
-    size_t CancelCount() const {
-      CHECK(second_pass_supplier_ != nullptr);
-      return second_pass_supplier_->CancelCount();
-    }
-    bool TimedOut() const {
-      CHECK(second_pass_supplier_ != nullptr);
-      return second_pass_supplier_->TimedOut();
-    }
-
-   private:
-    std::shared_ptr<DataChunk> valid_chunk_;
-    std::shared_ptr<DataChunk> invalid_chunk_;
-    mutable size_t open_count_ = 0;
-    mutable std::shared_ptr<BlockingAfterChunkSupplier> second_pass_supplier_;
+  struct BlockingSupplierState {
+    std::shared_ptr<DataChunk> chunk;
+    std::mutex mutex;
+    std::condition_variable cancelled_cv;
+    bool cancelled = false;
+    std::atomic<size_t> cancel_count{0};
+    std::atomic<bool> timed_out{false};
   };
 
   auto ckp = make_checkpoint(workspace());
@@ -1854,15 +1507,49 @@ TEST_F(EdgeTableTest,
        split_column_to_chunks(std::vector<int32_t>{42}, 1)});
   ASSERT_EQ(valid_chunks.size(), 1);
   ASSERT_EQ(invalid_chunks.size(), 1);
-  auto source = std::make_shared<NonConcurrentSecondPassFailureSource>(
-      valid_chunks.front(), invalid_chunks.front());
+  std::shared_ptr<BlockingSupplierState> second_pass_state;
+  auto source = std::make_shared<TestChunkSource>(
+      [valid_chunk = valid_chunks.front(),
+       invalid_chunk = invalid_chunks.front(),
+       &second_pass_state](const ChunkSourceOptions&, size_t open_index) {
+        if (open_index == 0) {
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<GeneratedChunkSupplier>(
+                  std::vector<std::shared_ptr<DataChunk>>{valid_chunk}));
+        }
+        second_pass_state = std::make_shared<BlockingSupplierState>();
+        second_pass_state->chunk = invalid_chunk;
+        return std::shared_ptr<IDataChunkSupplier>(
+            std::make_shared<TestChunkSupplier>(
+                [state = second_pass_state] {
+                  if (state->chunk) {
+                    return std::exchange(state->chunk, nullptr);
+                  }
+                  std::unique_lock<std::mutex> lock(state->mutex);
+                  if (!state->cancelled_cv.wait_for(
+                          lock, std::chrono::seconds(2),
+                          [&] { return state->cancelled; })) {
+                    state->timed_out.store(true, std::memory_order_relaxed);
+                  }
+                  return std::shared_ptr<DataChunk>{};
+                },
+                1, false,
+                [state = second_pass_state] {
+                  {
+                    std::lock_guard<std::mutex> lock(state->mutex);
+                    state->cancelled = true;
+                  }
+                  state->cancel_count.fetch_add(1, std::memory_order_relaxed);
+                  state->cancelled_cv.notify_all();
+                }));
+      },
+      kForceBulkBuildBytes);
 
-  EXPECT_THROW(edge_table->BatchBuildEdges(src_indexer, dst_indexer, source),
-               std::exception);
+  EXPECT_THROW(BatchBuild(source), std::exception);
   EXPECT_EQ(source->OpenCount(), 2);
-  EXPECT_EQ(source->CancelCount(), 1);
-  EXPECT_FALSE(source->TimedOut());
-  EXPECT_TRUE(edge_table->CanBatchBuild());
+  ASSERT_NE(second_pass_state, nullptr);
+  EXPECT_EQ(second_pass_state->cancel_count.load(std::memory_order_relaxed), 1);
+  EXPECT_FALSE(second_pass_state->timed_out.load(std::memory_order_relaxed));
   EXPECT_EQ(edge_table->EdgeNum(), 0);
 }
 
@@ -1940,7 +1627,10 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   this->ExpectUnbundledStats(0, 0);
-  this->BatchInsert(std::move(batches));
+  auto source = std::make_shared<GeneratedChunkSource>(std::move(batches),
+                                                       kForceBulkBuildBytes);
+  this->BatchBuild(source);
+  EXPECT_EQ(source->OpenCount(), 1);
   EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
   this->ExpectUnbundledStats(edge_num, ExpectedBatchInsertCapacity(edge_num));
 

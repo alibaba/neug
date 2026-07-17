@@ -46,7 +46,8 @@ class CsvReader {
 
   /// Creates a repeatable CSV source for direct COPY FROM bulk loading.
   /// Returns nullptr when the read needs a row filter and must materialize.
-  std::shared_ptr<IDataChunkSource> createChunkSource();
+  std::shared_ptr<IDataChunkSource> createChunkSource(
+      std::vector<int32_t> projected_columns = {});
 
   result<std::shared_ptr<EntrySchema>> inferSchema();
 

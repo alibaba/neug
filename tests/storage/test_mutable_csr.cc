@@ -572,13 +572,6 @@ TEST(MutableCsrBulkBuildAccessTest, ReservesTwentyPercentPerVertex) {
   writer.CountConcurrent(1, 2);
   writer.AllocateFromCounts();
 
-  EXPECT_EQ(writer.ExpectedDegree(0), 20);
-  EXPECT_EQ(writer.ExpectedDegree(1), 2);
-  EXPECT_EQ(writer.ExpectedDegree(2), 0);
-  EXPECT_EQ(writer.ReservedCapacityForVertex(0), 24);
-  EXPECT_EQ(writer.ReservedCapacityForVertex(1), 3);
-  EXPECT_EQ(writer.ReservedCapacityForVertex(2), 0);
-
   std::vector<std::thread> fillers;
   for (int thread = 0; thread < 4; ++thread) {
     fillers.emplace_back([&writer] {

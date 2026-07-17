@@ -68,6 +68,8 @@ CsvReadConfig build_csv_read_config(
     const std::unordered_map<std::string, std::string>& csv_options,
     const std::vector<DataType>& column_types);
 
+class IDataChunkSource;
+
 class IDataChunkSupplier {
  public:
   virtual ~IDataChunkSupplier() = default;
@@ -79,11 +81,19 @@ class IDataChunkSupplier {
 
   /// Stops any background producers and wakes blocked GetNextChunk() calls.
   virtual void Cancel() {}
+
+  /// Returns the repeatable source backing this supplier, when available.
+  /// Storage uses this hint to select staged bulk build internally.
+  virtual std::shared_ptr<IDataChunkSource> RepeatableSource() const {
+    return nullptr;
+  }
 };
 
 struct ChunkSourceOptions {
-  bool parallel_enabled = false;
-  int32_t producer_count = 1;
+  /// Zero selects the source's serial supplier. Positive values request that
+  /// many background parsing workers when input order need not be preserved.
+  int32_t producer_count = 0;
+  int32_t consumer_count = 1;
   size_t queue_capacity = 2;
   bool preserve_order = true;
 
@@ -100,17 +110,10 @@ class IDataChunkSource {
  public:
   virtual ~IDataChunkSource() = default;
 
-  /// Opens a new supplier positioned at the beginning of the source.
-  virtual std::shared_ptr<IDataChunkSupplier> Open() const = 0;
-
-  /// Opens a supplier with execution-specific concurrency settings. Sources
-  /// that do not implement parsing-time projection receive a generic
-  /// projection wrapper around Open().
+  /// Opens a new supplier positioned at the beginning of the source using the
+  /// requested projection and concurrency settings.
   virtual std::shared_ptr<IDataChunkSupplier> Open(
-      const ChunkSourceOptions& options) const;
-
-  /// Whether Open() can be called more than once with identical contents.
-  virtual bool rewindable() const = 0;
+      const ChunkSourceOptions& options = {}) const = 0;
 
   /// Returns the source size when cheaply known, otherwise -1.
   virtual int64_t EstimatedBytes() const { return -1; }
@@ -118,6 +121,9 @@ class IDataChunkSource {
   /// Whether the source options permit parallel parsing and consumption.
   virtual bool ParallelEnabled() const { return true; }
 };
+
+std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
+    std::shared_ptr<IDataChunkSource> source);
 
 inline constexpr int64_t kUnknownRowNum = -1;
 
@@ -151,23 +157,20 @@ struct CsvPartitionPlanCache;
 /// raw row-count scan.
 class CSVChunkSource final : public IDataChunkSource {
  public:
-  CSVChunkSource(std::vector<std::string> file_paths, CsvReadConfig config);
+  CSVChunkSource(std::vector<std::string> file_paths, CsvReadConfig config,
+                 std::vector<int32_t> projected_columns = {});
 
-  std::shared_ptr<IDataChunkSupplier> Open() const override;
   std::shared_ptr<IDataChunkSupplier> Open(
-      const ChunkSourceOptions& options) const override;
-  bool rewindable() const override { return true; }
+      const ChunkSourceOptions& options = {}) const override;
   int64_t EstimatedBytes() const override;
   bool ParallelEnabled() const override { return config_.use_threads; }
 
  private:
   std::vector<std::string> file_paths_;
   CsvReadConfig config_;
+  std::vector<int32_t> projected_columns_;
   std::shared_ptr<CsvPartitionPlanCache> partition_plan_cache_;
 };
-
-using CSVStreamChunkSupplier = CSVChunkSupplier;
-using CSVTableChunkSupplier = CSVChunkSupplier;
 
 void fillVertexReaderMeta(label_t v_label, const std::string& v_label_name,
                           const std::string& v_file,

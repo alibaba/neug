@@ -18,7 +18,6 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
-#include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
@@ -28,6 +27,7 @@ namespace neug {
 class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
+class IDataChunkSupplier;
 class VertexTableView;
 
 class VertexSet {
@@ -257,14 +257,7 @@ class VertexTable {
 
   void Compact(timestamp_t ts = MAX_TIMESTAMP);
 
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
-
-  bool CanBatchBuild() const { return Size() == 0; }
-
-  /// Builds an empty table from a repeatable source. CSV sources use a cheap
-  /// raw row count to reserve before their single typed parse. The existing
-  /// table is untouched until the staged build succeeds.
-  void BatchBuildVertices(std::shared_ptr<IDataChunkSource> source);
+  void insert_vertices(std::shared_ptr<IDataChunkSupplier> supplier);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
@@ -292,33 +285,6 @@ class VertexTable {
       }
     }
     return vids;
-  }
-
-  void insert_vertices_preallocated(
-      std::shared_ptr<IDataChunkSupplier> supplier) {
-    while (auto chunk = supplier->GetNextChunk()) {
-      auto& columns = chunk->columns;
-      const auto& property_names = vertex_schema_->property_names;
-      CHECK_EQ(columns.size(), property_names.size() + 1)
-          << "Number of columns in the chunk (" << columns.size()
-          << ") does not match the number of properties ("
-          << property_names.size() + 1 << ").";
-      auto pk_index = std::get<2>(vertex_schema_->primary_keys[0]);
-
-      std::vector<std::shared_ptr<IContextColumn>> property_columns;
-      property_columns.reserve(columns.size() - 1);
-      for (size_t i = 0; i < columns.size(); ++i) {
-        if (static_cast<int>(i) != pk_index) {
-          property_columns.push_back(columns[i]);
-        }
-      }
-
-      auto vids = insert_primary_keys(columns[pk_index]);
-      for (size_t i = 0; i < property_columns.size(); ++i) {
-        set_properties_from_context_column(table_->get_column_by_id(i),
-                                           property_columns[i], vids);
-      }
-    }
   }
 
   std::shared_ptr<Checkpoint> ckp_;

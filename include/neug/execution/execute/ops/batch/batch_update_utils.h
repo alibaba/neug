@@ -21,8 +21,12 @@
 #include "neug/utils/property/types.h"
 
 namespace physical {
+class PhysicalPlan;
 class PropertyMapping;
-}
+}  // namespace physical
+namespace common {
+class NameOrId;
+}  // namespace common
 namespace google {
 namespace protobuf {
 template <typename T>
@@ -32,9 +36,14 @@ class RepeatedPtrField;
 
 namespace neug {
 class IDataChunkSupplier;
-class IDataChunkSource;
 class Schema;
 class StorageReadInterface;
+namespace function {
+struct ReadFunction;
+}
+namespace reader {
+struct ReadSharedState;
+}
 namespace execution {
 
 namespace ops {
@@ -66,14 +75,28 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
 
-std::shared_ptr<IDataChunkSource> create_data_chunk_source(
-    std::shared_ptr<IDataChunkSource> source,
-    const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+bool resolve_vertex_label_id(const Schema& schema,
+                             const ::common::NameOrId& type, label_t& label_id);
 
-/// Selects staged bulk builders only for sources large enough to amortize their
-/// two bounded parsing passes. Set NEUG_COPY_BULK_BUILD=true/false to force a
-/// decision while benchmarking or rolling back.
-bool should_use_copy_bulk_build(const IDataChunkSource& source);
+struct BatchInsertInput {
+  std::shared_ptr<IDataChunkSupplier> supplier;
+  Context output;
+};
+
+struct BatchInsertSource {
+  std::shared_ptr<reader::ReadSharedState> state;
+  function::ReadFunction* read_function;
+};
+
+bool is_terminal_batch_insert(const physical::PhysicalPlan& plan, int op_idx);
+
+BatchInsertSource build_batch_insert_source(const physical::PhysicalPlan& plan,
+                                            int op_idx);
+
+BatchInsertInput create_batch_insert_input(
+    const std::shared_ptr<reader::ReadSharedState>& shared_state,
+    const function::ReadFunction& read_function,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 

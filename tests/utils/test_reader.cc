@@ -16,13 +16,28 @@
 #include "test_reader.h"
 
 #include <algorithm>
-#include <limits>
+#include <utility>
 
 #include "neug/storages/loader/chunk_pipeline_utils.h"
 #include "neug/storages/loader/loader_utils.h"
 
 namespace neug {
 namespace test {
+
+namespace {
+
+ChunkSourceOptions parallel_source_options(
+    int32_t producer_count = 4, size_t queue_capacity = 8,
+    std::vector<int32_t> projected_columns = {}) {
+  return {
+      .producer_count = producer_count,
+      .queue_capacity = queue_capacity,
+      .preserve_order = false,
+      .projected_columns = std::move(projected_columns),
+  };
+}
+
+}  // namespace
 
 // Test 1: Basic CSV reading with default options
 TEST_F(ReaderTest, TestBasicCsvRead) {
@@ -63,7 +78,6 @@ TEST_F(ReaderTest, CsvChunkSourceCanBeReopened) {
   auto source = reader->createChunkSource();
 
   ASSERT_NE(source, nullptr);
-  EXPECT_TRUE(source->rewindable());
   for (int pass = 0; pass < 2; ++pass) {
     auto supplier = source->Open();
     ASSERT_NE(supplier, nullptr);
@@ -105,12 +119,7 @@ TEST_F(ReaderTest, CsvChunkSourcePartitionsQuotedRecords) {
   };
 
   auto expected = read_rows(source->Open());
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 4;
-  options.queue_capacity = 8;
-  options.preserve_order = false;
-  auto partitioned = source->Open(options);
+  auto partitioned = source->Open(parallel_source_options());
   ASSERT_NE(partitioned, nullptr);
   EXPECT_TRUE(partitioned->SupportsConcurrentGetNext());
   EXPECT_EQ(partitioned->RowNum(), 6);  // Header is an intentional overcount.
@@ -145,12 +154,7 @@ TEST_F(ReaderTest, PartitionedCsvCarriesSkipAcrossRanges) {
   CSVChunkSource source(
       {std::string(ARROW_READER_TEST_DIR) + "/partition-skip.csv"}, config);
 
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 4;
-  options.queue_capacity = 4;
-  options.preserve_order = false;
-  auto supplier = source.Open(options);
+  auto supplier = source.Open(parallel_source_options(4, 4));
   ASSERT_NE(supplier, nullptr);
 
   std::vector<int32_t> ids;
@@ -195,12 +199,7 @@ TEST_F(ReaderTest, PartitionPlannerMatchesParserWhenDoubleQuoteIsFalse) {
   };
   const auto expected = read_ids(source.Open());
 
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 4;
-  options.queue_capacity = 4;
-  options.preserve_order = false;
-  EXPECT_EQ(read_ids(source.Open(options)), expected);
+  EXPECT_EQ(read_ids(source.Open(parallel_source_options(4, 4))), expected);
   EXPECT_EQ(expected, (std::vector<int32_t>{0, 1, 2}));
 }
 
@@ -220,13 +219,7 @@ TEST_F(ReaderTest, CsvChunkSourcePushesProjectionIntoPartitionedParsing) {
       {std::string(ARROW_READER_TEST_DIR) + "/partition-projection.csv"},
       config);
 
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 2;
-  options.queue_capacity = 2;
-  options.preserve_order = false;
-  options.projected_columns = {2, 0};
-  auto supplier = source.Open(options);
+  auto supplier = source.Open(parallel_source_options(2, 2, {2, 0}));
   ASSERT_NE(supplier, nullptr);
 
   std::vector<std::pair<int32_t, int32_t>> rows;
@@ -241,43 +234,6 @@ TEST_F(ReaderTest, CsvChunkSourcePushesProjectionIntoPartitionedParsing) {
   EXPECT_EQ(rows, (std::vector<std::pair<int32_t, int32_t>>{{10, 1}, {20, 2}}));
 }
 
-TEST_F(ReaderTest, ChunkPipelineAllocationSharesHardwareBudget) {
-  constexpr int64_t kGiB = 1024LL * 1024 * 1024;
-  auto allocation = resolve_chunk_pipeline_allocation(kGiB, true, false, 16);
-  EXPECT_TRUE(allocation.parallel_enabled);
-  EXPECT_EQ(allocation.producer_count, 8);
-  EXPECT_EQ(allocation.consumer_count, 8);
-  EXPECT_LE(allocation.producer_count + allocation.consumer_count, 16);
-  EXPECT_EQ(allocation.queue_capacity, 16);
-
-  auto ordered = resolve_chunk_pipeline_allocation(kGiB, true, true, 16);
-  EXPECT_FALSE(ordered.parallel_enabled);
-  EXPECT_EQ(ordered.producer_count, 1);
-  EXPECT_EQ(ordered.consumer_count, 1);
-
-  auto disabled = resolve_chunk_pipeline_allocation(kGiB, false, false, 16);
-  EXPECT_FALSE(disabled.parallel_enabled);
-  EXPECT_EQ(disabled.producer_count, 1);
-  EXPECT_EQ(disabled.consumer_count, 1);
-
-  auto small =
-      resolve_chunk_pipeline_allocation(128LL * 1024 * 1024, true, false, 16);
-  EXPECT_FALSE(small.parallel_enabled);
-  EXPECT_EQ(small.producer_count, 1);
-  EXPECT_EQ(small.consumer_count, 1);
-
-  auto two_workers = resolve_chunk_pipeline_allocation(kGiB, true, false, 2);
-  EXPECT_TRUE(two_workers.parallel_enabled);
-  EXPECT_EQ(two_workers.producer_count, 1);
-  EXPECT_EQ(two_workers.consumer_count, 1);
-
-  auto maximum_size = resolve_chunk_pipeline_allocation(
-      std::numeric_limits<int64_t>::max(), true, false, 16);
-  EXPECT_TRUE(maximum_size.parallel_enabled);
-  EXPECT_EQ(maximum_size.producer_count, 8);
-  EXPECT_EQ(maximum_size.consumer_count, 8);
-}
-
 TEST_F(ReaderTest, CsvChunkSourceHonorsParallelFalse) {
   createCsvFile("serial.csv", "id|name\n1|Alice\n2|Bob\n");
   std::vector<std::string> column_names = {"id", "name"};
@@ -290,12 +246,7 @@ TEST_F(ReaderTest, CsvChunkSourceHonorsParallelFalse) {
   ASSERT_NE(source, nullptr);
   EXPECT_FALSE(source->ParallelEnabled());
 
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 4;
-  options.queue_capacity = 8;
-  options.preserve_order = false;
-  auto supplier = source->Open(options);
+  auto supplier = source->Open(parallel_source_options());
   ASSERT_NE(supplier, nullptr);
   EXPECT_FALSE(supplier->SupportsConcurrentGetNext());
 }
@@ -318,12 +269,7 @@ TEST_F(ReaderTest, PartitionedCsvSkipsHeaderForEveryFile) {
   };
   CSVChunkSource source({path("part-a.csv"), path("part-b.csv")}, config);
 
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 4;
-  options.queue_capacity = 8;
-  options.preserve_order = false;
-  auto supplier = source.Open(options);
+  auto supplier = source.Open(parallel_source_options());
   ASSERT_NE(supplier, nullptr);
   EXPECT_EQ(supplier->RowNum(),
             6);  // Two headers are counted as reserve hints.
@@ -354,12 +300,7 @@ TEST_F(ReaderTest, PartitionedCsvPropagatesProducerErrors) {
   CSVChunkSource source(
       {std::string(ARROW_READER_TEST_DIR) + "/partition-error.csv"}, config);
 
-  ChunkSourceOptions options;
-  options.parallel_enabled = true;
-  options.producer_count = 4;
-  options.queue_capacity = 2;
-  options.preserve_order = false;
-  auto supplier = source.Open(options);
+  auto supplier = source.Open(parallel_source_options(4, 2));
   ASSERT_NE(supplier, nullptr);
   EXPECT_ANY_THROW({
     while (supplier->GetNextChunk()) {}

@@ -485,7 +485,8 @@ CsvReader::CsvReader(std::shared_ptr<ReadSharedState> sharedState,
 
 CsvReader::~CsvReader() = default;
 
-std::shared_ptr<IDataChunkSource> CsvReader::createChunkSource() {
+std::shared_ptr<IDataChunkSource> CsvReader::createChunkSource(
+    std::vector<int32_t> projected_columns) {
   if (!sharedState_) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -511,7 +512,8 @@ std::shared_ptr<IDataChunkSource> CsvReader::createChunkSource() {
   if (paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
   }
-  return std::make_shared<CSVChunkSource>(paths, std::move(read_config));
+  return std::make_shared<CSVChunkSource>(paths, std::move(read_config),
+                                          std::move(projected_columns));
 }
 
 void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,

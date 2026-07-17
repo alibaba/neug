@@ -160,7 +160,7 @@ TEST_F(CopyTempTest, NodeDefaultPrimaryKey) {
   conn->Close();
 }
 
-TEST_F(CopyTempTest, PersistentCopyUsesForcedBulkPath) {
+TEST_F(CopyTempTest, PersistentCopySelectsEdgeBuildPath) {
   auto conn = db_->Connect();
   const std::string people = std::string(CSV_DIR) + "/people.csv";
   const std::string edges = std::string(CSV_DIR) + "/edges.csv";
@@ -200,20 +200,19 @@ TEST_F(CopyTempTest, PersistentCopyUsesForcedBulkPath) {
   ASSERT_TRUE(dangling_count) << dangling_count.error().ToString();
   EXPECT_EQ(dangling_count.value().response().row_count(), 1);
 
-  // The same terminal plan must retain the established materialized path
-  // when bulk build is explicitly disabled.
-  ASSERT_TRUE(
-      conn->Query("CREATE NODE TABLE Fallback(id INT64, name STRING, "
-                  "age INT64, PRIMARY KEY(id));"));
+  // Disabling staged edge build keeps the terminal plan on normal BatchAdd.
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE Fallback(FROM Person TO Person, weight DOUBLE);"));
   {
     ScopedEnvironmentVariable disable_bulk("NEUG_COPY_BULK_BUILD", "false");
     auto fallback =
-        conn->Query("COPY Fallback FROM \"" + people + "\" (header = true);");
+        conn->Query("COPY Fallback FROM \"" + edges + "\" (header = true);");
     ASSERT_TRUE(fallback) << fallback.error().ToString();
   }
-  auto fallback_count = conn->Query("MATCH (n:Fallback) RETURN n.id;");
+  auto fallback_count =
+      conn->Query("MATCH (:Person)-[e:Fallback]->(:Person) RETURN e.weight;");
   ASSERT_TRUE(fallback_count) << fallback_count.error().ToString();
-  EXPECT_EQ(fallback_count.value().response().row_count(), 4);
+  EXPECT_EQ(fallback_count.value().response().row_count(), 3);
   conn->Close();
 }
 

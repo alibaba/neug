@@ -255,6 +255,16 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   CsrPrefetchPolicy prefetch_policy_;
 
   void refresh_prefetch_policy();
+  static int reserved_capacity(int degree) {
+    CHECK_GE(degree, 0);
+    if (degree == 0) {
+      return 0;
+    }
+    const auto reserved =
+        std::ceil(degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
+    CHECK_LE(reserved, static_cast<double>(std::numeric_limits<int>::max()));
+    return static_cast<int>(reserved);
+  }
 
   size_t vertex_capacity() const {
     if (!degree_list_) {
@@ -500,11 +510,9 @@ class MutableCsrBulkBuildAccess {
  public:
   using csr_t = MutableCsr<EDATA_T>;
   using nbr_t = typename csr_t::nbr_t;
-  static constexpr bool kSupportsDisjointConcurrentFill = true;
   static constexpr bool kStoresEdges = true;
   static constexpr bool kNeedsDegreeCount = true;
   static constexpr bool kChecksSingleUniqueness = false;
-  static constexpr bool kNeedsConcurrentGrouping = true;
   static constexpr bool kTracksInputEdgeCount = false;
 
   explicit MutableCsrBulkBuildAccess(csr_t& csr) : csr_(csr) {}
@@ -553,7 +561,7 @@ class MutableCsrBulkBuildAccess {
     size_t total_capacity = 0;
     for (size_t i = 0; i < vertex_capacity_; ++i) {
       const auto degree = degrees_[i].load(std::memory_order_relaxed);
-      const auto reserved_capacity = ReservedCapacity(degree);
+      const auto reserved_capacity = csr_t::reserved_capacity(degree);
       // During the fill pass cap_list_ stores the exact expected degree. This
       // lets range reservations validate both passes without allocating a
       // second O(V) metadata array. Finish() converts it to runtime capacity.
@@ -570,21 +578,11 @@ class MutableCsrBulkBuildAccess {
 
     size_t offset = 0;
     for (size_t i = 0; i < vertex_capacity_; ++i) {
-      const auto reserved_capacity = ReservedCapacity(capacities_[i]);
+      const auto reserved_capacity = csr_t::reserved_capacity(capacities_[i]);
       adj_lists_[i] = reserved_capacity == 0 ? nullptr : nbrs_ + offset;
       offset += static_cast<size_t>(reserved_capacity);
       degrees_[i].store(0, std::memory_order_relaxed);
     }
-  }
-
-  int ExpectedDegree(vid_t src) const {
-    CHECK_LT(src, vertex_capacity_);
-    return capacities_[src];
-  }
-
-  int ReservedCapacityForVertex(vid_t src) const {
-    CHECK_LT(src, vertex_capacity_);
-    return ReservedCapacity(capacities_[src]);
   }
 
   int ReserveSerial(vid_t src, int count) {
@@ -627,24 +625,13 @@ class MutableCsrBulkBuildAccess {
       CHECK_EQ(degree, capacities_[i])
           << "Bulk edge count/fill mismatch for vertex " << i;
       edge_num += static_cast<uint64_t>(degree);
-      capacities_[i] = ReservedCapacity(degree);
+      capacities_[i] = csr_t::reserved_capacity(degree);
     }
     csr_.edge_num_.store(edge_num, std::memory_order_relaxed);
     csr_.refresh_prefetch_policy();
   }
 
  private:
-  static int ReservedCapacity(int degree) {
-    CHECK_GE(degree, 0);
-    if (degree == 0) {
-      return 0;
-    }
-    const auto reserved =
-        std::ceil(degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
-    CHECK_LE(reserved, static_cast<double>(std::numeric_limits<int>::max()));
-    return static_cast<int>(reserved);
-  }
-
   void refresh_metadata_ptrs() {
     vertex_capacity_ = csr_.vertex_capacity();
     adj_lists_ = reinterpret_cast<nbr_t**>(
@@ -674,11 +661,9 @@ class SingleMutableCsrBulkBuildAccess {
  public:
   using csr_t = SingleMutableCsr<EDATA_T>;
   using nbr_t = typename csr_t::nbr_t;
-  static constexpr bool kSupportsDisjointConcurrentFill = true;
   static constexpr bool kStoresEdges = true;
   static constexpr bool kNeedsDegreeCount = false;
   static constexpr bool kChecksSingleUniqueness = true;
-  static constexpr bool kNeedsConcurrentGrouping = false;
   static constexpr bool kTracksInputEdgeCount = true;
 
   explicit SingleMutableCsrBulkBuildAccess(csr_t& csr) : csr_(csr) {}
@@ -692,8 +677,6 @@ class SingleMutableCsrBulkBuildAccess {
       nbrs_[i].timestamp.store(INVALID_TIMESTAMP, std::memory_order_relaxed);
     }
     csr_.edge_num_.store(0, std::memory_order_relaxed);
-    edge_count_ = 0;
-    input_edge_count_precomputed_ = false;
   }
 
   void AllocateFromCounts() {}
@@ -713,11 +696,6 @@ class SingleMutableCsrBulkBuildAccess {
     return previous != INVALID_TIMESTAMP;
   }
 
-  void SetInputEdgeCount(uint64_t count) {
-    edge_count_ = count;
-    input_edge_count_precomputed_ = true;
-  }
-
   void PutSerial(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts) {
     PutConcurrent(src, dst, data, ts);
   }
@@ -732,15 +710,11 @@ class SingleMutableCsrBulkBuildAccess {
   }
 
   void RecordFilledEdges(size_t count) {
-    if (!input_edge_count_precomputed_) {
-      edge_count_ += static_cast<uint64_t>(count);
-    }
+    csr_.edge_num_.fetch_add(static_cast<uint64_t>(count),
+                             std::memory_order_relaxed);
   }
 
-  void Finish() {
-    csr_.edge_num_.store(edge_count_, std::memory_order_relaxed);
-    csr_.refresh_prefetch_policy();
-  }
+  void Finish() { csr_.refresh_prefetch_policy(); }
 
  private:
   void refresh_ptrs() {
@@ -750,8 +724,6 @@ class SingleMutableCsrBulkBuildAccess {
   }
 
   csr_t& csr_;
-  uint64_t edge_count_ = 0;
-  bool input_edge_count_precomputed_ = false;
   size_t vertex_capacity_ = 0;
   nbr_t* nbrs_ = nullptr;
 };

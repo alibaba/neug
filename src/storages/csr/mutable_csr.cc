@@ -473,7 +473,7 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     int old_deg = sz_arr[i].load(std::memory_order_relaxed);
     total_to_move += old_deg;
     int new_degree = degree[i] + old_deg;
-    int new_cap = std::ceil(new_degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
+    int new_cap = reserved_capacity(new_degree);
     cap_arr[i] = new_cap;
     total_to_allocate += new_cap;
   }

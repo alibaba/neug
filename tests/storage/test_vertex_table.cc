@@ -707,22 +707,20 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   }
 }
 
-TEST_F(VertexTableTest, BatchBuildVerticesFromRepeatableSource) {
+TEST_F(VertexTableTest, InsertVerticesFromRepeatableSource) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
   OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
 
   constexpr size_t kVertexNum = 4097;
-  auto source =
-      std::make_shared<GeneratedChunkSource>(generate_data_chunks(kVertexNum));
-  EXPECT_TRUE(table.CanBatchBuild());
-  table.BatchBuildVertices(source);
+  auto source = std::make_shared<GeneratedChunkSource>(
+      generate_data_chunks(kVertexNum), kForceBulkBuildBytes);
+  table.insert_vertices(make_data_chunk_supplier(source));
 
   EXPECT_EQ(table.VertexNum(), kVertexNum);
   EXPECT_EQ(table.LidNum(), kVertexNum);
   EXPECT_EQ(table.Capacity(), kVertexNum + kVertexNum / 4);
   EXPECT_EQ(source->OpenCount(), 1);
-  EXPECT_FALSE(table.CanBatchBuild());
   for (int64_t oid : {int64_t{0}, int64_t{127}, int64_t{4096}}) {
     neug::vid_t lid;
     EXPECT_TRUE(table.get_index(neug::Value::INT64(oid), lid));

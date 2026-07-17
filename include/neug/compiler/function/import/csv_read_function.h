@@ -134,7 +134,8 @@ struct CSVReadFunction {
   }
 
   static std::shared_ptr<IDataChunkSource> sourceFunc(
-      std::shared_ptr<reader::ReadSharedState> state) {
+      std::shared_ptr<reader::ReadSharedState> state,
+      std::vector<int32_t> projected_columns) {
     if (!state) {
       THROW_INVALID_ARGUMENT_EXCEPTION("State is null");
     }
@@ -156,7 +157,7 @@ struct CSVReadFunction {
         std::make_unique<reader::CsvOptionsBuilder>(source_state);
     auto reader = std::make_unique<reader::CsvReader>(
         source_state, std::move(options_builder));
-    return reader->createChunkSource();
+    return reader->createChunkSource(std::move(projected_columns));
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(

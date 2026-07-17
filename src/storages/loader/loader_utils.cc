@@ -26,7 +26,6 @@
 #include <atomic>
 #include <cctype>
 #include <charconv>
-#include <chrono>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -855,8 +854,8 @@ class BoundedFileStream final : public std::istream {
 std::shared_ptr<const CsvPartitionPlan> CsvPartitionPlanCache::GetOrCreate(
     const std::vector<std::string>& file_paths, const CsvReadConfig& config,
     int32_t producer_count) {
-  producer_count =
-      std::clamp<int32_t>(producer_count, 1, hardware_worker_count());
+  producer_count = std::clamp<int32_t>(
+      producer_count, 1, chunk_pipeline_detail::hardware_worker_count());
   std::shared_ptr<Entry> entry;
   {
     std::lock_guard<std::mutex> lock(mutex);
@@ -918,7 +917,7 @@ std::shared_ptr<const CsvPartitionPlan> CsvPartitionPlanCache::GetOrCreate(
     // concurrently. With fewer files, the same H budget is divided among
     // intra-file speculative scans. scan_parallel() uses its caller for one
     // byte range, therefore the number of active scanners never exceeds H.
-    const auto scan_budget = hardware_worker_count();
+    const auto scan_budget = chunk_pipeline_detail::hardware_worker_count();
     std::vector<int32_t> scan_threads(file_paths.size(), 0);
     if (non_empty_files < static_cast<size_t>(scan_budget)) {
       size_t assigned_scanners = 0;
@@ -1549,45 +1548,58 @@ int64_t CSVChunkSupplier::RowNum() const {
 
 namespace {
 
-class ColumnProjectingChunkSupplier final : public IDataChunkSupplier {
+class SourceBackedChunkSupplier final : public IDataChunkSupplier {
  public:
-  ColumnProjectingChunkSupplier(std::shared_ptr<IDataChunkSupplier> input,
-                                std::vector<int32_t> columns)
-      : input_(std::move(input)), columns_(std::move(columns)) {
-    CHECK(input_ != nullptr);
+  explicit SourceBackedChunkSupplier(std::shared_ptr<IDataChunkSource> source)
+      : source_(std::move(source)) {
+    CHECK(source_ != nullptr);
   }
 
   std::shared_ptr<DataChunk> GetNextChunk() override {
-    auto input = input_->GetNextChunk();
-    if (!input) {
-      return nullptr;
-    }
-    auto output = std::make_shared<DataChunk>();
-    for (size_t output_index = 0; output_index < columns_.size();
-         ++output_index) {
-      const auto input_index = columns_[output_index];
-      if (input_index < 0 ||
-          static_cast<size_t>(input_index) >= input->col_num()) {
-        THROW_INVALID_ARGUMENT_EXCEPTION(
-            "Chunk projection index is out of range: " +
-            std::to_string(input_index));
-      }
-      output->set(static_cast<int>(output_index), input->get(input_index));
-    }
-    return output;
+    return OpenSupplier()->GetNextChunk();
   }
 
-  int64_t RowNum() const override { return input_->RowNum(); }
+  int64_t RowNum() const override { return OpenSupplier()->RowNum(); }
 
   bool SupportsConcurrentGetNext() const override {
-    return input_->SupportsConcurrentGetNext();
+    return OpenSupplier()->SupportsConcurrentGetNext();
   }
 
-  void Cancel() override { input_->Cancel(); }
+  void Cancel() override {
+    std::shared_ptr<IDataChunkSupplier> supplier;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      cancelled_ = true;
+      supplier = supplier_;
+    }
+    if (supplier) {
+      supplier->Cancel();
+    }
+  }
+
+  std::shared_ptr<IDataChunkSource> RepeatableSource() const override {
+    return source_;
+  }
 
  private:
-  std::shared_ptr<IDataChunkSupplier> input_;
-  std::vector<int32_t> columns_;
+  std::shared_ptr<IDataChunkSupplier> OpenSupplier() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!supplier_) {
+      supplier_ = source_->Open();
+      if (!supplier_) {
+        THROW_INTERNAL_EXCEPTION("Data source returned a null supplier");
+      }
+      if (cancelled_) {
+        supplier_->Cancel();
+      }
+    }
+    return supplier_;
+  }
+
+  std::shared_ptr<IDataChunkSource> source_;
+  mutable std::mutex mutex_;
+  mutable std::shared_ptr<IDataChunkSupplier> supplier_;
+  mutable bool cancelled_ = false;
 };
 
 CsvReadConfig project_csv_config(const CsvReadConfig& config,
@@ -1610,6 +1622,27 @@ CsvReadConfig project_csv_config(const CsvReadConfig& config,
   return projected;
 }
 
+std::vector<int32_t> compose_projection(
+    const std::vector<int32_t>& source_columns,
+    const std::vector<int32_t>& output_columns) {
+  if (source_columns.empty()) {
+    return output_columns;
+  }
+  if (output_columns.empty()) {
+    return source_columns;
+  }
+  std::vector<int32_t> result;
+  result.reserve(output_columns.size());
+  for (const auto column : output_columns) {
+    if (column < 0 || static_cast<size_t>(column) >= source_columns.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Projected source column is out of range: " + std::to_string(column));
+    }
+    result.push_back(source_columns[static_cast<size_t>(column)]);
+  }
+  return result;
+}
+
 class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
  public:
   PartitionedCsvChunkSupplier(std::vector<std::string> file_paths,
@@ -1618,8 +1651,9 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
                               std::shared_ptr<CsvPartitionPlanCache> plan_cache)
       : file_paths_(std::move(file_paths)),
         config_(std::move(config)),
-        producer_count_(std::clamp<int32_t>(options.producer_count, 1,
-                                            hardware_worker_count())),
+        producer_count_(std::clamp<int32_t>(
+            options.producer_count, 1,
+            chunk_pipeline_detail::hardware_worker_count())),
         plan_cache_(std::move(plan_cache)),
         queue_(options.queue_capacity) {}
 
@@ -1677,7 +1711,6 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
   }
 
   void WorkerMain() {
-    const bool profile_stages = VLOG_IS_ON(1);
     try {
       while (!stop_.load(std::memory_order_acquire)) {
         const auto task_index =
@@ -1689,30 +1722,10 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
         CsvReadConfig range_config = config_;
         range_config.skip_rows = task.skip_rows;
         range_config.use_threads = false;
-        const auto open_start = profile_stages
-                                    ? std::chrono::steady_clock::now()
-                                    : std::chrono::steady_clock::time_point{};
         CsvSupplierRuntime runtime(task.file_path, range_config,
                                    CsvRowCountMode::kUnknown, task.range);
-        if (profile_stages) {
-          parse_time_ns_.fetch_add(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(
-                  std::chrono::steady_clock::now() - open_start)
-                  .count(),
-              std::memory_order_relaxed);
-        }
         while (!stop_.load(std::memory_order_acquire)) {
-          const auto parse_start =
-              profile_stages ? std::chrono::steady_clock::now()
-                             : std::chrono::steady_clock::time_point{};
           auto chunk = runtime.get_next_chunk();
-          if (profile_stages) {
-            parse_time_ns_.fetch_add(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now() - parse_start)
-                    .count(),
-                std::memory_order_relaxed);
-          }
           if (!chunk || !queue_.Push(std::move(chunk))) {
             break;
           }
@@ -1720,8 +1733,6 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
       }
     } catch (...) { SetError(std::current_exception()); }
     if (active_workers_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-      VLOG(1) << "Partitioned CSV producers: parse_worker_ms="
-              << parse_time_ns_.load(std::memory_order_relaxed) / 1000000;
       queue_.Close();
     }
   }
@@ -1773,7 +1784,6 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
   std::atomic<int32_t> active_workers_{0};
   std::atomic<bool> stop_{false};
   std::atomic<bool> has_error_{false};
-  std::atomic<int64_t> parse_time_ns_{0};
   mutable std::mutex error_mutex_;
   std::exception_ptr first_error_;
 };
@@ -1828,40 +1838,31 @@ class ChainedCsvChunkSupplier final : public IDataChunkSupplier {
 
 }  // namespace
 
-std::shared_ptr<IDataChunkSupplier> IDataChunkSource::Open(
-    const ChunkSourceOptions& options) const {
-  auto supplier = Open();
-  if (!supplier || options.projected_columns.empty()) {
-    return supplier;
+std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
+    std::shared_ptr<IDataChunkSource> source) {
+  if (!source) {
+    return nullptr;
   }
-  return std::make_shared<ColumnProjectingChunkSupplier>(
-      std::move(supplier), options.projected_columns);
+  return std::make_shared<SourceBackedChunkSupplier>(std::move(source));
 }
 
 CSVChunkSource::CSVChunkSource(std::vector<std::string> file_paths,
-                               CsvReadConfig config)
+                               CsvReadConfig config,
+                               std::vector<int32_t> projected_columns)
     : file_paths_(std::move(file_paths)),
       config_(std::move(config)),
+      projected_columns_(std::move(projected_columns)),
       partition_plan_cache_(std::make_shared<CsvPartitionPlanCache>()) {}
-
-std::shared_ptr<IDataChunkSupplier> CSVChunkSource::Open() const {
-  if (file_paths_.empty()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("CSV chunk source has no input paths");
-  }
-  if (file_paths_.size() == 1) {
-    return std::make_shared<CSVChunkSupplier>(file_paths_.front(), config_,
-                                              CsvRowCountMode::kUnknown);
-  }
-  return std::make_shared<ChainedCsvChunkSupplier>(file_paths_, config_);
-}
 
 std::shared_ptr<IDataChunkSupplier> CSVChunkSource::Open(
     const ChunkSourceOptions& options) const {
   if (file_paths_.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("CSV chunk source has no input paths");
   }
-  auto open_config = project_csv_config(config_, options.projected_columns);
-  if (open_config.use_threads && options.parallel_enabled &&
+  auto open_config = project_csv_config(
+      config_,
+      compose_projection(projected_columns_, options.projected_columns));
+  if (open_config.use_threads && options.producer_count > 0 &&
       !options.preserve_order) {
     return std::make_shared<PartitionedCsvChunkSupplier>(
         file_paths_, std::move(open_config), options, partition_plan_cache_);

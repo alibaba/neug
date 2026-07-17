@@ -35,11 +35,11 @@ namespace function {
 using read_exec_func_t = std::function<execution::Context(
     std::shared_ptr<reader::ReadSharedState> state)>;
 
-/// Creates a repeatable source for an opt-in bulk ingestion fast path.  The
-/// function must leave its input state unchanged because callers may fall back
-/// to execFunc when the source or destination is not eligible for bulk build.
+/// Creates a repeatable source for terminal ingestion. Storage may consume it
+/// once through normal BatchAdd or reopen it for a staged bulk build.
 using read_source_func_t = std::function<std::shared_ptr<IDataChunkSource>(
-    std::shared_ptr<reader::ReadSharedState> state)>;
+    std::shared_ptr<reader::ReadSharedState> state,
+    std::vector<int32_t> projected_columns)>;
 
 // The function used to sniff/infer file column names and their types from
 // external data sources.

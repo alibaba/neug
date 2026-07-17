@@ -40,9 +40,8 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
   }
 };
 
-/// Fuses only a terminal, empty-sink COPY FROM plan. The implementation
-/// reverts to the normal reader/Context path unless runtime bulk eligibility
-/// is established.
+/// Fuses only a terminal, empty-sink COPY FROM plan. Storage chooses staged
+/// build or normal BatchAdd from the supplied repeatable source.
 class BatchInsertEdgeFromSourceOprBuilder : public IOperatorBuilder {
  public:
   BatchInsertEdgeFromSourceOprBuilder() = default;
