@@ -157,6 +157,8 @@ bool InsertTransaction::Commit() {
     return true;
   }
   if (arc_.GetSize() == sizeof(WalHeader)) {
+    view_ = nullptr;
+    guard_.release();
     vm_.release_insert_timestamp(timestamp_);
     clear();
     return true;
@@ -176,9 +178,9 @@ bool InsertTransaction::Commit() {
   IngestWal(*view_, timestamp_, arc_.GetBuffer() + sizeof(WalHeader),
             header->length, alloc_);
 
-  vm_.release_insert_timestamp(timestamp_);
-  guard_.release();
   view_ = nullptr;
+  guard_.release();
+  vm_.release_insert_timestamp(timestamp_);
   clear();
   return true;
 }
@@ -186,9 +188,9 @@ bool InsertTransaction::Commit() {
 void InsertTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
-    vm_.release_insert_timestamp(timestamp_);
-    guard_.release();
     view_ = nullptr;
+    guard_.release();
+    vm_.release_insert_timestamp(timestamp_);
     clear();
   }
 }
