@@ -870,7 +870,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
    *
    * Assume concurrency is controlled by the caller.
    */
-  if (!NeedsDump()) {
+  if (!HasChanges()) {
     LOG(INFO) << "Skip compaction: schema and tables are clean";
     return;
   }
@@ -922,7 +922,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
-  if (!NeedsDump()) {
+  if (!HasChanges()) {
     LOG(INFO) << "Skip checkpoint dump: schema and tables are clean";
     return;
   }

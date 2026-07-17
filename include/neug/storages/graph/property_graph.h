@@ -134,9 +134,9 @@ class PropertyGraph {
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
   bool AnyTableChanged() const;
-  bool NeedsDump() const {
-    // A graph without a persisted schema still needs its initial checkpoint,
-    // even when it contains no data.
+  /// True if schema/tables changed since last persist, or no schema is
+  /// persisted yet (initial empty graph still counts as changed).
+  bool HasChanges() const {
     return ckp_ == nullptr || !ckp_->GetMeta().has_schema() ||
            schema_changes_.HasChanges() || AnyTableChanged();
   }

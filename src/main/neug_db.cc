@@ -218,7 +218,7 @@ void NeugDB::PrepareForServing() {
   }
   CloseAllConnection();
   if (config_.mode == DBMode::READ_WRITE &&
-      snapshot_store_->CurrentSnapshot().NeedsDump()) {
+      snapshot_store_->CurrentSnapshot().HasChanges()) {
     createCheckpointAndRefreshLiveGraph();
   }
   initQueryRuntime();
@@ -379,7 +379,7 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
     CheckpointSession& checkpoint_session) {
   SnapshotGuard guard(*snapshot_store_);
   auto* live_graph = guard.get().mutable_graph();
-  if (!live_graph->NeedsDump()) {
+  if (!live_graph->HasChanges()) {
     LOG(INFO) << "Skip checkpoint: schema and tables are clean";
     return checkpoint_mgr_.CurrentCheckpoint();
   }
@@ -392,7 +392,7 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
 
 void NeugDB::createCheckpointAndRefreshLiveGraph() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!snapshot_store_->CurrentSnapshot().NeedsDump()) {
+  if (!snapshot_store_->CurrentSnapshot().HasChanges()) {
     LOG(INFO) << "Skip checkpoint: schema and tables are clean";
     return;
   }
