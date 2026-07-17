@@ -1294,11 +1294,25 @@ void GQueryConvertor::convertProcedureCall(
     const auto& param = params.at(pos);
     auto queryArgPB = std::make_unique<::procedure::Argument>();
     queryArgPB->set_param_ind(pos);
-    // Dynamic query params ($name): keep the name (no '$') and resolve from
-    // ParamsMap at exec time. Literals / variables keep const / var.
+    // Dynamic query params ($name): keep the name (no '$') and type metadata
+    // so HTTP ParamsParser can accept them; values resolve from ParamsMap at
+    // exec time. Literals / variables keep const / var.
     if (param->expressionType == common::ExpressionType::PARAMETER) {
-      queryArgPB->set_param_name(
-          param->constCast<binder::ParameterExpression>().getName());
+      const auto& paramExpr = param->constCast<binder::ParameterExpression>();
+      queryArgPB->set_param_name(paramExpr.getName());
+      auto dynPB = std::make_unique<::common::DynamicParam>();
+      dynPB->set_name(paramExpr.getName());
+      dynPB->set_index(static_cast<int32_t>(pos));
+      // Binder leaves $param as UNKNOWN until cast; CALL args are not cast,
+      // so prefer the procedure signature type for ParamsMap deserialization.
+      common::DataType dtype = paramExpr.getDataType().copy();
+      if (dtype.id() == common::DataTypeId::kUnknown &&
+          pos < callFunc.parameterTypes.size()) {
+        dtype = callFunc.parameterTypes[pos].copy();
+      }
+      dynPB->set_allocated_data_type(
+          typeConverter->convertLogicalType(std::move(dtype)).release());
+      queryArgPB->set_allocated_param(dynPB.release());
     } else {
       auto paramPB = exprConvertor->convert(*param, {});
       if (paramPB->operators_size() == 0) {

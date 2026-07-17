@@ -64,8 +64,11 @@ struct EchoParamFuncInput : public function::CallFuncInputBase {
   DeferredCallArg arg;
   Value value;
 
-  void bindParams(const execution::ParamsMap& params) override {
-    value = arg.resolve(params);
+  std::unique_ptr<function::CallFuncInputBase> bindParams(
+      const execution::ParamsMap& params) const override {
+    auto bound = std::make_unique<EchoParamFuncInput>(*this);
+    bound->value = arg.resolve(params);
+    return bound;
   }
 };
 
@@ -90,7 +93,9 @@ struct TestEchoParamFunction {
         return input;
       }
       const auto& arg = procedure.query().arguments(0);
-      if (!arg.param_name().empty()) {
+      if (arg.has_param()) {
+        input->arg = DeferredCallArg::FromParam(arg.param().name());
+      } else if (!arg.param_name().empty()) {
         input->arg = DeferredCallArg::FromParam(arg.param_name());
       } else if (arg.has_const_() && arg.const_().has_str()) {
         input->arg =
