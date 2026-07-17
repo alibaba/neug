@@ -202,8 +202,7 @@ void NeugDB::Close() {
   }
 }
 
-bool NeugDB::CheckpointAndReopenIfNeeded() {
-  CloseAllConnection();
+bool NeugDB::Checkpoint() {
   if (snapshot_store_ == nullptr ||
       !snapshot_store_->CurrentSnapshot().NeedsDump()) {
     return false;

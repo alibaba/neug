@@ -222,10 +222,10 @@ class NeugDB {
   void Close();
 
   /**
-   * @brief Close AP connections and checkpoint/reopen only when needed.
+   * @brief Checkpoint and reopen the database only when needed.
    * @return true when the database was checkpointed and reopened.
    */
-  bool CheckpointAndReopenIfNeeded();
+  bool Checkpoint();
 
   /**
    * @brief Check if the database is closed.
