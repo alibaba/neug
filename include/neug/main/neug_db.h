@@ -371,10 +371,10 @@ class NeugDB {
    * Only one service can be registered at any given time. Called by the
    * NeugDBService constructor.
    *
-   * Registration is rejected if the database is closed or being closed:
-   * after publishing itself, the service re-checks the closed flag and
-   * backs out on conflict, so Close() can never free db internals
-   * underneath a concurrently registering service.
+   * Registration is serialized with Close() via service_mutex_: either the
+   * service registers first (and Close() fails fast), or the database is
+   * closed first (and registration is rejected). A service can therefore
+   * never be registered onto a closed or closing database.
    *
    * @param svc The service instance to register.
    *
@@ -418,6 +418,11 @@ class NeugDB {
   std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>
       allocators_;  // Allocators for each thread
+
+  // Serializes the check-and-set sections of Close() and RegisterService()
+  // so that closing the database and registering a service can never
+  // interleave.
+  std::mutex service_mutex_;
 
   // The NeugDBService currently associated with this database, nullptr if
   // none. At most one service can be associated at any given time.

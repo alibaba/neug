@@ -89,9 +89,13 @@ NeugDB::~NeugDB() {
   try {
     Close();
   } catch (const std::exception& e) {
-    LOG(ERROR) << "Failed to close NeugDB in destructor: " << e.what();
+    // Fail fast: if Close() cannot complete (e.g. a NeugDBService is still
+    // associated), the service would be left holding a reference to a
+    // destroyed database and its destructor would call back into freed
+    // memory. Continuing teardown here is undefined behavior.
+    LOG(FATAL) << "Failed to close NeugDB in destructor: " << e.what();
   } catch (...) {
-    LOG(ERROR) << "Failed to close NeugDB in destructor: unknown error";
+    LOG(FATAL) << "Failed to close NeugDB in destructor: unknown error";
   }
   WalWriterFactory::Finalize();
   WalParserFactory::Finalize();
@@ -174,24 +178,23 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 }
 
 void NeugDB::Close() {
-  if (HasActiveService()) {
-    THROW_RUNTIME_ERROR(
-        "Cannot close NeugDB while a NeugDBService is still associated with "
-        "it. Stop and destroy the service first.");
+  {
+    // Serialized with RegisterService(): the active-service check and the
+    // closed flag update are atomic with respect to service registration,
+    // so no rollback or re-check is needed and Close() stays idempotent.
+    std::lock_guard<std::mutex> lock(service_mutex_);
+    if (HasActiveService()) {
+      THROW_RUNTIME_ERROR(
+          "Cannot close NeugDB while a NeugDBService is still associated "
+          "with it. Stop and destroy the service first.");
+    }
+    if (closed_.exchange(true)) {
+      return;
+    }
   }
-  if (closed_.exchange(true)) {
-    return;
-  }
-  // Re-check after claiming the close: a service may have registered between
-  // the check above and the exchange. RegisterService() double-checks
-  // closed_ after publishing itself and backs out on conflict, so this
-  // second check guarantees no service can survive past this point.
-  if (HasActiveService()) {
-    closed_.store(false);
-    THROW_RUNTIME_ERROR(
-        "Cannot close NeugDB while a NeugDBService is still associated with "
-        "it. Stop and destroy the service first.");
-  }
+  // Once closed_ is set with no active service, RegisterService() rejects
+  // new registrations and concurrent Close() calls return early, so the
+  // remaining cleanup does not need the lock.
   if (connection_manager_) {
     connection_manager_->Close();
     connection_manager_.reset();
@@ -233,7 +236,11 @@ std::shared_ptr<Connection> NeugDB::Connect() {
 }
 
 void NeugDB::RegisterService(NeugDBService* svc) {
-  // Fast path: reject registration on a closed database.
+  // Serialized with Close(): either the database is closed first (and this
+  // registration is rejected), or the service registers first (and Close()
+  // fails fast). A service can therefore never be registered onto a closed
+  // or closing database.
+  std::lock_guard<std::mutex> lock(service_mutex_);
   if (IsClosed()) {
     THROW_RUNTIME_ERROR(
         "Cannot register a NeugDBService on a closed NeugDB instance.");
@@ -243,18 +250,6 @@ void NeugDB::RegisterService(NeugDBService* svc) {
     THROW_RUNTIME_ERROR(
         "NeugDB instance is already associated with a NeugDBService. Only "
         "one service instance is allowed per database.");
-  }
-  // Double-check after publishing the service: Close() may have claimed the
-  // database between the first check and the CAS above. Close() re-checks
-  // active_service_ after setting closed_ and backs out on conflict, so if
-  // we observe closed_ here, the close path is either committed or rolling
-  // back; in both cases this registration must not survive. Undo it and
-  // reject, so Close() can never free db internals underneath a live
-  // service.
-  if (IsClosed()) {
-    UnregisterService(svc);
-    THROW_RUNTIME_ERROR(
-        "Cannot register a NeugDBService: the database is being closed.");
   }
 }
 
