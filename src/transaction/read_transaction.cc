@@ -46,8 +46,8 @@ const Schema& ReadTransaction::schema() const {
 
 void ReadTransaction::release() {
   if (timestamp_ != INVALID_TIMESTAMP) {
-    vm_.release_read_timestamp();
     guard_.release();
+    vm_.release_read_timestamp();
     timestamp_ = INVALID_TIMESTAMP;
   }
 }
