@@ -17,6 +17,10 @@
 #include <glog/logging.h>
 #include <stddef.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -125,7 +129,40 @@ class IDataChunkSource {
 std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
     std::shared_ptr<IDataChunkSource> source);
 
+enum class BulkBuildWorkerStrategy {
+  kMaxProducers,
+  kBalancedProducerConsumer,
+};
+
+ChunkSourceOptions ResolveBulkBuildSourceOptions(
+    int64_t source_bytes, bool parallel_enabled, bool preserve_order,
+    BulkBuildWorkerStrategy worker_strategy);
+
 inline constexpr int64_t kUnknownRowNum = -1;
+inline constexpr int64_t kDefaultBulkBuildMinBytes = 256LL * 1024 * 1024;
+
+inline bool ShouldUseBulkBuild(int64_t source_bytes,
+                               int64_t min_bytes = kDefaultBulkBuildMinBytes) {
+  const char* configured = std::getenv("NEUG_COPY_BULK_BUILD");
+  if (configured != nullptr) {
+    std::string value(configured);
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return std::tolower(ch); });
+    if (value == "0" || value == "false" || value == "off" || value == "no") {
+      return false;
+    }
+    if (value == "1" || value == "true" || value == "on" || value == "yes") {
+      return true;
+    }
+    LOG(WARNING) << "Ignore invalid NEUG_COPY_BULK_BUILD=" << configured;
+  }
+  return source_bytes >= min_bytes;
+}
+
+inline bool ShouldUseBulkBuild(const IDataChunkSource& source,
+                               int64_t min_bytes = kDefaultBulkBuildMinBytes) {
+  return ShouldUseBulkBuild(source.EstimatedBytes(), min_bytes);
+}
 
 enum class CsvRowCountMode {
   kCountOnOpen,

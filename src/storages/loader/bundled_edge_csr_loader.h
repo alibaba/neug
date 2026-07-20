@@ -39,8 +39,6 @@ class BundledEdgeCsrLoader {
   template <typename EDATA_T>
   class SingleMutableWriter;
 
-  static bool ShouldBuild(int64_t source_bytes);
-
   /// Returns false when either CSR layout or the property type is unsupported.
   /// Callers must pass fresh, unpublished CSR instances.
   static bool TryBuild(CsrBase& out_csr, CsrBase& in_csr,

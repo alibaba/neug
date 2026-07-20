@@ -687,7 +687,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   auto data_chunks = generate_data_chunks(10000);
   std::shared_ptr<neug::IDataChunkSupplier> batch_supplier =
       std::make_shared<GeneratedChunkSupplier>(std::move(data_chunks));
-  table.insert_vertices(batch_supplier);
+  table.BatchAddVertices(batch_supplier);
 
   EXPECT_EQ(table.VertexNum(), 10000);
   EXPECT_EQ(table.LidNum(), 10000);
@@ -715,7 +715,7 @@ TEST_F(VertexTableTest, InsertVerticesFromRepeatableSource) {
   constexpr size_t kVertexNum = 4097;
   auto source = std::make_shared<GeneratedChunkSource>(
       generate_data_chunks(kVertexNum), kForceBulkBuildBytes);
-  table.insert_vertices(make_data_chunk_supplier(source));
+  table.BatchAddVertices(make_data_chunk_supplier(source));
 
   EXPECT_EQ(table.VertexNum(), kVertexNum);
   EXPECT_EQ(table.LidNum(), kVertexNum);

@@ -1880,6 +1880,44 @@ std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
   return std::make_shared<SourceBackedChunkSupplier>(std::move(source));
 }
 
+ChunkSourceOptions ResolveBulkBuildSourceOptions(
+    int64_t source_bytes, bool parallel_enabled, bool preserve_order,
+    BulkBuildWorkerStrategy worker_strategy) {
+  constexpr int64_t kMinPartitionBytes = 64LL * 1024 * 1024;
+  constexpr size_t kMaxQueuedChunks = 64;
+
+  ChunkSourceOptions options;
+  options.preserve_order = preserve_order;
+  const auto workers = chunk_pipeline_detail::hardware_worker_count();
+  if (!parallel_enabled || preserve_order || workers <= 1 ||
+      source_bytes < kDefaultBulkBuildMinBytes) {
+    return options;
+  }
+
+  const auto useful_partitions = std::max<int64_t>(
+      1, source_bytes / kMinPartitionBytes +
+             (source_bytes % kMinPartitionBytes == 0 ? 0 : 1));
+  switch (worker_strategy) {
+  case BulkBuildWorkerStrategy::kMaxProducers: {
+    options.producer_count = static_cast<int32_t>(std::min<int64_t>(
+        workers - 1, std::min<int64_t>(useful_partitions, workers)));
+    break;
+  }
+  case BulkBuildWorkerStrategy::kBalancedProducerConsumer: {
+    const auto balanced_producers = (workers + 1) / 2;
+    options.producer_count = static_cast<int32_t>(std::min<int64_t>(
+        balanced_producers, std::min<int64_t>(useful_partitions, workers - 1)));
+    options.consumer_count =
+        std::max<int32_t>(1, workers - options.producer_count);
+    break;
+  }
+  }
+  options.producer_count = std::max<int32_t>(1, options.producer_count);
+  options.queue_capacity = std::clamp<size_t>(
+      static_cast<size_t>(options.producer_count) * 2, 2, kMaxQueuedChunks);
+  return options;
+}
+
 CSVChunkSource::CSVChunkSource(std::vector<std::string> file_paths,
                                CsvReadConfig config,
                                std::vector<int32_t> projected_columns)

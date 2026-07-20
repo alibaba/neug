@@ -15,6 +15,8 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include <algorithm>
+
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_broker.h"
@@ -46,7 +48,53 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   v_ts_->Open(*ckp_, ModuleDescriptor{}, level);
 }
 
-void VertexTable::insert_vertices(
+void VertexTable::BatchAddVertices(
+    std::shared_ptr<IDataChunkSupplier> supplier) {
+  CHECK(supplier != nullptr);
+  auto source = supplier->RepeatableSource();
+  if (source && ShouldUseBulkBuild(*source) &&
+      try_batch_build_vertices(source)) {
+    return;
+  }
+  batch_add_vertices_impl(std::move(supplier));
+}
+
+bool VertexTable::try_batch_build_vertices(
+    const std::shared_ptr<IDataChunkSource>& source) {
+  if (!source || Size() != 0) {
+    return false;
+  }
+
+  auto staged = VertexTable(vertex_schema_);
+  staged.Init(ckp_, memory_level_);
+  const auto source_bytes = source->EstimatedBytes();
+  auto options = ResolveBulkBuildSourceOptions(
+      source_bytes, source->ParallelEnabled(), false,
+      BulkBuildWorkerStrategy::kMaxProducers);
+  auto supplier = source->Open(options);
+  if (!supplier) {
+    return false;
+  }
+
+  auto row_num = supplier->RowNum();
+  if (row_num >= 0) {
+    if (static_cast<uint64_t>(row_num) > std::numeric_limits<size_t>::max()) {
+      THROW_RUNTIME_ERROR("Vertex row count exceeds addressable capacity");
+    }
+    const auto row_count = static_cast<size_t>(row_num);
+    const size_t checkpoint_headroom = row_count / 4;
+    if (checkpoint_headroom > std::numeric_limits<size_t>::max() - row_count) {
+      THROW_RUNTIME_ERROR("Vertex bulk load capacity overflow");
+    }
+    staged.EnsureCapacity(row_count + checkpoint_headroom);
+  }
+
+  staged.batch_add_vertices_impl(std::move(supplier));
+  Swap(staged);
+  return true;
+}
+
+void VertexTable::batch_add_vertices_impl(
     std::shared_ptr<IDataChunkSupplier> supplier) {
   CHECK(supplier != nullptr);
   auto reserve_checkpoint_headroom = [this](size_t required_size) {

@@ -868,7 +868,7 @@ bool EdgeTable::TryBatchBuildEdges(
     return false;
   }
   const auto source_bytes = source->EstimatedBytes();
-  if (!internal::BundledEdgeCsrLoader::ShouldBuild(source_bytes)) {
+  if (!ShouldUseBulkBuild(source_bytes)) {
     return false;
   }
 

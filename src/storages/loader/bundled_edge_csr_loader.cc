@@ -19,9 +19,7 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
 #include <cstdint>
-#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -262,36 +260,6 @@ class BundledEdgeCsrLoader::SingleMutableWriter {
 }  // namespace internal
 
 namespace {
-
-constexpr int64_t kMinBulkEdgeBuildBytes = 256LL * 1024 * 1024;
-
-ChunkSourceOptions resolve_bulk_edge_source_options(int64_t source_bytes,
-                                                    bool parallel_enabled,
-                                                    bool preserve_order) {
-  constexpr int64_t kMinPartitionBytes = 64LL * 1024 * 1024;
-  constexpr size_t kMaxQueuedChunks = 64;
-
-  ChunkSourceOptions options;
-  options.preserve_order = preserve_order;
-  const auto workers = chunk_pipeline_detail::hardware_worker_count();
-  if (!parallel_enabled || preserve_order || workers <= 1 ||
-      source_bytes < kMinBulkEdgeBuildBytes) {
-    return options;
-  }
-
-  const auto useful_partitions = std::max<int64_t>(
-      1, source_bytes / kMinPartitionBytes +
-             (source_bytes % kMinPartitionBytes == 0 ? 0 : 1));
-  const auto balanced_producers = (workers + 1) / 2;
-  options.producer_count = static_cast<int32_t>(std::min<int64_t>(
-      balanced_producers, std::min<int64_t>(useful_partitions, workers - 1)));
-  options.producer_count = std::max<int32_t>(1, options.producer_count);
-  options.consumer_count =
-      std::max<int32_t>(1, workers - options.producer_count);
-  options.queue_capacity = std::clamp<size_t>(
-      static_cast<size_t>(options.producer_count) * 2, 2, kMaxQueuedChunks);
-  return options;
-}
 
 class EmptyCsrBulkWriter {
  public:
@@ -787,8 +755,9 @@ uint64_t build_bundled_edges_with_ops(
     ops.allocate_from_counts();
     return 0;
   }
-  const auto count_options = resolve_bulk_edge_source_options(
-      source_bytes, source->ParallelEnabled(), false);
+  const auto count_options = ResolveBulkBuildSourceOptions(
+      source_bytes, source->ParallelEnabled(), false,
+      BulkBuildWorkerStrategy::kBalancedProducerConsumer);
   const bool needs_degree_count = ops.needs_degree_count;
   std::vector<BulkEdgeWorkerScratch> scratches;
   if (needs_degree_count) {
@@ -809,9 +778,11 @@ uint64_t build_bundled_edges_with_ops(
       has_single_direction && (!needs_degree_count || single_duplicate);
   const bool allow_concurrent_fill = !preserve_fill_order;
   const auto fill_options =
-      preserve_fill_order ? resolve_bulk_edge_source_options(
-                                source_bytes, source->ParallelEnabled(), true)
-                          : count_options;
+      preserve_fill_order
+          ? ResolveBulkBuildSourceOptions(
+                source_bytes, source->ParallelEnabled(), true,
+                BulkBuildWorkerStrategy::kBalancedProducerConsumer)
+          : count_options;
   if (scratches.size() < static_cast<size_t>(fill_options.consumer_count)) {
     scratches.resize(static_cast<size_t>(fill_options.consumer_count));
   }
@@ -874,24 +845,6 @@ bool build_bundled_edges(CsrBase* out_csr, CsrBase* in_csr,
 }
 
 }  // namespace
-
-bool internal::BundledEdgeCsrLoader::ShouldBuild(int64_t source_bytes) {
-  const char* configured = std::getenv("NEUG_COPY_BULK_BUILD");
-  if (configured != nullptr) {
-    std::string value(configured);
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return std::tolower(ch); });
-    if (value == "0" || value == "false" || value == "off" || value == "no") {
-      return false;
-    }
-    if (value == "1" || value == "true" || value == "on" || value == "yes") {
-      return true;
-    }
-    LOG(WARNING) << "Ignore invalid NEUG_COPY_BULK_BUILD=" << configured;
-  }
-
-  return source_bytes >= kMinBulkEdgeBuildBytes;
-}
 
 bool internal::BundledEdgeCsrLoader::TryBuild(
     CsrBase& out_csr, CsrBase& in_csr, const EdgeSchema& schema,
