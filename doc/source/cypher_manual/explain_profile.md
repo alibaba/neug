@@ -135,15 +135,15 @@ Total elapsed time: 52.99 ms
 
 What to observe in this profile:
 
-1. **Scan dominates early stages**: ScanWithGPredOpr accounts for 12.75ms out of 52.99ms total. This is where all 76,830 comments are loaded into memory—a necessary baseline cost.
+1. **Scan dominates early stages**: `ScanWithGPredOpr` (scans nodes matching predicates) accounts for 12.75ms out of 52.99ms total. This is where all 76,830 comments are loaded into memory—a necessary baseline cost.
 
-2. **Edge expansion is a significant bottleneck**: The two EdgeExpandVOpr operators combined take 22.68ms (43% of total time), even though the output stabilizes at 38,044 rows. This tells us that edge lookups are relatively expensive in this case; if this query is slow, consider indexing the comment-to-post and post-to-person relationships.
+2. **Edge expansion is a significant bottleneck**: The two `EdgeExpandVOpr` (expands along relationships to produce new rows) operators combined take 22.68ms (43% of total time), even though the output stabilizes at 38,044 rows. This tells us that edge lookups are relatively expensive in this case; if this query is slow, consider indexing the comment-to-post and post-to-person relationships.
 
-3. **Aggregation is efficient**: GroupByOpr collapses 38,044 rows down to 7,325 groups in only 7.88ms. This shows that even with moderate cardinality reduction, grouping is fast compared to the earlier edge traversal.
+3. **Aggregation is efficient**: `GroupByOpr` (groups rows by key and applies aggregate functions) collapses 38,044 rows down to 7,325 groups in only 7.88ms. This shows that grouping is fast compared to the earlier edge traversal.
 
-4. **Optimizer fuses ORDER + LIMIT**: ProjectOrderByOprBeta (a combined operator) handles sorting and limiting in just 0.10ms, reducing 7,325 rows to 10 output rows. This demonstrates that the optimizer intelligently merges ORDER BY and LIMIT to avoid sorting the entire intermediate result.
+4. **Optimizer fuses ORDER + LIMIT**: `ProjectOrderByOprBeta` (fused operator: sorts rows and applies LIMIT in one pass) handles sorting and limiting in just 0.10ms, reducing 7,325 rows to 10 output rows. This demonstrates that the optimizer intelligently merges ORDER BY and LIMIT to avoid sorting the entire intermediate result.
 
-5. **LIMIT does not reduce upstream work**: Notice that all 38,044 comment rows flow through to GroupByOpr before being filtered down. The LIMIT at the end shortens output, not execution—this is why focusing on early filtering (e.g., date range on comments) would be more impactful than changing LIMIT.
+5. **LIMIT does not reduce upstream work**: Notice that all 38,044 comment rows flow through to GroupByOpr before being filtered down. The `LIMIT` clause shortens output, not execution—this is why focusing on early filtering (e.g., date range on comments) would be more impactful than changing LIMIT.
 
 #### 2. Which forum members are liking posts inside the forums they joined?
 
@@ -229,7 +229,7 @@ What to observe in this profile:
 
 2. **Edge expansion is comparable to Example 1**: The EdgeExpandVOpr consumes 24.70ms exploring forum-to-member relationships, reducing to 21,636 rows. This is similar in cost to Example 1, showing that edge lookup overhead is consistent across different query patterns.
 
-3. **IntersectOprMultip: The multi-path correlation bottleneck**: This operator (23.41ms, 24% of total time) represents aligning three independent relationship paths:
+3. **IntersectOprMultip: The multi-path correlation bottleneck**: `IntersectOprMultip` (correlates multiple independent relationship paths to find matches) represents aligning three independent paths (23.41ms, 24% of total time):
    - Forum → Member (forumHasMember)
    - Forum → Post (forumContainerOf)  
    - Member → Post (personLikesPost)
@@ -420,9 +420,9 @@ What to observe in this profile:
 1. **Scan operates on a small collection**: ScanWithGPredOpr takes 2.64ms scanning 903 persons. Starting with the smallest entity in the pattern (person nodes vs. posts or comments) makes early scan operations fast.
 
 2. **Multi-hop traversal remains efficient at scale**: The sequence of operators handles the two-hop traversal (person → organisation → place):
-   - EdgeExpandEOpr: 2.56ms (person to their work relationships)
-   - GetVFromEdgesOpr: 2.02ms (extracting target organisation nodes)
-   - EdgeExpandVOpr: 1.38ms (organisation to locations)
+   - `EdgeExpandEOpr` (expands edges to gather edge+node pairs): 2.56ms (person to their work relationships)
+   - `GetVFromEdgesOpr` (extracts target nodes from edge results): 2.02ms (extracting target organisation nodes)
+   - `EdgeExpandVOpr`: 1.38ms (organisation to locations)
    
    The total overhead for multi-hop traversal is ~6ms, modest considering three relationship lookups are performed.
 
@@ -527,7 +527,7 @@ What to observe in this profile:
 
 2. **Second hop causes explosive row growth**: The second EdgeExpandVOpr is the critical point. Taking 14.82ms, it expands 6,626 rows (person → friend) to 92,285 rows (person → friend → friend-of-friend). This represents a **14x expansion**, demonstrating that multi-hop friend-of-friend expansion grows exponentially in social networks where each person has many connections.
 
-3. **WHERE filter is highly selective or unnecessary**: SelectOpr processes  the `p1.id <> p3.id` condition in 13.89ms. The output remains at 92,285 rows, suggesting either:
+3. **WHERE filter is highly selective or unnecessary**: `SelectOpr` (filters rows based on WHERE conditions) processes the `p1.id <> p3.id` condition in 13.89ms. The output remains at 92,285 rows, suggesting either:
    - The dataset contains no or very few self-loop FOF paths (where p1 == p3)
    - The social network structure makes such loops rare
    
