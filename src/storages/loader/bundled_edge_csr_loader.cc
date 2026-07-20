@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <memory>
 #include <string>
@@ -228,10 +227,6 @@ class BundledEdgeCsrLoader::SingleMutableWriter {
     PutAtVertex(src, dst, data, ts);
   }
 
-  void PutUnique(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts) {
-    PutAtVertex(src, dst, data, ts);
-  }
-
   void Finish(uint64_t filled_edge_count) {
     csr_.edge_num_.store(filled_edge_count, std::memory_order_relaxed);
     csr_.refresh_prefetch_policy();
@@ -295,8 +290,7 @@ class BulkEdgeDataReader {
   explicit BulkEdgeDataReader(const std::shared_ptr<IContextColumn>& column)
       : column_(column.get()) {
     CHECK(column_ != nullptr);
-    auto values = std::dynamic_pointer_cast<ValueColumn<EDATA_T>>(column);
-    if (values) {
+    if (auto* values = dynamic_cast<const ValueColumn<EDATA_T>*>(column_)) {
       values_ = &values->data();
     }
   }
@@ -365,11 +359,6 @@ inline bool is_valid_bulk_edge(vid_t src, vid_t dst) {
   return src != std::numeric_limits<vid_t>::max() &&
          dst != std::numeric_limits<vid_t>::max();
 }
-
-struct BulkEdgeCountSummary {
-  bool out_single_duplicate = false;
-  bool in_single_duplicate = false;
-};
 
 constexpr size_t kBulkEdgeInitialGroupReserve = 4096;
 
@@ -468,13 +457,13 @@ void count_bulk_edge_chunk(BulkEdgeWorkerScratch& scratch, OutWriter& out,
   }
 }
 
-using BulkEdgeCountChunk = std::function<void(BulkEdgeWorkerScratch&, bool)>;
-
-BulkEdgeCountSummary count_bulk_edges(
-    const std::shared_ptr<IDataChunkSource>& source,
-    const IndexerType& src_indexer, const IndexerType& dst_indexer,
-    ChunkSourceOptions options, std::vector<BulkEdgeWorkerScratch>& scratches,
-    const BulkEdgeCountChunk& count_chunk) {
+template <typename OutWriter, typename InWriter>
+void count_bulk_edges(const std::shared_ptr<IDataChunkSource>& source,
+                      const IndexerType& src_indexer,
+                      const IndexerType& dst_indexer,
+                      ChunkSourceOptions options,
+                      std::vector<BulkEdgeWorkerScratch>& scratches,
+                      OutWriter& out, InWriter& in) {
   // Degree accumulation and single-slot uniqueness checks are commutative, so
   // this pass never needs input order even when fill may later fall back to the
   // ordered last-write-wins path.
@@ -492,17 +481,9 @@ BulkEdgeCountSummary count_bulk_edges(
     CHECK_LT(worker, worker_count);
     auto& scratch = scratches[static_cast<size_t>(worker)];
     index_bulk_edge_endpoints(chunk, src_indexer, dst_indexer, scratch);
-    count_chunk(scratch, concurrent);
+    count_bulk_edge_chunk(scratch, out, in, concurrent);
   };
   consume_supplier_indexed(*supplier, options, count);
-  BulkEdgeCountSummary summary;
-  for (const auto& scratch : scratches) {
-    summary.out_single_duplicate =
-        summary.out_single_duplicate || scratch.out_single_duplicate;
-    summary.in_single_duplicate =
-        summary.in_single_duplicate || scratch.in_single_duplicate;
-  }
-  return summary;
 }
 
 void append_bulk_edge_group(flat_hash_map<vid_t, BulkEdgeGroup>& groups,
@@ -519,42 +500,6 @@ void append_bulk_edge_group(flat_hash_map<vid_t, BulkEdgeGroup>& groups,
   group.tail = edge_index;
   CHECK_LT(group.count, std::numeric_limits<uint32_t>::max());
   ++group.count;
-}
-
-template <typename OutWriter, typename InWriter>
-size_t group_bulk_edge_chunk(BulkEdgeWorkerScratch& scratch) {
-  CHECK_LE(scratch.src_lids.size(),
-           static_cast<size_t>(std::numeric_limits<uint32_t>::max()));
-  if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
-    scratch.out_groups.clear();
-    scratch.out_groups.reserve(
-        bulk_edge_group_reserve(scratch.src_lids.size()));
-    scratch.out_next.assign(scratch.src_lids.size(), kInvalidBulkEdgeIndex);
-  }
-  if constexpr (InWriter::kStrategy == EdgeStrategy::kMultiple) {
-    scratch.in_groups.clear();
-    scratch.in_groups.reserve(bulk_edge_group_reserve(scratch.dst_lids.size()));
-    scratch.in_next.assign(scratch.dst_lids.size(), kInvalidBulkEdgeIndex);
-  }
-  size_t valid_edges = 0;
-  for (size_t row = 0; row < scratch.src_lids.size(); ++row) {
-    const auto src = scratch.src_lids[row];
-    const auto dst = scratch.dst_lids[row];
-    if (!is_valid_bulk_edge(src, dst)) {
-      continue;
-    }
-    ++valid_edges;
-    const auto edge_index = static_cast<uint32_t>(row);
-    if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
-      append_bulk_edge_group(scratch.out_groups, scratch.out_next, src,
-                             edge_index);
-    }
-    if constexpr (InWriter::kStrategy == EdgeStrategy::kMultiple) {
-      append_bulk_edge_group(scratch.in_groups, scratch.in_next, dst,
-                             edge_index);
-    }
-  }
-  return valid_edges;
 }
 
 template <typename EDATA_T, typename OutWriter, typename InWriter>
@@ -587,23 +532,47 @@ void fill_bulk_edge_chunk_concurrent(
     BulkEdgeWorkerScratch& scratch,
     const BulkEdgeDataReader<EDATA_T>& data_reader, OutWriter& out,
     InWriter& in) {
-  const auto valid_edges = group_bulk_edge_chunk<OutWriter, InWriter>(scratch);
+  CHECK_LE(scratch.src_lids.size(),
+           static_cast<size_t>(std::numeric_limits<uint32_t>::max()));
   constexpr bool kDirectOut = OutWriter::kStrategy == EdgeStrategy::kSingle;
   constexpr bool kDirectIn = InWriter::kStrategy == EdgeStrategy::kSingle;
-  if constexpr (kDirectOut || kDirectIn) {
-    for (size_t row = 0; row < scratch.src_lids.size(); ++row) {
-      const auto src = scratch.src_lids[row];
-      const auto dst = scratch.dst_lids[row];
-      if (!is_valid_bulk_edge(src, dst)) {
-        continue;
-      }
+  if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
+    scratch.out_groups.clear();
+    scratch.out_groups.reserve(
+        bulk_edge_group_reserve(scratch.src_lids.size()));
+    scratch.out_next.assign(scratch.src_lids.size(), kInvalidBulkEdgeIndex);
+  }
+  if constexpr (InWriter::kStrategy == EdgeStrategy::kMultiple) {
+    scratch.in_groups.clear();
+    scratch.in_groups.reserve(bulk_edge_group_reserve(scratch.dst_lids.size()));
+    scratch.in_next.assign(scratch.dst_lids.size(), kInvalidBulkEdgeIndex);
+  }
+
+  size_t valid_edges = 0;
+  for (size_t row = 0; row < scratch.src_lids.size(); ++row) {
+    const auto src = scratch.src_lids[row];
+    const auto dst = scratch.dst_lids[row];
+    if (!is_valid_bulk_edge(src, dst)) {
+      continue;
+    }
+    ++valid_edges;
+    if constexpr (kDirectOut || kDirectIn) {
       const auto data = data_reader.Get(row);
       if constexpr (kDirectOut) {
-        out.PutUnique(src, dst, data, 0);
+        out.PutSerial(src, dst, data, 0);
       }
       if constexpr (kDirectIn) {
-        in.PutUnique(dst, src, data, 0);
+        in.PutSerial(dst, src, data, 0);
       }
+    }
+    const auto edge_index = static_cast<uint32_t>(row);
+    if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
+      append_bulk_edge_group(scratch.out_groups, scratch.out_next, src,
+                             edge_index);
+    }
+    if constexpr (InWriter::kStrategy == EdgeStrategy::kMultiple) {
+      append_bulk_edge_group(scratch.in_groups, scratch.in_next, dst,
+                             edge_index);
     }
   }
   if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
@@ -641,70 +610,13 @@ void fill_bulk_edge_chunk_concurrent(
   scratch.filled_edge_count += static_cast<uint64_t>(valid_edges);
 }
 
-template <typename EDATA_T>
-using BulkEdgeFillChunk = std::function<void(const BulkEdgeDataReader<EDATA_T>&,
-                                             BulkEdgeWorkerScratch&, bool)>;
-
-template <typename EDATA_T>
-struct BulkEdgeBuildOps {
-  bool needs_degree_count = false;
-  bool checks_out_single = false;
-  bool checks_in_single = false;
-  BulkEdgeCountChunk count_chunk;
-  std::function<void()> allocate_from_counts;
-  BulkEdgeFillChunk<EDATA_T> fill_chunk;
-};
-
 template <typename EDATA_T, typename OutWriter, typename InWriter>
-BulkEdgeBuildOps<EDATA_T> make_bulk_edge_build_ops(OutWriter& out,
-                                                   InWriter& in) {
-  BulkEdgeBuildOps<EDATA_T> ops;
-  constexpr bool kStoresAnyDirection =
-      OutWriter::kStrategy != EdgeStrategy::kNone ||
-      InWriter::kStrategy != EdgeStrategy::kNone;
-  constexpr bool kNeedsAnyDegreeCount =
-      OutWriter::kStrategy == EdgeStrategy::kMultiple ||
-      InWriter::kStrategy == EdgeStrategy::kMultiple;
-  ops.needs_degree_count = kNeedsAnyDegreeCount;
-  ops.checks_out_single = OutWriter::kStrategy == EdgeStrategy::kSingle;
-  ops.checks_in_single = InWriter::kStrategy == EdgeStrategy::kSingle;
-  ops.allocate_from_counts = [&]() {
-    if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
-      out.AllocateFromCounts();
-    }
-    if constexpr (InWriter::kStrategy == EdgeStrategy::kMultiple) {
-      in.AllocateFromCounts();
-    }
-  };
-  if constexpr (kNeedsAnyDegreeCount) {
-    ops.count_chunk = [&out, &in](BulkEdgeWorkerScratch& scratch,
-                                  bool concurrent) {
-      count_bulk_edge_chunk(scratch, out, in, concurrent);
-    };
-  }
-  if constexpr (kStoresAnyDirection) {
-    ops.fill_chunk = [&out, &in](const BulkEdgeDataReader<EDATA_T>& data_reader,
-                                 BulkEdgeWorkerScratch& scratch,
-                                 bool concurrent) {
-      if (concurrent) {
-        fill_bulk_edge_chunk_concurrent(scratch, data_reader, out, in);
-      } else {
-        fill_bulk_edge_chunk_serial(scratch, data_reader, out, in);
-      }
-    };
-  }
-  return ops;
-}
-
-template <typename EDATA_T>
 uint64_t fill_bulk_edges(const std::shared_ptr<IDataChunkSource>& source,
                          const IndexerType& src_indexer,
                          const IndexerType& dst_indexer,
                          const ChunkSourceOptions& options,
-                         bool allow_concurrent_fill,
                          std::vector<BulkEdgeWorkerScratch>& scratches,
-                         const BulkEdgeBuildOps<EDATA_T>& ops) {
-  CHECK(!allow_concurrent_fill || !options.preserve_order);
+                         OutWriter& out, InWriter& in) {
   auto supplier = source->Open(options);
   CHECK(supplier != nullptr);
 
@@ -713,7 +625,7 @@ uint64_t fill_bulk_edges(const std::shared_ptr<IDataChunkSource>& source,
   for (auto& scratch : scratches) {
     scratch.filled_edge_count = 0;
   }
-  if (allow_concurrent_fill && worker_count > 1) {
+  if (!options.preserve_order && worker_count > 1) {
     auto fill = [&](int32_t worker, const std::shared_ptr<DataChunk>& chunk) {
       CHECK_GE(worker, 0);
       CHECK_LT(worker, worker_count);
@@ -721,7 +633,7 @@ uint64_t fill_bulk_edges(const std::shared_ptr<IDataChunkSource>& source,
       index_bulk_edge_endpoints(chunk, src_indexer, dst_indexer, scratch);
       const auto data_column = chunk->col_num() > 2 ? chunk->get(2) : nullptr;
       BulkEdgeDataReader<EDATA_T> data_reader(data_column);
-      ops.fill_chunk(data_reader, scratch, true);
+      fill_bulk_edge_chunk_concurrent(scratch, data_reader, out, in);
     };
 
     consume_supplier_indexed(*supplier, options, fill);
@@ -731,7 +643,7 @@ uint64_t fill_bulk_edges(const std::shared_ptr<IDataChunkSource>& source,
       index_bulk_edge_endpoints(chunk, src_indexer, dst_indexer, scratch);
       const auto data_column = chunk->col_num() > 2 ? chunk->get(2) : nullptr;
       BulkEdgeDataReader<EDATA_T> data_reader(data_column);
-      ops.fill_chunk(data_reader, scratch, false);
+      fill_bulk_edge_chunk_serial(scratch, data_reader, out, in);
     }
   }
 
@@ -744,52 +656,56 @@ uint64_t fill_bulk_edges(const std::shared_ptr<IDataChunkSource>& source,
   return filled_edge_count;
 }
 
-template <typename EDATA_T>
-uint64_t build_bundled_edges_with_ops(
-    const BulkEdgeBuildOps<EDATA_T>& ops, const IndexerType& src_indexer,
+template <typename EDATA_T, typename OutWriter, typename InWriter>
+uint64_t build_bundled_edges_with_writers(
+    OutWriter& out, InWriter& in, const IndexerType& src_indexer,
     const IndexerType& dst_indexer,
     const std::shared_ptr<IDataChunkSource>& source, int64_t source_bytes) {
-  // VertexTable owns its reserve policy. Edge storage consumes the resulting
-  // indexer capacity instead of duplicating PropertyGraph::Dump's policy.
-  if (!ops.fill_chunk) {
-    ops.allocate_from_counts();
+  constexpr bool kStoresAnyDirection =
+      OutWriter::kStrategy != EdgeStrategy::kNone ||
+      InWriter::kStrategy != EdgeStrategy::kNone;
+  if constexpr (!kStoresAnyDirection) {
     return 0;
+  } else {
+    // VertexTable owns its reserve policy. Edge storage consumes the resulting
+    // indexer capacity instead of duplicating PropertyGraph::Dump's policy.
+    const auto count_options = ResolveBulkBuildSourceOptions(
+        source_bytes, source->ParallelEnabled(),
+        BulkBuildWorkerStrategy::kBalancedProducerConsumer);
+    constexpr bool kNeedsDegreeCount =
+        OutWriter::kStrategy == EdgeStrategy::kMultiple ||
+        InWriter::kStrategy == EdgeStrategy::kMultiple;
+    std::vector<BulkEdgeWorkerScratch> scratches;
+    if constexpr (kNeedsDegreeCount) {
+      scratches.resize(static_cast<size_t>(count_options.consumer_count));
+      count_bulk_edges(source, src_indexer, dst_indexer, count_options,
+                       scratches, out, in);
+    }
+    constexpr bool kChecksOutSingle =
+        OutWriter::kStrategy == EdgeStrategy::kSingle;
+    constexpr bool kChecksInSingle =
+        InWriter::kStrategy == EdgeStrategy::kSingle;
+    const bool single_duplicate = std::any_of(
+        scratches.begin(), scratches.end(), [](const auto& scratch) {
+          return (kChecksOutSingle && scratch.out_single_duplicate) ||
+                 (kChecksInSingle && scratch.in_single_duplicate);
+        });
+    const bool preserve_fill_order = (kChecksOutSingle || kChecksInSingle) &&
+                                     (!kNeedsDegreeCount || single_duplicate);
+    const auto fill_options =
+        preserve_fill_order ? ChunkSourceOptions{} : count_options;
+    if (scratches.size() < static_cast<size_t>(fill_options.consumer_count)) {
+      scratches.resize(static_cast<size_t>(fill_options.consumer_count));
+    }
+    if constexpr (OutWriter::kStrategy == EdgeStrategy::kMultiple) {
+      out.AllocateFromCounts();
+    }
+    if constexpr (InWriter::kStrategy == EdgeStrategy::kMultiple) {
+      in.AllocateFromCounts();
+    }
+    return fill_bulk_edges<EDATA_T>(source, src_indexer, dst_indexer,
+                                    fill_options, scratches, out, in);
   }
-  const auto count_options = ResolveBulkBuildSourceOptions(
-      source_bytes, source->ParallelEnabled(), false,
-      BulkBuildWorkerStrategy::kBalancedProducerConsumer);
-  const bool needs_degree_count = ops.needs_degree_count;
-  std::vector<BulkEdgeWorkerScratch> scratches;
-  if (needs_degree_count) {
-    scratches.resize(static_cast<size_t>(count_options.consumer_count));
-  }
-  const bool has_single_direction =
-      ops.checks_out_single || ops.checks_in_single;
-  BulkEdgeCountSummary count_summary;
-  if (needs_degree_count) {
-    CHECK(static_cast<bool>(ops.count_chunk));
-    count_summary = count_bulk_edges(source, src_indexer, dst_indexer,
-                                     count_options, scratches, ops.count_chunk);
-  }
-  const bool single_duplicate =
-      (ops.checks_out_single && count_summary.out_single_duplicate) ||
-      (ops.checks_in_single && count_summary.in_single_duplicate);
-  const bool preserve_fill_order =
-      has_single_direction && (!needs_degree_count || single_duplicate);
-  const bool allow_concurrent_fill = !preserve_fill_order;
-  const auto fill_options =
-      preserve_fill_order
-          ? ResolveBulkBuildSourceOptions(
-                source_bytes, source->ParallelEnabled(), true,
-                BulkBuildWorkerStrategy::kBalancedProducerConsumer)
-          : count_options;
-  if (scratches.size() < static_cast<size_t>(fill_options.consumer_count)) {
-    scratches.resize(static_cast<size_t>(fill_options.consumer_count));
-  }
-  ops.allocate_from_counts();
-  return fill_bulk_edges<EDATA_T>(source, src_indexer, dst_indexer,
-                                  fill_options, allow_concurrent_fill,
-                                  scratches, ops);
 }
 
 template <typename EDATA_T>
@@ -806,9 +722,9 @@ bool build_bundled_edges_typed(CsrBase* out_csr, CsrBase* in_csr,
             with_csr_bulk_writer<EDATA_T>(in_csr, [&](auto& in) {
               out.PrepareBuild(src_vertex_capacity);
               in.PrepareBuild(dst_vertex_capacity);
-              auto ops = make_bulk_edge_build_ops<EDATA_T>(out, in);
-              const auto filled_edge_count = build_bundled_edges_with_ops(
-                  ops, src_indexer, dst_indexer, source, source_bytes);
+              const auto filled_edge_count =
+                  build_bundled_edges_with_writers<EDATA_T>(
+                      out, in, src_indexer, dst_indexer, source, source_bytes);
               out.Finish(filled_edge_count);
               in.Finish(filled_edge_count);
             });
@@ -851,9 +767,6 @@ bool internal::BundledEdgeCsrLoader::TryBuild(
     const IndexerType& src_indexer, const IndexerType& dst_indexer,
     const std::shared_ptr<IDataChunkSource>& source, int64_t source_bytes,
     vid_t src_vertex_capacity, vid_t dst_vertex_capacity) {
-  if (!source) {
-    return false;
-  }
   return build_bundled_edges(&out_csr, &in_csr, schema, src_indexer,
                              dst_indexer, source, source_bytes,
                              src_vertex_capacity, dst_vertex_capacity);

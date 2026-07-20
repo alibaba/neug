@@ -44,9 +44,6 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
 /// build or normal BatchAdd from the supplied repeatable source.
 class BatchInsertEdgeFromSourceOprBuilder : public IOperatorBuilder {
  public:
-  BatchInsertEdgeFromSourceOprBuilder() = default;
-  ~BatchInsertEdgeFromSourceOprBuilder() = default;
-
   neug::result<OpBuildResultT> Build(const Schema& schema,
                                      const ContextMeta& ctx_meta,
                                      const physical::PhysicalPlan& plan,

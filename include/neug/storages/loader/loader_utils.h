@@ -135,7 +135,7 @@ enum class BulkBuildWorkerStrategy {
 };
 
 ChunkSourceOptions ResolveBulkBuildSourceOptions(
-    int64_t source_bytes, bool parallel_enabled, bool preserve_order,
+    int64_t source_bytes, bool parallel_enabled,
     BulkBuildWorkerStrategy worker_strategy);
 
 inline constexpr int64_t kUnknownRowNum = -1;
@@ -157,11 +157,6 @@ inline bool ShouldUseBulkBuild(int64_t source_bytes,
     LOG(WARNING) << "Ignore invalid NEUG_COPY_BULK_BUILD=" << configured;
   }
   return source_bytes >= min_bytes;
-}
-
-inline bool ShouldUseBulkBuild(const IDataChunkSource& source,
-                               int64_t min_bytes = kDefaultBulkBuildMinBytes) {
-  return ShouldUseBulkBuild(source.EstimatedBytes(), min_bytes);
 }
 
 enum class CsvRowCountMode {

@@ -43,9 +43,6 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
 /// build or normal BatchAdd from the supplied repeatable source.
 class BatchInsertVertexFromSourceOprBuilder : public IOperatorBuilder {
  public:
-  BatchInsertVertexFromSourceOprBuilder() = default;
-  ~BatchInsertVertexFromSourceOprBuilder() = default;
-
   neug::result<OpBuildResultT> Build(const Schema& schema,
                                      const ContextMeta& ctx_meta,
                                      const physical::PhysicalPlan& plan,

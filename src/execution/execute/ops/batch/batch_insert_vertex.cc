@@ -83,7 +83,6 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   (void) schema;
-  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().load_vertex();
 
   if (!opr.has_vertex_type()) {
@@ -96,16 +95,15 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
   vertex_type.CopyFrom(opr.vertex_type());
   return std::make_pair(std::make_unique<BatchInsertVertexOpr>(
                             std::move(vertex_type), std::move(prop_mappings)),
-                        ret_meta);
+                        ctx_meta);
 }
 
 neug::result<OpBuildResultT> BatchInsertVertexFromSourceOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   (void) schema;
-  ContextMeta result_meta = ctx_meta;
   if (!is_terminal_batch_insert(plan, op_idx)) {
-    return std::make_pair(nullptr, result_meta);
+    return std::make_pair(nullptr, ctx_meta);
   }
   const auto& vertex_pb = plan.plan(op_idx + 1).opr().load_vertex();
   if (!vertex_pb.has_vertex_type()) {
@@ -122,7 +120,7 @@ neug::result<OpBuildResultT> BatchInsertVertexFromSourceOprBuilder::Build(
   return std::make_pair(std::make_unique<BatchInsertVertexOpr>(
                             std::move(vertex_type),
                             std::move(property_mappings), std::move(source)),
-                        result_meta);
+                        ctx_meta);
 }
 
 }  // namespace ops

@@ -63,10 +63,7 @@ bool resolve_edge_triplet(const Schema& schema,
   if (!resolve_vertex_label_id(schema, edge_type.src_type_name(), src_type)) {
     return false;
   }
-  if (!resolve_vertex_label_id(schema, edge_type.dst_type_name(), dst_type)) {
-    return false;
-  }
-  return true;
+  return resolve_vertex_label_id(schema, edge_type.dst_type_name(), dst_type);
 }
 
 }  // namespace
@@ -141,7 +138,6 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   (void) schema;
-  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().load_edge();
 
   if (!opr.has_edge_type()) {
@@ -161,16 +157,15 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
       std::make_unique<BatchInsertEdgeOpr>(
           std::move(edge_type), std::move(prop_mappings),
           std::move(src_vertex_bindings), std::move(dst_vertex_binds)),
-      ret_meta);
+      ctx_meta);
 }
 
 neug::result<OpBuildResultT> BatchInsertEdgeFromSourceOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   (void) schema;
-  ContextMeta result_meta = ctx_meta;
   if (!is_terminal_batch_insert(plan, op_idx)) {
-    return std::make_pair(nullptr, result_meta);
+    return std::make_pair(nullptr, ctx_meta);
   }
   const auto& edge_pb = plan.plan(op_idx + 1).opr().load_edge();
   if (!edge_pb.has_edge_type()) {
@@ -180,9 +175,8 @@ neug::result<OpBuildResultT> BatchInsertEdgeFromSourceOprBuilder::Build(
 
   auto source = build_batch_insert_source(plan, op_idx);
 
-  std::vector<std::pair<int32_t, std::string>> property_mappings;
-  std::vector<std::pair<int32_t, std::string>> source_mappings;
-  std::vector<std::pair<int32_t, std::string>> destination_mappings;
+  std::vector<std::pair<int32_t, std::string>> property_mappings,
+      source_mappings, destination_mappings;
   parse_property_mappings(edge_pb.property_mappings(), property_mappings);
   parse_property_mappings(edge_pb.source_vertex_binding(), source_mappings);
   parse_property_mappings(edge_pb.destination_vertex_binding(),
@@ -193,7 +187,7 @@ neug::result<OpBuildResultT> BatchInsertEdgeFromSourceOprBuilder::Build(
                             std::move(edge_type), std::move(property_mappings),
                             std::move(source_mappings),
                             std::move(destination_mappings), std::move(source)),
-                        result_meta);
+                        ctx_meta);
 }
 
 }  // namespace ops

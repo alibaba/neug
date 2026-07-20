@@ -47,17 +47,6 @@
 
 namespace neug {
 
-namespace {
-
-vid_t indexer_vertex_capacity(const IndexerType& indexer) {
-  const size_t capacity = indexer.capacity();
-  CHECK_LE(capacity, static_cast<size_t>(std::numeric_limits<vid_t>::max()))
-      << "CSR vertex capacity exceeds the vertex id range";
-  return static_cast<vid_t>(capacity);
-}
-
-}  // namespace
-
 void filterInvalidEdges(std::vector<vid_t>& src_lid,
                         std::vector<vid_t>& dst_lid,
                         std::vector<bool>& valid_flags) {
@@ -785,8 +774,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
                               const IndexerType& dst_indexer,
                               std::shared_ptr<IDataChunkSupplier> supplier) {
   CHECK(supplier != nullptr);
-  const auto src_vertex_capacity = indexer_vertex_capacity(src_indexer);
-  const auto dst_vertex_capacity = indexer_vertex_capacity(dst_indexer);
+  const auto src_vertex_capacity = static_cast<vid_t>(src_indexer.capacity());
+  const auto dst_vertex_capacity = static_cast<vid_t>(dst_indexer.capacity());
   auto source = supplier->RepeatableSource();
   if (source && TryBatchBuildEdges(src_indexer, dst_indexer, source,
                                    src_vertex_capacity, dst_vertex_capacity)) {
@@ -861,7 +850,7 @@ bool EdgeTable::TryBatchBuildEdges(
     const IndexerType& src_indexer, const IndexerType& dst_indexer,
     const std::shared_ptr<IDataChunkSource>& source, vid_t src_vertex_capacity,
     vid_t dst_vertex_capacity) {
-  if (!source || !meta_ || !meta_->is_bundled() || !out_csr_ || !in_csr_ ||
+  if (!meta_ || !meta_->is_bundled() || !out_csr_ || !in_csr_ ||
       out_csr_->edge_num() != 0 || in_csr_->edge_num() != 0 ||
       (meta_->oe_strategy != EdgeStrategy::kNone && !meta_->oe_mutable) ||
       (meta_->ie_strategy != EdgeStrategy::kNone && !meta_->ie_mutable)) {

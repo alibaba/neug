@@ -112,21 +112,31 @@ struct CSVReadFunction {
     }
   }
 
-  static execution::Context execFunc(
-      std::shared_ptr<reader::ReadSharedState> state) {
-    validateAndConvertExecOptions(state);
-    const auto& vfs = neug::main::MetadataRegistry::getVFS();
-    const auto& fs = vfs->Provide(state->schema.file);
-    auto resolvedPaths = std::vector<std::string>();
+  static void resolvePaths(
+      const std::shared_ptr<reader::ReadSharedState>& state) {
+    const auto& fs =
+        neug::main::MetadataRegistry::getVFS()->Provide(state->schema.file);
+    std::vector<std::string> resolvedPaths;
     for (const auto& path : state->schema.file.paths) {
       const auto& resolved = fs->glob(path);
       resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
                            resolved.end());
     }
     state->schema.file.paths = std::move(resolvedPaths);
+  }
+
+  static std::shared_ptr<reader::CsvReader> createReader(
+      const std::shared_ptr<reader::ReadSharedState>& state) {
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
-    auto reader =
-        std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
+    return std::make_shared<reader::CsvReader>(state,
+                                               std::move(optionsBuilder));
+  }
+
+  static execution::Context execFunc(
+      std::shared_ptr<reader::ReadSharedState> state) {
+    validateAndConvertExecOptions(state);
+    resolvePaths(state);
+    auto reader = createReader(state);
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -144,20 +154,9 @@ struct CSVReadFunction {
     // the original state pristine for that fallback.
     auto source_state = std::make_shared<reader::ReadSharedState>(*state);
     validateAndConvertExecOptions(source_state);
-    const auto& vfs = neug::main::MetadataRegistry::getVFS();
-    const auto& fs = vfs->Provide(source_state->schema.file);
-    std::vector<std::string> resolved_paths;
-    for (const auto& path : source_state->schema.file.paths) {
-      const auto& resolved = fs->glob(path);
-      resolved_paths.insert(resolved_paths.end(), resolved.begin(),
-                            resolved.end());
-    }
-    source_state->schema.file.paths = std::move(resolved_paths);
-    auto options_builder =
-        std::make_unique<reader::CsvOptionsBuilder>(source_state);
-    auto reader = std::make_unique<reader::CsvReader>(
-        source_state, std::move(options_builder));
-    return reader->createChunkSource(std::move(projected_columns));
+    resolvePaths(source_state);
+    return createReader(source_state)
+        ->createChunkSource(std::move(projected_columns));
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(
@@ -171,18 +170,8 @@ struct CSVReadFunction {
     validateAndConvertSniffOptions(externalSchema.file);
     externalSchema.file.options["BATCH_SIZE"] =
         std::to_string(reader::kSniffBlockSize);
-    const auto& vfs = neug::main::MetadataRegistry::getVFS();
-    const auto& fs = vfs->Provide(state->schema.file);
-    auto resolvedPaths = std::vector<std::string>();
-    for (const auto& path : state->schema.file.paths) {
-      const auto& resolved = fs->glob(path);
-      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
-                           resolved.end());
-    }
-    state->schema.file.paths = std::move(resolvedPaths);
-    auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
-    auto reader =
-        std::make_shared<reader::CsvReader>(state, std::move(optionsBuilder));
+    resolvePaths(state);
+    auto reader = createReader(state);
     auto sniffer = std::make_shared<reader::CsvSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (sniffResult) {
@@ -198,9 +187,7 @@ struct CSVReadFunction {
     if (hasHeader) {
       options.insert({"SKIP_ROWS", "1"});
       options.insert({"AUTOGENERATE_COLUMN_NAMES", "TRUE"});
-      auto optionsBuilder2 = std::make_unique<reader::CsvOptionsBuilder>(state);
-      auto reader2 = std::make_shared<reader::CsvReader>(
-          state, std::move(optionsBuilder2));
+      auto reader2 = createReader(state);
       auto sniffer2 = std::make_shared<reader::CsvSniffer>(reader2);
       sniffResult = sniffer2->sniff();
       if (sniffResult) {

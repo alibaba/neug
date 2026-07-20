@@ -712,11 +712,16 @@ class CsvFileScanner {
     int64_t total = 0;
     bool in_quotes = false;  // chunk 0 starts outside quotes
     const RowCounterState* last_selected = nullptr;
-    std::vector<bool> starts_inside(actual_threads, false);
-    std::vector<int64_t> rows_before(actual_threads, 0);
+    std::vector<std::pair<size_t, int64_t>> safe_bounds;
+    if (build_ranges) {
+      safe_bounds.reserve(actual_threads + 1);
+      safe_bounds.emplace_back(0, 0);
+    }
     for (unsigned i = 0; i < actual_threads; ++i) {
-      starts_inside[i] = in_quotes;
-      rows_before[i] = total;
+      if (build_ranges && i > 0 && !in_quotes &&
+          bounds[i] > safe_bounds.back().first && bounds[i] < file_size) {
+        safe_bounds.emplace_back(bounds[i], total);
+      }
       const RowCounterState& s =
           in_quotes ? results[i].inside : results[i].outside;
       total += s.count;
@@ -736,18 +741,8 @@ class CsvFileScanner {
       return output;
     }
 
-    std::vector<std::pair<size_t, int64_t>> safe_bounds;
-    safe_bounds.emplace_back(0, 0);
-    for (unsigned i = 1; i < actual_threads; ++i) {
-      // A nominal split is already positioned after a physical newline. It is
-      // a valid record boundary exactly when that newline was outside quotes.
-      // Unsafe splits are merged into the preceding range instead of rescanning
-      // the file tail to manufacture another boundary.
-      if (!starts_inside[i] && bounds[i] > safe_bounds.back().first &&
-          bounds[i] < file_size) {
-        safe_bounds.emplace_back(bounds[i], rows_before[i]);
-      }
-    }
+    // A nominal split is a valid record boundary exactly when the preceding
+    // newline was outside quotes; unsafe splits remain in the previous range.
     safe_bounds.emplace_back(file_size, total);
     output.ranges.reserve(safe_bounds.size() - 1);
     for (size_t i = 0; i + 1 < safe_bounds.size(); ++i) {
@@ -823,22 +818,20 @@ class CsvRangeStreamBuf final : public std::streambuf {
       return 0;
     }
 
-    std::streamsize total = 0;
+    const auto requested_count = static_cast<size_t>(count);
     const auto buffered = static_cast<size_t>(egptr() - gptr());
-    const auto from_buffer =
-        std::min(buffered, static_cast<size_t>(count - total));
+    const auto from_buffer = std::min(buffered, requested_count);
     if (from_buffer > 0) {
       std::memcpy(destination, gptr(), from_buffer);
       gbump(static_cast<int>(from_buffer));
-      total += static_cast<std::streamsize>(from_buffer);
     }
 
-    if (total == count || remaining_ == 0) {
-      return total;
+    if (from_buffer == requested_count || remaining_ == 0) {
+      return static_cast<std::streamsize>(from_buffer);
     }
-    const auto requested =
-        std::min(remaining_, static_cast<size_t>(count - total));
-    file_.read(destination + total, static_cast<std::streamsize>(requested));
+    const auto requested = std::min(remaining_, requested_count - from_buffer);
+    file_.read(destination + from_buffer,
+               static_cast<std::streamsize>(requested));
     const auto read = static_cast<size_t>(file_.gcount());
     if (file_.bad()) {
       THROW_IO_EXCEPTION("Failed to read CSV range: " + file_path_);
@@ -847,7 +840,7 @@ class CsvRangeStreamBuf final : public std::streambuf {
     if (read < requested) {
       remaining_ = 0;
     }
-    return total + static_cast<std::streamsize>(read);
+    return static_cast<std::streamsize>(from_buffer + read);
   }
 
  private:
@@ -867,10 +860,6 @@ class CsvRangeStream final : public std::istream {
  private:
   CsvRangeStreamBuf buffer_;
 };
-
-}  // namespace
-
-namespace {
 
 std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
     const std::vector<std::string>& file_paths, const CsvReadConfig& config,
@@ -927,16 +916,9 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
   // intra-file speculative scans. scan_parallel() uses its caller for one
   // byte range, therefore the number of active scanners never exceeds H.
   const auto scan_budget = chunk_pipeline_detail::hardware_worker_count();
-  std::vector<int32_t> scan_threads(file_paths.size(), 0);
+  auto scan_threads = range_counts;
   if (non_empty_files < static_cast<size_t>(scan_budget)) {
-    size_t assigned_scanners = 0;
-    for (size_t i = 0; i < file_paths.size(); ++i) {
-      if (file_sizes[i] == 0) {
-        continue;
-      }
-      scan_threads[i] = std::max<int32_t>(1, range_counts[i]);
-      assigned_scanners += static_cast<size_t>(scan_threads[i]);
-    }
+    size_t assigned_scanners = assigned_ranges;
     CHECK_LE(assigned_scanners, static_cast<size_t>(scan_budget));
     while (assigned_scanners < static_cast<size_t>(scan_budget)) {
       size_t best = file_paths.size();
@@ -959,22 +941,14 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
       ++scan_threads[best];
       ++assigned_scanners;
     }
-  } else {
-    for (size_t i = 0; i < file_paths.size(); ++i) {
-      scan_threads[i] = file_sizes[i] == 0 ? 0 : 1;
-    }
   }
 
   std::vector<CsvScanResult> scans(file_paths.size());
   std::atomic<size_t> next_file{0};
   std::atomic<bool> scan_cancelled{false};
-  std::mutex scan_error_mutex;
   std::exception_ptr scan_error;
   auto capture_scan_error = [&](std::exception_ptr error) {
-    bool expected = false;
-    if (scan_cancelled.compare_exchange_strong(expected, true,
-                                               std::memory_order_acq_rel)) {
-      std::lock_guard<std::mutex> lock(scan_error_mutex);
+    if (!scan_cancelled.exchange(true, std::memory_order_acq_rel)) {
       scan_error = std::move(error);
     }
   };
@@ -990,8 +964,8 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
         CsvFileScanner(file_paths[file_index], config.quoting,
                        config.quote_char, config.delimiter, config.use_threads)
             .scan_with_ranges(static_cast<size_t>(file_sizes[file_index]),
-                              std::max<int32_t>(1, range_counts[file_index]),
-                              std::max<int32_t>(1, scan_threads[file_index]));
+                              range_counts[file_index],
+                              scan_threads[file_index]);
   };
 
   std::vector<std::thread> planners;
@@ -1036,11 +1010,13 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
   int64_t total = 0;
   for (size_t i = 0; i < file_paths.size(); ++i) {
     const auto& scan = scans[i];
-    if (scan.row_count < 0 ||
-        scan.row_count > std::numeric_limits<int64_t>::max() - total) {
-      total = kUnknownRowNum;
-    } else if (total != kUnknownRowNum) {
-      total += scan.row_count;
+    if (total != kUnknownRowNum) {
+      if (scan.row_count < 0 ||
+          scan.row_count > std::numeric_limits<int64_t>::max() - total) {
+        total = kUnknownRowNum;
+      } else {
+        total += scan.row_count;
+      }
     }
 
     // SKIP is scoped per input file. Distribute it over record-aligned ranges
@@ -1616,7 +1592,7 @@ class SourceBackedChunkSupplier final : public IDataChunkSupplier {
   }
 
  private:
-  std::shared_ptr<IDataChunkSupplier> OpenSupplier() const {
+  IDataChunkSupplier* OpenSupplier() const {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!supplier_) {
       supplier_ = source_->Open();
@@ -1627,7 +1603,7 @@ class SourceBackedChunkSupplier final : public IDataChunkSupplier {
         supplier_->Cancel();
       }
     }
-    return supplier_;
+    return supplier_.get();
   }
 
   std::shared_ptr<IDataChunkSource> source_;
@@ -1831,7 +1807,7 @@ class ChainedCsvChunkSupplier final : public IDataChunkSupplier {
   std::shared_ptr<DataChunk> GetNextChunk() override {
     while (next_file_ < file_paths_.size()) {
       if (!current_) {
-        current_ = std::make_shared<CSVChunkSupplier>(
+        current_ = std::make_unique<CSVChunkSupplier>(
             file_paths_[next_file_], config_, CsvRowCountMode::kUnknown);
       }
       auto chunk = current_->GetNextChunk();
@@ -1850,9 +1826,8 @@ class ChainedCsvChunkSupplier final : public IDataChunkSupplier {
     }
     int64_t total = 0;
     for (const auto& file_path : file_paths_) {
-      auto supplier = std::make_shared<CSVChunkSupplier>(
-          file_path, config_, CsvRowCountMode::kUnknown);
-      auto rows = supplier->RowNum();
+      CSVChunkSupplier supplier(file_path, config_, CsvRowCountMode::kUnknown);
+      auto rows = supplier.RowNum();
       if (rows < 0 || rows > std::numeric_limits<int64_t>::max() - total) {
         return kUnknownRowNum;
       }
@@ -1865,7 +1840,7 @@ class ChainedCsvChunkSupplier final : public IDataChunkSupplier {
  private:
   std::vector<std::string> file_paths_;
   CsvReadConfig config_;
-  std::shared_ptr<CSVChunkSupplier> current_;
+  std::unique_ptr<CSVChunkSupplier> current_;
   size_t next_file_ = 0;
   mutable int64_t row_num_ = kUnknownRowNum;
 };
@@ -1881,26 +1856,24 @@ std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
 }
 
 ChunkSourceOptions ResolveBulkBuildSourceOptions(
-    int64_t source_bytes, bool parallel_enabled, bool preserve_order,
+    int64_t source_bytes, bool parallel_enabled,
     BulkBuildWorkerStrategy worker_strategy) {
   constexpr int64_t kMinPartitionBytes = 64LL * 1024 * 1024;
   constexpr size_t kMaxQueuedChunks = 64;
 
   ChunkSourceOptions options;
-  options.preserve_order = preserve_order;
+  options.preserve_order = false;
   const auto workers = chunk_pipeline_detail::hardware_worker_count();
-  if (!parallel_enabled || preserve_order || workers <= 1 ||
+  if (!parallel_enabled || workers <= 1 ||
       source_bytes < kDefaultBulkBuildMinBytes) {
     return options;
   }
 
-  const auto useful_partitions = std::max<int64_t>(
-      1, source_bytes / kMinPartitionBytes +
-             (source_bytes % kMinPartitionBytes == 0 ? 0 : 1));
+  const auto useful_partitions = (source_bytes - 1) / kMinPartitionBytes + 1;
   switch (worker_strategy) {
   case BulkBuildWorkerStrategy::kMaxProducers: {
-    options.producer_count = static_cast<int32_t>(std::min<int64_t>(
-        workers - 1, std::min<int64_t>(useful_partitions, workers)));
+    options.producer_count =
+        static_cast<int32_t>(std::min<int64_t>(useful_partitions, workers - 1));
     break;
   }
   case BulkBuildWorkerStrategy::kBalancedProducerConsumer: {
@@ -1912,7 +1885,6 @@ ChunkSourceOptions ResolveBulkBuildSourceOptions(
     break;
   }
   }
-  options.producer_count = std::max<int32_t>(1, options.producer_count);
   options.queue_capacity = std::clamp<size_t>(
       static_cast<size_t>(options.producer_count) * 2, 2, kMaxQueuedChunks);
   return options;

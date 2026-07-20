@@ -52,7 +52,7 @@ void VertexTable::BatchAddVertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
   CHECK(supplier != nullptr);
   auto source = supplier->RepeatableSource();
-  if (source && ShouldUseBulkBuild(*source) &&
+  if (source && ShouldUseBulkBuild(source->EstimatedBytes()) &&
       try_batch_build_vertices(source)) {
     return;
   }
@@ -61,16 +61,16 @@ void VertexTable::BatchAddVertices(
 
 bool VertexTable::try_batch_build_vertices(
     const std::shared_ptr<IDataChunkSource>& source) {
-  if (!source || Size() != 0) {
+  if (Size() != 0) {
     return false;
   }
 
   auto staged = VertexTable(vertex_schema_);
   staged.Init(ckp_, memory_level_);
   const auto source_bytes = source->EstimatedBytes();
-  auto options = ResolveBulkBuildSourceOptions(
-      source_bytes, source->ParallelEnabled(), false,
-      BulkBuildWorkerStrategy::kMaxProducers);
+  auto options =
+      ResolveBulkBuildSourceOptions(source_bytes, source->ParallelEnabled(),
+                                    BulkBuildWorkerStrategy::kMaxProducers);
   auto supplier = source->Open(options);
   if (!supplier) {
     return false;
