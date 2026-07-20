@@ -228,6 +228,20 @@ class NeugDB {
   inline bool IsClosed() const { return closed_.load(); }
 
   /**
+   * @brief Check if a NeugDBService is currently associated with this
+   * database.
+   *
+   * At most one NeugDBService can be associated with a NeugDB instance at
+   * any given time. While a service is associated, local connections via
+   * Connect() are rejected and Close() fails.
+   *
+   * @return true if a NeugDBService is associated with this database.
+   */
+  inline bool HasActiveService() const {
+    return active_service_.load() != nullptr;
+  }
+
+  /**
    * @brief Create a new connection to the database for query execution.
    *
    * Creates and returns a Connection object that can be used to execute
@@ -351,6 +365,35 @@ class NeugDB {
    */
   void createCheckpointOnClose();
 
+  /**
+   * @brief Register a NeugDBService as the active service of this database.
+   *
+   * Only one service can be registered at any given time. Called by the
+   * NeugDBService constructor.
+   *
+   * Registration is rejected if the database is closed or being closed:
+   * after publishing itself, the service re-checks the closed flag and
+   * backs out on conflict, so Close() can never free db internals
+   * underneath a concurrently registering service.
+   *
+   * @param svc The service instance to register.
+   *
+   * @throws neug::exception::RuntimeError if another service is already
+   * associated with this database, or if the database is closed or being
+   * closed.
+   */
+  void RegisterService(NeugDBService* svc);
+
+  /**
+   * @brief Unregister the active NeugDBService from this database.
+   *
+   * Called by the NeugDBService destructor. Never throws; a mismatching
+   * pointer only triggers a warning log.
+   *
+   * @param svc The service instance to unregister.
+   */
+  void UnregisterService(NeugDBService* svc);
+
   friend class NeugDBSession;
   friend class neug::NeugDBService;
 
@@ -375,6 +418,10 @@ class NeugDB {
   std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>
       allocators_;  // Allocators for each thread
+
+  // The NeugDBService currently associated with this database, nullptr if
+  // none. At most one service can be associated at any given time.
+  std::atomic<NeugDBService*> active_service_{nullptr};
 };
 
 }  // namespace neug
