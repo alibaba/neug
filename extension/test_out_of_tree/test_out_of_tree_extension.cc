@@ -15,7 +15,6 @@
  */
 
 #include "neug/common/columns/value_columns.h"
-#include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
