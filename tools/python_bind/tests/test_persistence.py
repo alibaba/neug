@@ -74,6 +74,53 @@ def test_checkpoint(tmp_path):
     db.close()
 
 
+def test_dirty_vertex_links_clean_edge_on_close(tmp_path):
+    """Only Person is dirty on the second close; Knows stays clean and must
+    survive via LinkToSnapshot when checkpoint_on_close dumps.
+    """
+    db_dir = str(tmp_path / "test_dirty_link_clean_edge")
+    shutil.rmtree(db_dir, ignore_errors=True)
+
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE Person(id INT32, name STRING, PRIMARY KEY(id))"
+    )
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE)")
+    conn.execute("CREATE (p:Person {id: 1, name: 'Alice'});")
+    conn.execute("CREATE (p:Person {id: 2, name: 'Bob'});")
+    conn.execute(
+        "MATCH (p1:Person), (p2:Person) WHERE p1.id = 1 AND p2.id = 2 "
+        "CREATE (p1)-[:Knows {weight: 0.5}]->(p2);"
+    )
+    conn.close()
+    db.close()  # first checkpoint publishes Person + Knows
+
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    # Touch only Person; Knows remains clean for the next close-checkpoint.
+    conn.execute("CREATE (p:Person {id: 3, name: 'Carol'});")
+    conn.close()
+    db.close()
+
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    persons = sorted(
+        list(conn.execute("MATCH (p:Person) RETURN p.id, p.name;")),
+        key=lambda r: r[0],
+    )
+    assert persons == [[1, "Alice"], [2, "Bob"], [3, "Carol"]]
+    edges = list(
+        conn.execute(
+            "MATCH (p1:Person)-[k:Knows]->(p2:Person) "
+            "RETURN p1.id, p2.id, k.weight;"
+        )
+    )
+    assert edges == [[1, 2, 0.5]]
+    conn.close()
+    db.close()
+
+
 def test_recreate_vertex(tmp_path):
     db_dir = str(tmp_path / "test_recreate_vertex")
     logger.info("Starting test_recreate_vertex")
