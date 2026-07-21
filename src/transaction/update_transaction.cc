@@ -1176,7 +1176,7 @@ void StorageTPUpdateInterface::CreateCheckpoint() {
         "Checkpoint should be created in a update "
         "transaction without any updates");
   }
-  if (!cow_graph_->HasAnyTableDirty() && !cow_graph_->IsSchemaDirty()) {
+  if (!cow_graph_->IsModified()) {
     wal_.LogCheckpoint();
     return;
   }

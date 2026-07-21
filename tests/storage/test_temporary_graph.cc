@@ -375,6 +375,7 @@ TEST_F(PropertyGraphTemporaryTest, DumpSkipsTemporaryData) {
                   ->AddVertex(person_label, Value::INT64(100),
                               {Value::STRING("Bob")}, vid2, 0)
                   .ok());
+  graph_->MarkVertexDirty(person_label);
 
   // Dump (checkpoint)
   auto ckp2 = make_checkpoint(ws_);

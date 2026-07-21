@@ -144,8 +144,9 @@ class PropertyGraph {
   }
   void MarkSchemaDirty() { dirty_.MarkSchema(); }
   bool IsSchemaDirty() const { return dirty_.IsSchemaDirty(); }
-  /// True if any table-level dirty bit is set (does not include schema dirty).
-  bool HasAnyTableDirty() const { return dirty_.HasAnyTableDirty(); }
+  /// True if schema or any table has been marked dirty since the last
+  /// ClearAllDirty().
+  bool IsModified() const { return dirty_.IsModified(); }
   /// Clear all table-level and schema dirty bits. Call only after a checkpoint
   /// has been successfully published.
   void ClearAllDirty() { dirty_.ClearAll(); }

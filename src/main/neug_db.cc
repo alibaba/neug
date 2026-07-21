@@ -395,7 +395,7 @@ void NeugDB::createCheckpointAndRefreshLiveGraph() {
   {
     SnapshotGuard guard(*snapshot_store_);
     auto* live_graph = guard.get().mutable_graph();
-    if (!live_graph->HasAnyTableDirty() && !live_graph->IsSchemaDirty()) {
+    if (!live_graph->IsModified()) {
       return;
     }
   }
@@ -449,7 +449,7 @@ void NeugDB::createCheckpointOnClose() {
   {
     SnapshotGuard guard(*snapshot_store_);
     auto* live_graph = guard.get().mutable_graph();
-    if (!live_graph->HasAnyTableDirty() && !live_graph->IsSchemaDirty()) {
+    if (!live_graph->IsModified()) {
       return;
     }
   }

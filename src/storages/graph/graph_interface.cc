@@ -86,7 +86,7 @@ Status StorageAPUpdateInterface::AddEdgeImpl(
 }
 
 void StorageAPUpdateInterface::CreateCheckpoint() {
-  if (!graph_.HasAnyTableDirty() && !graph_.IsSchemaDirty()) {
+  if (!graph_.IsModified()) {
     return;
   }
   auto ckp = graph_.checkpoint_ptr();

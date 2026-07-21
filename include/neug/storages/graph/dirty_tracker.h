@@ -67,8 +67,11 @@ class DirtyTracker {
   bool IsSchemaDirty() const { return schema_; }
   void SetSchema(bool dirty) { schema_ = dirty; }
 
-  /// True if any table-level bit is set (does not include the schema bit).
-  bool HasAnyTableDirty() const {
+  /// True if schema or any table-level bit is set since the last ClearAll().
+  bool IsModified() const {
+    if (schema_) {
+      return true;
+    }
     for (const auto& bit : vertex_) {
       if (bit) {
         return true;
