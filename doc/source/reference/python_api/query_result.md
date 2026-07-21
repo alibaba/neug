@@ -19,6 +19,7 @@ It has the following methods to iterate over the results.
     - `getNext()`: Returns the next result as a list.
     - `length()`: Returns the total number of results.
     - `column_names()`: Returns the projected column names as strings.
+    - `get_profile_metrics()`: Returns structured PROFILE or EXPLAIN metrics.
 
 ```python
 
@@ -69,6 +70,33 @@ TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response
 - **Returns:**
   - **str**
     The result in Bolt response format.
+
+<a id="neug.query_result.QueryResult.get_profile_metrics"></a>
+
+### get\_profile\_metrics
+
+```python
+def get_profile_metrics() -> dict
+```
+
+Return detailed PROFILE or EXPLAIN metrics as a Python dictionary:
+
+```python
+{
+    "total_elapsed_ms": float,
+    "total_output_rows": int,
+    "operators": [
+        {
+            "operator_id": int,
+            "parent_id": int,
+            "operator_name": str,
+            "elapsed_ms": float,
+            "output_rows": int,
+            "child_ids": [int],
+        }
+    ],
+}
+```
 
 <a id="neug.query_result.QueryResult.to_arrow"></a>
 

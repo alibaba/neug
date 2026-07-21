@@ -107,6 +107,18 @@ class QueryResult {
   }
 
   /**
+   * Get the profile/explain result as a structured metrics object.
+   * @returns {{ total_elapsed_ms: number, total_output_rows: number, operators: Array }} Metrics object.
+   */
+  getProfileMetrics() {
+    const metrics = this._result.getProfileMetrics();
+    if (!metrics.operators) {
+      metrics.operators = [];
+    }
+    return metrics;
+  }
+
+  /**
    * Make QueryResult iterable with for...of loops.
    * @returns {Iterator} An iterator over the result rows.
    */
