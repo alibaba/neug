@@ -378,7 +378,7 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
     CheckpointSession& checkpoint_session) {
   SnapshotGuard guard(*snapshot_store_);
   auto* live_graph = guard.get().mutable_graph();
-  // Compact rewrites table bytes and marks involved tables dirty; dump then
+  // Compact rewrites only already-dirty tables (does not mark); dump then
   // publishes. ClearAllDirty runs only after a successful Commit.
   live_graph->Compact(MAX_TIMESTAMP);
   live_graph->DumpAndClear(checkpoint_session.staging_checkpoint());
