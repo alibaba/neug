@@ -394,7 +394,8 @@ public interface ResultSet extends AutoCloseable {
     /**
      * Gets detailed profile metrics for all operators.
      *
-     * <p>Returns complete execution plan metrics including timing and output information for each operator.
+     * <p>Returns complete execution plan metrics including timing and output information for each
+     * operator.
      *
      * @return A map containing:
      *     <ul>

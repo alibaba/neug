@@ -747,7 +747,7 @@ public class InternalResultSet implements ResultSet {
     @Override
     public java.util.Map<String, Object> getProfileMetrics() {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
-        
+
         if (!response.hasProfileResult()) {
             return result;
         }

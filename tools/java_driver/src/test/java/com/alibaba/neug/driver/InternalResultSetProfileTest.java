@@ -79,7 +79,9 @@ public class InternalResultSetProfileTest {
 
     /** Build a QueryResponse that includes a ProfileResult (PROFILE or EXPLAIN query). */
     private Results.QueryResponse buildProfileResponse(
-            int rowCount, double totalElapsedMs, long totalOutputRows,
+            int rowCount,
+            double totalElapsedMs,
+            long totalOutputRows,
             Results.ProfileResult.OperatorMetrics... operators) {
 
         Results.ProfileResult.Builder profileBuilder =
@@ -102,8 +104,7 @@ public class InternalResultSetProfileTest {
             }
             Results.StringArray nameArray =
                     Results.StringArray.newBuilder().addAllValues(names).build();
-            Results.Array nameColumn =
-                    Results.Array.newBuilder().setStringArray(nameArray).build();
+            Results.Array nameColumn = Results.Array.newBuilder().setStringArray(nameArray).build();
             Results.MetaDatas schema = Results.MetaDatas.newBuilder().addName("name").build();
             responseBuilder.addArrays(nameColumn).setSchema(schema);
         }
@@ -129,10 +130,8 @@ public class InternalResultSetProfileTest {
 
     @Test
     public void testGetProfileMetricsTopLevelKeys() {
-        Results.ProfileResult.OperatorMetrics op =
-                buildOperator(0, -1, "TableScan", 2.0, 4);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 2.0, 4, op));
+        Results.ProfileResult.OperatorMetrics op = buildOperator(0, -1, "TableScan", 2.0, 4);
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 2.0, 4, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         assertTrue(metrics.containsKey("total_elapsed_ms"));
@@ -142,10 +141,8 @@ public class InternalResultSetProfileTest {
 
     @Test
     public void testGetProfileMetricsTotalElapsedMs() {
-        Results.ProfileResult.OperatorMetrics op =
-                buildOperator(0, -1, "TableScan", 3.14, 4);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 3.14, 4, op));
+        Results.ProfileResult.OperatorMetrics op = buildOperator(0, -1, "TableScan", 3.14, 4);
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 3.14, 4, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         double totalElapsed = (double) metrics.get("total_elapsed_ms");
@@ -154,10 +151,8 @@ public class InternalResultSetProfileTest {
 
     @Test
     public void testGetProfileMetricsTotalOutputRows() {
-        Results.ProfileResult.OperatorMetrics op =
-                buildOperator(0, -1, "TableScan", 1.0, 42);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 1.0, 42, op));
+        Results.ProfileResult.OperatorMetrics op = buildOperator(0, -1, "TableScan", 1.0, 42);
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 1.0, 42, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         // total_output_rows is uint64 in proto → stored as long in Java
@@ -168,10 +163,8 @@ public class InternalResultSetProfileTest {
     @Test
     public void testGetProfileMetricsTotalOutputRowsZeroForExplain() {
         // EXPLAIN mode: plan only, no rows executed
-        Results.ProfileResult.OperatorMetrics op =
-                buildOperator(0, -1, "TableScan", 0.0, 0);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(0, 0.0, 0, op));
+        Results.ProfileResult.OperatorMetrics op = buildOperator(0, -1, "TableScan", 0.0, 0);
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(0, 0.0, 0, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         long totalRows = ((Number) metrics.get("total_output_rows")).longValue();
@@ -186,13 +179,11 @@ public class InternalResultSetProfileTest {
     public void testGetProfileMetricsSingleOperator() {
         Results.ProfileResult.OperatorMetrics op =
                 buildOperator(0, -1, "TableScan[person]", 1.5, 4);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 1.5, 4, op));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 1.5, 4, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         assertEquals(1, operators.size());
     }
 
@@ -200,13 +191,11 @@ public class InternalResultSetProfileTest {
     public void testGetProfileMetricsOperatorFields() {
         Results.ProfileResult.OperatorMetrics op =
                 buildOperator(1, -1, "TableScan[person]", 2.5, 4);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 2.5, 4, op));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 2.5, 4, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         Map<String, Object> opMap = operators.get(0);
 
         assertTrue(opMap.containsKey("operator_id"));
@@ -221,13 +210,11 @@ public class InternalResultSetProfileTest {
     public void testGetProfileMetricsOperatorFieldValues() {
         Results.ProfileResult.OperatorMetrics op =
                 buildOperator(3, -1, "TableScan[person]", 1.23, 7);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(7, 1.23, 7, op));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(7, 1.23, 7, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         Map<String, Object> opMap = operators.get(0);
 
         assertEquals(3L, ((Number) opMap.get("operator_id")).longValue());
@@ -241,13 +228,11 @@ public class InternalResultSetProfileTest {
     public void testGetProfileMetricsOperatorNoChildren() {
         Results.ProfileResult.OperatorMetrics op =
                 buildOperator(0, -1, "TableScan", 0.5, 4 /* no child ids */);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 0.5, 4, op));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 0.5, 4, op));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
 
         @SuppressWarnings("unchecked")
         List<Long> childIds = (List<Long>) operators.get(0).get("child_ids");
@@ -270,8 +255,7 @@ public class InternalResultSetProfileTest {
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         Map<String, Object> rootMap = operators.get(0);
 
         @SuppressWarnings("unchecked")
@@ -289,16 +273,13 @@ public class InternalResultSetProfileTest {
     public void testGetProfileMetricsMultipleOperators() {
         Results.ProfileResult.OperatorMetrics leaf =
                 buildOperator(1, 0, "TableScan[person]", 1.0, 4);
-        Results.ProfileResult.OperatorMetrics root =
-                buildOperator(0, -1, "Projection", 0.2, 4, 1L);
+        Results.ProfileResult.OperatorMetrics root = buildOperator(0, -1, "Projection", 0.2, 4, 1L);
 
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 1.2, 4, root, leaf));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 1.2, 4, root, leaf));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         assertEquals(2, operators.size());
     }
 
@@ -311,16 +292,14 @@ public class InternalResultSetProfileTest {
                 buildOperator(3, 1, "TableScan[software]", 0.5, 2);
         Results.ProfileResult.OperatorMetrics join =
                 buildOperator(1, 0, "HashJoin", 1.8, 6, 2L, 3L);
-        Results.ProfileResult.OperatorMetrics root =
-                buildOperator(0, -1, "Projection", 0.1, 6, 1L);
+        Results.ProfileResult.OperatorMetrics root = buildOperator(0, -1, "Projection", 0.1, 6, 1L);
 
         InternalResultSet rs =
                 new InternalResultSet(buildProfileResponse(6, 3.4, 6, root, join, scan1, scan2));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         assertEquals(4, operators.size());
 
         // Build an id → operator map for cross-checking
@@ -358,20 +337,16 @@ public class InternalResultSetProfileTest {
 
     @Test
     public void testGetProfileMetricsTimingsNonNegative() {
-        Results.ProfileResult.OperatorMetrics leaf =
-                buildOperator(1, 0, "TableScan", 0.7, 4);
-        Results.ProfileResult.OperatorMetrics root =
-                buildOperator(0, -1, "Projection", 0.1, 4, 1L);
+        Results.ProfileResult.OperatorMetrics leaf = buildOperator(1, 0, "TableScan", 0.7, 4);
+        Results.ProfileResult.OperatorMetrics root = buildOperator(0, -1, "Projection", 0.1, 4, 1L);
 
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 0.8, 4, root, leaf));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 0.8, 4, root, leaf));
         Map<String, Object> metrics = rs.getProfileMetrics();
 
         assertTrue(((double) metrics.get("total_elapsed_ms")) >= 0.0);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> operators =
-                (List<Map<String, Object>>) metrics.get("operators");
+        List<Map<String, Object>> operators = (List<Map<String, Object>>) metrics.get("operators");
         for (Map<String, Object> op : operators) {
             double elapsed = (double) op.get("elapsed_ms");
             long outputRows = ((Number) op.get("output_rows")).longValue();
@@ -388,8 +363,7 @@ public class InternalResultSetProfileTest {
     public void testProfileResultDoesNotAffectRowAccess() {
         Results.ProfileResult.OperatorMetrics op =
                 buildOperator(0, -1, "TableScan[person]", 1.5, 4);
-        InternalResultSet rs =
-                new InternalResultSet(buildProfileResponse(4, 1.5, 4, op));
+        InternalResultSet rs = new InternalResultSet(buildProfileResponse(4, 1.5, 4, op));
 
         // All 4 rows should still be accessible
         int count = 0;
