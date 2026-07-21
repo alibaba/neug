@@ -1962,7 +1962,9 @@ TYPED_TEST(CheckpointSafetyTest,
     db.Close();
   }
 
-  // Phase 2: Reopen and trigger a failing in-place CHECKPOINT.
+  // Phase 2: Reopen, mutate so the table is dirty, then trigger a failing
+  // in-place CHECKPOINT. Clean graphs skip dump (dirty-bit early return), so a
+  // write is required before chmod'ing the checkpoint dir.
   // The standalone CHECKPOINT operator still dumps through the AP storage
   // interface in this split PR; DB-close/recovery checkpoints use the new
   // staging path.
@@ -1973,6 +1975,7 @@ TYPED_TEST(CheckpointSafetyTest,
     neug::NeugDB db;
     db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
     auto conn = db.Connect();
+    this->ExpectQuery(*conn, "CREATE (:Item {id: 300});");
 
     std::string ckp_dir;
     for (const auto& entry :
