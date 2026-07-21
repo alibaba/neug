@@ -14,9 +14,9 @@
  */
 #pragma once
 
-#include <glog/logging.h>
 #include <array>
 #include <atomic>
+#include <cassert>
 #include <cstdint>
 #include <unordered_map>
 
@@ -49,8 +49,7 @@ class DirtyTracker {
 
   void MarkEdge(uint32_t index) {
     auto it = edge_.find(index);
-    CHECK(it != edge_.end())
-        << "MarkEdge: missing dirty slot for edge triplet index " << index;
+    assert(it != edge_.end());
     it->second = true;
   }
   /// Returns false for indices without a slot.
