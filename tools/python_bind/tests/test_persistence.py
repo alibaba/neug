@@ -83,9 +83,7 @@ def test_dirty_vertex_links_clean_edge_on_close(tmp_path):
 
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
-    conn.execute(
-        "CREATE NODE TABLE Person(id INT32, name STRING, PRIMARY KEY(id))"
-    )
+    conn.execute("CREATE NODE TABLE Person(id INT32, name STRING, PRIMARY KEY(id))")
     conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE)")
     conn.execute("CREATE (p:Person {id: 1, name: 'Alice'});")
     conn.execute("CREATE (p:Person {id: 2, name: 'Bob'});")
@@ -112,8 +110,7 @@ def test_dirty_vertex_links_clean_edge_on_close(tmp_path):
     assert persons == [[1, "Alice"], [2, "Bob"], [3, "Carol"]]
     edges = list(
         conn.execute(
-            "MATCH (p1:Person)-[k:Knows]->(p2:Person) "
-            "RETURN p1.id, p2.id, k.weight;"
+            "MATCH (p1:Person)-[k:Knows]->(p2:Person) " "RETURN p1.id, p2.id, k.weight;"
         )
     )
     assert edges == [[1, 2, 0.5]]
