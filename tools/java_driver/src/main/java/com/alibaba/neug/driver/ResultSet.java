@@ -390,4 +390,27 @@ public interface ResultSet extends AutoCloseable {
      * @return the description of this ResultSet object's columns
      */
     ResultSetMetaData getMetaData();
+
+    /**
+     * Gets detailed profile metrics for all operators.
+     *
+     * <p>Returns complete execution plan metrics including timing and output information for each operator.
+     *
+     * @return A map containing:
+     *     <ul>
+     *       <li>"total_elapsed_ms" (double): Total execution time in milliseconds
+     *       <li>"total_output_rows" (long): Total output rows from query
+     *       <li>"operators" (List): List of operator metrics, each map contains:
+     *           <ul>
+     *             <li>"operator_id" (int): Unique operator identifier
+     *             <li>"parent_id" (int): Parent operator id (-1 for root)
+     *             <li>"operator_name" (String): Human-readable operator name
+     *             <li>"elapsed_ms" (double): Execution time in milliseconds
+     *             <li>"output_rows" (long): Number of output tuples
+     *             <li>"child_ids" (List of Long): IDs of child operators
+     *           </ul>
+     *     </ul>
+     *     Returns empty map if no profile result is available.
+     */
+    java.util.Map<String, Object> getProfileMetrics();
 }
