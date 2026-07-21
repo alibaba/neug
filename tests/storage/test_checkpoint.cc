@@ -479,22 +479,30 @@ TYPED_TEST(CheckpointTest, compact) {
     load_modern_graph(conn);
     conn->Close();
     auto svc = std::make_shared<neug::NeugDBService>(db);
-    auto sess = svc->AcquireSession();
-    sess->GetCompactTransaction().Commit();
+    {
+      // The session guard must be released before the service (and its
+      // SessionPool) is destroyed.
+      auto sess = svc->AcquireSession();
+      sess->GetCompactTransaction().Commit();
+    }
+    svc.reset();
     db.Close();
   }
 
   neug::NeugDB db2;
   this->OpenDB(db2, db_path);
-  auto svc = std::make_shared<neug::NeugDBService>(db2);
   auto conn2 = db2.Connect();
 
   AssertSingleInt64Result(
       this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 4);
   this->ExpectQuery(*conn2, "MATCH (v:person) WHERE v.id <= 2 DELETE v;");
+  conn2->Close();
 
+  auto svc = std::make_shared<neug::NeugDBService>(db2);
   svc->AcquireSession()->GetCompactTransaction().Commit();
+  svc.reset();
 
+  conn2 = db2.Connect();
   AssertSingleInt64Result(
       this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 2);
   AssertSingleInt64Result(
