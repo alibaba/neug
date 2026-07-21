@@ -48,7 +48,8 @@ struct DeferredCallArg {
     }
     auto it = params.find(param_name);
     if (it == params.end() || it->second.IsNull()) {
-      return {};
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Missing parameter for TEST_ECHO_PARAM: " + param_name);
     }
     return it->second.GetValue<std::string>();
   }

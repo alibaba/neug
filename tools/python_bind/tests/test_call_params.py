@@ -50,13 +50,13 @@ def test_call_echo_param(tmp_path):
         )
         assert rows == [["hello-from-params"]]
 
-        missing = list(
-            conn.execute(
-                "CALL TEST_ECHO_PARAM($param) RETURN value;",
-                parameters={},
+        with pytest.raises(Exception, match="Missing parameter"):
+            list(
+                conn.execute(
+                    "CALL TEST_ECHO_PARAM($param) RETURN value;",
+                    parameters={},
+                )
             )
-        )
-        assert missing == [[""]]
 
         literal = list(conn.execute("CALL TEST_ECHO_PARAM('literal-ok') RETURN value;"))
         assert literal == [["literal-ok"]]
