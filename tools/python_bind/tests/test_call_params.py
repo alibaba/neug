@@ -58,9 +58,7 @@ def test_call_echo_param(tmp_path):
         )
         assert missing == [[""]]
 
-        literal = list(
-            conn.execute("CALL TEST_ECHO_PARAM('literal-ok') RETURN value;")
-        )
+        literal = list(conn.execute("CALL TEST_ECHO_PARAM('literal-ok') RETURN value;"))
         assert literal == [["literal-ok"]]
     finally:
         conn.close()
