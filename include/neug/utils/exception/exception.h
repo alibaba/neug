@@ -86,6 +86,15 @@ class NEUG_API CheckpointException : public Exception {
   explicit CheckpointException(const std::exception& e);
 
   explicit CheckpointException(const std::string& msg);
+
+  CheckpointException(const std::string& msg, const std::string& file_line);
+};
+
+class NEUG_API NoCheckpointException : public Exception {
+ public:
+  explicit NoCheckpointException(const std::string& msg);
+
+  NoCheckpointException(const std::string& msg, const std::string& file_line);
 };
 
 class NEUG_API ConnectionException : public Exception {
@@ -264,6 +273,9 @@ class NEUG_API TxStateConflictException : public Exception {
 
 #define THROW_CHECKPOINT_EXCEPTION(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(CheckpointException, msg)
+
+#define THROW_NO_CHECKPOINT_EXCEPTION(msg) \
+  THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(NoCheckpointException, msg)
 
 #define THROW_CONNECTION_EXCEPTION(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(ConnectionException, msg)

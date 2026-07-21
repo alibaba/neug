@@ -155,13 +155,15 @@ class InsertTransaction {
   /**
    * @brief Commit the transaction.
    *
-   * Writes the WAL data to persistent storage and releases the timestamp.
-   * Returns early if no operations were performed.
+   * Writes the WAL data to persistent storage, releases the snapshot pin, and
+   * then releases the timestamp. Returns early if no operations were
+   * performed.
    *
    * @return true if commit successful
    *
    * Implementation: Checks if any operations in arc_, writes WAL via logger_,
-   * calls vm_.release_insert_timestamp(), then calls clear().
+   * clears borrowed graph references, releases guard_, calls
+   * vm_.release_insert_timestamp(), then calls clear().
    *
    * @since v0.1.0
    */

@@ -62,6 +62,7 @@ NeuG documentation
    :caption: Extensions
 
    extensions/index
+   extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
    extensions/pattern_match

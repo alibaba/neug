@@ -24,6 +24,7 @@ For more information, please refer to the [NeuG documentation](https://graphscop
 
 ## News
 
+- **2026-07** — NeuG is listed in [Database of Databases](https://dbdb.io/db/neug)
 - **2026-06** — NeuG v0.1.3: [GDS extensions](https://graphscope.io/neug/en/extensions/load_gds/), [`COPY TEMP`](https://graphscope.io/neug/en/data_io/import_data/), [Node.js client](https://graphscope.io/neug/en/reference/nodejs_api/)
 - **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://graphscope.io/neug/en/data_io/load_data/), [Parquet](https://graphscope.io/neug/en/extensions/load_parquet/) & [HTTPFS](https://graphscope.io/neug/en/extensions/load_httpfs/) extensions
 - **2026-03** — NeuG v0.1 released
