@@ -15,9 +15,11 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/storages/module_descriptor.h"
 
 #include <glog/logging.h>
 #include <algorithm>
@@ -1131,6 +1133,41 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   }
   meta.SetScalar(ScalarKey(src, edge, dst, "capacity"),
                  std::to_string(GetCapacity()));
+}
+
+void EdgeTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                               const CheckpointManifest& prev) const {
+  if (!meta_) {
+    return;
+  }
+  const auto& src = meta_->src_label_name;
+  const auto& edge = meta_->edge_label_name;
+  const auto& dst = meta_->dst_label_name;
+  if (!prev.has_module(KeyOutCsr(src, edge, dst))) {
+    return;
+  }
+  const std::string module_prefix =
+      "edge_" + src + "_" + edge + "_" + dst + "_";
+  for (const auto& [key, desc] : prev.modules()) {
+    if (key.compare(0, module_prefix.size(), module_prefix) != 0) {
+      continue;
+    }
+    ModuleDescriptor linked = desc;
+    for (auto& [_, path] : linked.mutable_paths()) {
+      if (!path.empty()) {
+        path = ckp.LinkToSnapshot(path);
+      }
+    }
+    meta.set_module(key, std::move(linked));
+  }
+  const std::string scalar_prefix =
+      "edge_" + src + "_" + edge + "_" + dst + "/";
+  for (const auto& [key, value] : prev.scalars()) {
+    if (key.compare(0, scalar_prefix.size(), scalar_prefix) != 0) {
+      continue;
+    }
+    meta.SetScalar(key, value);
+  }
 }
 
 }  // namespace neug

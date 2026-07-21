@@ -15,6 +15,7 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
@@ -383,6 +384,27 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
     table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
+}
+
+void VertexTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                                 const CheckpointManifest& prev) const {
+  const auto& lbl = vertex_schema_->label_name;
+  if (!prev.has_module(KeyKeys(lbl))) {
+    return;
+  }
+  const std::string prefix = "vertex_" + lbl + "_";
+  for (const auto& [key, desc] : prev.modules()) {
+    if (key.compare(0, prefix.size(), prefix) != 0) {
+      continue;
+    }
+    ModuleDescriptor linked = desc;
+    for (auto& [_, path] : linked.mutable_paths()) {
+      if (!path.empty()) {
+        path = ckp.LinkToSnapshot(path);
+      }
+    }
+    meta.set_module(key, std::move(linked));
+  }
 }
 
 VertexTable VertexTable::Clone() const {

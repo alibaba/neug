@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/rename_vertex_property.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -38,11 +39,20 @@ class RenameVertexPropertyOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t label;
+    auto resolve =
+        ResolveVertexLabel(storage.schema(), vertex_type_, label);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to rename vertex property in type: " << vertex_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
     RenameVertexPropertiesParamBuilder builder;
-    auto config = builder.VertexLabel(vertex_type_)
-                      .RenameProperties(rename_properties_)
-                      .Build();
-    auto res = storage.RenameVertexProperties(config);
+    auto config = builder.RenameProperties(rename_properties_).Build();
+    auto res = storage.RenameVertexProperties(label, config);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));

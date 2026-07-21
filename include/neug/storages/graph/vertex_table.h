@@ -156,6 +156,11 @@ class VertexTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
+  /// When this table is clean, re-link prior-snapshot modules into @p meta
+  /// instead of dumping. No-ops if @p prev has no modules for this label.
+  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                      const CheckpointManifest& prev) const;
+
   void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);
   }

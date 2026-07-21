@@ -22,14 +22,13 @@
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/edge_table.h"
+#include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/result.h"
 
 namespace neug {
-
-class PropertyGraph;
 
 class TableView {
  public:
@@ -154,7 +153,17 @@ class GraphView {
 
   void Rebuild(PropertyGraph& pg);
 
+
+  void MarkVertexDirty(label_t label) {
+    graph_->MarkVertexDirty(label);
+  }
+  void MarkEdgeDirty(label_t src, label_t dst, label_t edge) {
+    graph_->MarkEdgeDirty(src, dst, edge);
+  }
+
  private:
+  // PropertyGraph this view was built over. Null for a default-constructed view.
+  PropertyGraph* graph_{nullptr};
   // needed by api schema().
   const Schema* schema_{nullptr};
   std::vector<VertexTableView> vertex_views_;

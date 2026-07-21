@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/drop_edge_type.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -34,7 +35,18 @@ class DropEdgeTypeOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.DeleteEdgeType(src_type_, dst_type_, edge_type_);
+    label_t src, dst, edge;
+    auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
+                                      edge_type_, src, dst, edge);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to drop edge type: " << edge_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
+    auto res = storage.DeleteEdgeType(src, dst, edge);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));

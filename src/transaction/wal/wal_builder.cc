@@ -51,42 +51,45 @@ void WalBuilder::LogCreateEdgeType(const CreateEdgeTypeParam& config) {
 }
 
 void WalBuilder::LogAddVertexProperties(
-    const AddVertexPropertiesParam& config) {
-  AddVertexPropertiesRedo::Serialize(arc_, config);
+    label_t label, const AddVertexPropertiesParam& config) {
+  AddVertexPropertiesRedo::Serialize(arc_, label, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
-void WalBuilder::LogAddEdgeProperties(const AddEdgePropertiesParam& config) {
-  AddEdgePropertiesRedo::Serialize(arc_, config);
+void WalBuilder::LogAddEdgeProperties(label_t src, label_t dst, label_t edge,
+                                      const AddEdgePropertiesParam& config) {
+  AddEdgePropertiesRedo::Serialize(arc_, src, dst, edge, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogRenameVertexProperties(
-    const RenameVertexPropertiesParam& config) {
-  RenameVertexPropertiesRedo::Serialize(arc_, config);
+    label_t label, const RenameVertexPropertiesParam& config) {
+  RenameVertexPropertiesRedo::Serialize(arc_, label, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogRenameEdgeProperties(
+    label_t src, label_t dst, label_t edge,
     const RenameEdgePropertiesParam& config) {
-  RenameEdgePropertiesRedo::Serialize(arc_, config);
+  RenameEdgePropertiesRedo::Serialize(arc_, src, dst, edge, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogDeleteVertexProperties(
-    const DeleteVertexPropertiesParam& config) {
-  DeleteVertexPropertiesRedo::Serialize(arc_, config);
+    label_t label, const DeleteVertexPropertiesParam& config) {
+  DeleteVertexPropertiesRedo::Serialize(arc_, label, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogDeleteEdgeProperties(
+    label_t src, label_t dst, label_t edge,
     const DeleteEdgePropertiesParam& config) {
-  DeleteEdgePropertiesRedo::Serialize(arc_, config);
+  DeleteEdgePropertiesRedo::Serialize(arc_, src, dst, edge, config);
   ++op_num_;
   schema_changed_ = true;
 }

@@ -208,6 +208,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
       InsertVertexRedo redo;
       arc >> redo;
       vid_t vid;
+      view.MarkVertexDirty(redo.label);
       auto ret =
           view.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
@@ -220,6 +221,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
       CHECK(view.get_lid(redo.dst_label, redo.dst, dst_lid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
+      view.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
       auto ret = view.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
                               redo.edge_label, redo.properties, timestamp,
                               alloc, oe_offset_unused, prop_unused);
@@ -274,14 +276,14 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   }
 }
 
-Status StorageTPInsertInterface::BatchAddVertices(
+Status StorageTPInsertInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddVertices is not supported in TP mode currently.";
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "BatchAddVertices is not supported in TP mode currently.");
 }
 
-Status StorageTPInsertInterface::BatchAddEdges(
+Status StorageTPInsertInterface::BatchAddEdgesImpl(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";
