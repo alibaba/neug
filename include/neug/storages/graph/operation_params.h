@@ -204,7 +204,8 @@ class CreateEdgeTypeParamBuilder {
   }
 };
 
-/// Property payload only; label identity is passed as label_t beside this Param.
+/// Property payload only; label identity is passed as label_t beside this
+/// Param.
 class AddVertexPropertiesParam {
  private:
   std::vector<std::pair<std::string, Value>> properties;

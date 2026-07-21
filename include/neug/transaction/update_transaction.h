@@ -183,7 +183,8 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   void CreateCheckpoint() override;
 
  protected:
-  // Marks go to the COW clone; abort discards them with the clone (design §2.3).
+  // Marks go to the COW clone; abort discards them with the clone (design
+  // §2.3).
   void MarkVertexDirty(label_t label) override {
     cow_graph_->MarkVertexDirty(label);
   }
@@ -195,11 +196,10 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   // --- DML *Impl ---
   Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
                                   const Value& value) override;
-  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src,
-                                label_t dst_label, vid_t dst,
-                                label_t edge_label, int32_t oe_offset,
-                                int32_t ie_offset, int32_t col_id,
-                                const Value& value) override;
+  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset,
+                                int32_t col_id, const Value& value) override;
   Status AddVertexImpl(label_t label, const Value& id,
                        const std::vector<Value>& props, vid_t& vid) override;
   Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
@@ -216,9 +216,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Status BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdgesImpl(label_t src_label, label_t dst_label,
-                           label_t edge_label,
-                           std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchDeleteVerticesImpl(label_t v_label_id,
                                  const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdgesImpl(

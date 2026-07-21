@@ -550,8 +550,8 @@ Status PropertyGraph::DeleteEdgeProperties(
   const auto& edge_type_name = schema_.get_edge_label_name(e_label);
   std::vector<std::string> delete_property_names;
   RETURN_IF_NOT_OK(delete_edge_properties_check(
-      src_type_name, dst_type_name, edge_type_name, config.GetDeleteProperties(),
-      delete_property_names));
+      src_type_name, dst_type_name, edge_type_name,
+      config.GetDeleteProperties(), delete_property_names));
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   // NOTE: We need to delete properties in edge table before updating schema,
   // since edge_tables_ use schema_ to determine delete logic.
@@ -886,7 +886,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
            ++e_label_i) {
         if (!schema_.is_edge_label_valid(e_label_i) ||
             !schema_.is_edge_triplet_valid(src_label_i, dst_label_i,
-                                          e_label_i)) {
+                                           e_label_i)) {
           continue;
         }
         size_t index =
@@ -917,7 +917,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   // tables write nothing (existence is carried by schema).
   const CheckpointManifest* prev =
       (ckp_ != nullptr && ckp_->GetMeta().has_schema()) ? &ckp_->GetMeta()
-                                                       : nullptr;
+                                                        : nullptr;
 
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   // Capacity snapshot for every live table (needed when a dirty edge table

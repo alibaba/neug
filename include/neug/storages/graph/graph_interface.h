@@ -579,8 +579,8 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                     label_t edge_label, int32_t oe_offset, int32_t ie_offset) {
     MarkEdgeDirty(src_label, dst_label, edge_label);
-    return DeleteEdgeImpl(src_label, src, dst_label, dst, edge_label,
-                          oe_offset, ie_offset);
+    return DeleteEdgeImpl(src_label, src, dst_label, dst, edge_label, oe_offset,
+                          ie_offset);
   }
 
   /**
@@ -615,9 +615,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param edges Vector of (source_vid, destination_vid) pairs
    * @return Status indicating success or failure
    */
-  Status BatchDeleteEdges(
-      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+  Status BatchDeleteEdges(label_t src_v_label_id, label_t dst_v_label_id,
+                          label_t edge_label_id,
+                          const std::vector<std::tuple<vid_t, vid_t>>& edges) {
     MarkEdgeDirty(src_v_label_id, dst_v_label_id, edge_label_id);
     return BatchDeleteEdgesImpl(src_v_label_id, dst_v_label_id, edge_label_id,
                                 edges);
@@ -783,10 +783,9 @@ class StorageUpdateInterface : public StorageReadInterface,
                                         int32_t ie_offset, int32_t col_id,
                                         const Value& value) = 0;
   virtual Status DeleteVertexImpl(label_t label, vid_t lid) = 0;
-  virtual Status DeleteEdgeImpl(label_t src_label, vid_t src,
-                                label_t dst_label, vid_t dst,
-                                label_t edge_label, int32_t oe_offset,
-                                int32_t ie_offset) = 0;
+  virtual Status DeleteEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset) = 0;
   virtual Status DeleteEdgesImpl(label_t src_label, vid_t src,
                                  label_t dst_label, vid_t dst,
                                  label_t edge_label) = 0;
@@ -817,8 +816,7 @@ class StorageUpdateInterface : public StorageReadInterface,
       label_t src, label_t dst, label_t edge,
       const DeleteEdgePropertiesParam& config) = 0;
   virtual Status DeleteVertexTypeImpl(label_t label) = 0;
-  virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst,
-                                    label_t edge) = 0;
+  virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
 
  private:
   void markIncidentEdgeTablesDirty(label_t label) {
@@ -856,7 +854,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   void CreateCheckpoint() override;
 
  protected:
-  void MarkVertexDirty(label_t label) override { graph_.MarkVertexDirty(label); }
+  void MarkVertexDirty(label_t label) override {
+    graph_.MarkVertexDirty(label);
+  }
   void MarkEdgeDirty(label_t src, label_t dst, label_t edge) override {
     graph_.MarkEdgeDirty(src, dst, edge);
   }
@@ -864,11 +864,10 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
 
   Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
                                   const Value& value) override;
-  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src,
-                                label_t dst_label, vid_t dst,
-                                label_t edge_label, int32_t oe_offset,
-                                int32_t ie_offset, int32_t col_id,
-                                const Value& value) override;
+  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset,
+                                int32_t col_id, const Value& value) override;
   Status AddVertexImpl(label_t label, const Value& id,
                        const std::vector<Value>& props, vid_t& vid) override;
   Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
@@ -883,9 +882,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   Status BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdgesImpl(label_t src_label, label_t dst_label,
-                           label_t edge_label,
-                           std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchDeleteVerticesImpl(label_t v_label_id,
                                  const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdgesImpl(

@@ -153,16 +153,14 @@ class GraphView {
 
   void Rebuild(PropertyGraph& pg);
 
-
-  void MarkVertexDirty(label_t label) {
-    graph_->MarkVertexDirty(label);
-  }
+  void MarkVertexDirty(label_t label) { graph_->MarkVertexDirty(label); }
   void MarkEdgeDirty(label_t src, label_t dst, label_t edge) {
     graph_->MarkEdgeDirty(src, dst, edge);
   }
 
  private:
-  // PropertyGraph this view was built over. Null for a default-constructed view.
+  // PropertyGraph this view was built over. Null for a default-constructed
+  // view.
   PropertyGraph* graph_{nullptr};
   // needed by api schema().
   const Schema* schema_{nullptr};

@@ -39,8 +39,7 @@ class DropVertexPropertySchemaOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     label_t label;
-    auto resolve =
-        ResolveVertexLabel(storage.schema(), vertex_type_, label);
+    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
     if (!resolve.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
         return neug::result<Context>(std::move(ctx));

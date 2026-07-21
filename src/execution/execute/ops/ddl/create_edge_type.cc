@@ -79,10 +79,10 @@ class CreateEdgeTypeOpr : public IOperator {
            ++it) {
         const auto& create_edge_def = create_edge_types_[*it];
         label_t src, dst, edge;
-        auto resolve = ResolveEdgeTriplet(
-            storage.schema(), std::get<0>(create_edge_def),
-            std::get<1>(create_edge_def), std::get<2>(create_edge_def), src,
-            dst, edge);
+        auto resolve =
+            ResolveEdgeTriplet(storage.schema(), std::get<0>(create_edge_def),
+                               std::get<1>(create_edge_def),
+                               std::get<2>(create_edge_def), src, dst, edge);
         if (!resolve.ok() || !storage.DeleteEdgeType(src, dst, edge).ok()) {
           LOG(ERROR) << "Fail to revert created edge type in CreateEdgeSchema "
                         "request";

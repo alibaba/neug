@@ -287,9 +287,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 
   // Delete property physically
   std::vector<std::string> delete_props = {"position"};
-  status = graph_.DeleteEdgeProperties(
-      src_label, dst_label, e_label,
-      BuildDeleteEdgePropertiesParam(delete_props));
+  status =
+      graph_.DeleteEdgeProperties(src_label, dst_label, e_label,
+                                  BuildDeleteEdgePropertiesParam(delete_props));
   ASSERT_TRUE(status.ok());
 
   EXPECT_TRUE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
@@ -462,16 +462,14 @@ TEST_F(PropertyGraphLogicalDeleteTest,
     label_t src = graph_.schema().get_vertex_label_id("Person");
     label_t dst = graph_.schema().get_vertex_label_id("Company");
     label_t edge = graph_.schema().get_edge_label_id("WorksAt");
-    graph_.DeleteEdgeProperties(
-        src, dst, edge,
-        BuildDeleteEdgePropertiesParam({"years"}));
+    graph_.DeleteEdgeProperties(src, dst, edge,
+                                BuildDeleteEdgePropertiesParam({"years"}));
   }
   // 2) Delete edge type (needs Person resolvable)
   graph_.DeleteEdgeType("Person", "Company", "WorksAt");
   // 3) Delete vertex property (needs Company resolvable)
-  graph_.DeleteVertexProperties(
-      graph_.schema().get_vertex_label_id("Company"),
-      BuildDeleteVertexPropertiesParam({"Name"}));
+  graph_.DeleteVertexProperties(graph_.schema().get_vertex_label_id("Company"),
+                                BuildDeleteVertexPropertiesParam({"Name"}));
   // 4) Delete vertex type last (no name lookups needed after this)
   graph_.DeleteVertexType("Person");
   // Get statistics json string
@@ -503,11 +501,10 @@ TEST_F(PropertyGraphLogicalDeleteTest,
       BuildCreateVertexTypeParam("Person", properties, pk_names));
   ASSERT_TRUE(status.ok());
 
-  EXPECT_THROW(
-      graph_.DeleteVertexProperties(
-          graph_.schema().get_vertex_label_id("Person"),
-          BuildDeleteVertexPropertiesParam({"id"})),
-      neug::exception::Exception);
+  EXPECT_THROW(graph_.DeleteVertexProperties(
+                   graph_.schema().get_vertex_label_id("Person"),
+                   BuildDeleteVertexPropertiesParam({"id"})),
+               neug::exception::Exception);
 }
 
 TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
@@ -543,13 +540,11 @@ TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
     label_t src = graph_.schema().get_vertex_label_id("Person");
     label_t dst = graph_.schema().get_vertex_label_id("Company");
     label_t edge = graph_.schema().get_edge_label_id("WorksAt");
-    graph_.DeleteEdgeProperties(
-        src, dst, edge,
-        BuildDeleteEdgePropertiesParam({"years"}));
+    graph_.DeleteEdgeProperties(src, dst, edge,
+                                BuildDeleteEdgePropertiesParam({"years"}));
   }
-  graph_.DeleteVertexProperties(
-      graph_.schema().get_vertex_label_id("Company"),
-      BuildDeleteVertexPropertiesParam({"Name"}));
+  graph_.DeleteVertexProperties(graph_.schema().get_vertex_label_id("Company"),
+                                BuildDeleteVertexPropertiesParam({"Name"}));
   graph_.DeleteVertexType("Person");
   // Get statistics json string
   auto after_delete_stats = graph_.get_statistics_json();

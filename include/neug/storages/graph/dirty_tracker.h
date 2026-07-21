@@ -39,8 +39,7 @@ namespace neug {
 class DirtyTracker {
  public:
   // label_t is uint8_t; dense slot count matches its full domain.
-  static constexpr size_t kMaxVertexLabels =
-      1u << (sizeof(label_t) * 8);
+  static constexpr size_t kMaxVertexLabels = 1u << (sizeof(label_t) * 8);
 
   void MarkVertex(label_t label) { vertex_[label] = true; }
   bool IsVertexDirty(label_t label) const { return vertex_[label]; }

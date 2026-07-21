@@ -24,7 +24,8 @@ namespace neug {
 namespace execution {
 namespace ops {
 
-/// Resolve a vertex type name to label_t. Returns ERR_SCHEMA_MISMATCH if absent.
+/// Resolve a vertex type name to label_t. Returns ERR_SCHEMA_MISMATCH if
+/// absent.
 inline Status ResolveVertexLabel(const Schema& schema,
                                  const std::string& vertex_type,
                                  label_t& label) {
