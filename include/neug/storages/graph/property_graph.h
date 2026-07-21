@@ -132,7 +132,6 @@ class PropertyGraph {
   /// checkpoint and rebuild any GraphView that pointed into this graph.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
-  // --- Table / schema dirty tracking (see specs/004-dirty-tracking) ---
   void MarkVertexDirty(label_t label) { dirty_.MarkVertex(label); }
   bool IsVertexDirty(label_t label) const {
     return dirty_.IsVertexDirty(label);
