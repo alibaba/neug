@@ -145,6 +145,7 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_copy_temp.py -k "parquet or httpfs"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_gds_temp_graph.py
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_call_params.py
 
     - name: Run GDS Tests
       run: |
