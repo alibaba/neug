@@ -95,8 +95,6 @@ struct TestEchoParamFunction {
       const auto& arg = procedure.query().arguments(0);
       if (arg.has_param()) {
         input->arg = DeferredCallArg::FromParam(arg.param().name());
-      } else if (!arg.param_name().empty()) {
-        input->arg = DeferredCallArg::FromParam(arg.param_name());
       } else if (arg.has_const_() && arg.const_().has_str()) {
         input->arg =
             DeferredCallArg::FromLiteral(Value::STRING(arg.const_().str()));

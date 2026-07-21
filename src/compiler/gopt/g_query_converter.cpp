@@ -1294,12 +1294,10 @@ void GQueryConvertor::convertProcedureCall(
     const auto& param = params.at(pos);
     auto queryArgPB = std::make_unique<::procedure::Argument>();
     queryArgPB->set_param_ind(pos);
-    // Dynamic query params ($name): keep the name (no '$') and type metadata
-    // so HTTP ParamsParser can accept them; values resolve from ParamsMap at
-    // exec time. Literals / variables keep const / var.
+    // $param -> typed DynamicParam for params_type / ParamsMap; literals/vars
+    // keep const / var.
     if (param->expressionType == common::ExpressionType::PARAMETER) {
       const auto& paramExpr = param->constCast<binder::ParameterExpression>();
-      queryArgPB->set_param_name(paramExpr.getName());
       auto dynPB = std::make_unique<::common::DynamicParam>();
       dynPB->set_name(paramExpr.getName());
       dynPB->set_index(static_cast<int32_t>(pos));
