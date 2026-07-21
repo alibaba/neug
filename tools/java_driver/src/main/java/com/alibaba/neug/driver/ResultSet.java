@@ -16,6 +16,7 @@ package com.alibaba.neug.driver;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.Map;
 
 /**
  * A cursor over the results of a database query.
@@ -413,5 +414,5 @@ public interface ResultSet extends AutoCloseable {
      *     </ul>
      *     Returns empty map if no profile result is available.
      */
-    java.util.Map<String, Object> getProfileMetrics();
+    Map<String, Object> getProfileMetrics();
 }
