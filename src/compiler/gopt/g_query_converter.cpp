@@ -1298,18 +1298,19 @@ void GQueryConvertor::convertProcedureCall(
     // keep const / var.
     if (param->expressionType == common::ExpressionType::PARAMETER) {
       const auto& paramExpr = param->constCast<binder::ParameterExpression>();
+      if (pos >= callFunc.parameterTypes.size()) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "CALL $param index out of signature: " + paramExpr.getName());
+      }
       auto dynPB = std::make_unique<::common::DynamicParam>();
       dynPB->set_name(paramExpr.getName());
       dynPB->set_index(static_cast<int32_t>(pos));
-      // Binder leaves $param as UNKNOWN until cast; CALL args are not cast,
-      // so prefer the procedure signature type for ParamsMap deserialization.
-      common::DataType dtype = paramExpr.getDataType().copy();
-      if (dtype.id() == common::DataTypeId::kUnknown &&
-          pos < callFunc.parameterTypes.size()) {
-        dtype = callFunc.parameterTypes[pos].copy();
-      }
+      // CALL $params keep UNKNOWN in the binder; use the procedure signature
+      // type for ParamsMap deserialization.
       dynPB->set_allocated_data_type(
-          typeConverter->convertLogicalType(std::move(dtype)).release());
+          typeConverter
+              ->convertLogicalType(callFunc.parameterTypes[pos].copy())
+              .release());
       queryArgPB->set_allocated_param(dynPB.release());
     } else {
       auto paramPB = exprConvertor->convert(*param, {});
