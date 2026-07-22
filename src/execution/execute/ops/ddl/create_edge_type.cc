@@ -83,7 +83,11 @@ class CreateEdgeTypeOpr : public IOperator {
             ResolveEdgeTriplet(storage.schema(), std::get<0>(create_edge_def),
                                std::get<1>(create_edge_def),
                                std::get<2>(create_edge_def), src, dst, edge);
-        if (!resolve.ok() || !storage.DeleteEdgeType(src, dst, edge).ok()) {
+        // Resolve may fail if this entry left nothing to revert; skip then.
+        if (!resolve.ok()) {
+          continue;
+        }
+        if (!storage.DeleteEdgeType(src, dst, edge).ok()) {
           LOG(ERROR) << "Fail to revert created edge type in CreateEdgeSchema "
                         "request";
         }
