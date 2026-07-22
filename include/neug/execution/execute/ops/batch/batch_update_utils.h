@@ -21,8 +21,12 @@
 #include "neug/utils/property/types.h"
 
 namespace physical {
+class PhysicalPlan;
 class PropertyMapping;
-}
+}  // namespace physical
+namespace common {
+class NameOrId;
+}  // namespace common
 namespace google {
 namespace protobuf {
 template <typename T>
@@ -34,6 +38,12 @@ namespace neug {
 class IDataChunkSupplier;
 class Schema;
 class StorageReadInterface;
+namespace function {
+struct ReadFunction;
+}
+namespace reader {
+struct ReadSharedState;
+}
 namespace execution {
 
 namespace ops {
@@ -63,6 +73,29 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+
+bool resolve_vertex_label_id(const Schema& schema,
+                             const ::common::NameOrId& type, label_t& label_id);
+
+struct BatchInsertInput {
+  std::shared_ptr<IDataChunkSupplier> supplier;
+  Context output;
+};
+
+struct BatchInsertSource {
+  std::shared_ptr<reader::ReadSharedState> state;
+  function::ReadFunction* read_function;
+};
+
+bool is_terminal_batch_insert(const physical::PhysicalPlan& plan, int op_idx);
+
+BatchInsertSource build_batch_insert_source(const physical::PhysicalPlan& plan,
+                                            int op_idx);
+
+BatchInsertInput create_batch_insert_input(
+    const std::shared_ptr<reader::ReadSharedState>& shared_state,
+    const function::ReadFunction& read_function,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);

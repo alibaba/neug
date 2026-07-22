@@ -21,11 +21,16 @@
 
 #include <glog/logging.h>
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
+#include <memory>
 #include <ostream>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "neug/common/columns/value_columns.h"
 #include "neug/storages/checkpoint_manager.h"
@@ -37,6 +42,8 @@
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/types.h"
+
+#include "../loader/bundled_edge_csr_loader.h"
 
 namespace neug {
 
@@ -766,8 +773,19 @@ std::pair<int32_t, const void*> EdgeTable::AddEdge(
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
                               const IndexerType& dst_indexer,
                               std::shared_ptr<IDataChunkSupplier> supplier) {
-  in_csr_->resize(dst_indexer.size());
-  out_csr_->resize(src_indexer.size());
+  CHECK(supplier != nullptr);
+  const auto src_vertex_capacity = static_cast<vid_t>(src_indexer.capacity());
+  const auto dst_vertex_capacity = static_cast<vid_t>(dst_indexer.capacity());
+  auto source = supplier->RepeatableSource();
+  if (source && TryBatchBuildEdges(src_indexer, dst_indexer, source,
+                                   src_vertex_capacity, dst_vertex_capacity)) {
+    return;
+  }
+
+  // Keep fallback COPY paths aligned with the vertex table's actual capacity,
+  // while leaving completely unloaded edge tables lazy until persistence.
+  in_csr_->resize(dst_vertex_capacity);
+  out_csr_->resize(src_vertex_capacity);
   std::vector<vid_t> src_lid, dst_lid;
   // Pre-reserve capacity to reduce vector reallocation on large graphs.
   auto total_rows = supplier->RowNum();
@@ -779,6 +797,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   // for unbundled: full property DataChunks).
   std::vector<std::shared_ptr<IContextColumn>> bundled_data_cols;
   std::vector<std::shared_ptr<DataChunk>> unbundled_data_chunks;
+  std::vector<bool> valid_flags;
   while (true) {
     auto chunk = supplier->GetNextChunk();
     if (chunk == nullptr) {
@@ -805,7 +824,6 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
       }
     }
   }
-  std::vector<bool> valid_flags;
   filterInvalidEdges(src_lid, dst_lid, valid_flags);
   size_t new_size = table_idx_.load() + src_lid.size();
   if (new_size >= Capacity()) {
@@ -826,6 +844,32 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
         src_lid, dst_lid, oe_csr, ie_csr, table_.get(), table_idx_, capacity_,
         meta_->properties, unbundled_data_chunks, valid_flags);
   }
+}
+
+bool EdgeTable::TryBatchBuildEdges(
+    const IndexerType& src_indexer, const IndexerType& dst_indexer,
+    const std::shared_ptr<IDataChunkSource>& source, vid_t src_vertex_capacity,
+    vid_t dst_vertex_capacity) {
+  if (!meta_ || !meta_->is_bundled() || !out_csr_ || !in_csr_ ||
+      out_csr_->edge_num() != 0 || in_csr_->edge_num() != 0 ||
+      (meta_->oe_strategy != EdgeStrategy::kNone && !meta_->oe_mutable) ||
+      (meta_->ie_strategy != EdgeStrategy::kNone && !meta_->ie_mutable)) {
+    return false;
+  }
+  const auto source_bytes = source->EstimatedBytes();
+  if (!ShouldUseBulkBuild(source_bytes)) {
+    return false;
+  }
+
+  EdgeTable staged(meta_);
+  staged.Init(ckp_, memory_level_);
+  if (!internal::BundledEdgeCsrLoader::TryBuild(
+          *staged.out_csr_, *staged.in_csr_, *meta_, src_indexer, dst_indexer,
+          source, source_bytes, src_vertex_capacity, dst_vertex_capacity)) {
+    return false;
+  }
+  Swap(staged);
+  return true;
 }
 
 void EdgeTable::BatchAddEdges(

@@ -485,6 +485,37 @@ CsvReader::CsvReader(std::shared_ptr<ReadSharedState> sharedState,
 
 CsvReader::~CsvReader() = default;
 
+std::shared_ptr<IDataChunkSource> CsvReader::createChunkSource(
+    std::vector<int32_t> projected_columns) {
+  if (!sharedState_) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
+  }
+  if (!optionsBuilder_) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Options builder is null");
+  }
+  // This source is a semantic subset of read(): it deliberately excludes
+  // post-read filtering and projection, so the bulk path can reopen the same
+  // parser without changing the normal reader's behavior.  Callers fall back
+  // to read() for every other source shape.
+  if (sharedState_->skipRows || !sharedState_->projectColumns.empty()) {
+    return nullptr;
+  }
+
+  auto config = optionsBuilder_->build();
+  if (!optionsBuilder_->projectColumns(config)) {
+    LOG(WARNING) << "Failed to set column projection, using all columns";
+  }
+
+  auto read_config = read_config_for_supplier(config);
+
+  const auto& paths = sharedState_->schema.file.paths;
+  if (paths.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
+  }
+  return std::make_shared<CSVChunkSource>(paths, std::move(read_config),
+                                          std::move(projected_columns));
+}
+
 void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
                      execution::Context& ctx) {
   if (!sharedState_) {

@@ -137,7 +137,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_IF_NOT_OK(vertex_label_check(v_label));
-  vertex_tables_[v_label].insert_vertices(supplier);
+  vertex_tables_[v_label].BatchAddVertices(std::move(supplier));
   return neug::Status::OK();
 }
 
@@ -149,7 +149,7 @@ Status PropertyGraph::BatchAddEdges(
   assert(edge_tables_.count(index) > 0);
   edge_tables_.at(index).BatchAddEdges(
       vertex_tables_.at(src_v_label).get_indexer(),
-      vertex_tables_.at(dst_v_label).get_indexer(), supplier);
+      vertex_tables_.at(dst_v_label).get_indexer(), std::move(supplier));
   return neug::Status::OK();
 }
 

@@ -41,6 +41,7 @@ class CheckpointManifest;
 class PropertyGraph;
 
 class IDataChunkSupplier;
+class IDataChunkSource;
 
 class EdgeTable {
  public:
@@ -190,6 +191,11 @@ class EdgeTable {
   void DetachInAdjlist(vid_t vid, Allocator& alloc);
 
  private:
+  bool TryBatchBuildEdges(const IndexerType& src_indexer,
+                          const IndexerType& dst_indexer,
+                          const std::shared_ptr<IDataChunkSource>& source,
+                          vid_t src_vertex_capacity, vid_t dst_vertex_capacity);
+
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 

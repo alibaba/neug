@@ -22,6 +22,7 @@
 #include <rapidjson/writer.h>
 
 #include <stddef.h>
+#include <algorithm>
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -30,7 +31,10 @@
 
 #include "neug/common/types/i_context_column.h"
 #include "neug/common/types/value.h"
+#include "neug/compiler/function/read_function.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/execute/ops/batch/data_source.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/string_utils.h"
@@ -336,6 +340,67 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     projected_chunks.push_back(std::move(out_chunk));
   }
   return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
+}
+
+bool resolve_vertex_label_id(const Schema& schema,
+                             const ::common::NameOrId& type,
+                             label_t& label_id) {
+  switch (type.item_case()) {
+  case ::common::NameOrId::kId:
+    label_id = type.id();
+    return true;
+  case ::common::NameOrId::kName:
+    if (!schema.is_vertex_label_valid(type.name())) {
+      LOG(ERROR) << "Unknown vertex type: " << type.DebugString();
+      return false;
+    }
+    label_id = schema.get_vertex_label_id(type.name());
+    return true;
+  default:
+    LOG(ERROR) << "Invalid vertex type: " << type.DebugString();
+    return false;
+  }
+}
+
+bool is_terminal_batch_insert(const physical::PhysicalPlan& plan, int op_idx) {
+  return op_idx + 3 == plan.plan_size() &&
+         plan.plan(op_idx + 2).opr().sink().tags_size() == 0;
+}
+
+BatchInsertSource build_batch_insert_source(const physical::PhysicalPlan& plan,
+                                            int op_idx) {
+  const auto& source = plan.plan(op_idx).opr().source();
+  ReadStateBuilder state_builder;
+  auto state = state_builder.build(source);
+  auto catalog = neug::main::MetadataRegistry::getCatalog();
+  auto registered_function =
+      catalog->getFunctionWithSignature(source.extension_name());
+  return {std::move(state),
+          registered_function->ptrCast<function::ReadFunction>()};
+}
+
+BatchInsertInput create_batch_insert_input(
+    const std::shared_ptr<reader::ReadSharedState>& shared_state,
+    const function::ReadFunction& read_function,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  if (read_function.sourceFunc) {
+    std::vector<int32_t> projected_columns;
+    projected_columns.reserve(prop_mappings.size());
+    for (const auto& mapping : prop_mappings) {
+      projected_columns.push_back(mapping.first);
+    }
+    auto source =
+        read_function.sourceFunc(shared_state, std::move(projected_columns));
+    if (source) {
+      return {make_data_chunk_supplier(std::move(source)), Context{}};
+    }
+  }
+
+  CHECK(read_function.execFunc != nullptr);
+  auto output = read_function.execFunc(shared_state);
+  auto supplier = create_data_chunk_supplier(output, prop_mappings);
+  output.tag_ids.clear();
+  return {std::move(supplier), std::move(output)};
 }
 
 std::vector<std::string> match_files_with_pattern(

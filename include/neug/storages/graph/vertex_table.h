@@ -18,7 +18,6 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
-#include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
@@ -28,6 +27,8 @@ namespace neug {
 class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
+class IDataChunkSupplier;
+class IDataChunkSource;
 class VertexTableView;
 
 class VertexSet {
@@ -257,7 +258,7 @@ class VertexTable {
 
   void Compact(timestamp_t ts = MAX_TIMESTAMP);
 
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
+  void BatchAddVertices(std::shared_ptr<IDataChunkSupplier> supplier);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
@@ -265,6 +266,11 @@ class VertexTable {
   Table& get_table() { return *table_; }
 
  private:
+  bool try_batch_build_vertices(
+      const std::shared_ptr<IDataChunkSource>& source);
+
+  void batch_add_vertices_impl(std::shared_ptr<IDataChunkSupplier> supplier);
+
   vid_t insert_vertex_pk(const Value& id, timestamp_t ts, bool insert_safe);
 
   std::vector<vid_t> insert_primary_keys(

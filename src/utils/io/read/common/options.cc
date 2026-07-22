@@ -43,6 +43,7 @@ CsvReadConfig CsvOptionsBuilder::build() const {
   config.quote_char = parseOpts.quote_char.get(options);
   config.escaping = parseOpts.escaping.get(options);
   config.escape_char = parseOpts.escape_char.get(options);
+  config.use_threads = readOpts.use_threads.get(options);
   config.skip_rows = readOpts.skip_rows.get(options);
 
   int64_t batch_size = readOpts.batch_size.get(options);

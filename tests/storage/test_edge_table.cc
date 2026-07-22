@@ -13,8 +13,16 @@
  * limitations under the License.
  */
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <filesystem>
+#include <fstream>
+#include <mutex>
 #include <string_view>
+#include <thread>
+#include <utility>
 
 #include "neug/common/types/value.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
@@ -68,12 +76,34 @@ class EdgeTableTest : public ::testing::Test {
                          neug::EdgeStrategy::kMultiple, true, true,
                          std::nullopt,
                          "person creates comment edge with two properties");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create_single", {neug::DataTypeId::kInt32},
+        {"data"}, neug::EdgeStrategy::kSingle, neug::EdgeStrategy::kMultiple,
+        true, true, std::nullopt,
+        "single outgoing edge used to verify ordered bulk loading");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create_single_both", {neug::DataTypeId::kInt32},
+        {"data"}, neug::EdgeStrategy::kSingle, neug::EdgeStrategy::kSingle,
+        true, true, std::nullopt,
+        "single edge in both directions used to verify one-pass bulk loading");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create_none", {neug::DataTypeId::kInt32},
+        {"data"}, neug::EdgeStrategy::kNone, neug::EdgeStrategy::kNone, true,
+        true, std::nullopt, "edge label with no stored adjacency");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create_out_none", {neug::DataTypeId::kInt32},
+        {"data"}, neug::EdgeStrategy::kNone, neug::EdgeStrategy::kMultiple,
+        true, true, std::nullopt, "edge label with only incoming adjacency");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
     edge_label_empty_ = schema_.get_edge_label_id("create0");
     edge_label_int_ = schema_.get_edge_label_id("create1");
     edge_label_str_ = schema_.get_edge_label_id("create2");
     edge_label_str_int_ = schema_.get_edge_label_id("create3");
+    edge_label_single_ = schema_.get_edge_label_id("create_single");
+    edge_label_single_both_ = schema_.get_edge_label_id("create_single_both");
+    edge_label_none_ = schema_.get_edge_label_id("create_none");
+    edge_label_out_none_ = schema_.get_edge_label_id("create_out_none");
     allocator_dir_ =
         "/tmp/edge_table_test_allocator_" + std::to_string(::getpid()) + "_";
     ws.Open(temp_dir_.string());
@@ -125,9 +155,56 @@ class EdgeTableTest : public ::testing::Test {
     edge_table->EnsureCapacity(src_v_cap, dst_v_cap);
   }
 
+  void InitEdgeTable(const std::shared_ptr<neug::Checkpoint>& ckp,
+                     neug::vid_t src_num, neug::vid_t dst_num,
+                     neug::label_t edge_label) {
+    InitIndexers(*ckp, src_num, dst_num);
+    ConstructEdgeTable(src_label_, dst_label_, edge_label);
+    OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num, dst_num);
+  }
+
+  template <typename SrcT, typename DstT>
+  std::vector<std::shared_ptr<neug::DataChunk>> MakeIntEdgeChunks(
+      const std::vector<SrcT>& srcs, const std::vector<DstT>& dsts,
+      const std::vector<int32_t>& data, size_t chunk_num) {
+    return convert_to_data_chunks({split_column_to_chunks(srcs, chunk_num),
+                                   split_column_to_chunks(dsts, chunk_num),
+                                   split_column_to_chunks(data, chunk_num)});
+  }
+
+  template <typename SrcT = int64_t, typename DstT = int64_t>
+  std::shared_ptr<neug::DataChunk> MakeIntEdgeChunk(SrcT src = 0, DstT dst = 0,
+                                                    int32_t data = 42) {
+    auto chunks =
+        MakeIntEdgeChunks(std::vector<SrcT>{src}, std::vector<DstT>{dst},
+                          std::vector<int32_t>{data}, 1);
+    CHECK_EQ(chunks.size(), 1);
+    return chunks.front();
+  }
+
+  template <typename SrcT, typename DstT>
+  std::shared_ptr<GeneratedChunkSource> MakeIntEdgeSource(
+      const std::vector<SrcT>& srcs, const std::vector<DstT>& dsts,
+      const std::vector<int32_t>& data, size_t chunk_num,
+      int64_t estimated_bytes = kForceBulkBuildBytes) {
+    return std::make_shared<GeneratedChunkSource>(
+        MakeIntEdgeChunks(srcs, dsts, data, chunk_num), estimated_bytes);
+  }
+
   void BatchInsert(std::vector<std::shared_ptr<neug::DataChunk>>&& chunks) {
     auto supplier = std::make_shared<GeneratedChunkSupplier>(std::move(chunks));
     edge_table->BatchAddEdges(src_indexer, dst_indexer, supplier);
+  }
+
+  void BatchBuild(std::shared_ptr<IDataChunkSource> source) {
+    edge_table->BatchAddEdges(src_indexer, dst_indexer,
+                              make_data_chunk_supplier(std::move(source)));
+  }
+
+  void BatchBuild(std::vector<std::shared_ptr<neug::DataChunk>> chunks,
+                  int64_t estimated_bytes = kForceBulkBuildBytes) {
+    BatchBuild(std::make_shared<GeneratedChunkSource>(std::move(chunks),
+                                                      estimated_bytes));
   }
 
   size_t ExpectedBatchInsertCapacity(size_t inserted_edge_num) const {
@@ -216,6 +293,48 @@ class EdgeTableTest : public ::testing::Test {
     }
   }
 
+  template <typename T>
+  void ExpectEdges(std::vector<std::tuple<int64_t, int64_t, T>> expected,
+                   bool outgoing, bool unordered = false) {
+    std::vector<int64_t> srcs, dsts;
+    std::vector<T> data;
+    if (outgoing) {
+      OutputOutgoingEndpoints(srcs, dsts, MAX_TIMESTAMP);
+      OutputOutgoingEdgeData(data, MAX_TIMESTAMP, 0);
+    } else {
+      OutputIncomingEndpoints(srcs, dsts, MAX_TIMESTAMP);
+      OutputIncomingEdgeData(data, MAX_TIMESTAMP, 0);
+    }
+    ASSERT_EQ(srcs.size(), expected.size());
+    ASSERT_EQ(dsts.size(), expected.size());
+    ASSERT_EQ(data.size(), expected.size());
+
+    std::vector<std::tuple<int64_t, int64_t, T>> actual;
+    actual.reserve(expected.size());
+    for (size_t row = 0; row < expected.size(); ++row) {
+      actual.emplace_back(srcs[row], dsts[row], data[row]);
+    }
+    if (unordered) {
+      std::sort(expected.begin(), expected.end());
+      std::sort(actual.begin(), actual.end());
+    }
+    EXPECT_EQ(actual, expected);
+  }
+
+  template <typename T>
+  void ExpectOutgoingEdges(
+      std::vector<std::tuple<int64_t, int64_t, T>> expected,
+      bool unordered = false) {
+    ExpectEdges(std::move(expected), true, unordered);
+  }
+
+  template <typename T>
+  void ExpectIncomingEdges(
+      std::vector<std::tuple<int64_t, int64_t, T>> expected,
+      bool unordered = false) {
+    ExpectEdges(std::move(expected), false, unordered);
+  }
+
   neug::vid_t GetSrcLid(const neug::Value& src_oid) {
     neug::vid_t src_lid;
     if (!src_indexer.get_index(src_oid, src_lid)) {
@@ -237,8 +356,11 @@ class EdgeTableTest : public ::testing::Test {
   neug::LFIndexer<neug::vid_t> dst_indexer;
   neug::Schema schema_;
   neug::label_t src_label_, dst_label_, edge_label_empty_, edge_label_int_,
-      edge_label_str_, edge_label_str_int_;
+      edge_label_str_, edge_label_str_int_, edge_label_single_,
+      edge_label_single_both_, edge_label_none_, edge_label_out_none_;
   std::string allocator_dir_;
+
+  const std::filesystem::path& temp_dir() const { return temp_dir_; }
 
  private:
   std::filesystem::path temp_dir_;
@@ -695,6 +817,581 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
   ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
 }
 
+TEST_F(EdgeTableTest, BatchBuildEdgesHandlesParallelVariants) {
+  auto with_property = [&] {
+    SCOPED_TRACE("bundled int property");
+    auto ckp = make_checkpoint(workspace());
+    constexpr int64_t kSrcNum = 100;
+    constexpr int64_t kDstNum = 100;
+    constexpr size_t kEdgeNum = 4000;
+    auto srcs = generate_random_vertices<int64_t>(kSrcNum, kEdgeNum);
+    auto dsts = generate_random_vertices<int64_t>(kDstNum, kEdgeNum);
+    auto data = generate_random_data<int32_t>(kEdgeNum);
+    InitEdgeTable(ckp, kSrcNum, kDstNum, edge_label_int_);
+    auto source = MakeIntEdgeSource(srcs, dsts, data, 16, 256LL * 1024 * 1024);
+    BatchBuild(source);
+
+    EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
+    EXPECT_EQ(source->OpenCount(), 2);
+    ASSERT_EQ(source->OpenedProjections().size(), 2);
+    EXPECT_EQ(source->OpenedProjections()[0], (std::vector<int32_t>{0, 1}));
+    EXPECT_TRUE(source->OpenedProjections()[1].empty());
+    std::vector<std::tuple<int64_t, int64_t, int32_t>> expected;
+    expected.reserve(kEdgeNum);
+    for (size_t row = 0; row < kEdgeNum; ++row) {
+      expected.emplace_back(srcs[row], dsts[row], data[row]);
+    }
+    ExpectOutgoingEdges(std::move(expected), true);
+  };
+
+  auto without_properties = [&] {
+    SCOPED_TRACE("no properties");
+    auto ckp = make_checkpoint(workspace());
+    constexpr int64_t kVertexNum = 32;
+    constexpr size_t kEdgeNum = 2048;
+    std::vector<int64_t> srcs(kEdgeNum);
+    std::vector<int64_t> dsts(kEdgeNum);
+    for (size_t row = 0; row < kEdgeNum; ++row) {
+      srcs[row] = static_cast<int64_t>(row % kVertexNum);
+      dsts[row] = static_cast<int64_t>((row * 7) % kVertexNum);
+    }
+    auto chunks = convert_to_data_chunks(
+        {split_column_to_chunks(srcs, 32), split_column_to_chunks(dsts, 32)});
+    InitEdgeTable(ckp, kVertexNum, kVertexNum, edge_label_empty_);
+    auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
+                                                         kForceBulkBuildBytes);
+    BatchBuild(source);
+
+    EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
+    std::vector<int64_t> actual_srcs, actual_dsts;
+    OutputOutgoingEndpoints(actual_srcs, actual_dsts, MAX_TIMESTAMP);
+    ASSERT_EQ(actual_srcs.size(), kEdgeNum);
+    ASSERT_EQ(actual_dsts.size(), kEdgeNum);
+    std::vector<std::pair<int64_t, int64_t>> expected;
+    std::vector<std::pair<int64_t, int64_t>> actual;
+    expected.reserve(kEdgeNum);
+    actual.reserve(kEdgeNum);
+    for (size_t row = 0; row < kEdgeNum; ++row) {
+      expected.emplace_back(srcs[row], dsts[row]);
+      actual.emplace_back(actual_srcs[row], actual_dsts[row]);
+    }
+    std::sort(expected.begin(), expected.end());
+    std::sort(actual.begin(), actual.end());
+    EXPECT_EQ(actual, expected);
+  };
+
+  auto supernode = [&] {
+    SCOPED_TRACE("supernode");
+    auto ckp = make_checkpoint(workspace());
+    constexpr int64_t kVertexNum = 4;
+    constexpr size_t kEdgeNum = 8192;
+    std::vector<int64_t> srcs(kEdgeNum, 0);
+    std::vector<int64_t> dsts(kEdgeNum, 1);
+    std::vector<int32_t> data(kEdgeNum);
+    for (size_t row = 0; row < kEdgeNum; ++row) {
+      data[row] = static_cast<int32_t>(row);
+    }
+    InitEdgeTable(ckp, kVertexNum, kVertexNum, edge_label_int_);
+    auto source = MakeIntEdgeSource(srcs, dsts, data, 64);
+    BatchBuild(source);
+
+    EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
+    std::vector<std::tuple<int64_t, int64_t, int32_t>> expected;
+    expected.reserve(kEdgeNum);
+    for (const auto value : data) {
+      expected.emplace_back(0, 1, value);
+    }
+    ExpectOutgoingEdges(expected, true);
+    ExpectIncomingEdges(std::move(expected), true);
+  };
+
+  with_property();
+  without_properties();
+  supernode();
+}
+
+TEST_F(EdgeTableTest, BatchBuildEdgesHandlesInputsWithNoStoredEdges) {
+  auto run = [&](neug::label_t edge_label,
+                 std::vector<std::shared_ptr<DataChunk>> chunks,
+                 size_t expected_open_count) {
+    SCOPED_TRACE(edge_label);
+    auto ckp = make_checkpoint(workspace());
+    constexpr neug::vid_t kVertexNum = 4;
+    InitEdgeTable(ckp, kVertexNum, kVertexNum, edge_label);
+    auto source = std::make_shared<GeneratedChunkSource>(std::move(chunks),
+                                                         kForceBulkBuildBytes);
+
+    BatchBuild(source);
+
+    EXPECT_EQ(source->OpenCount(), expected_open_count);
+    EXPECT_EQ(edge_table->EdgeNum(), 0);
+  };
+
+  run(edge_label_int_, {}, 2);
+  run(edge_label_none_,
+      MakeIntEdgeChunks(std::vector<int64_t>{0, 1, 2},
+                        std::vector<int64_t>{1, 2, 3},
+                        std::vector<int32_t>{10, 20, 30}, 2),
+      0);
+}
+
+TEST_F(EdgeTableTest, SecondBatchFallsBackWhenIncomingCsrIsNotEmpty) {
+  auto ckp = make_checkpoint(workspace());
+  constexpr int64_t kVertexNum = 3;
+  InitIndexers(*ckp, kVertexNum, kVertexNum);
+  ConstructEdgeTable(src_label_, dst_label_, edge_label_out_none_);
+  OpenEdgeTableInMemory(ckp, CheckpointManifest(), kVertexNum, kVertexNum);
+
+  auto first_source =
+      MakeIntEdgeSource(std::vector<int64_t>{0}, std::vector<int64_t>{0},
+                        std::vector<int32_t>{10}, 1);
+  BatchBuild(first_source);
+  EXPECT_EQ(first_source->OpenCount(), 2);
+
+  auto second_source =
+      MakeIntEdgeSource(std::vector<int64_t>{1}, std::vector<int64_t>{1},
+                        std::vector<int32_t>{20}, 1);
+  BatchBuild(second_source);
+  EXPECT_EQ(second_source->OpenCount(), 1);
+
+  ExpectIncomingEdges<int32_t>({{0, 0, 10}, {1, 1, 20}});
+}
+
+TEST_F(EdgeTableTest, SingleEdgeBulkBuildFillsUniqueSlotsAcrossChunks) {
+  if (std::thread::hardware_concurrency() < 4) {
+    GTEST_SKIP() << "Concurrent bulk fill needs at least two consumer workers";
+  }
+
+  struct SupplierActivity {
+    std::atomic<size_t> active{0};
+    std::atomic<size_t> max_active{0};
+  };
+
+  auto ckp = make_checkpoint(workspace());
+  constexpr int64_t kSrcNum = 512;
+  constexpr int64_t kDstNum = 8;
+  std::vector<int64_t> srcs(kSrcNum);
+  std::vector<int64_t> dsts(kSrcNum);
+  std::vector<int32_t> data(kSrcNum);
+  for (int64_t row = 0; row < kSrcNum; ++row) {
+    srcs[row] = row;
+    dsts[row] = row % kDstNum;
+    data[row] = static_cast<int32_t>(row * 3);
+  }
+  auto chunks = MakeIntEdgeChunks(srcs, dsts, data, 128);
+  ASSERT_EQ(chunks.size(), 128);
+
+  InitEdgeTable(ckp, kSrcNum, kDstNum, edge_label_single_);
+  auto shared_chunks =
+      std::make_shared<std::vector<std::shared_ptr<DataChunk>>>(
+          std::move(chunks));
+  std::vector<std::shared_ptr<SupplierActivity>> activities;
+  auto source = std::make_shared<TestChunkSource>(
+      [shared_chunks, &activities, kSrcNum](const ChunkSourceOptions&, size_t) {
+        auto activity = std::make_shared<SupplierActivity>();
+        activities.push_back(activity);
+        auto next = std::make_shared<std::atomic<size_t>>(0);
+        return std::make_shared<TestChunkSupplier>(
+            [shared_chunks, activity, next] {
+              const auto active =
+                  activity->active.fetch_add(1, std::memory_order_relaxed) + 1;
+              auto max_active =
+                  activity->max_active.load(std::memory_order_relaxed);
+              while (max_active < active &&
+                     !activity->max_active.compare_exchange_weak(
+                         max_active, active, std::memory_order_relaxed)) {}
+              std::this_thread::sleep_for(std::chrono::microseconds(100));
+              const auto index = next->fetch_add(1, std::memory_order_relaxed);
+              activity->active.fetch_sub(1, std::memory_order_relaxed);
+              return index < shared_chunks->size() ? (*shared_chunks)[index]
+                                                   : nullptr;
+            },
+            kSrcNum, true);
+      },
+      kForceBulkBuildBytes);
+  BatchBuild(source);
+
+  ASSERT_EQ(source->OpenedOptions().size(), 2);
+  EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
+  EXPECT_FALSE(source->OpenedOptions()[1].preserve_order);
+  EXPECT_EQ(source->OpenedOptions()[0].projected_columns,
+            (std::vector<int32_t>{0, 1}));
+  EXPECT_TRUE(source->OpenedOptions()[1].projected_columns.empty());
+  ASSERT_EQ(activities.size(), 2);
+  EXPECT_GT(activities[0]->max_active.load(), 1);
+  EXPECT_GT(activities[1]->max_active.load(), 1);
+  EXPECT_EQ(edge_table->EdgeNum(), kSrcNum);
+
+  std::vector<std::tuple<int64_t, int64_t, int32_t>> expected;
+  expected.reserve(srcs.size());
+  for (size_t row = 0; row < srcs.size(); ++row) {
+    expected.emplace_back(srcs[row], dsts[row], data[row]);
+  }
+  ExpectOutgoingEdges(expected);
+  ExpectIncomingEdges(std::move(expected), true);
+}
+
+TEST_F(EdgeTableTest, SingleEdgeBulkBuildHandlesEndpointAndDirectionVariants) {
+  auto skips_invalid_endpoints = [&] {
+    SCOPED_TRACE("invalid endpoints");
+    auto ckp = make_checkpoint(workspace());
+    InitEdgeTable(ckp, 3, 3, edge_label_single_);
+    auto source = MakeIntEdgeSource(std::vector<int64_t>{0, 99, 1, 2},
+                                    std::vector<int64_t>{0, 1, 99, 2},
+                                    std::vector<int32_t>{10, 20, 30, 40}, 4);
+    BatchBuild(source);
+
+    EXPECT_EQ(source->OpenCount(), 2);
+    EXPECT_EQ(edge_table->EdgeNum(), 2);
+    const std::vector<std::tuple<int64_t, int64_t, int32_t>> expected = {
+        {0, 0, 10}, {2, 2, 40}};
+    ExpectOutgoingEdges(expected);
+    ExpectIncomingEdges(expected);
+  };
+
+  auto preserves_both_single_directions = [&] {
+    SCOPED_TRACE("single in both directions");
+    auto ckp = make_checkpoint(workspace());
+    InitEdgeTable(ckp, 2, 2, edge_label_single_both_);
+    auto source = MakeIntEdgeSource(std::vector<int64_t>{0, 1, 0},
+                                    std::vector<int64_t>{0, 0, 1},
+                                    std::vector<int32_t>{10, 20, 30}, 1);
+    BatchBuild(source);
+
+    EXPECT_EQ(source->OpenCount(), 1);
+    ASSERT_EQ(source->OpenedProjections().size(), 1);
+    EXPECT_TRUE(source->OpenedProjections()[0].empty());
+    EXPECT_EQ(edge_table->EdgeNum(), 3);
+
+    ExpectOutgoingEdges<int32_t>({{0, 1, 30}, {1, 0, 20}});
+    ExpectIncomingEdges<int32_t>({{1, 0, 20}, {0, 1, 30}});
+  };
+
+  skips_invalid_endpoints();
+  preserves_both_single_directions();
+}
+
+TEST_F(EdgeTableTest, SingleEdgeBulkBuildDetectsCrossWorkerDuplicate) {
+  if (std::thread::hardware_concurrency() < 4) {
+    GTEST_SKIP()
+        << "Cross-worker duplicate detection needs two consumer workers";
+  }
+
+  struct BarrierState {
+    std::atomic<size_t> next{0};
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    size_t arrived_ = 0;
+    bool cancelled_ = false;
+  };
+
+  auto ckp = make_checkpoint(workspace());
+  InitEdgeTable(ckp, 1, 2, edge_label_single_);
+  auto chunks =
+      MakeIntEdgeChunks(std::vector<int64_t>{0, 0}, std::vector<int64_t>{0, 1},
+                        std::vector<int32_t>{10, 20}, 2);
+  ASSERT_EQ(chunks.size(), 2);
+  auto shared_chunks =
+      std::make_shared<std::vector<std::shared_ptr<DataChunk>>>(
+          std::move(chunks));
+  auto source = std::make_shared<TestChunkSource>(
+      [shared_chunks](const ChunkSourceOptions& options, size_t) {
+        if (options.preserve_order) {
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<GeneratedChunkSupplier>(*shared_chunks, true));
+        }
+        auto state = std::make_shared<BarrierState>();
+        return std::shared_ptr<IDataChunkSupplier>(
+            std::make_shared<TestChunkSupplier>(
+                [shared_chunks, state] {
+                  const auto index =
+                      state->next.fetch_add(1, std::memory_order_relaxed);
+                  if (index >= shared_chunks->size()) {
+                    return std::shared_ptr<DataChunk>{};
+                  }
+                  if (index < 2) {
+                    std::unique_lock<std::mutex> lock(state->mutex_);
+                    ++state->arrived_;
+                    state->cv_.notify_all();
+                    state->cv_.wait(lock, [&] {
+                      return state->arrived_ >= 2 || state->cancelled_;
+                    });
+                    if (state->cancelled_) {
+                      return std::shared_ptr<DataChunk>{};
+                    }
+                  }
+                  return (*shared_chunks)[index];
+                },
+                2, true,
+                [state] {
+                  {
+                    std::lock_guard<std::mutex> lock(state->mutex_);
+                    state->cancelled_ = true;
+                  }
+                  state->cv_.notify_all();
+                }));
+      },
+      kForceBulkBuildBytes);
+  BatchBuild(source);
+
+  ASSERT_EQ(source->OpenedOptions().size(), 2);
+  EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
+  EXPECT_TRUE(source->OpenedOptions()[1].preserve_order);
+  EXPECT_EQ(edge_table->EdgeNum(), 2);
+  ExpectOutgoingEdges<int32_t>({{0, 1, 20}});
+}
+
+TEST_F(EdgeTableTest, BatchBuildEdgesFromPartitionedCsvInTwoPasses) {
+  auto ckp = make_checkpoint(workspace());
+  constexpr int64_t kSrcNum = 100;
+  constexpr int64_t kDstNum = 80;
+  constexpr size_t kEdgeNum = 4000;
+  std::vector<std::tuple<int64_t, int64_t, int32_t>> expected;
+  expected.reserve(kEdgeNum);
+
+  const auto csv_path = temp_dir() / "parallel-edges.csv";
+  {
+    std::ofstream output(csv_path, std::ios::binary);
+    ASSERT_TRUE(output.is_open());
+    output << "src|dst|data\n";
+    for (size_t row = 0; row < kEdgeNum; ++row) {
+      const auto src = static_cast<int64_t>((row * 17) % kSrcNum);
+      const auto dst = static_cast<int64_t>((row * 29) % kDstNum);
+      const auto data = static_cast<int32_t>(row * 3 + 1);
+      output << src << '|' << dst << '|' << data << '\n';
+      expected.emplace_back(src, dst, data);
+    }
+    // Both passes must filter the same invalid endpoint rows, otherwise the
+    // preallocated degree and the serial fill would disagree.
+    output << "1000|1|7\n1|1000|9\n";
+  }
+
+  CsvReadConfig config;
+  config.delimiter = '|';
+  config.skip_rows = 1;
+  config.chunk_size = 7;
+  config.column_names = {"src", "dst", "data"};
+  config.include_columns = config.column_names;
+  config.column_types.emplace("src", DataType(DataTypeId::kInt64));
+  config.column_types.emplace("dst", DataType(DataTypeId::kInt64));
+  config.column_types.emplace("data", DataType(DataTypeId::kInt32));
+
+  InitIndexers(*ckp, kSrcNum, kDstNum);
+  ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  OpenEdgeTableInMemory(ckp, CheckpointManifest(), kSrcNum, kDstNum);
+  auto csv_source = std::make_shared<CSVChunkSource>(
+      std::vector<std::string>{csv_path.string()}, std::move(config));
+  // Force the large-file planner while keeping the fixture small. The wrapper
+  // forwards both Open() calls to the same CSV source, so its cached partition
+  // plan is reused by the count and fill passes.
+  auto source = std::make_shared<TestChunkSource>(
+      [csv_source](const ChunkSourceOptions& options, size_t) {
+        return csv_source->Open(options);
+      },
+      kForceBulkBuildBytes, csv_source->ParallelEnabled());
+  BatchBuild(source);
+
+  EXPECT_EQ(edge_table->EdgeNum(), kEdgeNum);
+  EXPECT_EQ(source->OpenCount(), 2);
+  ExpectOutgoingEdges(expected, true);
+  ExpectIncomingEdges(std::move(expected), true);
+}
+
+TEST_F(EdgeTableTest, BatchBuildFailuresDoNotPublishPartialCsr) {
+  for (size_t failure_pass : {size_t{0}, size_t{1}}) {
+    SCOPED_TRACE(::testing::Message() << "failure pass " << failure_pass);
+    auto ckp = make_checkpoint(workspace());
+    InitEdgeTable(ckp, 1, 1, edge_label_int_);
+    auto chunk = MakeIntEdgeChunk();
+
+    auto source = std::make_shared<TestChunkSource>(
+        [chunk, failure_pass](const ChunkSourceOptions&, size_t open_index) {
+          if (open_index != failure_pass) {
+            return std::shared_ptr<IDataChunkSupplier>(
+                std::make_shared<GeneratedChunkSupplier>(
+                    std::vector<std::shared_ptr<DataChunk>>{chunk}));
+          }
+          auto remaining = std::make_shared<std::shared_ptr<DataChunk>>(chunk);
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<TestChunkSupplier>(
+                  [remaining] {
+                    if (*remaining) {
+                      return std::exchange(*remaining,
+                                           std::shared_ptr<DataChunk>{});
+                    }
+                    throw std::runtime_error("injected bulk build failure");
+                  },
+                  1));
+        },
+        kForceBulkBuildBytes);
+
+    EXPECT_THROW(BatchBuild(source), std::runtime_error);
+    EXPECT_EQ(source->OpenCount(), failure_pass + 1);
+    EXPECT_EQ(edge_table->EdgeNum(), 0);
+  }
+}
+
+TEST_F(EdgeTableTest,
+       ConcurrentBatchBuildFailuresCancelSupplierAndDoNotPublish) {
+  if (std::thread::hardware_concurrency() < 2) {
+    GTEST_SKIP() << "Concurrent supplier cancellation requires two workers";
+  }
+
+  auto run = [&](neug::label_t edge_label, size_t failure_pass) {
+    SCOPED_TRACE(::testing::Message() << "failure pass " << failure_pass);
+    auto ckp = make_checkpoint(workspace());
+    InitEdgeTable(ckp, 1, 1, edge_label);
+    auto chunk = MakeIntEdgeChunk();
+    std::atomic<size_t> cancel_count{0};
+    auto source = std::make_shared<TestChunkSource>(
+        [chunk, failure_pass, &cancel_count](const ChunkSourceOptions&,
+                                             size_t open_index) {
+          if (open_index != failure_pass) {
+            return std::shared_ptr<IDataChunkSupplier>(
+                std::make_shared<GeneratedChunkSupplier>(
+                    std::vector<std::shared_ptr<DataChunk>>{chunk}));
+          }
+          auto next_call = std::make_shared<std::atomic<size_t>>(0);
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<TestChunkSupplier>(
+                  [chunk, next_call]() -> std::shared_ptr<DataChunk> {
+                    const auto call =
+                        next_call->fetch_add(1, std::memory_order_relaxed);
+                    if (call == 0) {
+                      return chunk;
+                    }
+                    if (call == 1) {
+                      throw std::runtime_error(
+                          "injected concurrent bulk build failure");
+                    }
+                    return nullptr;
+                  },
+                  1, true,
+                  [&cancel_count] {
+                    cancel_count.fetch_add(1, std::memory_order_relaxed);
+                  }));
+        },
+        kForceBulkBuildBytes);
+
+    EXPECT_THROW(BatchBuild(source), std::runtime_error);
+    EXPECT_EQ(source->OpenCount(), failure_pass + 1);
+    EXPECT_EQ(cancel_count.load(std::memory_order_relaxed), 1);
+    EXPECT_EQ(edge_table->EdgeNum(), 0);
+    if (failure_pass == 0) {
+      ASSERT_EQ(source->OpenedOptions().size(), 1);
+      EXPECT_FALSE(source->OpenedOptions()[0].preserve_order);
+      EXPECT_EQ(source->OpenedOptions()[0].projected_columns,
+                (std::vector<int32_t>{0, 1}));
+    }
+  };
+
+  run(edge_label_int_, 1);
+  if (std::thread::hardware_concurrency() >= 4) {
+    run(edge_label_single_, 0);
+  }
+}
+
+TEST_F(EdgeTableTest,
+       NonConcurrentSecondPassFailureCancelsBlockedSupplierAndDoesNotPublish) {
+  if (std::thread::hardware_concurrency() < 4) {
+    GTEST_SKIP() << "Bounded pipeline cancellation requires two consumers";
+  }
+
+  struct BlockingSupplierState {
+    std::shared_ptr<DataChunk> chunk;
+    std::mutex mutex;
+    std::condition_variable cancelled_cv;
+    bool cancelled = false;
+    std::atomic<size_t> cancel_count{0};
+    std::atomic<bool> timed_out{false};
+  };
+
+  auto ckp = make_checkpoint(workspace());
+  InitEdgeTable(ckp, 1, 1, edge_label_int_);
+  auto valid_chunk = MakeIntEdgeChunk();
+  // The source indexer expects int64 endpoints. The uint64 source column makes
+  // a fill consumer throw after the producer has requested its next chunk.
+  auto invalid_chunk = MakeIntEdgeChunk(uint64_t{0});
+  std::shared_ptr<BlockingSupplierState> second_pass_state;
+  auto source = std::make_shared<TestChunkSource>(
+      [valid_chunk, invalid_chunk, &second_pass_state](
+          const ChunkSourceOptions&, size_t open_index) {
+        if (open_index == 0) {
+          return std::shared_ptr<IDataChunkSupplier>(
+              std::make_shared<GeneratedChunkSupplier>(
+                  std::vector<std::shared_ptr<DataChunk>>{valid_chunk}));
+        }
+        second_pass_state = std::make_shared<BlockingSupplierState>();
+        second_pass_state->chunk = invalid_chunk;
+        return std::shared_ptr<IDataChunkSupplier>(
+            std::make_shared<TestChunkSupplier>(
+                [state = second_pass_state] {
+                  if (state->chunk) {
+                    return std::exchange(state->chunk, nullptr);
+                  }
+                  std::unique_lock<std::mutex> lock(state->mutex);
+                  if (!state->cancelled_cv.wait_for(
+                          lock, std::chrono::seconds(2),
+                          [&] { return state->cancelled; })) {
+                    state->timed_out.store(true, std::memory_order_relaxed);
+                  }
+                  return std::shared_ptr<DataChunk>{};
+                },
+                1, false,
+                [state = second_pass_state] {
+                  {
+                    std::lock_guard<std::mutex> lock(state->mutex);
+                    state->cancelled = true;
+                  }
+                  state->cancel_count.fetch_add(1, std::memory_order_relaxed);
+                  state->cancelled_cv.notify_all();
+                }));
+      },
+      kForceBulkBuildBytes);
+
+  EXPECT_THROW(BatchBuild(source), std::exception);
+  EXPECT_EQ(source->OpenCount(), 2);
+  ASSERT_NE(second_pass_state, nullptr);
+  EXPECT_EQ(second_pass_state->cancel_count.load(std::memory_order_relaxed), 1);
+  EXPECT_FALSE(second_pass_state->timed_out.load(std::memory_order_relaxed));
+  EXPECT_EQ(edge_table->EdgeNum(), 0);
+}
+
+TEST_F(EdgeTableTest, BatchInsertPathsUseIndexerVertexCapacity) {
+  auto run = [&](bool bulk_build, neug::vid_t vertex_num,
+                 neug::vid_t vertex_capacity) {
+    SCOPED_TRACE(bulk_build ? "bulk build" : "incremental insert");
+    auto ckp = make_checkpoint(workspace());
+    InitIndexers(*ckp, vertex_num, vertex_num);
+    src_indexer.reserve(vertex_capacity);
+    dst_indexer.reserve(vertex_capacity);
+    ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+    OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), vertex_num,
+                          vertex_num);
+    auto chunks =
+        MakeIntEdgeChunks(std::vector<int64_t>{0}, std::vector<int64_t>{0},
+                          std::vector<int32_t>{42}, 1);
+
+    if (bulk_build) {
+      BatchBuild(std::move(chunks));
+    } else {
+      BatchInsert(std::move(chunks));
+    }
+
+    EXPECT_EQ(edge_table->EdgeNum(), 1);
+    auto out_csr = edge_table->TakeOutCsr();
+    auto in_csr = edge_table->TakeInCsr();
+    ASSERT_NE(out_csr, nullptr);
+    ASSERT_NE(in_csr, nullptr);
+    EXPECT_EQ(out_csr->size(), vertex_capacity);
+    EXPECT_EQ(in_csr->size(), vertex_capacity);
+  };
+
+  constexpr neug::vid_t kBulkVertexNum = 4097;
+  run(true, kBulkVertexNum, kBulkVertexNum + kBulkVertexNum / 4);
+  run(false, 16, 128);
+}
+
 TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   auto ckp = make_checkpoint(workspace());
   int64_t src_num = 100;
@@ -716,7 +1413,10 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
                               dst_num);
   this->ExpectUnbundledStats(0, 0);
-  this->BatchInsert(std::move(batches));
+  auto source = std::make_shared<GeneratedChunkSource>(std::move(batches),
+                                                       kForceBulkBuildBytes);
+  this->BatchBuild(source);
+  EXPECT_EQ(source->OpenCount(), 1);
   EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
   this->ExpectUnbundledStats(edge_num, ExpectedBatchInsertCapacity(edge_num));
 

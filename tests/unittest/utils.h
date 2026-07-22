@@ -18,8 +18,11 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
+#include <memory>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -41,14 +44,20 @@
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
+inline constexpr int64_t kForceBulkBuildBytes = 1LL << 30;
+
 class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
  public:
   explicit GeneratedChunkSupplier(
-      std::vector<std::shared_ptr<neug::DataChunk>>&& chunks)
-      : chunks_(std::move(chunks)) {}
+      std::vector<std::shared_ptr<neug::DataChunk>> chunks,
+      bool preserve_order = false)
+      : chunks_(std::move(chunks)), preserve_order_(preserve_order) {}
   ~GeneratedChunkSupplier() override = default;
 
   std::shared_ptr<neug::DataChunk> GetNextChunk() override {
+    if (preserve_order_) {
+      return next_ < chunks_.size() ? chunks_[next_++] : nullptr;
+    }
     if (chunks_.empty()) {
       return nullptr;
     }
@@ -69,6 +78,116 @@ class GeneratedChunkSupplier : public neug::IDataChunkSupplier {
 
  private:
   std::vector<std::shared_ptr<neug::DataChunk>> chunks_;
+  bool preserve_order_;
+  size_t next_ = 0;
+};
+
+class TestChunkSupplier final : public neug::IDataChunkSupplier {
+ public:
+  using NextChunk = std::function<std::shared_ptr<neug::DataChunk>()>;
+  using CancelCallback = std::function<void()>;
+
+  TestChunkSupplier(NextChunk next_chunk, int64_t row_num,
+                    bool concurrent = false, CancelCallback cancel = {})
+      : next_chunk_(std::move(next_chunk)),
+        cancel_(std::move(cancel)),
+        row_num_(row_num),
+        concurrent_(concurrent) {}
+
+  std::shared_ptr<neug::DataChunk> GetNextChunk() override {
+    return next_chunk_();
+  }
+  int64_t RowNum() const override { return row_num_; }
+  bool SupportsConcurrentGetNext() const override { return concurrent_; }
+  void Cancel() override {
+    if (cancel_) {
+      cancel_();
+    }
+  }
+
+ private:
+  NextChunk next_chunk_;
+  CancelCallback cancel_;
+  int64_t row_num_;
+  bool concurrent_;
+};
+
+class GeneratedChunkSource final : public neug::IDataChunkSource {
+ public:
+  explicit GeneratedChunkSource(
+      std::vector<std::shared_ptr<neug::DataChunk>> chunks,
+      int64_t estimated_bytes = -1)
+      : chunks_(std::move(chunks)), estimated_bytes_(estimated_bytes) {}
+
+  std::shared_ptr<neug::IDataChunkSupplier> Open(
+      const neug::ChunkSourceOptions& options) const override {
+    ++open_count_;
+    opened_projections_.push_back(options.projected_columns);
+    auto chunks = chunks_;
+    if (!options.projected_columns.empty()) {
+      for (auto& chunk : chunks) {
+        auto projected = std::make_shared<neug::DataChunk>();
+        for (size_t output = 0; output < options.projected_columns.size();
+             ++output) {
+          const auto input = options.projected_columns[output];
+          if (input < 0 || static_cast<size_t>(input) >= chunk->col_num()) {
+            throw std::out_of_range("Chunk projection index is out of range");
+          }
+          projected->set(static_cast<int>(output), chunk->get(input));
+        }
+        chunk = std::move(projected);
+      }
+    }
+    return std::make_shared<GeneratedChunkSupplier>(std::move(chunks),
+                                                    options.preserve_order);
+  }
+
+  int64_t EstimatedBytes() const override { return estimated_bytes_; }
+
+  size_t OpenCount() const { return open_count_; }
+
+  const std::vector<std::vector<int32_t>>& OpenedProjections() const {
+    return opened_projections_;
+  }
+
+ private:
+  std::vector<std::shared_ptr<neug::DataChunk>> chunks_;
+  int64_t estimated_bytes_;
+  mutable size_t open_count_ = 0;
+  mutable std::vector<std::vector<int32_t>> opened_projections_;
+};
+
+class TestChunkSource final : public neug::IDataChunkSource {
+ public:
+  using Factory = std::function<std::shared_ptr<neug::IDataChunkSupplier>(
+      const neug::ChunkSourceOptions&, size_t)>;
+
+  explicit TestChunkSource(Factory factory, int64_t estimated_bytes = -1,
+                           bool parallel_enabled = true)
+      : factory_(std::move(factory)),
+        estimated_bytes_(estimated_bytes),
+        parallel_enabled_(parallel_enabled) {}
+
+  std::shared_ptr<neug::IDataChunkSupplier> Open(
+      const neug::ChunkSourceOptions& options) const override {
+    opened_options_.push_back(options);
+    return factory_(options, open_count_++);
+  }
+
+  int64_t EstimatedBytes() const override { return estimated_bytes_; }
+  bool ParallelEnabled() const override { return parallel_enabled_; }
+
+  size_t OpenCount() const { return open_count_; }
+  const std::vector<neug::ChunkSourceOptions>& OpenedOptions() const {
+    return opened_options_;
+  }
+
+ private:
+  Factory factory_;
+  int64_t estimated_bytes_;
+  bool parallel_enabled_;
+  mutable size_t open_count_ = 0;
+  mutable std::vector<neug::ChunkSourceOptions> opened_options_;
 };
 
 template <typename T>

@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_insert_edge.h"
+#include "neug/compiler/function/read_function.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -21,6 +22,7 @@
 #include "neug/utils/result.h"
 
 #include <glog/logging.h>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -35,37 +37,16 @@ namespace ops {
 
 namespace {
 
-bool resolve_vertex_label_id(const Schema& schema, const common::NameOrId& ni,
-                             label_t& out) {
-  switch (ni.item_case()) {
-  case common::NameOrId::kId: {
-    out = ni.id();
-    return true;
-  }
-  case common::NameOrId::kName: {
-    if (!schema.is_vertex_label_valid(ni.name())) {
-      LOG(ERROR) << "Unknown vertex type: " << ni.DebugString();
-      return false;
-    }
-    out = schema.get_vertex_label_id(ni.name());
-    return true;
-  }
-  default:
-    LOG(ERROR) << "Unknown vertex type: " << ni.DebugString();
-    return false;
-  }
-}
-
 /** Resolve edge + src/dst vertex labels from schema at execution time. */
 bool resolve_edge_triplet(const Schema& schema,
                           const physical::EdgeType& edge_type,
                           label_t& edge_label, label_t& src_type,
                           label_t& dst_type) {
   switch (edge_type.type_name().item_case()) {
-  case common::NameOrId::kId:
+  case ::common::NameOrId::kId:
     edge_label = edge_type.type_name().id();
     break;
-  case common::NameOrId::kName: {
+  case ::common::NameOrId::kName: {
     const auto& name = edge_type.type_name().name();
     if (!schema.is_edge_label_valid(name)) {
       LOG(ERROR) << "Unknown edge type: "
@@ -82,10 +63,7 @@ bool resolve_edge_triplet(const Schema& schema,
   if (!resolve_vertex_label_id(schema, edge_type.src_type_name(), src_type)) {
     return false;
   }
-  if (!resolve_vertex_label_id(schema, edge_type.dst_type_name(), dst_type)) {
-    return false;
-  }
-  return true;
+  return resolve_vertex_label_id(schema, edge_type.dst_type_name(), dst_type);
 }
 
 }  // namespace
@@ -94,13 +72,15 @@ class BatchInsertEdgeOpr : public IOperator {
  public:
   BatchInsertEdgeOpr(
       physical::EdgeType edge_type,
-      std::vector<std::pair<int32_t, std::string>> prop_mappings,
-      std::vector<std::pair<int32_t, std::string>> src_vertex_bindings,
-      std::vector<std::pair<int32_t, std::string>> dst_vertex_bindings)
+      std::vector<std::pair<int32_t, std::string>> property_mappings,
+      std::vector<std::pair<int32_t, std::string>> source_mappings,
+      std::vector<std::pair<int32_t, std::string>> destination_mappings,
+      std::optional<BatchInsertSource> source = std::nullopt)
       : edge_type_(std::move(edge_type)),
-        prop_mappings_(std::move(prop_mappings)),
-        src_vertex_bindings_(std::move(src_vertex_bindings)),
-        dst_vertex_bindings_(std::move(dst_vertex_bindings)) {}
+        property_mappings_(std::move(property_mappings)),
+        source_mappings_(std::move(source_mappings)),
+        destination_mappings_(std::move(destination_mappings)),
+        source_(std::move(source)) {}
 
   std::string get_operator_name() const override {
     return "BatchInsertEdgeOpr";
@@ -111,8 +91,9 @@ class BatchInsertEdgeOpr : public IOperator {
 
  private:
   physical::EdgeType edge_type_;
-  std::vector<std::pair<int32_t, std::string>> prop_mappings_,
-      src_vertex_bindings_, dst_vertex_bindings_;
+  std::vector<std::pair<int32_t, std::string>> property_mappings_,
+      source_mappings_, destination_mappings_;
+  std::optional<BatchInsertSource> source_;
 };
 
 neug::result<Context> BatchInsertEdgeOpr::Eval(
@@ -131,30 +112,32 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
                         "BatchInsertEdge");
   }
 
-  std::vector<std::pair<int32_t, std::string>> total_mappings;
-  total_mappings.reserve(src_vertex_bindings_.size() +
-                         dst_vertex_bindings_.size() + prop_mappings_.size());
-  for (const auto& mapping : src_vertex_bindings_) {
-    total_mappings.emplace_back(mapping);
+  std::vector<std::pair<int32_t, std::string>> mappings;
+  mappings.reserve(source_mappings_.size() + destination_mappings_.size() +
+                   property_mappings_.size());
+  mappings.insert(mappings.end(), source_mappings_.begin(),
+                  source_mappings_.end());
+  mappings.insert(mappings.end(), destination_mappings_.begin(),
+                  destination_mappings_.end());
+  mappings.insert(mappings.end(), property_mappings_.begin(),
+                  property_mappings_.end());
+  BatchInsertInput input;
+  if (source_) {
+    input = create_batch_insert_input(source_->state, *source_->read_function,
+                                      mappings);
+  } else {
+    input.supplier = create_data_chunk_supplier(ctx, mappings);
+    input.output = std::move(ctx);
   }
-  for (const auto& mapping : dst_vertex_bindings_) {
-    total_mappings.emplace_back(mapping);
-  }
-  for (const auto& mapping : prop_mappings_) {
-    total_mappings.emplace_back(mapping);
-  }
-  auto supplier = create_data_chunk_supplier(ctx, total_mappings);
-
-  RETURN_STATUS_ERROR_IF_NOT_OK(
-      graph.BatchAddEdges(src_label_id, dst_label_id, edge_label_id, supplier));
-  return neug::result<Context>(std::move(ctx));
+  RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchAddEdges(
+      src_label_id, dst_label_id, edge_label_id, std::move(input.supplier)));
+  return neug::result<Context>(std::move(input.output));
 }
 
 neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   (void) schema;
-  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().load_edge();
 
   if (!opr.has_edge_type()) {
@@ -174,7 +157,37 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
       std::make_unique<BatchInsertEdgeOpr>(
           std::move(edge_type), std::move(prop_mappings),
           std::move(src_vertex_bindings), std::move(dst_vertex_binds)),
-      ret_meta);
+      ctx_meta);
+}
+
+neug::result<OpBuildResultT> BatchInsertEdgeFromSourceOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  (void) schema;
+  if (!is_terminal_batch_insert(plan, op_idx)) {
+    return std::make_pair(nullptr, ctx_meta);
+  }
+  const auto& edge_pb = plan.plan(op_idx + 1).opr().load_edge();
+  if (!edge_pb.has_edge_type()) {
+    THROW_INTERNAL_EXCEPTION(
+        "BatchInsertEdgeFromSourceOprBuilder: edge type is not set");
+  }
+
+  auto source = build_batch_insert_source(plan, op_idx);
+
+  std::vector<std::pair<int32_t, std::string>> property_mappings,
+      source_mappings, destination_mappings;
+  parse_property_mappings(edge_pb.property_mappings(), property_mappings);
+  parse_property_mappings(edge_pb.source_vertex_binding(), source_mappings);
+  parse_property_mappings(edge_pb.destination_vertex_binding(),
+                          destination_mappings);
+  physical::EdgeType edge_type;
+  edge_type.CopyFrom(edge_pb.edge_type());
+  return std::make_pair(std::make_unique<BatchInsertEdgeOpr>(
+                            std::move(edge_type), std::move(property_mappings),
+                            std::move(source_mappings),
+                            std::move(destination_mappings), std::move(source)),
+                        ctx_meta);
 }
 
 }  // namespace ops

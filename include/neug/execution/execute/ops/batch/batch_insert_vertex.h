@@ -39,6 +39,23 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
   }
 };
 
+/// Fuses only a terminal, empty-sink COPY FROM plan. Storage chooses staged
+/// build or normal BatchAdd from the supplied repeatable source.
+class BatchInsertVertexFromSourceOprBuilder : public IOperatorBuilder {
+ public:
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
+
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kSource,
+            physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex,
+            physical::PhysicalOpr_Operator::OpKindCase::kSink};
+  }
+};
+
 }  // namespace ops
 }  // namespace execution
 }  // namespace neug

@@ -15,8 +15,57 @@
 
 #include "test_reader.h"
 
+#include <algorithm>
+#include <initializer_list>
+#include <utility>
+
+#include "neug/storages/loader/chunk_pipeline_utils.h"
+#include "neug/storages/loader/loader_utils.h"
+
 namespace neug {
 namespace test {
+
+namespace {
+
+ChunkSourceOptions parallel_source_options(
+    int32_t producer_count = 4, size_t queue_capacity = 8,
+    std::vector<int32_t> projected_columns = {}) {
+  return {
+      .producer_count = producer_count,
+      .queue_capacity = queue_capacity,
+      .preserve_order = false,
+      .projected_columns = std::move(projected_columns),
+  };
+}
+
+CsvReadConfig csv_config(
+    std::initializer_list<std::pair<std::string, DataTypeId>> columns,
+    size_t skip_rows = 0) {
+  CsvReadConfig config;
+  config.delimiter = '|';
+  config.skip_rows = skip_rows;
+  for (const auto& [name, type] : columns) {
+    config.column_names.push_back(name);
+    config.column_types.emplace(name, DataType(type));
+  }
+  config.include_columns = config.column_names;
+  return config;
+}
+
+template <typename T>
+std::vector<T> read_sorted_column(
+    const std::shared_ptr<IDataChunkSupplier>& supplier, size_t column = 0) {
+  std::vector<T> values;
+  while (auto chunk = supplier->GetNextChunk()) {
+    for (size_t row = 0; row < chunk->row_num(); ++row) {
+      values.push_back(chunk->get(column)->get_elem(row).GetValue<T>());
+    }
+  }
+  std::sort(values.begin(), values.end());
+  return values;
+}
+
+}  // namespace
 
 // Test 1: Basic CSV reading with default options
 TEST_F(ReaderTest, TestBasicCsvRead) {
@@ -43,6 +92,224 @@ TEST_F(ReaderTest, TestBasicCsvRead) {
   EXPECT_EQ(ctx.col_num(), 3);
   // Verify rows: should have 3 rows
   EXPECT_EQ(ctx.row_num(), 3);
+}
+
+TEST_F(ReaderTest, CsvChunkSourceReusesPartitionPlanAcrossParallelOpens) {
+  createCsvFile("cached-plan.csv", "id|name\n1|Alice\n2|Bob\n3|Carol\n");
+  auto config = csv_config(
+      {{"id", DataTypeId::kInt32}, {"name", DataTypeId::kVarchar}}, 1);
+  const auto csv_path =
+      std::filesystem::path(ARROW_READER_TEST_DIR) / "cached-plan.csv";
+  const auto moved_path =
+      std::filesystem::path(ARROW_READER_TEST_DIR) / "cached-plan.moved";
+  CSVChunkSource source({csv_path.string()}, std::move(config));
+  const auto options = parallel_source_options(4, 4);
+
+  auto first = source.Open(options);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->RowNum(), 4);
+
+  std::filesystem::rename(csv_path, moved_path);
+  auto second = source.Open(options);
+  ASSERT_NE(second, nullptr);
+  EXPECT_EQ(second->RowNum(), 4);
+  std::filesystem::rename(moved_path, csv_path);
+}
+
+TEST_F(ReaderTest, PartitionedCsvHandlesQuotedRecordBoundaries) {
+  {
+    SCOPED_TRACE("quoted records");
+    createCsvFile(
+        "partitioned.csv",
+        "id|name\r\n\r\n1|\"Alice|Smith\"\r\n2|\"line one\nline two\"\r\n"
+        "3|Carol\r\n4|\"D\"\"Angelo\"\r\n5|Last");
+    std::vector<std::string> column_names = {"id", "name"};
+    std::vector<std::shared_ptr<::common::DataType>> column_types = {
+        createInt32Type(), createStringType()};
+    auto shared_state = createSharedState(
+        "partitioned.csv", column_names, column_types,
+        {{"skip_rows", "1"}, {"batch_read", "true"}, {"batch_size", "1"}});
+    auto reader = createCsvReader(shared_state);
+    auto source = reader->createChunkSource();
+    ASSERT_NE(source, nullptr);
+
+    auto read_rows = [](const std::shared_ptr<IDataChunkSupplier>& supplier) {
+      std::vector<std::pair<int32_t, std::string>> rows;
+      while (auto chunk = supplier->GetNextChunk()) {
+        EXPECT_EQ(chunk->col_num(), 2);
+        for (size_t row = 0; row < chunk->row_num(); ++row) {
+          rows.emplace_back(
+              chunk->get(0)->get_elem(row).GetValue<int32_t>(),
+              chunk->get(1)->get_elem(row).GetValue<std::string>());
+        }
+      }
+      std::sort(rows.begin(), rows.end());
+      return rows;
+    };
+
+    auto expected = read_rows(source->Open());
+    auto partitioned = source->Open(parallel_source_options());
+    ASSERT_NE(partitioned, nullptr);
+    EXPECT_TRUE(partitioned->SupportsConcurrentGetNext());
+    EXPECT_EQ(partitioned->RowNum(), 6);  // Header is an intentional overcount.
+    auto actual = read_rows(partitioned);
+
+    ASSERT_EQ(actual, expected);
+    ASSERT_EQ(actual.size(), 5);
+    EXPECT_EQ(actual[0], std::make_pair(1, std::string("Alice|Smith")));
+    EXPECT_EQ(actual[1], std::make_pair(2, std::string("line one\nline two")));
+    EXPECT_EQ(actual[3], std::make_pair(4, std::string("D\"Angelo")));
+    EXPECT_EQ(actual[4], std::make_pair(5, std::string("Last")));
+  }
+
+  {
+    SCOPED_TRACE("skip rows across ranges");
+    std::string long_quoted_field(64 * 1024, 'x');
+    for (size_t i = 32; i < long_quoted_field.size(); i += 64) {
+      long_quoted_field[i] = '\n';
+    }
+    createCsvFile("partition-skip.csv",
+                  "0|\"" + long_quoted_field +
+                      "\"\r\n1|also-skipped\r\n2|kept\r\n3|last\r\n");
+
+    auto config = csv_config(
+        {{"id", DataTypeId::kInt32}, {"name", DataTypeId::kVarchar}}, 2);
+    config.quoting = true;
+    config.chunk_size = 1;
+    CSVChunkSource source(
+        {std::string(ARROW_READER_TEST_DIR) + "/partition-skip.csv"}, config);
+
+    auto supplier = source.Open(parallel_source_options(4, 4));
+    ASSERT_NE(supplier, nullptr);
+
+    EXPECT_EQ(read_sorted_column<int32_t>(supplier),
+              (std::vector<int32_t>{2, 3}));
+  }
+
+  {
+    SCOPED_TRACE("double quote disabled");
+    std::string multiline = "first \"\"quoted\n";
+    multiline.append(64 * 1024, 'z');
+    multiline += "\ncontinued\"\" tail";
+    createCsvFile("partition-double-quote.csv",
+                  "0|\"" + multiline + "\"\n1|one\n2|two\n");
+
+    auto config = csv_config(
+        {{"id", DataTypeId::kInt32}, {"name", DataTypeId::kVarchar}});
+    config.quoting = true;
+    config.double_quote = false;
+    config.chunk_size = 1;
+    CSVChunkSource source(
+        {std::string(ARROW_READER_TEST_DIR) + "/partition-double-quote.csv"},
+        config);
+
+    const auto expected = read_sorted_column<int32_t>(source.Open());
+
+    EXPECT_EQ(
+        read_sorted_column<int32_t>(source.Open(parallel_source_options(4, 4))),
+        expected);
+    EXPECT_EQ(expected, (std::vector<int32_t>{0, 1, 2}));
+  }
+}
+
+TEST_F(ReaderTest, CsvChunkSourceHonorsProjectionAndParallelOptions) {
+  {
+    SCOPED_TRACE("partitioned projection");
+    createCsvFile("partition-projection.csv",
+                  "id|ignored|score\n1|Alice|10\n2|Bob|20\n");
+    auto config = csv_config({{"id", DataTypeId::kInt32},
+                              {"ignored", DataTypeId::kVarchar},
+                              {"score", DataTypeId::kInt32}},
+                             1);
+    config.chunk_size = 1;
+    CSVChunkSource source(
+        {std::string(ARROW_READER_TEST_DIR) + "/partition-projection.csv"},
+        config);
+    auto supplier = source.Open(parallel_source_options(2, 2, {2, 0}));
+    ASSERT_NE(supplier, nullptr);
+
+    std::vector<std::pair<int32_t, int32_t>> rows;
+    while (auto chunk = supplier->GetNextChunk()) {
+      ASSERT_EQ(chunk->col_num(), 2);
+      for (size_t row = 0; row < chunk->row_num(); ++row) {
+        rows.emplace_back(chunk->get(0)->get_elem(row).GetValue<int32_t>(),
+                          chunk->get(1)->get_elem(row).GetValue<int32_t>());
+      }
+    }
+    std::sort(rows.begin(), rows.end());
+    EXPECT_EQ(rows,
+              (std::vector<std::pair<int32_t, int32_t>>{{10, 1}, {20, 2}}));
+  }
+
+  {
+    SCOPED_TRACE("parallel disabled");
+    createCsvFile("serial.csv", "id|name\n1|Alice\n2|Bob\n");
+    std::vector<std::string> column_names = {"id", "name"};
+    std::vector<std::shared_ptr<::common::DataType>> column_types = {
+        createInt32Type(), createStringType()};
+    auto shared_state = createSharedState(
+        "serial.csv", column_names, column_types,
+        {{"skip_rows", "1"}, {"batch_read", "true"}, {"parallel", "false"}});
+    auto source = createCsvReader(shared_state)->createChunkSource();
+    ASSERT_NE(source, nullptr);
+    EXPECT_FALSE(source->ParallelEnabled());
+
+    auto supplier = source->Open(parallel_source_options());
+    ASSERT_NE(supplier, nullptr);
+    EXPECT_FALSE(supplier->SupportsConcurrentGetNext());
+  }
+
+  {
+    SCOPED_TRACE("post-read projection rejected");
+    createCsvFile("projected.csv", "id|name\n1|Alice\n");
+    std::vector<std::string> column_names = {"id", "name"};
+    std::vector<std::shared_ptr<::common::DataType>> column_types = {
+        createInt32Type(), createStringType()};
+    auto shared_state =
+        createSharedState("projected.csv", column_names, column_types, {});
+    shared_state->projectColumns = {"id"};
+    EXPECT_EQ(createCsvReader(shared_state)->createChunkSource(), nullptr);
+  }
+}
+
+TEST_F(ReaderTest, PartitionedCsvSkipsHeaderForEveryFile) {
+  createCsvFile("part-a.csv", "id|name\n1|Alice\n2|Bob\n");
+  createCsvFile("part-b.csv", "id|name\n3|Carol\n4|Dave");
+  auto config = csv_config(
+      {{"id", DataTypeId::kInt32}, {"name", DataTypeId::kVarchar}}, 1);
+  config.quoting = true;
+  config.escaping = false;
+  config.chunk_size = 1;
+  auto path = [](const char* file) {
+    return std::string(ARROW_READER_TEST_DIR) + "/" + file;
+  };
+  CSVChunkSource source({path("part-a.csv"), path("part-b.csv")}, config);
+
+  auto supplier = source.Open(parallel_source_options());
+  ASSERT_NE(supplier, nullptr);
+  EXPECT_EQ(supplier->RowNum(),
+            6);  // Two headers are counted as reserve hints.
+
+  EXPECT_EQ(read_sorted_column<int32_t>(supplier),
+            (std::vector<int32_t>{1, 2, 3, 4}));
+}
+
+TEST_F(ReaderTest, PartitionedCsvPropagatesProducerErrors) {
+  createCsvFile("partition-error.csv",
+                "id|name\n1|Alice\nnot-an-int|Broken\n3|Carol\n4|Dave");
+  auto config = csv_config(
+      {{"id", DataTypeId::kInt32}, {"name", DataTypeId::kVarchar}}, 1);
+  config.quoting = true;
+  config.escaping = false;
+  config.chunk_size = 1;
+  CSVChunkSource source(
+      {std::string(ARROW_READER_TEST_DIR) + "/partition-error.csv"}, config);
+
+  auto supplier = source.Open(parallel_source_options(4, 2));
+  ASSERT_NE(supplier, nullptr);
+  EXPECT_ANY_THROW({
+    while (supplier->GetNextChunk()) {}
+  });
 }
 
 // Test 2: CSV with different delimiter (tab)

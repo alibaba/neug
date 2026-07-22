@@ -43,12 +43,22 @@
 
 namespace neug {
 
+namespace internal {
+class BundledEdgeCsrLoader;
+}
+
 // std::atomic<int> must have the same size as int on supported platforms
 // so that the degree_list buffer (persisted as int[]) can be safely
 // reinterpreted as atomic<int>[] for concurrent access.
 static_assert(
     sizeof(std::atomic<int>) == sizeof(int),
     "atomic<int> must have the same size as int on supported platforms");
+
+namespace mutable_csr_detail {
+
+int capacity_with_reserve(int degree);
+
+}  // namespace mutable_csr_detail
 
 template <typename EDATA_T>
 class MutableCsr : public TypedCsrBase<EDATA_T> {
@@ -235,6 +245,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  friend class internal::BundledEdgeCsrLoader;
+
   std::unique_ptr<SpinLock[]> locks_;
   std::shared_ptr<IDataContainer> adj_list_buffer_;
   std::shared_ptr<IDataContainer> degree_list_;
@@ -382,6 +394,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  friend class internal::BundledEdgeCsrLoader;
+
   std::shared_ptr<IDataContainer> nbr_list_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;

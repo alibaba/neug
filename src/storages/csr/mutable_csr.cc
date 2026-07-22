@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/config.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_mmap_container.h"
 #include "neug/utils/exception/exception.h"
@@ -41,6 +42,16 @@
 #include "neug/utils/spinlock.h"
 
 namespace neug {
+
+int mutable_csr_detail::capacity_with_reserve(int degree) {
+  CHECK_GE(degree, 0);
+  if (degree == 0) {
+    return 0;
+  }
+  const auto capacity = std::ceil(degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
+  CHECK_LE(capacity, static_cast<double>(std::numeric_limits<int>::max()));
+  return static_cast<int>(capacity);
+}
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
@@ -473,7 +484,7 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     int old_deg = sz_arr[i].load(std::memory_order_relaxed);
     total_to_move += old_deg;
     int new_degree = degree[i] + old_deg;
-    int new_cap = std::ceil(new_degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
+    int new_cap = mutable_csr_detail::capacity_with_reserve(new_degree);
     cap_arr[i] = new_cap;
     total_to_allocate += new_cap;
   }

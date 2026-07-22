@@ -15,7 +15,10 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include <algorithm>
+
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module_descriptor.h"
@@ -45,21 +48,79 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   v_ts_->Open(*ckp_, ModuleDescriptor{}, level);
 }
 
-void VertexTable::insert_vertices(
+void VertexTable::BatchAddVertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  CHECK(supplier != nullptr);
+  auto source = supplier->RepeatableSource();
+  if (source && ShouldUseBulkBuild(source->EstimatedBytes()) &&
+      try_batch_build_vertices(source)) {
+    return;
+  }
+  batch_add_vertices_impl(std::move(supplier));
+}
+
+bool VertexTable::try_batch_build_vertices(
+    const std::shared_ptr<IDataChunkSource>& source) {
+  if (Size() != 0) {
+    return false;
+  }
+
+  auto staged = VertexTable(vertex_schema_);
+  staged.Init(ckp_, memory_level_);
+  const auto source_bytes = source->EstimatedBytes();
+  auto options =
+      ResolveBulkBuildSourceOptions(source_bytes, source->ParallelEnabled(),
+                                    BulkBuildWorkerStrategy::kMaxProducers);
+  auto supplier = source->Open(options);
+  if (!supplier) {
+    return false;
+  }
+
+  auto row_num = supplier->RowNum();
+  if (row_num >= 0) {
+    if (static_cast<uint64_t>(row_num) > std::numeric_limits<size_t>::max()) {
+      THROW_RUNTIME_ERROR("Vertex row count exceeds addressable capacity");
+    }
+    const auto row_count = static_cast<size_t>(row_num);
+    const size_t checkpoint_headroom = row_count / 4;
+    if (checkpoint_headroom > std::numeric_limits<size_t>::max() - row_count) {
+      THROW_RUNTIME_ERROR("Vertex bulk load capacity overflow");
+    }
+    staged.EnsureCapacity(row_count + checkpoint_headroom);
+  }
+
+  staged.batch_add_vertices_impl(std::move(supplier));
+  Swap(staged);
+  return true;
+}
+
+void VertexTable::batch_add_vertices_impl(
+    std::shared_ptr<IDataChunkSupplier> supplier) {
+  CHECK(supplier != nullptr);
+  auto reserve_checkpoint_headroom = [this](size_t required_size) {
+    const size_t headroom = required_size / 4;
+    if (headroom > std::numeric_limits<size_t>::max() - required_size) {
+      THROW_RUNTIME_ERROR("Vertex capacity overflow");
+    }
+    const size_t required_capacity = required_size + headroom;
+    if (required_capacity > indexer_->capacity()) {
+      EnsureCapacity(required_capacity);
+    }
+  };
+
   auto row_nums = supplier->RowNum();
   if (row_nums < 0) {
     VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
     row_nums = 0;
   }
-  size_t new_size = indexer_->size() + row_nums;
-  if (new_size > indexer_->capacity()) {
-    size_t cap = indexer_->capacity();
-    while (new_size >= cap) {
-      cap = cap < 4096 ? 4096 : cap + cap / 4;
-    }
-    EnsureCapacity(cap);
+  if (static_cast<uint64_t>(row_nums) > std::numeric_limits<size_t>::max()) {
+    THROW_RUNTIME_ERROR("Vertex row count exceeds addressable capacity");
   }
+  const auto row_count = static_cast<size_t>(row_nums);
+  if (row_count > std::numeric_limits<size_t>::max() - indexer_->size()) {
+    THROW_RUNTIME_ERROR("Vertex row count overflow");
+  }
+  reserve_checkpoint_headroom(indexer_->size() + row_count);
   while (true) {
     auto chunk = supplier->GetNextChunk();
     if (chunk == nullptr) {
@@ -85,17 +146,12 @@ void VertexTable::insert_vertices(
 
     // Capacity check for actual batch size.
     size_t chunk_rows = chunk->row_num();
-    size_t new_size = indexer_->size() + chunk_rows;
-    if (new_size > indexer_->capacity()) {
-      size_t cap = indexer_->capacity();
-      while (new_size >= cap) {
-        cap = cap < 4096 ? 4096 : cap + cap / 4;
-      }
-      EnsureCapacity(cap);
+    if (chunk_rows > std::numeric_limits<size_t>::max() - indexer_->size()) {
+      THROW_RUNTIME_ERROR("Vertex row count overflow");
     }
-
+    size_t new_size = indexer_->size() + chunk_rows;
+    reserve_checkpoint_headroom(new_size);
     auto vids = insert_primary_keys(pk_col);
-
     for (size_t i = 0; i < prop_cols.size(); ++i) {
       auto col = table_->get_column_by_id(i);
       set_properties_from_context_column(col, prop_cols[i], vids);

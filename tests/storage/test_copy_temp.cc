@@ -14,8 +14,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
@@ -23,6 +25,30 @@
 
 namespace neug {
 namespace test {
+
+class ScopedEnvironmentVariable final {
+ public:
+  ScopedEnvironmentVariable(const char* key, const char* value) : key_(key) {
+    if (const char* previous = std::getenv(key); previous != nullptr) {
+      previous_ = previous;
+    }
+    if (::setenv(key, value, 1) != 0) {
+      throw std::runtime_error("Failed to set test environment variable");
+    }
+  }
+
+  ~ScopedEnvironmentVariable() {
+    if (previous_) {
+      ::setenv(key_.c_str(), previous_->c_str(), 1);
+    } else {
+      ::unsetenv(key_.c_str());
+    }
+  }
+
+ private:
+  std::string key_;
+  std::optional<std::string> previous_;
+};
 
 class CopyTempTest : public ::testing::Test {
  protected:
@@ -131,6 +157,62 @@ TEST_F(CopyTempTest, NodeDefaultPrimaryKey) {
   auto q = conn->Query("MATCH (n:TempDefault) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(q) << q.error().ToString();
   EXPECT_EQ(q.value().response().row_count(), 4);
+  conn->Close();
+}
+
+TEST_F(CopyTempTest, PersistentCopySelectsEdgeBuildPath) {
+  auto conn = db_->Connect();
+  const std::string people = std::string(CSV_DIR) + "/people.csv";
+  const std::string edges = std::string(CSV_DIR) + "/edges.csv";
+  const std::string dangling = std::string(CSV_DIR) + "/dangling_edges.csv";
+
+  ASSERT_TRUE(
+      conn->Query("CREATE NODE TABLE Person(id INT64, name STRING, age INT64, "
+                  "PRIMARY KEY(id));"));
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"));
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE Dangling(FROM Person TO Person, weight DOUBLE);"));
+
+  {
+    ScopedEnvironmentVariable force_bulk("NEUG_COPY_BULK_BUILD", "true");
+    auto vertices =
+        conn->Query("COPY Person FROM \"" + people + "\" (header = true);");
+    ASSERT_TRUE(vertices) << vertices.error().ToString();
+    auto relationships =
+        conn->Query("COPY Knows FROM \"" + edges + "\" (header = true);");
+    ASSERT_TRUE(relationships) << relationships.error().ToString();
+    auto dangling_relationships =
+        conn->Query("COPY Dangling FROM \"" + dangling + "\" (header = true);");
+    ASSERT_TRUE(dangling_relationships)
+        << dangling_relationships.error().ToString();
+  }
+
+  auto vertex_count = conn->Query("MATCH (n:Person) RETURN n.id;");
+  ASSERT_TRUE(vertex_count) << vertex_count.error().ToString();
+  EXPECT_EQ(vertex_count.value().response().row_count(), 4);
+  auto edge_count =
+      conn->Query("MATCH (:Person)-[e:Knows]->(:Person) RETURN e.weight;");
+  ASSERT_TRUE(edge_count) << edge_count.error().ToString();
+  EXPECT_EQ(edge_count.value().response().row_count(), 3);
+  auto dangling_count =
+      conn->Query("MATCH (:Person)-[e:Dangling]->(:Person) RETURN e.weight;");
+  ASSERT_TRUE(dangling_count) << dangling_count.error().ToString();
+  EXPECT_EQ(dangling_count.value().response().row_count(), 1);
+
+  // Disabling staged edge build keeps the terminal plan on normal BatchAdd.
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE Fallback(FROM Person TO Person, weight DOUBLE);"));
+  {
+    ScopedEnvironmentVariable disable_bulk("NEUG_COPY_BULK_BUILD", "false");
+    auto fallback =
+        conn->Query("COPY Fallback FROM \"" + edges + "\" (header = true);");
+    ASSERT_TRUE(fallback) << fallback.error().ToString();
+  }
+  auto fallback_count =
+      conn->Query("MATCH (:Person)-[e:Fallback]->(:Person) RETURN e.weight;");
+  ASSERT_TRUE(fallback_count) << fallback_count.error().ToString();
+  EXPECT_EQ(fallback_count.value().response().row_count(), 3);
   conn->Close();
 }
 

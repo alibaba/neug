@@ -27,12 +27,19 @@
 #include "neug/utils/io/reader.h"
 
 namespace neug {
+class IDataChunkSource;
 namespace function {
 
 // The exec function invoked by data source operators to load data from external
 // data sources.
 using read_exec_func_t = std::function<execution::Context(
     std::shared_ptr<reader::ReadSharedState> state)>;
+
+/// Creates a repeatable source for terminal ingestion. Storage may consume it
+/// once through normal BatchAdd or reopen it for a staged bulk build.
+using read_source_func_t = std::function<std::shared_ptr<IDataChunkSource>(
+    std::shared_ptr<reader::ReadSharedState> state,
+    std::vector<int32_t> projected_columns)>;
 
 // The function used to sniff/infer file column names and their types from
 // external data sources.
@@ -41,6 +48,7 @@ using read_sniff_func_t = std::function<std::shared_ptr<reader::EntrySchema>(
 
 struct ReadFunction : public TableFunction {
   read_exec_func_t execFunc = nullptr;
+  read_source_func_t sourceFunc = nullptr;
   read_sniff_func_t sniffFunc = nullptr;
 
   ReadFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
