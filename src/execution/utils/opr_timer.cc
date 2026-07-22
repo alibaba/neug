@@ -68,8 +68,13 @@ ProfileResult OprTimer::ToProfileResult(OprTimer* root) {
 
   traverse(root, -1);
 
-  // Calculate total elapsed time and total output rows
-  double total_elapsed = root->elapsed();
+  // Calculate total elapsed time by summing all operators in the main chain
+  double total_elapsed = 0.0;
+  OprTimer* current = root;
+  while (current) {
+    total_elapsed += current->elapsed();
+    current = current->next();
+  }
   result.set_total_elapsed_ms(total_elapsed * 1000.0);
 
   // Find the last node in the main chain to get total output rows

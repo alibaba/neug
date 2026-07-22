@@ -744,6 +744,38 @@ public class InternalResultSet implements ResultSet {
                 columnNames, columnNullability, columnTypes, columnSigned);
     }
 
+    @Override
+    public java.util.Map<String, Object> getProfileMetrics() {
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+
+        if (!response.hasProfileResult()) {
+            return result;
+        }
+
+        Results.ProfileResult profileResult = response.getProfileResult();
+
+        // Add aggregate metrics
+        result.put("total_elapsed_ms", profileResult.getTotalElapsedMs());
+        result.put("total_output_rows", profileResult.getTotalOutputRows());
+
+        // Convert operators to list of maps
+        java.util.List<java.util.Map<String, Object>> operatorsList = new java.util.ArrayList<>();
+        for (Results.ProfileResult.OperatorMetrics op : profileResult.getOperatorsList()) {
+            java.util.Map<String, Object> opMap = new java.util.HashMap<>();
+            opMap.put("operator_id", op.getOperatorId());
+            opMap.put("parent_id", op.getParentId());
+            opMap.put("operator_name", op.getOperatorName());
+            opMap.put("elapsed_ms", op.getElapsedMs());
+            opMap.put("output_rows", op.getOutputRows());
+            java.util.List<Long> childIds = new java.util.ArrayList<>(op.getChildIdsList());
+            opMap.put("child_ids", childIds);
+            operatorsList.add(opMap);
+        }
+        result.put("operators", operatorsList);
+
+        return result;
+    }
+
     private Results.QueryResponse response;
     private int currentIndex;
     private boolean was_null;
