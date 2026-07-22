@@ -288,23 +288,21 @@ template <typename EDATA_T>
 class BulkEdgeDataReader {
  public:
   explicit BulkEdgeDataReader(const std::shared_ptr<IContextColumn>& column)
-      : column_(column.get()) {
+      : column_(column.get()),
+        value_column_(dynamic_cast<const ValueColumn<EDATA_T>*>(column.get())) {
     CHECK(column_ != nullptr);
-    if (auto* values = dynamic_cast<const ValueColumn<EDATA_T>*>(column_)) {
-      values_ = &values->data();
-    }
   }
 
   EDATA_T Get(size_t row) const {
-    if (values_ != nullptr) {
-      return (*values_)[row];
+    if (value_column_ != nullptr) {
+      return value_column_->get_value(row);
     }
     return column_->get_elem(row).template GetValue<EDATA_T>();
   }
 
  private:
   const IContextColumn* column_;
-  const vector_t<EDATA_T>* values_ = nullptr;
+  const ValueColumn<EDATA_T>* value_column_;
 };
 
 template <>
