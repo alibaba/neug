@@ -153,15 +153,14 @@ class GraphView {
 
   void Rebuild(PropertyGraph& pg);
 
-  void MarkVertexDirty(label_t label) { graph_->MarkVertexDirty(label); }
+  void MarkVertexDirty(label_t label) { dirty_->MarkVertex(label); }
   void MarkEdgeDirty(label_t src, label_t dst, label_t edge) {
-    graph_->MarkEdgeDirty(src, dst, edge);
+    dirty_->MarkEdge(schema_->generate_edge_label(src, dst, edge));
   }
 
  private:
-  // PropertyGraph this view was built over. Null for a default-constructed
-  // view.
-  PropertyGraph* graph_{nullptr};
+  // Borrowed from the PropertyGraph passed to Rebuild(); null until then.
+  DirtyTracker* dirty_{nullptr};
   // needed by api schema().
   const Schema* schema_{nullptr};
   std::vector<VertexTableView> vertex_views_;

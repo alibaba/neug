@@ -174,22 +174,18 @@ class InsertTransaction {
   timestamp_t timestamp() const;
 
   /**
-   * @brief Apply an insert-WAL byte stream to a writable GraphView.
+   * @brief Apply an insert-WAL byte stream via a writable GraphView.
    *
    * Used both:
-   *  - by InsertTransaction::Commit() — passing its own writable view_, with
-   *    the transaction timestamp; and
-   *  - by NeugDB recovery — the caller constructs a writable GraphView over
-   *    the initial PropertyGraph (with a per-thread allocator and
-   *    `read_ts = MAX_TIMESTAMP` so just-inserted vertices are visible while
-   *    resolving edge endpoints), and replays each WAL unit at its own
-   *    timestamp.
+   *  - by InsertTransaction::Commit() — passing its writable view_; and
+   *  - by NeugDB recovery — over a GraphView rebuilt on the opened graph.
    *
-   * Replays the WAL ops via the writable @p view. Capacity is assumed to be
-   * sufficient (no auto-grow / EnsureCapacity at this level); the strict
-   * insert path will throw if a buffer is exhausted.
+   * Marks dirty bits through the view's borrowed DirtyTracker after successful
+   * writes. Capacity is assumed to be sufficient (no auto-grow /
+   * EnsureCapacity at this level); the strict insert path will throw if a
+   * buffer is exhausted.
    *
-   * @param view Writable GraphView.
+   * @param view Writable GraphView (must have been Rebuild()'d).
    * @param timestamp Insert timestamp for each AddVertex/AddEdge in the WAL.
    * @param data Serialized op buffer.
    * @param length Byte length of @p data.
