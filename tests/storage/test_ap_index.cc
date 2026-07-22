@@ -60,6 +60,11 @@ TEST(IndexMetaTest, PreservesDetailedPropertyType) {
   EXPECT_EQ(restored.schema.property_type, meta.schema.property_type);
 }
 
+TEST(IndexMetaTest, RejectsInvalidJson) {
+  EXPECT_THROW(IndexMeta::FromJsonString("{invalid"), std::runtime_error);
+  EXPECT_THROW(IndexMeta::FromJsonString("[]"), std::runtime_error);
+}
+
 class VectorChunkSupplier : public IDataChunkSupplier {
  public:
   explicit VectorChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks)

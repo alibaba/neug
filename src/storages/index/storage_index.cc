@@ -161,8 +161,12 @@ IndexMeta IndexMeta::FromJsonString(const std::string& json_str) {
   IndexMeta meta;
   rapidjson::Document doc;
   doc.Parse(json_str.c_str());
-  if (doc.HasParseError() || !doc.IsObject()) {
-    return meta;
+  if (doc.HasParseError()) {
+    THROW_RUNTIME_ERROR("IndexMeta::FromJsonString: invalid JSON at offset " +
+                        std::to_string(doc.GetErrorOffset()));
+  }
+  if (!doc.IsObject()) {
+    THROW_RUNTIME_ERROR("IndexMeta::FromJsonString: expected a JSON object");
   }
 
   if (doc.HasMember("name") && doc["name"].IsString()) {

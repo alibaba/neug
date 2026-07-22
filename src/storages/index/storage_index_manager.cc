@@ -152,6 +152,7 @@ void StorageIndexManager::Dump(std::shared_ptr<Checkpoint> ckp,
     std::string key = GetKey(name);
     store.SetModule(key, std::move(index));
   }
+  indexes_.clear();
 }
 
 bool StorageIndexManager::IsIndexModule(const std::string& name) {

@@ -119,7 +119,11 @@ class StorageIndex : public Module {
   Status Upsert(vid_t vid, const Value& new_value);
 
   /**
-   * @brief Mark a vertex as deleted in the index.
+   * @brief Mark a vertex as deleted using tombstone semantics.
+   *
+   * This removes the accessor mapping but deliberately leaves the underlying
+   * index entry in place; searches filter it through the missing mapping.
+   * TODO: Add Compact/GC support to periodically reclaim tombstoned entries.
    */
   virtual Status Delete(vid_t vid);
 
