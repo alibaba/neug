@@ -537,6 +537,21 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       expression_parse(unfold_opr.input_expr(), params_type);
       break;
     }
+    case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
+      const auto& query = plan.plan(i).opr().procedure_call().query();
+      for (int j = 0; j < query.arguments_size(); ++j) {
+        const auto& arg = query.arguments(j);
+        if (!arg.has_param()) {
+          continue;
+        }
+        const auto& param = arg.param();
+        if (params_type.find(param.name()) != params_type.end()) {
+          continue;
+        }
+        params_type[param.name()] = parse_from_ir_data_type(param.data_type());
+      }
+      break;
+    }
     default: {
       break;
     }
