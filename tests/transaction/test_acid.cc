@@ -2135,11 +2135,11 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(txn);
     DeleteEdgePropertiesParamBuilder b;
-    auto status = gui.DeleteEdgeProperties(b.SrcLabel("person")
-                                               .DstLabel("person")
-                                               .EdgeLabel("knows")
-                                               .AddDeleteProperty("weight")
-                                               .Build());
+    auto config = b.AddDeleteProperty("weight").Build();
+    auto status = gui.DeleteEdgeProperties(
+        gui.schema().get_vertex_label_id("person"),
+        gui.schema().get_vertex_label_id("person"),
+        gui.schema().get_edge_label_id("knows"), config);
     ASSERT_TRUE(status.ok()) << "DeleteEdgeProperties setup failed";
     txn.Abort();
   }
@@ -2385,13 +2385,12 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
     AddVertexPropertiesParamBuilder b;
-    EXPECT_TRUE(
-        gui.AddVertexProperties(
-               b.VertexLabel("person")
-                   .AddProperty("email", neug::Value::STRING(std::string("")))
-                   .AddProperty("height", neug::Value::DOUBLE(0.0))
-                   .Build())
-            .ok());
+    auto config = b.AddProperty("email", neug::Value::STRING(std::string("")))
+                      .AddProperty("height", neug::Value::DOUBLE(0.0))
+                      .Build();
+    EXPECT_TRUE(gui.AddVertexProperties(
+                       gui.schema().get_vertex_label_id("person"), config)
+                    .ok());
   });
   // Held reader: no new columns visible.
   {
@@ -2410,8 +2409,9 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
     DeleteVertexPropertiesParamBuilder b;
+    auto config = b.AddDeleteProperty("age").Build();
     EXPECT_TRUE(gui.DeleteVertexProperties(
-                       b.VertexLabel("person").AddDeleteProperty("age").Build())
+                       gui.schema().get_vertex_label_id("person"), config)
                     .ok());
   });
   // Held reader: age column still readable.
@@ -2430,11 +2430,10 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
     RenameVertexPropertiesParamBuilder b;
-    EXPECT_TRUE(
-        gui.RenameVertexProperties(b.VertexLabel("person")
-                                       .AddRenameProperty("name", "full_name")
-                                       .Build())
-            .ok());
+    auto config = b.AddRenameProperty("name", "full_name").Build();
+    EXPECT_TRUE(gui.RenameVertexProperties(
+                       gui.schema().get_vertex_label_id("person"), config)
+                    .ok());
   });
   // Held reader: still sees `name`.
   {
@@ -2475,13 +2474,12 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
     AddEdgePropertiesParamBuilder b;
+    auto config =
+        b.AddProperty("license", neug::Value::STRING(std::string(""))).Build();
     EXPECT_TRUE(
-        gui.AddEdgeProperties(
-               b.SrcLabel("person")
-                   .DstLabel("person")
-                   .EdgeLabel("knows")
-                   .AddProperty("license", neug::Value::STRING(std::string("")))
-                   .Build())
+        gui.AddEdgeProperties(gui.schema().get_vertex_label_id("person"),
+                              gui.schema().get_vertex_label_id("person"),
+                              gui.schema().get_edge_label_id("knows"), config)
             .ok());
   });
   // Held reader: no `license`.
@@ -2500,13 +2498,12 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
     RenameEdgePropertiesParamBuilder b;
-    EXPECT_TRUE(
-        gui.RenameEdgeProperties(b.SrcLabel("person")
-                                     .DstLabel("person")
-                                     .EdgeLabel("knows")
-                                     .AddRenameProperty("weight", "importance")
-                                     .Build())
-            .ok());
+    auto config = b.AddRenameProperty("weight", "importance").Build();
+    EXPECT_TRUE(gui.RenameEdgeProperties(
+                       gui.schema().get_vertex_label_id("person"),
+                       gui.schema().get_vertex_label_id("person"),
+                       gui.schema().get_edge_label_id("knows"), config)
+                    .ok());
   });
   // Held reader: still sees `weight`.
   {
@@ -2540,11 +2537,11 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
     DeleteEdgePropertiesParamBuilder b;
-    EXPECT_TRUE(gui.DeleteEdgeProperties(b.SrcLabel("person")
-                                             .DstLabel("software")
-                                             .EdgeLabel("created")
-                                             .AddDeleteProperty("since")
-                                             .Build())
+    auto config = b.AddDeleteProperty("since").Build();
+    EXPECT_TRUE(gui.DeleteEdgeProperties(
+                       gui.schema().get_vertex_label_id("person"),
+                       gui.schema().get_vertex_label_id("software"),
+                       gui.schema().get_edge_label_id("created"), config)
                     .ok());
   });
   // Held reader: still reads `since`.
@@ -2629,8 +2626,12 @@ TEST_F(NeugDBACIDTest, SchemaTypeDDLCommitDoesNotAffectHeldReader) {
   // --- DeleteEdgeType + DeleteVertexType ---
   cc_run_update(*svc, [&](auto& txn) {
     StorageTPUpdateInterface gui(txn);
-    EXPECT_TRUE(gui.DeleteEdgeType("person", "person", "knows").ok());
-    EXPECT_TRUE(gui.DeleteVertexType("person").ok());
+    EXPECT_TRUE(gui.DeleteEdgeType(gui.schema().get_vertex_label_id("person"),
+                                   gui.schema().get_vertex_label_id("person"),
+                                   gui.schema().get_edge_label_id("knows"))
+                    .ok());
+    EXPECT_TRUE(
+        gui.DeleteVertexType(gui.schema().get_vertex_label_id("person")).ok());
   });
   // Held reader: still iterates persons and knows edges via captured snapshot.
   EXPECT_EQ(cc_count_vertices_via(txn_r, p_label), n_pre);

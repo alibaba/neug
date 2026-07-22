@@ -49,12 +49,24 @@ class WalBuilder {
   // --- DDL logging (auto-sets schema_changed_) ---
   void LogCreateVertexType(const CreateVertexTypeParam& config);
   void LogCreateEdgeType(const CreateEdgeTypeParam& config);
-  void LogAddVertexProperties(const AddVertexPropertiesParam& config);
-  void LogAddEdgeProperties(const AddEdgePropertiesParam& config);
-  void LogRenameVertexProperties(const RenameVertexPropertiesParam& config);
-  void LogRenameEdgeProperties(const RenameEdgePropertiesParam& config);
-  void LogDeleteVertexProperties(const DeleteVertexPropertiesParam& config);
-  void LogDeleteEdgeProperties(const DeleteEdgePropertiesParam& config);
+  void LogAddVertexProperties(const std::string& vertex_type,
+                              const AddVertexPropertiesParam& config);
+  void LogAddEdgeProperties(const std::string& src_type,
+                            const std::string& dst_type,
+                            const std::string& edge_type,
+                            const AddEdgePropertiesParam& config);
+  void LogRenameVertexProperties(const std::string& vertex_type,
+                                 const RenameVertexPropertiesParam& config);
+  void LogRenameEdgeProperties(const std::string& src_type,
+                               const std::string& dst_type,
+                               const std::string& edge_type,
+                               const RenameEdgePropertiesParam& config);
+  void LogDeleteVertexProperties(const std::string& vertex_type,
+                                 const DeleteVertexPropertiesParam& config);
+  void LogDeleteEdgeProperties(const std::string& src_type,
+                               const std::string& dst_type,
+                               const std::string& edge_type,
+                               const DeleteEdgePropertiesParam& config);
   void LogDeleteVertexType(const std::string& vertex_type);
   void LogDeleteEdgeType(const std::string& src_type,
                          const std::string& dst_type,

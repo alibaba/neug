@@ -378,15 +378,27 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
     CheckpointSession& checkpoint_session) {
   SnapshotGuard guard(*snapshot_store_);
   auto* live_graph = guard.get().mutable_graph();
+  // Compact rewrites only already-dirty tables (does not mark); dump then
+  // publishes. ClearAllDirty runs only after a successful Commit.
   live_graph->Compact(MAX_TIMESTAMP);
   live_graph->DumpAndClear(checkpoint_session.staging_checkpoint());
   auto published_checkpoint = checkpoint_session.Commit();
+  // Consumed graph is about to be dropped; ClearAllDirty is for the contract
+  // when a graph remains live after publish (AP/TP CreateCheckpoint paths).
+  live_graph->ClearAllDirty();
   guard.release();
   return published_checkpoint;
 }
 
 void NeugDB::createCheckpointAndRefreshLiveGraph() {
   std::lock_guard<std::mutex> lock(mutex_);
+  {
+    SnapshotGuard guard(*snapshot_store_);
+    auto* live_graph = guard.get().mutable_graph();
+    if (!live_graph->IsModified()) {
+      return;
+    }
+  }
   auto previous_checkpoint = checkpoint_mgr_.CurrentCheckpoint();
   auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
   auto published_checkpoint =
@@ -434,6 +446,13 @@ void NeugDB::createCheckpointAndRefreshLiveGraph() {
 
 void NeugDB::createCheckpointOnClose() {
   std::lock_guard<std::mutex> lock(mutex_);
+  {
+    SnapshotGuard guard(*snapshot_store_);
+    auto* live_graph = guard.get().mutable_graph();
+    if (!live_graph->IsModified()) {
+      return;
+    }
+  }
   auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
   consumeLiveGraphAndCommitCheckpoint(checkpoint_session);
 

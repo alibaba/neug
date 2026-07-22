@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/drop_vertex_type.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -30,7 +31,17 @@ class DropVertexTypeOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.DeleteVertexType(vertex_type_);
+    label_t label;
+    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
+    auto res = storage.DeleteVertexType(label);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));
