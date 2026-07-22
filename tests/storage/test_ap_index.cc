@@ -214,7 +214,16 @@ class APIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = schema->property_types[prop_id];
-    return ap_->CreateIndex(std::move(meta));
+    auto index = ap_->CreateIndex(std::move(meta));
+    if (!index) {
+      return tl::unexpected(index.error());
+    }
+    auto status = index.value()->BulkBuild(graph_->GetVertexSet(label));
+    if (!status.ok()) {
+      ap_->DropIndex(name);
+      RETURN_ERROR(status);
+    }
+    return index;
   }
 
   StorageIndex* GetIndex(const std::string& name) const {
