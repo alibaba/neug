@@ -25,10 +25,20 @@ namespace neug {
 static constexpr const char* kIndexPrefix = "index_";
 
 neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
-    const std::string& name, std::unique_ptr<IndexMeta> meta) {
+    std::unique_ptr<IndexMeta> meta,
+    std::unique_ptr<IndexIDAccessor> index_id_accessor) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
+  }
+  if (!index_id_accessor) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with null IndexIDAccessor");
+  }
+  const auto& name = meta->name;
+  if (name.empty()) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with an empty name");
   }
   if (indexes_.count(name) > 0) {
     RETURN_STATUS_ERROR(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -52,9 +62,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
       dynamic_cast<StorageIndex*>(module.release()));
   ModuleDescriptor desc;
   desc.module_type = module_type;
-  meta->name = name;
-  auto init_status =
-      index->Init(std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+  auto init_status = index->Init(std::move(meta), std::move(index_id_accessor));
   if (!init_status.ok()) {
     return tl::unexpected(std::move(init_status));
   }

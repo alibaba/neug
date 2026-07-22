@@ -232,7 +232,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                         const std::string& dst_type,
                         const std::string& edge_type) override;
   neug::result<StorageIndex*> CreateIndex(
-      const std::string& name, std::unique_ptr<IndexMeta> meta) override;
+      std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
 
  private:

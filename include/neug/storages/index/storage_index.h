@@ -33,6 +33,8 @@
 
 namespace neug {
 
+class ColumnBase;
+
 // --- Index metadata types ---
 
 struct IndexBindSchema {
@@ -62,6 +64,10 @@ struct IndexQueryParams {
   virtual ~IndexQueryParams() = default;
 };
 
+struct IndexBindContext {
+  const ColumnBase* column = nullptr;
+};
+
 // --- Index base class ---
 
 /**
@@ -77,8 +83,8 @@ class StorageIndex : public Module {
  public:
   StorageIndex() = default;
 
-  Status Init(std::unique_ptr<IndexMeta> meta,
-              std::unique_ptr<IndexIDAccessor> index_id_accessor);
+  virtual Status Init(std::unique_ptr<IndexMeta> meta,
+                      std::unique_ptr<IndexIDAccessor> index_id_accessor);
 
   ~StorageIndex() override = default;
 
@@ -87,8 +93,10 @@ class StorageIndex : public Module {
             MemoryLevel level) override;
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
-  void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::string ModuleTypeName() const override;
+
+  // Rebind non-owning dependencies to the current graph version.
+  virtual Status Rebind(const IndexBindContext&) { return Status::OK(); }
 
   // --- Data operations ---
 

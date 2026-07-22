@@ -626,7 +626,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual void CreateCheckpoint() = 0;
 
   virtual neug::result<StorageIndex*> CreateIndex(
-      const std::string& name, std::unique_ptr<IndexMeta> meta) = 0;
+      std::unique_ptr<IndexMeta> meta) = 0;
   virtual Status DropIndex(const std::string& name) = 0;
 };
 
@@ -692,7 +692,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                         const std::string& edge_type) override;
 
   neug::result<StorageIndex*> CreateIndex(
-      const std::string& name, std::unique_ptr<IndexMeta> meta) override;
+      std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
 
  private:

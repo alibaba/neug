@@ -196,7 +196,8 @@ class TPIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = schema->property_types[prop_id];
-    return graph.mutable_index_manager().CreateIndex(name, std::move(meta));
+    return graph.mutable_index_manager().CreateIndex(
+        std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
   }
 
   result<StorageIndex*> CreateIndex(const std::string& name,

@@ -774,7 +774,7 @@ Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
 }
 
 neug::result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
-    const std::string&, std::unique_ptr<IndexMeta>) {
+    std::unique_ptr<IndexMeta>) {
   RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
                       "CreateIndex is not supported in TP mode currently.");
 }

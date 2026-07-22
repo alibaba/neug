@@ -18,6 +18,7 @@
 
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+#include <yaml-cpp/yaml.h>
 #include <algorithm>
 
 #include "neug/storages/checkpoint.h"
@@ -90,8 +91,14 @@ rapidjson::Value IndexBindSchema::ToJson(
                        static_cast<rapidjson::SizeType>(property_name.size()),
                        alloc),
       alloc);
-  obj.AddMember("property_type", static_cast<uint8_t>(property_type.id()),
-                alloc);
+  auto property_type_yaml =
+      YAML::Dump(YAML::convert<DataType>::encode(property_type));
+  obj.AddMember(
+      "property_type_detail",
+      rapidjson::Value(
+          property_type_yaml.c_str(),
+          static_cast<rapidjson::SizeType>(property_type_yaml.size()), alloc),
+      alloc);
 
   return obj;
 }
@@ -104,9 +111,13 @@ IndexBindSchema IndexBindSchema::FromJson(const rapidjson::Value& obj) {
   if (obj.HasMember("property_name") && obj["property_name"].IsString()) {
     schema.property_name = obj["property_name"].GetString();
   }
-  if (obj.HasMember("property_type") && obj["property_type"].IsUint()) {
-    schema.property_type =
-        DataType(static_cast<DataTypeId>(obj["property_type"].GetUint()));
+  if (obj.HasMember("property_type_detail") &&
+      obj["property_type_detail"].IsString()) {
+    auto node = YAML::Load(obj["property_type_detail"].GetString());
+    if (!YAML::convert<DataType>::decode(node, schema.property_type)) {
+      THROW_RUNTIME_ERROR(
+          "IndexBindSchema::FromJson: invalid property_type_detail");
+    }
   }
   return schema;
 }
@@ -178,15 +189,10 @@ IndexMeta IndexMeta::FromJsonString(const std::string& json_str) {
 void StorageIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
                         MemoryLevel level) {
   auto index_meta_str = descriptor.get("index_meta");
-  if (index_meta_str.has_value()) {
+  if (!meta_ && index_meta_str.has_value()) {
     meta_ = std::make_unique<IndexMeta>(
         IndexMeta::FromJsonString(index_meta_str.value()));
   }
-
-  if (!index_id_accessor_) {
-    index_id_accessor_ = std::make_unique<DefaultIndexIDAccessor>();
-  }
-  index_id_accessor_->Open(ckp, descriptor, level);
 }
 
 void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
@@ -195,27 +201,7 @@ void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.module_type = ModuleTypeName();
   desc.set("index_meta", meta_->ToJsonString());
 
-  if (index_id_accessor_) {
-    CheckpointManifest accessor_meta;
-    index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
-    auto accessor_desc = accessor_meta.module("index_id_accessor");
-    auto next_index_id = accessor_desc->get("next_index_id");
-    if (next_index_id.has_value()) {
-      desc.set("next_index_id", next_index_id.value());
-    }
-    auto index_id_to_vid = accessor_desc->get_path("index_id_to_vid");
-    if (index_id_to_vid.has_value()) {
-      desc.set_path("index_id_to_vid", index_id_to_vid.value());
-    }
-  }
-
   meta.set_module(key, std::move(desc));
-}
-
-void StorageIndex::Detach(Checkpoint& ckp, MemoryLevel level) {
-  if (index_id_accessor_) {
-    index_id_accessor_->Detach(ckp, level);
-  }
 }
 
 std::string StorageIndex::ModuleTypeName() const {

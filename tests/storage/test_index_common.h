@@ -54,9 +54,25 @@ struct ExampleIndexQueryParams : public IndexQueryParams {
 
 class ExampleIndex : public StorageIndex {
  public:
+  Status Rebind(const IndexBindContext& context) override {
+    if (!context.column) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "ExampleIndex requires a property column binding");
+    }
+    bound_column_ = context.column;
+    return Status::OK();
+  }
+
+  bool IsBound() const { return bound_column_ != nullptr; }
+  const ColumnBase* BoundColumn() const { return bound_column_; }
+
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override {
     StorageIndex::Open(ckp, descriptor, level);
+    if (!index_id_accessor_) {
+      index_id_accessor_ = std::make_unique<DefaultIndexIDAccessor>();
+    }
+    index_id_accessor_->Open(ckp, descriptor, level);
     index_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
         descriptor.get_path(kIndexBufferPath).value_or(""), level));
   }
@@ -66,6 +82,17 @@ class ExampleIndex : public StorageIndex {
     StorageIndex::Dump(ckp, meta, key);
     auto descriptor = meta.module(key).value_or(ModuleDescriptor{});
     descriptor.module_type = ModuleTypeName();
+    if (index_id_accessor_) {
+      CheckpointManifest accessor_meta;
+      index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
+      auto accessor_desc = accessor_meta.module("index_id_accessor");
+      if (auto next_index_id = accessor_desc->get("next_index_id")) {
+        descriptor.set("next_index_id", *next_index_id);
+      }
+      if (auto index_id_to_vid = accessor_desc->get_path("index_id_to_vid")) {
+        descriptor.set_path("index_id_to_vid", *index_id_to_vid);
+      }
+    }
     if (index_buffer_) {
       descriptor.set_path(kIndexBufferPath, ckp.Commit(*index_buffer_));
     }
@@ -73,7 +100,9 @@ class ExampleIndex : public StorageIndex {
   }
 
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
-    StorageIndex::Detach(ckp, level);
+    if (index_id_accessor_) {
+      index_id_accessor_->Detach(ckp, level);
+    }
   }
 
   std::unique_ptr<Module> Clone() const override {
@@ -87,6 +116,7 @@ class ExampleIndex : public StorageIndex {
           static_cast<IndexIDAccessor*>(cloned_accessor.release()));
     }
     cloned->index_buffer_ = index_buffer_;
+    cloned->bound_column_ = bound_column_;
     return cloned;
   }
 
@@ -99,7 +129,7 @@ class ExampleIndex : public StorageIndex {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "ExampleIndex requires ExampleIndexQueryParams");
     }
-    if (!index_buffer_ || !index_id_accessor_) {
+    if (!index_buffer_ || !index_id_accessor_ || !bound_column_) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
                           "ExampleIndex is not open");
     }
@@ -154,6 +184,7 @@ class ExampleIndex : public StorageIndex {
   }
 
   std::shared_ptr<IDataContainer> index_buffer_;
+  const ColumnBase* bound_column_ = nullptr;
 };
 
 }  // namespace neug

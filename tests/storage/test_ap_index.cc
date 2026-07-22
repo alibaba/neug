@@ -40,6 +40,26 @@
 namespace neug {
 namespace {
 
+TEST(IndexMetaTest, PreservesDetailedPropertyType) {
+  IndexMeta meta;
+  meta.name = "array_index";
+  meta.type = "example";
+  meta.schema.label_id = 7;
+  meta.schema.property_name = "embedding";
+  meta.schema.property_type = DataType::Array(DataType::FLOAT, 3);
+
+  auto json = meta.ToJsonString();
+  rapidjson::Document document;
+  document.Parse(json.c_str());
+  ASSERT_TRUE(document.HasMember("schema"));
+  EXPECT_FALSE(document["schema"].HasMember("property_type"));
+  ASSERT_TRUE(document["schema"].HasMember("property_type_detail"));
+  EXPECT_TRUE(document["schema"]["property_type_detail"].IsString());
+
+  auto restored = IndexMeta::FromJsonString(json);
+  EXPECT_EQ(restored.schema.property_type, meta.schema.property_type);
+}
+
 class VectorChunkSupplier : public IDataChunkSupplier {
  public:
   explicit VectorChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks)
@@ -189,7 +209,7 @@ class APIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = schema->property_types[prop_id];
-    return ap_->CreateIndex(name, std::move(meta));
+    return ap_->CreateIndex(std::move(meta));
   }
 
   StorageIndex* GetIndex(const std::string& name) const {
@@ -266,6 +286,20 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   auto duplicate = CreateIndex("idx_person_age", "Person", "age");
   EXPECT_FALSE(duplicate);
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
+}
+
+TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {
+  CreatePersonTable();
+  ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
+
+  auto* original = dynamic_cast<ExampleIndex*>(GetIndex("idx_person_age"));
+  ASSERT_NE(original, nullptr);
+  auto clone = graph_->Clone();
+  auto* cloned = dynamic_cast<ExampleIndex*>(
+      clone->index_manager().GetIndexByName("idx_person_age"));
+  ASSERT_NE(cloned, nullptr);
+  EXPECT_TRUE(cloned->IsBound());
+  EXPECT_NE(cloned->BoundColumn(), original->BoundColumn());
 }
 
 TEST_F(APIndexTest, DropVertexTypeDeletesBoundIndex) {
@@ -371,6 +405,9 @@ TEST_F(APIndexTest, BatchAddVerticesMaintainsIndexAndSkipsDuplicatePk) {
 TEST_F(APIndexTest, IndexPersistsAfterCheckpointReopen) {
   CreatePersonTable();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
+  auto* created = dynamic_cast<ExampleIndex*>(GetIndex("idx_person_age"));
+  ASSERT_NE(created, nullptr);
+  EXPECT_TRUE(created->IsBound());
   for (const auto& person : kPersons) {
     AddPerson(person.id, person.name, person.age);
   }
@@ -381,6 +418,9 @@ TEST_F(APIndexTest, IndexPersistsAfterCheckpointReopen) {
   ReopenGraph();
 
   EXPECT_NE(GetIndex("idx_person_age"), nullptr);
+  auto* reopened = dynamic_cast<ExampleIndex*>(GetIndex("idx_person_age"));
+  ASSERT_NE(reopened, nullptr);
+  EXPECT_TRUE(reopened->IsBound());
   EXPECT_EQ(SearchPersonNames(30),
             (std::vector<std::string>{"Alice", "Charlie"}));
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{"Bob", "Eve"}));

@@ -43,12 +43,13 @@ class StorageIndexManager {
 
   /**
    * @brief Create a new index and register it.
-   * @param name Unique index name.
    * @param meta Index metadata.
+   * @param index_id_accessor Index ID mapping strategy.
    * @return Pointer to the created index, or error.
    */
-  neug::result<StorageIndex*> CreateIndex(const std::string& name,
-                                          std::unique_ptr<IndexMeta> meta);
+  neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta,
+      std::unique_ptr<IndexIDAccessor> index_id_accessor);
 
   /**
    * @brief Remove an index by name.

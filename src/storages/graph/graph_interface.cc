@@ -461,8 +461,35 @@ Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
 }
 
 neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
-    const std::string& name, std::unique_ptr<IndexMeta> meta) {
-  return index_manager_.CreateIndex(name, std::move(meta));
+    std::unique_ptr<IndexMeta> meta) {
+  if (!meta) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with null metadata");
+  }
+  auto label_id = meta->schema.label_id;
+  if (!graph_.schema().is_vertex_label_valid(label_id)) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Index label id is out of range");
+  }
+  const auto& vertex_table = graph_.get_vertex_table(label_id);
+  auto* column = vertex_table.GetPropertyColumnBase(meta->schema.property_name);
+  if (!column) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Indexed property column does not exist: " +
+                            meta->schema.property_name);
+  }
+  const auto name = meta->name;
+  auto index = index_manager_.CreateIndex(
+      std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+  if (!index) {
+    return tl::unexpected(index.error());
+  }
+  auto status = index.value()->Rebind(IndexBindContext{column});
+  if (!status.ok()) {
+    index_manager_.DropIndex(name);
+    RETURN_ERROR(status);
+  }
+  return index;
 }
 
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
