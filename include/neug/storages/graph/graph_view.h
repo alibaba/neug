@@ -22,14 +22,16 @@
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
+#include "neug/storages/graph/dirty_tracker.h"
 #include "neug/storages/graph/edge_table.h"
-#include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/result.h"
 
 namespace neug {
+
+class PropertyGraph;
 
 class TableView {
  public:

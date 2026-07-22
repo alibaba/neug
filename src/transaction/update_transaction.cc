@@ -857,18 +857,10 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
       graph.MarkVertexDirty(redo.label);
       // Cascade: DeleteVertex physically writes incident edge tables.
-      const auto& schema = graph.schema();
-      for (label_t i = 0; i < schema.vertex_label_frontier(); ++i) {
-        if (!schema.is_vertex_label_valid(i)) {
-          continue;
-        }
-        for (label_t e = 0; e < schema.edge_label_frontier(); ++e) {
-          if (schema.is_edge_triplet_valid(i, redo.label, e)) {
-            graph.MarkEdgeDirty(i, redo.label, e);
-          }
-          if (schema.is_edge_triplet_valid(redo.label, i, e)) {
-            graph.MarkEdgeDirty(redo.label, i, e);
-          }
+      for (const auto& [_, es] : graph.schema().get_all_edge_schemas()) {
+        if (es->src_label_id == redo.label || es->dst_label_id == redo.label) {
+          graph.MarkEdgeDirty(es->src_label_id, es->dst_label_id,
+                              es->edge_label_id);
         }
       }
       auto ret = graph.DeleteVertex(redo.label, vid, timestamp);
