@@ -886,20 +886,9 @@ class StorageUpdateInterface : public StorageReadInterface,
 
  private:
   void markIncidentEdgeTablesDirty(label_t label) {
-    const auto& s = schema();
-    const label_t v_frontier = s.vertex_label_frontier();
-    const label_t e_frontier = s.edge_label_frontier();
-    for (label_t i = 0; i < v_frontier; ++i) {
-      if (!s.is_vertex_label_valid(i)) {
-        continue;
-      }
-      for (label_t e = 0; e < e_frontier; ++e) {
-        if (s.is_edge_triplet_valid(i, label, e)) {
-          MarkEdgeDirty(i, label, e);
-        }
-        if (s.is_edge_triplet_valid(label, i, e)) {
-          MarkEdgeDirty(label, i, e);
-        }
+    for (const auto& [_, es] : schema().get_all_edge_schemas()) {
+      if (es->src_label_id == label || es->dst_label_id == label) {
+        MarkEdgeDirty(es->src_label_id, es->dst_label_id, es->edge_label_id);
       }
     }
   }

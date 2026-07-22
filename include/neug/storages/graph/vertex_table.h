@@ -157,7 +157,7 @@ class VertexTable {
                      Checkpoint& ckp);
 
   /// When this table is clean, re-link prior-snapshot modules into @p meta
-  /// instead of dumping. No-ops if @p prev has no modules for this label.
+  /// instead of dumping. Links exact keys for this label only.
   void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
                       const CheckpointManifest& prev) const;
 

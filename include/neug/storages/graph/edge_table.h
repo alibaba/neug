@@ -83,8 +83,7 @@ class EdgeTable {
                      Checkpoint& ckp);
 
   /// When this table is clean, re-link prior-snapshot modules/scalars into
-  /// @p meta instead of dumping. No-ops if @p prev has no modules for this
-  /// triplet.
+  /// @p meta instead of dumping. Links exact keys for this triplet only.
   void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
                       const CheckpointManifest& prev) const;
 

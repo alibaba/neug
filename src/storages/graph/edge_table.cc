@@ -1143,31 +1143,34 @@ void EdgeTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
   const auto& src = meta_->src_label_name;
   const auto& edge = meta_->edge_label_name;
   const auto& dst = meta_->dst_label_name;
-  if (!prev.has_module(KeyOutCsr(src, edge, dst))) {
-    return;
-  }
-  const std::string module_prefix =
-      "edge_" + src + "_" + edge + "_" + dst + "_";
-  for (const auto& [key, desc] : prev.modules()) {
-    if (key.compare(0, module_prefix.size(), module_prefix) != 0) {
-      continue;
+  // Link exact keys only — prefix matching is ambiguous when label names
+  // contain underscores.
+  auto link_module = [&](const std::string& key) {
+    auto desc = prev.module(key);
+    if (!desc.has_value()) {
+      return;
     }
-    ModuleDescriptor linked = desc;
-    for (auto& [_, path] : linked.mutable_paths()) {
+    for (auto& [_, path] : desc->mutable_paths()) {
       if (!path.empty()) {
         path = ckp.LinkToSnapshot(path);
       }
     }
-    meta.set_module(key, std::move(linked));
-  }
-  const std::string scalar_prefix =
-      "edge_" + src + "_" + edge + "_" + dst + "/";
-  for (const auto& [key, value] : prev.scalars()) {
-    if (key.compare(0, scalar_prefix.size(), scalar_prefix) != 0) {
-      continue;
+    meta.set_module(key, std::move(*desc));
+  };
+  auto link_scalar = [&](const std::string& key) {
+    if (auto value = prev.GetScalar(key)) {
+      meta.SetScalar(key, *value);
     }
-    meta.SetScalar(key, value);
+  };
+  link_module(KeyOutCsr(src, edge, dst));
+  link_module(KeyInCsr(src, edge, dst));
+  if (!meta_->is_bundled()) {
+    for (size_t i = 0; i < meta_->properties.size(); ++i) {
+      link_module(KeyProperty(src, edge, dst, i));
+    }
+    link_scalar(ScalarKey(src, edge, dst, "table_idx"));
   }
+  link_scalar(ScalarKey(src, edge, dst, "capacity"));
 }
 
 }  // namespace neug
