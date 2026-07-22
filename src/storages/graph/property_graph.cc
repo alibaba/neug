@@ -873,7 +873,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
       continue;
     }
     // Compact only dirty tables; bits stay set until ClearAll after dump.
-    if (IsVertexDirty(src_label_i)) {
+    if (IsVertexTableDirty(src_label_i)) {
       vertex_tables_[src_label_i].Compact(ts);
     }
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
@@ -895,7 +895,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
             edge_tables_.count(index) == 0) {
           continue;
         }
-        if (!IsEdgeDirty(src_label_i, dst_label_i, e_label_i)) {
+        if (!IsEdgeTableDirty(src_label_i, dst_label_i, e_label_i)) {
           continue;
         }
         const auto& sort_key_for_nbr =
@@ -928,7 +928,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
         schema_.is_vertex_label_temporary(i)) {
       continue;
     }
-    if (IsVertexDirty(i)) {
+    if (IsVertexTableDirty(i)) {
       auto v_size = vertex_tables_[i].LidNum();
       EnsureCapacity(i, v_size < 4096 ? 4096 : v_size + v_size / 4);
     }
@@ -939,7 +939,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
         schema_.is_vertex_label_temporary(i)) {
       continue;
     }
-    if (IsVertexDirty(i)) {
+    if (IsVertexTableDirty(i)) {
       vertex_tables_[i].DisassembleTo(store, meta, *ckp);
     } else if (prev != nullptr) {
       vertex_tables_[i].LinkToSnapshot(*ckp, meta, *prev);
@@ -974,7 +974,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
           continue;
         }
         auto& edge_table = edge_tables_.at(index);
-        if (IsEdgeDirty(src_label_i, dst_label_i, e_label_i)) {
+        if (IsEdgeTableDirty(src_label_i, dst_label_i, e_label_i)) {
           auto e_size = edge_table.PropTableSize();
           auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,

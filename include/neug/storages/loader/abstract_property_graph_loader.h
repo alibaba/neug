@@ -46,12 +46,12 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
     graph_.MarkSchemaDirty();
     for (label_t v = 0; v < schema_.vertex_label_frontier(); ++v) {
       if (schema_.is_vertex_label_valid(v)) {
-        graph_.MarkVertexDirty(v);
+        graph_.MarkVertexTableDirty(v);
       }
     }
     for (const auto& [index, _] : schema_.get_all_edge_schemas()) {
       auto [src, dst, edge] = schema_.parse_edge_label(index);
-      graph_.MarkEdgeDirty(src, dst, edge);
+      graph_.MarkEdgeTableDirty(src, dst, edge);
     }
   }
 

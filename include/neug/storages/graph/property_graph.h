@@ -135,14 +135,14 @@ class PropertyGraph {
   DirtyTracker& dirty_tracker() { return dirty_; }
   const DirtyTracker& dirty_tracker() const { return dirty_; }
 
-  void MarkVertexDirty(label_t label) { dirty_.MarkVertex(label); }
-  bool IsVertexDirty(label_t label) const {
+  void MarkVertexTableDirty(label_t label) { dirty_.MarkVertex(label); }
+  bool IsVertexTableDirty(label_t label) const {
     return dirty_.IsVertexDirty(label);
   }
-  void MarkEdgeDirty(label_t src, label_t dst, label_t edge) {
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) {
     dirty_.MarkEdge(schema_.generate_edge_label(src, dst, edge));
   }
-  bool IsEdgeDirty(label_t src, label_t dst, label_t edge) const {
+  bool IsEdgeTableDirty(label_t src, label_t dst, label_t edge) const {
     return dirty_.IsEdgeDirty(schema_.generate_edge_label(src, dst, edge));
   }
   void MarkSchemaDirty() { dirty_.MarkSchema(); }

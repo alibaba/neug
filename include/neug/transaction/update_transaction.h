@@ -182,13 +182,13 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
 
   void CreateCheckpoint() override;
 
- protected:
+ private:
   // Marks go to the COW clone; abort discards them with the clone.
-  void MarkVertexDirty(label_t label) override {
-    cow_graph_->MarkVertexDirty(label);
+  void MarkVertexTableDirty(label_t label) override {
+    cow_graph_->MarkVertexTableDirty(label);
   }
-  void MarkEdgeDirty(label_t src, label_t dst, label_t edge) override {
-    cow_graph_->MarkEdgeDirty(src, dst, edge);
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
+    cow_graph_->MarkEdgeTableDirty(src, dst, edge);
   }
   void MarkSchemaDirty() override { cow_graph_->MarkSchemaDirty(); }
 
@@ -248,7 +248,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
- private:
   // --- COW detach helpers ---
   Status detachVertexTableForInsert(label_t label);
   Status detachVertexTableForDelete(label_t label);

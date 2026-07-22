@@ -403,7 +403,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
                    const std::vector<Value>& props, vid_t& vid) {
     auto st = AddVertexImpl(label, id, props, vid);
     if (st.ok()) {
-      MarkVertexDirty(label);
+      MarkVertexTableDirty(label);
     }
     return st;
   }
@@ -429,7 +429,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
     auto st = AddEdgeImpl(src_label, src, dst_label, dst, edge_label,
                           properties, prop);
     if (st.ok()) {
-      MarkEdgeDirty(src_label, dst_label, edge_label);
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
     }
     return st;
   }
@@ -445,7 +445,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
                           std::shared_ptr<IDataChunkSupplier> supplier) {
     auto st = BatchAddVerticesImpl(v_label_id, std::move(supplier));
     if (st.ok()) {
-      MarkVertexDirty(v_label_id);
+      MarkVertexTableDirty(v_label_id);
     }
     return st;
   }
@@ -464,15 +464,18 @@ class StorageInsertInterface : virtual public IStorageInterface {
     auto st = BatchAddEdgesImpl(src_label, dst_label, edge_label,
                                 std::move(supplier));
     if (st.ok()) {
-      MarkEdgeDirty(src_label, dst_label, edge_label);
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
     }
     return st;
   }
 
  protected:
-  virtual void MarkVertexDirty(label_t label) = 0;
-  virtual void MarkEdgeDirty(label_t src, label_t dst, label_t edge) = 0;
+  // Called from StorageUpdateInterface NVI as well; keep accessible to
+  // subclasses of StorageInsertInterface.
+  virtual void MarkVertexTableDirty(label_t label) = 0;
+  virtual void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) = 0;
 
+ private:
   virtual Status AddVertexImpl(label_t label, const Value& id,
                                const std::vector<Value>& props, vid_t& vid) = 0;
   virtual Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
@@ -552,7 +555,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                               const Value& value) {
     auto st = UpdateVertexPropertyImpl(label, lid, col_id, value);
     if (st.ok()) {
-      MarkVertexDirty(label);
+      MarkVertexTableDirty(label);
     }
     return st;
   }
@@ -577,7 +580,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = UpdateEdgePropertyImpl(src_label, src, dst_label, dst, edge_label,
                                      oe_offset, ie_offset, col_id, value);
     if (st.ok()) {
-      MarkEdgeDirty(src_label, dst_label, edge_label);
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
     }
     return st;
   }
@@ -588,7 +591,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status DeleteVertex(label_t label, vid_t lid) {
     auto st = DeleteVertexImpl(label, lid);
     if (st.ok()) {
-      MarkVertexDirty(label);
+      MarkVertexTableDirty(label);
       markIncidentEdgeTablesDirty(label);
     }
     return st;
@@ -602,7 +605,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = DeleteEdgeImpl(src_label, src, dst_label, dst, edge_label,
                              oe_offset, ie_offset);
     if (st.ok()) {
-      MarkEdgeDirty(src_label, dst_label, edge_label);
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
     }
     return st;
   }
@@ -614,7 +617,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                      label_t edge_label) {
     auto st = DeleteEdgesImpl(src_label, src, dst_label, dst, edge_label);
     if (st.ok()) {
-      MarkEdgeDirty(src_label, dst_label, edge_label);
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
     }
     return st;
   }
@@ -630,7 +633,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                              const std::vector<vid_t>& vids) {
     auto st = BatchDeleteVerticesImpl(v_label_id, vids);
     if (st.ok()) {
-      MarkVertexDirty(v_label_id);
+      MarkVertexTableDirty(v_label_id);
       markIncidentEdgeTablesDirty(v_label_id);
     }
     return st;
@@ -651,7 +654,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = BatchDeleteEdgesImpl(src_v_label_id, dst_v_label_id,
                                    edge_label_id, edges);
     if (st.ok()) {
-      MarkEdgeDirty(src_v_label_id, dst_v_label_id, edge_label_id);
+      MarkEdgeTableDirty(src_v_label_id, dst_v_label_id, edge_label_id);
     }
     return st;
   }
@@ -664,7 +667,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = BatchDeleteEdgesImpl(src_v_label_id, dst_v_label_id,
                                    edge_label_id, oe_edges, ie_edges);
     if (st.ok()) {
-      MarkEdgeDirty(src_v_label_id, dst_v_label_id, edge_label_id);
+      MarkEdgeTableDirty(src_v_label_id, dst_v_label_id, edge_label_id);
     }
     return st;
   }
@@ -710,7 +713,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = AddVertexPropertiesImpl(label, config);
     if (st.ok()) {
       MarkSchemaDirty();
-      MarkVertexDirty(label);
+      MarkVertexTableDirty(label);
     }
     return st;
   }
@@ -728,7 +731,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = AddEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
       MarkSchemaDirty();
-      MarkEdgeDirty(src, dst, edge);
+      MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
   }
@@ -744,7 +747,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = RenameVertexPropertiesImpl(label, config);
     if (st.ok()) {
       MarkSchemaDirty();
-      MarkVertexDirty(label);
+      MarkVertexTableDirty(label);
     }
     return st;
   }
@@ -762,7 +765,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = RenameEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
       MarkSchemaDirty();
-      MarkEdgeDirty(src, dst, edge);
+      MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
   }
@@ -778,7 +781,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = DeleteVertexPropertiesImpl(label, config);
     if (st.ok()) {
       MarkSchemaDirty();
-      MarkVertexDirty(label);
+      MarkVertexTableDirty(label);
     }
     return st;
   }
@@ -796,7 +799,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     auto st = DeleteEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
       MarkSchemaDirty();
-      MarkEdgeDirty(src, dst, edge);
+      MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
   }
@@ -838,7 +841,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   virtual void CreateCheckpoint() = 0;
 
- protected:
+ private:
   virtual void MarkSchemaDirty() = 0;
 
   virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
@@ -884,11 +887,11 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual Status DeleteVertexTypeImpl(label_t label) = 0;
   virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
 
- private:
   void markIncidentEdgeTablesDirty(label_t label) {
     for (const auto& [_, es] : schema().get_all_edge_schemas()) {
       if (es->src_label_id == label || es->dst_label_id == label) {
-        MarkEdgeDirty(es->src_label_id, es->dst_label_id, es->edge_label_id);
+        MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
+                           es->edge_label_id);
       }
     }
   }
@@ -908,12 +911,12 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
 
   void CreateCheckpoint() override;
 
- protected:
-  void MarkVertexDirty(label_t label) override {
-    graph_.MarkVertexDirty(label);
+ private:
+  void MarkVertexTableDirty(label_t label) override {
+    graph_.MarkVertexTableDirty(label);
   }
-  void MarkEdgeDirty(label_t src, label_t dst, label_t edge) override {
-    graph_.MarkEdgeDirty(src, dst, edge);
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
+    graph_.MarkEdgeTableDirty(src, dst, edge);
   }
   void MarkSchemaDirty() override { graph_.MarkSchemaDirty(); }
 
@@ -968,7 +971,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
- private:
   PropertyGraph& graph_;
   GraphView& mut_view_;
   neug::Allocator& alloc_;

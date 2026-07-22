@@ -236,11 +236,11 @@ class StorageTPInsertInterface : public StorageInsertInterface {
     return txn_.GetVertexIndex(label, id, index);
   }
 
- protected:
+ private:
   // Insert path does not physically write the graph until IngestWal; marking
   // here would be a false positive.
-  void MarkVertexDirty(label_t) override {}
-  void MarkEdgeDirty(label_t, label_t, label_t) override {}
+  void MarkVertexTableDirty(label_t) override {}
+  void MarkEdgeTableDirty(label_t, label_t, label_t) override {}
 
   Status AddVertexImpl(label_t label, const Value& id,
                        const std::vector<Value>& props, vid_t& vid) override {
@@ -262,7 +262,6 @@ class StorageTPInsertInterface : public StorageInsertInterface {
       label_t src_label, label_t dst_label, label_t edge_label,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
 
- private:
   InsertTransaction& txn_;
 };
 

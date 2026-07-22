@@ -212,7 +212,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
           view.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to add vertex during WAL ingestion", ret);
-      view.MarkVertexDirty(redo.label);
+      view.MarkVertexTableDirty(redo.label);
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
@@ -226,7 +226,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
                               alloc, oe_offset_unused, prop_unused);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge during WAL ingestion",
                                      ret);
-      view.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      view.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected op-" +
                                std::to_string(static_cast<int>(op_type)));

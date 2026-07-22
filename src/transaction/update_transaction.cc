@@ -810,7 +810,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                   : v_table.Size() + v_table.Size() / 4;
           graph.EnsureCapacity(redo.label, new_capacity);
         }
-        graph.MarkVertexDirty(redo.label);
+        graph.MarkVertexTableDirty(redo.label);
         auto ret = graph.AddVertex(redo.label, redo.oid, redo.props, vid,
                                    timestamp, true);
         THROW_STORAGE_EXCEPTION_STATUS("Failed to add vertex in redo: ", ret);
@@ -823,7 +823,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
-      graph.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      graph.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
       auto ret = graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
                                redo.edge_label, redo.properties, timestamp,
                                alloc, oe_offset_unused, prop_unused, true);
@@ -833,7 +833,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       arc >> redo;
       vid_t vid;
       CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
-      graph.MarkVertexDirty(redo.label);
+      graph.MarkVertexTableDirty(redo.label);
       auto ret = graph.UpdateVertexProperty(redo.label, vid, redo.prop_id,
                                             redo.value, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
@@ -844,7 +844,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      graph.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
       auto ret = graph.UpdateEdgeProperty(
           redo.src_label, src_vid, redo.dst_label, dst_vid, redo.edge_label,
           redo.oe_offset, redo.ie_offset, redo.prop_id, redo.value, timestamp);
@@ -855,12 +855,12 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       arc >> redo;
       vid_t vid;
       CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
-      graph.MarkVertexDirty(redo.label);
+      graph.MarkVertexTableDirty(redo.label);
       // Cascade: DeleteVertex physically writes incident edge tables.
       for (const auto& [_, es] : graph.schema().get_all_edge_schemas()) {
         if (es->src_label_id == redo.label || es->dst_label_id == redo.label) {
-          graph.MarkEdgeDirty(es->src_label_id, es->dst_label_id,
-                              es->edge_label_id);
+          graph.MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
+                                   es->edge_label_id);
         }
       }
       auto ret = graph.DeleteVertex(redo.label, vid, timestamp);
@@ -871,7 +871,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      graph.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
       auto ret = graph.DeleteEdge(redo.src_label, src_vid, redo.dst_label,
                                   dst_vid, redo.edge_label, redo.oe_offset,
                                   redo.ie_offset, timestamp);
@@ -880,7 +880,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       auto redo = AddVertexPropertiesRedo::Deserialize(arc);
       label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
-      graph.MarkVertexDirty(label);
+      graph.MarkVertexTableDirty(label);
       auto ret = graph.AddVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to add vertex properties in redo: ", ret);
@@ -891,7 +891,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t dst = schema.get_vertex_label_id(redo.dst_type);
       label_t edge = schema.get_edge_label_id(redo.edge_type);
       graph.MarkSchemaDirty();
-      graph.MarkEdgeDirty(src, dst, edge);
+      graph.MarkEdgeTableDirty(src, dst, edge);
       auto ret = graph.AddEdgeProperties(src, dst, edge, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge properties in redo: ",
                                      ret);
@@ -899,7 +899,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       auto redo = RenameVertexPropertiesRedo::Deserialize(arc);
       label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
-      graph.MarkVertexDirty(label);
+      graph.MarkVertexTableDirty(label);
       auto ret = graph.RenameVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to rename vertex properties in redo: ", ret);
@@ -910,7 +910,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t dst = schema.get_vertex_label_id(redo.dst_type);
       label_t edge = schema.get_edge_label_id(redo.edge_type);
       graph.MarkSchemaDirty();
-      graph.MarkEdgeDirty(src, dst, edge);
+      graph.MarkEdgeTableDirty(src, dst, edge);
       auto ret = graph.RenameEdgeProperties(src, dst, edge, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to rename edge properties in redo: ", ret);
@@ -918,7 +918,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       auto redo = DeleteVertexPropertiesRedo::Deserialize(arc);
       label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
-      graph.MarkVertexDirty(label);
+      graph.MarkVertexTableDirty(label);
       auto ret = graph.DeleteVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex properties in redo: ", ret);
@@ -929,7 +929,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t dst = schema.get_vertex_label_id(redo.dst_type);
       label_t edge = schema.get_edge_label_id(redo.edge_type);
       graph.MarkSchemaDirty();
-      graph.MarkEdgeDirty(src, dst, edge);
+      graph.MarkEdgeTableDirty(src, dst, edge);
       auto ret = graph.DeleteEdgeProperties(src, dst, edge, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete edge properties in redo: ", ret);
