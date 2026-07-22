@@ -115,9 +115,28 @@ static Value arrow_value_at(const arrow::Array& array, int64_t index,
         MILLIS_PER_DAY));
     return Value::DATE(date);
   }
-  case arrow::Type::TIMESTAMP:
-    return Value::TIMESTAMPMS(DateTime(
-        static_cast<const arrow::TimestampArray&>(array).Value(index)));
+  case arrow::Type::TIMESTAMP: {
+    const auto value =
+        static_cast<const arrow::TimestampArray&>(array).Value(index);
+    const auto& timestamp_type =
+        static_cast<const arrow::TimestampType&>(*array.type());
+    int64_t milliseconds;
+    switch (timestamp_type.unit()) {
+    case arrow::TimeUnit::SECOND:
+      milliseconds = value * Interval::MSECS_PER_SEC;
+      break;
+    case arrow::TimeUnit::MILLI:
+      milliseconds = value;
+      break;
+    case arrow::TimeUnit::MICRO:
+      milliseconds = value / Interval::MICROS_PER_MSEC;
+      break;
+    case arrow::TimeUnit::NANO:
+      milliseconds = value / (Interval::MICROS_PER_MSEC * 1000);
+      break;
+    }
+    return Value::TIMESTAMPMS(DateTime(milliseconds));
+  }
   case arrow::Type::DURATION: {
     const auto value =
         static_cast<const arrow::DurationArray&>(array).Value(index);

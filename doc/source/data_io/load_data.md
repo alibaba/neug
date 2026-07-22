@@ -46,7 +46,7 @@ LOAD FROM "person.csv" (delim=',', header=true)
 RETURN name, age;
 ```
 
-Since NeuG v0.1.3, `LOAD FROM` supports reading `ARRAY` data from CSV, JSON,
+NeuG supports reading `ARRAY` data from CSV, JSON,
 and Parquet files. NeuG does not implicitly convert input values to `ARRAY`;
 explicitly cast the column to a fixed-size `ARRAY` type in the `RETURN`
 clause.

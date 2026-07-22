@@ -240,7 +240,7 @@ The following options control how CSV files are parsed during `COPY FROM`. These
 | `quoting`  | bool | `true` | Whether to enable quote processing            |
 | `escaping` | bool | `true` | Whether to enable escape character processing |
 
-Since NeuG v0.1.3, `COPY FROM` supports loading `ARRAY` data from CSV,
+`COPY FROM` supports loading `ARRAY` data from CSV,
 JSON, and Parquet files. NeuG does not implicitly convert input values to
 `ARRAY`; use `LOAD FROM` and explicitly cast the column to a fixed-size
 `ARRAY` type.

@@ -68,14 +68,14 @@ class TestLoadArray:
     def _write_csv(self, filename, content):
         """Write a CSV file to the temp directory and return its path."""
         path = os.path.join(self.csv_dir, filename)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8", newline="") as f:
             f.write(content)
         return path
 
     def _write_json(self, filename, data):
         """Write a JSON file to the temp directory and return its path."""
         path = os.path.join(self.json_dir, filename)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
         return path
 
