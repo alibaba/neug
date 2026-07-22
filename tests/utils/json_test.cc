@@ -176,5 +176,46 @@ TEST_F(JsonTest, TestJsonArrayColumn) {
   EXPECT_EQ(first_values[2].GetValue<int64_t>(), 3);
 }
 
+TEST_F(JsonTest, TestJsonArrayColumnLengthMismatch) {
+  createJsonFile("test_json_array_length_mismatch.json",
+                 "[{\"id\": 1, \"readings\": [1, 2]}]");
+  auto sharedState = createSharedState(
+      "test_json_array_length_mismatch.json", {"id", "readings"},
+      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  try {
+    reader->read(localState, ctx);
+    FAIL() << "Expected an ARRAY length mismatch";
+  } catch (const std::exception& error) {
+    EXPECT_NE(
+        std::string(error.what())
+            .find("ARRAY value length mismatch for type INT64[3]: expected 3, "
+                  "got 2"),
+        std::string::npos);
+  }
+}
+
+TEST_F(JsonTest, TestJsonArrayColumnRejectsNonArray) {
+  createJsonFile("test_json_non_array.json", "[{\"id\": 1, \"readings\": 42}]");
+  auto sharedState = createSharedState(
+      "test_json_non_array.json", {"id", "readings"},
+      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  try {
+    reader->read(localState, ctx);
+    FAIL() << "Expected a non-array conversion error";
+  } catch (const std::exception& error) {
+    EXPECT_NE(std::string(error.what())
+                  .find("Expected JSON array for ARRAY type: INT64[3]"),
+              std::string::npos);
+  }
+}
+
 }  // namespace test
 }  // namespace neug

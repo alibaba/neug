@@ -26,6 +26,21 @@
 
 namespace neug {
 
+static int64_t arrow_time_to_milliseconds(int64_t value,
+                                          arrow::TimeUnit::type unit) {
+  switch (unit) {
+  case arrow::TimeUnit::SECOND:
+    return value * Interval::MSECS_PER_SEC;
+  case arrow::TimeUnit::MILLI:
+    return value;
+  case arrow::TimeUnit::MICRO:
+    return value / Interval::MICROS_PER_MSEC;
+  case arrow::TimeUnit::NANO:
+    return value / (Interval::MICROS_PER_MSEC * 1000);
+  }
+  THROW_NOT_SUPPORTED_EXCEPTION("Unsupported Arrow time unit");
+}
+
 // Keep this mapping in sync with arrow_value_at when adding Arrow types.
 static DataType arrow_type_to_neug_type(const arrow::DataType& type) {
   switch (type.id()) {
@@ -120,45 +135,17 @@ static Value arrow_value_at(const arrow::Array& array, int64_t index,
         static_cast<const arrow::TimestampArray&>(array).Value(index);
     const auto& timestamp_type =
         static_cast<const arrow::TimestampType&>(*array.type());
-    int64_t milliseconds;
-    switch (timestamp_type.unit()) {
-    case arrow::TimeUnit::SECOND:
-      milliseconds = value * Interval::MSECS_PER_SEC;
-      break;
-    case arrow::TimeUnit::MILLI:
-      milliseconds = value;
-      break;
-    case arrow::TimeUnit::MICRO:
-      milliseconds = value / Interval::MICROS_PER_MSEC;
-      break;
-    case arrow::TimeUnit::NANO:
-      milliseconds = value / (Interval::MICROS_PER_MSEC * 1000);
-      break;
-    }
-    return Value::TIMESTAMPMS(DateTime(milliseconds));
+    return Value::TIMESTAMPMS(
+        DateTime(arrow_time_to_milliseconds(value, timestamp_type.unit())));
   }
   case arrow::Type::DURATION: {
     const auto value =
         static_cast<const arrow::DurationArray&>(array).Value(index);
     const auto& duration_type =
         static_cast<const arrow::DurationType&>(*array.type());
-    int64_t milliseconds;
-    switch (duration_type.unit()) {
-    case arrow::TimeUnit::SECOND:
-      milliseconds = value * Interval::MSECS_PER_SEC;
-      break;
-    case arrow::TimeUnit::MILLI:
-      milliseconds = value;
-      break;
-    case arrow::TimeUnit::MICRO:
-      milliseconds = value / Interval::MICROS_PER_MSEC;
-      break;
-    case arrow::TimeUnit::NANO:
-      milliseconds = value / (Interval::MICROS_PER_MSEC * 1000);
-      break;
-    }
     Interval interval;
-    interval.from_mill_seconds(milliseconds);
+    interval.from_mill_seconds(
+        arrow_time_to_milliseconds(value, duration_type.unit()));
     return Value::INTERVAL(interval);
   }
   case arrow::Type::FIXED_SIZE_LIST: {
@@ -291,7 +278,10 @@ static std::shared_ptr<IContextColumn> convert_timestamp_arrays(
       if (typed->IsNull(j)) {
         builder.push_back_null();
       } else {
-        builder.push_back_opt(DateTime(typed->Value(j)));
+        const auto& timestamp_type =
+            static_cast<const arrow::TimestampType&>(*typed->type());
+        builder.push_back_opt(DateTime(arrow_time_to_milliseconds(
+            typed->Value(j), timestamp_type.unit())));
       }
     }
   }

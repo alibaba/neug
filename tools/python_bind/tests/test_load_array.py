@@ -203,6 +203,44 @@ class TestLoadArray:
         ]
 
     @extension_test
+    def test_parquet_timestamp_units(self):
+        """Normalize scalar and ARRAY timestamps of every Arrow unit to ms."""
+        pa = pytest.importorskip("pyarrow")
+        expected = datetime(2023, 6, 15, 12, 30, 45, 123000)
+        parquet_path = self._write_parquet(
+            "timestamp_units.parquet",
+            {
+                "seconds": pa.array(
+                    [datetime(2023, 6, 15, 12, 30, 45)], pa.timestamp("s")
+                ),
+                "milliseconds": pa.array([expected], pa.timestamp("ms")),
+                "microseconds": pa.array([expected], pa.timestamp("us")),
+                "nanoseconds": pa.array([expected], pa.timestamp("ns")),
+                "times": pa.array(
+                    [[expected, expected]], pa.list_(pa.timestamp("us"), 2)
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" '
+                "RETURN seconds, milliseconds, microseconds, nanoseconds, times"
+            )
+        )
+
+        assert result == [
+            [
+                datetime(2023, 6, 15, 12, 30, 45),
+                expected,
+                expected,
+                expected,
+                [expected, expected],
+            ]
+        ]
+
+    @extension_test
     def test_parquet_array_types(self):
         """Cover the scalar and nested ARRAY types exercised by CSV."""
         pa = pytest.importorskip("pyarrow")

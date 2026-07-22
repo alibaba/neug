@@ -251,7 +251,7 @@ T parse_direct(std::string_view token,
   }
 }
 
-std::string trim_array_token(std::string_view token) {
+std::string_view trim_array_token(std::string_view token) {
   size_t begin = 0;
   while (begin < token.size() &&
          std::isspace(static_cast<unsigned char>(token[begin]))) {
@@ -262,17 +262,17 @@ std::string trim_array_token(std::string_view token) {
          std::isspace(static_cast<unsigned char>(token[end - 1]))) {
     --end;
   }
-  return std::string(token.substr(begin, end - begin));
+  return token.substr(begin, end - begin);
 }
 
 std::string unquote_array_string_token(std::string_view token) {
   auto trimmed = trim_array_token(token);
   if (trimmed.size() < 2) {
-    return trimmed;
+    return std::string(trimmed);
   }
   auto quote = trimmed.front();
   if ((quote != '\'' && quote != '"') || trimmed.back() != quote) {
-    return trimmed;
+    return std::string(trimmed);
   }
 
   std::string unquoted;
@@ -287,8 +287,8 @@ std::string unquote_array_string_token(std::string_view token) {
   return unquoted;
 }
 
-std::vector<std::string> split_array_elements(std::string_view input) {
-  std::vector<std::string> elements;
+std::vector<std::string_view> split_array_elements(std::string_view input) {
+  std::vector<std::string_view> elements;
   auto trimmed = trim_array_token(input);
   if (trimmed.empty()) {
     return elements;
@@ -321,8 +321,8 @@ std::vector<std::string> split_array_elements(std::string_view input) {
       }
       --depth;
     } else if (c == ',' && depth == 0) {
-      elements.push_back(trim_array_token(
-          std::string_view(trimmed).substr(element_start, i - element_start)));
+      elements.push_back(
+          trim_array_token(trimmed.substr(element_start, i - element_start)));
       element_start = i + 1;
     }
   }
@@ -334,8 +334,7 @@ std::vector<std::string> split_array_elements(std::string_view input) {
     THROW_CONVERSION_EXCEPTION("Unbalanced brackets in array value: " +
                                std::string(input));
   }
-  elements.push_back(
-      trim_array_token(std::string_view(trimmed).substr(element_start)));
+  elements.push_back(trim_array_token(trimmed.substr(element_start)));
   return elements;
 }
 
@@ -376,12 +375,12 @@ Value parse_array_element(std::string_view token, const DataType& data_type,
     auto trimmed = trim_array_token(token);
     if (trimmed.size() < 2 || trimmed.front() != '[' || trimmed.back() != ']') {
       THROW_CONVERSION_EXCEPTION("Expected array value for type " +
-                                 data_type.ToString() + ": " + trimmed);
+                                 data_type.ToString() + ": " +
+                                 std::string(trimmed));
     }
     const auto& child_type = ArrayType::GetChildType(data_type);
     const auto expected_size = ArrayType::GetNumElements(data_type);
-    auto elements = split_array_elements(
-        std::string_view(trimmed).substr(1, trimmed.size() - 2));
+    auto elements = split_array_elements(trimmed.substr(1, trimmed.size() - 2));
     if (elements.size() != expected_size) {
       THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
                                  data_type.ToString() + ": expected " +
@@ -480,21 +479,21 @@ void append_array_impl(const FieldAppender& app, csv::CSVField field,
     builder->push_back_null();
     return;
   }
+  std::string unescaped;
+  std::string_view effective_token = token;
+  if (ctx.escaping) {
+    unescaped = unescape_token_sv(token, ctx.escape_char);
+    effective_token = unescaped;
+  }
   try {
-    if (ctx.escaping) {
-      auto unescaped = unescape_token_sv(token, ctx.escape_char);
-      builder->push_back_elem(parse_array_element(
-          unescaped, *app.type, ctx.true_values, ctx.false_values));
-    } else {
-      builder->push_back_elem(parse_array_element(
-          token, *app.type, ctx.true_values, ctx.false_values));
-    }
+    builder->push_back_elem(parse_array_element(
+        effective_token, *app.type, ctx.true_values, ctx.false_values));
   } catch (const std::exception& error) {
     THROW_CONVERSION_EXCEPTION(
         "Failed to parse CSV field, file=" + ctx.file_path +
         ", row=" + std::to_string(row_number) + ", column=" + *app.column_name +
-        ", type=" + app.type->ToString() + ", value='" + std::string(token) +
-        "', reason=" + error.what());
+        ", type=" + app.type->ToString() + ", value='" +
+        std::string(effective_token) + "', reason=" + error.what());
   }
 }
 
