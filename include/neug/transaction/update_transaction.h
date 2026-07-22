@@ -183,8 +183,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   void CreateCheckpoint() override;
 
  protected:
-  // Marks go to the COW clone; abort discards them with the clone (design
-  // §2.3).
+  // Marks go to the COW clone; abort discards them with the clone.
   void MarkVertexDirty(label_t label) override {
     cow_graph_->MarkVertexDirty(label);
   }

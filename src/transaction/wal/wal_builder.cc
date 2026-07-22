@@ -61,8 +61,7 @@ void WalBuilder::LogAddEdgeProperties(const std::string& src_type,
                                       const std::string& dst_type,
                                       const std::string& edge_type,
                                       const AddEdgePropertiesParam& config) {
-  AddEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
-                                   config);
+  AddEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type, config);
   ++op_num_;
   schema_changed_ = true;
 }

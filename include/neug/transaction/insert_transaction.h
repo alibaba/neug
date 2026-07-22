@@ -238,7 +238,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
 
  protected:
   // Insert path does not physically write the graph until IngestWal; marking
-  // here would be a false positive (design §2.3).
+  // here would be a false positive.
   void MarkVertexDirty(label_t) override {}
   void MarkEdgeDirty(label_t, label_t, label_t) override {}
 
