@@ -302,7 +302,8 @@ Status StorageTPUpdateInterface::CreateEdgeTypeImpl(
 
 Status StorageTPUpdateInterface::AddVertexPropertiesImpl(
     label_t v_label, const AddVertexPropertiesParam& config) {
-  wal_.LogAddVertexProperties(v_label, config);
+  wal_.LogAddVertexProperties(
+      cow_graph_->schema().get_vertex_label_name(v_label), config);
   auto status = cow_graph_->AddVertexProperties(v_label, config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to vertex type "
@@ -324,7 +325,9 @@ Status StorageTPUpdateInterface::AddEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const AddEdgePropertiesParam& config) {
   const auto& schema = cow_graph_->schema();
-  wal_.LogAddEdgeProperties(src_label_id, dst_label_id, edge_label_id, config);
+  wal_.LogAddEdgeProperties(schema.get_vertex_label_name(src_label_id),
+                            schema.get_vertex_label_name(dst_label_id),
+                            schema.get_edge_label_name(edge_label_id), config);
   auto status = cow_graph_->AddEdgeProperties(src_label_id, dst_label_id,
                                               edge_label_id, config);
   if (!status.ok()) {
@@ -349,7 +352,8 @@ Status StorageTPUpdateInterface::AddEdgePropertiesImpl(
 
 Status StorageTPUpdateInterface::RenameVertexPropertiesImpl(
     label_t v_label, const RenameVertexPropertiesParam& config) {
-  wal_.LogRenameVertexProperties(v_label, config);
+  wal_.LogRenameVertexProperties(
+      cow_graph_->schema().get_vertex_label_name(v_label), config);
   auto status = cow_graph_->RenameVertexProperties(v_label, config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
@@ -364,7 +368,9 @@ Status StorageTPUpdateInterface::RenameEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const RenameEdgePropertiesParam& config) {
   const auto& schema = cow_graph_->schema();
-  wal_.LogRenameEdgeProperties(src_label_id, dst_label_id, edge_label_id,
+  wal_.LogRenameEdgeProperties(schema.get_vertex_label_name(src_label_id),
+                               schema.get_vertex_label_name(dst_label_id),
+                               schema.get_edge_label_name(edge_label_id),
                                config);
   auto status = cow_graph_->RenameEdgeProperties(src_label_id, dst_label_id,
                                                  edge_label_id, config);
@@ -401,7 +407,7 @@ Status StorageTPUpdateInterface::DeleteVertexPropertiesImpl(
     }
   }
 
-  wal_.LogDeleteVertexProperties(v_label, config);
+  wal_.LogDeleteVertexProperties(vertex_type_name, config);
   auto status = cow_graph_->DeleteVertexProperties(v_label, config);
   if (status.ok()) {
     std::sort(del_col_ids.rbegin(), del_col_ids.rend());
@@ -458,8 +464,7 @@ Status StorageTPUpdateInterface::DeleteEdgePropertiesImpl(
     }
   }
 
-  wal_.LogDeleteEdgeProperties(src_label_id, dst_label_id, edge_label_id,
-                               config);
+  wal_.LogDeleteEdgeProperties(src_type, dst_type, edge_type, config);
   auto status = cow_graph_->DeleteEdgeProperties(src_label_id, dst_label_id,
                                                  edge_label_id, config);
   if (status.ok()) {
@@ -881,47 +886,59 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge in redo: ", ret);
     } else if (op_type == OpType::kAddVertexProp) {
       auto redo = AddVertexPropertiesRedo::Deserialize(arc);
+      label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
-      graph.MarkVertexDirty(redo.label);
-      auto ret = graph.AddVertexProperties(redo.label, redo.config);
+      graph.MarkVertexDirty(label);
+      auto ret = graph.AddVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to add vertex properties in redo: ", ret);
     } else if (op_type == OpType::kAddEdgeProp) {
       auto redo = AddEdgePropertiesRedo::Deserialize(arc);
+      const auto& schema = graph.schema();
+      label_t src = schema.get_vertex_label_id(redo.src_type);
+      label_t dst = schema.get_vertex_label_id(redo.dst_type);
+      label_t edge = schema.get_edge_label_id(redo.edge_type);
       graph.MarkSchemaDirty();
-      graph.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
-      auto ret = graph.AddEdgeProperties(redo.src_label, redo.dst_label,
-                                         redo.edge_label, redo.config);
+      graph.MarkEdgeDirty(src, dst, edge);
+      auto ret = graph.AddEdgeProperties(src, dst, edge, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge properties in redo: ",
                                      ret);
     } else if (op_type == OpType::kRenameVertexProp) {
       auto redo = RenameVertexPropertiesRedo::Deserialize(arc);
+      label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
-      graph.MarkVertexDirty(redo.label);
-      auto ret = graph.RenameVertexProperties(redo.label, redo.config);
+      graph.MarkVertexDirty(label);
+      auto ret = graph.RenameVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to rename vertex properties in redo: ", ret);
     } else if (op_type == OpType::kRenameEdgeProp) {
       auto redo = RenameEdgePropertiesRedo::Deserialize(arc);
+      const auto& schema = graph.schema();
+      label_t src = schema.get_vertex_label_id(redo.src_type);
+      label_t dst = schema.get_vertex_label_id(redo.dst_type);
+      label_t edge = schema.get_edge_label_id(redo.edge_type);
       graph.MarkSchemaDirty();
-      graph.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
-      auto ret = graph.RenameEdgeProperties(redo.src_label, redo.dst_label,
-                                            redo.edge_label, redo.config);
+      graph.MarkEdgeDirty(src, dst, edge);
+      auto ret = graph.RenameEdgeProperties(src, dst, edge, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to rename edge properties in redo: ", ret);
     } else if (op_type == OpType::kDeleteVertexProp) {
       auto redo = DeleteVertexPropertiesRedo::Deserialize(arc);
+      label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
-      graph.MarkVertexDirty(redo.label);
-      auto ret = graph.DeleteVertexProperties(redo.label, redo.config);
+      graph.MarkVertexDirty(label);
+      auto ret = graph.DeleteVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex properties in redo: ", ret);
     } else if (op_type == OpType::kDeleteEdgeProp) {
       auto redo = DeleteEdgePropertiesRedo::Deserialize(arc);
+      const auto& schema = graph.schema();
+      label_t src = schema.get_vertex_label_id(redo.src_type);
+      label_t dst = schema.get_vertex_label_id(redo.dst_type);
+      label_t edge = schema.get_edge_label_id(redo.edge_type);
       graph.MarkSchemaDirty();
-      graph.MarkEdgeDirty(redo.src_label, redo.dst_label, redo.edge_label);
-      auto ret = graph.DeleteEdgeProperties(redo.src_label, redo.dst_label,
-                                            redo.edge_label, redo.config);
+      graph.MarkEdgeDirty(src, dst, edge);
+      auto ret = graph.DeleteEdgeProperties(src, dst, edge, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete edge properties in redo: ", ret);
     } else if (op_type == OpType::kDeleteVertexType) {

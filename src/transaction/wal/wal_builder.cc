@@ -51,45 +51,50 @@ void WalBuilder::LogCreateEdgeType(const CreateEdgeTypeParam& config) {
 }
 
 void WalBuilder::LogAddVertexProperties(
-    label_t label, const AddVertexPropertiesParam& config) {
-  AddVertexPropertiesRedo::Serialize(arc_, label, config);
+    const std::string& vertex_type, const AddVertexPropertiesParam& config) {
+  AddVertexPropertiesRedo::Serialize(arc_, vertex_type, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
-void WalBuilder::LogAddEdgeProperties(label_t src, label_t dst, label_t edge,
+void WalBuilder::LogAddEdgeProperties(const std::string& src_type,
+                                      const std::string& dst_type,
+                                      const std::string& edge_type,
                                       const AddEdgePropertiesParam& config) {
-  AddEdgePropertiesRedo::Serialize(arc_, src, dst, edge, config);
+  AddEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
+                                   config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogRenameVertexProperties(
-    label_t label, const RenameVertexPropertiesParam& config) {
-  RenameVertexPropertiesRedo::Serialize(arc_, label, config);
+    const std::string& vertex_type, const RenameVertexPropertiesParam& config) {
+  RenameVertexPropertiesRedo::Serialize(arc_, vertex_type, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogRenameEdgeProperties(
-    label_t src, label_t dst, label_t edge,
-    const RenameEdgePropertiesParam& config) {
-  RenameEdgePropertiesRedo::Serialize(arc_, src, dst, edge, config);
+    const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type, const RenameEdgePropertiesParam& config) {
+  RenameEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
+                                      config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogDeleteVertexProperties(
-    label_t label, const DeleteVertexPropertiesParam& config) {
-  DeleteVertexPropertiesRedo::Serialize(arc_, label, config);
+    const std::string& vertex_type, const DeleteVertexPropertiesParam& config) {
+  DeleteVertexPropertiesRedo::Serialize(arc_, vertex_type, config);
   ++op_num_;
   schema_changed_ = true;
 }
 
 void WalBuilder::LogDeleteEdgeProperties(
-    label_t src, label_t dst, label_t edge,
-    const DeleteEdgePropertiesParam& config) {
-  DeleteEdgePropertiesRedo::Serialize(arc_, src, dst, edge, config);
+    const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type, const DeleteEdgePropertiesParam& config) {
+  DeleteEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
+                                      config);
   ++op_num_;
   schema_changed_ = true;
 }
