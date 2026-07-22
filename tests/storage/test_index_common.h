@@ -66,6 +66,19 @@ class ExampleIndex : public StorageIndex {
   bool IsBound() const { return bound_column_ != nullptr; }
   const ColumnBase* BoundColumn() const { return bound_column_; }
 
+  Status BulkBuild(const VertexSet& vertices) override {
+    if (!bound_column_) {
+      return Status::InternalError("ExampleIndex is not bound");
+    }
+    if (!index_buffer_ || !index_id_accessor_) {
+      return Status::InternalError("ExampleIndex is not open");
+    }
+    for (vid_t vid : vertices) {
+      RETURN_IF_NOT_OK(Upsert(vid, bound_column_->get_any(vid)));
+    }
+    return Status::OK();
+  }
+
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override {
     StorageIndex::Open(ckp, descriptor, level);

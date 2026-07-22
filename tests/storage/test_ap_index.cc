@@ -293,6 +293,21 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
 }
 
+TEST_F(APIndexTest, BulkBuildIndexesExistingVertices) {
+  CreatePersonTable();
+  for (const auto& person : kPersons) {
+    AddPerson(person.id, person.name, person.age);
+  }
+
+  auto created = CreateIndex("idx_person_age", "Person", "age");
+  ASSERT_TRUE(created) << created.error().ToString();
+
+  EXPECT_EQ(SearchPersonNames(30),
+            (std::vector<std::string>{"Alice", "Charlie"}));
+  EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{"Bob", "Eve"}));
+  EXPECT_EQ(SearchPersonNames(40), (std::vector<std::string>{"Diana"}));
+}
+
 TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {
   CreatePersonTable();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));

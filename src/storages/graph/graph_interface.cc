@@ -489,6 +489,11 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     index_manager_.DropIndex(name);
     RETURN_ERROR(status);
   }
+  status = index.value()->BulkBuild(graph_.GetVertexSet(label_id));
+  if (!status.ok()) {
+    index_manager_.DropIndex(name);
+    RETURN_ERROR(status);
+  }
   return index;
 }
 

@@ -34,6 +34,7 @@
 namespace neug {
 
 class ColumnBase;
+class VertexSet;
 
 // --- Index metadata types ---
 
@@ -83,12 +84,24 @@ class StorageIndex : public Module {
  public:
   StorageIndex() = default;
 
+  /**
+   * @brief Initialize a newly created index with its metadata and ID accessor.
+   *
+   * Init configures the in-memory index object. It does not open persistent
+   * storage, bind graph columns, or populate index data.
+   */
   virtual Status Init(std::unique_ptr<IndexMeta> meta,
                       std::unique_ptr<IndexIDAccessor> index_id_accessor);
 
   ~StorageIndex() override = default;
 
   // --- Module interface ---
+  /**
+   * @brief Open the index's persistent resources from a checkpoint.
+   *
+   * Open restores or creates the backing storage. It does not bind the index
+   * to a graph column or build index entries from existing vertices.
+   */
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
@@ -99,6 +112,18 @@ class StorageIndex : public Module {
   virtual Status Rebind(const IndexBindContext&) { return Status::OK(); }
 
   // --- Data operations ---
+
+  /**
+   * @brief Populate a newly created index from all visible vertices.
+   *
+   * BulkBuild performs the initial data build, unlike Init (object
+   * configuration), Open (persistent resource setup), and Upsert/Delete
+   * (incremental maintenance).
+   *
+   * Contract: Init -> Open -> Rebind -> BulkBuild.
+   * Implementations must not retain a reference to vertices.
+   */
+  virtual Status BulkBuild(const VertexSet& vertices) = 0;
 
   /**
    * @brief Search the index and translate internal index ids to vertex ids.
