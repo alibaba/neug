@@ -15,6 +15,7 @@
 
 #include "neug/storages/checkpoint_manifest.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 
@@ -53,6 +54,16 @@ bool CheckpointManifest::has_module(const std::string& key) const {
   return modules_.count(key) > 0;
 }
 
+void CheckpointManifest::LinkModuleFrom(const CheckpointManifest& prev,
+                                        const std::string& key,
+                                        Checkpoint& ckp) {
+  auto desc = prev.module(key);
+  if (!desc.has_value()) {
+    return;
+  }
+  set_module(key, ModuleDescriptor::Link(*desc, ckp));
+}
+
 const std::unordered_map<std::string, ModuleDescriptor>&
 CheckpointManifest::modules() const {
   return modules_;
@@ -74,6 +85,13 @@ std::optional<std::string> CheckpointManifest::GetScalar(
 
 void CheckpointManifest::SetScalar(std::string key, std::string value) {
   scalars_[std::move(key)] = std::move(value);
+}
+
+void CheckpointManifest::CopyScalarFrom(const CheckpointManifest& prev,
+                                        const std::string& key) {
+  if (auto value = prev.GetScalar(key)) {
+    SetScalar(key, *value);
+  }
 }
 
 const std::unordered_map<std::string, std::string>&

@@ -392,26 +392,14 @@ void VertexTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
   if (!prev.has_module(KeyKeys(lbl))) {
     return;
   }
-  // Link exact keys only — prefix matching is ambiguous when labels contain
+  // Exact keys only — prefix matching is ambiguous when labels contain
   // underscores (e.g. "a" vs "a_b").
-  auto link_module = [&](const std::string& key) {
-    auto desc = prev.module(key);
-    if (!desc.has_value()) {
-      return;
-    }
-    for (auto& [_, path] : desc->mutable_paths()) {
-      if (!path.empty()) {
-        path = ckp.LinkToSnapshot(path);
-      }
-    }
-    meta.set_module(key, std::move(*desc));
-  };
-  link_module(KeyKeys(lbl));
-  link_module(KeyIndices(lbl));
-  link_module(KeyIndexer(lbl));
-  link_module(KeyVertexTimestamp(lbl));
+  meta.LinkModuleFrom(prev, KeyKeys(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyIndices(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyIndexer(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyVertexTimestamp(lbl), ckp);
   for (size_t i = 0; i < vertex_schema_->property_types.size(); ++i) {
-    link_module(KeyProperty(lbl, i));
+    meta.LinkModuleFrom(prev, KeyProperty(lbl, i), ckp);
   }
 }
 
