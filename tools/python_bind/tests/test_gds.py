@@ -26,8 +26,10 @@ import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from conftest import ensure_result_cnt_gt_zero
+from conftest import wait_for_server_ready
 
 from neug.database import Database
+from neug.session import Session
 
 
 def _shown_projected_graph_names(conn):
@@ -130,6 +132,60 @@ def test_run_cdlp(tmp_path):
         for row in rows:
             assert len(row) == 2, "each row should have (id, label)"
             assert isinstance(row[1], int), "label should be an integer"
+
+
+def test_loaded_gds_extension_available_after_starting_tp_service(
+    tmp_path, unused_tcp_port
+):
+    """LOAD gds in AP mode, then query a GDS procedure through TP service."""
+    db_dir = tmp_path / "gds_tp_service_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    served = False
+    session = None
+    try:
+        conn.execute(
+            "CALL project_graph("
+            "'person_knows', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        conn.execute("LOAD gds;")
+        conn.close()
+
+        endpoint = db.serve(
+            port=unused_tcp_port,
+            host="localhost",
+            blocking=False,
+            auto_compaction=False,
+        )
+        served = True
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        rows = list(
+            session.execute(
+                """
+                CALL cdlp('person_knows', {concurrency: 1})
+                YIELD node, label
+                RETURN node.id, label;
+                """
+            )
+        )
+
+        assert len(rows) > 0, "TP cdlp must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (id, label)"
+            assert isinstance(row[1], int), "label should be an integer"
+    finally:
+        if session is not None:
+            session.close()
+        if conn.is_open:
+            conn.close()
+        if served:
+            db.stop_serving()
+        db.close()
 
 
 @contextmanager

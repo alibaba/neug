@@ -6,7 +6,7 @@
   </picture><br>
   <b>A Graph Database for HTAP Workloads</b><br><br>
   <a href="https://github.com/alibaba/neug/actions/workflows/Linux.yml"><img src="https://github.com/alibaba/neug/actions/workflows/Linux.yml/badge.svg" alt="NeuG Test (Linux)"></a>
-  <a href="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/build-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
+  <a href="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/docs.yml"><img src="https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg" alt="NeuG Documentation"></a>
   <a href="https://codecov.io/gh/alibaba/neug"><img src="https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://discord.gg/2S8344ew"><img src="https://img.shields.io/badge/Discord-NeuG-7289da?logo=discord&logoColor=white" alt="Discord"></a>
@@ -24,6 +24,7 @@ For more information, please refer to the [NeuG documentation](https://graphscop
 
 ## News
 
+- **2026-07** — NeuG is listed in [Database of Databases](https://dbdb.io/db/neug)
 - **2026-06** — NeuG v0.1.3: [GDS extensions](https://graphscope.io/neug/en/extensions/load_gds/), [`COPY TEMP`](https://graphscope.io/neug/en/data_io/import_data/), [Node.js client](https://graphscope.io/neug/en/reference/nodejs_api/)
 - **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://graphscope.io/neug/en/data_io/load_data/), [Parquet](https://graphscope.io/neug/en/extensions/load_parquet/) & [HTTPFS](https://graphscope.io/neug/en/extensions/load_httpfs/) extensions
 - **2026-03** — NeuG v0.1 released

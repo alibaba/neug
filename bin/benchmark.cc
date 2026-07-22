@@ -256,7 +256,6 @@ int main(int argc, char** argv) {
   neug::NeugDBConfig config(data_path, max_thread_num);
   config.memory_level = memory_level;
 
-  config.enable_auto_compaction = false;
   db.Open(config);
   auto compiler = db.GetPlanner();
   auto svc = std::make_shared<neug::NeugDBService>(db);

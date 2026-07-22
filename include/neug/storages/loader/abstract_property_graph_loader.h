@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include <optional>
+
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -31,12 +33,12 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
         loading_config_(loading_config),
         thread_num_(loading_config_.GetParallelism()) {
     checkpoint_mgr_.Open(work_dir);
-    if (checkpoint_mgr_.NumCheckpoints() > 0) {
+    if (checkpoint_mgr_.HasCurrentCheckpoint()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("CheckpointManager is not empty: " +
                                        work_dir);
     }
-    auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
-    auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
+    staging_checkpoint_.emplace(checkpoint_mgr_.CreateStagingCheckpoint());
+    auto ckp = staging_checkpoint_->checkpoint();
     ckp->MutableMeta().SetSchema(schema_);
     graph_.Open(ckp, MemoryLevel::kSyncToFile);
   }
@@ -77,6 +79,7 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
   int thread_num_ = 1;
 
   PropertyGraph graph_;
+  std::optional<CheckpointManager::StagingCheckpoint> staging_checkpoint_;
 };
 
 }  // namespace neug

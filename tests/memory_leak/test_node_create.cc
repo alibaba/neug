@@ -85,7 +85,6 @@ NeugDBConfig MakeConfig(const std::string& dir) {
   NeugDBConfig config;
   config.data_dir = dir;
   config.mode = DBMode::READ_WRITE;
-  config.enable_auto_compaction = false;
   config.checkpoint_on_close = true;
   return config;
 }

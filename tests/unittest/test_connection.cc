@@ -16,6 +16,10 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
+#include "neug/compiler/extension/extension_api.h"
+#include "neug/compiler/function/neug_call_function.h"
+#include "neug/compiler/main/metadata_registry.h"
+#include "neug/compiler/transaction/transaction.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "unittest/utils.h"
@@ -23,6 +27,34 @@
 namespace neug {
 
 namespace test {
+namespace {
+
+class PrepareForServingTestFunction : public function::NeugCallFunction {
+ public:
+  PrepareForServingTestFunction()
+      : NeugCallFunction(
+            "PREPARE_FOR_SERVING_TEST_EXTENSION", function::call_input_types{},
+            {{"name", ::neug::DataType(::neug::DataTypeId::kVarchar)}}) {}
+};
+
+struct PrepareForServingTestFunctionSet {
+  static constexpr const char* name = "PREPARE_FOR_SERVING_TEST_EXTENSION";
+  static function::function_set getFunctionSet() {
+    function::function_set function_set;
+    function_set.emplace_back(
+        std::make_unique<PrepareForServingTestFunction>());
+    return function_set;
+  }
+};
+
+bool HasPrepareForServingTestFunction() {
+  return main::MetadataRegistry::getCatalog()->containsFunction(
+      &transaction::DUMMY_TRANSACTION, PrepareForServingTestFunctionSet::name,
+      false);
+}
+
+}  // namespace
+
 class ConnectionTest : public ::testing::Test {
  protected:
   static constexpr const char* DB_DIR = "/tmp/connection_test";
@@ -36,7 +68,6 @@ class ConnectionTest : public ::testing::Test {
     neug::NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.enable_auto_compaction = false;  // TODO(zhanglei): very slow
     db_->Open(config);
     auto conn = db_->Connect();
 
@@ -158,6 +189,55 @@ TEST_F(ConnectionTest, TestReadOnlyConnections) {
   auto res3 =
       connections[0]->Query("MATCH(n) where n.id = 1 SET n.name = 'Alice';");
   EXPECT_FALSE(res3);
+}
+
+// Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.
+TEST_F(ConnectionTest, TestExplicitReadAccessModeForCall) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_NE(conn, nullptr);
+
+  auto show_res = conn->Query("CALL SHOW_LOADED_EXTENSIONS();", "read");
+  ASSERT_TRUE(show_res) << show_res.error().ToString();
+
+  auto project_res = conn->Query(
+      "CALL project_graph('g', ['person'], {'[person, knows, person]': ''});",
+      "read");
+  ASSERT_FALSE(project_res);
+  EXPECT_NE(project_res.error().ToString().find(
+                "Write queries are not supported in read-only mode"),
+            std::string::npos)
+      << project_res.error().ToString();
+}
+
+TEST(ConnectionStandaloneTest, PrepareForServingPreservesLoadedExtensions) {
+  constexpr const char* db_dir = "/tmp/prepare_for_serving_test";
+  std::filesystem::remove_all(db_dir);
+
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = db_dir;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+  db.Open(config);
+
+  auto planner = db.GetPlanner();
+
+  extension::ExtensionAPI::registerFunction<PrepareForServingTestFunctionSet>(
+      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+  ASSERT_TRUE(HasPrepareForServingTestFunction());
+
+  db.PrepareForServing();
+  EXPECT_EQ(planner, db.GetPlanner());
+  EXPECT_TRUE(HasPrepareForServingTestFunction());
+
+  db.Close();
+  std::filesystem::remove_all(db_dir);
 }
 
 // Test Parallel Execution

@@ -63,6 +63,9 @@ make wheel        # produces dist/neug-*.whl
 fallback if absent). The wheel bundles both `neug_py_bind*.so` and
 `libneug.{dylib,so}` into the `neug` package; they find each other at runtime
 via `@loader_path` (macOS) / `$ORIGIN` (Linux) RPATH.
+Wheel builds always force `NEUG_PACKAGE_BUILD=ON` and `NEUG_NATIVE_ARCH=OFF`.
+For local source builds via `setup.py build_ext`, override with
+`NEUG_PACKAGE_BUILD=OFF NEUG_NATIVE_ARCH=ON make build`.
 
 ## Python service API
 
@@ -77,6 +80,7 @@ endpoint = db.serve(
     port=10000,
     blocking=False,
     thread_num=0,
+    auto_compaction=True,
 )
 ```
 
@@ -86,6 +90,9 @@ value. With the default database thread setting, `max_thread_num` is resolved
 from hardware concurrency and falls back to `1` if the runtime cannot detect it.
 This is separate from client-side `Session(..., num_threads=...)`, which
 configures the client's HTTP connection pool.
+
+`auto_compaction` controls whether a background auto-compaction thread
+runs while serving (default `True`).
 
 ### Multi-version wheels via cibuildwheel
 

@@ -84,8 +84,8 @@ class TypedColumn : public ColumnBase {
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
     assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
-    buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
-        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level));
+    buffer_ = ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -264,10 +264,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
-    items_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
-        desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level));
-    data_buffer_ = std::shared_ptr<IDataContainer>(ckp.OpenFile(
-        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level));
+    items_buffer_ = ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level);
+    data_buffer_ = ckp.OpenFile(
+        desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     pos_.store(std::stoull(desc.get("pos").value_or("0")));
     assert(pos_.load() <= data_buffer_->GetDataSize());
@@ -313,8 +313,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
       meta.set_module(key, std::move(desc));
       return;
     }
-    auto data_uuid = ckp.CreateRuntimeObject();
-    auto data_file = ckp.runtime_dir() + "/" + data_uuid;
+    auto data_runtime_file = ckp.CreateRuntimeFile();
+    const auto& data_file = data_runtime_file.path();
     std::ofstream data_out(data_file, std::ios::binary);
     if (!data_out) {
       THROW_IO_EXCEPTION("Failed to open file for dumping: " + data_file);
@@ -322,8 +322,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     FileHeader header{};
     data_out.write(reinterpret_cast<const char*>(&header.data_md5),
                    sizeof(header.data_md5));
-    auto item_uuid = ckp.CreateRuntimeObject();
-    auto item_file = ckp.runtime_dir() + "/" + item_uuid;
+    auto item_runtime_file = ckp.CreateRuntimeFile();
+    const auto& item_file = item_runtime_file.path();
     std::ofstream item_out(item_file, std::ios::binary);
     if (!item_out) {
       THROW_IO_EXCEPTION("Failed to open file for dumping: " + item_file);
@@ -343,8 +343,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     for (size_t i = 0; i < size_; ++i) {
       const auto& item = raw_items[i];
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
-        // If the current item is the same as the previous one, we can reuse the
-        // offset and length without writing duplicate data.
+        // If the current item is the same as the previous one, we can reuse
+        // the offset and length without writing duplicate data.
         MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
         item_out.write(reinterpret_cast<const char*>(&cur_item),
                        sizeof(cur_item));
@@ -392,9 +392,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
     desc.set("pos", std::to_string(offset));
     desc.set_path(ModuleDescriptor::kItemsPath,
-                  ckp.CommitRuntimeObject(item_uuid));
+                  ckp.CommitRuntimeFile(std::move(item_runtime_file)));
     desc.set_path(ModuleDescriptor::kDataPath,
-                  ckp.CommitRuntimeObject(data_uuid));
+                  ckp.CommitRuntimeFile(std::move(data_runtime_file)));
     meta.set_module(key, std::move(desc));
   }
 
@@ -466,8 +466,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     if (pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
       // NOTE: Even if idx has been set before, we always append the new value
-      // to the end of buffer_. The previous value is not reclaimed, and should
-      // be handled by garbage collection or compaction.
+      // to the end of buffer_. The previous value is not reclaimed, and
+      // should be handled by garbage collection or compaction.
       size_t offset = pos_.fetch_add(copied_val.size());
       set_string_item(idx, {offset, static_cast<uint32_t>(copied_val.size())});
       assert(offset + copied_val.size() <= data_buffer_->GetDataSize());

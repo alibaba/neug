@@ -125,6 +125,8 @@ test('test_local_connection_after_close', () => {
 
 test('test_parallel_connections', () => {
   const dbDir = makeTmpDir('parallel_conn_db');
+  const db_rw = new Database({ databasePath: dbDir, mode: 'rw' });
+  db_rw.close();
   const db = new Database({ databasePath: dbDir, mode: 'r' });
   const connections = [];
   for (let i = 0; i < 5; i++) {
@@ -179,8 +181,22 @@ test('test_access_mode', () => {
   const db = new Database({ databasePath: dbDir, mode: 'w' });
   const connRw = db.connect();
 
-  const supportedAccessModes = ['read', 'r', 'insert', 'i', 'update', 'u'];
-  for (const mode of supportedAccessModes) {
+  // Explicit read rejects writes; a read query is allowed.
+  for (const mode of ['read', 'r']) {
+    connRw.execute('MATCH (n) RETURN count(n);', mode);
+    assert.throws(
+      () => {
+        connRw.execute(
+          `CREATE NODE TABLE test_table_${mode}(id INT64, PRIMARY KEY(id));`,
+          mode
+        );
+      },
+      (err) =>
+        err.message.includes('Write queries are not supported in read-only mode')
+    );
+  }
+
+  for (const mode of ['insert', 'i', 'update', 'u']) {
     connRw.execute(
       `CREATE NODE TABLE test_table_${mode}(id INT64, PRIMARY KEY(id));`,
       mode

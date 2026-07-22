@@ -32,6 +32,7 @@ from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_DISK_SPACE_EXHAUSTED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_PATH
+from neug.proto.error_pb2 import ERR_NO_CHECKPOINT
 from neug.proto.error_pb2 import ERR_PERMISSION
 from neug.proto.error_pb2 import ERR_VERSION_MISMATCHED
 
@@ -61,10 +62,10 @@ def test_local_db_open_exists_and_close(tmp_path):
     db_dir = tmp_path / "existdb"
     if not db_dir.exists():
         db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="r")
-    assert db is not None
-    db.close()
-    db2 = Database(db_path=str(db_dir), mode="rw")
+    db1 = Database(db_path=str(db_dir), mode="rw")
+    assert db1 is not None
+    db1.close()
+    db2 = Database(db_path=str(db_dir), mode="r")
     assert db2 is not None
     db2.close()
 
@@ -86,9 +87,9 @@ def test_local_db_open_not_exists_and_close(tmp_path):
     if db_dir.exists():
         os.system("rm -rf %s" % db_dir)
     assert not db_dir.exists()
-    db = Database(db_path=str(db_dir), mode="r")
-    assert db is not None
-    db.close()
+    with pytest.raises(Exception) as excinfo:
+        Database(db_path=str(db_dir), mode="r")
+        assert str(ERR_NO_CHECKPOINT) in str(excinfo.value)
     if not db_dir.exists():
         db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
@@ -144,6 +145,8 @@ def test_rw_ro_conflict(tmp_path):
 # DB-001-09
 def test_readonly_write_operation(tmp_path):
     db_dir = tmp_path / "readonly_db"
+    db_rw = Database(db_path=str(db_dir), mode="rw")
+    db_rw.close()
     db_ro = Database(db_path=str(db_dir), mode="r")
     with pytest.raises(Exception) as excinfo:
         conn = db_ro.connect()
@@ -167,6 +170,9 @@ def test_invalid_path():
 def test_config_param(tmp_path):
     db_dir = tmp_path / "config_db"
     # mode: 'r', 'read', 'readwrite', 'w', 'rw', 'write'
+    db0 = Database(db_path=str(db_dir), mode="rw", max_thread_num=0)
+    assert db0 is not None
+    db0.close()
     db1 = Database(db_path=str(db_dir), mode="r", max_thread_num=0)
     assert db1 is not None
     db1.close()

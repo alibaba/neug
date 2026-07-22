@@ -22,15 +22,89 @@
 
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 
+#include "neug/compiler/catalog/catalog.h"
+#include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
+#include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_expression_visitor.h"
+#include "neug/compiler/parser/expression/parsed_function_expression.h"
+#include "neug/compiler/parser/query/reading_clause/in_query_call_clause.h"
 #include "neug/compiler/parser/query/reading_clause/reading_clause.h"
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
+#include "neug/compiler/parser/standalone_call_function.h"
 
 namespace neug {
 namespace parser {
 
+namespace {
+
+bool isCallFunctionReadOnly(main::ClientContext* context,
+                            const ParsedExpression* functionExpression) {
+  if (context == nullptr || functionExpression == nullptr) {
+    return false;
+  }
+  if (functionExpression->getExpressionType() !=
+      common::ExpressionType::FUNCTION) {
+    return false;
+  }
+  auto funcName = functionExpression->constCast<ParsedFunctionExpression>()
+                      .getFunctionName();
+  auto* catalog = context->getCatalog();
+  auto* transaction = context->getTransaction();
+  if (transaction == nullptr ||
+      !catalog->containsFunction(transaction, funcName)) {
+    // Unknown CALL — treat as non-read-only to be safe.
+    return false;
+  }
+  auto* entry = catalog->getFunctionEntry(transaction, funcName);
+  if (entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY &&
+      entry->getType() !=
+          catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY) {
+    // Non-table callables are not classified here; be conservative.
+    return false;
+  }
+  auto& funcSet =
+      entry->constPtrCast<catalog::FunctionCatalogEntry>()->getFunctionSet();
+  if (funcSet.empty()) {
+    return false;
+  }
+  // Only treat as read-only when every overload is read-only.
+  for (const auto& func : funcSet) {
+    if (!func->isReadOnly) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
+void StatementReadWriteAnalyzer::visitStandaloneCallFunction(
+    const Statement& statement) {
+  auto& call = statement.constCast<StandaloneCallFunction>();
+  if (!isCallFunctionReadOnly(context, call.getFunctionExpression())) {
+    readOnly = false;
+  }
+}
+
+void StatementReadWriteAnalyzer::visitInQueryCall(
+    const ReadingClause* readingClause) {
+  auto& call = readingClause->constCast<InQueryCallClause>();
+  if (!isCallFunctionReadOnly(context, call.getFunctionExpression())) {
+    readOnly = false;
+  }
+  if (readingClause->hasWherePredicate() &&
+      !isExprReadOnly(readingClause->getWherePredicate())) {
+    readOnly = false;
+  }
+}
+
 void StatementReadWriteAnalyzer::visitReadingClause(
     const ReadingClause* readingClause) {
+  // Dispatch in-query CALL so we can consult Function::isReadOnly.
+  if (readingClause->getClauseType() == common::ClauseType::IN_QUERY_CALL) {
+    visitInQueryCall(readingClause);
+    return;
+  }
   if (readingClause->hasWherePredicate()) {
     if (!isExprReadOnly(readingClause->getWherePredicate())) {
       readOnly = false;

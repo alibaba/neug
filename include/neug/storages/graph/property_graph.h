@@ -126,20 +126,10 @@ class PropertyGraph {
 
   void Compact(timestamp_t ts);
 
-  /**
-   * @brief Dump the current graph state to persistent storage.
-   * @param reopen If true, reopens the graph after dumping (default: true)
-   */
-  void Dump(std::shared_ptr<Checkpoint> ckp, bool reopen = true);
-
-  /**
-   * @brief Dump using the graph's own internal Checkpoint.
-   * Convenience overload for callers that don't hold a Checkpoint reference.
-   */
-  void Dump(bool reopen = true) {
-    assert(ckp_ && "ckp_ must be set before calling Dump()");
-    Dump(ckp_, reopen);
-  }
+  /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
+  /// Callers that need a usable graph after dumping must explicitly Open() a
+  /// checkpoint and rebuild any GraphView that pointed into this graph.
+  void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
   Checkpoint& checkpoint() {
     assert(ckp_);

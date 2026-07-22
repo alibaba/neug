@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/neug-extension-test.yml'
+      - 'CMakeLists.txt'
+      - 'cmake/neug_extension.cmake'
       - 'extension/**'
       - 'tools/python_bind/tests/test_gds.py'
       - 'tools/python_bind/tests/test_gds_path.py'
@@ -78,6 +80,12 @@ jobs:
       with:
         python-version: '3.13'
 
+    - name: Prepare out-of-tree extension fixture
+      run: |
+        fixture_dir="${RUNNER_TEMP}/neug-ci-out-of-tree-extension"
+        cp -R "${GITHUB_WORKSPACE}/extension/test_out_of_tree" "${fixture_dir}"
+        echo "CMAKE_ARGS=-DNEUG_EXTENSION_CONFIGS=${fixture_dir}/extension_config.cmake" >> "${GITHUB_ENV}"
+
     # TODO: After unifying wheel build (neug-manylinux:v0.1.3-x86_64) and dev images (neug-dev:v0.1.3), 
     # skip the build process and use `pip3 install neug` to test the locally built json extension 
     # with the released wheel package.
@@ -93,7 +101,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;test_out_of_tree"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -103,6 +111,10 @@ jobs:
         make requirements
         make build
         ccache --show-stats
+
+    - name: Verify out-of-tree extension artifact
+      run: |
+        test -f "${GITHUB_WORKSPACE}/build/extension/test_out_of_tree/libtest_out_of_tree.neug_extension"
 
     - name: Run Extension C++ Test
       run: |

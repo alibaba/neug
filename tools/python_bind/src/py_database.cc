@@ -62,6 +62,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
       .def("serve", &PyDatabase::serve, pybind11::arg("port") = 10000,
            pybind11::arg("host") = "localhost", pybind11::arg("thread_num") = 0,
            pybind11::arg("blocking") = false,
+           pybind11::arg("auto_compaction") = true,
            "Start the database server.\n\n"
            "Args:\n"
            "    port (int): The port to listen on, default is 10000.\n"
@@ -70,6 +71,8 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "which means auto-select from database max_thread_num.\n"
            "    blocking (bool): Whether to block the function until the "
            "server shuts down.\n"
+           "    auto_compaction (bool): Enable background "
+           "auto-compaction while serving, default is True.\n"
            "Returns:\n"
            "    uri (str): A string containing the URL of the server.\n")
       .def("stop_serving", &PyDatabase::stop_serving,
@@ -86,8 +89,10 @@ PyConnection PyDatabase::connect() {
 }
 
 std::string PyDatabase::serve(int port, const std::string& host,
-                              int32_t thread_num, bool blocking) {
+                              int32_t thread_num, bool blocking,
+                              bool auto_compaction) {
 #ifdef BUILD_HTTP_SERVER
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -105,24 +110,13 @@ std::string PyDatabase::serve(int port, const std::string& host,
         ". Must be less than or equal to database max_thread_num: " +
         std::to_string(database->config().max_thread_num) + ".");
   }
-  /**
-   * Attention here: We utilize the NeugDBService to start the server, based on
-   * database. But we need to make some changes to the NeugDB to make it works
-   * well for service mode, where concurrent queries will be processed.
-   *
-   * But before all, we need to close the database, dump the data to disk, and
-   * then reload the database with VersionManager and multiple contexts. By
-   * doing this, we make sure all changes made during AP mode is persisted.
-   */
 
-  std::lock_guard<std::recursive_mutex> lock(mtx_);
-
-  database->Close();
-  database->Open(database->config());
+  database->PrepareForServing();
   neug::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
   config.thread_num = static_cast<uint32_t>(thread_num);
+  config.auto_compaction = auto_compaction;
 #ifdef __APPLE__
   if (host == "localhost") {
     config.host_str = "127.0.0.1";
@@ -130,11 +124,17 @@ std::string PyDatabase::serve(int port, const std::string& host,
 #endif
 
   service_ = std::make_unique<neug::NeugDBService>(*database, config);
-  if (blocking) {
-    service_->run_and_wait_for_exit();
-    return "";
+  try {
+    if (blocking) {
+      service_->run_and_wait_for_exit();
+      service_.reset();
+      return "";
+    }
+    return service_->Start();
+  } catch (...) {
+    service_.reset();
+    throw;
   }
-  return service_->Start();
 #else
   THROW_RUNTIME_ERROR("HTTP server is not enabled in this build.");
 #endif

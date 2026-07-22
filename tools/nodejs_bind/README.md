@@ -59,6 +59,10 @@ Create a self-contained, distributable npm package tarball (`.tgz`). This will:
    - `libmimalloc.so.2` — memory allocator
 3. Run `npm pack` to produce `neug-<version>.tgz`
 
+Npm package builds always force `NEUG_PACKAGE_BUILD=ON` and
+`NEUG_NATIVE_ARCH=OFF`.
+For local source builds, use `NEUG_NATIVE_ARCH=ON make dev`.
+
 The resulting tarball can be installed without a C++ build environment:
 
 ```bash

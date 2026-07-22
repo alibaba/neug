@@ -17,8 +17,13 @@
 #include <yaml-cpp/yaml.h>
 #include <cctype>
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
@@ -99,7 +104,7 @@ class NeugDBService {
    * @note The database should be opened and ready before creating the service
    */
   NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
-      : db_(db), db_config_(db_.config()), compact_thread_running_(false) {
+      : db_(db), db_config_(db_.config()) {
     db_.CloseAllConnection();
     init(config);
   }
@@ -225,7 +230,8 @@ class NeugDBService {
 
  private:
   NeugDBService() = delete;
-  void startCompactThreadIfNeeded();
+  void startCompactThread();
+  void stopCompactThread();
 
   /**
    * @brief Initializes the service with configuration settings
@@ -250,7 +256,9 @@ class NeugDBService {
   std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;
-  bool compact_thread_running_ = false;
+  std::atomic<bool> compact_thread_running_{false};
+  std::mutex compact_mtx_;
+  std::condition_variable compact_cv_;
 
   std::atomic<bool> running_{false};
   std::mutex mtx_;

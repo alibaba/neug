@@ -277,6 +277,8 @@ def test_connection_pool_exhausted(started_server):
 def test_parallel_connections(tmp_path):
     db_dir = tmp_path / "parallel_conn_db"
     shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="rw")
+    db.close()
     db = Database(db_path=str(db_dir), mode="r")
     connections = []
     for _ in range(5):
@@ -320,8 +322,16 @@ def test_access_mode(tmp_path):
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     conn_rw = db.connect()
-    supported_access_modes = ["read", "r", "insert", "i", "update", "u"]
-    for mode in supported_access_modes:
+    # Explicit read rejects writes; a read query is allowed.
+    for mode in ["read", "r"]:
+        conn_rw.execute("MATCH (n) RETURN count(n);", access_mode=mode)
+        with pytest.raises(Exception) as excinfo:
+            conn_rw.execute(
+                f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
+                access_mode=mode,
+            )
+        assert "Write queries are not supported in read-only mode" in str(excinfo.value)
+    for mode in ["insert", "i", "update", "u"]:
         conn_rw.execute(
             f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
             access_mode=mode,

@@ -130,6 +130,10 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
 
 void create_file(const std::string& path, size_t size);
 
+/// fsync a directory entry container after durable renames/links/copies.
+/// Returns false if the platform/filesystem rejects directory fsync.
+bool fsync_directory(const std::string& dir_path);
+
 }  // namespace file_utils
 
 void ensure_directory_exists(const std::string& dir_path);

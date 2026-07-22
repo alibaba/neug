@@ -1183,7 +1183,11 @@ void StorageTPUpdateInterface::CreateCheckpoint() {
         "Checkpoint should be created in a update "
         "transaction without any updates");
   }
-  cow_graph_->Dump();
+  auto ckp = cow_graph_->checkpoint_ptr();
+  auto memory_level = cow_graph_->memory_level();
+  cow_graph_->DumpAndClear(ckp);
+  cow_graph_->Open(ckp, memory_level);
+  mut_view_.Rebuild(*cow_graph_);
   wal_.LogCheckpoint();
 }
 
