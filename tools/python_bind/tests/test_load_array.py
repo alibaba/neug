@@ -24,12 +24,24 @@ import shutil
 import sys
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug import Database
+
+EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+extension_test = pytest.mark.skipif(
+    not EXTENSION_TESTS_ENABLED,
+    reason="Extension tests disabled by default; set NEUG_RUN_EXTENSION_TESTS=1 to enable.",
+)
 
 
 class TestLoadArray:
@@ -107,6 +119,7 @@ class TestLoadArray:
             [2, "Bob", ["London", "Paris", "Berlin"]],
         ]
 
+    @extension_test
     def test_parquet_float_array(self):
         """LOAD FROM Parquet with a FLOAT[3] fixed-size array."""
         pa = pytest.importorskip("pyarrow")
@@ -133,6 +146,7 @@ class TestLoadArray:
             [2, [4.0, 5.0, 6.0]],
         ]
 
+    @extension_test
     def test_parquet_nested_string_array(self):
         """LOAD FROM Parquet with a nested STRING[2][2] array."""
         pa = pytest.importorskip("pyarrow")
@@ -158,6 +172,109 @@ class TestLoadArray:
         assert result == [
             [1, [["a", "b"], ["c", "d"]]],
             [2, [["w", "x"], ["y", "z"]]],
+        ]
+
+    @extension_test
+    def test_parquet_null_array(self):
+        """LOAD FROM Parquet preserves a null fixed-size array."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "null_array.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "values": pa.array(
+                    [[1.0, 2.0, 3.0], None, [7.0, 8.0, 9.0]],
+                    type=pa.list_(pa.float32(), 3),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" '
+                "RETURN id, CAST(values, 'FLOAT[3]') ORDER BY id"
+            )
+        )
+
+        assert result == [
+            [1, [1.0, 2.0, 3.0]],
+            [2, None],
+            [3, [7.0, 8.0, 9.0]],
+        ]
+
+    @extension_test
+    def test_parquet_array_types(self):
+        """Cover the scalar and nested ARRAY types exercised by CSV."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "array_types.parquet",
+            {
+                "id": pa.array([1], type=pa.int64()),
+                "floats": pa.array([[1.5, 2.5, 3.5]], pa.list_(pa.float32(), 3)),
+                "doubles": pa.array([[1.1, 2.2]], pa.list_(pa.float64(), 2)),
+                "int32s": pa.array([[10, 20, 30]], pa.list_(pa.int32(), 3)),
+                "int64s": pa.array(
+                    [[100000000000, 200000000000]], pa.list_(pa.int64(), 2)
+                ),
+                "strings": pa.array(
+                    [["hello", "world", "test"]], pa.list_(pa.string(), 3)
+                ),
+                "int_matrix": pa.array(
+                    [[[1, 2], [3, 4]]],
+                    pa.list_(pa.list_(pa.int32(), 2), 2),
+                ),
+                "string_matrix": pa.array(
+                    [[["a", "b"], ["c", "d"]]],
+                    pa.list_(pa.list_(pa.string(), 2), 2),
+                ),
+                "dates": pa.array(
+                    [[date(1970, 1, 1), date(2023, 6, 15)]],
+                    pa.list_(pa.date64(), 2),
+                ),
+                "times": pa.array(
+                    [[datetime(1970, 1, 1), datetime(2023, 6, 15, 12, 30)]],
+                    pa.list_(pa.timestamp("ms"), 2),
+                ),
+                "durations": pa.array(
+                    [[timedelta(days=2), timedelta(hours=3)]],
+                    pa.list_(pa.duration("ms"), 2),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f"""
+                LOAD FROM "{parquet_path}"
+                RETURN id,
+                       CAST(floats, 'FLOAT[3]'),
+                       CAST(doubles, 'DOUBLE[2]'),
+                       CAST(int32s, 'INT32[3]'),
+                       CAST(int64s, 'INT64[2]'),
+                       CAST(strings, 'STRING[3]'),
+                       CAST(int_matrix, 'INT32[2][2]'),
+                       CAST(string_matrix, 'STRING[2][2]'),
+                       CAST(dates, 'DATE[2]'),
+                       CAST(times, 'TIMESTAMP[2]'),
+                       CAST(durations, 'INTERVAL[2]')
+                """
+            )
+        )
+
+        assert result == [
+            [
+                1,
+                [1.5, 2.5, 3.5],
+                [1.1, 2.2],
+                [10, 20, 30],
+                [100000000000, 200000000000],
+                ["hello", "world", "test"],
+                [[1, 2], [3, 4]],
+                [["a", "b"], ["c", "d"]],
+                [date(1970, 1, 1), date(2023, 6, 15)],
+                [datetime(1970, 1, 1), datetime(2023, 6, 15, 12, 30)],
+                ["2 days", "3 hours"],
+            ]
         ]
 
     def test_cast_float_array(self):
@@ -366,13 +483,29 @@ class TestLoadArray:
         json_path = self._write_json(
             "numeric_arrays.json",
             [
-                {"id": 1, "floats": [1.5, 2.5, 3.5], "ints": [10, 20]},
-                {"id": 2, "floats": [4.0, 5.0, 6.0], "ints": [-1, 0]},
+                {
+                    "id": 1,
+                    "floats": [1.5, 2.5, 3.5],
+                    "doubles": [1.111111111, 2.222222222],
+                    "int32s": [10, 20],
+                    "int64s": [100000000000, 200000000000],
+                },
+                {
+                    "id": 2,
+                    "floats": [4.0, 5.0, 6.0],
+                    "doubles": [3.333333333, 4.444444444],
+                    "int32s": [-1, 0],
+                    "int64s": [0, 1],
+                },
             ],
         )
         query = f"""
         LOAD FROM "{json_path}"
-        RETURN id, CAST(floats, 'FLOAT[3]'), CAST(ints, 'INT32[2]')
+        RETURN id,
+               CAST(floats, 'FLOAT[3]'),
+               CAST(doubles, 'DOUBLE[2]'),
+               CAST(int32s, 'INT32[2]'),
+               CAST(int64s, 'INT64[2]')
         """
         result = list(self.conn.execute(query))
         assert len(result) == 2
@@ -381,31 +514,50 @@ class TestLoadArray:
         assert abs(result[0][1][0] - 1.5) < 1e-5
         assert abs(result[0][1][1] - 2.5) < 1e-5
         assert abs(result[0][1][2] - 3.5) < 1e-5
-        assert result[0][2] == [10, 20]
+        assert result[0][2] == [1.111111111, 2.222222222]
+        assert result[0][3] == [10, 20]
+        assert result[0][4] == [100000000000, 200000000000]
 
         assert len(result[1][1]) == 3
         assert abs(result[1][1][0] - 4.0) < 1e-5
-        assert result[1][2] == [-1, 0]
+        assert result[1][2] == [3.333333333, 4.444444444]
+        assert result[1][3] == [-1, 0]
+        assert result[1][4] == [0, 1]
 
     def test_cast_json_string_and_nested_arrays(self):
         """LOAD FROM JSON with string and nested fixed-size array casts."""
         json_path = self._write_json(
             "nested_arrays.json",
             [
-                {"id": 1, "tags": ["hello", "world"], "matrix": [[1, 2], [3, 4]]},
-                {"id": 2, "tags": ["foo", "bar"], "matrix": [[5, 6], [7, 8]]},
+                {
+                    "id": 1,
+                    "tags": ["hello", "world"],
+                    "matrix": [[1, 2], [3, 4]],
+                    "labels": [["a", "b"], ["c", "d"]],
+                },
+                {
+                    "id": 2,
+                    "tags": ["foo", "bar"],
+                    "matrix": [[5, 6], [7, 8]],
+                    "labels": [["w", "x"], ["y", "z"]],
+                },
             ],
         )
         query = f"""
         LOAD FROM "{json_path}"
-        RETURN id, CAST(tags, 'STRING[2]'), CAST(matrix, 'INT32[2][2]')
+        RETURN id,
+               CAST(tags, 'STRING[2]'),
+               CAST(matrix, 'INT32[2][2]'),
+               CAST(labels, 'STRING[2][2]')
         """
         result = list(self.conn.execute(query))
         assert len(result) == 2
         assert result[0][1] == ["hello", "world"]
         assert result[0][2] == [[1, 2], [3, 4]]
+        assert result[0][3] == [["a", "b"], ["c", "d"]]
         assert result[1][1] == ["foo", "bar"]
         assert result[1][2] == [[5, 6], [7, 8]]
+        assert result[1][3] == [["w", "x"], ["y", "z"]]
 
     def test_cast_json_temporal_arrays(self):
         """LOAD FROM JSON with temporal fixed-size array casts."""

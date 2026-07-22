@@ -128,6 +128,7 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet or httpfs"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load_array.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "parquet or httpfs"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "parquet"

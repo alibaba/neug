@@ -26,6 +26,7 @@
 
 namespace neug {
 
+// Keep this mapping in sync with arrow_value_at when adding Arrow types.
 static DataType arrow_type_to_neug_type(const arrow::DataType& type) {
   switch (type.id()) {
   case arrow::Type::BOOL:
@@ -50,6 +51,8 @@ static DataType arrow_type_to_neug_type(const arrow::DataType& type) {
     return DataType::DATE;
   case arrow::Type::TIMESTAMP:
     return DataType::TIMESTAMP_MS;
+  case arrow::Type::DURATION:
+    return DataType::INTERVAL;
   case arrow::Type::FIXED_SIZE_LIST: {
     const auto& array_type = static_cast<const arrow::FixedSizeListType&>(type);
     return DataType::Array(arrow_type_to_neug_type(*array_type.value_type()),
@@ -104,12 +107,41 @@ static Value arrow_value_at(const arrow::Array& array, int64_t index,
         static_cast<const arrow::Date32Array&>(array).Value(index));
     return Value::DATE(date);
   }
-  case arrow::Type::DATE64:
-    return Value::DATE(
-        Date(static_cast<const arrow::Date64Array&>(array).Value(index)));
+  case arrow::Type::DATE64: {
+    constexpr int64_t MILLIS_PER_DAY = 24LL * 60 * 60 * 1000;
+    Date date;
+    date.from_num_days(static_cast<int32_t>(
+        static_cast<const arrow::Date64Array&>(array).Value(index) /
+        MILLIS_PER_DAY));
+    return Value::DATE(date);
+  }
   case arrow::Type::TIMESTAMP:
     return Value::TIMESTAMPMS(DateTime(
         static_cast<const arrow::TimestampArray&>(array).Value(index)));
+  case arrow::Type::DURATION: {
+    const auto value =
+        static_cast<const arrow::DurationArray&>(array).Value(index);
+    const auto& duration_type =
+        static_cast<const arrow::DurationType&>(*array.type());
+    int64_t milliseconds;
+    switch (duration_type.unit()) {
+    case arrow::TimeUnit::SECOND:
+      milliseconds = value * Interval::MSECS_PER_SEC;
+      break;
+    case arrow::TimeUnit::MILLI:
+      milliseconds = value;
+      break;
+    case arrow::TimeUnit::MICRO:
+      milliseconds = value / Interval::MICROS_PER_MSEC;
+      break;
+    case arrow::TimeUnit::NANO:
+      milliseconds = value / (Interval::MICROS_PER_MSEC * 1000);
+      break;
+    }
+    Interval interval;
+    interval.from_mill_seconds(milliseconds);
+    return Value::INTERVAL(interval);
+  }
   case arrow::Type::FIXED_SIZE_LIST: {
     const auto& list = static_cast<const arrow::FixedSizeListArray&>(array);
     const auto& array_type =
@@ -144,8 +176,8 @@ static std::shared_ptr<IContextColumn> convert_fixed_size_list_arrays(
     }
     for (int64_t i = 0; i < array->length(); ++i) {
       if (array->IsNull(i)) {
-        THROW_NOT_SUPPORTED_EXCEPTION(
-            "Null Parquet ARRAY values are not supported");
+        builder->push_back_null();
+        continue;
       }
       builder->push_back_elem(arrow_value_at(*array, i, type));
     }
@@ -219,7 +251,11 @@ static std::shared_ptr<IContextColumn> convert_date64_arrays(
       if (typed->IsNull(j)) {
         builder.push_back_null();
       } else {
-        builder.push_back_opt(Date(typed->Value(j)));
+        constexpr int64_t MILLIS_PER_DAY = 24LL * 60 * 60 * 1000;
+        Date date;
+        date.from_num_days(
+            static_cast<int32_t>(typed->Value(j) / MILLIS_PER_DAY));
+        builder.push_back_opt(date);
       }
     }
   }
