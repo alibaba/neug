@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -153,8 +154,12 @@ class GraphView {
 
   void Rebuild(PropertyGraph& pg);
 
-  void MarkVertexDirty(label_t label) { dirty_->MarkVertex(label); }
+  void MarkVertexDirty(label_t label) {
+    assert(dirty_ != nullptr);
+    dirty_->MarkVertex(label);
+  }
   void MarkEdgeDirty(label_t src, label_t dst, label_t edge) {
+    assert(dirty_ != nullptr && schema_ != nullptr);
     dirty_->MarkEdge(schema_->generate_edge_label(src, dst, edge));
   }
 

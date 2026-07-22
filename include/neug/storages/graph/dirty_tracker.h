@@ -32,9 +32,11 @@ namespace neug {
  * sparse triplet index and must mirror the graph's set of edge tables:
  * add / erase a slot whenever an edge table is created / removed.
  *
- * Marking and reading are thread-safe (relaxed atomics). Slot management,
- * Set* and whole-object copy / assignment are non-atomic and require
- * exclusive access (e.g. Clone / compact_schema).
+ * Marking and reading existing slots are thread-safe (relaxed atomics), but
+ * only while no concurrent slot management is in progress: edge_ is a
+ * std::unordered_map, so find() is unsafe against insert/erase/rehash.
+ * Slot management, Set* and whole-object copy / assignment require exclusive
+ * access (e.g. Clone / compact_schema).
  */
 class DirtyTracker {
  public:

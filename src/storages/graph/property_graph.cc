@@ -872,7 +872,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
         schema_.is_vertex_label_temporary(src_label_i)) {
       continue;
     }
-    // Compact consumes dirty bits: clean tables have nothing to rewrite.
+    // Compact only dirty tables; bits stay set until ClearAll after dump.
     if (IsVertexDirty(src_label_i)) {
       vertex_tables_[src_label_i].Compact(ts);
     }
