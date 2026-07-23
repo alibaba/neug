@@ -271,9 +271,8 @@ class VertexTable {
 
   void Compact(timestamp_t ts = MAX_TIMESTAMP);
 
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers,
-                       std::vector<vid_t>& new_vids);
+  std::vector<vid_t> insert_vertices(
+      std::shared_ptr<IDataChunkSupplier> supplier);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 

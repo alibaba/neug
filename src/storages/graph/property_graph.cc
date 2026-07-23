@@ -160,9 +160,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 result<std::vector<vid_t>> PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_STATUS_ERROR_IF_NOT_OK(vertex_label_check(v_label));
-  std::vector<vid_t> new_vids;
-  vertex_tables_[v_label].insert_vertices(supplier, new_vids);
-  return new_vids;
+  return vertex_tables_[v_label].insert_vertices(std::move(supplier));
 }
 
 Status PropertyGraph::BatchAddEdges(
