@@ -16,6 +16,7 @@
 #include "neug/transaction/version_manager.h"
 
 #include <glog/logging.h>
+#include <cassert>
 #include <ostream>
 #include <thread>
 
@@ -175,13 +176,15 @@ uint32_t VersionManager::acquire_update_timestamp() {
 }
 
 void VersionManager::begin_update_commit(uint32_t ts) {
-  (void) ts;
+  if (update_state_.load(std::memory_order_acquire) != 1 ||
+      write_ts_.load(std::memory_order_acquire) != ts + 1) {
+    THROW_INTERNAL_EXCEPTION(
+        "begin_update_commit called without the matching update timestamp");
+  }
 
-  // Enter commit state (1 -> 2) — blocks new reads, does NOT wait for existing
-  // readers. Use seq_cst to ensure the store is globally visible before we
-  // proceed, which closes the ABA window for concurrent acquire_read_timestamp
-  // callers that may have passed their pre-check but not yet reached their
-  // double-check.
+  // Enter commit state (1 -> 2). New reads block, but existing reads continue
+  // until an explicit drain_readers() call. Use seq_cst to close the ABA
+  // window for acquire_read_timestamp callers between their two checks.
   update_state_.store(2, std::memory_order_seq_cst);
 
   // Drain ABA-window readers: any reader that incremented active_readers_
@@ -201,10 +204,33 @@ void VersionManager::begin_update_commit(uint32_t ts) {
   }
 }
 
-void VersionManager::release_update_timestamp(uint32_t ts) {
-  complete_write_timestamp(ts);
+void VersionManager::drain_readers() {
+  if (update_state_.load(std::memory_order_acquire) != 2) {
+    THROW_INTERNAL_EXCEPTION(
+        "drain_readers called outside update commit state");
+  }
+  while (active_readers_.load(std::memory_order_acquire) > 0) {
+    // Tight spin loop for minimal latency.
+  }
+}
 
-  // Restore to normal state (1 -> 0 or 2 -> 0)
+void VersionManager::release_update_timestamp(uint32_t ts) noexcept {
+  complete_write_timestamp(ts);
+  update_state_.store(0, std::memory_order_release);
+}
+
+void VersionManager::reset_timeline_after_checkpoint(uint32_t ts) noexcept {
+  assert(update_state_.load(std::memory_order_acquire) == 2 &&
+         "checkpoint timeline reset requested outside update commit state");
+  assert(active_readers_.load(std::memory_order_acquire) == 0 &&
+         active_inserters_.load(std::memory_order_acquire) == 0 &&
+         "checkpoint timeline reset requested with active transactions");
+  assert(write_ts_.load(std::memory_order_acquire) == ts + 1 &&
+         "checkpoint timeline reset requested for a stale update timestamp");
+
+  write_ts_.store(1, std::memory_order_relaxed);
+  read_ts_.store(0, std::memory_order_relaxed);
+  ts_window_.init();
   update_state_.store(0, std::memory_order_release);
 }
 
@@ -215,7 +241,7 @@ uint32_t VersionManager::acquire_compact_timestamp() {
     if (update_state_.compare_exchange_strong(expected, 2,
                                               std::memory_order_acq_rel,
                                               std::memory_order_acquire)) {
-      break;  // Successfully entered compact phase
+      break;
     }
     // Tight spin loop for minimal latency
   }
@@ -235,29 +261,20 @@ uint32_t VersionManager::acquire_compact_timestamp() {
 }
 
 void VersionManager::release_compact_timestamp(uint32_t ts) {
-  // Compact must be in state 2
   if (update_state_.load(std::memory_order_acquire) != 2) {
     THROW_INTERNAL_EXCEPTION(
         "release_compact_timestamp called while not in compact state");
   }
-
   complete_write_timestamp(ts);
-
-  // Restore to normal state (2 -> 0)
   update_state_.store(0, std::memory_order_release);
 }
 
 void VersionManager::revert_compact_timestamp(uint32_t ts) {
-  // Compact must be in state 2
   if (update_state_.load(std::memory_order_acquire) != 2) {
     THROW_INTERNAL_EXCEPTION(
         "revert_compact_timestamp called while not in compact state");
   }
-
-  // Close the timestamp gap so later commits can advance read_ts_.
   complete_write_timestamp(ts);
-
-  // Revert to normal state (2 -> 0)
   update_state_.store(0, std::memory_order_release);
 }
 

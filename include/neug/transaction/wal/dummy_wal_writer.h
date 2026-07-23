@@ -31,7 +31,7 @@ class DummyWalWriter : public IWalWriter {
 
   std::string type() const override;
 
-  void open() override;
+  void open(const std::string& wal_uri) override;
 
   void close() override;
   bool append(const char* data, size_t length) override;

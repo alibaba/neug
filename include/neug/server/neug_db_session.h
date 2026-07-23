@@ -21,8 +21,8 @@
 #include <string>
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
-#include "neug/main/neug_db.h"
 #include "neug/storages/allocators.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
@@ -32,13 +32,14 @@
 
 namespace neug {
 
-class NeugDB;
+class GraphSnapshotStore;
 class IWalWriter;
 class ColumnBase;
 class Encoder;
 class PropertyGraph;
 class RefColumnBase;
 class AppManager;
+class CheckpointCoordinator;
 class IVersionManager;
 
 /**
@@ -91,16 +92,20 @@ class IVersionManager;
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  NeugDBSession(NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
+  NeugDBSession(GraphSnapshotStore& snapshot_store,
+                std::shared_ptr<IGraphPlanner> planner,
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 std::shared_ptr<IVersionManager> vm, Allocator& alloc,
-                IWalWriter& logger, const NeugDBConfig& config_, int thread_id)
-      : db_(db),
+                IWalWriter& wal_writer,
+                CheckpointCoordinator& checkpoint_coordinator,
+                const NeugDBConfig& config_, int thread_id)
+      : snapshot_store_(snapshot_store),
         planner_(planner),
         pipeline_cache_(global_query_cache),
         version_manager_(vm),
         alloc_(alloc),
-        logger_(logger),
+        wal_writer_(wal_writer),
+        checkpoint_coordinator_(checkpoint_coordinator),
         db_config_(config_),
         thread_id_(thread_id),
         eval_duration_(0),
@@ -171,13 +176,28 @@ class NeugDBSession {
 
   int64_t query_num() const;
 
+  // Invalidate the global query cache through this session's local cache,
+  // mirroring how update transactions invalidate it on schema change. Any
+  // session can initiate this; every other session discards its local cache
+  // lazily on the next version check.
+  void InvalidateGlobalQueryCache();
+
  private:
-  NeugDB& db_;
+  UpdateTimestampGuard getUpdateTimestampGuard();
+  UpdateTransaction createUpdateTransaction(
+      UpdateTimestampGuard timestamp_guard);
+
+  GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   execution::LocalQueryCache pipeline_cache_;
   std::shared_ptr<IVersionManager> version_manager_;
   Allocator& alloc_;
-  IWalWriter& logger_;
+  IWalWriter& wal_writer_;
+  // A checkpoint is a database-wide operation initiated by one session. The
+  // session drives the coordinator directly; service-owned runtime state
+  // (WAL rotation, cache invalidation) is installed through the hooks
+  // registered on the coordinator at service startup.
+  CheckpointCoordinator& checkpoint_coordinator_;
   const NeugDBConfig& db_config_;
   int thread_id_;
 

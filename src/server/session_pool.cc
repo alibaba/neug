@@ -46,6 +46,24 @@ SessionGuard SessionPool::AcquireSession() {
   return SessionGuard(&contexts_[session_id].session, this, session_id);
 }
 
+void SessionPool::RotateWalAndInvalidateCaches(const std::string& wal_uri) {
+  // Close the complete old WAL generation before opening any writer in the
+  // new generation. SessionLocalContext retains ownership, so the IWalWriter&
+  // held by each NeugDBSession remains stable across the switch.
+  for (size_t i = 0; i < session_num_; ++i) {
+    CHECK(contexts_[i].logger != nullptr);
+    contexts_[i].logger->close();
+  }
+  for (size_t i = 0; i < session_num_; ++i) {
+    contexts_[i].logger->open(wal_uri);
+  }
+  // Invalidate the compiled-plan caches through one session's local cache,
+  // the same path update transactions take on schema change. Any session can
+  // initiate the invalidation; the rest discard their local caches lazily.
+  // NeugDB guarantees max_thread_num >= 1, so contexts_[0] always exists.
+  contexts_[0].session.InvalidateGlobalQueryCache();
+}
+
 void SessionPool::ReleaseSession(size_t session_id) {
   assert(session_id < session_num_ && "Releasing session_id is out of range!");
 

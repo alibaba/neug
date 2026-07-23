@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
+#include "neug/compiler/planner/gopt_planner.h"
 
 namespace neug {
 namespace gopt {
@@ -46,7 +47,7 @@ TEST_F(FlagTest, MatchCreateRelationship1) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -63,7 +64,7 @@ TEST_F(FlagTest, MatchCreateRelationship2) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -80,7 +81,7 @@ TEST_F(FlagTest, MatchCreateRelationship5) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -98,7 +99,7 @@ TEST_F(FlagTest, CreateNodesAndRelationship) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -115,7 +116,7 @@ TEST_F(FlagTest, MatchCreateRelationship3) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -133,7 +134,7 @@ TEST_F(FlagTest, MatchCreateRelationship4) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -149,7 +150,7 @@ TEST_F(FlagTest, CreateSingleNode) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -166,7 +167,7 @@ TEST_F(FlagTest, CopyFrom) {
   EXPECT_FALSE(flag.update);
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -182,7 +183,7 @@ TEST_F(FlagTest, CopyTo) {
   EXPECT_FALSE(flag.update);
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -199,7 +200,7 @@ TEST_F(FlagTest, LoadFrom) {
   EXPECT_FALSE(flag.update);
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -209,7 +210,7 @@ TEST_F(FlagTest, Checkpoint) {
   auto logical = planLogical(query, schemaData, statsData, rules);
   GPhysicalAnalyzer analyzer(getCatalog());
   auto flag = analyzer.analyze(*logical);
-  EXPECT_TRUE(flag.transaction);
+  EXPECT_TRUE(flag.checkpoint);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -217,6 +218,11 @@ TEST_F(FlagTest, Checkpoint) {
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
   EXPECT_FALSE(flag.procedure_call);
+}
+
+TEST_F(FlagTest, CheckpointAnalyzeQuery) {
+  GOptPlanner planner;
+  EXPECT_EQ(planner.analyzeMode("CHECKPOINT;"), AccessMode::kUpdate);
 }
 
 // Test 11: MATCH with RETURN (read operation)
@@ -231,7 +237,7 @@ TEST_F(FlagTest, MatchReturn) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
 }
 
@@ -248,7 +254,7 @@ TEST_F(FlagTest, LoadJson) {
   EXPECT_FALSE(flag.update);
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 // Test 13: INSTALL JSON (procedure_call)
@@ -264,7 +270,7 @@ TEST_F(FlagTest, InstallJson) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 // Test 9: CALL read-only procedure (read, not procedure_call)
@@ -280,7 +286,7 @@ TEST_F(FlagTest, CallProcedure) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 // Mutating CALL keeps procedure_call so access_mode=read is rejected.
@@ -297,7 +303,7 @@ TEST_F(FlagTest, CallMutatingProcedure) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 TEST_F(FlagTest, CreateTable) {
@@ -314,7 +320,7 @@ TEST_F(FlagTest, CreateTable) {
   EXPECT_FALSE(flag.update);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 TEST_F(FlagTest, SetProperty) {
@@ -331,7 +337,7 @@ TEST_F(FlagTest, SetProperty) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 TEST_F(FlagTest, IU_1) {
@@ -374,7 +380,7 @@ TEST_F(FlagTest, IU_1) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 TEST_F(FlagTest, IU_4) {
@@ -396,7 +402,7 @@ TEST_F(FlagTest, IU_4) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 TEST_F(FlagTest, IU_6) {
@@ -427,7 +433,7 @@ TEST_F(FlagTest, IU_6) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 
 TEST_F(FlagTest, IU_7) {
@@ -474,7 +480,7 @@ TEST_F(FlagTest, IU_7) {
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.batch);
   EXPECT_FALSE(flag.create_temp_table);
-  EXPECT_FALSE(flag.transaction);
+  EXPECT_FALSE(flag.checkpoint);
 }
 }  // namespace gopt
 }  // namespace neug

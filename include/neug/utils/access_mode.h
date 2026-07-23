@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
 
@@ -46,6 +48,21 @@ inline AccessMode ParseAccessMode(const std::string& access_mode_str) {
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown access mode: " + access_mode_str);
   }
+}
+
+template <typename ModeAnalyzer>
+inline AccessMode ResolveAccessMode(AccessMode requested_mode,
+                                    ModeAnalyzer&& analyze_mode) {
+  return requested_mode == AccessMode::kUnKnown
+             ? std::forward<ModeAnalyzer>(analyze_mode)()
+             : requested_mode;
+}
+
+template <typename ModeAnalyzer>
+inline AccessMode ResolveAccessMode(const std::string& requested_mode,
+                                    ModeAnalyzer&& analyze_mode) {
+  return ResolveAccessMode(ParseAccessMode(requested_mode),
+                           std::forward<ModeAnalyzer>(analyze_mode));
 }
 
 inline std::string AccessModeToString(AccessMode mode) {

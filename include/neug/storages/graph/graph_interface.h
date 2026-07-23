@@ -836,11 +836,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     return st;
   }
 
-  /**
-   * @brief Create a checkpoint of the current graph state.
-   */
-  virtual void CreateCheckpoint() = 0;
-
  private:
   virtual void MarkSchemaDirty() = 0;
 
@@ -908,8 +903,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         alloc_(alloc),
         timestamp_(timestamp) {}
   ~StorageAPUpdateInterface() {}
-
-  void CreateCheckpoint() override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {

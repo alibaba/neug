@@ -38,14 +38,18 @@
 
 namespace neug {
 
+class CheckpointCoordinator;
+
 class QueryProcessor {
  public:
   QueryProcessor(
+      CheckpointCoordinator& checkpoint_coordinator,
       GraphSnapshotStore& snapshot_store,
       std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       Allocator& alloc, int32_t max_thread_num, bool is_read_only = false)
-      : snapshot_store_(snapshot_store),
+      : checkpoint_coordinator_(checkpoint_coordinator),
+        snapshot_store_(snapshot_store),
         planner_(planner),
         global_query_cache_(global_query_cache),
         allocator_(alloc),
@@ -69,11 +73,9 @@ class QueryProcessor {
   void clear_cache();
 
  private:
-  result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
-  check_and_retrieve_pipeline(const PropertyGraph& pg,
-                              const std::string& query_string,
-                              const std::string& access_mode,
-                              int32_t num_threads);
+  result<std::shared_ptr<execution::CacheValue>> check_and_retrieve_pipeline(
+      const PropertyGraph& pg, const std::string& query_string,
+      AccessMode access_mode, int32_t num_threads);
 
   result<QueryResult> execute_internal(
       SnapshotGuard& guard, const std::string& query_string,
@@ -94,6 +96,7 @@ class QueryProcessor {
                                       const physical::ExecutionFlag& flags,
                                       AccessMode mode);
 
+  CheckpointCoordinator& checkpoint_coordinator_;
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;

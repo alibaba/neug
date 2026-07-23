@@ -1216,6 +1216,140 @@ def test_checkpoint(tmp_path):
     db.close()
 
 
+def _single_checkpoint_dir(db_dir, expected_generation):
+    checkpoints = sorted(
+        path
+        for path in db_dir.iterdir()
+        if path.is_dir()
+        and path.name.startswith("checkpoint-")
+        and not path.name.endswith(".next")
+    )
+    assert [path.name for path in checkpoints] == [f"checkpoint-{expected_generation}"]
+    assert not any(path.name.endswith(".next") for path in db_dir.iterdir())
+    return checkpoints[0]
+
+
+def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port):
+    db_dir = tmp_path / "test_tp_checkpoint_wal_rotation"
+    db = Database(
+        db_path=str(db_dir), mode="w", checkpoint_on_close=False, max_thread_num=4
+    )
+    session = None
+    try:
+        endpoint = db.serve(
+            host="localhost",
+            port=unused_tcp_port,
+            blocking=False,
+            auto_compaction=False,
+        )
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+
+        session.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+        session.execute("CREATE (:Person {id: 1});")
+        session.execute("CHECKPOINT;")
+        first_checkpoint = _single_checkpoint_dir(db_dir, 1)
+        first_timeline_wals = sorted((first_checkpoint / "wal").glob("*.wal"))
+        assert len(first_timeline_wals) == 4
+        for wal_path in first_timeline_wals:
+            with wal_path.open("rb") as wal_file:
+                assert int.from_bytes(wal_file.read(4), "little") == 0
+
+        session.execute("ALTER TABLE Person ADD name STRING;")
+        session.execute("MATCH (p:Person {id: 1}) SET p.name = 'one';")
+        session.execute("CREATE (:Person {id: 2, name: 'two'});")
+
+        assert sorted((first_checkpoint / "wal").glob("*.wal")) == first_timeline_wals
+
+        session.execute("CHECKPOINT;")
+        current_checkpoint = _single_checkpoint_dir(db_dir, 2)
+        current_wals = sorted((current_checkpoint / "wal").glob("*.wal"))
+        assert len(current_wals) == 4
+        for wal_path in current_wals:
+            with wal_path.open("rb") as wal_file:
+                assert int.from_bytes(wal_file.read(4), "little") == 0
+
+        # Issue #651 regression: PK index point lookups must survive the
+        # checkpoint that runs between writes. A plain count() would still
+        # pass even if the checkpoint dropped the primary key index.
+        res = session.execute("MATCH (p:Person {id: 2}) RETURN p.name;")
+        assert len(res) == 1
+        assert res[0][0] == "two"
+        res = session.execute("MATCH (p:Person {id: 1}) RETURN p.name;")
+        assert len(res) == 1
+        assert res[0][0] == "one"
+
+        # The first transaction in the new complete-baseline timeline must use
+        # timestamp 1 and write only beneath the current generation.
+        session.execute("CREATE (:Person {id: 3, name: 'three'});")
+        first_timestamps = []
+        for wal_path in current_wals:
+            with wal_path.open("rb") as wal_file:
+                first_timestamps.append(int.from_bytes(wal_file.read(4), "little"))
+        assert sorted(first_timestamps) == [0, 0, 0, 1]
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+    reopened_db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    reopened_conn = reopened_db.connect()
+    try:
+        rows = list(
+            reopened_conn.execute("MATCH (p:Person) RETURN p.id, p.name ORDER BY p.id;")
+        )
+        assert rows == [[1, "one"], [2, "two"], [3, "three"]]
+
+        # Issue #651 regression: PK index point lookups must also survive
+        # close/reopen after the checkpoint-rotated timeline.
+        for pk, expected_name in ((1, "one"), (2, "two"), (3, "three")):
+            rows = list(
+                reopened_conn.execute(f"MATCH (p:Person {{id: {pk}}}) RETURN p.name;")
+            )
+            assert rows == [[expected_name]]
+    finally:
+        reopened_conn.close()
+        reopened_db.close()
+
+
+def test_tp_checkpoint_invalidates_cached_plans_after_label_compaction(
+    tmp_path, unused_tcp_port
+):
+    db_dir = tmp_path / "test_tp_checkpoint_cache_invalidation"
+    db = Database(
+        db_path=str(db_dir), mode="w", checkpoint_on_close=False, max_thread_num=2
+    )
+    session = None
+    try:
+        endpoint = db.serve(
+            host="localhost",
+            port=unused_tcp_port,
+            blocking=False,
+            auto_compaction=False,
+        )
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+
+        session.execute("CREATE NODE TABLE A(id INT64, PRIMARY KEY(id));")
+        session.execute("CREATE NODE TABLE B(id INT64, name STRING, PRIMARY KEY(id));")
+        session.execute("CREATE (:B {id: 1, name: 'before'});")
+        session.execute("DROP TABLE A;")
+
+        query = "MATCH (b:B {id: 1}) RETURN b.name;"
+        assert list(session.execute(query)) == [["before"]]
+
+        # Compacting the schema removes A's tombstone and renumbers B from
+        # label 1 to label 0. The cached plan must be rebuilt for that schema.
+        session.execute("CHECKPOINT;")
+        assert list(session.execute(query)) == [["before"]]
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Tests merged from test_service.py (embedded + service mode integration)
 # ---------------------------------------------------------------------------

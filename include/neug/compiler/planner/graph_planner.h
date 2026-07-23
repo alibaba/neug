@@ -49,7 +49,7 @@ class IGraphPlanner {
 
   // Attempts to infer the execution access mode from the given query.
   // The current implementation relies on static analysis of the query string
-  // and can only distinguish between "update" and "read" modes.
+  // and can distinguish read, update, and schema modes.
   // Inferring an "insert" mode would require more complex operator
   // combination analysis, which is not supported at the moment.
   virtual AccessMode analyzeMode(const std::string& query) const = 0;

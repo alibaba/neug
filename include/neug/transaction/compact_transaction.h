@@ -21,12 +21,12 @@
 namespace neug {
 
 class PropertyGraph;
-class IWalWriter;
 class IVersionManager;
+class IWalWriter;
 
 class CompactTransaction {
  public:
-  CompactTransaction(GraphSnapshotStore& snapshot_store, IWalWriter& logger,
+  CompactTransaction(GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer,
                      IVersionManager& vm, timestamp_t timestamp);
   ~CompactTransaction();
 
@@ -38,7 +38,7 @@ class CompactTransaction {
 
  private:
   SnapshotGuard guard_;
-  IWalWriter& logger_;
+  IWalWriter& wal_writer_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
 

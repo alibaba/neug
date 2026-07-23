@@ -390,7 +390,12 @@ class Database(object):
 
     def close(self, log=True):
         """
-        Close the database connection.
+        Close the database and all of its connections.
+
+        For a read-write database with ``checkpoint_on_close=True``, this method
+        creates a checkpoint before releasing database resources.
+        The method is idempotent.
+        Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.
         """
         db_path = getattr(self, "_db_path", None)
         if log and db_path and db_path.strip() != "":

@@ -34,12 +34,12 @@
 namespace neug {
 
 InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
-                                     IWalWriter& logger, IVersionManager& vm,
-                                     timestamp_t timestamp)
+                                     IWalWriter& wal_writer,
+                                     IVersionManager& vm, timestamp_t timestamp)
     : guard_(std::move(guard)),
       view_(&guard_.get().mutable_view()),
       alloc_(alloc),
-      logger_(logger),
+      wal_writer_(wal_writer),
       vm_(vm),
       timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));
@@ -168,7 +168,7 @@ bool InsertTransaction::Commit() {
   header->type = 0;
   header->timestamp = timestamp_;
 
-  if (!logger_.append(arc_.GetBuffer(), arc_.GetSize())) {
+  if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
@@ -236,11 +236,9 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
 
 void InsertTransaction::clear() {
   arc_.Clear();
-  arc_.Resize(sizeof(WalHeader));
   added_vertices_.clear();
   added_vertices_base_.clear();
   vertex_nums_.clear();
-
   timestamp_ = INVALID_TIMESTAMP;
 }
 

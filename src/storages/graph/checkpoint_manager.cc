@@ -224,9 +224,15 @@ std::shared_ptr<Checkpoint> create_staging_checkpoint(const std::string& db_dir,
         path.string() + ": " + ec.message());
   }
 
-  std::filesystem::create_directories(path);
-  CheckpointManifest::GenerateEmptyMeta((path / "meta").string());
-  return Checkpoint::Open(path.string(), generation);
+  try {
+    std::filesystem::create_directories(path);
+    CheckpointManifest::GenerateEmptyMeta((path / "meta").string());
+    return Checkpoint::Open(path.string(), generation);
+  } catch (...) {
+    remove_checkpoint_dir_best_effort(
+        path, "CheckpointManager::CreateStagingCheckpoint");
+    throw;
+  }
 }
 
 std::shared_ptr<Checkpoint> publish_staging_checkpoint(
@@ -288,8 +294,8 @@ std::shared_ptr<Checkpoint> publish_staging_checkpoint(
   try {
     final_checkpoint = Checkpoint::Open(final_path.string(), generation);
   } catch (...) {
-    remove_checkpoint_dir_best_effort(
-        final_path, "CheckpointManager::CommitStagingCheckpoint");
+    // rename is the durable commit point. Keep the published generation even
+    // if opening its handle fails; the next database Open will validate it.
     throw;
   }
 
@@ -357,6 +363,18 @@ std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::checkpoint()
     THROW_CHECKPOINT_EXCEPTION("Staging checkpoint handle is inactive.");
   }
   return checkpoint_;
+}
+
+std::string CheckpointManager::StagingCheckpoint::TargetPublishedPath() const {
+  std::lock_guard<std::mutex> lock(manager_.mutex_);
+  if (checkpoint_ == nullptr || manager_.staging_checkpoint_ != checkpoint_) {
+    THROW_CHECKPOINT_EXCEPTION(
+        "CheckpointManager::StagingCheckpoint::TargetPublishedPath: inactive "
+        "or foreign staging checkpoint");
+  }
+  return (std::filesystem::path(manager_.db_dir_) /
+          checkpoint_name(static_cast<int32_t>(checkpoint_->id())))
+      .string();
 }
 
 std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::Commit(

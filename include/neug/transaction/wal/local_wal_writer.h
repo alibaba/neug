@@ -34,9 +34,9 @@ class LocalWalWriter : public IWalWriter {
         fd_(-1),
         file_size_(0),
         file_used_(0) {}
-  ~LocalWalWriter() { close(); }
+  ~LocalWalWriter() noexcept override;
 
-  void open() override;
+  void open(const std::string& wal_uri) override;
   void close() override;
   bool append(const char* data, size_t length) override;
   std::string type() const override { return "file"; }

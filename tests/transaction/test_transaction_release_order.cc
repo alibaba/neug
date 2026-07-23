@@ -55,7 +55,9 @@ class ReleaseOrderVersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }
   void begin_update_commit(uint32_t) override {}
-  void release_update_timestamp(uint32_t) override {}
+  void drain_readers() override {}
+  void release_update_timestamp(uint32_t) noexcept override {}
+  void reset_timeline_after_checkpoint(uint32_t) noexcept override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
 
   void release_read_timestamp() override { record_release(); }

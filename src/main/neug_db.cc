@@ -32,14 +32,14 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/execute/query_cache.h"
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
-#include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
-#include "neug/storages/checkpoint_session.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
@@ -49,18 +49,11 @@
 
 namespace neug {
 
-inline std::string allocator_prefix(const std::string& allocator_dir,
-                                    int thread_id) {
-  return (std::filesystem::path(allocator_dir) /
-          ("allocator_" + std::to_string(thread_id) + "_"))
-      .string();
-}
-
 class Connection;
-static void IngestWalRange(PropertyGraph& graph,
-                           std::vector<std::shared_ptr<Allocator>>& allocators,
-                           const IWalParser& parser, uint32_t from,
-                           uint32_t to) {
+static void IngestWalRange(
+    PropertyGraph& graph,
+    const std::vector<std::shared_ptr<Allocator>>& allocators,
+    const IWalParser& parser, uint32_t from, uint32_t to) {
   if (from >= to) {
     return;
   }
@@ -71,22 +64,22 @@ static void IngestWalRange(PropertyGraph& graph,
   GraphView view(graph);
   for (size_t j = from; j < to; ++j) {
     const auto& unit = parser.get_insert_wal(j);
-    InsertTransaction::IngestWal(view, j, unit.ptr, unit.size, *allocators[0]);
+    InsertTransaction::IngestWal(view, j, unit.ptr, unit.size,
+                                 *allocators.at(0));
     if (j % 1000000 == 0) {
       LOG(INFO) << "Ingested " << j << " WALs";
     }
   }
 }
 
-NeugDB::NeugDB()
-    : last_compaction_ts_(0),
-      last_ts_(0),
-      closed_(true),
-      is_pure_memory_(false),
-      max_thread_num_(1) {}
+NeugDB::NeugDB() : closed_(true), is_pure_memory_(false), max_thread_num_(1) {}
 
 NeugDB::~NeugDB() {
-  Close();
+  try {
+    Close();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Checkpoint failed while destroying NeugDB: " << e.what();
+  } catch (...) { LOG(ERROR) << "Checkpoint failed while destroying NeugDB"; }
   WalWriterFactory::Finalize();
   WalParserFactory::Finalize();
   // We put the removal of temp dir here to avoid the situation that
@@ -95,8 +88,8 @@ NeugDB::~NeugDB() {
   //  dir until the db is destructed.
   try {
     if (is_pure_memory_) {
-      VLOG(10) << "Removing temp NeugDB at: " << work_dir();
-      remove_directory(checkpoint_mgr_.db_dir());
+      VLOG(10) << "Removing temp NeugDB at: " << config_.data_dir;
+      remove_directory(config_.data_dir);
     }
   } catch (const std::exception& e) {
     LOG(WARNING) << "Failed to remove temp dir for " << work_dir() << ": "
@@ -117,6 +110,9 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
 }
 
 bool NeugDB::Open(const NeugDBConfig& config) {
+  if (!closed_.load(std::memory_order_acquire)) {
+    THROW_RUNTIME_ERROR("NeugDB instance is already open.");
+  }
   config_ = config;
   preprocessConfig();
   config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
@@ -141,17 +137,24 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
     VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
     neug::execution::PlanParser::get().init();
-    openGraphAndIngestWals();
-    if (last_ts_ > 0 && config.checkpoint_on_recovery &&
+    const auto recovered_wal_timestamp = openGraphAndIngestWals();
+    checkpoint_coordinator_ = std::make_unique<CheckpointCoordinator>(
+        checkpoint_mgr_, *snapshot_store_, config_.memory_level,
+        recovered_wal_timestamp, [this](const std::string& allocator_dir) {
+          reopenAllocators(allocator_dir);
+        });
+    if (recovered_wal_timestamp > 0 && config.checkpoint_on_recovery &&
         config_.mode == DBMode::READ_WRITE) {
-      LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
-      createCheckpointAndRefreshLiveGraph();
+      LOG(INFO) << "Creating checkpoint after recovery at ts "
+                << recovered_wal_timestamp;
+      createCheckpointAfterRecovery();
     }
     if (config_.mode == DBMode::READ_WRITE) {
       checkpoint_mgr_.CleanupRetiredCheckpoints();
     }
     initPlannerAndQueryProcessor();
   } catch (...) {
+    checkpoint_coordinator_.reset();
     snapshot_store_.reset();
     allocators_.clear();
     checkpoint_mgr_.Close();
@@ -163,12 +166,12 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   }
 
   LOG(INFO) << "NeugDB opened successfully";
-  closed_.store(false);
+  closed_.store(false, std::memory_order_release);
   return true;
 }
 
 void NeugDB::Close() {
-  if (closed_.exchange(true)) {
+  if (closed_.exchange(true, std::memory_order_acq_rel)) {
     return;
   }
   if (connection_manager_) {
@@ -178,6 +181,9 @@ void NeugDB::Close() {
 
   if (query_processor_) {
     query_processor_.reset();
+  }
+  if (global_query_cache_) {
+    global_query_cache_.reset();
   }
   if (planner_) {
     planner_.reset();
@@ -189,12 +195,14 @@ void NeugDB::Close() {
       createCheckpointOnClose();
     } catch (const std::exception& e) {
       LOG(ERROR) << "Checkpoint on close failed: " << e.what();
-    }
+    } catch (...) { LOG(ERROR) << "Checkpoint on close failed"; }
   }
 
   // Clear GraphSnapshotStore instead of graph_
+  checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
+  checkpoint_mgr_.Close();
 
   if (file_lock_) {
     file_lock_->unlock();
@@ -204,6 +212,14 @@ void NeugDB::Close() {
 
 std::shared_ptr<Connection> NeugDB::Connect() {
   return connection_manager_->CreateConnection();
+}
+
+CheckpointCoordinator& NeugDB::checkpoint_coordinator() {
+  return *checkpoint_coordinator_;
+}
+
+const CheckpointCoordinator& NeugDB::checkpoint_coordinator() const {
+  return *checkpoint_coordinator_;
 }
 
 void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
@@ -218,7 +234,7 @@ void NeugDB::PrepareForServing() {
   }
   CloseAllConnection();
   if (config_.mode == DBMode::READ_WRITE) {
-    createCheckpointAndRefreshLiveGraph();
+    createCheckpointAfterRecovery();
   }
   initQueryRuntime();
 }
@@ -264,21 +280,39 @@ void NeugDB::preprocessConfig() {
 }
 
 void NeugDB::initAllocators(const std::string& allocator_dir) {
-  // Initialize the default allocator for ingesting wals
+  assert(config_.max_thread_num > 0);
   allocators_.clear();
   remove_directory(allocator_dir);
   std::filesystem::create_directories(allocator_dir);
-  assert(config_.max_thread_num > 0);
-  for (int i = 0; i < config_.max_thread_num; ++i) {
+  allocators_.reserve(static_cast<size_t>(config_.max_thread_num));
+  for (int32_t i = 0; i < config_.max_thread_num; ++i) {
     allocators_.emplace_back(std::make_shared<Allocator>(
-        config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
-                                  ? ""
-                                  : allocator_prefix(allocator_dir, i)));
+        config_.memory_level,
+        config_.memory_level == MemoryLevel::kSyncToFile
+            ? allocator_prefix(allocator_dir, static_cast<size_t>(i))
+            : ""));
   }
 }
 
-void NeugDB::openGraphAndIngestWals() {
+void NeugDB::reopenAllocators(const std::string& allocator_dir) {
+  // Precompute every prefix before touching live allocator state: a
+  // mid-rotation allocation failure would otherwise leave earlier allocators
+  // on the new generation and later ones on the retired one.
+  std::vector<std::string> prefixes;
+  prefixes.reserve(allocators_.size());
+  for (size_t i = 0; i < allocators_.size(); ++i) {
+    prefixes.emplace_back(config_.memory_level == MemoryLevel::kSyncToFile
+                              ? allocator_prefix(allocator_dir, i)
+                              : "");
+  }
+  for (size_t i = 0; i < allocators_.size(); ++i) {
+    allocators_[i]->Reopen(config_.memory_level, std::move(prefixes[i]));
+  }
+}
+
+timestamp_t NeugDB::openGraphAndIngestWals() {
   max_thread_num_ = config_.max_thread_num;
+  timestamp_t recovered_wal_timestamp = 0;
   try {
     auto ckp = checkpoint_mgr_.CurrentCheckpoint();
     if (ckp == nullptr) {
@@ -306,6 +340,7 @@ void NeugDB::openGraphAndIngestWals() {
     neug::WalParserFactory::Init();
     auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
     ingestWals(*wal_parser, *graph);
+    recovered_wal_timestamp = wal_parser->last_ts();
 
     // Create GraphSnapshotStore with the graph at timestamp 0
     snapshot_store_ =
@@ -317,6 +352,7 @@ void NeugDB::openGraphAndIngestWals() {
     LOG(ERROR) << "Exception: " << e.what();
     THROW_INTERNAL_EXCEPTION(e.what());
   }
+  return recovered_wal_timestamp;
 }
 
 void NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
@@ -331,10 +367,9 @@ void NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
     }
     if (update_wal.size == 0) {
       graph.Compact();
-      last_compaction_ts_ = update_wal.timestamp;
     } else {
       UpdateTransaction::IngestWal(graph, to_ts, update_wal.ptr,
-                                   update_wal.size, *allocators_[0]);
+                                   update_wal.size, *allocators_.at(0));
     }
     from_ts = to_ts + 1;
   }
@@ -342,7 +377,6 @@ void NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
     IngestWalRange(graph, allocators_, parser, from_ts, parser.last_ts() + 1);
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
-  last_ts_ = parser.last_ts();
 }
 
 void NeugDB::initPlanner() {
@@ -362,8 +396,8 @@ void NeugDB::initQueryRuntime() {
   global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 
   query_processor_ = std::make_shared<QueryProcessor>(
-      *snapshot_store_, planner_, global_query_cache_, *allocators_[0],
-      max_thread_num_, config_.mode == DBMode::READ_ONLY);
+      *checkpoint_coordinator_, *snapshot_store_, planner_, global_query_cache_,
+      *allocators_.at(0), max_thread_num_, config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       *snapshot_store_, planner_, query_processor_, config_);
@@ -374,23 +408,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
   initQueryRuntime();
 }
 
-std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
-    CheckpointSession& checkpoint_session) {
-  SnapshotGuard guard(*snapshot_store_);
-  auto* live_graph = guard.get().mutable_graph();
-  // Compact rewrites only already-dirty tables (does not mark); dump then
-  // publishes. ClearAllDirty runs only after a successful Commit.
-  live_graph->Compact();
-  live_graph->DumpAndClear(checkpoint_session.staging_checkpoint());
-  auto published_checkpoint = checkpoint_session.Commit();
-  // Consumed graph is about to be dropped; ClearAllDirty is for the contract
-  // when a graph remains live after publish (AP/TP CreateCheckpoint paths).
-  live_graph->ClearAllDirty();
-  guard.release();
-  return published_checkpoint;
-}
-
-void NeugDB::createCheckpointAndRefreshLiveGraph() {
+void NeugDB::createCheckpointAfterRecovery() {
   std::lock_guard<std::mutex> lock(mutex_);
   {
     SnapshotGuard guard(*snapshot_store_);
@@ -399,49 +417,13 @@ void NeugDB::createCheckpointAndRefreshLiveGraph() {
       return;
     }
   }
-  auto previous_checkpoint = checkpoint_mgr_.CurrentCheckpoint();
-  auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
-  auto published_checkpoint =
-      consumeLiveGraphAndCommitCheckpoint(checkpoint_session);
-
-  auto rollback_published_checkpoint = [&]() {
-    if (previous_checkpoint == nullptr) {
-      return false;
+  auto outcome = checkpoint_coordinator_->ExecuteRecovery();
+  if (!outcome.ok()) {
+    if (outcome.error_code() == StatusCode::ERR_IO_ERROR) {
+      THROW_IO_EXCEPTION(outcome.error_message());
     }
-    try {
-      checkpoint_mgr_.RestoreCurrentCheckpoint(previous_checkpoint);
-      checkpoint_mgr_.CleanupPublishedCheckpoint(published_checkpoint);
-      return true;
-    } catch (const std::exception& e) {
-      LOG(ERROR) << "Failed to restore previous checkpoint "
-                 << previous_checkpoint->path() << ": " << e.what();
-    } catch (...) {
-      LOG(ERROR) << "Failed to restore previous checkpoint "
-                 << previous_checkpoint->path();
-    }
-    return false;
-  };
-
-  try {
-    auto reopened_graph = std::make_shared<PropertyGraph>();
-    reopened_graph->Open(published_checkpoint, config_.memory_level);
-    snapshot_store_ = std::make_unique<GraphSnapshotStore>(
-        config_.storage_slot_num, std::move(reopened_graph));
-    initAllocators(published_checkpoint->allocator_dir());
-  } catch (...) {
-    snapshot_store_.reset();
-    allocators_.clear();
-    rollback_published_checkpoint();
-    throw;
+    THROW_INTERNAL_EXCEPTION(outcome.error_message());
   }
-
-  // Replacing snapshot_store_ releases the consumed graph before the retired
-  // checkpoint directory is removed.
-  previous_checkpoint.reset();
-  checkpoint_mgr_.CleanupRetiredCheckpoints();
-
-  last_ts_ = 0;
-  last_compaction_ts_ = 0;
 }
 
 void NeugDB::createCheckpointOnClose() {
@@ -453,17 +435,23 @@ void NeugDB::createCheckpointOnClose() {
       return;
     }
   }
-  auto checkpoint_session = CheckpointSession::Begin(checkpoint_mgr_);
-  consumeLiveGraphAndCommitCheckpoint(checkpoint_session);
-
+  auto outcome = checkpoint_coordinator_->PrepareShutdown();
+  if (!outcome.ok()) {
+    if (outcome.error_code() == StatusCode::ERR_IO_ERROR) {
+      THROW_IO_EXCEPTION(outcome.error_message());
+    }
+    THROW_INTERNAL_EXCEPTION(outcome.error_message());
+  }
   // Close-path checkpointing does not reopen a live graph. Release all
   // snapshot/container/mmap resources before deleting the retired checkpoint.
+  checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
-  checkpoint_mgr_.CleanupRetiredCheckpoints();
-
-  last_ts_ = 0;
-  last_compaction_ts_ = 0;
+  try {
+    checkpoint_mgr_.CleanupRetiredCheckpoints();
+  } catch (const std::exception& e) {
+    LOG(WARNING) << "Checkpoint GC failed: " << e.what();
+  } catch (...) { LOG(WARNING) << "Checkpoint GC failed"; }
 }
 
 }  // namespace neug

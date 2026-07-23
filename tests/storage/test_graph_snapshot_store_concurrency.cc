@@ -29,15 +29,18 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <mutex>
 #include <random>
 #include <thread>
 #include <vector>
 
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"
 #include "unittest/utils.h"
 
@@ -91,6 +94,17 @@ class GraphSnapshotStoreConcurrencyTest : public ::testing::Test {
     return initial_pg_->Clone();
   }
 };
+
+TEST_F(GraphSnapshotStoreConcurrencyTest,
+       MaintenanceAccessRejectsExistingReader) {
+  auto& pinned = store_->PinCurrentSnapshot();
+  CheckpointCoordinator coordinator(
+      checkpoint_mgr_, *store_, MemoryLevel::kInMemory,
+      /*recovered_wal_timestamp=*/0, [](const std::string&) {});
+  auto status = coordinator.ExecuteApManual();
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_INTERNAL_ERROR);
+  store_->UnpinSnapshot(pinned);
+}
 
 // 1. Heavy concurrent pin/unpin vs publish. Verifies PinCurrentSnapshot
 // always returns a handle whose view points to a live PG with the seeded

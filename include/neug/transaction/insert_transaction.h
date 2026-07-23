@@ -35,9 +35,9 @@
 namespace neug {
 
 class PropertyGraph;
-class IWalWriter;
 class IVersionManager;
 class Schema;
+class IWalWriter;
 
 /**
  * @brief Transaction for inserting new vertices and edges into the graph.
@@ -83,14 +83,15 @@ class InsertTransaction {
    * @param slot Reference to the pinned SnapshotSlot from PinCurrentSnapshot()
    * @param snapshot_store Reference to GraphSnapshotStore for releasing slot
    * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
+   * @param wal_writer Reference to the session-local WAL writer
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
    *
    * @since v0.1.0
    */
-  InsertTransaction(SnapshotGuard guard, Allocator& alloc, IWalWriter& logger,
-                    IVersionManager& vm, timestamp_t timestamp);
+  InsertTransaction(SnapshotGuard guard, Allocator& alloc,
+                    IWalWriter& wal_writer, IVersionManager& vm,
+                    timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls Abort().
@@ -162,8 +163,7 @@ class InsertTransaction {
    * @return true if commit successful
    *
    * Implementation: Checks if any operations in arc_, writes WAL via logger_,
-   * clears borrowed graph references, releases guard_, calls
-   * vm_.release_insert_timestamp(), then calls clear().
+   * releases the snapshot pin, releases the timestamp, then calls clear().
    *
    * @since v0.1.0
    */
@@ -219,7 +219,7 @@ class InsertTransaction {
   GraphView* view_;
 
   Allocator& alloc_;
-  IWalWriter& logger_;
+  IWalWriter& wal_writer_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
 };

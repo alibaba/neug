@@ -85,20 +85,6 @@ Status StorageAPUpdateInterface::AddEdgeImpl(
   return status;
 }
 
-void StorageAPUpdateInterface::CreateCheckpoint() {
-  if (!graph_.IsModified()) {
-    return;
-  }
-  auto ckp = graph_.checkpoint_ptr();
-  auto memory_level = graph_.memory_level();
-  graph_.DumpAndClear(ckp);
-  graph_.Open(ckp, memory_level);
-  mut_view_.Rebuild(graph_);
-  // Open rebuilds dirty bits to false; ClearAllDirty is redundant but keeps
-  // the post-publish contract explicit for in-place dump paths.
-  graph_.ClearAllDirty();
-}
-
 Status StorageAPUpdateInterface::DeleteVertexImpl(label_t label, vid_t lid) {
   return graph_.DeleteVertex(label, lid, timestamp_);
 }

@@ -47,7 +47,13 @@ class IVersionManager {
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
-  virtual void release_update_timestamp(uint32_t ts) = 0;
+  virtual void drain_readers() = 0;
+  /// Complete an ordinary update timestamp and restore update_state_ to 0.
+  virtual void release_update_timestamp(uint32_t ts) noexcept = 0;
+  /// Install a fresh timestamp timeline and restore update_state_ to 0 after a
+  /// successful checkpoint. The caller must have entered update commit and
+  /// drained all readers first.
+  virtual void reset_timeline_after_checkpoint(uint32_t ts) noexcept = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
   virtual void revert_compact_timestamp(uint32_t ts) = 0;
@@ -64,22 +70,22 @@ class IVersionManager {
  * Concurrency (new acquisitions; in-flight ops are not interrupted):
  *
  *   |               | Read | Insert | Update-exec | Update-commit | Compact |
- *   | Read          | yes  | yes    | yes         |   no*         |   no    |
- *   | Insert        | yes  | yes    |   no        |   no          |   no    |
- *   | Update-exec   | yes  |  no    |   no        |    -          |   no    |
- *   | Update-commit |  no* |  no    |   -         |   no          |   no    |
- *   | Compact       |  no  |  no    |   no        |   no          |   no    |
+ *   | Read          | yes  | yes    | yes         | no*           | no      |
+ *   | Insert        | yes  | yes    | no          | no            | no      |
+ *   | Update-exec   | yes  | no     | no          | -             | no      |
+ *   | Update-commit | no*  | no     | -           | no            | no      |
+ *   | Compact       | no   | no     | no          | no            | no      |
  *   *New reads spin-wait; already-acquired reads continue.
  *
  * Mechanism:
  * - write_ts_: next available write timestamp (monotonically increasing).
  *   Storage compaction may reset per-record visibility timestamps to zero, but
- *   transaction/WAL timestamps must never be reset within a WAL timeline.
+ *   transaction/WAL timestamps reset only when an update publishes a complete
+ *   baseline and rotates to a new, empty WAL timeline.
  * - read_ts_: highest timestamp fully committed and visible to all readers.
  * - active_readers_/active_inserters_: atomic counters for in-flight ops.
- * - update_state_: 0=normal, 1=update-exec (inserters drained),
- *   2=update-commit (new reads block; existing reads continue) /
- *   compact (readers+inserters drained).
+ * - update_state_: 0=normal, 1=update execution with inserters drained,
+ *   2=update commit or compact.
  * - acquire_read_timestamp uses a double-check pattern (pre-check + increment
  *   + post-check) to prevent ABA races with begin_update_commit.
  * - begin_update_commit uses seq_cst store + drain spin to ensure
@@ -102,7 +108,9 @@ class VersionManager : public IVersionManager {
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
-  void release_update_timestamp(uint32_t ts) override;
+  void drain_readers() override;
+  void release_update_timestamp(uint32_t ts) noexcept override;
+  void reset_timeline_after_checkpoint(uint32_t ts) noexcept override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;
   void revert_compact_timestamp(uint32_t ts) override;

@@ -231,7 +231,11 @@ Connect to the database asynchronously.
 def close()
 ```
 
-Close the database connection.
+Close the database and all of its connections.
+
+For a read-write database with `checkpoint_on_close=True`, this method creates a checkpoint before releasing the database resources.
+The method is idempotent.
+Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.
 
 <a id="neug.database.Database.load_builtin_dataset"></a>
 

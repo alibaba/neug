@@ -2662,21 +2662,6 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, TestCheckpoint) {
-  neug::NeugDB db;
-  neug::NeugDBConfig config(db_dir);
-  config.memory_level = neug::MemoryLevel::kInMemory;
-  db.Open(config);
-  auto svc = std::make_shared<neug::NeugDBService>(db);
-
-  {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetUpdateTransaction();
-    neug::StorageTPUpdateInterface interface(txn);
-    interface.CreateCheckpoint();
-  }
-}
-
 TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
