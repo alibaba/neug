@@ -140,6 +140,7 @@ TEST_F(InsertTransactionTest, AddVertex) {
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -190,6 +191,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
     }
     EXPECT_EQ(edge_count, 2);
   }
+  svc.reset();
   db.Close();
 }
 
