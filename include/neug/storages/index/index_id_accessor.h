@@ -55,15 +55,20 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
  public:
   static constexpr size_t kDefaultCapacity = 1024;
 
-  DefaultIndexIDAccessor() = default;
+  DefaultIndexIDAccessor()
+      : index_id_to_vid_(
+            std::make_shared<std::unordered_map<index_id_t, vid_t>>()),
+        next_index_id_(std::make_shared<std::atomic<index_id_t>>(0)) {}
   ~DefaultIndexIDAccessor() override = default;
 
-  size_t size() const { return next_index_id_.load(std::memory_order_relaxed); }
-  size_t capacity() const {
-    return index_id_to_vid_ ? index_id_to_vid_->GetDataSize() / sizeof(vid_t)
-                            : 0;
+  size_t size() const {
+    return vid_to_index_id_
+               ? vid_to_index_id_->GetDataSize() / sizeof(index_id_t)
+               : 0;
   }
-
+  index_id_t GetNextIndexID() const {
+    return next_index_id_->load(std::memory_order_relaxed);
+  }
   index_id_t GetIndexIDByVID(vid_t vid) const override;
   vid_t GetVIDByIndexID(index_id_t index_id) const override;
   index_id_t UpsertVID(vid_t vid) override;
@@ -81,11 +86,19 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
 
  private:
   void Resize(size_t new_capacity);
-  void RebuildVIDToIndexID();
+  void RebuildIndexIDToVID();
 
-  std::shared_ptr<IDataContainer> index_id_to_vid_;
-  std::unordered_map<vid_t, index_id_t> vid_to_index_id_;
-  std::atomic<index_id_t> next_index_id_{0};
+  // Serialize and deserialize the vid -> index_id mapping to avoid allocating
+  // storage for gaps in the index ID space.
+  std::shared_ptr<IDataContainer> vid_to_index_id_;
+  // Keep an additional index_id -> vid map because repeatedly updating the
+  // same vertex allocates new, monotonically increasing index IDs and leaves
+  // gaps in the index ID space.
+  std::shared_ptr<std::unordered_map<index_id_t, vid_t>> index_id_to_vid_;
+
+  // Allocate index IDs monotonically. Clones share this counter so index IDs
+  // allocated by aborted transactions are not reused by later transactions.
+  std::shared_ptr<std::atomic<index_id_t>> next_index_id_;
 };
 
 }  // namespace neug

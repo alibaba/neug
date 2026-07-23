@@ -595,6 +595,42 @@ TEST_F(TPIndexTest, AbortDiscardsIndexMutations) {
   EXPECT_EQ(SearchPersonNamesInCurrent(25), (std::vector<std::string>{}));
 }
 
+TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
+  CreatePersonTableAP();
+  ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
+  StartSnapshotStore();
+
+  index_id_t next_index_id_after_abort = 0;
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    vid_t bob = 0;
+    AddPersonTP(tp, 2, "Bob", 25, &bob);
+    auto* index = dynamic_cast<ExampleIndex*>(
+        tp.index_manager().GetIndexByName("idx_person_age"));
+    ASSERT_NE(index, nullptr);
+    next_index_id_after_abort = index->GetNextIndexID();
+    ASSERT_GT(next_index_id_after_abort, 0);
+    txn.Abort();
+  }
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    vid_t charlie = 0;
+    AddPersonTP(tp, 3, "Charlie", 30, &charlie);
+    auto* index = dynamic_cast<ExampleIndex*>(
+        tp.index_manager().GetIndexByName("idx_person_age"));
+    ASSERT_NE(index, nullptr);
+    EXPECT_GT(index->GetNextIndexID(), next_index_id_after_abort);
+    Commit(txn);
+  }
+
+  EXPECT_EQ(SearchPersonNamesInCurrent(25), (std::vector<std::string>{}));
+  EXPECT_EQ(SearchPersonNamesInCurrent(30),
+            (std::vector<std::string>{"Charlie"}));
+}
+
 TEST_F(TPIndexTest, ReadTransactionIsolationFromUpdateTransaction) {
   CreatePersonTableAP();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));

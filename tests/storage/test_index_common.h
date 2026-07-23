@@ -65,6 +65,15 @@ class ExampleIndex : public StorageIndex {
 
   bool IsBound() const { return bound_column_ != nullptr; }
   const ColumnBase* BoundColumn() const { return bound_column_; }
+  index_id_t GetIndexID(vid_t vid) const {
+    return index_id_accessor_ ? index_id_accessor_->GetIndexIDByVID(vid)
+                              : INVALID_INDEX_ID;
+  }
+  index_id_t GetNextIndexID() const {
+    const auto* accessor =
+        dynamic_cast<const DefaultIndexIDAccessor*>(index_id_accessor_.get());
+    return accessor ? accessor->GetNextIndexID() : 0;
+  }
 
   Status BulkBuild(const VertexSet& vertices) override {
     if (!bound_column_) {
@@ -102,8 +111,8 @@ class ExampleIndex : public StorageIndex {
       if (auto next_index_id = accessor_desc->get("next_index_id")) {
         descriptor.set("next_index_id", *next_index_id);
       }
-      if (auto index_id_to_vid = accessor_desc->get_path("index_id_to_vid")) {
-        descriptor.set_path("index_id_to_vid", *index_id_to_vid);
+      if (auto vid_to_index_id = accessor_desc->get_path("vid_to_index_id")) {
+        descriptor.set_path("vid_to_index_id", *vid_to_index_id);
       }
     }
     if (index_buffer_) {
@@ -153,13 +162,14 @@ class ExampleIndex : public StorageIndex {
 
     std::vector<index_id_t> results;
     const auto* values = static_cast<const int32_t*>(index_buffer_->GetData());
-    auto* accessor =
-        dynamic_cast<DefaultIndexIDAccessor*>(index_id_accessor_.get());
+    const auto* accessor =
+        dynamic_cast<const DefaultIndexIDAccessor*>(index_id_accessor_.get());
     if (!accessor) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
                           "ExampleIndex requires DefaultIndexIDAccessor");
     }
-    for (index_id_t index_id = 0; index_id < accessor->size(); ++index_id) {
+    for (index_id_t index_id = 0; index_id < accessor->GetNextIndexID();
+         ++index_id) {
       if (values[index_id] == example_params->target_value) {
         results.push_back(index_id);
       }
@@ -175,8 +185,8 @@ class ExampleIndex : public StorageIndex {
     if (!index_buffer_) {
       return Status::InternalError("ExampleIndex is not open");
     }
-    if (index_id >= capacity()) {
-      Resize(std::max(capacity() * 2, kInitialCapacity));
+    if (index_id >= size()) {
+      Resize(index_id < 4096 ? 4096 : index_id + index_id / 4);
     }
     auto* index_data = static_cast<int32_t*>(index_buffer_->GetData());
     index_data[index_id] = value.GetValue<int32_t>();
@@ -184,14 +194,12 @@ class ExampleIndex : public StorageIndex {
   }
 
  private:
-  static constexpr size_t kInitialCapacity = 1024;
-
-  size_t capacity() const {
+  size_t size() const {
     return index_buffer_ ? index_buffer_->GetDataSize() / sizeof(int32_t) : 0;
   }
 
   void Resize(size_t new_capacity) {
-    if (new_capacity > capacity()) {
+    if (new_capacity > size()) {
       index_buffer_->Resize(new_capacity * sizeof(int32_t));
     }
   }
