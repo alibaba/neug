@@ -16,6 +16,7 @@
 #include "neug/storages/graph_snapshot_store.h"
 
 #include <glog/logging.h>
+#include <utility>
 
 #include "neug/generated/proto/plan/error.pb.h"
 
@@ -82,7 +83,8 @@ void GraphSnapshotStore::cleanupSlot(int slot_index) {
   returnFreeSlot(slot_index);
 }
 
-GraphSnapshotStore::SnapshotSlot& GraphSnapshotStore::PinCurrentSnapshot() {
+GraphSnapshotStore::SnapshotSlot&
+GraphSnapshotStore::PinCurrentSnapshot() noexcept {
   while (true) {
     int slot_index = cur_slot_index_.load(std::memory_order_acquire);
 
@@ -121,12 +123,12 @@ GraphSnapshotStore::SnapshotSlot& GraphSnapshotStore::PinCurrentSnapshot() {
   }
 }
 
-void GraphSnapshotStore::UnpinSnapshot(const SnapshotSlot& slot) {
+void GraphSnapshotStore::UnpinSnapshot(const SnapshotSlot& slot) noexcept {
   int slot_index = static_cast<int>(&slot - slots_.data());
   UnpinSnapshotByIndex(slot_index);
 }
 
-void GraphSnapshotStore::UnpinSnapshotByIndex(int slot_index) {
+void GraphSnapshotStore::UnpinSnapshotByIndex(int slot_index) noexcept {
   if (slot_index < 0 || slot_index >= slot_num_) {
     LOG(ERROR) << "Invalid slot index in UnpinSnapshot: " << slot_index;
     return;

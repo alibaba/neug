@@ -155,13 +155,15 @@ class InsertTransaction {
   /**
    * @brief Commit the transaction.
    *
-   * Writes the WAL data to persistent storage and releases the timestamp.
-   * Returns early if no operations were performed.
+   * Writes the WAL data to persistent storage, releases the snapshot pin, and
+   * then releases the timestamp. Returns early if no operations were
+   * performed.
    *
    * @return true if commit successful
    *
    * Implementation: Checks if any operations in arc_, writes WAL via logger_,
-   * calls vm_.release_insert_timestamp(), then calls clear().
+   * clears borrowed graph references, releases guard_, calls
+   * vm_.release_insert_timestamp(), then calls clear().
    *
    * @since v0.1.0
    */
@@ -172,22 +174,18 @@ class InsertTransaction {
   timestamp_t timestamp() const;
 
   /**
-   * @brief Apply an insert-WAL byte stream to a writable GraphView.
+   * @brief Apply an insert-WAL byte stream via a writable GraphView.
    *
    * Used both:
-   *  - by InsertTransaction::Commit() — passing its own writable view_, with
-   *    the transaction timestamp; and
-   *  - by NeugDB recovery — the caller constructs a writable GraphView over
-   *    the initial PropertyGraph (with a per-thread allocator and
-   *    `read_ts = MAX_TIMESTAMP` so just-inserted vertices are visible while
-   *    resolving edge endpoints), and replays each WAL unit at its own
-   *    timestamp.
+   *  - by InsertTransaction::Commit() — passing its writable view_; and
+   *  - by NeugDB recovery — over a GraphView rebuilt on the opened graph.
    *
-   * Replays the WAL ops via the writable @p view. Capacity is assumed to be
-   * sufficient (no auto-grow / EnsureCapacity at this level); the strict
-   * insert path will throw if a buffer is exhausted.
+   * Marks dirty bits through the view's borrowed DirtyTracker after successful
+   * writes. Capacity is assumed to be sufficient (no auto-grow /
+   * EnsureCapacity at this level); the strict insert path will throw if a
+   * buffer is exhausted.
    *
-   * @param view Writable GraphView.
+   * @param view Writable GraphView (must have been Rebuild()'d).
    * @param timestamp Insert timestamp for each AddVertex/AddEdge in the WAL.
    * @param data Serialized op buffer.
    * @param length Byte length of @p data.
@@ -231,18 +229,6 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   explicit StorageTPInsertInterface(InsertTransaction& txn) : txn_(txn) {}
   ~StorageTPInsertInterface() {}
 
-  Status AddVertex(label_t label, const Value& id,
-                   const std::vector<Value>& props, vid_t& vid) override {
-    return txn_.AddVertex(label, id, props, vid);
-  }
-
-  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label, const std::vector<Value>& properties,
-                 const void*& prop) override {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
-                        prop);
-  }
-
   inline const Schema& schema() const override { return txn_.schema(); }
 
   bool GetVertexIndex(label_t label, const Value& id,
@@ -250,14 +236,32 @@ class StorageTPInsertInterface : public StorageInsertInterface {
     return txn_.GetVertexIndex(label, id, index);
   }
 
-  Status BatchAddVertices(
+ private:
+  // Insert path does not physically write the graph until IngestWal; marking
+  // here would be a false positive.
+  void MarkVertexTableDirty(label_t) override {}
+  void MarkEdgeTableDirty(label_t, label_t, label_t) override {}
+
+  Status AddVertexImpl(label_t label, const Value& id,
+                       const std::vector<Value>& props, vid_t& vid) override {
+    return txn_.AddVertex(label, id, props, vid);
+  }
+
+  Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label, const std::vector<Value>& properties,
+                     const void*& prop) override {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
+                        prop);
+  }
+
+  Status BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
 
-  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
 
- private:
   InsertTransaction& txn_;
 };
 

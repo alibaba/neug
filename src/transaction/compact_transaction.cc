@@ -52,12 +52,16 @@ bool CompactTransaction::Commit() {
     arc_.Clear();
 
     LOG(INFO) << "before compact - " << timestamp_;
-    // In-place compact
-    auto& slot = guard_.get();
-    slot.mutable_graph()->Compact(timestamp_);
-    slot.mutable_view().Rebuild(*slot.mutable_graph());
+    {
+      // In-place compact. Keep borrowed snapshot references scoped before the
+      // timestamp lease is released.
+      auto& slot = guard_.get();
+      slot.mutable_graph()->Compact(timestamp_);
+      slot.mutable_view().Rebuild(*slot.mutable_graph());
+    }
     LOG(INFO) << "after compact - " << timestamp_;
 
+    guard_.release();
     vm_.release_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;
   }
@@ -68,6 +72,7 @@ bool CompactTransaction::Commit() {
 void CompactTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     arc_.Clear();
+    guard_.release();
     vm_.revert_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;
   }

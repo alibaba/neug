@@ -210,8 +210,8 @@ class TestLoadFromDocs:
         records = list(result)
         assert len(records) == 4
 
-    def test_load_from_csv_array_limitation(self):
-        """load_data.md: CSV fields are not parsed as fixed-size ARRAY values."""
+    def test_load_from_csv_array_with_explicit_cast(self):
+        """load_data.md: CSV fields can be cast to fixed-size ARRAY values."""
         csv_path = self.tmp_path / "sensor_arrays.csv"
         csv_path.write_text('id,readings\n1,"[1,2,3]"\n')
 
@@ -223,12 +223,13 @@ class TestLoadFromDocs:
         )
         assert rows == [[1, "[1,2,3]"]]
 
-        with pytest.raises(RuntimeError) as exc_info:
+        rows = list(
             self.conn.execute(
                 f'LOAD FROM "{csv_path}" (header=true, delimiter=",") '
-                "RETURN id, CAST(readings, 'INT64[3]');"
+                "RETURN id, CAST(readings, 'INT64[3]') AS readings;"
             )
-        assert "not supported" in str(exc_info.value).lower()
+        )
+        assert rows == [[1, [1, 2, 3]]]
 
 
 # ============================================================
@@ -429,19 +430,24 @@ class TestCopyFromDocs:
         res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
-    def test_copy_from_csv_array_limitation(self):
-        """import_data.md: COPY FROM CSV cannot materialize fixed-size ARRAY columns."""
+    def test_copy_from_csv_array_with_explicit_cast(self):
+        """import_data.md: COPY an explicitly cast CSV ARRAY column."""
         csv_path = self.tmp_path / "sensor_arrays.csv"
         csv_path.write_text('id,readings\n1,"[1,2,3]"\n')
 
         self.conn.execute(
             "CREATE NODE TABLE Sensor(" "id INT64, readings INT64[3], PRIMARY KEY(id));"
         )
-        with pytest.raises(RuntimeError) as exc_info:
-            self.conn.execute(
-                f'COPY Sensor FROM "{csv_path}" (header=true, delimiter=",");'
-            )
-        assert "Unsupported data type in CSV parser" in str(exc_info.value)
+        self.conn.execute(
+            f"""
+            COPY Sensor FROM (
+                LOAD FROM "{csv_path}" (header=true, delimiter=",")
+                RETURN id, CAST(readings, 'INT64[3]') AS readings
+            );
+            """
+        )
+        rows = list(self.conn.execute("MATCH (s:Sensor) RETURN s.id, s.readings;"))
+        assert rows == [[1, [1, 2, 3]]]
 
     def test_copy_from_batch_read(self):
         """import_data.md: COPY FROM with batch_read and batch_size options.

@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -21,6 +22,7 @@
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
+#include "neug/storages/graph/dirty_tracker.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -156,7 +158,18 @@ class GraphView {
 
   void Rebuild(PropertyGraph& pg);
 
+  void MarkVertexTableDirty(label_t label) {
+    assert(dirty_ != nullptr);
+    dirty_->MarkVertex(label);
+  }
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) {
+    assert(dirty_ != nullptr && schema_ != nullptr);
+    dirty_->MarkEdge(schema_->generate_edge_label(src, dst, edge));
+  }
+
  private:
+  // Borrowed from the PropertyGraph passed to Rebuild(); null until then.
+  DirtyTracker* dirty_{nullptr};
   // needed by api schema().
   const Schema* schema_{nullptr};
   // read-only queries need to access index data

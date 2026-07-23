@@ -375,10 +375,11 @@ TEST_F(PropertyGraphTemporaryTest, DumpSkipsTemporaryData) {
                   ->AddVertex(person_label, Value::INT64(100),
                               {Value::STRING("Bob")}, vid2, 0)
                   .ok());
+  graph_->MarkVertexTableDirty(person_label);
 
   // Dump (checkpoint)
   auto ckp2 = make_checkpoint(ws_);
-  graph_->Dump(ckp2);
+  graph_->DumpAndClear(ckp2);
 
   // Open a fresh graph from the checkpoint — temp data should not be there
   auto graph2 = std::make_unique<PropertyGraph>();
@@ -403,7 +404,7 @@ TEST_F(PropertyGraphTemporaryTest, DumpManifestFileExcludesTemporary) {
   CreateTemporaryUser();
 
   auto ckp2 = make_checkpoint(ws_);
-  graph_->Dump(ckp2);
+  graph_->DumpAndClear(ckp2);
 
   std::string meta_file = ckp2->path() + "/meta";
   ASSERT_TRUE(std::filesystem::exists(meta_file)) << meta_file;

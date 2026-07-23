@@ -41,6 +41,8 @@ Napi::Object NodeQueryResult::Init(Napi::Env env, Napi::Object exports) {
           InstanceMethod("statusMessage", &NodeQueryResult::StatusMessage),
           InstanceMethod("getBoltResponse", &NodeQueryResult::GetBoltResponse),
           InstanceMethod("close", &NodeQueryResult::Close),
+          InstanceMethod("getProfileMetrics",
+                         &NodeQueryResult::GetProfileMetrics),
           StaticMethod("fromString", &NodeQueryResult::FromString),
       });
   constructor = Napi::Persistent(func);
@@ -340,6 +342,51 @@ Napi::Value NodeQueryResult::Close(const Napi::CallbackInfo& info) {
   QueryResult empty;
   query_result_.Swap(empty);
   return info.Env().Undefined();
+}
+
+Napi::Value NodeQueryResult::GetProfileMetrics(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+
+  if (!query_result_.response().has_profile_result()) {
+    return result;
+  }
+
+  const auto& profile_result = query_result_.response().profile_result();
+
+  // Add aggregate metrics
+  result.Set("total_elapsed_ms",
+             Napi::Number::New(env, profile_result.total_elapsed_ms()));
+  result.Set("total_output_rows",
+             Napi::Number::New(
+                 env, static_cast<double>(profile_result.total_output_rows())));
+
+  // Convert operators to array of objects
+  Napi::Array operators_array =
+      Napi::Array::New(env, profile_result.operators_size());
+  for (int i = 0; i < profile_result.operators_size(); ++i) {
+    const auto& op = profile_result.operators(i);
+    Napi::Object op_obj = Napi::Object::New(env);
+
+    op_obj.Set("operator_id", Napi::Number::New(env, op.operator_id()));
+    op_obj.Set("parent_id", Napi::Number::New(env, op.parent_id()));
+    op_obj.Set("operator_name", Napi::String::New(env, op.operator_name()));
+    op_obj.Set("elapsed_ms", Napi::Number::New(env, op.elapsed_ms()));
+    op_obj.Set("output_rows",
+               Napi::Number::New(env, static_cast<double>(op.output_rows())));
+
+    // Convert child_ids repeated field to array
+    Napi::Array child_ids_array = Napi::Array::New(env, op.child_ids_size());
+    for (int j = 0; j < op.child_ids_size(); ++j) {
+      child_ids_array.Set(j, Napi::Number::New(env, op.child_ids(j)));
+    }
+    op_obj.Set("child_ids", child_ids_array);
+
+    operators_array.Set(i, op_obj);
+  }
+  result.Set("operators", operators_array);
+
+  return result;
 }
 
 Napi::Value NodeQueryResult::FromString(const Napi::CallbackInfo& info) {

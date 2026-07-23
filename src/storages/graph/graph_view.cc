@@ -188,12 +188,10 @@ std::pair<int32_t, const void*> EdgeTableView::AddEdge(
 
 // ── GraphView ──
 
-GraphView::GraphView(PropertyGraph& storage)
-    : schema_(&storage.schema()), index_manager_(&storage.index_manager()) {
-  Rebuild(storage);
-}
+GraphView::GraphView(PropertyGraph& storage) { Rebuild(storage); }
 
 void GraphView::Rebuild(PropertyGraph& pg) {
+  dirty_ = &pg.dirty_tracker();
   schema_ = &pg.schema();
   index_manager_ = &pg.index_manager();
   vertex_views_.clear();

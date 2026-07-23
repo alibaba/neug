@@ -23,13 +23,14 @@ namespace execution {
 namespace ops {
 class ProcedureCallOpr : public IOperator {
  private:
-  std::unique_ptr<neug::function::CallFuncInputBase> callInput;
-  function::NeugCallFunction* callFunction;
+  // Unbound template from bindFunc (shared across concurrent Evals).
+  std::unique_ptr<neug::function::CallFuncInputBase> unboundInput_;
+  function::NeugCallFunction* callFunction_;
 
  public:
   ProcedureCallOpr(std::unique_ptr<neug::function::CallFuncInputBase> input,
                    function::NeugCallFunction* callFunction)
-      : callInput(std::move(input)), callFunction(callFunction) {}
+      : unboundInput_(std::move(input)), callFunction_(callFunction) {}
 
   ~ProcedureCallOpr() override = default;
 
@@ -39,13 +40,25 @@ class ProcedureCallOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    if (callFunction == nullptr) {
+    (void) ctx;
+    (void) timer;
+    if (callFunction_ == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
+    if (unboundInput_ == nullptr) {
+      THROW_RUNTIME_ERROR("ProcedureCallOpr: unbound input is nullptr");
+    }
+    if (callFunction_->execFunc == nullptr) {
+      THROW_RUNTIME_ERROR("ProcedureCallOpr: execFunc is nullptr");
+    }
+    // bindParams returns a per-Eval bound input; nullptr means no deferred
+    // params and the unbound template is safe to exec as-is.
+    auto boundInput = unboundInput_->bindParams(params);
+    const auto& input = boundInput ? *boundInput : *unboundInput_;
     return neug::result<neug::execution::Context>(
-        callFunction->execFunc(*callInput, graph));
-  }  // namespace ops
-};   // namespace execution
+        callFunction_->execFunc(input, graph));
+  }
+};
 
 neug::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,

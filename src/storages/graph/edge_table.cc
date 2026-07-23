@@ -15,9 +15,11 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/storages/module_descriptor.h"
 
 #include <glog/logging.h>
 #include <algorithm>
@@ -603,9 +605,6 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
   if (oe_iter == oe_edges.end()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("invalid oe offset ");
   }
-  if (ts != 0) {
-    out_csr_->mark_compaction_required();
-  }
   accessor.set_data(oe_iter, prop, ts);
   if (meta_->is_bundled()) {
     auto ie_edges = in_csr_->get_generic_view(ts).get_edges(dst_lid);
@@ -613,9 +612,6 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
     ie_iter += ie_offset;
     if (ie_iter == ie_edges.end()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("invalid ie offset ");
-    }
-    if (ts != 0) {
-      in_csr_->mark_compaction_required();
     }
     accessor.set_data(ie_iter, prop, ts);
   }
@@ -1137,6 +1133,27 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   }
   meta.SetScalar(ScalarKey(src, edge, dst, "capacity"),
                  std::to_string(GetCapacity()));
+}
+
+void EdgeTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                               const CheckpointManifest& prev) const {
+  if (!meta_) {
+    return;
+  }
+  const auto& src = meta_->src_label_name;
+  const auto& edge = meta_->edge_label_name;
+  const auto& dst = meta_->dst_label_name;
+  // Exact keys only — prefix matching is ambiguous when label names contain
+  // underscores.
+  meta.LinkModuleFrom(prev, KeyOutCsr(src, edge, dst), ckp);
+  meta.LinkModuleFrom(prev, KeyInCsr(src, edge, dst), ckp);
+  if (!meta_->is_bundled()) {
+    for (size_t i = 0; i < meta_->properties.size(); ++i) {
+      meta.LinkModuleFrom(prev, KeyProperty(src, edge, dst, i), ckp);
+    }
+    meta.CopyScalarFrom(prev, ScalarKey(src, edge, dst, "table_idx"));
+  }
+  meta.CopyScalarFrom(prev, ScalarKey(src, edge, dst, "capacity"));
 }
 
 }  // namespace neug
