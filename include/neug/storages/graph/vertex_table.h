@@ -269,7 +269,7 @@ class VertexTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void Compact(timestamp_t ts = MAX_TIMESTAMP);
+  void Compact();
 
   void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
   void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers,

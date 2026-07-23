@@ -889,7 +889,7 @@ void PropertyGraph::compact_schema() {
   v_mutex_.resize(new_schema.vertex_label_frontier());
 }
 
-void PropertyGraph::Compact(timestamp_t ts) {
+void PropertyGraph::Compact() {
   /**
    * The compaction process includes two parts:
    * 1. Schema: remove the deleted properties and labels from
@@ -908,7 +908,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
     }
     // Compact only dirty tables; bits stay set until ClearAll after dump.
     if (IsVertexTableDirty(src_label_i)) {
-      vertex_tables_[src_label_i].Compact(ts);
+      vertex_tables_[src_label_i].Compact();
     }
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
@@ -934,7 +934,7 @@ void PropertyGraph::Compact(timestamp_t ts) {
         }
         const auto& sort_key_for_nbr =
             schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
-        edge_tables_.at(index).Compact(sort_key_for_nbr, ts);
+        edge_tables_.at(index).Compact(sort_key_for_nbr);
       }
     }
   }
