@@ -56,7 +56,7 @@ bool CompactTransaction::Commit() {
       // In-place compact. Keep borrowed snapshot references scoped before the
       // timestamp lease is released.
       auto& slot = guard_.get();
-      slot.mutable_graph()->Compact(timestamp_);
+      slot.mutable_graph()->Compact();
       slot.mutable_view().Rebuild(*slot.mutable_graph());
     }
     LOG(INFO) << "after compact - " << timestamp_;
