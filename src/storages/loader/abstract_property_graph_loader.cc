@@ -29,7 +29,8 @@ void AbstractPropertyGraphLoader::addVerticesToVertexTable(
     auto supplier =
         createVertexChunkSupplier(v_label_id, label_name, v_file, pk_type,
                                   pk_name, pk_ind, loading_config_, 0);
-    graph_.BatchAddVertices(v_label_id, supplier);
+    graph_.BatchAddVertices(v_label_id,
+                            make_data_chunk_source(std::move(supplier)));
   }
 }
 
@@ -115,7 +116,8 @@ void AbstractPropertyGraphLoader::addEdgesToEdgeTable(
               << " from file: " << e_file;
     auto supplier = createEdgeChunkSupplier(
         src_label_id, dst_label_id, e_label_id, e_file, loading_config_, 0);
-    graph_.BatchAddEdges(src_label_id, dst_label_id, e_label_id, supplier);
+    graph_.BatchAddEdges(src_label_id, dst_label_id, e_label_id,
+                         make_data_chunk_source(std::move(supplier)));
   }
 }
 

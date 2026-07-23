@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <sstream>
 #include <utility>
 
 #include "neug/storages/loader/chunk_pipeline_utils.h"
@@ -32,6 +33,7 @@ ChunkSourceOptions parallel_source_options(
     std::vector<int32_t> projected_columns = {}) {
   return {
       .producer_count = producer_count,
+      .worker_budget = std::max<int32_t>(1, producer_count + 1),
       .queue_capacity = queue_capacity,
       .preserve_order = false,
       .projected_columns = std::move(projected_columns),
@@ -66,6 +68,58 @@ std::vector<T> read_sorted_column(
 }
 
 }  // namespace
+
+TEST(ChunkSourceOptionsTest, BulkBuildPlannerHonorsWorkerBudget) {
+  constexpr int64_t kLargeInput = 1024LL * 1024 * 1024;
+
+  const auto serial = ResolveBulkBuildSourceOptions(
+      kLargeInput, true, 1, BulkBuildWorkerStrategy::kBalancedProducerConsumer);
+  EXPECT_EQ(serial.worker_budget, 1);
+  EXPECT_EQ(serial.producer_count, 0);
+  EXPECT_EQ(serial.consumer_count, 1);
+
+  const auto balanced = ResolveBulkBuildSourceOptions(
+      kLargeInput, true, 4, BulkBuildWorkerStrategy::kBalancedProducerConsumer);
+  EXPECT_EQ(balanced.worker_budget, 4);
+  EXPECT_GT(balanced.producer_count, 0);
+  EXPECT_GE(balanced.consumer_count, 1);
+  EXPECT_LE(balanced.producer_count + balanced.consumer_count,
+            balanced.worker_budget);
+
+  const auto clamped = ResolveBulkBuildSourceOptions(
+      kLargeInput, true, 0, BulkBuildWorkerStrategy::kMaxProducers);
+  EXPECT_EQ(clamped.worker_budget, 1);
+  EXPECT_EQ(clamped.producer_count, 0);
+}
+
+TEST(ChunkSourceOptionsTest, ExecutionBoundaryClampsMalformedWorkerCounts) {
+  ChunkSourceOptions malformed{
+      .producer_count = 8,
+      .consumer_count = 7,
+      .worker_budget = 4,
+      .queue_capacity = 0,
+      .preserve_order = false,
+  };
+  const auto normalized = NormalizeChunkSourceOptions(malformed);
+  EXPECT_EQ(normalized.worker_budget, 4);
+  EXPECT_EQ(normalized.producer_count, 3);
+  EXPECT_EQ(normalized.consumer_count, 1);
+  EXPECT_EQ(normalized.queue_capacity, 1);
+  EXPECT_LE(normalized.producer_count + normalized.consumer_count,
+            normalized.worker_budget);
+
+  malformed.worker_budget = 0;
+  const auto serial = NormalizeChunkSourceOptions(malformed);
+  EXPECT_EQ(serial.worker_budget, 1);
+  EXPECT_EQ(serial.producer_count, 0);
+  EXPECT_EQ(serial.consumer_count, 1);
+
+  malformed.worker_budget = 8;
+  malformed.preserve_order = true;
+  const auto ordered = NormalizeChunkSourceOptions(malformed);
+  EXPECT_EQ(ordered.producer_count, 0);
+  EXPECT_EQ(ordered.consumer_count, 1);
+}
 
 // Test 1: Basic CSV reading with default options
 TEST_F(ReaderTest, TestBasicCsvRead) {
@@ -114,6 +168,69 @@ TEST_F(ReaderTest, CsvChunkSourceReusesPartitionPlanAcrossParallelOpens) {
   ASSERT_NE(second, nullptr);
   EXPECT_EQ(second->RowNum(), 4);
   std::filesystem::rename(moved_path, csv_path);
+}
+
+TEST_F(ReaderTest, CsvChunkSourceSeparatesPartitionPlansByWorkerBudget) {
+  createCsvFile("budgeted-plan.csv", "id|name\n1|Alice\n2|Bob\n3|Carol\n");
+  auto config = csv_config(
+      {{"id", DataTypeId::kInt32}, {"name", DataTypeId::kVarchar}}, 1);
+  const auto csv_path =
+      std::filesystem::path(ARROW_READER_TEST_DIR) / "budgeted-plan.csv";
+  const auto moved_path =
+      std::filesystem::path(ARROW_READER_TEST_DIR) / "budgeted-plan.moved";
+  CSVChunkSource source({csv_path.string()}, std::move(config));
+  const auto first_options = parallel_source_options(4, 4);
+
+  auto first = source.Open(first_options);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->RowNum(), 4);
+
+  std::filesystem::rename(csv_path, moved_path);
+  auto second_options = first_options;
+  second_options.worker_budget = 8;
+  auto second = source.Open(second_options);
+  ASSERT_NE(second, nullptr);
+  EXPECT_ANY_THROW(second->RowNum());
+  std::filesystem::rename(moved_path, csv_path);
+}
+
+TEST_F(ReaderTest, PartitionedCsvProvidesStableRowOrdinals) {
+  constexpr size_t kRowCount = 257;
+  std::ostringstream csv;
+  csv << "id|value\n";
+  for (size_t row = 0; row < kRowCount; ++row) {
+    csv << row << '|' << row * 7 << '\n';
+  }
+  createCsvFile("stable-ordinals.csv", csv.str());
+
+  auto config = csv_config(
+      {{"id", DataTypeId::kInt64}, {"value", DataTypeId::kInt64}}, 1);
+  config.chunk_size = 3;
+  const auto csv_path =
+      std::filesystem::path(ARROW_READER_TEST_DIR) / "stable-ordinals.csv";
+  CSVChunkSource source({csv_path.string()}, std::move(config));
+  auto supplier = source.Open(parallel_source_options(4, 8));
+  ASSERT_NE(supplier, nullptr);
+  ASSERT_TRUE(supplier->SupportsConcurrentGetNext());
+
+  std::vector<SequencedDataChunk> chunks;
+  while (true) {
+    auto chunk = supplier->GetNextChunkWithOrdinal();
+    if (!chunk.chunk) {
+      break;
+    }
+    chunks.push_back(std::move(chunk));
+  }
+  std::sort(chunks.begin(), chunks.end(), [](const auto& lhs, const auto& rhs) {
+    return lhs.first_row_ordinal < rhs.first_row_ordinal;
+  });
+
+  uint64_t expected_ordinal = 0;
+  for (const auto& sequenced : chunks) {
+    EXPECT_EQ(sequenced.first_row_ordinal, expected_ordinal);
+    expected_ordinal += sequenced.chunk->row_num();
+  }
+  EXPECT_EQ(expected_ordinal, kRowCount);
 }
 
 TEST_F(ReaderTest, PartitionedCsvHandlesQuotedRecordBoundaries) {

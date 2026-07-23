@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <deque>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -96,14 +97,18 @@ inline void consume_chunk_pipeline_impl(IDataChunkSupplier& supplier,
                                         Consume&& consume) {
   consumer_count = std::max<int32_t>(1, consumer_count);
   if (consumer_count == 1) {
+    uint64_t next_row_ordinal = 0;
     while (auto chunk = supplier.GetNextChunk()) {
-      consume(0, chunk);
+      const auto row_count = chunk->row_num();
+      consume(0, SequencedDataChunk{std::move(chunk), next_row_ordinal});
+      CHECK_LE(row_count,
+               std::numeric_limits<uint64_t>::max() - next_row_ordinal);
+      next_row_ordinal += static_cast<uint64_t>(row_count);
     }
     return;
   }
 
-  chunk_pipeline_detail::BoundedQueue<std::shared_ptr<DataChunk>> queue(
-      queue_capacity);
+  chunk_pipeline_detail::BoundedQueue<SequencedDataChunk> queue(queue_capacity);
   std::atomic<bool> cancelled{false};
   std::mutex error_mutex;
   std::exception_ptr first_error;
@@ -126,11 +131,19 @@ inline void consume_chunk_pipeline_impl(IDataChunkSupplier& supplier,
 
   std::thread producer([&] {
     try {
+      uint64_t next_row_ordinal = 0;
       while (!cancelled.load(std::memory_order_acquire)) {
         auto chunk = supplier.GetNextChunk();
-        if (!chunk || !queue.Push(std::move(chunk))) {
+        if (!chunk) {
           break;
         }
+        const auto row_count = chunk->row_num();
+        if (!queue.Push({std::move(chunk), next_row_ordinal})) {
+          break;
+        }
+        CHECK_LE(row_count,
+                 std::numeric_limits<uint64_t>::max() - next_row_ordinal);
+        next_row_ordinal += static_cast<uint64_t>(row_count);
       }
     } catch (...) { capture_error(std::current_exception()); }
     queue.Close();
@@ -141,7 +154,7 @@ inline void consume_chunk_pipeline_impl(IDataChunkSupplier& supplier,
   for (int32_t i = 0; i < consumer_count; ++i) {
     consumers.emplace_back([&, i] {
       try {
-        std::shared_ptr<DataChunk> chunk;
+        SequencedDataChunk chunk;
         while (!cancelled.load(std::memory_order_acquire) && queue.Pop(chunk)) {
           consume(i, chunk);
         }
@@ -168,7 +181,11 @@ inline void consume_concurrent_supplier_impl(IDataChunkSupplier& supplier,
   CHECK(supplier.SupportsConcurrentGetNext());
   consumer_count = std::max<int32_t>(1, consumer_count);
   if (consumer_count == 1) {
-    while (auto chunk = supplier.GetNextChunk()) {
+    while (true) {
+      auto chunk = supplier.GetNextChunkWithOrdinal();
+      if (!chunk.chunk) {
+        break;
+      }
       consume(0, chunk);
     }
     return;
@@ -195,8 +212,8 @@ inline void consume_concurrent_supplier_impl(IDataChunkSupplier& supplier,
     consumers.emplace_back([&, i] {
       try {
         while (!cancelled.load(std::memory_order_acquire)) {
-          auto chunk = supplier.GetNextChunk();
-          if (!chunk) {
+          auto chunk = supplier.GetNextChunkWithOrdinal();
+          if (!chunk.chunk) {
             break;
           }
           consume(i, chunk);
@@ -221,13 +238,28 @@ template <typename Consume>
 inline void consume_supplier_indexed(IDataChunkSupplier& supplier,
                                      const ChunkSourceOptions& options,
                                      Consume&& consume) {
+  const auto normalized = NormalizeChunkSourceOptions(options);
+  auto consumer_count = normalized.consumer_count;
   if (supplier.SupportsConcurrentGetNext()) {
     chunk_pipeline_detail::consume_concurrent_supplier_impl(
-        supplier, options.consumer_count, std::forward<Consume>(consume));
+        supplier, consumer_count, std::forward<Consume>(consume));
     return;
   }
+
+  // A non-concurrent supplier needs an extra forwarding producer whenever
+  // several consumers are used. Account for that thread at the execution
+  // boundary as well; falling back to one inline consumer avoids the extra
+  // thread when the remaining budget is too small.
+  if (consumer_count > 1) {
+    const auto max_consumers_with_forwarder =
+        normalized.worker_budget - normalized.producer_count - 1;
+    consumer_count = std::min(consumer_count, max_consumers_with_forwarder);
+    if (consumer_count < 2) {
+      consumer_count = 1;
+    }
+  }
   chunk_pipeline_detail::consume_chunk_pipeline_impl(
-      supplier, options.consumer_count, options.queue_capacity,
+      supplier, consumer_count, normalized.queue_capacity,
       std::forward<Consume>(consume));
 }
 

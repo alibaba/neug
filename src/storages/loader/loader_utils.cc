@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -68,6 +69,7 @@ struct CsvRangeTask {
   std::string file_path;
   CsvPartitionRange range;
   int64_t skip_rows = 0;
+  uint64_t first_row_ordinal = 0;
 };
 
 struct CsvPartitionPlan {
@@ -78,7 +80,7 @@ struct CsvPartitionPlan {
 struct CsvPartitionPlanCache {
   std::shared_ptr<const CsvPartitionPlan> GetOrCreate(
       const std::vector<std::string>& file_paths, const CsvReadConfig& config,
-      int32_t producer_count);
+      int32_t producer_count, int32_t worker_budget);
 
  private:
   struct Entry {
@@ -87,7 +89,7 @@ struct CsvPartitionPlanCache {
   };
 
   std::mutex mutex_;
-  std::unordered_map<int32_t, std::unique_ptr<Entry>> entries_;
+  std::map<std::pair<int32_t, int32_t>, std::unique_ptr<Entry>> entries_;
 };
 
 namespace {
@@ -460,6 +462,8 @@ struct CsvScanResult {
   std::vector<CsvPartitionRange> ranges;
 };
 
+constexpr size_t kMinCsvScanBytesPerWorker = 4 << 20;  // 4 MB
+
 /// Scans CSV bytes to count rows and optionally produce record-aligned ranges.
 /// csv-parser always recognizes RFC-style doubled quotes, so the scanner uses
 /// the same effective dialect instead of the legacy double_quote option.
@@ -482,14 +486,13 @@ class CsvFileScanner {
     if (file_size == 0)
       return 0;
 
-    constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
     unsigned num_threads =
         use_threads_ ? std::thread::hardware_concurrency() : 1;
     if (num_threads == 0)
       num_threads = 1;
-    if (file_size < kMinChunkSize * num_threads) {
-      num_threads =
-          std::max(1u, static_cast<unsigned>(file_size / kMinChunkSize));
+    if (file_size < kMinCsvScanBytesPerWorker * num_threads) {
+      num_threads = std::max(
+          1u, static_cast<unsigned>(file_size / kMinCsvScanBytesPerWorker));
     }
     if (num_threads <= 1)
       return count_single(file_size);
@@ -505,8 +508,11 @@ class CsvFileScanner {
     const auto target_partitions = std::min(
         file_size,
         static_cast<size_t>(std::max<int32_t>(1, requested_partitions)));
-    const auto workers = static_cast<unsigned>(std::min(
-        file_size, static_cast<size_t>(std::max<int32_t>(1, scan_threads))));
+    const auto useful_workers =
+        std::max<size_t>(1, file_size / kMinCsvScanBytesPerWorker);
+    const auto workers = static_cast<unsigned>(
+        std::min({file_size, useful_workers,
+                  static_cast<size_t>(std::max<int32_t>(1, scan_threads))}));
     if (workers == 1) {
       result.row_count = count_single(file_size);
       result.ranges.push_back({0, file_size, 0});
@@ -863,7 +869,7 @@ class CsvRangeStream final : public std::istream {
 
 std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
     const std::vector<std::string>& file_paths, const CsvReadConfig& config,
-    int32_t producer_count) {
+    int32_t producer_count, int32_t worker_budget) {
   CHECK_GE(producer_count, 1);
   auto plan = std::make_shared<CsvPartitionPlan>();
 
@@ -915,7 +921,7 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
   // concurrently. With fewer files, the same H budget is divided among
   // intra-file speculative scans. scan_parallel() uses its caller for one
   // byte range, therefore the number of active scanners never exceeds H.
-  const auto scan_budget = chunk_pipeline_detail::hardware_worker_count();
+  const auto scan_budget = std::max<int32_t>(1, worker_budget);
   auto scan_threads = range_counts;
   if (non_empty_files < static_cast<size_t>(scan_budget)) {
     size_t assigned_scanners = assigned_ranges;
@@ -1008,6 +1014,7 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
   }
 
   int64_t total = 0;
+  uint64_t next_row_ordinal = 0;
   for (size_t i = 0; i < file_paths.size(); ++i) {
     const auto& scan = scans[i];
     if (total != kUnknownRowNum) {
@@ -1033,7 +1040,13 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
       const auto range_rows = range_end_row - range.start_row;
       const auto range_skip = std::min(remaining_skip, range_rows);
       remaining_skip -= range_skip;
-      plan->tasks.push_back({file_paths[i], range, range_skip});
+      plan->tasks.push_back(
+          {file_paths[i], range, range_skip, next_row_ordinal});
+      const auto output_rows = range_rows - range_skip;
+      CHECK_GE(output_rows, 0);
+      CHECK_LE(static_cast<uint64_t>(output_rows),
+               std::numeric_limits<uint64_t>::max() - next_row_ordinal);
+      next_row_ordinal += static_cast<uint64_t>(output_rows);
     }
   }
   plan->row_count = total;
@@ -1048,20 +1061,22 @@ std::shared_ptr<const CsvPartitionPlan> build_csv_partition_plan(
 
 std::shared_ptr<const CsvPartitionPlan> CsvPartitionPlanCache::GetOrCreate(
     const std::vector<std::string>& file_paths, const CsvReadConfig& config,
-    int32_t producer_count) {
-  producer_count = std::clamp<int32_t>(
-      producer_count, 1, chunk_pipeline_detail::hardware_worker_count());
+    int32_t producer_count, int32_t worker_budget) {
+  worker_budget = std::max<int32_t>(1, worker_budget);
+  producer_count = std::clamp<int32_t>(producer_count, 1,
+                                       std::max<int32_t>(1, worker_budget - 1));
   Entry* entry;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto& cached = entries_[producer_count];
+    auto& cached = entries_[{producer_count, worker_budget}];
     if (!cached) {
       cached = std::make_unique<Entry>();
     }
     entry = cached.get();
   }
   std::call_once(entry->once, [&] {
-    entry->plan = build_csv_partition_plan(file_paths, config, producer_count);
+    entry->plan = build_csv_partition_plan(file_paths, config, producer_count,
+                                           worker_budget);
   });
   return entry->plan;
 }
@@ -1558,58 +1573,53 @@ int64_t CSVChunkSupplier::RowNum() const {
 
 namespace {
 
-class SourceBackedChunkSupplier final : public IDataChunkSupplier {
+class SupplierChunkSource final : public IDataChunkSource {
  public:
-  explicit SourceBackedChunkSupplier(std::shared_ptr<IDataChunkSource> source)
-      : source_(std::move(source)) {
-    CHECK(source_ != nullptr);
-  }
+  explicit SupplierChunkSource(std::shared_ptr<IDataChunkSupplier> supplier)
+      : supplier_(std::move(supplier)) {}
 
-  std::shared_ptr<DataChunk> GetNextChunk() override {
-    return OpenSupplier()->GetNextChunk();
-  }
-
-  int64_t RowNum() const override { return OpenSupplier()->RowNum(); }
-
-  bool SupportsConcurrentGetNext() const override {
-    return OpenSupplier()->SupportsConcurrentGetNext();
-  }
-
-  void Cancel() override {
-    std::shared_ptr<IDataChunkSupplier> supplier;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      cancelled_ = true;
-      supplier = supplier_;
+  std::shared_ptr<IDataChunkSupplier> Open(
+      const ChunkSourceOptions& /*options*/) override {
+    if (!supplier_) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Data chunk source is empty");
     }
-    if (supplier) {
-      supplier->Cancel();
-    }
+    return std::move(supplier_);
   }
 
-  std::shared_ptr<IDataChunkSource> RepeatableSource() const override {
-    return source_;
+  bool ParallelEnabled() const override { return false; }
+
+ private:
+  std::shared_ptr<IDataChunkSupplier> supplier_;
+};
+
+class SharedChunkSource final : public IDataChunkSource {
+ public:
+  explicit SharedChunkSource(std::shared_ptr<IDataChunkSource> source)
+      : source_(std::move(source)) {}
+
+  std::shared_ptr<IDataChunkSupplier> Open(
+      const ChunkSourceOptions& options) override {
+    if (!source_) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Data chunk source is empty");
+    }
+    auto source = std::move(source_);
+    return source->Open(options);
+  }
+
+  int64_t EstimatedBytes() const override {
+    return source_ ? source_->EstimatedBytes() : -1;
+  }
+
+  bool ParallelEnabled() const override {
+    return source_ && source_->ParallelEnabled();
+  }
+
+  bool ProvidesStableRowOrdinals() const override {
+    return source_ && source_->ProvidesStableRowOrdinals();
   }
 
  private:
-  IDataChunkSupplier* OpenSupplier() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!supplier_) {
-      supplier_ = source_->Open();
-      if (!supplier_) {
-        THROW_INTERNAL_EXCEPTION("Data source returned a null supplier");
-      }
-      if (cancelled_) {
-        supplier_->Cancel();
-      }
-    }
-    return supplier_.get();
-  }
-
   std::shared_ptr<IDataChunkSource> source_;
-  mutable std::mutex mutex_;
-  mutable std::shared_ptr<IDataChunkSupplier> supplier_;
-  mutable bool cancelled_ = false;
 };
 
 CsvReadConfig project_csv_config(const CsvReadConfig& config,
@@ -1663,7 +1673,8 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
         config_(std::move(config)),
         producer_count_(std::clamp<int32_t>(
             options.producer_count, 1,
-            chunk_pipeline_detail::hardware_worker_count())),
+            std::max<int32_t>(1, options.worker_budget - 1))),
+        worker_budget_(std::max<int32_t>(1, options.worker_budget)),
         plan_cache_(std::move(plan_cache)),
         queue_(options.queue_capacity) {}
 
@@ -1673,14 +1684,18 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
   }
 
   std::shared_ptr<DataChunk> GetNextChunk() override {
+    return GetNextChunkWithOrdinal().chunk;
+  }
+
+  SequencedDataChunk GetNextChunkWithOrdinal() override {
     EnsureScanned();
     StartWorkers();
-    std::shared_ptr<DataChunk> chunk;
+    SequencedDataChunk chunk;
     if (queue_.Pop(chunk)) {
       return chunk;
     }
     RethrowError();
-    return nullptr;
+    return {};
   }
 
   int64_t RowNum() const override {
@@ -1689,6 +1704,7 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
   }
 
   bool SupportsConcurrentGetNext() const override { return true; }
+  bool ProvidesStableRowOrdinals() const override { return true; }
 
   void Cancel() override {
     stop_.store(true, std::memory_order_release);
@@ -1699,7 +1715,8 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
   void EnsureScanned() {
     std::call_once(scan_once_, [&] {
       CHECK(plan_cache_ != nullptr);
-      plan_ = plan_cache_->GetOrCreate(file_paths_, config_, producer_count_);
+      plan_ = plan_cache_->GetOrCreate(file_paths_, config_, producer_count_,
+                                       worker_budget_);
       CHECK(plan_ != nullptr);
     });
   }
@@ -1734,11 +1751,19 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
         range_config.use_threads = false;
         CsvSupplierRuntime runtime(task.file_path, range_config,
                                    CsvRowCountMode::kUnknown, task.range);
+        auto next_row_ordinal = task.first_row_ordinal;
         while (!stop_.load(std::memory_order_acquire)) {
           auto chunk = runtime.get_next_chunk();
-          if (!chunk || !queue_.Push(std::move(chunk))) {
+          if (!chunk) {
             break;
           }
+          const auto row_count = chunk->row_num();
+          if (!queue_.Push({std::move(chunk), next_row_ordinal})) {
+            break;
+          }
+          CHECK_LE(row_count,
+                   std::numeric_limits<uint64_t>::max() - next_row_ordinal);
+          next_row_ordinal += static_cast<uint64_t>(row_count);
         }
       }
     } catch (...) { SetError(std::current_exception()); }
@@ -1784,9 +1809,10 @@ class PartitionedCsvChunkSupplier final : public IDataChunkSupplier {
   std::vector<std::string> file_paths_;
   CsvReadConfig config_;
   int32_t producer_count_;
+  int32_t worker_budget_;
   std::shared_ptr<CsvPartitionPlanCache> plan_cache_;
   std::shared_ptr<const CsvPartitionPlan> plan_;
-  chunk_pipeline_detail::BoundedQueue<std::shared_ptr<DataChunk>> queue_;
+  chunk_pipeline_detail::BoundedQueue<SequencedDataChunk> queue_;
   std::once_flag scan_once_;
   std::once_flag workers_once_;
   std::vector<std::thread> workers_;
@@ -1847,23 +1873,65 @@ class ChainedCsvChunkSupplier final : public IDataChunkSupplier {
 
 }  // namespace
 
-std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
+std::unique_ptr<IDataChunkSource> make_data_chunk_source(
+    std::shared_ptr<IDataChunkSupplier> supplier) {
+  if (!supplier) {
+    return nullptr;
+  }
+  return std::make_unique<SupplierChunkSource>(std::move(supplier));
+}
+
+std::unique_ptr<IDataChunkSource> make_data_chunk_source(
     std::shared_ptr<IDataChunkSource> source) {
   if (!source) {
     return nullptr;
   }
-  return std::make_shared<SourceBackedChunkSupplier>(std::move(source));
+  return std::make_unique<SharedChunkSource>(std::move(source));
+}
+
+std::shared_ptr<IDataChunkSupplier> open_data_chunk_source(
+    IDataChunkSource& source, const ChunkSourceOptions& options) {
+  auto supplier = source.Open(NormalizeChunkSourceOptions(options));
+  if (!supplier) {
+    THROW_INTERNAL_EXCEPTION("Data source returned a null supplier");
+  }
+  return supplier;
+}
+
+ChunkSourceOptions NormalizeChunkSourceOptions(ChunkSourceOptions options) {
+  options.worker_budget = std::max<int32_t>(1, options.worker_budget);
+  options.producer_count = std::max<int32_t>(0, options.producer_count);
+  options.consumer_count = std::max<int32_t>(1, options.consumer_count);
+  options.queue_capacity = std::max<size_t>(1, options.queue_capacity);
+
+  if (options.preserve_order || options.worker_budget == 1) {
+    options.producer_count = 0;
+    options.consumer_count = 1;
+  } else {
+    options.producer_count =
+        std::min<int32_t>(options.producer_count, options.worker_budget - 1);
+    options.consumer_count = std::min<int32_t>(
+        options.consumer_count, options.worker_budget - options.producer_count);
+  }
+
+  CHECK_GE(options.worker_budget, 1);
+  CHECK_GE(options.producer_count, 0);
+  CHECK_GE(options.consumer_count, 1);
+  CHECK_LE(options.producer_count + options.consumer_count,
+           options.worker_budget);
+  return options;
 }
 
 ChunkSourceOptions ResolveBulkBuildSourceOptions(
-    int64_t source_bytes, bool parallel_enabled,
+    int64_t source_bytes, bool parallel_enabled, int32_t worker_budget,
     BulkBuildWorkerStrategy worker_strategy) {
   constexpr int64_t kMinPartitionBytes = 64LL * 1024 * 1024;
   constexpr size_t kMaxQueuedChunks = 64;
 
   ChunkSourceOptions options;
+  const auto workers = std::max<int32_t>(1, worker_budget);
+  options.worker_budget = workers;
   options.preserve_order = false;
-  const auto workers = chunk_pipeline_detail::hardware_worker_count();
   if (!parallel_enabled || workers <= 1 ||
       source_bytes < kDefaultBulkBuildMinBytes) {
     return options;
@@ -1887,7 +1955,7 @@ ChunkSourceOptions ResolveBulkBuildSourceOptions(
   }
   options.queue_capacity = std::clamp<size_t>(
       static_cast<size_t>(options.producer_count) * 2, 2, kMaxQueuedChunks);
-  return options;
+  return NormalizeChunkSourceOptions(std::move(options));
 }
 
 CSVChunkSource::CSVChunkSource(std::vector<std::string> file_paths,
@@ -1899,15 +1967,16 @@ CSVChunkSource::CSVChunkSource(std::vector<std::string> file_paths,
       partition_plan_cache_(std::make_shared<CsvPartitionPlanCache>()) {}
 
 std::shared_ptr<IDataChunkSupplier> CSVChunkSource::Open(
-    const ChunkSourceOptions& options) const {
+    const ChunkSourceOptions& requested_options) {
   if (file_paths_.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("CSV chunk source has no input paths");
   }
+  const auto options = NormalizeChunkSourceOptions(requested_options);
   auto open_config = project_csv_config(
       config_,
       compose_projection(projected_columns_, options.projected_columns));
-  if (open_config.use_threads && options.producer_count > 0 &&
-      !options.preserve_order) {
+  if (open_config.use_threads && options.worker_budget > 1 &&
+      options.producer_count > 0 && !options.preserve_order) {
     return std::make_shared<PartitionedCsvChunkSupplier>(
         file_paths_, std::move(open_config), options, partition_plan_cache_);
   }
@@ -2198,7 +2267,7 @@ void set_column_from_value_column(
       if (vids[k] >= std::numeric_limits<vid_t>::max())
         continue;
       if (value_col) {
-        write(vids[k], value_col->data()[k]);
+        write(vids[k], value_col->get_value(k));
       } else {
         auto val = ctx_col->get_elem(k);
         if (!val.IsNull())
@@ -2210,7 +2279,7 @@ void set_column_from_value_column(
       if (vids[k] >= std::numeric_limits<vid_t>::max())
         continue;
       if (value_col) {
-        typed->set_value(vids[k], value_col->data()[k]);
+        typed->set_value(vids[k], value_col->get_value(k));
       } else {
         auto val = ctx_col->get_elem(k);
         if (!val.IsNull())

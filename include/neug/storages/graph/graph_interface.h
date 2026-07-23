@@ -22,6 +22,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -423,27 +424,27 @@ class StorageInsertInterface : virtual public IStorageInterface {
                          const void*& prop) = 0;
 
   /**
-   * @brief Batch insert vertices from a record supplier.
+   * @brief Batch insert vertices from an operation-owned record source.
    *
    * @param v_label_id Vertex label for all records
-   * @param supplier Record batch data source
+   * @param source Record batch data source
    * @return Status indicating success or failure
    */
-  virtual Status BatchAddVertices(
-      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) = 0;
+  virtual Status BatchAddVertices(label_t v_label_id,
+                                  std::unique_ptr<IDataChunkSource> source) = 0;
 
   /**
-   * @brief Batch insert edges from a record supplier.
+   * @brief Batch insert edges from an operation-owned record source.
    *
    * @param src_label Source vertex label
    * @param dst_label Destination vertex label
    * @param edge_label Edge label
-   * @param supplier Record batch data source
+   * @param source Record batch data source
    * @return Status indicating success or failure
    */
-  virtual Status BatchAddEdges(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IDataChunkSupplier> supplier) = 0;
+  virtual Status BatchAddEdges(label_t src_label, label_t dst_label,
+                               label_t edge_label,
+                               std::unique_ptr<IDataChunkSource> source) = 0;
 };
 
 /**
@@ -620,12 +621,14 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
  public:
   explicit StorageAPUpdateInterface(PropertyGraph& graph, GraphView& view,
                                     timestamp_t timestamp,
-                                    neug::Allocator& alloc)
+                                    neug::Allocator& alloc,
+                                    BulkLoadOptions bulk_load_options = {})
       : StorageUpdateInterface(view, timestamp),
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
-        timestamp_(timestamp) {}
+        timestamp_(timestamp),
+        bulk_load_options_(bulk_load_options) {}
   ~StorageAPUpdateInterface() {}
 
   Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
@@ -646,11 +649,10 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                      label_t edge_label) override;
   void CreateCheckpoint() override;
-  Status BatchAddVertices(
-      label_t v_label_id,
-      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddVertices(label_t v_label_id,
+                          std::unique_ptr<IDataChunkSource> source) override;
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier) override;
+                       std::unique_ptr<IDataChunkSource> source) override;
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdges(
@@ -681,6 +683,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
+  BulkLoadOptions bulk_load_options_;
 };
 
 }  // namespace neug

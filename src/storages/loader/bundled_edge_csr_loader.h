@@ -24,13 +24,15 @@
 namespace neug {
 
 class CsrBase;
+class Checkpoint;
 class IDataChunkSource;
+struct BulkLoadOptions;
 
 namespace internal {
 
-/// Builds the outgoing and incoming CSR pair for a bundled edge table directly
-/// from a repeatable chunk source. EdgeTable owns staging and publication; this
-/// class owns source planning and the CSR bulk-build protocol.
+/// Builds the outgoing and incoming CSR pair for a bundled edge table from a
+/// one-shot chunk input. EdgeTable owns staging and publication; this class
+/// owns source planning, the spill intermediate, and the CSR build protocol.
 class BundledEdgeCsrLoader {
  public:
   template <typename EDATA_T>
@@ -43,10 +45,10 @@ class BundledEdgeCsrLoader {
   /// Callers must pass fresh, unpublished CSR instances.
   static bool TryBuild(CsrBase& out_csr, CsrBase& in_csr,
                        const EdgeSchema& schema, const IndexerType& src_indexer,
-                       const IndexerType& dst_indexer,
-                       const std::shared_ptr<IDataChunkSource>& source,
+                       const IndexerType& dst_indexer, IDataChunkSource& source,
                        int64_t source_bytes, vid_t src_vertex_capacity,
-                       vid_t dst_vertex_capacity);
+                       vid_t dst_vertex_capacity, Checkpoint& checkpoint,
+                       BulkLoadOptions options);
 };
 
 }  // namespace internal

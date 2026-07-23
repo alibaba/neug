@@ -72,14 +72,15 @@ class QueryProcessor {
   result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
   check_and_retrieve_pipeline(const PropertyGraph& pg,
                               const std::string& query_string,
-                              const std::string& access_mode,
-                              int32_t num_threads);
+                              const std::string& access_mode);
+
+  result<int32_t> resolve_thread_budget(int32_t requested_threads) const;
 
   result<QueryResult> execute_internal(
       SnapshotGuard& guard, const std::string& query_string,
       std::shared_ptr<execution::CacheValue> cache_value,
       AccessMode access_mode, const execution::ParamsMap& parameters = {},
-      int32_t num_threads = 0);
+      int32_t thread_budget = 0);
 
   result<QueryResult> execute_explain_mode(
       const std::string& query_string,

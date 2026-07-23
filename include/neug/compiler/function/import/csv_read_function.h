@@ -143,7 +143,7 @@ struct CSVReadFunction {
     return ctx;
   }
 
-  static std::shared_ptr<IDataChunkSource> sourceFunc(
+  static std::unique_ptr<IDataChunkSource> sourceFunc(
       std::shared_ptr<reader::ReadSharedState> state,
       std::vector<int32_t> projected_columns) {
     if (!state) {

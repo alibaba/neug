@@ -74,23 +74,29 @@ CsvReadConfig build_csv_read_config(
 
 class IDataChunkSource;
 
+struct SequencedDataChunk {
+  std::shared_ptr<DataChunk> chunk;
+  uint64_t first_row_ordinal = 0;
+};
+
 class IDataChunkSupplier {
  public:
   virtual ~IDataChunkSupplier() = default;
   virtual std::shared_ptr<DataChunk> GetNextChunk() = 0;
   virtual int64_t RowNum() const = 0;
 
+  /// Returns a chunk together with its stable source row ordinal. Concurrent
+  /// suppliers override this when their source advertises stable ordinals.
+  virtual SequencedDataChunk GetNextChunkWithOrdinal() {
+    return {GetNextChunk(), 0};
+  }
+  virtual bool ProvidesStableRowOrdinals() const { return false; }
+
   /// Whether GetNextChunk() may be called concurrently by several consumers.
   virtual bool SupportsConcurrentGetNext() const { return false; }
 
   /// Stops any background producers and wakes blocked GetNextChunk() calls.
   virtual void Cancel() {}
-
-  /// Returns the repeatable source backing this supplier, when available.
-  /// Storage uses this hint to select staged bulk build internally.
-  virtual std::shared_ptr<IDataChunkSource> RepeatableSource() const {
-    return nullptr;
-  }
 };
 
 struct ChunkSourceOptions {
@@ -98,6 +104,8 @@ struct ChunkSourceOptions {
   /// many background parsing workers when input order need not be preserved.
   int32_t producer_count = 0;
   int32_t consumer_count = 1;
+  /// Maximum concurrently active workers for source planning and execution.
+  int32_t worker_budget = 1;
   size_t queue_capacity = 2;
   bool preserve_order = true;
 
@@ -106,7 +114,12 @@ struct ChunkSourceOptions {
   std::vector<int32_t> projected_columns;
 };
 
-/// A repeatable source of data chunks.
+/// Clamps source concurrency to a valid execution plan. The normalized result
+/// always reserves at least one consumer and satisfies
+/// producer_count + consumer_count <= worker_budget.
+ChunkSourceOptions NormalizeChunkSourceOptions(ChunkSourceOptions options);
+
+/// A configurable source of data chunks.
 ///
 /// Keeping source setup separate from the supplier cursor lets storage consume
 /// the input directly without making execution::Context stateful or lazy.
@@ -117,17 +130,31 @@ class IDataChunkSource {
   /// Opens a new supplier positioned at the beginning of the source using the
   /// requested projection and concurrency settings.
   virtual std::shared_ptr<IDataChunkSupplier> Open(
-      const ChunkSourceOptions& options = {}) const = 0;
+      const ChunkSourceOptions& options = {}) = 0;
 
   /// Returns the source size when cheaply known, otherwise -1.
   virtual int64_t EstimatedBytes() const { return -1; }
 
   /// Whether the source options permit parallel parsing and consumption.
   virtual bool ParallelEnabled() const { return true; }
+
+  /// Whether parallel suppliers return globally ordered row ordinals.
+  virtual bool ProvidesStableRowOrdinals() const { return false; }
 };
 
-std::shared_ptr<IDataChunkSupplier> make_data_chunk_supplier(
+/// Adapts an already-open supplier to an operation-owned source.
+std::unique_ptr<IDataChunkSource> make_data_chunk_source(
+    std::shared_ptr<IDataChunkSupplier> supplier);
+std::unique_ptr<IDataChunkSource> make_data_chunk_source(
     std::shared_ptr<IDataChunkSource> source);
+
+std::shared_ptr<IDataChunkSupplier> open_data_chunk_source(
+    IDataChunkSource& source, const ChunkSourceOptions& options = {});
+
+/// Operation-scoped resource limits for storage bulk loading.
+struct BulkLoadOptions {
+  int32_t worker_budget = 1;
+};
 
 enum class BulkBuildWorkerStrategy {
   kMaxProducers,
@@ -135,7 +162,7 @@ enum class BulkBuildWorkerStrategy {
 };
 
 ChunkSourceOptions ResolveBulkBuildSourceOptions(
-    int64_t source_bytes, bool parallel_enabled,
+    int64_t source_bytes, bool parallel_enabled, int32_t worker_budget,
     BulkBuildWorkerStrategy worker_strategy);
 
 inline constexpr int64_t kUnknownRowNum = -1;
@@ -184,25 +211,23 @@ class CSVChunkSupplier : public IDataChunkSupplier {
 
 struct CsvPartitionPlanCache;
 
-/// Reopens the public CSV parser for each pass. Parallel suppliers share a
-/// cached record-aligned partition plan so repeated passes do not repeat the
-/// raw row-count scan.
+/// Opens the public CSV parser with a storage-selected concurrency plan.
 class CSVChunkSource final : public IDataChunkSource {
  public:
   CSVChunkSource(std::vector<std::string> file_paths, CsvReadConfig config,
                  std::vector<int32_t> projected_columns = {});
 
   std::shared_ptr<IDataChunkSupplier> Open(
-      const ChunkSourceOptions& options = {}) const override;
+      const ChunkSourceOptions& options = {}) override;
   int64_t EstimatedBytes() const override;
   bool ParallelEnabled() const override { return config_.use_threads; }
+  bool ProvidesStableRowOrdinals() const override { return true; }
 
  private:
   std::vector<std::string> file_paths_;
   CsvReadConfig config_;
   std::vector<int32_t> projected_columns_;
-  // Source-local cache: file paths and partition-relevant config stay fixed
-  // across Open() calls; producer count selects the cached plan.
+  // Source-local cache keeps partition planning lazy until Open().
   std::shared_ptr<CsvPartitionPlanCache> partition_plan_cache_;
 };
 

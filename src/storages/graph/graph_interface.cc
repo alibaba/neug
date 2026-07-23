@@ -116,8 +116,9 @@ Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
 }
 
 Status StorageAPUpdateInterface::BatchAddVertices(
-    label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  auto status = graph_.BatchAddVertices(v_label_id, std::move(supplier));
+    label_t v_label_id, std::unique_ptr<IDataChunkSource> source) {
+  auto status = graph_.BatchAddVertices(v_label_id, std::move(source),
+                                        bulk_load_options_);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
   }
@@ -126,9 +127,9 @@ Status StorageAPUpdateInterface::BatchAddVertices(
 
 Status StorageAPUpdateInterface::BatchAddEdges(
     label_t src_label, label_t dst_label, label_t edge_label,
-    std::shared_ptr<IDataChunkSupplier> supplier) {
+    std::unique_ptr<IDataChunkSource> source) {
   auto status = graph_.BatchAddEdges(src_label, dst_label, edge_label,
-                                     std::move(supplier));
+                                     std::move(source), bulk_load_options_);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
   }

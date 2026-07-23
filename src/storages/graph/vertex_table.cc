@@ -48,30 +48,29 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   v_ts_->Open(*ckp_, ModuleDescriptor{}, level);
 }
 
-void VertexTable::BatchAddVertices(
-    std::shared_ptr<IDataChunkSupplier> supplier) {
-  CHECK(supplier != nullptr);
-  auto source = supplier->RepeatableSource();
-  if (source && ShouldUseBulkBuild(source->EstimatedBytes()) &&
-      try_batch_build_vertices(source)) {
+void VertexTable::BatchAddVertices(std::unique_ptr<IDataChunkSource> source,
+                                   BulkLoadOptions options) {
+  CHECK(source != nullptr);
+  if (ShouldUseBulkBuild(source->EstimatedBytes()) &&
+      try_batch_build_vertices(*source, options)) {
     return;
   }
-  batch_add_vertices_impl(std::move(supplier));
+  batch_add_vertices_impl(open_data_chunk_source(*source));
 }
 
-bool VertexTable::try_batch_build_vertices(
-    const std::shared_ptr<IDataChunkSource>& source) {
+bool VertexTable::try_batch_build_vertices(IDataChunkSource& source,
+                                           BulkLoadOptions options) {
   if (Size() != 0) {
     return false;
   }
 
   auto staged = VertexTable(vertex_schema_);
   staged.Init(ckp_, memory_level_);
-  const auto source_bytes = source->EstimatedBytes();
-  auto options =
-      ResolveBulkBuildSourceOptions(source_bytes, source->ParallelEnabled(),
-                                    BulkBuildWorkerStrategy::kMaxProducers);
-  auto supplier = source->Open(options);
+  const auto source_bytes = source.EstimatedBytes();
+  auto source_options = ResolveBulkBuildSourceOptions(
+      source_bytes, source.ParallelEnabled(), options.worker_budget,
+      BulkBuildWorkerStrategy::kMaxProducers);
+  auto supplier = open_data_chunk_source(source, source_options);
   if (!supplier) {
     return false;
   }

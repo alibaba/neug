@@ -252,12 +252,11 @@ class StorageTPInsertInterface : public StorageInsertInterface {
     return txn_.GetVertexIndex(label, id, index);
   }
 
-  Status BatchAddVertices(
-      label_t v_label_id,
-      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddVertices(label_t v_label_id,
+                          std::unique_ptr<IDataChunkSource> source) override;
 
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier) override;
+                       std::unique_ptr<IDataChunkSource> source) override;
 
  private:
   InsertTransaction& txn_;

@@ -126,11 +126,12 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
     input = create_batch_insert_input(source_->state, *source_->read_function,
                                       mappings);
   } else {
-    input.supplier = create_data_chunk_supplier(ctx, mappings);
+    input.data =
+        make_data_chunk_source(create_data_chunk_supplier(ctx, mappings));
     input.output = std::move(ctx);
   }
   RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchAddEdges(
-      src_label_id, dst_label_id, edge_label_id, std::move(input.supplier)));
+      src_label_id, dst_label_id, edge_label_id, std::move(input.data)));
   return neug::result<Context>(std::move(input.output));
 }
 

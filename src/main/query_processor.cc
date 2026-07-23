@@ -14,6 +14,9 @@
  */
 
 #include "neug/main/query_processor.h"
+
+#include <algorithm>
+
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
@@ -25,21 +28,9 @@
 namespace neug {
 
 result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
-QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
-                                            const std::string& query_string,
-                                            const std::string& user_access_mode,
-                                            int32_t num_threads) {
-  if (num_threads == 0) {
-    num_threads = max_thread_num_;
-  }
-  if (num_threads > max_thread_num_) {
-    num_threads = max_thread_num_;
-  }
-  if (num_threads < 1) {
-    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                              "Number of threads must be greater than 0"));
-  }
-
+QueryProcessor::check_and_retrieve_pipeline(
+    const PropertyGraph& pg, const std::string& query_string,
+    const std::string& user_access_mode) {
   auto access_mode = user_access_mode.empty()
                          ? planner_->analyzeMode(query_string)
                          : ParseAccessMode(user_access_mode);
@@ -58,23 +49,36 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
   return std::make_pair(access_mode, cache_value);
 }
 
+result<int32_t> QueryProcessor::resolve_thread_budget(
+    int32_t requested_threads) const {
+  if (requested_threads < 0 || max_thread_num_ < 1) {
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                              "Number of threads must be greater than 0"));
+  }
+  if (requested_threads == 0) {
+    return max_thread_num_;
+  }
+  return std::min(requested_threads, max_thread_num_);
+}
+
 result<QueryResult> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
   SnapshotGuard guard(snapshot_store_);
-  GS_AUTO(access_mode_pipeline, check_and_retrieve_pipeline(
-                                    *guard.get().mutable_graph(), query_string,
-                                    user_access_mode, num_threads));
+  GS_AUTO(thread_budget, resolve_thread_budget(num_threads));
+  GS_AUTO(access_mode_pipeline,
+          check_and_retrieve_pipeline(*guard.get().mutable_graph(),
+                                      query_string, user_access_mode));
   if (need_exclusive_lock(access_mode_pipeline.first)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, parameters,
-                            num_threads);
+                            thread_budget);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, parameters,
-                            num_threads);
+                            thread_budget);
   }
 }
 
@@ -83,9 +87,10 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
                                             const rapidjson::Value& parameters,
                                             int32_t num_threads) {
   SnapshotGuard guard(snapshot_store_);
-  GS_AUTO(access_mode_pipeline, check_and_retrieve_pipeline(
-                                    *guard.get().mutable_graph(), query_string,
-                                    user_access_mode, num_threads));
+  GS_AUTO(thread_budget, resolve_thread_budget(num_threads));
+  GS_AUTO(access_mode_pipeline,
+          check_and_retrieve_pipeline(*guard.get().mutable_graph(),
+                                      query_string, user_access_mode));
   const auto& param_types = access_mode_pipeline.second->params_type;
 
   execution::ParamsMap params_map;
@@ -104,12 +109,12 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
     std::unique_lock<std::shared_mutex> lock(mutex_);
     return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, params_map,
-                            num_threads);
+                            thread_budget);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     return execute_internal(guard, query_string, access_mode_pipeline.second,
                             access_mode_pipeline.first, params_map,
-                            num_threads);
+                            thread_budget);
   }
 }
 
@@ -117,10 +122,11 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
 result<QueryResult> QueryProcessor::execute_internal(
     SnapshotGuard& guard, const std::string& query_string,
     std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
-    const execution::ParamsMap& parameters, int32_t num_threads) {
+    const execution::ParamsMap& parameters, int32_t thread_budget) {
   auto& slot = guard.get();
   auto& pg = *slot.mutable_graph();
-  StorageAPUpdateInterface graph(pg, slot.mutable_view(), 0, allocator_);
+  StorageAPUpdateInterface graph(pg, slot.mutable_view(), 0, allocator_,
+                                 BulkLoadOptions{thread_budget});
 
   google::protobuf::Arena arena;
   neug::QueryResponse* response =

@@ -375,8 +375,14 @@ BatchInsertSource build_batch_insert_source(const physical::PhysicalPlan& plan,
   auto catalog = neug::main::MetadataRegistry::getCatalog();
   auto registered_function =
       catalog->getFunctionWithSignature(source.extension_name());
-  return {std::move(state),
-          registered_function->ptrCast<function::ReadFunction>()};
+  auto* read_function =
+      dynamic_cast<function::ReadFunction*>(registered_function);
+  if (read_function == nullptr) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Batch insert source is not a read function: " +
+        source.extension_name());
+  }
+  return {std::move(state), read_function};
 }
 
 BatchInsertInput create_batch_insert_input(
@@ -392,7 +398,7 @@ BatchInsertInput create_batch_insert_input(
     auto source =
         read_function.sourceFunc(shared_state, std::move(projected_columns));
     if (source) {
-      return {make_data_chunk_supplier(std::move(source)), Context{}};
+      return {std::move(source), Context{}};
     }
   }
 
@@ -400,7 +406,7 @@ BatchInsertInput create_batch_insert_input(
   auto output = read_function.execFunc(shared_state);
   auto supplier = create_data_chunk_supplier(output, prop_mappings);
   output.tag_ids.clear();
-  return {std::move(supplier), std::move(output)};
+  return {make_data_chunk_source(std::move(supplier)), std::move(output)};
 }
 
 std::vector<std::string> match_files_with_pattern(

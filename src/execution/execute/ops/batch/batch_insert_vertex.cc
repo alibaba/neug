@@ -64,18 +64,21 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
   label_t vertex_label_id = 0;
   if (!resolve_vertex_label_id(graph.schema(), vertex_type_, vertex_label_id)) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Failed to resolve vertex type for BatchInsertVertex");
+                        "Failed to resolve vertex type " +
+                            vertex_type_.ShortDebugString() +
+                            " for BatchInsertVertex");
   }
   BatchInsertInput input;
   if (source_) {
     input = create_batch_insert_input(source_->state, *source_->read_function,
                                       property_mappings_);
   } else {
-    input.supplier = create_data_chunk_supplier(ctx, property_mappings_);
+    input.data = make_data_chunk_source(
+        create_data_chunk_supplier(ctx, property_mappings_));
     input.output = std::move(ctx);
   }
   RETURN_STATUS_ERROR_IF_NOT_OK(
-      graph.BatchAddVertices(vertex_label_id, std::move(input.supplier)));
+      graph.BatchAddVertices(vertex_label_id, std::move(input.data)));
   return neug::result<Context>(std::move(input.output));
 }
 

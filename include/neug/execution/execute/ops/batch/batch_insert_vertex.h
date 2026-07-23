@@ -40,7 +40,7 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
 };
 
 /// Fuses only a terminal, empty-sink COPY FROM plan. Storage chooses staged
-/// build or normal BatchAdd from the supplied repeatable source.
+/// build or normal BatchAdd before opening the supplied source once.
 class BatchInsertVertexFromSourceOprBuilder : public IOperatorBuilder {
  public:
   neug::result<OpBuildResultT> Build(const Schema& schema,

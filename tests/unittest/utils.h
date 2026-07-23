@@ -120,7 +120,7 @@ class GeneratedChunkSource final : public neug::IDataChunkSource {
       : chunks_(std::move(chunks)), estimated_bytes_(estimated_bytes) {}
 
   std::shared_ptr<neug::IDataChunkSupplier> Open(
-      const neug::ChunkSourceOptions& options) const override {
+      const neug::ChunkSourceOptions& options) override {
     ++open_count_;
     opened_projections_.push_back(options.projected_columns);
     auto chunks = chunks_;
@@ -153,8 +153,8 @@ class GeneratedChunkSource final : public neug::IDataChunkSource {
  private:
   std::vector<std::shared_ptr<neug::DataChunk>> chunks_;
   int64_t estimated_bytes_;
-  mutable size_t open_count_ = 0;
-  mutable std::vector<std::vector<int32_t>> opened_projections_;
+  size_t open_count_ = 0;
+  std::vector<std::vector<int32_t>> opened_projections_;
 };
 
 class TestChunkSource final : public neug::IDataChunkSource {
@@ -163,19 +163,24 @@ class TestChunkSource final : public neug::IDataChunkSource {
       const neug::ChunkSourceOptions&, size_t)>;
 
   explicit TestChunkSource(Factory factory, int64_t estimated_bytes = -1,
-                           bool parallel_enabled = true)
+                           bool parallel_enabled = true,
+                           bool stable_row_ordinals = false)
       : factory_(std::move(factory)),
         estimated_bytes_(estimated_bytes),
-        parallel_enabled_(parallel_enabled) {}
+        parallel_enabled_(parallel_enabled),
+        stable_row_ordinals_(stable_row_ordinals) {}
 
   std::shared_ptr<neug::IDataChunkSupplier> Open(
-      const neug::ChunkSourceOptions& options) const override {
+      const neug::ChunkSourceOptions& options) override {
     opened_options_.push_back(options);
     return factory_(options, open_count_++);
   }
 
   int64_t EstimatedBytes() const override { return estimated_bytes_; }
   bool ParallelEnabled() const override { return parallel_enabled_; }
+  bool ProvidesStableRowOrdinals() const override {
+    return stable_row_ordinals_;
+  }
 
   size_t OpenCount() const { return open_count_; }
   const std::vector<neug::ChunkSourceOptions>& OpenedOptions() const {
@@ -186,8 +191,9 @@ class TestChunkSource final : public neug::IDataChunkSource {
   Factory factory_;
   int64_t estimated_bytes_;
   bool parallel_enabled_;
-  mutable size_t open_count_ = 0;
-  mutable std::vector<neug::ChunkSourceOptions> opened_options_;
+  bool stable_row_ordinals_;
+  size_t open_count_ = 0;
+  std::vector<neug::ChunkSourceOptions> opened_options_;
 };
 
 template <typename T>

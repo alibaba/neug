@@ -35,9 +35,9 @@ namespace function {
 using read_exec_func_t = std::function<execution::Context(
     std::shared_ptr<reader::ReadSharedState> state)>;
 
-/// Creates a repeatable source for terminal ingestion. Storage may consume it
-/// once through normal BatchAdd or reopen it for a staged bulk build.
-using read_source_func_t = std::function<std::shared_ptr<IDataChunkSource>(
+/// Creates a configurable source for terminal ingestion. Storage selects the
+/// projection and concurrency plan before opening it once.
+using read_source_func_t = std::function<std::unique_ptr<IDataChunkSource>(
     std::shared_ptr<reader::ReadSharedState> state,
     std::vector<int32_t> projected_columns)>;
 

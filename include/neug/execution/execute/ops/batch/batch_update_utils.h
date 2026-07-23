@@ -18,6 +18,7 @@
 
 #include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace physical {
@@ -35,7 +36,6 @@ class RepeatedPtrField;
 }  // namespace google
 
 namespace neug {
-class IDataChunkSupplier;
 class Schema;
 class StorageReadInterface;
 namespace function {
@@ -79,7 +79,7 @@ bool resolve_vertex_label_id(const Schema& schema,
                              const ::common::NameOrId& type, label_t& label_id);
 
 struct BatchInsertInput {
-  std::shared_ptr<IDataChunkSupplier> supplier;
+  std::unique_ptr<IDataChunkSource> data;
   Context output;
 };
 

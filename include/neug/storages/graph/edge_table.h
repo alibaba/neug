@@ -29,6 +29,7 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
@@ -39,9 +40,6 @@ namespace neug {
 class ModuleBroker;
 class CheckpointManifest;
 class PropertyGraph;
-
-class IDataChunkSupplier;
-class IDataChunkSource;
 
 class EdgeTable {
  public:
@@ -134,7 +132,8 @@ class EdgeTable {
 
   void BatchAddEdges(const IndexerType& src_indexer,
                      const IndexerType& dst_indexer,
-                     std::shared_ptr<IDataChunkSupplier> supplier);
+                     std::unique_ptr<IDataChunkSource> source,
+                     BulkLoadOptions options = {});
 
   // Add edges in batch to the edge table.
   void BatchAddEdges(const std::vector<vid_t>& src_lid_list,
@@ -193,8 +192,8 @@ class EdgeTable {
  private:
   bool TryBatchBuildEdges(const IndexerType& src_indexer,
                           const IndexerType& dst_indexer,
-                          const std::shared_ptr<IDataChunkSource>& source,
-                          vid_t src_vertex_capacity, vid_t dst_vertex_capacity);
+                          IDataChunkSource& source, vid_t src_vertex_capacity,
+                          vid_t dst_vertex_capacity, BulkLoadOptions options);
 
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);

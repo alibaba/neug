@@ -772,15 +772,29 @@ std::pair<int32_t, const void*> EdgeTable::AddEdge(
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
                               const IndexerType& dst_indexer,
-                              std::shared_ptr<IDataChunkSupplier> supplier) {
-  CHECK(supplier != nullptr);
+                              std::unique_ptr<IDataChunkSource> source,
+                              BulkLoadOptions options) {
+  CHECK(source != nullptr);
+  constexpr auto kMaxVertexCapacity = std::numeric_limits<vid_t>::max();
+  if (src_indexer.capacity() > kMaxVertexCapacity) {
+    THROW_RUNTIME_ERROR(
+        "Source vertex indexer capacity exceeds addressable "
+        "range: " +
+        std::to_string(src_indexer.capacity()));
+  }
+  if (dst_indexer.capacity() > kMaxVertexCapacity) {
+    THROW_RUNTIME_ERROR(
+        "Destination vertex indexer capacity exceeds "
+        "addressable range: " +
+        std::to_string(dst_indexer.capacity()));
+  }
   const auto src_vertex_capacity = static_cast<vid_t>(src_indexer.capacity());
   const auto dst_vertex_capacity = static_cast<vid_t>(dst_indexer.capacity());
-  auto source = supplier->RepeatableSource();
-  if (source && TryBatchBuildEdges(src_indexer, dst_indexer, source,
-                                   src_vertex_capacity, dst_vertex_capacity)) {
+  if (TryBatchBuildEdges(src_indexer, dst_indexer, *source, src_vertex_capacity,
+                         dst_vertex_capacity, options)) {
     return;
   }
+  auto supplier = open_data_chunk_source(*source);
 
   // Keep fallback COPY paths aligned with the vertex table's actual capacity,
   // while leaving completely unloaded edge tables lazy until persistence.
@@ -846,17 +860,19 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   }
 }
 
-bool EdgeTable::TryBatchBuildEdges(
-    const IndexerType& src_indexer, const IndexerType& dst_indexer,
-    const std::shared_ptr<IDataChunkSource>& source, vid_t src_vertex_capacity,
-    vid_t dst_vertex_capacity) {
+bool EdgeTable::TryBatchBuildEdges(const IndexerType& src_indexer,
+                                   const IndexerType& dst_indexer,
+                                   IDataChunkSource& source,
+                                   vid_t src_vertex_capacity,
+                                   vid_t dst_vertex_capacity,
+                                   BulkLoadOptions options) {
   if (!meta_ || !meta_->is_bundled() || !out_csr_ || !in_csr_ ||
       out_csr_->edge_num() != 0 || in_csr_->edge_num() != 0 ||
       (meta_->oe_strategy != EdgeStrategy::kNone && !meta_->oe_mutable) ||
       (meta_->ie_strategy != EdgeStrategy::kNone && !meta_->ie_mutable)) {
     return false;
   }
-  const auto source_bytes = source->EstimatedBytes();
+  const auto source_bytes = source.EstimatedBytes();
   if (!ShouldUseBulkBuild(source_bytes)) {
     return false;
   }
@@ -865,7 +881,8 @@ bool EdgeTable::TryBatchBuildEdges(
   staged.Init(ckp_, memory_level_);
   if (!internal::BundledEdgeCsrLoader::TryBuild(
           *staged.out_csr_, *staged.in_csr_, *meta_, src_indexer, dst_indexer,
-          source, source_bytes, src_vertex_capacity, dst_vertex_capacity)) {
+          source, source_bytes, src_vertex_capacity, dst_vertex_capacity, *ckp_,
+          options)) {
     return false;
   }
   Swap(staged);

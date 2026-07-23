@@ -291,10 +291,12 @@ class PropertyGraph {
                         size_t capacity);
 
   Status BatchAddVertices(label_t v_label_id,
-                          std::shared_ptr<IDataChunkSupplier> supplier);
+                          std::unique_ptr<IDataChunkSource> source,
+                          BulkLoadOptions options = {});
 
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier);
+                       std::unique_ptr<IDataChunkSource> source,
+                       BulkLoadOptions options = {});
 
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids);

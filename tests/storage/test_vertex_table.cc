@@ -687,7 +687,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   auto data_chunks = generate_data_chunks(10000);
   std::shared_ptr<neug::IDataChunkSupplier> batch_supplier =
       std::make_shared<GeneratedChunkSupplier>(std::move(data_chunks));
-  table.BatchAddVertices(batch_supplier);
+  table.BatchAddVertices(neug::make_data_chunk_source(batch_supplier));
 
   EXPECT_EQ(table.VertexNum(), 10000);
   EXPECT_EQ(table.LidNum(), 10000);
@@ -707,7 +707,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   }
 }
 
-TEST_F(VertexTableTest, InsertVerticesFromRepeatableSource) {
+TEST_F(VertexTableTest, InsertVerticesFromOneShotSource) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   auto ckp = make_checkpoint(Workspace());
   OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
@@ -715,7 +715,7 @@ TEST_F(VertexTableTest, InsertVerticesFromRepeatableSource) {
   constexpr size_t kVertexNum = 4097;
   auto source = std::make_shared<GeneratedChunkSource>(
       generate_data_chunks(kVertexNum), kForceBulkBuildBytes);
-  table.BatchAddVertices(make_data_chunk_supplier(source));
+  table.BatchAddVertices(neug::make_data_chunk_source(source));
 
   EXPECT_EQ(table.VertexNum(), kVertexNum);
   EXPECT_EQ(table.LidNum(), kVertexNum);
