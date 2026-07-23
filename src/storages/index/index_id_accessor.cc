@@ -15,7 +15,6 @@
 
 #include "neug/storages/index/index_id_accessor.h"
 
-#include <algorithm>
 #include <string>
 
 #include "neug/storages/checkpoint.h"
@@ -70,7 +69,7 @@ index_id_t DefaultIndexIDAccessor::UpsertVID(vid_t vid) {
 
   auto new_index_id = next_index_id_.fetch_add(1, std::memory_order_relaxed);
   if (new_index_id >= capacity()) {
-    Resize(std::max(capacity() * 2, kDefaultCapacity));
+    Resize(new_index_id < 4096 ? 4096 : new_index_id + new_index_id / 4);
   }
   static_cast<vid_t*>(index_id_to_vid_->GetData())[new_index_id] = vid;
   vid_to_index_id_[vid] = new_index_id;

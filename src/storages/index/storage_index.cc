@@ -201,6 +201,11 @@ void StorageIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
 
 void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                         const std::string& key) {
+  if (!meta_) {
+    THROW_RUNTIME_ERROR(
+        "Cannot dump storage index before metadata is initialized");
+  }
+
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set("index_meta", meta_->ToJsonString());

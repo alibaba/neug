@@ -101,8 +101,11 @@ class TPIndexTest : public ::testing::Test {
 
   void OpenFreshGraph() {
     checkpoint_mgr_.Open(work_dir_);
-    auto ckp =
-        checkpoint_mgr_.GetCheckpoint(checkpoint_mgr_.CreateCheckpoint());
+    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    CheckpointManifest meta;
+    meta.SetSchema(Schema());
+    staging.checkpoint()->UpdateMeta(std::move(meta));
+    auto ckp = staging.Commit();
     graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
@@ -312,7 +315,7 @@ TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
 
   auto txn = NewUpdateTransaction();
   StorageTPUpdateInterface tp(txn);
-  auto status = tp.DeleteVertexType("Person");
+  auto status = tp.DeleteVertexType(person_label);
   ASSERT_TRUE(status.ok()) << status.ToString();
   Commit(txn);
 
@@ -332,7 +335,7 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
     StorageTPUpdateInterface tp(txn);
     DeleteVertexPropertiesParamBuilder delete_builder;
     auto status = tp.DeleteVertexProperties(
-        delete_builder.VertexLabel("Person").AddDeleteProperty("age").Build());
+        person_label, delete_builder.AddDeleteProperty("age").Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
   }
@@ -342,10 +345,9 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
     AddVertexPropertiesParamBuilder add_builder;
-    auto status =
-        tp.AddVertexProperties(add_builder.VertexLabel("Person")
-                                   .AddProperty("score", Value::INT32(0))
-                                   .Build());
+    auto status = tp.AddVertexProperties(
+        person_label,
+        add_builder.AddProperty("score", Value::INT32(0)).Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
   }
@@ -358,10 +360,9 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
     RenameVertexPropertiesParamBuilder rename_builder;
-    auto status =
-        tp.RenameVertexProperties(rename_builder.VertexLabel("Person")
-                                      .AddRenameProperty("score", "years")
-                                      .Build());
+    auto status = tp.RenameVertexProperties(
+        person_label,
+        rename_builder.AddRenameProperty("score", "years").Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
   }
@@ -440,16 +441,16 @@ TEST_F(TPIndexTest, IndexPersistsAfterCheckpointReopen) {
     Commit(txn);
   }
 
+  std::shared_ptr<Checkpoint> published_checkpoint;
   {
     SnapshotGuard guard(*snapshot_store_);
-    auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
-    auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
-    guard.get().mutable_graph()->Dump(ckp, false);
+    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    guard.get().mutable_graph()->DumpAndClear(staging.checkpoint());
+    published_checkpoint = staging.Commit();
   }
 
   auto reopened = std::make_shared<PropertyGraph>();
-  reopened->Open(checkpoint_mgr_.GetCheckpoint(checkpoint_mgr_.HeadId()),
-                 MemoryLevel::kInMemory);
+  reopened->Open(published_checkpoint, MemoryLevel::kInMemory);
   GraphView reopened_view(*reopened);
   StorageReadInterface reader(reopened_view, MAX_TIMESTAMP);
 
@@ -473,22 +474,22 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
-    auto status = tp.DeleteVertexType("Person");
+    auto status = tp.DeleteVertexType(person_label);
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
   }
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
 
+  std::shared_ptr<Checkpoint> published_checkpoint;
   {
     SnapshotGuard guard(*snapshot_store_);
-    auto ckp_id = checkpoint_mgr_.CreateCheckpoint();
-    auto ckp = checkpoint_mgr_.GetCheckpoint(ckp_id);
-    guard.get().mutable_graph()->Dump(ckp, false);
+    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    guard.get().mutable_graph()->DumpAndClear(staging.checkpoint());
+    published_checkpoint = staging.Commit();
   }
 
   auto reopened = std::make_shared<PropertyGraph>();
-  reopened->Open(checkpoint_mgr_.GetCheckpoint(checkpoint_mgr_.HeadId()),
-                 MemoryLevel::kInMemory);
+  reopened->Open(published_checkpoint, MemoryLevel::kInMemory);
   auto indexes = reopened->index_manager().GetIndex(person_label, "age");
   ASSERT_TRUE(indexes) << indexes.error().ToString();
   EXPECT_TRUE(indexes->empty());

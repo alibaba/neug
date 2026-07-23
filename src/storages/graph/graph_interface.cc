@@ -22,18 +22,6 @@ namespace neug {
 namespace {
 
 // Drops every index whose metadata references the given vertex label/property.
-//
-// This is a schema-level cleanup helper, not a row-data maintenance helper. It
-// is called before schema operations that invalidate an indexed property, such
-// as deleting a vertex property, renaming a vertex property, or deleting a
-// vertex type. The index lookup is based on IndexManager's own index metadata,
-// but running the cleanup before the schema mutation keeps the graph from
-// entering a state where the schema has already removed the property while
-// IndexManager still owns indexes that refer to it.
-//
-// Index names are copied out before calling DropIndex because DropIndex mutates
-// IndexManager's internal container. Keeping only the names avoids using Index*
-// values after the manager has been modified.
 static Status dropVertexIndex(PropertyGraph& graph, label_t label,
                               const std::string& prop_name) {
   auto& index_manager = graph.mutable_index_manager();
@@ -54,16 +42,6 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
 }
 
 // Appends index entries for one newly inserted vertex row.
-//
-// The caller has already inserted the vertex data into the vertex table and
-// passes the inserted local id plus the property values that were written. This
-// helper walks all active properties on the vertex label and appends the row to
-// every index registered for each property. Properties that are soft-deleted or
-// not present in the input payload are skipped because they do not have valid
-// row values to add.
-//
-// If a property has no index, IndexManager returns an empty list and no work is
-// done for that property.
 static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                                  const std::vector<Value>& props) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
@@ -86,17 +64,6 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
 }
 
 // Appends index entries for a batch of newly inserted vertex rows.
-//
-// Batch insertion only returns the local ids that were created. Unlike
-// addVertexIndexData, the original input property vector for each row is no
-// longer available here, so this helper reads property values back from the
-// vertex table columns. It scans each active property once, skips properties
-// without indexes, and then appends every newly inserted vid to each matching
-// index.
-//
-// Missing property columns are ignored. That keeps this helper tolerant of
-// schema/table states where a property is known to the schema but the
-// corresponding column has not been materialized for the AP table.
 static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
                                       const std::vector<vid_t>& vids) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
@@ -130,17 +97,6 @@ static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
 }
 
 // Updates index entries for one changed vertex property.
-//
-// The graph property value has already been updated by the caller. The new
-// value is passed explicitly so this helper can replace the corresponding index
-// entry without relying on another table read for the changed column. For every
-// index registered on the updated property, the old row entry is deleted first
-// and the new value is appended afterwards.
-//
-// Invalid column ids and soft-deleted properties are treated as no-ops because
-// no valid index should be maintained for them. The helper only touches indexes
-// attached to the updated property; indexes on other properties of the same
-// vertex label are unaffected.
 static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
                                     vid_t lid, int32_t col_id,
                                     const Value& value) {
@@ -158,24 +114,12 @@ static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
     return indexes.error();
   }
   for (auto* index : indexes.value()) {
-    RETURN_IF_NOT_OK(index->Delete(lid));
     RETURN_IF_NOT_OK(index->Upsert(lid, value));
   }
   return Status::OK();
 }
 
 // Deletes index entries for one or more removed vertex rows.
-//
-// This helper is used by both single-row and batch vertex deletion paths. It
-// scans all active properties on the vertex label, finds every index registered
-// for each property, and removes each deleted local id from those indexes. It
-// must run in the same logical update path as the vertex table deletion so
-// index contents stay aligned with the visible vertex set.
-//
-// The helper does not read property values from the table because Index::Delete
-// is keyed by local vertex id. This is important for delete paths where the row
-// data may already have been marked deleted or may be unavailable after the
-// table mutation.
 static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
                                     const std::vector<vid_t>& vids) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
@@ -201,8 +145,9 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 
 }  // namespace
 
-Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(
-    label_t label, vid_t lid, int col_id, const Value& value) {
+Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
+                                                          vid_t lid, int col_id,
+                                                          const Value& value) {
   RETURN_IF_NOT_OK(
       graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
   return updateVertexIndexData(graph_, label, lid, col_id, value);
@@ -332,8 +277,8 @@ Status StorageAPUpdateInterface::BatchAddEdgesImpl(
 
 Status StorageAPUpdateInterface::BatchDeleteVerticesImpl(
     label_t v_label_id, const std::vector<vid_t>& vids) {
-  RETURN_IF_NOT_OK(deleteVertexIndexData(graph_, v_label_id, vids));
-  return graph_.BatchDeleteVertices(v_label_id, vids);
+  RETURN_IF_NOT_OK(graph_.BatchDeleteVertices(v_label_id, vids));
+  return deleteVertexIndexData(graph_, v_label_id, vids);
 }
 
 Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(

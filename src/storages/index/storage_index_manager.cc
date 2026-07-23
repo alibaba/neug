@@ -156,7 +156,7 @@ void StorageIndexManager::Dump(std::shared_ptr<Checkpoint> ckp,
 }
 
 bool StorageIndexManager::IsIndexModule(const std::string& name) {
-  return name.starts_with(kIndexPrefix);
+  return name.rfind(kIndexPrefix, 0) == 0;
 }
 
 std::string StorageIndexManager::GetKey(const std::string& index_name) {

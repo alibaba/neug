@@ -85,10 +85,11 @@ class StorageIndex : public Module {
   StorageIndex() = default;
 
   /**
-   * @brief Initialize a newly created index with its metadata and ID accessor.
+   * @brief Initialize the index object during CreateIndex.
    *
-   * Init configures the in-memory index object. It does not open persistent
-   * storage, bind graph columns, or populate index data.
+   * Init configures the in-memory index object with its metadata and ID
+   * accessor. It does not open persistent storage, bind graph columns, or
+   * populate index data.
    */
   virtual Status Init(std::unique_ptr<IndexMeta> meta,
                       std::unique_ptr<IndexIDAccessor> index_id_accessor);
@@ -108,7 +109,13 @@ class StorageIndex : public Module {
             const std::string& key) override;
   std::string ModuleTypeName() const override;
 
-  // Rebind non-owning dependencies to the current graph version.
+  /**
+   * @brief Bind the index to its non-owning property column dependency.
+   *
+   * Rebind is called when an index is initially created and after
+   * PropertyGraph::Open or PropertyGraph::Clone so the index refers to the
+   * column owned by the current graph version.
+   */
   virtual Status Rebind(const IndexBindContext&) { return Status::OK(); }
 
   // --- Data operations ---
@@ -116,9 +123,10 @@ class StorageIndex : public Module {
   /**
    * @brief Populate a newly created index from all visible vertices.
    *
-   * BulkBuild performs the initial data build, unlike Init (object
-   * configuration), Open (persistent resource setup), and Upsert/Delete
-   * (incremental maintenance).
+   * BulkBuild is used during CreateIndex to populate the index from existing
+   * graph data. Unlike Init (object configuration) and Open (persistent
+   * resource setup), it builds index records; subsequent changes are maintained
+   * through Upsert and Delete.
    *
    * Contract: Init -> Open -> Rebind -> BulkBuild.
    * Implementations must not retain a reference to vertices.

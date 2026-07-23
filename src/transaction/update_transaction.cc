@@ -155,23 +155,8 @@ fetch_edges_related_to_vertex(const StorageReadInterface& graph,
 using IndexDetachFn = std::function<Status(StorageIndex&)>;
 
 // Drops every index whose metadata references the given vertex label/property.
-//
-// This is a schema-level cleanup helper, not a row-data maintenance helper. It
-// is called before schema operations that invalidate an indexed property, such
-// as deleting a vertex property, renaming a vertex property, or deleting a
-// vertex type. The index lookup is based on IndexManager's own index metadata,
-// but running the cleanup before the schema mutation keeps the graph from
-// entering a state where the schema has already removed the property while
-// IndexManager still owns indexes that refer to it.
-//
-// When the caller is a TP update path, cow_state is provided so the COW detach
-// bookkeeping can be cleared for indexes that no longer exist. WAL replay
-// passes nullptr because replay applies changes directly to the recovered graph
-// and does not track transaction-local detached indexes.
-//
-// Index names are copied out before calling DropIndex because DropIndex mutates
-// IndexManager's internal container. Keeping only the names avoids using Index*
-// values after the manager has been modified.
+// cow_state is provided so the COW detach bookkeeping can be cleared for
+// indexes that no longer exist.
 static Status dropVertexIndex(PropertyGraph& graph, label_t label,
                               const std::string& prop_name,
                               PropertyGraphCowState* cow_state = nullptr) {
@@ -196,20 +181,8 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
 }
 
 // Appends index entries for one newly inserted vertex row.
-//
-// The caller has already inserted the vertex data into the vertex table and
-// passes the inserted local id plus the property values that were written. This
-// helper walks all active properties on the vertex label and appends the row to
-// every index registered for each property. Properties that are soft-deleted or
-// not present in the input payload are skipped because they do not have valid
-// row values to add.
-//
-// The data WAL records vertex insertion as the vertex payload only. It does not
-// carry separate index operations, so both the live TP update path and WAL
-// replay call this helper after inserting the row. When detach_index is set, it
-// is invoked before mutating each index so TP transactions get a private COW
-// copy; WAL replay leaves it unset because replay mutates the target graph
-// directly.
+// When detach_index is set, it is invoked before mutating each index so TP
+// transactions get a private COW copy.
 static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                                  const std::vector<Value>& props,
                                  const IndexDetachFn& detach_index = nullptr) {
@@ -236,17 +209,8 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
 }
 
 // Updates index entries for one changed vertex property.
-//
-// The graph property value has already been updated by the caller. The new
-// value is passed explicitly so this helper can replace the corresponding index
-// entry without relying on another table read for the changed column. For every
-// index registered on the updated property, the old row entry is deleted first
-// and the new value is appended afterwards.
-//
-// Invalid column ids and soft-deleted properties are treated as no-ops because
-// no valid index should be maintained for them. When detach_index is supplied,
-// each index is detached before mutation so a TP transaction never mutates
-// shared checkpoint index state. WAL replay passes no detach callback.
+// When detach_index is set, it is invoked before mutating each index so TP
+// transactions get a private COW copy.
 static Status updateVertexIndexData(
     PropertyGraph& graph, label_t label, vid_t lid, int32_t col_id,
     const Value& value, const IndexDetachFn& detach_index = nullptr) {
@@ -257,9 +221,8 @@ static Status updateVertexIndexData(
     return Status::OK();
   }
 
-  auto& index_manager = graph.mutable_index_manager();
-  auto indexes =
-      index_manager.GetIndex(label, v_schema->property_names[col_id]);
+  auto indexes = graph.mutable_index_manager().GetIndex(
+      label, v_schema->property_names[col_id]);
   if (!indexes) {
     return indexes.error();
   }
@@ -267,25 +230,14 @@ static Status updateVertexIndexData(
     if (detach_index) {
       RETURN_IF_NOT_OK(detach_index(*index));
     }
-    RETURN_IF_NOT_OK(index->Delete(lid));
     RETURN_IF_NOT_OK(index->Upsert(lid, value));
   }
   return Status::OK();
 }
 
 // Deletes index entries for one or more removed vertex rows.
-//
-// This helper is used by both single-row and batch vertex deletion paths. It
-// scans all active properties on the vertex label, finds every index registered
-// for each property, and removes each deleted local id from those indexes. It
-// must run in the same logical update path as the vertex table deletion so
-// index contents stay aligned with the visible vertex set.
-//
-// The helper does not read property values from the table because Index::Delete
-// is keyed by local vertex id. This matters for delete paths where row data may
-// already have been marked deleted or may be unavailable after the table
-// mutation. When detach_index is supplied, each index is detached before Delete
-// is called so a transaction never mutates shared checkpoint index state.
+// When detach_index is set, it is invoked before mutating each index so TP
+// transactions get a private COW copy.
 static Status deleteVertexIndexData(
     PropertyGraph& graph, label_t label, const std::vector<vid_t>& vids,
     const IndexDetachFn& detach_index = nullptr) {

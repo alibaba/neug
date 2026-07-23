@@ -34,6 +34,7 @@
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/utils/exception/exception.h"
 #include "test_index_common.h"
 #include "unittest/utils.h"
 
@@ -61,8 +62,8 @@ TEST(IndexMetaTest, PreservesDetailedPropertyType) {
 }
 
 TEST(IndexMetaTest, RejectsInvalidJson) {
-  EXPECT_THROW(IndexMeta::FromJsonString("{invalid"), std::runtime_error);
-  EXPECT_THROW(IndexMeta::FromJsonString("[]"), std::runtime_error);
+  EXPECT_THROW(IndexMeta::FromJsonString("{invalid"), exception::RuntimeError);
+  EXPECT_THROW(IndexMeta::FromJsonString("[]"), exception::RuntimeError);
 }
 
 class VectorChunkSupplier : public IDataChunkSupplier {
@@ -148,8 +149,11 @@ class APIndexTest : public ::testing::Test {
 
   void OpenFreshGraph() {
     checkpoint_mgr_.Open(work_dir_);
-    auto ckp =
-        checkpoint_mgr_.GetCheckpoint(checkpoint_mgr_.CreateCheckpoint());
+    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    CheckpointManifest meta;
+    meta.SetSchema(Schema());
+    staging.checkpoint()->UpdateMeta(std::move(meta));
+    auto ckp = staging.Commit();
     graph_ = std::make_unique<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
@@ -163,10 +167,9 @@ class APIndexTest : public ::testing::Test {
     graph_.reset();
     checkpoint_mgr_.Close();
     checkpoint_mgr_.Open(work_dir_);
-    ASSERT_NE(checkpoint_mgr_.HeadId(), kInvalidCheckpointId);
+    ASSERT_TRUE(checkpoint_mgr_.HasCurrentCheckpoint());
     graph_ = std::make_unique<PropertyGraph>();
-    graph_->Open(checkpoint_mgr_.GetCheckpoint(checkpoint_mgr_.HeadId()),
-                 MemoryLevel::kInMemory);
+    graph_->Open(checkpoint_mgr_.CurrentCheckpoint(), MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
     ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
                                                      allocator_);
@@ -339,7 +342,7 @@ TEST_F(APIndexTest, DropVertexTypeDeletesBoundIndex) {
   auto person_label = graph_->schema().get_vertex_label_id("Person");
   ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
 
-  auto status = ap_->DeleteVertexType("Person");
+  auto status = ap_->DeleteVertexType(person_label);
   ASSERT_TRUE(status.ok()) << status.ToString();
 
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
@@ -353,25 +356,21 @@ TEST_F(APIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
 
   DeleteVertexPropertiesParamBuilder delete_builder;
   auto drop_status = ap_->DeleteVertexProperties(
-      delete_builder.VertexLabel("Person").AddDeleteProperty("age").Build());
+      person_label, delete_builder.AddDeleteProperty("age").Build());
   ASSERT_TRUE(drop_status.ok()) << drop_status.ToString();
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
 
   AddVertexPropertiesParamBuilder add_builder;
-  auto add_status =
-      ap_->AddVertexProperties(add_builder.VertexLabel("Person")
-                                   .AddProperty("score", Value::INT32(0))
-                                   .Build());
+  auto add_status = ap_->AddVertexProperties(
+      person_label, add_builder.AddProperty("score", Value::INT32(0)).Build());
   ASSERT_TRUE(add_status.ok()) << add_status.ToString();
 
   ASSERT_TRUE(CreateIndex("idx_person_score", "Person", "score"));
   ASSERT_EQ(GetIndexes(person_label, "score").size(), 1);
 
   RenameVertexPropertiesParamBuilder rename_builder;
-  auto rename_status =
-      ap_->RenameVertexProperties(rename_builder.VertexLabel("Person")
-                                      .AddRenameProperty("score", "years")
-                                      .Build());
+  auto rename_status = ap_->RenameVertexProperties(
+      person_label, rename_builder.AddRenameProperty("score", "years").Build());
   ASSERT_TRUE(rename_status.ok()) << rename_status.ToString();
 
   EXPECT_TRUE(GetIndexes(person_label, "score").empty());
@@ -463,7 +462,7 @@ TEST_F(APIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   auto person_label = graph_->schema().get_vertex_label_id("Person");
   ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
 
-  auto status = ap_->DeleteVertexType("Person");
+  auto status = ap_->DeleteVertexType(person_label);
   ASSERT_TRUE(status.ok()) << status.ToString();
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
   ap_->CreateCheckpoint();

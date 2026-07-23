@@ -113,7 +113,8 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
   if (flags.index() && mode != AccessMode::kUpdate &&
       mode != AccessMode::kSchema) {
     return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Index operations are not supported for TP service.");
+                  "Index operations in TP mode are only supported in Update "
+                  "Transactions.");
   }
   return Status::OK();
 }
