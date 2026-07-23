@@ -35,9 +35,8 @@ std::string CheckpointCreation::TargetPublishedPath() const {
   return staging_checkpoint_.TargetPublishedPath();
 }
 
-void CheckpointCreation::BuildFrom(PropertyGraph& graph,
-                                   timestamp_t compact_timestamp) {
-  graph.Compact(compact_timestamp);
+void CheckpointCreation::BuildFrom(PropertyGraph& graph) {
+  graph.Compact();
   graph.DumpAndClear(StagingCheckpoint());
 }
 

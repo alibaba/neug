@@ -14,6 +14,8 @@
  */
 
 #pragma once
+#include <glog/logging.h>
+
 #include <map>
 #include <string>
 
@@ -25,5 +27,24 @@ struct DataType;
 namespace execution {
 using ParamsMap = std::map<std::string, Value>;
 using ParamsMetaMap = std::map<std::string, DataType>;
+
+inline ParamsMap build_params_map(const rapidjson::Value& parameters,
+                                  const ParamsMetaMap& params_type) {
+  ParamsMap params_map;
+  if (!parameters.IsObject()) {
+    return params_map;
+  }
+
+  for (const auto& member : parameters.GetObject()) {
+    std::string key = member.name.GetString();
+    auto iter = params_type.find(key);
+    if (iter == params_type.end()) {
+      LOG(WARNING) << "Ignoring unexpected parameter: " << key;
+      continue;
+    }
+    params_map.emplace(key, Value::FromJson(member.value, iter->second));
+  }
+  return params_map;
+}
 }  // namespace execution
 }  // namespace neug

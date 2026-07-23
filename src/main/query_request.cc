@@ -28,20 +28,7 @@ namespace neug {
 execution::ParamsMap ParamsParser::ParseFromJsonObj(
     const execution::ParamsMetaMap& meta,
     const rapidjson::Document& param_json_obj) {
-  execution::ParamsMap param_map;
-  if (!param_json_obj.IsObject()) {
-    return param_map;
-  }
-  for (auto itr = param_json_obj.MemberBegin();
-       itr != param_json_obj.MemberEnd(); ++itr) {
-    auto key = itr->name.GetString();
-    if (meta.count(key) <= 0) {
-      VLOG(1) << "Parameter key not found in meta: " << key;
-    } else {
-      param_map.emplace(key, Value::FromJson(itr->value, meta.at(key)));
-    }
-  }
-  return param_map;
+  return execution::build_params_map(param_json_obj, meta);
 }
 
 neug::Status RequestParser::ParseFromString(const std::string& req,

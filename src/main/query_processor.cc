@@ -23,30 +23,6 @@
 
 namespace neug {
 
-namespace {
-
-// Validate JSON parameters against the declared parameter types and
-// build a typed ParamsMap; unknown keys are rejected.
-result<execution::ParamsMap> build_params_map(
-    const rapidjson::Value& parameters,
-    const execution::ParamsMetaMap& params_type) {
-  execution::ParamsMap params_map;
-  if (parameters.IsObject()) {
-    for (const auto& member : parameters.GetObject()) {
-      std::string key = member.name.GetString();
-      auto iter = params_type.find(key);
-      if (iter == params_type.end()) {
-        RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                                  "Unexpected parameter: " + key));
-      }
-      params_map.emplace(key, Value::FromJson(member.value, iter->second));
-    }
-  }
-  return params_map;
-}
-
-}  // namespace
-
 result<std::shared_ptr<execution::CacheValue>>
 QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
                                             const std::string& query_string,
@@ -117,7 +93,8 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
     GS_AUTO(cache_value, check_and_retrieve_pipeline(
                              *guard.get().mutable_graph(), query_string,
                              access_mode, num_threads));
-    GS_AUTO(params_map, build_params_map(parameters, cache_value->params_type));
+    auto params_map =
+        execution::build_params_map(parameters, cache_value->params_type);
     return execute_internal(guard, query_string, cache_value, access_mode,
                             params_map, num_threads);
   } else {
@@ -126,7 +103,8 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
     GS_AUTO(cache_value, check_and_retrieve_pipeline(
                              *guard.get().mutable_graph(), query_string,
                              access_mode, num_threads));
-    GS_AUTO(params_map, build_params_map(parameters, cache_value->params_type));
+    auto params_map =
+        execution::build_params_map(parameters, cache_value->params_type);
     return execute_internal(guard, query_string, cache_value, access_mode,
                             params_map, num_threads);
   }

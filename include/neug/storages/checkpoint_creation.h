@@ -45,7 +45,7 @@ class CheckpointCreation {
 
   std::shared_ptr<Checkpoint> StagingCheckpoint() const;
   std::string TargetPublishedPath() const;
-  void BuildFrom(PropertyGraph& graph, timestamp_t compact_timestamp);
+  void BuildFrom(PropertyGraph& graph);
   std::shared_ptr<Checkpoint> Publish();
 
  private:

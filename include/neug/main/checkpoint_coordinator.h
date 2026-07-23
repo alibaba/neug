@@ -111,9 +111,8 @@ class CheckpointCoordinator {
   };
 
   Status execute(GraphSnapshotStore::CheckpointMaintenanceHandle& maintenance,
-                 timestamp_t compact_timestamp, Reason reason,
-                 bool invoke_activation_handler);
-  Status executeWithNewMaintenance(timestamp_t compact_timestamp, Reason reason,
+                 Reason reason, bool invoke_activation_handler);
+  Status executeWithNewMaintenance(Reason reason,
                                    bool invoke_activation_handler = false);
   void invokeActivationHandler(const std::string& checkpoint_wal_uri);
   static const char* reasonName(Reason reason);

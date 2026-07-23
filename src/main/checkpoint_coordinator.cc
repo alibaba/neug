@@ -76,7 +76,7 @@ CheckpointCoordinator::CheckpointCoordinator(
       post_reopen_handler_(std::move(post_reopen_handler)) {}
 
 Status CheckpointCoordinator::ExecuteApManual() {
-  auto status = executeWithNewMaintenance(MAX_TIMESTAMP, Reason::kManual);
+  auto status = executeWithNewMaintenance(Reason::kManual);
   if (status.ok()) {
     recovered_wal_timestamp_ = 0;
   }
@@ -116,7 +116,7 @@ Status CheckpointCoordinator::ExecuteTpManual(
       timestamp_guard.BeginCommit();
       timestamp_guard.DrainReaders();
       auto maintenance = snapshot_store_.AcquireCheckpointMaintenance();
-      return execute(maintenance, timestamp_guard.timestamp(), Reason::kManual,
+      return execute(maintenance, Reason::kManual,
                      /*invoke_activation_handler=*/true);
     } catch (const std::exception& e) {
       return maintenance_preparation_failure(e);
@@ -143,7 +143,7 @@ Status CheckpointCoordinator::ExecuteTpManual(
 }
 
 Status CheckpointCoordinator::ExecuteRecovery() {
-  auto status = executeWithNewMaintenance(MAX_TIMESTAMP, Reason::kRecovery);
+  auto status = executeWithNewMaintenance(Reason::kRecovery);
   if (status.ok()) {
     recovered_wal_timestamp_ = 0;
   }
@@ -151,7 +151,7 @@ Status CheckpointCoordinator::ExecuteRecovery() {
 }
 
 Status CheckpointCoordinator::PrepareShutdown() {
-  auto status = executeWithNewMaintenance(MAX_TIMESTAMP, Reason::kShutdown);
+  auto status = executeWithNewMaintenance(Reason::kShutdown);
   if (status.ok()) {
     recovered_wal_timestamp_ = 0;
   }
@@ -159,20 +159,17 @@ Status CheckpointCoordinator::PrepareShutdown() {
 }
 
 Status CheckpointCoordinator::executeWithNewMaintenance(
-    timestamp_t compact_timestamp, Reason reason,
-    bool invoke_activation_handler) {
+    Reason reason, bool invoke_activation_handler) {
   try {
     auto maintenance = snapshot_store_.AcquireCheckpointMaintenance();
-    return execute(maintenance, compact_timestamp, reason,
-                   invoke_activation_handler);
+    return execute(maintenance, reason, invoke_activation_handler);
   } catch (const std::exception& e) {
     return maintenance_preparation_failure(e);
   }
 }
 
 Status CheckpointCoordinator::execute(
-    GraphSnapshotStore::CheckpointMaintenanceHandle& maintenance,
-    timestamp_t compact_timestamp, Reason reason,
+    GraphSnapshotStore::CheckpointMaintenanceHandle& maintenance, Reason reason,
     bool invoke_activation_handler) {
   CheckpointCreation creation(checkpoint_manager_);
   const bool reopen_after_checkpoint = reason != Reason::kShutdown;
@@ -188,7 +185,7 @@ Status CheckpointCoordinator::execute(
               << (reopen_after_checkpoint ? " and reopening the current graph"
                                           : " without reopening the graph");
     destructive_phase = true;
-    creation.BuildFrom(live_graph, compact_timestamp);
+    creation.BuildFrom(live_graph);
     auto published_checkpoint = creation.Publish();
 
     if (reopen_after_checkpoint) {
