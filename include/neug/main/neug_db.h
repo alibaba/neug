@@ -237,9 +237,7 @@ class NeugDB {
    *
    * @return true if a NeugDBService is associated with this database.
    */
-  inline bool HasActiveService() const {
-    return active_service_.load() != nullptr;
-  }
+  bool HasActiveService() const;
 
   /**
    * @brief Create a new connection to the database for query execution.
@@ -422,11 +420,11 @@ class NeugDB {
   // Serializes the check-and-set sections of Close() and RegisterService()
   // so that closing the database and registering a service can never
   // interleave.
-  std::mutex service_mutex_;
+  mutable std::mutex service_mutex_;
 
   // The NeugDBService currently associated with this database, nullptr if
-  // none. At most one service can be associated at any given time.
-  std::atomic<NeugDBService*> active_service_{nullptr};
+  // none. All access is protected by service_mutex_.
+  NeugDBService* active_service_{nullptr};
 };
 
 }  // namespace neug

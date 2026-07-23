@@ -183,7 +183,7 @@ void NeugDB::Close() {
     // closed flag update are atomic with respect to service registration,
     // so no rollback or re-check is needed and Close() stays idempotent.
     std::lock_guard<std::mutex> lock(service_mutex_);
-    if (HasActiveService()) {
+    if (active_service_ != nullptr) {
       THROW_RUNTIME_ERROR(
           "Cannot close NeugDB while a NeugDBService is still associated "
           "with it. Stop and destroy the service first.");
@@ -227,12 +227,22 @@ void NeugDB::Close() {
 }
 
 std::shared_ptr<Connection> NeugDB::Connect() {
-  if (HasActiveService()) {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (IsClosed()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot create connection on a closed NeugDB instance.");
+  }
+  if (active_service_ != nullptr) {
     THROW_RUNTIME_ERROR(
         "Cannot create connection while the database is being served by a "
         "NeugDBService.");
   }
   return connection_manager_->CreateConnection();
+}
+
+bool NeugDB::HasActiveService() const {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  return active_service_ != nullptr;
 }
 
 void NeugDB::RegisterService(NeugDBService* svc) {
@@ -245,20 +255,22 @@ void NeugDB::RegisterService(NeugDBService* svc) {
     THROW_RUNTIME_ERROR(
         "Cannot register a NeugDBService on a closed NeugDB instance.");
   }
-  NeugDBService* expected = nullptr;
-  if (!active_service_.compare_exchange_strong(expected, svc)) {
+  if (active_service_ != nullptr) {
     THROW_RUNTIME_ERROR(
         "NeugDB instance is already associated with a NeugDBService. Only "
         "one service instance is allowed per database.");
   }
+  active_service_ = svc;
 }
 
 void NeugDB::UnregisterService(NeugDBService* svc) {
-  NeugDBService* expected = svc;
-  if (!active_service_.compare_exchange_strong(expected, nullptr)) {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (active_service_ != svc) {
     LOG(WARNING) << "UnregisterService: the given service is not the active "
                     "service of this database.";
+    return;
   }
+  active_service_ = nullptr;
 }
 
 void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
