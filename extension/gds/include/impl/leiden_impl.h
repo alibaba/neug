@@ -17,9 +17,13 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "neug/common/types/graph_types.h"
 #include "neug/execution/common/context.h"
+#include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
@@ -27,64 +31,69 @@ namespace neug {
 namespace gds {
 namespace community {
 
-struct LeidenResult {
-  std::vector<int64_t> community;
-  double modularity = 0.0;
-  int64_t num_communities = 0;
-};
-
-/// Runs Leiden community detection directly on StorageReadInterface.
-/// No graph copy — traverses edges via StorageReadInterface.
-/// Uses vid_t as direct array indices (same pattern as PageRank/WCC).
+/// Leiden community detection.
+/// Supports multiple vertex labels and edge triplets (heterogeneous subgraphs).
+/// Optionally accepts initial community assignments from a vertex property
+/// for incremental/warm-start community detection.
 class Leiden {
  public:
-  Leiden(const StorageReadInterface& graph, label_t vertex_label,
-         label_t edge_label, double resolution, double threshold,
-         int concurrency);
+  Leiden(const StorageReadInterface& graph, std::vector<label_t> vertex_labels,
+         std::vector<LabelTriplet> edge_triplets, double resolution,
+         double threshold, int concurrency,
+         const std::string& initial_community_property = "",
+         bool allow_relocation = false,
+         const std::string& weight_property = "");
 
   void compute();
 
-  void sink(execution::Context& ctx, int node_alias, int community_alias);
+  void sink(execution::Context& ctx, int node_alias, int community_alias,
+            int previous_community_alias = -1);
 
  private:
   const StorageReadInterface& graph_;
-  label_t vertex_label_;
-  label_t edge_label_;
+  std::vector<label_t> vertex_labels_;
+  std::vector<LabelTriplet> edge_triplets_;
   double resolution_;
   double threshold_;
   int concurrency_;
+  std::string initial_community_property_;
+  bool allow_relocation_ = false;
+  std::string weight_property_;
+  bool has_weight_ = false;
+  EdgeDataAccessor weight_accessor_;
+  std::vector<EdgeDataAccessor> triplet_weight_accessors_;
+  std::vector<bool> triplet_has_weight_;
 
-  // Vertex info
-  std::vector<vid_t> valid_vertices_;
+  std::vector<size_t> label_base_offsets_;
+  std::vector<size_t> label_local_sizes_;
+  std::vector<std::vector<size_t>> label_out_triplets_;
+  std::vector<std::vector<size_t>> label_in_triplets_;
+  std::vector<size_t> triplet_src_base_;
+  std::vector<size_t> triplet_dst_base_;
+  std::vector<label_t> global_to_label_;
+  std::vector<vid_t> global_to_vid_;
+  std::vector<size_t> global_to_label_idx_;
+  std::unordered_map<label_t, size_t> label_to_index_;
+  std::vector<uint32_t> valid_vertices_;
   size_t vertex_count_ = 0;
-
-  // Arrays indexed by vid_t
   size_t array_size_ = 0;
   std::unique_ptr<uint32_t[]> community_;
+  std::unique_ptr<uint32_t[]> initial_community_;
   std::unique_ptr<double[]> degree_;
   std::unique_ptr<double[]> stot_;
-
-  // Per-thread scratch arrays for parallel moving phase and refine
-  // Flat arrays indexed as [tid * array_size_ + community_id]
   std::unique_ptr<double[]> thread_comm_weight_;
   std::unique_ptr<uint32_t[]> thread_gen_;
   int num_threads_ = 1;
-  // For refine(): sub-community assignment and membership check
   static constexpr uint32_t kInvalidSubCom = UINT32_MAX;
-  std::unique_ptr<uint32_t[]> sub_com_flat_;  // sub-community ID per vid_t
-
+  std::unique_ptr<uint32_t[]> sub_com_flat_;
   double m_ = 0.0;
   double modularity_ = 0.0;
-
-  // Internal methods
+  bool is_simple_graph_ = false;
+  label_t simple_vertex_label_{};
+  label_t simple_edge_label_{};
   bool local_moving_phase();
   void refine();
 };
-
-/// @brief Run Leiden community detection.
-LeidenResult RunLeiden(const StorageReadInterface& graph, label_t vertex_label,
-                       label_t edge_label, bool directed, double resolution,
-                       double threshold, int concurrency);
 
 }  // namespace community
 }  // namespace gds

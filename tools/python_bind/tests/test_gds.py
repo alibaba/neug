@@ -992,3 +992,1309 @@ class TestCrossValidationTinysnb:
                 ), "Unreachable node {} should have distance -1," " got {}".format(
                     node_id, dist
                 )
+
+
+# ─── Multi-Edge & Multi-Label Leiden / Louvain ─────────────────────────────────
+
+
+def _batch_writeback(conn, prop_name, comm_map):
+    """Batch-write community IDs to vertex property using a single CASE WHEN query."""
+    if not comm_map:
+        return
+    when_clauses = " ".join(
+        f"WHEN n.id = {nid} THEN {comm}" for nid, comm in comm_map.items()
+    )
+    conn.execute(
+        f"MATCH (n:person) "
+        f"SET n.{prop_name} = CASE {when_clauses} ELSE n.{prop_name} END;"
+    )
+
+
+@contextmanager
+def multi_edge_connection(tmp_path):
+    """Open DB with tinysnb loaded and a multi-edge projected graph
+    (single vertex label 'person', two edge labels 'knows' + 'meets')."""
+    db_dir = tmp_path / "gds_multi_edge_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CALL project_graph("
+            "'person_multi', "
+            "['person'], "
+            "{'[person, knows, person]': '', '[person, meets, person]': ''}"
+            ");"
+        )
+        conn.execute("LOAD gds;")
+        yield conn
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_basic(tmp_path):
+    """leiden on a single-label graph (backward compat)."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_knows', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "leiden must return at least one row"
+        for row in rows:
+            assert len(row) == 2, "each row should have (node_id, community)"
+            assert isinstance(row[1], int), "community should be an integer"
+
+
+def test_louvain_basic(tmp_path):
+    """louvain on a single-label graph (backward compat)."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_knows', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows) > 0, "louvain must return at least one row"
+        for row in rows:
+            assert len(row) == 2
+            assert isinstance(row[1], int)
+
+
+def test_leiden_multi_edge(tmp_path):
+    """leiden on a graph with two edge types (knows + meets).
+    tinysnb person vertices: 0,2,3,5,7,8,9,10.
+    knows forms a K4 on {0,2,3,5} + star 7→{8,9};
+    meets adds 0→2,2→5,3↔7,8→3,9→3,10→2."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        # All 8 person vertices present
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10}, f"comm={comm}"
+        # All community IDs non-negative
+        assert all(c >= 0 for c in comm.values()), f"comm={comm}"
+        # >= 2 communities (graph has two clearly separated clusters)
+        assert len(set(comm.values())) >= 2, f"comm={comm}"
+        # Not all singletons — at least one community has >= 2 members
+        assert len(comm) > len(set(comm.values())), f"All singletons: {comm}"
+
+
+def test_leiden_multi_edge_deterministic(tmp_path):
+    """Running leiden twice with same multi-edge data gives same result."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows1 = list(
+            conn.execute(
+                """
+                CALL leiden('person_multi', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        rows2 = list(
+            conn.execute(
+                """
+                CALL leiden('person_multi', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        # Sort by node id for comparison
+        rows1.sort(key=lambda r: r[0])
+        rows2.sort(key=lambda r: r[0])
+        assert rows1 == rows2, "Same input with fixed seed should give same output"
+
+
+def test_leiden_deterministic_simple(tmp_path):
+    """Deterministic: run twice with same simple-graph data, verify identical results."""
+    db_dir = tmp_path / "gds_incremental_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+
+        # Project and run first time
+        conn.execute(
+            "CALL project_graph("
+            "'g1', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL leiden('g1', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+
+        # Run second time with same data (no initial_community_property)
+        # Results should be identical due to fixed seed
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL leiden('g1', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, "Deterministic: same data should yield same result"
+
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_incremental_with_writeback(tmp_path):
+    """Incremental Leiden stability: run once, write back communities, run again
+    with initial_community_property, verify results are identical."""
+    db_dir = tmp_path / "gds_leiden_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+
+        # Step 1: Add a community property column to person table
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+
+        # Step 2: Project graph
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        # Step 3: First run - get initial communities
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+
+        # Step 4: Write back communities to vertex property (batch UNWIND)
+        _batch_writeback(conn, "leiden_comm", r1_map)
+
+        # Step 5: Drop and re-project graph to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g_leiden');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        # Step 6: Second run with initial_community_property
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden',
+                    {concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+
+        # Step 7: Verify stability - communities should be identical
+        assert r1_map == r2_map, (
+            f"Incremental Leiden should be stable when data is unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_incremental_with_writeback(tmp_path):
+    """Incremental Louvain stability: run once, write back communities, run again
+    with initial_community_property, verify results are identical."""
+    db_dir = tmp_path / "gds_louvain_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+
+        # Step 1: Add a community property column to person table
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+
+        # Step 2: Project graph
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        # Step 3: First run - get initial communities
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+
+        # Step 4: Write back communities to vertex property (batch UNWIND)
+        _batch_writeback(conn, "louvain_comm", r1_map)
+
+        # Step 5: Drop and re-project graph to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g_louvain');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        # Step 6: Second run with initial_community_property
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain',
+                    {concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+
+        # Step 7: Verify stability - communities should be identical
+        assert r1_map == r2_map, (
+            f"Incremental Louvain should be stable when data is unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_multi_edge_alias(tmp_path):
+    """leiden on a multi-edge graph (knows + meets) — same as test_leiden_multi_edge
+    but kept as a separate test entry point for regression tracking."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10}, f"comm={comm}"
+        assert all(c >= 0 for c in comm.values()), f"comm={comm}"
+        assert len(set(comm.values())) >= 2, f"comm={comm}"
+        assert len(comm) > len(set(comm.values())), f"All singletons: {comm}"
+
+
+def test_louvain_multi_edge_alias(tmp_path):
+    """louvain on a multi-edge graph (knows + meets).
+    Same graph as test_leiden_multi_edge but using louvain algorithm."""
+    with multi_edge_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_multi', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10}, f"comm={comm}"
+        assert all(c >= 0 for c in comm.values()), f"comm={comm}"
+        assert len(set(comm.values())) >= 2, f"comm={comm}"
+        assert len(comm) > len(set(comm.values())), f"All singletons: {comm}"
+
+
+def test_leiden_incremental_alias(tmp_path):
+    """leiden alias supports initial_community_property for incremental runs;
+    stable when data is unchanged."""
+    db_dir = tmp_path / "gds_leiden_alias_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden_alias', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        conn.execute("CALL drop_projected_graph('g_leiden_alias');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_leiden_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL leiden('g_leiden_alias',
+                    {concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, (
+            f"Incremental leiden alias should be stable when data unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_incremental_alias(tmp_path):
+    """louvain alias supports initial_community_property for incremental runs;
+    stable when data is unchanged."""
+    db_dir = tmp_path / "gds_louvain_alias_wb_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r1 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain_alias', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r1) > 0, "First run should produce results"
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "louvain_comm", r1_map)
+        conn.execute("CALL drop_projected_graph('g_louvain_alias');")
+        conn.execute(
+            "CALL project_graph("
+            "'g_louvain_alias', "
+            "['person'], "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+        rows_r2 = list(
+            conn.execute(
+                """
+                CALL louvain('g_louvain_alias',
+                    {concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        assert r1_map == r2_map, (
+            f"Incremental louvain alias should be stable when data unchanged.\n"
+            f"First run:  {r1_map}\n"
+            f"Second run: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+# ─── Multi-Vertex-Label & Data-Change Tests ─────────────────────────────────
+
+
+@contextmanager
+def multi_vertex_label_connection(tmp_path):
+    """Open DB with tinysnb loaded and a multi-vertex-label projected graph
+    (person + organisation vertices, knows + studyAt edges)."""
+    db_dir = tmp_path / "gds_multi_vlabel_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CALL project_graph("
+            "'person_org', "
+            "['person', 'organisation'], "
+            "{'[person, knows, person]': '', '[person, studyAt, organisation]': ''}"
+            ");"
+        )
+        conn.execute("LOAD gds;")
+        yield conn
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_two_vertex_labels(tmp_path):
+    """Leiden on person+organisation graph (knows+studyAt edges).
+    11 vertices: person 0,2,3,5,7,8,9,10 + organisation 1,4,6.
+    studyAt: 0→1, 2→1, 8→1 (all to org #1)."""
+    with multi_vertex_label_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_org', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        # All 11 vertices present (8 person + 3 organisation)
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10, 1, 4, 6}, f"comm={comm}"
+        assert all(c >= 0 for c in comm.values()), f"comm={comm}"
+        assert len(set(comm.values())) >= 2, f"comm={comm}"
+        assert len(comm) > len(set(comm.values())), f"All singletons: {comm}"
+        # Vertex 0, 2, 8 all studyAt org 1 — at least two should share a community
+        study_vertices = [0, 2, 8, 1]
+        study_comms = [comm.get(v) for v in study_vertices if v in comm]
+        assert len(set(study_comms)) < len(
+            study_comms
+        ), f"studyAt-connected vertices should share a community: {comm}"
+
+
+def test_louvain_two_vertex_labels(tmp_path):
+    """Louvain on person+organisation graph (knows+studyAt edges).
+    Same graph as test_leiden_two_vertex_labels but using louvain."""
+    with multi_vertex_label_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_org', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10, 1, 4, 6}, f"comm={comm}"
+        assert all(c >= 0 for c in comm.values()), f"comm={comm}"
+        assert len(set(comm.values())) >= 2, f"comm={comm}"
+        assert len(comm) > len(set(comm.values())), f"All singletons: {comm}"
+        # Vertex 0, 2, 8 all studyAt org 1 — at least two should share a community
+        study_vertices = [0, 2, 8, 1]
+        study_comms = [comm.get(v) for v in study_vertices if v in comm]
+        assert len(set(study_comms)) < len(
+            study_comms
+        ), f"studyAt-connected vertices should share a community: {comm}"
+
+
+def test_leiden_incremental_data_changed(tmp_path):
+    """Incremental Leiden with data changes: unchanged communities should
+    inherit their old IDs via majority-vote mapping."""
+    db_dir = tmp_path / "gds_leiden_data_change_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        conn.execute(
+            "MATCH (a:person {id: 0}), (b:person {id: 3}) " "CREATE (a)-[:knows]->(b);"
+        )
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        unchanged = sum(
+            1 for nid in r1_map if nid in r2_map and r2_map[nid] == r1_map[nid]
+        )
+        assert unchanged > 0, (
+            f"Majority-vote should preserve some community IDs.\n"
+            f"r1: {r1_map}\nr2: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_warmstart_multi_edge(tmp_path):
+    """Warm-start with initial_community_property on a multi-edge graph,
+    verifying stability when data is unchanged."""
+    db_dir = tmp_path / "gds_leiden_warmstart_multi_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': '', '[person, meets, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': '', '[person, meets, person]': ''});"
+        )
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        # Leiden is heuristic; warm-start preserves most (but not necessarily all)
+        # community assignments when data is unchanged.
+        unchanged = sum(
+            1 for nid in r1_map if nid in r2_map and r2_map[nid] == r1_map[nid]
+        )
+        total = len(r1_map)
+        assert unchanged >= total * 0.8, (
+            f"Warm-start should preserve most community assignments.\n"
+            f"r1: {r1_map}\nr2: {r2_map}\n"
+            f"unchanged: {unchanged}/{total}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_multi_label_completeness(tmp_path):
+    """Leiden on multi-vertex-label graph with concurrency: 4.
+    Same graph as test_leiden_two_vertex_labels but with higher concurrency
+    to exercise the parallel generic path."""
+    with multi_vertex_label_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_org', {concurrency: 4})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10, 1, 4, 6}, f"comm={comm}"
+        assert all(c >= 0 for c in comm.values()), f"comm={comm}"
+        assert len(set(comm.values())) >= 2, f"comm={comm}"
+        assert len(comm) > len(set(comm.values())), f"All singletons: {comm}"
+
+
+def test_leiden_warmstart_stability_strict(tmp_path):
+    """Warm-start correctness: when data is unchanged, the partition should be
+    identical (not just similar). This verifies warm-start reproduces the same
+    community structure."""
+    db_dir = tmp_path / "gds_leiden_warmstart_strict_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        # With unchanged data and warm-start, partition should be identical
+        assert r1_map == r2_map, (
+            f"Warm-start with unchanged data should be identical.\n"
+            f"r1: {r1_map}\nr2: {r2_map}"
+        )
+    finally:
+        conn.close()
+        db.close()
+
+
+# ─── previous_community column tests ──────────────────────────────────────
+
+
+def test_leiden_incremental_previous_community_unchanged(tmp_path):
+    """When data is unchanged, previous_community should equal community for
+    all vertices (warm-start reproduces the same partition)."""
+    db_dir = tmp_path / "gds_prev_comm_unchanged_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # First run
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Second run with initial_community_property + YIELD previous_community
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        assert len(rows_r2) > 0, "Second run should produce results"
+        assert all(
+            len(row) == 3 for row in rows_r2
+        ), "Each row should have (node_id, community, previous_community)"
+        for nid, comm, prev_comm in rows_r2:
+            assert prev_comm is not None, (
+                f"previous_community should not be None for node {nid} "
+                f"(all vertices existed in first run)"
+            )
+            assert prev_comm == comm, (
+                f"previous_community ({prev_comm}) should equal community ({comm}) "
+                f"for node {nid} when data is unchanged"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_incremental_previous_community_with_data_change(tmp_path):
+    """When data changes (new edge added), previous_community should reflect
+    old community IDs even if community assignments change."""
+    db_dir = tmp_path / "gds_prev_comm_change_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        # Add a new edge to change community structure
+        conn.execute(
+            "MATCH (a:person {id: 0}), (b:person {id: 3}) " "CREATE (a)-[:knows]->(b);"
+        )
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        assert len(rows_r2) > 0
+        prev_map = {row[0]: row[2] for row in rows_r2}
+        # All previous_community values should match r1_map (old community IDs)
+        for nid, old_comm in r1_map.items():
+            assert prev_map.get(nid) == old_comm, (
+                f"previous_community for node {nid} should be {old_comm}, "
+                f"got {prev_map.get(nid)}"
+            )
+        # All pre-existing vertices should have non-None previous_community
+        assert all(
+            prev_map[nid] is not None for nid in r1_map
+        ), "All pre-existing vertices should have non-None previous_community"
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_incremental_previous_community_new_vertex(tmp_path):
+    """Vertices without initial_community_property (simulating new vertices)
+    should have previous_community = None.
+
+    Uses a custom graph because tinysnb's CSR doesn't support adding vertices
+    beyond the initial range. Instead, we create 6 vertices, write communities
+    to all, then REMOVE the property from vertices 5,6 to simulate them being
+    "new" (no previous community assignment).
+    """
+    with custom_graph_connection(
+        tmp_path,
+        db_name="gds_prev_comm_new_vtx_db",
+        create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+        create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+        node_inserts=[
+            "CREATE (:n {id: 1});",
+            "CREATE (:n {id: 2});",
+            "CREATE (:n {id: 3});",
+            "CREATE (:n {id: 4});",
+            "CREATE (:n {id: 5});",
+            "CREATE (:n {id: 6});",
+        ],
+        edge_inserts=[
+            "MATCH (a:n), (b:n) WHERE a.id = 1 AND b.id = 2" " CREATE (a)-[:e]->(b);",
+            "MATCH (a:n), (b:n) WHERE a.id = 2 AND b.id = 3" " CREATE (a)-[:e]->(b);",
+            "MATCH (a:n), (b:n) WHERE a.id = 4 AND b.id = 5" " CREATE (a)-[:e]->(b);",
+        ],
+        graph_name="g",
+        vertex_entries="['n']",
+        edge_entries="{'[n, e, n]': ''}",
+    ) as conn:
+        # Add community property column
+        conn.execute("ALTER TABLE n ADD leiden_comm INT64;")
+        # First run
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        # Write back communities to all vertices using inline writeback
+        # (can't use _batch_writeback because it hardcodes 'person' label)
+        when_clauses = " ".join(
+            f"WHEN n.id = {nid} THEN {comm}" for nid, comm in r1_map.items()
+        )
+        conn.execute(
+            f"MATCH (n:n) "
+            f"SET n.leiden_comm = CASE {when_clauses} ELSE n.leiden_comm END;"
+        )
+        # Set vertices 5,6 to -1 (invalid community ID) to simulate "new" vertices
+        # C++ code treats negative IDs as invalid -> initial_community_ stays UINT32_MAX
+        # -> previous_community outputs NULL
+        conn.execute(
+            "MATCH (n:n) WHERE n.id = 5 OR n.id = 6 " "SET n.leiden_comm = -1;"
+        )
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute("CALL project_graph('g', ['n'], " "{'[n, e, n]': ''});")
+        # Second run with initial_community_property + YIELD previous_community
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        prev_map = {row[0]: row[2] for row in rows_r2}
+        # Vertices 5,6 (no initial community) should have previous_community = None
+        for nid in [5, 6]:
+            assert nid in prev_map, f"Vertex {nid} should appear in results"
+            assert (
+                prev_map[nid] is None
+            ), f"Vertex {nid} previous_community should be None, got {prev_map[nid]}"
+        # Vertices 1-4 (had initial community) should have non-None previous_community
+        for nid in [1, 2, 3, 4]:
+            assert (
+                prev_map.get(nid) is not None
+            ), f"Vertex {nid} should have non-None previous_community"
+
+
+def test_leiden_incremental_optional_column_not_yielded(tmp_path):
+    """When previous_community is not YIELDed, output should have only 2 columns
+    (backward compatibility)."""
+    db_dir = tmp_path / "gds_prev_comm_not_yielded_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Run with initial_community_property but WITHOUT YIELD previous_community
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        assert len(rows_r2) > 0
+        # Each row should have exactly 2 columns (backward compat)
+        for row in rows_r2:
+            assert (
+                len(row) == 2
+            ), f"Row should have 2 columns (backward compat), got {len(row)}"
+            assert isinstance(row[1], int), "community should be an integer"
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_incremental_previous_community_unchanged(tmp_path):
+    """Louvain: when data is unchanged, previous_community == community."""
+    db_dir = tmp_path / "gds_louvain_prev_comm_unchanged_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "louvain_comm", r1_map)
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r2 = list(
+            conn.execute(
+                "CALL louvain('g', "
+                "{concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        assert len(rows_r2) > 0
+        assert all(len(row) == 3 for row in rows_r2)
+        for nid, comm, prev_comm in rows_r2:
+            assert (
+                prev_comm is not None
+            ), f"previous_community should not be None for node {nid}"
+            assert prev_comm == comm, (
+                f"previous_community ({prev_comm}) should equal community ({comm}) "
+                f"for node {nid} when data is unchanged"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_incremental_previous_community_with_data_change(tmp_path):
+    """Louvain: when data changes, previous_community reflects old community IDs."""
+    db_dir = tmp_path / "gds_louvain_prev_comm_change_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "louvain_comm", r1_map)
+        conn.execute(
+            "MATCH (a:person {id: 0}), (b:person {id: 3}) " "CREATE (a)-[:knows]->(b);"
+        )
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r2 = list(
+            conn.execute(
+                "CALL louvain('g', "
+                "{concurrency: 1, initial_community_property: 'louvain_comm', allow_relocation: true}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        assert len(rows_r2) > 0
+        prev_map = {row[0]: row[2] for row in rows_r2}
+        for nid, old_comm in r1_map.items():
+            assert prev_map.get(nid) == old_comm, (
+                f"previous_community for node {nid} should be {old_comm}, "
+                f"got {prev_map.get(nid)}"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_incremental_cypher_migration_matrix(tmp_path):
+    """Cypher aggregation on previous_community x community produces a migration
+    matrix. This verifies that previous_community can be used in GROUP BY queries."""
+    db_dir = tmp_path / "gds_leiden_cypher_migmtx_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        # Add edge to change community structure
+        conn.execute(
+            "MATCH (a:person {id: 0}), (b:person {id: 3}) " "CREATE (a)-[:knows]->(b);"
+        )
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Run leiden with previous_community and aggregate via Cypher
+        mig_rows = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm', allow_relocation: true}) "
+                "YIELD node, community, previous_community "
+                "RETURN previous_community, community, count(*) AS members "
+                "ORDER BY previous_community, community;"
+            )
+        )
+        assert len(mig_rows) > 0, "Migration matrix should have at least one row"
+        for row in mig_rows:
+            assert (
+                len(row) == 3
+            ), f"Each row should have (prev_comm, comm, members), got {len(row)}"
+            prev_comm, comm, members = row
+            assert (
+                isinstance(members, int) and members > 0
+            ), f"members count should be positive integer, got {members}"
+        # Verify total members sum equals number of vertices
+        total = sum(row[2] for row in mig_rows)
+        assert total == len(
+            r1_map
+        ), f"Total members ({total}) should equal vertex count ({len(r1_map)})"
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_freeze_old_vertices_unchanged(tmp_path):
+    """Freeze mode (default when initial_community_property is set):
+    old vertices' communities must not change on re-run."""
+    db_dir = tmp_path / "gds_leiden_freeze_unchanged_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD leiden_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # First run: baseline communities
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "leiden_comm", r1_map)
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Second run: freeze mode (default, no allow_relocation)
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        # All old vertices must have unchanged communities
+        for nid, old_comm in r1_map.items():
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert r2_map[nid] == old_comm, (
+                f"Vertex {nid} community changed: {old_comm} -> {r2_map[nid]} "
+                f"(freeze mode should preserve old communities)"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_freeze_old_vertices_unchanged(tmp_path):
+    """Freeze mode (default when initial_community_property is set):
+    old vertices' communities must not change on re-run."""
+    db_dir = tmp_path / "gds_louvain_freeze_unchanged_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute("LOAD gds;")
+        conn.execute("ALTER TABLE person ADD louvain_comm INT64;")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # First run: baseline communities
+        rows_r1 = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        _batch_writeback(conn, "louvain_comm", r1_map)
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute(
+            "CALL project_graph('g', ['person'], " "{'[person, knows, person]': ''});"
+        )
+        # Second run: freeze mode (default, no allow_relocation)
+        rows_r2 = list(
+            conn.execute(
+                "CALL louvain('g', "
+                "{concurrency: 1, initial_community_property: 'louvain_comm'}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        # All old vertices must have unchanged communities
+        for nid, old_comm in r1_map.items():
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert r2_map[nid] == old_comm, (
+                f"Vertex {nid} community changed: {old_comm} -> {r2_map[nid]} "
+                f"(freeze mode should preserve old communities)"
+            )
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_leiden_freeze_new_vertex_assignment(tmp_path):
+    """Freeze mode: new vertices (no initial community) are assigned to existing
+    or new communities. Old vertices' communities are frozen.
+
+    Also verifies previous_community semantics:
+    - Old vertices: previous_community == community (frozen, non-NULL)
+    - New vertices: previous_community is NULL
+    """
+    with custom_graph_connection(
+        tmp_path,
+        db_name="gds_leiden_freeze_new_vtx_db",
+        create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+        create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+        node_inserts=[
+            "CREATE (:n {id: 1});",
+            "CREATE (:n {id: 2});",
+            "CREATE (:n {id: 3});",
+            "CREATE (:n {id: 4});",
+            "CREATE (:n {id: 5});",
+            "CREATE (:n {id: 6});",
+        ],
+        edge_inserts=[
+            "MATCH (a:n), (b:n) WHERE a.id = 1 AND b.id = 2" " CREATE (a)-[:e]->(b);",
+            "MATCH (a:n), (b:n) WHERE a.id = 2 AND b.id = 3" " CREATE (a)-[:e]->(b);",
+            "MATCH (a:n), (b:n) WHERE a.id = 4 AND b.id = 5" " CREATE (a)-[:e]->(b);",
+            # Connect vertex 6 to vertex 1 so it can join an existing community
+            "MATCH (a:n), (b:n) WHERE a.id = 6 AND b.id = 1" " CREATE (a)-[:e]->(b);",
+        ],
+        graph_name="g",
+        vertex_entries="['n']",
+        edge_entries="{'[n, e, n]': ''}",
+    ) as conn:
+        # Add community property column
+        conn.execute("ALTER TABLE n ADD leiden_comm INT64;")
+        # First run: baseline communities
+        rows_r1 = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        r1_map = {row[0]: row[1] for row in rows_r1}
+        # Write back communities to vertices 1-4 only
+        # Vertices 5,6 will have -1 (simulate "new" vertices)
+        when_clauses = " ".join(
+            f"WHEN n.id = {nid} THEN {comm}"
+            for nid, comm in r1_map.items()
+            if nid in [1, 2, 3, 4]
+        )
+        conn.execute(
+            f"MATCH (n:n) " f"SET n.leiden_comm = CASE {when_clauses} ELSE -1 END;"
+        )
+        # Re-project to pick up updated properties
+        conn.execute("CALL drop_projected_graph('g');")
+        conn.execute("CALL project_graph('g', ['n'], " "{'[n, e, n]': ''});")
+        # Second run: freeze mode (default, no allow_relocation)
+        rows_r2 = list(
+            conn.execute(
+                "CALL leiden('g', "
+                "{concurrency: 1, initial_community_property: 'leiden_comm'}) "
+                "YIELD node, community, previous_community "
+                "RETURN node.id, community, previous_community;"
+            )
+        )
+        r2_map = {row[0]: row[1] for row in rows_r2}
+        prev_map = {row[0]: row[2] for row in rows_r2}
+        # Vertices 1-4 (frozen): communities must be unchanged
+        for nid in [1, 2, 3, 4]:
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert r2_map[nid] == r1_map[nid], (
+                f"Vertex {nid} community changed: {r1_map[nid]} -> {r2_map[nid]} "
+                f"(freeze mode should preserve old communities)"
+            )
+            assert prev_map[nid] is not None, (
+                f"Vertex {nid} previous_community should be non-NULL "
+                f"(had initial community)"
+            )
+            assert prev_map[nid] == r2_map[nid], (
+                f"Vertex {nid} previous_community ({prev_map[nid]}) should equal "
+                f"community ({r2_map[nid]}) in freeze mode"
+            )
+        # Vertices 5,6 (new): should be assigned to some community
+        for nid in [5, 6]:
+            assert nid in r2_map, f"Vertex {nid} missing from second run"
+            assert isinstance(
+                r2_map[nid], int
+            ), f"Vertex {nid} should have an integer community ID"
+            assert prev_map[nid] is None, (
+                f"Vertex {nid} previous_community should be NULL "
+                f"(new vertex, no initial community)"
+            )

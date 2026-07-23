@@ -63,7 +63,7 @@ for no predicate):
 
 ```cypher
 {'[person, knows, person]': ''}
-{'[person, studyat, organisation]': 'r.year > 2010'}
+{'[person, studyAt, organisation]': 'r.year > 2010'}
 ```
 
 ### `drop_projected_graph`
@@ -108,9 +108,9 @@ Every algorithm returns a `node` column (the matched nodes) plus one or more
 result columns. The `node` column is of type `NODE`, so you can access node
 properties via `node.<property>` in the `RETURN` clause.
 
-> **Note:** Most algorithms (except Label Propagation) require a **homogeneous graph**
-> subgraph — exactly one node label and one edge triplet where the source and
-> destination labels match the node label.
+> **Note:** Most algorithms (except Label Propagation, Leiden, and Louvain) require
+> a **homogeneous graph** subgraph — exactly one node label and one edge triplet where
+> the source and destination labels match the node label. 
 
 ---
 
@@ -402,7 +402,7 @@ RETURN node, label;
 CALL project_graph(
     'study_net',
     {'person': 'n.age > 20', 'organisation': 'n.name = "MIT"'},
-    {'[person, studyat, organisation]': 'r.year > 2010'}
+    {'[person, studyAt, organisation]': 'r.year > 2010'}
 );
 LOAD gds;
 
@@ -412,7 +412,7 @@ RETURN node.id, node.fName, node.name, label;
 
 **Predicate support:** Both node and edge predicates are supported.
 
-**Note:** CDLP currently requires a homogeneous graph like other algorithms.
+**Note:** CDLP currently requires a homogeneous graph like most other algorithms.
 Multi-label support is planned for a future release.
 
 ---
@@ -421,6 +421,9 @@ Multi-label support is planned for a future release.
 
 A community detection algorithm that optimizes modularity by iteratively moving
 nodes between communities and aggregating the graph into super-nodes.
+
+Louvain supports **multi-label graphs** — a projected graph with multiple vertex
+labels and multiple edge triplets is treated as one unified graph.
 
 ```cypher
 CALL louvain('<graph_name>', {<options>})
@@ -435,6 +438,9 @@ RETURN node, community;
 | `directed` | BOOL | `false` | Whether to treat the graph as directed |
 | `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
+| `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental updates. When set, existing vertices are frozen by default (freeze-assign mode). |
+| `allow_relocation` | BOOL | `false` | When `true`, allows existing vertices to be re-assigned to different communities (warm-start mode). When `false` (default), existing vertices keep their community assignments unchanged. |
+| `weight` | STRING | `""` | Edge property name to use as edge weight. When set, the algorithm uses weighted modularity. When empty (default), all edges are treated with weight 1.0 (unweighted). |
 
 **Output columns:**
 
@@ -442,13 +448,72 @@ RETURN node, community;
 |---|---|---|
 | `node` | NODE | The node |
 | `community` | INT64 | Community ID (0-based) |
+| `previous_community` | INT64 | *(optional)* Previous community ID. Only available when `initial_community_property` is set. NULL for vertices that had no previous community assignment. |
 
-**Example:**
+**Example (single-label):**
 
 ```cypher
 CALL louvain('social', {resolution: 1.0, concurrency: 8})
 RETURN node.fName, community
 ORDER BY community;
+```
+
+**Example (multi-label graph):**
+
+```cypher
+CALL project_graph(
+    'social_multi',
+    ['person', 'organisation'],
+    {'[person, knows, person]': '', '[person, studyAt, organisation]': ''}
+);
+
+CALL louvain('social_multi', {concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+```
+
+**Incremental mode:** To preserve community IDs across runs, write back the
+results and re-run with `initial_community_property`. By default, this uses
+**freeze-assign** mode: existing vertices keep their community assignments
+unchanged, and only new vertices (without a previous community) are clustered.
+
+```cypher
+-- 1. Add a property column to store community IDs
+ALTER TABLE person ADD COLUMN comm INT64 DEFAULT -1;
+
+-- 2. First run: compute communities and write back to vertex property
+CALL louvain('social', {concurrency: 8}) YIELD node, community
+MATCH (n:person) WHERE n.id = node.id
+SET n.comm = community;
+
+-- 3. Re-run with freeze-assign (default): old communities frozen, new vertices assigned
+CALL louvain('social', {initial_community_property: 'comm', concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+
+-- 3b. Alternative: warm-start mode (allow old vertices to be re-assigned)
+CALL louvain('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+```
+
+**Incremental delta analysis:** When running with `initial_community_property`,
+you can YIELD the optional `previous_community` column to analyze community
+changes at the vertex level. In freeze-assign mode, `previous_community` is
+`NULL` for new vertices and equals `community` for existing vertices.
+
+```cypher
+-- Migration matrix: how vertices moved between communities
+CALL louvain('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
+YIELD node, community, previous_community
+RETURN previous_community, community, count(*) AS members
+ORDER BY previous_community, community;
+
+-- New vertices (freeze-assign mode): previous_community is NULL
+CALL louvain('social', {initial_community_property: 'comm', concurrency: 8})
+YIELD node, community, previous_community
+WHERE previous_community IS NULL
+RETURN node.id, community;
 ```
 
 **Predicate support:** Neither node nor edge predicates are supported.
@@ -460,6 +525,9 @@ ORDER BY community;
 A community detection algorithm that improves upon Louvain by adding a refinement
 phase. This refinement allows communities to be split during execution, leading
 to better detection of small communities and higher-quality partitions.
+
+Leiden supports **multi-label graphs** — a projected graph with multiple vertex
+labels and multiple edge triplets is treated as one unified graph.
 
 ```cypher
 CALL leiden('<graph_name>', {<options>})
@@ -474,6 +542,9 @@ RETURN node, community;
 | `directed` | BOOL | `false` | Whether to treat the graph as directed |
 | `threshold` | DOUBLE | `1e-7` | Modularity gain threshold for convergence |
 | `concurrency` | INT | CPU cores | Number of threads for parallel execution |
+| `initial_community_property` | STRING | `""` | Vertex property name to seed community IDs for incremental updates. When set, existing vertices are frozen by default (freeze-assign mode). |
+| `allow_relocation` | BOOL | `false` | When `true`, allows existing vertices to be re-assigned to different communities (warm-start mode). When `false` (default), existing vertices keep their community assignments unchanged. |
+| `weight` | STRING | `""` | Edge property name to use as edge weight. When set, the algorithm uses weighted modularity. When empty (default), all edges are treated with weight 1.0 (unweighted). |
 
 **Output columns:**
 
@@ -481,13 +552,72 @@ RETURN node, community;
 |---|---|---|
 | `node` | NODE | The node |
 | `community` | INT64 | Community ID (0-based) |
+| `previous_community` | INT64 | *(optional)* Previous community ID. Only available when `initial_community_property` is set. NULL for vertices that had no previous community assignment. |
 
-**Example:**
+**Example (single-label):**
 
 ```cypher
 CALL leiden('social', {resolution: 1.5, concurrency: 8})
 RETURN node.fName, community
 ORDER BY community;
+```
+
+**Example (multi-label graph):**
+
+```cypher
+CALL project_graph(
+    'social_multi',
+    ['person', 'organisation'],
+    {'[person, knows, person]': '', '[person, studyAt, organisation]': ''}
+);
+
+CALL leiden('social_multi', {concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+```
+
+**Incremental mode:** To preserve community IDs across runs, write back the
+results and re-run with `initial_community_property`. By default, this uses
+**freeze-assign** mode: existing vertices keep their community assignments
+unchanged, and only new vertices (without a previous community) are clustered.
+
+```cypher
+-- 1. Add a property column to store community IDs
+ALTER TABLE person ADD COLUMN comm INT64 DEFAULT -1;
+
+-- 2. First run: compute communities and write back to vertex property
+CALL leiden('social', {concurrency: 8}) YIELD node, community
+MATCH (n:person) WHERE n.id = node.id
+SET n.comm = community;
+
+-- 3. Re-run with freeze-assign (default): old communities frozen, new vertices assigned
+CALL leiden('social', {initial_community_property: 'comm', concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+
+-- 3b. Alternative: warm-start mode (allow old vertices to be re-assigned)
+CALL leiden('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
+RETURN node.fName, community
+ORDER BY community;
+```
+
+**Incremental delta analysis:** When running with `initial_community_property`,
+you can YIELD the optional `previous_community` column to analyze community
+changes at the vertex level. In freeze-assign mode, `previous_community` is
+`NULL` for new vertices and equals `community` for existing vertices.
+
+```cypher
+-- Migration matrix: how vertices moved between communities
+CALL leiden('social', {initial_community_property: 'comm', allow_relocation: true, concurrency: 8})
+YIELD node, community, previous_community
+RETURN previous_community, community, count(*) AS members
+ORDER BY previous_community, community;
+
+-- New vertices (freeze-assign mode): previous_community is NULL
+CALL leiden('social', {initial_community_property: 'comm', concurrency: 8})
+YIELD node, community, previous_community
+WHERE previous_community IS NULL
+RETURN node.id, community;
 ```
 
 **Predicate support:** Neither node nor edge predicates are supported.
@@ -564,10 +694,10 @@ RETURN distance, path;
 | LCC | `lcc` | `node`, `lcc` | `directed`, `degree_threshold` |
 | K-Core | `kcore` | `node`, `core` | `k` |
 | CDLP | `cdlp` | `node`, `label` | `max_iterations` |
-| Louvain | `louvain` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
-| Leiden | `leiden` | `node`, `community` | `resolution`, `directed`, `threshold`, `concurrency` |
+| Louvain | `louvain` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation`, `weight` |
+| Leiden | `leiden` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation`, `weight` |
 
-**Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. See the individual algorithm sections for details.
+**Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. The `previous_community` column for Louvain and Leiden is optional and only available when `initial_community_property` is set. See the individual algorithm sections for details.
 
 ## Common Options
 
@@ -579,9 +709,11 @@ threads used for parallel computation. The default depends on the algorithm:
 
 ## Limitations
 
-- All algorithms require a **homogeneous graph** subgraph (exactly one node
-  label and one edge triplet `[A, edge, A]`). Support for heterogeneous graphs
-  is planned for a future release.
+- Most algorithms require a **homogeneous graph** subgraph (exactly one node
+  label and one edge triplet `[A, edge, A]`). **Leiden and Louvain** are the
+  exception — they support multi-label graphs with multiple vertex labels and
+  edge triplets. Support for heterogeneous graphs in other algorithms is planned
+  for a future release.
 - Node and edge predicates are supported by all algorithms except Louvain and
   Leiden. 
 - CDLP does not actually support heterogeneous graphs yet — it only processes
