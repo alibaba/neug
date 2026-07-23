@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/ddl/create_edge_type.h"
 #include "neug/common/types/value.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -77,11 +78,16 @@ class CreateEdgeTypeOpr : public IOperator {
       for (auto it = created_indices.rbegin(); it != created_indices.rend();
            ++it) {
         const auto& create_edge_def = create_edge_types_[*it];
-        if (!storage
-                 .DeleteEdgeType(std::get<0>(create_edge_def),
-                                 std::get<1>(create_edge_def),
-                                 std::get<2>(create_edge_def))
-                 .ok()) {
+        label_t src, dst, edge;
+        auto resolve =
+            ResolveEdgeTriplet(storage.schema(), std::get<0>(create_edge_def),
+                               std::get<1>(create_edge_def),
+                               std::get<2>(create_edge_def), src, dst, edge);
+        // Resolve may fail if this entry left nothing to revert; skip then.
+        if (!resolve.ok()) {
+          continue;
+        }
+        if (!storage.DeleteEdgeType(src, dst, edge).ok()) {
           LOG(ERROR) << "Fail to revert created edge type in CreateEdgeSchema "
                         "request";
         }

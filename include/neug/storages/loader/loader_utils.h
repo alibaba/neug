@@ -99,8 +99,8 @@ void fillVertexReaderMeta(label_t v_label, const std::string& v_label_name,
                           const std::string& v_file,
                           const LoadingConfig& loading_config,
                           const std::vector<std::string>& vertex_property_names,
-                          const std::vector<DataTypeId>& vertex_property_types,
-                          DataTypeId pk_type, const std::string& pk_name,
+                          const std::vector<DataType>& vertex_property_types,
+                          DataType pk_type, const std::string& pk_name,
                           size_t pk_ind, CsvReadConfig& config);
 
 void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
@@ -108,8 +108,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         const std::string& e_file,
                         const LoadingConfig& loading_config,
                         const std::vector<std::string>& edge_property_names,
-                        const std::vector<DataTypeId>& edge_property_types,
-                        DataTypeId src_pk_type, DataTypeId dst_pk_type,
+                        const std::vector<DataType>& edge_property_types,
+                        DataType src_pk_type, DataType dst_pk_type,
                         CsvReadConfig& config);
 
 void set_properties_from_context_column(
