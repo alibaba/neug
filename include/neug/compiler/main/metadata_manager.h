@@ -45,6 +45,7 @@ class CatalogEntry;
 
 class GraphStats;
 class Schema;
+class SchemaView;
 
 namespace function {
 struct Function;
@@ -90,6 +91,9 @@ class MetadataManager {
   NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
 
   std::unique_ptr<MetadataManager> clone(const Schema* schema,
+                                         const GraphStats& stats) const;
+
+  std::unique_ptr<MetadataManager> clone(const SchemaView* schema,
                                          const GraphStats& stats) const;
 
   std::shared_ptr<GraphStats> getGraphStats() const;

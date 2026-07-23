@@ -32,6 +32,7 @@ void CreateVertexTypeParam::Serialize(InArchive& arc) const {
   for (const auto& key : primary_key_names) {
     arc << key;
   }
+  arc << namespace_name;
 }
 
 CreateVertexTypeParam CreateVertexTypeParam::Deserialize(OutArchive& arc) {
@@ -55,6 +56,9 @@ CreateVertexTypeParam CreateVertexTypeParam::Deserialize(OutArchive& arc) {
     arc >> key;
     builder.AddPrimaryKeyName(key);
   }
+  std::string namespace_name;
+  arc >> namespace_name;
+  builder.Namespace(namespace_name);
   return builder.Build();
 }
 
@@ -70,6 +74,7 @@ void CreateEdgeTypeParam::Serialize(InArchive& arc) const {
   } else {
     arc << static_cast<uint8_t>(0);
   }
+  arc << namespace_name;
 }
 
 CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
@@ -98,6 +103,9 @@ CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
     arc >> sort_key;
     builder.SortKeyForNbr(sort_key);
   }
+  std::string namespace_name;
+  arc >> namespace_name;
+  builder.Namespace(namespace_name);
   return builder.Build();
 }
 

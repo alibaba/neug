@@ -20,6 +20,7 @@ limitations under the License.
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/gopt/g_result_schema.h"
+#include "neug/storages/graph/schema_view.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -33,7 +34,8 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA, "Schema is null"));
   }
 
-  auto queryDatabase = database->clone(schema, stats);
+  SchemaView schema_view(schema, "default");
+  auto queryDatabase = database->clone(&schema_view, stats);
   main::ClientContext queryContext(queryDatabase.get());
 
   if (queryDatabase->getCatalog() == nullptr) {

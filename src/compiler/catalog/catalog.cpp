@@ -58,19 +58,28 @@ bool nameEquals(std::string_view lhs, std::string_view rhs) {
 }
 }  // namespace
 
-Catalog::Catalog() : schema{nullptr}, version{0} { initCatalogSets(); }
+Catalog::Catalog() : schema{std::nullopt}, version{0} { initCatalogSets(); }
 
 Catalog::Catalog(const std::string& directory, VirtualFileSystem* vfs)
-    : schema{nullptr}, version{0} {}
+    : schema{std::nullopt}, version{0} {}
 
 std::unique_ptr<Catalog> Catalog::clone(const Schema* schema) const {
+  SchemaView schema_view(schema, "default");
+  return clone(&schema_view);
+}
+
+std::unique_ptr<Catalog> Catalog::clone(const SchemaView* schema) const {
   auto cloned = std::make_unique<Catalog>(*this);
   cloned->setSchema(schema);
   return cloned;
 }
 
-void Catalog::setSchema(const Schema* schema) {
-  this->schema = schema;
+void Catalog::setSchema(const SchemaView* schema) {
+  if (schema == nullptr) {
+    this->schema.reset();
+  } else {
+    this->schema = *schema;
+  }
   incrementVersion();
 }
 
@@ -87,21 +96,15 @@ void Catalog::initCatalogSets() {
 bool Catalog::containsTable(const Transaction* transaction,
                             const std::string& tableName,
                             bool useInternal) const {
-  if (schema == nullptr) {
+  if (!schema) {
     return false;
   }
-  for (auto& entry : schema->get_all_vertex_schemas()) {
-    if (entry != nullptr &&
-        schema->is_vertex_label_valid(entry->get_entry_id()) &&
-        nameEquals(entry->label_name, tableName)) {
+  for (const auto& entry : schema->GetVertexSchemas()) {
+    if (nameEquals(entry->label_name, tableName)) {
       return true;
     }
   }
-  for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-    if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
-        !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
-      continue;
-    }
+  for (const auto& edgeSchema : schema->GetEdgeSchemas()) {
     if (nameEquals(edgeSchema->edge_label_name, tableName) ||
         nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
       return true;
@@ -112,14 +115,14 @@ bool Catalog::containsTable(const Transaction* transaction,
 
 bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
                             bool useInternal) const {
-  if (schema == nullptr) {
+  if (!schema) {
     return false;
   }
   if (tableID <= std::numeric_limits<label_t>::max() &&
-      schema->is_vertex_label_valid(static_cast<label_t>(tableID))) {
+      schema->ContainsVertexLabel(static_cast<label_t>(tableID))) {
     return true;
   }
-  for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+  for (const auto& edgeSchema : schema->GetEdgeSchemas()) {
     if (edgeSchema->get_entry_id() == tableID ||
         edgeSchema->getLabelId() == tableID) {
       return true;
@@ -130,13 +133,13 @@ bool Catalog::containsTable(const Transaction* transaction, table_id_t tableID,
 
 const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
                                                  table_id_t tableID) const {
-  if (schema != nullptr && tableID <= std::numeric_limits<label_t>::max() &&
-      schema->is_vertex_label_valid(static_cast<label_t>(tableID))) {
-    return schema->get_vertex_schema(static_cast<label_t>(tableID)).get();
+  if (schema && tableID <= std::numeric_limits<label_t>::max() &&
+      schema->ContainsVertexLabel(static_cast<label_t>(tableID))) {
+    return schema->GetVertexSchema(static_cast<label_t>(tableID)).value().get();
   }
-  if (schema != nullptr) {
+  if (schema) {
     const EdgeSchema* labelMatch = nullptr;
-    for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
+    for (const auto& edgeSchema : schema->GetEdgeSchemas()) {
       if (edgeSchema->get_entry_id() == tableID) {
         return edgeSchema.get();
       }
@@ -160,12 +163,10 @@ const SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
 SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
                                            const std::string& tableName,
                                            bool useInternal) const {
-  if (schema != nullptr) {
-    VertexSchema* vertexResult = nullptr;
-    for (auto& entry : schema->get_all_vertex_schemas()) {
-      if (entry == nullptr ||
-          !schema->is_vertex_label_valid(entry->get_entry_id()) ||
-          !nameEquals(entry->label_name, tableName)) {
+  if (schema) {
+    const VertexSchema* vertexResult = nullptr;
+    for (const auto& entry : schema->GetVertexSchemas()) {
+      if (!nameEquals(entry->label_name, tableName)) {
         continue;
       }
       if (vertexResult != nullptr) {
@@ -175,16 +176,12 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
       vertexResult = entry.get();
     }
     if (vertexResult != nullptr) {
-      return vertexResult;
+      return const_cast<VertexSchema*>(vertexResult);
     }
   }
-  EdgeSchema* result = nullptr;
-  if (schema != nullptr) {
-    for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-      if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
-          !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
-        continue;
-      }
+  const EdgeSchema* result = nullptr;
+  if (schema) {
+    for (const auto& edgeSchema : schema->GetEdgeSchemas()) {
       if (!nameEquals(edgeSchema->edge_label_name, tableName) &&
           !nameEquals(getChildRelTableName(*edgeSchema), tableName)) {
         continue;
@@ -200,20 +197,17 @@ SchemaEntry* Catalog::getTableCatalogEntry(const Transaction* transaction,
     THROW_SCHEMA_MISMATCH(
         stringFormat("{} does not exist in catalog.", tableName));
   }
-  return result;
+  return const_cast<EdgeSchema*>(result);
 }
 
 std::vector<VertexSchema*> Catalog::getNodeTableEntries(
     const Transaction* transaction, bool useInternal) const {
   std::vector<VertexSchema*> result;
-  if (schema == nullptr) {
+  if (!schema) {
     return result;
   }
-  for (auto& entry : schema->get_all_vertex_schemas()) {
-    if (entry != nullptr &&
-        schema->is_vertex_label_valid(entry->get_entry_id())) {
-      result.push_back(entry.get());
-    }
+  for (const auto& entry : schema->GetVertexSchemas()) {
+    result.push_back(const_cast<VertexSchema*>(entry.get()));
   }
   return result;
 }
@@ -221,15 +215,11 @@ std::vector<VertexSchema*> Catalog::getNodeTableEntries(
 std::vector<EdgeSchema*> Catalog::getRelTableEntries(
     const Transaction* transaction, bool useInternal) const {
   std::vector<EdgeSchema*> result;
-  if (schema == nullptr) {
+  if (!schema) {
     return result;
   }
-  for (auto& [_, entry] : schema->get_all_edge_schemas()) {
-    if (!schema->is_vertex_label_valid(entry->getSrcTableID()) ||
-        !schema->is_vertex_label_valid(entry->getDstTableID())) {
-      continue;
-    }
-    result.push_back(entry.get());
+  for (const auto& entry : schema->GetEdgeSchemas()) {
+    result.push_back(const_cast<EdgeSchema*>(entry.get()));
   }
   std::sort(result.begin(), result.end(), [](const auto* lhs, const auto* rhs) {
     return std::tie(lhs->edge_label_id, lhs->src_label_id, lhs->dst_label_id,
@@ -254,15 +244,11 @@ std::vector<SchemaEntry*> Catalog::getTableEntries(
 
 bool Catalog::containsRelGroup(const Transaction* transaction,
                                const std::string& name) const {
-  if (schema == nullptr) {
+  if (!schema) {
     return false;
   }
   common::idx_t count = 0;
-  for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-    if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
-        !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
-      continue;
-    }
+  for (const auto& edgeSchema : schema->GetEdgeSchemas()) {
     if (nameEquals(edgeSchema->edge_label_name, name)) {
       ++count;
     }
@@ -273,14 +259,10 @@ bool Catalog::containsRelGroup(const Transaction* transaction,
 std::vector<EdgeSchema*> Catalog::getRelGroupEntry(
     const Transaction* transaction, const std::string& name) const {
   std::vector<EdgeSchema*> result;
-  if (schema != nullptr) {
-    for (auto& [_, edgeSchema] : schema->get_all_edge_schemas()) {
-      if (!schema->is_vertex_label_valid(edgeSchema->getSrcTableID()) ||
-          !schema->is_vertex_label_valid(edgeSchema->getDstTableID())) {
-        continue;
-      }
+  if (schema) {
+    for (const auto& edgeSchema : schema->GetEdgeSchemas()) {
       if (nameEquals(edgeSchema->edge_label_name, name)) {
-        result.push_back(edgeSchema.get());
+        result.push_back(const_cast<EdgeSchema*>(edgeSchema.get()));
       }
     }
   }
