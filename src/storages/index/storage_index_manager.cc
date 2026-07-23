@@ -177,6 +177,10 @@ std::unique_ptr<StorageIndexManager> StorageIndexManager::Clone() const {
   return forked;
 }
 
-void StorageIndexManager::Clear() { indexes_.clear(); }
+void StorageIndexManager::Clear() {
+  indexes_.clear();
+  ckp_.reset();
+  memory_level_ = MemoryLevel::kInMemory;
+}
 
 }  // namespace neug

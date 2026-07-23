@@ -24,12 +24,12 @@
 #include "neug/config.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 using index_id_t = uint32_t;
-using vid_t = uint32_t;
 static constexpr index_id_t INVALID_INDEX_ID =
     std::numeric_limits<index_id_t>::max();
 static constexpr vid_t INVALID_VID = std::numeric_limits<vid_t>::max();
