@@ -344,6 +344,7 @@ TEST_F(UpdateTransactionTest, AddVertex) {
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -376,6 +377,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -426,6 +428,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     }
     EXPECT_EQ(edge_count, 2);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -493,6 +496,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
               1);
   }
 
+  svc.reset();
   db.Close();
 }
 
@@ -545,6 +549,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
     }
     EXPECT_EQ(edge_count, 2);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -582,6 +587,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
       }
     }
   }
+  svc.reset();
   db.Close();
 }
 TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
@@ -632,6 +638,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
       }
     }
   }
+  svc.reset();
   db.Close();
 }
 
@@ -660,6 +667,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
   }
+  svc.reset();
   {
     auto conn = db.Connect();
     auto result = conn->Query(
@@ -714,6 +722,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
     }
     EXPECT_EQ(edge_count, 1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -750,6 +759,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
       }
     }
   }
+  svc.reset();
   {
     auto conn = db.Connect();
     auto result = conn->Query(
@@ -817,6 +827,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
       }
     }
   }
+  svc.reset();
   db.Close();
   {
     neug::NeugDB db2;
@@ -891,6 +902,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, false),
               1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -956,6 +968,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
     ASSERT_TRUE(age_col);
     EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 28);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1085,6 +1098,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
       EXPECT_EQ(age_col->get_any(vid).GetValue<int64_t>(), 22);
     }
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1189,6 +1203,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
     }
     EXPECT_EQ(edge_count, 2);  // original + new
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1256,6 +1271,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
     EXPECT_EQ(count_edges(gi, person_label, company_label, employ_label, true),
               1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1324,6 +1340,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
       EXPECT_EQ(ed_accessor.get_data(it).GetValue<double>(), 0.75);
     }
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1375,6 +1392,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
       }
     }
   }
+  svc.reset();
   db.Close();
   {
     neug::NeugDB db2;
@@ -1458,6 +1476,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
 
     EXPECT_EQ(edge_count, 1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1507,6 +1526,7 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
         txn.GetVertexIndex(person_label, neug::Value::INT64(1), vertex_id),
         neug::exception::Exception);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1660,6 +1680,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
         gi.GetVertexIndex(person_label, neug::Value::INT64(3), vertex_id));
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1699,6 +1720,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
         gi.GetGenericOutgoingGraphView(person_label, software_label, dev_label),
         neug::exception::Exception);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1731,6 +1753,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
               1);
     EXPECT_EQ(count_edges(gi, person_label, cmp_label, employ_label, true), 1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1767,6 +1790,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     EXPECT_TRUE(gi.schema().is_edge_triplet_valid(person_label, software_label,
                                                   created_label));
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1833,6 +1857,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     CHECK(gi.GetVertexIndex(person_label, neug::Value::INT64(2), vid));
     EXPECT_EQ(height_accessor->get_any(vid).GetValue<double>(), 0.0);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1898,6 +1923,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
                   ->get_property_index("contributions"),
               -1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1939,6 +1965,7 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
     EXPECT_EQ(gi.GetVertexPropColumn(software_label, "language"), nullptr);
     EXPECT_NO_THROW(gi.GetVertexPropColumn(software_label, "lang"));
   }
+  svc.reset();
   db.Close();
 }
 
@@ -1998,6 +2025,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
                   ->get_property_index("importance"),
               -1);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2077,6 +2105,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
                                         created_label, "since"),
                  neug::exception::Exception);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2131,6 +2160,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     EXPECT_NO_THROW(gi.GetVertexPropColumn(software_label, "name"));
     EXPECT_NO_THROW(gi.GetVertexPropColumn(software_label, "authors"));
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2182,7 +2212,6 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
                                        neug::Value::DOUBLE(0.5));
         });
     EXPECT_TRUE(txn.Commit());
-    db.Close();
   }
   {
     neug::NeugDB db;
@@ -2219,7 +2248,6 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     EXPECT_FALSE(gi.schema().is_edge_label_valid("created"));
     EXPECT_TRUE(gi.schema().is_edge_label_valid("employed_by"));
     txn.Commit();
-    db.Close();
   }
   {
     // Open again to check checkpoint after recovery
@@ -2312,6 +2340,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
 
     txn.Abort();
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2411,6 +2440,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
         neug::exception::Exception);
     txn.Abort();
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2450,6 +2480,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
               0);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2509,6 +2540,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, false),
               0);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2597,6 +2629,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
     EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
               initial_knows_count);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2659,6 +2692,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
               0);
   }
 
+  svc.reset();
   db.Close();
 }
 
@@ -2727,6 +2761,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 0);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2773,6 +2808,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
     EXPECT_EQ(
         count_edges(gi, software_label, person_label, created_label, false), 0);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2804,6 +2840,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2840,6 +2877,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
     EXPECT_EQ(
         count_edges(gi, software_label, person_label, created_label, false), 2);
   }
+  svc.reset();
   db.Close();
 }
 
@@ -2984,6 +3022,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
 
   // When closing, the string column should be compacted when creating
   // checkpoint.
+  svc.reset();
   db.Close();
   neug::NeugDB db2;
   db2.Open(config);
@@ -3066,6 +3105,7 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
       }
     }
   }
+  svc.reset();
   db.Close();
   {
     neug::NeugDB db2;
