@@ -125,7 +125,7 @@ class PropertyGraph {
    */
   void Open(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
-  void Compact(timestamp_t ts);
+  void Compact();
 
   /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
   /// Callers that need a usable graph after dumping must explicitly Open() a
