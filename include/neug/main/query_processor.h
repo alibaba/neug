@@ -92,9 +92,6 @@ class QueryProcessor {
 
   bool need_exclusive_lock(AccessMode access_mode);
 
-  AccessMode resolve_access_mode(const std::string& query_string,
-                                 const std::string& user_access_mode) const;
-
   void update_compiler_meta_if_needed(const PropertyGraph& pg,
                                       const physical::ExecutionFlag& flags,
                                       AccessMode mode);

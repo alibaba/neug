@@ -198,11 +198,11 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
   if (!parse_res.ok()) {
     RETURN_ERROR(parse_res);
   }
-  if (mode == AccessMode::kUnKnown) {
+  mode = ResolveAccessMode(mode, [&]() {
     // Token-based analyzeMode still treats "call" as update. Read-only CALL is
     // only accepted on the read path when access_mode=read is set explicitly.
-    mode = planner_->analyzeMode(query);
-  }
+    return planner_->analyzeMode(query);
+  });
   // Explicit access_mode=read: GPhysicalAnalyzer sets flag.read (not
   // procedure_call) when Function::isReadOnly is true, so validate_flags()
   // accepts those plans on the read path.

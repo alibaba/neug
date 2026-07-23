@@ -62,7 +62,8 @@ QueryProcessor::check_and_retrieve_pipeline(const PropertyGraph& pg,
 result<QueryResult> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
-  const auto access_mode = resolve_access_mode(query_string, user_access_mode);
+  const auto access_mode = ResolveAccessMode(
+      user_access_mode, [&]() { return planner_->analyzeMode(query_string); });
   if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     SnapshotGuard guard(snapshot_store_);
@@ -86,7 +87,8 @@ result<QueryResult> QueryProcessor::execute(const std::string& query_string,
                                             const std::string& user_access_mode,
                                             const rapidjson::Value& parameters,
                                             int32_t num_threads) {
-  const auto access_mode = resolve_access_mode(query_string, user_access_mode);
+  const auto access_mode = ResolveAccessMode(
+      user_access_mode, [&]() { return planner_->analyzeMode(query_string); });
   if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     SnapshotGuard guard(snapshot_store_);
@@ -206,15 +208,6 @@ bool QueryProcessor::need_exclusive_lock(AccessMode access_mode) {
     return false;
   }
   return true;  // For Insert and Update operations
-}
-
-AccessMode QueryProcessor::resolve_access_mode(
-    const std::string& query_string,
-    const std::string& user_access_mode) const {
-  auto mode = user_access_mode.empty() ? AccessMode::kUnKnown
-                                       : ParseAccessMode(user_access_mode);
-  return mode == AccessMode::kUnKnown ? planner_->analyzeMode(query_string)
-                                      : mode;
 }
 
 void QueryProcessor::update_compiler_meta_if_needed(

@@ -36,7 +36,6 @@
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint.h"
-#include "neug/storages/checkpoint_creation.h"
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -837,7 +836,7 @@ TEST(CheckpointGCTest, commit_staging_checkpoint_rejects_inactive_handle) {
   EXPECT_EQ(mgr.CurrentCheckpoint()->id(), 0);
 }
 
-TEST(CheckpointGCTest, staging_and_creation_cleanup_cover_failure_edges) {
+TEST(CheckpointGCTest, staging_cleanup_covers_failure_edges) {
   auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
   std::string closed_staging_path;
   {
@@ -884,7 +883,7 @@ TEST(CheckpointGCTest, staging_and_creation_cleanup_cover_failure_edges) {
     std::filesystem::remove_all(collision);
   }
 
-  neug::CheckpointCreation creation(mgr);
+  auto staging = mgr.CreateStagingCheckpoint();
   {
     neug::CheckpointManifest meta;
     neug::Schema schema;
@@ -892,11 +891,10 @@ TEST(CheckpointGCTest, staging_and_creation_cleanup_cover_failure_edges) {
     neug::ModuleDescriptor desc;
     desc.module_type = "missing_module_type_for_checkpoint_gc_test";
     meta.set_module("bad_module", std::move(desc));
-    creation.StagingCheckpoint()->UpdateMeta(std::move(meta));
+    staging.checkpoint()->UpdateMeta(std::move(meta));
   }
 
-  auto published = creation.Publish();
-  EXPECT_EQ(creation.Publish(), published);
+  auto published = staging.Commit();
   auto published_path = published->path();
   neug::PropertyGraph graph;
   EXPECT_THROW(graph.Open(published, neug::MemoryLevel::kInMemory),
@@ -1078,12 +1076,11 @@ TEST(CheckpointGCTest,
   ASSERT_TRUE(std::filesystem::exists(old_path));
   ASSERT_TRUE(std::filesystem::exists(old_runtime_path));
 
-  neug::CheckpointCreation creation(mgr);
-  write_valid_empty_manifest(creation.StagingCheckpoint());
-  auto new_ckp = creation.Publish();
+  auto staging = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(staging.checkpoint());
+  auto new_ckp = staging.Commit();
 
   EXPECT_EQ(mgr.CurrentCheckpoint(), new_ckp);
-  EXPECT_EQ(creation.Publish(), new_ckp);
   EXPECT_TRUE(std::filesystem::exists(old_path));
   EXPECT_TRUE(std::filesystem::exists(old_runtime_path));
   EXPECT_TRUE(std::filesystem::exists(new_ckp->path()));

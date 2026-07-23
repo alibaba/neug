@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "neug/storages/checkpoint.h"
-#include "neug/storages/checkpoint_creation.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/transaction/update_timestamp_guard.h"
 #include "neug/utils/exception/exception.h"
@@ -171,7 +170,7 @@ Status CheckpointCoordinator::executeWithNewMaintenance(
 Status CheckpointCoordinator::execute(
     GraphSnapshotStore::CheckpointMaintenanceHandle& maintenance, Reason reason,
     bool invoke_activation_handler) {
-  CheckpointCreation creation(checkpoint_manager_);
+  auto staging_checkpoint = checkpoint_manager_.CreateStagingCheckpoint();
   const bool reopen_after_checkpoint = reason != Reason::kShutdown;
 
   // Once the destructive phase begins, a running database cannot safely
@@ -185,8 +184,10 @@ Status CheckpointCoordinator::execute(
               << (reopen_after_checkpoint ? " and reopening the current graph"
                                           : " without reopening the graph");
     destructive_phase = true;
-    creation.BuildFrom(live_graph);
-    auto published_checkpoint = creation.Publish();
+    live_graph.Compact();
+    live_graph.DumpAndClear(staging_checkpoint.checkpoint());
+    auto published_checkpoint = staging_checkpoint.Commit();
+    VLOG(1) << "Finish checkpoint: " << published_checkpoint->path();
 
     if (reopen_after_checkpoint) {
       // This is the intentional in-place checkpoint reopen path. It is only
