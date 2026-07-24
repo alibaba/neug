@@ -156,6 +156,11 @@ class VertexTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
+  /// When this table is clean, re-link prior-snapshot modules into @p meta
+  /// instead of dumping. Links exact keys for this label only.
+  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                      const CheckpointManifest& prev) const;
+
   void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);
   }
@@ -255,7 +260,7 @@ class VertexTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void Compact(timestamp_t ts = MAX_TIMESTAMP);
+  void Compact();
 
   void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
 

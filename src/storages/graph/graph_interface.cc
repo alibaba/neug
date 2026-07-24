@@ -17,13 +17,13 @@
 
 namespace neug {
 
-Status StorageAPUpdateInterface::UpdateVertexProperty(label_t label, vid_t lid,
-                                                      int col_id,
-                                                      const Value& value) {
+Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
+                                                          vid_t lid, int col_id,
+                                                          const Value& value) {
   return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
 }
 
-Status StorageAPUpdateInterface::UpdateEdgeProperty(
+Status StorageAPUpdateInterface::UpdateEdgePropertyImpl(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
     const Value& value) {
@@ -32,9 +32,9 @@ Status StorageAPUpdateInterface::UpdateEdgeProperty(
                                    neug::timestamp_t(0));
 }
 
-Status StorageAPUpdateInterface::AddVertex(label_t label, const Value& id,
-                                           const std::vector<Value>& props,
-                                           vid_t& vid) {
+Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
+                                               const std::vector<Value>& props,
+                                               vid_t& vid) {
   const auto& vertex_table = graph_.get_vertex_table(label);
   if (vertex_table.Size() >= vertex_table.Capacity()) {
     auto new_cap = vertex_table.Size() < 4096
@@ -57,11 +57,10 @@ Status StorageAPUpdateInterface::AddVertex(label_t label, const Value& id,
   return status;
 }
 
-Status StorageAPUpdateInterface::AddEdge(label_t src_label, vid_t src,
-                                         label_t dst_label, vid_t dst,
-                                         label_t edge_label,
-                                         const std::vector<Value>& properties,
-                                         const void*& prop) {
+Status StorageAPUpdateInterface::AddEdgeImpl(
+    label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+    label_t edge_label, const std::vector<Value>& properties,
+    const void*& prop) {
   const auto& edge_table =
       graph_.get_edge_table(src_label, dst_label, edge_label);
   if (edge_table.PropTableSize() >= edge_table.Capacity()) {
@@ -87,59 +86,65 @@ Status StorageAPUpdateInterface::AddEdge(label_t src_label, vid_t src,
 }
 
 void StorageAPUpdateInterface::CreateCheckpoint() {
+  if (!graph_.IsModified()) {
+    return;
+  }
   auto ckp = graph_.checkpoint_ptr();
   auto memory_level = graph_.memory_level();
   graph_.DumpAndClear(ckp);
   graph_.Open(ckp, memory_level);
   mut_view_.Rebuild(graph_);
+  // Open rebuilds dirty bits to false; ClearAllDirty is redundant but keeps
+  // the post-publish contract explicit for in-place dump paths.
+  graph_.ClearAllDirty();
 }
 
-Status StorageAPUpdateInterface::DeleteVertex(label_t label, vid_t lid) {
+Status StorageAPUpdateInterface::DeleteVertexImpl(label_t label, vid_t lid) {
   return graph_.DeleteVertex(label, lid, timestamp_);
 }
 
-Status StorageAPUpdateInterface::DeleteEdge(label_t src_label, vid_t src,
-                                            label_t dst_label, vid_t dst,
-                                            label_t edge_label,
-                                            int32_t oe_offset,
-                                            int32_t ie_offset) {
+Status StorageAPUpdateInterface::DeleteEdgeImpl(label_t src_label, vid_t src,
+                                                label_t dst_label, vid_t dst,
+                                                label_t edge_label,
+                                                int32_t oe_offset,
+                                                int32_t ie_offset) {
   return graph_.DeleteEdge(src_label, src, dst_label, dst, edge_label,
                            oe_offset, ie_offset, timestamp_);
 }
 
-Status StorageAPUpdateInterface::DeleteEdges(label_t src_label, vid_t src,
-                                             label_t dst_label, vid_t dst,
-                                             label_t edge_label) {
+Status StorageAPUpdateInterface::DeleteEdgesImpl(label_t src_label, vid_t src,
+                                                 label_t dst_label, vid_t dst,
+                                                 label_t edge_label) {
   // AP mode: delegate to batch version with single pair
   std::vector<std::tuple<vid_t, vid_t>> edges = {{src, dst}};
   return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
 }
 
-Status StorageAPUpdateInterface::BatchAddVertices(
+Status StorageAPUpdateInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   return graph_.BatchAddVertices(v_label_id, std::move(supplier));
 }
 
-Status StorageAPUpdateInterface::BatchAddEdges(
+Status StorageAPUpdateInterface::BatchAddEdgesImpl(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
   return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                               std::move(supplier));
 }
 
-Status StorageAPUpdateInterface::BatchDeleteVertices(
+Status StorageAPUpdateInterface::BatchDeleteVerticesImpl(
     label_t v_label_id, const std::vector<vid_t>& vids) {
   return graph_.BatchDeleteVertices(v_label_id, vids);
 }
 
-Status StorageAPUpdateInterface::BatchDeleteEdges(
+Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::tuple<vid_t, vid_t>>& edges) {
   return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
                                  edges);
 }
 
-Status StorageAPUpdateInterface::BatchDeleteEdges(
+Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
@@ -147,7 +152,7 @@ Status StorageAPUpdateInterface::BatchDeleteEdges(
                                  oe_edges, ie_edges);
 }
 
-Status StorageAPUpdateInterface::CreateVertexType(
+Status StorageAPUpdateInterface::CreateVertexTypeImpl(
     const CreateVertexTypeParam& config) {
   auto status = graph_.CreateVertexType(config);
   if (status.ok()) {
@@ -156,7 +161,7 @@ Status StorageAPUpdateInterface::CreateVertexType(
   return status;
 }
 
-Status StorageAPUpdateInterface::CreateEdgeType(
+Status StorageAPUpdateInterface::CreateEdgeTypeImpl(
     const CreateEdgeTypeParam& config) {
   auto status = graph_.CreateEdgeType(config);
   if (status.ok()) {
@@ -165,9 +170,9 @@ Status StorageAPUpdateInterface::CreateEdgeType(
   return status;
 }
 
-Status StorageAPUpdateInterface::AddVertexProperties(
-    const AddVertexPropertiesParam& config) {
-  auto status = graph_.AddVertexProperties(config);
+Status StorageAPUpdateInterface::AddVertexPropertiesImpl(
+    label_t label, const AddVertexPropertiesParam& config) {
+  auto status = graph_.AddVertexProperties(label, config);
   if (status.ok()) {
     // Adding columns replaces the table header/column list cached by
     // GraphView, so refresh the mutable view before subsequent reads.
@@ -176,9 +181,10 @@ Status StorageAPUpdateInterface::AddVertexProperties(
   return status;
 }
 
-Status StorageAPUpdateInterface::AddEdgeProperties(
+Status StorageAPUpdateInterface::AddEdgePropertiesImpl(
+    label_t src, label_t dst, label_t edge,
     const AddEdgePropertiesParam& config) {
-  auto status = graph_.AddEdgeProperties(config);
+  auto status = graph_.AddEdgeProperties(src, dst, edge, config);
   if (status.ok()) {
     // Adding edge properties may trigger a bundled→unbundled CSR rebuild
     // (dropAndCreateNewUnbundledCSR), which replaces the underlying CsrBase
@@ -189,19 +195,20 @@ Status StorageAPUpdateInterface::AddEdgeProperties(
   return status;
 }
 
-Status StorageAPUpdateInterface::RenameVertexProperties(
-    const RenameVertexPropertiesParam& config) {
-  return graph_.RenameVertexProperties(config);
+Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
+    label_t label, const RenameVertexPropertiesParam& config) {
+  return graph_.RenameVertexProperties(label, config);
 }
 
-Status StorageAPUpdateInterface::RenameEdgeProperties(
+Status StorageAPUpdateInterface::RenameEdgePropertiesImpl(
+    label_t src, label_t dst, label_t edge,
     const RenameEdgePropertiesParam& config) {
-  return graph_.RenameEdgeProperties(config);
+  return graph_.RenameEdgeProperties(src, dst, edge, config);
 }
 
-Status StorageAPUpdateInterface::DeleteVertexProperties(
-    const DeleteVertexPropertiesParam& config) {
-  auto status = graph_.DeleteVertexProperties(config);
+Status StorageAPUpdateInterface::DeleteVertexPropertiesImpl(
+    label_t label, const DeleteVertexPropertiesParam& config) {
+  auto status = graph_.DeleteVertexProperties(label, config);
   if (status.ok()) {
     // Deleting columns shifts the table column vector cached by GraphView.
     mut_view_.Rebuild(graph_);
@@ -209,9 +216,10 @@ Status StorageAPUpdateInterface::DeleteVertexProperties(
   return status;
 }
 
-Status StorageAPUpdateInterface::DeleteEdgeProperties(
+Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
+    label_t src, label_t dst, label_t edge,
     const DeleteEdgePropertiesParam& config) {
-  auto status = graph_.DeleteEdgeProperties(config);
+  auto status = graph_.DeleteEdgeProperties(src, dst, edge, config);
   if (status.ok()) {
     // Deleting edge properties may trigger a CSR rebuild (unbundled→bundled or
     // unbundled→empty), which replaces the underlying CsrBase objects.  Rebuild
@@ -221,19 +229,17 @@ Status StorageAPUpdateInterface::DeleteEdgeProperties(
   return status;
 }
 
-Status StorageAPUpdateInterface::DeleteVertexType(
-    const std::string& vertex_type_name) {
-  auto status = graph_.DeleteVertexType(vertex_type_name);
+Status StorageAPUpdateInterface::DeleteVertexTypeImpl(label_t label) {
+  auto status = graph_.DeleteVertexType(label);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
   }
   return status;
 }
 
-Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
-                                                const std::string& dst_type,
-                                                const std::string& edge_type) {
-  auto status = graph_.DeleteEdgeType(src_type, dst_type, edge_type);
+Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
+                                                    label_t edge) {
+  auto status = graph_.DeleteEdgeType(src, dst, edge);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
   }

@@ -157,37 +157,69 @@ struct CreateEdgeTypeRedo {
 };
 
 struct AddVertexPropertiesRedo {
-  static void Serialize(InArchive& arc, const AddVertexPropertiesParam& config);
-  static AddVertexPropertiesParam Deserialize(OutArchive& arc);
+  std::string vertex_type;
+  AddVertexPropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& vertex_type,
+                        const AddVertexPropertiesParam& config);
+  static AddVertexPropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct AddEdgePropertiesRedo {
-  static void Serialize(InArchive& arc, const AddEdgePropertiesParam& config);
-  static AddEdgePropertiesParam Deserialize(OutArchive& arc);
+  std::string src_type;
+  std::string dst_type;
+  std::string edge_type;
+  AddEdgePropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
+                        const AddEdgePropertiesParam& config);
+  static AddEdgePropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct RenameVertexPropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string vertex_type;
+  RenameVertexPropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& vertex_type,
                         const RenameVertexPropertiesParam& config);
-  static RenameVertexPropertiesParam Deserialize(OutArchive& arc);
+  static RenameVertexPropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct RenameEdgePropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string src_type;
+  std::string dst_type;
+  std::string edge_type;
+  RenameEdgePropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
                         const RenameEdgePropertiesParam& config);
-  static RenameEdgePropertiesParam Deserialize(OutArchive& arc);
+  static RenameEdgePropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct DeleteVertexPropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string vertex_type;
+  DeleteVertexPropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& vertex_type,
                         const DeleteVertexPropertiesParam& config);
-  static DeleteVertexPropertiesParam Deserialize(OutArchive& arc);
+  static DeleteVertexPropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct DeleteEdgePropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string src_type;
+  std::string dst_type;
+  std::string edge_type;
+  DeleteEdgePropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
                         const DeleteEdgePropertiesParam& config);
-  static DeleteEdgePropertiesParam Deserialize(OutArchive& arc);
+  static DeleteEdgePropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct DeleteVertexTypeRedo {

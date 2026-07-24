@@ -180,59 +180,74 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
-  // --- DML methods ---
-  Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                              const Value& value) override;
-  Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                            vid_t dst, label_t edge_label, int32_t oe_offset,
-                            int32_t ie_offset, int32_t col_id,
-                            const Value& value) override;
-  Status AddVertex(label_t label, const Value& id,
-                   const std::vector<Value>& props, vid_t& vid) override;
-  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label, const std::vector<Value>& properties,
-                 const void*& prop) override;
-  Status DeleteVertex(label_t label, vid_t lid) override;
-  Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                     label_t edge_label) override;
-  Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                    label_t edge_label, int32_t oe_offset,
-                    int32_t ie_offset) override;
-
-  // --- Batch methods ---
   void CreateCheckpoint() override;
-  Status BatchAddVertices(
+
+ private:
+  // Marks go to the COW clone; abort discards them with the clone.
+  void MarkVertexTableDirty(label_t label) override {
+    cow_graph_->MarkVertexTableDirty(label);
+  }
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
+    cow_graph_->MarkEdgeTableDirty(src, dst, edge);
+  }
+  void MarkSchemaDirty() override { cow_graph_->MarkSchemaDirty(); }
+
+  // --- DML *Impl ---
+  Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
+                                  const Value& value) override;
+  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset,
+                                int32_t col_id, const Value& value) override;
+  Status AddVertexImpl(label_t label, const Value& id,
+                       const std::vector<Value>& props, vid_t& vid) override;
+  Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label, const std::vector<Value>& properties,
+                     const void*& prop) override;
+  Status DeleteVertexImpl(label_t label, vid_t lid) override;
+  Status DeleteEdgesImpl(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label) override;
+  Status DeleteEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
+                        vid_t dst, label_t edge_label, int32_t oe_offset,
+                        int32_t ie_offset) override;
+
+  // --- Batch *Impl ---
+  Status BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchDeleteVertices(label_t v_label_id,
-                             const std::vector<vid_t>& vids) override;
-  Status BatchDeleteEdges(
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchDeleteVerticesImpl(label_t v_label_id,
+                                 const std::vector<vid_t>& vids) override;
+  Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges) override;
-  Status BatchDeleteEdges(
+  Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
 
-  // --- DDL methods ---
-  Status CreateVertexType(const CreateVertexTypeParam& config) override;
-  Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
-  Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config) override;
-  Status RenameVertexProperties(
-      const RenameVertexPropertiesParam& config) override;
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config) override;
-  Status DeleteVertexProperties(
-      const DeleteVertexPropertiesParam& config) override;
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config) override;
-  Status DeleteVertexType(const std::string& vertex_type_name) override;
-  Status DeleteEdgeType(const std::string& src_type,
-                        const std::string& dst_type,
-                        const std::string& edge_type) override;
+  // --- DDL *Impl ---
+  Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;
+  Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) override;
+  Status AddVertexPropertiesImpl(
+      label_t label, const AddVertexPropertiesParam& config) override;
+  Status AddEdgePropertiesImpl(label_t src, label_t dst, label_t edge,
+                               const AddEdgePropertiesParam& config) override;
+  Status RenameVertexPropertiesImpl(
+      label_t label, const RenameVertexPropertiesParam& config) override;
+  Status RenameEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const RenameEdgePropertiesParam& config) override;
+  Status DeleteVertexPropertiesImpl(
+      label_t label, const DeleteVertexPropertiesParam& config) override;
+  Status DeleteEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const DeleteEdgePropertiesParam& config) override;
+  Status DeleteVertexTypeImpl(label_t label) override;
+  Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
- private:
   // --- COW detach helpers ---
   Status detachVertexTableForInsert(label_t label);
   Status detachVertexTableForDelete(label_t label);

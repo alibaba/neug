@@ -18,6 +18,8 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
+#include "neug/storages/checkpoint.h"
+
 namespace neug {
 
 rapidjson::Value ModuleDescriptor::ToJson(
@@ -109,6 +111,17 @@ std::string ModuleDescriptor::ToJsonString() const {
   rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
   doc.Accept(writer);
   return buf.GetString();
+}
+
+ModuleDescriptor ModuleDescriptor::Link(const ModuleDescriptor& prev,
+                                        Checkpoint& ckp) {
+  ModuleDescriptor linked = prev;
+  for (auto& [_, path] : linked.mutable_paths()) {
+    if (!path.empty()) {
+      path = ckp.LinkToSnapshot(path);
+    }
+  }
+  return linked;
 }
 
 }  // namespace neug

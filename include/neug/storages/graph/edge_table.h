@@ -82,6 +82,11 @@ class EdgeTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
+  /// When this table is clean, re-link prior-snapshot modules/scalars into
+  /// @p meta instead of dumping. Links exact keys for this triplet only.
+  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                      const CheckpointManifest& prev) const;
+
   void SetInCsr(std::unique_ptr<CsrBase> csr);
   void SetOutCsr(std::unique_ptr<CsrBase> csr);
   void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
@@ -172,8 +177,7 @@ class EdgeTable {
                           int32_t ie_offset, int32_t col_id,
                           const Value& new_prop, timestamp_t ts);
 
-  void Compact(const std::optional<std::string>& sort_key_for_nbr,
-               timestamp_t ts);
+  void Compact(const std::optional<std::string>& sort_key_for_nbr);
 
   size_t PropTableSize() const;
 

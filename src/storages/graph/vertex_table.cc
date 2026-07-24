@@ -15,6 +15,7 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
@@ -293,7 +294,7 @@ void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
   }
 }
 
-void VertexTable::Compact(timestamp_t ts) {
+void VertexTable::Compact() {
   v_ts_->Compact();
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
@@ -383,6 +384,23 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
     table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
+}
+
+void VertexTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                                 const CheckpointManifest& prev) const {
+  const auto& lbl = vertex_schema_->label_name;
+  if (!prev.has_module(KeyKeys(lbl))) {
+    return;
+  }
+  // Exact keys only — prefix matching is ambiguous when labels contain
+  // underscores (e.g. "a" vs "a_b").
+  meta.LinkModuleFrom(prev, KeyKeys(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyIndices(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyIndexer(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyVertexTimestamp(lbl), ckp);
+  for (size_t i = 0; i < vertex_schema_->property_types.size(); ++i) {
+    meta.LinkModuleFrom(prev, KeyProperty(lbl, i), ckp);
+  }
 }
 
 VertexTable VertexTable::Clone() const {
