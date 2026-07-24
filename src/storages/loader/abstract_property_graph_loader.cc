@@ -181,7 +181,7 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
   try {
     loadVertices();
     loadEdges();
-    graph_.Compact();
+    // Compact graph inside DumpAndClear
     graph_.DumpAndClear(staging_checkpoint_->checkpoint());
     staging_checkpoint_->Commit();
 

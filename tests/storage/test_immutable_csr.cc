@@ -18,6 +18,7 @@
 #include <iostream>
 #include <string>
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/container/file_header.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "unittest/utils.h"
@@ -305,6 +306,76 @@ TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
   hugepage_single_immutable_csr.Open(*single_ckp, single_desc,
                                      MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_single_immutable_csr.edge_num(), 500);
+}
+
+TYPED_TEST(IMMutableCsrTest, TestDumpCompactsDeletedEdges) {
+  ImmutableCsr<TypeParam> csr;
+  auto ckp = make_checkpoint(this->Workspace());
+  csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  csr.resize(2);
+  csr.batch_put_edges({0, 0, 1}, {10, 11, 12}, std::vector<TypeParam>(3), 0);
+  csr.delete_edge(0, 0, 0);
+
+  auto desc = dump_module_descriptor(csr, *ckp, "compacted");
+  EXPECT_EQ(std::filesystem::file_size(
+                desc.get_path(ModuleDescriptor::kNbrListPath).value()),
+            sizeof(FileHeader) + 2 * sizeof(ImmutableNbr<TypeParam>));
+  ImmutableCsr<TypeParam> reopened;
+  reopened.Open(*ckp, desc, MemoryLevel::kInMemory);
+
+  auto view = reopened.get_generic_view(MAX_TIMESTAMP);
+  auto edges = view.get_edges(0);
+  auto it = edges.begin();
+  ASSERT_NE(it, edges.end());
+  EXPECT_EQ(it.get_vertex(), 11);
+  EXPECT_EQ(++it, edges.end());
+  EXPECT_EQ(view.get_edges(1).begin().get_vertex(), 12);
+  EXPECT_EQ(reopened.edge_num(), 2);
+}
+
+TYPED_TEST(IMMutableCsrTest, TestCleanDumpReusesFiles) {
+  ImmutableCsr<TypeParam> csr;
+  auto ckp = this->load_csr_data(csr);
+  auto original = dump_module_descriptor(csr, *ckp, "original");
+
+  ImmutableCsr<TypeParam> reopened;
+  reopened.Open(*ckp, original, MemoryLevel::kInMemory);
+  auto next_ckp = make_checkpoint(this->Workspace());
+  auto reused = dump_module_descriptor(reopened, *next_ckp, "reused");
+
+  EXPECT_TRUE(std::filesystem::equivalent(
+      original.get_path(ModuleDescriptor::kNbrListPath).value(),
+      reused.get_path(ModuleDescriptor::kNbrListPath).value()));
+  EXPECT_TRUE(std::filesystem::equivalent(
+      original.get_path(ModuleDescriptor::kDegreeListPath).value(),
+      reused.get_path(ModuleDescriptor::kDegreeListPath).value()));
+}
+
+TYPED_TEST(IMMutableCsrTest, TestDirtyReopenDump) {
+  ImmutableCsr<TypeParam> csr;
+  auto ckp = make_checkpoint(this->Workspace());
+  csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  csr.resize(2);
+  csr.batch_put_edges({0, 0, 1}, {10, 11, 12}, std::vector<TypeParam>(3), 0);
+  auto original = dump_module_descriptor(csr, *ckp, "original");
+
+  for (auto level : {MemoryLevel::kInMemory, MemoryLevel::kHugePagePreferred,
+                     MemoryLevel::kSyncToFile}) {
+    ImmutableCsr<TypeParam> dirty;
+    dirty.Open(*ckp, original, level);
+    dirty.delete_edge(0, 0, 0);
+    auto next_ckp = make_checkpoint(this->Workspace());
+    auto compacted = dump_module_descriptor(dirty, *next_ckp, "compacted");
+
+    ImmutableCsr<TypeParam> reopened;
+    reopened.Open(*next_ckp, compacted, MemoryLevel::kInMemory);
+    auto edges = reopened.get_generic_view(MAX_TIMESTAMP).get_edges(0);
+    auto it = edges.begin();
+    ASSERT_NE(it, edges.end());
+    EXPECT_EQ(it.get_vertex(), 11);
+    EXPECT_EQ(++it, edges.end());
+    EXPECT_EQ(reopened.edge_num(), 2);
+  }
 }
 
 TYPED_TEST(IMMutableCsrTest, TestResize) {

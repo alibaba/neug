@@ -15,6 +15,7 @@
 
 #include "neug/storages/csr/immutable_csr.h"
 
+#include "csr_dump_utils.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 
@@ -74,6 +75,43 @@ void ImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
   prefetch_policy_ = create_csr_prefetch_policy(degree_stats);
 }
 
+namespace {
+
+template <typename NBR_T, typename AFTER_NORMALIZE>
+size_t normalize_immutable_adjacency_lists(NBR_T* nbr_list, NBR_T** adj_lists,
+                                           int* degrees, size_t vnum,
+                                           AFTER_NORMALIZE&& after_normalize) {
+  NBR_T* write_ptr = nbr_list;
+  size_t live_edges = 0;
+  for (size_t i = 0; i < vnum; ++i) {
+    NBR_T* read_ptr = adj_lists[i];
+    NBR_T* segment = write_ptr;
+    adj_lists[i] = segment;
+    int new_degree = 0;
+    if (degrees[i] != 0) {
+      NBR_T* read_end = read_ptr + degrees[i];
+      while (read_ptr != read_end) {
+        if (read_ptr->neighbor != std::numeric_limits<vid_t>::max()) {
+          if (write_ptr != read_ptr) {
+            *write_ptr = *read_ptr;
+          }
+          ++write_ptr;
+          ++new_degree;
+        }
+        ++read_ptr;
+      }
+    }
+    degrees[i] = new_degree;
+    live_edges += static_cast<size_t>(new_degree);
+    after_normalize(reinterpret_cast<const char*>(segment),
+                    static_cast<size_t>(new_degree) * sizeof(NBR_T));
+  }
+
+  return live_edges;
+}
+
+}  // namespace
+
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                                  const std::string& key) {
@@ -81,49 +119,65 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.module_type = ModuleTypeName();
   desc.set("unsorted_since", std::to_string(unsorted_since_));
   desc.set("edge_num", std::to_string(edge_num_.load()));
+
+  size_t vnum = size();
+  auto** adj_lists = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* degrees = reinterpret_cast<int*>(degree_list_buffer_->GetData());
+  size_t live_edges = 0;
+  auto normalize_nbrs = [&](auto&& sink) {
+    live_edges = normalize_immutable_adjacency_lists(
+        reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData()), adj_lists,
+        degrees, vnum, sink);
+    csr_dump::validate_edge_count(edge_num_.load(), live_edges);
+  };
+  auto write_nbrs = [&](std::ofstream& out) {
+    csr_dump::write_segment(
+        out, reinterpret_cast<const char*>(nbr_list_buffer_->GetData()),
+        live_edges * sizeof(nbr_t));
+  };
+  desc.set_path(ModuleDescriptor::kNbrListPath,
+                csr_dump::dump_normalized_file(ckp, nbr_list_buffer_.get(),
+                                               normalize_nbrs, write_nbrs));
+
+  // The degrees were rewritten in place by the nbr normalization above, so
+  // the buffer is already normalized; only hashing is needed for the reuse
+  // decision. Reuses the previous file via a hardlink in the new snapshot
+  // dir when unchanged (Commit() cannot be used here: it only reuses paths
+  // already inside the current snapshot dir).
+  auto dump_degrees = [&](auto&& sink) {
+    sink(reinterpret_cast<const char*>(degree_list_buffer_->GetData()),
+         degree_list_buffer_->GetDataSize());
+  };
+  auto write_degrees = [&](std::ofstream& out) {
+    csr_dump::write_segment(
+        out, reinterpret_cast<const char*>(degree_list_buffer_->GetData()),
+        degree_list_buffer_->GetDataSize());
+  };
   desc.set_path(ModuleDescriptor::kDegreeListPath,
-                ckp.Commit(*degree_list_buffer_));
-  desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
+                csr_dump::dump_normalized_file(ckp, degree_list_buffer_.get(),
+                                               dump_degrees, write_degrees));
   meta.set_module(key, desc);
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::compact() {
-  // For current adj_list where the dst vertex is invalid, swap it to the end.
   vid_t vnum = size();
   if (vnum <= 0) {
     return;
   }
-  size_t removed = 0;
-  auto** adj_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-  auto* deg_arr = reinterpret_cast<int*>(degree_list_buffer_->GetData());
-  nbr_t* write_ptr = adj_arr[0];
+  auto** adj_lists = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* degrees = reinterpret_cast<int*>(degree_list_buffer_->GetData());
+  size_t live_edges = normalize_immutable_adjacency_lists(
+      reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData()), adj_lists, degrees,
+      vnum, [](const char*, size_t) {});
+  csr_dump::validate_edge_count(edge_num_.load(), live_edges);
+  nbr_list_buffer_->Resize(live_edges * sizeof(nbr_t));
+  nbr_t* segment = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
   for (vid_t i = 0; i < vnum; ++i) {
-    int deg = deg_arr[i];
-    if (deg == 0) {
-      continue;
+    adj_lists[i] = segment;
+    if (degrees[i] != 0) {
+      segment += degrees[i];
     }
-    const nbr_t* read_ptr = adj_arr[i];
-    const nbr_t* read_end = read_ptr + deg;
-    while (read_ptr != read_end) {
-      if (read_ptr->neighbor != std::numeric_limits<vid_t>::max()) {
-        if (removed) {
-          *write_ptr = *read_ptr;
-        }
-        ++write_ptr;
-      } else {
-        --deg_arr[i];
-        ++removed;
-      }
-      ++read_ptr;
-    }
-  }
-  nbr_list_buffer_->Resize(nbr_list_buffer_->GetDataSize() -
-                           removed * sizeof(nbr_t));
-  nbr_t* ptr = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
-  for (vid_t i = 0; i < vnum; ++i) {
-    adj_arr[i] = ptr;
-    ptr += deg_arr[i];
   }
 }
 
