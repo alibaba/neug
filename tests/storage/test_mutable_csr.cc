@@ -1024,6 +1024,149 @@ TEST_F(MutableCsrDumpDirtyTest, VariousMutationsSetDirty) {
   expect_slow_after("batch_delete_edges",
                     [](CsrT& c) { c.batch_delete_edges({0}, {3}); });
 }
+
+TEST_F(MutableCsrDumpDirtyTest, DumpNormalizesTimestampsAndRemovesTombstones) {
+  CsrT csr;
+  ModuleDescriptor original_desc;
+  auto ckp = prepare(csr, original_desc);
+
+  csr.put_edge(0, 2, 999, 7, *alloc_);
+  csr.delete_edge(0, 0, 8);
+  ASSERT_EQ(csr.edge_num(), src_.size());
+
+  auto normalized_desc = dump_module_descriptor(csr, *ckp, "normalized");
+  CsrT reopened;
+  reopened.Open(*ckp, normalized_desc, MemoryLevel::kInMemory);
+
+  size_t actual_edge_num = 0;
+  std::vector<vid_t> src_zero_neighbors;
+  auto view = reopened.get_generic_view(MAX_TIMESTAMP);
+  for (vid_t src = 0; src < VNUM; ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_EQ(it.get_timestamp(), 0);
+      ++actual_edge_num;
+      if (src == 0) {
+        src_zero_neighbors.push_back(it.get_vertex());
+      }
+    }
+  }
+  EXPECT_EQ(actual_edge_num, src_.size());
+  EXPECT_EQ(reopened.edge_num(), src_.size());
+  EXPECT_EQ(src_zero_neighbors, (std::vector<vid_t>{4, 2}));
+}
+
+TEST_F(MutableCsrDumpDirtyTest, DumpCompactsMiddleAndTailDeletions) {
+  CsrT csr;
+  auto ckp = make_checkpoint(checkpoint_mgr_);
+  csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  csr.resize(1);
+  csr.batch_put_edges({0, 0, 0, 0}, {10, 11, 12, 13}, {1, 2, 3, 4});
+  csr.delete_edge(0, 1, 1);
+  csr.delete_edge(0, 3, 2);
+  ASSERT_EQ(csr.edge_num(), 2);
+
+  auto desc = dump_module_descriptor(csr, *ckp, "compacted");
+  CsrT reopened;
+  reopened.Open(*ckp, desc, MemoryLevel::kInMemory);
+
+  std::vector<vid_t> neighbors;
+  auto edges = reopened.get_generic_view(MAX_TIMESTAMP).get_edges(0);
+  for (auto it = edges.begin(); it != edges.end(); ++it) {
+    EXPECT_EQ(it.get_timestamp(), 0);
+    neighbors.push_back(it.get_vertex());
+  }
+  EXPECT_EQ(neighbors, (std::vector<vid_t>{10, 12}));
+  EXPECT_EQ(reopened.edge_num(), 2);
+}
+
+class SingleMutableCsrDumpTest : public ::testing::Test {
+ protected:
+  using CsrT = SingleMutableCsr<int64_t>;
+  static constexpr vid_t VNUM = 4;
+
+  void SetUp() override {
+    test_dir_ = make_unique_test_dir("single_mutable_csr_dump_test");
+    checkpoint_mgr_.Open(test_dir_.string());
+    alloc_ = std::make_unique<Allocator>(MemoryLevel::kInMemory, "");
+  }
+
+  void TearDown() override {
+    checkpoint_mgr_.Close();
+    if (std::filesystem::exists(test_dir_)) {
+      std::filesystem::remove_all(test_dir_);
+    }
+  }
+
+  std::shared_ptr<Checkpoint> prepare(CsrT& csr, ModuleDescriptor& desc) {
+    CsrT original;
+    auto ckp = make_checkpoint(checkpoint_mgr_);
+    original.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+    original.resize(VNUM);
+    original.batch_put_edges({0, 1, 3}, {10, 11, 13}, {100, 110, 130});
+    desc = dump_module_descriptor(original, *ckp, "original");
+    csr.Open(*ckp, desc, MemoryLevel::kInMemory);
+    return ckp;
+  }
+
+  static ino_t inode_of(const std::string& path) {
+    struct stat st {};
+    if (stat(path.c_str(), &st) != 0) {
+      throw std::runtime_error("stat() failed for path: " + path + " — " +
+                               std::strerror(errno));
+    }
+    return st.st_ino;
+  }
+
+  static std::string nbr_path(const ModuleDescriptor& desc) {
+    return desc.get_path(ModuleDescriptor::kNbrListPath).value();
+  }
+
+  std::filesystem::path test_dir_;
+  CheckpointManager checkpoint_mgr_;
+  std::unique_ptr<Allocator> alloc_;
+};
+
+TEST_F(SingleMutableCsrDumpTest, CleanDumpReusesNeighborFile) {
+  CsrT csr;
+  ModuleDescriptor original_desc;
+  prepare(csr, original_desc);
+  auto original_inode = inode_of(nbr_path(original_desc));
+
+  auto next_ckp = make_checkpoint(checkpoint_mgr_);
+  auto reused_desc = dump_module_descriptor(csr, *next_ckp, "reused");
+  EXPECT_EQ(original_inode, inode_of(nbr_path(reused_desc)));
+}
+
+TEST_F(SingleMutableCsrDumpTest,
+       DumpNormalizesTimestampsAndPreservesEmptySlots) {
+  CsrT csr;
+  ModuleDescriptor original_desc;
+  auto ckp = prepare(csr, original_desc);
+
+  csr.put_edge(2, 12, 120, 7, *alloc_);
+  csr.delete_edge(1, 0, 8);
+  ASSERT_EQ(csr.edge_num(), 3);
+
+  auto normalized_desc = dump_module_descriptor(csr, *ckp, "normalized");
+  EXPECT_NE(inode_of(nbr_path(original_desc)),
+            inode_of(nbr_path(normalized_desc)));
+
+  CsrT reopened;
+  reopened.Open(*ckp, normalized_desc, MemoryLevel::kInMemory);
+  auto view = reopened.get_generic_view(MAX_TIMESTAMP);
+  std::vector<vid_t> visible_sources;
+  for (vid_t src = 0; src < VNUM; ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      EXPECT_EQ(it.get_timestamp(), 0);
+      visible_sources.push_back(src);
+    }
+  }
+  EXPECT_EQ(visible_sources, (std::vector<vid_t>{0, 2, 3}));
+  EXPECT_EQ(reopened.edge_num(), 3);
+}
+
 // Concurrent read-write test: verifies that lock-free readers using
 // get_edges() / foreach_nbr_lt() see consistent (degree, buffer) snapshots
 // even when a concurrent writer triggers CSR buffer reallocation via put_edge.

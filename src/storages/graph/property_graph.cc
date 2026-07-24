@@ -887,13 +887,17 @@ void PropertyGraph::compact_schema() {
   v_mutex_.resize(new_schema.vertex_label_frontier());
 }
 
-void PropertyGraph::Compact() {
+void PropertyGraph::Compact() { compact_internal(true); }
+
+void PropertyGraph::compact_internal(bool compact_all_edge_tables) {
   /**
    * The compaction process includes two parts:
    * 1. Schema: remove the deleted properties and labels from
    *    schema.
    * 2. Data: for each vertex and edge table, remove the deleted
    *    data and compact the storage.
+   * Checkpoint compacts and sorts only edge tables with a sort key; other CSRs
+   * are normalized by Dump().
    *
    * Assume concurrency is controlled by the caller.
    */
@@ -932,15 +936,22 @@ void PropertyGraph::Compact() {
         }
         const auto& sort_key_for_nbr =
             schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
-        edge_tables_.at(index).Compact(sort_key_for_nbr);
+        if (compact_all_edge_tables || sort_key_for_nbr.has_value()) {
+          edge_tables_.at(index).Compact(sort_key_for_nbr);
+        }
       }
     }
   }
-  LOG(INFO) << "Compaction completed.";
+  LOG(INFO) << (compact_all_edge_tables ? "Compaction"
+                                        : "Checkpoint preparation")
+            << " completed.";
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   LOG(INFO) << "Creating checkpoint at " << ckp->path();
+
+  // Compact sort-key edge tables; Dump() normalizes the remaining CSRs.
+  compact_internal(false);
 
   CheckpointManifest meta;
   ModuleBroker store;
