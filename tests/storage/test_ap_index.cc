@@ -124,6 +124,21 @@ std::shared_ptr<IDataChunkSupplier> MakePersonSupplier(
   return std::make_shared<VectorChunkSupplier>(std::move(chunks));
 }
 
+std::shared_ptr<IDataChunkSupplier> MakeItemSupplier(
+    const std::vector<std::pair<int32_t, int32_t>>& rows) {
+  std::vector<int32_t> ids;
+  std::vector<int32_t> values;
+  for (const auto& [id, value] : rows) {
+    ids.push_back(id);
+    values.push_back(value);
+  }
+  auto chunk = std::make_shared<DataChunk>();
+  chunk->set(0, MakeValueColumn(ids));
+  chunk->set(1, MakeValueColumn(values));
+  return std::make_shared<VectorChunkSupplier>(
+      std::vector<std::shared_ptr<DataChunk>>{std::move(chunk)});
+}
+
 class APIndexTest : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
@@ -198,25 +213,42 @@ class APIndexTest : public ::testing::Test {
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
+  void CreateItemTable() {
+    CreateVertexTypeParamBuilder builder;
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Item")
+                                  .AddProperty("id", Value::INT32(0))
+                                  .AddProperty("value", Value::INT32(0))
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
+    ASSERT_TRUE(status.ok()) << status.ToString();
+  }
+
   result<StorageIndex*> CreateIndex(const std::string& name,
                                     const std::string& label_name,
                                     const std::string& property_name) {
     auto label = graph_->schema().get_vertex_label_id(label_name);
     auto schema = graph_->schema().get_vertex_schema(label);
-    auto prop_it = std::find(schema->property_names.begin(),
-                             schema->property_names.end(), property_name);
-    if (prop_it == schema->property_names.end()) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Property does not exist: " + property_name);
+    DataType property_type;
+    if (property_name == std::get<1>(schema->primary_keys[0])) {
+      property_type = std::get<0>(schema->primary_keys[0]);
+    } else {
+      auto prop_it = std::find(schema->property_names.begin(),
+                               schema->property_names.end(), property_name);
+      if (prop_it == schema->property_names.end()) {
+        RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                            "Property does not exist: " + property_name);
+      }
+      auto prop_id = static_cast<size_t>(
+          std::distance(schema->property_names.begin(), prop_it));
+      property_type = schema->property_types[prop_id];
     }
-    auto prop_id = static_cast<size_t>(
-        std::distance(schema->property_names.begin(), prop_it));
     auto meta = std::make_unique<IndexMeta>();
     meta->name = name;
     meta->type = "example";
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
-    meta->schema.property_type = schema->property_types[prop_id];
+    meta->schema.property_type = property_type;
     auto index = ap_->CreateIndex(std::move(meta));
     if (!index) {
       return tl::unexpected(index.error());
@@ -406,6 +438,39 @@ TEST_F(APIndexTest, InsertDeleteAndUpdateMaintainIndex) {
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{}));
   EXPECT_EQ(SearchPersonNames(30),
             (std::vector<std::string>{"Bob", "Charlie"}));
+}
+
+TEST_F(APIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
+  CreateItemTable();
+  ASSERT_TRUE(CreateIndex("idx_item_id", "Item", "id"));
+  auto label = graph_->schema().get_vertex_label_id("Item");
+  auto* index = GetIndex("idx_item_id");
+  ASSERT_NE(index, nullptr);
+
+  vid_t first_vid = 0;
+  ASSERT_TRUE(
+      ap_->AddVertex(label, Value::INT32(1), {Value::INT32(10)}, first_vid)
+          .ok());
+  ExampleIndexQueryParams first_query(1);
+  ASSERT_EQ(index->Search(first_query).value(),
+            (std::vector<vid_t>{first_vid}));
+
+  ASSERT_TRUE(
+      ap_->BatchAddVertices(label, MakeItemSupplier({{2, 20}, {3, 30}})).ok());
+  ExampleIndexQueryParams batch_query(2);
+  ASSERT_EQ(index->Search(batch_query).value().size(), 1);
+
+  ASSERT_TRUE(ap_->DeleteVertex(label, first_vid).ok());
+  EXPECT_TRUE(index->Search(first_query).value().empty());
+
+  DeleteVertexPropertiesParamBuilder delete_builder;
+  EXPECT_THROW(ap_->DeleteVertexProperties(
+                   label, delete_builder.AddDeleteProperty("id").Build()),
+               exception::RuntimeError);
+  EXPECT_NE(GetIndex("idx_item_id"), nullptr);
+
+  ASSERT_TRUE(ap_->DeleteVertexType(label).ok());
+  EXPECT_EQ(GetIndex("idx_item_id"), nullptr);
 }
 
 TEST_F(APIndexTest, BatchAddVerticesMaintainsIndexAndSkipsDuplicatePk) {

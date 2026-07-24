@@ -43,9 +43,22 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
 
 // Appends index entries for one newly inserted vertex row.
 static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
+                                 const Value& id,
                                  const std::vector<Value>& props) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are stored separately from property_names, so maintain their
+  // indexes explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  for (auto* index : pk_indexes.value()) {
+    RETURN_IF_NOT_OK(index->Upsert(lid, id));
+  }
+
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
@@ -69,6 +82,25 @@ static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   const auto& vtable = graph.get_vertex_table(label);
   auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are stored outside property_names in the vertex indexer, so
+  // read their column explicitly when maintaining indexes for a batch.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  if (!pk_indexes->empty()) {
+    auto pk_col = vtable.GetPropertyColumn(pk_name);
+    if (!pk_col) {
+      return Status::InternalError("Primary key column does not exist");
+    }
+    for (auto* index : pk_indexes.value()) {
+      for (vid_t vid : vids) {
+        RETURN_IF_NOT_OK(index->Upsert(vid, pk_col->get_any(vid)));
+      }
+    }
+  }
 
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
@@ -96,7 +128,9 @@ static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
   return Status::OK();
 }
 
-// Updates index entries for one changed vertex property.
+// Updates index entries for one changed vertex property. Primary keys are not
+// handled here because PropertyGraph does not allow modifying the primary key
+// of an existing vertex.
 static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
                                     vid_t lid, int32_t col_id,
                                     const Value& value) {
@@ -124,6 +158,20 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
                                     const std::vector<vid_t>& vids) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are excluded from property_names, so delete their index
+  // entries explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  for (auto* index : pk_indexes.value()) {
+    for (vid_t vid : vids) {
+      RETURN_IF_NOT_OK(index->Delete(vid));
+    }
+  }
+
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx]) {
@@ -186,7 +234,7 @@ Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
     return status;
   }
 
-  RETURN_IF_NOT_OK(addVertexIndexData(graph_, label, vid, props));
+  RETURN_IF_NOT_OK(addVertexIndexData(graph_, label, vid, id, props));
   return Status::OK();
 }
 
@@ -341,12 +389,13 @@ Status StorageAPUpdateInterface::AddEdgePropertiesImpl(
 
 Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
     label_t label, const RenameVertexPropertiesParam& config) {
+  RETURN_IF_NOT_OK(graph_.RenameVertexProperties(label, config));
   for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
     if (old_name == new_name)
       continue;
     RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, old_name));
   }
-  return graph_.RenameVertexProperties(label, config);
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::RenameEdgePropertiesImpl(
@@ -357,15 +406,13 @@ Status StorageAPUpdateInterface::RenameEdgePropertiesImpl(
 
 Status StorageAPUpdateInterface::DeleteVertexPropertiesImpl(
     label_t label, const DeleteVertexPropertiesParam& config) {
+  RETURN_IF_NOT_OK(graph_.DeleteVertexProperties(label, config));
   for (const auto& prop_name : config.GetDeleteProperties()) {
     RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, prop_name));
   }
-  auto status = graph_.DeleteVertexProperties(label, config);
-  if (status.ok()) {
-    // Deleting columns shifts the table column vector cached by GraphView.
-    mut_view_.Rebuild(graph_);
-  }
-  return status;
+  // Deleting columns shifts the table column vector cached by GraphView.
+  mut_view_.Rebuild(graph_);
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
@@ -383,18 +430,23 @@ Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
 
 Status StorageAPUpdateInterface::DeleteVertexTypeImpl(label_t label) {
   const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  std::vector<std::string> indexed_properties;
+  indexed_properties.reserve(v_schema->property_names.size() + 1);
+  // The primary key is stored separately from property_names but indexes bound
+  // to it must be removed together with the vertex type.
+  indexed_properties.push_back(std::get<1>(v_schema->primary_keys[0]));
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx])
       continue;
-    RETURN_IF_NOT_OK(
-        dropVertexIndex(graph_, label, v_schema->property_names[prop_idx]));
+    indexed_properties.push_back(v_schema->property_names[prop_idx]);
   }
-  auto status = graph_.DeleteVertexType(label);
-  if (status.ok()) {
-    mut_view_.Rebuild(graph_);
+  RETURN_IF_NOT_OK(graph_.DeleteVertexType(label));
+  for (const auto& property_name : indexed_properties) {
+    RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, property_name));
   }
-  return status;
+  mut_view_.Rebuild(graph_);
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,

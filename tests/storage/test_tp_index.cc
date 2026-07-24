@@ -163,6 +163,17 @@ class TPIndexTest : public ::testing::Test {
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
+  void CreateItemTableAP() {
+    CreateVertexTypeParamBuilder builder;
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Item")
+                                  .AddProperty("id", Value::INT32(0))
+                                  .AddProperty("value", Value::INT32(0))
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
+    ASSERT_TRUE(status.ok()) << status.ToString();
+  }
+
   void CreatePersonTableTP() {
     StartSnapshotStore();
     auto txn = NewUpdateTransaction();
@@ -185,20 +196,26 @@ class TPIndexTest : public ::testing::Test {
                                            const std::string& property_name) {
     auto label = graph.schema().get_vertex_label_id(label_name);
     auto schema = graph.schema().get_vertex_schema(label);
-    auto prop_it = std::find(schema->property_names.begin(),
-                             schema->property_names.end(), property_name);
-    if (prop_it == schema->property_names.end()) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Property does not exist: " + property_name);
+    DataType property_type;
+    if (property_name == std::get<1>(schema->primary_keys[0])) {
+      property_type = std::get<0>(schema->primary_keys[0]);
+    } else {
+      auto prop_it = std::find(schema->property_names.begin(),
+                               schema->property_names.end(), property_name);
+      if (prop_it == schema->property_names.end()) {
+        RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                            "Property does not exist: " + property_name);
+      }
+      auto prop_id = static_cast<size_t>(
+          std::distance(schema->property_names.begin(), prop_it));
+      property_type = schema->property_types[prop_id];
     }
-    auto prop_id = static_cast<size_t>(
-        std::distance(schema->property_names.begin(), prop_it));
     auto meta = std::make_unique<IndexMeta>();
     meta->name = name;
     meta->type = "example";
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
-    meta->schema.property_type = schema->property_types[prop_id];
+    meta->schema.property_type = property_type;
     return graph.mutable_index_manager().CreateIndex(
         std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
   }
@@ -409,6 +426,45 @@ TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
 
   EXPECT_EQ(SearchPersonNamesInCurrent(30),
             (std::vector<std::string>{"Bob", "Charlie"}));
+}
+
+TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
+  CreateItemTableAP();
+  ASSERT_TRUE(CreateIndex("idx_item_id", "Item", "id"));
+  StartSnapshotStore();
+
+  auto label =
+      snapshot_store_->CurrentSnapshot().schema().get_vertex_label_id("Item");
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    vid_t vid = 0;
+    ASSERT_TRUE(
+        tp.AddVertex(label, Value::INT32(1), {Value::INT32(10)}, vid).ok());
+
+    auto* index = tp.index_manager().GetIndexByName("idx_item_id");
+    ASSERT_NE(index, nullptr);
+    ExampleIndexQueryParams query(1);
+    ASSERT_EQ(index->Search(query).value(), (std::vector<vid_t>{vid}));
+
+    ASSERT_TRUE(tp.DeleteVertex(label, vid).ok());
+    EXPECT_TRUE(index->Search(query).value().empty());
+
+    DeleteVertexPropertiesParamBuilder delete_builder;
+    EXPECT_THROW(tp.DeleteVertexProperties(
+                     label, delete_builder.AddDeleteProperty("id").Build()),
+                 exception::RuntimeError);
+    EXPECT_NE(tp.index_manager().GetIndexByName("idx_item_id"), nullptr);
+    Commit(txn);
+  }
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.DeleteVertexType(label).ok());
+    Commit(txn);
+  }
+  EXPECT_EQ(GetIndexByName("idx_item_id"), nullptr);
 }
 
 TEST_F(TPIndexTest, BatchAddVerticesIsNotSupportedInTPMode) {

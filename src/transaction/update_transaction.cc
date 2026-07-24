@@ -184,10 +184,26 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
 // When detach_index is set, it is invoked before mutating each index so TP
 // transactions get a private COW copy.
 static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
+                                 const Value& id,
                                  const std::vector<Value>& props,
                                  const IndexDetachFn& detach_index = nullptr) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are stored separately from property_names, so maintain their
+  // indexes explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  for (auto* index : pk_indexes.value()) {
+    if (detach_index) {
+      RETURN_IF_NOT_OK(detach_index(*index));
+    }
+    RETURN_IF_NOT_OK(index->Upsert(lid, id));
+  }
+
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
@@ -208,7 +224,9 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
   return Status::OK();
 }
 
-// Updates index entries for one changed vertex property.
+// Updates index entries for one changed vertex property. Primary keys are not
+// handled here because PropertyGraph does not allow modifying the primary key
+// of an existing vertex.
 // When detach_index is set, it is invoked before mutating each index so TP
 // transactions get a private COW copy.
 static Status updateVertexIndexData(
@@ -243,6 +261,23 @@ static Status deleteVertexIndexData(
     const IndexDetachFn& detach_index = nullptr) {
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are excluded from property_names, so delete their index
+  // entries explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  for (auto* index : pk_indexes.value()) {
+    if (detach_index) {
+      RETURN_IF_NOT_OK(detach_index(*index));
+    }
+    for (vid_t vid : vids) {
+      RETURN_IF_NOT_OK(index->Delete(vid));
+    }
+  }
+
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx]) {
@@ -467,20 +502,21 @@ Status StorageTPUpdateInterface::AddEdgePropertiesImpl(
 
 Status StorageTPUpdateInterface::RenameVertexPropertiesImpl(
     label_t v_label, const RenameVertexPropertiesParam& config) {
-  wal_.LogRenameVertexProperties(
-      cow_graph_->schema().get_vertex_label_name(v_label), config);
-  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
-    if (old_name == new_name)
-      continue;
-    RETURN_IF_NOT_OK(
-        dropVertexIndex(*cow_graph_, v_label, old_name, &cow_state_));
-  }
+  const auto vertex_type_name =
+      cow_graph_->schema().get_vertex_label_name(v_label);
+  wal_.LogRenameVertexProperties(vertex_type_name, config);
   auto status = cow_graph_->RenameVertexProperties(v_label, config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
                << cow_graph_->schema().get_vertex_label_name(v_label) << ": "
                << status.ToString();
     return status;
+  }
+  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
+    if (old_name == new_name)
+      continue;
+    RETURN_IF_NOT_OK(
+        dropVertexIndex(*cow_graph_, v_label, old_name, &cow_state_));
   }
   return status;
 }
@@ -529,21 +565,22 @@ Status StorageTPUpdateInterface::DeleteVertexPropertiesImpl(
   }
 
   wal_.LogDeleteVertexProperties(vertex_type_name, config);
+  auto status = cow_graph_->DeleteVertexProperties(v_label, config);
+  if (!status.ok()) {
+    return status;
+  }
+  std::sort(del_col_ids.rbegin(), del_col_ids.rend());
+  auto& columns_detached = cow_state_.vertex_tables[v_label].columns_detached;
+  for (int col_id : del_col_ids) {
+    if (static_cast<size_t>(col_id) < columns_detached.size()) {
+      columns_detached.erase(columns_detached.begin() + col_id);
+    }
+  }
   for (const auto& prop_name : config.GetDeleteProperties()) {
     RETURN_IF_NOT_OK(
         dropVertexIndex(*cow_graph_, v_label, prop_name, &cow_state_));
   }
-  auto status = cow_graph_->DeleteVertexProperties(v_label, config);
-  if (status.ok()) {
-    std::sort(del_col_ids.rbegin(), del_col_ids.rend());
-    auto& columns_detached = cow_state_.vertex_tables[v_label].columns_detached;
-    for (int col_id : del_col_ids) {
-      if (static_cast<size_t>(col_id) < columns_detached.size()) {
-        columns_detached.erase(columns_detached.begin() + col_id);
-      }
-    }
-    mut_view_.Rebuild(*cow_graph_);
-  }
+  mut_view_.Rebuild(*cow_graph_);
   return status;
 }
 
@@ -642,25 +679,33 @@ Status StorageTPUpdateInterface::DeleteVertexTypeImpl(label_t v_label) {
     }
   }
 
-  wal_.LogDeleteVertexType(vertex_type_name);
-
   const auto& v_schema = cow_graph_->schema().get_vertex_schema(v_label);
+  std::vector<std::string> indexed_properties;
+  indexed_properties.reserve(v_schema->property_names.size() + 1);
+  // The primary key is stored separately from property_names but indexes bound
+  // to it must be removed together with the vertex type.
+  indexed_properties.push_back(std::get<1>(v_schema->primary_keys[0]));
   for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
        ++prop_idx) {
     if (v_schema->vprop_soft_deleted[prop_idx]) {
       continue;
     }
-    RETURN_IF_NOT_OK(dropVertexIndex(
-        *cow_graph_, v_label, v_schema->property_names[prop_idx], &cow_state_));
+    indexed_properties.push_back(v_schema->property_names[prop_idx]);
   }
+  wal_.LogDeleteVertexType(vertex_type_name);
   auto status = cow_graph_->DeleteVertexType(v_label);
-  if (status.ok()) {
-    cow_state_.vertex_tables[v_label] = VertexTableCowState();
-    for (uint32_t edge_id : related_edge_ids) {
-      cow_state_.edge_tables.erase(edge_id);
-    }
-    mut_view_.Rebuild(*cow_graph_);
+  if (!status.ok()) {
+    return status;
   }
+  cow_state_.vertex_tables[v_label] = VertexTableCowState();
+  for (uint32_t edge_id : related_edge_ids) {
+    cow_state_.edge_tables.erase(edge_id);
+  }
+  for (const auto& property_name : indexed_properties) {
+    RETURN_IF_NOT_OK(
+        dropVertexIndex(*cow_graph_, v_label, property_name, &cow_state_));
+  }
+  mut_view_.Rebuild(*cow_graph_);
   return status;
 }
 
@@ -741,7 +786,7 @@ Status StorageTPUpdateInterface::AddVertexImpl(label_t label, const Value& oid,
     return status;
   }
   RETURN_IF_NOT_OK(addVertexIndexData(
-      *cow_graph_, label, vid, props,
+      *cow_graph_, label, vid, oid, props,
       [this](StorageIndex& index) { return detachIndex(index); }));
   return Status::OK();
 }
@@ -977,7 +1022,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
         inserted = true;
       }
       if (inserted) {
-        auto ret = addVertexIndexData(graph, redo.label, vid, redo.props);
+        auto ret =
+            addVertexIndexData(graph, redo.label, vid, redo.oid, redo.props);
         THROW_STORAGE_EXCEPTION_STATUS(
             "Failed to append vertex indexes in redo: ", ret);
       }
@@ -1073,17 +1119,17 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
       graph.MarkVertexTableDirty(label);
+      auto ret = graph.RenameVertexProperties(label, redo.config);
+      THROW_STORAGE_EXCEPTION_STATUS(
+          "Failed to rename vertex properties in redo: ", ret);
       for (const auto& [old_name, new_name] :
            redo.config.GetRenameProperties()) {
         if (old_name == new_name)
           continue;
-        auto ret = dropVertexIndex(graph, label, old_name);
+        ret = dropVertexIndex(graph, label, old_name);
         THROW_STORAGE_EXCEPTION_STATUS(
             "Failed to drop renamed-property indexes in redo: ", ret);
       }
-      auto ret = graph.RenameVertexProperties(label, redo.config);
-      THROW_STORAGE_EXCEPTION_STATUS(
-          "Failed to rename vertex properties in redo: ", ret);
     } else if (op_type == OpType::kRenameEdgeProp) {
       auto redo = RenameEdgePropertiesRedo::Deserialize(arc);
       const auto& schema = graph.schema();
@@ -1100,14 +1146,14 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       label_t label = graph.schema().get_vertex_label_id(redo.vertex_type);
       graph.MarkSchemaDirty();
       graph.MarkVertexTableDirty(label);
-      for (const auto& prop_name : redo.config.GetDeleteProperties()) {
-        auto ret = dropVertexIndex(graph, label, prop_name);
-        THROW_STORAGE_EXCEPTION_STATUS(
-            "Failed to drop deleted-property indexes in redo: ", ret);
-      }
       auto ret = graph.DeleteVertexProperties(label, redo.config);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex properties in redo: ", ret);
+      for (const auto& prop_name : redo.config.GetDeleteProperties()) {
+        ret = dropVertexIndex(graph, label, prop_name);
+        THROW_STORAGE_EXCEPTION_STATUS(
+            "Failed to drop deleted-property indexes in redo: ", ret);
+      }
     } else if (op_type == OpType::kDeleteEdgeProp) {
       auto redo = DeleteEdgePropertiesRedo::Deserialize(arc);
       const auto& schema = graph.schema();
@@ -1125,19 +1171,24 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       graph.MarkSchemaDirty();
       auto v_label = graph.schema().get_vertex_label_id(redo.vertex_type);
       const auto& v_schema = graph.schema().get_vertex_schema(v_label);
+      std::vector<std::string> indexed_properties;
+      indexed_properties.reserve(v_schema->property_names.size() + 1);
+      indexed_properties.push_back(std::get<1>(v_schema->primary_keys[0]));
       for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
            ++prop_idx) {
         if (v_schema->vprop_soft_deleted[prop_idx]) {
           continue;
         }
-        auto ret =
-            dropVertexIndex(graph, v_label, v_schema->property_names[prop_idx]);
-        THROW_STORAGE_EXCEPTION_STATUS(
-            "Failed to drop deleted-vertex-type indexes in redo: ", ret);
+        indexed_properties.push_back(v_schema->property_names[prop_idx]);
       }
       auto ret = graph.DeleteVertexType(redo.vertex_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete vertex type in redo: ",
                                      ret);
+      for (const auto& property_name : indexed_properties) {
+        ret = dropVertexIndex(graph, v_label, property_name);
+        THROW_STORAGE_EXCEPTION_STATUS(
+            "Failed to drop deleted-vertex-type indexes in redo: ", ret);
+      }
     } else if (op_type == OpType::kDeleteEdgeType) {
       DeleteEdgeTypeRedo redo;
       arc >> redo;
