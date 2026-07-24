@@ -77,10 +77,10 @@ void ImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
 
 namespace {
 
-template <typename NBR_T, typename AFTER_NORMALIZE>
+template <typename NBR_T, typename SEGMENT_SINK>
 size_t normalize_immutable_adjacency_lists(NBR_T* nbr_list, NBR_T** adj_lists,
                                            int* degrees, size_t vnum,
-                                           AFTER_NORMALIZE&& after_normalize) {
+                                           SEGMENT_SINK&& segment_sink) {
   NBR_T* write_ptr = nbr_list;
   size_t live_edges = 0;
   for (size_t i = 0; i < vnum; ++i) {
@@ -103,8 +103,8 @@ size_t normalize_immutable_adjacency_lists(NBR_T* nbr_list, NBR_T** adj_lists,
     }
     degrees[i] = new_degree;
     live_edges += static_cast<size_t>(new_degree);
-    after_normalize(reinterpret_cast<const char*>(segment),
-                    static_cast<size_t>(new_degree) * sizeof(NBR_T));
+    segment_sink(reinterpret_cast<const char*>(segment),
+                 static_cast<size_t>(new_degree) * sizeof(NBR_T));
   }
 
   return live_edges;
@@ -123,39 +123,27 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   size_t vnum = size();
   auto** adj_lists = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* degrees = reinterpret_cast<int*>(degree_list_buffer_->GetData());
-  size_t live_edges = 0;
-  auto normalize_nbrs = [&](auto&& sink) {
-    live_edges = normalize_immutable_adjacency_lists(
-        reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData()), adj_lists,
-        degrees, vnum, sink);
-    csr_dump::validate_edge_count(edge_num_.load(), live_edges);
-  };
-  auto write_nbrs = [&](std::ofstream& out) {
-    csr_dump::write_segment(
-        out, reinterpret_cast<const char*>(nbr_list_buffer_->GetData()),
+  csr_dump::ChecksumReuseFileDumper nbr_file(ckp, nbr_list_buffer_.get());
+  size_t live_edges = normalize_immutable_adjacency_lists(
+      reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData()), adj_lists, degrees,
+      vnum, nbr_file);
+  csr_dump::validate_edge_count(edge_num_.load(), live_edges);
+  if (nbr_file.BeginRewriteIfChanged()) {
+    nbr_file.WriteSegment(
+        reinterpret_cast<const char*>(nbr_list_buffer_->GetData()),
         live_edges * sizeof(nbr_t));
-  };
-  desc.set_path(ModuleDescriptor::kNbrListPath,
-                csr_dump::dump_normalized_file(ckp, nbr_list_buffer_.get(),
-                                               normalize_nbrs, write_nbrs));
+  }
+  desc.set_path(ModuleDescriptor::kNbrListPath, nbr_file.CommitOrReuse());
 
-  // The degrees were rewritten in place by the nbr normalization above, so
-  // the buffer is already normalized; only hashing is needed for the reuse
-  // decision. Reuses the previous file via a hardlink in the new snapshot
-  // dir when unchanged (Commit() cannot be used here: it only reuses paths
-  // already inside the current snapshot dir).
-  auto dump_degrees = [&](auto&& sink) {
-    sink(reinterpret_cast<const char*>(degree_list_buffer_->GetData()),
-         degree_list_buffer_->GetDataSize());
-  };
-  auto write_degrees = [&](std::ofstream& out) {
-    csr_dump::write_segment(
-        out, reinterpret_cast<const char*>(degree_list_buffer_->GetData()),
-        degree_list_buffer_->GetDataSize());
-  };
-  desc.set_path(ModuleDescriptor::kDegreeListPath,
-                csr_dump::dump_normalized_file(ckp, degree_list_buffer_.get(),
-                                               dump_degrees, write_degrees));
+  csr_dump::ChecksumReuseFileDumper degree_file(ckp, degree_list_buffer_.get());
+  auto* degree_data =
+      reinterpret_cast<const char*>(degree_list_buffer_->GetData());
+  size_t degree_bytes = degree_list_buffer_->GetDataSize();
+  degree_file.AddSegment(degree_data, degree_bytes);
+  if (degree_file.BeginRewriteIfChanged()) {
+    degree_file.WriteSegment(degree_data, degree_bytes);
+  }
+  desc.set_path(ModuleDescriptor::kDegreeListPath, degree_file.CommitOrReuse());
   meta.set_module(key, desc);
 }
 

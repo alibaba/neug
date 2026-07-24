@@ -98,16 +98,17 @@ void MutableCsr<EDATA_T>::refresh_prefetch_policy() {
 
 namespace {
 
-template <typename NBR_T, typename AFTER_NORMALIZE>
+template <typename NBR_T, typename SEGMENT_SINK>
 size_t normalize_mutable_adjacency_lists(NBR_T** adj_lists,
-                                         std::atomic<int>* degrees, size_t vnum,
-                                         AFTER_NORMALIZE&& after_normalize) {
+                                         std::atomic<int>* degrees,
+                                         const int* capacities, size_t vnum,
+                                         SEGMENT_SINK&& segment_sink) {
   size_t live_edges = 0;
   for (size_t i = 0; i < vnum; ++i) {
     int degree = degrees[i].load(std::memory_order_relaxed);
     NBR_T* read_ptr = adj_lists[i];
     if (read_ptr == nullptr) {
-      after_normalize(i, read_ptr);
+      segment_sink(nullptr, static_cast<size_t>(capacities[i]) * sizeof(NBR_T));
       continue;
     }
     NBR_T* read_end = read_ptr + degree;
@@ -129,7 +130,8 @@ size_t normalize_mutable_adjacency_lists(NBR_T** adj_lists,
     int new_degree = degree - removed;
     degrees[i].store(new_degree, std::memory_order_relaxed);
     live_edges += static_cast<size_t>(new_degree);
-    after_normalize(i, adj_lists[i]);
+    segment_sink(reinterpret_cast<const char*>(adj_lists[i]),
+                 static_cast<size_t>(capacities[i]) * sizeof(NBR_T));
   }
   return live_edges;
 }
@@ -163,24 +165,17 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   auto** adj_lists = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* degrees = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
   const int* capacities = reinterpret_cast<const int*>(cap_list_->GetData());
-  auto normalize = [&](auto&& sink) {
-    size_t live_edges = normalize_mutable_adjacency_lists(
-        adj_lists, degrees, vnum, [&](size_t i, const nbr_t* data) {
-          sink(reinterpret_cast<const char*>(data),
-               static_cast<size_t>(capacities[i]) * sizeof(nbr_t));
-        });
-    csr_dump::validate_edge_count(edge_num_.load(), live_edges);
-  };
-  auto write_data = [&](std::ofstream& out) {
+  csr_dump::ChecksumReuseFileDumper nbr_file(ckp, nbr_list_.get());
+  size_t live_edges = normalize_mutable_adjacency_lists(
+      adj_lists, degrees, capacities, vnum, nbr_file);
+  csr_dump::validate_edge_count(edge_num_.load(), live_edges);
+  if (nbr_file.BeginRewriteIfChanged()) {
     for (size_t i = 0; i < vnum; ++i) {
-      csr_dump::write_segment(
-          out, reinterpret_cast<const char*>(adj_lists[i]),
-          static_cast<size_t>(capacities[i]) * sizeof(nbr_t));
+      nbr_file.WriteSegment(reinterpret_cast<const char*>(adj_lists[i]),
+                            static_cast<size_t>(capacities[i]) * sizeof(nbr_t));
     }
-  };
-  descriptor.set_path(ModuleDescriptor::kNbrListPath,
-                      csr_dump::dump_normalized_file(ckp, nbr_list_.get(),
-                                                     normalize, write_data));
+  }
+  descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_file.CommitOrReuse());
   // Each internal buffer's path is stored as a named entry in the
   // descriptor's typed paths_ map.
   descriptor.set_path(ModuleDescriptor::kDegreeListPath,
@@ -194,8 +189,10 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::compact() {
   auto** adj_lists = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* degrees = reinterpret_cast<std::atomic<int>*>(degree_list_->GetData());
+  const int* capacities = reinterpret_cast<const int*>(cap_list_->GetData());
   size_t live_edges = normalize_mutable_adjacency_lists(
-      adj_lists, degrees, vertex_capacity(), [](size_t, const nbr_t*) {});
+      adj_lists, degrees, capacities, vertex_capacity(),
+      [](const char*, size_t) {});
   csr_dump::validate_edge_count(edge_num_.load(), live_edges);
 }
 
@@ -543,18 +540,16 @@ void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
   nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   size_t vnum = vertex_capacity();
-  auto normalize = [&](auto&& sink) {
-    size_t live_edges = normalize_single_adjacency_list(data, vnum);
-    sink(reinterpret_cast<const char*>(data), vnum * sizeof(nbr_t));
-    csr_dump::validate_edge_count(edge_num_.load(), live_edges);
-  };
-  auto write_data = [&](std::ofstream& out) {
-    csr_dump::write_segment(out, reinterpret_cast<const char*>(data),
-                            vnum * sizeof(nbr_t));
-  };
-  descriptor.set_path(ModuleDescriptor::kNbrListPath,
-                      csr_dump::dump_normalized_file(ckp, nbr_list_.get(),
-                                                     normalize, write_data));
+  csr_dump::ChecksumReuseFileDumper nbr_file(ckp, nbr_list_.get());
+  size_t live_edges = normalize_single_adjacency_list(data, vnum);
+  csr_dump::validate_edge_count(edge_num_.load(), live_edges);
+  nbr_file.AddSegment(reinterpret_cast<const char*>(data),
+                      vnum * sizeof(nbr_t));
+  if (nbr_file.BeginRewriteIfChanged()) {
+    nbr_file.WriteSegment(reinterpret_cast<const char*>(data),
+                          vnum * sizeof(nbr_t));
+  }
+  descriptor.set_path(ModuleDescriptor::kNbrListPath, nbr_file.CommitOrReuse());
   meta.set_module(key, descriptor);
 }
 

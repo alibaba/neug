@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -28,26 +29,6 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug::csr_dump {
-
-struct Snapshot {
-  std::string path;
-  FileHeader header{};
-};
-
-inline Snapshot get_snapshot(const IDataContainer* container) {
-  Snapshot snapshot;
-  const auto* mapped = dynamic_cast<const MMapContainer*>(container);
-  const auto* header = mapped == nullptr ? nullptr : mapped->GetHeader();
-  if (mapped == nullptr || mapped->GetPath().empty() || header == nullptr) {
-    return snapshot;
-  }
-  FileHeader zeroed{};
-  if (memcmp(header, &zeroed, sizeof(FileHeader)) != 0) {
-    snapshot.path = mapped->GetPath();
-    snapshot.header = *header;
-  }
-  return snapshot;
-}
 
 inline void validate_edge_count(uint64_t expected, size_t actual) {
   if (actual == expected) {
@@ -60,69 +41,86 @@ inline void validate_edge_count(uint64_t expected, size_t actual) {
                           std::to_string(actual));
 }
 
-inline void write_segment(std::ofstream& out, const char* data, size_t len) {
-  if (len != 0) {
-    out.write(data, static_cast<std::streamsize>(len));
-  }
-}
-
-template <typename WRITE_DATA>
-std::string commit_snapshot(Checkpoint& ckp, FileHeader& header,
-                            bool rewrite_header, WRITE_DATA&& write_data) {
-  auto runtime_file = ckp.CreateRuntimeFile();
-  const auto& path = runtime_file.path();
-  std::ofstream out(path, std::ios::binary);
-  if (!out.is_open()) {
-    THROW_IO_EXCEPTION("Failed to open file for writing: " + path);
-  }
-  out.write(reinterpret_cast<const char*>(&header), sizeof(header));
-  write_data(out);
-  if (rewrite_header) {
-    out.seekp(0);
-    out.write(reinterpret_cast<const char*>(&header), sizeof(header));
-  }
-  out.flush();
-  if (!out.good()) {
-    THROW_IO_EXCEPTION("Failed to flush file: " + path);
-  }
-  out.close();
-  return ckp.CommitRuntimeFile(std::move(runtime_file));
-}
-
-template <typename NORMALIZE, typename WRITE_DATA>
-std::string dump_normalized_file(Checkpoint& ckp,
-                                 const IDataContainer* container,
-                                 NORMALIZE&& normalize,
-                                 WRITE_DATA&& write_data) {
-  Snapshot source = get_snapshot(container);
-  FileHeader header{};
-  MD5_CTX ctx;
-  auto normalize_and_hash = [&](auto&& sink) {
-    MD5_Init(&ctx);
-    auto hash = [&](const char* data, size_t len) {
-      if (len != 0) {
-        MD5_Update(&ctx, data, len);
+class ChecksumReuseFileDumper {
+ public:
+  ChecksumReuseFileDumper(Checkpoint& ckp, const IDataContainer* container)
+      : ckp_(ckp) {
+    const auto* mapped = dynamic_cast<const MMapContainer*>(container);
+    const auto* mapped_header =
+        mapped == nullptr ? nullptr : mapped->GetHeader();
+    if (mapped != nullptr && !mapped->GetPath().empty() &&
+        mapped_header != nullptr) {
+      FileHeader zeroed{};
+      if (memcmp(mapped_header, &zeroed, sizeof(FileHeader)) != 0) {
+        reusable_source_ = mapped;
       }
-      sink(data, len);
-    };
-    normalize(hash);
-    MD5_Final(header.data_md5, &ctx);
-  };
+    }
 
-  if (source.path.empty()) {
-    return commit_snapshot(ckp, header, true, [&](std::ofstream& out) {
-      normalize_and_hash(
-          [&](const char* data, size_t len) { write_segment(out, data, len); });
-    });
+    MD5_Init(&md5_);
+    if (reusable_source_ == nullptr) {
+      open_output();
+    }
   }
 
-  normalize_and_hash([](const char*, size_t) {});
-  if (memcmp(source.header.data_md5, header.data_md5,
-             sizeof(header.data_md5)) == 0) {
-    return ckp.LinkToSnapshot(source.path);
+  void AddSegment(const char* data, size_t len) {
+    if (len == 0) {
+      return;
+    }
+    MD5_Update(&md5_, data, len);
+    if (reusable_source_ == nullptr) {
+      WriteSegment(data, len);
+    }
   }
-  return commit_snapshot(ckp, header, false,
-                         std::forward<WRITE_DATA>(write_data));
-}
+
+  void operator()(const char* data, size_t len) { AddSegment(data, len); }
+
+  bool BeginRewriteIfChanged() {
+    MD5_Final(header_.data_md5, &md5_);
+    if (reusable_source_ != nullptr &&
+        memcmp(reusable_source_->GetHeader()->data_md5, header_.data_md5,
+               sizeof(header_.data_md5)) != 0) {
+      open_output();
+    }
+    return reusable_source_ != nullptr && runtime_file_.has_value();
+  }
+
+  void WriteSegment(const char* data, size_t len) {
+    if (len != 0) {
+      out_.write(data, static_cast<std::streamsize>(len));
+    }
+  }
+
+  std::string CommitOrReuse() {
+    if (!runtime_file_.has_value()) {
+      return ckp_.LinkToSnapshot(reusable_source_->GetPath());
+    }
+    out_.seekp(0);
+    out_.write(reinterpret_cast<const char*>(&header_), sizeof(header_));
+    out_.flush();
+    if (!out_.good()) {
+      THROW_IO_EXCEPTION("Failed to flush file: " + runtime_file_->path());
+    }
+    out_.close();
+    return ckp_.CommitRuntimeFile(std::move(*runtime_file_));
+  }
+
+ private:
+  void open_output() {
+    runtime_file_.emplace(ckp_.CreateRuntimeFile());
+    const auto& path = runtime_file_->path();
+    out_.open(path, std::ios::binary);
+    if (!out_.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open file for writing: " + path);
+    }
+    out_.seekp(sizeof(header_));
+  }
+
+  Checkpoint& ckp_;
+  const MMapContainer* reusable_source_{nullptr};
+  FileHeader header_{};
+  MD5_CTX md5_;
+  std::optional<CheckpointFileManager::RuntimeFileHandle> runtime_file_;
+  std::ofstream out_;
+};
 
 }  // namespace neug::csr_dump
