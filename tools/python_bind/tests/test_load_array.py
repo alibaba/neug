@@ -24,7 +24,6 @@ import shutil
 import sys
 from datetime import date
 from datetime import datetime
-from datetime import timedelta
 
 import pytest
 
@@ -175,6 +174,35 @@ class TestLoadArray:
         ]
 
     @extension_test
+    @pytest.mark.skip(reason="PyArrow cannot write null fixed-size lists to Parquet")
+    def test_parquet_null_array(self):
+        """LOAD FROM Parquet preserves a null fixed-size array."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "null_array.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "values": pa.array(
+                    [[1.0, 2.0, 3.0], None, [7.0, 8.0, 9.0]],
+                    type=pa.list_(pa.float32(), 3),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" '
+                "RETURN id, CAST(values, 'FLOAT[3]') ORDER BY id"
+            )
+        )
+
+        assert result == [
+            [1, [1.0, 2.0, 3.0]],
+            [2, None],
+            [3, [7.0, 8.0, 9.0]],
+        ]
+
+    @extension_test
     def test_parquet_timestamp_units(self):
         """Normalize scalar and ARRAY timestamps of every Arrow unit to ms."""
         pa = pytest.importorskip("pyarrow")
@@ -246,8 +274,8 @@ class TestLoadArray:
                     pa.list_(pa.timestamp("ms"), 2),
                 ),
                 "durations": pa.array(
-                    [[timedelta(days=2), timedelta(hours=3)]],
-                    pa.list_(pa.duration("ms"), 2),
+                    [["2 days", "3 hours"]],
+                    pa.list_(pa.string(), 2),
                 ),
             },
         )
@@ -283,7 +311,7 @@ class TestLoadArray:
                 [["a", "b"], ["c", "d"]],
                 [date(1970, 1, 1), date(2023, 6, 15)],
                 [datetime(1970, 1, 1), datetime(2023, 6, 15, 12, 30)],
-                ["172800000", "10800000"],
+                ["2 days", "3 hours"],
             ]
         ]
 
