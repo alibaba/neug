@@ -172,14 +172,26 @@ Convenience method that starts the HTTP server and blocks the calling thread unt
 
 ---
 
-## NeugDBSession
+## Session
 
-**Full name:** `neug::NeugDBSession`
+**Full name:** `neug::Session`
 
-Database session for executing queries in high-throughput scenarios.
+**Header:** `neug/main/session.h`
 
-`NeugDBSession` provides a session-based interface for interacting with the NeuG database. Each session maintains its own transaction context and application state, enabling concurrent access while ensuring data consistency.
-Sessions are typically acquired from a `SessionPool` via `NeugDBService`, not created directly. This is the server-side equivalent of Python's Session class for client connections.
+Core logical session for executing transactional queries.
+
+`Session` is a runtime-neutral execution context. It owns session-local query
+state and borrows the database snapshot store, version manager, allocator, and
+WAL writer. Service mode creates and leases sessions through `SessionPool`, but
+the class itself has no brpc or bthread dependency.
+
+A `Session` must not be used concurrently. It is not bound to a physical
+pthread or bthread, so a logical request may keep the same session, allocator,
+and WAL writer across cooperative yields.
+
+A `Session` borrows all constructor dependencies. Those dependencies must
+outlive the session and every transaction created from it. Destroy caller-owned
+sessions before preparing, closing, or destroying their database.
 
 **Usage Example:** 
 ```cpp
@@ -206,7 +218,9 @@ auto write_result = guard->Eval(insert_query);
 - ``UpdateTransaction``: Modify existing graph elements
 - ``CompactTransaction``: Background compaction operations
 
-**Thread Safety:** Each session is tied to a specific thread and should not be shared across threads. Sessions are managed by `SessionPool` to ensure thread-local access.
+**Thread Safety:** A session must not be used concurrently. Sequential use may
+resume on a different physical worker because the session represents a logical
+execution context, not thread-local state.
 
 ### Public Methods
 
@@ -266,7 +280,7 @@ auto param_result = guard->Eval(query);
 
 Pool of database sessions for concurrent query execution.
 
-`SessionPool` manages a fixed-size pool of `NeugDBSession` instances, providing efficient session reuse for high-throughput scenarios. Sessions are pre-allocated during pool construction and recycled through acquire/release operations.
+`SessionPool` manages a fixed-size pool of `Session` instances, providing efficient session reuse for high-throughput scenarios. Sessions are pre-allocated during pool construction and recycled through acquire/release operations.
 `SessionPool` is used internally by `NeugDBService`. For most use cases, access sessions through `NeugDBService::AcquireSession()` rather than directly through the pool.
 
 **Key Features:**
@@ -305,6 +319,9 @@ Expect lock held by caller.
 RAII guard for session lifecycle management.
 
 `SessionGuard` provides automatic session release through RAII pattern. When the guard goes out of scope, the session is automatically returned to the `SessionPool` for reuse.
+
+A guard must be destroyed before the `NeugDBService` that issued it is
+destroyed.
 
 **Usage Example:** 
 ```cpp
