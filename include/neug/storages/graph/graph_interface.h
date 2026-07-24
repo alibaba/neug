@@ -30,6 +30,7 @@ class StorageIndex;
 class StorageIndexManager;
 struct IndexMeta;
 struct IndexQueryParams;
+struct SearchResult;
 
 namespace graph_interface_impl {
 
@@ -367,8 +368,9 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @param params Index-specific search parameters.
    * @return Vertex IDs matching the index query, or an error.
    */
-  result<std::vector<vid_t>> IndexSearch(const std::string& unique_index_name,
-                                         const IndexQueryParams& params) const;
+  result<std::vector<SearchResult>> IndexSearch(
+      const std::string& unique_index_name,
+      const IndexQueryParams& params) const;
 
  protected:
   const GraphView& view_;

@@ -310,8 +310,8 @@ class APIndexTest : public ::testing::Test {
     auto label = graph_->schema().get_vertex_label_id("Person");
     auto name_col = graph_->GetVertexPropertyColumn(label, "name");
     std::vector<std::string> names;
-    for (auto vid : result.value()) {
-      names.push_back(name_col->get_any(vid).GetValue<std::string>());
+    for (const auto& entry : result.value()) {
+      names.push_back(name_col->get_any(entry.vid).GetValue<std::string>());
     }
     std::sort(names.begin(), names.end());
     return names;
@@ -453,7 +453,7 @@ TEST_F(APIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
           .ok());
   ExampleIndexQueryParams first_query(1);
   ASSERT_EQ(index->Search(first_query).value(),
-            (std::vector<vid_t>{first_vid}));
+            (std::vector<SearchResult>{{first_vid}}));
 
   ASSERT_TRUE(
       ap_->BatchAddVertices(label, MakeItemSupplier({{2, 20}, {3, 30}})).ok());

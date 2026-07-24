@@ -41,23 +41,23 @@ Status StorageIndex::Init(std::unique_ptr<IndexMeta> meta,
   return Status::OK();
 }
 
-result<std::vector<vid_t>> StorageIndex::Search(
+result<std::vector<SearchResult>> StorageIndex::Search(
     const IndexQueryParams& params) {
   if (!index_id_accessor_) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
                         "Index ID accessor is not initialized");
   }
-  auto index_ids = SearchImpl(params);
-  if (!index_ids) {
-    return tl::unexpected(index_ids.error());
+  auto candidates = SearchImpl(params);
+  if (!candidates) {
+    return tl::unexpected(candidates.error());
   }
 
-  std::vector<vid_t> results;
-  results.reserve(index_ids->size());
-  for (auto index_id : index_ids.value()) {
-    auto vid = index_id_accessor_->GetVIDByIndexID(index_id);
+  std::vector<SearchResult> results;
+  results.reserve(candidates->size());
+  for (const auto& candidate : candidates.value()) {
+    auto vid = index_id_accessor_->GetVIDByIndexID(candidate.index_id);
     if (vid != INVALID_VID) {
-      results.emplace_back(vid);
+      results.emplace_back(vid, candidate.score);
     }
   }
   return results;

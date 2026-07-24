@@ -65,6 +65,20 @@ struct IndexQueryParams {
   virtual ~IndexQueryParams() = default;
 };
 
+struct SearchResult {
+  vid_t vid;
+  double score = 0.0;
+
+  bool operator==(const SearchResult&) const = default;
+};
+
+struct SearchCandidate {
+  index_id_t index_id;
+  double score = 0.0;
+
+  bool operator==(const SearchCandidate&) const = default;
+};
+
 struct IndexBindContext {
   const ColumnBase* column = nullptr;
 };
@@ -138,7 +152,7 @@ class StorageIndex : public Module {
    * @param params Query parameters (subclass-specific).
    * @return Vertex ids corresponding to valid internal index ids.
    */
-  result<std::vector<vid_t>> Search(const IndexQueryParams& params);
+  result<std::vector<SearchResult>> Search(const IndexQueryParams& params);
 
   /**
    * @brief Insert or replace the index record for a vertex id.
@@ -164,7 +178,7 @@ class StorageIndex : public Module {
   const IndexMeta& GetMeta() const { return *meta_; }
 
  protected:
-  virtual result<std::vector<index_id_t>> SearchImpl(
+  virtual result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) = 0;
   virtual Status AppendImpl(index_id_t index_id, const Value& value) = 0;
 

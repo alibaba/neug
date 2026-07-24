@@ -143,7 +143,7 @@ class ExampleIndex : public StorageIndex {
   }
 
  protected:
-  result<std::vector<index_id_t>> SearchImpl(
+  result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) override {
     const auto* example_params =
         dynamic_cast<const ExampleIndexQueryParams*>(&params);
@@ -160,7 +160,7 @@ class ExampleIndex : public StorageIndex {
                           "Index metadata is not initialized");
     }
 
-    std::vector<index_id_t> results;
+    std::vector<SearchCandidate> results;
     const auto* values = static_cast<const int32_t*>(index_buffer_->GetData());
     const auto* accessor =
         dynamic_cast<const DefaultIndexIDAccessor*>(index_id_accessor_.get());
@@ -171,7 +171,7 @@ class ExampleIndex : public StorageIndex {
     for (index_id_t index_id = 0; index_id < accessor->GetNextIndexID();
          ++index_id) {
       if (values[index_id] == example_params->target_value) {
-        results.push_back(index_id);
+        results.push_back({index_id});
       }
     }
     return results;

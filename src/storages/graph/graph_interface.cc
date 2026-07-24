@@ -193,7 +193,7 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 
 }  // namespace
 
-result<std::vector<vid_t>> StorageReadInterface::IndexSearch(
+result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
     const std::string& unique_index_name,
     const IndexQueryParams& params) const {
   auto* index = view_.index_manager().GetIndexByName(unique_index_name);

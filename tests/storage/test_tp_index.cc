@@ -274,8 +274,8 @@ class TPIndexTest : public ::testing::Test {
     auto label = reader.schema().get_vertex_label_id("Person");
     auto name_col = reader.GetVertexPropColumn(label, "name");
     std::vector<std::string> names;
-    for (auto vid : result.value()) {
-      names.push_back(name_col->get_any(vid).GetValue<std::string>());
+    for (const auto& entry : result.value()) {
+      names.push_back(name_col->get_any(entry.vid).GetValue<std::string>());
     }
     std::sort(names.begin(), names.end());
     return names;
@@ -439,7 +439,7 @@ TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
 
     ExampleIndexQueryParams query(1);
     ASSERT_EQ(tp.IndexSearch("idx_item_id", query).value(),
-              (std::vector<vid_t>{vid}));
+              (std::vector<SearchResult>{{vid}}));
 
     ASSERT_TRUE(tp.DeleteVertex(label, vid).ok());
     EXPECT_TRUE(tp.IndexSearch("idx_item_id", query).value().empty());
