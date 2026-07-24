@@ -161,7 +161,7 @@ TEST_F(JsonTest, TestJsonArrayColumn) {
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  ctx.append_chunks(reader->read(localState));
 
   EXPECT_EQ(ctx.col_num(), 2);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -187,7 +187,7 @@ TEST_F(JsonTest, TestJsonArrayColumnLengthMismatch) {
   execution::Context ctx;
 
   try {
-    reader->read(localState, ctx);
+    ctx.append_chunks(reader->read(localState));
     FAIL() << "Expected an ARRAY length mismatch";
   } catch (const std::exception& error) {
     EXPECT_NE(
@@ -208,7 +208,7 @@ TEST_F(JsonTest, TestJsonArrayColumnRejectsNonArray) {
   execution::Context ctx;
 
   try {
-    reader->read(localState, ctx);
+    ctx.append_chunks(reader->read(localState));
     FAIL() << "Expected a non-array conversion error";
   } catch (const std::exception& error) {
     EXPECT_NE(std::string(error.what())

@@ -23,6 +23,7 @@
 #include "neug/compiler/binder/binder.h"
 
 #include <optional>
+#include "neug/common/types/default_value.h"
 #include "neug/compiler/binder/ddl/bound_alter.h"
 #include "neug/compiler/binder/ddl/bound_create_sequence.h"
 #include "neug/compiler/binder/ddl/bound_create_table.h"
@@ -51,7 +52,6 @@
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
-#include "neug/utils/property/default_value.h"
 
 using namespace neug::common;
 using namespace neug::parser;

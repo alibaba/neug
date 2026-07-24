@@ -69,7 +69,10 @@ bool ArrowOptionsBuilder::projectColumns(ArrowOptions& options) {
     }
   }
 
-  auto dataset_schema = createSchema(entrySchema);
+  auto dataset_schema = options.scanOptions->dataset_schema;
+  if (!dataset_schema) {
+    dataset_schema = createSchema(entrySchema);
+  }
   auto project_desc =
       arrow::dataset::ProjectionDescr::FromNames(columns, *dataset_schema);
   if (!project_desc.ok()) {
