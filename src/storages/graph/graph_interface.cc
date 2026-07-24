@@ -193,6 +193,17 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 
 }  // namespace
 
+result<std::vector<vid_t>> StorageReadInterface::IndexSearch(
+    const std::string& unique_index_name,
+    const IndexQueryParams& params) const {
+  auto* index = view_.index_manager().GetIndexByName(unique_index_name);
+  if (!index) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Index does not exist: " + unique_index_name);
+  }
+  return index->Search(params);
+}
+
 Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
                                                           vid_t lid, int col_id,
                                                           const Value& value) {

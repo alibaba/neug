@@ -265,13 +265,8 @@ class TPIndexTest : public ::testing::Test {
   std::vector<std::string> SearchPersonNames(
       const StorageReadInterface& reader, int32_t age,
       const std::string& index_name = "idx_person_age") const {
-    auto* index = reader.index_manager().GetIndexByName(index_name);
-    EXPECT_NE(index, nullptr);
-    if (!index) {
-      return {};
-    }
     ExampleIndexQueryParams params(age);
-    auto result = index->Search(params);
+    auto result = reader.IndexSearch(index_name, params);
     EXPECT_TRUE(result) << result.error().ToString();
     if (!result) {
       return {};
@@ -442,19 +437,18 @@ TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
     ASSERT_TRUE(
         tp.AddVertex(label, Value::INT32(1), {Value::INT32(10)}, vid).ok());
 
-    auto* index = tp.index_manager().GetIndexByName("idx_item_id");
-    ASSERT_NE(index, nullptr);
     ExampleIndexQueryParams query(1);
-    ASSERT_EQ(index->Search(query).value(), (std::vector<vid_t>{vid}));
+    ASSERT_EQ(tp.IndexSearch("idx_item_id", query).value(),
+              (std::vector<vid_t>{vid}));
 
     ASSERT_TRUE(tp.DeleteVertex(label, vid).ok());
-    EXPECT_TRUE(index->Search(query).value().empty());
+    EXPECT_TRUE(tp.IndexSearch("idx_item_id", query).value().empty());
 
     DeleteVertexPropertiesParamBuilder delete_builder;
     EXPECT_THROW(tp.DeleteVertexProperties(
                      label, delete_builder.AddDeleteProperty("id").Build()),
                  exception::RuntimeError);
-    EXPECT_NE(tp.index_manager().GetIndexByName("idx_item_id"), nullptr);
+    EXPECT_TRUE(tp.IndexSearch("idx_item_id", query));
     Commit(txn);
   }
 
@@ -510,7 +504,6 @@ TEST_F(TPIndexTest, IndexPersistsAfterCheckpointReopen) {
   GraphView reopened_view(*reopened);
   StorageReadInterface reader(reopened_view, MAX_TIMESTAMP);
 
-  EXPECT_NE(reader.index_manager().GetIndexByName("idx_person_age"), nullptr);
   EXPECT_EQ(SearchPersonNames(reader, 30),
             (std::vector<std::string>{"Alice", "Charlie"}));
   EXPECT_EQ(SearchPersonNames(reader, 25),
@@ -662,8 +655,7 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
     StorageTPUpdateInterface tp(txn);
     vid_t bob = 0;
     AddPersonTP(tp, 2, "Bob", 25, &bob);
-    auto* index = dynamic_cast<ExampleIndex*>(
-        tp.index_manager().GetIndexByName("idx_person_age"));
+    auto* index = dynamic_cast<ExampleIndex*>(GetIndexByName("idx_person_age"));
     ASSERT_NE(index, nullptr);
     next_index_id_after_abort = index->GetNextIndexID();
     ASSERT_GT(next_index_id_after_abort, 0);
@@ -675,8 +667,7 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
     StorageTPUpdateInterface tp(txn);
     vid_t charlie = 0;
     AddPersonTP(tp, 3, "Charlie", 30, &charlie);
-    auto* index = dynamic_cast<ExampleIndex*>(
-        tp.index_manager().GetIndexByName("idx_person_age"));
+    auto* index = dynamic_cast<ExampleIndex*>(GetIndexByName("idx_person_age"));
     ASSERT_NE(index, nullptr);
     EXPECT_GT(index->GetNextIndexID(), next_index_id_after_abort);
     Commit(txn);

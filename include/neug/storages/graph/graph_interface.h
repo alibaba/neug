@@ -29,6 +29,7 @@ namespace neug {
 class StorageIndex;
 class StorageIndexManager;
 struct IndexMeta;
+struct IndexQueryParams;
 
 namespace graph_interface_impl {
 
@@ -353,11 +354,21 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return view_.schema(); }
 
-  // Provide an index interface for read-only queries, such as the
-  // HNSWIndexScan.
-  const StorageIndexManager& index_manager() const {
-    return view_.index_manager();
-  }
+  /**
+   * @brief Search an index selected by its unique name.
+   *
+   * This interface is intended for the execution layer's IndexScan operator.
+   * The IndexScan optimizer matches a query to the appropriate index and
+   * supplies its unique name; execution then invokes Search with the
+   * index-specific query parameters and receives the matching vertex set.
+   *
+   * @param unique_index_name Unique name of the index selected by the
+   * optimizer.
+   * @param params Index-specific search parameters.
+   * @return Vertex IDs matching the index query, or an error.
+   */
+  result<std::vector<vid_t>> IndexSearch(const std::string& unique_index_name,
+                                         const IndexQueryParams& params) const;
 
  protected:
   const GraphView& view_;
