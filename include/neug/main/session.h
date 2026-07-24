@@ -21,8 +21,8 @@
 #include <string>
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
-#include "neug/main/neug_db.h"
 #include "neug/storages/allocators.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
@@ -32,7 +32,7 @@
 
 namespace neug {
 
-class NeugDB;
+class GraphSnapshotStore;
 class IWalWriter;
 class ColumnBase;
 class Encoder;
@@ -44,14 +44,13 @@ class IVersionManager;
 /**
  * @brief Database session for executing queries in high-throughput scenarios.
  *
- * NeugDBSession provides a session-based interface for interacting with the
- * NeuG database. Each session maintains its own transaction context and
- * application state, enabling concurrent access while ensuring data
- * consistency.
+ * Session is a passive core execution context. It owns session-local query
+ * state and borrows database-wide transaction, storage, allocator, and WAL
+ * resources.
  *
- * Sessions are typically acquired from a SessionPool via NeugDBService, not
- * created directly. This is the server-side equivalent of Python's Session
- * class for client connections.
+ * Service mode typically acquires sessions from a SessionPool. Other drivers
+ * may create and drive sessions without introducing their thread runtime into
+ * this class.
  *
  * **Usage Example:**
  * @code{.cpp}
@@ -80,32 +79,38 @@ class IVersionManager;
  * - `UpdateTransaction`: Modify existing graph elements
  * - `CompactTransaction`: Background compaction operations
  *
- * **Thread Safety:** Each session is tied to a specific thread and should
- * not be shared across threads. Sessions are managed by SessionPool to
- * ensure thread-local access.
+ * **Concurrency:** A session must not be used concurrently. It is not bound to
+ * a physical pthread or bthread worker and may resume on another physical
+ * worker after a cooperative yield while retaining the same logical session,
+ * allocator, and WAL resources.
+ *
+ * **Lifetime:** All borrowed constructor dependencies must outlive the Session
+ * and every transaction created from it. A Session must be destroyed before
+ * its owning NeugDB is prepared for serving, closed, or destroyed.
  *
  * @see NeugDBService for HTTP service wrapper
  * @see SessionPool for session management
  * @since v0.1.0
  */
-class NeugDBSession {
+class Session {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  NeugDBSession(NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
-                std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
-                std::shared_ptr<IVersionManager> vm, Allocator& alloc,
-                IWalWriter& logger, const NeugDBConfig& config_, int thread_id)
-      : db_(db),
+  Session(GraphSnapshotStore& snapshot_store,
+          std::shared_ptr<IGraphPlanner> planner,
+          std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
+          IVersionManager& vm, Allocator& alloc, IWalWriter& wal_writer,
+          const NeugDBConfig& config_, int session_id)
+      : snapshot_store_(snapshot_store),
         planner_(planner),
         pipeline_cache_(global_query_cache),
         version_manager_(vm),
         alloc_(alloc),
-        logger_(logger),
+        wal_writer_(wal_writer),
         db_config_(config_),
-        thread_id_(thread_id),
+        session_id_(session_id),
         eval_duration_(0),
         query_num_(0) {}
-  ~NeugDBSession() {}
+  ~Session() {}
 
   ReadTransaction GetReadTransaction() const;
 
@@ -172,14 +177,14 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
-  NeugDB& db_;
+  GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   execution::LocalQueryCache pipeline_cache_;
-  std::shared_ptr<IVersionManager> version_manager_;
+  IVersionManager& version_manager_;
   Allocator& alloc_;
-  IWalWriter& logger_;
+  IWalWriter& wal_writer_;
   const NeugDBConfig& db_config_;
-  int thread_id_;
+  int session_id_;
 
   std::atomic<int64_t> eval_duration_;
   std::atomic<int64_t> query_num_;

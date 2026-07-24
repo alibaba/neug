@@ -139,6 +139,16 @@ void compact(neug::NeugDBService& service) {
   ASSERT_TRUE(txn.Commit());
 }
 
+neug::timestamp_t checkpoint_and_return_ts(neug::NeugDBService& service) {
+  auto sess = service.AcquireSession();
+  auto txn = sess->GetUpdateTransaction();
+  const auto ts = txn.timestamp();
+  neug::StorageTPUpdateInterface interface(txn);
+  interface.CreateCheckpoint();
+  EXPECT_TRUE(txn.Commit());
+  return ts;
+}
+
 void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
                        int64_t dst_id, int64_t since) {
   auto sess = service.AcquireSession();
@@ -361,6 +371,70 @@ TEST_F(WalReplayTest, RecoveryCheckpointResetsServiceTimeline) {
     }
     db.Close();
   }
+}
+
+TEST_F(WalReplayTest,
+       PrepareWithoutNewCheckpointPreservesWalTimelineAndReplayOrder) {
+  create_checkpointed_base_graph(db_dir_);
+
+  neug::timestamp_t insert_ts = 0;
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    neug::timestamp_t checkpoint_ts = 0;
+    {
+      neug::NeugDBService service(db);
+      checkpoint_ts = checkpoint_and_return_ts(service);
+    }
+
+    // The in-place TP checkpoint leaves a clean graph but records its
+    // timestamp in the current WAL. PrepareForServing must not replace the VM
+    // unless it publishes a new checkpoint with a fresh WAL directory.
+    db.PrepareForServing();
+
+    {
+      neug::NeugDBService service(db);
+      insert_ts = insert_person_and_return_ts(service, 2, "post-checkpoint");
+      EXPECT_EQ(insert_ts, checkpoint_ts + 1);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_TRUE(read_has_person(service, 2));
+      EXPECT_EQ(insert_person_and_return_ts(service, 3, "post-recovery"),
+                insert_ts + 1);
+      EXPECT_EQ(read_person_count(service), 3);
+    }
+    db.Close();
+  }
+}
+
+TEST_F(WalReplayTest, ReadOnlyServiceExecutesReadsAndRejectsWrites) {
+  create_checkpointed_base_graph(db_dir_);
+
+  auto config = make_config(db_dir_);
+  config.mode = neug::DBMode::READ_ONLY;
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(config));
+  {
+    neug::NeugDBService service(db);
+    EXPECT_EQ(read_person_count(service), 1);
+    auto session = service.AcquireSession();
+    auto result = session->Eval(
+        R"({"query":"CREATE (:person {id: 2, name: 'blocked'});","access_mode":"insert","parameters":{}})");
+    EXPECT_FALSE(result);
+    if (!result) {
+      EXPECT_EQ(result.error().error_code(),
+                neug::StatusCode::ERR_INVALID_ARGUMENT);
+    }
+  }
+  db.Close();
 }
 
 TEST_F(WalReplayTest, ReopenReplaysInsertWalAcrossCompactionInDependencyOrder) {

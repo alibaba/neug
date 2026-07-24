@@ -34,7 +34,6 @@
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
-#include "neug/transaction/version_manager.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
@@ -90,7 +89,7 @@ namespace neug {
  * **Thread Safety:** All public methods are thread-safe. The service uses
  * a SessionPool internally to handle concurrent requests efficiently.
  *
- * @see NeugDBSession for session-based query execution
+ * @see Session for session-based query execution
  * @see SessionPool for session management
  * @since v0.1.0
  */
@@ -116,6 +115,8 @@ class NeugDBService {
       db_.CloseAllConnection();
       init(config);
     } catch (...) {
+      hdl_mgr_.reset();
+      session_pool_.reset();
       db_.UnregisterService(this);
       throw;
     }
@@ -135,6 +136,9 @@ class NeugDBService {
    *
    * Automatically stops the HTTP handler manager if it's running and
    * releases all associated resources.
+   *
+   * @warning All SessionGuard objects acquired from this service must be
+   * destroyed before the service is destroyed.
    */
   ~NeugDBService();
 
@@ -263,7 +267,6 @@ class NeugDBService {
 
   neug::NeugDB& db_;
   neug::NeugDBConfig db_config_;
-  std::shared_ptr<neug::IVersionManager> version_manager_;
   std::unique_ptr<neug::SessionPool> session_pool_;
   std::unique_ptr<IServiceManager> hdl_mgr_;
 

@@ -100,6 +100,7 @@ Core database engine implementation and session management.
   - `query_processor.cc` - Query processing orchestration
   - `query_request.cc` - Query request representation and parsing
   - `query_result.cc` - Query result handling and formatting
+  - `session.cc` - Runtime-neutral logical session and transaction factories
 - **Connection Management:**
   - `connection.cc` - Client connection handling
   - `connection_manager.cc` - Connection pool and lifecycle management
@@ -113,5 +114,4 @@ HTTP and RPC server implementations for service mode operations.
 - **Service Management:**
   - `brpc_service_mgr.cc` - BRPC service framework management
   - `neug_db_service.cc` - Database service implementation and API endpoints
-  - `neug_db_session.cc` - Service-side session handling and state management
   - `session_pool.cc` - Session pooling and resource management
