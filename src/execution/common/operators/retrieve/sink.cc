@@ -615,12 +615,43 @@ std::shared_ptr<IContextColumn> materialize_graph_column_as_string(
   return builder->finish();
 }
 
+DataType materialized_type_for_export(const DataType& source_type) {
+  switch (source_type.id()) {
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return DataType(DataTypeId::kVarchar);
+  case DataTypeId::kList:
+    return DataType::List(
+        materialized_type_for_export(ListType::GetChildType(source_type)));
+  case DataTypeId::kStruct: {
+    std::vector<DataType> materialized_child_types;
+    const auto& source_child_types = StructType::GetChildTypes(source_type);
+    materialized_child_types.reserve(source_child_types.size());
+    for (const auto& child_type : source_child_types) {
+      materialized_child_types.push_back(
+          materialized_type_for_export(child_type));
+    }
+    return DataType::Struct(StructType::GetFieldNames(source_type),
+                            std::move(materialized_child_types));
+  }
+  case DataTypeId::kArray:
+    return DataType::Array(
+        materialized_type_for_export(ArrayType::GetChildType(source_type)),
+        ArrayType::GetNumElements(source_type));
+  default:
+    return source_type;
+  }
+}
+
 Value materialize_value_for_export(const Value& value,
+                                   const DataType& source_type,
+                                   const DataType& materialized_type,
                                    const StorageReadInterface& graph) {
   if (value.IsNull()) {
-    return Value(value.type());
+    return Value(materialized_type);
   }
-  switch (value.type().id()) {
+  switch (source_type.id()) {
   case DataTypeId::kVertex:
     return Value::STRING(
         convert_vertex_to_json(graph, value.GetValue<vertex_t>()));
@@ -630,31 +661,43 @@ Value materialize_value_for_export(const Value& value,
     return Value::STRING(convert_path_to_json(graph, PathValue::Get(value)));
   case DataTypeId::kList: {
     const auto& children = ListValue::GetChildren(value);
-    const auto& child_type = ListType::GetChildType(value.type());
+    const auto& source_child_type = ListType::GetChildType(source_type);
+    const auto& materialized_child_type =
+        ListType::GetChildType(materialized_type);
     std::vector<Value> materialized;
     materialized.reserve(children.size());
     for (const auto& child : children) {
-      materialized.push_back(materialize_value_for_export(child, graph));
+      materialized.push_back(materialize_value_for_export(
+          child, source_child_type, materialized_child_type, graph));
     }
-    return Value::LIST(child_type, std::move(materialized));
+    return Value::LIST(materialized_child_type, std::move(materialized));
   }
   case DataTypeId::kStruct: {
     const auto& children = StructValue::GetChildren(value);
+    const auto& source_child_types = StructType::GetChildTypes(source_type);
+    const auto& materialized_child_types =
+        StructType::GetChildTypes(materialized_type);
     std::vector<Value> materialized;
     materialized.reserve(children.size());
-    for (const auto& child : children) {
-      materialized.push_back(materialize_value_for_export(child, graph));
+    for (size_t i = 0; i < children.size(); ++i) {
+      materialized.push_back(
+          materialize_value_for_export(children[i], source_child_types[i],
+                                       materialized_child_types[i], graph));
     }
-    return Value::STRUCT(value.type(), std::move(materialized));
+    return Value::STRUCT(materialized_type, std::move(materialized));
   }
   case DataTypeId::kArray: {
     const auto& children = ArrayValue::GetChildren(value);
+    const auto& source_child_type = ArrayType::GetChildType(source_type);
+    const auto& materialized_child_type =
+        ArrayType::GetChildType(materialized_type);
     std::vector<Value> materialized;
     materialized.reserve(children.size());
     for (const auto& child : children) {
-      materialized.push_back(materialize_value_for_export(child, graph));
+      materialized.push_back(materialize_value_for_export(
+          child, source_child_type, materialized_child_type, graph));
     }
-    return Value::ARRAY(value.type(), std::move(materialized));
+    return Value::ARRAY(materialized_type, std::move(materialized));
   }
   default:
     return value;
@@ -675,13 +718,16 @@ std::shared_ptr<IContextColumn> materialize_column_for_export(
   case DataTypeId::kList:
   case DataTypeId::kStruct:
   case DataTypeId::kArray: {
-    auto builder = ColumnsUtils::create_builder(col->elem_type());
+    const auto& source_type = col->elem_type();
+    auto materialized_type = materialized_type_for_export(source_type);
+    auto builder = ColumnsUtils::create_builder(materialized_type);
+    builder->reserve(col->size());
     for (size_t i = 0; i < col->size(); ++i) {
       if (col->is_optional() && !col->has_value(i)) {
         builder->push_back_null();
       } else {
-        builder->push_back_elem(
-            materialize_value_for_export(col->get_elem(i), graph));
+        builder->push_back_elem(materialize_value_for_export(
+            col->get_elem(i), source_type, materialized_type, graph));
       }
     }
     return builder->finish();

@@ -34,6 +34,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/io/write/writer.h"
+#include "unittest/utils.h"
 
 namespace neug {
 namespace test {
@@ -172,6 +173,86 @@ TEST_F(ExportResultTest, JsonArrayWriterEmitsNestedValues) {
   std::string json((std::istreambuf_iterator<char>(file)),
                    std::istreambuf_iterator<char>());
   EXPECT_EQ(json, R"([{"payload":{"a":7,"items":[1,2]}}])");
+}
+
+TEST_F(ExportResultTest, MaterializerPreservesContainersAroundGraphValues) {
+  const DataType vertex_type(DataTypeId::kVertex);
+  const auto vertex_list_type = DataType::List(vertex_type);
+  const auto vertex_array_type = DataType::Array(vertex_type, 2);
+  const auto source_type = DataType::Struct(
+      {"nodes", "primary"}, {vertex_list_type, vertex_array_type});
+
+  const auto graph_path =
+      std::string(EXPORT_RESULT_TEST_DIR) + "/nested_graph_data";
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(graph_path);
+  PropertyGraph graph;
+  graph.Open(make_checkpoint(checkpoint_mgr), MemoryLevel::kInMemory);
+  CreateVertexTypeParamBuilder person_builder;
+  ASSERT_TRUE(graph
+                  .CreateVertexType(person_builder.VertexLabel("person")
+                                        .AddProperty("id", Value::INT64(0))
+                                        .AddProperty("name", Value::STRING(""))
+                                        .AddPrimaryKeyName("id")
+                                        .Build())
+                  .ok());
+  const auto person_label = graph.schema().get_vertex_label_id("person");
+  vid_t person_vid;
+  ASSERT_TRUE(graph
+                  .AddVertex(person_label, Value::INT64(1),
+                             {Value::STRING("Alice")}, person_vid, 0)
+                  .ok());
+  const VertexRecord person{person_label, person_vid};
+
+  std::vector<Value> vertices;
+  vertices.push_back(Value::VERTEX(person));
+  vertices.emplace_back(vertex_type);
+  std::vector<Value> primary;
+  primary.push_back(Value::VERTEX(person));
+  primary.emplace_back(vertex_type);
+  std::vector<Value> payload;
+  payload.push_back(Value::LIST(vertex_type, std::move(vertices)));
+  payload.push_back(Value::ARRAY(vertex_array_type, std::move(primary)));
+
+  StructColumnBuilder builder(source_type);
+  builder.push_back_elem(Value::STRUCT(source_type, std::move(payload)));
+
+  execution::Context ctx;
+  ctx.tag_ids = {0};
+  DataChunk input;
+  input.set(0, builder.finish());
+  ctx.append_chunk(std::move(input));
+
+  GraphView view(graph);
+  StorageReadInterface reader(view, 1);
+  auto export_result = materialize_result_for_export(ctx, reader);
+
+  ASSERT_EQ(export_result.source_types.size(), 1);
+  EXPECT_EQ(export_result.source_types[0], source_type);
+  const auto materialized_type =
+      DataType::Struct({"nodes", "primary"},
+                       {DataType::List(DataType(DataTypeId::kVarchar)),
+                        DataType::Array(DataType(DataTypeId::kVarchar), 2)});
+  ASSERT_EQ(export_result.chunk.col_num(), 1);
+  ASSERT_NE(export_result.chunk.columns[0], nullptr);
+  EXPECT_EQ(export_result.chunk.columns[0]->elem_type(), materialized_type);
+
+  reader::FileSchema schema;
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/nested_graph.json"};
+  schema.format = "json";
+  auto entry_schema = std::make_shared<reader::TableEntrySchema>();
+  entry_schema->columnNames = {"payload"};
+
+  writer::JsonArrayExportWriter writer(schema, entry_schema);
+  auto status = writer.write(export_result.chunk, export_result.source_types);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+
+  std::ifstream file(schema.paths[0]);
+  std::string json((std::istreambuf_iterator<char>(file)),
+                   std::istreambuf_iterator<char>());
+  EXPECT_EQ(
+      json,
+      R"([{"payload":{"nodes":[{"_ID":0,"_LABEL":"person","id":1,"name":"Alice"},null],"primary":[{"_ID":0,"_LABEL":"person","id":1,"name":"Alice"},null]}}])");
 }
 
 }  // namespace

@@ -59,11 +59,25 @@ static neug::result<rapidjson::Value> parseJsonStringToValue(
   return v;
 }
 
+static bool isSerializedGraphJson(DataTypeId id) {
+  return id == DataTypeId::kVertex || id == DataTypeId::kEdge ||
+         id == DataTypeId::kPath;
+}
+
 static neug::result<rapidjson::Value> valueToJsonValue(
-    const Value& value, rapidjson::Document& doc) {
+    const Value& value, const DataType* source_type, int row,
+    rapidjson::Document& doc) {
   auto& allocator = doc.GetAllocator();
   if (value.IsNull()) {
     return rapidjson::Value(rapidjson::kNullType);
+  }
+  if (source_type != nullptr && isSerializedGraphJson(source_type->id())) {
+    const auto& str = StringValue::Get(value);
+    if (str.empty()) {
+      return rapidjson::Value(rapidjson::kNullType);
+    }
+    return parseJsonStringToValue(str, row, doc,
+                                  source_type->ToString().c_str());
   }
   switch (value.type().id()) {
   case DataTypeId::kBoolean:
@@ -111,8 +125,12 @@ static neug::result<rapidjson::Value> valueToJsonValue(
   case DataTypeId::kList: {
     rapidjson::Value arr(rapidjson::kArrayType);
     const auto& children = ListValue::GetChildren(value);
+    const DataType* source_child_type = nullptr;
+    if (source_type != nullptr && source_type->id() == DataTypeId::kList) {
+      source_child_type = &ListType::GetChildType(*source_type);
+    }
     for (const auto& child : children) {
-      auto child_json = valueToJsonValue(child, doc);
+      auto child_json = valueToJsonValue(child, source_child_type, row, doc);
       if (!child_json) {
         return tl::make_unexpected(child_json.error());
       }
@@ -123,8 +141,12 @@ static neug::result<rapidjson::Value> valueToJsonValue(
   case DataTypeId::kArray: {
     rapidjson::Value arr(rapidjson::kArrayType);
     const auto& children = ArrayValue::GetChildren(value);
+    const DataType* source_child_type = nullptr;
+    if (source_type != nullptr && source_type->id() == DataTypeId::kArray) {
+      source_child_type = &ArrayType::GetChildType(*source_type);
+    }
     for (const auto& child : children) {
-      auto child_json = valueToJsonValue(child, doc);
+      auto child_json = valueToJsonValue(child, source_child_type, row, doc);
       if (!child_json) {
         return tl::make_unexpected(child_json.error());
       }
@@ -136,6 +158,10 @@ static neug::result<rapidjson::Value> valueToJsonValue(
     rapidjson::Value obj(rapidjson::kObjectType);
     const auto& children = StructValue::GetChildren(value);
     const auto& field_names = StructType::GetFieldNames(value.type());
+    const std::vector<DataType>* source_child_types = nullptr;
+    if (source_type != nullptr && source_type->id() == DataTypeId::kStruct) {
+      source_child_types = &StructType::GetChildTypes(*source_type);
+    }
     for (size_t i = 0; i < children.size(); ++i) {
       const auto field_name = i < field_names.size()
                                   ? field_names[i]
@@ -143,7 +169,12 @@ static neug::result<rapidjson::Value> valueToJsonValue(
       rapidjson::Value key(field_name.c_str(),
                            static_cast<rapidjson::SizeType>(field_name.size()),
                            allocator);
-      auto child_json = valueToJsonValue(children[i], doc);
+      const DataType* source_child_type =
+          source_child_types != nullptr && i < source_child_types->size()
+              ? &(*source_child_types)[i]
+              : nullptr;
+      auto child_json =
+          valueToJsonValue(children[i], source_child_type, row, doc);
       if (!child_json) {
         return tl::make_unexpected(child_json.error());
       }
@@ -161,36 +192,22 @@ static neug::result<rapidjson::Value> valueToJsonValue(
   }
 }
 
-static bool isSerializedGraphJson(DataTypeId id) {
-  return id == DataTypeId::kVertex || id == DataTypeId::kEdge ||
-         id == DataTypeId::kPath;
-}
-
-static const DataType& exportSourceType(
+static const DataType* exportSourceType(
     const std::vector<DataType>& source_types, size_t col) {
-  static const DataType kDefaultVarchar(DataTypeId::kVarchar);
   if (col < source_types.size()) {
-    return source_types[col];
+    return &source_types[col];
   }
-  return kDefaultVarchar;
+  return nullptr;
 }
 
-// Convert one cell to a rapidjson value. When source_types[col] is a graph
-// type, the VARCHAR payload is pre-serialized JSON and is parsed back into a
-// structured value for inline emission.
+// Convert one cell to a rapidjson value. Graph leaves in source_type are
+// materialized as VARCHAR JSON payloads and parsed back into structured values
+// for inline emission, including when nested in a LIST, STRUCT, or ARRAY.
 static neug::result<rapidjson::Value> cellToJsonValue(
-    const IContextColumn& column, size_t row, const DataType& source_type,
+    const IContextColumn& column, size_t row, const DataType* source_type,
     rapidjson::Document& doc) {
   Value value = column.get_elem(row);
-  if (isSerializedGraphJson(source_type.id())) {
-    const auto& str = StringValue::Get(value);
-    if (str.empty()) {
-      return rapidjson::Value(rapidjson::kNullType);
-    }
-    return parseJsonStringToValue(str, static_cast<int>(row), doc,
-                                  source_type.ToString().c_str());
-  }
-  return valueToJsonValue(value, doc);
+  return valueToJsonValue(value, source_type, static_cast<int>(row), doc);
 }
 
 static Status writeChunkAsJsonArray(const DataChunk& chunk,

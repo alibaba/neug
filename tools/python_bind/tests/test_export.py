@@ -603,6 +603,20 @@ class TestExport:
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
+    def test_export_collect_vertices_jsonl(self):
+        """Nested graph values remain nested JSON objects after materialization."""
+        out_path = self.tmp_path / "collect_vertices.jsonl"
+        out_path.unlink(missing_ok=True)
+        self.conn.execute(f"COPY (MATCH (v:person) RETURN collect(v)) TO '{out_path}';")
+
+        rows = _parse_jsonl(out_path)
+        assert len(rows) == 1
+        assert len(rows[0]) == 1
+        vertices = next(iter(rows[0].values()))
+        assert isinstance(vertices, list)
+        assert vertices
+        assert all(isinstance(vertex, dict) for vertex in vertices)
+
 
 @pytest.mark.skipif(
     not HAS_COMPREHENSIVE_GRAPH, reason="comprehensive_graph data not found"
@@ -807,6 +821,22 @@ class TestParquetExport:
         # Note: LOAD FROM does not yet support reading Struct types (Edge/Vertex),
         # so we only verify the file was created successfully
         # TODO: Enable LOAD FROM verification when Struct type reading is supported
+
+    @extension_test
+    def test_export_collect_vertices_to_parquet(self):
+        """Nested graph values are exported as a Parquet list of JSON strings."""
+        import pyarrow.parquet as pq
+
+        out_path = self.tmp_path / "collect_vertices.parquet"
+        self.conn.execute(f"COPY (MATCH (v:person) RETURN collect(v)) TO '{out_path}'")
+
+        table = pq.read_table(out_path)
+        assert table.num_rows == 1
+        assert table.num_columns == 1
+        vertices = table.column(0)[0].as_py()
+        assert isinstance(vertices, list)
+        assert vertices
+        assert all(isinstance(json.loads(vertex), dict) for vertex in vertices)
 
     @extension_test
     def test_export_with_scalar_types(self):
