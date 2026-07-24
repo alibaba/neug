@@ -70,6 +70,12 @@ std::shared_ptr<IContextColumn> boolColumn(std::vector<bool> values) {
   return builder.finish();
 }
 
+std::shared_ptr<IContextColumn> nullIntColumn() {
+  ValueColumnBuilder<int32_t> builder;
+  builder.push_back_null();
+  return builder.finish();
+}
+
 std::vector<std::string> readLines(const std::string& path) {
   std::ifstream file(path);
   std::vector<std::string> lines;
@@ -173,6 +179,83 @@ TEST_F(ExportResultTest, JsonArrayWriterEmitsNestedValues) {
   std::string json((std::istreambuf_iterator<char>(file)),
                    std::istreambuf_iterator<char>());
   EXPECT_EQ(json, R"([{"payload":{"a":7,"items":[1,2]}}])");
+}
+
+TEST_F(ExportResultTest, JsonWritersHonorIgnoreErrors) {
+  reader::FileSchema schema;
+  schema.format = "json";
+  auto entry_schema = std::make_shared<reader::TableEntrySchema>();
+  entry_schema->columnNames = {"value"};
+
+  DataChunk null_chunk;
+  null_chunk.set(0, nullIntColumn());
+  const std::vector<DataType> int_source_types = {DataType(DataTypeId::kInt32)};
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/strict_null.json"};
+  schema.options["IGNORE_ERRORS"] = "false";
+  writer::JsonArrayExportWriter strict_null_writer(schema, entry_schema);
+  auto status = strict_null_writer.write(null_chunk, int_source_types);
+  EXPECT_FALSE(status.ok());
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/ignored_null.json"};
+  schema.options["IGNORE_ERRORS"] = "true";
+  writer::JsonArrayExportWriter ignored_null_writer(schema, entry_schema);
+  status = ignored_null_writer.write(null_chunk, int_source_types);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+  std::ifstream null_file(schema.paths[0]);
+  std::string null_json((std::istreambuf_iterator<char>(null_file)),
+                        std::istreambuf_iterator<char>());
+  EXPECT_EQ(null_json, R"([{"value":null}])");
+
+  DataChunk invalid_graph_chunk;
+  invalid_graph_chunk.set(0, stringColumn({"not-json"}));
+  const std::vector<DataType> graph_source_types = {
+      DataType(DataTypeId::kVertex)};
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) +
+                  "/strict_invalid_graph.json"};
+  schema.options["IGNORE_ERRORS"] = "false";
+  writer::JsonArrayExportWriter strict_graph_writer(schema, entry_schema);
+  status = strict_graph_writer.write(invalid_graph_chunk, graph_source_types);
+  EXPECT_FALSE(status.ok());
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) +
+                  "/ignored_invalid_graph.json"};
+  schema.options["IGNORE_ERRORS"] = "true";
+  writer::JsonArrayExportWriter ignored_graph_writer(schema, entry_schema);
+  status = ignored_graph_writer.write(invalid_graph_chunk, graph_source_types);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+  std::ifstream graph_file(schema.paths[0]);
+  std::string graph_json((std::istreambuf_iterator<char>(graph_file)),
+                         std::istreambuf_iterator<char>());
+  EXPECT_EQ(graph_json, R"([{"value":null}])");
+}
+
+TEST_F(ExportResultTest, JsonLWriterHonorsBatchSize) {
+  DataChunk chunk;
+  chunk.set(0, intColumn({1, 2, 3}));
+  const std::vector<DataType> source_types = {DataType(DataTypeId::kInt32)};
+
+  reader::FileSchema schema;
+  schema.format = "jsonl";
+  auto entry_schema = std::make_shared<reader::TableEntrySchema>();
+  entry_schema->columnNames = {"id"};
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/batch_zero.jsonl"};
+  schema.options["BATCH_SIZE"] = "0";
+  writer::JsonLExportWriter invalid_writer(schema, entry_schema);
+  auto status = invalid_writer.write(chunk, source_types);
+  EXPECT_FALSE(status.ok());
+  EXPECT_FALSE(std::filesystem::exists(schema.paths[0]));
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/batch_two.jsonl"};
+  schema.options["BATCH_SIZE"] = "2";
+  writer::JsonLExportWriter writer(schema, entry_schema);
+  status = writer.write(chunk, source_types);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+  EXPECT_EQ(
+      readLines(schema.paths[0]),
+      std::vector<std::string>({R"({"id":1})", R"({"id":2})", R"({"id":3})"}));
 }
 
 TEST_F(ExportResultTest, MaterializerPreservesContainersAroundGraphValues) {

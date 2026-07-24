@@ -73,9 +73,6 @@ static neug::result<rapidjson::Value> valueToJsonValue(
   }
   if (source_type != nullptr && isSerializedGraphJson(source_type->id())) {
     const auto& str = StringValue::Get(value);
-    if (str.empty()) {
-      return rapidjson::Value(rapidjson::kNullType);
-    }
     return parseJsonStringToValue(str, row, doc,
                                   source_type->ToString().c_str());
   }
@@ -213,7 +210,8 @@ static neug::result<rapidjson::Value> cellToJsonValue(
 static Status writeChunkAsJsonArray(const DataChunk& chunk,
                                     const reader::FileSchema& schema,
                                     const reader::EntrySchema& entry_schema,
-                                    const std::vector<DataType>& source_types) {
+                                    const std::vector<DataType>& source_types,
+                                    bool ignore_errors) {
   if (schema.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
   }
@@ -238,12 +236,23 @@ static Status writeChunkAsJsonArray(const DataChunk& chunk,
                            static_cast<rapidjson::SizeType>(column_name.size()),
                            allocator);
       if (!chunk.columns[col]->has_value(row)) {
+        if (!ignore_errors) {
+          (void) stream->Close();
+          return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Value is invalid, rowIdx=" + std::to_string(row) +
+                            ", colIdx=" + std::to_string(col));
+        }
         line.AddMember(key, rapidjson::Value(rapidjson::kNullType), allocator);
         continue;
       }
       auto json_val = cellToJsonValue(*chunk.columns[col], row,
                                       exportSourceType(source_types, col), doc);
       if (!json_val) {
+        if (ignore_errors) {
+          line.AddMember(key, rapidjson::Value(rapidjson::kNullType),
+                         allocator);
+          continue;
+        }
         (void) stream->Close();
         return json_val.error();
       }
@@ -265,10 +274,23 @@ static Status writeChunkAsJsonArray(const DataChunk& chunk,
   return stream->Close();
 }
 
+static Status flushJsonLBuffer(io::OutputStream& stream, std::string& buffer) {
+  if (buffer.empty()) {
+    return Status::OK();
+  }
+  auto status = stream.Write(reinterpret_cast<const uint8_t*>(buffer.data()),
+                             static_cast<int64_t>(buffer.size()));
+  if (status.ok()) {
+    buffer.clear();
+  }
+  return status;
+}
+
 static Status writeChunkAsJsonL(const DataChunk& chunk,
                                 const reader::FileSchema& schema,
                                 const reader::EntrySchema& entry_schema,
-                                const std::vector<DataType>& source_types) {
+                                const std::vector<DataType>& source_types,
+                                bool ignore_errors, size_t batch_size) {
   if (schema.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
   }
@@ -277,6 +299,7 @@ static Status writeChunkAsJsonL(const DataChunk& chunk,
     return Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }
 
+  std::string jsonl_buffer;
   for (size_t row = 0; row < chunk.row_num(); ++row) {
     rapidjson::Document doc;
     doc.SetObject();
@@ -292,12 +315,22 @@ static Status writeChunkAsJsonL(const DataChunk& chunk,
                            static_cast<rapidjson::SizeType>(column_name.size()),
                            allocator);
       if (!chunk.columns[col]->has_value(row)) {
+        if (!ignore_errors) {
+          (void) stream->Close();
+          return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Value is invalid, rowIdx=" + std::to_string(row) +
+                            ", colIdx=" + std::to_string(col));
+        }
         doc.AddMember(key, rapidjson::Value(rapidjson::kNullType), allocator);
         continue;
       }
       auto json_val = cellToJsonValue(*chunk.columns[col], row,
                                       exportSourceType(source_types, col), doc);
       if (!json_val) {
+        if (ignore_errors) {
+          doc.AddMember(key, rapidjson::Value(rapidjson::kNullType), allocator);
+          continue;
+        }
         (void) stream->Close();
         return json_val.error();
       }
@@ -306,19 +339,20 @@ static Status writeChunkAsJsonL(const DataChunk& chunk,
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
     doc.Accept(writer);
-    auto status =
-        stream->Write(reinterpret_cast<const uint8_t*>(buffer.GetString()),
-                      static_cast<int64_t>(buffer.GetSize()));
-    if (!status.ok()) {
-      (void) stream->Close();
-      return status;
+    jsonl_buffer.append(buffer.GetString(), buffer.GetSize());
+    jsonl_buffer.append(DEFAULT_JSON_NEWLINE);
+    if ((row + 1) % batch_size == 0) {
+      auto status = flushJsonLBuffer(*stream, jsonl_buffer);
+      if (!status.ok()) {
+        (void) stream->Close();
+        return status;
+      }
     }
-    status = stream->Write(
-        reinterpret_cast<const uint8_t*>(DEFAULT_JSON_NEWLINE), sizeof(char));
-    if (!status.ok()) {
-      (void) stream->Close();
-      return status;
-    }
+  }
+  auto status = flushJsonLBuffer(*stream, jsonl_buffer);
+  if (!status.ok()) {
+    (void) stream->Close();
+    return status;
   }
   return stream->Close();
 }
@@ -334,7 +368,10 @@ Status JsonArrayExportWriter::write(const DataChunk& chunk,
                       std::to_string(chunk.col_num()) + ", got " +
                       std::to_string(source_types.size()));
   }
-  return writeChunkAsJsonArray(chunk, schema_, *entry_schema_, source_types);
+  WriteOptions write_options;
+  const auto ignore_errors = write_options.ignore_errors.get(schema_.options);
+  return writeChunkAsJsonArray(chunk, schema_, *entry_schema_, source_types,
+                               ignore_errors);
 }
 
 Status JsonLExportWriter::write(const DataChunk& chunk,
@@ -348,7 +385,15 @@ Status JsonLExportWriter::write(const DataChunk& chunk,
                       std::to_string(chunk.col_num()) + ", got " +
                       std::to_string(source_types.size()));
   }
-  return writeChunkAsJsonL(chunk, schema_, *entry_schema_, source_types);
+  WriteOptions write_options;
+  const auto ignore_errors = write_options.ignore_errors.get(schema_.options);
+  const auto batch_size = write_options.batch_rows.get(schema_.options);
+  if (batch_size <= 0) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Batch size should be positive");
+  }
+  return writeChunkAsJsonL(chunk, schema_, *entry_schema_, source_types,
+                           ignore_errors, static_cast<size_t>(batch_size));
 }
 
 }  // namespace writer

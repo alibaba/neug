@@ -585,6 +585,44 @@ class TestExport:
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
+    @pytest.mark.parametrize("extension", ["json", "jsonl"])
+    def test_export_json_ignore_errors(self, extension):
+        """JSON writers honor IGNORE_ERRORS for invalid result values."""
+        strict_path = self.tmp_path / f"strict_null.{extension}"
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                f"COPY (RETURN NULL) TO '{strict_path}' (IGNORE_ERRORS = false);"
+            )
+
+        ignored_path = self.tmp_path / f"ignored_null.{extension}"
+        self.conn.execute(
+            f"COPY (RETURN NULL) TO '{ignored_path}' (IGNORE_ERRORS = true);"
+        )
+        rows = (
+            _parse_json_array(ignored_path)
+            if extension == "json"
+            else _parse_jsonl(ignored_path)
+        )
+        assert len(rows) == 1
+        assert len(rows[0]) == 1
+        assert next(iter(rows[0].values())) is None
+
+    def test_export_jsonl_batch_size(self):
+        """JSONL validates and uses BATCH_SIZE without changing its rows."""
+        invalid_path = self.tmp_path / "batch_zero.jsonl"
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                f"COPY (MATCH (v:person) RETURN v.ID) TO '{invalid_path}' "
+                "(BATCH_SIZE = 0);"
+            )
+
+        out_path = self.tmp_path / "batch_two.jsonl"
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.ID) TO '{out_path}' " "(BATCH_SIZE = 2);"
+        )
+        assert len(_parse_jsonl(out_path)) == expected
+
     def test_export_collect_names_jsonl(self):
         """Export collect names to JSONL (one JSON object per line); verify row count."""
         out_path = self.tmp_path / "collect_names.jsonl"
