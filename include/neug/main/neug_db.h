@@ -407,12 +407,10 @@ class NeugDB {
   timestamp_t last_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
+  // True only while the current Open() owns a generated temporary workspace.
   bool is_pure_memory_;
   int max_thread_num_;
   NeugDBConfig config_;
-  // The temporary workspace belongs only to the current successful Open().
-  // Close() removes it while the database file lock is still held.
-  std::string temporary_work_dir_;
   CheckpointManager checkpoint_mgr_;
   std::unique_ptr<FileLock> file_lock_;
 

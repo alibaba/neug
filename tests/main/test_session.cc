@@ -156,6 +156,28 @@ TEST(NeugDBLifecycleTest, InMemoryWorkspaceIsRemovedOnClose) {
   }
 }
 
+TEST(NeugDBLifecycleTest,
+     InvalidPersistentOpenAfterMemoryClosePreservesDirectory) {
+  NeugDBConfig memory_config(":memory:", 1);
+  memory_config.checkpoint_on_close = false;
+
+  NeugDB db;
+  ASSERT_TRUE(db.Open(memory_config));
+  db.Close();
+
+  const auto persistent_workspace =
+      std::filesystem::temp_directory_path() /
+      ("neug_invalid_open_after_memory_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(persistent_workspace);
+  std::filesystem::create_directories(persistent_workspace);
+
+  NeugDBConfig invalid_config(persistent_workspace.string(), -1);
+  EXPECT_THROW(db.Open(invalid_config), exception::InvalidArgumentException);
+  EXPECT_TRUE(std::filesystem::is_directory(persistent_workspace));
+
+  std::filesystem::remove_all(persistent_workspace);
+}
+
 TEST(NeugDBLifecycleTest, ClosedInMemoryPathCanBeReusedByAnotherDatabase) {
   std::filesystem::path workspace;
   NeugDB reopened_db;

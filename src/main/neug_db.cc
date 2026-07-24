@@ -320,8 +320,8 @@ void NeugDB::preprocessConfig() {
       config_.max_thread_num = 1;
     }
   }
-  auto db_dir = config_.data_dir;
-  if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
+  if (config_.data_dir.empty() || config_.data_dir == ":memory" ||
+      config_.data_dir == ":memory:") {
     std::filesystem::path db_dir_prefix;
     char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
     if (prefix_env) {
@@ -337,33 +337,29 @@ void NeugDB::preprocessConfig() {
       THROW_IO_EXCEPTION("Failed to create temporary NeugDB under " +
                          db_dir_prefix.string() + ": " + error.message());
     }
-    db_dir = path_template;
-    temporary_work_dir_ = db_dir;
+    config_.data_dir.swap(path_template);
     is_pure_memory_ = true;
-    LOG(INFO) << "Creating temp NeugDB with: " << db_dir << " in "
+    LOG(INFO) << "Creating temp NeugDB with: " << config_.data_dir << " in "
               << config_.mode << " mode";
-    config_.data_dir = db_dir;
   } else {
-    is_pure_memory_ = false;
-    LOG(INFO) << "Creating NeugDB with: " << db_dir << " in " << config_.mode
-              << " mode";
+    LOG(INFO) << "Creating NeugDB with: " << config_.data_dir << " in "
+              << config_.mode << " mode";
   }
 }
 
 void NeugDB::cleanupTemporaryWorkspace() noexcept {
-  if (temporary_work_dir_.empty()) {
+  if (!is_pure_memory_) {
     return;
   }
-  auto temp_dir = std::move(temporary_work_dir_);
-  temporary_work_dir_.clear();
+  is_pure_memory_ = false;
   try {
-    VLOG(10) << "Removing temp NeugDB at: " << temp_dir;
-    remove_directory(temp_dir);
+    VLOG(10) << "Removing temp NeugDB at: " << config_.data_dir;
+    remove_directory(config_.data_dir);
   } catch (const std::exception& e) {
-    LOG(WARNING) << "Failed to remove temporary NeugDB " << temp_dir
+    LOG(WARNING) << "Failed to remove temporary NeugDB " << config_.data_dir
                  << "; leaving it on disk: " << e.what();
   } catch (...) {
-    LOG(WARNING) << "Failed to remove temporary NeugDB " << temp_dir
+    LOG(WARNING) << "Failed to remove temporary NeugDB " << config_.data_dir
                  << "; leaving it on disk";
   }
 }
