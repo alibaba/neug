@@ -479,22 +479,30 @@ TYPED_TEST(CheckpointTest, compact) {
     load_modern_graph(conn);
     conn->Close();
     auto svc = std::make_shared<neug::NeugDBService>(db);
-    auto sess = svc->AcquireSession();
-    sess->GetCompactTransaction().Commit();
+    {
+      // The session guard must be released before the service (and its
+      // SessionPool) is destroyed.
+      auto sess = svc->AcquireSession();
+      sess->GetCompactTransaction().Commit();
+    }
+    svc.reset();
     db.Close();
   }
 
   neug::NeugDB db2;
   this->OpenDB(db2, db_path);
-  auto svc = std::make_shared<neug::NeugDBService>(db2);
   auto conn2 = db2.Connect();
 
   AssertSingleInt64Result(
       this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 4);
   this->ExpectQuery(*conn2, "MATCH (v:person) WHERE v.id <= 2 DELETE v;");
+  conn2->Close();
 
+  auto svc = std::make_shared<neug::NeugDBService>(db2);
   svc->AcquireSession()->GetCompactTransaction().Commit();
+  svc.reset();
 
+  conn2 = db2.Connect();
   AssertSingleInt64Result(
       this->RunQuery(*conn2, "MATCH (v:person) RETURN COUNT(v);"), 2);
   AssertSingleInt64Result(
@@ -1962,7 +1970,9 @@ TYPED_TEST(CheckpointSafetyTest,
     db.Close();
   }
 
-  // Phase 2: Reopen and trigger a failing in-place CHECKPOINT.
+  // Phase 2: Reopen, mutate so the table is dirty, then trigger a failing
+  // in-place CHECKPOINT. Clean graphs skip dump (dirty-bit early return), so a
+  // write is required before chmod'ing the checkpoint dir.
   // The standalone CHECKPOINT operator still dumps through the AP storage
   // interface in this split PR; DB-close/recovery checkpoints use the new
   // staging path.
@@ -1973,6 +1983,7 @@ TYPED_TEST(CheckpointSafetyTest,
     neug::NeugDB db;
     db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
     auto conn = db.Connect();
+    this->ExpectQuery(*conn, "CREATE (:Item {id: 300});");
 
     std::string ckp_dir;
     for (const auto& entry :

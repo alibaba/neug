@@ -228,6 +228,18 @@ class NeugDB {
   inline bool IsClosed() const { return closed_.load(); }
 
   /**
+   * @brief Check if a NeugDBService is currently associated with this
+   * database.
+   *
+   * At most one NeugDBService can be associated with a NeugDB instance at
+   * any given time. While a service is associated, local connections via
+   * Connect() are rejected and Close() fails.
+   *
+   * @return true if a NeugDBService is associated with this database.
+   */
+  bool HasActiveService() const;
+
+  /**
    * @brief Create a new connection to the database for query execution.
    *
    * Creates and returns a Connection object that can be used to execute
@@ -351,6 +363,35 @@ class NeugDB {
    */
   void createCheckpointOnClose();
 
+  /**
+   * @brief Register a NeugDBService as the active service of this database.
+   *
+   * Only one service can be registered at any given time. Called by the
+   * NeugDBService constructor.
+   *
+   * Registration is serialized with Close() via service_mutex_: either the
+   * service registers first (and Close() fails fast), or the database is
+   * closed first (and registration is rejected). A service can therefore
+   * never be registered onto a closed or closing database.
+   *
+   * @param svc The service instance to register.
+   *
+   * @throws neug::exception::RuntimeError if another service is already
+   * associated with this database, or if the database is closed or being
+   * closed.
+   */
+  void RegisterService(NeugDBService* svc);
+
+  /**
+   * @brief Unregister the active NeugDBService from this database.
+   *
+   * Called by the NeugDBService destructor. Never throws; a mismatching
+   * pointer only triggers a warning log.
+   *
+   * @param svc The service instance to unregister.
+   */
+  void UnregisterService(NeugDBService* svc);
+
   friend class NeugDBSession;
   friend class neug::NeugDBService;
 
@@ -375,6 +416,15 @@ class NeugDB {
   std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>
       allocators_;  // Allocators for each thread
+
+  // Serializes the check-and-set sections of Close() and RegisterService()
+  // so that closing the database and registering a service can never
+  // interleave.
+  mutable std::mutex service_mutex_;
+
+  // The NeugDBService currently associated with this database, nullptr if
+  // none. All access is protected by service_mutex_.
+  NeugDBService* active_service_{nullptr};
 };
 
 }  // namespace neug

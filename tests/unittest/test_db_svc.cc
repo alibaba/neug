@@ -276,5 +276,76 @@ TEST_F(NeugDBServiceTest, RunAndWaitForExitSetsAndClearsRunning) {
             "NeugDB service has not been started!");
 }
 
+TEST_F(NeugDBServiceTest, SecondServiceOnSameDbThrows) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+
+  {
+    neug::NeugDBService service(*db_, cfg);
+    EXPECT_TRUE(db_->HasActiveService());
+
+    // A second service on the same database must be rejected.
+    EXPECT_THROW(neug::NeugDBService service2(*db_, cfg),
+                 neug::exception::RuntimeError);
+  }
+
+  // After the first service is destructed, a new service can be created.
+  EXPECT_FALSE(db_->HasActiveService());
+  EXPECT_NO_THROW(neug::NeugDBService service(*db_, cfg));
+  EXPECT_FALSE(db_->HasActiveService());
+}
+
+TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
+  neug::ServiceConfig bad_cfg;
+  bad_cfg.query_port = 0;
+  bad_cfg.host_str = "127.0.0.1";
+  bad_cfg.thread_num = static_cast<uint32_t>(db_->config().max_thread_num + 1);
+
+  // Construction fails during init(); the registration must be released so
+  // that the database is not permanently blocked from serving.
+  EXPECT_THROW(neug::NeugDBService service(*db_, bad_cfg),
+               neug::exception::InvalidArgumentException);
+  EXPECT_FALSE(db_->HasActiveService());
+
+  neug::ServiceConfig good_cfg;
+  good_cfg.query_port = 0;
+  good_cfg.host_str = "127.0.0.1";
+  EXPECT_NO_THROW(neug::NeugDBService service(*db_, good_cfg));
+  EXPECT_FALSE(db_->HasActiveService());
+}
+
+TEST_F(NeugDBServiceTest, ConnectWhileServingThrows) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+
+  {
+    neug::NeugDBService service(*db_, cfg);
+    EXPECT_THROW(db_->Connect(), neug::exception::RuntimeError);
+  }
+
+  // After the service is destructed, local connections are allowed again.
+  auto conn = db_->Connect();
+  EXPECT_TRUE(conn != nullptr);
+}
+
+TEST_F(NeugDBServiceTest, CloseWhileServingThrows) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+
+  {
+    neug::NeugDBService service(*db_, cfg);
+    EXPECT_THROW(db_->Close(), neug::exception::RuntimeError);
+    // The failed Close() must not mark the database as closed.
+    EXPECT_FALSE(db_->IsClosed());
+  }
+
+  // After the service is destructed, Close() works again.
+  EXPECT_NO_THROW(db_->Close());
+  EXPECT_TRUE(db_->IsClosed());
+}
+
 }  // namespace test
 }  // namespace neug

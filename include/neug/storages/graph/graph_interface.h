@@ -399,8 +399,14 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @return Status::OK() on success, or an error Status if validation fails
    *         (e.g. property count/type mismatch, capacity failure).
    */
-  virtual Status AddVertex(label_t label, const Value& id,
-                           const std::vector<Value>& props, vid_t& vid) = 0;
+  Status AddVertex(label_t label, const Value& id,
+                   const std::vector<Value>& props, vid_t& vid) {
+    auto st = AddVertexImpl(label, id, props, vid);
+    if (st.ok()) {
+      MarkVertexTableDirty(label);
+    }
+    return st;
+  }
 
   /**
    * @brief Add a single edge to the graph.
@@ -417,10 +423,16 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @return Status::OK() on success, or an error Status if validation fails
    *         (e.g. missing source/destination vertex, property mismatch).
    */
-  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                         vid_t dst, label_t edge_label,
-                         const std::vector<Value>& properties,
-                         const void*& prop) = 0;
+  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                 label_t edge_label, const std::vector<Value>& properties,
+                 const void*& prop) {
+    auto st = AddEdgeImpl(src_label, src, dst_label, dst, edge_label,
+                          properties, prop);
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
+    }
+    return st;
+  }
 
   /**
    * @brief Batch insert vertices from a record supplier.
@@ -429,8 +441,14 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param supplier Record batch data source
    * @return Status indicating success or failure
    */
-  virtual Status BatchAddVertices(
-      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) = 0;
+  Status BatchAddVertices(label_t v_label_id,
+                          std::shared_ptr<IDataChunkSupplier> supplier) {
+    auto st = BatchAddVerticesImpl(v_label_id, std::move(supplier));
+    if (st.ok()) {
+      MarkVertexTableDirty(v_label_id);
+    }
+    return st;
+  }
 
   /**
    * @brief Batch insert edges from a record supplier.
@@ -441,7 +459,32 @@ class StorageInsertInterface : virtual public IStorageInterface {
    * @param supplier Record batch data source
    * @return Status indicating success or failure
    */
-  virtual Status BatchAddEdges(
+  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
+                       std::shared_ptr<IDataChunkSupplier> supplier) {
+    auto st = BatchAddEdgesImpl(src_label, dst_label, edge_label,
+                                std::move(supplier));
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
+    }
+    return st;
+  }
+
+ protected:
+  // Called from StorageUpdateInterface NVI as well; keep accessible to
+  // subclasses of StorageInsertInterface.
+  virtual void MarkVertexTableDirty(label_t label) = 0;
+  virtual void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) = 0;
+
+ private:
+  virtual Status AddVertexImpl(label_t label, const Value& id,
+                               const std::vector<Value>& props, vid_t& vid) = 0;
+  virtual Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
+                             vid_t dst, label_t edge_label,
+                             const std::vector<Value>& properties,
+                             const void*& prop) = 0;
+  virtual Status BatchAddVerticesImpl(
+      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) = 0;
+  virtual Status BatchAddEdgesImpl(
       label_t src_label, label_t dst_label, label_t edge_label,
       std::shared_ptr<IDataChunkSupplier> supplier) = 0;
 };
@@ -484,14 +527,13 @@ class StorageUpdateInterface : public StorageReadInterface,
                                public StorageInsertInterface {
  public:
   /**
-   * @brief Construct an update interface with PropertyGraph reference.
+   * @brief Construct an update interface.
    *
    * Reads are inherited from StorageReadInterface, borrowing the caller-owned
-   * `view` (which must wrap `graph` and outlive this object — typically the
-   * owning UpdateTransaction's view). Writes go through `graph` directly.
+   * `view` (which must outlive this object — typically the owning
+   * UpdateTransaction's view).
    *
-   * @param view GraphView over `graph`, owned by the caller
-   * @param graph Reference to the PropertyGraph (mutable for write operations)
+   * @param view GraphView owned by the caller
    * @param ts Timestamp for MVCC visibility
    */
   StorageUpdateInterface(const GraphView& view, timestamp_t ts)
@@ -509,8 +551,14 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param col_id Property column index
    * @param value New property value
    */
-  virtual Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                                      const Value& value) = 0;
+  Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                              const Value& value) {
+    auto st = UpdateVertexPropertyImpl(label, lid, col_id, value);
+    if (st.ok()) {
+      MarkVertexTableDirty(label);
+    }
+    return st;
+  }
 
   /**
    * @brief Update an edge property value.
@@ -525,19 +573,54 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param col_id Property column index
    * @param value New property value
    */
-  virtual Status UpdateEdgeProperty(label_t src_label, vid_t src,
-                                    label_t dst_label, vid_t dst,
-                                    label_t edge_label, int32_t oe_offset,
-                                    int32_t ie_offset, int32_t col_id,
-                                    const Value& value) = 0;
+  Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                            vid_t dst, label_t edge_label, int32_t oe_offset,
+                            int32_t ie_offset, int32_t col_id,
+                            const Value& value) {
+    auto st = UpdateEdgePropertyImpl(src_label, src, dst_label, dst, edge_label,
+                                     oe_offset, ie_offset, col_id, value);
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
+    }
+    return st;
+  }
 
-  virtual Status AddVertex(label_t label, const Value& id,
-                           const std::vector<Value>& props,
-                           vid_t& vid) override = 0;
-  virtual Status AddEdge(label_t src_label, vid_t src, label_t dst_label,
-                         vid_t dst, label_t edge_label,
-                         const std::vector<Value>& properties,
-                         const void*& prop) override = 0;
+  /**
+   * @brief Delete a single vertex and its associated edges.
+   */
+  Status DeleteVertex(label_t label, vid_t lid) {
+    auto st = DeleteVertexImpl(label, lid);
+    if (st.ok()) {
+      MarkVertexTableDirty(label);
+      markIncidentEdgeTablesDirty(label);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Delete a single edge by offset.
+   */
+  Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                    label_t edge_label, int32_t oe_offset, int32_t ie_offset) {
+    auto st = DeleteEdgeImpl(src_label, src, dst_label, dst, edge_label,
+                             oe_offset, ie_offset);
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Delete all edges between two vertices with a given label.
+   */
+  Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label) {
+    auto st = DeleteEdgesImpl(src_label, src, dst_label, dst, edge_label);
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_label, dst_label, edge_label);
+    }
+    return st;
+  }
 
   /**
    * @brief Delete multiple vertices by their internal IDs.
@@ -546,26 +629,15 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param vids Vector of internal vertex IDs to delete
    * @return Status indicating success or failure
    */
-  /**
-   * @brief Delete a single vertex and its associated edges.
-   */
-  virtual Status DeleteVertex(label_t label, vid_t lid) = 0;
-
-  /**
-   * @brief Delete a single edge by offset.
-   */
-  virtual Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label,
-                            vid_t dst, label_t edge_label, int32_t oe_offset,
-                            int32_t ie_offset) = 0;
-
-  /**
-   * @brief Delete all edges between two vertices with a given label.
-   */
-  virtual Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label,
-                             vid_t dst, label_t edge_label) = 0;
-
-  virtual Status BatchDeleteVertices(label_t v_label_id,
-                                     const std::vector<vid_t>& vids) = 0;
+  Status BatchDeleteVertices(label_t v_label_id,
+                             const std::vector<vid_t>& vids) {
+    auto st = BatchDeleteVerticesImpl(v_label_id, vids);
+    if (st.ok()) {
+      MarkVertexTableDirty(v_label_id);
+      markIncidentEdgeTablesDirty(v_label_id);
+    }
+    return st;
+  }
 
   /**
    * @brief Delete multiple edges by source-destination pairs.
@@ -576,44 +648,253 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param edges Vector of (source_vid, destination_vid) pairs
    * @return Status indicating success or failure
    */
-  virtual Status BatchDeleteEdges(
-      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::tuple<vid_t, vid_t>>& edges) = 0;
+  Status BatchDeleteEdges(label_t src_v_label_id, label_t dst_v_label_id,
+                          label_t edge_label_id,
+                          const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+    auto st = BatchDeleteEdgesImpl(src_v_label_id, dst_v_label_id,
+                                   edge_label_id, edges);
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_v_label_id, dst_v_label_id, edge_label_id);
+    }
+    return st;
+  }
 
   /// @brief Delete edges by offset (for internal use)
-  virtual Status BatchDeleteEdges(
+  Status BatchDeleteEdges(
+      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+      const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+      const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+    auto st = BatchDeleteEdgesImpl(src_v_label_id, dst_v_label_id,
+                                   edge_label_id, oe_edges, ie_edges);
+    if (st.ok()) {
+      MarkEdgeTableDirty(src_v_label_id, dst_v_label_id, edge_label_id);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Create a new vertex type.
+   *
+   * @param config CreateVertexTypeParam (includes type name and properties)
+   */
+  Status CreateVertexType(const CreateVertexTypeParam& config) {
+    auto st = CreateVertexTypeImpl(config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
+  }
+
+  /**
+   * @brief Create a new edge type.
+   *
+   * @param config CreateEdgeTypeParam (includes src/dst/edge names and
+   *               properties)
+   */
+  Status CreateEdgeType(const CreateEdgeTypeParam& config) {
+    auto st = CreateEdgeTypeImpl(config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
+  }
+
+  /**
+   * @brief Add properties to an existing vertex type.
+   *
+   * Callers (DDL operators) resolve the type name to @p label before entry.
+   * @p config carries the property payload only.
+   *
+   * @param label Vertex label id
+   * @param config Property payload (names and default values)
+   */
+  Status AddVertexProperties(label_t label,
+                             const AddVertexPropertiesParam& config) {
+    auto st = AddVertexPropertiesImpl(label, config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+      MarkVertexTableDirty(label);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Add properties to an existing edge type.
+   *
+   * @param src Source vertex label id
+   * @param dst Destination vertex label id
+   * @param edge Edge label id
+   * @param config Property payload (names and default values)
+   */
+  Status AddEdgeProperties(label_t src, label_t dst, label_t edge,
+                           const AddEdgePropertiesParam& config) {
+    auto st = AddEdgePropertiesImpl(src, dst, edge, config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+      MarkEdgeTableDirty(src, dst, edge);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Rename properties of a vertex type.
+   *
+   * @param label Vertex label id
+   * @param config Rename mappings (old name → new name)
+   */
+  Status RenameVertexProperties(label_t label,
+                                const RenameVertexPropertiesParam& config) {
+    auto st = RenameVertexPropertiesImpl(label, config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+      MarkVertexTableDirty(label);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Rename properties of an edge type.
+   *
+   * @param src Source vertex label id
+   * @param dst Destination vertex label id
+   * @param edge Edge label id
+   * @param config Rename mappings (old name → new name)
+   */
+  Status RenameEdgeProperties(label_t src, label_t dst, label_t edge,
+                              const RenameEdgePropertiesParam& config) {
+    auto st = RenameEdgePropertiesImpl(src, dst, edge, config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+      MarkEdgeTableDirty(src, dst, edge);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Delete properties from a vertex type.
+   *
+   * @param label Vertex label id
+   * @param config Property names to delete
+   */
+  Status DeleteVertexProperties(label_t label,
+                                const DeleteVertexPropertiesParam& config) {
+    auto st = DeleteVertexPropertiesImpl(label, config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+      MarkVertexTableDirty(label);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Delete properties from an edge type.
+   *
+   * @param src Source vertex label id
+   * @param dst Destination vertex label id
+   * @param edge Edge label id
+   * @param config Property names to delete
+   */
+  Status DeleteEdgeProperties(label_t src, label_t dst, label_t edge,
+                              const DeleteEdgePropertiesParam& config) {
+    auto st = DeleteEdgePropertiesImpl(src, dst, edge, config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+      MarkEdgeTableDirty(src, dst, edge);
+    }
+    return st;
+  }
+
+  /**
+   * @brief Delete a vertex type.
+   *
+   * Callers resolve the type name to @p label before entry.
+   *
+   * @param label Vertex label id
+   */
+  Status DeleteVertexType(label_t label) {
+    auto st = DeleteVertexTypeImpl(label);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
+  }
+
+  /**
+   * @brief Delete an edge type.
+   *
+   * Callers resolve type names to label ids before entry.
+   *
+   * @param src Source vertex label id
+   * @param dst Destination vertex label id
+   * @param edge Edge label id
+   */
+  Status DeleteEdgeType(label_t src, label_t dst, label_t edge) {
+    auto st = DeleteEdgeTypeImpl(src, dst, edge);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
+  }
+
+  /**
+   * @brief Create a checkpoint of the current graph state.
+   */
+  virtual void CreateCheckpoint() = 0;
+
+ private:
+  virtual void MarkSchemaDirty() = 0;
+
+  virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
+                                          const Value& value) = 0;
+  virtual Status UpdateEdgePropertyImpl(label_t src_label, vid_t src,
+                                        label_t dst_label, vid_t dst,
+                                        label_t edge_label, int32_t oe_offset,
+                                        int32_t ie_offset, int32_t col_id,
+                                        const Value& value) = 0;
+  virtual Status DeleteVertexImpl(label_t label, vid_t lid) = 0;
+  virtual Status DeleteEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset) = 0;
+  virtual Status DeleteEdgesImpl(label_t src_label, vid_t src,
+                                 label_t dst_label, vid_t dst,
+                                 label_t edge_label) = 0;
+  virtual Status BatchDeleteVerticesImpl(label_t v_label_id,
+                                         const std::vector<vid_t>& vids) = 0;
+  virtual Status BatchDeleteEdgesImpl(
+      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+      const std::vector<std::tuple<vid_t, vid_t>>& edges) = 0;
+  virtual Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) = 0;
-
-  virtual Status CreateVertexType(const CreateVertexTypeParam& config) = 0;
-
-  virtual Status CreateEdgeType(const CreateEdgeTypeParam& config) = 0;
-
-  virtual Status AddVertexProperties(
-      const AddVertexPropertiesParam& config) = 0;
-
-  virtual Status AddEdgeProperties(const AddEdgePropertiesParam& config) = 0;
-
-  virtual Status RenameVertexProperties(
-      const RenameVertexPropertiesParam& config) = 0;
-
-  virtual Status RenameEdgeProperties(
+  virtual Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) = 0;
+  virtual Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) = 0;
+  virtual Status AddVertexPropertiesImpl(
+      label_t label, const AddVertexPropertiesParam& config) = 0;
+  virtual Status AddEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const AddEdgePropertiesParam& config) = 0;
+  virtual Status RenameVertexPropertiesImpl(
+      label_t label, const RenameVertexPropertiesParam& config) = 0;
+  virtual Status RenameEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
       const RenameEdgePropertiesParam& config) = 0;
-
-  virtual Status DeleteVertexProperties(
-      const DeleteVertexPropertiesParam& config) = 0;
-
-  virtual Status DeleteEdgeProperties(
+  virtual Status DeleteVertexPropertiesImpl(
+      label_t label, const DeleteVertexPropertiesParam& config) = 0;
+  virtual Status DeleteEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
       const DeleteEdgePropertiesParam& config) = 0;
+  virtual Status DeleteVertexTypeImpl(label_t label) = 0;
+  virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
 
-  virtual Status DeleteVertexType(const std::string& vertex_type_name) = 0;
-
-  virtual Status DeleteEdgeType(const std::string& src_type,
-                                const std::string& dst_type,
-                                const std::string& edge_type) = 0;
-
-  virtual void CreateCheckpoint() = 0;
+  void markIncidentEdgeTablesDirty(label_t label) {
+    for (const auto& [_, es] : schema().get_all_edge_schemas()) {
+      if (es->src_label_id == label || es->dst_label_id == label) {
+        MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
+                           es->edge_label_id);
+      }
+    }
+  }
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
@@ -628,55 +909,68 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         timestamp_(timestamp) {}
   ~StorageAPUpdateInterface() {}
 
-  Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                              const Value& value) override;
-  Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                            vid_t dst, label_t edge_label, int32_t oe_offset,
-                            int32_t ie_offset, int32_t col_id,
-                            const Value& value) override;
-  Status AddVertex(label_t label, const Value& id,
-                   const std::vector<Value>& props, vid_t& vid) override;
-  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label, const std::vector<Value>& properties,
-                 const void*& prop) override;
-  Status DeleteVertex(label_t label, vid_t lid) override;
-  Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                    label_t edge_label, int32_t oe_offset,
-                    int32_t ie_offset) override;
-  Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                     label_t edge_label) override;
   void CreateCheckpoint() override;
-  Status BatchAddVertices(
+
+ private:
+  void MarkVertexTableDirty(label_t label) override {
+    graph_.MarkVertexTableDirty(label);
+  }
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
+    graph_.MarkEdgeTableDirty(src, dst, edge);
+  }
+  void MarkSchemaDirty() override { graph_.MarkSchemaDirty(); }
+
+  Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
+                                  const Value& value) override;
+  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset,
+                                int32_t col_id, const Value& value) override;
+  Status AddVertexImpl(label_t label, const Value& id,
+                       const std::vector<Value>& props, vid_t& vid) override;
+  Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label, const std::vector<Value>& properties,
+                     const void*& prop) override;
+  Status DeleteVertexImpl(label_t label, vid_t lid) override;
+  Status DeleteEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
+                        vid_t dst, label_t edge_label, int32_t oe_offset,
+                        int32_t ie_offset) override;
+  Status DeleteEdgesImpl(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label) override;
+  Status BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchDeleteVertices(label_t v_label_id,
-                             const std::vector<vid_t>& vids) override;
-  Status BatchDeleteEdges(
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchDeleteVerticesImpl(label_t v_label_id,
+                                 const std::vector<vid_t>& vids) override;
+  Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges) override;
-  Status BatchDeleteEdges(
+  Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
-  Status CreateVertexType(const CreateVertexTypeParam& config) override;
+  Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;
+  Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) override;
+  Status AddVertexPropertiesImpl(
+      label_t label, const AddVertexPropertiesParam& config) override;
+  Status AddEdgePropertiesImpl(label_t src, label_t dst, label_t edge,
+                               const AddEdgePropertiesParam& config) override;
+  Status RenameVertexPropertiesImpl(
+      label_t label, const RenameVertexPropertiesParam& config) override;
+  Status RenameEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const RenameEdgePropertiesParam& config) override;
+  Status DeleteVertexPropertiesImpl(
+      label_t label, const DeleteVertexPropertiesParam& config) override;
+  Status DeleteEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const DeleteEdgePropertiesParam& config) override;
+  Status DeleteVertexTypeImpl(label_t label) override;
+  Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
-  Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
-  Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config) override;
-  Status RenameVertexProperties(
-      const RenameVertexPropertiesParam& config) override;
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config) override;
-  Status DeleteVertexProperties(
-      const DeleteVertexPropertiesParam& config) override;
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config) override;
-  Status DeleteVertexType(const std::string& vertex_type_name) override;
-  Status DeleteEdgeType(const std::string& src_type,
-                        const std::string& dst_type,
-                        const std::string& edge_type) override;
-
- private:
   PropertyGraph& graph_;
   GraphView& mut_view_;
   neug::Allocator& alloc_;

@@ -152,6 +152,7 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
               1);
     EXPECT_TRUE(txn.Commit());
   }
+  svc.reset();
   db.Close();
 }
 
@@ -161,7 +162,6 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
-  auto svc = std::make_shared<neug::NeugDBService>(db);
 
   // Delete person id=2 via Cypher
   {
@@ -169,6 +169,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
     EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 2 DELETE v;"));
     conn->Close();
   }
+  auto svc = std::make_shared<neug::NeugDBService>(db);
 
   // Verify deletion visible before compact
   {
@@ -207,6 +208,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
               0);
     EXPECT_TRUE(txn.Commit());
   }
+  svc.reset();
   db.Close();
 }
 
@@ -218,7 +220,6 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     config.memory_level = neug::MemoryLevel::kInMemory;
     config.checkpoint_on_close = true;
     db.Open(config);
-    auto svc = std::make_shared<neug::NeugDBService>(db);
 
     // Delete person id=1 via Cypher
     {
@@ -226,6 +227,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
       EXPECT_TRUE(conn->Query("MATCH (v:person) WHERE v.id = 1 DELETE v;"));
       conn->Close();
     }
+    auto svc = std::make_shared<neug::NeugDBService>(db);
 
     // Compact explicitly before close
     {
@@ -234,6 +236,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
       EXPECT_TRUE(compact_txn.Commit());
     }
 
+    svc.reset();
     db.Close();
   }
 
@@ -258,7 +261,6 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     EXPECT_EQ(
         count_edges(gi, person_label, software_label, created_label, true), 1);
     EXPECT_TRUE(txn.Commit());
-    db2.Close();
   }
 }
 
@@ -287,6 +289,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     EXPECT_TRUE(txn.Commit());
   }
+  svc.reset();
   db.Close();
 }
 
