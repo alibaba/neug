@@ -181,6 +181,8 @@ static std::shared_ptr<IContextColumn> convert_fixed_size_list_arrays(
       THROW_SCHEMA_MISMATCH("Parquet ARRAY chunks have different types");
     }
     for (int64_t i = 0; i < array->length(); ++i) {
+      // Arrow's Parquet writer cannot currently consume null fixed-size lists.
+      // This is an upstream Arrow limitation.
       if (array->IsNull(i)) {
         builder->push_back_null();
         continue;
