@@ -871,8 +871,7 @@ void EdgeTable::BatchAddEdges(
   }
 }
 
-void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr,
-                        timestamp_t ts) {
+void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr) {
   out_csr_->compact();
   in_csr_->compact();
   if (sort_key_for_nbr.has_value()) {

@@ -177,8 +177,7 @@ class EdgeTable {
                           int32_t ie_offset, int32_t col_id,
                           const Value& new_prop, timestamp_t ts);
 
-  void Compact(const std::optional<std::string>& sort_key_for_nbr,
-               timestamp_t ts);
+  void Compact(const std::optional<std::string>& sort_key_for_nbr);
 
   size_t PropTableSize() const;
 

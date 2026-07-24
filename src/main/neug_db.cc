@@ -330,7 +330,7 @@ void NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
       IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
     }
     if (update_wal.size == 0) {
-      graph.Compact(update_wal.timestamp);
+      graph.Compact();
       last_compaction_ts_ = update_wal.timestamp;
     } else {
       UpdateTransaction::IngestWal(graph, to_ts, update_wal.ptr,
@@ -380,7 +380,7 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
   auto* live_graph = guard.get().mutable_graph();
   // Compact rewrites only already-dirty tables (does not mark); dump then
   // publishes. ClearAllDirty runs only after a successful Commit.
-  live_graph->Compact(MAX_TIMESTAMP);
+  live_graph->Compact();
   live_graph->DumpAndClear(checkpoint_session.staging_checkpoint());
   auto published_checkpoint = checkpoint_session.Commit();
   // Consumed graph is about to be dropped; ClearAllDirty is for the contract
