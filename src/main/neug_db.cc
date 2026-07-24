@@ -19,12 +19,13 @@
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
-#include <chrono>
+#include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <limits>
-#include <sstream>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -99,17 +100,6 @@ NeugDB::~NeugDB() {
   }
   WalWriterFactory::Finalize();
   WalParserFactory::Finalize();
-  // Keep in-memory workspaces across Close()/Open cycles and remove them only
-  // when the owning NeugDB is destroyed.
-  for (const auto& temp_dir : temporary_work_dirs_) {
-    try {
-      VLOG(10) << "Removing temp NeugDB at: " << temp_dir;
-      remove_directory(temp_dir);
-    } catch (const std::exception& e) {
-      LOG(WARNING) << "Failed to remove temp dir " << temp_dir << ": "
-                   << e.what();
-    } catch (...) { LOG(WARNING) << "Failed to remove temp dir " << temp_dir; }
-  }
 }
 
 bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
@@ -127,13 +117,9 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     THROW_RUNTIME_ERROR("NeugDB instance is already open.");
   }
   config_ = config;
-  preprocessConfig();
-  config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
-  const bool temporary_workspace_added = is_pure_memory_;
-  if (temporary_workspace_added) {
-    temporary_work_dirs_.emplace_back(config_.data_dir);
-  }
   try {
+    preprocessConfig();
+    config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
     const bool recover_workspace =
         config_.mode == DBMode::READ_WRITE || is_pure_memory_;
     if (recover_workspace) {
@@ -176,24 +162,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     snapshot_store_.reset();
     allocators_.clear();
     checkpoint_mgr_.Close();
+    cleanupTemporaryWorkspace();
     if (file_lock_) {
       file_lock_->unlock();
       file_lock_.reset();
-    }
-    if (temporary_workspace_added) {
-      const auto temp_dir = std::move(temporary_work_dirs_.back());
-      temporary_work_dirs_.pop_back();
-      try {
-        remove_directory(temp_dir);
-      } catch (const std::exception& e) {
-        LOG(WARNING) << "Failed to remove temporary workspace after Open() "
-                        "failure: "
-                     << temp_dir << ": " << e.what();
-      } catch (...) {
-        LOG(WARNING) << "Failed to remove temporary workspace after Open() "
-                        "failure: "
-                     << temp_dir;
-      }
     }
     throw;
   }
@@ -249,6 +221,7 @@ void NeugDB::Close() {
   snapshot_store_.reset();
   allocators_.clear();
   checkpoint_mgr_.Close();
+  cleanupTemporaryWorkspace();
 
   if (file_lock_) {
     file_lock_->unlock();
@@ -349,20 +322,23 @@ void NeugDB::preprocessConfig() {
   }
   auto db_dir = config_.data_dir;
   if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
-    std::string db_dir_prefix;
+    std::filesystem::path db_dir_prefix;
     char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
     if (prefix_env) {
-      db_dir_prefix = std::string(prefix_env);
+      db_dir_prefix = prefix_env;
     } else {
       db_dir_prefix = "/tmp";
     }
-    std::stringstream ss;
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    ss << "neug_db_"
-       << std::chrono::duration_cast<std::chrono::microseconds>(duration)
-              .count();
-    db_dir = db_dir_prefix + "/" + ss.str();
+    db_dir_prefix = std::filesystem::absolute(db_dir_prefix);
+    std::filesystem::create_directories(db_dir_prefix);
+    auto path_template = (db_dir_prefix / "neug_db_XXXXXX").string();
+    if (::mkdtemp(path_template.data()) == nullptr) {
+      const auto error = std::error_code(errno, std::generic_category());
+      THROW_IO_EXCEPTION("Failed to create temporary NeugDB under " +
+                         db_dir_prefix.string() + ": " + error.message());
+    }
+    db_dir = path_template;
+    temporary_work_dir_ = db_dir;
     is_pure_memory_ = true;
     LOG(INFO) << "Creating temp NeugDB with: " << db_dir << " in "
               << config_.mode << " mode";
@@ -371,6 +347,24 @@ void NeugDB::preprocessConfig() {
     is_pure_memory_ = false;
     LOG(INFO) << "Creating NeugDB with: " << db_dir << " in " << config_.mode
               << " mode";
+  }
+}
+
+void NeugDB::cleanupTemporaryWorkspace() noexcept {
+  if (temporary_work_dir_.empty()) {
+    return;
+  }
+  auto temp_dir = std::move(temporary_work_dir_);
+  temporary_work_dir_.clear();
+  try {
+    VLOG(10) << "Removing temp NeugDB at: " << temp_dir;
+    remove_directory(temp_dir);
+  } catch (const std::exception& e) {
+    LOG(WARNING) << "Failed to remove temporary NeugDB " << temp_dir
+                 << "; leaving it on disk: " << e.what();
+  } catch (...) {
+    LOG(WARNING) << "Failed to remove temporary NeugDB " << temp_dir
+                 << "; leaving it on disk";
   }
 }
 

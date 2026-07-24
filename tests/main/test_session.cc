@@ -142,20 +142,67 @@ TEST(NeugDBLifecycleTest, FailedInMemoryOpenRemovesWorkspaceImmediately) {
   db.Close();
 }
 
-TEST(NeugDBLifecycleTest, InMemoryWorkspaceSurvivesCloseAndIsRemovedOnDestroy) {
-  std::filesystem::path workspace;
-  {
-    NeugDBConfig config(":memory:", 1);
-    config.checkpoint_on_close = false;
+TEST(NeugDBLifecycleTest, InMemoryWorkspaceIsRemovedOnClose) {
+  NeugDBConfig config(":memory:", 1);
+  config.checkpoint_on_close = false;
 
-    NeugDB db;
+  NeugDB db;
+  for (int attempt = 0; attempt < 2; ++attempt) {
     ASSERT_TRUE(db.Open(config));
-    workspace = db.config().data_dir;
+    const auto workspace = std::filesystem::path(db.config().data_dir);
     ASSERT_TRUE(std::filesystem::is_directory(workspace));
     db.Close();
-    EXPECT_TRUE(std::filesystem::is_directory(workspace));
+    EXPECT_FALSE(std::filesystem::exists(workspace));
   }
-  EXPECT_FALSE(std::filesystem::exists(workspace));
+}
+
+TEST(NeugDBLifecycleTest, ClosedInMemoryPathCanBeReusedByAnotherDatabase) {
+  std::filesystem::path workspace;
+  NeugDB reopened_db;
+  {
+    NeugDBConfig memory_config(":memory:", 1);
+    memory_config.checkpoint_on_close = false;
+
+    NeugDB memory_db;
+    ASSERT_TRUE(memory_db.Open(memory_config));
+    workspace = memory_db.config().data_dir;
+    memory_db.Close();
+    ASSERT_FALSE(std::filesystem::exists(workspace));
+
+    NeugDBConfig reopened_config(workspace.string(), 1);
+    reopened_config.checkpoint_on_close = false;
+    ASSERT_TRUE(reopened_db.Open(reopened_config));
+    ASSERT_TRUE(std::filesystem::is_directory(workspace));
+  }
+
+  EXPECT_TRUE(std::filesystem::is_directory(workspace));
+  reopened_db.Close();
+  std::filesystem::remove_all(workspace);
+}
+
+TEST(NeugDBLifecycleTest, ConcurrentInMemoryDatabasesUseDistinctWorkspaces) {
+  NeugDBConfig config(":memory:", 1);
+  config.checkpoint_on_close = false;
+
+  NeugDB first_db;
+  NeugDB second_db;
+  ASSERT_TRUE(first_db.Open(config));
+  ASSERT_TRUE(second_db.Open(config));
+
+  const auto first_workspace =
+      std::filesystem::path(first_db.config().data_dir);
+  const auto second_workspace =
+      std::filesystem::path(second_db.config().data_dir);
+  EXPECT_NE(first_workspace, second_workspace);
+  EXPECT_TRUE(std::filesystem::is_directory(first_workspace));
+  EXPECT_TRUE(std::filesystem::is_directory(second_workspace));
+
+  first_db.Close();
+  EXPECT_FALSE(std::filesystem::exists(first_workspace));
+  EXPECT_TRUE(std::filesystem::is_directory(second_workspace));
+
+  second_db.Close();
+  EXPECT_FALSE(std::filesystem::exists(second_workspace));
 }
 
 }  // namespace test

@@ -338,6 +338,7 @@ class NeugDB {
   void initQueryRuntime();
   void initPlannerAndQueryProcessor();
   void initVersionManager();
+  void cleanupTemporaryWorkspace() noexcept;
   std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
       CheckpointSession& checkpoint_session);
   /**
@@ -409,10 +410,9 @@ class NeugDB {
   bool is_pure_memory_;
   int max_thread_num_;
   NeugDBConfig config_;
-  // In-memory workspaces must survive Close() so callers can stop serving and
-  // reopen the same NeugDB object. CheckpointManager::Close clears its db_dir,
-  // so retain every generated workspace path until NeugDB destruction.
-  std::vector<std::string> temporary_work_dirs_;
+  // The temporary workspace belongs only to the current successful Open().
+  // Close() removes it while the database file lock is still held.
+  std::string temporary_work_dir_;
   CheckpointManager checkpoint_mgr_;
   std::unique_ptr<FileLock> file_lock_;
 
