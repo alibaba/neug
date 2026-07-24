@@ -283,15 +283,6 @@ void DeleteEdgeTypeRedo::Deserialize(OutArchive& arc,
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
 }
 
-void DropIndexRedo::Serialize(InArchive& arc, const std::string& index_name) {
-  arc << static_cast<uint8_t>(OpType::kDropIndex);
-  arc << index_name;
-}
-
-void DropIndexRedo::Deserialize(OutArchive& arc, DropIndexRedo& redo) {
-  arc >> redo.index_name;
-}
-
 void InsertVertexRedo::Serialize(InArchive& arc, label_t label,
                                  const Value& oid,
                                  const std::vector<Value>& props) {
@@ -404,11 +395,6 @@ InArchive& operator<<(InArchive& in_archive, const DeleteEdgeTypeRedo& value) {
   return in_archive;
 }
 
-InArchive& operator<<(InArchive& in_archive, const DropIndexRedo& value) {
-  DropIndexRedo::Serialize(in_archive, value.index_name);
-  return in_archive;
-}
-
 InArchive& operator<<(InArchive& in_archive, const InsertVertexRedo& value) {
   InsertVertexRedo::Serialize(in_archive, value.label, value.oid, value.props);
   return in_archive;
@@ -458,11 +444,6 @@ OutArchive& operator>>(OutArchive& out_archive, DeleteVertexTypeRedo& value) {
 
 OutArchive& operator>>(OutArchive& out_archive, DeleteEdgeTypeRedo& value) {
   DeleteEdgeTypeRedo::Deserialize(out_archive, value);
-  return out_archive;
-}
-
-OutArchive& operator>>(OutArchive& out_archive, DropIndexRedo& value) {
-  DropIndexRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 

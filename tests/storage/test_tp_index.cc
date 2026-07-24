@@ -544,7 +544,7 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   EXPECT_TRUE(indexes->empty());
 }
 
-TEST_F(TPIndexTest, DropIndexRemovesIndexInCommittedTransaction) {
+TEST_F(TPIndexTest, DropIndexIsNotSupportedInTPMode) {
   CreatePersonTableAP();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
   StartSnapshotStore();
@@ -555,11 +555,12 @@ TEST_F(TPIndexTest, DropIndexRemovesIndexInCommittedTransaction) {
   auto txn = NewUpdateTransaction();
   StorageTPUpdateInterface tp(txn);
   auto status = tp.DropIndex("idx_person_age");
-  ASSERT_TRUE(status.ok()) << status.ToString();
-  Commit(txn);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  txn.Abort();
 
-  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
-  EXPECT_TRUE(GetIndexes(person_label, "age").empty());
+  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
+  EXPECT_EQ(GetIndexes(person_label, "age").size(), 1);
 }
 
 TEST_F(TPIndexTest, WalReplayRestoresIndexData) {

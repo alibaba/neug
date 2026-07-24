@@ -735,11 +735,9 @@ neug::result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
                       "CreateIndex is not supported in TP mode currently.");
 }
 
-Status StorageTPUpdateInterface::DropIndex(const std::string& name) {
-  wal_.LogDropIndex(name);
-  RETURN_IF_NOT_OK(cow_graph_->mutable_index_manager().DropIndex(name));
-  cow_state_.index_detached.erase(name);
-  return Status::OK();
+Status StorageTPUpdateInterface::DropIndex(const std::string&) {
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "DropIndex is not supported in TP mode currently.");
 }
 
 Status StorageTPUpdateInterface::AddVertexImpl(label_t label, const Value& oid,
@@ -1197,11 +1195,6 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
           graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
-    } else if (op_type == OpType::kDropIndex) {
-      DropIndexRedo redo;
-      arc >> redo;
-      auto ret = graph.mutable_index_manager().DropIndex(redo.index_name);
-      THROW_STORAGE_EXCEPTION_STATUS("Failed to drop index in redo: ", ret);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
                                     std::to_string(static_cast<int>(op_type)));
