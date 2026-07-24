@@ -14,6 +14,8 @@
  */
 #pragma once
 
+#include <glog/logging.h>
+
 #include <cstdlib>
 #include <deque>
 #include <exception>
