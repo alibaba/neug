@@ -1,14 +1,18 @@
-set(storage_test_src test_ddl.cc 
-                     test_export.cc 
-                     test_open_graph.cc 
-                     alter_property_test.cc 
-                     test_set_property.cc 
+set(storage_test_src test_ddl.cc
+                     test_export.cc
+                     test_open_graph.cc
+                     alter_property_test.cc
+                     test_set_property.cc
                      test_memory_level.cc
                      test_property_graph.cc)
 if (BUILD_HTTP_SERVER)
     list(APPEND storage_test_src test_recovery.cc test_checkpoint.cc)
 endif()
 add_neug_test(storage_test ${storage_test_src})
+
+add_neug_test(ap_index_test test_ap_index.cc)
+
+add_neug_test(tp_index_test test_tp_index.cc)
 
 add_neug_test(csr_test test_csr_stream_ops.cc
                        test_csr_batch_ops.cc

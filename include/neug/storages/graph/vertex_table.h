@@ -229,6 +229,15 @@ class VertexTable {
     return CreateRefColumn(*ptr);
   }
 
+  inline const ColumnBase* GetPropertyColumnBase(
+      const std::string& prop) const {
+    auto pk = vertex_schema_->primary_keys[0];
+    if (prop == std::get<1>(pk)) {
+      return &indexer_->get_keys();
+    }
+    return table_->get_column(prop);
+  }
+
   inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
       int32_t col_id) const {
     auto ptr = table_->get_column_by_id(col_id);
@@ -262,7 +271,8 @@ class VertexTable {
 
   void Compact();
 
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
+  std::vector<vid_t> insert_vertices(
+      std::shared_ptr<IDataChunkSupplier> supplier);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 

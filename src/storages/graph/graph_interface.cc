@@ -15,12 +15,201 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include "neug/storages/index/storage_index_manager.h"
+
 namespace neug {
+
+namespace {
+
+// Drops every index whose metadata references the given vertex label/property.
+static Status dropVertexIndex(PropertyGraph& graph, label_t label,
+                              const std::string& prop_name) {
+  auto& index_manager = graph.mutable_index_manager();
+  auto indexes = index_manager.GetIndex(label, prop_name);
+  if (!indexes) {
+    return indexes.error();
+  }
+
+  std::vector<std::string> index_names;
+  index_names.reserve(indexes->size());
+  for (auto* index : indexes.value()) {
+    index_names.push_back(index->GetMeta().name);
+  }
+  for (const auto& index_name : index_names) {
+    RETURN_IF_NOT_OK(index_manager.DropIndex(index_name));
+  }
+  return Status::OK();
+}
+
+// Appends index entries for one newly inserted vertex row.
+static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
+                                 const Value& id,
+                                 const std::vector<Value>& props) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are stored separately from property_names, so maintain their
+  // indexes explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  for (auto* index : pk_indexes.value()) {
+    RETURN_IF_NOT_OK(index->Upsert(lid, id));
+  }
+
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
+      continue;
+    }
+    auto indexes =
+        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    if (!indexes) {
+      return indexes.error();
+    }
+    for (auto* index : indexes.value()) {
+      RETURN_IF_NOT_OK(index->Upsert(lid, props[prop_idx]));
+    }
+  }
+  return Status::OK();
+}
+
+// Appends index entries for a batch of newly inserted vertex rows.
+static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
+                                      const std::vector<vid_t>& vids) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  const auto& vtable = graph.get_vertex_table(label);
+  auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are stored outside property_names in the vertex indexer, so
+  // read their column explicitly when maintaining indexes for a batch.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  if (!pk_indexes->empty()) {
+    auto pk_col = vtable.GetPropertyColumn(pk_name);
+    if (!pk_col) {
+      return Status::InternalError("Primary key column does not exist");
+    }
+    for (auto* index : pk_indexes.value()) {
+      for (vid_t vid : vids) {
+        RETURN_IF_NOT_OK(index->Upsert(vid, pk_col->get_any(vid)));
+      }
+    }
+  }
+
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    auto indexes =
+        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    if (!indexes) {
+      return indexes.error();
+    }
+    if (indexes->empty()) {
+      continue;
+    }
+    auto col = vtable.GetPropertyColumn(static_cast<int32_t>(prop_idx));
+    if (!col) {
+      continue;
+    }
+    for (auto* index : indexes.value()) {
+      for (vid_t vid : vids) {
+        RETURN_IF_NOT_OK(index->Upsert(vid, col->get_any(vid)));
+      }
+    }
+  }
+  return Status::OK();
+}
+
+// Updates index entries for one changed vertex property. Primary keys are not
+// handled here because PropertyGraph does not allow modifying the primary key
+// of an existing vertex.
+static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
+                                    vid_t lid, int32_t col_id,
+                                    const Value& value) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  if (col_id < 0 ||
+      static_cast<size_t>(col_id) >= v_schema->property_names.size() ||
+      v_schema->vprop_soft_deleted[col_id]) {
+    return Status::OK();
+  }
+
+  auto& index_manager = graph.mutable_index_manager();
+  auto indexes =
+      index_manager.GetIndex(label, v_schema->property_names[col_id]);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    RETURN_IF_NOT_OK(index->Upsert(lid, value));
+  }
+  return Status::OK();
+}
+
+// Deletes index entries for one or more removed vertex rows.
+static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
+                                    const std::vector<vid_t>& vids) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  auto& index_manager = graph.mutable_index_manager();
+
+  // Primary keys are excluded from property_names, so delete their index
+  // entries explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  if (!pk_indexes) {
+    return pk_indexes.error();
+  }
+  for (auto* index : pk_indexes.value()) {
+    for (vid_t vid : vids) {
+      RETURN_IF_NOT_OK(index->Delete(vid));
+    }
+  }
+
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx]) {
+      continue;
+    }
+    auto indexes =
+        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    if (!indexes) {
+      return indexes.error();
+    }
+    for (auto* index : indexes.value()) {
+      for (vid_t vid : vids) {
+        RETURN_IF_NOT_OK(index->Delete(vid));
+      }
+    }
+  }
+  return Status::OK();
+}
+
+}  // namespace
+
+result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
+    const std::string& unique_index_name,
+    const IndexQueryParams& params) const {
+  auto* index = view_.index_manager().GetIndexByName(unique_index_name);
+  if (!index) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Index does not exist: " + unique_index_name);
+  }
+  return index->Search(params);
+}
 
 Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
                                                           vid_t lid, int col_id,
                                                           const Value& value) {
-  return graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
+  RETURN_IF_NOT_OK(
+      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
+  return updateVertexIndexData(graph_, label, lid, col_id, value);
 }
 
 Status StorageAPUpdateInterface::UpdateEdgePropertyImpl(
@@ -53,8 +242,11 @@ Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
       graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
+    return status;
   }
-  return status;
+
+  RETURN_IF_NOT_OK(addVertexIndexData(graph_, label, vid, id, props));
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::AddEdgeImpl(
@@ -100,7 +292,8 @@ void StorageAPUpdateInterface::CreateCheckpoint() {
 }
 
 Status StorageAPUpdateInterface::DeleteVertexImpl(label_t label, vid_t lid) {
-  return graph_.DeleteVertex(label, lid, timestamp_);
+  RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, timestamp_));
+  return deleteVertexIndexData(graph_, label, {lid});
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeImpl(label_t src_label, vid_t src,
@@ -122,7 +315,16 @@ Status StorageAPUpdateInterface::DeleteEdgesImpl(label_t src_label, vid_t src,
 
 Status StorageAPUpdateInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  return graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  if (!new_vids) {
+    return new_vids.error();
+  }
+
+  if (new_vids->empty()) {
+    return Status::OK();
+  }
+
+  return batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
 }
 
 Status StorageAPUpdateInterface::BatchAddEdgesImpl(
@@ -134,7 +336,8 @@ Status StorageAPUpdateInterface::BatchAddEdgesImpl(
 
 Status StorageAPUpdateInterface::BatchDeleteVerticesImpl(
     label_t v_label_id, const std::vector<vid_t>& vids) {
-  return graph_.BatchDeleteVertices(v_label_id, vids);
+  RETURN_IF_NOT_OK(graph_.BatchDeleteVertices(v_label_id, vids));
+  return deleteVertexIndexData(graph_, v_label_id, vids);
 }
 
 Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(
@@ -197,7 +400,13 @@ Status StorageAPUpdateInterface::AddEdgePropertiesImpl(
 
 Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
     label_t label, const RenameVertexPropertiesParam& config) {
-  return graph_.RenameVertexProperties(label, config);
+  RETURN_IF_NOT_OK(graph_.RenameVertexProperties(label, config));
+  for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
+    if (old_name == new_name)
+      continue;
+    RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, old_name));
+  }
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::RenameEdgePropertiesImpl(
@@ -208,12 +417,13 @@ Status StorageAPUpdateInterface::RenameEdgePropertiesImpl(
 
 Status StorageAPUpdateInterface::DeleteVertexPropertiesImpl(
     label_t label, const DeleteVertexPropertiesParam& config) {
-  auto status = graph_.DeleteVertexProperties(label, config);
-  if (status.ok()) {
-    // Deleting columns shifts the table column vector cached by GraphView.
-    mut_view_.Rebuild(graph_);
+  RETURN_IF_NOT_OK(graph_.DeleteVertexProperties(label, config));
+  for (const auto& prop_name : config.GetDeleteProperties()) {
+    RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, prop_name));
   }
-  return status;
+  // Deleting columns shifts the table column vector cached by GraphView.
+  mut_view_.Rebuild(graph_);
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
@@ -230,11 +440,24 @@ Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
 }
 
 Status StorageAPUpdateInterface::DeleteVertexTypeImpl(label_t label) {
-  auto status = graph_.DeleteVertexType(label);
-  if (status.ok()) {
-    mut_view_.Rebuild(graph_);
+  const auto& v_schema = graph_.schema().get_vertex_schema(label);
+  std::vector<std::string> indexed_properties;
+  indexed_properties.reserve(v_schema->property_names.size() + 1);
+  // The primary key is stored separately from property_names but indexes bound
+  // to it must be removed together with the vertex type.
+  indexed_properties.push_back(std::get<1>(v_schema->primary_keys[0]));
+  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
+       ++prop_idx) {
+    if (v_schema->vprop_soft_deleted[prop_idx])
+      continue;
+    indexed_properties.push_back(v_schema->property_names[prop_idx]);
   }
-  return status;
+  RETURN_IF_NOT_OK(graph_.DeleteVertexType(label));
+  for (const auto& property_name : indexed_properties) {
+    RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, property_name));
+  }
+  mut_view_.Rebuild(graph_);
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
@@ -244,6 +467,42 @@ Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
     mut_view_.Rebuild(graph_);
   }
   return status;
+}
+
+neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
+    std::unique_ptr<IndexMeta> meta) {
+  if (!meta) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with null metadata");
+  }
+  auto label_id = meta->schema.label_id;
+  if (!graph_.schema().is_vertex_label_valid(label_id)) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Index label id is out of range");
+  }
+  const auto& vertex_table = graph_.get_vertex_table(label_id);
+  auto* column = vertex_table.GetPropertyColumnBase(meta->schema.property_name);
+  if (!column) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Indexed property column does not exist: " +
+                            meta->schema.property_name);
+  }
+  const auto name = meta->name;
+  auto index = index_manager_.CreateIndex(
+      std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+  if (!index) {
+    return tl::unexpected(index.error());
+  }
+  auto status = index.value()->Rebind(IndexBindContext{column});
+  if (!status.ok()) {
+    index_manager_.DropIndex(name);
+    RETURN_ERROR(status);
+  }
+  return index;
+}
+
+Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
+  return index_manager_.DropIndex(name);
 }
 
 }  // namespace neug

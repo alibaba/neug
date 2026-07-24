@@ -193,6 +193,7 @@ GraphView::GraphView(PropertyGraph& storage) { Rebuild(storage); }
 void GraphView::Rebuild(PropertyGraph& pg) {
   dirty_ = &pg.dirty_tracker();
   schema_ = &pg.schema();
+  index_manager_ = &pg.index_manager();
   vertex_views_.clear();
   edge_views_.clear();
   // Use vertex_label_frontier() (total label-id space) instead of

@@ -26,6 +26,12 @@
 
 namespace neug {
 
+class StorageIndex;
+class StorageIndexManager;
+struct IndexMeta;
+struct IndexQueryParams;
+struct SearchResult;
+
 namespace graph_interface_impl {
 
 using neug::label_t;
@@ -348,6 +354,23 @@ class StorageReadInterface : virtual public IStorageInterface {
   }
 
   const Schema& schema() const override { return view_.schema(); }
+
+  /**
+   * @brief Search an index selected by its unique name.
+   *
+   * This interface is intended for the execution layer's IndexScan operator.
+   * The IndexScan optimizer matches a query to the appropriate index and
+   * supplies its unique name; execution then invokes Search with the
+   * index-specific query parameters and receives the matching vertex set.
+   *
+   * @param unique_index_name Unique name of the index selected by the
+   * optimizer.
+   * @param params Index-specific search parameters.
+   * @return Vertex IDs matching the index query, or an error.
+   */
+  result<std::vector<SearchResult>> IndexSearch(
+      const std::string& unique_index_name,
+      const IndexQueryParams& params) const;
 
  protected:
   const GraphView& view_;
@@ -841,6 +864,16 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   virtual void CreateCheckpoint() = 0;
 
+  /**
+   * @brief Create and bind an empty index.
+   *
+   * The caller is responsible for invoking StorageIndex::BulkBuild() when a
+   * full build is required.
+   */
+  virtual neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual Status DropIndex(const std::string& name) = 0;
+
  private:
   virtual void MarkSchemaDirty() = 0;
 
@@ -906,10 +939,15 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
-        timestamp_(timestamp) {}
+        timestamp_(timestamp),
+        index_manager_(graph_.mutable_index_manager()) {}
   ~StorageAPUpdateInterface() {}
 
   void CreateCheckpoint() override;
+
+  neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {
@@ -975,6 +1013,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
+  StorageIndexManager& index_manager_;
 };
 
 }  // namespace neug

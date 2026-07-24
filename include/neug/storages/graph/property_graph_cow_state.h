@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -48,6 +49,8 @@ struct EdgeTableCowState {
 struct PropertyGraphCowState {
   std::vector<VertexTableCowState> vertex_tables;
   std::unordered_map<uint32_t, EdgeTableCowState> edge_tables;
+  // record index detach state according to unique index name
+  std::unordered_map<std::string, bool> index_detached;
 
   static PropertyGraphCowState FromSchema(const Schema& schema);
 };

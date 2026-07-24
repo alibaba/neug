@@ -46,8 +46,9 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   v_ts_->Open(*ckp_, ModuleDescriptor{}, level);
 }
 
-void VertexTable::insert_vertices(
+std::vector<vid_t> VertexTable::insert_vertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  std::vector<vid_t> new_vids;
   auto row_nums = supplier->RowNum();
   if (row_nums < 0) {
     VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
@@ -97,6 +98,12 @@ void VertexTable::insert_vertices(
 
     auto vids = insert_primary_keys(pk_col);
 
+    for (auto vid : vids) {
+      if (vid != std::numeric_limits<vid_t>::max()) {
+        new_vids.push_back(vid);
+      }
+    }
+
     for (size_t i = 0; i < prop_cols.size(); ++i) {
       auto col = table_->get_column_by_id(i);
       set_properties_from_context_column(col, prop_cols[i], vids);
@@ -104,6 +111,7 @@ void VertexTable::insert_vertices(
     VLOG(10) << "Inserted " << chunk_rows
              << " vertices, current vertex num: " << VertexNum();
   }
+  return new_vids;
 }
 
 void VertexTable::Close() {

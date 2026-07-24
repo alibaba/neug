@@ -29,6 +29,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/indexers.h"
@@ -43,7 +44,9 @@ PropertyGraph::PropertyGraph()
     : ckp_(nullptr),
       vertex_label_total_count_(0),
       edge_label_total_count_(0),
-      memory_level_(MemoryLevel::kInMemory) {}
+      memory_level_(MemoryLevel::kInMemory) {
+  index_manager_ = std::make_unique<StorageIndexManager>();
+}
 
 PropertyGraph::~PropertyGraph() { Clear(); }
 
@@ -70,6 +73,15 @@ void PropertyGraph::Clear() {
   edge_label_total_count_ = 0;
   schema_.Clear();
   ckp_.reset();
+  index_manager_->Clear();
+}
+
+const StorageIndexManager& PropertyGraph::index_manager() const {
+  return *index_manager_;
+}
+
+StorageIndexManager& PropertyGraph::mutable_index_manager() {
+  return *index_manager_;
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -145,11 +157,10 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
   return neug::Status::OK();
 }
 
-Status PropertyGraph::BatchAddVertices(
+result<std::vector<vid_t>> PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
-  RETURN_IF_NOT_OK(vertex_label_check(v_label));
-  vertex_tables_[v_label].insert_vertices(supplier);
-  return neug::Status::OK();
+  RETURN_STATUS_ERROR_IF_NOT_OK(vertex_label_check(v_label));
+  return vertex_tables_[v_label].insert_vertices(std::move(supplier));
 }
 
 Status PropertyGraph::BatchAddEdges(
@@ -779,6 +790,27 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   }
 
   ckp_ = std::move(ckp);
+
+  index_manager_->Open(ckp_, store, memory_level_);
+  auto indexes = index_manager_->GetAllIndexes();
+  if (!indexes) {
+    THROW_RUNTIME_ERROR("PropertyGraph::Open: failed to enumerate indexes: " +
+                        indexes.error().error_message());
+  }
+  for (auto* index : indexes.value()) {
+    const auto& index_meta = index->GetMeta();
+    if (index_meta.schema.label_id >= vertex_tables_.size()) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Open: invalid index label id");
+    }
+    auto* column =
+        vertex_tables_[index_meta.schema.label_id].GetPropertyColumnBase(
+            index_meta.schema.property_name);
+    auto status = index->Rebind(IndexBindContext{column});
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Open: failed to bind index '" +
+                          index_meta.name + "': " + status.error_message());
+    }
+  }
 }
 
 void PropertyGraph::compact_schema() {
@@ -987,6 +1019,8 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
       }
     }
   }
+
+  index_manager_->Dump(ckp_, store, meta);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
@@ -1289,6 +1323,26 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
   cow_clone->edge_label_total_count_ = edge_label_total_count_;
   cow_clone->memory_level_ = memory_level_;
+  cow_clone->index_manager_ = index_manager_->Clone();
+
+  auto indexes = cow_clone->index_manager_->GetAllIndexes();
+  if (!indexes) {
+    THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to enumerate indexes: " +
+                        indexes.error().error_message());
+  }
+  for (auto* index : indexes.value()) {
+    const auto& index_meta = index->GetMeta();
+    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size()) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Clone: invalid index label id");
+    }
+    auto* column = cow_clone->vertex_tables_[index_meta.schema.label_id]
+                       .GetPropertyColumnBase(index_meta.schema.property_name);
+    auto status = index->Rebind(IndexBindContext{column});
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to bind index '" +
+                          index_meta.name + "': " + status.error_message());
+    }
+  }
 
   return cow_clone;
 }

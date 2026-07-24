@@ -106,6 +106,16 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags,
                   "Temporary table creation and batch operations are not "
                   "supported for TP service.");
   }
+  // Index operations are only supported within Update Transactions,
+  // corresponding to two modes: kSchema and kUpdate.
+  // - Create/drop index operations belong to the kSchema mode.
+  // - All other index update operations belong to the kUpdate mode.
+  if (flags.index() && mode != AccessMode::kUpdate &&
+      mode != AccessMode::kSchema) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Index operations in TP mode are only supported in Update "
+                  "Transactions.");
+  }
   return Status::OK();
 }
 
