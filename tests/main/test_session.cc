@@ -124,6 +124,24 @@ TEST(NeugDBLifecycleTest, FailedOpenCanBeRetried) {
   std::filesystem::remove_all(db_dir);
 }
 
+TEST(NeugDBLifecycleTest, FailedInMemoryOpenRemovesWorkspaceImmediately) {
+  NeugDBConfig invalid_config(":memory:", 1);
+  invalid_config.checkpoint_on_close = false;
+  invalid_config.planner_kind = "invalid";
+
+  NeugDB db;
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    EXPECT_THROW(db.Open(invalid_config), exception::InvalidArgumentException);
+    EXPECT_FALSE(std::filesystem::exists(db.config().data_dir));
+  }
+
+  NeugDBConfig valid_config(":memory:", 1);
+  valid_config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(valid_config));
+  EXPECT_TRUE(std::filesystem::is_directory(db.config().data_dir));
+  db.Close();
+}
+
 TEST(NeugDBLifecycleTest, InMemoryWorkspaceSurvivesCloseAndIsRemovedOnDestroy) {
   std::filesystem::path workspace;
   {

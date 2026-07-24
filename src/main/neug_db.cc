@@ -129,27 +129,30 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   config_ = config;
   preprocessConfig();
   config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
-  if (is_pure_memory_) {
+  const bool temporary_workspace_added = is_pure_memory_;
+  if (temporary_workspace_added) {
     temporary_work_dirs_.emplace_back(config_.data_dir);
   }
-  const bool recover_workspace =
-      config_.mode == DBMode::READ_WRITE || is_pure_memory_;
-  if (recover_workspace) {
-    std::filesystem::create_directories(config_.data_dir);
-  } else if (!std::filesystem::is_directory(config_.data_dir)) {
-    THROW_NO_CHECKPOINT_EXCEPTION(
-        "NeugDB::Open: no checkpoint found in read-only database: " +
-        config_.data_dir);
-  }
-
-  file_lock_ = std::make_unique<FileLock>(config_.data_dir);
-
-  std::string error_msg;
-  if (!file_lock_->lock(error_msg, config.mode)) {
-    THROW_DATABASE_LOCKED_EXCEPTION("Failed to lock data directory: " +
-                                    config_.data_dir + ", error: " + error_msg);
-  }
   try {
+    const bool recover_workspace =
+        config_.mode == DBMode::READ_WRITE || is_pure_memory_;
+    if (recover_workspace) {
+      std::filesystem::create_directories(config_.data_dir);
+    } else if (!std::filesystem::is_directory(config_.data_dir)) {
+      THROW_NO_CHECKPOINT_EXCEPTION(
+          "NeugDB::Open: no checkpoint found in read-only database: " +
+          config_.data_dir);
+    }
+
+    file_lock_ = std::make_unique<FileLock>(config_.data_dir);
+
+    std::string error_msg;
+    if (!file_lock_->lock(error_msg, config.mode)) {
+      THROW_DATABASE_LOCKED_EXCEPTION(
+          "Failed to lock data directory: " + config_.data_dir +
+          ", error: " + error_msg);
+    }
+
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
     VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
     neug::execution::PlanParser::get().init();
@@ -176,6 +179,21 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     if (file_lock_) {
       file_lock_->unlock();
       file_lock_.reset();
+    }
+    if (temporary_workspace_added) {
+      const auto temp_dir = std::move(temporary_work_dirs_.back());
+      temporary_work_dirs_.pop_back();
+      try {
+        remove_directory(temp_dir);
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "Failed to remove temporary workspace after Open() "
+                        "failure: "
+                     << temp_dir << ": " << e.what();
+      } catch (...) {
+        LOG(WARNING) << "Failed to remove temporary workspace after Open() "
+                        "failure: "
+                     << temp_dir;
+      }
     }
     throw;
   }
