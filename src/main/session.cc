@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/server/neug_db_session.h"
+#include "neug/main/session.h"
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -59,24 +59,24 @@
 
 namespace neug {
 
-neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
-  uint32_t ts = version_manager_->acquire_read_timestamp();
-  SnapshotGuard guard(db_.graph_snapshot_store());
-  return neug::ReadTransaction(std::move(guard), *version_manager_, ts);
+neug::ReadTransaction Session::GetReadTransaction() const {
+  uint32_t ts = version_manager_.acquire_read_timestamp();
+  SnapshotGuard guard(snapshot_store_);
+  return neug::ReadTransaction(std::move(guard), version_manager_, ts);
 }
 
-neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
-  uint32_t ts = version_manager_->acquire_insert_timestamp();
-  SnapshotGuard guard(db_.graph_snapshot_store());
-  return neug::InsertTransaction(std::move(guard), alloc_, logger_,
-                                 *version_manager_, ts);
+neug::InsertTransaction Session::GetInsertTransaction() {
+  uint32_t ts = version_manager_.acquire_insert_timestamp();
+  SnapshotGuard guard(snapshot_store_);
+  return neug::InsertTransaction(std::move(guard), alloc_, wal_writer_,
+                                 version_manager_, ts);
 }
 
-neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
-  uint32_t ts = version_manager_->acquire_update_timestamp();
-  auto cow_graph = db_.graph_snapshot_store().CurrentSnapshot().Clone();
-  return neug::UpdateTransaction(std::move(cow_graph), alloc_, logger_,
-                                 *version_manager_, db_.graph_snapshot_store(),
+neug::UpdateTransaction Session::GetUpdateTransaction() {
+  uint32_t ts = version_manager_.acquire_update_timestamp();
+  auto cow_graph = snapshot_store_.CurrentSnapshot().Clone();
+  return neug::UpdateTransaction(std::move(cow_graph), alloc_, wal_writer_,
+                                 version_manager_, snapshot_store_,
                                  pipeline_cache_, ts);
 }
 
@@ -182,7 +182,7 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
   return ctx_res;
 }
 
-neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
+neug::result<std::string> Session::Eval(const std::string& req) {
   const auto start = std::chrono::high_resolution_clock::now();
 
   std::string query;
@@ -237,7 +237,7 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
     neug::execution::Sink::sink_results(ctx, gui, response);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Access mode not supported in NeugDBSession::Eval: " +
+        "Access mode not supported in Session::Eval: " +
         std::to_string(static_cast<int>(mode)));
   }
   // Only update schema, statistics will not changed.
@@ -251,18 +251,18 @@ neug::result<std::string> NeugDBSession::Eval(const std::string& req) {
   return response->SerializeAsString();
 }
 
-int NeugDBSession::SessionId() const { return thread_id_; }
+int Session::SessionId() const { return session_id_; }
 
-neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
-  neug::timestamp_t ts = version_manager_->acquire_compact_timestamp();
-  return neug::CompactTransaction(db_.graph_snapshot_store(), logger_,
-                                  *version_manager_, ts);
+neug::CompactTransaction Session::GetCompactTransaction() {
+  neug::timestamp_t ts = version_manager_.acquire_compact_timestamp();
+  return neug::CompactTransaction(snapshot_store_, wal_writer_,
+                                  version_manager_, ts);
 }
 
-double NeugDBSession::eval_duration() const {
+double Session::eval_duration() const {
   return static_cast<double>(eval_duration_.load()) / 1000000.0;
 }
 
-int64_t NeugDBSession::query_num() const { return query_num_.load(); }
+int64_t Session::query_num() const { return query_num_.load(); }
 
 }  // namespace neug
