@@ -8,7 +8,7 @@
     "neug::QueryResult",
     "neug::RecordLine",
     "neug::NeugDBService",
-    "neug::NeugDBSession",
+    "neug::Session",
     "neug::SessionPool",
     "neug::SessionGuard"
   ],
@@ -33,7 +33,7 @@
       "filename": "service",
       "title": "NeugDBService",
       "description": "HTTP service for high-throughput scenarios",
-      "include_classes": ["neug::NeugDBSession", "neug::SessionPool", "neug::SessionGuard"]
+      "include_classes": ["neug::Session", "neug::SessionPool", "neug::SessionGuard"]
     }
   },
   "excluded_patterns": [

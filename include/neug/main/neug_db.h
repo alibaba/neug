@@ -51,8 +51,8 @@ class Connection;
 class ConnectionManager;
 class FileLock;
 class IGraphPlanner;
+class IVersionManager;
 class IWalParser;
-class NeugDBSession;
 class QueryProcessor;
 class Schema;
 
@@ -296,7 +296,11 @@ class NeugDB {
    * when needed, then rebuilds query runtime handles against the refreshed
    * graph. The planner and its metadata registry are intentionally preserved so
    * runtime extension registrations loaded in AP mode stay available in TP
-   * mode.
+   * mode. The version manager is replaced only when a new durable checkpoint
+   * starts a fresh WAL timeline; otherwise the existing timeline is preserved.
+   *
+   * @warning Caller-created Session objects borrowing this database must be
+   * destroyed before calling this method.
    */
   void PrepareForServing();
 
@@ -333,6 +337,8 @@ class NeugDB {
   void initPlanner();
   void initQueryRuntime();
   void initPlannerAndQueryProcessor();
+  void initVersionManager();
+  void cleanupTemporaryWorkspace() noexcept;
   std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
       CheckpointSession& checkpoint_session);
   /**
@@ -347,8 +353,11 @@ class NeugDB {
    * it always compacts storage timestamps before dumping, and a successful
    * checkpoint resets last_ts_ to 0. Must not be called while a NeugDBService
    * is running.
+   *
+   * @return true if a new durable checkpoint was published, false if the live
+   * graph was clean and no transaction timeline boundary was created.
    */
-  void createCheckpointAndRefreshLiveGraph();
+  bool createCheckpointAndRefreshLiveGraph();
 
   /**
    * @brief Create a checkpoint while closing the DB.
@@ -392,13 +401,13 @@ class NeugDB {
    */
   void UnregisterService(NeugDBService* svc);
 
-  friend class NeugDBSession;
   friend class neug::NeugDBService;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
+  // True only while the current Open() owns a generated temporary workspace.
   bool is_pure_memory_;
   int max_thread_num_;
   NeugDBConfig config_;
@@ -407,6 +416,9 @@ class NeugDB {
 
   // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
+  // One transaction timeline per open database. Session objects borrow this
+  // manager; it is not recreated when a service is recreated.
+  std::unique_ptr<IVersionManager> version_manager_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;

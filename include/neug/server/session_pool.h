@@ -14,10 +14,19 @@
  */
 #pragma once
 
+#include <glog/logging.h>
+
+#include <cstdlib>
+#include <deque>
+#include <exception>
+#include <memory>
+#include <new>
+#include <string>
+#include <vector>
+
 #include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
-#include "neug/main/neug_db.h"
-#include "neug/server/neug_db_session.h"
+#include "neug/main/session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/wal/wal.h"
@@ -29,20 +38,25 @@ class NeugDBService;
 
 struct SessionLocalContext {
   SessionLocalContext(
-      NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
+      GraphSnapshotStore& snapshot_store,
+      std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
-      std::shared_ptr<Allocator> alloc,
-      std::shared_ptr<IVersionManager> version_manager, int thread_id,
-      std::unique_ptr<IWalWriter> in_logger, const NeugDBConfig& config_)
+      std::shared_ptr<Allocator> alloc, IVersionManager& version_manager,
+      int session_id, std::unique_ptr<IWalWriter> in_logger,
+      const NeugDBConfig& config_)
       : allocator(alloc),
         logger(std::move(in_logger)),
-        session(db, planner, global_query_cache, version_manager, *alloc,
-                *logger, config_, thread_id) {
+        session(snapshot_store, planner, global_query_cache, version_manager,
+                *alloc, *logger, config_, session_id) {
     logger->open();
   }
   ~SessionLocalContext() {
     if (logger) {
-      logger->close();
+      try {
+        logger->close();
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "Failed to close session WAL writer: " << e.what();
+      } catch (...) { LOG(WARNING) << "Failed to close session WAL writer"; }
     }
   }
   std::shared_ptr<Allocator> allocator;
@@ -50,8 +64,8 @@ struct SessionLocalContext {
   std::unique_ptr<IWalWriter> logger;
   char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
                  sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
-  NeugDBSession session;
-  char _padding2[(4096 - sizeof(NeugDBSession) % 4096) % 4096];
+  Session session;
+  char _padding2[(4096 - sizeof(Session) % 4096) % 4096];
 };
 
 class SessionPool;
@@ -78,15 +92,18 @@ class SessionPool;
  * **Thread Safety:** SessionGuard is move-only (non-copyable) to ensure
  * exclusive session ownership. Each guard should be used by a single thread.
  *
+ * **Lifetime:** A guard must be released before the NeugDBService that issued
+ * it is stopped or destroyed.
+ *
  * @see SessionPool for session pool management
- * @see NeugDBSession for query execution
+ * @see Session for query execution
  * @since v0.1.0
  */
 class SessionGuard {
  public:
   SessionGuard() : session_(nullptr), pool_(nullptr), session_id_(0) {}
 
-  SessionGuard(NeugDBSession* session, SessionPool* pool, size_t session_id)
+  SessionGuard(Session* session, SessionPool* pool, size_t session_id)
       : session_(session), pool_(pool), session_id_(session_id) {}
 
   ~SessionGuard();
@@ -101,13 +118,13 @@ class SessionGuard {
   SessionGuard(const SessionGuard&) = delete;
   SessionGuard& operator=(const SessionGuard&) = delete;
 
-  inline NeugDBSession* get() const { return session_; }
-  inline NeugDBSession* operator->() const { return session_; }
+  inline Session* get() const { return session_; }
+  inline Session* operator->() const { return session_; }
   inline explicit operator bool() const { return session_ != nullptr; }
 
  private:
   // We don't own the session, just a pointer to it
-  NeugDBSession* session_;
+  Session* session_;
   SessionPool* pool_;
   size_t session_id_;
 };
@@ -115,7 +132,7 @@ class SessionGuard {
 /**
  * @brief Pool of database sessions for concurrent query execution.
  *
- * SessionPool manages a fixed-size pool of NeugDBSession instances,
+ * SessionPool manages a fixed-size pool of Session instances,
  * providing efficient session reuse for high-throughput scenarios.
  * Sessions are pre-allocated during pool construction and recycled
  * through acquire/release operations.
@@ -140,21 +157,36 @@ class SessionGuard {
 class SessionPool {
  public:
   explicit SessionPool(
-      NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
+      GraphSnapshotStore& snapshot_store,
+      std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
-      std::shared_ptr<IVersionManager> version_manager,
-      std::vector<std::shared_ptr<Allocator>>& allocators,
-      const NeugDBConfig& config) {
-    session_num_ = config.max_thread_num;
+      IVersionManager& version_manager,
+      const std::vector<std::shared_ptr<Allocator>>& allocators,
+      const std::string& wal_uri, const NeugDBConfig& config)
+      : contexts_(nullptr), session_num_(config.max_thread_num) {
     WalWriterFactory::Init();
     contexts_ = static_cast<SessionLocalContext*>(aligned_alloc(
         4096, sizeof(SessionLocalContext) * config.max_thread_num));
-    for (int i = 0; i < config.max_thread_num; ++i) {
-      new (&contexts_[i]) SessionLocalContext(
-          db, planner, global_query_cache, allocators[i], version_manager, i,
-          WalWriterFactory::CreateWalWriter(db.graph().checkpoint().wal_dir(),
-                                            i),
-          config);
+    if (contexts_ == nullptr) {
+      throw std::bad_alloc();
+    }
+
+    size_t constructed_contexts = 0;
+    try {
+      for (; constructed_contexts < session_num_; ++constructed_contexts) {
+        const auto session_id = static_cast<int>(constructed_contexts);
+        new (&contexts_[constructed_contexts]) SessionLocalContext(
+            snapshot_store, planner, global_query_cache,
+            allocators.at(constructed_contexts), version_manager, session_id,
+            WalWriterFactory::CreateWalWriter(wal_uri, session_id), config);
+      }
+    } catch (...) {
+      while (constructed_contexts > 0) {
+        contexts_[--constructed_contexts].~SessionLocalContext();
+      }
+      free(contexts_);
+      contexts_ = nullptr;
+      throw;
     }
     bthread_cond_init(&cond_, nullptr);
     bthread_mutex_init(&mutex_, nullptr);
