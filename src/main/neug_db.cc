@@ -86,7 +86,17 @@ NeugDB::NeugDB()
       max_thread_num_(1) {}
 
 NeugDB::~NeugDB() {
-  Close();
+  try {
+    Close();
+  } catch (const std::exception& e) {
+    // Fail fast: if Close() cannot complete (e.g. a NeugDBService is still
+    // associated), the service would be left holding a reference to a
+    // destroyed database and its destructor would call back into freed
+    // memory. Continuing teardown here is undefined behavior.
+    LOG(FATAL) << "Failed to close NeugDB in destructor: " << e.what();
+  } catch (...) {
+    LOG(FATAL) << "Failed to close NeugDB in destructor: unknown error";
+  }
   WalWriterFactory::Finalize();
   WalParserFactory::Finalize();
   // We put the removal of temp dir here to avoid the situation that
@@ -168,9 +178,23 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 }
 
 void NeugDB::Close() {
-  if (closed_.exchange(true)) {
-    return;
+  {
+    // Serialized with RegisterService(): the active-service check and the
+    // closed flag update are atomic with respect to service registration,
+    // so no rollback or re-check is needed and Close() stays idempotent.
+    std::lock_guard<std::mutex> lock(service_mutex_);
+    if (active_service_ != nullptr) {
+      THROW_RUNTIME_ERROR(
+          "Cannot close NeugDB while a NeugDBService is still associated "
+          "with it. Stop and destroy the service first.");
+    }
+    if (closed_.exchange(true)) {
+      return;
+    }
   }
+  // Once closed_ is set with no active service, RegisterService() rejects
+  // new registrations and concurrent Close() calls return early, so the
+  // remaining cleanup does not need the lock.
   if (connection_manager_) {
     connection_manager_->Close();
     connection_manager_.reset();
@@ -203,7 +227,50 @@ void NeugDB::Close() {
 }
 
 std::shared_ptr<Connection> NeugDB::Connect() {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (IsClosed()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot create connection on a closed NeugDB instance.");
+  }
+  if (active_service_ != nullptr) {
+    THROW_RUNTIME_ERROR(
+        "Cannot create connection while the database is being served by a "
+        "NeugDBService.");
+  }
   return connection_manager_->CreateConnection();
+}
+
+bool NeugDB::HasActiveService() const {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  return active_service_ != nullptr;
+}
+
+void NeugDB::RegisterService(NeugDBService* svc) {
+  // Serialized with Close(): either the database is closed first (and this
+  // registration is rejected), or the service registers first (and Close()
+  // fails fast). A service can therefore never be registered onto a closed
+  // or closing database.
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (IsClosed()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot register a NeugDBService on a closed NeugDB instance.");
+  }
+  if (active_service_ != nullptr) {
+    THROW_RUNTIME_ERROR(
+        "NeugDB instance is already associated with a NeugDBService. Only "
+        "one service instance is allowed per database.");
+  }
+  active_service_ = svc;
+}
+
+void NeugDB::UnregisterService(NeugDBService* svc) {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (active_service_ != svc) {
+    LOG(WARNING) << "UnregisterService: the given service is not the active "
+                    "service of this database.";
+    return;
+  }
+  active_service_ = nullptr;
 }
 
 void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {

@@ -102,11 +102,23 @@ class NeugDBService {
    * @param db Reference to the NeuG database that will handle queries
    *
    * @note The database should be opened and ready before creating the service
+   * @note At most one NeugDBService can be associated with a NeugDB instance
+   * at any given time. The association is released when the service is
+   * destructed.
+   *
+   * @throws neug::exception::RuntimeError If another NeugDBService is already
+   * associated with the database
    */
   NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
       : db_(db), db_config_(db_.config()) {
-    db_.CloseAllConnection();
-    init(config);
+    db_.RegisterService(this);
+    try {
+      db_.CloseAllConnection();
+      init(config);
+    } catch (...) {
+      db_.UnregisterService(this);
+      throw;
+    }
   }
 
   /**
