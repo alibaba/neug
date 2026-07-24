@@ -637,6 +637,7 @@ class PropertyGraph {
                             label_t edge_label) const;
 
   void compact_schema();
+  void compact_internal(bool compact_edge_csr);
 
   /// Insert / erase an edge table and keep the dirty tracker's edge slots
   /// in sync.

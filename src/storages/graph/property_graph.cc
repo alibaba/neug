@@ -855,7 +855,9 @@ void PropertyGraph::compact_schema() {
   v_mutex_.resize(new_schema.vertex_label_frontier());
 }
 
-void PropertyGraph::Compact() {
+void PropertyGraph::Compact() { compact_internal(true); }
+
+void PropertyGraph::compact_internal(bool compact_edge_csr) {
   /**
    * The compaction process includes two parts:
    * 1. Schema: remove the deleted properties and labels from
@@ -900,15 +902,19 @@ void PropertyGraph::Compact() {
         }
         const auto& sort_key_for_nbr =
             schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
-        edge_tables_.at(index).Compact(sort_key_for_nbr);
+        edge_tables_.at(index).Compact(sort_key_for_nbr, compact_edge_csr);
       }
     }
   }
-  LOG(INFO) << "Compaction completed.";
+  LOG(INFO) << (compact_edge_csr ? "Compaction" : "Checkpoint preparation")
+            << " completed.";
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   LOG(INFO) << "Creating checkpoint at " << ckp->path();
+
+  // CSR normalization is handled by Dump().
+  compact_internal(false);
 
   CheckpointManifest meta;
   ModuleBroker store;
