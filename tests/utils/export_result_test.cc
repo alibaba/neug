@@ -23,9 +23,11 @@
 #include <string>
 #include <vector>
 
+#include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/export/export_result.h"
+#include "neug/common/types/array_columns.h"
 #include "neug/common/types/data_chunk.h"
 #include "neug/common/types/value.h"
 #include "neug/compiler/function/export/json_export_function.h"
@@ -142,6 +144,74 @@ TEST_F(ExportResultTest, MaterializerMergesChunksBeforeCsvWrite) {
   EXPECT_EQ(lines[1], "1|\"alice\"|true");
   EXPECT_EQ(lines[2], "2|\"bob\"|false");
   EXPECT_EQ(lines[3], "3|\"carol\"|true");
+}
+
+TEST_F(ExportResultTest, CsvWriterFormatsNestedValuesWithoutInformationLoss) {
+  const DataType string_type(DataTypeId::kVarchar);
+  ListColumnBuilder string_list_builder(string_type);
+  std::vector<Value> strings;
+  strings.push_back(Value::STRING("Alice"));
+  strings.push_back(Value::STRING("a,b"));
+  strings.push_back(Value::STRING(""));
+  strings.push_back(Value::STRING("NULL"));
+  strings.emplace_back(string_type);
+  string_list_builder.push_back_elem(
+      Value::LIST(string_type, std::move(strings)));
+
+  const DataType bool_type(DataTypeId::kBoolean);
+  ListColumnBuilder bool_list_builder(bool_type);
+  std::vector<Value> bools;
+  bools.push_back(Value::BOOLEAN(true));
+  bools.push_back(Value::BOOLEAN(false));
+  bool_list_builder.push_back_elem(Value::LIST(bool_type, std::move(bools)));
+
+  const DataType int_type(DataTypeId::kInt32);
+  const auto int_array_type = DataType::Array(int_type, 2);
+  ContextArrayColumnBuilder int_array_builder(int_array_type);
+  std::vector<Value> ints;
+  ints.push_back(Value::INT32(1));
+  ints.push_back(Value::INT32(2));
+  int_array_builder.push_back_elem(
+      Value::ARRAY(int_array_type, std::move(ints)));
+
+  const auto struct_type =
+      DataType::Struct({"id", "name"}, {int_type, string_type});
+  StructColumnBuilder struct_builder(struct_type);
+  std::vector<Value> fields;
+  fields.push_back(Value::INT32(7));
+  fields.push_back(Value::STRING("Alice"));
+  struct_builder.push_back_elem(Value::STRUCT(struct_type, std::move(fields)));
+
+  DataChunk chunk;
+  chunk.set(0, string_list_builder.finish());
+  chunk.set(1, bool_list_builder.finish());
+  chunk.set(2, int_array_builder.finish());
+  chunk.set(3, struct_builder.finish());
+  chunk.set(4, stringColumn({R"({"id":1,"name":"A,B"})"}));
+
+  reader::FileSchema schema;
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/nested.csv"};
+  schema.format = "csv";
+  schema.options["HEADER"] = "false";
+  auto entry_schema = std::make_shared<reader::TableEntrySchema>();
+  entry_schema->columnNames = {"strings", "bools", "ints", "record", "graph"};
+
+  writer::CsvQueryExportWriter writer(schema, entry_schema);
+  const std::vector<DataType> source_types = {
+      DataType::List(string_type), DataType::List(bool_type), int_array_type,
+      struct_type, DataType(DataTypeId::kVertex)};
+  auto status = writer.write(chunk, {DataType::List(string_type)});
+  EXPECT_FALSE(status.ok());
+  EXPECT_FALSE(std::filesystem::exists(schema.paths[0]));
+
+  status = writer.write(chunk, source_types);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+
+  auto lines = readLines(schema.paths[0]);
+  ASSERT_EQ(lines.size(), 1);
+  EXPECT_EQ(
+      lines[0],
+      R"("[\"Alice\",\"a,b\",\"\",\"NULL\",NULL]"|[true,false]|[1,2]|"[7,\"Alice\"]"|"{\"id\":1,\"name\":\"A,B\"}")");
 }
 
 TEST_F(ExportResultTest, JsonArrayWriterEmitsNestedValues) {
@@ -336,6 +406,18 @@ TEST_F(ExportResultTest, MaterializerPreservesContainersAroundGraphValues) {
   EXPECT_EQ(
       json,
       R"([{"payload":{"nodes":[{"_ID":0,"_LABEL":"person","id":1,"name":"Alice"},null],"primary":[{"_ID":0,"_LABEL":"person","id":1,"name":"Alice"},null]}}])");
+
+  schema.paths = {std::string(EXPORT_RESULT_TEST_DIR) + "/nested_graph.csv"};
+  schema.format = "csv";
+  schema.options["HEADER"] = "false";
+  writer::CsvQueryExportWriter csv_writer(schema, entry_schema);
+  status = csv_writer.write(export_result.chunk, export_result.source_types);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+
+  EXPECT_EQ(
+      readLines(schema.paths[0]),
+      std::vector<std::string>(
+          {R"("[[{\"_ID\":0,\"_LABEL\":\"person\",\"id\":1,\"name\":\"Alice\"},NULL],[{\"_ID\":0,\"_LABEL\":\"person\",\"id\":1,\"name\":\"Alice\"},NULL]]")"}));
 }
 
 }  // namespace

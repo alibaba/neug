@@ -81,8 +81,14 @@ class DataChunkCSVStringFormatBuffer {
  private:
   neug::Status formatValueToStr(const Value& value, size_t row_idx,
                                 size_t col_idx);
-  bool shouldWriteRawString(size_t col_idx) const;
-  void writeWithEscapes(char* toEscape, char escape, const std::string& str);
+  neug::Status appendNestedValue(const Value& value,
+                                 const DataType* source_type,
+                                 std::string& output) const;
+  void appendQuotedString(const std::string& value, std::string& output) const;
+  void writeCsvField(const std::string& value, bool force_quote = false);
+  const DataType* sourceType(size_t col_idx) const;
+  void writeWithEscapes(const char* to_escape, char escape,
+                        const std::string& str);
   void write(const uint8_t* buffer, uint64_t len);
 
   const DataChunk& chunk_;
