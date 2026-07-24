@@ -21,7 +21,7 @@ End-to-end tests for PROFILE and EXPLAIN modes in both AP (OLAP) and TP (OLTP) m
 
 This test suite covers:
 - AP mode (local embedded): QueryProcessor::execute_internal
-- TP mode (remote HTTP service): NeugDBSession::Eval
+- TP mode (remote HTTP service): Session::Eval
 - Both modes sharing the same underlying Pipeline/OprTimer machinery
 
 Tests verify:
