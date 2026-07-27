@@ -216,8 +216,15 @@ class TPIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = property_type;
+    const auto& vertex_table = graph.get_vertex_table(label);
+    auto* column = vertex_table.GetPropertyColumnBase(property_name);
+    if (!column) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Property column does not exist: " + property_name);
+    }
     return graph.mutable_index_manager().CreateIndex(
-        std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+        std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
+        graph.GetVertexSet(label));
   }
 
   result<StorageIndex*> CreateIndex(const std::string& name,

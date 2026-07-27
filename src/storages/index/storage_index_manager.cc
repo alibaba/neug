@@ -26,7 +26,8 @@ static constexpr const char* kIndexPrefix = "index_";
 
 neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
     std::unique_ptr<IndexMeta> meta,
-    std::unique_ptr<IndexIDAccessor> index_id_accessor) {
+    std::unique_ptr<IndexIDAccessor> index_id_accessor,
+    const ColumnBase* column, const VertexSet& vertex_set) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
@@ -35,7 +36,11 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null IndexIDAccessor");
   }
-  const auto& name = meta->name;
+  if (!column) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with null property column");
+  }
+  const auto name = meta->name;
   if (name.empty()) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with an empty name");
@@ -62,11 +67,12 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
       dynamic_cast<StorageIndex*>(module.release()));
   ModuleDescriptor desc;
   desc.module_type = module_type;
-  auto init_status = index->Init(std::move(meta), std::move(index_id_accessor));
-  if (!init_status.ok()) {
-    return tl::unexpected(std::move(init_status));
-  }
+  RETURN_STATUS_ERROR_IF_NOT_OK(
+      index->Init(std::move(meta), std::move(index_id_accessor)));
   index->Open(*ckp_, desc, memory_level_);
+
+  RETURN_STATUS_ERROR_IF_NOT_OK(index->Rebind(IndexBindContext{column}));
+  RETURN_STATUS_ERROR_IF_NOT_OK(index->BulkBuild(vertex_set));
 
   auto* raw_ptr = index.get();
   indexes_[name] = std::move(index);

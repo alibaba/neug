@@ -487,18 +487,9 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
                         "Indexed property column does not exist: " +
                             meta->schema.property_name);
   }
-  const auto name = meta->name;
-  auto index = index_manager_.CreateIndex(
-      std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
-  if (!index) {
-    return tl::unexpected(index.error());
-  }
-  auto status = index.value()->Rebind(IndexBindContext{column});
-  if (!status.ok()) {
-    index_manager_.DropIndex(name);
-    RETURN_ERROR(status);
-  }
-  return index;
+  return index_manager_.CreateIndex(
+      std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
+      graph_.GetVertexSet(label_id, timestamp_));
 }
 
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {

@@ -45,11 +45,14 @@ class StorageIndexManager {
    * @brief Create a new index and register it.
    * @param meta Index metadata.
    * @param index_id_accessor Index ID mapping strategy.
+   * @param column Property column bound to the index.
+   * @param vertex_set Existing vertices used to populate the index.
    * @return Pointer to the created index, or error.
    */
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta,
-      std::unique_ptr<IndexIDAccessor> index_id_accessor);
+      std::unique_ptr<IndexIDAccessor> index_id_accessor,
+      const ColumnBase* column, const VertexSet& vertex_set);
 
   /**
    * @brief Remove an index by name.

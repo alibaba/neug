@@ -865,10 +865,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual void CreateCheckpoint() = 0;
 
   /**
-   * @brief Create and bind an empty index.
-   *
-   * The caller is responsible for invoking StorageIndex::BulkBuild() when a
-   * full build is required.
+   * @brief Create, bind, and populate an index.
    */
   virtual neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) = 0;
