@@ -1288,6 +1288,18 @@ bool Schema::Equals(const Schema& other) const {
               return false;
             }
           }
+          {
+            if (outgoing_edge_mutable(src_label_name, dst_label_name,
+                                      edge_label_name) !=
+                    other.outgoing_edge_mutable(src_label_name, dst_label_name,
+                                                edge_label_name) ||
+                incoming_edge_mutable(src_label_name, dst_label_name,
+                                      edge_label_name) !=
+                    other.incoming_edge_mutable(src_label_name, dst_label_name,
+                                                edge_label_name)) {
+              return false;
+            }
+          }
         }
       }
     }
@@ -1938,18 +1950,16 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
               schema.get_vertex_label_name(dst_v);
           vertex_type_pair_node["relation"] =
               schema.get_edge_strategy(src_v, dst_v, e_label);
-          // Persist CSR params that LoadFromYaml reads back from x_csr_params.
-          // Omitting them drops sort_key_for_nbr / mutability across checkpoint
-          // dump -> reopen (schema lives in meta JSON via DumpToYaml/ToJson).
+          // Persist the subset of x_csr_params needed after checkpoint
+          // DumpToYaml/ToJson reopen: sort_key_for_nbr and non-default
+          // oe/ie mutability. (edge_storage_strategy is already covered by
+          // "relation"; other LoadFromYaml CSR fields are not dumped here.)
           {
-            const auto& src_name = schema.get_vertex_label_name(src_v);
-            const auto& dst_name = schema.get_vertex_label_name(dst_v);
-            const auto& e_name = schema.get_edge_label_name(e_label);
-            auto sort_key = schema.get_sort_key_for_nbr(src_v, dst_v, e_label);
-            const bool oe_mutable =
-                schema.outgoing_edge_mutable(src_name, dst_name, e_name);
-            const bool ie_mutable =
-                schema.incoming_edge_mutable(src_name, dst_name, e_name);
+            const auto edge_schema =
+                schema.get_edge_schema(src_v, dst_v, e_label);
+            const auto& sort_key = edge_schema->sort_key_for_nbr;
+            const bool oe_mutable = edge_schema->oe_mutable;
+            const bool ie_mutable = edge_schema->ie_mutable;
             if (sort_key.has_value() || !oe_mutable || !ie_mutable) {
               YAML::Node csr_node;
               if (sort_key.has_value()) {
