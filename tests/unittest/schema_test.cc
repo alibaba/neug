@@ -676,10 +676,67 @@ TEST(SchemaJsonRoundTrip, ComplexSchemaRoundTripIsStable) {
   EXPECT_EQ(
       reconstituted.get_edge_properties("Person", "Company", "WORKS_AT").size(),
       0u);
+  ASSERT_TRUE(reconstituted.get_sort_key_for_nbr("Person", "Person", "KNOWS")
+                  .has_value());
+  EXPECT_EQ(
+      reconstituted.get_sort_key_for_nbr("Person", "Person", "KNOWS").value(),
+      "since");
 
   auto json_result2 = reconstituted.ToJson();
   ASSERT_TRUE(json_result2);
   EXPECT_EQ(DocToString(json_result2.value()), json_str);
+}
+
+// Checkpoint meta persists schema via DumpToYaml/ToJson. Regression for #780:
+// sort_key_for_nbr and non-default mutability must survive dump -> load.
+TEST(SchemaYamlRoundTrip, PreservesSortKeyForNbrAndMutability) {
+  neug::Schema original;
+  auto t = VProps({DataType::VARCHAR});
+  auto n = VNames({"name"});
+  auto pk = VPk(DataType::INT64, "id", 0);
+  original.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk, 1024, "");
+  original.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk, 1024, "");
+  original.AddEdgeLabel("Person", "Company", "WorksAt", {DataType::INT32},
+                        {"since"}, /*oe*/ EdgeStrategy::kMultiple,
+                        /*ie*/ EdgeStrategy::kSingle,
+                        /*oe_mutable*/ true, /*ie_mutable*/ false,
+                        /*sort_key_for_nbr*/ "since", /*desc*/ "employment");
+
+  auto yaml = neug::Schema::DumpToYaml(original);
+  ASSERT_TRUE(yaml);
+
+  // Dumped YAML should carry x_csr_params for the edge triplet.
+  const auto& edge_types = yaml.value()["schema"]["edge_types"];
+  ASSERT_GE(edge_types.size(), 1);
+  bool found_csr_params = false;
+  for (const auto& et : edge_types) {
+    if (et["type_name"].as<std::string>() != "WorksAt") {
+      continue;
+    }
+    for (const auto& pair : et["vertex_type_pair_relations"]) {
+      ASSERT_TRUE(pair["x_csr_params"]);
+      EXPECT_EQ(pair["x_csr_params"]["sort_key_for_nbr"].as<std::string>(),
+                "since");
+      EXPECT_EQ(pair["x_csr_params"]["ie_mutability"].as<std::string>(),
+                "IMMUTABLE");
+      found_csr_params = true;
+    }
+  }
+  EXPECT_TRUE(found_csr_params);
+
+  auto loaded = neug::Schema::LoadFromYamlNode(yaml.value());
+  ASSERT_TRUE(loaded);
+  const auto& reconstituted = loaded.value();
+  ASSERT_TRUE(reconstituted.get_sort_key_for_nbr("Person", "Company", "WorksAt")
+                  .has_value());
+  EXPECT_EQ(reconstituted.get_sort_key_for_nbr("Person", "Company", "WorksAt")
+                .value(),
+            "since");
+  EXPECT_TRUE(
+      reconstituted.outgoing_edge_mutable("Person", "Company", "WorksAt"));
+  EXPECT_FALSE(
+      reconstituted.incoming_edge_mutable("Person", "Company", "WorksAt"));
+  EXPECT_TRUE(original.Equals(reconstituted));
 }
 
 TEST(SchemaCloneTest, CloneIsDeepCopyAndIndependent) {

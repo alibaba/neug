@@ -615,8 +615,8 @@ def test_create_rel_table_edge_multiplicity(tmp_path):
 
 def test_create_rel_table_with_options(tmp_path):
     """
-    `CREATE REL TABLE` may include a trailing ``WITH (k=v, ...)`` clause; only
-    checks that the DDL runs without error (no return-value assertions).
+    `CREATE REL TABLE ... WITH (sort_key_for_nbr=...)` must persist across
+    close/reopen (checkpoint meta DumpToYaml/ToJson path; see #780).
     """
     db_dir = str(tmp_path / "test_rel_table_options")
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -627,6 +627,21 @@ def test_create_rel_table_with_options(tmp_path):
     conn.execute(
         "CREATE REL TABLE LivesIn (FROM User TO City, creationDate INT64) WITH (sort_key_for_nbr='creationDate');"
     )
-    # todo: check options in graph schema
+
+    def _assert_sort_key(schema_text: str):
+        by_edge = _get_edge_pair_relations_by_type_name(schema_text)
+        pairs = by_edge.get("LivesIn", [])
+        assert len(pairs) == 1, pairs
+        csr = pairs[0].get("x_csr_params") or {}
+        assert csr.get("sort_key_for_nbr") == "creationDate", pairs[0]
+
+    _assert_sort_key(conn.get_schema())
     conn.close()
     db.close()
+
+    # Reopen from checkpoint; sort_key must still be present in schema meta.
+    db2 = Database(db_dir, "r")
+    conn2 = db2.connect()
+    _assert_sort_key(conn2.get_schema())
+    conn2.close()
+    db2.close()
