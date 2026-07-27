@@ -48,8 +48,8 @@ void PyConnection::initialize(pybind11::handle& m) {
            "`insert(i)`, `update(u)` (include deletion). User should specify "
            "the "
            "correct access mode for the query to ensure the correctness of the "
-           "database. If the access mode is not specified, it will be set to "
-           "`update` by default.\n"
+           "database. If the access mode is not specified, it is inferred "
+           "from the query text.\n"
            "    parameters (dict[str, Any], optional): The parameters to be "
            "used "
            "in the query. The parameters should be a dictionary, where the "
@@ -72,7 +72,7 @@ PyConnection::PyConnection(NeugDB& db, std::shared_ptr<Connection> conn)
 
 void PyConnection::close() {
   if (conn_) {
-    db_.RemoveConnection(conn_);
+    conn_->Close();
     conn_.reset();
   }
 }
@@ -87,6 +87,8 @@ std::unique_ptr<PyQueryResult> PyConnection::execute(
         pybind11::reinterpret_borrow<pybind11::object>(item.second);
     PyParameterSerializer::SerializeParameter(params_json, key, value);
   }
+  // Python has always forwarded an empty access mode, explicitly selecting
+  // query-text inference instead of depending on the C++ API's default.
   auto query_result = conn_->Query(query_string, access_mode, params_json);
   if (!query_result) {
     return std::make_unique<PyQueryResult>(query_result.error());

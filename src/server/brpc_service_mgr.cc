@@ -64,9 +64,9 @@ bool ParseHttpQueryRequest(brpc::Controller* cntl, void* request,
                            std::string& query_request) {
   auto req = cntl->request_attachment().to_string();
   if (req.empty()) {
-    LOG(ERROR) << "Eval request is empty";
+    LOG(ERROR) << "Query request is empty";
     cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
-                    "Eval request is empty");
+                    "Query request is empty");
     return false;
   }
   query_request = req;
@@ -84,6 +84,10 @@ void SendHttpQueryResponse(brpc::Controller* cntl,
     LOG(ERROR) << "Query failed: " << status.ToString();
     auto http_code = status_code_to_http_code(status.error_code());
     cntl->SetFailed(http_code, "%s", status.ToString().c_str());
+    // brpc treats SetFailed's integer as an RPC error code and maps unknown
+    // values (including HTTP 501) back to 500. Override the HTTP status after
+    // SetFailed, as required by brpc::Controller's contract.
+    cntl->http_response().set_status_code(http_code);
   }
   return;
 }
@@ -97,8 +101,9 @@ void SendHttpStringResponse(brpc::Controller* cntl,
   } else {
     const auto& error = schema.error();
     LOG(ERROR) << "Error " << error.ToString();
-    cntl->SetFailed(status_code_to_http_code(error.error_code()), "%s",
-                    error.ToString().c_str());
+    auto http_code = status_code_to_http_code(error.error_code());
+    cntl->SetFailed(http_code, "%s", error.ToString().c_str());
+    cntl->http_response().set_status_code(http_code);
   }
 }
 
@@ -228,8 +233,8 @@ void HttpServiceImpl::PostCypherQuery(
   }
 
   // 2. Execute query
-  auto session_guard = session_pool_.AcquireSession();
-  auto result = session_guard->Eval(query_request);
+  auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
+  auto result = slot_lease->ExecuteTransactionalRequest(query_request);
 
   // 3. Send Query Response
   protocol_.send_query_response(cntl, result);
@@ -264,8 +269,8 @@ void HttpServiceImpl::GetServiceStatus(
 }
 
 BrpcServiceManager::BrpcServiceManager(neug::NeugDB& neug_db,
-                                       SessionPool& session_pool)
-    : neug_db_(neug_db), session_pool_(session_pool) {
+                                       TpExecutionSlotPool& execution_slot_pool)
+    : neug_db_(neug_db), execution_slot_pool_(execution_slot_pool) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
@@ -288,7 +293,8 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
       "/schema => GetSchema";
 
 #ifdef ENABLE_HTTP_PROTOCOL
-  auto http_svc = std::make_unique<HttpServiceImpl>(neug_db_, session_pool_);
+  auto http_svc =
+      std::make_unique<HttpServiceImpl>(neug_db_, execution_slot_pool_);
   if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
     LOG(ERROR) << "Failed to add http service to brpc server";
   }
@@ -302,7 +308,6 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
 
 std::string BrpcServiceManager::Start() {
   LOG(INFO) << "Starting brpc server";
-  butil::EndPoint endpoint;
   std::string ip_port = service_config_.host_str + ":" +
                         std::to_string(service_config_.query_port);
   brpc::ServerOptions options = get_server_options();
@@ -313,11 +318,11 @@ std::string BrpcServiceManager::Start() {
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
     THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
   }
+  const auto actual_port = brpc_server_->listen_address().port;
   LOG(INFO) << "Brpc server started on : " << service_config_.host_str << ":"
-            << service_config_.query_port;
+            << actual_port;
   std::stringstream ss;
-  ss << "http://" << service_config_.host_str << ":"
-     << service_config_.query_port;
+  ss << "http://" << service_config_.host_str << ":" << actual_port;
   return ss.str();
 }
 

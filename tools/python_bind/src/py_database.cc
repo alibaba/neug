@@ -110,6 +110,11 @@ std::string PyDatabase::serve(int port, const std::string& host,
         ". Must be less than or equal to database max_thread_num: " +
         std::to_string(database->config().max_thread_num) + ".");
   }
+  if (database->HasOpenConnections()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot start the server while local connections are open. Close all "
+        "Connection objects before calling Database.serve().");
+  }
 
   database->PrepareForServing();
   neug::ServiceConfig config;

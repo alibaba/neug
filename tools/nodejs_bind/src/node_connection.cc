@@ -105,7 +105,7 @@ Napi::Value NodeConnection::GetSchema(const Napi::CallbackInfo& info) {
 
 Napi::Value NodeConnection::Close(const Napi::CallbackInfo& info) {
   if (conn_) {
-    db_->RemoveConnection(conn_);
+    conn_->Close();
     conn_.reset();
   }
   return info.Env().Undefined();

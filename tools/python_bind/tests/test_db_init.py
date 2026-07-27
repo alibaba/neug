@@ -247,6 +247,20 @@ def test_serve_thread_num_cannot_exceed_max_thread_num(tmp_path):
     db.close()
 
 
+def test_serve_requires_closed_local_connections(tmp_path):
+    db_dir = tmp_path / "serve_open_connection_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    try:
+        with pytest.raises(RuntimeError, match="Close all Connection objects"):
+            db.serve(port=10000, host="localhost", blocking=False)
+        assert conn.is_open
+    finally:
+        conn.close()
+        db.close()
+
+
 # DB-001-12
 def test_open_no_permission(tmp_path):
     db_dir = tmp_path / "no_permission_db"

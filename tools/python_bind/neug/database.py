@@ -259,8 +259,8 @@ class Database(object):
         """
         Start the database server for handling remote connections(TP mode).
         This method is used to start the database server for handling remote connections.
-        When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
-        will be closed. After that, no new connections to the local database will be allowed.
+        Before db.serve() switches the database to TP mode, all local connections
+        must be closed. After the switch, no new local connections are allowed.
         It will start a server that listens on a specific port, and clients can connect to the server to interact with the
         database. User could use Session to connect to the server. For detail usage, please refer to the
         documentation of Session.
@@ -319,12 +319,14 @@ class Database(object):
         for conn in self._connections:
             if conn and conn.is_open:
                 raise RuntimeError(
-                    "Cannot start the server while there are open connections to the local database."
+                    "Cannot start the server while local connections are open. Close all "
+                    "Connection objects before calling Database.serve()."
                 )
         for async_conn in self._async_connections:
             if async_conn and async_conn.is_open:
                 raise RuntimeError(
-                    "Cannot start the server while there are open async connections to the local database."
+                    "Cannot start the server while local async connections are open. "
+                    "Close all AsyncConnection objects before calling Database.serve()."
                 )
         # We should not clear the connections here, because the connection maybe held by the user.
         # Instead, we will close all connections when the server is stopped.

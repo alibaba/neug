@@ -511,11 +511,11 @@ def test_parameterized_query(tmp_path):
 
     session.execute(
         "CREATE (p:param_values {"
-        "id: 2, bool_prop: true, date_prop: date('2024-01-01'), "
-        "timestamp_prop: Timestamp('2024-01-02 03:04:05'), "
-        "int32_prop: 42, int64_prop: 1234567890123, "
-        "uint32_prop: 123, uint64_prop: 456, float_prop: 3.14, "
-        "double_prop: 7.28, string_prop: 'parameterized'"
+        "id: 2, bool_prop: false, date_prop: date('2024-02-01'), "
+        "timestamp_prop: Timestamp('2024-02-03 04:05:06'), "
+        "int32_prop: 43, int64_prop: 1234567890124, "
+        "uint32_prop: 124, uint64_prop: 457, float_prop: 3.15, "
+        "double_prop: 7.28, string_prop: 'tp-parameterized'"
         "});"
     )
 

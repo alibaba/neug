@@ -67,6 +67,7 @@ void create_checkpointed_base_graph(const std::string& db_dir) {
        }) {
     assert_query_ok(*conn, query);
   }
+  conn->Close();
   db.Close();
 }
 
@@ -75,6 +76,7 @@ void create_person_schema(neug::NeugDB& db) {
   assert_query_ok(
       *conn,
       "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
+  conn->Close();
 }
 
 bool replayed_graph_matches(neug::NeugDB& db) {
@@ -116,8 +118,8 @@ bool replayed_graph_matches(neug::NeugDB& db) {
 neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
                                               int64_t id,
                                               const std::string& name) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   const auto ts = txn.timestamp();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
@@ -134,14 +136,14 @@ void insert_person(neug::NeugDBService& service, int64_t id,
 }
 
 void compact(neug::NeugDBService& service) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetCompactTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetCompactTransaction();
   ASSERT_TRUE(txn.Commit());
 }
 
 neug::timestamp_t checkpoint_and_return_ts(neug::NeugDBService& service) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetUpdateTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetUpdateTransaction();
   const auto ts = txn.timestamp();
   neug::StorageTPUpdateInterface interface(txn);
   interface.CreateCheckpoint();
@@ -151,8 +153,8 @@ neug::timestamp_t checkpoint_and_return_ts(neug::NeugDBService& service) {
 
 void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
                        int64_t dst_id, int64_t since) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
   const auto knows_label = txn.schema().get_edge_label_id("knows");
@@ -169,8 +171,8 @@ void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
 }
 
 size_t read_person_count(neug::NeugDBService& service) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   size_t count = 0;
@@ -182,8 +184,8 @@ size_t read_person_count(neug::NeugDBService& service) {
 }
 
 bool read_has_person(neug::NeugDBService& service, int64_t id) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   neug::vid_t vid = 0;
@@ -284,7 +286,7 @@ TEST(WalReplayVersionManagerTest,
   expect_compact_completes_timestamp_and_preserves_next_insert(false);
 }
 
-TEST_F(WalReplayTest, CloseCheckpointAlwaysResetsServiceTimeline) {
+TEST_F(WalReplayTest, CloseCheckpointResetsSharedApTpTimeline) {
   {
     auto config = make_config(db_dir_);
     config.checkpoint_on_close = true;
@@ -294,7 +296,8 @@ TEST_F(WalReplayTest, CloseCheckpointAlwaysResetsServiceTimeline) {
     create_person_schema(db);
     {
       neug::NeugDBService service(db);
-      EXPECT_EQ(insert_person_and_return_ts(service, 1, "old"), 1);
+      EXPECT_EQ(insert_person_and_return_ts(service, 1, "old"), 2)
+          << "TP must continue after the AP schema statement timestamp";
       EXPECT_EQ(read_person_count(service), 1);
     }
     db.Close();
@@ -425,8 +428,8 @@ TEST_F(WalReplayTest, ReadOnlyServiceExecutesReadsAndRejectsWrites) {
   {
     neug::NeugDBService service(db);
     EXPECT_EQ(read_person_count(service), 1);
-    auto session = service.AcquireSession();
-    auto result = session->Eval(
+    auto slot = service.AcquireExecutionSlot();
+    auto result = slot->ExecuteTransactionalRequest(
         R"({"query":"CREATE (:person {id: 2, name: 'blocked'});","access_mode":"insert","parameters":{}})");
     EXPECT_FALSE(result);
     if (!result) {

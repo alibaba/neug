@@ -34,8 +34,8 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/main/connection_manager.h"
+#include "neug/main/execution_slot.h"
 #include "neug/main/file_lock.h"
-#include "neug/main/query_processor.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -152,11 +152,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       checkpoint_mgr_.CleanupRetiredCheckpoints();
     }
     initVersionManager();
-    initPlannerAndQueryProcessor();
+    initPlanner();
+    initQueryRuntime();
   } catch (...) {
-    connection_manager_.reset();
-    query_processor_.reset();
-    global_query_cache_.reset();
+    clearQueryRuntime();
     planner_.reset();
     version_manager_.reset();
     snapshot_store_.reset();
@@ -177,7 +176,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 
 void NeugDB::Close() {
   {
-    // Serialized with RegisterService(): the active-service check and the
+    // Serialized with registerService(): the active-service check and the
     // closed flag update are atomic with respect to service registration,
     // so no rollback or re-check is needed and Close() stays idempotent.
     std::lock_guard<std::mutex> lock(service_mutex_);
@@ -190,20 +189,10 @@ void NeugDB::Close() {
       return;
     }
   }
-  // Once closed_ is set with no active service, RegisterService() rejects
+  // Once closed_ is set with no active service, registerService() rejects
   // new registrations and concurrent Close() calls return early, so the
   // remaining cleanup does not need the lock.
-  if (connection_manager_) {
-    connection_manager_->Close();
-    connection_manager_.reset();
-  }
-
-  if (query_processor_) {
-    query_processor_.reset();
-  }
-  if (global_query_cache_) {
-    global_query_cache_.reset();
-  }
+  clearQueryRuntime();
   if (planner_) {
     planner_.reset();
   }
@@ -248,7 +237,12 @@ bool NeugDB::HasActiveService() const {
   return active_service_ != nullptr;
 }
 
-void NeugDB::RegisterService(NeugDBService* svc) {
+bool NeugDB::HasOpenConnections() const {
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  return connection_manager_ && connection_manager_->HasOpenConnections();
+}
+
+void NeugDB::registerService(NeugDBService* svc) {
   // Serialized with Close(): either the database is closed first (and this
   // registration is rejected), or the service registers first (and Close()
   // fails fast). A service can therefore never be registered onto a closed
@@ -263,24 +257,36 @@ void NeugDB::RegisterService(NeugDBService* svc) {
         "NeugDB instance is already associated with a NeugDBService. Only "
         "one service instance is allowed per database.");
   }
+  if (connection_manager_ && connection_manager_->HasOpenConnections()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot switch NeugDB to TP mode while local connections are open. "
+        "Close all Connection objects before starting the service.");
+  }
   active_service_ = svc;
+
+  try {
+    closeAllConnections();
+  } catch (...) {
+    active_service_ = nullptr;
+    throw;
+  }
 }
 
-void NeugDB::UnregisterService(NeugDBService* svc) {
+void NeugDB::unregisterService(NeugDBService* svc) noexcept {
   std::lock_guard<std::mutex> lock(service_mutex_);
   if (active_service_ != svc) {
-    LOG(WARNING) << "UnregisterService: the given service is not the active "
+    LOG(WARNING) << "unregisterService: the given service is not the active "
                     "service of this database.";
     return;
   }
   active_service_ = nullptr;
 }
 
-void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
-  connection_manager_->RemoveConnection(conn);
+void NeugDB::closeAllConnections() {
+  if (connection_manager_) {
+    connection_manager_->Close();
+  }
 }
-
-void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
 
 void NeugDB::PrepareForServing() {
   std::lock_guard<std::mutex> lock(service_mutex_);
@@ -292,7 +298,13 @@ void NeugDB::PrepareForServing() {
         "Cannot prepare NeugDB for serving while a NeugDBService is already "
         "associated with it.");
   }
-  CloseAllConnection();
+  if (connection_manager_ && connection_manager_->HasOpenConnections()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot switch NeugDB to TP mode while local connections are open. "
+        "Close all Connection objects before starting the service.");
+  }
+  closeAllConnections();
+  clearQueryRuntime();
   bool checkpoint_created = false;
   if (config_.mode == DBMode::READ_WRITE) {
     checkpoint_created = createCheckpointAndRefreshLiveGraph();
@@ -462,23 +474,42 @@ void NeugDB::initVersionManager() {
   version_manager_ = std::move(version_manager);
 }
 
+std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
+  CHECK(snapshot_store_ != nullptr);
+  CHECK(planner_ != nullptr);
+  CHECK(global_query_cache_ != nullptr);
+  CHECK(version_manager_ != nullptr);
+  CHECK_LT(slot_id, allocators_.size());
+  return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
+      *snapshot_store_, planner_, global_query_cache_, *version_manager_,
+      *allocators_.at(slot_id), config_, static_cast<int>(slot_id)));
+}
+
 void NeugDB::initQueryRuntime() {
   if (!planner_) {
     THROW_RUNTIME_ERROR("Planner is not initialized");
   }
-  global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
-
-  query_processor_ = std::make_shared<QueryProcessor>(
-      *snapshot_store_, planner_, global_query_cache_, *allocators_[0],
-      max_thread_num_, config_.mode == DBMode::READ_ONLY);
-
-  connection_manager_ = std::make_unique<ConnectionManager>(
-      *snapshot_store_, planner_, query_processor_, config_);
+  auto global_query_cache =
+      std::make_shared<execution::GlobalQueryCache>(planner_);
+  auto connection_manager = std::make_unique<ConnectionManager>(*this, config_);
+  CHECK(!global_query_cache_);
+  CHECK(!connection_manager_);
+  global_query_cache_ = std::move(global_query_cache);
+  connection_manager_ = std::move(connection_manager);
 }
 
-void NeugDB::initPlannerAndQueryProcessor() {
-  initPlanner();
-  initQueryRuntime();
+void NeugDB::clearQueryRuntime() noexcept {
+  if (connection_manager_) {
+    try {
+      connection_manager_->Close();
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "Failed to close query runtime connections: " << e.what();
+    } catch (...) {
+      LOG(WARNING) << "Failed to close query runtime connections";
+    }
+    connection_manager_.reset();
+  }
+  global_query_cache_.reset();
 }
 
 std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(

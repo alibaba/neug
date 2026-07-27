@@ -47,6 +47,7 @@ class IVersionManager {
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
+  virtual void drain_readers() = 0;
   virtual void release_update_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
@@ -102,6 +103,7 @@ class VersionManager : public IVersionManager {
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
+  void drain_readers() override;
   void release_update_timestamp(uint32_t ts) override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;
