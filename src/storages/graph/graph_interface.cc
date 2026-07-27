@@ -487,6 +487,10 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
                         "Indexed property column does not exist: " +
                             meta->schema.property_name);
   }
+  // 如果 column 为 ArrayColumn 且当前索引为 HNSW，则将 array column 转换为
+  // VectorColumn 根据 array column 创建 VecColumn 从 VecColumn 中获取
+  // accessor，用于构建索引 索引构建成功后，通过 vertex_table 将 array column
+  // 原子替换为 vector column
   return index_manager_.CreateIndex(
       std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
       graph_.GetVertexSet(label_id, timestamp_));
@@ -494,6 +498,9 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
 
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
   return index_manager_.DropIndex(name);
+  // drop inde 成功后，判断索引作用的 column 是否为 vec column，且当前 column
+  // 上是否还有其他 HNSW 索引 如果没有，则将 vec column 转换为 array column 在
+  // vec column 中完成原子替换
 }
 
 }  // namespace neug
