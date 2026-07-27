@@ -196,11 +196,7 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
     const std::string& unique_index_name,
     const IndexQueryParams& params) const {
-  auto* index = view_.index_manager().GetIndexByName(unique_index_name);
-  if (!index) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Index does not exist: " + unique_index_name);
-  }
+  GS_AUTO(index, view_.GetIndexByName(unique_index_name));
   return index->Search(params);
 }
 
@@ -313,18 +309,22 @@ Status StorageAPUpdateInterface::DeleteEdgesImpl(label_t src_label, vid_t src,
   return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
 }
 
-Status StorageAPUpdateInterface::BatchAddVerticesImpl(
+result<std::vector<vid_t>> StorageAPUpdateInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
   if (!new_vids) {
-    return new_vids.error();
+    return tl::unexpected(new_vids.error());
   }
 
   if (new_vids->empty()) {
-    return Status::OK();
+    return new_vids;
   }
 
-  return batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
+  auto status = batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
+  if (!status.ok()) {
+    return tl::unexpected(std::move(status));
+  }
+  return new_vids;
 }
 
 Status StorageAPUpdateInterface::BatchAddEdgesImpl(

@@ -235,8 +235,10 @@ class TPIndexTest : public ::testing::Test {
   }
 
   StorageIndex* GetIndexByName(const std::string& name) const {
-    return snapshot_store_->CurrentSnapshot().index_manager().GetIndexByName(
-        name);
+    return snapshot_store_->CurrentSnapshot()
+        .index_manager()
+        .GetIndexByName(name)
+        .value_or(nullptr);
   }
 
   std::vector<StorageIndex*> GetIndexes(
@@ -468,10 +470,10 @@ TEST_F(TPIndexTest, BatchAddVerticesIsNotSupportedInTPMode) {
 
   auto txn = NewUpdateTransaction();
   StorageTPUpdateInterface tp(txn);
-  auto status =
+  auto result =
       tp.BatchAddVertices(tp.schema().get_vertex_label_id("Person"), nullptr);
-  EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_FALSE(result);
+  EXPECT_EQ(result.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
   txn.Abort();
 }
 

@@ -276,11 +276,12 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   }
 }
 
-Status StorageTPInsertInterface::BatchAddVerticesImpl(
+result<std::vector<vid_t>> StorageTPInsertInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddVertices is not supported in TP mode currently.";
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "BatchAddVertices is not supported in TP mode currently.");
+  RETURN_STATUS_ERROR(
+      StatusCode::ERR_NOT_SUPPORTED,
+      "BatchAddVertices is not supported in TP mode currently.");
 }
 
 Status StorageTPInsertInterface::BatchAddEdgesImpl(

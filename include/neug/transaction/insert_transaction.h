@@ -254,7 +254,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
                         prop);
   }
 
-  Status BatchAddVerticesImpl(
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
 

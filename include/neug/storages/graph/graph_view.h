@@ -32,6 +32,7 @@
 namespace neug {
 
 class PropertyGraph;
+class StorageIndex;
 class StorageIndexManager;
 
 class TableView {
@@ -114,7 +115,7 @@ class GraphView {
   GraphView& operator=(GraphView&&) = default;
 
   const Schema& schema() const { return *schema_; }
-  const StorageIndexManager& index_manager() const { return *index_manager_; }
+  result<StorageIndex*> GetIndexByName(const std::string& name) const;
 
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {

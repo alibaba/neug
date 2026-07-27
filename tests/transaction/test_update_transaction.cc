@@ -2725,7 +2725,7 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
     std::vector<neug::vid_t> vids;
     std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges;
     std::vector<std::pair<neug::vid_t, int32_t>> oe_edges, ie_edges;
-    EXPECT_EQ(interface.BatchAddVertices(0, nullptr).error_code(),
+    EXPECT_EQ(interface.BatchAddVertices(0, nullptr).error().error_code(),
               neug::StatusCode::ERR_NOT_SUPPORTED);
     EXPECT_EQ(interface.BatchAddEdges(0, 0, 0, nullptr).error_code(),
               neug::StatusCode::ERR_NOT_SUPPORTED);
