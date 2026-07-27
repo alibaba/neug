@@ -13,17 +13,17 @@
  * limitations under the License.
  */
 
-#include "neug/utils/property/column.h"
+#include "neug/storages/property/column.h"
 
 #include <limits>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/container/container_utils.h"
+#include "neug/storages/id_indexer.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/utils/id_indexer.h"
-#include "neug/utils/property/array_column.h"
-#include "neug/utils/property/table.h"
-#include "neug/utils/property/types.h"
+#include "neug/storages/property/array_column.h"
+#include "neug/storages/property/table.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {

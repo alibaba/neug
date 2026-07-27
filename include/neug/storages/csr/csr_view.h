@@ -16,11 +16,11 @@
 
 #include <glog/logging.h>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/csr/prefetch_utils.h"
-#include "neug/utils/property/column.h"
-#include "neug/utils/property/types.h"
+#include "neug/storages/property/column.h"
 
 namespace neug {
 

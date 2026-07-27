@@ -14,12 +14,11 @@
  */
 
 #include "neug/utils/io/write/writer.h"
-#include "neug/execution/common/operators/retrieve/sink.h"
-#include "neug/generated/proto/response/response.pb.h"
+#include "neug/common/types/property_types.h"
+#include "neug/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/stream/output_stream.h"
-#include "neug/utils/property/types.h"
 
 #include <climits>
 #include <cstdint>
@@ -31,245 +30,86 @@
 namespace neug {
 namespace writer {
 
-bool StringFormatBuffer::validateIndex(const neug::QueryResponse* response,
-                                       int rowIdx, int colIdx) {
-  if (response == nullptr)
-    return false;
-  if (rowIdx < 0 || rowIdx >= response->row_count())
-    return false;
-  if (colIdx < 0 || static_cast<size_t>(colIdx) >= response->arrays_size()) {
+namespace {
+
+bool isSerializedGraphType(const DataType* type) {
+  if (type == nullptr) {
     return false;
   }
-  return true;
+  return type->id() == DataTypeId::kVertex || type->id() == DataTypeId::kEdge ||
+         type->id() == DataTypeId::kPath;
 }
 
-bool StringFormatBuffer::validateProtoValue(const std::string& validity,
-                                            int rowIdx) {
-  return validity.empty() ||
-         (static_cast<uint8_t>(validity[static_cast<size_t>(rowIdx) >> 3]) >>
-          (rowIdx & 7)) &
-             1;
-}
+}  // namespace
 
-#define TYPED_PRIMITIVE_ARRAY_TO_JSON(CASE_ENUM, GETTER_METHOD)       \
-  case neug::Array::TypedArrayCase::CASE_ENUM: {                      \
-    auto& typed_array = arr.GETTER_METHOD();                          \
-    if (!validateProtoValue(typed_array.validity(), rowIdx)) {        \
-      return neug::Status(                                            \
-          StatusCode::ERR_INVALID_ARGUMENT,                           \
-          "Value is invalid, rowIdx=" + std::to_string(rowIdx));      \
-    }                                                                 \
-    const auto& str = std::to_string(typed_array.values(rowIdx));     \
-    write(reinterpret_cast<const uint8_t*>(str.c_str()), str.size()); \
-    return neug::Status::OK();                                        \
-  }
-
-CSVStringFormatBuffer::CSVStringFormatBuffer(
-    const neug::QueryResponse* response, const reader::FileSchema& schema,
-    const reader::EntrySchema& entry_schema)
-    : StringFormatBuffer(response, schema), entry_schema_(entry_schema) {
-  capacity_ = DEFAULT_CAPACITY;
-  WriteOptions writeOpts;
-  size_t batchSize = writeOpts.batch_rows.get(schema.options);
-  if (batchSize > 0 && response->arrays_size() > 0 &&
-      response->row_count() > 0) {
-    size_t ncol = static_cast<size_t>(response->arrays_size());
-    if (batchSize <= SIZE_MAX / DEFAULT_CAPACITY &&
-        ncol <= SIZE_MAX / (DEFAULT_CAPACITY * batchSize)) {
-      capacity_ = DEFAULT_CAPACITY * batchSize * ncol;
-    } else {
-      LOG(WARNING) << "CSV buffer capacity overflow, batchSize=" << batchSize
-                   << ", ncol=" << ncol
-                   << ", using default capacity: " << capacity_;
+DataChunkCSVStringFormatBuffer::DataChunkCSVStringFormatBuffer(
+    const DataChunk& chunk, const reader::FileSchema& schema,
+    const reader::EntrySchema& entry_schema,
+    const std::vector<DataType>& source_types)
+    : chunk_(chunk),
+      schema_(schema),
+      entry_schema_(entry_schema),
+      source_types_(source_types),
+      capacity_(DEFAULT_CAPACITY) {
+  WriteOptions write_opts;
+  size_t batch_size = write_opts.batch_rows.get(schema.options);
+  if (batch_size > 0 && chunk.col_num() > 0 && chunk.row_num() > 0) {
+    size_t ncol = chunk.col_num();
+    if (batch_size <= SIZE_MAX / DEFAULT_CAPACITY &&
+        ncol <= SIZE_MAX / (DEFAULT_CAPACITY * batch_size)) {
+      capacity_ = DEFAULT_CAPACITY * batch_size * ncol;
     }
   }
-  has_header_ = writeOpts.has_header.get(schema.options);
-  delimiter_ = writeOpts.delimiter.get(schema.options);
-  ignore_errors_ = writeOpts.ignore_errors.get(schema.options);
-  escape_char_ = writeOpts.escape_char.get(schema.options);
-  quote_char_ = writeOpts.quote_char.get(schema.options);
+  has_header_ = write_opts.has_header.get(schema.options);
+  delimiter_ = write_opts.delimiter.get(schema.options);
+  ignore_errors_ = write_opts.ignore_errors.get(schema.options);
+  escape_char_ = write_opts.escape_char.get(schema.options);
+  quote_char_ = write_opts.quote_char.get(schema.options);
   blob_.data = std::make_unique<uint8_t[]>(capacity_);
   blob_.size = 0;
   data_ = blob_.data.get();
 }
 
-void CSVStringFormatBuffer::addHeader() {
-  // Emit header at init so empty result sets still get a header row when
-  // HEADER = true.
+void DataChunkCSVStringFormatBuffer::addHeader() {
   if (has_header_ && !entry_schema_.columnNames.empty()) {
     for (size_t col = 0; col < entry_schema_.columnNames.size(); ++col) {
       if (col > 0) {
         write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
       }
-      const auto& name = entry_schema_.columnNames[col];
-      write(reinterpret_cast<const uint8_t*>(name.c_str()), name.size());
+      writeCsvField(entry_schema_.columnNames[col]);
     }
     write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE), sizeof(char));
   }
 }
 
-neug::Status CSVStringFormatBuffer::formatValueToStr(const neug::Array& arr,
-                                                     int rowIdx) {
-  switch (arr.typed_array_case()) {
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kBoolArray, bool_array)
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kInt32Array, int32_array)
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kInt64Array, int64_array)
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kUint32Array, uint32_array)
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kUint64Array, uint64_array)
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kFloatArray, float_array)
-    TYPED_PRIMITIVE_ARRAY_TO_JSON(kDoubleArray, double_array)
-  case neug::Array::TypedArrayCase::kStringArray: {
-    auto& string_array = arr.string_array();
-    if (!validateProtoValue(string_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    const auto& str = string_array.values(rowIdx);
-    // add quotes for string type values
-    write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
-    // espace special characters
-    char escapeChars[] = {escape_char_, quote_char_};
-    writeWithEscapes(escapeChars, escape_char_, str);
-    write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kDateArray: {
-    auto& date32_arr = arr.date_array();
-    if (!validateProtoValue(date32_arr.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    Date date_value;
-    date_value.from_timestamp(date32_arr.values(rowIdx));
-    const auto& date_str = date_value.to_string();
-    write(reinterpret_cast<const uint8_t*>(date_str.c_str()), date_str.size());
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kTimestampArray: {
-    auto& timestamp_array = arr.timestamp_array();
-    if (!validateProtoValue(timestamp_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    DateTime dt_value(timestamp_array.values(rowIdx));
-    const auto& dt_str = dt_value.to_string();
-    write(reinterpret_cast<const uint8_t*>(dt_str.c_str()), dt_str.size());
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kIntervalArray: {
-    auto& interval_array = arr.interval_array();
-    if (!validateProtoValue(interval_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    const auto& interval_str = interval_array.values(rowIdx);
-    write(reinterpret_cast<const uint8_t*>(interval_str.c_str()),
-          interval_str.size());
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kListArray: {
-    auto& list_array = arr.list_array();
-    if (!validateProtoValue(list_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[0]), sizeof(char));
-    uint32_t list_size =
-        list_array.offsets(rowIdx + 1) - list_array.offsets(rowIdx);
-    size_t offset = list_array.offsets(rowIdx);
-    for (uint32_t i = 0; i < list_size; ++i) {
-      if (i > 0) {
-        write(reinterpret_cast<const uint8_t*>(COMMA_CHAR), sizeof(char));
-      }
-      RETURN_IF_NOT_OK(formatValueToStr(list_array.elements(), offset + i));
-    }
-    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[1]), sizeof(char));
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kStructArray: {
-    auto& struct_arr = arr.struct_array();
-    if (!validateProtoValue(struct_arr.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[0]), sizeof(char));
-    for (int i = 0; i < struct_arr.fields_size(); ++i) {
-      if (i > 0) {
-        write(reinterpret_cast<const uint8_t*>(COMMA_CHAR), sizeof(char));
-      }
-      const auto& field = struct_arr.fields(i);
-      RETURN_IF_NOT_OK(formatValueToStr(field, rowIdx));
-    }
-    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[1]), sizeof(char));
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kVertexArray: {
-    auto vertex_array = arr.vertex_array();
-    if (!validateProtoValue(vertex_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    const auto& vertex_str = vertex_array.values(rowIdx);
-    write(reinterpret_cast<const uint8_t*>(vertex_str.c_str()),
-          vertex_str.size());
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kEdgeArray: {
-    auto edge_array = arr.edge_array();
-    if (!validateProtoValue(edge_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    const auto& edge_str = edge_array.values(rowIdx);
-    write(reinterpret_cast<const uint8_t*>(edge_str.c_str()), edge_str.size());
-    return neug::Status::OK();
-  }
-  case neug::Array::TypedArrayCase::kPathArray: {
-    auto path_array = arr.path_array();
-    if (!validateProtoValue(path_array.validity(), rowIdx)) {
-      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
-    }
-    const auto& path_str = path_array.values(rowIdx);
-    write(reinterpret_cast<const uint8_t*>(path_str.c_str()), path_str.size());
-    return neug::Status::OK();
-  }
-  default: {
-    return neug::Status(
-        StatusCode::ERR_NOT_SUPPORTED,
-        "Unsupported type: " + std::to_string(arr.typed_array_case()));
-  }
-  }
-}
-
-void CSVStringFormatBuffer::writeWithEscapes(char* toEscape, char escape,
-                                             const std::string& val) {
+void DataChunkCSVStringFormatBuffer::writeWithEscapes(const char* to_escape,
+                                                      char escape,
+                                                      const std::string& val) {
   uint64_t i = 0;
-  auto found = val.find_first_of(toEscape, 0, 2);
-
+  auto found = val.find_first_of(to_escape, 0, 2);
   while (found != std::string::npos) {
     while (i < found) {
       write(reinterpret_cast<const uint8_t*>(&val[i]), sizeof(char));
-      i++;
+      ++i;
     }
     write(reinterpret_cast<const uint8_t*>(&escape), sizeof(char));
-    found = val.find_first_of(toEscape, found + sizeof(escape), 2);
+    found = val.find_first_of(to_escape, found + sizeof(escape), 2);
   }
   while (i < val.length()) {
     write(reinterpret_cast<const uint8_t*>(&val[i]), sizeof(char));
-    i++;
+    ++i;
   }
 }
 
-void CSVStringFormatBuffer::write(const uint8_t* buffer, uint64_t len) {
+void DataChunkCSVStringFormatBuffer::write(const uint8_t* buffer,
+                                           uint64_t len) {
   if (len == 0) {
     return;
   }
   if (buffer == nullptr) {
-    THROW_IO_EXCEPTION("CSVStringFormatBuffer::write called with null buffer");
+    THROW_IO_EXCEPTION(
+        "DataChunkCSVStringFormatBuffer::write called with null buffer");
   }
-  // Overflow-safe: need grow when (blob.size + len > capacity) without
-  // computing blob.size + len (which can overflow).
   const bool need_grow = (len > capacity_) || (blob_.size > capacity_ - len);
   if (need_grow) {
     size_t old_capacity = capacity_;
@@ -280,7 +120,6 @@ void CSVStringFormatBuffer::write(const uint8_t* buffer, uint64_t len) {
       capacity_ *= 2;
     } while ((len > capacity_) || (blob_.size > capacity_ - len));
     auto new_data = std::make_unique<uint8_t[]>(capacity_);
-    // Copy only up to old capacity to avoid reading past old buffer
     size_t copy_len = (blob_.size < old_capacity) ? blob_.size : old_capacity;
     if (copy_len > 0 && data_ != nullptr) {
       memcpy(new_data.get(), data_, copy_len);
@@ -289,40 +128,212 @@ void CSVStringFormatBuffer::write(const uint8_t* buffer, uint64_t len) {
     blob_.data = std::move(new_data);
     data_ = blob_.data.get();
   }
-
   memcpy(data_ + blob_.size, buffer, len);
   blob_.size += len;
 }
 
-void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
-  if (!validateIndex(response_, rowIdx, colIdx)) {
-    THROW_IO_EXCEPTION(
-        "Value index out of range: rowIdx=" + std::to_string(rowIdx) +
-        ", colIdx=" + std::to_string(colIdx));
+void DataChunkCSVStringFormatBuffer::appendQuotedString(
+    const std::string& value, std::string& output) const {
+  output.push_back(quote_char_);
+  for (char c : value) {
+    if (c == escape_char_ || c == quote_char_) {
+      output.push_back(escape_char_);
+    }
+    output.push_back(c);
   }
-  if (colIdx > 0) {
+  output.push_back(quote_char_);
+}
+
+const DataType* DataChunkCSVStringFormatBuffer::sourceType(
+    size_t col_idx) const {
+  return col_idx < source_types_.size() ? &source_types_[col_idx] : nullptr;
+}
+
+neug::Status DataChunkCSVStringFormatBuffer::appendNestedValue(
+    const Value& value, const DataType* source_type,
+    std::string& output) const {
+  if (value.IsNull()) {
+    output.append("NULL");
+    return neug::Status::OK();
+  }
+  if (isSerializedGraphType(source_type)) {
+    if (value.type().id() != DataTypeId::kVarchar) {
+      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Materialized graph value should be VARCHAR, got " +
+                              value.type().ToString());
+    }
+    output.append(StringValue::Get(value));
+    return neug::Status::OK();
+  }
+
+  const auto type_id = value.type().id();
+  switch (type_id) {
+  case DataTypeId::kVarchar:
+    appendQuotedString(StringValue::Get(value), output);
+    return neug::Status::OK();
+  case DataTypeId::kBoolean:
+    output.append(value.GetValue<bool>() ? "true" : "false");
+    return neug::Status::OK();
+  case DataTypeId::kList: {
+    const auto& children = ListValue::GetChildren(value);
+    const DataType* source_child_type = nullptr;
+    if (source_type != nullptr && source_type->id() == DataTypeId::kList) {
+      source_child_type = &ListType::GetChildType(*source_type);
+    }
+    output.push_back('[');
+    for (size_t i = 0; i < children.size(); ++i) {
+      if (i > 0) {
+        output.push_back(',');
+      }
+      auto status = appendNestedValue(children[i], source_child_type, output);
+      if (!status.ok()) {
+        return status;
+      }
+    }
+    output.push_back(']');
+    return neug::Status::OK();
+  }
+  case DataTypeId::kArray: {
+    const auto& children = ArrayValue::GetChildren(value);
+    const DataType* source_child_type = nullptr;
+    if (source_type != nullptr && source_type->id() == DataTypeId::kArray) {
+      source_child_type = &ArrayType::GetChildType(*source_type);
+    }
+    output.push_back('[');
+    for (size_t i = 0; i < children.size(); ++i) {
+      if (i > 0) {
+        output.push_back(',');
+      }
+      auto status = appendNestedValue(children[i], source_child_type, output);
+      if (!status.ok()) {
+        return status;
+      }
+    }
+    output.push_back(']');
+    return neug::Status::OK();
+  }
+  case DataTypeId::kStruct: {
+    const auto& children = StructValue::GetChildren(value);
+    const std::vector<DataType>* source_child_types = nullptr;
+    if (source_type != nullptr && source_type->id() == DataTypeId::kStruct) {
+      source_child_types = &StructType::GetChildTypes(*source_type);
+    }
+    output.push_back('[');
+    for (size_t i = 0; i < children.size(); ++i) {
+      if (i > 0) {
+        output.push_back(',');
+      }
+      const DataType* source_child_type =
+          source_child_types != nullptr && i < source_child_types->size()
+              ? &(*source_child_types)[i]
+              : nullptr;
+      auto status = appendNestedValue(children[i], source_child_type, output);
+      if (!status.ok()) {
+        return status;
+      }
+    }
+    output.push_back(']');
+    return neug::Status::OK();
+  }
+  case DataTypeId::kInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
+  case DataTypeId::kDate:
+  case DataTypeId::kTimestampMs:
+  case DataTypeId::kInterval:
+    output.append(value.to_string());
+    return neug::Status::OK();
+  default:
+    return neug::Status(
+        StatusCode::ERR_NOT_SUPPORTED,
+        "Unsupported CSV value type: " + value.type().ToString());
+  }
+}
+
+void DataChunkCSVStringFormatBuffer::writeCsvField(const std::string& value,
+                                                   bool force_quote) {
+  const bool needs_quote = force_quote ||
+                           value.find(delimiter_) != std::string::npos ||
+                           value.find(quote_char_) != std::string::npos ||
+                           value.find('\r') != std::string::npos ||
+                           value.find('\n') != std::string::npos;
+  if (!needs_quote) {
+    write(reinterpret_cast<const uint8_t*>(value.data()), value.size());
+    return;
+  }
+
+  write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
+  const char escape_chars[] = {escape_char_, quote_char_, '\0'};
+  writeWithEscapes(escape_chars, escape_char_, value);
+  write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
+}
+
+neug::Status DataChunkCSVStringFormatBuffer::formatValueToStr(
+    const Value& value, size_t row_idx, size_t col_idx) {
+  if (value.IsNull()) {
+    return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Value is invalid, rowIdx=" + std::to_string(row_idx));
+  }
+
+  const auto* source_type = sourceType(col_idx);
+  if (value.type().id() == DataTypeId::kVarchar &&
+      !isSerializedGraphType(source_type)) {
+    writeCsvField(StringValue::Get(value), true);
+    return neug::Status::OK();
+  }
+
+  std::string formatted;
+  auto status = appendNestedValue(value, source_type, formatted);
+  if (!status.ok()) {
+    return status;
+  }
+  writeCsvField(formatted);
+  return neug::Status::OK();
+}
+
+void DataChunkCSVStringFormatBuffer::addValue(size_t row_idx, size_t col_idx) {
+  if (col_idx >= chunk_.col_num() || chunk_.columns[col_idx] == nullptr) {
+    THROW_IO_EXCEPTION("Column index out of range: colIdx=" +
+                       std::to_string(col_idx));
+  }
+  const auto& column = chunk_.columns[col_idx];
+  if (row_idx >= column->size()) {
+    THROW_IO_EXCEPTION("Row index out of range: rowIdx=" +
+                       std::to_string(row_idx));
+  }
+  if (col_idx > 0) {
     write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
   }
-  const neug::Array& column = response_->arrays(colIdx);
-  auto strResult = formatValueToStr(column, rowIdx);
-  if (!strResult.ok()) {
+  if (!column->has_value(row_idx)) {
     if (!ignore_errors_) {
-      THROW_IO_EXCEPTION(
-          "Format value to string failed, rowIdx=" + std::to_string(rowIdx) +
-          ", colIdx=" + std::to_string(colIdx) +
-          ", error=" + strResult.ToString());
-    } else {
+      THROW_IO_EXCEPTION("Value is invalid, rowIdx=" + std::to_string(row_idx) +
+                         ", colIdx=" + std::to_string(col_idx));
+    }
+    write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
+          strlen(DEFAULT_NULL_STR));
+  } else {
+    auto str_result =
+        formatValueToStr(column->get_elem(row_idx), row_idx, col_idx);
+    if (!str_result.ok()) {
+      if (!ignore_errors_) {
+        THROW_IO_EXCEPTION(
+            "Format value to string failed, rowIdx=" + std::to_string(row_idx) +
+            ", colIdx=" + std::to_string(col_idx) +
+            ", error=" + str_result.ToString());
+      }
       write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
             strlen(DEFAULT_NULL_STR));
     }
   }
-  if (colIdx == response_->arrays_size() - 1) {
-    // the last column, add newline
+  if (col_idx + 1 == chunk_.col_num()) {
     write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE), sizeof(char));
   }
 }
 
-neug::Status CSVStringFormatBuffer::flush(io::OutputStream& stream) {
+neug::Status DataChunkCSVStringFormatBuffer::flush(io::OutputStream& stream) {
   if (blob_.size > 0) {
     auto status = stream.Write(data_, static_cast<int64_t>(blob_.size));
     blob_.size = 0;
@@ -333,15 +344,8 @@ neug::Status CSVStringFormatBuffer::flush(io::OutputStream& stream) {
   return neug::Status::OK();
 }
 
-neug::Status QueryExportWriter::write(const execution::Context& context,
-                                      const StorageReadInterface& graph) {
-  neug::QueryResponse response;
-  execution::Sink::sink_results(context, graph, &response);
-  return writeTable(&response);
-}
-
-neug::Status CsvQueryExportWriter::writeTable(
-    const neug::QueryResponse* table) {
+neug::Status CsvQueryExportWriter::write(
+    const DataChunk& chunk, const std::vector<DataType>& source_types) {
   if (schema_.paths.empty()) {
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Schema paths is empty");
@@ -350,25 +354,32 @@ neug::Status CsvQueryExportWriter::writeTable(
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "entry_schema is null");
   }
+  if (!source_types.empty() && source_types.size() != chunk.col_num()) {
+    return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "source_types size mismatch: expected " +
+                            std::to_string(chunk.col_num()) + ", got " +
+                            std::to_string(source_types.size()));
+  }
   auto stream = io::openLocalOutputStream(schema_.paths[0]);
   if (!stream) {
     return neug::Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }
 
-  WriteOptions writeOpts;
-  auto batchSize = writeOpts.batch_rows.get(schema_.options);
-  if (batchSize <= 0) {
+  WriteOptions write_opts;
+  auto batch_size = write_opts.batch_rows.get(schema_.options);
+  if (batch_size <= 0) {
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Batch size should be positive");
   }
-  auto csvBuffer = CSVStringFormatBuffer(table, schema_, *entry_schema_);
-  csvBuffer.addHeader();
-  for (size_t i = 0; i < table->row_count(); ++i) {
-    for (size_t j = 0; j < table->arrays_size(); ++j) {
-      csvBuffer.addValue(i, j);
+  auto csv_buffer = DataChunkCSVStringFormatBuffer(
+      chunk, schema_, *entry_schema_, source_types);
+  csv_buffer.addHeader();
+  for (size_t i = 0; i < chunk.row_num(); ++i) {
+    for (size_t j = 0; j < chunk.col_num(); ++j) {
+      csv_buffer.addValue(i, j);
     }
-    if (i % batchSize == batchSize - 1) {
-      auto status = csvBuffer.flush(*stream);
+    if (i % batch_size == batch_size - 1) {
+      auto status = csv_buffer.flush(*stream);
       if (!status.ok()) {
         (void) stream->Close();
         return neug::Status(StatusCode::ERR_IO_ERROR,
@@ -377,7 +388,7 @@ neug::Status CsvQueryExportWriter::writeTable(
     }
   }
 
-  auto status = csvBuffer.flush(*stream);
+  auto status = csv_buffer.flush(*stream);
   if (!status.ok()) {
     (void) stream->Close();
     return neug::Status(StatusCode::ERR_IO_ERROR,

@@ -15,7 +15,7 @@
 #pragma once
 
 #include "neug/common/columns/columns_utils.h"
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace neug {

@@ -19,12 +19,12 @@
 #include <tuple>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 

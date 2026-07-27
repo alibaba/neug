@@ -45,7 +45,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module_descriptor.h"
-#include "neug/utils/property/column.h"
+#include "neug/storages/property/column.h"
 #include "unittest/utils.h"
 
 namespace {

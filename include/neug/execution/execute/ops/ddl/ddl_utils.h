@@ -16,8 +16,8 @@
 
 #include <string>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {

@@ -16,7 +16,7 @@
 
 #include "neug/common/types/graph_types.h"
 
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 namespace neug {
 int64_t encode_unique_vertex_id(label_t label_id, vid_t vid) {

@@ -23,6 +23,7 @@
 #include "neug/compiler/binder/binder.h"
 
 #include <optional>
+#include "neug/common/types/default_value.h"
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/binder/expression_binder.h"
@@ -45,7 +46,6 @@
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/default_value.h"
 #include "neug/utils/property/property_definition.h"
 
 using namespace neug::binder;

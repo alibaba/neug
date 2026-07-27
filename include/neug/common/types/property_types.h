@@ -187,7 +187,7 @@ struct Interval {
   // Normalize to interval bounds.
   inline static void borrow(const int64_t msf, int64_t& lsf, int32_t& f,
                             const int64_t scale);
-  inline Interval normalize() const;
+  Interval normalize() const;
 
   inline Interval& operator=(const Interval& rhs) = default;
 

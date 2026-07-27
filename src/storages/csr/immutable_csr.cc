@@ -31,9 +31,9 @@
 #include <thread>
 #include <utility>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

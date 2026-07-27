@@ -23,7 +23,7 @@
 #include "neug/common/types/value.h"
 
 #include "glog/logging.h"
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 namespace neug {
 

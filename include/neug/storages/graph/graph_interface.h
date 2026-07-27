@@ -18,11 +18,11 @@
 #include <optional>
 
 #include "neug/common/types/container_types.h"
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

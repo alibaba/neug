@@ -128,7 +128,7 @@ struct CSVReadFunction {
         std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
+    ctx.append_chunks(reader->read(localState));
     return ctx;
   }
 

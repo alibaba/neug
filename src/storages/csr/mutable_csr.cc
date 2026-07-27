@@ -33,11 +33,11 @@
 #include <utility>
 #include <vector>
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_mmap_container.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
 namespace neug {

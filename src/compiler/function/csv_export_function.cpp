@@ -20,6 +20,7 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include "neug/common/export/export_result.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/io/write/writer.h"
@@ -62,7 +63,8 @@ execution::Context writeExecFunc(
   convertFileSchemaOptions(schema);
   auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
       schema, entry_schema);
-  auto status = writer->write(ctx, graph);
+  auto export_result = neug::materialize_result_for_export(ctx, graph);
+  auto status = writer->write(export_result.chunk, export_result.source_types);
   if (!status.ok()) {
     if (status.error_code() == StatusCode::ERR_PERMISSION) {
       THROW_PERMISSION_DENIED("Export failed: " + status.ToString());

@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import ast
 import csv
 import json
 import os
@@ -44,10 +45,21 @@ def _count_query(conn, cypher):
     return len(list(conn.execute(cypher)))
 
 
-def _parse_csv(path, delimiter="|", has_header=True):
+def _parse_csv(
+    path,
+    delimiter="|",
+    has_header=True,
+    quotechar='"',
+    escapechar="\\",
+):
     """Parse CSV; returns (header or None, list of data rows)."""
     with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.reader(f, delimiter=delimiter)
+        reader = csv.reader(
+            f,
+            delimiter=delimiter,
+            quotechar=quotechar,
+            escapechar=escapechar,
+        )
         rows = list(reader)
     if not rows:
         return (None, [])
@@ -464,17 +476,39 @@ class TestExport:
     def test_export_collect_names(self):
         out_path = self.tmp_path / "collect_names.csv"
         out_path.unlink(missing_ok=True)
-        expected = _count_query(
-            self.conn, "MATCH (v:person) RETURN v.ID, collect(v.fName)"
-        )
+        query = "MATCH (v:person) RETURN v.ID, collect(v.fName)"
+        expected = {str(row[0]): sorted(row[1]) for row in self.conn.execute(query)}
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO "
-            f"'{out_path}' (HEADER = true, QUOTE = '\\'');"
+            f"COPY ({query}) TO " f"'{out_path}' (HEADER = true, QUOTE = '\\'');"
         )
         assert out_path.exists()
-        header, rows = _parse_csv(out_path, "|", has_header=True)
+        header, rows = _parse_csv(
+            out_path,
+            "|",
+            has_header=True,
+            quotechar="'",
+        )
         assert len(header) == 2
-        assert len(rows) == expected
+        assert len(rows) == len(expected)
+        for row in rows:
+            assert len(row) == 2
+            assert sorted(ast.literal_eval(row[1])) == expected[row[0]]
+
+    def test_export_nested_strings_with_comma_delimiter(self):
+        out_path = self.tmp_path / "nested_comma.csv"
+        query = "MATCH (v:person) RETURN v.gender, collect(v.fName)"
+        expected = {str(row[0]): sorted(row[1]) for row in self.conn.execute(query)}
+
+        self.conn.execute(
+            f"COPY ({query}) TO '{out_path}' " "(HEADER = true, DELIMITER = ',');"
+        )
+
+        header, rows = _parse_csv(out_path, ",", has_header=True)
+        assert len(header) == 2
+        assert len(rows) == len(expected)
+        for row in rows:
+            assert len(row) == 2
+            assert sorted(json.loads(row[1])) == expected[row[0]]
 
     # Verify that the 'QUOTE' option correctly changes the wrapping character for string values.
     # Here, we explicitly set QUOTE = "'" (single quote).
@@ -585,6 +619,44 @@ class TestExport:
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
+    @pytest.mark.parametrize("extension", ["json", "jsonl"])
+    def test_export_json_ignore_errors(self, extension):
+        """JSON writers honor IGNORE_ERRORS for invalid result values."""
+        strict_path = self.tmp_path / f"strict_null.{extension}"
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                f"COPY (RETURN NULL) TO '{strict_path}' (IGNORE_ERRORS = false);"
+            )
+
+        ignored_path = self.tmp_path / f"ignored_null.{extension}"
+        self.conn.execute(
+            f"COPY (RETURN NULL) TO '{ignored_path}' (IGNORE_ERRORS = true);"
+        )
+        rows = (
+            _parse_json_array(ignored_path)
+            if extension == "json"
+            else _parse_jsonl(ignored_path)
+        )
+        assert len(rows) == 1
+        assert len(rows[0]) == 1
+        assert next(iter(rows[0].values())) is None
+
+    def test_export_jsonl_batch_size(self):
+        """JSONL validates and uses BATCH_SIZE without changing its rows."""
+        invalid_path = self.tmp_path / "batch_zero.jsonl"
+        with pytest.raises(RuntimeError):
+            self.conn.execute(
+                f"COPY (MATCH (v:person) RETURN v.ID) TO '{invalid_path}' "
+                "(BATCH_SIZE = 0);"
+            )
+
+        out_path = self.tmp_path / "batch_two.jsonl"
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.ID) TO '{out_path}' " "(BATCH_SIZE = 2);"
+        )
+        assert len(_parse_jsonl(out_path)) == expected
+
     def test_export_collect_names_jsonl(self):
         """Export collect names to JSONL (one JSON object per line); verify row count."""
         out_path = self.tmp_path / "collect_names.jsonl"
@@ -602,6 +674,20 @@ class TestExport:
         ), f"Expected {expected} lines in JSONL, got {len(rows)}"
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
+
+    def test_export_collect_vertices_jsonl(self):
+        """Nested graph values remain nested JSON objects after materialization."""
+        out_path = self.tmp_path / "collect_vertices.jsonl"
+        out_path.unlink(missing_ok=True)
+        self.conn.execute(f"COPY (MATCH (v:person) RETURN collect(v)) TO '{out_path}';")
+
+        rows = _parse_jsonl(out_path)
+        assert len(rows) == 1
+        assert len(rows[0]) == 1
+        vertices = next(iter(rows[0].values()))
+        assert isinstance(vertices, list)
+        assert vertices
+        assert all(isinstance(vertex, dict) for vertex in vertices)
 
 
 @pytest.mark.skipif(
@@ -807,6 +893,22 @@ class TestParquetExport:
         # Note: LOAD FROM does not yet support reading Struct types (Edge/Vertex),
         # so we only verify the file was created successfully
         # TODO: Enable LOAD FROM verification when Struct type reading is supported
+
+    @extension_test
+    def test_export_collect_vertices_to_parquet(self):
+        """Nested graph values are exported as a Parquet list of JSON strings."""
+        import pyarrow.parquet as pq
+
+        out_path = self.tmp_path / "collect_vertices.parquet"
+        self.conn.execute(f"COPY (MATCH (v:person) RETURN collect(v)) TO '{out_path}'")
+
+        table = pq.read_table(out_path)
+        assert table.num_rows == 1
+        assert table.num_columns == 1
+        vertices = table.column(0)[0].as_py()
+        assert isinstance(vertices, list)
+        assert vertices
+        assert all(isinstance(json.loads(vertex), dict) for vertex in vertices)
 
     @extension_test
     def test_export_with_scalar_types(self):

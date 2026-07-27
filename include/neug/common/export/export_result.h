@@ -14,24 +14,27 @@
  */
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "neug/common/types/property_types.h"
+#include "neug/common/types.h"
+#include "neug/common/types/data_chunk.h"
 
 namespace neug {
 
-/// Native JSON/JSONL reader configuration.
-struct JsonReadConfig {
-  bool newlines_in_values = false;
-  bool json_array_input = false;
-  int64_t chunk_size = 4096;
+class StorageReadInterface;
 
-  std::vector<std::string> column_names;
-  std::vector<std::string> include_columns;
-  std::unordered_map<std::string, DataType> column_types;
+namespace execution {
+class Context;
+}
+
+struct ExportResult {
+  DataChunk chunk;
+  std::vector<DataType> source_types;
 };
+
+/// Materializes graph values for file export and merges Context chunks into a
+/// single DataChunk so writers can emit one complete output artifact.
+ExportResult materialize_result_for_export(const execution::Context& ctx,
+                                           const StorageReadInterface& graph);
 
 }  // namespace neug

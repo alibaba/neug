@@ -178,16 +178,19 @@ class TestLoadArray:
     def test_parquet_null_array(self):
         """LOAD FROM Parquet preserves a null fixed-size array."""
         pa = pytest.importorskip("pyarrow")
-        parquet_path = self._write_parquet(
-            "null_array.parquet",
-            {
-                "id": pa.array([1, 2, 3], type=pa.int64()),
-                "values": pa.array(
-                    [[1.0, 2.0, 3.0], None, [7.0, 8.0, 9.0]],
-                    type=pa.list_(pa.float32(), 3),
-                ),
-            },
-        )
+        try:
+            parquet_path = self._write_parquet(
+                "null_array.parquet",
+                {
+                    "id": pa.array([1, 2, 3], type=pa.int64()),
+                    "values": pa.array(
+                        [[1.0, 2.0, 3.0], None, [7.0, 8.0, 9.0]],
+                        type=pa.list_(pa.float32(), 3),
+                    ),
+                },
+            )
+        except pa.ArrowNotImplementedError:
+            pytest.skip("PyArrow cannot write a null fixed-size list to Parquet")
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(

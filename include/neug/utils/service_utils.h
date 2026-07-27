@@ -53,8 +53,8 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
+#include "neug/common/types/property_types.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 

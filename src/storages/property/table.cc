@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/property/table.h"
+#include "neug/storages/property/table.h"
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -21,8 +21,8 @@
 #include <ostream>
 #include <utility>
 
+#include "neug/storages/property/column.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/column.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {

@@ -25,8 +25,8 @@
 
 #include "neug/common/types/value.h"
 
+#include "neug/common/types/property_types.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
 using neug::DataType;

@@ -34,8 +34,8 @@
 #include <stdexcept>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/common/types/property_types.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 

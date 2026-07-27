@@ -35,7 +35,7 @@
 
 // Include neug types
 #include <any>
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 // Forward declarations removed - gbi types not used
 

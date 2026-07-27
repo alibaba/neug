@@ -14,11 +14,11 @@
  */
 #include "neug/execution/execute/ops/retrieve/select.h"
 
+#include "neug/common/types/property_types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/select.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 #include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/expression/predicates.h"

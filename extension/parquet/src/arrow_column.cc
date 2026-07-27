@@ -146,7 +146,7 @@ static Value arrow_value_at(const arrow::Array& array, int64_t index,
     Interval interval;
     interval.from_mill_seconds(
         arrow_time_to_milliseconds(value, duration_type.unit()));
-    return Value::INTERVAL(interval);
+    return Value::INTERVAL(interval.normalize());
   }
   case arrow::Type::FIXED_SIZE_LIST: {
     const auto& list = static_cast<const arrow::FixedSizeListArray&>(array);

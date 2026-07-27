@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 namespace neug {
 

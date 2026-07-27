@@ -20,7 +20,7 @@ limitations under the License.
 #include <type_traits>
 #include <vector>
 
-#include "neug/utils/property/types.h"
+#include "neug/common/types/property_types.h"
 
 namespace neug {
 

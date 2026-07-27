@@ -15,19 +15,20 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
+#include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/path_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "neug/common/export/export_result.h"
 #include "neug/common/types/array_columns.h"
+#include "neug/common/types/data_chunk.h"
+#include "neug/common/types/property_types.h"
 #include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
-
 #include "neug/storages/graph/graph_interface.h"
-
-#include "neug/utils/property/types.h"
 
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
@@ -544,7 +545,6 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
 
   response->mutable_arrays()->Reserve(ctx.tag_ids.size());
   for (size_t i : ctx.tag_ids) {
-    // Merge column across all chunks via union_col.
     std::shared_ptr<IContextColumn> merged;
     for (size_t c = 0; c < ctx.chunk_num(); ++c) {
       auto col = ctx.chunk(c).get(i);
@@ -563,5 +563,209 @@ void Sink::sink_results(const Context& ctx, const StorageReadInterface& graph,
   }
 }
 
+namespace {
+
+std::shared_ptr<IContextColumn> materialize_graph_column_as_string(
+    const std::shared_ptr<IContextColumn>& col,
+    const StorageReadInterface& graph) {
+  auto builder =
+      std::make_shared<ValueColumnBuilder<std::string>>(col->is_optional());
+  builder->reserve(col->size());
+
+  switch (col->elem_type().id()) {
+  case DataTypeId::kVertex: {
+    auto vcol = std::dynamic_pointer_cast<IVertexColumn>(col);
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(Value::CreateValue<std::string>(
+            convert_vertex_to_json(graph, vcol->get_vertex(i))));
+      }
+    }
+    break;
+  }
+  case DataTypeId::kEdge: {
+    auto ecol = std::dynamic_pointer_cast<IEdgeColumn>(col);
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(Value::CreateValue<std::string>(
+            convert_edge_to_json(graph, ecol->get_edge(i))));
+      }
+    }
+    break;
+  }
+  case DataTypeId::kPath: {
+    auto pcol = std::dynamic_pointer_cast<PathColumn>(col);
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(Value::CreateValue<std::string>(
+            convert_path_to_json(graph, pcol->get_path(i))));
+      }
+    }
+    break;
+  }
+  default:
+    return col;
+  }
+  return builder->finish();
+}
+
+DataType materialized_type_for_export(const DataType& source_type) {
+  switch (source_type.id()) {
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return DataType(DataTypeId::kVarchar);
+  case DataTypeId::kList:
+    return DataType::List(
+        materialized_type_for_export(ListType::GetChildType(source_type)));
+  case DataTypeId::kStruct: {
+    std::vector<DataType> materialized_child_types;
+    const auto& source_child_types = StructType::GetChildTypes(source_type);
+    materialized_child_types.reserve(source_child_types.size());
+    for (const auto& child_type : source_child_types) {
+      materialized_child_types.push_back(
+          materialized_type_for_export(child_type));
+    }
+    return DataType::Struct(StructType::GetFieldNames(source_type),
+                            std::move(materialized_child_types));
+  }
+  case DataTypeId::kArray:
+    return DataType::Array(
+        materialized_type_for_export(ArrayType::GetChildType(source_type)),
+        ArrayType::GetNumElements(source_type));
+  default:
+    return source_type;
+  }
+}
+
+Value materialize_value_for_export(const Value& value,
+                                   const DataType& source_type,
+                                   const DataType& materialized_type,
+                                   const StorageReadInterface& graph) {
+  if (value.IsNull()) {
+    return Value(materialized_type);
+  }
+  switch (source_type.id()) {
+  case DataTypeId::kVertex:
+    return Value::STRING(
+        convert_vertex_to_json(graph, value.GetValue<vertex_t>()));
+  case DataTypeId::kEdge:
+    return Value::STRING(convert_edge_to_json(graph, value.GetValue<edge_t>()));
+  case DataTypeId::kPath:
+    return Value::STRING(convert_path_to_json(graph, PathValue::Get(value)));
+  case DataTypeId::kList: {
+    const auto& children = ListValue::GetChildren(value);
+    const auto& source_child_type = ListType::GetChildType(source_type);
+    const auto& materialized_child_type =
+        ListType::GetChildType(materialized_type);
+    std::vector<Value> materialized;
+    materialized.reserve(children.size());
+    for (const auto& child : children) {
+      materialized.push_back(materialize_value_for_export(
+          child, source_child_type, materialized_child_type, graph));
+    }
+    return Value::LIST(materialized_child_type, std::move(materialized));
+  }
+  case DataTypeId::kStruct: {
+    const auto& children = StructValue::GetChildren(value);
+    const auto& source_child_types = StructType::GetChildTypes(source_type);
+    const auto& materialized_child_types =
+        StructType::GetChildTypes(materialized_type);
+    std::vector<Value> materialized;
+    materialized.reserve(children.size());
+    for (size_t i = 0; i < children.size(); ++i) {
+      materialized.push_back(
+          materialize_value_for_export(children[i], source_child_types[i],
+                                       materialized_child_types[i], graph));
+    }
+    return Value::STRUCT(materialized_type, std::move(materialized));
+  }
+  case DataTypeId::kArray: {
+    const auto& children = ArrayValue::GetChildren(value);
+    const auto& source_child_type = ArrayType::GetChildType(source_type);
+    const auto& materialized_child_type =
+        ArrayType::GetChildType(materialized_type);
+    std::vector<Value> materialized;
+    materialized.reserve(children.size());
+    for (const auto& child : children) {
+      materialized.push_back(materialize_value_for_export(
+          child, source_child_type, materialized_child_type, graph));
+    }
+    return Value::ARRAY(materialized_type, std::move(materialized));
+  }
+  default:
+    return value;
+  }
+}
+
+std::shared_ptr<IContextColumn> materialize_column_for_export(
+    const std::shared_ptr<IContextColumn>& col,
+    const StorageReadInterface& graph) {
+  if (col == nullptr) {
+    return nullptr;
+  }
+  switch (col->elem_type().id()) {
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return materialize_graph_column_as_string(col, graph);
+  case DataTypeId::kList:
+  case DataTypeId::kStruct:
+  case DataTypeId::kArray: {
+    const auto& source_type = col->elem_type();
+    auto materialized_type = materialized_type_for_export(source_type);
+    auto builder = ColumnsUtils::create_builder(materialized_type);
+    builder->reserve(col->size());
+    for (size_t i = 0; i < col->size(); ++i) {
+      if (col->is_optional() && !col->has_value(i)) {
+        builder->push_back_null();
+      } else {
+        builder->push_back_elem(materialize_value_for_export(
+            col->get_elem(i), source_type, materialized_type, graph));
+      }
+    }
+    return builder->finish();
+  }
+  default:
+    return col;
+  }
+}
+
+}  // namespace
+
 }  // namespace execution
+
+ExportResult materialize_result_for_export(const execution::Context& ctx,
+                                           const StorageReadInterface& graph) {
+  ExportResult result;
+  int alias = 0;
+  for (size_t tag_id : ctx.tag_ids) {
+    std::shared_ptr<IContextColumn> merged;
+    for (size_t c = 0; c < ctx.chunk_num(); ++c) {
+      auto col = ctx.chunk(c).get(tag_id);
+      if (col == nullptr) {
+        continue;
+      }
+      if (merged == nullptr) {
+        merged = col;
+      } else {
+        merged = merged->union_col(col);
+      }
+    }
+    if (merged == nullptr) {
+      continue;
+    }
+    result.source_types.push_back(merged->elem_type());
+    result.chunk.set(alias++,
+                     execution::materialize_column_for_export(merged, graph));
+  }
+  return result;
+}
+
 }  // namespace neug
