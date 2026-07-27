@@ -1279,6 +1279,15 @@ bool Schema::Equals(const Schema& other) const {
               return false;
             }
           }
+          {
+            auto lhs = get_sort_key_for_nbr(src_label_name, dst_label_name,
+                                           edge_label_name);
+            auto rhs = other.get_sort_key_for_nbr(
+                src_label_name, dst_label_name, edge_label_name);
+            if (lhs != rhs) {
+              return false;
+            }
+          }
         }
       }
     }
@@ -1929,6 +1938,33 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
               schema.get_vertex_label_name(dst_v);
           vertex_type_pair_node["relation"] =
               schema.get_edge_strategy(src_v, dst_v, e_label);
+          // Persist CSR params that LoadFromYaml reads back from x_csr_params.
+          // Omitting them drops sort_key_for_nbr / mutability across checkpoint
+          // dump -> reopen (schema lives in meta JSON via DumpToYaml/ToJson).
+          {
+            const auto& src_name = schema.get_vertex_label_name(src_v);
+            const auto& dst_name = schema.get_vertex_label_name(dst_v);
+            const auto& e_name = schema.get_edge_label_name(e_label);
+            auto sort_key =
+                schema.get_sort_key_for_nbr(src_v, dst_v, e_label);
+            const bool oe_mutable =
+                schema.outgoing_edge_mutable(src_name, dst_name, e_name);
+            const bool ie_mutable =
+                schema.incoming_edge_mutable(src_name, dst_name, e_name);
+            if (sort_key.has_value() || !oe_mutable || !ie_mutable) {
+              YAML::Node csr_node;
+              if (sort_key.has_value()) {
+                csr_node["sort_key_for_nbr"] = sort_key.value();
+              }
+              if (!oe_mutable) {
+                csr_node["oe_mutability"] = "IMMUTABLE";
+              }
+              if (!ie_mutable) {
+                csr_node["ie_mutability"] = "IMMUTABLE";
+              }
+              vertex_type_pair_node["x_csr_params"] = csr_node;
+            }
+          }
           cur_node["vertex_type_pair_relations"].push_back(
               vertex_type_pair_node);
         }

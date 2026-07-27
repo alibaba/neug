@@ -629,7 +629,7 @@ neug::Schema BuildComplexSchema() {
   schema.AddEdgeLabel("Person", "Person", "KNOWS",
                       {DataTypeId::kInt64, DataTypeId::kFloat},
                       {"since", "weight"}, EdgeStrategy::kMultiple,
-                      EdgeStrategy::kSingle, true, true, std::nullopt, "knows");
+                      EdgeStrategy::kSingle, true, true, "since", "knows");
 
   schema.AddEdgeLabel("Person", "Company", "WORKS_AT", {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
