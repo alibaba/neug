@@ -694,8 +694,10 @@ TEST(SchemaYamlRoundTrip, PreservesSortKeyForNbrAndMutability) {
   auto t = VProps({DataType::VARCHAR});
   auto n = VNames({"name"});
   auto pk = VPk(DataType::INT64, "id", 0);
-  original.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk, 1024, "");
-  original.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk, 1024, "");
+  // Use the YAML-load default max_vnum; dump_vertices_schema does not persist
+  // a custom max_vertex_num, so Equals would fail after round-trip otherwise.
+  original.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk, kMaxVNum, "");
+  original.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk, kMaxVNum, "");
   original.AddEdgeLabel("Person", "Company", "WorksAt", {DataType::INT32},
                         {"since"}, /*oe*/ EdgeStrategy::kMultiple,
                         /*ie*/ EdgeStrategy::kSingle,
