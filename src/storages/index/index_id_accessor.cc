@@ -26,15 +26,14 @@ namespace neug {
 void DefaultIndexIDAccessor::Open(Checkpoint& ckp,
                                   const ModuleDescriptor& descriptor,
                                   MemoryLevel level) {
-  auto next_index_id = descriptor.get("next_index_id");
+  auto next_index_id = descriptor.get(ModuleDescriptor::kNextIndexId);
   next_index_id_->store(
-      next_index_id.has_value()
-          ? static_cast<index_id_t>(std::stoull(next_index_id.value()))
-          : 0,
+      static_cast<index_id_t>(std::stoull(next_index_id.value_or("0"))),
       std::memory_order_relaxed);
-  auto path = descriptor.get_path("vid_to_index_id").value_or("");
+  auto path =
+      descriptor.get_path(ModuleDescriptor::kVidToIndexIdPath).value_or("");
   vid_to_index_id_ = ckp.OpenFile(path, level);
-  RebuildIndexIDToVID();
+  rebuildIndexIDToVID();
 }
 
 void DefaultIndexIDAccessor::Dump(Checkpoint& ckp, CheckpointManifest& meta,
@@ -42,9 +41,10 @@ void DefaultIndexIDAccessor::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
   descriptor.set(
-      "next_index_id",
+      ModuleDescriptor::kNextIndexId,
       std::to_string(next_index_id_->load(std::memory_order_relaxed)));
-  descriptor.set_path("vid_to_index_id", ckp.Commit(*vid_to_index_id_));
+  descriptor.set_path(ModuleDescriptor::kVidToIndexIdPath,
+                      ckp.Commit(*vid_to_index_id_));
   meta.set_module(key, std::move(descriptor));
 }
 
@@ -67,7 +67,7 @@ index_id_t DefaultIndexIDAccessor::UpsertVID(vid_t vid) {
   }
 
   if (vid >= size()) {
-    Resize(vid < 4096 ? 4096 : vid + vid / 4);
+    resize(vid < 4096 ? 4096 : vid + vid / 4);
   }
   auto new_index_id = next_index_id_->fetch_add(1, std::memory_order_relaxed);
   static_cast<index_id_t*>(vid_to_index_id_->GetData())[vid] = new_index_id;
@@ -103,7 +103,7 @@ void DefaultIndexIDAccessor::Detach(Checkpoint& ckp, MemoryLevel level) {
   }
 }
 
-void DefaultIndexIDAccessor::Resize(size_t new_capacity) {
+void DefaultIndexIDAccessor::resize(size_t new_capacity) {
   if (vid_to_index_id_ && new_capacity > size()) {
     auto old_size = size();
     vid_to_index_id_->Resize(new_capacity * sizeof(index_id_t));
@@ -112,7 +112,7 @@ void DefaultIndexIDAccessor::Resize(size_t new_capacity) {
   }
 }
 
-void DefaultIndexIDAccessor::RebuildIndexIDToVID() {
+void DefaultIndexIDAccessor::rebuildIndexIDToVID() {
   index_id_to_vid_->clear();
   const auto* index_ids =
       static_cast<const index_id_t*>(vid_to_index_id_->GetData());

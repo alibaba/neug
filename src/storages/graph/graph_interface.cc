@@ -16,7 +16,6 @@
 #include "neug/storages/graph/graph_interface.h"
 
 #include "neug/storages/index/storage_index_manager.h"
-#include "neug/utils/property/vec_column.h"
 
 namespace neug {
 
@@ -197,11 +196,7 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
 result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
     const std::string& unique_index_name,
     const IndexQueryParams& params) const {
-  auto* index = view_.index_manager().GetIndexByName(unique_index_name);
-  if (!index) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Index does not exist: " + unique_index_name);
-  }
+  GS_AUTO(index, view_.GetIndexByName(unique_index_name));
   return index->Search(params);
 }
 
@@ -314,18 +309,22 @@ Status StorageAPUpdateInterface::DeleteEdgesImpl(label_t src_label, vid_t src,
   return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
 }
 
-Status StorageAPUpdateInterface::BatchAddVerticesImpl(
+result<std::vector<vid_t>> StorageAPUpdateInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
   if (!new_vids) {
-    return new_vids.error();
+    return tl::unexpected(new_vids.error());
   }
 
   if (new_vids->empty()) {
-    return Status::OK();
+    return new_vids;
   }
 
-  return batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
+  auto status = batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
+  if (!status.ok()) {
+    return tl::unexpected(std::move(status));
+  }
+  return new_vids;
 }
 
 Status StorageAPUpdateInterface::BatchAddEdgesImpl(
@@ -481,125 +480,20 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Index label id is out of range");
   }
-  auto& vertex_table = graph_.get_vertex_table(label_id);
+  const auto& vertex_table = graph_.get_vertex_table(label_id);
   auto* column = vertex_table.GetPropertyColumnBase(meta->schema.property_name);
   if (!column) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Indexed property column does not exist: " +
                             meta->schema.property_name);
   }
-  const auto name = meta->name;
-  const auto property_name = meta->schema.property_name;
-  bool upgraded = false;
-  std::unique_ptr<IndexIDAccessor> index_id_accessor;
-  // 增加一个判断当前 index 类型为 HNSW
-  if (meta->schema.property_type.id() == DataTypeId::kArray) {
-    upgraded = dynamic_cast<const VecColumn<float>*>(column) == nullptr &&
-               dynamic_cast<const VecColumn<double>*>(column) == nullptr;
-    if (upgraded) {
-      auto* array = dynamic_cast<const ArrayColumn*>(column);
-      if (!array) {
-        RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                            "Vector index property is not an ArrayColumn");
-      }
-      auto accessor = std::make_unique<DefaultIndexIDAccessor>();
-      accessor->Open(graph_.checkpoint(), ModuleDescriptor{},
-                     graph_.memory_level());
-      for (vid_t vid = 0; vid < vertex_table.Size(); ++vid) {
-        accessor->UpsertVID(vid);
-      }
-      auto array_clone_module = array->Clone();
-      auto array_clone = std::unique_ptr<ArrayColumn>(
-          static_cast<ArrayColumn*>(array_clone_module.release()));
-      auto array_size = array->array_size();
-      auto array_row_count = array->size();
-      const auto property_col =
-          graph_.schema().get_vertex_schema(label_id)->get_property_index(
-              property_name);
-      const auto& default_value =
-          graph_.schema()
-              .get_vertex_schema(label_id)
-              ->default_property_values.at(property_col);
-      const auto child_type = ArrayType::GetChildType(array->array_type()).id();
-      if (child_type == DataTypeId::kFloat) {
-        auto vec = std::make_unique<VecColumn<float>>(
-            array_clone->TakeBuffer<float>(), std::move(accessor), array_size,
-            array_row_count, default_value);
-        vec->Detach(graph_.checkpoint(), graph_.memory_level());
-        column = vertex_table.ReplaceVecColumn(property_col, std::move(vec));
-      } else if (child_type == DataTypeId::kDouble) {
-        auto vec = std::make_unique<VecColumn<double>>(
-            array_clone->TakeBuffer<double>(), std::move(accessor), array_size,
-            array_row_count, default_value);
-        vec->Detach(graph_.checkpoint(), graph_.memory_level());
-        column = vertex_table.ReplaceVecColumn(property_col, std::move(vec));
-      } else {
-        RETURN_STATUS_ERROR(
-            StatusCode::ERR_INVALID_ARGUMENT,
-            "Vector index supports FLOAT and DOUBLE array properties");
-      }
-    }
-    IndexIDAccessor* offset_accessor = nullptr;
-    if (auto* vec = dynamic_cast<const VecColumn<float>*>(column)) {
-      offset_accessor =
-          const_cast<IndexIDAccessor*>(vec->get_offset_accessor());
-    } else if (auto* vec = dynamic_cast<const VecColumn<double>*>(column)) {
-      offset_accessor =
-          const_cast<IndexIDAccessor*>(vec->get_offset_accessor());
-    }
-    if (!offset_accessor) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_INTERNAL_ERROR,
-                          "Failed to bind VecColumn offset accessor");
-    }
-    index_id_accessor =
-        std::make_unique<VecColumnIndexIDAccessor>(offset_accessor);
-    mut_view_.Rebuild(graph_);
-  } else {
-    index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
-  }
-  auto index =
-      index_manager_.CreateIndex(std::move(meta), std::move(index_id_accessor));
-  if (!index) {
-    if (upgraded) {
-      vertex_table.DegradeVecColumn(property_name);
-      mut_view_.Rebuild(graph_);
-    }
-    return tl::unexpected(index.error());
-  }
-  auto status = index.value()->Rebind(IndexBindContext{column});
-  if (!status.ok()) {
-    index_manager_.DropIndex(name);
-    if (upgraded) {
-      vertex_table.DegradeVecColumn(property_name);
-      mut_view_.Rebuild(graph_);
-    }
-    RETURN_ERROR(status);
-  }
-  return index;
+  return index_manager_.CreateIndex(
+      std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
+      graph_.GetVertexSet(label_id, timestamp_));
 }
 
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
-  auto* index = index_manager_.GetIndexByName(name);
-  if (!index) {
-    return Status::RuntimeError("Index not found: " + name);
-  }
-  const auto label_id = index->GetMeta().schema.label_id;
-  const auto property_name = index->GetMeta().schema.property_name;
-  const bool is_vector =
-      index->GetMeta().schema.property_type.id() == DataTypeId::kArray;
-  RETURN_IF_NOT_OK(index_manager_.DropIndex(name));
-  if (!is_vector) {
-    return Status::OK();
-  }
-  auto remaining = index_manager_.GetIndex(label_id, property_name);
-  if (!remaining) {
-    return remaining.error();
-  }
-  if (remaining->empty()) {
-    graph_.get_vertex_table(label_id).DegradeVecColumn(property_name);
-    mut_view_.Rebuild(graph_);
-  }
-  return Status::OK();
+  return index_manager_.DropIndex(name);
 }
 
 }  // namespace neug

@@ -19,12 +19,13 @@
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
-#include <chrono>
+#include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <limits>
-#include <sstream>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -35,13 +36,13 @@
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
-#include "neug/server/neug_db_session.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/checkpoint_session.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
@@ -99,21 +100,6 @@ NeugDB::~NeugDB() {
   }
   WalWriterFactory::Finalize();
   WalParserFactory::Finalize();
-  // We put the removal of temp dir here to avoid the situation that
-  //  starting tp service with database opened in memory mode. In this case,
-  //  pydatabase will call close and then reopen, so we need to keep the temp
-  //  dir until the db is destructed.
-  try {
-    if (is_pure_memory_) {
-      VLOG(10) << "Removing temp NeugDB at: " << work_dir();
-      remove_directory(checkpoint_mgr_.db_dir());
-    }
-  } catch (const std::exception& e) {
-    LOG(WARNING) << "Failed to remove temp dir for " << work_dir() << ": "
-                 << e.what();
-  } catch (...) {
-    LOG(WARNING) << "Failed to remove temp dir for " << work_dir();
-  }
 }
 
 bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
@@ -127,27 +113,32 @@ bool NeugDB::Open(const std::string& data_dir, int32_t max_thread_num,
 }
 
 bool NeugDB::Open(const NeugDBConfig& config) {
+  if (!closed_.load(std::memory_order_acquire)) {
+    THROW_RUNTIME_ERROR("NeugDB instance is already open.");
+  }
   config_ = config;
-  preprocessConfig();
-  config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
-  const bool recover_workspace =
-      config_.mode == DBMode::READ_WRITE || is_pure_memory_;
-  if (recover_workspace) {
-    std::filesystem::create_directories(config_.data_dir);
-  } else if (!std::filesystem::is_directory(config_.data_dir)) {
-    THROW_NO_CHECKPOINT_EXCEPTION(
-        "NeugDB::Open: no checkpoint found in read-only database: " +
-        config_.data_dir);
-  }
-
-  file_lock_ = std::make_unique<FileLock>(config_.data_dir);
-
-  std::string error_msg;
-  if (!file_lock_->lock(error_msg, config.mode)) {
-    THROW_DATABASE_LOCKED_EXCEPTION("Failed to lock data directory: " +
-                                    config_.data_dir + ", error: " + error_msg);
-  }
   try {
+    preprocessConfig();
+    config_.data_dir = std::filesystem::absolute(config_.data_dir).string();
+    const bool recover_workspace =
+        config_.mode == DBMode::READ_WRITE || is_pure_memory_;
+    if (recover_workspace) {
+      std::filesystem::create_directories(config_.data_dir);
+    } else if (!std::filesystem::is_directory(config_.data_dir)) {
+      THROW_NO_CHECKPOINT_EXCEPTION(
+          "NeugDB::Open: no checkpoint found in read-only database: " +
+          config_.data_dir);
+    }
+
+    file_lock_ = std::make_unique<FileLock>(config_.data_dir);
+
+    std::string error_msg;
+    if (!file_lock_->lock(error_msg, config.mode)) {
+      THROW_DATABASE_LOCKED_EXCEPTION(
+          "Failed to lock data directory: " + config_.data_dir +
+          ", error: " + error_msg);
+    }
+
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
     VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
     neug::execution::PlanParser::get().init();
@@ -160,11 +151,18 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     if (config_.mode == DBMode::READ_WRITE) {
       checkpoint_mgr_.CleanupRetiredCheckpoints();
     }
+    initVersionManager();
     initPlannerAndQueryProcessor();
   } catch (...) {
+    connection_manager_.reset();
+    query_processor_.reset();
+    global_query_cache_.reset();
+    planner_.reset();
+    version_manager_.reset();
     snapshot_store_.reset();
     allocators_.clear();
     checkpoint_mgr_.Close();
+    cleanupTemporaryWorkspace();
     if (file_lock_) {
       file_lock_->unlock();
       file_lock_.reset();
@@ -203,6 +201,9 @@ void NeugDB::Close() {
   if (query_processor_) {
     query_processor_.reset();
   }
+  if (global_query_cache_) {
+    global_query_cache_.reset();
+  }
   if (planner_) {
     planner_.reset();
   }
@@ -216,9 +217,11 @@ void NeugDB::Close() {
     }
   }
 
-  // Clear GraphSnapshotStore instead of graph_
+  version_manager_.reset();
   snapshot_store_.reset();
   allocators_.clear();
+  checkpoint_mgr_.Close();
+  cleanupTemporaryWorkspace();
 
   if (file_lock_) {
     file_lock_->unlock();
@@ -280,12 +283,26 @@ void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
 void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
 
 void NeugDB::PrepareForServing() {
+  std::lock_guard<std::mutex> lock(service_mutex_);
   if (IsClosed()) {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
   }
+  if (active_service_ != nullptr) {
+    THROW_RUNTIME_ERROR(
+        "Cannot prepare NeugDB for serving while a NeugDBService is already "
+        "associated with it.");
+  }
   CloseAllConnection();
+  bool checkpoint_created = false;
   if (config_.mode == DBMode::READ_WRITE) {
-    createCheckpointAndRefreshLiveGraph();
+    checkpoint_created = createCheckpointAndRefreshLiveGraph();
+  }
+  if (checkpoint_created) {
+    // Replacing the VM is safe only after publishing a new checkpoint whose
+    // WAL directory starts a fresh transaction timeline. A clean graph may
+    // still have WAL records (for example an in-place TP checkpoint), so keep
+    // the current VM in that case.
+    initVersionManager();
   }
   initQueryRuntime();
 }
@@ -303,30 +320,47 @@ void NeugDB::preprocessConfig() {
       config_.max_thread_num = 1;
     }
   }
-  auto db_dir = config_.data_dir;
-  if (db_dir.empty() || db_dir == ":memory" || db_dir == ":memory:") {
-    std::string db_dir_prefix;
+  if (config_.data_dir.empty() || config_.data_dir == ":memory" ||
+      config_.data_dir == ":memory:") {
+    std::filesystem::path db_dir_prefix;
     char* prefix_env = std::getenv("NEUG_DB_TMP_DIR");
     if (prefix_env) {
-      db_dir_prefix = std::string(prefix_env);
+      db_dir_prefix = prefix_env;
     } else {
       db_dir_prefix = "/tmp";
     }
-    std::stringstream ss;
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    ss << "neug_db_"
-       << std::chrono::duration_cast<std::chrono::microseconds>(duration)
-              .count();
-    db_dir = db_dir_prefix + "/" + ss.str();
+    db_dir_prefix = std::filesystem::absolute(db_dir_prefix);
+    std::filesystem::create_directories(db_dir_prefix);
+    auto path_template = (db_dir_prefix / "neug_db_XXXXXX").string();
+    if (::mkdtemp(path_template.data()) == nullptr) {
+      const auto error = std::error_code(errno, std::generic_category());
+      THROW_IO_EXCEPTION("Failed to create temporary NeugDB under " +
+                         db_dir_prefix.string() + ": " + error.message());
+    }
+    config_.data_dir.swap(path_template);
     is_pure_memory_ = true;
-    LOG(INFO) << "Creating temp NeugDB with: " << db_dir << " in "
+    LOG(INFO) << "Creating temp NeugDB with: " << config_.data_dir << " in "
               << config_.mode << " mode";
-    config_.data_dir = db_dir;
   } else {
-    is_pure_memory_ = false;
-    LOG(INFO) << "Creating NeugDB with: " << db_dir << " in " << config_.mode
-              << " mode";
+    LOG(INFO) << "Creating NeugDB with: " << config_.data_dir << " in "
+              << config_.mode << " mode";
+  }
+}
+
+void NeugDB::cleanupTemporaryWorkspace() noexcept {
+  if (!is_pure_memory_) {
+    return;
+  }
+  is_pure_memory_ = false;
+  try {
+    VLOG(10) << "Removing temp NeugDB at: " << config_.data_dir;
+    remove_directory(config_.data_dir);
+  } catch (const std::exception& e) {
+    LOG(WARNING) << "Failed to remove temporary NeugDB " << config_.data_dir
+                 << "; leaving it on disk: " << e.what();
+  } catch (...) {
+    LOG(WARNING) << "Failed to remove temporary NeugDB " << config_.data_dir
+                 << "; leaving it on disk";
   }
 }
 
@@ -422,6 +456,12 @@ void NeugDB::initPlanner() {
   LOG(INFO) << "Finish initializing planner";
 }
 
+void NeugDB::initVersionManager() {
+  auto version_manager = std::make_unique<VersionManager>();
+  version_manager->init_ts(last_ts_, max_thread_num_);
+  version_manager_ = std::move(version_manager);
+}
+
 void NeugDB::initQueryRuntime() {
   if (!planner_) {
     THROW_RUNTIME_ERROR("Planner is not initialized");
@@ -457,13 +497,13 @@ std::shared_ptr<Checkpoint> NeugDB::consumeLiveGraphAndCommitCheckpoint(
   return published_checkpoint;
 }
 
-void NeugDB::createCheckpointAndRefreshLiveGraph() {
+bool NeugDB::createCheckpointAndRefreshLiveGraph() {
   std::lock_guard<std::mutex> lock(mutex_);
   {
     SnapshotGuard guard(*snapshot_store_);
     auto* live_graph = guard.get().mutable_graph();
     if (!live_graph->IsModified()) {
-      return;
+      return false;
     }
   }
   auto previous_checkpoint = checkpoint_mgr_.CurrentCheckpoint();
@@ -509,6 +549,7 @@ void NeugDB::createCheckpointAndRefreshLiveGraph() {
 
   last_ts_ = 0;
   last_compaction_ts_ = 0;
+  return true;
 }
 
 void NeugDB::createCheckpointOnClose() {

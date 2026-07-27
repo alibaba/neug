@@ -17,7 +17,6 @@
 
 #include <atomic>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <unordered_map>
 
@@ -28,11 +27,6 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-
-using index_id_t = uint32_t;
-static constexpr index_id_t INVALID_INDEX_ID =
-    std::numeric_limits<index_id_t>::max();
-static constexpr vid_t INVALID_VID = std::numeric_limits<vid_t>::max();
 
 class IndexIDAccessor : public Module {
  public:
@@ -85,8 +79,8 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
   }
 
  private:
-  void Resize(size_t new_capacity);
-  void RebuildIndexIDToVID();
+  void resize(size_t new_capacity);
+  void rebuildIndexIDToVID();
 
   // Serialize and deserialize the vid -> index_id mapping to avoid allocating
   // storage for gaps in the index ID space.

@@ -216,8 +216,15 @@ class TPIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = property_type;
+    const auto& vertex_table = graph.get_vertex_table(label);
+    auto* column = vertex_table.GetPropertyColumnBase(property_name);
+    if (!column) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Property column does not exist: " + property_name);
+    }
     return graph.mutable_index_manager().CreateIndex(
-        std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+        std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
+        graph.GetVertexSet(label));
   }
 
   result<StorageIndex*> CreateIndex(const std::string& name,
@@ -235,8 +242,10 @@ class TPIndexTest : public ::testing::Test {
   }
 
   StorageIndex* GetIndexByName(const std::string& name) const {
-    return snapshot_store_->CurrentSnapshot().index_manager().GetIndexByName(
-        name);
+    return snapshot_store_->CurrentSnapshot()
+        .index_manager()
+        .GetIndexByName(name)
+        .value_or(nullptr);
   }
 
   std::vector<StorageIndex*> GetIndexes(
@@ -468,10 +477,10 @@ TEST_F(TPIndexTest, BatchAddVerticesIsNotSupportedInTPMode) {
 
   auto txn = NewUpdateTransaction();
   StorageTPUpdateInterface tp(txn);
-  auto status =
+  auto result =
       tp.BatchAddVertices(tp.schema().get_vertex_label_id("Person"), nullptr);
-  EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_FALSE(result);
+  EXPECT_EQ(result.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
   txn.Abort();
 }
 

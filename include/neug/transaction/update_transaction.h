@@ -216,7 +216,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                         int32_t ie_offset) override;
 
   // --- Batch *Impl ---
-  Status BatchAddVerticesImpl(
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchAddEdgesImpl(

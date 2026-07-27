@@ -108,11 +108,14 @@ class ExampleIndex : public StorageIndex {
       CheckpointManifest accessor_meta;
       index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
       auto accessor_desc = accessor_meta.module("index_id_accessor");
-      if (auto next_index_id = accessor_desc->get("next_index_id")) {
-        descriptor.set("next_index_id", *next_index_id);
+      if (auto next_index_id =
+              accessor_desc->get(ModuleDescriptor::kNextIndexId)) {
+        descriptor.set(ModuleDescriptor::kNextIndexId, *next_index_id);
       }
-      if (auto vid_to_index_id = accessor_desc->get_path("vid_to_index_id")) {
-        descriptor.set_path("vid_to_index_id", *vid_to_index_id);
+      if (auto vid_to_index_id =
+              accessor_desc->get_path(ModuleDescriptor::kVidToIndexIdPath)) {
+        descriptor.set_path(ModuleDescriptor::kVidToIndexIdPath,
+                            *vid_to_index_id);
       }
     }
     if (index_buffer_) {

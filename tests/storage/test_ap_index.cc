@@ -249,20 +249,11 @@ class APIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = property_type;
-    auto index = ap_->CreateIndex(std::move(meta));
-    if (!index) {
-      return tl::unexpected(index.error());
-    }
-    auto status = index.value()->BulkBuild(graph_->GetVertexSet(label));
-    if (!status.ok()) {
-      ap_->DropIndex(name);
-      RETURN_ERROR(status);
-    }
-    return index;
+    return ap_->CreateIndex(std::move(meta));
   }
 
   StorageIndex* GetIndex(const std::string& name) const {
-    return graph_->index_manager().GetIndexByName(name);
+    return graph_->index_manager().GetIndexByName(name).value_or(nullptr);
   }
 
   std::vector<StorageIndex*> GetIndexes(
@@ -337,6 +328,13 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
 }
 
+TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
+  auto status = ap_->DropIndex("missing_index");
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_EQ(status.error_message(), "Index not found: missing_index");
+}
+
 TEST_F(APIndexTest, BulkBuildIndexesExistingVertices) {
   CreatePersonTable();
   for (const auto& person : kPersons) {
@@ -359,8 +357,9 @@ TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {
   auto* original = dynamic_cast<ExampleIndex*>(GetIndex("idx_person_age"));
   ASSERT_NE(original, nullptr);
   auto clone = graph_->Clone();
-  auto* cloned = dynamic_cast<ExampleIndex*>(
-      clone->index_manager().GetIndexByName("idx_person_age"));
+  auto cloned_index = clone->index_manager().GetIndexByName("idx_person_age");
+  ASSERT_TRUE(cloned_index);
+  auto* cloned = dynamic_cast<ExampleIndex*>(cloned_index.value());
   ASSERT_NE(cloned, nullptr);
   EXPECT_TRUE(cloned->IsBound());
   EXPECT_NE(cloned->BoundColumn(), original->BoundColumn());
@@ -455,8 +454,9 @@ TEST_F(APIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
   ASSERT_EQ(index->Search(first_query).value(),
             (std::vector<SearchResult>{{first_vid}}));
 
-  ASSERT_TRUE(
-      ap_->BatchAddVertices(label, MakeItemSupplier({{2, 20}, {3, 30}})).ok());
+  auto batch_result =
+      ap_->BatchAddVertices(label, MakeItemSupplier({{2, 20}, {3, 30}}));
+  ASSERT_TRUE(batch_result) << batch_result.error().ToString();
   ExampleIndexQueryParams batch_query(2);
   ASSERT_EQ(index->Search(batch_query).value().size(), 1);
 
@@ -477,17 +477,17 @@ TEST_F(APIndexTest, BatchAddVerticesMaintainsIndexAndSkipsDuplicatePk) {
   CreatePersonTable();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
 
-  auto status = ap_->BatchAddVertices(
+  auto result = ap_->BatchAddVertices(
       graph_->schema().get_vertex_label_id("Person"),
       MakePersonSupplier({{1, "Alice", 30}, {2, "Bob", 25}}));
-  ASSERT_TRUE(status.ok()) << status.ToString();
+  ASSERT_TRUE(result) << result.error().ToString();
   EXPECT_EQ(SearchPersonNames(30), (std::vector<std::string>{"Alice"}));
 
-  status = ap_->BatchAddVertices(
+  result = ap_->BatchAddVertices(
       graph_->schema().get_vertex_label_id("Person"),
       MakePersonSupplier(
           {{1, "Alice", 40}, {3, "Charlie", 30}, {4, "Diana", 40}}));
-  ASSERT_TRUE(status.ok()) << status.ToString();
+  ASSERT_TRUE(result) << result.error().ToString();
 
   EXPECT_EQ(SearchPersonNames(30),
             (std::vector<std::string>{"Alice", "Charlie"}));

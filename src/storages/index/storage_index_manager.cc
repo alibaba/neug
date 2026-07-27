@@ -26,7 +26,8 @@ static constexpr const char* kIndexPrefix = "index_";
 
 neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
     std::unique_ptr<IndexMeta> meta,
-    std::unique_ptr<IndexIDAccessor> index_id_accessor) {
+    std::unique_ptr<IndexIDAccessor> index_id_accessor,
+    const ColumnBase* column, const VertexSet& vertex_set) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
@@ -35,7 +36,11 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null IndexIDAccessor");
   }
-  const auto& name = meta->name;
+  if (!column) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with null property column");
+  }
+  const auto name = meta->name;
   if (name.empty()) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with an empty name");
@@ -62,11 +67,12 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
       dynamic_cast<StorageIndex*>(module.release()));
   ModuleDescriptor desc;
   desc.module_type = module_type;
-  auto init_status = index->Init(std::move(meta), std::move(index_id_accessor));
-  if (!init_status.ok()) {
-    return tl::unexpected(std::move(init_status));
-  }
+  RETURN_STATUS_ERROR_IF_NOT_OK(
+      index->Init(std::move(meta), std::move(index_id_accessor)));
   index->Open(*ckp_, desc, memory_level_);
+
+  RETURN_STATUS_ERROR_IF_NOT_OK(index->Rebind(IndexBindContext{column}));
+  RETURN_STATUS_ERROR_IF_NOT_OK(index->BulkBuild(vertex_set));
 
   auto* raw_ptr = index.get();
   indexes_[name] = std::move(index);
@@ -76,7 +82,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
 Status StorageIndexManager::DropIndex(const std::string& name) {
   auto it = indexes_.find(name);
   if (it == indexes_.end()) {
-    return Status::RuntimeError("Index not found: " + name);
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Index not found: " + name);
   }
   indexes_.erase(it);
   return Status::OK();
@@ -99,11 +105,12 @@ neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndex(
   return target_indexes;
 }
 
-StorageIndex* StorageIndexManager::GetIndexByName(
+neug::result<StorageIndex*> StorageIndexManager::GetIndexByName(
     const std::string& name) const {
   auto it = indexes_.find(name);
   if (it == indexes_.end() || !it->second) {
-    return nullptr;
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Index not found: " + name);
   }
   return it->second.get();
 }
@@ -143,8 +150,7 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
   }
 }
 
-void StorageIndexManager::Dump(std::shared_ptr<Checkpoint> ckp,
-                               ModuleBroker& store, CheckpointManifest&) {
+void StorageIndexManager::Dump(ModuleBroker& store) {
   for (auto& [name, index] : indexes_) {
     if (!index)
       continue;

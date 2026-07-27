@@ -42,6 +42,8 @@ struct ModuleDescriptor {
   static constexpr const char* kNbrListPath = "nbr_list";
   static constexpr const char* kDegreeListPath = "degree_list";
   static constexpr const char* kCapacityListPath = "capacity_list";
+  static constexpr const char* kVidToIndexIdPath = "vid_to_index_id";
+  static constexpr const char* kNextIndexId = "next_index_id";
 
   ModuleDescriptor() = default;
   ~ModuleDescriptor() = default;

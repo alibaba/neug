@@ -789,9 +789,8 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
     v_mutex_[i] = std::make_shared<std::mutex>();
   }
 
+  index_manager_->Open(ckp, store, memory_level_);
   ckp_ = std::move(ckp);
-
-  index_manager_->Open(ckp_, store, memory_level_);
   auto indexes = index_manager_->GetAllIndexes();
   if (!indexes) {
     THROW_RUNTIME_ERROR("PropertyGraph::Open: failed to enumerate indexes: " +
@@ -799,7 +798,8 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   }
   for (auto* index : indexes.value()) {
     const auto& index_meta = index->GetMeta();
-    if (index_meta.schema.label_id >= vertex_tables_.size()) {
+    if (index_meta.schema.label_id >= vertex_tables_.size() ||
+        !schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
       THROW_RUNTIME_ERROR("PropertyGraph::Open: invalid index label id");
     }
     auto* column =
@@ -1020,7 +1020,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     }
   }
 
-  index_manager_->Dump(ckp_, store, meta);
+  index_manager_->Dump(store);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
@@ -1332,7 +1332,8 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   }
   for (auto* index : indexes.value()) {
     const auto& index_meta = index->GetMeta();
-    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size()) {
+    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size() ||
+        !cow_clone->schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
       THROW_RUNTIME_ERROR("PropertyGraph::Clone: invalid index label id");
     }
     auto* column = cow_clone->vertex_tables_[index_meta.schema.label_id]

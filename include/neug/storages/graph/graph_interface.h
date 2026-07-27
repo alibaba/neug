@@ -462,15 +462,15 @@ class StorageInsertInterface : virtual public IStorageInterface {
    *
    * @param v_label_id Vertex label for all records
    * @param supplier Record batch data source
-   * @return Status indicating success or failure
+   * @return Inserted vertex IDs, or an error
    */
-  Status BatchAddVertices(label_t v_label_id,
-                          std::shared_ptr<IDataChunkSupplier> supplier) {
-    auto st = BatchAddVerticesImpl(v_label_id, std::move(supplier));
-    if (st.ok()) {
+  result<std::vector<vid_t>> BatchAddVertices(
+      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
+    auto vids = BatchAddVerticesImpl(v_label_id, std::move(supplier));
+    if (vids) {
       MarkVertexTableDirty(v_label_id);
     }
-    return st;
+    return vids;
   }
 
   /**
@@ -505,7 +505,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
                              vid_t dst, label_t edge_label,
                              const std::vector<Value>& properties,
                              const void*& prop) = 0;
-  virtual Status BatchAddVerticesImpl(
+  virtual result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) = 0;
   virtual Status BatchAddEdgesImpl(
       label_t src_label, label_t dst_label, label_t edge_label,
@@ -865,10 +865,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual void CreateCheckpoint() = 0;
 
   /**
-   * @brief Create and bind an empty index.
-   *
-   * The caller is responsible for invoking StorageIndex::BulkBuild() when a
-   * full build is required.
+   * @brief Create, bind, and populate an index.
    */
   virtual neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) = 0;
@@ -975,7 +972,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                         int32_t ie_offset) override;
   Status DeleteEdgesImpl(label_t src_label, vid_t src, label_t dst_label,
                          vid_t dst, label_t edge_label) override;
-  Status BatchAddVerticesImpl(
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchAddEdgesImpl(

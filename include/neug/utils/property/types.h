@@ -25,6 +25,7 @@ limitations under the License.
 #include <cstring>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <new>
 #include <ostream>
 #include <string>
@@ -53,10 +54,14 @@ struct EmptyType {
 
 using timestamp_t = uint32_t;
 using vid_t = uint32_t;
+using index_id_t = uint32_t;
 using label_t = uint8_t;
 static constexpr int32_t MAX_PLUGIN_NUM = 256;  // 2^(sizeof(uint8_t)*8)
 static constexpr const timestamp_t MAX_TIMESTAMP = 0xFFFFFFFE;
 static constexpr const timestamp_t INVALID_TIMESTAMP = 0xFFFFFFFF;
+static constexpr index_id_t INVALID_INDEX_ID =
+    std::numeric_limits<index_id_t>::max();
+static constexpr vid_t INVALID_VID = std::numeric_limits<vid_t>::max();
 
 enum class InputFormat : uint8_t {
   kCppEncoder = 0,

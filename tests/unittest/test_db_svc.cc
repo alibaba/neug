@@ -21,12 +21,29 @@
 #include <vector>
 
 #include <brpc/controller.h>
+#include "neug/common/types/value.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
 
 namespace neug {
 namespace test {
+
+timestamp_t InsertModernPersonAndReturnTimestamp(NeugDBService& service,
+                                                 int64_t id) {
+  auto session = service.AcquireSession();
+  auto transaction = session->GetInsertTransaction();
+  const auto timestamp = transaction.timestamp();
+  StorageTPInsertInterface graph(transaction);
+  const auto person_label = transaction.schema().get_vertex_label_id("person");
+  vid_t vid = 0;
+  EXPECT_TRUE(graph.AddVertex(
+      person_label, Value::INT64(id),
+      {Value::STRING("session-" + std::to_string(id)), Value::INT64(30)}, vid));
+  EXPECT_TRUE(transaction.Commit());
+  return timestamp;
+}
 
 class NeugDBServiceTest : public ::testing::Test {
  protected:
@@ -294,6 +311,40 @@ TEST_F(NeugDBServiceTest, SecondServiceOnSameDbThrows) {
   EXPECT_FALSE(db_->HasActiveService());
   EXPECT_NO_THROW(neug::NeugDBService service(*db_, cfg));
   EXPECT_FALSE(db_->HasActiveService());
+}
+
+TEST_F(NeugDBServiceTest, VersionTimelineSurvivesServiceRecreation) {
+  timestamp_t first_timestamp = INVALID_TIMESTAMP;
+  {
+    neug::NeugDBService service(*db_, config_);
+    first_timestamp = InsertModernPersonAndReturnTimestamp(service, 1001);
+  }
+
+  {
+    neug::NeugDBService service(*db_, config_);
+    const auto second_timestamp =
+        InsertModernPersonAndReturnTimestamp(service, 1002);
+    EXPECT_GT(second_timestamp, first_timestamp);
+  }
+}
+
+TEST_F(NeugDBServiceTest, PrepareForServingResetsTimeline) {
+  {
+    neug::NeugDBService service(*db_, config_);
+    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1001), 1);
+  }
+
+  db_->PrepareForServing();
+
+  {
+    neug::NeugDBService service(*db_, config_);
+    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1002), 1);
+  }
+}
+
+TEST_F(NeugDBServiceTest, PrepareForServingWhileServiceExistsThrows) {
+  neug::NeugDBService service(*db_, config_);
+  EXPECT_THROW(db_->PrepareForServing(), neug::exception::RuntimeError);
 }
 
 TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
