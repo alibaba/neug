@@ -328,6 +328,13 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
 }
 
+TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
+  auto status = ap_->DropIndex("missing_index");
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_EQ(status.error_message(), "Index not found: missing_index");
+}
+
 TEST_F(APIndexTest, BulkBuildIndexesExistingVertices) {
   CreatePersonTable();
   for (const auto& person : kPersons) {

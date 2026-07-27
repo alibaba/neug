@@ -82,7 +82,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
 Status StorageIndexManager::DropIndex(const std::string& name) {
   auto it = indexes_.find(name);
   if (it == indexes_.end()) {
-    return Status::RuntimeError("Index not found: " + name);
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Index not found: " + name);
   }
   indexes_.erase(it);
   return Status::OK();
@@ -150,8 +150,7 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
   }
 }
 
-void StorageIndexManager::Dump(std::shared_ptr<Checkpoint> ckp,
-                               ModuleBroker& store, CheckpointManifest&) {
+void StorageIndexManager::Dump(ModuleBroker& store) {
   for (auto& [name, index] : indexes_) {
     if (!index)
       continue;

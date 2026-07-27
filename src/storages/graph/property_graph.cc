@@ -1020,7 +1020,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     }
   }
 
-  index_manager_->Dump(ckp_, store, meta);
+  index_manager_->Dump(store);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped

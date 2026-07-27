@@ -81,10 +81,9 @@ class StorageIndexManager {
             MemoryLevel level);
 
   /**
-   * @brief Persist all indexes to a checkpoint manifest.
+   * @brief Move all indexes into the module broker for persistence.
    */
-  void Dump(std::shared_ptr<Checkpoint> ckp, ModuleBroker& store,
-            CheckpointManifest& meta);
+  void Dump(ModuleBroker& store);
 
   void Clear();
 
