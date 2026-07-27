@@ -23,6 +23,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
+#include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -373,6 +374,64 @@ TEST(ArrayColumnTest, SetAnyRequiresArrayValue) {
   ASSERT_EQ(stored_values.size(), 2);
   EXPECT_EQ(stored_values[0].GetValue<int32_t>(), 3);
   EXPECT_EQ(stored_values[1].GetValue<int32_t>(), 4);
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("vec_column_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+  constexpr uint64_t dimension = 2;
+  auto array_type = DataType::Array(DataType::FLOAT, dimension);
+  auto make_array = [&](float first, float second) {
+    return Value::ARRAY(array_type,
+                        {Value::FLOAT(first), Value::FLOAT(second)});
+  };
+  auto default_value = make_array(0.0f, 0.0f);
+  auto buffer = ckp->CreateRuntimeContainer(2 * dimension * sizeof(float),
+                                            MemoryLevel::kInMemory);
+  auto accessor = std::make_unique<DefaultIndexIDAccessor>();
+  accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  VecColumn<float> column(std::move(buffer), std::move(accessor), dimension, 2,
+                          default_value);
+  column.Detach(*ckp, MemoryLevel::kInMemory);
+
+  column.set_any(0, make_array(1.0f, 2.0f), true);
+  column.set_any(1, make_array(3.0f, 4.0f), true);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
+
+  auto clone_module = column.Clone();
+  auto* clone = dynamic_cast<VecColumn<float>*>(clone_module.get());
+  ASSERT_NE(clone, nullptr);
+  const void* old_buffer = clone->get_buffer_ptr();
+  column.resize(5000);
+  EXPECT_NE(column.get_buffer_ptr(), old_buffer);
+  EXPECT_EQ(clone->get_buffer_ptr(), old_buffer);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(clone->get_any(0))[0].GetValue<float>(), 1.0f);
+
+  column.set_any(4096, make_array(5.0f, 6.0f), true);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(4096))[0].GetValue<float>(), 5.0f);
+
+  CheckpointManifest manifest;
+  column.Dump(*ckp, manifest, "vec");
+  VecColumn<float> reopened;
+  reopened.Open(*ckp, manifest, *manifest.module("vec"),
+                MemoryLevel::kInMemory);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(reopened.get_any(4096))[1].GetValue<float>(),
+      6.0f);
 
   std::filesystem::remove_all(temp_dir);
 }

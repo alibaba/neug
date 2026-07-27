@@ -67,6 +67,43 @@ class ArrayColumn : public ColumnBase {
 
   static std::string type_name() { return "column<array>"; }
 
+  const DataType& array_type() const { return array_type_; }
+  uint64_t array_size() const { return array_size_; }
+
+  template <typename T>
+  std::shared_ptr<IDataContainer> TakeBuffer() {
+    auto* typed = dynamic_cast<TypedColumn<T>*>(child_column_.get());
+    if (!typed) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "ArrayColumn child type does not match VecColumn element type");
+    }
+    return typed->TakeBuffer();
+  }
+
+  // 删除该函数
+  template <typename T>
+  const void* get_buffer_ptr() const {
+    auto* typed = dynamic_cast<const TypedColumn<T>*>(child_column_.get());
+    return typed ? typed->buffer().GetData() : nullptr;
+  }
+
+  // 提供一个类似参数的构造函数
+  template <typename T>
+  static std::unique_ptr<ArrayColumn> FromBuffer(
+      const DataType& array_type, std::shared_ptr<IDataContainer> buffer,
+      size_t size) {
+    auto result = std::make_unique<ArrayColumn>(array_type);
+    auto* typed = dynamic_cast<TypedColumn<T>*>(result->child_column_.get());
+    if (!typed) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "ArrayColumn child type does not match buffer element type");
+    }
+    typed->AdoptBuffer(std::move(buffer),
+                       size * ArrayType::GetNumElements(array_type));
+    result->size_ = size;
+    return result;
+  }
+
  private:
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);

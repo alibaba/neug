@@ -101,4 +101,29 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
   std::shared_ptr<std::atomic<index_id_t>> next_index_id_;
 };
 
+// Non-owning adapter used by indexes backed by a VecColumn. VecColumn owns the
+// mapping and allocates offsets when values are written; index maintenance
+// reuses those offsets instead of allocating a second ID.
+class VecColumnIndexIDAccessor final : public IndexIDAccessor {
+ public:
+  explicit VecColumnIndexIDAccessor(IndexIDAccessor* offset_accessor)
+      : offset_accessor_(offset_accessor) {}
+
+  index_id_t GetIndexIDByVID(vid_t vid) const override;
+  vid_t GetVIDByIndexID(index_id_t index_id) const override;
+  index_id_t UpsertVID(vid_t vid) override;
+  Status DeleteVID(vid_t vid) override;
+
+  void Open(Checkpoint&, const ModuleDescriptor&, MemoryLevel) override {}
+  void Dump(Checkpoint&, CheckpointManifest&, const std::string&) override {}
+  std::unique_ptr<Module> Clone() const override;
+  void Detach(Checkpoint&, MemoryLevel) override {}
+  std::string ModuleTypeName() const override {
+    return "vec_column_index_id_accessor";
+  }
+
+ private:
+  IndexIDAccessor* offset_accessor_;
+};
+
 }  // namespace neug

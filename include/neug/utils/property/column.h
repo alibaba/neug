@@ -163,6 +163,14 @@ class TypedColumn : public ColumnBase {
     return reinterpret_cast<const T*>(buffer_->GetData());
   }
 
+  std::shared_ptr<IDataContainer> TakeBuffer() { return std::move(buffer_); }
+
+  // 提供一个类似参数的构造函数
+  void AdoptBuffer(std::shared_ptr<IDataContainer> buffer, size_t size) {
+    buffer_ = std::move(buffer);
+    size_ = size;
+  }
+
   std::unique_ptr<Module> Clone() const override {
     auto new_col = std::make_unique<TypedColumn<T>>();
     new_col->buffer_ = buffer_;

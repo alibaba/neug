@@ -28,6 +28,7 @@
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
 
 #include <glog/logging.h>
@@ -761,4 +762,64 @@ TEST_F(VertexTableTest, VertexSetForeachVertex) {
   size_t count = 0;
   vset.foreach_vertex([&](neug::vid_t vid) { count++; });
   EXPECT_EQ(count, 5);  // Only odd lids are valid at ts=20
+}
+
+TEST_F(VertexTableTest, ReplaceAndDegradeVecColumn) {
+  auto vector_type = neug::DataType::Array(neug::DataType::FLOAT, 3);
+  auto zero_vector = neug::Value::ARRAY(
+      vector_type, {neug::Value::FLOAT(0.0f), neug::Value::FLOAT(0.0f),
+                    neug::Value::FLOAT(0.0f)});
+  neug::Schema schema;
+  schema.AddVertexLabel("vector_vertex", {vector_type}, {"embedding"},
+                        {std::make_tuple(neug::DataType::INT64, "id", 0)}, 4096,
+                        "", {zero_vector});
+  auto label = schema.get_vertex_label_id("vector_vertex");
+  neug::VertexTable table(schema.get_vertex_schema(label));
+  auto ckp = make_checkpoint(Workspace());
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
+  table.EnsureCapacity(2);
+
+  auto vector_value = neug::Value::ARRAY(
+      vector_type, {neug::Value::FLOAT(1.0f), neug::Value::FLOAT(2.0f),
+                    neug::Value::FLOAT(3.0f)});
+  neug::vid_t vid;
+  ASSERT_TRUE(
+      table.AddVertex(neug::Value::INT64(1), {vector_value}, vid, 0, false));
+  auto* initial = dynamic_cast<const neug::ArrayColumn*>(
+      table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(initial, nullptr);
+  const void* initial_buffer = initial->get_buffer_ptr<float>();
+
+  auto array_clone_module = initial->Clone();
+  auto array_clone = std::unique_ptr<neug::ArrayColumn>(
+      static_cast<neug::ArrayColumn*>(array_clone_module.release()));
+  auto accessor = std::make_unique<neug::DefaultIndexIDAccessor>();
+  accessor->Open(*ckp, neug::ModuleDescriptor{}, memory_level_);
+  accessor->UpsertVID(vid);
+  auto vec = std::make_unique<neug::VecColumn<float>>(
+      array_clone->TakeBuffer<float>(), std::move(accessor),
+      initial->array_size(), initial->size(), zero_vector);
+  vec->Detach(*ckp, memory_level_);
+  auto* upgraded = dynamic_cast<const neug::VecColumn<float>*>(
+      table.ReplaceVecColumn(0, std::move(vec)));
+  ASSERT_NE(upgraded, nullptr);
+  EXPECT_EQ(upgraded->get_buffer_ptr(), initial_buffer);
+  EXPECT_FLOAT_EQ(neug::ArrayValue::GetChildren(upgraded->get_any(vid))[2]
+                      .GetValue<float>(),
+                  3.0f);
+
+  table.EnsureCapacity(5000);
+  upgraded = dynamic_cast<const neug::VecColumn<float>*>(
+      table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(upgraded, nullptr);
+  EXPECT_NE(upgraded->get_buffer_ptr(), initial_buffer);
+  const void* resized_buffer = upgraded->get_buffer_ptr();
+
+  auto* degraded = dynamic_cast<const neug::ArrayColumn*>(
+      table.DegradeVecColumn("embedding"));
+  ASSERT_NE(degraded, nullptr);
+  EXPECT_EQ(degraded->get_buffer_ptr<float>(), resized_buffer);
+  EXPECT_FLOAT_EQ(neug::ArrayValue::GetChildren(degraded->get_any(vid))[0]
+                      .GetValue<float>(),
+                  1.0f);
 }

@@ -87,6 +87,15 @@ void Table::SetColumn(int idx, std::unique_ptr<ColumnBase> col) {
   columns_[idx] = std::move(col);
 }
 
+std::unique_ptr<ColumnBase> Table::TakeColumn(int idx) {
+  if (idx < 0 || static_cast<size_t>(idx) >= columns_.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Table::TakeColumn: index " + std::to_string(idx) +
+        " out of range (col_num=" + std::to_string(columns_.size()) + ")");
+  }
+  return std::move(columns_[idx]);
+}
+
 void Table::reset_header(const std::vector<std::string>& col_name) {
   std::unordered_map<std::string, int> new_col_id_map;
   size_t col_num = col_name.size();

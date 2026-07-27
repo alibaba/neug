@@ -124,4 +124,30 @@ void DefaultIndexIDAccessor::RebuildIndexIDToVID() {
   }
 }
 
+index_id_t VecColumnIndexIDAccessor::GetIndexIDByVID(vid_t vid) const {
+  return offset_accessor_ ? offset_accessor_->GetIndexIDByVID(vid)
+                          : INVALID_INDEX_ID;
+}
+
+vid_t VecColumnIndexIDAccessor::GetVIDByIndexID(index_id_t index_id) const {
+  return offset_accessor_ ? offset_accessor_->GetVIDByIndexID(index_id)
+                          : INVALID_VID;
+}
+
+index_id_t VecColumnIndexIDAccessor::UpsertVID(vid_t vid) {
+  return GetIndexIDByVID(vid);
+}
+
+Status VecColumnIndexIDAccessor::DeleteVID(vid_t vid) {
+  if (!offset_accessor_) {
+    return Status::InternalError(
+        "VecColumnIndexIDAccessor is not bound to a VecColumn");
+  }
+  return offset_accessor_->DeleteVID(vid);
+}
+
+std::unique_ptr<Module> VecColumnIndexIDAccessor::Clone() const {
+  return std::make_unique<VecColumnIndexIDAccessor>(offset_accessor_);
+}
+
 }  // namespace neug

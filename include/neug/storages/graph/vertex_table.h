@@ -279,6 +279,13 @@ class VertexTable {
   const Table& get_table() const { return *table_; }
   Table& get_table() { return *table_; }
 
+  const ColumnBase* ReplaceVecColumn(size_t col,
+                                     std::unique_ptr<VecColumn<float>> column);
+  const ColumnBase* ReplaceVecColumn(size_t col,
+                                     std::unique_ptr<VecColumn<double>> column);
+  const ColumnBase* DegradeVecColumn(size_t col);
+  const ColumnBase* DegradeVecColumn(const std::string& property_name);
+
  private:
   vid_t insert_vertex_pk(const Value& id, timestamp_t ts, bool insert_safe);
 
