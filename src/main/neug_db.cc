@@ -16,7 +16,9 @@
 #include "neug/main/neug_db.h"
 
 #include <glog/logging.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <algorithm>
 #include <atomic>
 #include <chrono>

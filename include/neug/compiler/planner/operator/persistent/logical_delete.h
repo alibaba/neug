@@ -22,7 +22,7 @@ struct LogicalDeletePrintInfo final : OPPrintInfo {
 };
 
 class LogicalDelete final : public LogicalOperator {
-  static constexpr LogicalOperatorType type_ = LogicalOperatorType::DELETE;
+  static constexpr LogicalOperatorType type_ = LogicalOperatorType::DELETE_OP;
 
  public:
   LogicalDelete(std::vector<binder::BoundDeleteInfo> infos,

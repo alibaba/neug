@@ -19,14 +19,27 @@
 #include <glog/logging.h>
 #include <stdint.h>
 #include <string.h>
+#ifndef _WIN32
 #include <sys/stat.h>
 #include <unistd.h>
+#else
+#include <sys/stat.h>
+#include <io.h>
+#include <windows.h>
+#endif
 #include <fstream>
 #include <map>
 #include <mutex>
 #include <string>
 
 #include "neug/utils/exception/exception.h"
+
+#ifdef _WIN32
+// Windows file locking constants (match POSIX values used in the codebase).
+#define F_RDLCK 0
+#define F_WRLCK 1
+#define F_UNLCK 2
+#endif
 
 namespace neug {
 
@@ -76,7 +89,11 @@ FileLock::FileLock(const std::string& data_dir)
     : lock_file_path_(data_dir + "/" + LOCK_FILE_NAME),
       fd_(-1),
       locked_(false) {
+#ifdef _WIN32
+  fd_ = _open(lock_file_path_.c_str(), _O_RDWR | _O_CREAT, _S_IREAD | _S_IWRITE);
+#else
   fd_ = ::open(lock_file_path_.c_str(), O_RDWR | O_CREAT, 0600);
+#endif
   if (fd_ == -1) {
     if (errno == EACCES) {
       THROW_PERMISSION_DENIED(
@@ -91,7 +108,11 @@ FileLock::FileLock(const std::string& data_dir)
 FileLock::~FileLock() {
   if (fd_ != -1) {
     unlock();
+#ifdef _WIN32
+    _close(fd_);
+#else
     ::close(fd_);
+#endif
   }
 }
 
@@ -141,6 +162,41 @@ void FileLock::unlock() {
 }
 
 bool FileLock::lock(short type, bool wait, std::string& error_msg) {
+#ifdef _WIN32
+  // Windows file locking via LockFileEx/UnlockFileEx.
+  HANDLE hFile = reinterpret_cast<HANDLE>(_get_osfhandle(fd_));
+  if (hFile == INVALID_HANDLE_VALUE) {
+    error_msg = "Failed to get file handle for locking.";
+    return false;
+  }
+  DWORD flags = 0;
+  if (type == F_WRLCK) flags |= LOCKFILE_EXCLUSIVE_LOCK;
+  if (wait) flags |= LOCKFILE_FAIL_IMMEDIATELY;
+  if (type == F_UNLCK) {
+    OVERLAPPED ov = {};
+    if (!UnlockFileEx(hFile, 0, 1, 0, &ov)) {
+      error_msg = "Failed to unlock file: " + std::to_string(GetLastError());
+      return false;
+    }
+    return true;
+  }
+  OVERLAPPED ov = {};
+  while (true) {
+    if (LockFileEx(hFile, flags, 0, 1, 0, &ov)) {
+      return true;
+    }
+    DWORD err = GetLastError();
+    if (err == ERROR_LOCK_VIOLATION) {
+      error_msg =
+          "Lock file is already locked by another process: " + lock_file_path_ +
+          ", please check if another instance of the database is running.";
+      return false;
+    } else {
+      error_msg = "Failed to acquire lock: " + std::to_string(err);
+      return false;
+    }
+  }
+#else
   struct flock fl;
   std::memset(&fl, 0, sizeof(fl));
   fl.l_type = type;
@@ -167,6 +223,7 @@ bool FileLock::lock(short type, bool wait, std::string& error_msg) {
       return false;
     }
   }
+#endif
 }
 
 }  // namespace neug

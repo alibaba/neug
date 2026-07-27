@@ -29,6 +29,7 @@
 
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
+#include "neug/utils/api.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view.h"
@@ -96,7 +97,7 @@ namespace neug {
  *
  * @since v0.1.0
  */
-class PropertyGraph {
+class NEUG_API PropertyGraph {
  public:
   /**
    * @brief Construct PropertyGraph with default settings.
@@ -114,6 +115,13 @@ class PropertyGraph {
    * @since v0.1.0
    */
   ~PropertyGraph();
+
+  // Move-only: copy is not meaningful because the underlying storage
+  // (VertexTable, EdgeTable) is move-only.  Use Clone() for explicit copies.
+  PropertyGraph(const PropertyGraph&) = delete;
+  PropertyGraph& operator=(const PropertyGraph&) = delete;
+  PropertyGraph(PropertyGraph&&) = default;
+  PropertyGraph& operator=(PropertyGraph&&) = default;
 
   /**
    * @brief Open the graph from the given Checkpoint using the Module interface.

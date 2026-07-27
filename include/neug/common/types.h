@@ -23,6 +23,8 @@
 
 #include <stdint.h>
 #include <memory>
+
+#include "neug/utils/api.h"
 #include <ostream>
 #include <string>
 #include <unordered_map>
@@ -109,7 +111,7 @@ enum class DataTypeId : uint8_t {
 
 struct ExtraTypeInfo;
 
-struct DataType {
+struct NEUG_API DataType {
   DataType();
   DataType(DataTypeId id);
   DataType(DataTypeId id, std::shared_ptr<ExtraTypeInfo> type_info);

@@ -48,7 +48,7 @@ namespace neug {
  * - PublishSnapshot publishes the new slot BEFORE VersionManager advances
  *   read_ts_, so readers never see "new ts + old slot".
  */
-class GraphSnapshotStore {
+class NEUG_API GraphSnapshotStore {
  public:
   /// A slot holding a PropertyGraph, its GraphView, and a pin count.
   class SnapshotSlot {

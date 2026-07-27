@@ -2,6 +2,11 @@
 
 #include <cstdint>
 
+// Windows headers may define NONE as a macro; undefine it.
+#ifdef NONE
+#undef NONE
+#endif
+
 namespace neug {
 namespace planner {
 

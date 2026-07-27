@@ -20,7 +20,9 @@
 
 #include <errno.h>
 #include <stdint.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <algorithm>
 #include <cctype>
 #include <cmath>

@@ -102,6 +102,8 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
       false /* isInternal */, false /* hasParent */, temporary);
 }
 
+DDLVertexInfo::~DDLVertexInfo() = default;
+
 std::string DDLVertexInfo::getVertexLabelName() {
   return nodeTableEntry->getName();
 }

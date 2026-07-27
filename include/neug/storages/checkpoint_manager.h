@@ -19,6 +19,7 @@
 #include <mutex>
 #include <string>
 
+#include "neug/utils/api.h"
 #include "neug/storages/checkpoint.h"
 
 namespace neug {
@@ -47,7 +48,7 @@ namespace neug {
  * an internal mutex). Callers that race CreateStagingCheckpoint() / Close()
  * must coordinate externally.
  */
-class CheckpointManager {
+class NEUG_API CheckpointManager {
  public:
   class StagingCheckpoint {
    public:

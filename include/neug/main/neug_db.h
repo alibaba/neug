@@ -111,7 +111,7 @@ class Schema;
  *
  * @since v0.1.0
  */
-class NeugDB {
+class NEUG_API NeugDB {
  public:
   NeugDB();
   ~NeugDB();

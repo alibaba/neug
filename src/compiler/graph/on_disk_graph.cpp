@@ -199,7 +199,7 @@ OnDiskGraphVertexScanState::OnDiskGraphVertexScanState(
 void OnDiskGraphVertexScanState::startScan(offset_t beginOffset,
                                            offset_t endOffsetExclusive) {}
 
-bool OnDiskGraphVertexScanState::next() {}
+bool OnDiskGraphVertexScanState::next() { return false; }
 
 }  // namespace graph
 }  // namespace neug

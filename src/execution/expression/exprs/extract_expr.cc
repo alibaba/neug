@@ -15,8 +15,17 @@
 
 #include "neug/execution/expression/exprs/extract_expr.h"
 
+#include <ctime>
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/exception/exception.h"
+
+#ifdef _WIN32
+// MSVC provides gmtime_s instead of gmtime_r.
+// gmtime_r(timer, result) -> gmtime_s(result, timer)
+static inline struct tm* gmtime_r(const time_t* timer, struct tm* result) {
+  return gmtime_s(result, timer) == 0 ? result : nullptr;
+}
+#endif
 
 namespace neug {
 namespace execution {

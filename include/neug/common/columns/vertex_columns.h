@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/common/types/i_context_column.h"
+#include "neug/utils/platform.h"
 
 namespace neug {
 
@@ -43,7 +44,7 @@ class IVertexColumn : public IContextColumn {
     return Value::VERTEX(this->get_vertex(idx));
   }
 
-  __attribute__((always_inline)) const DataType& elem_type() const override {
+  NEUG_ALWAYS_INLINE const DataType& elem_type() const override {
     return type_;
   }
 
@@ -76,7 +77,7 @@ class SLVertexColumn : public IVertexColumn {
   explicit SLVertexColumn(label_t label) : label_(label) {}
   ~SLVertexColumn() = default;
 
-  __attribute__((always_inline)) inline size_t size() const override {
+  NEUG_ALWAYS_INLINE inline size_t size() const override {
     return vertices_.size();
   }
 
@@ -96,7 +97,7 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const sel_vec_t& offset) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
+  NEUG_ALWAYS_INLINE VertexRecord get_vertex(
       size_t idx) const override {
     return {label_, vertices_[idx]};
   }
@@ -131,9 +132,9 @@ class SLVertexColumn : public IVertexColumn {
     return ret;
   }
 
-  __attribute__((always_inline)) label_t label() const { return label_; }
+  NEUG_ALWAYS_INLINE label_t label() const { return label_; }
 
-  __attribute__((always_inline)) const vector_t<vid_t>& vertices() const {
+  NEUG_ALWAYS_INLINE const vector_t<vid_t>& vertices() const {
     return vertices_;
   }
 
@@ -149,7 +150,7 @@ class MSVertexColumn : public IVertexColumn {
   MSVertexColumn() = default;
   ~MSVertexColumn() = default;
 
-  __attribute__((always_inline)) size_t size() const override {
+  NEUG_ALWAYS_INLINE size_t size() const override {
     size_t ret = 0;
     for (auto& pair : vertices_) {
       ret += pair.second.size();
@@ -181,7 +182,7 @@ class MSVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const sel_vec_t& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
+  NEUG_ALWAYS_INLINE VertexRecord get_vertex(
       size_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
@@ -194,11 +195,11 @@ class MSVertexColumn : public IVertexColumn {
             std::numeric_limits<vid_t>::max()};
   }
 
-  __attribute__((always_inline)) bool is_optional() const override {
+  NEUG_ALWAYS_INLINE bool is_optional() const override {
     return is_optional_;
   }
 
-  __attribute__((always_inline)) bool has_value(size_t idx) const override {
+  NEUG_ALWAYS_INLINE bool has_value(size_t idx) const override {
     auto v = get_vertex(idx);
     return v.vid_ != std::numeric_limits<vid_t>::max();
   }
@@ -216,15 +217,15 @@ class MSVertexColumn : public IVertexColumn {
 
   std::set<label_t> get_labels_set() const override { return labels_; }
 
-  __attribute__((always_inline)) size_t seg_num() const {
+  NEUG_ALWAYS_INLINE size_t seg_num() const {
     return vertices_.size();
   }
 
-  __attribute__((always_inline)) label_t seg_label(size_t seg_id) const {
+  NEUG_ALWAYS_INLINE label_t seg_label(size_t seg_id) const {
     return vertices_[seg_id].first;
   }
 
-  __attribute__((always_inline)) const vector_t<vid_t>& seg_vertices(
+  NEUG_ALWAYS_INLINE const vector_t<vid_t>& seg_vertices(
       size_t seg_id) const {
     return vertices_[seg_id].second;
   }
@@ -266,7 +267,7 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
     push_back_opt(v.vid_);
   }
 
-  __attribute__((always_inline)) void start_label(label_t label) {
+  NEUG_ALWAYS_INLINE void start_label(label_t label) {
     if (!cur_list_.empty() && cur_label_ != label &&
         cur_label_ != std::numeric_limits<label_t>::max()) {
       vertices_.emplace_back(cur_label_, std::move(cur_list_));

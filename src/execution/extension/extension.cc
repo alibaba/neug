@@ -13,7 +13,31 @@
  * limitations under the License.
  */
 
+#ifndef _WIN32
 #include <dlfcn.h>
+#else
+// Include winsock2.h before windows.h to avoid conflicting winsock.h/winsock2.h
+// definitions; httplib.h also includes winsock2.h later.
+#include <winsock2.h>
+#include <windows.h>
+// Windows shims for POSIX dlopen/dlsym/dlclose/dlerror.
+#define RTLD_NOW 0
+#define RTLD_LOCAL 0
+static inline void* dlopen(const char* path, int) {
+  return LoadLibraryA(path);
+}
+static inline void* dlsym(void* handle, const char* name) {
+  return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(handle), name));
+}
+static inline int dlclose(void* handle) {
+  return FreeLibrary(static_cast<HMODULE>(handle)) ? 0 : 1;
+}
+static inline char* dlerror() {
+  static char buf[256];
+  snprintf(buf, sizeof(buf), "Windows error code: %lu", GetLastError());
+  return buf;
+}
+#endif
 #include <glog/logging.h>
 
 #include <cstdlib>
@@ -450,6 +474,7 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 // libneug.so in DT_NEEDED.  Re-opening with RTLD_NOLOAD | RTLD_GLOBAL
 // promotes the already-loaded instance without reloading it.
 static void ensureNeugSymbolsGlobal() {
+#ifndef _WIN32
   static bool promoted = false;
   if (promoted)
     return;
@@ -459,6 +484,10 @@ static void ensureNeugSymbolsGlobal() {
     dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_GLOBAL);
   }
   promoted = true;
+#else
+  // On Windows, symbols are exported via WINDOWS_EXPORT_ALL_SYMBOLS,
+  // so no promotion is needed.
+#endif
 }
 
 Status load_extension(const std::string& extension_name) {

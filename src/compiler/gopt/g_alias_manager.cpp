@@ -110,7 +110,7 @@ std::vector<gopt::GAliasName> GAliasManager::extractSingleOpGAliasNames(
   case planner::LogicalOperatorType::ORDER_BY:
   case planner::LogicalOperatorType::LIMIT:
   case planner::LogicalOperatorType::SET_PROPERTY:
-  case planner::LogicalOperatorType::DELETE:
+  case planner::LogicalOperatorType::DELETE_OP:
   case planner::LogicalOperatorType::COPY_FROM:
   case planner::LogicalOperatorType::COPY_TO:
   case planner::LogicalOperatorType::ALTER:
@@ -150,7 +150,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::ORDER_BY:
   case planner::LogicalOperatorType::LIMIT:
   case planner::LogicalOperatorType::SET_PROPERTY:
-  case planner::LogicalOperatorType::DELETE:
+  case planner::LogicalOperatorType::DELETE_OP:
   case planner::LogicalOperatorType::INSERT: {
     for (auto& child : op.getChildren()) {
       extractGAliasNames(*child, aliasNames);

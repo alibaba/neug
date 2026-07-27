@@ -81,7 +81,7 @@ class NeugDB;
  *
  * @since v0.1.0
  */
-class Connection {
+class NEUG_API Connection {
  public:
   Connection(GraphSnapshotStore& snapshot_store,
              std::shared_ptr<QueryProcessor> query_processor)

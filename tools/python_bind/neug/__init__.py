@@ -165,13 +165,15 @@ def get_build_lib_dir() -> str:
             build_dir = None
     else:
         # Try multiple build directory patterns in order of preference
+        # Use platform.machine() instead of os.uname().machine for Windows compat
+        _machine = platform.machine()
         build_dir_patterns = [
             # Modern pattern with cpython tag (Python 3.8+)
-            f"lib.{os_name}-{os.uname().machine}-cpython-{sys.version_info.major}{sys.version_info.minor}",
+            f"lib.{os_name}-{_machine}-cpython-{sys.version_info.major}{sys.version_info.minor}",
             # Legacy pattern with version
-            f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
+            f"lib.{os_name}-{_machine}-{sys.version_info.major}.{sys.version_info.minor}",
             # Very old pattern without version suffix
-            f"lib.{os_name}-{os.uname().machine}",
+            f"lib.{os_name}-{_machine}",
         ]
 
         build_dir = None
@@ -196,14 +198,18 @@ def _find_neug_py_bind_dir():
     """
     cur_dir = os.path.dirname(os.path.abspath(__file__))
 
-    if glob.glob(os.path.join(cur_dir, "neug_py_bind*.so")):
+    if glob.glob(os.path.join(cur_dir, "neug_py_bind*.so")) or glob.glob(
+        os.path.join(cur_dir, "neug_py_bind*.pyd")
+    ):
         return cur_dir
 
     # Assume layout: <repo>/tools/python_bind/neug/__init__.py → repo is 3 up.
     repo_root = os.path.abspath(os.path.join(cur_dir, "..", "..", ".."))
     root_build = os.environ.get("NEUG_BUILD_DIR", os.path.join(repo_root, "build"))
     candidate = os.path.join(root_build, "tools", "python_bind")
-    if glob.glob(os.path.join(candidate, "neug_py_bind*.so")):
+    if glob.glob(os.path.join(candidate, "neug_py_bind*.so")) or glob.glob(
+        os.path.join(candidate, "neug_py_bind*.pyd")
+    ):
         return candidate
 
     return get_build_lib_dir()

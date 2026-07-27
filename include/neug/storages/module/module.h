@@ -20,6 +20,7 @@
 #include "neug/config.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module_descriptor.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
@@ -32,7 +33,7 @@ class Checkpoint;
  * Clone (zero-copy COW clone), and Detach (detach
  * shared storage before mutation).
  */
-class Module {
+class NEUG_API Module {
  public:
   virtual ~Module() = default;
 
