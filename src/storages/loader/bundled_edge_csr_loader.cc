@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "bundled_edge_csr_loader.h"
+#include "neug/storages/loader/bundled_edge_csr_loader.h"
 
 #include <glog/logging.h>
 

@@ -51,9 +51,17 @@ QueryProcessor::check_and_retrieve_pipeline(
 
 result<int32_t> QueryProcessor::resolve_thread_budget(
     int32_t requested_threads) const {
-  if (requested_threads < 0 || max_thread_num_ < 1) {
-    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                              "Number of threads must be greater than 0"));
+  // Zero requests the configured default, so only negative counts are
+  // rejected here.
+  if (requested_threads < 0) {
+    RETURN_ERROR(
+        neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                     "Number of threads must be non-negative (0 means the "
+                     "configured default)"));
+  }
+  if (max_thread_num_ < 1) {
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR,
+                              "Max thread number must be greater than 0"));
   }
   if (requested_threads == 0) {
     return max_thread_num_;

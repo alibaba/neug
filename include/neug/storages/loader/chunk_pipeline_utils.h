@@ -35,11 +35,6 @@ namespace neug {
 
 namespace chunk_pipeline_detail {
 
-inline int32_t hardware_worker_count() {
-  auto workers = static_cast<int32_t>(std::thread::hardware_concurrency());
-  return workers <= 0 ? 1 : workers;
-}
-
 template <typename T>
 class BoundedQueue {
  public:
