@@ -41,7 +41,7 @@ void LogicalOperatorVisitor::visitOperatorSwitch(LogicalOperator* op) {
   case LogicalOperatorType::COPY_TO: {
     visitCopyTo(op);
   } break;
-  case LogicalOperatorType::DELETE: {
+  case LogicalOperatorType::DELETE_OP: {
     visitDelete(op);
   } break;
   case LogicalOperatorType::DISTINCT: {
@@ -134,7 +134,7 @@ LogicalOperatorVisitor::visitOperatorReplaceSwitch(
   case LogicalOperatorType::COPY_TO: {
     return visitCopyToReplace(op);
   }
-  case LogicalOperatorType::DELETE: {
+  case LogicalOperatorType::DELETE_OP: {
     return visitDeleteReplace(op);
   }
   case LogicalOperatorType::DISTINCT: {

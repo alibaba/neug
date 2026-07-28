@@ -16,8 +16,12 @@
 #include "neug/transaction/wal/local_wal_parser.h"
 
 #include <fcntl.h>
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
+#else
+#include <io.h>
+#endif
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
@@ -26,6 +30,7 @@
 
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/io/file/file_utils.h"
 
 namespace neug {
 
@@ -49,7 +54,11 @@ void LocalWalParser::open(const std::string& wal_uri) {
     if (file_size == 0) {
       continue;
     }
+#ifdef _WIN32
+    int fd = _open(path.c_str(), O_RDONLY, 0);
+#else
     int fd = ::open(path.c_str(), O_RDONLY);
+#endif
     if (fd == -1) {
       close();
       THROW_IO_EXCEPTION("Failed to open wal file: " + path + ": " +
@@ -58,7 +67,11 @@ void LocalWalParser::open(const std::string& wal_uri) {
     void* mmapped_buffer =
         ::mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (mmapped_buffer == MAP_FAILED) {
+#ifdef _WIN32
+      _close(fd);
+#else
       ::close(fd);
+#endif
       close();
       THROW_IO_EXCEPTION("Failed to mmap wal file: " + path + ": " +
                          strerror(errno));
@@ -113,7 +126,11 @@ void LocalWalParser::close() {
     munmap(mmapped_ptrs_[i], mmapped_size_[i]);
   }
   for (auto fd : fds_) {
+#ifdef _WIN32
+    _close(fd);
+#else
     ::close(fd);
+#endif
   }
   fds_.clear();
   mmapped_ptrs_.clear();

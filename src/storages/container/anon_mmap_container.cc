@@ -14,21 +14,28 @@
  */
 
 #include <fcntl.h>
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
-#include <cstdio>
-#include <functional>
-#include <memory>
-#include <stdexcept>
 #ifdef __linux__
 #include <linux/fs.h>
 #include <sys/syscall.h>
 #endif
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#else
+#include <io.h>
+// POSIX-to-MSVC shims
+#define open _open
+#define close _close
+#ifndef O_RDONLY
+#define O_RDONLY _O_RDONLY
+#endif
+#endif
+#include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 

@@ -34,6 +34,8 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include "neug/utils/api.h"
+
 #include "neug/common/extra_type_info.h"
 #include "neug/common/types.h"
 #include "neug/config.h"
@@ -256,7 +258,7 @@ struct Interval {
   inline bool operator>=(const Interval& rhs) const { return !(*this < rhs); }
 };
 
-struct Date {
+struct NEUG_API Date {
   inline static const int32_t NORMAL_DAYS[13] = {0,  31, 28, 31, 30, 31, 30,
                                                  31, 31, 30, 31, 30, 31};
   inline static const int32_t CUMULATIVE_DAYS[13] = {

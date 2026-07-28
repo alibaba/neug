@@ -6,6 +6,27 @@
 
 #include "antlr4-runtime.h"
 
+// Windows headers define DELETE, NONE, OPTIONAL, IN, OUT as macros which conflict
+// with enum values below. Undefine them before the enum.
+#ifdef DELETE
+#undef DELETE
+#endif
+#ifdef NONE
+#undef NONE
+#endif
+#ifdef OPTIONAL
+#undef OPTIONAL
+#endif
+#ifdef ERROR
+#undef ERROR
+#endif
+#ifdef IN
+#undef IN
+#endif
+#ifdef OUT
+#undef OUT
+#endif
+
 
 
 

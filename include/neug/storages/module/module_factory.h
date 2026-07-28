@@ -69,11 +69,22 @@ class ModuleFactory {
  *
  * Usage: Place REGISTER_MODULE(MyModule) in the source file after class
  * definition.
+ *
+ * On GCC/Clang we use __attribute__((constructor)) which runs the function
+ * before main().  On MSVC this attribute is not supported, so we use a static
+ * variable whose dynamic initializer performs the registration.  The comma-
+ * expression returns 0 so the variable can be a plain int.
  */
+#ifdef _WIN32
+#define NEUG_REGISTER_MODULE(Class) \
+  static int _register_##Class =    \
+      (ModuleFactory::instance().Register<Class>(), 0);
+#else
 #define NEUG_REGISTER_MODULE(Class)                              \
   __attribute__((constructor)) static void _register_##Class() { \
     ModuleFactory::instance().Register<Class>();                 \
   }
+#endif
 
 /**
  * @brief Macro for registering template module instantiations.
@@ -82,11 +93,17 @@ class ModuleFactory {
  * Works with types containing '::' (e.g. std::string_view) by using
  * __COUNTER__ for a stable, type-name-independent function identifier.
  */
+#ifdef _WIN32
+#define NEUG_REGISTER_TEMPLATE_MODULE_IMPL(TemplateClass, T, Counter) \
+  static int _register_##TemplateClass##_##Counter =                  \
+      (ModuleFactory::instance().Register<TemplateClass<T>>(), 0);
+#else
 #define NEUG_REGISTER_TEMPLATE_MODULE_IMPL(TemplateClass, T, Counter)      \
   __attribute__(                                                           \
       (constructor)) static void _register_##TemplateClass##_##Counter() { \
     ModuleFactory::instance().Register<TemplateClass<T>>();                \
   }
+#endif
 
 // Indirection layer: N is not adjacent to ##, so __COUNTER__ is fully expanded
 // here before being passed to IMPL (where it would otherwise be pasted raw).

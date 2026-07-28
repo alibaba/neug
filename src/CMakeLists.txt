@@ -50,7 +50,11 @@ if (APPLE)
 endif()
 if (WITH_MIMALLOC)
     # It must be PUBLIC, otherwise there will be performance differences.
-    target_link_libraries(neug PUBLIC mimalloc)
+    if(WIN32)
+        target_link_libraries(neug PUBLIC mimalloc-static)
+    else()
+        target_link_libraries(neug PUBLIC mimalloc)
+    endif()
 endif()
 target_include_directories(neug PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>

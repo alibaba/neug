@@ -28,6 +28,7 @@
 #include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression_binder.h"
+#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/column_evaluate_type.h"
 #include "neug/compiler/common/types/types.h"
@@ -62,6 +63,7 @@ struct NEUG_API DDLVertexInfo : public DDLTableInfo {
                 const std::string& primaryKeyName,
                 const expression_vector& columns, ExpressionBinder& binder,
                 bool temporary = false);
+  ~DDLVertexInfo();
 
   // return vertex label name
   std::string getVertexLabelName();

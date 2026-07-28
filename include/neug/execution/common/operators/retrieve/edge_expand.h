@@ -20,6 +20,7 @@
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
+#include "neug/utils/platform.h"
 #include "neug/utils/result.h"
 
 namespace neug {

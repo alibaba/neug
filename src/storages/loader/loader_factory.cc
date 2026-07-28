@@ -15,7 +15,11 @@
 
 #include "neug/storages/loader/loader_factory.h"
 
-#include <dlfcn.h>         // for dlerror
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>  // for dlerror
+#endif
 #include <glog/logging.h>  // for LOG, Log...
 #include <stdlib.h>        // for getenv
 #include <memory>          // for allocator
@@ -45,9 +49,15 @@ void LoaderFactory::Init() {
         split_string_into_vec(other_loaders, ":");
     for (auto const& adaptor : adaptors) {
       if (!adaptor.empty()) {
+#ifdef _WIN32
+        if (LoadLibraryA(adaptor.c_str()) == NULL) {
+          LOG(WARNING) << "Failed to load io adaptors " << adaptor
+                       << ", reason = " << GetLastError();
+#else
         if (dlopen(adaptor.c_str(), RTLD_GLOBAL | RTLD_NOW) == nullptr) {
           LOG(WARNING) << "Failed to load io adaptors " << adaptor
                        << ", reason = " << dlerror();
+#endif
         } else {
           LOG(INFO) << "Loaded io adaptors " << adaptor;
         }
