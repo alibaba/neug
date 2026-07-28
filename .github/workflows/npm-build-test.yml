@@ -281,3 +281,65 @@ jobs:
           name: nodejs-osx-arm64-${{ github.run_id }}
           path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
           if-no-files-found: error
+
+  pack_npm_main:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: format_check
+    runs-on: ubuntu-22.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pack main npm package
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/npm-main dist/npm
+          cp tools/nodejs_bind/assets/package.json dist/npm-main/package.json
+          cp tools/nodejs_bind/assets/index.js dist/npm-main/index.js
+
+          node <<'JS'
+          const fs = require('fs');
+          const packagePath = 'dist/npm-main/package.json';
+          const packageJson = JSON.parse(fs.readFileSync(packagePath));
+          const platforms = [
+            'linux-x86_64',
+            'linux-arm64',
+            'osx-arm64',
+          ];
+
+          packageJson.optionalDependencies = Object.fromEntries(
+            platforms.map((platform) => [
+              `@graphscope-neug/${platform}`,
+              `file:graphscope-neug-${platform}-${packageJson.version}.tgz`,
+            ])
+          );
+          fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
+          JS
+
+          npm pack ./dist/npm-main --pack-destination dist/npm
+
+      - name: Upload main npm tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodejs-main-${{ github.run_id }}
+          path: ./dist/npm/graphscope-neug-neug-*.tgz
+          if-no-files-found: error
+
+  # Nightly verifies the packages built in this run through the same test suite
+  # used by the manual published-package check.
+  package_test:
+    if: github.event_name == 'schedule'
+    needs:
+      - pack_npm_main
+      - build_npm_linux_x86_64
+      - build_npm_linux_arm64
+      - build_npm_macos_aarch64
+    uses: ./.github/workflows/npm-package-test.yml
+    with:
+      package_source: artifact
