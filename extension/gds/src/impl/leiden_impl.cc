@@ -261,8 +261,9 @@ void Leiden::compute() {
                 double w = has_weight_
                                ? weight_accessor_.get_typed_data<double>(it)
                                : 1.0;
-                local_mod[tid] += w / (2.0 * m_) -
-                                  resolution_ * degree_[v] * degree_[u] / (4.0 * m_ * m_);
+                local_mod[tid] += w / (2.0 * m_) - resolution_ * degree_[v] *
+                                                       degree_[u] /
+                                                       (4.0 * m_ * m_);
               }
             }
           },
@@ -367,8 +368,8 @@ void Leiden::compute() {
                                        .get_typed_data<double>(it)
                                  : 1.0;
                   local_mod[tid] +=
-                      w / (2.0 * m_) -
-                      resolution_ * degree_[gid] * degree_[u_gid] / (4.0 * m_ * m_);
+                      w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                           degree_[u_gid] / (4.0 * m_ * m_);
                 }
               }
             }
