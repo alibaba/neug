@@ -25,6 +25,9 @@
 #define open _open
 #define close _close
 #define unlink _unlink
+// _chsize_s returns 0 on success and an errno value on failure, so
+// error checks must use `!= 0` (POSIX ftruncate returns 0 or -1).
+#define ftruncate _chsize_s
 #ifndef O_RDWR
 #define O_RDWR _O_RDWR
 #endif
@@ -74,13 +77,13 @@ void FilePrivateMMap::OpenAnonymous(size_t size) {
 }
 
 void* FilePrivateMMap::mmapImpl(const std::string& path, size_t mmap_size) {
-  int fd = _open(path.c_str(), O_RDONLY, 0);
+  int fd = open(path.c_str(), O_RDONLY);
   if (fd == -1) {
     THROW_RUNTIME_ERROR("Failed to open file: " + path);
   }
   void* mmap_data =
       mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-  _close(fd);
+  close(fd);
   return mmap_data;
 }
 
@@ -103,15 +106,15 @@ void FileSharedMMap::Resize(size_t size) {
   data_ = nullptr;
   size_ = 0;
 
-  int fd = _open(path_.c_str(), O_RDWR, 0);
+  int fd = open(path_.c_str(), O_RDWR);
   if (fd == -1) {
     THROW_RUNTIME_ERROR("Failed to open file for resizing: " + path_);
   }
-  if (_chsize_s(fd, real_size) != 0) {
-    _close(fd);
+  if (ftruncate(fd, real_size) != 0) {
+    close(fd);
     THROW_RUNTIME_ERROR("Failed to resize file: " + path_);
   }
-  _close(fd);
+  close(fd);
   mmap_size_ = std::filesystem::file_size(path_);
   assert(mmap_size_ == real_size);
   // Create a new mapping with the updated file size
