@@ -697,7 +697,7 @@ RETURN distance, path;
 | Louvain | `louvain` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation`, `weight` |
 | Leiden | `leiden` | `node`, `community`, `previous_community` *(optional)* | `resolution`, `directed`, `threshold`, `concurrency`, `initial_community_property`, `allow_relocation`, `weight` |
 
-**Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. The `previous_community` column for Louvain and Leiden is optional and only available when `initial_community_property` is set. See the individual algorithm sections for details.
+**Note:** The `path` column for BFS and SSSP is optional and only returned when explicitly YIELDed. The `previous_community` column for Louvain and Leiden is always yieldable but NULL unless `initial_community_property` is set. See the individual algorithm sections for details.
 
 ## Common Options
 
