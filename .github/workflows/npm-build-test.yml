@@ -331,10 +331,10 @@ jobs:
           path: ./dist/npm/graphscope-neug-neug-*.tgz
           if-no-files-found: error
 
-  # Nightly verifies the packages built in this run through the same test suite
-  # used by the manual published-package check.
+  # Nightly and manually dispatched builds verify the packages from this run
+  # through the same test suite used by the published-package check.
   package_test:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs:
       - pack_npm_main
       - build_npm_linux_x86_64
