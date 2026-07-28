@@ -5,7 +5,7 @@
 # umbrella's full GitHub body here (it usually contains a child-issue list
 # which would leak labels during backtesting).
 
-milestone: "NeuG v0.2"
+milestone: "NeuG v0.3"
 
 # Minimum confidence required to auto-link as sub-issue (without human approval).
 # "high" = unambiguous fit. Recommended starting value: never auto-link
@@ -148,3 +148,45 @@ umbrellas:
     scope_out: |
       Scalar / temporal type inference (#221). Storage refactor unrelated to
       LIST (#272).
+
+  - number: 779
+    title: "Support explicit transaction control (BEGIN / COMMIT / ROLLBACK) end-to-end"
+    scope_in: |
+      User-facing explicit transaction support: parsing & binding of BEGIN
+      TRANSACTION [READ ONLY] / COMMIT / ROLLBACK statements, session /
+      Connection-level active-transaction state, auto-commit default and
+      rollback-on-close, multi-statement execution so BEGIN ... COMMIT spans
+      one Query call, READ ONLY runtime guard, Python binding
+      (`Connection.begin/commit/rollback`) and HTTP service transaction
+      handle, crash-recovery of in-flight explicit transactions,
+      documentation for the explicit-txn surface.
+    scope_out: |
+      Transaction layer internals (COW, two-phase commit, WAL mechanics,
+      schema forkability, rollback of bulk insert/update) — those go to
+      #86. The underlying UpdateTransaction / TxnManager refactor that the
+      explicit-txn runtime drives — also #86. Persistence / checkpoint
+      protocol — #272. Pure compiler / parser / binder plumbing for the
+      four transaction statements themselves (#774) is a prerequisite and
+      the FIRST sub-task, but its umbrella parent is this issue.
+
+  - number: 783
+    title: "Unify AP and TP query execution ownership and version lifecycle"
+    scope_in: |
+      Cross-cutting executor ownership refactor: shared `ExecutionSlot`
+      abstraction for query preparation and pipeline execution, Connection-
+      exclusive ownership of its execution slot, `TpExecutionSlotPool`
+      ownership of TP slots together with their WAL writers, moving Session
+      and version-manager lifecycle out of the server layer and into core
+      (neug/main/), keeping `NeugDB` focused on database-wide resources,
+      sharing one AP/TP version timeline with explicit checkpoint-
+      visibility semantics, and the related P1/P2 follow-ups that come out
+      of those consolidations. Sub-issues (e.g. #777) live under this
+      umbrella.
+    scope_out: |
+      Pure transaction layer internals (COW, two-phase commit, WAL
+      mechanics, rollback) — those go to #86. Persistence / checkpoint /
+      mmap / dump-load protocol — #272. Per-CSR / per-column storage
+      refactors that don't touch ownership or lifecycle — #272 or #257.
+      Pure read-side / write-side runtime performance that isn't an
+      ownership question — #257. Compiler / planner / binder refactors
+      unrelated to execution ownership — #257.
