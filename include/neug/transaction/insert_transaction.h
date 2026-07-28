@@ -60,9 +60,9 @@ class Schema;
  * is a correctness bug, not a performance optimization.
  *
  * **Concurrency contract** (VersionManager state machine):
- * - Insert requires update_state_==0 (normal); multiple concurrent inserts
- *   allowed (active_inserters_ counter). Update/compact transitions state
- *   away from 0, blocking new inserts.
+ * - Insert requires admission_state_==kOpen; multiple concurrent inserts are
+ *   allowed (active_inserters_ counter). Update/compact transitions the state
+ *   away from kOpen, blocking new inserts.
  * - Insert does NOT block readers, and readers do NOT block insert.
  * - The pinned slot's PropertyGraph is shared with all readers on that slot.
  *
@@ -197,7 +197,8 @@ class InsertTransaction {
   const Schema& schema() const;
 
   GraphStats statistic() const {
-    return GraphStats(*guard_.get().mutable_graph());
+    const auto& slot = guard_.get();
+    return GraphStats(*slot.mutable_graph(), slot.query_cache_generation());
   }
 
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;

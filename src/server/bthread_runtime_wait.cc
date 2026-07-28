@@ -12,26 +12,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
 
-#include <atomic>
+#include "neug/server/bthread_runtime_wait.h"
+
+#include <bthread/bthread.h>
 
 namespace neug {
 
-/**
- * @brief A simple implementation of spinlock based on std::atomic.
- */
-class SpinLock {
-  std::atomic_flag locked = ATOMIC_FLAG_INIT;
-
- public:
-  void lock() {
-    while (!try_lock()) {}
+void BthreadRuntimeWait(RuntimeWaitAction action) noexcept {
+  switch (action) {
+  case RuntimeWaitAction::kYield:
+    (void) bthread_yield();
+    break;
+  case RuntimeWaitAction::kSleep:
+    (void) bthread_usleep(kRuntimeWaitSleepMicros);
+    break;
   }
-
-  bool try_lock() { return !locked.test_and_set(std::memory_order_acquire); }
-
-  void unlock() { locked.clear(std::memory_order_release); }
-};
+}
 
 }  // namespace neug

@@ -25,12 +25,12 @@ namespace neug {
 class LocalWalWriter : public IWalWriter {
  public:
   static std::unique_ptr<IWalWriter> Make(const std::string& wal_uri,
-                                          int thread_id);
+                                          int slot_id);
 
   static constexpr size_t TRUNC_SIZE = 1ul << 30;
-  LocalWalWriter(const std::string& wal_uri, int thread_id)
+  LocalWalWriter(const std::string& wal_uri, int slot_id)
       : wal_uri_(wal_uri),
-        thread_id_(thread_id),
+        slot_id_(slot_id),
         fd_(-1),
         file_size_(0),
         file_used_(0) {}
@@ -43,7 +43,7 @@ class LocalWalWriter : public IWalWriter {
 
  private:
   std::string wal_uri_;
-  int thread_id_;
+  int slot_id_;
   int fd_;
   size_t file_size_;
   size_t file_used_;

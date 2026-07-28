@@ -201,10 +201,12 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
 
 UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
   uint32_t ts = version_manager_.acquire_update_timestamp();
+  const uint64_t query_cache_generation =
+      snapshot_store_.CurrentQueryCacheGeneration();
   auto cow_graph = snapshot_store_.CurrentSnapshot().Clone();
   return UpdateTransaction(std::move(cow_graph), alloc_, *wal_writer_,
                            version_manager_, snapshot_store_, pipeline_cache_,
-                           ts);
+                           ts, query_cache_generation);
 }
 
 CompactTransaction ExecutionSlot::GetCompactTransaction() {
@@ -464,7 +466,8 @@ void ExecutionSlot::ClearTemporarySchema() {
 
   if (!temporary_edges.empty() || !temporary_vertices.empty()) {
     slot.mutable_view().Rebuild(*graph);
-    pipeline_cache_.clearGlobalCache();
+    const uint64_t generation = pipeline_cache_.clearGlobalCache();
+    snapshot_store_.SetCurrentQueryCacheGeneration(generation);
   }
 }
 

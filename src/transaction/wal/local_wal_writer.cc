@@ -32,8 +32,8 @@
 namespace neug {
 
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
-                                                 int thread_id) {
-  return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, thread_id));
+                                                 int slot_id) {
+  return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, slot_id));
 }
 
 LocalWalWriter::~LocalWalWriter() noexcept {
@@ -51,7 +51,10 @@ void LocalWalWriter::open() {
   }
   const int max_version = 65536;
   for (int version = 0; version != max_version; ++version) {
-    std::string path = prefix + "/thread_" + std::to_string(thread_id_) + "_" +
+    // Keep the historical on-disk prefix for WAL replay compatibility. The
+    // numeric component now identifies a logical execution slot, not a
+    // physical pthread.
+    std::string path = prefix + "/thread_" + std::to_string(slot_id_) + "_" +
                        std::to_string(version) + ".wal";
     if (std::filesystem::exists(path)) {
       continue;

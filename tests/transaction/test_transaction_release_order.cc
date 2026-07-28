@@ -54,6 +54,9 @@ class ReleaseOrderVersionManager : public IVersionManager {
       : store_(store) {}
 
   void init_ts(uint32_t, int) override {}
+  bool try_set_runtime_wait_if_quiescent(RuntimeWaitFn) noexcept override {
+    return true;
+  }
   uint32_t acquire_read_timestamp() override { return 1; }
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }

@@ -2751,10 +2751,9 @@ TEST_F(NeugDBACIDTest, UpdateStringPropertyCommitDoesNotAffectHeldReader) {
   }
 }
 
-// Design validation: GetUpdateTransaction acquires version_manager_'s
-// update_state_ exclusively (CAS 0→1), so only one UpdateTxn can be open
-// at a time. InsertTxn requires update_state_==0, so it is also blocked
-// by an open UpdateTxn.
+// Design validation: GetUpdateTransaction changes the admission state from
+// kOpen to kInsertsBlocked, so only one UpdateTxn can be open at a time.
+// InsertTxn requires kOpen, so it is also blocked by an open UpdateTxn.
 TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
   std::string dir = work_dir_ + "/WriteMutex";
   NeugDB db;
@@ -3002,8 +3001,8 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     // deployment target which this build doesn't set).
     //
     // The UpdateTransaction must be fully owned by the writer thread:
-    // GetUpdateTransaction acquires VersionManager's update_state_
-    // exclusively (CAS 0→1) and Commit resets it (→0).
+    // GetUpdateTransaction changes VersionManager's admission state from
+    // kOpen to kInsertsBlocked, and Commit restores it to kOpen.
     // Acquire+stage before the barrier preserves the
     // "post-race value staged in cow_graph" timing the test wants.
     std::atomic<int> ready{0};

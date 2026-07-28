@@ -14,24 +14,14 @@
  */
 #pragma once
 
-#include <atomic>
+#include "neug/transaction/runtime_wait.h"
 
 namespace neug {
 
 /**
- * @brief A simple implementation of spinlock based on std::atomic.
+ * bthread-aware yield and sleep. On a normal pthread, these bthread APIs fall
+ * back to sched_yield/usleep.
  */
-class SpinLock {
-  std::atomic_flag locked = ATOMIC_FLAG_INIT;
-
- public:
-  void lock() {
-    while (!try_lock()) {}
-  }
-
-  bool try_lock() { return !locked.test_and_set(std::memory_order_acquire); }
-
-  void unlock() { locked.clear(std::memory_order_release); }
-};
+void BthreadRuntimeWait(RuntimeWaitAction action) noexcept;
 
 }  // namespace neug

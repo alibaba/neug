@@ -51,9 +51,9 @@
 namespace neug {
 
 inline std::string allocator_prefix(const std::string& allocator_dir,
-                                    int thread_id) {
+                                    int slot_id) {
   return (std::filesystem::path(allocator_dir) /
-          ("allocator_" + std::to_string(thread_id) + "_"))
+          ("allocator_" + std::to_string(slot_id) + "_"))
       .string();
 }
 
@@ -492,6 +492,8 @@ void NeugDB::initQueryRuntime() {
   }
   auto global_query_cache =
       std::make_shared<execution::GlobalQueryCache>(planner_);
+  snapshot_store_->SetCurrentQueryCacheGeneration(
+      global_query_cache->version());
   auto connection_manager = std::make_unique<ConnectionManager>(*this, config_);
   CHECK(!global_query_cache_);
   CHECK(!connection_manager_);

@@ -41,10 +41,13 @@ class CatalogEntry;
 class GraphStats {
  public:
   GraphStats() = default;
-  explicit GraphStats(const PropertyGraph& graph) : graph_(&graph) {}
+  explicit GraphStats(const PropertyGraph& graph,
+                      uint64_t query_cache_generation = 0)
+      : graph_(&graph), query_cache_generation_(query_cache_generation) {}
 
   void UpdateGraph(const PropertyGraph& graph) { graph_ = &graph; }
   const Schema& schema() const { return graph_->schema(); }
+  uint64_t query_cache_generation() const { return query_cache_generation_; }
 #ifdef NEUG_BUILD_TEST
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif
@@ -65,6 +68,7 @@ class GraphStats {
 
  private:
   const PropertyGraph* graph_ = nullptr;
+  uint64_t query_cache_generation_ = 0;
 #ifdef NEUG_BUILD_TEST
   std::unordered_map<uint64_t, uint64_t> table_cardinalities_;
 #endif

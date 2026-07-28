@@ -37,6 +37,7 @@ GraphSnapshotStore::GraphSnapshotStore(
   // because a live cur slot always has count >= 1.
   slots_[0].storage_ = std::move(initial_pg);
   slots_[0].view_ = GraphView(*slots_[0].storage_);
+  slots_[0].query_cache_generation_.store(0, std::memory_order_relaxed);
   slots_[0].reader_count_.store(1, std::memory_order_relaxed);  // cur-pin
   cur_slot_index_.store(0, std::memory_order_release);
 
@@ -78,6 +79,8 @@ void GraphSnapshotStore::cleanupSlot(int slot_index) {
   }
   slots_[slot_index].storage_.reset();
   slots_[slot_index].view_ = GraphView();
+  slots_[slot_index].query_cache_generation_.store(0,
+                                                   std::memory_order_relaxed);
   slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel,
                                              std::memory_order_release);
   returnFreeSlot(slot_index);
@@ -166,6 +169,12 @@ const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
 
 Status GraphSnapshotStore::PublishSnapshot(
     const std::shared_ptr<PropertyGraph>& new_pg) {
+  return PublishSnapshot(new_pg, CurrentQueryCacheGeneration());
+}
+
+Status GraphSnapshotStore::PublishSnapshot(
+    const std::shared_ptr<PropertyGraph>& new_pg,
+    uint64_t query_cache_generation) {
   int slot_index = getFreeSlot();
   if (slot_index < 0) {
     return Status(StatusCode::ERR_POOL_EXHAUSTED,
@@ -187,6 +196,8 @@ Status GraphSnapshotStore::PublishSnapshot(
 
   slots_[slot_index].storage_ = new_pg;
   slots_[slot_index].view_ = GraphView(*new_pg);
+  slots_[slot_index].query_cache_generation_.store(query_cache_generation,
+                                                   std::memory_order_relaxed);
 
   // Release the write-guard: bump reader_count_ from kCleanupSentinel to 1
   // (the prep-pin) atomically with a release fence so that all prior writes
@@ -217,6 +228,17 @@ Status GraphSnapshotStore::PublishSnapshot(
   // The new slot's prep-pin becomes its cur-pin — do NOT release it here.
 
   return Status::OK();
+}
+
+uint64_t GraphSnapshotStore::CurrentQueryCacheGeneration() const {
+  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
+  return slots_[slot_index].query_cache_generation();
+}
+
+void GraphSnapshotStore::SetCurrentQueryCacheGeneration(uint64_t generation) {
+  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
+  slots_[slot_index].query_cache_generation_.store(generation,
+                                                   std::memory_order_release);
 }
 
 }  // namespace neug

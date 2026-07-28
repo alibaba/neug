@@ -98,7 +98,8 @@ class ReadTransaction {
   const GraphView& view() const { return guard_.get().view(); }
 
   GraphStats statistic() const {
-    return GraphStats(*guard_.get().mutable_graph());
+    const auto& slot = guard_.get();
+    return GraphStats(*slot.mutable_graph(), slot.query_cache_generation());
   }
 
   const Schema& schema() const;

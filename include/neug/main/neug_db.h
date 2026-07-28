@@ -407,6 +407,7 @@ class NeugDB {
 
   friend class ConnectionManager;
   friend class NeugDBService;
+  friend struct NeugDBServiceTestPeer;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
@@ -431,7 +432,7 @@ class NeugDB {
 
   std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>
-      allocators_;  // Allocators for each thread
+      allocators_;  // Allocators for logical execution slots
 
   // Serializes the check-and-set sections of Close() and registerService()
   // so that closing the database and registering a service can never

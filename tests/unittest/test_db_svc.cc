@@ -19,6 +19,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -26,17 +27,55 @@
 
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include "bthread/bthread.h"
 #include "neug/common/types/value.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
+#include "neug/server/bthread_runtime_wait.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/transaction/version_manager.h"
 #include "utils.h"
 
 namespace neug {
+
+struct NeugDBServiceTestPeer {
+  static RuntimeWaitFn runtime_wait(const NeugDB& db) {
+    return static_cast<const VersionManager&>(*db.version_manager_)
+        .runtime_wait_.load(std::memory_order_acquire);
+  }
+};
+
 namespace test {
+
+namespace {
+
+constexpr auto kBthreadTestTimeout = std::chrono::seconds(10);
+
+bool WaitForFlag(const std::atomic<bool>& flag) {
+  const auto deadline = std::chrono::steady_clock::now() + kBthreadTestTimeout;
+  while (!flag.load(std::memory_order_acquire) &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+  return flag.load(std::memory_order_acquire);
+}
+
+using BthreadTask = std::function<void()>;
+
+void* RunBthreadTask(void* arg) {
+  (*static_cast<BthreadTask*>(arg))();
+  return nullptr;
+}
+
+int StartBthread(bthread_t& tid, BthreadTask& task) {
+  return bthread_start_background(&tid, &BTHREAD_ATTR_NORMAL, RunBthreadTask,
+                                  &task);
+}
+
+}  // namespace
 
 timestamp_t InsertModernPersonAndReturnTimestamp(NeugDBService& service,
                                                  int64_t id) {
@@ -159,6 +198,153 @@ TEST_F(NeugDBServiceTest, ExecutionSlotLeaseMoveTransfersSingleLease) {
   assigned = std::move(moved);
   EXPECT_FALSE(moved);
   EXPECT_EQ(assigned.get(), slot);
+}
+
+TEST_F(NeugDBServiceTest,
+       SingleExecutionSlotLeaseSurvivesBthreadWaitsExclusively) {
+  const auto single_slot_path = (test_dir_ / "single_slot_graph").string();
+  NeugDB single_slot_db;
+  single_slot_db.Open(single_slot_path, 1);
+  auto connection = single_slot_db.Connect();
+  load_modern_graph(connection);
+  connection->Close();
+
+  ServiceConfig config;
+  config.query_port = 0;
+  config.host_str = "127.0.0.1";
+  {
+    NeugDBService service(single_slot_db, config);
+    ASSERT_EQ(service.ExecutionSlotNum(), 1U);
+
+    std::atomic<bool> first_acquired{false};
+    std::atomic<bool> second_acquired{false};
+    std::atomic<bool> release_first{false};
+    bool identity_stable = true;
+    bool stack_stable = true;
+    bool guard_stable = true;
+    bool transaction_stable = true;
+    bool pthread_migrated = false;
+    int first_slot_id = -1;
+    int second_slot_id = -1;
+
+    BthreadTask first_task = [&]() {
+      auto guard = service.AcquireExecutionSlot();
+      auto transaction = guard->GetReadTransaction();
+      const auto logical_thread = bthread_self();
+      const auto physical_thread = std::this_thread::get_id();
+      int stack_marker = 0;
+      const void* stack_address = &stack_marker;
+      const void* guard_address = &guard;
+      const void* transaction_address = &transaction;
+      first_slot_id = guard->SlotId();
+      first_acquired.store(true, std::memory_order_release);
+
+      while (!release_first.load(std::memory_order_acquire)) {
+        (void) bthread_yield();
+        (void) bthread_usleep(50);
+        identity_stable &= bthread_equal(logical_thread, bthread_self()) != 0;
+        stack_stable &= stack_address == &stack_marker;
+        guard_stable &= guard_address == &guard;
+        transaction_stable &= transaction_address == &transaction;
+        pthread_migrated |= physical_thread != std::this_thread::get_id();
+      }
+      transaction.Commit();
+    };
+    bthread_t first;
+    ASSERT_EQ(StartBthread(first, first_task), 0);
+    if (!WaitForFlag(first_acquired)) {
+      release_first.store(true, std::memory_order_release);
+      EXPECT_EQ(bthread_join(first, nullptr), 0);
+      FAIL() << "First bthread did not acquire the only execution slot";
+    }
+
+    BthreadTask second_task = [&]() {
+      auto guard = service.AcquireExecutionSlot();
+      second_slot_id = guard->SlotId();
+      second_acquired.store(true, std::memory_order_release);
+    };
+    bthread_t second;
+    const int second_start_result = StartBthread(second, second_task);
+    if (second_start_result != 0) {
+      release_first.store(true, std::memory_order_release);
+      EXPECT_EQ(bthread_join(first, nullptr), 0);
+      FAIL() << "Failed to start second bthread";
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    const bool acquired_while_held = second_acquired.load();
+
+    release_first.store(true, std::memory_order_release);
+    ASSERT_EQ(bthread_join(first, nullptr), 0);
+    ASSERT_EQ(bthread_join(second, nullptr), 0);
+
+    EXPECT_FALSE(acquired_while_held);
+    EXPECT_TRUE(second_acquired.load());
+    EXPECT_EQ(first_slot_id, 0);
+    EXPECT_EQ(second_slot_id, 0);
+    EXPECT_TRUE(identity_stable);
+    EXPECT_TRUE(stack_stable);
+    EXPECT_TRUE(guard_stable);
+    EXPECT_TRUE(transaction_stable);
+    SUCCEED() << "pthread migration observed: " << pthread_migrated;
+  }
+
+  single_slot_db.Close();
+}
+
+TEST_F(NeugDBServiceTest, ExecutionSlotsRemainExclusiveUnderBthreadStress) {
+  NeugDBService service(*db_, config_);
+  constexpr int kTaskCount = 32;
+  constexpr int kIterations = 64;
+  std::vector<std::atomic<int>> owners(service.ExecutionSlotNum());
+  for (auto& owner : owners) {
+    owner.store(0, std::memory_order_relaxed);
+  }
+  std::atomic<int> violations{0};
+  std::vector<BthreadTask> tasks;
+  std::vector<bthread_t> tids(kTaskCount);
+  tasks.reserve(kTaskCount);
+  int started_tasks = 0;
+  for (; started_tasks < kTaskCount; ++started_tasks) {
+    const int task_id = started_tasks + 1;
+    tasks.emplace_back([&, task_id]() {
+      for (int i = 0; i < kIterations; ++i) {
+        auto guard = service.AcquireExecutionSlot();
+        auto& owner = owners.at(guard->SlotId());
+        int expected = 0;
+        if (!owner.compare_exchange_strong(expected, task_id)) {
+          violations.fetch_add(1);
+        }
+
+        auto transaction = guard->GetReadTransaction();
+        const auto logical_thread = bthread_self();
+        (void) bthread_yield();
+        (void) bthread_usleep(50);
+        if (owner.load() != task_id ||
+            bthread_equal(logical_thread, bthread_self()) == 0) {
+          violations.fetch_add(1);
+        }
+        transaction.Commit();
+
+        expected = task_id;
+        if (!owner.compare_exchange_strong(expected, 0)) {
+          violations.fetch_add(1);
+        }
+      }
+    });
+    if (StartBthread(tids[started_tasks], tasks.back()) != 0) {
+      tasks.pop_back();
+      break;
+    }
+  }
+  for (int i = 0; i < started_tasks; ++i) {
+    EXPECT_EQ(bthread_join(tids[i], nullptr), 0);
+  }
+
+  EXPECT_EQ(started_tasks, kTaskCount);
+  EXPECT_EQ(violations.load(std::memory_order_relaxed), 0);
+  for (const auto& owner : owners) {
+    EXPECT_EQ(owner.load(std::memory_order_relaxed), 0);
+  }
 }
 
 TEST_F(NeugDBServiceTest, GetServiceConfig) {
@@ -407,6 +593,40 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(ddl) << ddl.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version + 1);
+}
+
+TEST_F(NeugDBServiceTest,
+       OldSnapshotCompilationDoesNotRepopulateNewQueryCacheGeneration) {
+  neug::NeugDBService service(*db_, config_);
+  auto old_slot = service.AcquireExecutionSlot();
+  auto ddl_slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(old_slot);
+  ASSERT_TRUE(ddl_slot);
+
+  auto old_transaction = old_slot->GetReadTransaction();
+  const auto old_stats = old_transaction.statistic();
+  const auto query_cache = db_->GetQueryCache();
+  const auto old_generation = query_cache->version();
+
+  auto ddl =
+      ddl_slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "ALTER TABLE person DROP age;", "schema", {}));
+  ASSERT_TRUE(ddl) << ddl.error().ToString();
+  ASSERT_EQ(query_cache->version(), old_generation + 1);
+
+  constexpr const char* kOldSchemaQuery = "MATCH (n:person) RETURN n.age;";
+  execution::LocalQueryCache old_snapshot_cache(query_cache);
+  auto old_plan = old_snapshot_cache.Get(old_stats, kOldSchemaQuery);
+  ASSERT_TRUE(old_plan) << old_plan.error().ToString();
+
+  auto new_transaction = ddl_slot->GetReadTransaction();
+  execution::LocalQueryCache new_snapshot_cache(query_cache);
+  auto new_plan =
+      new_snapshot_cache.Get(new_transaction.statistic(), kOldSchemaQuery);
+  EXPECT_FALSE(new_plan);
+
+  EXPECT_TRUE(new_transaction.Commit());
+  EXPECT_TRUE(old_transaction.Commit());
 }
 
 TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
@@ -714,22 +934,31 @@ TEST_F(NeugDBServiceTest, ConnectionManagerCountsOnlyOpenConnections) {
 }
 
 TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
+  ASSERT_NE(&NativeRuntimeWait, &BthreadRuntimeWait);
+  EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &NativeRuntimeWait);
+
   neug::ServiceConfig bad_cfg;
   bad_cfg.query_port = 0;
   bad_cfg.host_str = "127.0.0.1";
   bad_cfg.thread_num = static_cast<uint32_t>(db_->config().max_thread_num + 1);
 
-  // Construction fails during init(); the registration must be released so
-  // that the database is not permanently blocked from serving.
+  // Construction fails after installing bthread wait ops. Both lifecycle
+  // effects must be rolled back.
   EXPECT_THROW(neug::NeugDBService service(*db_, bad_cfg),
                neug::exception::InvalidArgumentException);
   EXPECT_FALSE(db_->HasActiveService());
+  EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &NativeRuntimeWait);
 
   neug::ServiceConfig good_cfg;
   good_cfg.query_port = 0;
   good_cfg.host_str = "127.0.0.1";
-  EXPECT_NO_THROW(neug::NeugDBService service(*db_, good_cfg));
+  {
+    neug::NeugDBService service(*db_, good_cfg);
+    EXPECT_TRUE(db_->HasActiveService());
+    EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &BthreadRuntimeWait);
+  }
   EXPECT_FALSE(db_->HasActiveService());
+  EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &NativeRuntimeWait);
 }
 
 TEST_F(NeugDBServiceTest, ConnectWhileServingThrows) {

@@ -63,7 +63,9 @@ class IWalWriter {
 
   virtual std::string type() const = 0;
   /**
-   * Open a wal file. In our design, each thread has its own wal file.
+   * Open a WAL file. In service mode, each logical execution slot owns one
+   * writer. The slot may move between pthread workers and must retain the same
+   * writer for the full transaction.
    * The uri could be a file_path or a remote connection string.
    */
   virtual void open() = 0;
@@ -110,7 +112,7 @@ class IWalParser {
 class WalWriterFactory {
  public:
   using wal_writer_initializer_t = std::unique_ptr<IWalWriter> (*)(
-      const std::string& wal_uri, int32_t thread_id);
+      const std::string& wal_uri, int32_t slot_id);
 
   static void Init();
 
@@ -119,7 +121,7 @@ class WalWriterFactory {
   static std::unique_ptr<IWalWriter> CreateDummyWalWriter();
 
   static std::unique_ptr<IWalWriter> CreateWalWriter(const std::string& wal_uri,
-                                                     int32_t thread_id);
+                                                     int32_t slot_id);
 
   static bool RegisterWalWriter(const std::string& wal_writer_type,
                                 wal_writer_initializer_t initializer);

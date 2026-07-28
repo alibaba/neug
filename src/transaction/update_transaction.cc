@@ -323,7 +323,8 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
                                      IVersionManager& vm,
                                      GraphSnapshotStore& snapshot_store,
                                      execution::LocalQueryCache& cache,
-                                     timestamp_t timestamp)
+                                     timestamp_t timestamp,
+                                     uint64_t query_cache_generation)
     : cow_graph_(std::move(cow_graph)),
       cow_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
@@ -333,6 +334,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       snapshot_store_(snapshot_store),
       pipeline_cache_(cache),
       timestamp_(timestamp),
+      query_cache_generation_(query_cache_generation),
       ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
@@ -363,15 +365,17 @@ bool UpdateTransaction::Commit() {
 
   vm_.begin_update_commit(timestamp_);
 
+  uint64_t published_query_cache_generation = query_cache_generation_;
   if (wal_builder_.schema_changed()) {
-    pipeline_cache_.clearGlobalCache();
+    published_query_cache_generation = pipeline_cache_.clearGlobalCache();
   }
 
   // PublishSnapshot MUST happen BEFORE release() which calls
   // release_update_timestamp (advancing read_ts_). This ordering guarantees
   // that any new reader observing the advanced read_ts will also see the new
   // slot.
-  auto status = snapshot_store_.PublishSnapshot(cow_graph_);
+  auto status = snapshot_store_.PublishSnapshot(
+      cow_graph_, published_query_cache_generation);
   if (!status.ok()) {
     // We should never fail to publish the snapshot.
     LOG(FATAL) << "Failed to publish snapshot: " << status.ToString();

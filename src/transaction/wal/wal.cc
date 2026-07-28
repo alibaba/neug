@@ -60,12 +60,12 @@ void WalWriterFactory::Init() {}
 void WalWriterFactory::Finalize() {}
 
 std::unique_ptr<IWalWriter> WalWriterFactory::CreateWalWriter(
-    const std::string& wal_uri, int32_t thread_id) {
+    const std::string& wal_uri, int32_t slot_id) {
   auto& known_writers_ = getKnownWalWriters();
   auto scheme = get_wal_uri_scheme(wal_uri);
   auto iter = known_writers_.find(scheme);
   if (iter != known_writers_.end()) {
-    return iter->second(wal_uri, thread_id);
+    return iter->second(wal_uri, slot_id);
   } else {
     std::stringstream ss;
     for (const auto& writer : known_writers_) {
