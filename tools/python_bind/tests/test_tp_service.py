@@ -536,6 +536,16 @@ def test_parameterized_query(tmp_path):
         res = conn.execute(query, parameters=params)
         assert len(res) == 1, f"Failed for query: {query} with params: {params}"
         assert res[0][0] == expected
+
+    res = conn.execute(
+        "MATCH (n:param_values) WHERE n.id = $id "
+        "RETURN n.bool_prop, n.double_prop, n.string_prop;",
+        parameters={"id": 2},
+    )
+    assert len(res) == 1
+    assert res[0][0] is False
+    assert res[0][1] == pytest.approx(7.28)
+    assert res[0][2] == "tp-parameterized"
     conn.close()
     db.close()
 
