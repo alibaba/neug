@@ -57,7 +57,7 @@ result<std::vector<SearchResult>> StorageIndex::Search(
   for (const auto& candidate : candidates.value()) {
     auto vid = index_id_accessor_->GetVIDByIndexID(candidate.index_id);
     if (vid != INVALID_VID) {
-      results.emplace_back(vid, candidate.score);
+      results.push_back(SearchResult{vid, candidate.score});
     }
   }
   return results;
