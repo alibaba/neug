@@ -385,10 +385,18 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
         person_label,
         rename_builder.AddRenameProperty("score", "years").Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
+
+    // The published snapshot must retain the old metadata until commit.
+    EXPECT_EQ(GetIndexes(person_label, "score").size(), 1);
+    EXPECT_TRUE(GetIndexes(person_label, "years").empty());
     Commit(txn);
   }
 
   EXPECT_TRUE(GetIndexes(person_label, "score").empty());
+  auto renamed_indexes = GetIndexes(person_label, "years");
+  ASSERT_EQ(renamed_indexes.size(), 1);
+  EXPECT_EQ(renamed_indexes.front()->GetMeta().name, "idx_person_score");
+  EXPECT_EQ(renamed_indexes.front()->GetMeta().schema.property_name, "years");
 }
 
 TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
