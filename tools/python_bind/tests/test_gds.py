@@ -1012,6 +1012,7 @@ def test_louvain_basic(tmp_path):
             assert len(row) == 2
             assert isinstance(row[1], int)
 
+
 def test_leiden_correctness(tmp_path):
     """Leiden correctness: verify community structure on tinysnb.
     The tinysnb person-knows graph has two dense clusters connected by a
