@@ -32,7 +32,6 @@
 #include <vector>
 
 #include "neug/common/types/value.h"
-#include "neug/utils/api.h"
 #include "neug/config.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/container/container_utils.h"
@@ -41,6 +40,7 @@
 #include "neug/storages/container/mmap_container.h"
 #include "neug/storages/module/module.h"
 #include "neug/storages/module/type_name.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
@@ -671,6 +671,7 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
 // Create a reference column from a ColumnBase that contains a const reference
 // to the actual column storage, offering a column-based store interface for
 // vertex properties.
-NEUG_API std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column);
+NEUG_API std::shared_ptr<RefColumnBase> CreateRefColumn(
+    const ColumnBase& column);
 
 }  // namespace neug

@@ -20,8 +20,8 @@
 #include <sstream>
 #include <string>
 
-#include "neug/utils/api.h"
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/utils/api.h"
 #include "tl/expected.hpp"
 
 namespace neug {
@@ -114,12 +114,12 @@ inline std::string to_string(const neug::interactive::Code& status) {
   }).value()
 
 #ifdef _WIN32
-#define GS_AUTO(var, expr)                                         \
-  auto _gs_r_##var = (expr);                                       \
-  if (!_gs_r_##var) {                                              \
-    LOG(ERROR) << "Error: " << _gs_r_##var.error().ToString();     \
-    return tl::unexpected(_gs_r_##var.error());                    \
-  }                                                                \
+#define GS_AUTO(var, expr)                                     \
+  auto _gs_r_##var = (expr);                                   \
+  if (!_gs_r_##var) {                                          \
+    LOG(ERROR) << "Error: " << _gs_r_##var.error().ToString(); \
+    return tl::unexpected(_gs_r_##var.error());                \
+  }                                                            \
   auto var = std::move(_gs_r_##var).value();
 #else
 #define GS_AUTO(var, expr)                                         \

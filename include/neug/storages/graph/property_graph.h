@@ -29,7 +29,6 @@
 
 #include "neug/common/types/value.h"
 #include "neug/storages/allocators.h"
-#include "neug/utils/api.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view.h"
@@ -37,6 +36,7 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"

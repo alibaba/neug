@@ -17,9 +17,9 @@
 #include <glog/logging.h>
 
 #include "neug/common/types/value.h"
-#include "neug/utils/platform.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/csr/prefetch_utils.h"
+#include "neug/utils/platform.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -698,7 +698,7 @@ struct CsrView {
 
  private:
   NEUG_ALWAYS_INLINE static void prefetch_read(const void* ptr,
-                                                           uint8_t locality) {
+                                               uint8_t locality) {
     switch (locality) {
     case 0:
       __builtin_prefetch(ptr, 0, 0);

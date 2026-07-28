@@ -73,7 +73,7 @@ inline void blockSignal(int sig) {
     perror("pthread_sigmask");
   }
 #else
-  (void)sig;
+  (void) sig;
 #endif
 }
 

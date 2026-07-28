@@ -26,8 +26,8 @@
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/module/module.h"
-#include "neug/utils/property/column.h"
 #include "neug/utils/api.h"
+#include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {

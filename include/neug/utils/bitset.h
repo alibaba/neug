@@ -64,7 +64,8 @@ inline void AlignedFree(void* ptr) {
 
 inline uint64_t AtomicFetchOr(uint64_t* ptr, uint64_t value) {
 #ifdef _WIN32
-  return static_cast<uint64_t>(_InterlockedOr64(reinterpret_cast<volatile __int64*>(ptr), static_cast<__int64>(value)));
+  return static_cast<uint64_t>(_InterlockedOr64(
+      reinterpret_cast<volatile __int64*>(ptr), static_cast<__int64>(value)));
 #else
   return __sync_fetch_and_or(ptr, value);
 #endif
@@ -72,7 +73,8 @@ inline uint64_t AtomicFetchOr(uint64_t* ptr, uint64_t value) {
 
 inline uint64_t AtomicFetchAnd(uint64_t* ptr, uint64_t value) {
 #ifdef _WIN32
-  return static_cast<uint64_t>(_InterlockedAnd64(reinterpret_cast<volatile __int64*>(ptr), static_cast<__int64>(value)));
+  return static_cast<uint64_t>(_InterlockedAnd64(
+      reinterpret_cast<volatile __int64*>(ptr), static_cast<__int64>(value)));
 #else
   return __sync_fetch_and_and(ptr, value);
 #endif
@@ -110,7 +112,8 @@ class Bitset {
       assert(kAlignment <= capacity_in_words_ * sizeof(uint64_t));
       auto alloc_size = ROUND_UP_TO_ALIGNMENT(
           capacity_in_words_ * sizeof(uint64_t), kAlignment);
-      data_ = static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
+      data_ =
+          static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
       memcpy(data_, other.data_, capacity_in_words_ * sizeof(uint64_t));
     }
   }
@@ -154,7 +157,8 @@ class Bitset {
       assert(kAlignment <= capacity_in_words_ * sizeof(uint64_t));
       auto alloc_size = ROUND_UP_TO_ALIGNMENT(
           capacity_in_words_ * sizeof(uint64_t), kAlignment);
-      data_ = static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
+      data_ =
+          static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
       memcpy(data_, other.data_, capacity_in_words_ * sizeof(uint64_t));
     }
     return *this;

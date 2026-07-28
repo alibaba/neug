@@ -24,7 +24,8 @@
 #define __attribute__(x)
 // MSVC does not have __builtin_prefetch; use _mm_prefetch instead.
 #include <xmmintrin.h>
-#define __builtin_prefetch(ptr, rw, loc) _mm_prefetch((const char*)(ptr), (loc))
+#define __builtin_prefetch(ptr, rw, loc) \
+  _mm_prefetch((const char*) (ptr), (loc))
 // Windows headers define GetObject as a macro (GetObjectA/GetObjectW),
 // which conflicts with rapidjson::Value::GetObject(). Undefine it.
 #ifdef GetObject

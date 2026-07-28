@@ -76,8 +76,8 @@ class ModuleFactory {
  * expression returns 0 so the variable can be a plain int.
  */
 #ifdef _WIN32
-#define NEUG_REGISTER_MODULE(Class)                                     \
-  static int _register_##Class =                                        \
+#define NEUG_REGISTER_MODULE(Class) \
+  static int _register_##Class =    \
       (ModuleFactory::instance().Register<Class>(), 0);
 #else
 #define NEUG_REGISTER_MODULE(Class)                              \
@@ -94,8 +94,8 @@ class ModuleFactory {
  * __COUNTER__ for a stable, type-name-independent function identifier.
  */
 #ifdef _WIN32
-#define NEUG_REGISTER_TEMPLATE_MODULE_IMPL(TemplateClass, T, Counter)     \
-  static int _register_##TemplateClass##_##Counter =                       \
+#define NEUG_REGISTER_TEMPLATE_MODULE_IMPL(TemplateClass, T, Counter) \
+  static int _register_##TemplateClass##_##Counter =                  \
       (ModuleFactory::instance().Register<TemplateClass<T>>(), 0);
 #else
 #define NEUG_REGISTER_TEMPLATE_MODULE_IMPL(TemplateClass, T, Counter)      \

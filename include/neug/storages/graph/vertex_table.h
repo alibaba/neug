@@ -20,9 +20,9 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
-#include "neug/utils/api.h"
 
 namespace neug {
 

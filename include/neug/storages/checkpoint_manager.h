@@ -19,8 +19,8 @@
 #include <mutex>
 #include <string>
 
-#include "neug/utils/api.h"
 #include "neug/storages/checkpoint.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 

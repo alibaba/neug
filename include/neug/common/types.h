@@ -24,11 +24,11 @@
 #include <stdint.h>
 #include <memory>
 
-#include "neug/utils/api.h"
 #include <ostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "neug/utils/api.h"
 
 namespace common {
 class DataType;

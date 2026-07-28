@@ -125,11 +125,12 @@ class Database(object):
         self._connections = []
         self._async_connections = []
         import sys as _sys
+
         # On Windows, ':' (drive letter) and '\\' (path separator) are valid.
         if _sys.platform == "win32":
-            self._illegal_chars = ["?", '*', '"', '<', '>', '|']
+            self._illegal_chars = ["?", "*", '"', "<", ">", "|"]
         else:
-            self._illegal_chars = ["?", '*', '"', '<', '>', '|', ':', '\\']
+            self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
         self._pure_memory_path = [":memory", ":memory:"]
         if isinstance(db_path, str):
             if (

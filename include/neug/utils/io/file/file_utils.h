@@ -20,19 +20,19 @@
 #include <string>
 
 #ifdef _WIN32
-#include <cstdint>
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
+#include <cstdint>
 
 inline int truncate(const char* path, int64_t length) {
-    int fd = _open(path, _O_WRONLY, 0);
-    if (fd < 0) {
-        return -1;
-    }
-    int ret = _chsize_s(fd, length);
-    _close(fd);
-    return ret;
+  int fd = _open(path, _O_WRONLY, 0);
+  if (fd < 0) {
+    return -1;
+  }
+  int ret = _chsize_s(fd, length);
+  _close(fd);
+  return ret;
 }
 
 // Minimal POSIX mmap/munmap/msync shim for Windows.
@@ -45,7 +45,7 @@ inline int truncate(const char* path, int64_t length) {
 #define MAP_ANONYMOUS 4
 #define MAP_FIXED 0x10
 #define MAP_HUGETLB 0x40000
-#define MAP_FAILED ((void*)-1)
+#define MAP_FAILED ((void*) -1)
 
 #define MS_ASYNC 1
 #define MS_SYNC 2
@@ -53,7 +53,7 @@ inline int truncate(const char* path, int64_t length) {
 
 inline void* mmap(void* addr, size_t len, int prot, int flags, int fd,
                   off_t offset) {
-  (void)addr;
+  (void) addr;
   DWORD pageProtect = PAGE_NOACCESS;
   if (prot & PROT_WRITE) {
     pageProtect = (flags & MAP_PRIVATE) ? PAGE_WRITECOPY : PAGE_READWRITE;
@@ -63,14 +63,14 @@ inline void* mmap(void* addr, size_t len, int prot, int flags, int fd,
   if (flags & MAP_ANONYMOUS) {
     // VirtualAlloc only accepts PAGE_READWRITE (not PAGE_WRITECOPY)
     // for anonymous mappings.
-    void* ptr = VirtualAlloc(nullptr, len, MEM_COMMIT | MEM_RESERVE,
-                             PAGE_READWRITE);
+    void* ptr =
+        VirtualAlloc(nullptr, len, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     return ptr ? ptr : MAP_FAILED;
   }
   HANDLE hFile =
-      (fd == -1) ? INVALID_HANDLE_VALUE : (HANDLE)_get_osfhandle(fd);
-  DWORD sizeHigh = static_cast<DWORD>((static_cast<uint64_t>(len) >> 32) &
-                                      0xFFFFFFFFULL);
+      (fd == -1) ? INVALID_HANDLE_VALUE : (HANDLE) _get_osfhandle(fd);
+  DWORD sizeHigh =
+      static_cast<DWORD>((static_cast<uint64_t>(len) >> 32) & 0xFFFFFFFFULL);
   DWORD sizeLow = static_cast<DWORD>(len & 0xFFFFFFFFULL);
   HANDLE hMap = CreateFileMapping(hFile, nullptr, pageProtect, sizeHigh,
                                   sizeLow, nullptr);
@@ -81,8 +81,8 @@ inline void* mmap(void* addr, size_t len, int prot, int flags, int fd,
   if (prot & PROT_WRITE) {
     access = (flags & MAP_PRIVATE) ? FILE_MAP_COPY : FILE_MAP_WRITE;
   }
-  DWORD offsetHigh = static_cast<DWORD>(
-      (static_cast<uint64_t>(offset) >> 32) & 0xFFFFFFFFULL);
+  DWORD offsetHigh =
+      static_cast<DWORD>((static_cast<uint64_t>(offset) >> 32) & 0xFFFFFFFFULL);
   DWORD offsetLow = static_cast<DWORD>(offset & 0xFFFFFFFFULL);
   void* ptr = MapViewOfFile(hMap, access, offsetHigh, offsetLow, len);
   CloseHandle(hMap);
@@ -90,7 +90,7 @@ inline void* mmap(void* addr, size_t len, int prot, int flags, int fd,
 }
 
 inline int munmap(void* addr, size_t len) {
-  (void)len;
+  (void) len;
   // Try VirtualFree first (for anonymous mmap via VirtualAlloc);
   // fall back to UnmapViewOfFile (for file-backed mmap).
   if (VirtualFree(addr, 0, MEM_RELEASE)) {
@@ -100,7 +100,7 @@ inline int munmap(void* addr, size_t len) {
 }
 
 inline int msync(void* addr, size_t len, int flags) {
-  (void)flags;
+  (void) flags;
   return FlushViewOfFile(addr, len) ? 0 : -1;
 }
 #endif
