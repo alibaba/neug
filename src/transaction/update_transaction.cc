@@ -180,6 +180,20 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
   return Status::OK();
 }
 
+// Updates metadata for every index bound to a renamed vertex property.
+static Status renameVertexIndex(PropertyGraph& graph, label_t label,
+                                const std::string& old_name,
+                                const std::string& new_name) {
+  auto indexes = graph.mutable_index_manager().GetIndex(label, old_name);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    index->RenameProperty(new_name);
+  }
+  return Status::OK();
+}
+
 // Appends index entries for one newly inserted vertex row.
 // When detach_index is set, it is invoked before mutating each index so TP
 // transactions get a private COW copy.
@@ -516,7 +530,7 @@ Status StorageTPUpdateInterface::RenameVertexPropertiesImpl(
     if (old_name == new_name)
       continue;
     RETURN_IF_NOT_OK(
-        dropVertexIndex(*cow_graph_, v_label, old_name, &cow_state_));
+        renameVertexIndex(*cow_graph_, v_label, old_name, new_name));
   }
   return status;
 }
@@ -1124,9 +1138,9 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
            redo.config.GetRenameProperties()) {
         if (old_name == new_name)
           continue;
-        ret = dropVertexIndex(graph, label, old_name);
+        ret = renameVertexIndex(graph, label, old_name, new_name);
         THROW_STORAGE_EXCEPTION_STATUS(
-            "Failed to drop renamed-property indexes in redo: ", ret);
+            "Failed to rename vertex index metadata in redo: ", ret);
       }
     } else if (op_type == OpType::kRenameEdgeProp) {
       auto redo = RenameEdgePropertiesRedo::Deserialize(arc);

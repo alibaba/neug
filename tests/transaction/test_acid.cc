@@ -25,8 +25,8 @@
 #include <tuple>
 #include <vector>
 #include "neug/common/types/value.h"
+#include "neug/main/execution_slot.h"
 #include "neug/main/neug_db.h"
-#include "neug/main/session.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/operation_params.h"
@@ -38,8 +38,8 @@
 
 namespace fs = std::filesystem;
 using namespace neug;
+using neug::ExecutionSlot;
 using neug::NeugDB;
-using neug::Session;
 using neug::vid_t;
 using oid_t = int64_t;
 
@@ -90,19 +90,19 @@ void neug_parallel_transaction(std::shared_ptr<neug::NeugDBService> svc,
   std::iota(txn_ids.begin(), txn_ids.end(), 0);
   std::shuffle(txn_ids.begin(), txn_ids.end(),
                std::mt19937(std::random_device()()));
-  int thread_num = svc->SessionNum();
+  int thread_num = svc->ExecutionSlotNum();
   std::vector<std::thread> threads;
   std::atomic<int> txn_counter(0);
   for (int i = 0; i < thread_num; ++i) {
     threads.emplace_back(
         [&](int tid) {
-          auto guard = svc->AcquireSession();
-          neug::Session& session = *guard.get();
+          auto lease = svc->AcquireExecutionSlot();
+          neug::ExecutionSlot& slot = *lease.get();
           while (true) {
             int txn_id = txn_counter.fetch_add(1);
             if (txn_id >= txn_num)
               break;
-            func(session, txn_ids[txn_id]);
+            func(slot, txn_ids[txn_id]);
           }
         },
         i);
@@ -114,14 +114,14 @@ void neug_parallel_transaction(std::shared_ptr<neug::NeugDBService> svc,
 template <typename FUNC_T>
 void neug_parallel_client(std::shared_ptr<neug::NeugDBService> svc,
                           const FUNC_T& func) {
-  int thread_num = svc->SessionNum();
+  int thread_num = svc->ExecutionSlotNum();
   std::vector<std::thread> threads;
   for (int i = 0; i < thread_num; ++i) {
     threads.emplace_back(
         [&](int tid) {
-          auto guard = svc->AcquireSession();
-          neug::Session& session = *guard.get();
-          func(session, tid);
+          auto lease = svc->AcquireExecutionSlot();
+          neug::ExecutionSlot& slot = *lease.get();
+          func(slot, tid);
         },
         i);
   }
@@ -204,11 +204,12 @@ std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
         "emails STRING, PRIMARY KEY(id));"));
     EXPECT_TRUE(conn->Query(
         "CREATE REL TABLE KNOWS(FROM PERSON TO PERSON, since INT64);"));
+    conn->Close();
   }
   auto service = std::make_shared<neug::NeugDBService>(db);
 
-  auto sess = service->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = service->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   StorageTPInsertInterface gii(txn);
@@ -234,7 +235,7 @@ std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
   return service;
 }
 
-bool neug_AtomicityC(neug::Session& db, int64_t person2_id,
+bool neug_AtomicityC(neug::ExecutionSlot& db, int64_t person2_id,
                      const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -264,7 +265,7 @@ bool neug_AtomicityC(neug::Session& db, int64_t person2_id,
   return true;
 }
 
-bool neug_AtomicityRB(neug::Session& db, int64_t person2_id,
+bool neug_AtomicityRB(neug::ExecutionSlot& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -301,8 +302,8 @@ int64_t neug_count_email_num(const std::string_view& sv) {
 
 std::pair<int64_t, int64_t> neug_AtomicityCheck(
     std::shared_ptr<neug::NeugDBService> svc) {
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   int64_t num_persons = 0, num_emails = 0;
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -332,11 +333,12 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
     EXPECT_TRUE(conn->Query(
         "CREATE REL TABLE KNOWS(FROM PERSON TO PERSON, versionHistory "
         "STRING);"));
+    conn->Close();
   }
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
@@ -373,7 +375,7 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
   return svc;
 }
 
-void G0(neug::Session& db, int64_t person1_id, int64_t person2_id,
+void G0(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
         int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -443,8 +445,8 @@ void G0(neug::Session& db, int64_t person1_id, int64_t person2_id,
 std::tuple<std::string, std::string, std::string> G0Check(
     NeugDB& db, std::shared_ptr<neug::NeugDBService> svc, int64_t person1_id,
     int64_t person2_id) {
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   StorageReadInterface gi(txn.view(), txn.timestamp());
@@ -517,11 +519,12 @@ std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, version INT64, "
         "PRIMARY KEY(id));"));
+    conn->Close();
   }
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   StorageTPInsertInterface gii(txn);
   for (int i = 0; i < 100; ++i) {
@@ -536,7 +539,7 @@ std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
 
 // Intermediate Reads
 
-void G1B1(neug::Session& db, int64_t even, int64_t odd) {
+void G1B1(neug::ExecutionSlot& db, int64_t even, int64_t odd) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -547,7 +550,7 @@ void G1B1(neug::Session& db, int64_t even, int64_t odd) {
   txn.Commit();
 }
 
-int64_t G1B2(neug::Session& db) {
+int64_t G1B2(neug::ExecutionSlot& db) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
 
@@ -563,7 +566,7 @@ int64_t G1B2(neug::Session& db) {
 
 // Circular Information Flow
 
-int64_t G1C(neug::Session& db, int64_t person1_id, int64_t person2_id,
+int64_t G1C(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -605,7 +608,7 @@ int64_t G1C(neug::Session& db, int64_t person1_id, int64_t person2_id,
 
 // Aborted Reads
 
-void G1A1(neug::Session& db) {
+void G1A1(neug::ExecutionSlot& db) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -620,7 +623,7 @@ void G1A1(neug::Session& db) {
   txn.Abort();
 }
 
-int64_t G1A2(neug::Session& db) {
+int64_t G1A2(neug::ExecutionSlot& db) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
 
@@ -636,7 +639,7 @@ int64_t G1A2(neug::Session& db) {
 
 // Item-Many-Preceders
 
-void IMP1(neug::Session& db) {
+void IMP1(neug::ExecutionSlot& db) {
   auto txn = db.GetUpdateTransaction();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   StorageTPUpdateInterface gui(txn);
@@ -648,7 +651,7 @@ void IMP1(neug::Session& db) {
   txn.Commit();
 }
 
-std::tuple<int64_t, int64_t> IMP2(neug::Session& db, int64_t person1_id) {
+std::tuple<int64_t, int64_t> IMP2(neug::ExecutionSlot& db, int64_t person1_id) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -702,11 +705,12 @@ std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE POST (id INT64, id_prop INT64, PRIMARY KEY(id));"));
     EXPECT_TRUE(conn->Query("CREATE REL TABLE LIKES(FROM PERSON TO POST);"));
+    conn->Close();
   }
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   const auto& schema = txn.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
@@ -724,7 +728,7 @@ std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
   return svc;
 }
 
-bool PMP1(neug::Session& db, int64_t person_id, int64_t post_id) {
+bool PMP1(neug::ExecutionSlot& db, int64_t person_id, int64_t post_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -766,7 +770,7 @@ bool PMP1(neug::Session& db, int64_t person_id, int64_t post_id) {
   return true;
 }
 
-std::tuple<int64_t, int64_t> PMP2(neug::Session& db, int64_t post_id) {
+std::tuple<int64_t, int64_t> PMP2(neug::ExecutionSlot& db, int64_t post_id) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -827,6 +831,7 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
         "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, name STRING, "
         "version INT64, PRIMARY KEY(id));"));
     EXPECT_TRUE(conn->Query("CREATE REL TABLE KNOWS(FROM PERSON TO PERSON);"));
+    conn->Close();
   }
   auto svc = std::make_shared<neug::NeugDBService>(db);
   const auto& schema = db.schema();
@@ -834,8 +839,8 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t value = 0;
   std::vector<std::string> string_props;
@@ -864,7 +869,7 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
   return svc;
 }
 
-void OTV1(neug::Session& db, int64_t person_id) {
+void OTV1(neug::ExecutionSlot& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -937,7 +942,7 @@ void OTV1(neug::Session& db, int64_t person_id) {
 
 std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
            std::tuple<int64_t, int64_t, int64_t, int64_t>>
-OTV2(neug::Session& db, int64_t person_id) {
+OTV2(neug::ExecutionSlot& db, int64_t person_id) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -1030,11 +1035,12 @@ std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
         conn->Query("CREATE NODE TABLE PERSON (id INT64, id_prop INT64, "
                     "num_friends INT64, "
                     "PRIMARY KEY(id));"));
+    conn->Close();
   }
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   StorageTPInsertInterface gii(txn);
@@ -1052,7 +1058,7 @@ std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
   return svc;
 }
 
-bool LU1(neug::Session& db, int64_t person_id) {
+bool LU1(neug::ExecutionSlot& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -1080,7 +1086,7 @@ bool LU1(neug::Session& db, int64_t person_id) {
   return true;
 }
 
-std::map<int64_t, int64_t> LU2(neug::Session& db) {
+std::map<int64_t, int64_t> LU2(neug::ExecutionSlot& db) {
   std::map<int64_t, int64_t> numFriends;
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
@@ -1112,11 +1118,12 @@ std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE PERSON (id INT64, id_prop INT64, version INT64, "
         "PRIMARY KEY(id));"));
+    conn->Close();
   }
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
 
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
@@ -1139,7 +1146,7 @@ std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
   return svc;
 }
 
-void WS1(neug::Session& db, int64_t person1_id, int64_t person2_id,
+void WS1(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
          std::mt19937& gen) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -1195,7 +1202,7 @@ void WS1(neug::Session& db, int64_t person1_id, int64_t person2_id,
 }
 
 std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
-    neug::Session& db) {
+    neug::ExecutionSlot& db) {
   std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> results;
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
@@ -1237,9 +1244,9 @@ TEST_F(NeugDBACIDTest, AtomicityC) {
   std::atomic<int> num_aborted_txns(0), num_committed_txns(0);
   neug_parallel_transaction(
       svc,
-      [&](neug::Session& session, int txn_id) {
+      [&](neug::ExecutionSlot& slot, int txn_id) {
         bool successful =
-            neug_AtomicityC(session, 3 + txn_id, "alice@otherdomain.net", 2020);
+            neug_AtomicityC(slot, 3 + txn_id, "alice@otherdomain.net", 2020);
         if (successful)
           num_committed_txns.fetch_add(1);
         else
@@ -1260,14 +1267,13 @@ TEST_F(NeugDBACIDTest, AtomicityRB) {
   std::atomic<int> num_aborted_txns(0), num_committed_txns(0);
   neug_parallel_transaction(
       svc,
-      [&](neug::Session& session, int txn_id) {
+      [&](neug::ExecutionSlot& slot, int txn_id) {
         bool successful;
         if (txn_id % 2 == 0) {
-          successful =
-              neug_AtomicityRB(session, 2, "alice@otherdomain.net", 2020);
+          successful = neug_AtomicityRB(slot, 2, "alice@otherdomain.net", 2020);
         } else {
-          successful = neug_AtomicityRB(session, 3 + txn_id,
-                                        "alice@otherdomain.net", 2020);
+          successful =
+              neug_AtomicityRB(slot, 3 + txn_id, "alice@otherdomain.net", 2020);
         }
         if (successful) {
           num_committed_txns.fetch_add(1);
@@ -1289,7 +1295,7 @@ TEST_F(NeugDBACIDTest, G0) {
   auto svc = G0Init(db, dir, thread_num_);
   neug_parallel_transaction(
       svc,
-      [&](neug::Session& db, int txn_id) {
+      [&](neug::ExecutionSlot& db, int txn_id) {
         std::random_device rand_dev;
         std::mt19937 gen(rand_dev());
         std::uniform_int_distribution<int> dist(1, 100);
@@ -1311,7 +1317,7 @@ TEST_F(NeugDBACIDTest, G1A) {
   auto svc = InitPersonWithVersion(db, dir, thread_num_, 1);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](neug::Session& db, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& db, int client_id) {
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
         auto p_version = G1A2(db);
@@ -1334,16 +1340,16 @@ TEST_F(NeugDBACIDTest, G1B) {
   auto svc = InitPersonWithVersion(db, dir, thread_num_, 99);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
-        auto p_version = G1B2(session);
+        auto p_version = G1B2(slot);
         if (p_version % 2 != 1)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
       for (int i = 0; i < 100; ++i) {
-        G1B1(session, 0, 1);
+        G1B1(slot, 0, 1);
       }
     }
   });
@@ -1359,7 +1365,7 @@ TEST_F(NeugDBACIDTest, G1C) {
   std::vector<int64_t> results(c);
   neug_parallel_transaction(
       svc,
-      [&](neug::Session& session, int txn_id) {
+      [&](neug::ExecutionSlot& slot, int txn_id) {
         std::random_device rand_dev;
         std::mt19937 gen(rand_dev());
         std::uniform_int_distribution<int> dist(1, 100);
@@ -1368,7 +1374,7 @@ TEST_F(NeugDBACIDTest, G1C) {
         do {
           person2_id = dist(gen);
         } while (person1_id == person2_id);
-        results[txn_id] = G1C(session, person1_id, person2_id, txn_id + 1);
+        results[txn_id] = G1C(slot, person1_id, person2_id, txn_id + 1);
       },
       c);
   int64_t num_incorrect_checks = 0;
@@ -1390,7 +1396,7 @@ TEST_F(NeugDBACIDTest, IMP) {
   auto svc = InitPersonWithVersion(db, dir, thread_num_, 1);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     if (client_id < rc) {
       std::random_device rand_dev;
       std::mt19937 gen(rand_dev());
@@ -1398,13 +1404,13 @@ TEST_F(NeugDBACIDTest, IMP) {
       for (int i = 0; i < 100; ++i) {
         int picked = dist(gen);
         int64_t v1, v2;
-        std::tie(v1, v2) = IMP2(session, picked);
+        std::tie(v1, v2) = IMP2(slot, picked);
         if (v1 != v2)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
       for (int i = 0; i < 100; ++i)
-        IMP1(session);
+        IMP1(slot);
     }
   });
   ASSERT_EQ(num_incorrect_checks, 0);
@@ -1418,7 +1424,7 @@ TEST_F(NeugDBACIDTest, PMP) {
   std::atomic<int64_t> num_incorrect_checks(0);
   std::atomic<int64_t> num_aborted_txns(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
@@ -1426,7 +1432,7 @@ TEST_F(NeugDBACIDTest, PMP) {
       for (int i = 0; i < 100; ++i) {
         int64_t v1, v2;
         int post_id = dist(gen);
-        std::tie(v1, v2) = PMP2(session, post_id);
+        std::tie(v1, v2) = PMP2(slot, post_id);
         if (v1 != v2)
           num_incorrect_checks.fetch_add(1);
       }
@@ -1434,7 +1440,7 @@ TEST_F(NeugDBACIDTest, PMP) {
       for (int i = 0; i < 100; ++i) {
         int person_id = dist(gen);
         int post_id = dist(gen);
-        if (!PMP1(session, person_id, post_id))
+        if (!PMP1(slot, person_id, post_id))
           num_aborted_txns.fetch_add(1);
       }
     }
@@ -1449,14 +1455,14 @@ TEST_F(NeugDBACIDTest, OTV) {
   auto svc = OTVInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
         std::tuple<int64_t, int64_t, int64_t, int64_t> tup1, tup2;
-        std::tie(tup1, tup2) = OTV2(session, dist(gen) * 4 + 1);
+        std::tie(tup1, tup2) = OTV2(slot, dist(gen) * 4 + 1);
         int64_t v1_max = std::max({std::get<0>(tup1), std::get<1>(tup1),
                                    std::get<2>(tup1), std::get<3>(tup1)});
         int64_t v2_min = std::min({std::get<0>(tup2), std::get<1>(tup2),
@@ -1466,7 +1472,7 @@ TEST_F(NeugDBACIDTest, OTV) {
       }
     } else {
       for (int i = 0; i < 100; ++i)
-        OTV1(session, dist(gen) * 4 + 1);
+        OTV1(slot, dist(gen) * 4 + 1);
     }
   });
   ASSERT_EQ(num_incorrect_checks, 0);
@@ -1479,20 +1485,20 @@ TEST_F(NeugDBACIDTest, FR) {
   auto svc = OTVInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
         std::tuple<int64_t, int64_t, int64_t, int64_t> tup1, tup2;
-        std::tie(tup1, tup2) = OTV2(session, dist(gen) * 4 + 1);
+        std::tie(tup1, tup2) = OTV2(slot, dist(gen) * 4 + 1);
         if (tup1 != tup2)
           num_incorrect_checks.fetch_add(1);
       }
     } else {
       for (int i = 0; i < 100; ++i)
-        OTV1(session, dist(gen) * 4 + 1);
+        OTV1(slot, dist(gen) * 4 + 1);
     }
   });
   ASSERT_EQ(num_incorrect_checks, 0);
@@ -1506,14 +1512,14 @@ TEST_F(NeugDBACIDTest, LU) {
   std::map<int64_t, int64_t> expNumFriends;
   std::mutex mtx;
   std::atomic<int64_t> num_aborted_txns(0);
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     std::map<int64_t, int64_t> localExpNumFriends;
     for (int i = 0; i < 100; ++i) {
       int64_t person_id = dist(gen);
-      if (LU1(session, person_id))
+      if (LU1(slot, person_id))
         ++localExpNumFriends[person_id];
       else
         num_aborted_txns.fetch_add(1);
@@ -1522,8 +1528,8 @@ TEST_F(NeugDBACIDTest, LU) {
     for (auto& pair : localExpNumFriends)
       expNumFriends[pair.first] += pair.second;
   });
-  auto sess = svc->AcquireSession();
-  std::map<int64_t, int64_t> numFriends = LU2(*sess.get());
+  auto slot = svc->AcquireExecutionSlot();
+  std::map<int64_t, int64_t> numFriends = LU2(*slot.get());
   ASSERT_EQ(numFriends, expNumFriends);
 }
 
@@ -1532,18 +1538,18 @@ TEST_F(NeugDBACIDTest, WS) {
   std::string dir = work_dir_ + "/WS";
   NeugDB db;
   auto svc = WSInit(db, dir, thread_num_);
-  neug_parallel_client(svc, [&](neug::Session& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::ExecutionSlot& slot, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
     for (int i = 0; i < 100; ++i) {
       int64_t person1_id = dist(gen) * 2 - 1;
       int64_t person2_id = person1_id + 1;
-      WS1(session, person1_id, person2_id, gen);
+      WS1(slot, person1_id, person2_id, gen);
     }
   });
-  auto sess = svc->AcquireSession();
-  auto results = WS2(*sess.get());
+  auto slot = svc->AcquireExecutionSlot();
+  auto results = WS2(*slot.get());
   ASSERT_TRUE(results.empty());
 }
 
@@ -1564,6 +1570,7 @@ std::shared_ptr<NeugDBService> cc_init(NeugDB& db, const std::string& work_dir,
         "PRIMARY KEY(id));"));
     EXPECT_TRUE(conn->Query(
         "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
+    conn->Close();
   }
   auto svc = std::make_shared<NeugDBService>(db);
   auto person_label = db.schema().get_vertex_label_id("person");
@@ -1574,8 +1581,8 @@ std::shared_ptr<NeugDBService> cc_init(NeugDB& db, const std::string& work_dir,
   mutable_pg.EnsureCapacity(person_label, person_label, knows_label,
                             kSeedEdges * 4);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   std::vector<vid_t> vids;
   vids.reserve(kSeedVertices);
   for (int i = 1; i <= kSeedVertices; ++i) {
@@ -1603,10 +1610,10 @@ std::shared_ptr<NeugDBService> cc_init(NeugDB& db, const std::string& work_dir,
   return svc;
 }
 
-// Read age via a fresh ReadTxn from a freshly-acquired session.
+// Read age via a fresh ReadTxn from a freshly-acquired slot.
 int64_t cc_read_age(NeugDBService& svc, int64_t person_id) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1616,10 +1623,10 @@ int64_t cc_read_age(NeugDBService& svc, int64_t person_id) {
   return gi.GetVertexProperty(person_label, vid, 1).GetValue<int64_t>();
 }
 
-// Read age via a fresh ReadTxn on a caller-owned session (no contention on
-// session pool acquisition).
-int64_t cc_read_age(Session& sess, NeugDB& db, int64_t person_id) {
-  auto txn = sess.GetReadTransaction();
+// Read age via a fresh ReadTxn on a caller-owned slot (no contention on
+// slot pool acquisition).
+int64_t cc_read_age(ExecutionSlot& slot, NeugDB& db, int64_t person_id) {
+  auto txn = slot.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = db.schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1629,12 +1636,12 @@ int64_t cc_read_age(Session& sess, NeugDB& db, int64_t person_id) {
   return gi.GetVertexProperty(person_label, vid, 1).GetValue<int64_t>();
 }
 
-// Read age via caller-owned session, returning {age, elapsed_ns}.
+// Read age via caller-owned slot, returning {age, elapsed_ns}.
 // Used by the two-phase latency measurement test.
-std::pair<int64_t, int64_t> cc_read_age_timed(Session& sess, NeugDB& db,
+std::pair<int64_t, int64_t> cc_read_age_timed(ExecutionSlot& slot, NeugDB& db,
                                               int64_t person_id) {
   auto t0 = std::chrono::high_resolution_clock::now();
-  auto txn = sess.GetReadTransaction();
+  auto txn = slot.GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = db.schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1661,22 +1668,22 @@ int64_t cc_read_age_via(const ReadTransaction& txn, NeugDB& db,
   return gi.GetVertexProperty(person_label, vid, 1).GetValue<int64_t>();
 }
 
-// Acquire a session, open an UpdateTxn, invoke `body(txn)`, then Commit.
+// Acquire a slot, open an UpdateTxn, invoke `body(txn)`, then Commit.
 // Centralizes the boilerplate that recurs in nearly every COW isolation test.
 template <typename Body>
 void cc_run_update(NeugDBService& svc, Body&& body) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetUpdateTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetUpdateTransaction();
   body(txn);
   EXPECT_TRUE(txn.Commit());
 }
 
-// Acquire a session, open a fresh ReadTxn, and invoke `body(gi)` against a
+// Acquire a slot, open a fresh ReadTxn, and invoke `body(gi)` against a
 // StorageReadInterface built from the new snapshot.
 template <typename Body>
 void cc_with_fresh_read(NeugDBService& svc, Body&& body) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   body(gi);
 }
@@ -1692,8 +1699,8 @@ vid_t cc_person_vid(Txn& txn, NeugDB& db, int64_t oid) {
 
 // Update age via a fresh UpdateTxn + Commit. Returns true on success.
 bool cc_update_age(NeugDBService& svc, int64_t person_id, int64_t new_age) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetUpdateTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1707,8 +1714,8 @@ bool cc_update_age(NeugDBService& svc, int64_t person_id, int64_t new_age) {
 
 // Count visible person vertices.
 size_t cc_count_persons(NeugDBService& svc) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   size_t n = 0;
@@ -1763,8 +1770,8 @@ size_t cc_count_all_oe_via(const ReadTransaction& txn, label_t src_label,
 // Same as cc_count_all_oe_via but on a fresh ReadTransaction (live snapshot).
 size_t cc_count_all_oe(NeugDBService& svc, const char* src, const char* dst,
                        const char* edge) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto sl = gi.schema().get_vertex_label_id(src);
   auto dl = gi.schema().get_vertex_label_id(dst);
@@ -1808,8 +1815,8 @@ double cc_read_knows_weight_via(const ReadTransaction& txn, NeugDB& db,
 // Also adds one software vertex (id=1) and one created edge person
 // 1→software 1.
 void cc_setup_unbundled_created(NeugDBService& svc) {
-  auto sess = svc.AcquireSession();
-  auto txn = sess->GetUpdateTransaction();
+  auto slot = svc.AcquireExecutionSlot();
+  auto txn = slot->GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
 
   CreateVertexTypeParamBuilder sb;
@@ -1889,11 +1896,11 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndUpdatesBasic) {
 
   // Part 1: concurrent reads see consistent seed data.
   std::atomic<int64_t> bad_reads{0};
-  neug_parallel_client(svc, [&](Session& sess, int) {
+  neug_parallel_client(svc, [&](ExecutionSlot& slot, int) {
     for (int i = 0; i < 1000; ++i) {
       int pid = (i % kSeedVertices) + 1;
       int64_t expected = 20 + pid;
-      if (cc_read_age(sess, db, pid) != expected) {
+      if (cc_read_age(slot, db, pid) != expected) {
         bad_reads.fetch_add(1);
       }
     }
@@ -1933,11 +1940,11 @@ TEST_F(NeugDBACIDTest, ConcurrentInsertsCommitInOrder) {
   constexpr int kPerThread = 50;
   size_t before = cc_count_persons(*svc);
 
-  neug_parallel_client(svc, [&](Session& sess, int tid) {
+  neug_parallel_client(svc, [&](ExecutionSlot& slot, int tid) {
     int64_t base = 100000 + tid * kPerThread;
     auto person_label = db.schema().get_vertex_label_id("person");
     for (int i = 0; i < kPerThread; ++i) {
-      auto txn = sess.GetInsertTransaction();
+      auto txn = slot.GetInsertTransaction();
       vid_t vid;
       ASSERT_TRUE(txn.AddVertex(person_label, neug::Value::INT64(base + i),
                                 {neug::Value::STRING(std::string("inserted")),
@@ -1948,9 +1955,9 @@ TEST_F(NeugDBACIDTest, ConcurrentInsertsCommitInOrder) {
   });
 
   size_t after = cc_count_persons(*svc);
-  EXPECT_EQ(after, before + svc->SessionNum() * kPerThread);
+  EXPECT_EQ(after, before + svc->ExecutionSlotNum() * kPerThread);
 
-  for (size_t tid = 0; tid < svc->SessionNum(); ++tid) {
+  for (size_t tid = 0; tid < svc->ExecutionSlotNum(); ++tid) {
     int64_t base = 100000 + static_cast<int64_t>(tid) * kPerThread;
     for (int i = 0; i < kPerThread; ++i) {
       EXPECT_EQ(cc_read_age(*svc, base + i), 99) << "tid=" << tid << " i=" << i;
@@ -1981,10 +1988,10 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
   std::vector<std::thread> threads;
   for (int i = 0; i < 8; ++i) {
     threads.emplace_back([&] {
-      auto guard = svc->AcquireSession();
+      auto lease = svc->AcquireExecutionSlot();
       while (!stop.load()) {
         // Person 5 has age 25 in the seed and is never updated.
-        int64_t got = cc_read_age(*guard.get(), db, 5);
+        int64_t got = cc_read_age(*lease.get(), db, 5);
         if (got != 25)
           reader_anomalies.fetch_add(1);
         reader_observations.fetch_add(1);
@@ -1993,11 +2000,11 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
   }
   for (int i = 0; i < kInserterThreads; ++i) {
     threads.emplace_back([&] {
-      auto guard = svc->AcquireSession();
+      auto lease = svc->AcquireExecutionSlot();
       auto person_label = db.schema().get_vertex_label_id("person");
       while (!stop.load() && insert_count.load() < kMaxInserts) {
         int64_t id = next_id.fetch_add(1);
-        auto txn = guard->GetInsertTransaction();
+        auto txn = lease->GetInsertTransaction();
         vid_t vid;
         if (txn.AddVertex(
                 person_label, neug::Value::INT64(id),
@@ -2031,7 +2038,7 @@ TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
   auto svc = cc_init(db, dir, thread_num_);
 
   // Part 1: held reader is unaffected by concurrent update commit.
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   EXPECT_EQ(cc_read_age_via(txn_r, db, 5), 25);
 
@@ -2044,7 +2051,7 @@ TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
   EXPECT_EQ(cc_read_age_via(txn_r, db, 9999), -1);
 
   {
-    auto sess_w = svc->AcquireSession();
+    auto sess_w = svc->AcquireExecutionSlot();
     auto txn_w = sess_w->GetInsertTransaction();
     auto person_label = db.schema().get_vertex_label_id("person");
     vid_t vid;
@@ -2069,12 +2076,12 @@ TEST_F(NeugDBACIDTest, UpdateCowCloneDoesNotAffectActiveReaders) {
   NeugDB db;
   auto svc = cc_init(db, dir, thread_num_);
 
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   EXPECT_EQ(cc_read_age_via(txn_r, db, 5), 25);
 
   // Open U and mutate without committing.
-  auto sess_u = svc->AcquireSession();
+  auto sess_u = svc->AcquireExecutionSlot();
   auto txn_u = sess_u->GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn_u);
   auto person_label = db.schema().get_vertex_label_id("person");
@@ -2100,8 +2107,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   // Part 1: DML rollback — property update reverted.
   EXPECT_EQ(cc_read_age(*svc, 5), 25);
   {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetUpdateTransaction();
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetUpdateTransaction();
     StorageTPUpdateInterface gui(txn);
     gui.UpdateVertexProperty(person_label, cc_person_vid(gui, db, 5), 1,
                              neug::Value::INT64(125));
@@ -2112,8 +2119,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   // Part 2: DDL rollback — CreateVertexType reverted.
   size_t labels_pre = svc->db().schema().vertex_label_num();
   {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetUpdateTransaction();
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(txn);
     CreateVertexTypeParamBuilder b;
     auto status =
@@ -2131,8 +2138,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   size_t edge_count_pre = cc_count_all_oe(*svc, "person", "person", "knows");
   EXPECT_GT(edge_count_pre, 0u);
   {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetUpdateTransaction();
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(txn);
     DeleteEdgePropertiesParamBuilder b;
     auto config = b.AddDeleteProperty("weight").Build();
@@ -2150,7 +2157,7 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
 // Category 3a — UpdateTransaction COW isolation across single-row DML.
 //
 // Pattern: open ReadTxn R, observe pre-state via R's frozen GraphView; open a
-// separate UpdateTxn U on another session, mutate + Commit; R must continue to
+// separate UpdateTxn U on another slot, mutate + Commit; R must continue to
 // observe pre-state (its snapshot is pinned in its GraphSnapshotStore slot,
 // never mutated in place); a fresh ReadTxn must observe post-state.
 // ============================================================================
@@ -2164,7 +2171,7 @@ TEST_F(NeugDBACIDTest, DMLCommitDoesNotAffectHeldReader) {
   auto e_label = db.schema().get_edge_label_id("knows");
 
   // Pin a reader snapshot before any mutations.
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   size_t n_pre = cc_count_vertices_via(txn_r, p_label);
   EXPECT_EQ(n_pre, static_cast<size_t>(kSeedVertices));
@@ -2285,7 +2292,7 @@ TEST_F(NeugDBACIDTest,
   };
   set_or_add_weight(0.42);
 
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   EXPECT_EQ(cc_read_knows_weight_via(txn_r, db, 1, 2), 0.42);
 
@@ -2297,8 +2304,8 @@ TEST_F(NeugDBACIDTest,
   // Fresh reader: 0.99 visible on at least one of the edges.
   bool saw_99 = false;
   {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetReadTransaction();
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetReadTransaction();
     StorageReadInterface gi(txn.view(), txn.timestamp());
     auto view = gi.GetGenericOutgoingGraphView(p_label, p_label, e_label);
     auto accessor = gi.GetEdgeDataAccessor(p_label, p_label, e_label, 0);
@@ -2333,7 +2340,7 @@ TEST_F(NeugDBACIDTest,
                    ->is_bundled())
       << "created has 2 properties and must be unbundled";
 
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   EXPECT_EQ(cc_read_created_since_via(txn_r), 2020);
 
@@ -2355,8 +2362,8 @@ TEST_F(NeugDBACIDTest,
 
   // Fresh reader: sees 2099.
   {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetReadTransaction();
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetReadTransaction();
     EXPECT_EQ(cc_read_created_since_via(txn), 2099);
   }
 }
@@ -2372,7 +2379,7 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
 
   auto p_label = db.schema().get_vertex_label_id("person");
 
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   {
     StorageReadInterface gi(txn_r.view(), txn_r.timestamp());
@@ -2460,7 +2467,7 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   auto p_label = db.schema().get_vertex_label_id("person");
   auto e_label = db.schema().get_edge_label_id("knows");
 
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   {
     StorageReadInterface gi(txn_r.view(), txn_r.timestamp());
@@ -2525,7 +2532,7 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   auto cr_label = db.schema().get_edge_label_id("created");
 
   // Pin a second reader for the unbundled edge.
-  auto sess_r2 = svc->AcquireSession();
+  auto sess_r2 = svc->AcquireExecutionSlot();
   auto txn_r2 = sess_r2->GetReadTransaction();
   EXPECT_EQ(cc_read_created_since_via(txn_r2), 2020);
   {
@@ -2569,7 +2576,7 @@ TEST_F(NeugDBACIDTest, SchemaTypeDDLCommitDoesNotAffectHeldReader) {
       db.schema().get_vertex_schema(p_label)->get_property_index("age");
 
   // Pin reader before any DDL.
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   size_t n_pre = cc_count_vertices_via(txn_r, p_label);
   size_t e_pre = cc_count_all_oe_via(txn_r, p_label, p_label, e_label);
@@ -2667,22 +2674,22 @@ TEST_F(NeugDBACIDTest, MultipleSequentialCommitsEachSnapshotIsolated) {
   NeugDB db;
   auto svc = cc_init(db, dir, thread_num_);
 
-  auto s0 = svc->AcquireSession();
+  auto s0 = svc->AcquireExecutionSlot();
   auto r0 = s0->GetReadTransaction();
   int64_t e0 = cc_read_age_via(r0, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5001));
 
-  auto s1 = svc->AcquireSession();
+  auto s1 = svc->AcquireExecutionSlot();
   auto r1 = s1->GetReadTransaction();
   int64_t e1 = cc_read_age_via(r1, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5002));
 
-  auto s2 = svc->AcquireSession();
+  auto s2 = svc->AcquireExecutionSlot();
   auto r2 = s2->GetReadTransaction();
   int64_t e2 = cc_read_age_via(r2, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5003));
 
-  auto s3 = svc->AcquireSession();
+  auto s3 = svc->AcquireExecutionSlot();
   auto r3 = s3->GetReadTransaction();
   int64_t e3 = cc_read_age_via(r3, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5004));
@@ -2721,7 +2728,7 @@ TEST_F(NeugDBACIDTest, UpdateStringPropertyCommitDoesNotAffectHeldReader) {
         gi.GetVertexProperty(p_label, v, 0).GetValue<std::string_view>());
   };
 
-  auto sess_r = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
   auto txn_r = sess_r->GetReadTransaction();
   std::string name_pre = read_name_via(txn_r, 5);
   EXPECT_EQ(name_pre, "person_5");
@@ -2738,8 +2745,8 @@ TEST_F(NeugDBACIDTest, UpdateStringPropertyCommitDoesNotAffectHeldReader) {
 
   // Fresh reader: sees new name.
   {
-    auto sess = svc->AcquireSession();
-    auto txn = sess->GetReadTransaction();
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetReadTransaction();
     EXPECT_EQ(read_name_via(txn, 5), "renamed_5");
   }
 }
@@ -2753,8 +2760,8 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
   NeugDB db;
   auto svc = cc_init(db, dir, thread_num_);
 
-  auto sess1 = svc->AcquireSession();
-  auto sess2 = svc->AcquireSession();
+  auto sess1 = svc->AcquireExecutionSlot();
+  auto sess2 = svc->AcquireExecutionSlot();
 
   // Part 1: second UpdateTxn blocks until first commits.
   {
@@ -2851,8 +2858,8 @@ TEST_F(NeugDBACIDTest, LongRunningReadDoesNotBlockUpdateCommit) {
   NeugDB db;
   auto svc = cc_init(db, dir, thread_num_);
 
-  auto sess_r = svc->AcquireSession();
-  auto sess_u = svc->AcquireSession();
+  auto sess_r = svc->AcquireExecutionSlot();
+  auto sess_u = svc->AcquireExecutionSlot();
 
   std::atomic<bool> reader_acquired{false};
   std::atomic<bool> commit_finished{false};
@@ -2940,7 +2947,7 @@ TEST_F(NeugDBACIDTest, CommitVisibilitySemantics) {
 
   // Part 1: reads before commit see old snapshot.
   {
-    auto sess_u = svc->AcquireSession();
+    auto sess_u = svc->AcquireExecutionSlot();
     auto txn_u = sess_u->GetUpdateTransaction();
     StorageTPUpdateInterface gui(txn_u);
     gui.UpdateVertexProperty(db.schema().get_vertex_label_id("person"),
@@ -3007,7 +3014,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
       reader_value.store(cc_read_age(*svc, 5));
     });
     std::thread writer([&] {
-      auto sess_u = svc->AcquireSession();
+      auto sess_u = svc->AcquireExecutionSlot();
       auto txn_u = sess_u->GetUpdateTransaction();
       StorageTPUpdateInterface gui(txn_u);
       vid_t vid_u;
@@ -3050,7 +3057,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
 //   Phase A: 8 readers for 1s, no commits. Record per-call latencies.
 //   Phase B: 8 readers + 1 commit thread for 1s. Record per-call latencies.
 //
-// Each reader holds its own session for the duration (avoids session-pool
+// Each reader holds its own slot for the duration (avoids slot-pool
 // contention noise).
 //
 // Assertions:
@@ -3084,9 +3091,9 @@ TEST_F(NeugDBACIDTest, CommitsBrieflyBlockReadsButDoNotStarveThem) {
     std::vector<std::thread> readers;
     for (int i = 0; i < kReaders; ++i) {
       readers.emplace_back([&, i] {
-        auto sess = svc->AcquireSession();
+        auto slot = svc->AcquireExecutionSlot();
         while (!stop.load(std::memory_order_relaxed)) {
-          auto [age, ns] = cc_read_age_timed(*sess.get(), db, 5);
+          auto [age, ns] = cc_read_age_timed(*slot.get(), db, 5);
           (void) age;
           phase_a_latencies[i].push_back(ns);
         }
@@ -3105,9 +3112,9 @@ TEST_F(NeugDBACIDTest, CommitsBrieflyBlockReadsButDoNotStarveThem) {
     std::vector<std::thread> threads;
     for (int i = 0; i < kReaders; ++i) {
       threads.emplace_back([&, i] {
-        auto sess = svc->AcquireSession();
+        auto slot = svc->AcquireExecutionSlot();
         while (!stop.load(std::memory_order_relaxed)) {
-          auto [age, ns] = cc_read_age_timed(*sess.get(), db, 5);
+          auto [age, ns] = cc_read_age_timed(*slot.get(), db, 5);
           (void) age;
           phase_b_latencies[i].push_back(ns);
         }

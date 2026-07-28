@@ -54,6 +54,10 @@ struct IndexMeta {
   IndexBindSchema schema;
   common::case_insensitive_map_t<std::string> options;
 
+  void RenameProperty(const std::string& property_name) {
+    schema.property_name = property_name;
+  }
+
   std::string ToJsonString() const;
   static IndexMeta FromJsonString(const std::string& json_str);
 };
@@ -176,6 +180,9 @@ class StorageIndex : public Module {
 
   // --- Metadata ---
   const IndexMeta& GetMeta() const { return *meta_; }
+  void RenameProperty(const std::string& property_name) {
+    meta_->RenameProperty(property_name);
+  }
 
  protected:
   virtual result<std::vector<SearchCandidate>> SearchImpl(

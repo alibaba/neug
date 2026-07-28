@@ -127,6 +127,20 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
   return Status::OK();
 }
 
+// Updates metadata for every index bound to a renamed vertex property.
+static Status renameVertexIndex(PropertyGraph& graph, label_t label,
+                                const std::string& old_name,
+                                const std::string& new_name) {
+  auto indexes = graph.mutable_index_manager().GetIndex(label, old_name);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    index->RenameProperty(new_name);
+  }
+  return Status::OK();
+}
+
 // Appends index entries for one newly inserted vertex row.
 static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
                                  const Value& id,
@@ -490,7 +504,7 @@ Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
   for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
     if (old_name == new_name)
       continue;
-    RETURN_IF_NOT_OK(dropVertexIndex(graph_, label, old_name));
+    RETURN_IF_NOT_OK(renameVertexIndex(graph_, label, old_name, new_name));
   }
   return Status::OK();
 }

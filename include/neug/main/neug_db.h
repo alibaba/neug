@@ -21,6 +21,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
@@ -53,8 +54,8 @@ class FileLock;
 class IGraphPlanner;
 class IVersionManager;
 class IWalParser;
-class QueryProcessor;
 class Schema;
+class ExecutionSlot;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -84,7 +85,7 @@ class Schema;
  *
  * **Key Components:**
  * - PropertyGraph: Underlying graph data storage engine
- * - QueryProcessor: Cypher query compilation and execution
+ * - ExecutionSlot: Cypher query compilation and execution
  * - ConnectionManager: Client connection pool management
  * - IGraphPlanner: Query optimization (GOPT or Greedy planner)
  *
@@ -92,9 +93,9 @@ class Schema;
  * - `DBMode::READ_ONLY`: Read-only access for analytics workloads
  * - `DBMode::READ_WRITE`: Full transactional read/write access
  *
- * **Thread Safety:** This class is thread-safe. Multiple connections can
- * execute queries concurrently. The ConnectionManager handles thread
- * synchronization internally.
+ * **Thread Safety:** Connection creation and registration are synchronized,
+ * and separate connections can execute queries concurrently. Individual
+ * Connection instances are not thread-safe.
  *
  * **Resource Management:**
  * - File locking prevents concurrent database access from multiple processes
@@ -216,6 +217,7 @@ class NeugDB {
    * @note This method is idempotent - calling it multiple times is safe.
    * @note After closing, the database cannot be reopened. Create a new
    *       NeugDB instance to open the database again.
+   * @warning The caller must ensure no Connection operation is in progress.
    *
    * @since v0.1.0
    */
@@ -240,11 +242,20 @@ class NeugDB {
   bool HasActiveService() const;
 
   /**
+   * @brief Check whether the database has an open local AP connection.
+   *
+   * Used to prevent an AP-to-TP transition from invalidating a connection
+   * still held by a caller.
+   */
+  bool HasOpenConnections() const;
+
+  /**
    * @brief Create a new connection to the database for query execution.
    *
    * Creates and returns a Connection object that can be used to execute
    * Cypher queries against the database. The connection shares the query
-   * planner and processor with other connections from the same database.
+   * planner and global cache with other connections from the same database,
+   * while exclusively owning its ExecutionSlot.
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -260,7 +271,9 @@ class NeugDB {
    *
    * @note In READ_ONLY mode, multiple connections can be created.
    * @note In READ_WRITE mode, only one write connection is allowed.
+   * @note Calling Connection::Close automatically unregisters the connection.
    * @note Connections share the planner instance for efficiency.
+   * @note Each Connection must be used by only one thread at a time.
    *
    * @throws std::runtime_error if database is not open or closed
    *
@@ -272,35 +285,20 @@ class NeugDB {
   std::shared_ptr<Connection> Connect();
 
   /**
-   * @brief Remove a connection from the database.
-   * @param conn The connection to be removed.
-   * @note This method is used to remove a connection when it is closed, to
-   * remove the handle from the database.
-   * @note This method is not thread-safe, so it should be called only when
-   * the connection is closed. And should be only called internally.
-   */
-  void RemoveConnection(std::shared_ptr<Connection> conn);
-
-  /**
-   * @brief Remove all connection from the database.
-   * @note This method is used to remove all connection when tp svc created, to
-   * remove the handle from the database.
-   */
-  void CloseAllConnection();
-
-  /**
    * @brief Prepare an opened database for TP service without rebuilding
    * planner.
    *
-   * This closes local AP connections, persists and refreshes the live graph
-   * when needed, then rebuilds query runtime handles against the refreshed
-   * graph. The planner and its metadata registry are intentionally preserved so
-   * runtime extension registrations loaded in AP mode stay available in TP
-   * mode. The version manager is replaced only when a new durable checkpoint
-   * starts a fresh WAL timeline; otherwise the existing timeline is preserved.
+   * This requires local AP connections to be closed, persists and refreshes
+   * the live graph when needed, then rebuilds query runtime handles against
+   * the refreshed graph. The planner and its metadata registry are
+   * intentionally preserved so runtime extension registrations loaded in AP
+   * mode stay available in TP mode. The version manager is replaced only when
+   * a new durable checkpoint starts a fresh WAL timeline; otherwise the
+   * existing timeline is preserved.
    *
-   * @warning Caller-created Session objects borrowing this database must be
-   * destroyed before calling this method.
+   * New connections receive slots borrowing the refreshed resources.
+   *
+   * @warning The caller must close all local Connection objects first.
    */
   void PrepareForServing();
 
@@ -336,7 +334,9 @@ class NeugDB {
   void ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlanner();
   void initQueryRuntime();
-  void initPlannerAndQueryProcessor();
+  void clearQueryRuntime() noexcept;
+  void closeAllConnections();
+  std::unique_ptr<ExecutionSlot> createExecutionSlot(size_t slot_id);
   void initVersionManager();
   void cleanupTemporaryWorkspace() noexcept;
   std::shared_ptr<Checkpoint> consumeLiveGraphAndCommitCheckpoint(
@@ -383,25 +383,30 @@ class NeugDB {
    * closed first (and registration is rejected). A service can therefore
    * never be registered onto a closed or closing database.
    *
+   * Registration closes embedded connections before the service constructs
+   * its TP execution-slot pool. The caller must ensure those connections are
+   * not in use.
+   *
    * @param svc The service instance to register.
    *
    * @throws neug::exception::RuntimeError if another service is already
    * associated with this database, or if the database is closed or being
    * closed.
    */
-  void RegisterService(NeugDBService* svc);
+  void registerService(NeugDBService* svc);
 
   /**
    * @brief Unregister the active NeugDBService from this database.
    *
-   * Called by the NeugDBService destructor. Never throws; a mismatching
-   * pointer only triggers a warning log.
+   * Called after the service pool has released and destroyed all execution
+   * slots. Never throws; a mismatching pointer only triggers a warning log.
    *
    * @param svc The service instance to unregister.
    */
-  void UnregisterService(NeugDBService* svc);
+  void unregisterService(NeugDBService* svc) noexcept;
 
-  friend class neug::NeugDBService;
+  friend class ConnectionManager;
+  friend class NeugDBService;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
@@ -416,12 +421,11 @@ class NeugDB {
 
   // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
-  // One transaction timeline per open database. Session objects borrow this
-  // manager; it is not recreated when a service is recreated.
+  // One transaction timeline per open database. ExecutionSlot objects borrow
+  // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;
 
   std::shared_ptr<IGraphPlanner> planner_;
-  std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
 
@@ -429,7 +433,7 @@ class NeugDB {
   std::vector<std::shared_ptr<Allocator>>
       allocators_;  // Allocators for each thread
 
-  // Serializes the check-and-set sections of Close() and RegisterService()
+  // Serializes the check-and-set sections of Close() and registerService()
   // so that closing the database and registering a service can never
   // interleave.
   mutable std::mutex service_mutex_;

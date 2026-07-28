@@ -13,9 +13,12 @@
  * limitations under the License.
  */
 
+#include <chrono>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "gtest/gtest.h"
@@ -55,6 +58,7 @@ class ReleaseOrderVersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }
   void begin_update_commit(uint32_t) override {}
+  void drain_readers() override {}
   void release_update_timestamp(uint32_t) override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
 
@@ -172,6 +176,91 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
   EXPECT_EQ(version_manager.release_count(), 1);
   EXPECT_TRUE(version_manager.snapshot_was_released_first())
       << "The snapshot pin must be released before the timestamp lease";
+}
+
+TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
+  VersionManager version_manager;
+  version_manager.init_ts(0, 2);
+
+  version_manager.acquire_read_timestamp();
+
+  std::promise<void> entered_commit;
+  std::promise<void> drained;
+  auto entered_commit_future = entered_commit.get_future();
+  auto drained_future = drained.get_future();
+  std::thread writer([&]() {
+    const auto timestamp = version_manager.acquire_update_timestamp();
+    version_manager.begin_update_commit(timestamp);
+    entered_commit.set_value();
+    version_manager.drain_readers();
+    drained.set_value();
+    version_manager.release_update_timestamp(timestamp);
+  });
+
+  entered_commit_future.wait();
+  EXPECT_EQ(drained_future.wait_for(std::chrono::milliseconds(20)),
+            std::future_status::timeout);
+
+  version_manager.release_read_timestamp();
+  EXPECT_EQ(drained_future.wait_for(std::chrono::seconds(1)),
+            std::future_status::ready);
+  writer.join();
+}
+
+TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
+  VersionManager version_manager;
+  version_manager.init_ts(0, 2);
+
+  const auto writer_timestamp = version_manager.acquire_update_timestamp();
+  version_manager.begin_update_commit(writer_timestamp);
+
+  std::promise<void> attempting_read;
+  std::promise<timestamp_t> acquired_read;
+  auto attempting_read_future = attempting_read.get_future();
+  auto acquired_read_future = acquired_read.get_future();
+  std::thread reader([&]() {
+    attempting_read.set_value();
+    const auto timestamp = version_manager.acquire_read_timestamp();
+    acquired_read.set_value(timestamp);
+    version_manager.release_read_timestamp();
+  });
+
+  attempting_read_future.wait();
+  EXPECT_EQ(acquired_read_future.wait_for(std::chrono::milliseconds(20)),
+            std::future_status::timeout);
+
+  version_manager.release_update_timestamp(writer_timestamp);
+  EXPECT_EQ(acquired_read_future.wait_for(std::chrono::seconds(1)),
+            std::future_status::ready);
+  reader.join();
+}
+
+TEST(APInPlaceConcurrencyTest, WritersAreSerialized) {
+  VersionManager version_manager;
+  version_manager.init_ts(0, 2);
+
+  const auto first_timestamp = version_manager.acquire_update_timestamp();
+
+  std::promise<void> attempting_update;
+  std::promise<timestamp_t> acquired_update;
+  auto attempting_update_future = attempting_update.get_future();
+  auto acquired_update_future = acquired_update.get_future();
+  std::thread second_writer([&]() {
+    attempting_update.set_value();
+    const auto timestamp = version_manager.acquire_update_timestamp();
+    acquired_update.set_value(timestamp);
+    version_manager.release_update_timestamp(timestamp);
+  });
+
+  attempting_update_future.wait();
+  EXPECT_EQ(acquired_update_future.wait_for(std::chrono::milliseconds(20)),
+            std::future_status::timeout);
+
+  version_manager.release_update_timestamp(first_timestamp);
+  EXPECT_EQ(acquired_update_future.wait_for(std::chrono::seconds(1)),
+            std::future_status::ready);
+  second_writer.join();
+  EXPECT_GT(acquired_update_future.get(), first_timestamp);
 }
 
 std::string release_path_name(

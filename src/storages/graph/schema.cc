@@ -1279,6 +1279,27 @@ bool Schema::Equals(const Schema& other) const {
               return false;
             }
           }
+          {
+            auto lhs = get_sort_key_for_nbr(src_label_name, dst_label_name,
+                                            edge_label_name);
+            auto rhs = other.get_sort_key_for_nbr(
+                src_label_name, dst_label_name, edge_label_name);
+            if (lhs != rhs) {
+              return false;
+            }
+          }
+          {
+            if (outgoing_edge_mutable(src_label_name, dst_label_name,
+                                      edge_label_name) !=
+                    other.outgoing_edge_mutable(src_label_name, dst_label_name,
+                                                edge_label_name) ||
+                incoming_edge_mutable(src_label_name, dst_label_name,
+                                      edge_label_name) !=
+                    other.incoming_edge_mutable(src_label_name, dst_label_name,
+                                                edge_label_name)) {
+              return false;
+            }
+          }
         }
       }
     }
@@ -1929,6 +1950,30 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
               schema.get_vertex_label_name(dst_v);
           vertex_type_pair_node["relation"] =
               schema.get_edge_strategy(src_v, dst_v, e_label);
+          // Persist the subset of x_csr_params needed after checkpoint
+          // DumpToYaml/ToJson reopen: sort_key_for_nbr and non-default
+          // oe/ie mutability. (edge_storage_strategy is already covered by
+          // "relation"; other LoadFromYaml CSR fields are not dumped here.)
+          {
+            const auto edge_schema =
+                schema.get_edge_schema(src_v, dst_v, e_label);
+            const auto& sort_key = edge_schema->sort_key_for_nbr;
+            const bool oe_mutable = edge_schema->oe_mutable;
+            const bool ie_mutable = edge_schema->ie_mutable;
+            if (sort_key.has_value() || !oe_mutable || !ie_mutable) {
+              YAML::Node csr_node;
+              if (sort_key.has_value()) {
+                csr_node["sort_key_for_nbr"] = sort_key.value();
+              }
+              if (!oe_mutable) {
+                csr_node["oe_mutability"] = "IMMUTABLE";
+              }
+              if (!ie_mutable) {
+                csr_node["ie_mutability"] = "IMMUTABLE";
+              }
+              vertex_type_pair_node["x_csr_params"] = csr_node;
+            }
+          }
           cur_node["vertex_type_pair_relations"].push_back(
               vertex_type_pair_node);
         }

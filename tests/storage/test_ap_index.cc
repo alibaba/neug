@@ -464,7 +464,7 @@ TEST_F(APIndexTest, DropVertexTypeDeletesBoundIndex) {
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
 }
 
-TEST_F(APIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
+TEST_F(APIndexTest, DropDeletesAndRenamePreservesBoundIndex) {
   CreatePersonTable();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
   auto person_label = graph_->schema().get_vertex_label_id("Person");
@@ -490,6 +490,10 @@ TEST_F(APIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   ASSERT_TRUE(rename_status.ok()) << rename_status.ToString();
 
   EXPECT_TRUE(GetIndexes(person_label, "score").empty());
+  auto renamed_indexes = GetIndexes(person_label, "years");
+  ASSERT_EQ(renamed_indexes.size(), 1);
+  EXPECT_EQ(renamed_indexes.front()->GetMeta().name, "idx_person_score");
+  EXPECT_EQ(renamed_indexes.front()->GetMeta().schema.property_name, "years");
 }
 
 TEST_F(APIndexTest, InsertDeleteAndUpdateMaintainIndex) {
