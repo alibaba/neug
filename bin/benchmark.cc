@@ -267,8 +267,8 @@ int main(int argc, char** argv) {
   std::string benchmark_config_path = vm["benchmark-config"].as<std::string>();
   BenchmarkConfig benchmark_config(benchmark_config_path);
 
-  auto sess = svc->AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = svc->AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {

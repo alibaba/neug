@@ -29,12 +29,15 @@ conn->Close();
 - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
 - `"schema"` or `"s"`: `Schema` modification operations (CREATE/DROP labels)
 
-**Thread Safety:** This class is NOT thread-safe. Each thread should use its own `Connection` instance. Use `NeugDB::Connect()` to create connections.
+**Thread Safety:** This class is NOT thread-safe. Do not call `Query()`,
+`GetSchema()`, or `Close()` concurrently on the same connection. Use a separate
+connection per thread.
 
 **Lifecycle:**
 - Created via `NeugDB::Connect()`
 - Execute queries via `Query()` method
-- Close via `Close()` or automatic cleanup in destructor
+- Close via `Close()`, which automatically unregisters the connection
+- Automatically closed and unregistered in the destructor
 
 ### Public Methods
 
@@ -43,7 +46,7 @@ conn->Close();
 ```cpp
 Query(
     const std::string &query_string,
-    const std::string &access_mode="update",
+    const std::string &access_mode="",
     const execution::ParamsMap &parameters={}
 )
 ```
@@ -79,8 +82,9 @@ if (result.has_value()) {
 
 - `"read"` or `"r"`: Read-only operations
 - `"insert"` or `"i"`: Insert-only operations (CREATE)
-- `"update"` or `"u"`: Update/delete operations (default)
+- `"update"` or `"u"`: Update/delete operations
 - `"schema"` or `"s"`: `Schema` modification operations
+- Empty string: Infer the access mode from the query text
   - `parameters`: Named parameters for parameterized queries. Keys are parameter names (without `$`), values are parameter values.
 
 - **Notes:**
@@ -145,7 +149,8 @@ conn->Close();
 ```
 
 - **Notes:**
-  - This method is idempotent - calling it multiple times is safe.
+  - Sequential repeated calls are idempotent; concurrent calls are not safe.
+  - Closing automatically unregisters this connection from its database.
   - The connection is also automatically closed in the destructor.
 
 - **Since:** v0.1.0
@@ -157,4 +162,3 @@ Check if the connection is closed.
 - **Returns:** `true` if the connection has been closed, `false` if still active
 
 - **Since:** v0.1.0
-

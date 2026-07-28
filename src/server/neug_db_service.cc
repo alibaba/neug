@@ -15,6 +15,11 @@
 #include "neug/server/neug_db_service.h"
 
 #include <glog/logging.h>
+
+#include <algorithm>
+
+#include <bthread/bthread.h>
+
 #include "neug/server/brpc_service_mgr.h"
 
 #define STRINGIFY(x) #x
@@ -47,16 +52,15 @@ void NeugDBService::init(const ServiceConfig& config) {
         std::to_string(db_config_.max_thread_num) + ".");
   }
 
-  version_manager_ = std::make_shared<neug::VersionManager>();
-  version_manager_->init_ts(
-      db_.last_ts_,
-      db_config_.max_thread_num);  // We assume versions start from 1.
+  bthread_setconcurrency(
+      std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
 
-  session_pool_ = std::make_unique<neug::SessionPool>(
-      db_, db_.GetPlanner(), db_.GetQueryCache(), version_manager_,
-      db_.allocators_, db_config_);
+  execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
+      db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
+      *db_.version_manager_, db_.allocators_,
+      db_.graph().checkpoint().wal_dir(), db_config_);
 
-  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
+  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
   hdl_mgr_->Init(config);
   service_config_ = config;
 }
@@ -67,14 +71,16 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
+  execution_slot_pool_.reset();
+  db_.unregisterService(this);
 }
 
 const ServiceConfig& NeugDBService::GetServiceConfig() const {
   return service_config_;
 }
 
-neug::SessionGuard NeugDBService::AcquireSession() {
-  return session_pool_->AcquireSession();
+neug::ExecutionSlotLease NeugDBService::AcquireExecutionSlot() {
+  return execution_slot_pool_->AcquireExecutionSlot();
 }
 
 bool NeugDBService::IsRunning() const {
@@ -82,7 +88,7 @@ bool NeugDBService::IsRunning() const {
 }
 
 neug::result<std::string> NeugDBService::service_status() {
-  if (!hdl_mgr_ || !session_pool_) {
+  if (!hdl_mgr_ || !execution_slot_pool_) {
     return neug::result<std::string>(
         "NeugDB service has not been initialized!");
   }
@@ -149,7 +155,7 @@ std::string NeugDBService::Start() {
 }
 
 size_t NeugDBService::getExecutedQueryNum() const {
-  return session_pool_->getExecutedQueryNum();
+  return execution_slot_pool_->getExecutedQueryNum();
 }
 
 void NeugDBService::stopCompactThread() {
@@ -189,8 +195,8 @@ void NeugDBService::startCompactThread() {
                (last_compaction_at + kCompactQueryThreshold))) {
             VLOG(10) << "Trigger auto compaction";
             last_compaction_at = query_num_after;
-            auto session_guard = AcquireSession();
-            auto txn = session_guard->GetCompactTransaction();
+            auto slot_lease = AcquireExecutionSlot();
+            auto txn = slot_lease->GetCompactTransaction();
             txn.Commit();
             VLOG(10) << "Finish compaction";
           }

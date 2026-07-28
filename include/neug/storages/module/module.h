@@ -66,6 +66,7 @@ class NEUG_API Module {
   /**
    * @brief Create an independent module object that shares the same storage.
    * Zero-copy: creates a new Module object sharing the same IDataContainer(s).
+   * The clone must call Detach() before it can be mutated safely.
    */
   virtual std::unique_ptr<Module> Clone() const = 0;
 

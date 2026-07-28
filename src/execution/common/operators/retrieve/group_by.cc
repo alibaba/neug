@@ -31,6 +31,12 @@ neug::result<ContextChunk> GroupBy::group_by(ContextChunk&& chunk,
   for (auto& aggr : aggrs) {
     aggr.reduce(ret, groups);
   }
+  // A grouped aggregate over an empty input has no groups, hence no rows.
+  // Reducers may produce scalar empty-input values (for example COUNT = 0),
+  // but those values only belong to ungrouped aggregates.
+  if (groups.empty() && !tag_alias.empty()) {
+    ret.reshuffle({});
+  }
   ret.head().reset();
   return ret;
 }

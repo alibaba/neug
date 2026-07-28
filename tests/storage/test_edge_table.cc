@@ -1015,7 +1015,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     }
   }
   this->ExpectBundledStats(edge_num - delete_count);
-  this->edge_table->Compact(std::nullopt, neug::MAX_TIMESTAMP);
+  this->edge_table->Compact(std::nullopt);
   this->ExpectBundledStats(edge_num - delete_count);
   size_t edge_count = 0;
   for (size_t i = 0; i < dst_lids.size(); ++i) {
@@ -1100,39 +1100,6 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
       CHECK_EQ(str_data.GetValue<std::string>(),
                new_data[0].GetValue<std::string>());
     }
-  }
-}
-
-TEST_F(EdgeTableTest, TestUpdateEdgePropertyMarksCompactNeeded) {
-  auto ckp = make_checkpoint(workspace());
-  this->InitIndexers(*ckp, 2, 2);
-  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
-  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), 2, 2);
-  this->edge_table->EnsureCapacity(2, 2);
-
-  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
-  this->edge_table->AddEdge(0, 1, {neug::Value::INT32(1)}, 0, allocator, false);
-
-  this->edge_table->UpdateEdgeProperty(0, 1, 0, 0, 0, neug::Value::INT32(9), 5);
-  {
-    auto edges =
-        this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP).get_edges(0);
-    auto it = edges.begin();
-    ASSERT_NE(it, edges.end());
-    EXPECT_EQ(it.get_timestamp(), 5);
-    auto accessor = this->edge_table->get_edge_data_accessor(0);
-    EXPECT_EQ(accessor.get_data(it).GetValue<int32_t>(), 9);
-  }
-
-  this->edge_table->Compact(std::nullopt, neug::MAX_TIMESTAMP);
-  {
-    auto edges =
-        this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP).get_edges(0);
-    auto it = edges.begin();
-    ASSERT_NE(it, edges.end());
-    EXPECT_EQ(it.get_timestamp(), 0);
-    auto accessor = this->edge_table->get_edge_data_accessor(0);
-    EXPECT_EQ(accessor.get_data(it).GetValue<int32_t>(), 9);
   }
 }
 

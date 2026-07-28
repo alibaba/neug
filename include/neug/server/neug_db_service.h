@@ -24,17 +24,18 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/config.h"
 #include "neug/main/neug_db.h"
-#include "neug/server/session_pool.h"
+#include "neug/server/tp_execution_slot_pool.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
-#include "neug/transaction/version_manager.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
@@ -88,10 +89,10 @@ namespace neug {
  * - `GET /status` - Check service status
  *
  * **Thread Safety:** All public methods are thread-safe. The service uses
- * a SessionPool internally to handle concurrent requests efficiently.
+ * a TpExecutionSlotPool internally to handle concurrent requests efficiently.
  *
- * @see NeugDBSession for session-based query execution
- * @see SessionPool for session management
+ * @see ExecutionSlot for execution slot-based query execution
+ * @see TpExecutionSlotPool for execution slot management
  * @since v0.1.0
  */
 class NeugDBService {
@@ -102,11 +103,26 @@ class NeugDBService {
    * @param db Reference to the NeuG database that will handle queries
    *
    * @note The database should be opened and ready before creating the service
+   * @note At most one NeugDBService can be associated with a NeugDB instance
+   * at any given time. The association is released when the service is
+   * destructed.
+   * @warning Construction requires all existing embedded connections to be
+   * closed first.
+   *
+   * @throws neug::exception::RuntimeError If local connections are still open
+   * or another NeugDBService is already associated with the database
    */
   NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
       : db_(db), db_config_(db_.config()) {
-    db_.CloseAllConnection();
-    init(config);
+    db_.registerService(this);
+    try {
+      init(config);
+    } catch (...) {
+      hdl_mgr_.reset();
+      execution_slot_pool_.reset();
+      db_.unregisterService(this);
+      throw;
+    }
   }
 
   /**
@@ -123,6 +139,9 @@ class NeugDBService {
    *
    * Automatically stops the HTTP handler manager if it's running and
    * releases all associated resources.
+   *
+   * @warning All ExecutionSlotLease objects acquired from this service must be
+   * destroyed before the service is destroyed.
    */
   ~NeugDBService();
 
@@ -162,28 +181,28 @@ class NeugDBService {
   const ServiceConfig& GetServiceConfig() const;
 
   /**
-   * @brief Acquires a session from the internal session pool.
+   * @brief Leases an execution slot from the internal TP pool.
    *
-   * Returns a SessionGuard that automatically releases the session back
-   * to the pool when it goes out of scope. Use this for direct query
-   * execution when you need fine-grained control over session lifecycle.
+   * Returns an ExecutionSlotLease that automatically releases the execution
+   * slot back to the pool when it goes out of scope.
    *
    * **Usage Example:**
    * @code{.cpp}
    * neug::NeugDBService service(db, config);
    * service.Start();
    *
-   * // Acquire session and execute query
-   * auto guard = service.AcquireSession();
-   * auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
+   * // Lease an execution slot and execute a query.
+   * auto lease = service.AcquireExecutionSlot();
+   * auto result = lease->ExecuteTransactionalRequest(
+   *     R"({"query": "MATCH (n) RETURN count(n)"})");
    *
-   * // Session automatically released when guard goes out of scope
+   * // The ExecutionSlot is automatically returned when lease leaves scope.
    * @endcode
    *
-   * @return SessionGuard managing the acquired session
-   * @note Blocks if no session is available in the pool
+   * @return ExecutionSlotLease managing the acquired execution slot
+   * @note Blocks if no execution slot is available in the pool
    */
-  neug::SessionGuard AcquireSession();
+  neug::ExecutionSlotLease AcquireExecutionSlot();
 
   /**
    * @brief Checks if the HTTP server is currently running
@@ -226,7 +245,9 @@ class NeugDBService {
 
   size_t getExecutedQueryNum() const;
 
-  size_t SessionNum() const { return session_pool_->SessionNum(); }
+  size_t ExecutionSlotNum() const {
+    return execution_slot_pool_->ExecutionSlotNum();
+  }
 
  private:
   NeugDBService() = delete;
@@ -251,8 +272,7 @@ class NeugDBService {
 
   neug::NeugDB& db_;
   neug::NeugDBConfig db_config_;
-  std::shared_ptr<neug::IVersionManager> version_manager_;
-  std::unique_ptr<neug::SessionPool> session_pool_;
+  std::unique_ptr<neug::TpExecutionSlotPool> execution_slot_pool_;
   std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;

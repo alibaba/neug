@@ -29,8 +29,6 @@
 
 namespace neug {
 
-class EdgeTable;
-
 // CsrType is defined in csr_view.h to avoid a csr_base <-> csr_view
 // include cycle (CsrView may need to know about CsrType in future).
 
@@ -95,13 +93,6 @@ class CsrBase : public Module {
   /// (e.g. PropertyGraphCowState) is responsible for tracking which
   /// adjlists have been detached.
   virtual void DetachVertex(vid_t vid, Allocator& alloc) = 0;
-
- private:
-  friend class EdgeTable;
-
-  // Called after a timestamped edge update so compact() cannot take the
-  // "nothing to do" fast path.
-  virtual void mark_compaction_required() = 0;
 };
 
 template <typename EDATA_T>

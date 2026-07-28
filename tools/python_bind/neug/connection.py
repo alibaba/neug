@@ -154,8 +154,8 @@ class Connection(object):
         access_mode : str
             The access mode of the query. It could be `read(r)`, `insert(i)`, `update(u)` (include deletion),
             or `schema(s)` for schema modifications. User should specify the correct access mode for the query
-            to ensure the correctness of the database. If the access mode is not specified, it will be set to
-            `update` by default. Supported access modes are:
+            to ensure the correctness of the database. If the access mode is not specified, it is inferred from
+            the query text. Supported access modes are:
             - `read`,`r`,`READ`,`R`: for read-only queries
             - `insert`,`i`,`INSERT`,`I`: for insert-only queries
             - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
