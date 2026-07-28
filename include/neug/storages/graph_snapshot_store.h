@@ -23,6 +23,7 @@
 
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
