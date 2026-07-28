@@ -75,7 +75,4 @@ jobs:
       - name: Run Node.js tests
         run: |
           cd "${RUNNER_TEMP}/neug-npm-package-test"
-          for f in tests/test_*.js; do
-            echo "Running $f"
-            node "$f"
-          done
+          node tests/test-shim.js

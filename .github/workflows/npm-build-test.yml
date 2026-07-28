@@ -112,7 +112,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+            node tests/test-shim.js
           '
 
       - name: Stop container
@@ -204,7 +204,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+            node tests/test-shim.js
           '
 
       - name: Stop container
@@ -273,7 +273,7 @@ jobs:
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+          node tests/test-shim.js
 
       - name: Upload npm tarball
         uses: actions/upload-artifact@v4
