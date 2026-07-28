@@ -176,26 +176,24 @@ async function _run() {
 
 function runTestFile(file) {
   return new Promise((resolve) => {
-    const child = fork(path.join(__dirname, file), [], { silent: true });
-    const output = [];
+    const child = fork(path.join(__dirname, file), [], {
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    });
     let result;
 
-    child.stdout.on('data', (chunk) => output.push(chunk));
-    child.stderr.on('data', (chunk) => output.push(chunk));
     child.on('message', (message) => {
       if (message && message.type === 'neug:test-result') {
         result = message.result;
       }
     });
     child.on('error', (err) => {
-      output.push(Buffer.from(`${err.stack || err}\n`));
+      console.error(err.stack || err);
     });
     child.on('close', (code, signal) => {
       resolve({
         code,
         signal,
         result,
-        output: Buffer.concat(output).toString(),
       });
     });
   });
@@ -221,7 +219,7 @@ async function runAllTests() {
   let passedFiles = 0;
 
   for (const file of testFiles) {
-    process.stdout.write(`Running tests/${file} ... `);
+    console.log(`Running tests/${file} ...`);
     const execution = await runTestFile(file);
 
     if (execution.result) {
@@ -237,14 +235,13 @@ async function runAllTests() {
       execution.result.failed === 0
     ) {
       passedFiles++;
-      console.log('PASS');
+      console.log(`PASS tests/${file}`);
     } else {
-      console.log('FAIL');
+      console.log(`FAIL tests/${file}`);
       if (!execution.result || execution.result.failures.length === 0) {
         runnerErrors.push({
           file,
           signal: execution.signal,
-          output: execution.output,
         });
       }
     }
@@ -254,17 +251,18 @@ async function runAllTests() {
   const totalTests = totals.passed + totals.failed + totals.skipped;
 
   console.log('');
-  console.log(`# files ${testFiles.length}`);
-  console.log(`# file pass ${passedFiles}`);
-  console.log(`# file fail ${failedFiles}`);
-  console.log(`# tests ${totalTests}`);
-  console.log(`# pass  ${totals.passed}`);
-  console.log(`# fail  ${totals.failed}`);
-  console.log(`# skip  ${totals.skipped}`);
+  console.log('# ------ Tests Summary ------');
+  console.log('');
+  console.log(`# test files: ${testFiles.length}`);
+  console.log(`# file passed: ${passedFiles}`);
+  console.log(`# file failed: ${failedFiles}`);
+  console.log(`# total tests: ${totalTests}`);
+  console.log(`# passed:  ${totals.passed}`);
+  console.log(`# failed:  ${totals.failed}`);
+  console.log(`# skipped:  ${totals.skipped}`);
 
   if (failures.length > 0 || runnerErrors.length > 0) {
     console.log('');
-    console.log('# --- Failed Tests Summary ---');
 
     for (const { name, file, error } of failures) {
       console.log(`# FAIL: ${name}`);
@@ -279,9 +277,6 @@ async function runAllTests() {
         console.log(`#   error: terminated by signal ${error.signal}`);
       } else {
         console.log('#   error: test process exited without a result');
-      }
-      if (error.output.trim()) {
-        console.log(error.output.trimEnd());
       }
       console.log('#');
     }
