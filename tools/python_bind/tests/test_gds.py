@@ -1012,6 +1012,64 @@ def test_louvain_basic(tmp_path):
             assert len(row) == 2
             assert isinstance(row[1], int)
 
+def test_leiden_correctness(tmp_path):
+    """Leiden correctness: verify community structure on tinysnb.
+    The tinysnb person-knows graph has two dense clusters connected by a
+    bridge. Leiden should find >= 2 communities and place densely connected
+    nodes together."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL leiden('person_knows', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        # All projected nodes should be assigned
+        assert len(comm) > 0, "No nodes returned"
+        # Community IDs should be non-negative
+        assert all(c >= 0 for c in comm.values()), f"Negative community ID: {comm}"
+        # Should find at least 2 communities (the graph has cluster structure)
+        num_comms = len(set(comm.values()))
+        assert num_comms >= 2, f"Expected >= 2 communities, got {num_comms}: {comm}"
+        # Nodes should not all be in the same community
+        assert num_comms < len(comm), f"All singletons, no structure found: {comm}"
+        # Verify determinism: same input produces same output
+        rows2 = list(
+            conn.execute(
+                """
+                CALL leiden('person_knows', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm2 = {row[0]: row[1] for row in rows2}
+        assert comm == comm2, "Leiden should be deterministic across runs"
+
+
+def test_louvain_correctness(tmp_path):
+    """Louvain correctness: verify community structure on tinysnb."""
+    with tinysnb_simple_connection(tmp_path) as conn:
+        rows = list(
+            conn.execute(
+                """
+                CALL louvain('person_knows', {concurrency: 1})
+                YIELD node, community
+                RETURN node.id, community;
+                """
+            )
+        )
+        comm = {row[0]: row[1] for row in rows}
+        assert len(comm) > 0, "No nodes returned"
+        assert all(c >= 0 for c in comm.values()), f"Negative community ID: {comm}"
+        num_comms = len(set(comm.values()))
+        assert num_comms >= 2, f"Expected >= 2 communities, got {num_comms}: {comm}"
+        assert num_comms < len(comm), f"All singletons: {comm}"
+
 
 def test_leiden_multi_edge(tmp_path):
     """leiden on a graph with two edge types (knows + meets).

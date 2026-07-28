@@ -19,6 +19,7 @@
 #include "impl/louvain_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
+#include <unordered_set>
 
 namespace neug {
 namespace gds {
@@ -53,10 +54,37 @@ struct LouvainInput : public function::CallFuncInputBase {
         return false;
       }
     }
+    // Validate: no duplicate vertex labels
+    {
+      std::unordered_set<label_t> seen_labels;
+      for (const auto& ve : parsed.vertex_entries) {
+        if (seen_labels.count(ve.label)) {
+          LOG(ERROR) << "louvain" << ": duplicate vertex label '" << ve.label << "'.";
+          return false;
+        }
+        seen_labels.insert(ve.label);
+      }
+    }
+    // Collect declared vertex labels for triplet validation
+    std::unordered_set<label_t> declared_vertex_labels;
     for (const auto& ve : parsed.vertex_entries) {
+      declared_vertex_labels.insert(ve.label);
       vertex_labels.push_back(ve.label);
     }
+    // Validate: all edge triplet labels reference declared vertex labels
     for (const auto& ee : parsed.edge_entries) {
+      if (declared_vertex_labels.find(ee.triplet.src_label) ==
+          declared_vertex_labels.end()) {
+        LOG(ERROR) << "louvain" << ": edge triplet src_label '"
+                   << ee.triplet.src_label << "' is not a declared vertex label.";
+        return false;
+      }
+      if (declared_vertex_labels.find(ee.triplet.dst_label) ==
+          declared_vertex_labels.end()) {
+        LOG(ERROR) << "louvain" << ": edge triplet dst_label '"
+                   << ee.triplet.dst_label << "' is not a declared vertex label.";
+        return false;
+      }
       edge_triplets.push_back(ee.triplet);
     }
     return true;

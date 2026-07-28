@@ -348,28 +348,36 @@ void Louvain::compute() {
       bool improved = one_level();
       if (!improved)
         break;
-      double new_mod = 0;
-      for (uint32_t gid : valid_vertices_) {
-        size_t li = global_to_label_idx_[gid];
-        vid_t lv = global_to_vid_[gid];
-        for (size_t ti : label_out_triplets_[li]) {
-          if (triplet_dst_base_[ti] == SIZE_MAX)
-            continue;
-          size_t db = triplet_dst_base_[ti];
-          auto oes = out_views[ti].get_edges(lv);
-          for (auto it = oes.begin(); it != oes.end(); ++it) {
-            uint32_t ug = static_cast<uint32_t>(db + (*it));
-            if (community_[gid] == community_[ug]) {
-              double w =
-                  triplet_has_weight_[ti]
-                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
-                      : 1.0;
-              new_mod += w / (2.0 * m_) - resolution_ * degree_[gid] *
-                                              degree_[ug] / (4.0 * m_ * m_);
+      std::vector<double> local_mod(num_threads_, 0.0);
+      ParallelUtils::parallel_for(
+          valid_vertices_.data(), valid_vertices_.size(),
+          [&](vid_t gid, int tid) {
+            size_t li = global_to_label_idx_[gid];
+            vid_t lv = global_to_vid_[gid];
+            for (size_t ti : label_out_triplets_[li]) {
+              if (triplet_dst_base_[ti] == SIZE_MAX)
+                continue;
+              size_t db = triplet_dst_base_[ti];
+              auto oes = out_views[ti].get_edges(lv);
+              for (auto it = oes.begin(); it != oes.end(); ++it) {
+                uint32_t ug = static_cast<uint32_t>(db + (*it));
+                if (community_[gid] == community_[ug]) {
+                  double w =
+                      triplet_has_weight_[ti]
+                          ? triplet_weight_accessors_[ti]
+                                .get_typed_data<double>(it)
+                          : 1.0;
+                  local_mod[tid] += w / (2.0 * m_) -
+                                    resolution_ * degree_[gid] * degree_[ug] /
+                                        (4.0 * m_ * m_);
+                }
+              }
             }
-          }
-        }
-      }
+          },
+          num_threads_);
+      double new_mod = 0;
+      for (int i = 0; i < num_threads_; ++i)
+        new_mod += local_mod[i];
       modularity_ = new_mod;
       if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
         break;
@@ -637,14 +645,21 @@ void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias,
       com_sizes.push_back({nc, total});
     }
     std::sort(com_sizes.begin(), com_sizes.end(),
-              [](const auto& a, const auto& b) { return a.second > b.second; });
+              [](const auto& a, const auto& b) {
+                if (a.second != b.second) return a.second > b.second;
+                return a.first < b.first;  // deterministic tie-break by new comm ID
+              });
     std::unordered_set<uint32_t> used_ids;
     for (auto& [nc, _] : com_sizes) {
       auto& old_counts = new_to_old_counts[nc];
       uint32_t best_old = UINT32_MAX;
       uint32_t best_count = 0;
       for (auto& [oc, cnt] : old_counts) {
-        if (cnt > best_count && used_ids.find(oc) == used_ids.end()) {
+        // Prefer higher count; on tie, prefer smaller old community ID
+        // for deterministic results across runs.
+        if ((cnt > best_count ||
+             (cnt == best_count && best_old != UINT32_MAX && oc < best_old)) &&
+            used_ids.find(oc) == used_ids.end()) {
           best_count = cnt;
           best_old = oc;
         }
@@ -679,11 +694,7 @@ void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias,
     const auto& vs = graph_.GetVertexSet(label);
     MSVertexColumnBuilder b(label);
     ValueColumnBuilder<int64_t> cb;
-    size_t cnt = 0;
-    for (const auto& v : vs) {
-      (void) v;
-      cnt++;
-    }
+    size_t cnt = vs.size();
     b.reserve(cnt);
     cb.reserve(cnt);
     std::shared_ptr<IContextColumn> prev_col;

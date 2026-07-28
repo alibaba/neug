@@ -448,7 +448,7 @@ RETURN node, community;
 |---|---|---|
 | `node` | NODE | The node |
 | `community` | INT64 | Community ID (0-based) |
-| `previous_community` | INT64 | *(optional)* Previous community ID. Only available when `initial_community_property` is set. NULL for vertices that had no previous community assignment. |
+| `previous_community` | INT64 | Previous community ID from a prior run. NULL unless `initial_community_property` is set, or for vertices that had no prior community assignment. |
 
 **Example (single-label):**
 
@@ -552,7 +552,7 @@ RETURN node, community;
 |---|---|---|
 | `node` | NODE | The node |
 | `community` | INT64 | Community ID (0-based) |
-| `previous_community` | INT64 | *(optional)* Previous community ID. Only available when `initial_community_property` is set. NULL for vertices that had no previous community assignment. |
+| `previous_community` | INT64 | Previous community ID from a prior run. NULL unless `initial_community_property` is set, or for vertices that had no prior community assignment. |
 
 **Example (single-label):**
 
