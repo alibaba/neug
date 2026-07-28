@@ -92,9 +92,6 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   if (auto* vec = dynamic_cast<const VecColumn<float>*>(&column)) {
     return std::make_shared<VecRefColumn<float>>(*vec);
   }
-  if (auto* vec = dynamic_cast<const VecColumn<double>*>(&column)) {
-    return std::make_shared<VecRefColumn<double>>(*vec);
-  }
   auto type = column.type();
   switch (type) {
 #define TYPE_DISPATCHER(enum_val, type)            \

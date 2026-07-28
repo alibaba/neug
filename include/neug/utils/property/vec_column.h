@@ -5,21 +5,45 @@
 #include <string>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/common/types.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/index/index_id_accessor.h"
 #include "neug/utils/property/array_column.h"
+#include "neug/utils/property/column.h"
 
 namespace neug {
 
 inline constexpr index_id_t INVALID_OFFSET = INVALID_INDEX_ID;
 
+// A column specialized for vector data. VecColumn:
+// 1. stores fixed-dimensional vectors;
+// 2. allocates a new buffer version when growing to avoid copy-on-write; and
+// 3. manages offsets shared with HNSW indexes built on this column, allowing
+//    the indexes to reuse the same offset as their primary key.
 template <typename T>
 class VecColumn : public ColumnBase {
  public:
   VecColumn();
+
+  /**
+   * Constructs a vector column from an existing data buffer.
+   *
+   * @param buffer The underlying vector-data container, typically shared
+   * directly with an ArrayColumn.
+   * @param offset_accessor The accessor that maps vertex IDs to offsets in
+   * buffer.
+   * @param array_size The number of elements in each vector.
+   * @param size The allocated buffer capacity measured in vectors.
+   * @param default_value The value used to initialize newly allocated vector
+   * slots.
+   * @param ckp The checkpoint used to allocate a new buffer when the column
+   * grows.
+   * @param level The memory level used when allocating a new buffer.
+   */
   VecColumn(std::shared_ptr<IDataContainer> buffer,
             std::unique_ptr<IndexIDAccessor> offset_accessor,
-            uint64_t array_size, size_t size, const Value& default_value);
+            uint64_t array_size, size_t size, const Value& default_value,
+            Checkpoint& ckp, MemoryLevel level);
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override;
@@ -36,9 +60,10 @@ class VecColumn : public ColumnBase {
   Value get_any(size_t vid) const override;
   void ingest(uint32_t vid, OutArchive& arc) override;
 
-  const IndexIDAccessor* get_offset_accessor() const;
+  // Exposes the offset accessor for use by HNSW indexes.
+  IndexIDAccessor* get_offset_accessor();
+  // Exposes the vector-data buffer for use by HNSW indexes.
   const void* get_buffer_ptr() const;
-  std::shared_ptr<IDataContainer> TakeBuffer();
   uint64_t array_size() const;
   DataType array_type() const;
 
@@ -65,7 +90,6 @@ class VecColumn : public ColumnBase {
 };
 
 extern template class VecColumn<float>;
-extern template class VecColumn<double>;
 
 template <typename T>
 class VecRefColumn : public RefColumnBase {

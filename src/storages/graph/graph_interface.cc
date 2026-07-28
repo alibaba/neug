@@ -15,11 +15,97 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
+#include <cstring>
+#include <limits>
+
+#include "neug/compiler/common/string_utils.h"
+#include "neug/storages/index/index_id_accessor.h"
 #include "neug/storages/index/storage_index_manager.h"
+#include "neug/storages/module_descriptor.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/property/array_column.h"
+#include "neug/utils/property/column.h"
+#include "neug/utils/property/vec_column.h"
+#include "neug/utils/result.h"
 
 namespace neug {
 
 namespace {
+
+bool IsHnswIndex(const IndexMeta& meta) {
+  auto type = meta.type;
+  common::StringUtils::toLower(type);
+  return type == "hnsw";
+}
+
+std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
+                                            size_t vid_size,
+                                            const Value& default_value,
+                                            Checkpoint& ckp,
+                                            MemoryLevel level) {
+  if (vid_size > array.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FromArrayColumn: vid size exceeds array column size");
+  }
+  if (vid_size != 0 && vid_size - 1 > std::numeric_limits<vid_t>::max()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FromArrayColumn: vid size exceeds the VID range");
+  }
+  auto offset_accessor = std::make_unique<DefaultIndexIDAccessor>();
+  offset_accessor->Open(ckp, ModuleDescriptor{}, level);
+  for (size_t vid = 0; vid < vid_size; ++vid) {
+    offset_accessor->UpsertVID(static_cast<vid_t>(vid));
+  }
+
+  const auto child_type = ArrayType::GetChildType(array.array_type()).id();
+  switch (child_type) {
+  case DataTypeId::kFloat:
+    return std::make_unique<VecColumn<float>>(
+        array.shared_buffer<float>(), std::move(offset_accessor),
+        array.array_size(), array.size(), default_value, ckp, level);
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "HNSW index supports only FLOAT array properties");
+  }
+}
+
+template <typename T>
+std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn<T>& vec, size_t vid_size,
+                                           size_t size,
+                                           const Value& default_value,
+                                           Checkpoint& ckp, MemoryLevel level) {
+  if (vid_size > size) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FromVecColumn: vid size exceeds array column size");
+  }
+  if (vid_size != 0 && vid_size - 1 > std::numeric_limits<vid_t>::max()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FromVecColumn: vid size exceeds the VID range");
+  }
+
+  auto array_column = std::make_unique<ArrayColumn>(vec.array_type());
+  array_column->Open(ckp, ModuleDescriptor{}, level);
+  array_column->resize(size, default_value);
+
+  const auto* src = static_cast<const T*>(vec.get_buffer_ptr());
+  auto* dst =
+      static_cast<T*>(array_column->template shared_buffer<T>()->GetData());
+  const auto array_size = vec.array_size();
+  const auto* offset_accessor = vec.get_offset_accessor();
+  for (size_t vid = 0; vid < vid_size; ++vid) {
+    const auto offset =
+        offset_accessor->GetIndexIDByVID(static_cast<vid_t>(vid));
+    if (offset == INVALID_OFFSET) {
+      continue;
+    }
+    if (offset >= vec.size()) {
+      THROW_RUNTIME_ERROR("FromVecColumn: offset out of range");
+    }
+    std::memcpy(dst + vid * array_size, src + offset * array_size,
+                array_size * sizeof(T));
+  }
+  return array_column;
+}
 
 // Drops every index whose metadata references the given vertex label/property.
 static Status dropVertexIndex(PropertyGraph& graph, label_t label,
@@ -469,6 +555,14 @@ Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
   return status;
 }
 
+/**
+ * Creates an index for a vertex property.
+ *
+ * When creating an HNSW index, this method converts an ArrayColumn to a
+ * VecColumn. The VecColumn reuses the ArrayColumn's underlying vector buffer
+ * without copying its data. Subsequent incremental vector updates avoid
+ * copy-on-write by letting the VecColumn maintain separate buffer versions.
+ */
 neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
   if (!meta) {
@@ -480,27 +574,126 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Index label id is out of range");
   }
-  const auto& vertex_table = graph_.get_vertex_table(label_id);
-  auto* column = vertex_table.GetPropertyColumnBase(meta->schema.property_name);
+
+  auto& vertex_table = graph_.get_vertex_table(label_id);
+  const auto schema = vertex_table.get_vertex_schema_ptr();
+  const auto& property_name = meta->schema.property_name;
+  const bool is_primary_key =
+      property_name == std::get<1>(schema->primary_keys[0]);
+  const ColumnBase* column = vertex_table.GetPropertyColumnBase(property_name);
   if (!column) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Indexed property column does not exist: " +
-                            meta->schema.property_name);
+    RETURN_STATUS_ERROR(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Indexed property column does not exist: " + property_name);
   }
-  // 如果 column 为 ArrayColumn 且当前索引为 HNSW，则将 array column 转换为
-  // VectorColumn 根据 array column 创建 VecColumn 从 VecColumn 中获取
-  // accessor，用于构建索引 索引构建成功后，通过 vertex_table 将 array column
-  // 原子替换为 vector column
-  return index_manager_.CreateIndex(
-      std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
-      graph_.GetVertexSet(label_id, timestamp_));
+
+  int32_t property_col = -1;
+  std::unique_ptr<ColumnBase> vec_column;
+  std::unique_ptr<IndexIDAccessor> index_id_accessor;
+
+  if (IsHnswIndex(*meta)) {
+    if (is_primary_key) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "HNSW index cannot be created on a primary key");
+    }
+    property_col = schema->get_property_index(property_name);
+    if (property_col < 0) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Indexed property does not exist: " + property_name);
+    }
+
+    if (const auto* array = dynamic_cast<const ArrayColumn*>(column)) {
+      const auto& default_value = schema->default_property_values[property_col];
+      vec_column = FromArrayColumn(*array, vertex_table.Size(), default_value,
+                                   graph_.checkpoint(), graph_.memory_level());
+      column = vec_column.get();
+    }
+
+    auto* candidate_column =
+        vec_column ? vec_column.get()
+                   : vertex_table.get_table().get_column_by_id(property_col);
+    if (auto* vec = dynamic_cast<VecColumn<float>*>(candidate_column)) {
+      index_id_accessor = std::make_unique<VecColumnIndexIDAccessor>(
+          vec->get_offset_accessor());
+    } else {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "HNSW index supports only FLOAT array properties");
+    }
+  } else {
+    index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
+  }
+
+  GS_AUTO(index, index_manager_.CreateIndex(
+                     std::move(meta), std::move(index_id_accessor), column,
+                     graph_.GetVertexSet(label_id, timestamp_)));
+
+  if (vec_column) {
+    vertex_table.SetColumn(static_cast<size_t>(property_col),
+                           std::move(vec_column));
+    mut_view_.Rebuild(graph_);
+  }
+  return index;
 }
 
+/**
+ * Drops an index.
+ *
+ * When dropping the last HNSW index on a VecColumn, this method converts the
+ * VecColumn back to an ArrayColumn. It creates a new ArrayColumn and copies
+ * vectors from the VecColumn by vertex ID. This is equivalent to compaction:
+ * obsolete vector versions addressed by previous index IDs are discarded.
+ */
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
-  return index_manager_.DropIndex(name);
-  // drop inde 成功后，判断索引作用的 column 是否为 vec column，且当前 column
-  // 上是否还有其他 HNSW 索引 如果没有，则将 vec column 转换为 array column 在
-  // vec column 中完成原子替换
+  auto target = index_manager_.GetIndexByName(name);
+  if (!target) {
+    return target.error();
+  }
+
+  const auto meta = target.value()->GetMeta();
+  std::unique_ptr<ArrayColumn> array_column;
+  int32_t property_col = -1;
+
+  if (IsHnswIndex(meta)) {
+    auto indexes = index_manager_.GetIndex(meta.schema.label_id,
+                                           meta.schema.property_name);
+    if (!indexes) {
+      return indexes.error();
+    }
+    const bool has_other_hnsw =
+        std::any_of(indexes->begin(), indexes->end(), [&](StorageIndex* index) {
+          return index->GetMeta().name != name && IsHnswIndex(index->GetMeta());
+        });
+    if (!has_other_hnsw) {
+      auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
+      const auto schema = vertex_table.get_vertex_schema_ptr();
+      property_col = schema->get_property_index(meta.schema.property_name);
+      if (property_col < 0) {
+        return Status(
+            StatusCode::ERR_INVALID_ARGUMENT,
+            "Indexed property does not exist: " + meta.schema.property_name);
+      }
+
+      const auto& default_value = schema->default_property_values[property_col];
+      auto* column = vertex_table.get_table().get_column_by_id(property_col);
+      if (auto* vec = dynamic_cast<VecColumn<float>*>(column)) {
+        array_column = FromVecColumn(
+            *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
+            graph_.checkpoint(), graph_.memory_level());
+      } else {
+        THROW_RUNTIME_ERROR(
+            "DropIndex: HNSW index column must be a VecColumn<float>");
+      }
+    }
+  }
+
+  RETURN_IF_NOT_OK(index_manager_.DropIndex(name));
+  if (array_column) {
+    auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
+    vertex_table.SetColumn(static_cast<size_t>(property_col),
+                           std::move(array_column));
+    mut_view_.Rebuild(graph_);
+  }
+  return Status::OK();
 }
 
 }  // namespace neug

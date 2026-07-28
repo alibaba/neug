@@ -156,19 +156,14 @@ class TypedColumn : public ColumnBase {
   }
 
   const IDataContainer& buffer() const { return *buffer_; }
+  const std::shared_ptr<IDataContainer>& shared_buffer() const {
+    return buffer_;
+  }
   size_t buffer_size() const { return size_; }
 
   inline T* mutable_data() { return reinterpret_cast<T*>(buffer_->GetData()); }
   inline const T* data() const {
     return reinterpret_cast<const T*>(buffer_->GetData());
-  }
-
-  std::shared_ptr<IDataContainer> TakeBuffer() { return std::move(buffer_); }
-
-  // 提供一个类似参数的构造函数
-  void AdoptBuffer(std::shared_ptr<IDataContainer> buffer, size_t size) {
-    buffer_ = std::move(buffer);
-    size_ = size;
   }
 
   std::unique_ptr<Module> Clone() const override {

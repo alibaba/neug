@@ -34,6 +34,7 @@ class IndexIDAccessor : public Module {
 
   virtual index_id_t GetIndexIDByVID(vid_t vid) const = 0;
   virtual vid_t GetVIDByIndexID(index_id_t index_id) const = 0;
+  virtual index_id_t GetNextIndexID() const = 0;
   virtual index_id_t UpsertVID(vid_t vid) = 0;
   virtual Status DeleteVID(vid_t vid) = 0;
 
@@ -60,7 +61,7 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
                ? vid_to_index_id_->GetDataSize() / sizeof(index_id_t)
                : 0;
   }
-  index_id_t GetNextIndexID() const {
+  index_id_t GetNextIndexID() const override {
     return next_index_id_->load(std::memory_order_relaxed);
   }
   index_id_t GetIndexIDByVID(vid_t vid) const override;
@@ -105,6 +106,7 @@ class VecColumnIndexIDAccessor final : public IndexIDAccessor {
 
   index_id_t GetIndexIDByVID(vid_t vid) const override;
   vid_t GetVIDByIndexID(index_id_t index_id) const override;
+  index_id_t GetNextIndexID() const override;
   index_id_t UpsertVID(vid_t vid) override;
   Status DeleteVID(vid_t vid) override;
 

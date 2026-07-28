@@ -45,11 +45,12 @@ template <typename T>
 VecColumn<T>::VecColumn(std::shared_ptr<IDataContainer> buffer,
                         std::unique_ptr<IndexIDAccessor> offset_accessor,
                         uint64_t array_size, size_t size,
-                        const Value& default_value)
+                        const Value& default_value, Checkpoint& ckp,
+                        MemoryLevel level)
     : offset_accessor_(std::move(offset_accessor)),
       buffer_(std::move(buffer)),
-      ckp_(nullptr),
-      level_(MemoryLevel::kInMemory),
+      ckp_(&ckp),
+      level_(level),
       array_size_(array_size),
       size_(size),
       default_value_(default_value) {
@@ -168,7 +169,10 @@ void VecColumn<T>::set_any(size_t vid, const Value& value, bool) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::set_any: invalid vid");
   }
   validateValue(value);
-  auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
+  auto offset = offset_accessor_->GetIndexIDByVID(static_cast<vid_t>(vid));
+  if (offset == INVALID_OFFSET) {
+    offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
+  }
   if (offset >= size_) {
     resize(offset < 4096 ? 4096 : offset + offset / 4, default_value_);
   }
@@ -215,18 +219,13 @@ void VecColumn<T>::ingest(uint32_t vid, OutArchive& arc) {
 }
 
 template <typename T>
-const IndexIDAccessor* VecColumn<T>::get_offset_accessor() const {
+IndexIDAccessor* VecColumn<T>::get_offset_accessor() {
   return offset_accessor_.get();
 }
 
 template <typename T>
 const void* VecColumn<T>::get_buffer_ptr() const {
   return buffer_ ? buffer_->GetData() : nullptr;
-}
-
-template <typename T>
-std::shared_ptr<IDataContainer> VecColumn<T>::TakeBuffer() {
-  return std::move(buffer_);
 }
 
 template <typename T>
@@ -300,9 +299,7 @@ void VecColumn<T>::validateValue(const Value& value) const {
 }
 
 template class VecColumn<float>;
-template class VecColumn<double>;
 
 NEUG_REGISTER_TEMPLATE_MODULE(VecColumn, float);
-NEUG_REGISTER_TEMPLATE_MODULE(VecColumn, double);
 
 }  // namespace neug

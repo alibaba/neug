@@ -402,8 +402,7 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   auto accessor = std::make_unique<DefaultIndexIDAccessor>();
   accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
   VecColumn<float> column(std::move(buffer), std::move(accessor), dimension, 2,
-                          default_value);
-  column.Detach(*ckp, MemoryLevel::kInMemory);
+                          default_value, *ckp, MemoryLevel::kInMemory);
 
   column.set_any(0, make_array(1.0f, 2.0f), true);
   column.set_any(1, make_array(3.0f, 4.0f), true);
@@ -417,8 +416,16 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   column.resize(5000);
   EXPECT_NE(column.get_buffer_ptr(), old_buffer);
   EXPECT_EQ(clone->get_buffer_ptr(), old_buffer);
-  EXPECT_FLOAT_EQ(
-      ArrayValue::GetChildren(clone->get_any(0))[0].GetValue<float>(), 1.0f);
+  auto cloned_first_value = clone->get_any(0);
+  auto cloned_second_value = clone->get_any(1);
+  const auto& cloned_first = ArrayValue::GetChildren(cloned_first_value);
+  const auto& cloned_second = ArrayValue::GetChildren(cloned_second_value);
+  ASSERT_EQ(cloned_first.size(), dimension);
+  ASSERT_EQ(cloned_second.size(), dimension);
+  EXPECT_FLOAT_EQ(cloned_first[0].GetValue<float>(), 1.0f);
+  EXPECT_FLOAT_EQ(cloned_first[1].GetValue<float>(), 2.0f);
+  EXPECT_FLOAT_EQ(cloned_second[0].GetValue<float>(), 3.0f);
+  EXPECT_FLOAT_EQ(cloned_second[1].GetValue<float>(), 4.0f);
 
   column.set_any(4096, make_array(5.0f, 6.0f), true);
   EXPECT_FLOAT_EQ(

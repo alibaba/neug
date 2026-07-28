@@ -134,6 +134,10 @@ vid_t VecColumnIndexIDAccessor::GetVIDByIndexID(index_id_t index_id) const {
                           : INVALID_VID;
 }
 
+index_id_t VecColumnIndexIDAccessor::GetNextIndexID() const {
+  return offset_accessor_ ? offset_accessor_->GetNextIndexID() : 0;
+}
+
 index_id_t VecColumnIndexIDAccessor::UpsertVID(vid_t vid) {
   return GetIndexIDByVID(vid);
 }

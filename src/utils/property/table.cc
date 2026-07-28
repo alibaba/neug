@@ -96,6 +96,12 @@ std::unique_ptr<ColumnBase> Table::TakeColumn(int idx) {
   return std::move(columns_[idx]);
 }
 
+void Table::SwapColumn(size_t idx, std::unique_ptr<ColumnBase>& col) noexcept {
+  assert(idx < columns_.size());
+  assert(col);
+  columns_[idx].swap(col);
+}
+
 void Table::reset_header(const std::vector<std::string>& col_name) {
   std::unordered_map<std::string, int> new_col_id_map;
   size_t col_num = col_name.size();
