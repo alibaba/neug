@@ -18,6 +18,8 @@
 #include <glog/logging.h>
 #ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
 #endif
 #include <algorithm>
 #include <atomic>
@@ -234,7 +236,23 @@ void NeugDB::preprocessConfig() {
     if (prefix_env) {
       db_dir_prefix = std::string(prefix_env);
     } else {
+#ifdef _WIN32
+      // On Windows, use the system temp directory (e.g. C:\Users\<user>\AppData\Local\Temp)
+      char tmp_path[MAX_PATH];
+      DWORD len = GetTempPathA(MAX_PATH, tmp_path);
+      if (len > 0) {
+        // Remove trailing backslash
+        if (tmp_path[len - 1] == '\\' || tmp_path[len - 1] == '/') {
+          tmp_path[len - 1] = '\0';
+          len--;
+        }
+        db_dir_prefix = std::string(tmp_path);
+      } else {
+        db_dir_prefix = ".";
+      }
+#else
       db_dir_prefix = "/tmp";
+#endif
     }
     std::stringstream ss;
     auto now = std::chrono::system_clock::now();
