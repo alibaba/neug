@@ -14,15 +14,23 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
+#include <brpc/channel.h>
 #include <brpc/controller.h>
 #include "neug/common/types/value.h"
+#include "neug/generated/proto/response/response.pb.h"
+#include "neug/main/connection_manager.h"
 #include "neug/main/neug_db.h"
+#include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
@@ -32,8 +40,8 @@ namespace test {
 
 timestamp_t InsertModernPersonAndReturnTimestamp(NeugDBService& service,
                                                  int64_t id) {
-  auto session = service.AcquireSession();
-  auto transaction = session->GetInsertTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto transaction = slot->GetInsertTransaction();
   const auto timestamp = transaction.timestamp();
   StorageTPInsertInterface graph(transaction);
   const auto person_label = transaction.schema().get_vertex_label_id("person");
@@ -43,6 +51,32 @@ timestamp_t InsertModernPersonAndReturnTimestamp(NeugDBService& service,
       {Value::STRING("session-" + std::to_string(id)), Value::INT64(30)}, vid));
   EXPECT_TRUE(transaction.Commit());
   return timestamp;
+}
+
+using WalPrefixSnapshot = std::vector<std::pair<std::string, std::string>>;
+
+WalPrefixSnapshot readWalPrefixes(const std::filesystem::path& wal_dir) {
+  std::vector<std::filesystem::path> paths;
+  for (const auto& entry : std::filesystem::directory_iterator(wal_dir)) {
+    if (entry.is_regular_file() && entry.path().extension() == ".wal") {
+      paths.emplace_back(entry.path());
+    }
+  }
+  std::sort(paths.begin(), paths.end());
+
+  constexpr std::streamsize kPrefixSize = 4096;
+  WalPrefixSnapshot snapshot;
+  for (const auto& path : paths) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+      throw std::runtime_error("Failed to read WAL: " + path.string());
+    }
+    std::string prefix(kPrefixSize, '\0');
+    input.read(prefix.data(), kPrefixSize);
+    prefix.resize(static_cast<size_t>(input.gcount()));
+    snapshot.emplace_back(path.filename().string(), std::move(prefix));
+  }
+  return snapshot;
 }
 
 class NeugDBServiceTest : public ::testing::Test {
@@ -63,6 +97,7 @@ class NeugDBServiceTest : public ::testing::Test {
     // Load modern graph
     auto conn = db_->Connect();
     load_modern_graph(conn);
+    conn->Close();
 
     // Configure service
     config_.query_port = 19999;  // Use non-standard port to avoid conflicts
@@ -83,7 +118,7 @@ class NeugDBServiceTest : public ::testing::Test {
   std::filesystem::path test_dir_;
 };
 
-TEST_F(NeugDBServiceTest, ConcurrentSessions) {
+TEST_F(NeugDBServiceTest, ConcurrentExecutionSlots) {
   neug::NeugDBService service(*db_, config_);
   const int num_threads = 4;
   std::vector<std::thread> threads;
@@ -92,8 +127,8 @@ TEST_F(NeugDBServiceTest, ConcurrentSessions) {
   for (int i = 0; i < num_threads; ++i) {
     threads.emplace_back([&]() {
       try {
-        auto guard = service.AcquireSession();
-        if (guard) {
+        auto lease = service.AcquireExecutionSlot();
+        if (lease) {
           success_count++;
         }
       } catch (const std::exception& e) {
@@ -107,6 +142,23 @@ TEST_F(NeugDBServiceTest, ConcurrentSessions) {
   }
 
   EXPECT_EQ(success_count, num_threads);
+}
+
+TEST_F(NeugDBServiceTest, ExecutionSlotLeaseMoveTransfersSingleLease) {
+  neug::NeugDBService service(*db_, config_);
+
+  auto original = service.AcquireExecutionSlot();
+  ASSERT_TRUE(original);
+  auto* slot = original.get();
+
+  ExecutionSlotLease moved(std::move(original));
+  EXPECT_FALSE(original);
+  EXPECT_EQ(moved.get(), slot);
+
+  ExecutionSlotLease assigned;
+  assigned = std::move(moved);
+  EXPECT_FALSE(moved);
+  EXPECT_EQ(assigned.get(), slot);
 }
 
 TEST_F(NeugDBServiceTest, GetServiceConfig) {
@@ -133,7 +185,7 @@ TEST_F(NeugDBServiceTest, DefaultServiceThreadsFollowDatabaseMaxThreadNum) {
   neug::NeugDBService service(*db_, cfg);
 
   EXPECT_EQ(service.GetServiceConfig().thread_num, 0U);
-  EXPECT_EQ(service.SessionNum(),
+  EXPECT_EQ(service.ExecutionSlotNum(),
             static_cast<size_t>(db_->config().max_thread_num));
 }
 
@@ -156,7 +208,7 @@ TEST_F(NeugDBServiceTest, AutoDatabaseMaxThreadNumFeedsServiceDefaults) {
   {
     neug::NeugDBService service(db, service_cfg);
     EXPECT_EQ(service.GetServiceConfig().thread_num, 0U);
-    EXPECT_EQ(service.SessionNum(),
+    EXPECT_EQ(service.ExecutionSlotNum(),
               static_cast<size_t>(db.config().max_thread_num));
   }
   db.Close();
@@ -172,19 +224,19 @@ TEST_F(NeugDBServiceTest, ServiceThreadNumCannotExceedDatabaseMaxThreadNum) {
                neug::exception::InvalidArgumentException);
 }
 
-TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {
+TEST_F(NeugDBServiceTest, ConcurrentExecutionSlotOperations) {
   neug::NeugDBService service(*db_, config_);
   const int num_threads = 4;
-  const int session_count = 25;
+  const int slot_count = 25;
   std::vector<std::thread> threads;
-  std::atomic<int> total_sessions(0);
+  std::atomic<int> total_slots(0);
 
   for (int t = 0; t < num_threads; ++t) {
     threads.emplace_back([&]() {
-      for (int s = 0; s < session_count; ++s) {
-        auto guard = service.AcquireSession();
-        if (guard) {
-          total_sessions++;
+      for (int s = 0; s < slot_count; ++s) {
+        auto lease = service.AcquireExecutionSlot();
+        if (lease) {
+          total_slots++;
           // Simulate some work
           std::this_thread::yield();
         }
@@ -195,7 +247,7 @@ TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {
   for (auto& thread : threads) {
     thread.join();
   }
-  EXPECT_EQ(total_sessions, num_threads * session_count);
+  EXPECT_EQ(total_slots, num_threads * slot_count);
 }
 
 TEST_F(NeugDBServiceTest, NotRunningBeforeStart) {
@@ -328,10 +380,94 @@ TEST_F(NeugDBServiceTest, VersionTimelineSurvivesServiceRecreation) {
   }
 }
 
-TEST_F(NeugDBServiceTest, PrepareForServingResetsTimeline) {
+TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  const auto query_cache = db_->GetQueryCache();
+  const auto initial_version = query_cache->version();
+
+  auto insert =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "CREATE (:person {id: 10001, name: 'cache-test', age: 1});", "insert",
+          {}));
+  ASSERT_TRUE(insert) << insert.error().ToString();
+  EXPECT_EQ(query_cache->version(), initial_version);
+
+  auto update =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "MATCH (n:person {id: 10001}) SET n.age = 2;", "update", {}));
+  ASSERT_TRUE(update) << update.error().ToString();
+  EXPECT_EQ(query_cache->version(), initial_version);
+
+  auto ddl =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "CREATE NODE TABLE cache_probe(id INT64, PRIMARY KEY(id));", "schema",
+          {}));
+  ASSERT_TRUE(ddl) << ddl.error().ToString();
+  EXPECT_EQ(query_cache->version(), initial_version + 1);
+}
+
+TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
+  auto connection = db_->Connect();
+  ASSERT_TRUE(
+      connection->Query("CREATE NODE TABLE tp_param_bool("
+                        "id INT64, enabled BOOL, PRIMARY KEY(id));",
+                        "schema"));
+  ASSERT_TRUE(connection->Query(
+      "CREATE (:tp_param_bool {id: 1, enabled: true});", "insert"));
+  connection->Close();
+
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  auto read = slot->ExecuteTransactionalRequest(R"json(
+      {"query":"MATCH (n:tp_param_bool) WHERE n.enabled = $value RETURN n.enabled;",
+       "access_mode":"read","parameters":{"value":true}})json");
+  ASSERT_TRUE(read) << read.error().ToString();
+
+  QueryResponse response;
+  ASSERT_TRUE(response.ParseFromString(read.value()));
+  EXPECT_EQ(response.row_count(), 1u);
+}
+
+TEST_F(NeugDBServiceTest, ApUpdateAfterTpUsesCurrentReadTimestamp) {
+  timestamp_t tp_timestamp = INVALID_TIMESTAMP;
   {
     neug::NeugDBService service(*db_, config_);
-    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1001), 1);
+    tp_timestamp = InsertModernPersonAndReturnTimestamp(service, 1001);
+  }
+  ASSERT_GT(tp_timestamp, 0);
+
+  auto connection = db_->Connect();
+  auto update_result = connection->Query(
+      "MATCH (n:person {id: 1001}) "
+      "SET n.age = 31 "
+      "RETURN n.age;",
+      "update");
+  ASSERT_TRUE(update_result) << update_result.error().ToString();
+  EXPECT_EQ(update_result.value().response().row_count(), 1);
+
+  auto read_result =
+      connection->Query("MATCH (n:person {id: 1001}) RETURN n.age;", "read");
+  ASSERT_TRUE(read_result) << read_result.error().ToString();
+  const auto& response = read_result.value().response();
+  ASSERT_EQ(response.row_count(), 1);
+  ASSERT_EQ(response.arrays_size(), 1);
+  ASSERT_EQ(response.arrays(0).int64_array().values_size(), 1);
+  EXPECT_EQ(response.arrays(0).int64_array().values(0), 31);
+}
+
+TEST_F(NeugDBServiceTest, PrepareForServingResetsSharedApTpTimeline) {
+  timestamp_t timestamp_before_checkpoint = INVALID_TIMESTAMP;
+  {
+    neug::NeugDBService service(*db_, config_);
+    timestamp_before_checkpoint =
+        InsertModernPersonAndReturnTimestamp(service, 1001);
+    EXPECT_GT(timestamp_before_checkpoint, 1)
+        << "TP must continue the VersionManager timeline used by AP loading";
   }
 
   db_->PrepareForServing();
@@ -342,9 +478,180 @@ TEST_F(NeugDBServiceTest, PrepareForServingResetsTimeline) {
   }
 }
 
+TEST_F(NeugDBServiceTest,
+       TransactionalCapabilityMatrixRejectsWithoutStorageOrWalSideEffects) {
+  const char* csv_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
+  ASSERT_NE(csv_dir, nullptr);
+
+  const std::string person_csv =
+      (std::filesystem::path(csv_dir) / "person.csv").string();
+  const std::string copy_from = "COPY person FROM \"" + person_csv + "\";";
+  const std::string copy_temp =
+      "COPY TEMP TempPerson FROM \"" + person_csv + "\" (header=true);";
+  const std::string load_from = "LOAD FROM \"" + person_csv + "\" RETURN *;";
+  const auto export_path = test_dir_ / "rejected-copy-to.csv";
+  const std::string copy_to = "COPY (MATCH (n:person) RETURN n.*) TO '" +
+                              export_path.string() + "' (header=true);";
+
+  struct CapabilityCase {
+    const char* name;
+    std::string query;
+    const char* access_mode;
+    int repetitions;
+  };
+  const std::vector<CapabilityCase> cases{
+      // This exact COPY FROM was executed during fixture loading, so the first
+      // rejection is a global-cache hit and the second a local-cache hit.
+      {"COPY FROM global/local cache", copy_from, "update", 2},
+      {"COPY FROM spoofed read mode", copy_from, "read", 1},
+      {"COPY TEMP", copy_temp, "update", 1},
+      {"LOAD FROM", load_from, "update", 1},
+      {"COPY TO", copy_to, "read", 1},
+      {"EXPLAIN COPY FROM", "EXPLAIN " + copy_from, "update", 1},
+      {"PROFILE COPY FROM", "PROFILE " + copy_from, "update", 1},
+  };
+
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+  EXPECT_LT(static_cast<size_t>(slot->SlotId()), service.ExecutionSlotNum());
+
+  const auto person_label = db_->schema().get_vertex_label_id("person");
+  const auto person_count_before =
+      db_->graph().VertexNum(person_label, MAX_TIMESTAMP);
+  const auto storage_modified_before = db_->graph().IsModified();
+  const auto wal_dir = db_->graph().checkpoint().wal_dir();
+  const auto wal_before = readWalPrefixes(wal_dir);
+  ASSERT_FALSE(wal_before.empty());
+  ASSERT_FALSE(std::filesystem::exists(export_path));
+  ASSERT_FALSE(db_->schema().is_vertex_label_valid("TempPerson"));
+
+  for (const auto& capability_case : cases) {
+    SCOPED_TRACE(capability_case.name);
+    const auto request = RequestSerializer::SerializeRequest(
+        capability_case.query, capability_case.access_mode, {});
+    for (int i = 0; i < capability_case.repetitions; ++i) {
+      auto result = slot->ExecuteTransactionalRequest(request);
+      ASSERT_FALSE(result);
+      EXPECT_EQ(result.error().error_code(), StatusCode::ERR_NOT_SUPPORTED)
+          << result.error().ToString();
+    }
+  }
+
+  EXPECT_EQ(readWalPrefixes(wal_dir), wal_before)
+      << "Rejected plans must not append WAL";
+  EXPECT_EQ(db_->graph().VertexNum(person_label, MAX_TIMESTAMP),
+            person_count_before);
+  EXPECT_EQ(db_->graph().IsModified(), storage_modified_before);
+  EXPECT_FALSE(db_->schema().is_vertex_label_valid("TempPerson"));
+  EXPECT_FALSE(std::filesystem::exists(export_path));
+}
+
+// TP counterpart of the embedded insert-mode compatibility (P2 review
+// Major-1, see ConnectionTest.ExplicitInsertAccessModeAllowsMixedPlan): TP
+// selects InsertTransaction for access_mode="insert", so a plan that reads
+// or updates must be rejected before execution, without WAL or storage side
+// effects; a pure CREATE plan must still be accepted.
+TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  const auto person_label = db_->schema().get_vertex_label_id("person");
+  const auto person_count_before =
+      db_->graph().VertexNum(person_label, MAX_TIMESTAMP);
+  const auto wal_dir = db_->graph().checkpoint().wal_dir();
+  const auto wal_before = readWalPrefixes(wal_dir);
+  ASSERT_FALSE(wal_before.empty());
+
+  // A non-primary-key MATCH needs a graph scan, so the plan is genuinely
+  // mixed read + CREATE rather than the atomic key lookup supported by
+  // InsertTransaction for relationship insertion.
+  auto rejected =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "MATCH (a:person {name: 'vadas'}), (b:person {name: 'josh'}) "
+          "CREATE (a)-[:knows {weight: 7.5}]->(b);",
+          "insert", {}));
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT)
+      << rejected.error().ToString();
+  EXPECT_NE(rejected.error().ToString().find("Insert-only mode"),
+            std::string::npos)
+      << rejected.error().ToString();
+
+  EXPECT_EQ(readWalPrefixes(wal_dir), wal_before)
+      << "Rejected plans must not append WAL";
+  EXPECT_EQ(db_->graph().VertexNum(person_label, MAX_TIMESTAMP),
+            person_count_before);
+
+  // Pure CREATE is insert-only and stays accepted.
+  auto accepted =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "CREATE (:person {id: 90001, name: 'tp-insert', age: 1});", "insert",
+          {}));
+  ASSERT_TRUE(accepted) << accepted.error().ToString();
+}
+
+TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {
+  const char* csv_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
+  ASSERT_NE(csv_dir, nullptr);
+
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  const std::string query =
+      "COPY person FROM \"" +
+      (std::filesystem::path(csv_dir) / "person.csv").string() + "\";";
+  const auto request = RequestSerializer::SerializeRequest(query, "update", {});
+  brpc::Controller controller;
+  controller.http_request().uri() = (uri + "/cypher").c_str();
+  controller.http_request().set_method(brpc::HTTP_METHOD_POST);
+  controller.request_attachment().append(request);
+  channel.CallMethod(nullptr, &controller, nullptr, nullptr, nullptr);
+
+  EXPECT_TRUE(controller.Failed());
+  EXPECT_EQ(controller.http_response().status_code(),
+            brpc::HTTP_STATUS_NOT_IMPLEMENTED);
+  service.Stop();
+}
+
 TEST_F(NeugDBServiceTest, PrepareForServingWhileServiceExistsThrows) {
   neug::NeugDBService service(*db_, config_);
   EXPECT_THROW(db_->PrepareForServing(), neug::exception::RuntimeError);
+}
+
+TEST_F(NeugDBServiceTest, ServiceConstructionRejectsOpenConnection) {
+  auto conn = db_->Connect();
+
+  EXPECT_THROW({ neug::NeugDBService service(*db_, config_); },
+               neug::exception::RuntimeError);
+  EXPECT_FALSE(db_->HasActiveService());
+
+  auto result = conn->Query("MATCH (n) RETURN count(n);", "read");
+  EXPECT_TRUE(result) << result.error().ToString();
+  conn->Close();
+  EXPECT_FALSE(db_->HasOpenConnections());
+  EXPECT_NO_THROW({ neug::NeugDBService service(*db_, config_); });
+}
+
+TEST_F(NeugDBServiceTest, ConnectionManagerCountsOnlyOpenConnections) {
+  ConnectionManager connection_manager(*db_, db_->config());
+  auto conn = connection_manager.CreateConnection();
+
+  EXPECT_EQ(connection_manager.ConnectionNum(), 1);
+  EXPECT_TRUE(connection_manager.HasOpenConnections());
+
+  conn->Close();
+
+  EXPECT_EQ(connection_manager.ConnectionNum(), 0);
+  EXPECT_FALSE(connection_manager.HasOpenConnections());
 }
 
 TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
@@ -376,9 +683,11 @@ TEST_F(NeugDBServiceTest, ConnectWhileServingThrows) {
     EXPECT_THROW(db_->Connect(), neug::exception::RuntimeError);
   }
 
-  // After the service is destructed, local connections are allowed again.
+  // After the TP-owned slots and their WAL writers are destroyed, a new
+  // embedded connection receives a fresh, WAL-free slot.
   auto conn = db_->Connect();
-  EXPECT_TRUE(conn != nullptr);
+  ASSERT_TRUE(conn != nullptr);
+  EXPECT_TRUE(conn->Query("MATCH (n) RETURN count(n);", "read"));
 }
 
 TEST_F(NeugDBServiceTest, CloseWhileServingThrows) {

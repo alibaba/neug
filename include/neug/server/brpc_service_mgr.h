@@ -24,8 +24,8 @@
 
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/http_service/http_svc.pb.h"
+#include "neug/main/execution_slot.h"
 #include "neug/main/neug_db.h"
-#include "neug/main/session.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/encoder.h"
@@ -128,9 +128,10 @@ void InitializeBrpcServiceProtocols();
  */
 class UnifiedServiceImpl {
  public:
-  explicit UnifiedServiceImpl(neug::NeugDB& neug_db, SessionPool& session_pool)
+  explicit UnifiedServiceImpl(neug::NeugDB& neug_db,
+                              TpExecutionSlotPool& execution_slot_pool)
       : neug_db_(neug_db),
-        session_pool_(session_pool),
+        execution_slot_pool_(execution_slot_pool),
         planner_(neug_db_.GetPlanner()) {}
 
   virtual ~UnifiedServiceImpl() {}
@@ -141,14 +142,15 @@ class UnifiedServiceImpl {
 
  protected:
   neug::NeugDB& neug_db_;
-  SessionPool& session_pool_;
+  TpExecutionSlotPool& execution_slot_pool_;
   std::shared_ptr<neug::IGraphPlanner> planner_;
 };
 
 class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
  public:
-  explicit HttpServiceImpl(neug::NeugDB& neug_db, SessionPool& session_pool)
-      : UnifiedServiceImpl(neug_db, session_pool),
+  explicit HttpServiceImpl(neug::NeugDB& neug_db,
+                           TpExecutionSlotPool& execution_slot_pool)
+      : UnifiedServiceImpl(neug_db, execution_slot_pool),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
   virtual ~HttpServiceImpl() {}
 
@@ -170,7 +172,8 @@ class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
 
 class BrpcServiceManager : public IServiceManager {
  public:
-  explicit BrpcServiceManager(neug::NeugDB& neug_db, SessionPool& session_pool);
+  explicit BrpcServiceManager(neug::NeugDB& neug_db,
+                              TpExecutionSlotPool& execution_slot_pool);
 
   ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
@@ -181,7 +184,7 @@ class BrpcServiceManager : public IServiceManager {
 
  private:
   neug::NeugDB& neug_db_;
-  SessionPool& session_pool_;
+  TpExecutionSlotPool& execution_slot_pool_;
   uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 

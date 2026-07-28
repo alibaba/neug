@@ -20,7 +20,7 @@
  * NOTE: Node.js binding only supports AP (embedded) mode.
  *
  * This test suite covers:
- * - AP mode (local embedded): QueryProcessor::execute_internal via C++ binding
+ * - AP mode (local embedded): ExecutionSlot::ExecuteQuery via C++ binding
  * - PROFILE mode: Executes query and collects per-operator metrics
  * - EXPLAIN mode: Builds operator tree without executing, returns 0 rows
  * - Dict interface: getProfileMetrics() returns structured metrics

@@ -38,7 +38,7 @@ int main() {
 - `GET /schema` - Retrieve graph schema
 - `GET /status` - Check service status
 
-**Thread Safety:** All public methods are thread-safe. The service uses a `SessionPool` internally to handle concurrent requests efficiently.
+**Thread Safety:** All public methods are thread-safe. The service uses a `TpExecutionSlotPool` internally to handle concurrent requests efficiently.
 
 **Service Threads:** `ServiceConfig::thread_num` controls the service thread
 count. The default `0` auto-selects from the database `max_thread_num`. If set
@@ -61,6 +61,7 @@ Constructs a service around an existing database instance.
 
 - **Notes:**
   - The database should be opened and ready before creating the service
+  - Construction closes existing embedded connections; none may be in use.
 
 #### `~NeugDBService()`
 
@@ -110,26 +111,29 @@ Retrieves the current service configuration.
 
 - **Returns:** Const reference to the `ServiceConfig` used during initialization
 
-#### `AcquireSession()`
+#### `AcquireExecutionSlot()`
 
-Acquires a session from the internal session pool.
+Leases an execution slot from the internal TP execution-slot pool.
 
-Returns a `SessionGuard` that automatically releases the session back to the pool when it goes out of scope. Use this for direct query execution when you need fine-grained control over session lifecycle.
+Returns an `ExecutionSlotLease` that automatically returns the execution slot
+to the pool when it goes out of scope. Use this for direct query execution when
+you need fine-grained control over the lease lifetime.
 
 **Usage Example:** 
 ```cpp
 neug::NeugDBService service(db, config);
 service.Start();
-// Acquire session and execute query
-auto guard = service.AcquireSession();
-auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
-// Session automatically released when guard goes out of scope
+// Lease an execution slot and execute a query.
+auto lease = service.AcquireExecutionSlot();
+auto result = lease->ExecuteTransactionalRequest(
+    R"({"query": "MATCH (n) RETURN count(n)"})");
+// The ExecutionSlot is automatically returned when lease leaves scope.
 ```
 
 - **Notes:**
-  - Blocks if no session is available in the pool
+  - Blocks if no execution slot is available in the pool
 
-- **Returns:** `SessionGuard` managing the acquired session
+- **Returns:** `ExecutionSlotLease` managing the leased execution slot
 
 #### `IsRunning() const`
 
@@ -172,44 +176,44 @@ Convenience method that starts the HTTP server and blocks the calling thread unt
 
 ---
 
-## Session
+## ExecutionSlot
 
-**Full name:** `neug::Session`
+**Full name:** `neug::ExecutionSlot`
 
-**Header:** `neug/main/session.h`
+**Header:** `neug/main/execution_slot.h`
 
-Core logical session for executing transactional queries.
+Reusable execution context for AP and TP query execution.
 
-`Session` is a runtime-neutral execution context. It owns session-local query
-state and borrows the database snapshot store, version manager, allocator, and
-WAL writer. Service mode creates and leases sessions through `SessionPool`, but
-the class itself has no brpc or bthread dependency.
+`ExecutionSlot` is a runtime-neutral execution context. It owns slot-local
+query state and borrows the database snapshot store, version manager,
+allocator, and optional WAL writer. Embedded connections own one slot each;
+service mode owns a fixed set through `TpExecutionSlotPool`, which also binds
+the TP-only WAL writers. The class itself has no brpc or bthread dependency.
 
-A `Session` must not be used concurrently. It is not bound to a physical
-pthread or bthread, so a logical request may keep the same session, allocator,
+An `ExecutionSlot` must not be used concurrently. It is not bound to a physical
+pthread or bthread, so a request may keep the same execution slot, allocator,
 and WAL writer across cooperative yields.
 
-A `Session` borrows all constructor dependencies. Those dependencies must
-outlive the session and every transaction created from it. Destroy caller-owned
-sessions before preparing, closing, or destroying their database.
+An `ExecutionSlot` borrows all constructor dependencies. Connections and the
+service pool release their slots before `NeugDB` destroys those dependencies.
 
 **Usage Example:** 
 ```cpp
-// Acquire session from service
-auto guard = service.AcquireSession();
+// Acquire execution slot from service
+auto lease = service.AcquireExecutionSlot();
 // Execute read query
 std::string query = R"({
   "query": "MATCH (n:Person) RETURN n.name LIMIT 10",
   "access_mode": "read"
 })";
-auto result = guard->Eval(query);
+auto result = lease->ExecuteTransactionalRequest(query);
 // Execute write query with parameters
 std::string insert_query = R"({
   "query": "CREATE (n:Person {name: $name})",
   "access_mode": "insert",
   "parameters": {"name": "Alice"}
 })";
-auto write_result = guard->Eval(insert_query);
+auto write_result = lease->ExecuteTransactionalRequest(insert_query);
 ```
 
 **Transaction Types:**
@@ -218,15 +222,15 @@ auto write_result = guard->Eval(insert_query);
 - ``UpdateTransaction``: Modify existing graph elements
 - ``CompactTransaction``: Background compaction operations
 
-**Thread Safety:** A session must not be used concurrently. Sequential use may
-resume on a different physical worker because the session represents a logical
-execution context, not thread-local state.
+**Thread Safety:** An execution slot must not be used concurrently. Sequential
+use may resume on a different physical worker because the slot is an execution
+context, not thread-local state.
 
 ### Public Methods
 
-#### `Eval(const std::string &query)`
+#### `ExecuteTransactionalRequest(const std::string &query)`
 
-Execute a Cypher query within the session.
+Execute a Cypher query within the execution slot.
 
 Executes a query specified as a JSON string containing the Cypher query, access mode, and optional parameters. This is the primary method for query execution in high-throughput service scenarios.
 
@@ -251,9 +255,10 @@ Executes a query specified as a JSON string containing the Cypher query, access 
 
 **Usage Example:** 
 ```cpp
-auto guard = service.AcquireSession();
+auto lease = service.AcquireExecutionSlot();
 // Simple read query
-auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
+auto result = lease->ExecuteTransactionalRequest(
+    R"({"query": "MATCH (n) RETURN count(n)"})");
 if (result.has_value()) {
   // Process result
 }
@@ -263,7 +268,7 @@ std::string query = R"({
   "access_mode": "read",
   "parameters": {"age": 30}
 })";
-auto param_result = guard->Eval(query);
+auto param_result = lease->ExecuteTransactionalRequest(query);
 ```
 
 - **Parameters:**
@@ -274,36 +279,38 @@ auto param_result = guard->Eval(query);
 
 ---
 
-## SessionPool
+## TpExecutionSlotPool
 
-**Full name:** `neug::SessionPool`
+**Full name:** `neug::TpExecutionSlotPool`
 
-Pool of database sessions for concurrent query execution.
+Pool of database execution slots for concurrent query execution.
 
-`SessionPool` manages a fixed-size pool of `Session` instances, providing efficient session reuse for high-throughput scenarios. Sessions are pre-allocated during pool construction and recycled through acquire/release operations.
-`SessionPool` is used internally by `NeugDBService`. For most use cases, access sessions through `NeugDBService::AcquireSession()` rather than directly through the pool.
+`TpExecutionSlotPool` owns and schedules a fixed set of `ExecutionSlot`
+instances for TP queries. Each aligned entry stores its execution slot inline,
+keeps its allocator alive, and owns its WAL writer.
+`TpExecutionSlotPool` is used internally by `NeugDBService`. For most use cases, access execution slots through `NeugDBService::AcquireExecutionSlot()` rather than directly through the pool.
 
 **Key Features:**
-- Pre-allocated sessions for zero-allocation query execution
-- Thread-safe acquire/release with bthread synchronization
-- Automatic WAL (Write-Ahead Log) management per session
-- Memory-aligned session contexts for cache efficiency
+- Service-owned execution slots with explicit lease/release
+- Thread-safe slot scheduling with bthread synchronization
+- Automatic WAL (Write-Ahead Log) management per slot
+- Memory-aligned TP slot contexts for cache efficiency
 
 **Pool Size:** Determined by `NeugDBConfig::max_thread_num`, typically matching the number of concurrent request handlers.
 
 ### Public Methods
 
-#### `AcquireSession()`
+#### `AcquireExecutionSlot()`
 
-Acquire a session from the pool.
+Lease an execution slot from the pool.
 
-Blocks if no session is available.
+Blocks if no execution slot is available.
 
-- **Returns:** `SessionGuard` managing the acquired session. The session is released back to the pool when the guard goes out of scope.
+- **Returns:** `ExecutionSlotLease` managing the leased slot. The slot is returned to the pool when the lease goes out of scope.
 
 #### `getExecutedQueryNum() const`
 
-Get the total number of executed queries across all sessions.
+Get the total number of executed queries across all execution slots.
 
 Expect lock held by caller.
 
@@ -312,25 +319,28 @@ Expect lock held by caller.
 
 ---
 
-## SessionGuard
+## ExecutionSlotLease
 
-**Full name:** `neug::SessionGuard`
+**Full name:** `neug::ExecutionSlotLease`
 
-RAII guard for session lifecycle management.
+Move-only RAII lease for exclusive use of an execution slot.
 
-`SessionGuard` provides automatic session release through RAII pattern. When the guard goes out of scope, the session is automatically returned to the `SessionPool` for reuse.
+`ExecutionSlotLease` automatically returns its execution slot to the
+`TpExecutionSlotPool` that issued it. Embedded connections do not lease their
+slot.
 
-A guard must be destroyed before the `NeugDBService` that issued it is
-destroyed.
+A lease must not outlive the `NeugDBService` that issued it.
 
 **Usage Example:** 
 ```cpp
 {
-  // Acquire session - blocks if none available
-  auto guard = service.AcquireSession();
-  // Use session for queries
-  auto result = guard->Eval(query);
-} // Session automatically released here
+  // Lease an execution slot; this blocks if none is available.
+  auto lease = service.AcquireExecutionSlot();
+  // Use execution slot for queries
+  auto result = lease->ExecuteTransactionalRequest(query);
+} // ExecutionSlot automatically released here
 ```
 
-**Thread Safety:** `SessionGuard` is move-only (non-copyable) to ensure exclusive session ownership. Each guard should be used by a single thread.
+**Thread Safety:** `ExecutionSlotLease` is move-only (non-copyable) to preserve
+exclusive slot use. Each lease should be used by a single logical request at a
+time.

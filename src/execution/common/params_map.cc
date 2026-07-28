@@ -13,25 +13,30 @@
  * limitations under the License.
  */
 
-#pragma once
-#include <map>
-#include <string>
+#include "neug/execution/common/params_map.h"
 
-#include <rapidjson/fwd.h>
-#include "neug/common/types/value.h"
-#include "neug/utils/result.h"
+#include "rapidjson/document.h"
 
 namespace neug {
-
 namespace execution {
-using ParamsMap = std::map<std::string, Value>;
-using ParamsMetaMap = std::map<std::string, DataType>;
 
-// Parses a JSON object of query parameters into a ParamsMap, converting
-// each member with its declared DataType. Unknown keys are rejected.
-// Declared here (defined in params_map.cc) so this widely-included header
-// does not carry the implementation or extra rapidjson dependencies.
 result<ParamsMap> parseJsonParameters(const ParamsMetaMap& parameter_types,
-                                      const rapidjson::Value& parameters);
+                                      const rapidjson::Value& parameters) {
+  ParamsMap params;
+  if (!parameters.IsObject()) {
+    return params;
+  }
+  for (const auto& member : parameters.GetObject()) {
+    std::string key = member.name.GetString();
+    auto iter = parameter_types.find(key);
+    if (iter == parameter_types.end()) {
+      RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Unexpected parameter: " + key));
+    }
+    params.emplace(key, Value::FromJson(member.value, iter->second));
+  }
+  return params;
+}
+
 }  // namespace execution
 }  // namespace neug

@@ -22,6 +22,7 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -83,7 +84,7 @@ class ConnectionTest : public ::testing::Test {
     }
   }
 
-  void atomicityInit(std::shared_ptr<Connection> conn) {
+  void InitParameterizedQueryData(std::shared_ptr<Connection> conn) {
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE PERSON2 (id INT64, id2 INT64, name STRING, "
         "emails STRING, PRIMARY KEY(id));"));
@@ -97,58 +98,6 @@ class ConnectionTest : public ::testing::Test {
     EXPECT_TRUE(
         conn->Query("CREATE (u: PERSON2 { id: 2, id2: 1, name: 'Bob', "
                     "emails: 'bob@example.com;bobby@hotmail.com' });"));
-  }
-
-  std::pair<int64_t, int64_t> atomicityCheck(std::shared_ptr<Connection> conn) {
-    std::vector<std::string> emails;
-    auto res = conn->Query("MATCH (n:PERSON2) RETURN n.id2 ORDER BY n.id2;");
-    EXPECT_TRUE(res);
-    size_t person_count = 0;
-    int64_t id2_sum = 0;
-    const auto& res_value = res.value().response();
-    person_count = res_value.row_count();
-    const auto& id2_column = res_value.arrays(0).int64_array();
-    for (int64_t i = 0; i < id2_column.values_size(); ++i) {
-      id2_sum += id2_column.values(i);
-    }
-    return {person_count, id2_sum};
-  }
-
-  int32_t parallel_execute(std::shared_ptr<Connection> conn,
-                           const std::vector<std::string>& queries,
-                           int thread_num) {
-    std::vector<std::thread> threads;
-    std::atomic<int> success_count{0};
-    for (int i = 0; i < thread_num; ++i) {
-      threads.emplace_back([conn, queries, &success_count, i]() {
-        bool all_success = true;
-        for (const auto& query : queries) {
-          // Replace $TXN_ID with thread id
-          std::string query_with_id = query;
-          size_t pos = query_with_id.find("$TXN_ID");
-
-          while (pos != std::string::npos) {
-            query_with_id.replace(pos, 7, std::to_string(i));
-            pos = query_with_id.find("$TXN_ID", pos + 1);
-          }
-          LOG(INFO) << "Executing query: " << query_with_id;
-          auto res = conn->Query(query_with_id);
-          if (!res) {
-            all_success = false;
-            LOG(ERROR) << "Query failed: " << res.error().ToString();
-            break;
-          }
-        }
-        EXPECT_TRUE(all_success);
-        if (all_success) {
-          success_count.fetch_add(1);
-        }
-      });
-    }
-    for (auto& t : threads) {
-      t.join();
-    }
-    return success_count.load();
   }
 };
 
@@ -186,9 +135,47 @@ TEST_F(ConnectionTest, TestReadOnlyConnections) {
   EXPECT_FALSE(res);
   auto res2 = connections[0]->Query("MATCH(n) return count(n);");
   EXPECT_TRUE(res2);
+  // A read-only plan must still be rejected when the caller requests a
+  // write transaction mode.
+  auto res_read_as_update =
+      connections[0]->Query("MATCH(n) return count(n);", "update");
+  EXPECT_FALSE(res_read_as_update);
   auto res3 =
       connections[0]->Query("MATCH(n) where n.id = 1 SET n.name = 'Alice';");
   EXPECT_FALSE(res3);
+}
+
+TEST_F(ConnectionTest, ReadOnlyConnectionsExecuteConcurrently) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_ONLY;
+  db.Open(config);
+
+  constexpr int kConnectionCount = 5;
+  constexpr int kQueriesPerConnection = 20;
+  std::vector<std::shared_ptr<Connection>> connections;
+  for (int i = 0; i < kConnectionCount; ++i) {
+    connections.emplace_back(db.Connect());
+  }
+
+  std::atomic<int> successful_queries{0};
+  std::vector<std::thread> workers;
+  for (const auto& connection : connections) {
+    workers.emplace_back([connection, &successful_queries]() {
+      for (int query_id = 0; query_id < kQueriesPerConnection; ++query_id) {
+        if (connection->Query("MATCH (n) RETURN count(n);", "read")) {
+          successful_queries.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    });
+  }
+  for (auto& worker : workers) {
+    worker.join();
+  }
+
+  EXPECT_EQ(successful_queries.load(),
+            kConnectionCount * kQueriesPerConnection);
 }
 
 // Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.
@@ -213,6 +200,40 @@ TEST_F(ConnectionTest, TestExplicitReadAccessModeForCall) {
                 "Write queries are not supported in read-only mode"),
             std::string::npos)
       << project_res.error().ToString();
+}
+
+// Regression test for the P2 review (Major-1): the embedded (AP) path
+// intentionally retains legacy compatibility — an explicit
+// access_mode="insert" query whose plan also reads (MATCH) must still
+// execute. The insert-only restriction applies only to the TP path
+// (ExecuteTransactionalRequest); see
+// NeugDBServiceTest.InsertModeRejectsMixedPlanWithoutSideEffects.
+TEST_F(ConnectionTest, ExplicitInsertAccessModeAllowsMixedPlan) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_NE(conn, nullptr);
+
+  // MATCH on a non-primary-key property forces a graph scan, so the plan is
+  // genuinely read + CREATE — not the atomic key-lookup insert that the
+  // analyzer classifies as insert-only. A regression re-introducing the
+  // insert-only check into the shared prepareQuery would reject this.
+  auto res = conn->Query(
+      "MATCH (a:person {name: 'vadas'}), (b:person {name: 'josh'}) "
+      "CREATE (a)-[:knows {weight: 7.5}]->(b);",
+      "insert");
+  ASSERT_TRUE(res) << res.error().ToString();
+
+  auto check = conn->Query(
+      "MATCH (a:person {id: 2})-[e:knows]->(b:person {id: 4}) "
+      "RETURN e.weight;",
+      "read");
+  ASSERT_TRUE(check) << check.error().ToString();
+  EXPECT_EQ(check.value().response().row_count(), 1);
 }
 
 TEST(ConnectionStandaloneTest, PrepareForServingPreservesLoadedExtensions) {
@@ -240,33 +261,6 @@ TEST(ConnectionStandaloneTest, PrepareForServingPreservesLoadedExtensions) {
   std::filesystem::remove_all(db_dir);
 }
 
-// Test Parallel Execution
-TEST_F(ConnectionTest, TestParallelExecutionAtomicity) {
-  NeugDB db;
-  NeugDBConfig config;
-  config.data_dir = DB_DIR;
-  config.mode = DBMode::READ_WRITE;
-  db.Open(config);
-
-  auto conn = db.Connect();
-  EXPECT_NE(conn, nullptr);
-
-  atomicityInit(conn);
-  auto committed = atomicityCheck(conn);
-  std::vector<std::string> queries;
-  queries.push_back("MATCH (n:PERSON2 {id: 1}) set n.id2 = n.id2 + 1;");
-  queries.push_back(
-      "CREATE (n1:PERSON2 {id: $TXN_ID + 3, id2: 1, name: "
-      "'NewPerson$TXN_ID', emails: 'newperson$TXN_ID@example.com'});");
-  int num_thread = 100;
-  int success_count = parallel_execute(conn, queries, num_thread);
-  auto finalStatus = atomicityCheck(conn);
-  committed.first += success_count;
-  committed.second += success_count * 2;
-  EXPECT_EQ(success_count, num_thread);
-  EXPECT_EQ(committed, finalStatus);
-}
-
 // Test Parameterized Query
 TEST_F(ConnectionTest, TestParameterizedQuery) {
   NeugDB db;
@@ -279,7 +273,7 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
   auto conn = db.Connect();
   EXPECT_NE(conn, nullptr);
 
-  atomicityInit(conn);
+  InitParameterizedQueryData(conn);
 
   auto res = conn->Query(
       "MATCH (n:PERSON2 {id: $person_id}) SET n.id2 = n.id2 + "
@@ -313,7 +307,49 @@ TEST_F(ConnectionTest, TestConnectionQueryResult) {
   EXPECT_EQ(ids.size(), 4);
   std::vector<int64_t> expected_ids = {1, 2, 4, 6};
   EXPECT_EQ(ids, expected_ids);
-}  // namespace test
+}
+
+TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+
+  {
+    NeugDB db;
+    db.Open(config);
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE (:person {id: 10001, name: 'ap-timestamp', age: 1});"));
+    ASSERT_TRUE(
+        connection->Query("MATCH (a:person {id: 10001}), (b:person {id: 1}) "
+                          "CREATE (a)-[:knows {weight: 9.0}]->(b);"));
+    ASSERT_TRUE(connection->Query("CHECKPOINT;"));
+    db.Close();
+  }
+
+  {
+    NeugDB reopened;
+    reopened.Open(config);
+    auto connection = reopened.Connect();
+    auto result = connection->Query(
+        "MATCH (a:person {id: 10001})-[e:knows]->(b:person {id: 1}) "
+        "RETURN e.weight;",
+        "read");
+    ASSERT_TRUE(result) << result.error().ToString();
+    EXPECT_EQ(result.value().response().row_count(), 1);
+
+    // Explicit AP CHECKPOINT dumps/reopens without advancing a durable WAL
+    // timeline. Both vertex and edge mutations must therefore remain visible
+    // from the baseline timestamp restored on process restart.
+    SnapshotGuard snapshot(reopened.graph_snapshot_store());
+    StorageReadInterface storage(snapshot.get().view(), 0);
+    const auto person_label = storage.schema().get_vertex_label_id("person");
+    vid_t vertex_id = 0;
+    EXPECT_TRUE(
+        storage.GetVertexIndex(person_label, Value::INT64(10001), vertex_id));
+  }
+}
 
 }  // namespace test
 

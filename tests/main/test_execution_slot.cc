@@ -24,18 +24,15 @@
 
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
-#include "neug/main/session.h"
-#include "neug/storages/allocators.h"
-#include "neug/transaction/version_manager.h"
-#include "neug/transaction/wal/dummy_wal_writer.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace test {
 
-TEST(SessionCoreTest, ExecutesWithoutServerRuntime) {
-  const auto db_dir = std::filesystem::temp_directory_path() /
-                      ("neug_core_session_test_" + std::to_string(::getpid()));
+TEST(ExecutionSlotCoreTest, ExecutesWithoutServerRuntime) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_core_execution_slot_test_" + std::to_string(::getpid()));
   std::filesystem::remove_all(db_dir);
 
   NeugDBConfig config(db_dir.string(), 1);
@@ -44,41 +41,23 @@ TEST(SessionCoreTest, ExecutesWithoutServerRuntime) {
 
   NeugDB db;
   ASSERT_TRUE(db.Open(config));
-  {
-    auto connection = db.Connect();
-    auto create_table = connection->Query(
-        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema");
-    ASSERT_TRUE(create_table) << create_table.error().ToString();
-  }
+  auto connection = db.Connect();
+  auto create_table = connection->Query(
+      "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema");
+  ASSERT_TRUE(create_table) << create_table.error().ToString();
 
-  VersionManager version_manager;
-  version_manager.init_ts(0, 1);
-  Allocator allocator(MemoryLevel::kInMemory, "");
-  DummyWalWriter wal_writer;
-  wal_writer.open();
+  auto result = connection->Query("MATCH (n:person) RETURN count(n);", "read");
+  ASSERT_TRUE(result) << result.error().ToString();
 
-  {
-    Session session(db.graph_snapshot_store(), db.GetPlanner(),
-                    db.GetQueryCache(), version_manager, allocator, wal_writer,
-                    db.config(), 0);
-    auto result = session.Eval(
-        R"({"query":"MATCH (n:person) RETURN count(n);","access_mode":"read","parameters":{}})");
-    ASSERT_TRUE(result) << result.error().ToString();
-    EXPECT_EQ(session.SessionId(), 0);
+  std::atomic<bool> resumed_on_another_thread{false};
+  std::thread resumed_worker([&]() {
+    resumed_on_another_thread.store(
+        connection->Query("MATCH (n:person) RETURN count(n);", "read")
+            .has_value());
+  });
+  resumed_worker.join();
+  EXPECT_TRUE(resumed_on_another_thread.load());
 
-    std::atomic<bool> resumed_on_another_thread{false};
-    std::thread resumed_worker([&]() {
-      resumed_on_another_thread.store(
-          session
-              .Eval(
-                  R"({"query":"MATCH (n:person) RETURN count(n);","access_mode":"read","parameters":{}})")
-              .has_value());
-    });
-    resumed_worker.join();
-    EXPECT_TRUE(resumed_on_another_thread.load());
-  }
-
-  wal_writer.close();
   db.Close();
   std::filesystem::remove_all(db_dir);
 }

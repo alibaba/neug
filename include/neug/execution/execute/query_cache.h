@@ -45,7 +45,7 @@ struct CacheValue {
 
 /**
  * @brief A global query cache to store compiled physical plans for queries for
- * a NeugDB instance. It could be shared across multiple Session, but it
+ * a NeugDB instance. It can be shared across multiple ExecutionSlot instances,
  * is not exactly global, since there could be multiple NeugDB instances in a
  * single process.
  *
@@ -116,7 +116,7 @@ class GlobalQueryCache {
 };
 
 /**
- * Only used in TP mode, one local query cache for each Session.
+ * One local query cache for each ExecutionSlot.
  */
 class LocalQueryCache {
  public:
