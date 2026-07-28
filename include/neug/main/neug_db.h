@@ -36,6 +36,7 @@
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
 

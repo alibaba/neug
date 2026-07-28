@@ -23,6 +23,7 @@
 
 #include "glog/logging.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 /**

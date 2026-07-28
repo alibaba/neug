@@ -52,8 +52,7 @@ void LocalWalWriter::open() {
       continue;
     }
 #ifdef _WIN32
-    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC,
-                _S_IREAD | _S_IWRITE);
+    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
 #else
     fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
 #endif

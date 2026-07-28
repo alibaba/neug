@@ -16,7 +16,8 @@
 #include "neug/compiler/gopt/g_query_converter.h"
 
 // Windows headers define IN and OUT as empty macros (SAL annotations),
-// which conflict with ::physical::EdgeExpand::IN and ::physical::EdgeExpand::OUT.
+// which conflict with ::physical::EdgeExpand::IN and
+// ::physical::EdgeExpand::OUT.
 #ifdef _WIN32
 #ifdef IN
 #undef IN

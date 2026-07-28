@@ -27,6 +27,7 @@
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {

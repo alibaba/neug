@@ -34,10 +34,10 @@
 #endif
 #endif
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <stdexcept>
-#include <cstring>
 
 #ifdef __ia64__
 #define ADDR (void*) (0x8000000000000000UL)

@@ -237,7 +237,8 @@ void NeugDB::preprocessConfig() {
       db_dir_prefix = std::string(prefix_env);
     } else {
 #ifdef _WIN32
-      // On Windows, use the system temp directory (e.g. C:\Users\<user>\AppData\Local\Temp)
+      // On Windows, use the system temp directory (e.g.
+      // C:\Users\<user>\AppData\Local\Temp)
       char tmp_path[MAX_PATH];
       DWORD len = GetTempPathA(MAX_PATH, tmp_path);
       if (len > 0) {

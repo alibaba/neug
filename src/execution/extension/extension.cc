@@ -18,16 +18,15 @@
 #else
 // Include winsock2.h before windows.h to avoid conflicting winsock.h/winsock2.h
 // definitions; httplib.h also includes winsock2.h later.
-#include <winsock2.h>
 #include <windows.h>
+#include <winsock2.h>
 // Windows shims for POSIX dlopen/dlsym/dlclose/dlerror.
 #define RTLD_NOW 0
 #define RTLD_LOCAL 0
-static inline void* dlopen(const char* path, int) {
-  return LoadLibraryA(path);
-}
+static inline void* dlopen(const char* path, int) { return LoadLibraryA(path); }
 static inline void* dlsym(void* handle, const char* name) {
-  return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(handle), name));
+  return reinterpret_cast<void*>(
+      GetProcAddress(static_cast<HMODULE>(handle), name));
 }
 static inline int dlclose(void* handle) {
   return FreeLibrary(static_cast<HMODULE>(handle)) ? 0 : 1;

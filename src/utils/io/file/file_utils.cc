@@ -73,25 +73,29 @@ typedef long long ssize_t;
 static inline int posix_fadvise(int, off_t, off_t, int) { return 0; }
 
 static ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
-    off_t old = _lseek(fd, 0, SEEK_CUR);
-    if (old == -1) return -1;
-    if (_lseek(fd, offset, SEEK_SET) == -1) return -1;
-    ssize_t r = _read(fd, buf, count);
-    int err = errno;
-    _lseek(fd, old, SEEK_SET);
-    errno = err;
-    return r;
+  off_t old = _lseek(fd, 0, SEEK_CUR);
+  if (old == -1)
+    return -1;
+  if (_lseek(fd, offset, SEEK_SET) == -1)
+    return -1;
+  ssize_t r = _read(fd, buf, count);
+  int err = errno;
+  _lseek(fd, old, SEEK_SET);
+  errno = err;
+  return r;
 }
 
 static ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
-    off_t old = _lseek(fd, 0, SEEK_CUR);
-    if (old == -1) return -1;
-    if (_lseek(fd, offset, SEEK_SET) == -1) return -1;
-    ssize_t w = _write(fd, buf, count);
-    int err = errno;
-    _lseek(fd, old, SEEK_SET);
-    errno = err;
-    return w;
+  off_t old = _lseek(fd, 0, SEEK_CUR);
+  if (old == -1)
+    return -1;
+  if (_lseek(fd, offset, SEEK_SET) == -1)
+    return -1;
+  ssize_t w = _write(fd, buf, count);
+  int err = errno;
+  _lseek(fd, old, SEEK_SET);
+  errno = err;
+  return w;
 }
 #endif
 #include <cstdio>
@@ -127,8 +131,8 @@ static void copy_metadata(const struct stat& src_stat,
 #endif
   ::utimensat(AT_FDCWD, dst_path.c_str(), times, 0);
 #else
-  (void)src_stat;
-  (void)dst_path;
+  (void) src_stat;
+  (void) dst_path;
 #endif
 }
 
@@ -196,7 +200,7 @@ static bool try_reflink(const std::string& src_path,
  */
 static bool is_sparse(const struct stat& st) {
 #ifdef _WIN32
-  (void)st;
+  (void) st;
   return false;
 #else
   return static_cast<off_t>(st.st_blocks) * 512 < st.st_size;
@@ -665,14 +669,10 @@ bool fsync_directory(const std::string& dir_path) {
 #ifdef _WIN32
   // On Windows, open the directory with FILE_FLAG_BACKUP_SEMANTICS (required
   // to obtain a handle to a directory) and call FlushFileBuffers.
-  HANDLE hDir = CreateFileW(
-      std::filesystem::path(dir_path).wstring().c_str(),
-      GENERIC_WRITE,
-      FILE_SHARE_READ | FILE_SHARE_WRITE,
-      nullptr,
-      OPEN_EXISTING,
-      FILE_FLAG_BACKUP_SEMANTICS,
-      nullptr);
+  HANDLE hDir =
+      CreateFileW(std::filesystem::path(dir_path).wstring().c_str(),
+                  GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                  OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
   if (hDir == INVALID_HANDLE_VALUE) {
     return false;
   }

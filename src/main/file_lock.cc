@@ -23,8 +23,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #else
-#include <sys/stat.h>
 #include <io.h>
+#include <sys/stat.h>
 #include <windows.h>
 #endif
 #include <fstream>
@@ -90,7 +90,8 @@ FileLock::FileLock(const std::string& data_dir)
       fd_(-1),
       locked_(false) {
 #ifdef _WIN32
-  fd_ = _open(lock_file_path_.c_str(), _O_RDWR | _O_CREAT, _S_IREAD | _S_IWRITE);
+  fd_ =
+      _open(lock_file_path_.c_str(), _O_RDWR | _O_CREAT, _S_IREAD | _S_IWRITE);
 #else
   fd_ = ::open(lock_file_path_.c_str(), O_RDWR | O_CREAT, 0600);
 #endif
@@ -170,8 +171,10 @@ bool FileLock::lock(short type, bool wait, std::string& error_msg) {
     return false;
   }
   DWORD flags = 0;
-  if (type == F_WRLCK) flags |= LOCKFILE_EXCLUSIVE_LOCK;
-  if (wait) flags |= LOCKFILE_FAIL_IMMEDIATELY;
+  if (type == F_WRLCK)
+    flags |= LOCKFILE_EXCLUSIVE_LOCK;
+  if (wait)
+    flags |= LOCKFILE_FAIL_IMMEDIATELY;
   if (type == F_UNLCK) {
     OVERLAPPED ov = {};
     if (!UnlockFileEx(hFile, 0, 1, 0, &ov)) {
