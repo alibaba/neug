@@ -930,12 +930,13 @@ class StorageUpdateInterface : public StorageReadInterface,
 class StorageAPUpdateInterface : public StorageUpdateInterface {
  public:
   explicit StorageAPUpdateInterface(PropertyGraph& graph, GraphView& view,
-                                    timestamp_t read_timestamp,
+                                    timestamp_t timestamp,
                                     neug::Allocator& alloc)
-      : StorageUpdateInterface(view, read_timestamp),
+      : StorageUpdateInterface(view, timestamp),
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
+        timestamp_(timestamp),
         index_manager_(graph_.mutable_index_manager()) {}
   ~StorageAPUpdateInterface() {}
 
@@ -1008,12 +1009,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   PropertyGraph& graph_;
   GraphView& mut_view_;
   neug::Allocator& alloc_;
-  // AP's VM timestamp is a concurrency lease and visibility watermark, not a
-  // durable storage version. AP checkpoints persist records but no WAL-backed
-  // VM high-watermark, so reopening can start visibility at timestamp 0.
-  // Record-producing mutations must therefore use this baseline. Operations
-  // that only validate an existing record use read_ts_ instead.
-  static constexpr timestamp_t kMutationTimestamp = 0;
+  timestamp_t timestamp_;
   StorageIndexManager& index_manager_;
 };
 

@@ -218,7 +218,7 @@ Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
                                                           vid_t lid, int col_id,
                                                           const Value& value) {
   RETURN_IF_NOT_OK(
-      graph_.UpdateVertexProperty(label, lid, col_id, value, read_ts_));
+      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
   return updateVertexIndexData(graph_, label, lid, col_id, value);
 }
 
@@ -228,7 +228,7 @@ Status StorageAPUpdateInterface::UpdateEdgePropertyImpl(
     const Value& value) {
   return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                                    oe_offset, ie_offset, col_id, value,
-                                   kMutationTimestamp);
+                                   neug::timestamp_t(0));
 }
 
 Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
@@ -249,7 +249,7 @@ Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
   }
 
   auto status =
-      graph_.AddVertex(label, id, props, vid, kMutationTimestamp, true);
+      graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
     return status;
@@ -280,7 +280,7 @@ Status StorageAPUpdateInterface::AddEdgeImpl(
   int32_t oe_offset = 0;
   auto status =
       graph_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
-                     kMutationTimestamp, alloc_, oe_offset, prop, true);
+                     neug::timestamp_t(0), alloc_, oe_offset, prop, true);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add edge: " << status.ToString();
   }
@@ -302,7 +302,7 @@ void StorageAPUpdateInterface::CreateCheckpoint() {
 }
 
 Status StorageAPUpdateInterface::DeleteVertexImpl(label_t label, vid_t lid) {
-  RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, read_ts_));
+  RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, timestamp_));
   return deleteVertexIndexData(graph_, label, {lid});
 }
 
@@ -312,7 +312,7 @@ Status StorageAPUpdateInterface::DeleteEdgeImpl(label_t src_label, vid_t src,
                                                 int32_t oe_offset,
                                                 int32_t ie_offset) {
   return graph_.DeleteEdge(src_label, src, dst_label, dst, edge_label,
-                           oe_offset, ie_offset, read_ts_);
+                           oe_offset, ie_offset, timestamp_);
 }
 
 Status StorageAPUpdateInterface::DeleteEdgesImpl(label_t src_label, vid_t src,
@@ -503,7 +503,7 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
   }
   return index_manager_.CreateIndex(
       std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
-      graph_.GetVertexSet(label_id, read_ts_));
+      graph_.GetVertexSet(label_id, timestamp_));
 }
 
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
