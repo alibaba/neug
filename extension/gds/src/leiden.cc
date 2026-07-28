@@ -16,10 +16,10 @@
 
 #include "leiden.h"
 
+#include <unordered_set>
 #include "impl/leiden_impl.h"
 #include "utils/option_utils.h"
 #include "utils/subgraph_utils.h"
-#include <unordered_set>
 
 namespace neug {
 namespace gds {
@@ -59,7 +59,8 @@ struct LeidenInput : public function::CallFuncInputBase {
       std::unordered_set<label_t> seen_labels;
       for (const auto& ve : parsed.vertex_entries) {
         if (seen_labels.count(ve.label)) {
-          LOG(ERROR) << "leiden" << ": duplicate vertex label '" << ve.label << "'.";
+          LOG(ERROR) << "leiden"
+                     << ": duplicate vertex label '" << ve.label << "'.";
           return false;
         }
         seen_labels.insert(ve.label);
@@ -75,14 +76,16 @@ struct LeidenInput : public function::CallFuncInputBase {
     for (const auto& ee : parsed.edge_entries) {
       if (declared_vertex_labels.find(ee.triplet.src_label) ==
           declared_vertex_labels.end()) {
-        LOG(ERROR) << "leiden" << ": edge triplet src_label '"
-                   << ee.triplet.src_label << "' is not a declared vertex label.";
+        LOG(ERROR) << "leiden"
+                   << ": edge triplet src_label '" << ee.triplet.src_label
+                   << "' is not a declared vertex label.";
         return false;
       }
       if (declared_vertex_labels.find(ee.triplet.dst_label) ==
           declared_vertex_labels.end()) {
-        LOG(ERROR) << "leiden" << ": edge triplet dst_label '"
-                   << ee.triplet.dst_label << "' is not a declared vertex label.";
+        LOG(ERROR) << "leiden"
+                   << ": edge triplet dst_label '" << ee.triplet.dst_label
+                   << "' is not a declared vertex label.";
         return false;
       }
       edge_triplets.push_back(ee.triplet);

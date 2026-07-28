@@ -362,14 +362,13 @@ void Louvain::compute() {
               for (auto it = oes.begin(); it != oes.end(); ++it) {
                 uint32_t ug = static_cast<uint32_t>(db + (*it));
                 if (community_[gid] == community_[ug]) {
-                  double w =
-                      triplet_has_weight_[ti]
-                          ? triplet_weight_accessors_[ti]
-                                .get_typed_data<double>(it)
-                          : 1.0;
-                  local_mod[tid] += w / (2.0 * m_) -
-                                    resolution_ * degree_[gid] * degree_[ug] /
-                                        (4.0 * m_ * m_);
+                  double w = triplet_has_weight_[ti]
+                                 ? triplet_weight_accessors_[ti]
+                                       .get_typed_data<double>(it)
+                                 : 1.0;
+                  local_mod[tid] +=
+                      w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                           degree_[ug] / (4.0 * m_ * m_);
                 }
               }
             }
@@ -644,11 +643,12 @@ void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias,
         total += cnt;
       com_sizes.push_back({nc, total});
     }
-    std::sort(com_sizes.begin(), com_sizes.end(),
-              [](const auto& a, const auto& b) {
-                if (a.second != b.second) return a.second > b.second;
-                return a.first < b.first;  // deterministic tie-break by new comm ID
-              });
+    std::sort(
+        com_sizes.begin(), com_sizes.end(), [](const auto& a, const auto& b) {
+          if (a.second != b.second)
+            return a.second > b.second;
+          return a.first < b.first;  // deterministic tie-break by new comm ID
+        });
     std::unordered_set<uint32_t> used_ids;
     for (auto& [nc, _] : com_sizes) {
       auto& old_counts = new_to_old_counts[nc];
