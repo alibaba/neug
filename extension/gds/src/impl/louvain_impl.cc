@@ -397,6 +397,7 @@ bool Louvain::one_level() {
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
     auto ie_view = graph_.GetGenericIncomingGraphView(
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
+    std::vector<uint32_t> gen_vals(nt, 0);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
       for (size_t batch = 0; batch < num_batches; ++batch) {
@@ -410,7 +411,7 @@ bool Louvain::one_level() {
                 thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
             double* mc = thread_comm_weight_.get() +
                          static_cast<size_t>(tid) * array_size_;
-            uint32_t gv = 0;
+            uint32_t& gv = gen_vals[tid];
             auto& mt = touched[tid];
             while (true) {
               size_t s = cursor.fetch_add(64);
@@ -501,6 +502,7 @@ bool Louvain::one_level() {
       in_views[ti] = graph_.GetGenericIncomingGraphView(
           t.dst_label, t.src_label, t.edge_label);
     }
+    std::vector<uint32_t> gen_vals(nt, 0);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
       for (size_t batch = 0; batch < num_batches; ++batch) {
@@ -514,7 +516,7 @@ bool Louvain::one_level() {
                 thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
             double* mc = thread_comm_weight_.get() +
                          static_cast<size_t>(tid) * array_size_;
-            uint32_t gv = 0;
+            uint32_t& gv = gen_vals[tid];
             auto& mt = touched[tid];
             while (true) {
               size_t s = cursor.fetch_add(64);

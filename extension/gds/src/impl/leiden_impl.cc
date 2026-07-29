@@ -241,6 +241,7 @@ void Leiden::compute() {
     std::fill_n(stot_.get(), array_size_, 0.0);
     for (uint32_t gid : valid_vertices_)
       stot_[community_[gid]] += degree_[gid];
+    double prev_mod = -1.0;
     for (int level = 0; level < 100; ++level) {
       bool improved = local_moving_phase();
       if (!improved)
@@ -272,9 +273,10 @@ void Leiden::compute() {
       double new_mod = 0;
       for (int i = 0; i < num_threads_; ++i)
         new_mod += local_mod[i];
-      if (std::abs(new_mod - modularity_) < threshold_)
-        break;
       modularity_ = new_mod;
+      if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+        break;
+      prev_mod = modularity_;
     }
   } else {
     std::vector<CsrView> out_views(edge_triplets_.size()),
@@ -342,6 +344,7 @@ void Leiden::compute() {
     std::fill_n(stot_.get(), array_size_, 0.0);
     for (uint32_t gid : valid_vertices_)
       stot_[community_[gid]] += degree_[gid];
+    double prev_mod = -1.0;
     for (int level = 0; level < 100; ++level) {
       bool improved = local_moving_phase();
       if (!improved)
@@ -381,9 +384,10 @@ void Leiden::compute() {
       double new_mod = 0;
       for (int i = 0; i < num_threads_; ++i)
         new_mod += local_mod[i];
-      if (std::abs(new_mod - modularity_) < threshold_)
-        break;
       modularity_ = new_mod;
+      if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+        break;
+      prev_mod = modularity_;
     }
   }
 }
@@ -404,6 +408,7 @@ bool Leiden::local_moving_phase() {
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
     auto ie_view = graph_.GetGenericIncomingGraphView(
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
+    std::vector<uint32_t> gen_vals(nt, 0);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
       for (size_t batch = 0; batch < num_batches; ++batch) {
@@ -418,7 +423,7 @@ bool Leiden::local_moving_phase() {
                 thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
             double* my_cw = thread_comm_weight_.get() +
                             static_cast<size_t>(tid) * array_size_;
-            uint32_t gen_val = 0;
+            uint32_t& gen_val = gen_vals[tid];
             auto& my_touched = touched[tid];
             while (true) {
               size_t start = cursor.fetch_add(64);
@@ -512,6 +517,7 @@ bool Leiden::local_moving_phase() {
       in_views[ti] = graph_.GetGenericIncomingGraphView(
           t.dst_label, t.src_label, t.edge_label);
     }
+    std::vector<uint32_t> gen_vals(nt, 0);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
       for (size_t batch = 0; batch < num_batches; ++batch) {
@@ -526,7 +532,7 @@ bool Leiden::local_moving_phase() {
                 thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
             double* my_cw = thread_comm_weight_.get() +
                             static_cast<size_t>(tid) * array_size_;
-            uint32_t gen_val = 0;
+            uint32_t& gen_val = gen_vals[tid];
             auto& my_touched = touched[tid];
             while (true) {
               size_t start = cursor.fetch_add(64);
@@ -670,6 +676,10 @@ void Leiden::refine() {
           thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
       std::vector<uint32_t> touched_scs;
       touched_scs.reserve(64);
+      // Clear sub-community generation slots to avoid collision with
+      // residual values left by local_moving_phase().
+      std::fill_n(r_gen, std::min<size_t>(64, array_size_), 0);
+      uint32_t refine_gen = 0;
       while (true) {
         size_t idx = cursor.fetch_add(1);
         if (idx >= multi_comms.size())
@@ -685,7 +695,7 @@ void Leiden::refine() {
         std::mt19937 rng(42 + static_cast<uint32_t>(idx));
         std::shuffle(order.begin(), order.end(), rng);
         bool sub_improved = true;
-        uint32_t next_sub = 1, refine_gen = 0;
+        uint32_t next_sub = 1;
         while (sub_improved && next_sub < 50) {
           sub_improved = false;
           for (vid_t u : order) {
@@ -779,6 +789,10 @@ void Leiden::refine() {
           thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
       std::vector<uint32_t> touched_scs;
       touched_scs.reserve(64);
+      // Clear sub-community generation slots to avoid collision with
+      // residual values left by local_moving_phase().
+      std::fill_n(r_gen, std::min<size_t>(64, array_size_), 0);
+      uint32_t refine_gen = 0;
       while (true) {
         size_t idx = cursor.fetch_add(1);
         if (idx >= multi_comms.size())
@@ -794,7 +808,7 @@ void Leiden::refine() {
         std::mt19937 rng(42 + static_cast<uint32_t>(idx));
         std::shuffle(order.begin(), order.end(), rng);
         bool sub_improved = true;
-        uint32_t next_sub = 1, refine_gen = 0;
+        uint32_t next_sub = 1;
         while (sub_improved && next_sub < 50) {
           sub_improved = false;
           for (uint32_t u_gid : order) {
