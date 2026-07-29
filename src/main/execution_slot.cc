@@ -23,7 +23,6 @@
 #include <exception>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "neug/execution/common/operators/retrieve/sink.h"
@@ -139,10 +138,10 @@ bool invalidatesQueryCache(const physical::ExecutionFlag& flags) {
          flags.insert() || flags.update();
 }
 
-template <typename Storage>
 Status executePreparedQuery(execution::CacheValue& prepared_query,
                             const execution::ParamsMap& parameters,
-                            Storage& storage, neug::QueryResponse& response) {
+                            IStorageInterface& storage,
+                            neug::QueryResponse& response) {
   response.mutable_schema()->CopyFrom(prepared_query.result_schema);
 
   if (prepared_query.explain_mode == physical::ExplainMode::EXPLAIN) {
@@ -170,8 +169,12 @@ Status executePreparedQuery(execution::CacheValue& prepared_query,
     return context.error();
   }
 
-  if constexpr (std::is_base_of_v<StorageReadInterface, Storage>) {
-    execution::Sink::sink_results(context.value(), storage, &response);
+  if (storage.readable()) {
+    auto* readable_storage = dynamic_cast<StorageReadInterface*>(&storage);
+    CHECK(readable_storage != nullptr)
+        << "Readable storage must implement StorageReadInterface";
+    execution::Sink::sink_results(context.value(), *readable_storage,
+                                  &response);
   }
 
   if (timer) {
