@@ -152,9 +152,11 @@ void VersionManager::complete_write_timestamp(uint32_t ts) {
 
   // Check under lock: only advance if ts == read_ts + 1
   std::unique_lock lock(lock_, std::defer_lock);
-  AdaptiveBackoff wait(runtime_wait());
-  while (!lock.try_lock()) {
-    wait();
+  if (!lock.try_lock()) {
+    AdaptiveBackoff wait(runtime_wait());
+    do {
+      wait();
+    } while (!lock.try_lock());
   }
   uint32_t current_read_ts = read_ts_.load(std::memory_order_relaxed);
   if (ts == current_read_ts + 1) {
@@ -185,23 +187,31 @@ void VersionManager::advance_read_ts_locked() {
 }
 
 void VersionManager::enter_exclusive_state(AdmissionState desired_state) {
-  AdaptiveBackoff wait(runtime_wait());
-  while (true) {
-    AdmissionState expected = AdmissionState::kOpen;
-    if (admission_state_.compare_exchange_strong(expected, desired_state,
-                                                 std::memory_order_seq_cst,
-                                                 std::memory_order_acquire)) {
-      return;
-    }
-    wait();
+  AdmissionState expected = AdmissionState::kOpen;
+  if (admission_state_.compare_exchange_strong(expected, desired_state,
+                                               std::memory_order_seq_cst,
+                                               std::memory_order_acquire)) {
+    return;
   }
+
+  AdaptiveBackoff wait(runtime_wait());
+  do {
+    wait();
+    expected = AdmissionState::kOpen;
+  } while (!admission_state_.compare_exchange_strong(
+      expected, desired_state, std::memory_order_seq_cst,
+      std::memory_order_acquire));
 }
 
 void VersionManager::wait_until_zero(const std::atomic<int>& counter) {
-  AdaptiveBackoff wait(runtime_wait());
-  while (counter.load(std::memory_order_seq_cst) > 0) {
-    wait();
+  if (counter.load(std::memory_order_seq_cst) <= 0) {
+    return;
   }
+
+  AdaptiveBackoff wait(runtime_wait());
+  do {
+    wait();
+  } while (counter.load(std::memory_order_seq_cst) > 0);
 }
 
 RuntimeWaitFn VersionManager::runtime_wait() const noexcept {
