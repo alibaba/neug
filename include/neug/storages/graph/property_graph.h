@@ -120,10 +120,13 @@ class NEUG_API PropertyGraph {
 
   // Move-only: copy is not meaningful because the underlying storage
   // (VertexTable, EdgeTable) is move-only.  Use Clone() for explicit copies.
+  // Move operations are defaulted in the .cc where StorageIndexManager is
+  // complete; defaulting them here would require the full type to destroy
+  // index_manager_ in every including TU (MSVC C2027).
   PropertyGraph(const PropertyGraph&) = delete;
   PropertyGraph& operator=(const PropertyGraph&) = delete;
-  PropertyGraph(PropertyGraph&&) = default;
-  PropertyGraph& operator=(PropertyGraph&&) = default;
+  PropertyGraph(PropertyGraph&&) noexcept;
+  PropertyGraph& operator=(PropertyGraph&&) noexcept;
 
   /**
    * @brief Open the graph from the given Checkpoint using the Module interface.

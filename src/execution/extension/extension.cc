@@ -16,10 +16,13 @@
 #ifndef _WIN32
 #include <dlfcn.h>
 #else
-// Include winsock2.h before windows.h to avoid conflicting winsock.h/winsock2.h
-// definitions; httplib.h also includes winsock2.h later.
-#include <windows.h>
+// winsock2.h must be included before windows.h, otherwise windows.h pulls
+// in the legacy winsock.h which conflicts with the winsock2.h that
+// httplib.h includes later.  The blank line keeps clang-format from
+// re-sorting the two includes into the broken order.
 #include <winsock2.h>
+
+#include <windows.h>
 // Windows shims for POSIX dlopen/dlsym/dlclose/dlerror.
 #define RTLD_NOW 0
 #define RTLD_LOCAL 0
