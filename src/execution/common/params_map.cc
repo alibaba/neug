@@ -31,8 +31,7 @@ result<ParamsMap> parseJsonParameters(const ParamsMetaMap& parameter_types,
     std::string key = member.name.GetString();
     auto iter = parameter_types.find(key);
     if (iter == parameter_types.end()) {
-      RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Unexpected parameter: " + key));
+      VLOG(1) << "Parameter key not found in meta: " << key;
     }
     params.emplace(key, Value::FromJson(member.value, iter->second));
   }
