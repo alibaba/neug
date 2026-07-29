@@ -17,7 +17,6 @@
 #include <glog/logging.h>
 
 #include <cstdlib>
-#include <exception>
 #include <memory>
 #include <new>
 #include <string>
@@ -57,22 +56,6 @@ class NeugDBService;
  * @since v0.1.0
  */
 class TpExecutionSlotPool {
-  struct WalWriterDeleter {
-    void operator()(IWalWriter* writer) const noexcept {
-      if (writer == nullptr) {
-        return;
-      }
-      try {
-        writer->close();
-      } catch (const std::exception& e) {
-        LOG(WARNING) << "Failed to close slot WAL writer: " << e.what();
-      } catch (...) { LOG(WARNING) << "Failed to close slot WAL writer"; }
-      delete writer;
-    }
-  };
-
-  using WalWriterPtr = std::unique_ptr<IWalWriter, WalWriterDeleter>;
-
   // TP-only per-slot record. Implementation detail of the pool; external code
   // only ever sees ExecutionSlotLease.
   struct alignas(4096) Entry {
@@ -83,7 +66,7 @@ class TpExecutionSlotPool {
           int slot_id, std::unique_ptr<IWalWriter> in_logger,
           const NeugDBConfig& config)
         : allocator(std::move(alloc)),
-          logger(in_logger.release()),
+          logger(std::move(in_logger)),
           slot(snapshot_store, std::move(planner),
                std::move(global_query_cache), version_manager, *allocator,
                ExecutionSlotMode::kTransactional, logger.get(), config,
@@ -94,8 +77,10 @@ class TpExecutionSlotPool {
 
     std::shared_ptr<Allocator> allocator;
     char _padding0[128 - sizeof(std::shared_ptr<Allocator>)];
-    WalWriterPtr logger;
-    char _padding1[4096 - sizeof(WalWriterPtr) -
+    // Declaration order is intentional: slot is destroyed before the WAL
+    // writer it references.
+    std::unique_ptr<IWalWriter> logger;
+    char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
                    sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
     ExecutionSlot slot;
     char _padding2[(4096 - sizeof(ExecutionSlot) % 4096) % 4096];

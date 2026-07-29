@@ -52,10 +52,14 @@ std::string get_wal_uri_path(const std::string& uri);
 
 /**
  * The interface of wal writer.
+ *
+ * Implementations own their resources and must release them without throwing
+ * from their destructors. close() remains available for callers that need
+ * explicit error reporting.
  */
 class IWalWriter {
  public:
-  virtual ~IWalWriter() {}
+  virtual ~IWalWriter() noexcept = default;
 
   virtual std::string type() const = 0;
   /**

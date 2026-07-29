@@ -27,7 +27,7 @@ namespace neug {
 class DummyWalWriter : public IWalWriter {
  public:
   DummyWalWriter() {}
-  ~DummyWalWriter() {}
+  ~DummyWalWriter() noexcept override = default;
 
   std::string type() const override;
 
