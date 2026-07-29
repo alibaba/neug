@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "utils/aggregated_graph.h"
 #include "utils/parallel_utils.h"
 namespace neug {
 namespace gds {
@@ -278,6 +279,91 @@ void Leiden::compute() {
         break;
       prev_mod = modularity_;
     }
+    // === Graph Aggregation Phase ===
+    if (allow_relocation_ || !initial_community_) {
+      // Build unified undirected CSR adjacency over valid_vertices_
+      size_t nv = valid_vertices_.size();
+      std::vector<size_t> csr_offsets(nv + 1, 0);
+      for (size_t vi = 0; vi < nv; ++vi) {
+        vid_t v = valid_vertices_[vi];
+        size_t cnt = 0;
+        auto oes = oe_view.get_edges(v);
+        for (auto it = oes.begin(); it != oes.end(); ++it)
+          ++cnt;
+        auto ies = ie_view.get_edges(v);
+        for (auto it = ies.begin(); it != ies.end(); ++it)
+          ++cnt;
+        csr_offsets[vi + 1] = cnt;
+      }
+      for (size_t i = 1; i <= nv; ++i)
+        csr_offsets[i] += csr_offsets[i - 1];
+      std::vector<uint32_t> csr_adj(csr_offsets[nv]);
+      std::vector<double> csr_w(csr_offsets[nv]);
+      for (size_t vi = 0; vi < nv; ++vi) {
+        vid_t v = valid_vertices_[vi];
+        size_t pos = csr_offsets[vi];
+        auto oes = oe_view.get_edges(v);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          csr_adj[pos] = *it;
+          csr_w[pos] =
+              has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0;
+          ++pos;
+        }
+        auto ies = ie_view.get_edges(v);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          csr_adj[pos] = *it;
+          csr_w[pos] =
+              has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0;
+          ++pos;
+        }
+      }
+      // Iterative aggregation loop
+      for (int agg_level = 0; agg_level < 100; ++agg_level) {
+        auto agg = build_aggregated_graph(valid_vertices_, community_.get(),
+                                          degree_.get(), csr_offsets, csr_adj,
+                                          csr_w);
+        if (agg.num_nodes <= 1)
+          break;
+        std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
+        std::vector<double> agg_cw(agg.num_nodes, 0.0);
+        bool agg_improved = one_level_aggregated(agg, m_, resolution_,
+                                                 agg_gen, agg_cw);
+        if (!agg_improved)
+          break;
+        propagate_aggregated_communities(valid_vertices_, community_.get(),
+                                         agg);
+        // Rebuild stot_ after community changes
+        std::fill_n(stot_.get(), array_size_, 0.0);
+        for (uint32_t gid : valid_vertices_)
+          stot_[community_[gid]] += degree_[gid];
+        // Compute modularity on original graph
+        std::vector<double> local_mod(num_threads_, 0.0);
+        ParallelUtils::parallel_for(
+            valid_vertices_.data(), valid_vertices_.size(),
+            [&](vid_t v, int tid) {
+              auto oes = oe_view.get_edges(v);
+              for (auto it = oes.begin(); it != oes.end(); ++it) {
+                vid_t u = *it;
+                if (community_[v] == community_[u]) {
+                  double w = has_weight_
+                                 ? weight_accessor_.get_typed_data<double>(it)
+                                 : 1.0;
+                  local_mod[tid] += w / (2.0 * m_) - resolution_ * degree_[v] *
+                                                         degree_[u] /
+                                                         (4.0 * m_ * m_);
+                }
+              }
+            },
+            num_threads_);
+        double new_mod = 0;
+        for (int i = 0; i < num_threads_; ++i)
+          new_mod += local_mod[i];
+        modularity_ = new_mod;
+        if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+          break;
+        prev_mod = modularity_;
+      }
+    }
   } else {
     std::vector<CsrView> out_views(edge_triplets_.size()),
         in_views(edge_triplets_.size());
@@ -388,6 +474,125 @@ void Leiden::compute() {
       if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
         break;
       prev_mod = modularity_;
+    }
+    // === Graph Aggregation Phase ===
+    if (allow_relocation_ || !initial_community_) {
+      // Build unified undirected CSR adjacency over valid_vertices_
+      size_t nv = valid_vertices_.size();
+      std::vector<size_t> csr_offsets(nv + 1, 0);
+      for (size_t vi = 0; vi < nv; ++vi) {
+        uint32_t gid = valid_vertices_[vi];
+        size_t li = global_to_label_idx_[gid];
+        vid_t lv = global_to_vid_[gid];
+        size_t cnt = 0;
+        for (size_t ti : label_out_triplets_[li]) {
+          if (triplet_dst_base_[ti] == SIZE_MAX)
+            continue;
+          auto oes = out_views[ti].get_edges(lv);
+          for (auto it = oes.begin(); it != oes.end(); ++it)
+            ++cnt;
+        }
+        for (size_t ti : label_in_triplets_[li]) {
+          if (triplet_src_base_[ti] == SIZE_MAX)
+            continue;
+          auto ies = in_views[ti].get_edges(lv);
+          for (auto it = ies.begin(); it != ies.end(); ++it)
+            ++cnt;
+        }
+        csr_offsets[vi + 1] = cnt;
+      }
+      for (size_t i = 1; i <= nv; ++i)
+        csr_offsets[i] += csr_offsets[i - 1];
+      std::vector<uint32_t> csr_adj(csr_offsets[nv]);
+      std::vector<double> csr_w(csr_offsets[nv]);
+      for (size_t vi = 0; vi < nv; ++vi) {
+        uint32_t gid = valid_vertices_[vi];
+        size_t li = global_to_label_idx_[gid];
+        vid_t lv = global_to_vid_[gid];
+        size_t pos = csr_offsets[vi];
+        for (size_t ti : label_out_triplets_[li]) {
+          if (triplet_dst_base_[ti] == SIZE_MAX)
+            continue;
+          size_t db = triplet_dst_base_[ti];
+          auto oes = out_views[ti].get_edges(lv);
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            csr_adj[pos] = static_cast<uint32_t>(db + (*it));
+            csr_w[pos] = triplet_has_weight_[ti]
+                             ? triplet_weight_accessors_[ti]
+                                   .get_typed_data<double>(it)
+                             : 1.0;
+            ++pos;
+          }
+        }
+        for (size_t ti : label_in_triplets_[li]) {
+          if (triplet_src_base_[ti] == SIZE_MAX)
+            continue;
+          size_t sb = triplet_src_base_[ti];
+          auto ies = in_views[ti].get_edges(lv);
+          for (auto it = ies.begin(); it != ies.end(); ++it) {
+            csr_adj[pos] = static_cast<uint32_t>(sb + (*it));
+            csr_w[pos] = triplet_has_weight_[ti]
+                             ? triplet_weight_accessors_[ti]
+                                   .get_typed_data<double>(it)
+                             : 1.0;
+            ++pos;
+          }
+        }
+      }
+      // Iterative aggregation loop
+      for (int agg_level = 0; agg_level < 100; ++agg_level) {
+        auto agg = build_aggregated_graph(valid_vertices_, community_.get(),
+                                          degree_.get(), csr_offsets, csr_adj,
+                                          csr_w);
+        if (agg.num_nodes <= 1)
+          break;
+        std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
+        std::vector<double> agg_cw(agg.num_nodes, 0.0);
+        bool agg_improved = one_level_aggregated(agg, m_, resolution_,
+                                                 agg_gen, agg_cw);
+        if (!agg_improved)
+          break;
+        propagate_aggregated_communities(valid_vertices_, community_.get(),
+                                         agg);
+        // Rebuild stot_ after community changes
+        std::fill_n(stot_.get(), array_size_, 0.0);
+        for (uint32_t gid : valid_vertices_)
+          stot_[community_[gid]] += degree_[gid];
+        // Compute modularity on original graph
+        std::vector<double> local_mod(num_threads_, 0.0);
+        ParallelUtils::parallel_for(
+            valid_vertices_.data(), valid_vertices_.size(),
+            [&](vid_t gid, int tid) {
+              size_t li = global_to_label_idx_[gid];
+              vid_t lv = global_to_vid_[gid];
+              for (size_t ti : label_out_triplets_[li]) {
+                if (triplet_dst_base_[ti] == SIZE_MAX)
+                  continue;
+                size_t db = triplet_dst_base_[ti];
+                auto oes = out_views[ti].get_edges(lv);
+                for (auto it = oes.begin(); it != oes.end(); ++it) {
+                  uint32_t ug = static_cast<uint32_t>(db + (*it));
+                  if (community_[gid] == community_[ug]) {
+                    double w = triplet_has_weight_[ti]
+                                   ? triplet_weight_accessors_[ti]
+                                         .get_typed_data<double>(it)
+                                   : 1.0;
+                    local_mod[tid] +=
+                        w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                             degree_[ug] / (4.0 * m_ * m_);
+                  }
+                }
+              }
+            },
+            num_threads_);
+        double new_mod = 0;
+        for (int i = 0; i < num_threads_; ++i)
+          new_mod += local_mod[i];
+        modularity_ = new_mod;
+        if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+          break;
+        prev_mod = modularity_;
+      }
     }
   }
 }
