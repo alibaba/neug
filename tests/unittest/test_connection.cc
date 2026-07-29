@@ -275,14 +275,33 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
 
   InitParameterizedQueryData(conn);
 
+  rapidjson::Document parameters(rapidjson::kObjectType);
+  parameters.AddMember("person_id", 1, parameters.GetAllocator());
+  parameters.AddMember("increment", 5, parameters.GetAllocator());
   auto res = conn->Query(
       "MATCH (n:PERSON2 {id: $person_id}) SET n.id2 = n.id2 + "
       "$increment;",
-      "update",
-      {{"person_id", neug::Value::INT64(1)},
-       {"increment", neug::Value::INT64(5)}});
-  EXPECT_TRUE(res);
+      "update", parameters);
+  ASSERT_TRUE(res) << res.error().ToString();
   LOG(INFO) << res.value().ToString();
+
+  ASSERT_TRUE(
+      conn->Query("MATCH (a:PERSON2 {id: 1}), (b:PERSON2 {id: 2}) "
+                  "CREATE (a)-[:atomic_knows {since: 1}]->(b);",
+                  "insert"));
+  rapidjson::Document edge_parameters(rapidjson::kObjectType);
+  edge_parameters.AddMember("increment", 2, edge_parameters.GetAllocator());
+  res = conn->Query(
+      "MATCH (:PERSON2)-[e:atomic_knows]->(:PERSON2) "
+      "SET e.since = e.since + $increment;",
+      "update", edge_parameters);
+  ASSERT_TRUE(res) << res.error().ToString();
+
+  rapidjson::Document invalid_parameters(rapidjson::kArrayType);
+  res =
+      conn->Query("MATCH (n:PERSON2) RETURN n.id;", "read", invalid_parameters);
+  ASSERT_FALSE(res);
+  EXPECT_EQ(res.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
 TEST_F(ConnectionTest, TestConnectionQueryResult) {

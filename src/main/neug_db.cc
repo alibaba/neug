@@ -482,7 +482,8 @@ std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
   CHECK_LT(slot_id, allocators_.size());
   return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
       *snapshot_store_, planner_, global_query_cache_, *version_manager_,
-      *allocators_.at(slot_id), config_, static_cast<int>(slot_id)));
+      *allocators_.at(slot_id), ExecutionSlotMode::kEmbedded,
+      /*wal_writer=*/nullptr, config_, static_cast<int>(slot_id)));
 }
 
 void NeugDB::initQueryRuntime() {

@@ -24,7 +24,8 @@ result<ParamsMap> parseJsonParameters(const ParamsMetaMap& parameter_types,
                                       const rapidjson::Value& parameters) {
   ParamsMap params;
   if (!parameters.IsObject()) {
-    return params;
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Query parameters must be a JSON object."));
   }
   for (const auto& member : parameters.GetObject()) {
     std::string key = member.name.GetString();

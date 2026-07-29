@@ -48,6 +48,7 @@ neug::Status RequestParser::ParseFromString(const std::string& req,
                                             std::string& query,
                                             AccessMode& mode,
                                             rapidjson::Document& parameters) {
+  parameters.SetObject();
   rapidjson::Document document;
   document.Parse(req.c_str(), req.size());
   if (document.HasParseError()) {
@@ -63,7 +64,11 @@ neug::Status RequestParser::ParseFromString(const std::string& req,
     access_mode_str = document["access_mode"].GetString();
     mode = neug::ParseAccessMode(access_mode_str);
   }
-  if (document.HasMember("parameters") && document["parameters"].IsObject()) {
+  if (document.HasMember("parameters")) {
+    if (!document["parameters"].IsObject()) {
+      return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Query parameters must be a JSON object.");
+    }
     parameters.CopyFrom(document["parameters"], parameters.GetAllocator());
   }
   return neug::Status::OK();

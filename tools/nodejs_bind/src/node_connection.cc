@@ -81,7 +81,7 @@ Napi::Value NodeConnection::Execute(const Napi::CallbackInfo& info) {
   }
 
   // Parse parameters from JavaScript object
-  rapidjson::Document params_json;
+  rapidjson::Document params_json(rapidjson::kObjectType);
   if (info.Length() >= 3 && info[2].IsObject()) {
     Napi::Object params_obj = info[2].As<Napi::Object>();
     Napi::Array keys = params_obj.GetPropertyNames();

@@ -433,6 +433,64 @@ TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
   EXPECT_EQ(response.row_count(), 1u);
 }
 
+TEST_F(NeugDBServiceTest, TransactionalRequestRejectsUnexpectedParameters) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  auto result = slot->ExecuteTransactionalRequest(R"json(
+      {"query":"MATCH (n:person) RETURN n.id;",
+       "access_mode":"read","parameters":{"unused":1}})json");
+
+  ASSERT_FALSE(result);
+  EXPECT_EQ(result.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_NE(result.error().error_message().find("Unexpected parameter: unused"),
+            std::string::npos);
+}
+
+TEST_F(NeugDBServiceTest, TransactionalRequestRejectsNonObjectParameters) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  auto result = slot->ExecuteTransactionalRequest(R"json(
+      {"query":"MATCH (n:person) RETURN n.id;",
+       "access_mode":"read","parameters":[]})json");
+
+  ASSERT_FALSE(result);
+  EXPECT_EQ(result.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_NE(result.error().error_message().find(
+                "Query parameters must be a JSON object."),
+            std::string::npos);
+}
+
+TEST_F(NeugDBServiceTest, TransactionalSlotRejectsEmbeddedEntryPoint) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  const auto query_num_before = slot->query_num();
+  auto result = slot->ExecuteQuery("MATCH (n:person) RETURN n.id;", "read");
+
+  ASSERT_FALSE(result);
+  EXPECT_EQ(result.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_EQ(slot->query_num(), query_num_before);
+}
+
+TEST_F(NeugDBServiceTest, TransactionalSlotGetsSchemaThroughReadTransaction) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  const auto schema = slot->GetSchema();
+
+  EXPECT_NE(schema.find("person"), std::string::npos);
+  auto read =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "MATCH (n:person) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(read) << read.error().ToString();
+}
+
 TEST_F(NeugDBServiceTest, ApUpdateAfterTpUsesCurrentReadTimestamp) {
   timestamp_t tp_timestamp = INVALID_TIMESTAMP;
   {

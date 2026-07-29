@@ -57,6 +57,22 @@ class NeugDBService;
  * @since v0.1.0
  */
 class TpExecutionSlotPool {
+  struct WalWriterDeleter {
+    void operator()(IWalWriter* writer) const noexcept {
+      if (writer == nullptr) {
+        return;
+      }
+      try {
+        writer->close();
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "Failed to close slot WAL writer: " << e.what();
+      } catch (...) { LOG(WARNING) << "Failed to close slot WAL writer"; }
+      delete writer;
+    }
+  };
+
+  using WalWriterPtr = std::unique_ptr<IWalWriter, WalWriterDeleter>;
+
   // TP-only per-slot record. Implementation detail of the pool; external code
   // only ever sees ExecutionSlotLease.
   struct alignas(4096) Entry {
@@ -67,28 +83,19 @@ class TpExecutionSlotPool {
           int slot_id, std::unique_ptr<IWalWriter> in_logger,
           const NeugDBConfig& config)
         : allocator(std::move(alloc)),
-          logger(std::move(in_logger)),
+          logger(in_logger.release()),
           slot(snapshot_store, std::move(planner),
                std::move(global_query_cache), version_manager, *allocator,
-               config, slot_id) {
+               ExecutionSlotMode::kTransactional, logger.get(), config,
+               slot_id) {
       CHECK(logger != nullptr);
       logger->open();
-      slot.bindWalWriterForTp(*logger);
-    }
-    ~Entry() {
-      if (logger) {
-        try {
-          logger->close();
-        } catch (const std::exception& e) {
-          LOG(WARNING) << "Failed to close slot WAL writer: " << e.what();
-        } catch (...) { LOG(WARNING) << "Failed to close slot WAL writer"; }
-      }
     }
 
     std::shared_ptr<Allocator> allocator;
     char _padding0[128 - sizeof(std::shared_ptr<Allocator>)];
-    std::unique_ptr<IWalWriter> logger;
-    char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
+    WalWriterPtr logger;
+    char _padding1[4096 - sizeof(WalWriterPtr) -
                    sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
     ExecutionSlot slot;
     char _padding2[(4096 - sizeof(ExecutionSlot) % 4096) % 4096];
@@ -127,7 +134,6 @@ class TpExecutionSlotPool {
     } catch (...) {
       while (constructed_entries > 0) {
         auto& entry = entries_[--constructed_entries];
-        entry.slot.unbindWalWriterForTp();
         entry.~Entry();
       }
       free(entries_);
@@ -149,7 +155,6 @@ class TpExecutionSlotPool {
            "TpExecutionSlotPool destruction";
     if (entries_ != nullptr) {
       for (size_t slot_id = 0; slot_id < slot_num_; ++slot_id) {
-        entries_[slot_id].slot.unbindWalWriterForTp();
         entries_[slot_id].~Entry();
       }
       free(entries_);
