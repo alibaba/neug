@@ -230,14 +230,14 @@ result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
 
 Status ExecutionSlot::validatePlan(AccessMode mode,
                                    const physical::ExecutionFlag& flags) const {
-  if (mode_ == ExecutionSlotMode::kTransactional &&
+  if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
       (flags.batch() || flags.create_temp_table())) {
     return Status(
         StatusCode::ERR_NOT_SUPPORTED,
         "Temporary table creation and batch operations are not supported "
         "for TP service.");
   }
-  if (mode_ == ExecutionSlotMode::kTransactional &&
+  if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
       mode == AccessMode::kInsert && !IsInsertOnlyExecutionFlag(flags)) {
     return Status(
         StatusCode::ERR_INVALID_ARGUMENT,
@@ -267,7 +267,7 @@ Status ExecutionSlot::validatePlan(AccessMode mode,
 result<QueryResult> ExecutionSlot::ExecuteQuery(
     const std::string& query_string, const std::string& access_mode,
     const rapidjson::Value& parameters, int32_t num_threads) {
-  if (mode_ != ExecutionSlotMode::kEmbedded) {
+  if (execution_strategy_ != QueryExecutionStrategy::kDirect) {
     RETURN_ERROR(
         Status(StatusCode::ERR_NOT_SUPPORTED,
                "Direct query execution is only available in embedded mode."));
@@ -317,7 +317,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
     if (!status.ok()) {
       return status;
     }
-    if (mode_ == ExecutionSlotMode::kEmbedded &&
+    if (execution_strategy_ == QueryExecutionStrategy::kDirect &&
         invalidatesQueryCache(cache_value->flags)) {
       pipeline_cache_.clearGlobalCache();
     }
@@ -325,7 +325,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
   };
 
   Status status;
-  if (mode_ == ExecutionSlotMode::kEmbedded) {
+  if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
     if (access_mode == AccessMode::kRead) {
       TimestampLease lease(version_manager_, LeaseKind::kRead);
       SnapshotGuard guard(snapshot_store_);
@@ -426,7 +426,7 @@ std::string ExecutionSlot::GetSchema() const {
 }
 
 void ExecutionSlot::ClearTemporarySchema() {
-  CHECK(mode_ == ExecutionSlotMode::kEmbedded);
+  CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
     TimestampLease lease(version_manager_, LeaseKind::kRead);
     SnapshotGuard guard(snapshot_store_);

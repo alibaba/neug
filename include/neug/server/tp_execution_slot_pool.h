@@ -69,7 +69,7 @@ class TpExecutionSlotPool {
           logger(std::move(in_logger)),
           slot(snapshot_store, std::move(planner),
                std::move(global_query_cache), version_manager, *allocator,
-               ExecutionSlotMode::kTransactional, logger.get(), config,
+               QueryExecutionStrategy::kTransactional, logger.get(), config,
                slot_id) {
       CHECK(logger != nullptr);
       logger->open();

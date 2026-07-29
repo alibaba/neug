@@ -49,8 +49,8 @@ class NeugDB;
 class ExecutionSlot;
 class TpExecutionSlotPool;
 
-enum class ExecutionSlotMode : uint8_t {
-  kEmbedded,
+enum class QueryExecutionStrategy : uint8_t {
+  kDirect,
   kTransactional,
 };
 
@@ -230,7 +230,8 @@ class ExecutionSlot {
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
                 std::shared_ptr<IGraphPlanner> planner,
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
-                IVersionManager& vm, Allocator& alloc, ExecutionSlotMode mode,
+                IVersionManager& vm, Allocator& alloc,
+                QueryExecutionStrategy execution_strategy,
                 IWalWriter* wal_writer, const NeugDBConfig& config_,
                 int slot_id)
       : snapshot_store_(snapshot_store),
@@ -238,15 +239,15 @@ class ExecutionSlot {
         pipeline_cache_(global_query_cache),
         version_manager_(vm),
         alloc_(alloc),
-        mode_(mode),
+        execution_strategy_(execution_strategy),
         wal_writer_(wal_writer),
         db_config_(config_),
         slot_id_(slot_id),
         eval_duration_(0),
         query_num_(0) {
-    CHECK(mode_ == ExecutionSlotMode::kEmbedded ||
-          mode_ == ExecutionSlotMode::kTransactional);
-    CHECK_EQ(mode_ == ExecutionSlotMode::kTransactional,
+    CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect ||
+          execution_strategy_ == QueryExecutionStrategy::kTransactional);
+    CHECK_EQ(execution_strategy_ == QueryExecutionStrategy::kTransactional,
              wal_writer_ != nullptr);
   }
 
@@ -265,7 +266,7 @@ class ExecutionSlot {
   execution::LocalQueryCache pipeline_cache_;
   IVersionManager& version_manager_;
   Allocator& alloc_;
-  const ExecutionSlotMode mode_;
+  const QueryExecutionStrategy execution_strategy_;
   IWalWriter* const wal_writer_;
   const NeugDBConfig& db_config_;
   int slot_id_;
