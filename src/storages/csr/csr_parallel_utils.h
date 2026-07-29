@@ -19,6 +19,7 @@
 #include <bit>
 #include <cstddef>
 #include <limits>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -109,7 +110,13 @@ void parallel_for_degree_ranges(size_t total, const DEGREE_T* degrees,
   std::vector<std::thread> threads;
   threads.reserve(workers - 1);
   for (size_t i = 1; i < workers; ++i) {
-    threads.emplace_back(work);
+    try {
+      threads.emplace_back(work);
+    } catch (const std::system_error&) {
+      // Handle thread creation failure before joinable threads can unwind.
+      // The workers already created plus the caller finish the remaining work.
+      break;
+    }
   }
   work();
   for (auto& t : threads) {

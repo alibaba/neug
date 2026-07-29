@@ -950,7 +950,12 @@ void PropertyGraph::compact_internal(bool compact_all_edge_tables) {
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   LOG(INFO) << "Creating checkpoint at " << ckp->path();
 
-  // Compact sort-key edge tables; Dump() normalizes the remaining CSRs.
+  // Compact sort-key edge tables; Dump() normalizes the remaining CSRs in
+  // place. CALLER CONTRACT: no concurrent readers may access this graph's
+  // CSR buffers during DumpAndClear — TP enforces it via
+  // begin_update_commit + drain_readers (StorageTPUpdateInterface::
+  // CreateCheckpoint), AP via TimestampLease::makeUpdateExclusive, and
+  // NeugDB admin paths run with no live connections.
   compact_internal(false);
 
   CheckpointManifest meta;

@@ -1452,6 +1452,14 @@ void StorageTPUpdateInterface::CreateCheckpoint() {
   }
   auto ckp = cow_graph_->checkpoint_ptr();
   auto memory_level = cow_graph_->memory_level();
+  // Dump() normalizes CSR buffers in place, and cow_graph_ shares those
+  // buffers with the published snapshot that concurrent readers may still
+  // hold (MutableCsr::Detach does not deep-copy nbr_list_). Block new
+  // readers and drain in-flight ones before touching shared data, as the
+  // AP path already does via TimestampLease::makeUpdateExclusive().
+  // begin_update_commit is idempotent: Commit() re-enters the same state.
+  vm_.begin_update_commit(read_ts_);
+  vm_.drain_readers();
   cow_graph_->DumpAndClear(ckp);
   cow_graph_->Open(ckp, memory_level);
   mut_view_.Rebuild(*cow_graph_);

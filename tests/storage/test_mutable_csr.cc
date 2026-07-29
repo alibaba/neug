@@ -16,7 +16,9 @@
 #include <gtest/gtest.h>
 #include <sys/stat.h>
 #include <atomic>
+#include <cerrno>
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <optional>
 #include <random>
@@ -1027,46 +1029,16 @@ TEST_F(MutableCsrDumpDirtyTest, VariousMutationsSetDirty) {
 
 TEST_F(MutableCsrDumpDirtyTest, DumpNormalizesTimestampsAndRemovesTombstones) {
   CsrT csr;
-  ModuleDescriptor original_desc;
-  auto ckp = prepare(csr, original_desc);
-
-  csr.put_edge(0, 2, 999, 7, *alloc_);
-  csr.delete_edge(0, 0, 8);
-  ASSERT_EQ(csr.edge_num(), src_.size());
-
-  auto normalized_desc = dump_module_descriptor(csr, *ckp, "normalized");
-  CsrT reopened;
-  reopened.Open(*ckp, normalized_desc, MemoryLevel::kInMemory);
-
-  size_t actual_edge_num = 0;
-  std::vector<vid_t> src_zero_neighbors;
-  auto view = reopened.get_generic_view(MAX_TIMESTAMP);
-  for (vid_t src = 0; src < VNUM; ++src) {
-    auto edges = view.get_edges(src);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      EXPECT_EQ(it.get_timestamp(), 0);
-      ++actual_edge_num;
-      if (src == 0) {
-        src_zero_neighbors.push_back(it.get_vertex());
-      }
-    }
-  }
-  EXPECT_EQ(actual_edge_num, src_.size());
-  EXPECT_EQ(reopened.edge_num(), src_.size());
-  EXPECT_EQ(src_zero_neighbors, (std::vector<vid_t>{4, 2}));
-}
-
-TEST_F(MutableCsrDumpDirtyTest, DumpCompactsMiddleAndTailDeletions) {
-  CsrT csr;
   auto ckp = make_checkpoint(checkpoint_mgr_);
   csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
   csr.resize(1);
   csr.batch_put_edges({0, 0, 0, 0}, {10, 11, 12, 13}, {1, 2, 3, 4});
+  csr.put_edge(0, 14, 5, 7, *alloc_);
   csr.delete_edge(0, 1, 1);
   csr.delete_edge(0, 3, 2);
-  ASSERT_EQ(csr.edge_num(), 2);
+  ASSERT_EQ(csr.edge_num(), 3);
 
-  auto desc = dump_module_descriptor(csr, *ckp, "compacted");
+  auto desc = dump_module_descriptor(csr, *ckp, "normalized");
   CsrT reopened;
   reopened.Open(*ckp, desc, MemoryLevel::kInMemory);
 
@@ -1076,8 +1048,8 @@ TEST_F(MutableCsrDumpDirtyTest, DumpCompactsMiddleAndTailDeletions) {
     EXPECT_EQ(it.get_timestamp(), 0);
     neighbors.push_back(it.get_vertex());
   }
-  EXPECT_EQ(neighbors, (std::vector<vid_t>{10, 12}));
-  EXPECT_EQ(reopened.edge_num(), 2);
+  EXPECT_EQ(neighbors, (std::vector<vid_t>{10, 12, 14}));
+  EXPECT_EQ(reopened.edge_num(), 3);
 }
 
 class SingleMutableCsrDumpTest : public ::testing::Test {

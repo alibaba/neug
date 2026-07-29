@@ -21,7 +21,10 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/update_transaction.h"
 
+#include <atomic>
+#include <chrono>
 #include <limits>
+#include <thread>
 
 #include "column_assertions.h"
 #include "glog/logging.h"
@@ -2709,6 +2712,67 @@ TEST_F(UpdateTransactionTest, TestCheckpoint) {
     neug::StorageTPUpdateInterface interface(txn);
     interface.CreateCheckpoint();
   }
+}
+
+// CreateCheckpoint() normalizes CSR buffers in place while cow_graph_
+// shares them with the published snapshot, so it must block new readers and
+// drain in-flight ones before dumping.
+TEST_F(UpdateTransactionTest, TestCheckpointDrainsReaders) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  // Dirty the graph so CreateCheckpoint() takes the dump path instead of
+  // the no-modification early return.
+  {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t vid;
+    EXPECT_TRUE(gui.AddVertex(
+        person_label, neug::Value::INT64(3),
+        {neug::Value::STRING(std::string("Eve")), neug::Value::INT64(28)},
+        vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  std::atomic<bool> reader_holding{false};
+  std::atomic<bool> checkpoint_returned{false};
+
+  std::thread reader([&]() {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetReadTransaction();
+    reader_holding.store(true, std::memory_order_release);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  });  // The read transaction dtor releases the read timestamp.
+
+  while (!reader_holding.load(std::memory_order_acquire)) {
+    std::this_thread::yield();
+  }
+
+  std::thread checkpoint_thread([&]() {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface gui(txn);
+    gui.CreateCheckpoint();
+    checkpoint_returned.store(true, std::memory_order_release);
+    EXPECT_TRUE(txn.Commit());
+  });
+
+  // While the reader holds its snapshot, the checkpoint must stay blocked
+  // in drain_readers(); it may only complete after the reader finishes.
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+  EXPECT_FALSE(checkpoint_returned.load(std::memory_order_acquire));
+
+  reader.join();
+  checkpoint_thread.join();
+  EXPECT_TRUE(checkpoint_returned.load(std::memory_order_acquire));
+
+  svc.reset();
+  db.Close();
 }
 
 TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {

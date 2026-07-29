@@ -136,6 +136,18 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   }
   desc.set_path(ModuleDescriptor::kNbrListPath, nbr_file.CommitOrReuse());
 
+  // In-place normalization shrank the live data to the buffer head; restore
+  // the GetDataSize() == sum(degrees) * sizeof(nbr_t) invariant, matching
+  // compact(), so the object stays usable (e.g. batch_put_edges) after Dump.
+  // Resize must run after CommitOrReuse because it clears the container's
+  // mapped path used for reuse decisions.
+  nbr_list_buffer_->Resize(live_edges * sizeof(nbr_t));
+  auto* segment = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
+  for (size_t i = 0; i < vnum; ++i) {
+    adj_lists[i] = segment;
+    segment += degrees[i];
+  }
+
   csr_dump::ChecksumReuseFileDumper degree_file(ckp, degree_list_buffer_.get());
   auto* degree_data =
       reinterpret_cast<const char*>(degree_list_buffer_->GetData());

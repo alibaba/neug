@@ -15,6 +15,10 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
+#include <utility>
+#include <vector>
+
 #include "neug/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/property_graph.h"
@@ -142,6 +146,72 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
                                MAX_TIMESTAMP, allocator, oe_offset, prop)
                      .ok());
   }
+}
+
+TEST_F(PropertyGraphTest, CheckpointSortsEdgesByConfiguredKey) {
+  CreateVertexTypeParamBuilder vertex_builder;
+  ASSERT_TRUE(graph_
+                  ->CreateVertexType(vertex_builder.VertexLabel("person")
+                                         .AddProperty("id", Value::INT64(0))
+                                         .AddPrimaryKeyName("id")
+                                         .Build())
+                  .ok());
+  CreateEdgeTypeParamBuilder edge_builder;
+  ASSERT_TRUE(graph_
+                  ->CreateEdgeType(
+                      edge_builder.SrcLabel("person")
+                          .DstLabel("person")
+                          .EdgeLabel("knows")
+                          .AddProperty("weight", Value::INT64(0))
+                          .SortKeyForNbr(std::optional<std::string>{"weight"})
+                          .Build())
+                  .ok());
+
+  const label_t person = graph_->schema().get_vertex_label_id("person");
+  const label_t knows = graph_->schema().get_edge_label_id("knows");
+  std::vector<vid_t> vertices;
+  for (int64_t id = 0; id != 4; ++id) {
+    vid_t vertex;
+    ASSERT_TRUE(
+        graph_->AddVertex(person, Value::INT64(id), {}, vertex, 0).ok());
+    vertices.push_back(vertex);
+  }
+
+  Allocator allocator(MemoryLevel::kInMemory, "");
+  for (const auto& [dst, weight] : std::vector<std::pair<vid_t, int64_t>>{
+           {vertices[1], 30}, {vertices[2], 10}, {vertices[3], 20}}) {
+    int32_t offset;
+    const void* property = nullptr;
+    ASSERT_TRUE(graph_
+                    ->AddEdge(person, vertices[0], person, dst, knows,
+                              {Value::INT64(weight)}, 7, allocator, offset,
+                              property)
+                    .ok());
+  }
+  graph_->MarkVertexTableDirty(person);
+  graph_->MarkEdgeTableDirty(person, person, knows);
+
+  auto checkpoint = make_checkpoint(checkpoint_mgr_);
+  graph_->DumpAndClear(checkpoint);
+
+  std::vector<vid_t> neighbors;
+  std::vector<int64_t> weights;
+  PropertyGraph reopened;
+  reopened.Open(checkpoint, MemoryLevel::kInMemory);
+  auto view = reopened.get_edge_table(person, person, knows)
+                  .get_outgoing_view(MAX_TIMESTAMP);
+  ASSERT_EQ(view.type(), CsrViewType::kMultipleMutable);
+  auto typed_view =
+      view.get_typed_view<int64_t, CsrViewType::kMultipleMutable>();
+  EXPECT_EQ(typed_view.unsorted_since, 1);
+  auto edges = view.get_edges(vertices[0]);
+  for (auto it = edges.begin(); it != edges.end(); ++it) {
+    neighbors.push_back(it.get_vertex());
+    weights.push_back(*static_cast<const int64_t*>(it.get_data_ptr()));
+  }
+  EXPECT_EQ(neighbors,
+            (std::vector<vid_t>{vertices[2], vertices[3], vertices[1]}));
+  EXPECT_EQ(weights, (std::vector<int64_t>{10, 20, 30}));
 }
 
 }  // namespace neug

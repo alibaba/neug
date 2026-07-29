@@ -208,31 +208,6 @@ TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
   EXPECT_EQ(hugepage_single_immutable_csr.edge_num(), 500);
 }
 
-TYPED_TEST(IMMutableCsrTest, TestDumpCompactsDeletedEdges) {
-  ImmutableCsr<TypeParam> csr;
-  auto ckp = make_checkpoint(this->Workspace());
-  csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
-  csr.resize(2);
-  csr.batch_put_edges({0, 0, 1}, {10, 11, 12}, std::vector<TypeParam>(3), 0);
-  csr.delete_edge(0, 0, 0);
-
-  auto desc = dump_module_descriptor(csr, *ckp, "compacted");
-  EXPECT_EQ(std::filesystem::file_size(
-                desc.get_path(ModuleDescriptor::kNbrListPath).value()),
-            sizeof(FileHeader) + 2 * sizeof(ImmutableNbr<TypeParam>));
-  ImmutableCsr<TypeParam> reopened;
-  reopened.Open(*ckp, desc, MemoryLevel::kInMemory);
-
-  auto view = reopened.get_generic_view(MAX_TIMESTAMP);
-  auto edges = view.get_edges(0);
-  auto it = edges.begin();
-  ASSERT_NE(it, edges.end());
-  EXPECT_EQ(it.get_vertex(), 11);
-  EXPECT_EQ(++it, edges.end());
-  EXPECT_EQ(view.get_edges(1).begin().get_vertex(), 12);
-  EXPECT_EQ(reopened.edge_num(), 2);
-}
-
 TYPED_TEST(IMMutableCsrTest, TestCleanDumpReusesFiles) {
   ImmutableCsr<TypeParam> csr;
   auto ckp = this->load_csr_data(csr);
@@ -266,6 +241,9 @@ TYPED_TEST(IMMutableCsrTest, TestDirtyReopenDump) {
     dirty.delete_edge(0, 0, 0);
     auto next_ckp = make_checkpoint(this->Workspace());
     auto compacted = dump_module_descriptor(dirty, *next_ckp, "compacted");
+    EXPECT_EQ(std::filesystem::file_size(
+                  compacted.get_path(ModuleDescriptor::kNbrListPath).value()),
+              sizeof(FileHeader) + 2 * sizeof(ImmutableNbr<TypeParam>));
 
     ImmutableCsr<TypeParam> reopened;
     reopened.Open(*next_ckp, compacted, MemoryLevel::kInMemory);
@@ -276,6 +254,36 @@ TYPED_TEST(IMMutableCsrTest, TestDirtyReopenDump) {
     EXPECT_EQ(++it, edges.end());
     EXPECT_EQ(reopened.edge_num(), 2);
   }
+}
+
+TYPED_TEST(IMMutableCsrTest, TestDumpThenContinueWriting) {
+  ImmutableCsr<TypeParam> csr;
+  auto ckp = make_checkpoint(this->Workspace());
+  csr.Open(*ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
+  csr.resize(2);
+  csr.batch_put_edges({0, 0, 1}, {10, 11, 12}, std::vector<TypeParam>(3), 0);
+  // Tombstone the first edge so Dump() compacts the buffer in place and
+  // shrinks the live region.
+  csr.delete_edge(0, 0, 0);
+  dump_module_descriptor(csr, *ckp, "csr");
+
+  // Dump() must restore the GetDataSize() == sum(degrees) invariant;
+  // further writes have to append after the surviving edges instead of
+  // using the stale pre-compaction size and clobbering live data.
+  csr.batch_put_edges({0, 1}, {13, 14}, std::vector<TypeParam>(2), 1);
+  EXPECT_EQ(csr.edge_num(), 4);
+
+  auto view = csr.get_generic_view(MAX_TIMESTAMP);
+  auto collect = [&view](vid_t v) {
+    std::vector<vid_t> nbrs;
+    auto edges = view.get_edges(v);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      nbrs.push_back(it.get_vertex());
+    }
+    return nbrs;
+  };
+  EXPECT_EQ(collect(0), (std::vector<vid_t>{11, 13}));
+  EXPECT_EQ(collect(1), (std::vector<vid_t>{12, 14}));
 }
 
 TYPED_TEST(IMMutableCsrTest, TestResize) {
