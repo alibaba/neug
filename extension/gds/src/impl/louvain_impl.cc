@@ -385,46 +385,25 @@ bool Louvain::one_level() {
   std::mt19937 rng(42);
   std::shuffle(order.begin(), order.end(), rng);
   bool improved = false;
-  const size_t n = order.size(), chunk = 4096,
-               num_batches = (n + chunk - 1) / chunk;
-  const int nt = num_threads_;
-  std::vector<uint32_t> best_com(n);
-  std::vector<std::vector<uint32_t>> touched(nt);
-  for (int t = 0; t < nt; ++t)
-    touched[t].reserve(256);
+  const size_t n = order.size();
   if (is_simple_graph_) {
     auto oe_view = graph_.GetGenericOutgoingGraphView(
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
     auto ie_view = graph_.GetGenericIncomingGraphView(
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
-    std::vector<uint32_t> gen_vals(nt, 0);
+    // Local-moving phase: sequential Gauss-Seidel updates.
+    uint32_t* mg = thread_gen_.get();
+    double* mc = thread_comm_weight_.get();
+    uint32_t gv = 0;
+    std::vector<uint32_t> mt;
+    mt.reserve(256);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
-      for (size_t batch = 0; batch < num_batches; ++batch) {
-        size_t bs = batch * chunk, be = std::min(bs + chunk, n);
-        {
-          std::atomic<size_t> cursor(bs);
-          std::vector<std::thread> threads;
-          threads.reserve(nt - 1);
-          auto worker = [&](int tid) {
-            uint32_t* mg =
-                thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-            double* mc = thread_comm_weight_.get() +
-                         static_cast<size_t>(tid) * array_size_;
-            uint32_t& gv = gen_vals[tid];
-            auto& mt = touched[tid];
-            while (true) {
-              size_t s = cursor.fetch_add(64);
-              if (s >= be)
-                break;
-              size_t e = std::min(s + size_t(64), be);
-              for (size_t i = s; i < e; ++i) {
-                vid_t u = order[i];
+      for (size_t i = 0; i < n; ++i) {
+        vid_t u = order[i];
                 if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[u] != UINT32_MAX) {
-                  best_com[i] = community_[u];
+                    initial_community_[u] != UINT32_MAX)
                   continue;
-                }
                 uint32_t cc = community_[u];
                 double du = degree_[u];
                 ++gv;
@@ -466,26 +445,12 @@ bool Louvain::one_level() {
                     best = cm;
                   }
                 }
-                best_com[i] = best;
-              }
-            }
-          };
-          for (int t = 1; t < nt; ++t)
-            threads.emplace_back(worker, t);
-          worker(0);
-          for (auto& th : threads)
-            th.join();
-        }
-        for (size_t i = bs; i < be; ++i) {
-          vid_t u = order[i];
-          uint32_t cc = community_[u], nc = best_com[i];
-          if (nc != cc) {
-            stot_[cc] -= degree_[u];
-            stot_[nc] += degree_[u];
-            community_[u] = nc;
-            moved = true;
-            improved = true;
-          }
+        if (best != cc) {
+          stot_[cc] -= du;
+          stot_[best] += du;
+          community_[u] = best;
+          moved = true;
+          improved = true;
         }
       }
       if (!moved)
@@ -502,34 +467,19 @@ bool Louvain::one_level() {
       in_views[ti] = graph_.GetGenericIncomingGraphView(
           t.dst_label, t.src_label, t.edge_label);
     }
-    std::vector<uint32_t> gen_vals(nt, 0);
+    // Local-moving phase: sequential Gauss-Seidel updates.
+    uint32_t* mg = thread_gen_.get();
+    double* mc = thread_comm_weight_.get();
+    uint32_t gv = 0;
+    std::vector<uint32_t> mt;
+    mt.reserve(256);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
-      for (size_t batch = 0; batch < num_batches; ++batch) {
-        size_t bs = batch * chunk, be = std::min(bs + chunk, n);
-        {
-          std::atomic<size_t> cursor(bs);
-          std::vector<std::thread> threads;
-          threads.reserve(nt - 1);
-          auto worker = [&](int tid) {
-            uint32_t* mg =
-                thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-            double* mc = thread_comm_weight_.get() +
-                         static_cast<size_t>(tid) * array_size_;
-            uint32_t& gv = gen_vals[tid];
-            auto& mt = touched[tid];
-            while (true) {
-              size_t s = cursor.fetch_add(64);
-              if (s >= be)
-                break;
-              size_t e = std::min(s + size_t(64), be);
-              for (size_t i = s; i < e; ++i) {
-                uint32_t ug = order[i];
+      for (size_t i = 0; i < n; ++i) {
+        uint32_t ug = order[i];
                 if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[ug] != UINT32_MAX) {
-                  best_com[i] = community_[ug];
+                    initial_community_[ug] != UINT32_MAX)
                   continue;
-                }
                 uint32_t cc = community_[ug];
                 double du = degree_[ug];
                 size_t ul = global_to_label_idx_[ug];
@@ -585,25 +535,12 @@ bool Louvain::one_level() {
                     best = cm;
                   }
                 }
-                best_com[i] = best;
-              }
-            }
-          };
-          for (int t = 1; t < nt; ++t)
-            threads.emplace_back(worker, t);
-          worker(0);
-          for (auto& th : threads)
-            th.join();
-        }
-        for (size_t i = bs; i < be; ++i) {
-          uint32_t ug = order[i], cc = community_[ug], nc = best_com[i];
-          if (nc != cc) {
-            stot_[cc] -= degree_[ug];
-            stot_[nc] += degree_[ug];
-            community_[ug] = nc;
-            moved = true;
-            improved = true;
-          }
+        if (best != cc) {
+          stot_[cc] -= du;
+          stot_[best] += du;
+          community_[ug] = best;
+          moved = true;
+          improved = true;
         }
       }
       if (!moved)

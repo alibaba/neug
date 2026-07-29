@@ -396,112 +396,76 @@ bool Leiden::local_moving_phase() {
   std::mt19937 rng(42);
   std::shuffle(order.begin(), order.end(), rng);
   bool improved = false;
-  const size_t n = order.size(), chunk = 4096;
-  const size_t num_batches = (n + chunk - 1) / chunk;
-  const int nt = num_threads_;
-  std::vector<uint32_t> best_com(n);
-  std::vector<std::vector<uint32_t>> touched(nt);
-  for (int t = 0; t < nt; ++t)
-    touched[t].reserve(256);
+  const size_t n = order.size();
   if (is_simple_graph_) {
     auto oe_view = graph_.GetGenericOutgoingGraphView(
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
     auto ie_view = graph_.GetGenericIncomingGraphView(
         simple_vertex_label_, simple_vertex_label_, simple_edge_label_);
-    std::vector<uint32_t> gen_vals(nt, 0);
+    // Local-moving phase: sequential Gauss-Seidel updates.
+    uint32_t* my_gen = thread_gen_.get();
+    double* my_cw = thread_comm_weight_.get();
+    uint32_t gen_val = 0;
+    std::vector<uint32_t> touched;
+    touched.reserve(256);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
-      for (size_t batch = 0; batch < num_batches; ++batch) {
-        size_t batch_start = batch * chunk,
-               batch_end = std::min(batch_start + chunk, n);
-        {
-          std::atomic<size_t> cursor(batch_start);
-          std::vector<std::thread> threads;
-          threads.reserve(nt - 1);
-          auto worker = [&](int tid) {
-            uint32_t* my_gen =
-                thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-            double* my_cw = thread_comm_weight_.get() +
-                            static_cast<size_t>(tid) * array_size_;
-            uint32_t& gen_val = gen_vals[tid];
-            auto& my_touched = touched[tid];
-            while (true) {
-              size_t start = cursor.fetch_add(64);
-              if (start >= batch_end)
-                break;
-              size_t end = std::min(start + size_t(64), batch_end);
-              for (size_t i = start; i < end; ++i) {
-                vid_t u = order[i];
-                if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[u] != UINT32_MAX) {
-                  best_com[i] = community_[u];
-                  continue;
-                }
-                uint32_t cur_com = community_[u];
-                double deg_u = degree_[u];
-                ++gen_val;
-                my_touched.clear();
-                auto process_nbr = [&](vid_t v, double w) {
-                  if (v == u)
-                    return;
-                  uint32_t com = community_[v];
-                  if (my_gen[com] != gen_val) {
-                    my_gen[com] = gen_val;
-                    my_cw[com] = 0.0;
-                    my_touched.push_back(com);
-                  }
-                  my_cw[com] += w;
-                };
-                auto oes = oe_view.get_edges(u);
-                for (auto it = oes.begin(); it != oes.end(); ++it)
-                  process_nbr(*it,
-                              has_weight_
-                                  ? weight_accessor_.get_typed_data<double>(it)
-                                  : 1.0);
-                auto ies = ie_view.get_edges(u);
-                for (auto it = ies.begin(); it != ies.end(); ++it)
-                  process_nbr(*it,
-                              has_weight_
-                                  ? weight_accessor_.get_typed_data<double>(it)
-                                  : 1.0);
-                double w_self =
-                    (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
-                double stot_cur_minus_u = stot_[cur_com] - deg_u;
-                uint32_t best = cur_com;
-                double best_gain = 0.0;
-                for (uint32_t com : my_touched) {
-                  if (com == cur_com)
-                    continue;
-                  double w_com = my_cw[com];
-                  double gain =
-                      (w_com - w_self) / m_ -
-                      resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
-                      resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
-                  if (gain > best_gain) {
-                    best_gain = gain;
-                    best = com;
-                  }
-                }
-                best_com[i] = best;
-              }
-            }
-          };
-          for (int t = 1; t < nt; ++t)
-            threads.emplace_back(worker, t);
-          worker(0);
-          for (auto& th : threads)
-            th.join();
-        }
-        for (size_t i = batch_start; i < batch_end; ++i) {
-          vid_t u = order[i];
-          uint32_t cur_com = community_[u], new_com = best_com[i];
-          if (new_com != cur_com) {
-            stot_[cur_com] -= degree_[u];
-            stot_[new_com] += degree_[u];
-            community_[u] = new_com;
-            moved = true;
-            improved = true;
+      for (size_t i = 0; i < n; ++i) {
+        vid_t u = order[i];
+        if (initial_community_ && !allow_relocation_ &&
+            initial_community_[u] != UINT32_MAX)
+          continue;
+        uint32_t cur_com = community_[u];
+        double deg_u = degree_[u];
+        ++gen_val;
+        touched.clear();
+        auto process_nbr = [&](vid_t v, double w) {
+          if (v == u)
+            return;
+          uint32_t com = community_[v];
+          if (my_gen[com] != gen_val) {
+            my_gen[com] = gen_val;
+            my_cw[com] = 0.0;
+            touched.push_back(com);
           }
+          my_cw[com] += w;
+        };
+        auto oes = oe_view.get_edges(u);
+        for (auto it = oes.begin(); it != oes.end(); ++it)
+          process_nbr(*it,
+                      has_weight_
+                          ? weight_accessor_.get_typed_data<double>(it)
+                          : 1.0);
+        auto ies = ie_view.get_edges(u);
+        for (auto it = ies.begin(); it != ies.end(); ++it)
+          process_nbr(*it,
+                      has_weight_
+                          ? weight_accessor_.get_typed_data<double>(it)
+                          : 1.0);
+        double w_self =
+            (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
+        double stot_cur_minus_u = stot_[cur_com] - deg_u;
+        uint32_t best = cur_com;
+        double best_gain = 0.0;
+        for (uint32_t com : touched) {
+          if (com == cur_com)
+            continue;
+          double w_com = my_cw[com];
+          double gain =
+              (w_com - w_self) / m_ -
+              resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
+              resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
+          if (gain > best_gain) {
+            best_gain = gain;
+            best = com;
+          }
+        }
+        if (best != cur_com) {
+          stot_[cur_com] -= deg_u;
+          stot_[best] += deg_u;
+          community_[u] = best;
+          moved = true;
+          improved = true;
         }
       }
       if (!moved)
@@ -517,41 +481,25 @@ bool Leiden::local_moving_phase() {
       in_views[ti] = graph_.GetGenericIncomingGraphView(
           t.dst_label, t.src_label, t.edge_label);
     }
-    std::vector<uint32_t> gen_vals(nt, 0);
+    // Local-moving phase: sequential Gauss-Seidel updates.
+    uint32_t* my_gen = thread_gen_.get();
+    double* my_cw = thread_comm_weight_.get();
+    uint32_t gen_val = 0;
+    std::vector<uint32_t> touched;
+    touched.reserve(256);
     for (int pass = 0; pass < 10; ++pass) {
       bool moved = false;
-      for (size_t batch = 0; batch < num_batches; ++batch) {
-        size_t batch_start = batch * chunk,
-               batch_end = std::min(batch_start + chunk, n);
-        {
-          std::atomic<size_t> cursor(batch_start);
-          std::vector<std::thread> threads;
-          threads.reserve(nt - 1);
-          auto worker = [&](int tid) {
-            uint32_t* my_gen =
-                thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-            double* my_cw = thread_comm_weight_.get() +
-                            static_cast<size_t>(tid) * array_size_;
-            uint32_t& gen_val = gen_vals[tid];
-            auto& my_touched = touched[tid];
-            while (true) {
-              size_t start = cursor.fetch_add(64);
-              if (start >= batch_end)
-                break;
-              size_t end = std::min(start + size_t(64), batch_end);
-              for (size_t i = start; i < end; ++i) {
-                uint32_t u_gid = order[i];
+      for (size_t i = 0; i < n; ++i) {
+        uint32_t u_gid = order[i];
                 if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[u_gid] != UINT32_MAX) {
-                  best_com[i] = community_[u_gid];
+                    initial_community_[u_gid] != UINT32_MAX)
                   continue;
-                }
                 uint32_t cur_com = community_[u_gid];
                 double deg_u = degree_[u_gid];
                 vid_t u_local = global_to_vid_[u_gid];
                 size_t u_li = global_to_label_idx_[u_gid];
                 ++gen_val;
-                my_touched.clear();
+                touched.clear();
                 auto process_nbr = [&](uint32_t v_gid, double w) {
                   if (v_gid == u_gid)
                     return;
@@ -559,7 +507,7 @@ bool Leiden::local_moving_phase() {
                   if (my_gen[com] != gen_val) {
                     my_gen[com] = gen_val;
                     my_cw[com] = 0.0;
-                    my_touched.push_back(com);
+                    touched.push_back(com);
                   }
                   my_cw[com] += w;
                 };
@@ -592,7 +540,7 @@ bool Leiden::local_moving_phase() {
                 double stot_cur_minus_u = stot_[cur_com] - deg_u;
                 uint32_t best = cur_com;
                 double best_gain = 0.0;
-                for (uint32_t com : my_touched) {
+                for (uint32_t com : touched) {
                   if (com == cur_com)
                     continue;
                   double w_com = my_cw[com];
@@ -605,26 +553,12 @@ bool Leiden::local_moving_phase() {
                     best = com;
                   }
                 }
-                best_com[i] = best;
-              }
-            }
-          };
-          for (int t = 1; t < nt; ++t)
-            threads.emplace_back(worker, t);
-          worker(0);
-          for (auto& th : threads)
-            th.join();
-        }
-        for (size_t i = batch_start; i < batch_end; ++i) {
-          uint32_t u_gid = order[i], cur_com = community_[u_gid],
-                   new_com = best_com[i];
-          if (new_com != cur_com) {
-            stot_[cur_com] -= degree_[u_gid];
-            stot_[new_com] += degree_[u_gid];
-            community_[u_gid] = new_com;
-            moved = true;
-            improved = true;
-          }
+        if (best != cur_com) {
+          stot_[cur_com] -= deg_u;
+          stot_[best] += deg_u;
+          community_[u_gid] = best;
+          moved = true;
+          improved = true;
         }
       }
       if (!moved)
