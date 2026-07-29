@@ -23,6 +23,7 @@
 #include <exception>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "neug/execution/common/operators/retrieve/sink.h"
@@ -138,12 +139,10 @@ bool invalidatesQueryCache(const physical::ExecutionFlag& flags) {
          flags.insert() || flags.update();
 }
 
+template <typename Storage>
 Status executePreparedQuery(execution::CacheValue& prepared_query,
                             const execution::ParamsMap& parameters,
-                            IStorageInterface& storage,
-                            StorageReadInterface* result_storage,
-                            neug::QueryResponse& response) {
-  DCHECK_EQ(storage.readable(), result_storage != nullptr);
+                            Storage& storage, neug::QueryResponse& response) {
   response.mutable_schema()->CopyFrom(prepared_query.result_schema);
 
   if (prepared_query.explain_mode == physical::ExplainMode::EXPLAIN) {
@@ -171,8 +170,8 @@ Status executePreparedQuery(execution::CacheValue& prepared_query,
     return context.error();
   }
 
-  if (result_storage != nullptr) {
-    execution::Sink::sink_results(context.value(), *result_storage, &response);
+  if constexpr (std::is_base_of_v<StorageReadInterface, Storage>) {
+    execution::Sink::sink_results(context.value(), storage, &response);
   }
 
   if (timer) {
@@ -291,10 +290,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
                                ? planner_->analyzeMode(query)
                                : requested_mode;
 
-  auto execute_on_storage =
-      [this, &query, access_mode, &parameters, num_threads, &response](
-          const GraphStats& stats, IStorageInterface& storage,
-          StorageReadInterface* result_storage) -> Status {
+  auto execute_on_storage = [this, &query, access_mode, &parameters,
+                             num_threads, &response](const GraphStats& stats,
+                                                     auto& storage) -> Status {
     auto prepared = prepareQuery(stats, query, num_threads);
     if (!prepared) {
       return prepared.error();
@@ -312,7 +310,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
     }
 
     status = executePreparedQuery(*cache_value, parsed_parameters.value(),
-                                  storage, result_storage, response);
+                                  storage, response);
     if (!status.ok()) {
       return status;
     }
@@ -329,8 +327,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       TimestampLease lease(version_manager_, LeaseKind::kRead);
       SnapshotGuard guard(snapshot_store_);
       StorageReadInterface storage(guard.get().view(), lease.timestamp());
-      status = execute_on_storage(GraphStats(*guard.get().mutable_graph()),
-                                  storage, &storage);
+      status =
+          execute_on_storage(GraphStats(*guard.get().mutable_graph()), storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -341,8 +339,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageAPUpdateInterface storage(*slot.mutable_graph(),
                                        slot.mutable_view(), lease.timestamp(),
                                        alloc_);
-      status = execute_on_storage(GraphStats(*slot.mutable_graph()), storage,
-                                  &storage);
+      status = execute_on_storage(GraphStats(*slot.mutable_graph()), storage);
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -350,11 +347,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
               std::to_string(static_cast<int>(access_mode)));
     }
   } else {
-    auto execute_and_commit =
-        [&execute_on_storage](auto& transaction, IStorageInterface& storage,
-                              StorageReadInterface* result_storage) -> Status {
+    auto execute_and_commit = [&execute_on_storage](auto& transaction,
+                                                    auto& storage) -> Status {
       auto transaction_status =
-          execute_on_storage(transaction.statistic(), storage, result_storage);
+          execute_on_storage(transaction.statistic(), storage);
       if (!transaction_status.ok()) {
         return transaction_status;
       }
@@ -367,17 +363,16 @@ Status ExecutionSlot::executeCore(const std::string& query,
     if (access_mode == AccessMode::kRead) {
       auto transaction = GetReadTransaction();
       StorageReadInterface storage(transaction.view(), transaction.timestamp());
-      status = execute_and_commit(transaction, storage, &storage);
+      status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kInsert) {
       auto transaction = GetInsertTransaction();
       StorageTPInsertInterface storage(transaction);
-      status = execute_and_commit(transaction, storage,
-                                  /*result_storage=*/nullptr);
+      status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
       auto transaction = GetUpdateTransaction();
       StorageTPUpdateInterface storage(transaction);
-      status = execute_and_commit(transaction, storage, &storage);
+      status = execute_and_commit(transaction, storage);
     } else {
       return Status(StatusCode::ERR_NOT_SUPPORTED,
                     "Access mode not supported in transactional ExecutionSlot "
