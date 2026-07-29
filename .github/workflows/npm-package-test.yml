@@ -7,7 +7,7 @@ on:
       package_source:
         description: Package source, either npm or artifact
         required: false
-        default: npm
+        default: artifact
         type: string
   # Manual runs verify the packages currently published to npm.
   workflow_dispatch: {}
@@ -19,6 +19,8 @@ concurrency:
 jobs:
   package-test:
     runs-on: ${{ matrix.os }}
+    env:
+      ARTIFACT_PLATFORM: ${{ matrix.os == 'ubuntu-latest' && 'linux-x86_64' || 'osx-arm64' }}
     strategy:
       fail-fast: false
       matrix:
@@ -61,27 +63,25 @@ jobs:
           cd "${RUNNER_TEMP}/neug-npm-package-test"
           npm install neug@npm:@graphscope-neug/neug
 
-      - name: Download npm packages
+      - name: Download npm packages from artifacts
         if: inputs.package_source == 'artifact'
         uses: actions/download-artifact@v4
         with:
-          pattern: nodejs-*-${{ github.run_id }}
+          name: nodejs-${{ env.ARTIFACT_PLATFORM }}-${{ github.run_id }}
           path: ${{ runner.temp }}/neug-npm-package-test
-          merge-multiple: true
 
-      - name: Install NeuG package from artifacts
+      - name: Install NeuG package from artifact
         if: inputs.package_source == 'artifact'
         run: |
           set -euo pipefail
 
           TEST_WORKSPACE="${RUNNER_TEMP}/neug-npm-package-test"
           cd "${TEST_WORKSPACE}"
-
-          npm install --offline ./graphscope-neug-neug-*.tgz
+          npm install ./graphscope-neug-"${ARTIFACT_PLATFORM}"-*.tgz
 
           # npm aliases only support registry packages. Recreate the public
           # "neug" alias locally after installing the scoped artifact.
-          ln -s '@graphscope-neug/neug' node_modules/neug
+          ln -s "@graphscope-neug/${ARTIFACT_PLATFORM}" node_modules/neug
 
       - name: Prepare modern graph dataset
         env:
