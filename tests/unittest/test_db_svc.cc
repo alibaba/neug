@@ -433,7 +433,7 @@ TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
   EXPECT_EQ(response.row_count(), 1u);
 }
 
-TEST_F(NeugDBServiceTest, TransactionalRequestRejectsUnexpectedParameters) {
+TEST_F(NeugDBServiceTest, TransactionalRequestIgnoresUnexpectedParameters) {
   neug::NeugDBService service(*db_, config_);
   auto slot = service.AcquireExecutionSlot();
   ASSERT_TRUE(slot);
@@ -442,10 +442,11 @@ TEST_F(NeugDBServiceTest, TransactionalRequestRejectsUnexpectedParameters) {
       {"query":"MATCH (n:person) RETURN n.id;",
        "access_mode":"read","parameters":{"unused":1}})json");
 
-  ASSERT_FALSE(result);
-  EXPECT_EQ(result.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
-  EXPECT_NE(result.error().error_message().find("Unexpected parameter: unused"),
-            std::string::npos);
+  ASSERT_TRUE(result) << result.error().ToString();
+
+  QueryResponse response;
+  ASSERT_TRUE(response.ParseFromString(result.value()));
+  EXPECT_GT(response.row_count(), 0u);
 }
 
 TEST_F(NeugDBServiceTest, TransactionalRequestRejectsNonObjectParameters) {

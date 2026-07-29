@@ -32,6 +32,7 @@ result<ParamsMap> parseJsonParameters(const ParamsMetaMap& parameter_types,
     auto iter = parameter_types.find(key);
     if (iter == parameter_types.end()) {
       VLOG(1) << "Parameter key not found in meta: " << key;
+      continue;
     }
     params.emplace(key, Value::FromJson(member.value, iter->second));
   }
