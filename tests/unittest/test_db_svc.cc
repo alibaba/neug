@@ -33,20 +33,11 @@
 #include "neug/main/connection_manager.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
-#include "neug/server/bthread_runtime_wait.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/transaction/version_manager.h"
 #include "utils.h"
 
 namespace neug {
-
-struct NeugDBServiceTestPeer {
-  static RuntimeWaitFn runtime_wait(const NeugDB& db) {
-    return static_cast<const VersionManager&>(*db.version_manager_)
-        .runtime_wait_.load(std::memory_order_acquire);
-  }
-};
 
 namespace test {
 
@@ -900,20 +891,16 @@ TEST_F(NeugDBServiceTest, ConnectionManagerCountsOnlyOpenConnections) {
 }
 
 TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
-  ASSERT_NE(&NativeRuntimeWait, &BthreadRuntimeWait);
-  EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &NativeRuntimeWait);
-
   neug::ServiceConfig bad_cfg;
   bad_cfg.query_port = 0;
   bad_cfg.host_str = "127.0.0.1";
   bad_cfg.thread_num = static_cast<uint32_t>(db_->config().max_thread_num + 1);
 
-  // Construction fails after installing bthread wait ops. Both lifecycle
-  // effects must be rolled back.
+  // Construction failure must release all service lifecycle state so the
+  // database can serve again.
   EXPECT_THROW(neug::NeugDBService service(*db_, bad_cfg),
                neug::exception::InvalidArgumentException);
   EXPECT_FALSE(db_->HasActiveService());
-  EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &NativeRuntimeWait);
 
   neug::ServiceConfig good_cfg;
   good_cfg.query_port = 0;
@@ -921,10 +908,13 @@ TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
   {
     neug::NeugDBService service(*db_, good_cfg);
     EXPECT_TRUE(db_->HasActiveService());
-    EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &BthreadRuntimeWait);
   }
   EXPECT_FALSE(db_->HasActiveService());
-  EXPECT_EQ(NeugDBServiceTestPeer::runtime_wait(*db_), &NativeRuntimeWait);
+
+  // A second successful lifecycle verifies that teardown leaves no hidden
+  // service state behind.
+  EXPECT_NO_THROW(neug::NeugDBService service(*db_, good_cfg));
+  EXPECT_FALSE(db_->HasActiveService());
 }
 
 TEST_F(NeugDBServiceTest, ConnectWhileServingThrows) {

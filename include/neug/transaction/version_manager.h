@@ -125,7 +125,6 @@ class VersionManager : public IVersionManager {
 
  private:
   friend struct VersionManagerTestPeer;
-  friend struct NeugDBServiceTestPeer;
 
   enum class AdmissionState { kOpen, kInsertsBlocked, kAllBlocked };
 

@@ -407,7 +407,6 @@ class NeugDB {
 
   friend class ConnectionManager;
   friend class NeugDBService;
-  friend struct NeugDBServiceTestPeer;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
