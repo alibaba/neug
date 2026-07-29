@@ -62,14 +62,11 @@ class GlobalQueryCache {
 
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
-    const uint64_t requested_generation = stats.query_cache_generation();
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
-      if (requested_generation == version_.load(std::memory_order_relaxed)) {
-        auto iter = cache_.find(query);
-        if (iter != cache_.end()) {
-          return iter->second;
-        }
+      auto iter = cache_.find(query);
+      if (iter != cache_.end()) {
+        return iter->second;
       }
     }
     const auto& schema = stats.schema();
@@ -90,32 +87,24 @@ class GlobalQueryCache {
     auto params_type =
         execution::PlanParser::parse_params_type(plan_result.first);
     auto explain_mode = plan_result.first.explain_mode();
-    auto compiled = std::make_shared<CacheValue>(
-        std::move(pipeline_result), std::move(params_type), sch,
-        plan_result.first.flag(), explain_mode);
     {
       std::unique_lock<std::shared_mutex> write_lock(mutex_);
-      // A reader pinned to an old snapshot may finish compilation after a
-      // schema update invalidates the cache. It may use that plan for its own
-      // snapshot, but must never publish it into the new generation.
-      if (requested_generation != version_.load(std::memory_order_relaxed)) {
-        return compiled;
-      }
       auto iter = cache_.find(query);
       if (iter != cache_.end()) {
         return iter->second;
       }
-      cache_.emplace(query, compiled);
-      return compiled;
+      cache_.emplace(
+          query, std::make_shared<CacheValue>(
+                     std::move(pipeline_result), std::move(params_type), sch,
+                     plan_result.first.flag(), explain_mode));
+      return cache_.at(query);
     }
   }
 
-  uint64_t clear() {
+  void clear() {
     std::unique_lock<std::shared_mutex> write_lock(mutex_);
-    const auto generation =
-        version_.fetch_add(1, std::memory_order_relaxed) + 1;
+    version_.fetch_add(1);
     cache_.clear();
-    return generation;
   }
 
  private:
@@ -136,10 +125,9 @@ class LocalQueryCache {
   ~LocalQueryCache() = default;
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
-    const uint64_t requested_generation = stats.query_cache_generation();
-    if (version_ != requested_generation) {
+    if (version_ != global_cache_->version()) {
       cache_.clear();
-      version_ = requested_generation;
+      version_ = global_cache_->version();
     }
     auto iter = cache_.find(query);
     if (iter != cache_.end()) {
@@ -150,11 +138,10 @@ class LocalQueryCache {
     return cache_.at(query);
   }
 
-  uint64_t clearGlobalCache() {
-    const uint64_t generation = global_cache_->clear();
-    version_ = generation;
+  void clearGlobalCache() {
+    global_cache_->clear();
+    version_ = global_cache_->version();
     cache_.clear();
-    return generation;
   }
 
  private:

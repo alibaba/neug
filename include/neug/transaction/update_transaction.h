@@ -90,8 +90,7 @@ class UpdateTransaction {
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
                     IWalWriter& logger, IVersionManager& vm,
                     GraphSnapshotStore& snapshot_store,
-                    execution::LocalQueryCache& cache, timestamp_t timestamp,
-                    uint64_t query_cache_generation = 0);
+                    execution::LocalQueryCache& cache, timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls Abort().
@@ -114,9 +113,7 @@ class UpdateTransaction {
 
   const GraphView& view() const { return view_; }
 
-  GraphStats statistic() const {
-    return GraphStats(*cow_graph_, query_cache_generation_);
-  }
+  GraphStats statistic() const { return GraphStats(*cow_graph_); }
 
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }
@@ -166,7 +163,6 @@ class UpdateTransaction {
   GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
-  uint64_t query_cache_generation_;
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;

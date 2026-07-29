@@ -72,17 +72,12 @@ class GraphSnapshotStore {
     /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
     /// of shared_ptr constness, so this works through const SnapshotSlot& too).
     PropertyGraph* mutable_graph() const { return storage_.get(); }
-    /// Query-plan cache generation associated with this snapshot's schema.
-    uint64_t query_cache_generation() const {
-      return query_cache_generation_.load(std::memory_order_acquire);
-    }
 
    private:
     friend class GraphSnapshotStore;
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
     std::atomic<int> reader_count_{0};
-    std::atomic<uint64_t> query_cache_generation_{0};
   };
 
   /// @param slot_num  Pool capacity (default 128).
@@ -111,15 +106,6 @@ class GraphSnapshotStore {
   /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
   Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
-  Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg,
-                         uint64_t query_cache_generation);
-
-  /// Query-cache generation carried by the current snapshot.
-  uint64_t CurrentQueryCacheGeneration() const;
-
-  /// Update the current in-place snapshot after a cache-invalidating AP write.
-  /// The caller must block new readers and drain existing readers.
-  void SetCurrentQueryCacheGeneration(uint64_t generation);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }

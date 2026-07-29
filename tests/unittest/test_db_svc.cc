@@ -595,40 +595,6 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
   EXPECT_EQ(query_cache->version(), initial_version + 1);
 }
 
-TEST_F(NeugDBServiceTest,
-       OldSnapshotCompilationDoesNotRepopulateNewQueryCacheGeneration) {
-  neug::NeugDBService service(*db_, config_);
-  auto old_slot = service.AcquireExecutionSlot();
-  auto ddl_slot = service.AcquireExecutionSlot();
-  ASSERT_TRUE(old_slot);
-  ASSERT_TRUE(ddl_slot);
-
-  auto old_transaction = old_slot->GetReadTransaction();
-  const auto old_stats = old_transaction.statistic();
-  const auto query_cache = db_->GetQueryCache();
-  const auto old_generation = query_cache->version();
-
-  auto ddl =
-      ddl_slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
-          "ALTER TABLE person DROP age;", "schema", {}));
-  ASSERT_TRUE(ddl) << ddl.error().ToString();
-  ASSERT_EQ(query_cache->version(), old_generation + 1);
-
-  constexpr const char* kOldSchemaQuery = "MATCH (n:person) RETURN n.age;";
-  execution::LocalQueryCache old_snapshot_cache(query_cache);
-  auto old_plan = old_snapshot_cache.Get(old_stats, kOldSchemaQuery);
-  ASSERT_TRUE(old_plan) << old_plan.error().ToString();
-
-  auto new_transaction = ddl_slot->GetReadTransaction();
-  execution::LocalQueryCache new_snapshot_cache(query_cache);
-  auto new_plan =
-      new_snapshot_cache.Get(new_transaction.statistic(), kOldSchemaQuery);
-  EXPECT_FALSE(new_plan);
-
-  EXPECT_TRUE(new_transaction.Commit());
-  EXPECT_TRUE(old_transaction.Commit());
-}
-
 TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
   auto connection = db_->Connect();
   ASSERT_TRUE(
