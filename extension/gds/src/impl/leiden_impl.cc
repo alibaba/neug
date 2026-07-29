@@ -235,21 +235,22 @@ void Leiden::compute() {
       modularity_ = 0;
       return;
     }
+    // Initialize stot_ (community degree totals). Always use += since
+    // stot_ is zero-filled; with initial_community_, multiple vertices
+    // may share the same community ID.
     std::fill_n(stot_.get(), array_size_, 0.0);
-    if (!initial_community_) {
-      ParallelUtils::parallel_for(
-          valid_vertices_.data(), valid_vertices_.size(),
-          [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, num_threads_);
-    } else {
-      for (uint32_t gid : valid_vertices_)
-        stot_[community_[gid]] += degree_[gid];
-    }
+    for (uint32_t gid : valid_vertices_)
+      stot_[community_[gid]] += degree_[gid];
     for (int level = 0; level < 100; ++level) {
       bool improved = local_moving_phase();
       if (!improved)
         break;
       if (allow_relocation_ || !initial_community_)
         refine();
+      // Rebuild stot_ after refine() which may split/rename communities.
+      std::fill_n(stot_.get(), array_size_, 0.0);
+      for (uint32_t gid : valid_vertices_)
+        stot_[community_[gid]] += degree_[gid];
       std::vector<double> local_mod(num_threads_, 0.0);
       ParallelUtils::parallel_for(
           valid_vertices_.data(), valid_vertices_.size(),
@@ -335,20 +336,22 @@ void Leiden::compute() {
       modularity_ = 0;
       return;
     }
+    // Initialize stot_ (community degree totals). Always use += since
+    // stot_ is zero-filled; with initial_community_, multiple vertices
+    // may share the same community ID.
     std::fill_n(stot_.get(), array_size_, 0.0);
-    if (!initial_community_) {
-      for (uint32_t gid : valid_vertices_)
-        stot_[community_[gid]] = degree_[gid];
-    } else {
-      for (uint32_t gid : valid_vertices_)
-        stot_[community_[gid]] += degree_[gid];
-    }
+    for (uint32_t gid : valid_vertices_)
+      stot_[community_[gid]] += degree_[gid];
     for (int level = 0; level < 100; ++level) {
       bool improved = local_moving_phase();
       if (!improved)
         break;
       if (allow_relocation_ || !initial_community_)
         refine();
+      // Rebuild stot_ after refine() which may split/rename communities.
+      std::fill_n(stot_.get(), array_size_, 0.0);
+      for (uint32_t gid : valid_vertices_)
+        stot_[community_[gid]] += degree_[gid];
       std::vector<double> local_mod(num_threads_, 0.0);
       ParallelUtils::parallel_for(
           valid_vertices_.data(), valid_vertices_.size(),
