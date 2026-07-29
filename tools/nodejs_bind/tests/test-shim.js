@@ -15,11 +15,14 @@
 
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
+const { fork } = require('child_process');
 
 /**
  * Minimal test shim compatible with Node.js 16 (no node:test built-in).
  * Provides test(), before(), and after() with basic TAP-style output.
+ * When run directly, discovers and aggregates all test_*.js files.
  */
 
 const _beforeHooks = [];
@@ -157,6 +160,138 @@ async function _run() {
       console.log('#');
     }
   }
+
+  if (typeof process.send === 'function') {
+    process.send({
+      type: 'neug:test-result',
+      result: {
+        passed,
+        failed,
+        skipped,
+        failures: _failures,
+      },
+    });
+  }
+}
+
+function runTestFile(file) {
+  return new Promise((resolve) => {
+    const child = fork(path.join(__dirname, file), [], {
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    });
+    let result;
+
+    child.on('message', (message) => {
+      if (message && message.type === 'neug:test-result') {
+        result = message.result;
+      }
+    });
+    child.on('error', (err) => {
+      console.error(err.stack || err);
+    });
+    child.on('close', (code, signal) => {
+      resolve({
+        code,
+        signal,
+        result,
+      });
+    });
+  });
+}
+
+function firstLine(value) {
+  return String(value).split('\n')[0];
+}
+
+async function runAllTests() {
+  const testFiles = fs
+    .readdirSync(__dirname)
+    .filter((file) => /^test_.*\.js$/.test(file))
+    .sort();
+
+  if (testFiles.length === 0) {
+    throw new Error(`No test files found in ${__dirname}`);
+  }
+
+  const totals = { passed: 0, failed: 0, skipped: 0 };
+  const failures = [];
+  const runnerErrors = [];
+  let passedFiles = 0;
+
+  for (const file of testFiles) {
+    console.log(`Running tests/${file} ...`);
+    const execution = await runTestFile(file);
+
+    if (execution.result) {
+      totals.passed += execution.result.passed;
+      totals.failed += execution.result.failed;
+      totals.skipped += execution.result.skipped;
+      failures.push(...execution.result.failures);
+    }
+
+    if (
+      execution.code === 0 &&
+      execution.result &&
+      execution.result.failed === 0
+    ) {
+      passedFiles++;
+      console.log(`PASS tests/${file}`);
+    } else {
+      console.log(`FAIL tests/${file}`);
+      if (!execution.result || execution.result.failures.length === 0) {
+        runnerErrors.push({
+          file,
+          signal: execution.signal,
+        });
+      }
+    }
+  }
+
+  const failedFiles = testFiles.length - passedFiles;
+  const totalTests = totals.passed + totals.failed + totals.skipped;
+
+  console.log('');
+  console.log('# ------ Tests Summary ------');
+  console.log('');
+  console.log(`# test files: ${testFiles.length}`);
+  console.log(`# file passed: ${passedFiles}`);
+  console.log(`# file failed: ${failedFiles}`);
+  console.log(`# total tests: ${totalTests}`);
+  console.log(`# passed:  ${totals.passed}`);
+  console.log(`# failed:  ${totals.failed}`);
+  console.log(`# skipped:  ${totals.skipped}`);
+
+  if (failures.length > 0 || runnerErrors.length > 0) {
+    console.log('');
+
+    for (const { name, file, error } of failures) {
+      console.log(`# FAIL: ${name}`);
+      console.log(`#   file:  ${file}`);
+      console.log(`#   error: ${firstLine(error)}`);
+      console.log('#');
+    }
+
+    for (const error of runnerErrors) {
+      console.log(`# FAIL: tests/${error.file}`);
+      if (error.signal) {
+        console.log(`#   error: terminated by signal ${error.signal}`);
+      } else {
+        console.log('#   error: test process exited without a result');
+      }
+      console.log('#');
+    }
+  }
+
+  if (failedFiles > 0) {
+    process.exitCode = 1;
+  }
 }
 
 module.exports = { test, before, after, prepareModernGraphDataset };
+
+if (require.main === module) {
+  runAllTests().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}
