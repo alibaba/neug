@@ -171,7 +171,7 @@ bool MMapContainer::IsDirty() {
                 MD5_DIGEST_LENGTH) != 0;
 }
 
-std::unique_ptr<IDataContainer> MMapContainer::Fork(Checkpoint& checkpoint,
+std::shared_ptr<IDataContainer> MMapContainer::Fork(Checkpoint& checkpoint,
                                                     MemoryLevel level) {
   Sync();
   if (!IsDirty()) {

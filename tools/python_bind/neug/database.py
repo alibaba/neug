@@ -254,12 +254,13 @@ class Database(object):
         host: str = "localhost",
         blocking: bool = True,
         thread_num: int = 0,
+        auto_compaction: bool = True,
     ):
         """
         Start the database server for handling remote connections(TP mode).
         This method is used to start the database server for handling remote connections.
-        When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
-        will be closed. After that, no new connections to the local database will be allowed.
+        Before db.serve() switches the database to TP mode, all local connections
+        must be closed. After the switch, no new local connections are allowed.
         It will start a server that listens on a specific port, and clients can connect to the server to interact with the
         database. User could use Session to connect to the server. For detail usage, please refer to the
         documentation of Session.
@@ -276,6 +277,8 @@ class Database(object):
             Service thread count. Default is 0, which means auto-select from
             database max_thread_num. If set explicitly, it must be less than or
             equal to max_thread_num.
+        auto_compaction : bool
+            Enable background auto-compaction while serving. Default is True.
 
         Returns
         -------
@@ -316,12 +319,14 @@ class Database(object):
         for conn in self._connections:
             if conn and conn.is_open:
                 raise RuntimeError(
-                    "Cannot start the server while there are open connections to the local database."
+                    "Cannot start the server while local connections are open. Close all "
+                    "Connection objects before calling Database.serve()."
                 )
         for async_conn in self._async_connections:
             if async_conn and async_conn.is_open:
                 raise RuntimeError(
-                    "Cannot start the server while there are open async connections to the local database."
+                    "Cannot start the server while local async connections are open. "
+                    "Close all AsyncConnection objects before calling Database.serve()."
                 )
         # We should not clear the connections here, because the connection maybe held by the user.
         # Instead, we will close all connections when the server is stopped.
@@ -331,9 +336,17 @@ class Database(object):
         self._serving = True
         logger.info(f"Starting database server on {host}:{port}.")
         try:
-            endpoint = self._database.serve(port, host, thread_num, blocking)
+            endpoint = self._database.serve(
+                port, host, thread_num, blocking, auto_compaction
+            )
         except KeyboardInterrupt:
             self.stop_serving()
+            raise
+        except Exception:
+            self._serving = False
+            raise
+        if blocking:
+            self._serving = False
         return endpoint
 
     def stop_serving(self):

@@ -11,5 +11,6 @@ Cypher Manual
    dml_clause
    expression
    query_clauses
+   explain_profile
 
 

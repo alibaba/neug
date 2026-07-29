@@ -2,22 +2,9 @@ name: NeuG Test (macOS arm64)
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/OSX.yml'
-      - '.github/workflows/build-and-test-common.yml'
-      - 'scripts/install_deps.sh'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
+  release:
+    types:
+      - created
   push:
     paths:
       - 'cmake/**'
@@ -42,8 +29,8 @@ concurrency:
 jobs:
   format_check:
     if: |
-      github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release' ||
       (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))
     uses: ./.github/workflows/format-check.yml
     with:
@@ -55,7 +42,7 @@ jobs:
   # ============================================================
   build_and_test_macos_arm64:
     needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))) }}
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'release' || (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))) }}
     uses: ./.github/workflows/build-and-test-common.yml
     with:
       runs-on: '["macos-14"]'

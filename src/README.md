@@ -93,11 +93,11 @@ Common utilities and infrastructure components used throughout the system.
 ### 🚀 [`main/`](./main/)
 **Main Database Engine**
 
-Core database engine implementation and session management.
+Core database engine implementation and execution slot management.
 
 - **Core Engine Components:**
   - `neug_db.cc` - Main database engine implementation
-  - `query_processor.cc` - Query processing orchestration
+  - `execution_slot.cc` - Shared AP/TP query processing and transaction factories
   - `query_request.cc` - Query request representation and parsing
   - `query_result.cc` - Query result handling and formatting
 - **Connection Management:**
@@ -113,5 +113,4 @@ HTTP and RPC server implementations for service mode operations.
 - **Service Management:**
   - `brpc_service_mgr.cc` - BRPC service framework management
   - `neug_db_service.cc` - Database service implementation and API endpoints
-  - `neug_db_session.cc` - Service-side session handling and state management
-  - `session_pool.cc` - Session pooling and resource management
+  - `tp_execution_slot_pool.cc` - ExecutionSlot pooling and resource management

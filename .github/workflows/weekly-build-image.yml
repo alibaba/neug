@@ -1,4 +1,4 @@
-name: Build NeuG image
+name: Weekly Build NeuG image
 
 on:
   # Trigger the workflow on push or pull request,
@@ -7,8 +7,8 @@ on:
   schedule:
     # The notifications for scheduled workflows are sent to the user who
     # last modified the cron syntax in the workflow file.
-    # Trigger the workflow at 22:00(CST) every day.
-    - cron:  '0 14 * * *'
+    # Trigger the workflow at 22:00(CST) every Monday.
+    - cron:  '0 14 * * 1'
   push:
     tags:
       - "v*"
@@ -16,7 +16,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/build-image.yml'
+      - '.github/workflows/weekly-build-image.yml'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}

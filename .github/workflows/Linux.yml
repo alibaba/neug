@@ -4,6 +4,9 @@ on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
+  release:
+    types:
+      - created
   pull_request:
     branches:
       - main
@@ -53,11 +56,11 @@ jobs:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
 
   # ============================================================
-  # Unified Jobs: Build NeuG + run C++, Python, and E2E tests
+  # Push / workflow_dispatch: build both x86_64 and arm64
   # ============================================================
   build_and_test_linux_x86_64:
     needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') }}
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') && contains(fromJSON('["push", "workflow_dispatch", "release"]'), github.event_name) }}
     uses: ./.github/workflows/build-and-test-common.yml
     with:
       runs-on: ${{ github.repository == 'alibaba/neug' && '["self-hosted", "daily", "linux", "x64"]' || '["ubuntu-22.04"]' }}
@@ -70,10 +73,29 @@ jobs:
 
   build_and_test_linux_arm64:
     needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') }}
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name != 'push' || github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main') && contains(fromJSON('["push", "workflow_dispatch", "release"]'), github.event_name) }}
     uses: ./.github/workflows/build-and-test-common.yml
     with:
       runs-on: ${{ github.repository == 'alibaba/neug' && '["self-hosted", "daily", "linux", "arm64"]' || '["ubuntu-22.04-arm"]' }}
+      container-json: '{"image":"neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3"}'
+      os-type: linux
+      enable-java-test: true
+      enable-coverage: true
+      enable-gopt-test: true
+      event-name: ${{ github.event_name }}
+
+  # ============================================================
+  # Pull Request: run a single random architecture
+  # - self-hosted: omit arch label to let the runner pool pick randomly
+  # - GitHub-hosted: fallback to x86_64 (ubuntu-22.04)
+  # ============================================================
+  build_and_test_linux_pr:
+    name: Build and test Linux (PR random arch)
+    needs: format_check
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && github.event_name == 'pull_request' }}
+    uses: ./.github/workflows/build-and-test-common.yml
+    with:
+      runs-on: ${{ github.repository == 'alibaba/neug' && '["self-hosted", "daily", "linux"]' || '["ubuntu-22.04"]' }}
       container-json: '{"image":"neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3"}'
       os-type: linux
       enable-java-test: true

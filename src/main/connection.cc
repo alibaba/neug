@@ -15,22 +15,25 @@
 
 #include "neug/main/connection.h"
 
-#include "neug/main/neug_db.h"
-#include "neug/main/query_request.h"
-#include "neug/utils/pb_utils.h"
-#include "neug/utils/yaml_utils.h"
+#include "neug/main/execution_slot.h"
 
 namespace neug {
+
+Connection::Connection(std::unique_ptr<ExecutionSlot> execution_slot,
+                       CloseCallback on_close)
+    : execution_slot_(std::move(execution_slot)),
+      on_close_(std::move(on_close)) {
+  CHECK(execution_slot_ != nullptr);
+}
+
+Connection::~Connection() { Close(); }
 
 std::string Connection::GetSchema() const {
   if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
-  SnapshotGuard guard(snapshot_store_);
-  auto yaml = guard.get().mutable_graph()->schema().to_yaml();
-  std::string ret = neug::get_json_string_from_yaml(yaml.value()).value();
-  return ret;
+  return execution_slot_->GetSchema();
 }
 
 void Connection::Close() {
@@ -40,37 +43,19 @@ void Connection::Close() {
   }
   LOG(INFO) << "Closing connection.";
 
-  // Clean up all temporary schemas created during this session.
+  // Clean up all temporary schemas created through embedded execution.
   // This is safe to do globally because LOAD AS is only supported in
   // READ_WRITE mode, and ConnectionManager enforces that at most ONE
   // read-write connection exists at a time. Therefore, all temporary
   // labels in the schema must belong to this connection.
-  SnapshotGuard guard(snapshot_store_);
-  auto* graph = guard.get().mutable_graph();
-  auto temp_edges = graph->schema().get_temporary_edge_triplet_keys();
-  for (auto key : temp_edges) {
-    auto [src, dst, edge] = graph->schema().parse_edge_label(key);
-    try {
-      graph->DeleteEdgeType(src, dst, edge);
-    } catch (const std::exception& e) {
-      LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
-    }
-  }
+  execution_slot_->ClearTemporarySchema();
+  execution_slot_.reset();
+  is_closed_.store(true, std::memory_order_release);
 
-  auto temp_vertices = graph->schema().get_temporary_vertex_labels();
-  for (auto label : temp_vertices) {
-    try {
-      graph->DeleteVertexType(label);
-    } catch (const std::exception& e) {
-      LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
-    }
+  auto on_close = std::move(on_close_);
+  if (on_close) {
+    on_close(this);
   }
-
-  if (!temp_edges.empty() || !temp_vertices.empty()) {
-    query_processor_->clear_cache();
-  }
-
-  is_closed_.store(true);
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,
@@ -82,7 +67,7 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  return query_processor_->execute(query_string, access_mode, parameters);
+  return execution_slot_->ExecuteQuery(query_string, access_mode, parameters);
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,
@@ -94,7 +79,8 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  return query_processor_->execute(query_string, access_mode, parameters_json);
+  return execution_slot_->ExecuteQuery(query_string, access_mode,
+                                       parameters_json);
 }
 
 }  // namespace neug

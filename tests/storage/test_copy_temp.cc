@@ -74,7 +74,6 @@ class CopyTempTest : public ::testing::Test {
     NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.enable_auto_compaction = false;
     db_->Open(config);
   }
 
@@ -306,7 +305,6 @@ TEST_F(CopyTempTest, CleanupOnClose) {
     NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.enable_auto_compaction = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
     auto q = conn2->Query("MATCH (n:TempEphemeral) RETURN n.id;");
@@ -336,7 +334,6 @@ TEST_F(CopyTempTest, ReloadAfterClose) {
         conn->Query("COPY TEMP TempReuse FROM \"" + csv + "\" (header = true)");
     EXPECT_TRUE(r) << r.error().ToString();
     conn->Close();
-    db_->RemoveConnection(conn);
   }
   {
     auto conn2 = db_->Connect();
@@ -347,7 +344,6 @@ TEST_F(CopyTempTest, ReloadAfterClose) {
     auto q = conn2->Query("MATCH (n:TempReuse) RETURN count(n);");
     EXPECT_TRUE(q) << q.error().ToString();
     conn2->Close();
-    db_->RemoveConnection(conn2);
   }
 }
 
@@ -372,7 +368,6 @@ TEST_F(CopyTempTest, PersistentSurvivesTempCleanup) {
     NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
-    config.enable_auto_compaction = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
     auto q1 = conn2->Query("MATCH (n:Persistent) RETURN count(n);");

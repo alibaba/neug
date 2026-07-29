@@ -67,7 +67,7 @@ if (!result.has_value()) {
 
 ## Thread Safety
 
-- `NeugDB`: Thread-safe for all operations
+- `NeugDB`: Connection/service registration is synchronized; lifecycle changes
+  require connections to be idle
 - `Connection`: NOT thread-safe; use one connection per thread
 - `QueryResult`: Thread-safe (read-only after creation)
-

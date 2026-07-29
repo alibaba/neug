@@ -66,7 +66,6 @@ enum class MemoryLevel : uint8_t {
  * config.max_thread_num = 8;
  * config.mode = neug::DBMode::READ_WRITE;
  * config.memory_level = 1;  // Use memory-mapped virtual memory
- * config.enable_auto_compaction = true;
  * config.checkpoint_on_close = true;
  *
  * neug::NeugDB db;
@@ -96,7 +95,6 @@ struct NeugDBConfig {
         mode(DBMode::READ_WRITE),
         planner_kind("gopt"),
         max_thread_num(1),
-        enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
         checkpoint_on_close(false),
         checkpoint_on_recovery(false),
@@ -115,7 +113,6 @@ struct NeugDBConfig {
         data_dir(data_dir_),
         planner_kind("gopt"),
         max_thread_num(max_thread_num_),
-        enable_auto_compaction(true),
         memory_level(MemoryLevel::kInMemory),
         checkpoint_on_close(false),
         checkpoint_on_recovery(false),
@@ -136,9 +133,6 @@ struct NeugDBConfig {
   /// Maximum database thread count. 0 means auto-select from hardware
   /// concurrency.
   int max_thread_num;
-
-  /// Enable background auto-compaction thread
-  bool enable_auto_compaction;
 
   /**
    * @brief Memory usage level.

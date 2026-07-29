@@ -15,9 +15,11 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/storages/module_descriptor.h"
 
 #include <glog/logging.h>
 #include <algorithm>
@@ -869,8 +871,7 @@ void EdgeTable::BatchAddEdges(
   }
 }
 
-void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr,
-                        timestamp_t ts) {
+void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr) {
   out_csr_->compact();
   in_csr_->compact();
   if (sort_key_for_nbr.has_value()) {
@@ -1131,6 +1132,27 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   }
   meta.SetScalar(ScalarKey(src, edge, dst, "capacity"),
                  std::to_string(GetCapacity()));
+}
+
+void EdgeTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                               const CheckpointManifest& prev) const {
+  if (!meta_) {
+    return;
+  }
+  const auto& src = meta_->src_label_name;
+  const auto& edge = meta_->edge_label_name;
+  const auto& dst = meta_->dst_label_name;
+  // Exact keys only — prefix matching is ambiguous when label names contain
+  // underscores.
+  meta.LinkModuleFrom(prev, KeyOutCsr(src, edge, dst), ckp);
+  meta.LinkModuleFrom(prev, KeyInCsr(src, edge, dst), ckp);
+  if (!meta_->is_bundled()) {
+    for (size_t i = 0; i < meta_->properties.size(); ++i) {
+      meta.LinkModuleFrom(prev, KeyProperty(src, edge, dst, i), ckp);
+    }
+    meta.CopyScalarFrom(prev, ScalarKey(src, edge, dst, "table_idx"));
+  }
+  meta.CopyScalarFrom(prev, ScalarKey(src, edge, dst, "capacity"));
 }
 
 }  // namespace neug

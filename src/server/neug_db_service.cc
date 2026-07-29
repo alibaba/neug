@@ -15,12 +15,22 @@
 #include "neug/server/neug_db_service.h"
 
 #include <glog/logging.h>
+
+#include <algorithm>
+
+#include <bthread/bthread.h>
+
 #include "neug/server/brpc_service_mgr.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
 namespace neug {
+
+namespace {
+constexpr auto kCompactInterval = std::chrono::seconds(30);
+constexpr size_t kCompactQueryThreshold = 100000;
+}  // namespace
 
 void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
@@ -42,37 +52,35 @@ void NeugDBService::init(const ServiceConfig& config) {
         std::to_string(db_config_.max_thread_num) + ".");
   }
 
-  version_manager_ = std::make_shared<neug::VersionManager>();
-  version_manager_->init_ts(
-      db_.last_ts_,
-      db_config_.max_thread_num);  // We assume versions start from 1.
+  bthread_setconcurrency(
+      std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
 
-  session_pool_ = std::make_unique<neug::SessionPool>(
-      db_, db_.GetPlanner(), db_.GetQueryCache(), version_manager_,
-      db_.allocators_, db_config_);
+  execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
+      db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
+      *db_.version_manager_, db_.allocators_,
+      db_.graph().checkpoint().wal_dir(), db_config_);
 
-  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
+  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
   hdl_mgr_->Init(config);
   service_config_ = config;
 }
 
 NeugDBService::~NeugDBService() {
-  if (compact_thread_running_) {
-    compact_thread_running_ = false;
-    compact_thread_.join();
-  }
+  stopCompactThread();
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
+  execution_slot_pool_.reset();
+  db_.unregisterService(this);
 }
 
 const ServiceConfig& NeugDBService::GetServiceConfig() const {
   return service_config_;
 }
 
-neug::SessionGuard NeugDBService::AcquireSession() {
-  return session_pool_->AcquireSession();
+neug::ExecutionSlotLease NeugDBService::AcquireExecutionSlot() {
+  return execution_slot_pool_->AcquireExecutionSlot();
 }
 
 bool NeugDBService::IsRunning() const {
@@ -80,7 +88,7 @@ bool NeugDBService::IsRunning() const {
 }
 
 neug::result<std::string> NeugDBService::service_status() {
-  if (!hdl_mgr_ || !session_pool_) {
+  if (!hdl_mgr_ || !execution_slot_pool_) {
     return neug::result<std::string>(
         "NeugDB service has not been initialized!");
   }
@@ -91,23 +99,23 @@ neug::result<std::string> NeugDBService::service_status() {
 }
 
 void NeugDBService::run_and_wait_for_exit() {
-  startCompactThreadIfNeeded();
   if (IsRunning()) {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
-  if (hdl_mgr_) {
-    running_.store(true, std::memory_order_relaxed);
-    try {
-      hdl_mgr_->RunAndWaitForExit();
-      running_.store(false, std::memory_order_relaxed);
-    } catch (...) {
-      running_.store(false, std::memory_order_relaxed);
-      throw;
-    }
-  } else {
+  if (!hdl_mgr_) {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
-  return;
+  startCompactThread();
+  running_.store(true, std::memory_order_relaxed);
+  try {
+    hdl_mgr_->RunAndWaitForExit();
+    running_.store(false, std::memory_order_relaxed);
+  } catch (...) {
+    running_.store(false, std::memory_order_relaxed);
+    stopCompactThread();
+    throw;
+  }
+  stopCompactThread();
 }
 
 void NeugDBService::Stop() {
@@ -119,6 +127,7 @@ void NeugDBService::Stop() {
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     running_.store(false, std::memory_order_relaxed);
+    stopCompactThread();
     return;
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
@@ -131,45 +140,76 @@ std::string NeugDBService::Start() {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
   if (hdl_mgr_) {
-    auto ret = hdl_mgr_->Start();
-    running_.store(true, std::memory_order_relaxed);
-    return ret;
+    startCompactThread();
+    try {
+      auto ret = hdl_mgr_->Start();
+      running_.store(true, std::memory_order_relaxed);
+      return ret;
+    } catch (...) {
+      stopCompactThread();
+      throw;
+    }
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
 }
 
 size_t NeugDBService::getExecutedQueryNum() const {
-  return session_pool_->getExecutedQueryNum();
+  return execution_slot_pool_->getExecutedQueryNum();
 }
 
-void NeugDBService::startCompactThreadIfNeeded() {
-  if (db_config_.enable_auto_compaction) {
-    if (compact_thread_running_) {
-      compact_thread_running_ = false;
-      compact_thread_.join();
-    }
-    compact_thread_running_ = true;
-    compact_thread_ = std::thread([&]() {
+void NeugDBService::stopCompactThread() {
+  compact_thread_running_.store(false, std::memory_order_relaxed);
+  compact_cv_.notify_all();
+  if (compact_thread_.joinable()) {
+    compact_thread_.join();
+  }
+}
+
+void NeugDBService::startCompactThread() {
+  if (!service_config_.auto_compaction) {
+    return;
+  }
+  stopCompactThread();
+  compact_thread_running_.store(true, std::memory_order_relaxed);
+  try {
+    compact_thread_ = std::thread([this]() {
       size_t last_compaction_at = 0;
-      while (compact_thread_running_) {
+      while (compact_thread_running_.load(std::memory_order_relaxed)) {
         size_t query_num_before = getExecutedQueryNum();
-        sleep(30);
-        if (!compact_thread_running_) {
+        {
+          std::unique_lock<std::mutex> lock(compact_mtx_);
+          if (compact_cv_.wait_for(lock, kCompactInterval, [this] {
+                return !compact_thread_running_.load(std::memory_order_relaxed);
+              })) {
+            break;
+          }
+        }
+        if (!compact_thread_running_.load(std::memory_order_relaxed)) {
           break;
         }
-        size_t query_num_after = getExecutedQueryNum();
-        if (query_num_before == query_num_after &&
-            (query_num_after > (last_compaction_at + 100000))) {
-          VLOG(10) << "Trigger auto compaction";
-          last_compaction_at = query_num_after;
-          auto session_guard = AcquireSession();
-          auto txn = session_guard->GetCompactTransaction();
-          txn.Commit();
-          VLOG(10) << "Finish compaction";
+        try {
+          size_t query_num_after = getExecutedQueryNum();
+          if (query_num_before == query_num_after &&
+              (query_num_after >
+               (last_compaction_at + kCompactQueryThreshold))) {
+            VLOG(10) << "Trigger auto compaction";
+            last_compaction_at = query_num_after;
+            auto slot_lease = AcquireExecutionSlot();
+            auto txn = slot_lease->GetCompactTransaction();
+            txn.Commit();
+            VLOG(10) << "Finish compaction";
+          }
+        } catch (const std::exception& e) {
+          LOG(WARNING) << "Auto compaction failed: " << e.what();
+        } catch (...) {
+          LOG(WARNING) << "Auto compaction failed with unknown error";
         }
       }
     });
+  } catch (...) {
+    compact_thread_running_.store(false, std::memory_order_relaxed);
+    throw;
   }
 }
 

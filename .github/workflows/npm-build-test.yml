@@ -79,7 +79,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Pack
@@ -88,7 +88,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Prepare test data
@@ -171,7 +171,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Pack
@@ -180,7 +180,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Prepare test data
@@ -249,13 +249,13 @@ jobs:
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          make build EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
+          make build EXTRA_CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
 
       - name: Pack
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          make pack EXTRA_CMAKE_FLAGS="-DOPTIMIZE_FOR_HOST=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
+          make pack EXTRA_CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
 
       - name: Prepare test data
         run: |

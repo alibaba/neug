@@ -4,7 +4,9 @@ REPO_ROOT  := $(abspath $(CURDIR)/../..)
 ROOT_BUILD := $(REPO_ROOT)/build
 
 BUILD_TYPE         ?= Release
+NEUG_NATIVE_ARCH   ?= OFF
 EXTRA_CMAKE_FLAGS  ?=
+PACK_CMAKE_FLAGS   := -DNEUG_PACKAGE_BUILD=ON
 
 # Detect platform: {os}_{arch}
 #   OS:   Linux -> linux, Darwin -> osx
@@ -59,6 +61,7 @@ dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 	    -DWITH_MIMALLOC=OFF \
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	    -DNEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) \
 	    $(EXTRA_CMAKE_FLAGS)
 	cmake --build $(ROOT_BUILD) --target neug_node_bind bulk_loader -j$(JOBS)
 	@$(MAKE) stage
@@ -76,7 +79,8 @@ stage:
 proto:  ## Regenerate lib/proto/error_pb.js from proto/error.proto
 	node scripts/generate_proto.js
 
-pack: build  ## Create per-platform npm tarball
+pack:  ## Create per-platform npm tarball
+	@$(MAKE) dev NEUG_NATIVE_ARCH=OFF EXTRA_CMAKE_FLAGS="$(EXTRA_CMAKE_FLAGS) $(PACK_CMAKE_FLAGS)"
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
 	@cp package.json package.json.orig
 	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@graphscope-neug/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'

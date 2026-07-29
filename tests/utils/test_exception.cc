@@ -115,6 +115,15 @@ INSTANTIATE_TEST_SUITE_P(
             "Catalog exception: ", neug::StatusCode::ERR_COMPILATION},
         ExceptionTestParam{
             [](const std::string& m) -> neug::exception::Exception* {
+              return new neug::exception::NoCheckpointException(m);
+            },
+            [](const std::string& m,
+               const std::string& f) -> neug::exception::Exception* {
+              return new neug::exception::NoCheckpointException(m, f);
+            },
+            "No checkpoint: ", neug::StatusCode::ERR_NO_CHECKPOINT},
+        ExceptionTestParam{
+            [](const std::string& m) -> neug::exception::Exception* {
               return new neug::exception::ConnectionException(m);
             },
             [](const std::string& m,
@@ -339,6 +348,8 @@ TEST_THROW_MACRO(THROW_DATABASE_LOCKED_EXCEPTION, DatabaseLockedException,
 TEST_THROW_MACRO(THROW_BINDER_EXCEPTION, BinderException, "Binder exception: ")
 TEST_THROW_MACRO(THROW_CATALOG_EXCEPTION, CatalogException,
                  "Catalog exception: ")
+TEST_THROW_MACRO(THROW_NO_CHECKPOINT_EXCEPTION, NoCheckpointException,
+                 "No checkpoint: ")
 TEST_THROW_MACRO(THROW_CONNECTION_EXCEPTION, ConnectionException,
                  "Connection exception: ")
 TEST_THROW_MACRO(THROW_CONVERSION_EXCEPTION, ConversionException,

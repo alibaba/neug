@@ -48,3 +48,10 @@ bash ./manifest.sh neug-dev v0.1.3 hongkong create
 ```
 
 Ensure images are pushed to the registry before executing the manifest creation.
+
+## Package Build Compatibility
+
+The `neug-release` image builds and installs a Python wheel. That wheel is a
+portable package artifact, so the release image build passes
+`NEUG_PACKAGE_BUILD=ON` and `NEUG_NATIVE_ARCH=OFF`. Development and manylinux
+images are build environments and do not force package mode by themselves.

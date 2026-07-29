@@ -20,6 +20,7 @@
 #include <string>
 
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/utils/exception/exception.h"
 
 #include <glog/logging.h>
 
@@ -128,6 +129,11 @@ void Checkpoint::UpdateMeta(CheckpointManifest&& meta) {
         v = file_mgr_->MakeRelativePath(v, path_);
       }
       meta_with_relative_paths.set_module(key, std::move(relative_desc));
+    }
+    if (!file_mgr_->SyncSnapshotDirectory()) {
+      THROW_IO_EXCEPTION(
+          "Checkpoint::UpdateMeta: failed to fsync snapshot_dir " +
+          snapshot_dir());
     }
     meta_with_relative_paths.Save(meta_path());
 

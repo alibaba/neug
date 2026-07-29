@@ -74,6 +74,11 @@ class IDataContainer {
   virtual void Open(const std::string& path) = 0;
 
   /**
+   * @brief Close the container and release its mapping.
+   */
+  virtual void Close() = 0;
+
+  /**
    * @brief Synchronize changes to persistent storage.
    */
   virtual void Sync() = 0;
@@ -92,7 +97,7 @@ class IDataContainer {
   /**
    * @brief Create a fork (copy) of this container.
    */
-  virtual std::unique_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
+  virtual std::shared_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
                                                MemoryLevel level) = 0;
 
  protected:

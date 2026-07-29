@@ -15,7 +15,6 @@
 #pragma once
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -26,83 +25,122 @@ namespace neug {
 
 // ---------------------------------------------------------------------------
 
-/// Sentinel returned by CheckpointManager::HeadId() when no checkpoint exists.
-constexpr int32_t kInvalidCheckpointId = -1;
-
 /**
- * @brief Manages a database directory that holds multiple numbered checkpoints.
+ * @brief Manages the published checkpoint directories for a database.
  *
  * Directory layout:
  * ```
  * db_dir/
- * ├── checkpoint-00001/
- * │   ├── meta
- * │   ├── snapshot/
- * │   ├── runtime/
- * │   └── wal/
- * ├── checkpoint-00002/
- * └── ...
+ * |-- checkpoint-N/       # published checkpoint
+ * `-- checkpoint-(N+1).next/  # unpublished staging checkpoint
  * ```
  *
  * `CheckpointManager` does **not** inherit `Module`; it is a directory-level
  * manager, not a data module itself.
  *
+ * The current checkpoint is the highest valid published generation. Committing
+ * a staging checkpoint publishes the next generation but leaves the retired
+ * checkpoint directory on disk until the caller releases graph/container
+ * resources that may still reference it.
+ *
  * Thread safety: All public methods are individually thread-safe (guarded by
- * an internal mutex).  Compound operations (e.g. HeadId() followed by
- * GetCheckpoint(id)) are not atomic — callers that race CreateCheckpoint() /
- * Close() must coordinate externally.
+ * an internal mutex). Callers that race CreateStagingCheckpoint() / Close()
+ * must coordinate externally.
  */
 class CheckpointManager {
  public:
-  CheckpointManager();
-  ~CheckpointManager();
+  class StagingCheckpoint {
+   public:
+    ~StagingCheckpoint();
+
+    StagingCheckpoint(StagingCheckpoint&& other) noexcept;
+    StagingCheckpoint(const StagingCheckpoint&) = delete;
+    StagingCheckpoint& operator=(const StagingCheckpoint&) = delete;
+
+    std::shared_ptr<Checkpoint> checkpoint() const;
+    /// Publish this staging checkpoint as the current checkpoint. If
+    /// previous_checkpoint_path is non-null, it receives the retired checkpoint
+    /// directory path. The caller decides when that directory is safe to
+    /// delete.
+    std::shared_ptr<Checkpoint> Commit(
+        std::string* previous_checkpoint_path = nullptr);
+    void Discard() noexcept;
+
+   private:
+    friend class CheckpointManager;
+
+    StagingCheckpoint(CheckpointManager& manager,
+                      std::shared_ptr<Checkpoint> checkpoint);
+    void release();
+
+    CheckpointManager& manager_;
+    std::shared_ptr<Checkpoint> checkpoint_;
+  };
 
   /**
    * @brief Open a database directory.
-   * @param db_dir Path to the database directory
+   * @param db_dir Path to the database directory.
+   * @param recover_workspace Whether to remove stale staging directories and
+   * invalid published checkpoints while opening.
    */
-  void Open(const std::string& db_dir);
+  void Open(const std::string& db_dir, bool recover_workspace = true);
 
   /**
    * @brief Close the workspace and release resources.
    */
   void Close();
 
-  /**
-   * @brief Get the number of checkpoints in the workspace.
-   */
-  size_t NumCheckpoints() const;
+  /// Return true if a published checkpoint is currently open.
+  bool HasCurrentCheckpoint() const;
 
   /**
-   * @brief Get the ID of the most recent checkpoint.
-   * @return kInvalidCheckpointId (-1) if no checkpoints exist.
+   * @brief Get the current published checkpoint, or nullptr if none exists.
    */
-  int32_t HeadId() const;
+  std::shared_ptr<Checkpoint> CurrentCheckpoint() const;
 
   /**
-   * @brief Create a new checkpoint.
-   * @return The ID of the new checkpoint
+   * @brief Create a new unpublished staging checkpoint.
+   * @return Move-only handle that discards the staging checkpoint on scope
+   * exit.
    */
-  int32_t CreateCheckpoint();
+  StagingCheckpoint CreateStagingCheckpoint();
 
   /**
-   * @brief Remove a checkpoint by ID.
+   * @brief Restore the in-memory current checkpoint to an older published
+   * checkpoint.
    *
-   * Removes the checkpoint from the in-memory map and deletes its directory
-   * from disk.  No-op if @p id is not found.
+   * Used by DB-level checkpoint creation after it removes a newer published
+   * checkpoint whose graph reopen failed.
    */
-  void RemoveCheckpoint(int32_t id);
+  void RestoreCurrentCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
 
   /**
-   * @brief Get a checkpoint by ID.
+   * @brief Best-effort cleanup of one published checkpoint that is not current.
+   *
+   * Used by DB-level rollback after it restores the current checkpoint to a
+   * previous generation. Refuses to remove the current checkpoint.
    */
-  std::shared_ptr<Checkpoint> GetCheckpoint(int32_t id) const;
+  void CleanupPublishedCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
 
-  std::string db_dir() const { return db_dir_; }
+  /**
+   * @brief Best-effort cleanup of published checkpoints other than current.
+   *
+   * The caller must only invoke this after all graph/container resources that
+   * might reference retired checkpoint directories have been released.
+   */
+  void CleanupRetiredCheckpoints();
+
+  std::string db_dir() const;
 
  private:
+  std::shared_ptr<Checkpoint> CommitStagingCheckpoint(
+      StagingCheckpoint& staging, std::string* previous_checkpoint_path);
+  void DiscardStagingCheckpoint(StagingCheckpoint& staging) noexcept;
+
   std::string db_dir_;
-  std::map<int32_t, std::shared_ptr<Checkpoint>> checkpoints_;
+  std::shared_ptr<Checkpoint> current_checkpoint_;
+  std::shared_ptr<Checkpoint> staging_checkpoint_;
+  int32_t current_generation_ = -1;
   mutable std::mutex mutex_;
 };
 

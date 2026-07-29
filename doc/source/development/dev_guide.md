@@ -130,7 +130,7 @@ Equivalent raw cmake form:
 
 ```bash
 cmake -S . -B build -DBUILD_PYTHON=OFF
-cmake --build build -j
+cmake --build build -j$(nproc)
 cmake --install build   # optional: install to the system
 ```
 
@@ -147,6 +147,18 @@ export WITH_MIMALLOC=ON/OFF # Decide whether to use mimalloc instead of the defa
 export ENABLE_BACKTRACES=ON/OFF # Link NeuG libraries with cpptrace for detailed stack trace on exceptions
 export BUILD_TYPE=DEBUG/RELEASE # Set the CMake build type
 export BUILD_TEST=ON/OFF # Toggle the building of test suites
+```
+
+Distributable artifacts such as Python wheels, npm tarballs, and release images
+are built with `NEUG_PACKAGE_BUILD=ON` and `NEUG_NATIVE_ARCH=OFF`. Do not enable
+native CPU tuning for package builds.
+
+For local source builds only, enable host-specific CPU tuning with:
+
+```bash
+NEUG_NATIVE_ARCH=ON make cpp-build
+NEUG_PACKAGE_BUILD=OFF NEUG_NATIVE_ARCH=ON make -C tools/python_bind build
+NEUG_NATIVE_ARCH=ON make -C tools/nodejs_bind dev
 ```
 
 #### Debugging
@@ -227,6 +239,7 @@ const { Database } = require('neug');
 
 The npm package is written to `tools/nodejs_bind/neug-<version>-<platform>-<arch>.tgz`,
 which packs `neug_node_bind.node` and `libneug.{dylib, so}`.
+Package builds are always configured as portable builds.
 ```bash
 make node-pack
 # or:

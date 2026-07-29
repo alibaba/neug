@@ -38,6 +38,38 @@ def runner():
     return CliRunner()
 
 
+def _install_dummy_shell(monkeypatch):
+    class DummyShell:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def cmdloop(self):
+            self.connection.close()
+
+    monkeypatch.setattr(neug_cli, "NeugShell", DummyShell)
+
+
+def _install_dummy_database(monkeypatch):
+    class DummyConnection:
+        def close(self):
+            pass
+
+    class DummyDatabase:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+        def connect(self):
+            return DummyConnection()
+
+    monkeypatch.setattr(neug_cli, "Database", DummyDatabase)
+
+
+def _install_dummy_open_runtime(monkeypatch):
+    _install_dummy_database(monkeypatch)
+    _install_dummy_shell(monkeypatch)
+
+
 def test_help_option(runner):
     result = runner.invoke(neug_cli.cli, ["--help"])
     assert result.exit_code == 0
@@ -64,8 +96,7 @@ Commands:
 def test_open_local_database(monkeypatch, runner, tmp_path):
     db_path = tmp_path / "test_open_local_db"
     shutil.rmtree(db_path, ignore_errors=True)
-    # mock cmdloop to avoid entering the shell loop
-    monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
+    _install_dummy_open_runtime(monkeypatch)
     result = runner.invoke(neug_cli.cli, ["open", str(db_path)])
     assert result.exit_code == 0
     assert f"Opened database at {db_path} in read-write mode" in result.output
@@ -74,27 +105,24 @@ def test_open_local_database(monkeypatch, runner, tmp_path):
 def test_open_local_database_readonly(monkeypatch, runner, tmp_path):
     db_path = tmp_path / "test_open_local_db_readonly"
     shutil.rmtree(db_path, ignore_errors=True)
-    # mock cmdloop to avoid entering the shell loop
-    monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
+    _install_dummy_open_runtime(monkeypatch)
     result1 = runner.invoke(neug_cli.cli, ["open", str(db_path), "-m", "read-only"])
     assert result1.exit_code == 0
     assert f"Opened database at {db_path} in read-only mode" in result1.output
     result2 = runner.invoke(neug_cli.cli, ["open", str(db_path), "-m", "r"])
     assert result2.exit_code == 0
-    assert f"Opened database at {db_path} in r mode" in result2.output
+    assert f"Opened database at {db_path} in read-only mode" in result2.output
 
 
 def test_open_pure_memory_database(monkeypatch, runner):
-    # mock cmdloop to avoid entering the shell loop
-    monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
+    _install_dummy_open_runtime(monkeypatch)
     result = runner.invoke(neug_cli.cli, ["open"])
     assert result.exit_code == 0
     assert "Opened in-memory database in read-write mode" in result.output
 
 
 def test_connect_help_option(monkeypatch, runner):
-    # mock cmdloop to avoid entering the shell loop
-    monkeypatch.setattr(neug_cli.NeugShell, "cmdloop", lambda self: None)
+    _install_dummy_shell(monkeypatch)
     result = runner.invoke(neug_cli.cli, ["connect", "--help"])
     assert result.exit_code == 0
     excepted_output = """\

@@ -5,6 +5,8 @@ ROOT_BUILD := $(REPO_ROOT)/build
 CACHE_FILE := $(ROOT_BUILD)/CMakeCache.txt
 
 BUILD_TYPE         ?= Release
+NEUG_PACKAGE_BUILD ?= ON
+NEUG_NATIVE_ARCH   ?= OFF
 EXTRA_CMAKE_FLAGS  ?=
 
 # `cmake --build -j` without N is unlimited parallelism — tanks memory-limited
@@ -35,7 +37,7 @@ proto:  ## Compile protobuf files
 # Honors all BUILD_*/WITH_*/CMAKE_* env vars on every invocation. CI uses this.
 # Run setup.py under $(PYTHON) so sys.executable matches the locked interpreter.
 build:  ## Build via setup.py (honors all BUILD_* env vars; CI entry)
-	$(CMAKE_PARALLEL) $(PYTHON) setup.py build_ext
+	$(CMAKE_PARALLEL) NEUG_PACKAGE_BUILD=$(NEUG_PACKAGE_BUILD) NEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) $(PYTHON) setup.py build_ext
 
 # Falls through to dev-full when the cache is missing or wasn't configured
 # with -DBUILD_PYTHON=ON (avoids cryptic "No rule to make target" errors).
@@ -50,13 +52,13 @@ dev:  ## Fast incremental rebuild via cmake (no env-var forwarding)
 dev-full:  ## Configure root build + build neug_py_bind from scratch
 	cmake -S $(REPO_ROOT) -B $(ROOT_BUILD) -DBUILD_PYTHON=ON \
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
-	    -DOPTIMIZE_FOR_HOST=OFF \
+	    -DNEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) \
 	    -DPython_EXECUTABLE=$(PYTHON) -DPYTHON_EXECUTABLE=$(PYTHON) \
 	    $(EXTRA_CMAKE_FLAGS)
 	cmake --build $(ROOT_BUILD) --target neug_py_bind -j$(JOBS)
 
 wheel:  ## Build the neug python wheel (honors BUILD_* env vars)
-	$(CMAKE_PARALLEL) $(PYTHON) setup.py bdist_wheel
+	$(CMAKE_PARALLEL) NEUG_PACKAGE_BUILD=ON NEUG_NATIVE_ARCH=OFF $(PYTHON) setup.py bdist_wheel
 
 clean:  ## Clean Python build artifacts (does NOT touch $(ROOT_BUILD))
 	rm -rf build/ dist/ *.egg-info neug.egg-info/ __pycache__/

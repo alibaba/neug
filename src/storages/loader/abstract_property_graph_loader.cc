@@ -29,7 +29,11 @@ void AbstractPropertyGraphLoader::addVerticesToVertexTable(
     auto supplier =
         createVertexChunkSupplier(v_label_id, label_name, v_file, pk_type,
                                   pk_name, pk_ind, loading_config_, 0);
-    graph_.BatchAddVertices(v_label_id, supplier);
+    auto new_vids = graph_.BatchAddVertices(v_label_id, supplier);
+    if (!new_vids) {
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to batch add vertices: ",
+                                     new_vids.error());
+    }
   }
 }
 
@@ -181,10 +185,13 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
   try {
     loadVertices();
     loadEdges();
-    graph_.Compact(1);
-    graph_.Dump(false);
+    graph_.Compact();
+    graph_.DumpAndClear(staging_checkpoint_->checkpoint());
+    staging_checkpoint_->Commit();
 
   } catch (const std::exception& e) {
+    graph_.Clear();
+    staging_checkpoint_.reset();
     printDiskRemaining(checkpoint_mgr_.db_dir());
     LOG(ERROR) << "Load fragment failed: " << e.what();
     return result<bool>(false);

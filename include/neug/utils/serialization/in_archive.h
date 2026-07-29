@@ -27,11 +27,11 @@ namespace neug {
 class InArchive {
  public:
   InArchive() = default;
-  InArchive(InArchive&& rhs) { buffer_.swap(rhs.buffer_); }
+  InArchive(InArchive&& rhs) noexcept { buffer_.swap(rhs.buffer_); }
 
   ~InArchive() = default;
 
-  InArchive& operator=(InArchive&& rhs) {
+  InArchive& operator=(InArchive&& rhs) noexcept {
     buffer_.clear();
     buffer_.swap(rhs.buffer_);
     return *this;

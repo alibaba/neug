@@ -39,6 +39,7 @@ const Code = Object.create(
     [1015, 'ERR_BAD_ENCODING'],
     [1016, 'ERR_INVALID_FILE'],
     [1017, 'ERR_EXTENSION'],
+    [1018, 'ERR_NO_CHECKPOINT'],
     [2001, 'ERR_NETWORK'],
     [2002, 'ERR_SESSION_CLOSED'],
     [2003, 'ERR_CONNECTION_CLOSED'],
@@ -90,6 +91,7 @@ Code.ERR_IO_ERROR             = 1014;
 Code.ERR_BAD_ENCODING         = 1015;
 Code.ERR_INVALID_FILE         = 1016;
 Code.ERR_EXTENSION            = 1017;
+Code.ERR_NO_CHECKPOINT        = 1018;
 Code.ERR_NETWORK              = 2001;
 Code.ERR_SESSION_CLOSED       = 2002;
 Code.ERR_CONNECTION_CLOSED    = 2003;

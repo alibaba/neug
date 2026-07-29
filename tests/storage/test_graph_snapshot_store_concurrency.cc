@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-// Concurrency tests for GraphSnapshotStore at the unit level (no NeugDB session
-// layer). Validates the lock-window invariants documented in
+// Concurrency tests for GraphSnapshotStore at the unit level (no NeugDB
+// execution-slot layer). Validates the lock-window invariants documented in
 // graph_snapshot_store.h: phantom-pin, last-reader-cleans rule, pool exhaustion
 // safety, and the shared/exclusive interlock between PinCurrentSnapshot and
 // PublishSnapshot.

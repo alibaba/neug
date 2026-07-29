@@ -1,10 +1,9 @@
-name: LDBC SNB Nightly Benchmark
+name: LDBC SNB Weekly Benchmark
 
 on:
   schedule:
-    # UTC+8 03:00 Wednesday = UTC 19:00 Tuesday
-    # UTC+8 03:00 Sunday    = UTC 19:00 Saturday
-    - cron: "0 19 * * 2,6"
+    # UTC+8 03:00 Sunday = UTC 19:00 Saturday
+    - cron: "0 19 * * 6"
   workflow_dispatch:
 
 env:

@@ -19,6 +19,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -46,11 +47,10 @@ namespace neug {
  * into a meta_ slot that `UpdateMeta()` may replace.
  *
  * Specifically:
- *   * `OpenFile` / `CreateRuntimeContainer` / `Commit` / `CommitRuntimeObject`
- *     / `CommitToSnapshot` / `LinkToSnapshot` / `CreateRuntimeObject` —
- *     internally lock when mutating `uncommitted_runtime_objects_` or
- *     touching `meta_`; otherwise they only read immutable members
- *     (`path_`, `id_`).
+ *   * `OpenFile` / `CreateRuntimeContainer` / `Commit` /
+ *     `CreateRuntimeFile` / `CommitRuntimeFile` / `LinkToSnapshot` —
+ *     internally lock when allocating or publishing runtime files; otherwise
+ *     they only read immutable members (`path_`, `id_`).
  *   * `UpdateMeta` — fully serialized: takes the lock for the entire JSON
  *     write + meta swap + orphan cleanup, so concurrent UpdateMeta calls are
  *     safe and won't tear the on-disk meta file.
@@ -106,16 +106,18 @@ class Checkpoint {
     return path_ + "/allocator";
   }
 
-  std::unique_ptr<IDataContainer> OpenFile(const std::string& file_path,
+  std::shared_ptr<IDataContainer> OpenFile(const std::string& file_path,
                                            MemoryLevel level) {
     return file_mgr_->OpenFile(file_path, level);
   }
 
-  std::unique_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
+  std::shared_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
                                                          MemoryLevel level) {
     return file_mgr_->CreateRuntimeContainer(size, level);
   }
 
+  /// Commit a container to the snapshot directory. This consumes and closes the
+  /// container; callers must not access it after Commit() returns.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
   }
@@ -134,18 +136,20 @@ class Checkpoint {
 
   bool IsEmpty() const { return path_.empty(); }
 
-  std::string CreateRuntimeObject() { return file_mgr_->CreateRuntimeObject(); }
+  /// Allocate an anonymous runtime file handle (RAII).
+  CheckpointFileManager::RuntimeFileHandle CreateRuntimeFile() {
+    return file_mgr_->CreateRuntimeFile();
+  }
 
-  std::string CommitRuntimeObject(const std::string& uuid) {
-    return file_mgr_->CommitRuntimeObject(uuid);
+  /// Move a runtime file into the snapshot directory and return its path.
+  std::string CommitRuntimeFile(
+      CheckpointFileManager::RuntimeFileHandle&& file) {
+    return file_mgr_->CommitRuntimeFile(std::move(file));
   }
 
   std::string LinkToSnapshot(const std::string& abs_path) {
     return file_mgr_->LinkToSnapshot(abs_path);
   }
-
-  /// Access the underlying file manager (e.g. for path utilities).
-  CheckpointFileManager& file_manager() { return *file_mgr_; }
 
  private:
   /// Private constructor — only initializes members. Use Open() to create.

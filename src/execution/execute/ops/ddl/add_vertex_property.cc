@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/ddl/add_vertex_property.h"
 #include "neug/common/types/value.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -38,12 +39,22 @@ class AddVertexPropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t label;
+    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
     AddVertexPropertiesParamBuilder builder;
     for (const auto& [prop_name, prop_value] : properties_) {
       builder.AddProperty(prop_name, prop_value);
     }
-    auto config = builder.VertexLabel(vertex_type_).Build();
-    auto res = storage.AddVertexProperties(config);
+    auto config = builder.Build();
+    auto res = storage.AddVertexProperties(label, config);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));

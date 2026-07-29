@@ -48,8 +48,8 @@ void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
 
 void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                            const std::string& key) {
-  auto uuid = ckp.CreateRuntimeObject();
-  std::string ts_filename = ckp.runtime_dir() + "/" + uuid;
+  auto runtime_file = ckp.CreateRuntimeFile();
+  const auto& ts_filename = runtime_file.path();
   // Before dump, reset the timestamp of modified vertices
   vid_t num = max_vertex_num_ - init_vertex_num_;
   for (vid_t v = 0; v < num; ++v) {
@@ -61,7 +61,7 @@ void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   dump_ts(ts_filename);
   ModuleDescriptor descriptor;
   descriptor.set_path(ModuleDescriptor::kDataPath,
-                      ckp.CommitRuntimeObject(uuid));
+                      ckp.CommitRuntimeFile(std::move(runtime_file)));
   descriptor.module_type = ModuleTypeName();
   meta.set_module(key, descriptor);
 }

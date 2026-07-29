@@ -53,8 +53,8 @@ class TypedMutableCsrBase;
  * @brief Read-only transaction for consistent snapshot access to graph data.
  *
  * ReadTransaction provides read access to graph data at a specific timestamp,
- * implementing snapshot isolation. It stores references to the session, graph,
- * version manager, and the snapshot timestamp.
+ * implementing snapshot isolation. It retains a graph snapshot guard together
+ * with the version manager and snapshot timestamp.
  *
  * **Implementation Details:**
  * - Stores const reference to PropertyGraph for read-only access

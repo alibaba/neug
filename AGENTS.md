@@ -42,6 +42,8 @@ EXTRA_CMAKE_FLAGS="-DBUILD_HTTP_SERVER=ON" make cpp-build   # extra flags
 - `BUILD_TEST=ON` — build test suites
 - `BUILD_PYTHON=ON` — build `neug_py_bind` target (off by default in pure C++ builds)
 - `NEUG_BUILD_DIR=<path>` — override the root build dir consumed by `setup.py` and the Python loader (default `<repo>/build`)
+- `NEUG_PACKAGE_BUILD=ON` — CMake option for portable distributable artifacts; package builds must keep `NEUG_NATIVE_ARCH=OFF`
+- `NEUG_NATIVE_ARCH=ON` — enable host-specific CPU tuning in local source builds; supported by root/Python/Node Makefiles
 - `DEBUG=ON` + `GLOG_v=10` — enable verbose C++ logging
 
 ### Running Tests
@@ -100,4 +102,3 @@ Cypher → ANTLR Parser → Binder → Logical Plan → gopt Converter → Physi
 
 - **C++**: C++20, clang-format (style=file)
 - **Python**: isort, black, flake8
-

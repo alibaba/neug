@@ -251,6 +251,156 @@ T parse_direct(std::string_view token,
   }
 }
 
+std::string_view trim_array_token(std::string_view token) {
+  size_t begin = 0;
+  while (begin < token.size() &&
+         std::isspace(static_cast<unsigned char>(token[begin]))) {
+    ++begin;
+  }
+  size_t end = token.size();
+  while (end > begin &&
+         std::isspace(static_cast<unsigned char>(token[end - 1]))) {
+    --end;
+  }
+  return token.substr(begin, end - begin);
+}
+
+std::string unquote_array_string_token(std::string_view token) {
+  auto trimmed = trim_array_token(token);
+  if (trimmed.size() < 2) {
+    return std::string(trimmed);
+  }
+  auto quote = trimmed.front();
+  if ((quote != '\'' && quote != '"') || trimmed.back() != quote) {
+    return std::string(trimmed);
+  }
+
+  std::string unquoted;
+  unquoted.reserve(trimmed.size() - 2);
+  for (size_t i = 1; i + 1 < trimmed.size(); ++i) {
+    if (trimmed[i] == '\\' && i + 1 < trimmed.size() - 1) {
+      unquoted.push_back(trimmed[++i]);
+    } else {
+      unquoted.push_back(trimmed[i]);
+    }
+  }
+  return unquoted;
+}
+
+std::vector<std::string_view> split_array_elements(std::string_view input) {
+  std::vector<std::string_view> elements;
+  auto trimmed = trim_array_token(input);
+  if (trimmed.empty()) {
+    return elements;
+  }
+
+  int depth = 0;
+  char quote = '\0';
+  bool escaping = false;
+  size_t element_start = 0;
+  for (size_t i = 0; i < trimmed.size(); ++i) {
+    auto c = trimmed[i];
+    if (quote != '\0') {
+      if (escaping) {
+        escaping = false;
+      } else if (c == '\\') {
+        escaping = true;
+      } else if (c == quote) {
+        quote = '\0';
+      }
+      continue;
+    }
+    if (c == '\'' || c == '"') {
+      quote = c;
+    } else if (c == '[') {
+      ++depth;
+    } else if (c == ']') {
+      if (depth == 0) {
+        THROW_CONVERSION_EXCEPTION("Unexpected ']' in array value: " +
+                                   std::string(input));
+      }
+      --depth;
+    } else if (c == ',' && depth == 0) {
+      elements.push_back(
+          trim_array_token(trimmed.substr(element_start, i - element_start)));
+      element_start = i + 1;
+    }
+  }
+  if (quote != '\0') {
+    THROW_CONVERSION_EXCEPTION("Unterminated quoted string in array value: " +
+                               std::string(input));
+  }
+  if (depth != 0) {
+    THROW_CONVERSION_EXCEPTION("Unbalanced brackets in array value: " +
+                               std::string(input));
+  }
+  elements.push_back(trim_array_token(trimmed.substr(element_start)));
+  return elements;
+}
+
+Value parse_array_element(std::string_view token, const DataType& data_type,
+                          const std::unordered_set<std::string>& true_values,
+                          const std::unordered_set<std::string>& false_values) {
+  switch (data_type.id()) {
+  case DataTypeId::kInt32:
+    return Value::INT32(
+        parse_direct<int32_t>(token, true_values, false_values));
+  case DataTypeId::kInt64:
+    return Value::INT64(
+        parse_direct<int64_t>(token, true_values, false_values));
+  case DataTypeId::kUInt32:
+    return Value::UINT32(
+        parse_direct<uint32_t>(token, true_values, false_values));
+  case DataTypeId::kUInt64:
+    return Value::UINT64(
+        parse_direct<uint64_t>(token, true_values, false_values));
+  case DataTypeId::kFloat:
+    return Value::FLOAT(parse_direct<float>(token, true_values, false_values));
+  case DataTypeId::kDouble:
+    return Value::DOUBLE(
+        parse_direct<double>(token, true_values, false_values));
+  case DataTypeId::kBoolean:
+    return Value::BOOLEAN(parse_direct<bool>(token, true_values, false_values));
+  case DataTypeId::kDate:
+    return Value::DATE(parse_direct<Date>(token, true_values, false_values));
+  case DataTypeId::kTimestampMs:
+    return Value::TIMESTAMPMS(
+        parse_direct<DateTime>(token, true_values, false_values));
+  case DataTypeId::kInterval:
+    return Value::INTERVAL(
+        parse_direct<Interval>(token, true_values, false_values));
+  case DataTypeId::kVarchar:
+    return Value::STRING(unquote_array_string_token(token));
+  case DataTypeId::kArray: {
+    auto trimmed = trim_array_token(token);
+    if (trimmed.size() < 2 || trimmed.front() != '[' || trimmed.back() != ']') {
+      THROW_CONVERSION_EXCEPTION("Expected array value for type " +
+                                 data_type.ToString() + ": " +
+                                 std::string(trimmed));
+    }
+    const auto& child_type = ArrayType::GetChildType(data_type);
+    const auto expected_size = ArrayType::GetNumElements(data_type);
+    auto elements = split_array_elements(trimmed.substr(1, trimmed.size() - 2));
+    if (elements.size() != expected_size) {
+      THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
+                                 data_type.ToString() + ": expected " +
+                                 std::to_string(expected_size) + ", got " +
+                                 std::to_string(elements.size()));
+    }
+    std::vector<Value> values;
+    values.reserve(elements.size());
+    for (const auto& element : elements) {
+      values.push_back(
+          parse_array_element(element, child_type, true_values, false_values));
+    }
+    return Value::ARRAY(data_type, std::move(values));
+  }
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported ARRAY element type: " +
+                                  data_type.ToString());
+  }
+}
+
 /// Shared parsing context (constant across all columns in a chunk).
 struct CsvParseCtx {
   const std::unordered_set<std::string>& null_values;
@@ -317,10 +467,42 @@ void append_typed_impl(const FieldAppender& app, csv::CSVField field,
   }
 }
 
+void append_array_impl(const FieldAppender& app, csv::CSVField field,
+                       const CsvParseCtx& ctx, int64_t row_number) {
+  auto* builder = static_cast<IContextColumnBuilder*>(app.builder);
+  if (field.is_null()) {
+    builder->push_back_null();
+    return;
+  }
+  std::string_view token = static_cast<csv::string_view>(field);
+  if (contains_sv(ctx.null_values, token)) {
+    builder->push_back_null();
+    return;
+  }
+  std::string unescaped;
+  std::string_view effective_token = token;
+  if (ctx.escaping) {
+    unescaped = unescape_token_sv(token, ctx.escape_char);
+    effective_token = unescaped;
+  }
+  try {
+    builder->push_back_elem(parse_array_element(
+        effective_token, *app.type, ctx.true_values, ctx.false_values));
+  } catch (const std::exception& error) {
+    THROW_CONVERSION_EXCEPTION(
+        "Failed to parse CSV field, file=" + ctx.file_path +
+        ", row=" + std::to_string(row_number) + ", column=" + *app.column_name +
+        ", type=" + app.type->ToString() + ", value='" +
+        std::string(effective_token) + "', reason=" + error.what());
+  }
+}
+
 /// Create a FieldAppender for the given data type.
 FieldAppender make_appender(const DataType& type, void* builder,
                             const std::string* column_name) {
   switch (type.id()) {
+  case DataTypeId::kArray:
+    return {builder, column_name, &type, &append_array_impl};
 #define MAKE_APPENDER(enum_val, cpp_type) \
   case DataTypeId::enum_val:              \
     return {builder, column_name, &type, &append_typed_impl<cpp_type>};
@@ -1057,9 +1239,8 @@ void fillVertexReaderMeta(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
     const LoadingConfig& loading_config,
     const std::vector<std::string>& vertex_property_names,
-    const std::vector<DataTypeId>& vertex_edge_property_types,
-    DataTypeId pk_type, const std::string& pk_name, size_t pk_ind,
-    CsvReadConfig& config) {
+    const std::vector<DataType>& vertex_edge_property_types, DataType pk_type,
+    const std::string& pk_name, size_t pk_ind, CsvReadConfig& config) {
   CHECK(vertex_edge_property_types.size() == vertex_property_names.size());
   put_boolean_option(config);
 
@@ -1140,9 +1321,9 @@ void fillVertexReaderMeta(
     }
     VLOG(10) << "vertex_label: " << v_label_name
              << " property_name: " << property_name
-             << " property_type: " << property_type << " ind: " << ind;
-    config.column_types.insert(
-        {included_col_names[ind], DataType(property_type)});
+             << " property_type: " << property_type.ToString()
+             << " ind: " << ind;
+    config.column_types.insert({included_col_names[ind], property_type});
   }
   {
     size_t ind = mapped_property_names.size();
@@ -1158,7 +1339,7 @@ void fillVertexReaderMeta(
           " does not exist in the vertex column mapping, please "
           "check your configuration");
     }
-    config.column_types.insert({included_col_names[ind], DataType(pk_type)});
+    config.column_types.insert({included_col_names[ind], pk_type});
   }
 }
 
@@ -1167,8 +1348,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         const std::string& e_file,
                         const LoadingConfig& loading_config,
                         const std::vector<std::string>& edge_property_names,
-                        const std::vector<DataTypeId>& edge_property_types,
-                        DataTypeId src_pk_type, DataTypeId dst_pk_type,
+                        const std::vector<DataType>& edge_property_types,
+                        DataType src_pk_type, DataType dst_pk_type,
                         CsvReadConfig& config) {
   CHECK(edge_property_types.size() == edge_property_names.size());
   put_boolean_option(config);
@@ -1265,9 +1446,9 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
     }
     VLOG(10) << "edge_label: " << edge_label_name
              << " property_name: " << property_name
-             << " property_type: " << property_type << " ind: " << ind;
-    config.column_types.insert(
-        {included_col_names[ind + 2], DataType(property_type)});
+             << " property_type: " << property_type.ToString()
+             << " ind: " << ind;
+    config.column_types.insert({included_col_names[ind + 2], property_type});
   }
   {
     auto src_dst_cols =
@@ -1279,10 +1460,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
           src_col_ind < static_cast<int64_t>(config.column_names.size()));
     CHECK(dst_col_ind >= 0 &&
           dst_col_ind < static_cast<int64_t>(config.column_names.size()));
-    config.column_types.insert(
-        {config.column_names[src_col_ind], DataType(src_pk_type)});
-    config.column_types.insert(
-        {config.column_names[dst_col_ind], DataType(dst_pk_type)});
+    config.column_types.insert({config.column_names[src_col_ind], src_pk_type});
+    config.column_types.insert({config.column_names[dst_col_ind], dst_pk_type});
 
     VLOG(10) << "Column types: ";
     for (const auto& iter : config.column_types) {
@@ -1365,6 +1544,18 @@ void set_properties_from_context_column(
   case DataTypeId::kVarchar: {
     set_column_from_value_column<std::string, std::string_view>(col, ctx_col,
                                                                 vids);
+    break;
+  }
+  case DataTypeId::kArray: {
+    for (size_t k = 0; k < vids.size(); ++k) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+        continue;
+      }
+      auto value = ctx_col->get_elem(k);
+      if (!value.IsNull()) {
+        col->set_any(vids[k], value, true);
+      }
+    }
     break;
   }
   default:

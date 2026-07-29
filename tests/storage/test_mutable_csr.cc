@@ -967,9 +967,12 @@ TEST_F(MutableCsrDumpDirtyTest, FastAndSlowPath) {
   auto orig = inode_of(nbr_path(orig_desc));
   auto fast_desc = dump_module_descriptor(csr, *ckp, "csr");
   EXPECT_EQ(orig, inode_of(nbr_path(fast_desc)));
+
+  CsrT dirty_csr;
+  dirty_csr.Open(*ckp, fast_desc, MemoryLevel::kInMemory);
   int64_t val = 999;
-  csr.put_edge(0, 2, val, 1, *alloc_);
-  auto slow_desc = dump_module_descriptor(csr, *ckp, "csr");
+  dirty_csr.put_edge(0, 2, val, 1, *alloc_);
+  auto slow_desc = dump_module_descriptor(dirty_csr, *ckp, "csr");
   EXPECT_NE(orig, inode_of(nbr_path(slow_desc)));
 }
 
@@ -998,8 +1001,10 @@ TEST_F(MutableCsrDumpDirtyTest, DirtyResetAcrossCheckpointCycles) {
   auto p2 = nbr_path(d2);
   EXPECT_EQ(inode_of(p1), inode_of(p2));
 
-  c2.compact();
-  auto d3 = dump_module_descriptor(c2, *ckp, "c2");
+  CsrT c2_compacted;
+  c2_compacted.Open(*ckp, d2, MemoryLevel::kInMemory);
+  c2_compacted.compact();
+  auto d3 = dump_module_descriptor(c2_compacted, *ckp, "c2");
   auto p3 = nbr_path(d3);
   EXPECT_EQ(inode_of(p2), inode_of(p3));
 

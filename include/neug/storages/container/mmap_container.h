@@ -48,11 +48,11 @@ class MMapContainer : public IDataContainer {
   std::string GetPath() const override;
 
   void Open(const std::string& path) override;
-  void Close();
+  void Close() override;
   void Dump(const std::string& path) override;
   virtual void Sync() override;
   bool IsDirty() override;
-  std::unique_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
+  std::shared_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
                                        MemoryLevel level) override;
 
  protected:

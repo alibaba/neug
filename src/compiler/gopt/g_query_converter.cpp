@@ -26,6 +26,7 @@
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
+#include "neug/compiler/binder/expression/parameter_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/catalog/catalog.h"
@@ -1291,26 +1292,42 @@ void GQueryConvertor::convertProcedureCall(
   const auto& params = bindData->params;
   for (size_t pos = 0; pos < params.size(); pos++) {
     const auto& param = params.at(pos);
-    auto paramPB = exprConvertor->convert(*param, {});
-    if (paramPB->operators_size() == 0) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert parameter: " +
-                                     param->toString());
-    }
     auto queryArgPB = std::make_unique<::procedure::Argument>();
-    // set param value
-    if (paramPB->operators(0).has_var()) {
-      queryArgPB->set_allocated_var(
-          paramPB->mutable_operators(0)->release_var());
-    } else if (paramPB->operators(0).has_const_()) {
-      queryArgPB->set_allocated_const_(
-          paramPB->mutable_operators(0)->release_const_());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported parameter value type: " +
-                                     param->toString());
-    }
-    // set param id
     queryArgPB->set_param_ind(pos);
-    // TODO: set param name
+    // $param -> typed DynamicParam for params_type / ParamsMap; literals/vars
+    // keep const / var.
+    if (param->expressionType == common::ExpressionType::PARAMETER) {
+      const auto& paramExpr = param->constCast<binder::ParameterExpression>();
+      if (pos >= callFunc.parameterTypes.size()) {
+        THROW_EXCEPTION_WITH_FILE_LINE("CALL $param index out of signature: " +
+                                       paramExpr.getName());
+      }
+      auto dynPB = std::make_unique<::common::DynamicParam>();
+      dynPB->set_name(paramExpr.getName());
+      dynPB->set_index(static_cast<int32_t>(pos));
+      // CALL $params keep UNKNOWN in the binder; use the procedure signature
+      // type for ParamsMap deserialization.
+      dynPB->set_allocated_data_type(
+          typeConverter->convertLogicalType(callFunc.parameterTypes[pos].copy())
+              .release());
+      queryArgPB->set_allocated_param(dynPB.release());
+    } else {
+      auto paramPB = exprConvertor->convert(*param, {});
+      if (paramPB->operators_size() == 0) {
+        THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert parameter: " +
+                                       param->toString());
+      }
+      if (paramPB->operators(0).has_var()) {
+        queryArgPB->set_allocated_var(
+            paramPB->mutable_operators(0)->release_var());
+      } else if (paramPB->operators(0).has_const_()) {
+        queryArgPB->set_allocated_const_(
+            paramPB->mutable_operators(0)->release_const_());
+      } else {
+        THROW_EXCEPTION_WITH_FILE_LINE("Unsupported parameter value type: " +
+                                       param->toString());
+      }
+    }
     queryPB->mutable_arguments()->AddAllocated(queryArgPB.release());
   }
 

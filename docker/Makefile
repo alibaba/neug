@@ -14,6 +14,8 @@ MANYLINUXVERSION := 2014
 
 VERSION ?= latest
 PROFILE ?= release
+NEUG_PACKAGE_BUILD ?= ON
+NEUG_NATIVE_ARCH ?= OFF
 
 BUILD_PROGRESS  	?= auto
 
@@ -48,5 +50,7 @@ neug-dev:
 neug-release:
 	cd .. && \
 	docker build \
-	-t neug/neug:${ARCH} \
-	-f docker/neug-release.Dockerfile .
+		--build-arg NEUG_PACKAGE_BUILD=$(NEUG_PACKAGE_BUILD) \
+		--build-arg NEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) \
+		-t neug/neug:${ARCH} \
+		-f docker/neug-release.Dockerfile .

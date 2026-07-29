@@ -216,6 +216,8 @@ function_set ProjectGraphFunction::getFunctionSet() {
                 common::DataType(common::DataTypeId::kVarchar),
                 common::DataType(common::DataTypeId::kUnknown),
                 common::DataType(common::DataTypeId::kUnknown)});
+  // Mutates projected-graph metadata; must not run on the read path.
+  func->isReadOnly = false;
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindProjectGraph;
@@ -241,6 +243,8 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
   auto func = std::make_unique<NeugCallFunction>(
       name, function::call_input_types{
                 common::DataType(common::DataTypeId::kVarchar)});
+  // Mutates projected-graph metadata; must not run on the read path.
+  func->isReadOnly = false;
 
   auto* tableFn = static_cast<TableFunction*>(func.get());
   tableFn->bindFunc = bindDropProjectedGraph;

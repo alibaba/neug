@@ -1,5 +1,21 @@
 message(STATUS "=== Building extensions: ${BUILD_EXTENSIONS} ===")
 
+include("${CMAKE_SOURCE_DIR}/cmake/neug_extension.cmake")
+
+if(NEUG_EXTENSION_CONFIGS)
+    foreach(_ext_config IN LISTS NEUG_EXTENSION_CONFIGS)
+        if(NOT IS_ABSOLUTE "${_ext_config}")
+            # Relative paths are resolved from the NeuG source tree root.
+            get_filename_component(_ext_config "${_ext_config}" ABSOLUTE
+                BASE_DIR "${CMAKE_SOURCE_DIR}")
+        endif()
+        if(NOT EXISTS "${_ext_config}")
+            message(FATAL_ERROR "NEUG_EXTENSION_CONFIGS entry does not exist: ${_ext_config}")
+        endif()
+        include("${_ext_config}")
+    endforeach()
+endif()
+
 function(set_extension_properties target_name output_name extension_name)
     # Determine output directory based on build context
     # If CMAKE_LIBRARY_OUTPUT_DIRECTORY is set (Python build), use it directly like neug
@@ -121,19 +137,27 @@ function(add_extension_test)
 endfunction()
 
 function(add_extension_if_enabled extension)
+    if(extension STREQUAL "")
+        return()
+    endif()
     if ("${extension}" IN_LIST BUILD_EXTENSIONS)
         message(STATUS "Adding extension: ${extension}")
-        add_subdirectory(${extension})
+        if("${extension}" IN_LIST NEUG_BUILTIN_EXTENSIONS)
+            add_subdirectory("${extension}")
+        elseif(DEFINED NEUG_EXTENSION_${extension}_SOURCE_DIR)
+            add_subdirectory(
+                "${NEUG_EXTENSION_${extension}_SOURCE_DIR}"
+                "${CMAKE_BINARY_DIR}/external_extension/${extension}")
+        else()
+            message(FATAL_ERROR
+                "Extension '${extension}' is not built-in and was not registered "
+                "via neug_extension_load() in NEUG_EXTENSION_CONFIGS")
+        endif()
     endif()
 endfunction()
 
-# Add parquet extension
-add_extension_if_enabled("parquet")
-# Add pattern_matching extension
-add_extension_if_enabled("pattern_matching")
-# Add gds (graph data science) extension
-add_extension_if_enabled("gds")
-# Add httpfs extension (S3/OSS + HTTP/HTTPS)
-add_extension_if_enabled("httpfs")
+foreach(_requested_extension IN LISTS BUILD_EXTENSIONS)
+    add_extension_if_enabled("${_requested_extension}")
+endforeach()
 
 message(STATUS "=== Extension configuration complete ===")

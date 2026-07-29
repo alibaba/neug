@@ -130,7 +130,8 @@ class TableTest : public ::testing::Test {
 };
 
 TEST_F(TableTest, ModuleBrokerDoesNotSkipUnmarkedReferencedTopLevelModule) {
-  auto ckp = Workspace().GetCheckpoint(Workspace().CreateCheckpoint());
+  auto& ws = Workspace();
+  auto ckp = make_checkpoint(ws);
 
   ModuleDescriptor top_level_desc;
   top_level_desc.module_type = TypedColumn<int32_t>::type_name();
@@ -149,7 +150,8 @@ TEST_F(TableTest, ModuleBrokerDoesNotSkipUnmarkedReferencedTopLevelModule) {
 }
 
 TEST_F(TableTest, ModuleBrokerSkipsMarkedReferencedModule) {
-  auto ckp = Workspace().GetCheckpoint(Workspace().CreateCheckpoint());
+  auto& ws = Workspace();
+  auto ckp = make_checkpoint(ws);
 
   ModuleDescriptor child_desc;
   child_desc.module_type = TypedColumn<int32_t>::type_name();

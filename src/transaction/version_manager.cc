@@ -201,6 +201,16 @@ void VersionManager::begin_update_commit(uint32_t ts) {
   }
 }
 
+void VersionManager::drain_readers() {
+  if (update_state_.load(std::memory_order_acquire) != 2) {
+    THROW_INTERNAL_EXCEPTION(
+        "drain_readers called outside update commit state");
+  }
+  while (active_readers_.load(std::memory_order_acquire) > 0) {
+    // P4a will replace this wait loop with a runtime-aware wait strategy.
+  }
+}
+
 void VersionManager::release_update_timestamp(uint32_t ts) {
   complete_write_timestamp(ts);
 

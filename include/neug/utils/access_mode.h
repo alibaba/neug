@@ -18,6 +18,10 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
 
+namespace physical {
+class ExecutionFlag;
+}  // namespace physical
+
 namespace neug {
 
 enum class AccessMode {
@@ -60,5 +64,8 @@ inline std::string AccessModeToString(AccessMode mode) {
     return "unknown";
   }
 }
+
+bool IsReadOnlyExecutionFlag(const physical::ExecutionFlag& flags);
+bool IsInsertOnlyExecutionFlag(const physical::ExecutionFlag& flags);
 
 }  // namespace neug

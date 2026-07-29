@@ -3,6 +3,7 @@ SHELL := /bin/bash
 ROOT_BUILD         := $(CURDIR)/build
 BUILD_TYPE         ?= Release
 BUILD_TEST         ?= OFF
+NEUG_NATIVE_ARCH   ?= OFF
 EXTRA_CMAKE_FLAGS  ?=
 
 NPROC := $(shell { command -v nproc >/dev/null 2>&1 && nproc; } 2>/dev/null \
@@ -18,7 +19,7 @@ check-tools:
 	@command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but not found."; exit 1; }
 
 cpp-build: check-tools  ## Build C++ core only (no Python bindings)
-	cmake -S . -B $(ROOT_BUILD) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_PYTHON=OFF -DBUILD_TEST=$(BUILD_TEST) $(EXTRA_CMAKE_FLAGS)
+	cmake -S . -B $(ROOT_BUILD) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_PYTHON=OFF -DBUILD_TEST=$(BUILD_TEST) -DNEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) $(EXTRA_CMAKE_FLAGS)
 	cmake --build $(ROOT_BUILD) -j$(JOBS)
 
 python-dev: check-tools  ## Install Python dev environment (bootstraps root build)

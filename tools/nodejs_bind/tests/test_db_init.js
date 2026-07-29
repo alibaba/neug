@@ -30,6 +30,7 @@ const {
   ERR_INVALID_PATH,
   ERR_PERMISSION,
   ERR_VERSION_MISMATCHED,
+  ERR_NO_CHECKPOINT,
 } = require('neug');
 
 // ---------------------------------------------------------------------------
@@ -84,10 +85,10 @@ test('test_local_db_open_exists_and_close', () => {
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir);
   }
-  const db = new Database({ databasePath: dbDir, mode: 'r' });
-  assert.ok(db);
-  db.close();
-  const db2 = new Database({ databasePath: dbDir, mode: 'rw' });
+  const db1 = new Database({ databasePath: dbDir, mode: 'rw' });
+  assert.ok(db1);
+  db1.close();
+  const db2 = new Database({ databasePath: dbDir, mode: 'r' });
   assert.ok(db2);
   db2.close();
 });
@@ -110,9 +111,11 @@ test('test_local_db_open_not_exists_and_close', () => {
     fs.rmSync(dbDir, { recursive: true, force: true });
   }
   assert.ok(!fs.existsSync(dbDir));
-  const db = new Database({ databasePath: dbDir, mode: 'r' });
-  assert.ok(db);
-  db.close();
+  assert.throws(() => {
+    new Database({ databasePath: dbDir, mode: 'r' });
+  }, (err) => {
+    return err.message.includes(String(ERR_NO_CHECKPOINT));
+  });
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir);
   }
@@ -178,6 +181,8 @@ test('test_rw_ro_conflict', () => {
 // DB-001-09
 test('test_readonly_write_operation', () => {
   const dbDir = makeTmpDir('readonly_db');
+  const dbRw = new Database({ databasePath: dbDir, mode: 'rw' });
+  dbRw.close();
   const dbRo = new Database({ databasePath: dbDir, mode: 'r' });
   assert.throws(() => {
     const conn = dbRo.connect();
@@ -208,6 +213,9 @@ test('test_invalid_path', () => {
 test('test_config_param', () => {
   const dbDir = makeTmpDir('config_db');
   // mode: 'r', 'read', 'readwrite', 'w', 'rw', 'write'
+  const db0 = new Database({ databasePath: dbDir, mode: 'rw', maxThreadNum: 0 });
+  assert.ok(db0);
+  db0.close();
   const db1 = new Database({ databasePath: dbDir, mode: 'r', maxThreadNum: 0 });
   assert.ok(db1);
   db1.close();

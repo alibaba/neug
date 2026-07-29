@@ -17,6 +17,7 @@
 
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
@@ -188,12 +189,16 @@ std::pair<int32_t, const void*> EdgeTableView::AddEdge(
 
 // ── GraphView ──
 
-GraphView::GraphView(PropertyGraph& storage) : schema_(&storage.schema()) {
-  Rebuild(storage);
+GraphView::GraphView(PropertyGraph& storage) { Rebuild(storage); }
+
+result<StorageIndex*> GraphView::GetIndexByName(const std::string& name) const {
+  return index_manager_->GetIndexByName(name);
 }
 
 void GraphView::Rebuild(PropertyGraph& pg) {
+  dirty_ = &pg.dirty_tracker();
   schema_ = &pg.schema();
+  index_manager_ = &pg.index_manager();
   vertex_views_.clear();
   edge_views_.clear();
   // Use vertex_label_frontier() (total label-id space) instead of
