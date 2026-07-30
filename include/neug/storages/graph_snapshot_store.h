@@ -121,8 +121,9 @@ class GraphSnapshotStore {
   ~GraphSnapshotStore();
 
   /// Pin the current slot via lock-free optimistic loop: load cur_slot_index_,
-  /// fetch_add reader_count, verify index unchanged. Retries on concurrent
-  /// publication or cleanup-in-progress. Caller must UnpinSnapshot().
+  /// increment a positive reader_count with CAS, then verify the index is
+  /// unchanged. Retries on concurrent publication or cleanup-in-progress.
+  /// Caller must UnpinSnapshot().
   SnapshotSlot& PinCurrentSnapshot() noexcept;
 
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.

@@ -60,9 +60,8 @@ GraphSnapshotStore::GraphSnapshotStore(
   // Invariant: while a slot is current, reader_count_ >= 1 (held by the
   // "cur-pin"). A prepared publication transfers the cur-pin from the old slot
   // to the new slot atomically around the cur_slot_index_ switch. This lets
-  // PinCurrentSnapshot safely roll back when old_count == 0 (slot is free or
-  // being cleaned up) without mistaking a live cur slot for a dead one,
-  // because a live cur slot always has count >= 1.
+  // PinCurrentSnapshot distinguish live slots from free or cleanup states,
+  // because only a live slot has a positive count.
   slots_[0].storage_ = std::move(initial_pg);
   slots_[0].view_ = GraphView(*slots_[0].storage_);
   slots_[0].snapshot_generation_ = initial_snapshot_generation;
@@ -119,29 +118,16 @@ GraphSnapshotStore::PinCurrentSnapshot() noexcept {
     int slot_index = cur_slot_index_.load(std::memory_order_acquire);
 
     // Invariant: while a slot is current, reader_count_ >= 1 (cur-pin).
-    // Spin until the slot looks ready: count <= 0 means either the
-    // write-guard is active (count < 0, snapshot preparation still writing) or
-    // the slot is transitioning / being cleaned up (count == 0, not yet
-    // pinned by a new cur-pin).  In both cases reloading cur and retrying
-    // is correct.  We do NOT modify reader_count_ in this branch to avoid
-    // racing with the writer's release-bump.
+    // Increment only while the count remains positive. An unconditional
+    // fetch_add followed by rollback can cross a cleanup/reuse boundary and
+    // accidentally remove the next slot incarnation's prep-pin.
     int observed =
         slots_[slot_index].reader_count_.load(std::memory_order_acquire);
+    while (observed > 0 &&
+           !slots_[slot_index].reader_count_.compare_exchange_weak(
+               observed, observed + 1, std::memory_order_acq_rel,
+               std::memory_order_acquire)) {}
     if (observed <= 0) {
-      continue;
-    }
-
-    // Optimistically pin with acq_rel so we synchronise with the release
-    // fence in PrepareSnapshot and see fully-written storage_/view_.
-    int old_count = slots_[slot_index].reader_count_.fetch_add(
-        1, std::memory_order_acq_rel);
-
-    if (old_count <= 0) {
-      // Raced between the load and fetch_add — count dropped back to <= 0
-      // (write-guard re-entered or slot freed).  Roll back with a plain
-      // relaxed sub: count stays negative/zero throughout so no cleanup
-      // CAS (which requires count == 0 after transition from cur-pin) fires.
-      slots_[slot_index].reader_count_.fetch_sub(1, std::memory_order_relaxed);
       continue;
     }
 
@@ -164,6 +150,9 @@ void GraphSnapshotStore::unpinSnapshotByIndex(int slot_index) noexcept {
     return;
   }
 
+  // Every caller owns either a cur-pin, prep-pin, or a positive-count pin
+  // acquired by PinCurrentSnapshot. That ownership prevents cleanup/reuse
+  // until this decrement, so a single fetch_sub is sufficient here.
   int prev_count =
       slots_[slot_index].reader_count_.fetch_sub(1, std::memory_order_acq_rel);
   if (prev_count <= 0) {
@@ -172,10 +161,10 @@ void GraphSnapshotStore::unpinSnapshotByIndex(int slot_index) noexcept {
   }
 
   // If this was the last reader and slot is no longer current, clean it up.
-  // Use CAS on reader_count (0 → -1) as a cleanup lock to prevent a
-  // concurrent PinCurrentSnapshot (which does fetch_add(1)) from racing with
-  // cleanup. If CAS fails, another thread either pinned the slot (count > 0)
-  // or is already cleaning it up (count < 0); either way we skip cleanup.
+  // Use CAS on reader_count (0 → sentinel) as a cleanup lock to prevent a
+  // concurrent positive-count pin from racing with cleanup. If CAS fails,
+  // another thread either pinned the slot (count > 0) or is already cleaning
+  // it up (count < 0); either way we skip cleanup.
   if (prev_count == 1) {
     int current = cur_slot_index_.load(std::memory_order_acquire);
     if (slot_index != current && slots_[slot_index].storage_) {
@@ -256,7 +245,11 @@ GraphSnapshotStore::PrepareSnapshot(
 void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
   CHECK_GE(slot_index, 0);
   CHECK_LT(slot_index, slot_num_);
-  CHECK_EQ(slots_[slot_index].reader_count_.load(std::memory_order_acquire), 1);
+  // The prep-pin must still exist. A reader that retained this slot index from
+  // an older incarnation may have speculatively pinned it after reuse. Such a
+  // pin either becomes valid after the exchange or observes another current
+  // slot and releases itself.
+  CHECK_GE(slots_[slot_index].reader_count_.load(std::memory_order_acquire), 1);
 
   // The prepared slot's prep-pin becomes its cur-pin at this exchange. Atomic
   // exchange also makes simultaneous slot transfers form a safe hand-off chain.
