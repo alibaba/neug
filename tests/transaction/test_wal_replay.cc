@@ -259,10 +259,11 @@ static void expect_compact_completes_timestamp_and_preserves_next_insert(
     version_manager.revert_compact_timestamp(compact_ts);
   }
 
-  const auto read_after_compact_ts = version_manager.acquire_read_timestamp();
+  const auto read_after_compact_ts =
+      version_manager.acquire_read_view().visibility_ts;
   EXPECT_EQ(read_after_compact_ts, compact_ts)
       << "compaction timestamps must be marked complete so readers can advance";
-  version_manager.release_read_timestamp();
+  version_manager.release_read_view();
 
   const auto next_insert_ts = version_manager.acquire_insert_timestamp();
   EXPECT_GT(next_insert_ts, compact_ts)
@@ -270,10 +271,11 @@ static void expect_compact_completes_timestamp_and_preserves_next_insert(
          "replay cannot collide with pre-compaction insert records";
   version_manager.release_insert_timestamp(next_insert_ts);
 
-  const auto read_after_insert_ts = version_manager.acquire_read_timestamp();
+  const auto read_after_insert_ts =
+      version_manager.acquire_read_view().visibility_ts;
   EXPECT_EQ(read_after_insert_ts, next_insert_ts)
       << "a compact timestamp gap must not block later insert visibility";
-  version_manager.release_read_timestamp();
+  version_manager.release_read_view();
 }
 
 TEST(WalReplayVersionManagerTest,

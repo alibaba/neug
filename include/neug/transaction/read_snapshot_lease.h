@@ -69,7 +69,7 @@ class ReadSnapshotLease {
     }
     active_ = false;
     snapshot_.release();
-    version_manager_->release_read_timestamp();
+    version_manager_->release_read_view();
   }
 
   timestamp_t timestamp() const { return published_view_.visibility_ts; }

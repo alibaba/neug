@@ -68,15 +68,12 @@ class IVersionManager {
   // attempts so no already-waiting caller retains the previous runtime wait.
   virtual bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept = 0;
-  virtual uint32_t acquire_read_timestamp() = 0;
-  virtual PublishedReadView acquire_read_view() {
-    return {acquire_read_timestamp(), 0};
-  }
-  virtual void release_read_timestamp() = 0;
+  virtual PublishedReadView acquire_read_view() = 0;
+  virtual void release_read_view() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
-  virtual uint32_t reserve_view_generation() { return 0; }
+  virtual uint32_t reserve_view_generation() = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
   // May invoke the runtime waiter. Checkpoint callers must enter commit and
   // drain readers before acquiring checkpoint-manager or other
@@ -84,10 +81,7 @@ class IVersionManager {
   virtual void drain_readers() = 0;
   virtual void release_update_timestamp(uint32_t ts) = 0;
   virtual void release_update_timestamp_with_view(uint32_t ts,
-                                                  uint32_t view_generation) {
-    (void) view_generation;
-    release_update_timestamp(ts);
-  }
+                                                  uint32_t view_generation) = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
   virtual void revert_compact_timestamp(uint32_t ts) = 0;
@@ -122,8 +116,8 @@ class IVersionManager {
  * - admission_state_: controls whether new readers and inserters may enter.
  *   Update execution blocks inserters; update commit and compaction block
  *   both readers and inserters.
- * - acquire_read_timestamp uses a double-check pattern (pre-check + increment
- *   + post-check) to prevent ABA races with begin_update_commit.
+ * - acquire_read_view uses a double-check pattern (pre-check + increment +
+ *   post-check) to prevent ABA races with begin_update_commit.
  * - begin_update_commit blocks new readers before snapshot publication.
  *   Readers already between the pre-check and post-check either roll back
  *   after observing the blocked state or complete as an existing reader.
@@ -141,9 +135,8 @@ class VersionManager : public IVersionManager {
   bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept override;
 
-  uint32_t acquire_read_timestamp() override;
   PublishedReadView acquire_read_view() override;
-  void release_read_timestamp() override;
+  void release_read_view() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;

@@ -63,17 +63,15 @@ class ScriptedVersionManager : public IVersionManager {
     return captured;
   }
 
-  uint32_t acquire_read_timestamp() override {
-    return acquire_read_view().visibility_ts;
-  }
-
-  void release_read_timestamp() override { release_count_.fetch_add(1); }
+  void release_read_view() override { release_count_.fetch_add(1); }
   uint32_t acquire_insert_timestamp() override { return 1; }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
+  uint32_t reserve_view_generation() override { return 0; }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
   void release_update_timestamp(uint32_t) override {}
+  void release_update_timestamp_with_view(uint32_t, uint32_t) override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
   void release_compact_timestamp(uint32_t) override {}
   void revert_compact_timestamp(uint32_t) override {}
@@ -149,7 +147,7 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
   EXPECT_NE(current.get().view_generation(), old_view.view_generation);
 
   current.release();
-  version_manager.release_read_timestamp();
+  version_manager.release_read_view();
 }
 
 TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {

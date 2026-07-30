@@ -90,7 +90,7 @@ class TimestampLease {
       : version_manager_(&version_manager), kind_(kind) {
     switch (kind_) {
     case LeaseKind::kRead:
-      timestamp_ = version_manager_->acquire_read_timestamp();
+      timestamp_ = version_manager_->acquire_read_view().visibility_ts;
       break;
     case LeaseKind::kUpdate:
       timestamp_ = version_manager_->acquire_update_timestamp();
@@ -118,7 +118,7 @@ class TimestampLease {
     }
     switch (kind_) {
     case LeaseKind::kRead:
-      version_manager_->release_read_timestamp();
+      version_manager_->release_read_view();
       break;
     case LeaseKind::kUpdate:
       version_manager_->release_update_timestamp(timestamp_);

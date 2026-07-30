@@ -113,9 +113,9 @@ TEST(VersionManagerWaitTest, UncontendedPathsDoNotInvokeBackoff) {
   InitManager(manager);
   ResetRuntimeWaitCalls();
 
-  const auto read_ts = manager.acquire_read_timestamp();
+  const auto read_ts = manager.acquire_read_view().visibility_ts;
   EXPECT_EQ(read_ts, 1U);
-  manager.release_read_timestamp();
+  manager.release_read_view();
 
   const auto insert_ts = manager.acquire_insert_timestamp();
   manager.release_insert_timestamp(insert_ts);
@@ -140,8 +140,8 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
     manager.begin_update_commit(update_ts);
     ExpectRuntimeWaitWhile(
         [&]() {
-          manager.acquire_read_timestamp();
-          manager.release_read_timestamp();
+          manager.acquire_read_view();
+          manager.release_read_view();
         },
         [&]() { manager.release_update_timestamp(update_ts); });
   }
@@ -169,11 +169,11 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
   }
   {
     SCOPED_TRACE("explicit reader drain");
-    manager.acquire_read_timestamp();
+    manager.acquire_read_view();
     const auto update_ts = manager.acquire_update_timestamp();
     manager.begin_update_commit(update_ts);
     ExpectRuntimeWaitWhile([&]() { manager.drain_readers(); },
-                           [&]() { manager.release_read_timestamp(); });
+                           [&]() { manager.release_read_view(); });
     manager.release_update_timestamp(update_ts);
     EXPECT_ANY_THROW(manager.drain_readers());
   }
@@ -197,11 +197,11 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
   }
   {
     SCOPED_TRACE("compact reader drain");
-    manager.acquire_read_timestamp();
+    manager.acquire_read_view();
     uint32_t compact_ts = 0;
     ExpectRuntimeWaitWhile(
         [&]() { compact_ts = manager.acquire_compact_timestamp(); },
-        [&]() { manager.release_read_timestamp(); });
+        [&]() { manager.release_read_view(); });
     manager.release_compact_timestamp(compact_ts);
   }
 }
@@ -229,7 +229,7 @@ TEST(VersionManagerAdmissionTest,
 
   auto reader = [&]() {
     while (!stop.load(std::memory_order_acquire)) {
-      manager.acquire_read_timestamp();
+      manager.acquire_read_view();
       observed_readers.fetch_add(1, std::memory_order_seq_cst);
       if (compact_active.load(std::memory_order_seq_cst)) {
         violations.fetch_add(1, std::memory_order_relaxed);
@@ -239,7 +239,7 @@ TEST(VersionManagerAdmissionTest,
         violations.fetch_add(1, std::memory_order_relaxed);
       }
       observed_readers.fetch_sub(1, std::memory_order_seq_cst);
-      manager.release_read_timestamp();
+      manager.release_read_view();
     }
   };
   auto inserter = [&]() {
@@ -322,9 +322,9 @@ TEST(VersionManagerWaitTest, RuntimeWaitSwitchRequiresQuiescence) {
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(nullptr));
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&CountingRuntimeWait));
 
-  manager.acquire_read_timestamp();
+  manager.acquire_read_view();
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
-  manager.release_read_timestamp();
+  manager.release_read_view();
 
   const auto insert_ts = manager.acquire_insert_timestamp();
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
@@ -357,8 +357,8 @@ TEST(NativeRuntimeWaitTest, SleepPhaseCompletesContendedWait) {
 
   std::atomic<bool> completed{false};
   std::thread waiter([&]() {
-    manager.acquire_read_timestamp();
-    manager.release_read_timestamp();
+    manager.acquire_read_view();
+    manager.release_read_view();
     completed.store(true, std::memory_order_release);
   });
 
@@ -385,8 +385,8 @@ struct ReaderState {
 void* WaitForReadTimestamp(void* arg) {
   auto& state = *static_cast<ReaderState*>(arg);
   state.started->fetch_add(1, std::memory_order_relaxed);
-  state.manager->acquire_read_timestamp();
-  state.manager->release_read_timestamp();
+  state.manager->acquire_read_view();
+  state.manager->release_read_view();
   return nullptr;
 }
 

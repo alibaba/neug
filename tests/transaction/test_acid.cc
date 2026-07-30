@@ -2971,9 +2971,9 @@ TEST_F(NeugDBACIDTest, CommitVisibilitySemantics) {
 //
 // Empirically the reader nearly always wins, because the writer's path from
 // barrier release to release_update_timestamp includes WAL append +
-// PublishSnapshot, while the reader's path is just acquire_read_timestamp
-// (an atomic load). The pre-domination is a property of the path lengths,
-// not a bug. Both outcomes are CORRECT; we only assert no garbage.
+// PublishSnapshot, while the reader's path enters through
+// ReadSnapshotLease::Acquire. The pre-domination is a property of the path
+// lengths, not a bug. Both outcomes are CORRECT; we only assert no garbage.
 TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
   std::string dir = work_dir_ + "/CommitWindowRace";
   NeugDB db;

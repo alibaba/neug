@@ -110,7 +110,7 @@ class GraphSnapshotStore {
   /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
   Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg,
-                         uint32_t view_generation = 0);
+                         uint32_t view_generation);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }

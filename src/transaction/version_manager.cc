@@ -77,10 +77,6 @@ bool VersionManager::try_set_runtime_wait_if_quiescent(
   return quiescent;
 }
 
-uint32_t VersionManager::acquire_read_timestamp() {
-  return acquire_read_view().visibility_ts;
-}
-
 PublishedReadView VersionManager::acquire_read_view() {
   // Pre-check: avoid incrementing if in commit phase
   auto state = admission_state_.load(std::memory_order_acquire);
@@ -118,7 +114,7 @@ PublishedReadView VersionManager::acquire_read_view_slow() {
   return acquire_read_view();
 }
 
-void VersionManager::release_read_timestamp() {
+void VersionManager::release_read_view() {
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
 }
 

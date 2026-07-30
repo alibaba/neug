@@ -29,7 +29,7 @@ ReadSnapshotLease ReadSnapshotLease::Acquire(
     // A snapshot was published between the read-view capture and the pin.
     // Release in protocol order, then reacquire a complete view.
     snapshot.release();
-    version_manager.release_read_timestamp();
+    version_manager.release_read_view();
   }
 }
 

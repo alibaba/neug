@@ -345,8 +345,11 @@ TEST_F(CompactTransactionTest, CompactBlocksRead) {
   vm.init_ts(0, 1);
 
   AssertCompactBlocksAcquire(
-      vm, [](neug::VersionManager& v) { v.acquire_read_timestamp(); },
-      [](neug::VersionManager& v, uint32_t) { v.release_read_timestamp(); });
+      vm,
+      [](neug::VersionManager& v) {
+        return v.acquire_read_view().visibility_ts;
+      },
+      [](neug::VersionManager& v, uint32_t) { v.release_read_view(); });
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksInsert) {
