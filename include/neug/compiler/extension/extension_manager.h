@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include <mutex>
+#include <unordered_map>
+
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/option_config.h"
 
@@ -35,9 +38,26 @@ struct ExtensionEntry {
 
 class ExtensionManager {
  public:
+  using InitFunc = void (*)();
+
   const main::ExtensionOption* getExtensionOption(std::string name) const;
 
+  static void RegisterLoadedExtension(const std::string& name, void* handle,
+                                      InitFunc init);
+  static void* GetLoadedExtensionHandle(const std::string& name);
+  static void InitLoadedExtensions();
+
  private:
+  struct LoadedExtension {
+    void* handle;
+    InitFunc init;
+  };
+
+  static std::string NormalizeExtensionName(std::string name);
+
+  static std::mutex loaded_extensions_mutex_;
+  static std::unordered_map<std::string, LoadedExtension> loaded_extensions_;
+
   std::unordered_map<std::string, main::ExtensionOption> extensionOptions;
 };
 

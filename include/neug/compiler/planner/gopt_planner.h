@@ -7,6 +7,7 @@
 #include <string>
 
 #include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
@@ -28,6 +29,7 @@ class GOptPlanner : public neug::IGraphPlanner {
   GOptPlanner() : IGraphPlanner() {
     database = std::make_unique<neug::main::MetadataManager>();
     neug::main::MetadataRegistry::registerMetadata(database.get());
+    neug::extension::ExtensionManager::InitLoadedExtensions();
   }
 
   inline std::string type() const override { return "gopt"; }
