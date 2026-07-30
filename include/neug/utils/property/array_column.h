@@ -70,6 +70,14 @@ class ArrayColumn : public ColumnBase {
   const DataType& array_type() const { return array_type_; }
   uint64_t array_size() const { return array_size_; }
 
+  /**
+   * @brief Return the leaf data buffer shared by this array column.
+   *
+   * This interface is primarily used when creating an HNSW index on an
+   * ArrayColumn. The ArrayColumn must first be converted to a VecColumn, and
+   * sharing its internally owned buffer lets that conversion avoid copying
+   * the array data.
+   */
   template <typename T>
   const std::shared_ptr<IDataContainer>& shared_buffer() const {
     const ColumnBase* leaf = child_column_.get();

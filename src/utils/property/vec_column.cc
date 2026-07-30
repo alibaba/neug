@@ -78,21 +78,31 @@ void VecColumn<T>::openInternal(Checkpoint& ckp,
   level_ = level;
   array_size_ = std::stoull(desc.get("array_size").value_or("0"));
   size_ = std::stoull(desc.get("size").value_or("0"));
-  default_value_ =
-      DeserializeValue(desc.get(kDefaultValue).value_or(std::string{}));
+  auto default_value = desc.get(kDefaultValue);
+  if (default_value) {
+    default_value_ = DeserializeValue(*default_value);
+  } else {
+    std::vector<Value> children;
+    children.reserve(array_size_);
+    for (size_t i = 0; i < array_size_; ++i) {
+      children.emplace_back(Value::CreateValue<T>(T{}));
+    }
+    default_value_ = Value::ARRAY(arrayType(), std::move(children));
+  }
   buffer_ = ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
   auto accessor_ref = desc.get_ref(kAccessorRef);
   if (!accessor_ref) {
-    THROW_RUNTIME_ERROR("VecColumn::Open: missing offset accessor reference");
+    offset_accessor_->Open(ckp, ModuleDescriptor{}, level);
+  } else {
+    const auto* resolver = manifest ? manifest : &ckp.GetMeta();
+    auto accessor_desc = resolver->module(*accessor_ref);
+    if (!accessor_desc) {
+      THROW_RUNTIME_ERROR("VecColumn::Open: missing offset accessor module");
+    }
+    static_cast<Module*>(offset_accessor_.get())
+        ->Open(ckp, *resolver, *accessor_desc, level);
   }
-  const auto* resolver = manifest ? manifest : &ckp.GetMeta();
-  auto accessor_desc = resolver->module(*accessor_ref);
-  if (!accessor_desc) {
-    THROW_RUNTIME_ERROR("VecColumn::Open: missing offset accessor module");
-  }
-  static_cast<Module*>(offset_accessor_.get())
-      ->Open(ckp, *resolver, *accessor_desc, level);
   validateState();
 }
 
@@ -164,16 +174,21 @@ DataTypeId VecColumn<T>::type() const {
 }
 
 template <typename T>
-void VecColumn<T>::set_any(size_t vid, const Value& value, bool) {
+void VecColumn<T>::set_any(size_t vid, const Value& value, bool insert_safe) {
   if (vid > std::numeric_limits<vid_t>::max()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::set_any: invalid vid");
   }
   validateValue(value);
-  auto offset = offset_accessor_->GetIndexIDByVID(static_cast<vid_t>(vid));
-  if (offset == INVALID_OFFSET) {
-    offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
+  if (!insert_safe && offset_accessor_->GetNextIndexID() >= size_) {
+    THROW_STORAGE_EXCEPTION(
+        "VecColumn has insufficient capacity and insert_safe is false");
   }
+  auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
   if (offset >= size_) {
+    if (!insert_safe) {
+      THROW_STORAGE_EXCEPTION(
+          "VecColumn has insufficient capacity and insert_safe is false");
+    }
     resize(offset < 4096 ? 4096 : offset + offset / 4, default_value_);
   }
   auto* data = static_cast<T*>(buffer_->GetData()) +

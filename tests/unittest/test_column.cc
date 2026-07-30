@@ -390,6 +390,13 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   CheckpointManager checkpoint_mgr;
   checkpoint_mgr.Open(temp_dir.string());
   auto ckp = make_checkpoint(checkpoint_mgr);
+  DefaultIndexIDAccessor backing_accessor;
+  backing_accessor.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  VecColumnBackedIndexIDAccessor backed_accessor(backing_accessor);
+  EXPECT_THROW(backed_accessor.UpsertVID(0), exception::RuntimeError);
+  auto allocated_index_id = backing_accessor.UpsertVID(0);
+  EXPECT_EQ(backed_accessor.UpsertVID(0), allocated_index_id);
+
   constexpr uint64_t dimension = 2;
   auto array_type = DataType::Array(DataType::FLOAT, dimension);
   auto make_array = [&](float first, float second) {
@@ -408,6 +415,9 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   column.set_any(1, make_array(3.0f, 4.0f), true);
   EXPECT_FLOAT_EQ(
       ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
+  EXPECT_THROW(column.set_any(2, make_array(5.0f, 6.0f), false),
+               exception::StorageException);
+  EXPECT_EQ(column.get_offset_accessor()->GetIndexIDByVID(2), INVALID_INDEX_ID);
 
   auto clone_module = column.Clone();
   auto* clone = dynamic_cast<VecColumn<float>*>(clone_module.get());
@@ -430,6 +440,16 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   column.set_any(4096, make_array(5.0f, 6.0f), true);
   EXPECT_FLOAT_EQ(
       ArrayValue::GetChildren(column.get_any(4096))[0].GetValue<float>(), 5.0f);
+
+  auto* column_accessor = column.get_offset_accessor();
+  auto old_index_id = column_accessor->GetIndexIDByVID(0);
+  column.set_any(0, make_array(7.0f, 8.0f), false);
+  auto new_index_id = column_accessor->GetIndexIDByVID(0);
+  EXPECT_NE(new_index_id, old_index_id);
+  EXPECT_EQ(column_accessor->GetVIDByIndexID(old_index_id), INVALID_VID);
+  EXPECT_EQ(column_accessor->GetVIDByIndexID(new_index_id), 0);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(0))[1].GetValue<float>(), 8.0f);
 
   CheckpointManifest manifest;
   column.Dump(*ckp, manifest, "vec");

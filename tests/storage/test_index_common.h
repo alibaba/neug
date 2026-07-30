@@ -254,8 +254,8 @@ class VecIndex final : public StorageIndex {
                     "VecIndex requires a VecColumn<float>");
     }
     auto* mutable_column = const_cast<VecColumn<float>*>(column);
-    index_id_accessor_ = std::make_unique<VecColumnIndexIDAccessor>(
-        mutable_column->get_offset_accessor());
+    index_id_accessor_ = std::make_unique<VecColumnBackedIndexIDAccessor>(
+        *mutable_column->get_offset_accessor());
     source_ = std::make_unique<VecSource>(column->get_buffer_ptr(),
                                           column->array_size(),
                                           index_id_accessor_->GetNextIndexID());

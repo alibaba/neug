@@ -627,8 +627,8 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
         vec_column ? vec_column.get()
                    : vertex_table.get_table().get_column_by_id(property_col);
     if (auto* vec = dynamic_cast<VecColumn<float>*>(candidate_column)) {
-      index_id_accessor = std::make_unique<VecColumnIndexIDAccessor>(
-          vec->get_offset_accessor());
+      index_id_accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(
+          *vec->get_offset_accessor());
     } else {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "HNSW index supports only FLOAT array properties");
