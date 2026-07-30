@@ -796,6 +796,8 @@ void Leiden::refine() {
   std::atomic<uint32_t> atomic_next_com(next_com);
   if (multi_comms.empty())
     return;
+  // Cap sub-community IDs to scratch array bounds (array_size_ per thread)
+  const uint32_t max_sub_com = std::min<uint32_t>(50, array_size_);
   std::atomic<size_t> cursor(0);
   std::vector<std::thread> threads;
   threads.reserve(num_threads_ - 1);
@@ -831,7 +833,7 @@ void Leiden::refine() {
         std::shuffle(order.begin(), order.end(), rng);
         bool sub_improved = true;
         uint32_t next_sub = 1;
-        while (sub_improved && next_sub < 50) {
+        while (sub_improved && next_sub < max_sub_com) {
           sub_improved = false;
           for (vid_t u : order) {
             uint32_t cur_sc = sub_com_flat_[u];
@@ -944,7 +946,7 @@ void Leiden::refine() {
         std::shuffle(order.begin(), order.end(), rng);
         bool sub_improved = true;
         uint32_t next_sub = 1;
-        while (sub_improved && next_sub < 50) {
+        while (sub_improved && next_sub < max_sub_com) {
           sub_improved = false;
           for (uint32_t u_gid : order) {
             uint32_t cur_sc = sub_com_flat_[u_gid];
