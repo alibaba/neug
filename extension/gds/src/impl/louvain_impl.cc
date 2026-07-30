@@ -313,15 +313,15 @@ void Louvain::compute() {
       }
       // Iterative aggregation loop
       for (int agg_level = 0; agg_level < 100; ++agg_level) {
-        auto agg = build_aggregated_graph(valid_vertices_, community_.get(),
-                                          degree_.get(), csr_offsets, csr_adj,
-                                          csr_w);
+        auto agg =
+            build_aggregated_graph(valid_vertices_, community_.get(),
+                                   degree_.get(), csr_offsets, csr_adj, csr_w);
         if (agg.num_nodes <= 1)
           break;
         std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
         std::vector<double> agg_cw(agg.num_nodes, 0.0);
-        bool agg_improved = one_level_aggregated(agg, m_, resolution_,
-                                                 agg_gen, agg_cw);
+        bool agg_improved =
+            one_level_aggregated(agg, m_, resolution_, agg_gen, agg_cw);
         if (!agg_improved)
           break;
         propagate_aggregated_communities(valid_vertices_, community_.get(),
@@ -507,10 +507,10 @@ void Louvain::compute() {
           auto oes = out_views[ti].get_edges(lv);
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             csr_adj[pos] = static_cast<uint32_t>(db + (*it));
-            csr_w[pos] = triplet_has_weight_[ti]
-                             ? triplet_weight_accessors_[ti]
-                                   .get_typed_data<double>(it)
-                             : 1.0;
+            csr_w[pos] =
+                triplet_has_weight_[ti]
+                    ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                    : 1.0;
             ++pos;
           }
         }
@@ -521,25 +521,25 @@ void Louvain::compute() {
           auto ies = in_views[ti].get_edges(lv);
           for (auto it = ies.begin(); it != ies.end(); ++it) {
             csr_adj[pos] = static_cast<uint32_t>(sb + (*it));
-            csr_w[pos] = triplet_has_weight_[ti]
-                             ? triplet_weight_accessors_[ti]
-                                   .get_typed_data<double>(it)
-                             : 1.0;
+            csr_w[pos] =
+                triplet_has_weight_[ti]
+                    ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                    : 1.0;
             ++pos;
           }
         }
       }
       // Iterative aggregation loop
       for (int agg_level = 0; agg_level < 100; ++agg_level) {
-        auto agg = build_aggregated_graph(valid_vertices_, community_.get(),
-                                          degree_.get(), csr_offsets, csr_adj,
-                                          csr_w);
+        auto agg =
+            build_aggregated_graph(valid_vertices_, community_.get(),
+                                   degree_.get(), csr_offsets, csr_adj, csr_w);
         if (agg.num_nodes <= 1)
           break;
         std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
         std::vector<double> agg_cw(agg.num_nodes, 0.0);
-        bool agg_improved = one_level_aggregated(agg, m_, resolution_,
-                                                 agg_gen, agg_cw);
+        bool agg_improved =
+            one_level_aggregated(agg, m_, resolution_, agg_gen, agg_cw);
         if (!agg_improved)
           break;
         propagate_aggregated_communities(valid_vertices_, community_.get(),
@@ -607,50 +607,48 @@ bool Louvain::one_level() {
       bool moved = false;
       for (size_t i = 0; i < n; ++i) {
         vid_t u = order[i];
-                if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[u] != UINT32_MAX)
-                  continue;
-                uint32_t cc = community_[u];
-                double du = degree_[u];
-                ++gv;
-                mt.clear();
-                auto pn = [&](vid_t v, double w) {
-                  if (v == u)
-                    return;
-                  uint32_t cm = community_[v];
-                  if (mg[cm] != gv) {
-                    mg[cm] = gv;
-                    mc[cm] = 0.0;
-                    mt.push_back(cm);
-                  }
-                  mc[cm] += w;
-                };
-                auto oes = oe_view.get_edges(u);
-                for (auto it = oes.begin(); it != oes.end(); ++it)
-                  pn(*it, has_weight_
-                              ? weight_accessor_.get_typed_data<double>(it)
-                              : 1.0);
-                auto ies = ie_view.get_edges(u);
-                for (auto it = ies.begin(); it != ies.end(); ++it)
-                  pn(*it, has_weight_
-                              ? weight_accessor_.get_typed_data<double>(it)
-                              : 1.0);
-                double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
-                double sm = stot_[cc] - du;
-                uint32_t best = cc;
-                double bg = 0.0;
-                for (uint32_t cm : mt) {
-                  if (cm == cc)
-                    continue;
-                  double wc = mc[cm];
-                  double g = (wc - ws) / m_ -
-                             resolution_ * stot_[cm] * du / (2.0 * m_ * m_) +
-                             resolution_ * sm * du / (2.0 * m_ * m_);
-                  if (g > bg) {
-                    bg = g;
-                    best = cm;
-                  }
-                }
+        if (initial_community_ && !allow_relocation_ &&
+            initial_community_[u] != UINT32_MAX)
+          continue;
+        uint32_t cc = community_[u];
+        double du = degree_[u];
+        ++gv;
+        mt.clear();
+        auto pn = [&](vid_t v, double w) {
+          if (v == u)
+            return;
+          uint32_t cm = community_[v];
+          if (mg[cm] != gv) {
+            mg[cm] = gv;
+            mc[cm] = 0.0;
+            mt.push_back(cm);
+          }
+          mc[cm] += w;
+        };
+        auto oes = oe_view.get_edges(u);
+        for (auto it = oes.begin(); it != oes.end(); ++it)
+          pn(*it,
+             has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0);
+        auto ies = ie_view.get_edges(u);
+        for (auto it = ies.begin(); it != ies.end(); ++it)
+          pn(*it,
+             has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0);
+        double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
+        double sm = stot_[cc] - du;
+        uint32_t best = cc;
+        double bg = 0.0;
+        for (uint32_t cm : mt) {
+          if (cm == cc)
+            continue;
+          double wc = mc[cm];
+          double g = (wc - ws) / m_ -
+                     resolution_ * stot_[cm] * du / (2.0 * m_ * m_) +
+                     resolution_ * sm * du / (2.0 * m_ * m_);
+          if (g > bg) {
+            bg = g;
+            best = cm;
+          }
+        }
         if (best != cc) {
           stot_[cc] -= du;
           stot_[best] += du;
@@ -683,64 +681,64 @@ bool Louvain::one_level() {
       bool moved = false;
       for (size_t i = 0; i < n; ++i) {
         uint32_t ug = order[i];
-                if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[ug] != UINT32_MAX)
-                  continue;
-                uint32_t cc = community_[ug];
-                double du = degree_[ug];
-                size_t ul = global_to_label_idx_[ug];
-                vid_t uv = global_to_vid_[ug];
-                ++gv;
-                mt.clear();
-                auto pn = [&](uint32_t vg, double w) {
-                  if (vg == ug)
-                    return;
-                  uint32_t cm = community_[vg];
-                  if (mg[cm] != gv) {
-                    mg[cm] = gv;
-                    mc[cm] = 0.0;
-                    mt.push_back(cm);
-                  }
-                  mc[cm] += w;
-                };
-                for (size_t ti : label_out_triplets_[ul]) {
-                  if (triplet_dst_base_[ti] == SIZE_MAX)
-                    continue;
-                  size_t db = triplet_dst_base_[ti];
-                  auto oes = out_views[ti].get_edges(uv);
-                  for (auto it = oes.begin(); it != oes.end(); ++it)
-                    pn(static_cast<uint32_t>(db + (*it)),
-                       triplet_has_weight_[ti] ? triplet_weight_accessors_[ti]
-                                                     .get_typed_data<double>(it)
-                                               : 1.0);
-                }
-                for (size_t ti : label_in_triplets_[ul]) {
-                  if (triplet_src_base_[ti] == SIZE_MAX)
-                    continue;
-                  size_t sb = triplet_src_base_[ti];
-                  auto ies = in_views[ti].get_edges(uv);
-                  for (auto it = ies.begin(); it != ies.end(); ++it)
-                    pn(static_cast<uint32_t>(sb + (*it)),
-                       triplet_has_weight_[ti] ? triplet_weight_accessors_[ti]
-                                                     .get_typed_data<double>(it)
-                                               : 1.0);
-                }
-                double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
-                double sm = stot_[cc] - du;
-                uint32_t best = cc;
-                double bg = 0.0;
-                for (uint32_t cm : mt) {
-                  if (cm == cc)
-                    continue;
-                  double wc = mc[cm];
-                  double g = (wc - ws) / m_ -
-                             resolution_ * stot_[cm] * du / (2.0 * m_ * m_) +
-                             resolution_ * sm * du / (2.0 * m_ * m_);
-                  if (g > bg) {
-                    bg = g;
-                    best = cm;
-                  }
-                }
+        if (initial_community_ && !allow_relocation_ &&
+            initial_community_[ug] != UINT32_MAX)
+          continue;
+        uint32_t cc = community_[ug];
+        double du = degree_[ug];
+        size_t ul = global_to_label_idx_[ug];
+        vid_t uv = global_to_vid_[ug];
+        ++gv;
+        mt.clear();
+        auto pn = [&](uint32_t vg, double w) {
+          if (vg == ug)
+            return;
+          uint32_t cm = community_[vg];
+          if (mg[cm] != gv) {
+            mg[cm] = gv;
+            mc[cm] = 0.0;
+            mt.push_back(cm);
+          }
+          mc[cm] += w;
+        };
+        for (size_t ti : label_out_triplets_[ul]) {
+          if (triplet_dst_base_[ti] == SIZE_MAX)
+            continue;
+          size_t db = triplet_dst_base_[ti];
+          auto oes = out_views[ti].get_edges(uv);
+          for (auto it = oes.begin(); it != oes.end(); ++it)
+            pn(static_cast<uint32_t>(db + (*it)),
+               triplet_has_weight_[ti]
+                   ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                   : 1.0);
+        }
+        for (size_t ti : label_in_triplets_[ul]) {
+          if (triplet_src_base_[ti] == SIZE_MAX)
+            continue;
+          size_t sb = triplet_src_base_[ti];
+          auto ies = in_views[ti].get_edges(uv);
+          for (auto it = ies.begin(); it != ies.end(); ++it)
+            pn(static_cast<uint32_t>(sb + (*it)),
+               triplet_has_weight_[ti]
+                   ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                   : 1.0);
+        }
+        double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
+        double sm = stot_[cc] - du;
+        uint32_t best = cc;
+        double bg = 0.0;
+        for (uint32_t cm : mt) {
+          if (cm == cc)
+            continue;
+          double wc = mc[cm];
+          double g = (wc - ws) / m_ -
+                     resolution_ * stot_[cm] * du / (2.0 * m_ * m_) +
+                     resolution_ * sm * du / (2.0 * m_ * m_);
+          if (g > bg) {
+            bg = g;
+            best = cm;
+          }
+        }
         if (best != cc) {
           stot_[cc] -= du;
           stot_[best] += du;

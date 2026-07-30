@@ -319,15 +319,15 @@ void Leiden::compute() {
       }
       // Iterative aggregation loop
       for (int agg_level = 0; agg_level < 100; ++agg_level) {
-        auto agg = build_aggregated_graph(valid_vertices_, community_.get(),
-                                          degree_.get(), csr_offsets, csr_adj,
-                                          csr_w);
+        auto agg =
+            build_aggregated_graph(valid_vertices_, community_.get(),
+                                   degree_.get(), csr_offsets, csr_adj, csr_w);
         if (agg.num_nodes <= 1)
           break;
         std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
         std::vector<double> agg_cw(agg.num_nodes, 0.0);
-        bool agg_improved = one_level_aggregated(agg, m_, resolution_,
-                                                 agg_gen, agg_cw);
+        bool agg_improved =
+            one_level_aggregated(agg, m_, resolution_, agg_gen, agg_cw);
         if (!agg_improved)
           break;
         propagate_aggregated_communities(valid_vertices_, community_.get(),
@@ -517,10 +517,10 @@ void Leiden::compute() {
           auto oes = out_views[ti].get_edges(lv);
           for (auto it = oes.begin(); it != oes.end(); ++it) {
             csr_adj[pos] = static_cast<uint32_t>(db + (*it));
-            csr_w[pos] = triplet_has_weight_[ti]
-                             ? triplet_weight_accessors_[ti]
-                                   .get_typed_data<double>(it)
-                             : 1.0;
+            csr_w[pos] =
+                triplet_has_weight_[ti]
+                    ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                    : 1.0;
             ++pos;
           }
         }
@@ -531,25 +531,25 @@ void Leiden::compute() {
           auto ies = in_views[ti].get_edges(lv);
           for (auto it = ies.begin(); it != ies.end(); ++it) {
             csr_adj[pos] = static_cast<uint32_t>(sb + (*it));
-            csr_w[pos] = triplet_has_weight_[ti]
-                             ? triplet_weight_accessors_[ti]
-                                   .get_typed_data<double>(it)
-                             : 1.0;
+            csr_w[pos] =
+                triplet_has_weight_[ti]
+                    ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                    : 1.0;
             ++pos;
           }
         }
       }
       // Iterative aggregation loop
       for (int agg_level = 0; agg_level < 100; ++agg_level) {
-        auto agg = build_aggregated_graph(valid_vertices_, community_.get(),
-                                          degree_.get(), csr_offsets, csr_adj,
-                                          csr_w);
+        auto agg =
+            build_aggregated_graph(valid_vertices_, community_.get(),
+                                   degree_.get(), csr_offsets, csr_adj, csr_w);
         if (agg.num_nodes <= 1)
           break;
         std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
         std::vector<double> agg_cw(agg.num_nodes, 0.0);
-        bool agg_improved = one_level_aggregated(agg, m_, resolution_,
-                                                 agg_gen, agg_cw);
+        bool agg_improved =
+            one_level_aggregated(agg, m_, resolution_, agg_gen, agg_cw);
         if (!agg_improved)
           break;
         propagate_aggregated_communities(valid_vertices_, community_.get(),
@@ -637,18 +637,15 @@ bool Leiden::local_moving_phase() {
         };
         auto oes = oe_view.get_edges(u);
         for (auto it = oes.begin(); it != oes.end(); ++it)
-          process_nbr(*it,
-                      has_weight_
-                          ? weight_accessor_.get_typed_data<double>(it)
-                          : 1.0);
+          process_nbr(*it, has_weight_
+                               ? weight_accessor_.get_typed_data<double>(it)
+                               : 1.0);
         auto ies = ie_view.get_edges(u);
         for (auto it = ies.begin(); it != ies.end(); ++it)
-          process_nbr(*it,
-                      has_weight_
-                          ? weight_accessor_.get_typed_data<double>(it)
-                          : 1.0);
-        double w_self =
-            (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
+          process_nbr(*it, has_weight_
+                               ? weight_accessor_.get_typed_data<double>(it)
+                               : 1.0);
+        double w_self = (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
         double stot_cur_minus_u = stot_[cur_com] - deg_u;
         uint32_t best = cur_com;
         double best_gain = 0.0;
@@ -696,68 +693,67 @@ bool Leiden::local_moving_phase() {
       bool moved = false;
       for (size_t i = 0; i < n; ++i) {
         uint32_t u_gid = order[i];
-                if (initial_community_ && !allow_relocation_ &&
-                    initial_community_[u_gid] != UINT32_MAX)
-                  continue;
-                uint32_t cur_com = community_[u_gid];
-                double deg_u = degree_[u_gid];
-                vid_t u_local = global_to_vid_[u_gid];
-                size_t u_li = global_to_label_idx_[u_gid];
-                ++gen_val;
-                touched.clear();
-                auto process_nbr = [&](uint32_t v_gid, double w) {
-                  if (v_gid == u_gid)
-                    return;
-                  uint32_t com = community_[v_gid];
-                  if (my_gen[com] != gen_val) {
-                    my_gen[com] = gen_val;
-                    my_cw[com] = 0.0;
-                    touched.push_back(com);
-                  }
-                  my_cw[com] += w;
-                };
-                for (size_t ti : label_out_triplets_[u_li]) {
-                  if (triplet_dst_base_[ti] == SIZE_MAX)
-                    continue;
-                  size_t dst_base = triplet_dst_base_[ti];
-                  auto oes = out_views[ti].get_edges(u_local);
-                  for (auto it = oes.begin(); it != oes.end(); ++it)
-                    process_nbr(static_cast<uint32_t>(dst_base + (*it)),
-                                triplet_has_weight_[ti]
-                                    ? triplet_weight_accessors_[ti]
-                                          .get_typed_data<double>(it)
-                                    : 1.0);
-                }
-                for (size_t ti : label_in_triplets_[u_li]) {
-                  if (triplet_src_base_[ti] == SIZE_MAX)
-                    continue;
-                  size_t src_base = triplet_src_base_[ti];
-                  auto ies = in_views[ti].get_edges(u_local);
-                  for (auto it = ies.begin(); it != ies.end(); ++it)
-                    process_nbr(static_cast<uint32_t>(src_base + (*it)),
-                                triplet_has_weight_[ti]
-                                    ? triplet_weight_accessors_[ti]
-                                          .get_typed_data<double>(it)
-                                    : 1.0);
-                }
-                double w_self =
-                    (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
-                double stot_cur_minus_u = stot_[cur_com] - deg_u;
-                uint32_t best = cur_com;
-                double best_gain = 0.0;
-                for (uint32_t com : touched) {
-                  if (com == cur_com)
-                    continue;
-                  double w_com = my_cw[com];
-                  double gain =
-                      (w_com - w_self) / m_ -
-                      resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
-                      resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
-                  if (gain > best_gain) {
-                    best_gain = gain;
-                    best = com;
-                  }
-                }
+        if (initial_community_ && !allow_relocation_ &&
+            initial_community_[u_gid] != UINT32_MAX)
+          continue;
+        uint32_t cur_com = community_[u_gid];
+        double deg_u = degree_[u_gid];
+        vid_t u_local = global_to_vid_[u_gid];
+        size_t u_li = global_to_label_idx_[u_gid];
+        ++gen_val;
+        touched.clear();
+        auto process_nbr = [&](uint32_t v_gid, double w) {
+          if (v_gid == u_gid)
+            return;
+          uint32_t com = community_[v_gid];
+          if (my_gen[com] != gen_val) {
+            my_gen[com] = gen_val;
+            my_cw[com] = 0.0;
+            touched.push_back(com);
+          }
+          my_cw[com] += w;
+        };
+        for (size_t ti : label_out_triplets_[u_li]) {
+          if (triplet_dst_base_[ti] == SIZE_MAX)
+            continue;
+          size_t dst_base = triplet_dst_base_[ti];
+          auto oes = out_views[ti].get_edges(u_local);
+          for (auto it = oes.begin(); it != oes.end(); ++it)
+            process_nbr(
+                static_cast<uint32_t>(dst_base + (*it)),
+                triplet_has_weight_[ti]
+                    ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                    : 1.0);
+        }
+        for (size_t ti : label_in_triplets_[u_li]) {
+          if (triplet_src_base_[ti] == SIZE_MAX)
+            continue;
+          size_t src_base = triplet_src_base_[ti];
+          auto ies = in_views[ti].get_edges(u_local);
+          for (auto it = ies.begin(); it != ies.end(); ++it)
+            process_nbr(
+                static_cast<uint32_t>(src_base + (*it)),
+                triplet_has_weight_[ti]
+                    ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                    : 1.0);
+        }
+        double w_self = (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
+        double stot_cur_minus_u = stot_[cur_com] - deg_u;
+        uint32_t best = cur_com;
+        double best_gain = 0.0;
+        for (uint32_t com : touched) {
+          if (com == cur_com)
+            continue;
+          double w_com = my_cw[com];
+          double gain =
+              (w_com - w_self) / m_ -
+              resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
+              resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
+          if (gain > best_gain) {
+            best_gain = gain;
+            best = com;
+          }
+        }
         if (best != cur_com) {
           stot_[cur_com] -= deg_u;
           stot_[best] += deg_u;
