@@ -15,6 +15,8 @@
 
 #include "neug/transaction/timestamp_lease.h"
 
+#include <utility>
+
 #include <glog/logging.h>
 
 #include "neug/transaction/version_manager.h"
@@ -27,11 +29,11 @@ UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
   CHECK_NE(timestamp_, kInactiveTimestamp);
 }
 
-UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager,
-                                           uint32_t timestamp) noexcept
-    : version_manager_(&version_manager), timestamp_(timestamp) {
-  CHECK_NE(timestamp_, kInactiveTimestamp);
-}
+UpdateTimestampLease::UpdateTimestampLease(
+    UpdateTimestampLease&& other) noexcept
+    : version_manager_(std::exchange(other.version_manager_, nullptr)),
+      timestamp_(std::exchange(other.timestamp_, kInactiveTimestamp)),
+      commit_started_(std::exchange(other.commit_started_, false)) {}
 
 UpdateTimestampLease::~UpdateTimestampLease() noexcept { reset(); }
 

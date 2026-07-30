@@ -52,7 +52,7 @@ class Schema;
  * @brief Resource holder and lifecycle manager for update transactions.
  *
  * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
- * resources (WAL buffer, allocator, version manager, snapshot store).
+ * resources (WAL buffer, allocator, timestamp lease, snapshot store).
  * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
  * which accesses UpdateTransaction's private members via friend declaration.
  *
@@ -81,18 +81,18 @@ class UpdateTransaction {
    * @param cow_graph PropertyGraph COW clone
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
-   * @param vm Reference to version manager
    * @param snapshot_store Reference to GraphSnapshotStore for commit
    * @param cache Reference to query cache
-   * @param timestamp Transaction timestamp
+   * @param timestamp_lease Owner of the transaction timestamp
    *
-   * @note NeugDB is responsible for creating the COW copy via Clone()
+   * @note The caller is responsible for acquiring the timestamp lease before
+   * creating the COW copy via Clone().
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
-                    IWalWriter& logger, IVersionManager& vm,
-                    GraphSnapshotStore& snapshot_store,
-                    execution::LocalQueryCache& cache, timestamp_t timestamp);
+                    IWalWriter& logger, GraphSnapshotStore& snapshot_store,
+                    execution::LocalQueryCache& cache,
+                    UpdateTimestampLease timestamp_lease);
 
   /**
    * @brief Destructor that calls Abort().

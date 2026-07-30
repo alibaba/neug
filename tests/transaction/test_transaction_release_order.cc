@@ -32,6 +32,7 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/dummy_wal_writer.h"
 #include "unittest/utils.h"
@@ -187,6 +188,23 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
   EXPECT_EQ(version_manager.release_count(), 1);
   EXPECT_TRUE(version_manager.snapshot_was_released_first())
       << "The snapshot pin must be released before the timestamp lease";
+}
+
+TEST(UpdateTimestampLeaseTest, MoveTransfersTimestampOwnership) {
+  VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 2);
+
+  {
+    UpdateTimestampLease source(version_manager);
+    EXPECT_EQ(source.Timestamp(), 1);
+
+    UpdateTimestampLease target(std::move(source));
+    EXPECT_EQ(target.Timestamp(), 1);
+  }
+
+  const auto next_timestamp = version_manager.acquire_update_timestamp();
+  EXPECT_EQ(next_timestamp, 2);
+  version_manager.finish_update_timestamp(next_timestamp, std::nullopt);
 }
 
 TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {

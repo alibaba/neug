@@ -321,10 +321,9 @@ static Status deleteVertexIndexData(
 
 UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
                                      Allocator& alloc, IWalWriter& logger,
-                                     IVersionManager& vm,
                                      GraphSnapshotStore& snapshot_store,
                                      execution::LocalQueryCache& cache,
-                                     timestamp_t timestamp)
+                                     UpdateTimestampLease timestamp_lease)
     : cow_graph_(std::move(cow_graph)),
       cow_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
@@ -332,7 +331,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       logger_(logger),
       snapshot_store_(snapshot_store),
       pipeline_cache_(cache),
-      timestamp_lease_(vm, timestamp),
+      timestamp_lease_(std::move(timestamp_lease)),
       ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }

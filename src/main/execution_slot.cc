@@ -146,11 +146,11 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
 }
 
 UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
-  uint32_t ts = version_manager_.acquire_update_timestamp();
+  UpdateTimestampLease timestamp_lease(version_manager_);
   auto cow_graph = snapshot_store_.CurrentSnapshot().Clone();
   return UpdateTransaction(std::move(cow_graph), alloc_, *wal_writer_,
-                           version_manager_, snapshot_store_, pipeline_cache_,
-                           ts);
+                           snapshot_store_, pipeline_cache_,
+                           std::move(timestamp_lease));
 }
 
 CompactTransaction ExecutionSlot::GetCompactTransaction() {

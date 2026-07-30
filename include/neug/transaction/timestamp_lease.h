@@ -31,12 +31,12 @@ class IVersionManager;
 class UpdateTimestampLease {
  public:
   explicit UpdateTimestampLease(IVersionManager& version_manager);
-  UpdateTimestampLease(IVersionManager& version_manager,
-                       uint32_t timestamp) noexcept;
+  UpdateTimestampLease(UpdateTimestampLease&& other) noexcept;
   ~UpdateTimestampLease() noexcept;
 
   UpdateTimestampLease(const UpdateTimestampLease&) = delete;
   UpdateTimestampLease& operator=(const UpdateTimestampLease&) = delete;
+  UpdateTimestampLease& operator=(UpdateTimestampLease&&) = delete;
 
   uint32_t Timestamp() const noexcept { return timestamp_; }
 
