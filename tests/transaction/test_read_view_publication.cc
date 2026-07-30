@@ -69,7 +69,7 @@ class ScriptedVersionManager : public IVersionManager {
   int acquire_count() const { return acquire_count_.load(); }
   int release_count() const { return release_count_.load(); }
 
-  void init_ts(uint32_t, int) override {}
+  void init_ts(PublishedReadView, int) override {}
   bool try_set_runtime_wait_if_quiescent(RuntimeWaitFn) noexcept override {
     return true;
   }
@@ -161,7 +161,7 @@ class ReadViewPublicationTest : public ::testing::Test {
 
 TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
   VersionManager version_manager;
-  version_manager.init_ts(1, 2);
+  version_manager.init_ts({1, 0}, 2);
 
   const PublishedReadView old_view = version_manager.acquire_read_view();
   const auto publication = PublishReplacement(version_manager);
@@ -179,7 +179,7 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
 
 TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {
   VersionManager version_manager;
-  version_manager.init_ts(1, 2);
+  version_manager.init_ts({1, 0}, 2);
 
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
   const auto [replacement, timestamp] = PublishReplacement(version_manager);
@@ -194,6 +194,27 @@ TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {
   EXPECT_EQ(next.timestamp(), timestamp);
   EXPECT_EQ(next.snapshot_generation(), 1u);
   EXPECT_EQ(next.graph(), replacement.get());
+}
+
+TEST_F(ReadViewPublicationTest,
+       InitialReadViewMatchesNonzeroSnapshotGeneration) {
+  constexpr uint32_t kInitialTimestamp = 7;
+  constexpr uint32_t kInitialSnapshotGeneration = 19;
+  store_ = std::make_unique<GraphSnapshotStore>(4, initial_graph_,
+                                                kInitialSnapshotGeneration);
+
+  VersionManager version_manager;
+  version_manager.init_ts({kInitialTimestamp, kInitialSnapshotGeneration}, 2);
+
+  const PublishedReadView initialized = version_manager.acquire_read_view();
+  version_manager.release_read_view();
+  ASSERT_EQ(initialized.visibility_ts, kInitialTimestamp);
+  ASSERT_EQ(initialized.snapshot_generation, kInitialSnapshotGeneration);
+
+  auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
+  EXPECT_EQ(lease.timestamp(), kInitialTimestamp);
+  EXPECT_EQ(lease.snapshot_generation(), kInitialSnapshotGeneration);
+  EXPECT_EQ(lease.graph(), initial_graph_.get());
 }
 
 TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {

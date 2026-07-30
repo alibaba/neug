@@ -111,7 +111,7 @@ class TPIndexTest : public ::testing::Test {
     view_ = std::make_unique<GraphView>(*graph_);
     ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
                                                      allocator_);
-    version_manager_.init_ts(0, 1);
+    version_manager_.init_ts({0, 0}, 1);
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
         std::make_shared<StubPlanner>());

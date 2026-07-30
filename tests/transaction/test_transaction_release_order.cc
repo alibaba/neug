@@ -53,7 +53,7 @@ class ReleaseOrderVersionManager : public IVersionManager {
   explicit ReleaseOrderVersionManager(GraphSnapshotStore& store)
       : store_(store) {}
 
-  void init_ts(uint32_t, int) override {}
+  void init_ts(PublishedReadView, int) override {}
   bool try_set_runtime_wait_if_quiescent(RuntimeWaitFn) noexcept override {
     return true;
   }
@@ -191,7 +191,7 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
 
 TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
   VersionManager version_manager;
-  version_manager.init_ts(0, 2);
+  version_manager.init_ts({0, 0}, 2);
 
   version_manager.acquire_read_view();
 
@@ -220,7 +220,7 @@ TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
 
 TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
   VersionManager version_manager;
-  version_manager.init_ts(0, 2);
+  version_manager.init_ts({0, 0}, 2);
 
   const auto writer_timestamp = version_manager.acquire_update_timestamp();
   version_manager.begin_update_commit(writer_timestamp);
@@ -248,7 +248,7 @@ TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
 
 TEST(APInPlaceConcurrencyTest, WritersAreSerialized) {
   VersionManager version_manager;
-  version_manager.init_ts(0, 2);
+  version_manager.init_ts({0, 0}, 2);
 
   const auto first_timestamp = version_manager.acquire_update_timestamp();
 

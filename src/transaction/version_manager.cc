@@ -27,7 +27,9 @@ namespace neug {
 
 VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
 
-void VersionManager::init_ts(uint32_t ts, int thread_num) {
+void VersionManager::init_ts(PublishedReadView initial_read_view,
+                             int thread_num) {
+  const uint32_t ts = initial_read_view.visibility_ts;
   if (ts == std::numeric_limits<uint32_t>::max()) {
     THROW_RUNTIME_ERROR(
         "Transaction timestamp space exhausted; checkpoint/reset the timeline "
@@ -35,8 +37,9 @@ void VersionManager::init_ts(uint32_t ts, int thread_num) {
   }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
-  installed_snapshot_generation_.store(0, std::memory_order_relaxed);
-  published_read_view_.store(PackPublishedReadView({ts, 0}),
+  installed_snapshot_generation_.store(initial_read_view.snapshot_generation,
+                                       std::memory_order_relaxed);
+  published_read_view_.store(PackPublishedReadView(initial_read_view),
                              std::memory_order_relaxed);
   active_readers_.store(0, std::memory_order_relaxed);
   active_inserters_.store(0, std::memory_order_relaxed);

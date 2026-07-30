@@ -69,7 +69,7 @@ void CountingNativeRuntimeWait(RuntimeWaitAction action) noexcept {
 }
 
 void InitManager(VersionManager& manager) {
-  manager.init_ts(1, 4);
+  manager.init_ts({1, 0}, 4);
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&CountingRuntimeWait));
 }
 
@@ -321,7 +321,7 @@ TEST(RuntimeWaitPhaseTest, UsesSpecifiedBoundaries) {
 
 TEST(VersionManagerWaitTest, RuntimeWaitSwitchRequiresQuiescence) {
   VersionManager manager;
-  manager.init_ts(1, 4);
+  manager.init_ts({1, 0}, 4);
 
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(nullptr));
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&CountingRuntimeWait));
@@ -353,7 +353,7 @@ TEST(NativeRuntimeWaitTest, SleepPhaseCompletesContendedWait) {
   ResetRuntimeWaitCalls();
 
   VersionManager manager;
-  manager.init_ts(1, 4);
+  manager.init_ts({1, 0}, 4);
   ASSERT_TRUE(
       manager.try_set_runtime_wait_if_quiescent(&CountingNativeRuntimeWait));
   const auto update_ts = manager.acquire_update_timestamp();
@@ -403,7 +403,7 @@ TEST(BthreadRuntimeWaitTest, SleepPhaseLeavesWorkerAvailableForNewBthread) {
   ResetRuntimeWaitCalls();
 
   VersionManager manager;
-  manager.init_ts(1, 4);
+  manager.init_ts({1, 0}, 4);
   ASSERT_TRUE(
       manager.try_set_runtime_wait_if_quiescent(&CountingBthreadRuntimeWait));
   const auto update_ts = manager.acquire_update_timestamp();

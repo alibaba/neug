@@ -288,7 +288,7 @@ class WalReplayTest : public ::testing::Test {
 static void expect_compact_completes_timestamp_and_preserves_next_insert(
     bool commit) {
   neug::VersionManager version_manager;
-  version_manager.init_ts(0, 1);
+  version_manager.init_ts({0, 0}, 1);
 
   const auto insert_ts = version_manager.acquire_insert_timestamp();
   version_manager.release_insert_timestamp(insert_ts);

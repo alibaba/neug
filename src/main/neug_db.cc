@@ -470,7 +470,10 @@ void NeugDB::initPlanner() {
 
 void NeugDB::initVersionManager() {
   auto version_manager = std::make_unique<VersionManager>();
-  version_manager->init_ts(last_ts_, max_thread_num_);
+  SnapshotGuard snapshot(*snapshot_store_);
+  const PublishedReadView initial_read_view{
+      last_ts_, snapshot.get().snapshot_generation()};
+  version_manager->init_ts(initial_read_view, max_thread_num_);
   version_manager_ = std::move(version_manager);
 }
 

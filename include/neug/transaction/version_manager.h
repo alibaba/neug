@@ -63,7 +63,8 @@ inline PublishedReadView UnpackPublishedReadView(uint64_t packed) {
  */
 class IVersionManager {
  public:
-  virtual void init_ts(uint32_t ts, int thread_num) = 0;
+  // Initialize the timestamp timeline and its coherently installed snapshot.
+  virtual void init_ts(PublishedReadView initial_read_view, int thread_num) = 0;
   // Lifecycle-only operation. The implementation closes admission while
   // checking quiescence, but the caller must still prevent new transaction
   // attempts so no already-waiting caller retains the previous runtime wait.
@@ -140,7 +141,7 @@ class VersionManager : public IVersionManager {
   VersionManager();
   ~VersionManager() override = default;
 
-  void init_ts(uint32_t ts, int thread_num) override;
+  void init_ts(PublishedReadView initial_read_view, int thread_num) override;
   bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept override;
 
