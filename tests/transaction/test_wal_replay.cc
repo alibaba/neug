@@ -58,7 +58,6 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
     writer->open(old_wal_dir);
     ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&old_marker),
                                sizeof(old_marker)));
-    writer->close();
 
     writer->open(new_wal_dir);
     EXPECT_EQ(writer.get(), identity);

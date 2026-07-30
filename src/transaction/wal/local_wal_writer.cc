@@ -47,6 +47,7 @@ LocalWalWriter::~LocalWalWriter() noexcept {
 }
 
 void LocalWalWriter::open(const std::string& wal_uri) {
+  close();
   wal_uri_ = wal_uri;
   auto prefix = get_wal_uri_path(wal_uri_);
   if (!std::filesystem::exists(prefix)) {
