@@ -21,12 +21,15 @@
 #include "neug/transaction/version_manager.h"
 
 #include <unistd.h>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
 #include "gtest/gtest.h"
+#include "neug/transaction/wal/wal.h"
 
 namespace {
 
@@ -38,6 +41,44 @@ std::string make_test_dir() {
                         std::to_string(::getpid()) + "_" +
                         info->test_suite_name() + "_" + info->name();
   return (std::filesystem::temp_directory_path() / dir_name).string();
+}
+
+TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
+  const auto test_dir = make_test_dir();
+  const auto old_wal_dir =
+      (std::filesystem::path(test_dir) / "checkpoint-0" / "wal").string();
+  const auto new_wal_dir =
+      (std::filesystem::path(test_dir) / "checkpoint-1" / "wal").string();
+  constexpr uint32_t old_marker = 17;
+  constexpr uint32_t new_marker = 29;
+
+  {
+    auto writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
+    auto* const identity = writer.get();
+    writer->open(old_wal_dir);
+    ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&old_marker),
+                               sizeof(old_marker)));
+
+    writer->open(new_wal_dir);
+    EXPECT_EQ(writer.get(), identity);
+    ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&new_marker),
+                               sizeof(new_marker)));
+    writer->close();
+  }
+
+  const auto read_marker = [](const std::string& wal_dir) {
+    const auto begin = std::filesystem::directory_iterator(wal_dir);
+    const auto end = std::filesystem::directory_iterator();
+    EXPECT_NE(begin, end);
+    std::ifstream wal_file(begin->path(), std::ios::binary);
+    uint32_t marker = 0;
+    wal_file.read(reinterpret_cast<char*>(&marker), sizeof(marker));
+    return marker;
+  };
+  EXPECT_EQ(read_marker(old_wal_dir), old_marker);
+  EXPECT_EQ(read_marker(new_wal_dir), new_marker);
+
+  std::filesystem::remove_all(test_dir);
 }
 
 neug::NeugDBConfig make_config(const std::string& db_dir) {

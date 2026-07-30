@@ -64,7 +64,7 @@ class TpExecutionSlotPool {
           std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
           std::shared_ptr<Allocator> alloc, IVersionManager& version_manager,
           int slot_id, std::unique_ptr<IWalWriter> in_logger,
-          const NeugDBConfig& config)
+          const std::string& wal_uri, const NeugDBConfig& config)
         : allocator(std::move(alloc)),
           logger(std::move(in_logger)),
           slot(snapshot_store, std::move(planner),
@@ -72,7 +72,7 @@ class TpExecutionSlotPool {
                QueryExecutionStrategy::kTransactional, logger.get(), config,
                slot_id) {
       CHECK(logger != nullptr);
-      logger->open();
+      logger->open(wal_uri);
     }
 
     std::shared_ptr<Allocator> allocator;
@@ -114,7 +114,7 @@ class TpExecutionSlotPool {
         new (&entries_[constructed_entries])
             Entry(snapshot_store, planner, global_query_cache,
                   allocators.at(constructed_entries), version_manager, slot_id,
-                  std::move(logger), config);
+                  std::move(logger), wal_uri, config);
       }
     } catch (...) {
       while (constructed_entries > 0) {
