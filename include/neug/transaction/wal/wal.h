@@ -68,7 +68,7 @@ class IWalWriter {
    * writer for the full transaction.
    * The uri could be a file_path or a remote connection string.
    */
-  virtual void open() = 0;
+  virtual void open(const std::string& wal_uri) = 0;
 
   /**
    * Close the wal writer. If a remote connection is hold by the wal writer,
