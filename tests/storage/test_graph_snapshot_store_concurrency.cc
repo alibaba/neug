@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <random>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "neug/generated/proto/plan/error.pb.h"
@@ -389,6 +390,36 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   auto& slot = store_->PinCurrentSnapshot();
   EXPECT_EQ(slot.mutable_graph()->VertexNum(0, MAX_TIMESTAMP), 3u);
   store_->UnpinSnapshot(slot);
+}
+
+TEST_F(GraphSnapshotStoreConcurrencyTest,
+       PreparedSnapshotIsInvisibleUntilInstalled) {
+  GraphSnapshotStore store(2, initial_pg_);
+  auto candidate = make_new_pg();
+  GraphSnapshotStore::PreparedSnapshot prepared;
+
+  ASSERT_TRUE(store.PrepareSnapshot(candidate, prepared).ok());
+  ASSERT_TRUE(prepared.valid());
+  EXPECT_EQ(&store.CurrentSnapshot(), initial_pg_.get());
+
+  store.InstallPreparedSnapshot(std::move(prepared));
+  EXPECT_FALSE(prepared.valid());
+  EXPECT_EQ(&store.CurrentSnapshot(), candidate.get());
+}
+
+TEST_F(GraphSnapshotStoreConcurrencyTest,
+       AbandonedPreparedSnapshotReturnsSlotToPool) {
+  GraphSnapshotStore store(2, initial_pg_);
+  GraphSnapshotStore::PreparedSnapshot first;
+  GraphSnapshotStore::PreparedSnapshot second;
+
+  ASSERT_TRUE(store.PrepareSnapshot(make_new_pg(), first).ok());
+  auto exhausted = store.PrepareSnapshot(make_new_pg(), second);
+  ASSERT_FALSE(exhausted.ok());
+  EXPECT_EQ(exhausted.error_code(), StatusCode::ERR_POOL_EXHAUSTED);
+
+  first.reset();
+  EXPECT_TRUE(store.PrepareSnapshot(make_new_pg(), second).ok());
 }
 
 }  // namespace neug

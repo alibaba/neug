@@ -38,7 +38,7 @@ namespace neug {
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
  * - Update: CurrentSnapshot().Clone() -> mutate COW copy ->
- * PublishSnapshot().
+ * PrepareSnapshot() before WAL -> InstallPreparedSnapshot() after WAL.
  *
  * Concurrency:
  * - Lock-free PinCurrentSnapshot via optimistic pin + verify loop.
@@ -50,6 +50,29 @@ namespace neug {
  */
 class GraphSnapshotStore {
  public:
+  /// Move-only ownership of a fully initialized, reader-invisible slot.
+  /// Destruction returns an uninstalled slot to the pool.
+  class PreparedSnapshot {
+   public:
+    PreparedSnapshot() = default;
+    ~PreparedSnapshot() noexcept { reset(); }
+    PreparedSnapshot(const PreparedSnapshot&) = delete;
+    PreparedSnapshot& operator=(const PreparedSnapshot&) = delete;
+    PreparedSnapshot(PreparedSnapshot&& other) noexcept;
+    PreparedSnapshot& operator=(PreparedSnapshot&& other) noexcept;
+
+    bool valid() const { return store_ != nullptr; }
+    void reset() noexcept;
+
+   private:
+    friend class GraphSnapshotStore;
+    PreparedSnapshot(GraphSnapshotStore* store, int slot_index) noexcept
+        : store_(store), slot_index_(slot_index) {}
+
+    GraphSnapshotStore* store_{nullptr};
+    int slot_index_{-1};
+  };
+
   /// A slot holding a PropertyGraph, its GraphView, and a pin count.
   class SnapshotSlot {
    public:
@@ -100,11 +123,17 @@ class GraphSnapshotStore {
   /// (admission_state_==kInsertsBlocked, all inserters drained).
   const PropertyGraph& CurrentSnapshot() const;
 
-  /// Publish a COW PropertyGraph into a free slot and switch cur_slot_index_.
-  /// Steps: reserve free slot -> prep-pin new slot -> write PG + build view
-  /// -> phantom-pin old slot -> switch (release store) -> release phantom pin
-  /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
-  /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
+  /// Reserve and fully initialize a reader-invisible slot. All capacity and
+  /// GraphView construction failures happen here, before a caller appends WAL.
+  /// The returned handle rolls the reservation back unless installed.
+  Status PrepareSnapshot(const std::shared_ptr<PropertyGraph>& new_pg,
+                         PreparedSnapshot& prepared);
+
+  /// Make a prepared slot current. This is the bounded, noexcept post-WAL
+  /// operation; invariant violations are fail-stop.
+  void InstallPreparedSnapshot(PreparedSnapshot&& prepared) noexcept;
+
+  /// Convenience wrapper for callers without a durability boundary.
   Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
 
   /// Pool capacity.
@@ -130,6 +159,7 @@ class GraphSnapshotStore {
   void returnFreeSlot(int slot_index);
   void UnpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);
+  void releasePreparedSlot(int slot_index) noexcept;
 };
 
 /**

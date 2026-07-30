@@ -348,8 +348,15 @@ bool UpdateTransaction::Commit() {
     return true;
   }
 
-  if (!snapshot_store_.HasFreeSlot()) {
-    LOG(ERROR) << "GraphSnapshotStore slot exhausted; refusing to commit";
+  // Reserve capacity and build GraphView before WAL append. If any normal
+  // preparation step fails, no durable record exists and the RAII handle
+  // returns the slot to the pool.
+  GraphSnapshotStore::PreparedSnapshot prepared_snapshot;
+  auto prepare_status =
+      snapshot_store_.PrepareSnapshot(cow_graph_, prepared_snapshot);
+  if (!prepare_status.ok()) {
+    LOG(ERROR) << "Failed to prepare graph snapshot: "
+               << prepare_status.ToString();
     Abort();
     return false;
   }
@@ -367,15 +374,11 @@ bool UpdateTransaction::Commit() {
     pipeline_cache_.clearGlobalCache();
   }
 
-  // PublishSnapshot MUST happen BEFORE release() which calls
-  // release_update_timestamp (advancing read_ts_). This ordering guarantees
-  // that any new reader observing the advanced read_ts will also see the new
-  // slot.
-  auto status = snapshot_store_.PublishSnapshot(cow_graph_);
-  if (!status.ok()) {
-    // We should never fail to publish the snapshot.
-    LOG(FATAL) << "Failed to publish snapshot: " << status.ToString();
-  }
+  // After WAL append, installation is a bounded noexcept state transition:
+  // the slot capacity and GraphView construction were already handled above.
+  // Install still precedes release_update_timestamp(), so a reader cannot
+  // observe the advanced timestamp with the old graph.
+  snapshot_store_.InstallPreparedSnapshot(std::move(prepared_snapshot));
 
   // The COW PG is now owned by the new slot. Drop our reference so this
   // transaction does not appear to still hold the snapshot. view_ wraps

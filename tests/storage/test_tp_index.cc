@@ -53,10 +53,14 @@ class CapturingWalWriter : public IWalWriter {
   void close() override {}
 
   bool append(const char* data, size_t length) override {
+    if (!succeed) {
+      return false;
+    }
     records.emplace_back(data, data + length);
     return true;
   }
 
+  bool succeed{true};
   std::vector<std::vector<char>> records;
 };
 
@@ -112,6 +116,7 @@ class TPIndexTest : public ::testing::Test {
     ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
                                                      allocator_);
     version_manager_.init_ts(0, 1);
+    wal_writer_.succeed = true;
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
         std::make_shared<StubPlanner>());
@@ -309,6 +314,39 @@ class TPIndexTest : public ::testing::Test {
   CapturingWalWriter wal_writer_;
   std::unique_ptr<execution::LocalQueryCache> local_cache_;
 };
+
+TEST_F(TPIndexTest, FailedWalAppendRecyclesPreparedSnapshot) {
+  StartSnapshotStore();
+  wal_writer_.succeed = false;
+
+  // More failures than available non-current slots prove that each abandoned
+  // pre-WAL reservation is returned to the pool.
+  for (int i = 0; i < 20; ++i) {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    CreateVertexTypeParamBuilder builder;
+    ASSERT_TRUE(tp.CreateVertexType(builder.VertexLabel("Person")
+                                        .AddProperty("id", Value::INT64(0))
+                                        .AddPrimaryKeyName("id")
+                                        .Build()));
+    EXPECT_FALSE(txn.Commit());
+    EXPECT_FALSE(
+        snapshot_store_->CurrentSnapshot().schema().is_vertex_label_valid(
+            "Person"));
+  }
+
+  wal_writer_.succeed = true;
+  auto txn = NewUpdateTransaction();
+  StorageTPUpdateInterface tp(txn);
+  CreateVertexTypeParamBuilder builder;
+  ASSERT_TRUE(tp.CreateVertexType(builder.VertexLabel("Person")
+                                      .AddProperty("id", Value::INT64(0))
+                                      .AddPrimaryKeyName("id")
+                                      .Build()));
+  ASSERT_TRUE(txn.Commit());
+  EXPECT_TRUE(snapshot_store_->CurrentSnapshot().schema().is_vertex_label_valid(
+      "Person"));
+}
 
 TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   CreatePersonTableTP();
