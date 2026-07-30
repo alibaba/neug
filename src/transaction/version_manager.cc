@@ -35,8 +35,7 @@ void VersionManager::init_ts(uint32_t ts, int thread_num) {
   }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
-  next_view_generation_.store(0, std::memory_order_relaxed);
-  current_view_generation_.store(0, std::memory_order_relaxed);
+  installed_snapshot_generation_.store(0, std::memory_order_relaxed);
   published_read_view_.store(PackPublishedReadView({ts, 0}),
                              std::memory_order_relaxed);
   active_readers_.store(0, std::memory_order_relaxed);
@@ -104,7 +103,7 @@ PublishedReadView VersionManager::acquire_read_view() {
 }
 
 PublishedReadView VersionManager::acquire_read_view_slow() {
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   while (admission_state_.load(std::memory_order_acquire) ==
          AdmissionState::kAllBlocked) {
     wait();
@@ -140,7 +139,7 @@ uint32_t VersionManager::acquire_insert_timestamp() {
 }
 
 uint32_t VersionManager::acquire_insert_timestamp_slow() {
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   while (admission_state_.load(std::memory_order_acquire) !=
          AdmissionState::kOpen) {
     wait();
@@ -164,7 +163,7 @@ void VersionManager::complete_write_timestamp(uint32_t ts) {
   // Check under lock: only advance if ts == read_ts + 1
   std::unique_lock lock(lock_, std::defer_lock);
   if (!lock.try_lock()) {
-    AdaptiveBackoff wait(runtime_wait());
+    RuntimeBackoff wait = make_runtime_backoff();
     do {
       wait();
     } while (!lock.try_lock());
@@ -196,8 +195,8 @@ void VersionManager::advance_read_ts_locked() {
   // Sliding window maintenance
   ts_window_.slide_window(current);
   published_read_view_.store(
-      PackPublishedReadView(
-          {current, current_view_generation_.load(std::memory_order_relaxed)}),
+      PackPublishedReadView({current, installed_snapshot_generation_.load(
+                                          std::memory_order_relaxed)}),
       std::memory_order_release);
 }
 
@@ -209,7 +208,7 @@ void VersionManager::enter_exclusive_state(AdmissionState desired_state) {
     return;
   }
 
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   do {
     wait();
     expected = AdmissionState::kOpen;
@@ -223,13 +222,13 @@ void VersionManager::wait_until_zero(const std::atomic<int>& counter) {
     return;
   }
 
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   do {
     wait();
   } while (counter.load(std::memory_order_seq_cst) > 0);
 }
 
-RuntimeWaitFn VersionManager::runtime_wait() const noexcept {
+RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
   return runtime_wait_.load(std::memory_order_acquire);
 }
 
@@ -238,22 +237,6 @@ uint32_t VersionManager::acquire_update_timestamp() {
   wait_until_zero(active_inserters_);
 
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
-}
-
-uint32_t VersionManager::reserve_view_generation() {
-  uint32_t current = next_view_generation_.load(std::memory_order_relaxed);
-  while (true) {
-    if (current == std::numeric_limits<uint32_t>::max()) {
-      THROW_RUNTIME_ERROR(
-          "Snapshot generation space exhausted; restart the database before "
-          "publishing another snapshot");
-    }
-    if (next_view_generation_.compare_exchange_weak(
-            current, current + 1, std::memory_order_acq_rel,
-            std::memory_order_relaxed)) {
-      return current + 1;
-    }
-  }
 }
 
 void VersionManager::begin_update_commit(uint32_t ts) {
@@ -276,19 +259,17 @@ void VersionManager::drain_readers() {
   wait_until_zero(active_readers_);
 }
 
-void VersionManager::release_update_timestamp(uint32_t ts) {
+void VersionManager::finish_update_timestamp(
+    uint32_t ts,
+    std::optional<uint32_t> installed_snapshot_generation) noexcept {
+  if (installed_snapshot_generation) {
+    installed_snapshot_generation_.store(*installed_snapshot_generation,
+                                         std::memory_order_relaxed);
+  }
   complete_write_timestamp(ts);
 
-  // Restore normal operation.
-  admission_state_.store(AdmissionState::kOpen, std::memory_order_release);
-}
-
-void VersionManager::release_update_timestamp_with_view(
-    uint32_t ts, uint32_t view_generation) {
-  current_view_generation_.store(view_generation, std::memory_order_relaxed);
-  complete_write_timestamp(ts);
-
-  // Snapshot installation and the matching read view are now visible.
+  // Timestamp completion and any matching snapshot generation are visible
+  // before new readers and inserters are admitted.
   admission_state_.store(AdmissionState::kOpen, std::memory_order_release);
 }
 

@@ -15,14 +15,17 @@
 
 #include "neug/transaction/read_snapshot_lease.h"
 
+#include <optional>
+
 namespace neug {
 
 ReadSnapshotLease ReadSnapshotLease::Acquire(
     IVersionManager& version_manager, GraphSnapshotStore& snapshot_store) {
+  std::optional<RuntimeBackoff> wait;
   for (;;) {
     const PublishedReadView published = version_manager.acquire_read_view();
     SnapshotGuard snapshot(snapshot_store);
-    if (snapshot.get().view_generation() == published.view_generation) {
+    if (snapshot.get().snapshot_generation() == published.snapshot_generation) {
       return ReadSnapshotLease(version_manager, std::move(snapshot), published);
     }
 
@@ -30,6 +33,10 @@ ReadSnapshotLease ReadSnapshotLease::Acquire(
     // Release in protocol order, then reacquire a complete view.
     snapshot.release();
     version_manager.release_read_view();
+    if (!wait) {
+      wait.emplace(version_manager.make_runtime_backoff());
+    }
+    (*wait)();
   }
 }
 

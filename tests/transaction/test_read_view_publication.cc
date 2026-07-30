@@ -33,13 +33,33 @@
 namespace neug {
 namespace {
 
+result<uint32_t> PrepareAndPublishSnapshot(
+    GraphSnapshotStore& store, const std::shared_ptr<PropertyGraph>& snapshot) {
+  auto prepared_result = store.PrepareSnapshot(snapshot);
+  if (!prepared_result) {
+    return tl::unexpected(prepared_result.error());
+  }
+  auto prepared = std::move(prepared_result).value();
+  return std::move(prepared).Publish();
+}
+
+std::atomic<int> runtime_wait_calls{0};
+
+void CountRuntimeWait(RuntimeWaitAction) noexcept {
+  runtime_wait_calls.fetch_add(1, std::memory_order_relaxed);
+}
+
 class ScriptedVersionManager : public IVersionManager {
  public:
   explicit ScriptedVersionManager(PublishedReadView initial)
       : published_(PackPublishedReadView(initial)) {}
 
-  void set_first_acquire_hook(std::function<void()> hook) {
-    first_acquire_hook_ = std::move(hook);
+  void set_acquire_hook(std::function<void(int)> hook) {
+    acquire_hook_ = std::move(hook);
+  }
+
+  void set_runtime_wait(RuntimeWaitFn runtime_wait) {
+    runtime_wait_ = runtime_wait;
   }
 
   void publish(PublishedReadView view) {
@@ -57,8 +77,9 @@ class ScriptedVersionManager : public IVersionManager {
   PublishedReadView acquire_read_view() override {
     const auto captured =
         UnpackPublishedReadView(published_.load(std::memory_order_acquire));
-    if (acquire_count_.fetch_add(1) == 0 && first_acquire_hook_) {
-      first_acquire_hook_();
+    const int acquire_count = acquire_count_.fetch_add(1) + 1;
+    if (acquire_hook_) {
+      acquire_hook_(acquire_count);
     }
     return captured;
   }
@@ -67,20 +88,24 @@ class ScriptedVersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override { return 1; }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
-  uint32_t reserve_view_generation() override { return 0; }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
-  void release_update_timestamp(uint32_t) override {}
-  void release_update_timestamp_with_view(uint32_t, uint32_t) override {}
+  void finish_update_timestamp(uint32_t,
+                               std::optional<uint32_t>) noexcept override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
   void release_compact_timestamp(uint32_t) override {}
   void revert_compact_timestamp(uint32_t) override {}
 
  private:
+  RuntimeWaitFn runtime_wait_impl() const noexcept override {
+    return runtime_wait_;
+  }
+
   std::atomic<uint64_t> published_;
   std::atomic<int> acquire_count_{0};
   std::atomic<int> release_count_{0};
-  std::function<void()> first_acquire_hook_;
+  std::function<void(int)> acquire_hook_;
+  RuntimeWaitFn runtime_wait_{&NativeRuntimeWait};
 };
 
 class ReadViewPublicationTest : public ::testing::Test {
@@ -118,11 +143,13 @@ class ReadViewPublicationTest : public ::testing::Test {
   std::pair<std::shared_ptr<PropertyGraph>, uint32_t> PublishReplacement(
       VersionManager& version_manager) {
     const uint32_t timestamp = version_manager.acquire_update_timestamp();
-    const uint32_t generation = version_manager.reserve_view_generation();
-    version_manager.begin_update_commit(timestamp);
     auto replacement = initial_graph_->Clone();
-    EXPECT_TRUE(store_->PublishSnapshot(replacement, generation).ok());
-    version_manager.release_update_timestamp_with_view(timestamp, generation);
+    auto prepared_result = store_->PrepareSnapshot(replacement);
+    EXPECT_TRUE(prepared_result.has_value());
+    auto prepared = std::move(prepared_result).value();
+    version_manager.begin_update_commit(timestamp);
+    const uint32_t snapshot_generation = std::move(prepared).Publish();
+    version_manager.finish_update_timestamp(timestamp, snapshot_generation);
     return {std::move(replacement), timestamp};
   }
 
@@ -142,9 +169,9 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
 
   SnapshotGuard current(*store_);
   EXPECT_EQ(old_view.visibility_ts, 1u);
-  EXPECT_EQ(old_view.view_generation, 0u);
+  EXPECT_EQ(old_view.snapshot_generation, 0u);
   EXPECT_EQ(current.get().mutable_graph(), replacement.get());
-  EXPECT_NE(current.get().view_generation(), old_view.view_generation);
+  EXPECT_NE(current.get().snapshot_generation(), old_view.snapshot_generation);
 
   current.release();
   version_manager.release_read_view();
@@ -158,14 +185,14 @@ TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {
   const auto [replacement, timestamp] = PublishReplacement(version_manager);
 
   EXPECT_EQ(lease.timestamp(), 1u);
-  EXPECT_EQ(lease.view_generation(), 0u);
+  EXPECT_EQ(lease.snapshot_generation(), 0u);
   EXPECT_EQ(lease.graph(), initial_graph_.get());
   EXPECT_NE(lease.graph(), replacement.get());
 
   lease.release();
   auto next = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(next.timestamp(), timestamp);
-  EXPECT_EQ(next.view_generation(), 1u);
+  EXPECT_EQ(next.snapshot_generation(), 1u);
   EXPECT_EQ(next.graph(), replacement.get());
 }
 
@@ -173,9 +200,14 @@ TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
   ScriptedVersionManager version_manager({1, 0});
   auto replacement = initial_graph_->Clone();
   bool publish_succeeded = false;
-  version_manager.set_first_acquire_hook([&] {
-    publish_succeeded = store_->PublishSnapshot(replacement, 1).ok();
-    version_manager.publish({2, 1});
+  version_manager.set_acquire_hook([&](int acquire_count) {
+    if (acquire_count == 1) {
+      auto published = PrepareAndPublishSnapshot(*store_, replacement);
+      publish_succeeded = published.has_value();
+      if (published) {
+        version_manager.publish({2, published.value()});
+      }
+    }
   });
 
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
@@ -184,11 +216,41 @@ TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
   EXPECT_EQ(version_manager.acquire_count(), 2);
   EXPECT_EQ(version_manager.release_count(), 1);
   EXPECT_EQ(lease.timestamp(), 2u);
-  EXPECT_EQ(lease.view_generation(), 1u);
+  EXPECT_EQ(lease.snapshot_generation(), 1u);
   EXPECT_EQ(lease.graph(), replacement.get());
 
   lease.release();
   EXPECT_EQ(version_manager.release_count(), 2);
+}
+
+TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
+  ScriptedVersionManager version_manager({1, 0});
+  version_manager.set_runtime_wait(&CountRuntimeWait);
+  runtime_wait_calls.store(0, std::memory_order_relaxed);
+
+  auto replacement = initial_graph_->Clone();
+  bool publish_succeeded = true;
+  constexpr int mismatch_count = kRuntimeWaitSpinIterations + 1;
+  version_manager.set_acquire_hook([&](int acquire_count) {
+    if (acquire_count <= mismatch_count) {
+      auto published = PrepareAndPublishSnapshot(*store_, replacement);
+      publish_succeeded &= published.has_value();
+      if (published) {
+        version_manager.publish(
+            {static_cast<uint32_t>(acquire_count + 1), published.value()});
+      }
+    }
+  });
+
+  auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
+
+  EXPECT_TRUE(publish_succeeded);
+  EXPECT_EQ(version_manager.acquire_count(), mismatch_count + 1);
+  EXPECT_EQ(version_manager.release_count(), mismatch_count);
+  EXPECT_EQ(runtime_wait_calls.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(lease.timestamp(), static_cast<uint32_t>(mismatch_count + 1));
+  EXPECT_EQ(lease.snapshot_generation(), static_cast<uint32_t>(mismatch_count));
+  EXPECT_EQ(lease.graph(), replacement.get());
 }
 
 }  // namespace

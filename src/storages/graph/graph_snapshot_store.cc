@@ -16,29 +16,56 @@
 #include "neug/storages/graph_snapshot_store.h"
 
 #include <glog/logging.h>
+#include <limits>
 #include <utility>
 
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
 static constexpr int kCleanupSentinel = -(1 << 20);
 
+GraphSnapshotStore::PreparedSnapshot::PreparedSnapshot(
+    GraphSnapshotStore& store, int slot_index) noexcept
+    : store_(&store), slot_index_(slot_index) {}
+
+GraphSnapshotStore::PreparedSnapshot::~PreparedSnapshot() noexcept {
+  if (store_ != nullptr) {
+    store_->UnpinSnapshotByIndex(slot_index_);
+  }
+}
+
+GraphSnapshotStore::PreparedSnapshot::PreparedSnapshot(
+    PreparedSnapshot&& other) noexcept
+    : store_(std::exchange(other.store_, nullptr)),
+      slot_index_(other.slot_index_) {}
+
+uint32_t GraphSnapshotStore::PreparedSnapshot::Publish() && noexcept {
+  CHECK(store_ != nullptr);
+  auto* store = std::exchange(store_, nullptr);
+  const uint32_t generation = store->slots_[slot_index_].snapshot_generation_;
+  store->publishPreparedSnapshot(slot_index_);
+  return generation;
+}
+
 GraphSnapshotStore::GraphSnapshotStore(
     int slot_num, std::shared_ptr<PropertyGraph> initial_pg,
-    uint32_t initial_view_generation)
-    : slot_num_(slot_num), slots_(slot_num) {
+    uint32_t initial_snapshot_generation)
+    : slot_num_(slot_num),
+      slots_(slot_num),
+      last_reserved_snapshot_generation_(initial_snapshot_generation) {
   // Publish initial PG into slot 0.
   //
   // Invariant: while a slot is current, reader_count_ >= 1 (held by the
-  // "cur-pin").  PublishSnapshot transfers the cur-pin from the old slot to
-  // the new slot atomically around the cur_slot_index_ switch.  This lets
+  // "cur-pin"). A prepared publication transfers the cur-pin from the old slot
+  // to the new slot atomically around the cur_slot_index_ switch. This lets
   // PinCurrentSnapshot safely roll back when old_count == 0 (slot is free or
   // being cleaned up) without mistaking a live cur slot for a dead one,
   // because a live cur slot always has count >= 1.
   slots_[0].storage_ = std::move(initial_pg);
   slots_[0].view_ = GraphView(*slots_[0].storage_);
-  slots_[0].view_generation_ = initial_view_generation;
+  slots_[0].snapshot_generation_ = initial_snapshot_generation;
   slots_[0].reader_count_.store(1, std::memory_order_relaxed);  // cur-pin
   cur_slot_index_.store(0, std::memory_order_release);
 
@@ -80,7 +107,7 @@ void GraphSnapshotStore::cleanupSlot(int slot_index) {
   }
   slots_[slot_index].storage_.reset();
   slots_[slot_index].view_ = GraphView();
-  slots_[slot_index].view_generation_ = 0;
+  slots_[slot_index].snapshot_generation_ = 0;
   slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel,
                                              std::memory_order_release);
   returnFreeSlot(slot_index);
@@ -93,7 +120,7 @@ GraphSnapshotStore::PinCurrentSnapshot() noexcept {
 
     // Invariant: while a slot is current, reader_count_ >= 1 (cur-pin).
     // Spin until the slot looks ready: count <= 0 means either the
-    // write-guard is active (count < 0, PublishSnapshot still writing) or
+    // write-guard is active (count < 0, snapshot preparation still writing) or
     // the slot is transitioning / being cleaned up (count == 0, not yet
     // pinned by a new cur-pin).  In both cases reloading cur and retrying
     // is correct.  We do NOT modify reader_count_ in this branch to avoid
@@ -105,7 +132,7 @@ GraphSnapshotStore::PinCurrentSnapshot() noexcept {
     }
 
     // Optimistically pin with acq_rel so we synchronise with the release
-    // fence in PublishSnapshot and see fully-written storage_/view_.
+    // fence in PrepareSnapshot and see fully-written storage_/view_.
     int old_count = slots_[slot_index].reader_count_.fetch_add(
         1, std::memory_order_acq_rel);
 
@@ -167,60 +194,77 @@ const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
   return *slots_[slot_index].storage_;
 }
 
-Status GraphSnapshotStore::PublishSnapshot(
-    const std::shared_ptr<PropertyGraph>& new_pg, uint32_t view_generation) {
-  int slot_index = getFreeSlot();
-  if (slot_index < 0) {
-    return Status(StatusCode::ERR_POOL_EXHAUSTED,
-                  "GraphSnapshotStore slot exhausted");
+uint32_t GraphSnapshotStore::reserveSnapshotGeneration() {
+  uint32_t current =
+      last_reserved_snapshot_generation_.load(std::memory_order_relaxed);
+  while (true) {
+    if (current == std::numeric_limits<uint32_t>::max()) {
+      THROW_RUNTIME_ERROR(
+          "Snapshot generation space exhausted; restart the database before "
+          "preparing another snapshot");
+    }
+    if (last_reserved_snapshot_generation_.compare_exchange_weak(
+            current, current + 1, std::memory_order_acq_rel,
+            std::memory_order_relaxed)) {
+      return current + 1;
+    }
+  }
+}
+
+result<GraphSnapshotStore::PreparedSnapshot>
+GraphSnapshotStore::PrepareSnapshot(
+    const std::shared_ptr<PropertyGraph>& new_pg) {
+  if (!new_pg) {
+    return tl::unexpected(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "Cannot prepare a null PropertyGraph snapshot"));
   }
 
-  // Write-guard: set reader_count_ to a large negative sentinel so that any
-  // concurrent PinCurrentSnapshot that races onto this slot (via ABA reuse)
-  // observes old_count < 0 and spins away.  We must finish writing
-  // storage_ and view_ before making the slot visible to readers, so the
-  // sentinel acts as a write-in-progress flag.
-  //
-  // cleanupSlot() leaves reader_count_ at 0 after returning the slot to the
-  // free_list (fetch_add(-kCleanupSentinel) brings it from kCleanupSentinel
-  // back to 0). We use store(kCleanupSentinel) here rather than fetch_add to
-  // set an unambiguous negative value regardless of any residual count.
-  slots_[slot_index].reader_count_.store(kCleanupSentinel,
-                                         std::memory_order_relaxed);
+  int slot_index = getFreeSlot();
+  if (slot_index < 0) {
+    return tl::unexpected(Status(StatusCode::ERR_POOL_EXHAUSTED,
+                                 "GraphSnapshotStore slot exhausted"));
+  }
 
-  slots_[slot_index].storage_ = new_pg;
-  slots_[slot_index].view_ = GraphView(*new_pg);
-  slots_[slot_index].view_generation_ = view_generation;
+  uint32_t snapshot_generation = 0;
+  try {
+    snapshot_generation = reserveSnapshotGeneration();
 
-  // Release the write-guard: bump reader_count_ from kCleanupSentinel to 1
-  // (the prep-pin) atomically with a release fence so that all prior writes
-  // to storage_ and view_ are visible to any reader that subsequently observes
-  // old_count >= 0 via fetch_add(1) with acquire semantics.
-  slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel + 1,
-                                             std::memory_order_release);
+    // Keep the reserved slot invisible while its storage and view are built.
+    slots_[slot_index].reader_count_.store(kCleanupSentinel,
+                                           std::memory_order_relaxed);
+    slots_[slot_index].storage_ = new_pg;
+    slots_[slot_index].view_ = GraphView(*new_pg);
+    slots_[slot_index].snapshot_generation_ = snapshot_generation;
 
-  // Load the old cur slot index while holding the invariant that the old
-  // cur slot's count >= 1 (its cur-pin).  No need for a phantom-pin: the
-  // cur-pin itself protects the old slot from premature cleanup across the
-  // switch, because UnpinSnapshotByIndex only triggers cleanup when
-  // prev_count == 1, meaning count drops to 0, which cannot happen while
-  // the cur-pin is still held.
-  int old_slot_index = cur_slot_index_.load(std::memory_order_acquire);
+    // Convert the write guard into the token's prep-pin. The prep-pin becomes
+    // the cur-pin if Publish() succeeds, or drives cleanup if the token aborts.
+    slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel + 1,
+                                               std::memory_order_release);
+  } catch (...) {
+    slots_[slot_index].storage_.reset();
+    slots_[slot_index].view_ = GraphView();
+    slots_[slot_index].snapshot_generation_ = 0;
+    slots_[slot_index].reader_count_.store(0, std::memory_order_release);
+    returnFreeSlot(slot_index);
+    throw;
+  }
 
-  // Switch cur to the new slot.  The new slot already has its cur-pin (= 1)
-  // set by the fetch_add above, so readers that observe the new index will
-  // see old_count >= 1 and pin successfully.
-  cur_slot_index_.store(slot_index, std::memory_order_release);
+  return PreparedSnapshot(*this, slot_index);
+}
 
-  // Release the old slot's cur-pin now that the new slot is current.
-  // If no readers are holding the old slot, prev_count == 1, count drops to
-  // 0, and cleanup fires via the CAS inside UnpinSnapshotByIndex.
-  // If readers still hold it, cleanup is deferred to the last reader release.
+void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
+  CHECK_GE(slot_index, 0);
+  CHECK_LT(slot_index, slot_num_);
+  CHECK_EQ(slots_[slot_index].reader_count_.load(std::memory_order_acquire), 1);
+
+  // The prepared slot's prep-pin becomes its cur-pin at this exchange. Atomic
+  // exchange also makes simultaneous slot transfers form a safe hand-off chain.
+  const int old_slot_index =
+      cur_slot_index_.exchange(slot_index, std::memory_order_acq_rel);
+
+  // Release the old cur-pin; cleanup is immediate only when no reader holds it.
   UnpinSnapshotByIndex(old_slot_index);
-
-  // The new slot's prep-pin becomes its cur-pin — do NOT release it here.
-
-  return Status::OK();
 }
 
 }  // namespace neug

@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <optional>
 
 #include "neug/transaction/runtime_wait.h"
 #include "neug/transaction/timestamp_window.h"
@@ -32,11 +33,11 @@ namespace neug {
  */
 struct PublishedReadView {
   uint32_t visibility_ts;
-  uint32_t view_generation;
+  uint32_t snapshot_generation;
 };
 
 inline uint64_t PackPublishedReadView(const PublishedReadView& view) {
-  return (static_cast<uint64_t>(view.view_generation) << 32) |
+  return (static_cast<uint64_t>(view.snapshot_generation) << 32) |
          view.visibility_ts;
 }
 
@@ -68,25 +69,33 @@ class IVersionManager {
   // attempts so no already-waiting caller retains the previous runtime wait.
   virtual bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept = 0;
+  // Create a per-wait cursor without exposing the runtime callback itself.
+  RuntimeBackoff make_runtime_backoff() const noexcept {
+    return RuntimeBackoff(runtime_wait_impl());
+  }
   virtual PublishedReadView acquire_read_view() = 0;
   virtual void release_read_view() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
-  virtual uint32_t reserve_view_generation() = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
   // May invoke the runtime waiter. Checkpoint callers must enter commit and
   // drain readers before acquiring checkpoint-manager or other
   // OS-thread-owned mutexes.
   virtual void drain_readers() = 0;
-  virtual void release_update_timestamp(uint32_t ts) = 0;
-  virtual void release_update_timestamp_with_view(uint32_t ts,
-                                                  uint32_t view_generation) = 0;
+  // A present generation has already been installed in GraphSnapshotStore.
+  // nullopt keeps the currently installed generation.
+  virtual void finish_update_timestamp(
+      uint32_t ts,
+      std::optional<uint32_t> installed_snapshot_generation) noexcept = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
   virtual void revert_compact_timestamp(uint32_t ts) = 0;
 
   virtual ~IVersionManager() {}
+
+ protected:
+  virtual RuntimeWaitFn runtime_wait_impl() const noexcept = 0;
 };
 
 /**
@@ -104,7 +113,7 @@ class IVersionManager {
  *   | Update-exec   | yes  |  no    |   no        |    -          |   no    |
  *   | Update-commit |  no* |  no    |   -         |   no          |   no    |
  *   | Compact       |  no  |  no    |   no        |   no          |   no    |
- *   *New reads wait with the configured adaptive backoff; already-acquired
+ *   *New reads wait with the configured runtime backoff; already-acquired
  *   reads continue.
  *
  * Mechanism:
@@ -140,12 +149,11 @@ class VersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
-  uint32_t reserve_view_generation() override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
-  void release_update_timestamp(uint32_t ts) override;
-  void release_update_timestamp_with_view(uint32_t ts,
-                                          uint32_t view_generation) override;
+  void finish_update_timestamp(
+      uint32_t ts,
+      std::optional<uint32_t> installed_snapshot_generation) noexcept override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;
   void revert_compact_timestamp(uint32_t ts) override;
@@ -162,14 +170,13 @@ class VersionManager : public IVersionManager {
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
   void enter_exclusive_state(AdmissionState desired_state);
   void wait_until_zero(const std::atomic<int>& counter);
-  RuntimeWaitFn runtime_wait() const noexcept;
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
+  RuntimeWaitFn runtime_wait_impl() const noexcept override;
 
   std::atomic<uint32_t> write_ts_{1};
   std::atomic<uint32_t> read_ts_{1};
-  std::atomic<uint32_t> next_view_generation_{0};
-  std::atomic<uint32_t> current_view_generation_{0};
+  std::atomic<uint32_t> installed_snapshot_generation_{0};
   std::atomic<uint64_t> published_read_view_{PackPublishedReadView({1, 0})};
 
   std::atomic<int> active_readers_{0};

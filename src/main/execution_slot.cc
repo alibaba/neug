@@ -33,6 +33,7 @@
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -78,60 +79,6 @@ void ExecutionSlotLease::reset() noexcept {
 }
 
 namespace {
-
-enum class LeaseKind {
-  kRead,
-  kUpdate,
-};
-
-class TimestampLease {
- public:
-  TimestampLease(IVersionManager& version_manager, LeaseKind kind)
-      : version_manager_(&version_manager), kind_(kind) {
-    switch (kind_) {
-    case LeaseKind::kRead:
-      timestamp_ = version_manager_->acquire_read_view().visibility_ts;
-      break;
-    case LeaseKind::kUpdate:
-      timestamp_ = version_manager_->acquire_update_timestamp();
-      break;
-    }
-  }
-
-  ~TimestampLease() { release(); }
-
-  TimestampLease(const TimestampLease&) = delete;
-  TimestampLease& operator=(const TimestampLease&) = delete;
-
-  timestamp_t timestamp() const { return timestamp_; }
-
-  void makeUpdateExclusive() {
-    CHECK(kind_ == LeaseKind::kUpdate);
-    version_manager_->begin_update_commit(timestamp_);
-    version_manager_->drain_readers();
-  }
-
- private:
-  void release() {
-    if (!active_) {
-      return;
-    }
-    switch (kind_) {
-    case LeaseKind::kRead:
-      version_manager_->release_read_view();
-      break;
-    case LeaseKind::kUpdate:
-      version_manager_->release_update_timestamp(timestamp_);
-      break;
-    }
-    active_ = false;
-  }
-
-  IVersionManager* version_manager_;
-  LeaseKind kind_;
-  timestamp_t timestamp_{INVALID_TIMESTAMP};
-  bool active_{true};
-};
 
 bool invalidatesQueryCache(const physical::ExecutionFlag& flags) {
   return flags.schema() || flags.create_temp_table() || flags.batch() ||
@@ -326,20 +273,19 @@ Status ExecutionSlot::executeCore(const std::string& query,
   Status status;
   if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
     if (access_mode == AccessMode::kRead) {
-      TimestampLease lease(version_manager_, LeaseKind::kRead);
-      SnapshotGuard guard(snapshot_store_);
-      StorageReadInterface storage(guard.get().view(), lease.timestamp());
-      status =
-          execute_on_storage(GraphStats(*guard.get().mutable_graph()), storage);
+      auto lease =
+          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(lease.view(), lease.timestamp());
+      status = execute_on_storage(GraphStats(*lease.graph()), storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
-      TimestampLease lease(version_manager_, LeaseKind::kUpdate);
-      lease.makeUpdateExclusive();
+      UpdateTimestampLease lease(version_manager_);
+      lease.MakeUpdateExclusive();
       SnapshotGuard guard(snapshot_store_);
       auto& slot = guard.get();
       StorageAPUpdateInterface storage(*slot.mutable_graph(),
-                                       slot.mutable_view(), lease.timestamp(),
+                                       slot.mutable_view(), lease.Timestamp(),
                                        alloc_);
       status = execute_on_storage(GraphStats(*slot.mutable_graph()), storage);
     } else {
@@ -418,26 +364,24 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
 }
 
 std::string ExecutionSlot::GetSchema() const {
-  TimestampLease lease(version_manager_, LeaseKind::kRead);
-  SnapshotGuard guard(snapshot_store_);
-  auto yaml = guard.get().mutable_graph()->schema().to_yaml();
+  auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+  auto yaml = lease.graph()->schema().to_yaml();
   return get_json_string_from_yaml(yaml.value()).value();
 }
 
 void ExecutionSlot::ClearTemporarySchema() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
-    TimestampLease lease(version_manager_, LeaseKind::kRead);
-    SnapshotGuard guard(snapshot_store_);
-    const auto& schema = guard.get().mutable_graph()->schema();
+    auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+    const auto& schema = lease.graph()->schema();
     if (schema.get_temporary_edge_triplet_keys().empty() &&
         schema.get_temporary_vertex_labels().empty()) {
       return;
     }
   }
 
-  TimestampLease lease(version_manager_, LeaseKind::kUpdate);
-  lease.makeUpdateExclusive();
+  UpdateTimestampLease lease(version_manager_);
+  lease.MakeUpdateExclusive();
   SnapshotGuard guard(snapshot_store_);
   auto& slot = guard.get();
   auto* graph = slot.mutable_graph();

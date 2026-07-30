@@ -60,11 +60,10 @@ class ReleaseOrderVersionManager : public IVersionManager {
   PublishedReadView acquire_read_view() override { return {1, 0}; }
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }
-  uint32_t reserve_view_generation() override { return 0; }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
-  void release_update_timestamp(uint32_t) override {}
-  void release_update_timestamp_with_view(uint32_t, uint32_t) override {}
+  void finish_update_timestamp(uint32_t,
+                               std::optional<uint32_t>) noexcept override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
 
   void release_read_view() override { record_release(); }
@@ -79,6 +78,10 @@ class ReleaseOrderVersionManager : public IVersionManager {
   int release_count() const { return release_count_; }
 
  private:
+  RuntimeWaitFn runtime_wait_impl() const noexcept override {
+    return &NativeRuntimeWait;
+  }
+
   void record_release() {
     ++release_count_;
     if (release_count_ == 1) {
@@ -125,7 +128,10 @@ class TransactionReleaseOrderTest
   }
 
   void publish_replacement_snapshot() {
-    ASSERT_TRUE(store_->PublishSnapshot(initial_graph_->Clone(), 0).ok());
+    auto prepared_result = store_->PrepareSnapshot(initial_graph_->Clone());
+    ASSERT_TRUE(prepared_result.has_value());
+    auto prepared = std::move(prepared_result).value();
+    std::move(prepared).Publish();
     ASSERT_FALSE(store_->HasFreeSlot())
         << "The transaction-owned pin must keep the stale slot occupied";
   }
@@ -199,7 +205,7 @@ TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
     entered_commit.set_value();
     version_manager.drain_readers();
     drained.set_value();
-    version_manager.release_update_timestamp(timestamp);
+    version_manager.finish_update_timestamp(timestamp, std::nullopt);
   });
 
   entered_commit_future.wait();
@@ -234,7 +240,7 @@ TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
   EXPECT_EQ(acquired_read_future.wait_for(std::chrono::milliseconds(20)),
             std::future_status::timeout);
 
-  version_manager.release_update_timestamp(writer_timestamp);
+  version_manager.finish_update_timestamp(writer_timestamp, std::nullopt);
   EXPECT_EQ(acquired_read_future.wait_for(std::chrono::seconds(1)),
             std::future_status::ready);
   reader.join();
@@ -254,14 +260,14 @@ TEST(APInPlaceConcurrencyTest, WritersAreSerialized) {
     attempting_update.set_value();
     const auto timestamp = version_manager.acquire_update_timestamp();
     acquired_update.set_value(timestamp);
-    version_manager.release_update_timestamp(timestamp);
+    version_manager.finish_update_timestamp(timestamp, std::nullopt);
   });
 
   attempting_update_future.wait();
   EXPECT_EQ(acquired_update_future.wait_for(std::chrono::milliseconds(20)),
             std::future_status::timeout);
 
-  version_manager.release_update_timestamp(first_timestamp);
+  version_manager.finish_update_timestamp(first_timestamp, std::nullopt);
   EXPECT_EQ(acquired_update_future.wait_for(std::chrono::seconds(1)),
             std::future_status::ready);
   second_writer.join();

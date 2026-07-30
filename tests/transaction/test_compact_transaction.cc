@@ -368,7 +368,7 @@ TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
   AssertCompactBlocksAcquire(
       vm, [](neug::VersionManager& v) { v.acquire_update_timestamp(); },
       [](neug::VersionManager& v, uint32_t ts) {
-        v.release_update_timestamp(ts);
+        v.finish_update_timestamp(ts, std::nullopt);
       });
 }
 

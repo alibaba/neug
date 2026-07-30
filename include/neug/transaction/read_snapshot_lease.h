@@ -73,7 +73,9 @@ class ReadSnapshotLease {
   }
 
   timestamp_t timestamp() const { return published_view_.visibility_ts; }
-  uint32_t view_generation() const { return published_view_.view_generation; }
+  uint32_t snapshot_generation() const {
+    return published_view_.snapshot_generation;
+  }
   const GraphView& view() const { return snapshot_.get().view(); }
   const PropertyGraph* graph() const { return snapshot_.get().mutable_graph(); }
   bool valid() const { return active_; }

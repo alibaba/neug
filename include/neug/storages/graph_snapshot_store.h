@@ -38,14 +38,12 @@ namespace neug {
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
  * - Update: CurrentSnapshot().Clone() -> mutate COW copy ->
- * PublishSnapshot().
+ * PrepareSnapshot() -> PreparedSnapshot::Publish().
  *
  * Concurrency:
  * - Lock-free PinCurrentSnapshot via optimistic pin + verify loop.
- * - Concurrent installs are NOT safe — VersionManager serializes
- *   updates via begin_update_commit (CAS 0→1), ensuring only one
- *   update/compact can be in progress at a time.
- * - PublishSnapshot publishes the new slot BEFORE VersionManager advances
+ * - Current-slot transfers use one atomic exchange.
+ * - Publish() installs the prepared slot BEFORE VersionManager advances
  *   read_ts_, so readers never see "new ts + old slot".
  */
 class GraphSnapshotStore {
@@ -72,28 +70,59 @@ class GraphSnapshotStore {
     /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
     /// of shared_ptr constness, so this works through const SnapshotSlot& too).
     PropertyGraph* mutable_graph() const { return storage_.get(); }
-    /// Identity of this slot incarnation in the published read-view protocol.
-    uint32_t view_generation() const { return view_generation_; }
+    /// Snapshot publication generation carried by this slot incarnation.
+    uint32_t snapshot_generation() const { return snapshot_generation_; }
 
    private:
     friend class GraphSnapshotStore;
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
-    uint32_t view_generation_{0};
+    uint32_t snapshot_generation_{0};
     std::atomic<int> reader_count_{0};
+  };
+
+  /**
+   * @brief RAII owner of a prepared snapshot slot.
+   *
+   * Preparation reserves a pool slot and snapshot generation and builds the
+   * GraphView. Publish() only switches the current slot and therefore cannot
+   * fail. Destruction without Publish() discards the prepared slot and returns
+   * it to the pool.
+   */
+  class PreparedSnapshot {
+   public:
+    ~PreparedSnapshot() noexcept;
+
+    PreparedSnapshot(const PreparedSnapshot&) = delete;
+    PreparedSnapshot& operator=(const PreparedSnapshot&) = delete;
+
+    PreparedSnapshot(PreparedSnapshot&& other) noexcept;
+    PreparedSnapshot& operator=(PreparedSnapshot&&) = delete;
+
+    /// Consumes this preparation, installs its slot, and returns its
+    /// generation.
+    uint32_t Publish() && noexcept;
+
+   private:
+    friend class GraphSnapshotStore;
+
+    PreparedSnapshot(GraphSnapshotStore& store, int slot_index) noexcept;
+
+    GraphSnapshotStore* store_;
+    int slot_index_;
   };
 
   /// @param slot_num  Pool capacity (default 128).
   /// @param initial_pg Published into slot 0.
   explicit GraphSnapshotStore(int slot_num,
                               std::shared_ptr<PropertyGraph> initial_pg,
-                              uint32_t initial_view_generation = 0);
+                              uint32_t initial_snapshot_generation = 0);
 
   ~GraphSnapshotStore();
 
   /// Pin the current slot via lock-free optimistic loop: load cur_slot_index_,
   /// fetch_add reader_count, verify index unchanged. Retries on concurrent
-  /// PublishSnapshot or cleanup-in-progress. Caller must UnpinSnapshot().
+  /// publication or cleanup-in-progress. Caller must UnpinSnapshot().
   SnapshotSlot& PinCurrentSnapshot() noexcept;
 
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
@@ -104,20 +133,16 @@ class GraphSnapshotStore {
   /// (admission_state_==kInsertsBlocked, all inserters drained).
   const PropertyGraph& CurrentSnapshot() const;
 
-  /// Publish a COW PropertyGraph into a free slot and switch cur_slot_index_.
-  /// Steps: reserve free slot -> prep-pin new slot -> write PG + build view
-  /// -> phantom-pin old slot -> switch (release store) -> release phantom pin
-  /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
+  /// Reserve a slot/generation and fully build a pending snapshot publication.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
-  Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg,
-                         uint32_t view_generation);
+  result<PreparedSnapshot> PrepareSnapshot(
+      const std::shared_ptr<PropertyGraph>& new_pg);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }
 
-  /// Best-effort check for a free slot. Used by Commit() to fail-fast
-  /// before writing WAL. Stable under serialized Updates; `false` may
-  /// become `true` asynchronously as readers unpin stale slots.
+  /// Best-effort diagnostic used by lifecycle and pool-reclamation tests.
+  /// `false` may become `true` asynchronously as readers unpin stale slots.
   bool HasFreeSlot() const {
     std::lock_guard<std::mutex> lock(free_list_mutex_);
     return !free_list_.empty();
@@ -127,12 +152,15 @@ class GraphSnapshotStore {
   int slot_num_;
   std::vector<SnapshotSlot> slots_;
   std::atomic<int> cur_slot_index_{0};
+  std::atomic<uint32_t> last_reserved_snapshot_generation_{0};
   std::vector<int> free_list_;
   mutable std::mutex free_list_mutex_;
 
   void initFreeList();
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
+  uint32_t reserveSnapshotGeneration();
+  void publishPreparedSnapshot(int slot_index) noexcept;
   void UnpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);
 };

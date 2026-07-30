@@ -19,10 +19,10 @@
 namespace neug {
 
 /**
- * Runtime-specific scheduler operation used by AdaptiveBackoff.
+ * Runtime-specific scheduler operation used by RuntimeBackoff.
  *
  * CPU relaxation is runtime-independent and handled directly by
- * AdaptiveBackoff. The callback is invoked only for yield and sleep actions.
+ * RuntimeBackoff. The callback is invoked only for yield and sleep actions.
  */
 enum class RuntimeWaitAction { kYield, kSleep };
 
@@ -54,16 +54,16 @@ enum class RuntimeWaitPhase { kSpin, kYield, kSleep };
 void RuntimeCpuRelax() noexcept;
 
 /**
- * Per-wait adaptive backoff cursor. Each blocking condition gets its own
+ * Per-wait runtime backoff cursor. Each blocking condition gets its own
  * instance so a newly entered wait always starts with CPU relaxation.
  *
  * Callers must not enter a wait while holding a pthread-owned lock or
  * retaining a pointer into ordinary thread-local storage: a cooperative
  * runtime may resume the same logical task on another pthread worker.
  */
-class AdaptiveBackoff final {
+class RuntimeBackoff final {
  public:
-  explicit AdaptiveBackoff(RuntimeWaitFn runtime_wait) noexcept
+  explicit RuntimeBackoff(RuntimeWaitFn runtime_wait) noexcept
       : runtime_wait_(runtime_wait) {}
 
   void operator()() noexcept {

@@ -11,9 +11,9 @@ With a `ReadTransaction`, a specific version of the graph can be read. Its
 one coherent read view.
 
 Reader acquisition captures an atomically published
-`{visibility timestamp, view generation}` pair, pins the current snapshot, and
-validates that the slot generation matches. If an update publishes between the
-capture and the pin, the generation mismatch is detected and the complete
+`{visibility timestamp, snapshot generation}` pair, pins the current snapshot,
+and validates that the slot generation matches. If an update publishes between
+the capture and the pin, the generation mismatch is detected and the complete
 acquisition is retried. A transaction therefore cannot observe an old
 timestamp with a newly published snapshot.
 

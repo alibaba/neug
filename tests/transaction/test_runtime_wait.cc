@@ -73,6 +73,10 @@ void InitManager(VersionManager& manager) {
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&CountingRuntimeWait));
 }
 
+void FinishUpdate(VersionManager& manager, uint32_t timestamp) {
+  manager.finish_update_timestamp(timestamp, std::nullopt);
+}
+
 template <typename Predicate>
 bool WaitUntil(Predicate predicate) {
   const auto deadline = std::chrono::steady_clock::now() + kWaitTimeout;
@@ -123,7 +127,7 @@ TEST(VersionManagerWaitTest, UncontendedPathsDoNotInvokeBackoff) {
   const auto update_ts = manager.acquire_update_timestamp();
   manager.begin_update_commit(update_ts);
   manager.drain_readers();
-  manager.release_update_timestamp(update_ts);
+  FinishUpdate(manager, update_ts);
 
   const auto compact_ts = manager.acquire_compact_timestamp();
   manager.release_compact_timestamp(compact_ts);
@@ -143,7 +147,7 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
           manager.acquire_read_view();
           manager.release_read_view();
         },
-        [&]() { manager.release_update_timestamp(update_ts); });
+        [&]() { FinishUpdate(manager, update_ts); });
   }
   {
     SCOPED_TRACE("insert slow path");
@@ -151,7 +155,7 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
     uint32_t insert_ts = 0;
     ExpectRuntimeWaitWhile(
         [&]() { insert_ts = manager.acquire_insert_timestamp(); },
-        [&]() { manager.release_update_timestamp(update_ts); });
+        [&]() { FinishUpdate(manager, update_ts); });
     manager.release_insert_timestamp(insert_ts);
   }
   {
@@ -164,8 +168,8 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
     uint32_t next_update_ts = 0;
     ExpectRuntimeWaitWhile(
         [&]() { next_update_ts = manager.acquire_update_timestamp(); },
-        [&]() { manager.release_update_timestamp(update_ts); });
-    manager.release_update_timestamp(next_update_ts);
+        [&]() { FinishUpdate(manager, update_ts); });
+    FinishUpdate(manager, next_update_ts);
   }
   {
     SCOPED_TRACE("explicit reader drain");
@@ -174,7 +178,7 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
     manager.begin_update_commit(update_ts);
     ExpectRuntimeWaitWhile([&]() { manager.drain_readers(); },
                            [&]() { manager.release_read_view(); });
-    manager.release_update_timestamp(update_ts);
+    FinishUpdate(manager, update_ts);
     EXPECT_ANY_THROW(manager.drain_readers());
   }
   {
@@ -183,7 +187,7 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
     uint32_t compact_ts = 0;
     ExpectRuntimeWaitWhile(
         [&]() { compact_ts = manager.acquire_compact_timestamp(); },
-        [&]() { manager.release_update_timestamp(update_ts); });
+        [&]() { FinishUpdate(manager, update_ts); });
     manager.release_compact_timestamp(compact_ts);
   }
   {
@@ -278,9 +282,9 @@ TEST(VersionManagerAdmissionTest,
   EXPECT_EQ(violations.load(std::memory_order_relaxed), 0);
 }
 
-TEST(AdaptiveBackoffTest, KeepsSpinLocalAndDispatchesRuntimeWaits) {
+TEST(RuntimeBackoffTest, KeepsSpinLocalAndDispatchesRuntimeWaits) {
   ResetRuntimeWaitCalls();
-  AdaptiveBackoff wait(&CountingRuntimeWait);
+  RuntimeBackoff wait(&CountingRuntimeWait);
 
   for (uint32_t i = 0; i < kRuntimeWaitSpinIterations; ++i) {
     wait();
@@ -332,7 +336,7 @@ TEST(VersionManagerWaitTest, RuntimeWaitSwitchRequiresQuiescence) {
 
   const auto update_ts = manager.acquire_update_timestamp();
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
-  manager.release_update_timestamp(update_ts);
+  FinishUpdate(manager, update_ts);
 
   const auto compact_ts = manager.acquire_compact_timestamp();
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
@@ -363,7 +367,7 @@ TEST(NativeRuntimeWaitTest, SleepPhaseCompletesContendedWait) {
   });
 
   const bool sleep_phase_observed = WaitForSleep();
-  manager.release_update_timestamp(update_ts);
+  FinishUpdate(manager, update_ts);
   waiter.join();
 
   EXPECT_TRUE(sleep_phase_observed);
@@ -419,7 +423,7 @@ TEST(BthreadRuntimeWaitTest, SleepPhaseLeavesWorkerAvailableForNewBthread) {
     }
   }
   if (started_waiters != waiter_count) {
-    manager.release_update_timestamp(update_ts);
+    FinishUpdate(manager, update_ts);
     for (int i = 0; i < started_waiters; ++i) {
       EXPECT_EQ(bthread_join(waiters[i], nullptr), 0);
     }
@@ -443,7 +447,7 @@ TEST(BthreadRuntimeWaitTest, SleepPhaseLeavesWorkerAvailableForNewBthread) {
         return probe_scheduled.load(std::memory_order_acquire);
       });
 
-  manager.release_update_timestamp(update_ts);
+  FinishUpdate(manager, update_ts);
   if (probe_start_result == 0) {
     EXPECT_EQ(bthread_join(probe, nullptr), 0);
   }
