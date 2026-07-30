@@ -17,7 +17,7 @@
 
 namespace neug {
 std::string DummyWalWriter::type() const { return "dummy"; }
-void DummyWalWriter::open() {}
+void DummyWalWriter::open(const std::string&) {}
 void DummyWalWriter::close() {}
 bool DummyWalWriter::append(const char* data, size_t length) { return true; }
 }  // namespace neug
