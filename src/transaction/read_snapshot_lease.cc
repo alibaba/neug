@@ -16,8 +16,42 @@
 #include "neug/transaction/read_snapshot_lease.h"
 
 #include <optional>
+#include <utility>
 
 namespace neug {
+
+ReadSnapshotLease::ReadSnapshotLease(IVersionManager& version_manager,
+                                     SnapshotGuard snapshot,
+                                     PublishedReadView published_view) noexcept
+    : version_manager_(&version_manager),
+      published_view_(published_view),
+      active_(true),
+      snapshot_(std::move(snapshot)) {}
+
+ReadSnapshotLease::ReadSnapshotLease(ReadSnapshotLease&& other) noexcept
+    : version_manager_(other.version_manager_),
+      published_view_(other.published_view_),
+      active_(other.active_),
+      snapshot_(std::move(other.snapshot_)) {
+  other.version_manager_ = nullptr;
+  other.active_ = false;
+}
+
+ReadSnapshotLease& ReadSnapshotLease::operator=(
+    ReadSnapshotLease&& other) noexcept {
+  if (this != &other) {
+    release();
+    version_manager_ = other.version_manager_;
+    published_view_ = other.published_view_;
+    active_ = other.active_;
+    snapshot_ = std::move(other.snapshot_);
+    other.version_manager_ = nullptr;
+    other.active_ = false;
+  }
+  return *this;
+}
+
+ReadSnapshotLease::~ReadSnapshotLease() noexcept { release(); }
 
 ReadSnapshotLease ReadSnapshotLease::Acquire(
     IVersionManager& version_manager, GraphSnapshotStore& snapshot_store) {
@@ -38,6 +72,15 @@ ReadSnapshotLease ReadSnapshotLease::Acquire(
     }
     (*wait)();
   }
+}
+
+void ReadSnapshotLease::release() noexcept {
+  if (!active_) {
+    return;
+  }
+  active_ = false;
+  snapshot_.release();
+  version_manager_->release_read_view();
 }
 
 }  // namespace neug

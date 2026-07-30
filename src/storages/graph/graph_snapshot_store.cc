@@ -32,7 +32,7 @@ GraphSnapshotStore::PreparedSnapshot::PreparedSnapshot(
 
 GraphSnapshotStore::PreparedSnapshot::~PreparedSnapshot() noexcept {
   if (store_ != nullptr) {
-    store_->UnpinSnapshotByIndex(slot_index_);
+    store_->unpinSnapshotByIndex(slot_index_);
   }
 }
 
@@ -149,16 +149,16 @@ GraphSnapshotStore::PinCurrentSnapshot() noexcept {
       return slots_[slot_index];
     }
 
-    UnpinSnapshotByIndex(slot_index);
+    unpinSnapshotByIndex(slot_index);
   }
 }
 
 void GraphSnapshotStore::UnpinSnapshot(const SnapshotSlot& slot) noexcept {
   int slot_index = static_cast<int>(&slot - slots_.data());
-  UnpinSnapshotByIndex(slot_index);
+  unpinSnapshotByIndex(slot_index);
 }
 
-void GraphSnapshotStore::UnpinSnapshotByIndex(int slot_index) noexcept {
+void GraphSnapshotStore::unpinSnapshotByIndex(int slot_index) noexcept {
   if (slot_index < 0 || slot_index >= slot_num_) {
     LOG(ERROR) << "Invalid slot index in UnpinSnapshot: " << slot_index;
     return;
@@ -264,7 +264,7 @@ void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
       cur_slot_index_.exchange(slot_index, std::memory_order_acq_rel);
 
   // Release the old cur-pin; cleanup is immediate only when no reader holds it.
-  UnpinSnapshotByIndex(old_slot_index);
+  unpinSnapshotByIndex(old_slot_index);
 }
 
 }  // namespace neug

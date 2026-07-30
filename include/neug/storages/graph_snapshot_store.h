@@ -161,7 +161,7 @@ class GraphSnapshotStore {
   void returnFreeSlot(int slot_index);
   uint32_t reserveSnapshotGeneration();
   void publishPreparedSnapshot(int slot_index) noexcept;
-  void UnpinSnapshotByIndex(int slot_index) noexcept;
+  void unpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);
 };
 

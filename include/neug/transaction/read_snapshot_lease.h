@@ -15,7 +15,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <utility>
 
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/version_manager.h"
@@ -36,41 +35,15 @@ class ReadSnapshotLease {
   static ReadSnapshotLease Acquire(IVersionManager& version_manager,
                                    GraphSnapshotStore& snapshot_store);
 
-  ReadSnapshotLease(ReadSnapshotLease&& other) noexcept
-      : version_manager_(other.version_manager_),
-        published_view_(other.published_view_),
-        active_(other.active_),
-        snapshot_(std::move(other.snapshot_)) {
-    other.version_manager_ = nullptr;
-    other.active_ = false;
-  }
-
-  ReadSnapshotLease& operator=(ReadSnapshotLease&& other) noexcept {
-    if (this != &other) {
-      release();
-      version_manager_ = other.version_manager_;
-      published_view_ = other.published_view_;
-      active_ = other.active_;
-      snapshot_ = std::move(other.snapshot_);
-      other.version_manager_ = nullptr;
-      other.active_ = false;
-    }
-    return *this;
-  }
+  ReadSnapshotLease(ReadSnapshotLease&& other) noexcept;
+  ReadSnapshotLease& operator=(ReadSnapshotLease&& other) noexcept;
 
   ReadSnapshotLease(const ReadSnapshotLease&) = delete;
   ReadSnapshotLease& operator=(const ReadSnapshotLease&) = delete;
 
-  ~ReadSnapshotLease() noexcept { release(); }
+  ~ReadSnapshotLease() noexcept;
 
-  void release() noexcept {
-    if (!active_) {
-      return;
-    }
-    active_ = false;
-    snapshot_.release();
-    version_manager_->release_read_view();
-  }
+  void release() noexcept;
 
   timestamp_t timestamp() const { return published_view_.visibility_ts; }
   uint32_t snapshot_generation() const {
@@ -82,11 +55,7 @@ class ReadSnapshotLease {
 
  private:
   ReadSnapshotLease(IVersionManager& version_manager, SnapshotGuard snapshot,
-                    PublishedReadView published_view) noexcept
-      : version_manager_(&version_manager),
-        published_view_(published_view),
-        active_(true),
-        snapshot_(std::move(snapshot)) {}
+                    PublishedReadView published_view) noexcept;
 
   IVersionManager* version_manager_;
   PublishedReadView published_view_;
