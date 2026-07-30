@@ -163,6 +163,8 @@ class UpdateTransaction {
   GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
+  uint32_t view_generation_{0};
+  bool snapshot_published_{false};
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;

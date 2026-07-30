@@ -133,9 +133,8 @@ class TPIndexTest : public ::testing::Test {
   }
 
   ReadTransaction NewReadTransaction() {
-    auto ts = version_manager_.acquire_read_timestamp();
-    SnapshotGuard guard(*snapshot_store_);
-    return ReadTransaction(std::move(guard), version_manager_, ts);
+    return ReadTransaction(
+        ReadSnapshotLease::Acquire(version_manager_, *snapshot_store_));
   }
 
   void Commit(UpdateTransaction& txn) { ASSERT_TRUE(txn.Commit()); }

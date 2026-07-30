@@ -141,8 +141,8 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
   const auto& path = GetParam();
   switch (path.transaction_kind) {
   case TransactionKind::kRead: {
-    SnapshotGuard guard(*store_);
-    ReadTransaction transaction(std::move(guard), version_manager, 1);
+    ReadTransaction transaction(
+        ReadSnapshotLease::Acquire(version_manager, *store_));
     publish_replacement_snapshot();
     ASSERT_TRUE(transaction.Commit());
     break;

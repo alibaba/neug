@@ -354,6 +354,11 @@ bool UpdateTransaction::Commit() {
     return false;
   }
 
+  // Reserve the snapshot identity before WAL append so generation exhaustion
+  // cannot turn into a post-WAL failure. Aborted transactions may leave a
+  // harmless gap in the generation sequence.
+  view_generation_ = vm_.reserve_view_generation();
+
   wal_builder_.finalize(timestamp_);
   if (!logger_.append(wal_builder_.data(), wal_builder_.size())) {
     LOG(ERROR) << "Failed to append wal log";
@@ -371,7 +376,7 @@ bool UpdateTransaction::Commit() {
   // release_update_timestamp (advancing read_ts_). This ordering guarantees
   // that any new reader observing the advanced read_ts will also see the new
   // slot.
-  auto status = snapshot_store_.PublishSnapshot(cow_graph_);
+  auto status = snapshot_store_.PublishSnapshot(cow_graph_, view_generation_);
   if (!status.ok()) {
     // We should never fail to publish the snapshot.
     LOG(FATAL) << "Failed to publish snapshot: " << status.ToString();
@@ -380,6 +385,7 @@ bool UpdateTransaction::Commit() {
   // The COW PG is now owned by the new slot. Drop our reference so this
   // transaction does not appear to still hold the snapshot. view_ wraps
   // cow_graph_, so reset it too to keep pg_ from dangling.
+  snapshot_published_ = true;
   view_ = GraphView();
   release();
   return true;
@@ -390,8 +396,14 @@ void UpdateTransaction::Abort() { release(); }
 void UpdateTransaction::release() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     wal_builder_.clear();
-    vm_.release_update_timestamp(timestamp_);
+    if (snapshot_published_) {
+      vm_.release_update_timestamp_with_view(timestamp_, view_generation_);
+    } else {
+      vm_.release_update_timestamp(timestamp_);
+    }
     timestamp_ = INVALID_TIMESTAMP;
+    view_generation_ = 0;
+    snapshot_published_ = false;
   }
   cow_graph_.reset();
 }

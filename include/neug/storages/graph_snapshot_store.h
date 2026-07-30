@@ -72,18 +72,22 @@ class GraphSnapshotStore {
     /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
     /// of shared_ptr constness, so this works through const SnapshotSlot& too).
     PropertyGraph* mutable_graph() const { return storage_.get(); }
+    /// Identity of this slot incarnation in the published read-view protocol.
+    uint32_t view_generation() const { return view_generation_; }
 
    private:
     friend class GraphSnapshotStore;
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
+    uint32_t view_generation_{0};
     std::atomic<int> reader_count_{0};
   };
 
   /// @param slot_num  Pool capacity (default 128).
   /// @param initial_pg Published into slot 0.
   explicit GraphSnapshotStore(int slot_num,
-                              std::shared_ptr<PropertyGraph> initial_pg);
+                              std::shared_ptr<PropertyGraph> initial_pg,
+                              uint32_t initial_view_generation = 0);
 
   ~GraphSnapshotStore();
 
@@ -105,7 +109,8 @@ class GraphSnapshotStore {
   /// -> phantom-pin old slot -> switch (release store) -> release phantom pin
   /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
-  Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
+  Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg,
+                         uint32_t view_generation = 0);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }

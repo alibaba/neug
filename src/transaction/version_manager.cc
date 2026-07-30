@@ -15,6 +15,7 @@
 
 #include "neug/transaction/version_manager.h"
 
+#include <limits>
 #include <mutex>
 
 #include "neug/utils/exception/exception.h"
@@ -27,8 +28,17 @@ namespace neug {
 VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
 
 void VersionManager::init_ts(uint32_t ts, int thread_num) {
+  if (ts == std::numeric_limits<uint32_t>::max()) {
+    THROW_RUNTIME_ERROR(
+        "Transaction timestamp space exhausted; checkpoint/reset the timeline "
+        "before reopening the database");
+  }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
+  next_view_generation_.store(0, std::memory_order_relaxed);
+  current_view_generation_.store(0, std::memory_order_relaxed);
+  published_read_view_.store(PackPublishedReadView({ts, 0}),
+                             std::memory_order_relaxed);
   active_readers_.store(0, std::memory_order_relaxed);
   active_inserters_.store(0, std::memory_order_relaxed);
   admission_state_.store(AdmissionState::kOpen, std::memory_order_relaxed);
@@ -68,10 +78,14 @@ bool VersionManager::try_set_runtime_wait_if_quiescent(
 }
 
 uint32_t VersionManager::acquire_read_timestamp() {
+  return acquire_read_view().visibility_ts;
+}
+
+PublishedReadView VersionManager::acquire_read_view() {
   // Pre-check: avoid incrementing if in commit phase
   auto state = admission_state_.load(std::memory_order_acquire);
   if (NEUG_UNLIKELY(state == AdmissionState::kAllBlocked)) {
-    return acquire_read_timestamp_slow();
+    return acquire_read_view_slow();
   }
 
   // Optimistically increment counter
@@ -82,17 +96,18 @@ uint32_t VersionManager::acquire_read_timestamp() {
   // but misses a concurrent transition to all-blocked.
   state = admission_state_.load(std::memory_order_seq_cst);
   if (NEUG_LIKELY(state != AdmissionState::kAllBlocked)) {
-    return read_ts_.load(std::memory_order_acquire);
+    return UnpackPublishedReadView(
+        published_read_view_.load(std::memory_order_acquire));
   }
 
   // Rollback: commit started while we were incrementing
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
 
   // Slow path
-  return acquire_read_timestamp_slow();
+  return acquire_read_view_slow();
 }
 
-uint32_t VersionManager::acquire_read_timestamp_slow() {
+PublishedReadView VersionManager::acquire_read_view_slow() {
   AdaptiveBackoff wait(runtime_wait());
   while (admission_state_.load(std::memory_order_acquire) ==
          AdmissionState::kAllBlocked) {
@@ -100,7 +115,7 @@ uint32_t VersionManager::acquire_read_timestamp_slow() {
   }
 
   // Retry
-  return acquire_read_timestamp();
+  return acquire_read_view();
 }
 
 void VersionManager::release_read_timestamp() {
@@ -184,6 +199,10 @@ void VersionManager::advance_read_ts_locked() {
 
   // Sliding window maintenance
   ts_window_.slide_window(current);
+  published_read_view_.store(
+      PackPublishedReadView(
+          {current, current_view_generation_.load(std::memory_order_relaxed)}),
+      std::memory_order_release);
 }
 
 void VersionManager::enter_exclusive_state(AdmissionState desired_state) {
@@ -225,6 +244,22 @@ uint32_t VersionManager::acquire_update_timestamp() {
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
 
+uint32_t VersionManager::reserve_view_generation() {
+  uint32_t current = next_view_generation_.load(std::memory_order_relaxed);
+  while (true) {
+    if (current == std::numeric_limits<uint32_t>::max()) {
+      THROW_RUNTIME_ERROR(
+          "Snapshot generation space exhausted; restart the database before "
+          "publishing another snapshot");
+    }
+    if (next_view_generation_.compare_exchange_weak(
+            current, current + 1, std::memory_order_acq_rel,
+            std::memory_order_relaxed)) {
+      return current + 1;
+    }
+  }
+}
+
 void VersionManager::begin_update_commit(uint32_t ts) {
   (void) ts;
 
@@ -249,6 +284,15 @@ void VersionManager::release_update_timestamp(uint32_t ts) {
   complete_write_timestamp(ts);
 
   // Restore normal operation.
+  admission_state_.store(AdmissionState::kOpen, std::memory_order_release);
+}
+
+void VersionManager::release_update_timestamp_with_view(
+    uint32_t ts, uint32_t view_generation) {
+  current_view_generation_.store(view_generation, std::memory_order_relaxed);
+  complete_write_timestamp(ts);
+
+  // Snapshot installation and the matching read view are now visible.
   admission_state_.store(AdmissionState::kOpen, std::memory_order_release);
 }
 

@@ -24,6 +24,27 @@
 namespace neug {
 
 /**
+ * @brief Atomically published reader-visible state.
+ *
+ * The visibility timestamp and snapshot generation form one logical value:
+ * readers must never combine either field with a snapshot from another
+ * publication generation.
+ */
+struct PublishedReadView {
+  uint32_t visibility_ts;
+  uint32_t view_generation;
+};
+
+inline uint64_t PackPublishedReadView(const PublishedReadView& view) {
+  return (static_cast<uint64_t>(view.view_generation) << 32) |
+         view.visibility_ts;
+}
+
+inline PublishedReadView UnpackPublishedReadView(uint64_t packed) {
+  return {static_cast<uint32_t>(packed), static_cast<uint32_t>(packed >> 32)};
+}
+
+/**
  * @brief Unified interface for transaction timestamp and concurrency control.
  *
  * IVersionManager defines the contract for managing timestamp acquisition,
@@ -48,16 +69,25 @@ class IVersionManager {
   virtual bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept = 0;
   virtual uint32_t acquire_read_timestamp() = 0;
+  virtual PublishedReadView acquire_read_view() {
+    return {acquire_read_timestamp(), 0};
+  }
   virtual void release_read_timestamp() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
+  virtual uint32_t reserve_view_generation() { return 0; }
   virtual void begin_update_commit(uint32_t ts) = 0;
   // May invoke the runtime waiter. Checkpoint callers must enter commit and
   // drain readers before acquiring checkpoint-manager or other
   // OS-thread-owned mutexes.
   virtual void drain_readers() = 0;
   virtual void release_update_timestamp(uint32_t ts) = 0;
+  virtual void release_update_timestamp_with_view(uint32_t ts,
+                                                  uint32_t view_generation) {
+    (void) view_generation;
+    release_update_timestamp(ts);
+  }
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
   virtual void revert_compact_timestamp(uint32_t ts) = 0;
@@ -112,13 +142,17 @@ class VersionManager : public IVersionManager {
       RuntimeWaitFn runtime_wait) noexcept override;
 
   uint32_t acquire_read_timestamp() override;
+  PublishedReadView acquire_read_view() override;
   void release_read_timestamp() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
+  uint32_t reserve_view_generation() override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
   void release_update_timestamp(uint32_t ts) override;
+  void release_update_timestamp_with_view(uint32_t ts,
+                                          uint32_t view_generation) override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;
   void revert_compact_timestamp(uint32_t ts) override;
@@ -129,7 +163,7 @@ class VersionManager : public IVersionManager {
   enum class AdmissionState { kOpen, kInsertsBlocked, kAllBlocked };
 
   int thread_num_;
-  uint32_t acquire_read_timestamp_slow();
+  PublishedReadView acquire_read_view_slow();
   uint32_t acquire_insert_timestamp_slow();
   // These helpers may suspend the logical task. Callers must not hold an
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
@@ -141,6 +175,9 @@ class VersionManager : public IVersionManager {
 
   std::atomic<uint32_t> write_ts_{1};
   std::atomic<uint32_t> read_ts_{1};
+  std::atomic<uint32_t> next_view_generation_{0};
+  std::atomic<uint32_t> current_view_generation_{0};
+  std::atomic<uint64_t> published_read_view_{PackPublishedReadView({1, 0})};
 
   std::atomic<int> active_readers_{0};
   std::atomic<int> active_inserters_{0};

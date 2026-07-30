@@ -25,7 +25,8 @@ namespace neug {
 static constexpr int kCleanupSentinel = -(1 << 20);
 
 GraphSnapshotStore::GraphSnapshotStore(
-    int slot_num, std::shared_ptr<PropertyGraph> initial_pg)
+    int slot_num, std::shared_ptr<PropertyGraph> initial_pg,
+    uint32_t initial_view_generation)
     : slot_num_(slot_num), slots_(slot_num) {
   // Publish initial PG into slot 0.
   //
@@ -37,6 +38,7 @@ GraphSnapshotStore::GraphSnapshotStore(
   // because a live cur slot always has count >= 1.
   slots_[0].storage_ = std::move(initial_pg);
   slots_[0].view_ = GraphView(*slots_[0].storage_);
+  slots_[0].view_generation_ = initial_view_generation;
   slots_[0].reader_count_.store(1, std::memory_order_relaxed);  // cur-pin
   cur_slot_index_.store(0, std::memory_order_release);
 
@@ -78,6 +80,7 @@ void GraphSnapshotStore::cleanupSlot(int slot_index) {
   }
   slots_[slot_index].storage_.reset();
   slots_[slot_index].view_ = GraphView();
+  slots_[slot_index].view_generation_ = 0;
   slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel,
                                              std::memory_order_release);
   returnFreeSlot(slot_index);
@@ -165,7 +168,7 @@ const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
 }
 
 Status GraphSnapshotStore::PublishSnapshot(
-    const std::shared_ptr<PropertyGraph>& new_pg) {
+    const std::shared_ptr<PropertyGraph>& new_pg, uint32_t view_generation) {
   int slot_index = getFreeSlot();
   if (slot_index < 0) {
     return Status(StatusCode::ERR_POOL_EXHAUSTED,
@@ -187,6 +190,7 @@ Status GraphSnapshotStore::PublishSnapshot(
 
   slots_[slot_index].storage_ = new_pg;
   slots_[slot_index].view_ = GraphView(*new_pg);
+  slots_[slot_index].view_generation_ = view_generation;
 
   // Release the write-guard: bump reader_count_ from kCleanupSentinel to 1
   // (the prep-pin) atomically with a release fence so that all prior writes

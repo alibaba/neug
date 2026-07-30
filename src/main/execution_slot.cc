@@ -187,9 +187,8 @@ Status executePreparedQuery(execution::CacheValue& prepared_query,
 }  // namespace
 
 ReadTransaction ExecutionSlot::GetReadTransaction() const {
-  uint32_t ts = version_manager_.acquire_read_timestamp();
-  SnapshotGuard guard(snapshot_store_);
-  return ReadTransaction(std::move(guard), version_manager_, ts);
+  return ReadTransaction(
+      ReadSnapshotLease::Acquire(version_manager_, snapshot_store_));
 }
 
 InsertTransaction ExecutionSlot::GetInsertTransaction() {
