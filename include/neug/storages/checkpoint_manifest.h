@@ -25,6 +25,8 @@
 
 namespace neug {
 
+class Checkpoint;
+
 /**
  * @brief In-memory representation of a checkpoint's module inventory.
  *
@@ -66,6 +68,13 @@ class CheckpointManifest {
   bool has_module(const std::string& key) const;
 
   /**
+   * @brief If @p key exists in @p prev, hardlink its paths into @p ckp and
+   * store the resulting descriptor under the same key in this manifest.
+   */
+  void LinkModuleFrom(const CheckpointManifest& prev, const std::string& key,
+                      Checkpoint& ckp);
+
+  /**
    * @brief Read-only access to the full module map.
    */
   const std::unordered_map<std::string, ModuleDescriptor>& modules() const;
@@ -89,6 +98,13 @@ class CheckpointManifest {
 
   /// Insert or replace a scalar entry.
   void SetScalar(std::string key, std::string value);
+
+  /**
+   * @brief If @p key exists in @p prev, copy its scalar value into this
+   * manifest. Scalars have no filesystem payload, so this is a plain copy
+   * (unlike LinkModuleFrom).
+   */
+  void CopyScalarFrom(const CheckpointManifest& prev, const std::string& key);
 
   /// Typed scalar accessor; performs std::istringstream parsing on the raw
   /// string value.  Returns std::nullopt if the key is absent or parsing fails.

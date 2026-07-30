@@ -17,21 +17,18 @@
 #include <glog/logging.h>
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
-#include <vector>
 
-#include "neug/common/types/value.h"
-#include "neug/compiler/planner/graph_planner.h"
-#include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/main/query_processor.h"
+#include <rapidjson/document.h>
+
 #include "neug/main/query_result.h"
-#include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
-class NeugDB;
+class ExecutionSlot;
 
 /**
  * @brief Database connection for executing Cypher queries.
@@ -64,16 +61,17 @@ class NeugDB;
  * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
  * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
  *
- * **Thread Safety:** This class is NOT thread-safe. Each thread should use
- * its own Connection instance. Use NeugDB::Connect() to create connections.
+ * **Thread Safety:** This class is NOT thread-safe. A Connection and its owned
+ * ExecutionSlot must be used by only one thread at a time. Use a separate
+ * Connection per thread.
  *
  * **Lifecycle:**
  * - Created via NeugDB::Connect()
  * - Execute queries via Query() method
- * - Close via Close() or automatic cleanup in destructor
+ * - Close via Close(), which automatically unregisters the connection
+ * - Automatically closed and unregistered in the destructor
  *
- * @note Connections hold references to shared resources (planner, query
- * processor).
+ * @note Each connection exclusively owns one execution slot.
  * @note For best performance, reuse connections for multiple queries.
  *
  * @see NeugDB::Connect For creating connections
@@ -83,19 +81,18 @@ class NeugDB;
  */
 class Connection {
  public:
-  Connection(GraphSnapshotStore& snapshot_store,
-             std::shared_ptr<QueryProcessor> query_processor)
-      : snapshot_store_(snapshot_store),
-        query_processor_(query_processor),
-        is_closed_(false) {}
-  ~Connection() { Close(); }
+  using CloseCallback = std::function<void(Connection*)>;
+
+  explicit Connection(std::unique_ptr<ExecutionSlot> execution_slot,
+                      CloseCallback on_close = {});
+  ~Connection();
 
   /**
    * @brief Execute a Cypher query and return results.
    *
    * Compiles and executes a Cypher query string against the database.
    * The query is processed through the planner for optimization, then
-   * executed by the query processor.
+   * executed by the connection-owned execution slot.
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -103,8 +100,8 @@ class Connection {
    * auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
    *
    * // Query with parameters
-   * neug::execution::ParamsMap params;
-   * params["min_age"] = neug::Value(18);
+   * rapidjson::Document params(rapidjson::kObjectType);
+   * params.AddMember("min_age", 18, params.GetAllocator());
    * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
    * "read", params);
    *
@@ -122,8 +119,9 @@ class Connection {
    * @param access_mode Query access mode:
    *        - `"read"` or `"r"`: Read-only operations
    *        - `"insert"` or `"i"`: Insert-only operations (CREATE)
-   *        - `"update"` or `"u"`: Update/delete operations (default)
+   *        - `"update"` or `"u"`: Update/delete operations
    *        - `"schema"` or `"s"`: Schema modification operations
+   *        - empty string: Infer access mode from query text
    * @param parameters Named parameters for parameterized queries.
    *        Keys are parameter names (without `$`), values are parameter values.
    *
@@ -139,16 +137,9 @@ class Connection {
    * @since v0.1.0
    */
   result<QueryResult> Query(const std::string& query_string,
-                            const std::string& access_mode = "update",
-                            const execution::ParamsMap& parameters = {});
-
-  /**
-   * @brief Execute a Cypher query with JSON parameters.
-   * The parameter values are provided as a JSON object.
-   */
-  result<QueryResult> Query(const std::string& query_string,
-                            const std::string& access_mode,
-                            const rapidjson::Value& parameters_json);
+                            const std::string& access_mode = "",
+                            const rapidjson::Value& parameters =
+                                rapidjson::Value{rapidjson::kObjectType});
 
   /**
    * @brief Get the database schema as a YAML string.
@@ -184,7 +175,9 @@ class Connection {
    * // conn->Query(...) will now return an error
    * @endcode
    *
-   * @note This method is idempotent - calling it multiple times is safe.
+   * @note Sequential repeated calls are idempotent. Concurrent calls are not
+   * safe.
+   * @note Closing automatically unregisters this connection from its database.
    * @note The connection is also automatically closed in the destructor.
    *
    * @since v0.1.0
@@ -201,9 +194,8 @@ class Connection {
   bool IsClosed() const { return is_closed_.load(); }
 
  private:
-  GraphSnapshotStore& snapshot_store_;
-
-  std::shared_ptr<QueryProcessor> query_processor_;
+  std::unique_ptr<ExecutionSlot> execution_slot_;
+  CloseCallback on_close_;
 
   std::atomic<bool> is_closed_{false};
 };

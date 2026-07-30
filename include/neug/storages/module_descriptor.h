@@ -26,6 +26,8 @@
 
 namespace neug {
 
+class Checkpoint;
+
 /**
  * @brief Metadata descriptor for a single Module instance.
  *
@@ -40,6 +42,8 @@ struct ModuleDescriptor {
   static constexpr const char* kNbrListPath = "nbr_list";
   static constexpr const char* kDegreeListPath = "degree_list";
   static constexpr const char* kCapacityListPath = "capacity_list";
+  static constexpr const char* kVidToIndexIdPath = "vid_to_index_id";
+  static constexpr const char* kNextIndexId = "next_index_id";
 
   ModuleDescriptor() = default;
   ~ModuleDescriptor() = default;
@@ -171,6 +175,15 @@ struct ModuleDescriptor {
    * @brief Serialize to a self-contained JSON string.
    */
   std::string ToJsonString() const;
+
+  /**
+   * @brief Copy @p prev and hardlink each non-empty path into @p ckp.
+   *
+   * Used when a clean table reuses the prior snapshot: metadata (type, extras,
+   * refs) is preserved, while filesystem paths are rewritten to hardlinks in
+   * the new checkpoint.
+   */
+  static ModuleDescriptor Link(const ModuleDescriptor& prev, Checkpoint& ckp);
 
  private:
   /// Optional free-form key-value pairs for module-specific metadata.

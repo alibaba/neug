@@ -56,12 +56,14 @@ NeuG documentation
    cypher_manual/dml_clause
    cypher_manual/expression/index
    cypher_manual/query_clauses/index
+   cypher_manual/explain_profile
 
 .. toctree::
    :maxdepth: 1
    :caption: Extensions
 
    extensions/index
+   extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
    extensions/pattern_match

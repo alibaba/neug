@@ -1,4 +1,3 @@
-
 /** Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/rename_edge_property.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -40,13 +40,20 @@ class RenameEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t src, dst, edge;
+    auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
+                                      edge_type_, src, dst, edge);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to rename edge property in type: " << edge_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
     RenameEdgePropertiesParamBuilder builder;
-    auto config = builder.SrcLabel(src_type_)
-                      .DstLabel(dst_type_)
-                      .EdgeLabel(edge_type_)
-                      .RenameProperties(rename_properties_)
-                      .Build();
-    auto res = storage.RenameEdgeProperties(config);
+    auto config = builder.RenameProperties(rename_properties_).Build();
+    auto res = storage.RenameEdgeProperties(src, dst, edge, config);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));

@@ -290,6 +290,29 @@ def test_parallel_connections(tmp_path):
     db.close()
 
 
+def test_default_access_mode_is_inferred(tmp_path):
+    db_dir = tmp_path / "inferred_access_mode_db"
+    db_rw = Database(db_path=str(db_dir), mode="w")
+    conn_rw = db_rw.connect()
+    try:
+        conn_rw.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        conn_rw.execute("CREATE (:person {id: 1});")
+    finally:
+        conn_rw.close()
+        db_rw.close()
+
+    db_ro = Database(db_path=str(db_dir), mode="r")
+    conn = db_ro.connect()
+    try:
+        # The Python binding deliberately passes an empty mode, preserving its
+        # established query-text inference behavior across the Connection API
+        # refactor.
+        assert len(conn.execute("MATCH (n:person) RETURN n.id;")) == 1
+    finally:
+        conn.close()
+        db_ro.close()
+
+
 def test_parallel_query_executions(tmp_path):
     db_dir = tmp_path / "parallel_query_db"
     shutil.rmtree(db_dir, ignore_errors=True)

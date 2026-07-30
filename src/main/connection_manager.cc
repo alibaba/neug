@@ -19,66 +19,108 @@
 #include <ostream>
 #include "neug/config.h"
 #include "neug/main/connection.h"
+#include "neug/main/execution_slot.h"
+#include "neug/main/neug_db.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 
-void ConnectionManager::ConnectionManager::Close() {
-  std::lock_guard<std::mutex> lock(connection_mutex_);
-  if (read_write_connection_) {
-    read_write_connection_->Close();
-    read_write_connection_.reset();
+void ConnectionManager::Close() {
+  auto connection_registry = connection_registry_;
+  std::vector<std::shared_ptr<Connection>> connections;
+  {
+    std::lock_guard<std::mutex> lock(connection_registry->mutex);
+    connections.reserve(connection_registry->read_only_connections.size() +
+                        (connection_registry->read_write_connection ? 1 : 0));
+    if (connection_registry->read_write_connection) {
+      connections.emplace_back(
+          std::move(connection_registry->read_write_connection));
+    }
+    for (auto& conn : connection_registry->read_only_connections) {
+      connections.emplace_back(std::move(conn));
+    }
+    connection_registry->read_only_connections.clear();
   }
-  for (auto& conn : read_only_connections_) {
+
+  // Close callbacks unregister themselves, so the manager mutex must not be
+  // held while invoking Connection::Close().
+  for (auto& conn : connections) {
     conn->Close();
   }
-  read_only_connections_.clear();
+}
+
+size_t ConnectionManager::ConnectionNum() const {
+  auto connection_registry = connection_registry_;
+  std::lock_guard<std::mutex> lock(connection_registry->mutex);
+  size_t connection_num = 0;
+  if (connection_registry->read_write_connection &&
+      !connection_registry->read_write_connection->IsClosed()) {
+    ++connection_num;
+  }
+  for (const auto& conn : connection_registry->read_only_connections) {
+    if (conn && !conn->IsClosed()) {
+      ++connection_num;
+    }
+  }
+  return connection_num;
+}
+
+bool ConnectionManager::HasOpenConnections() const {
+  return ConnectionNum() != 0;
 }
 
 std::shared_ptr<Connection> ConnectionManager::CreateConnection() {
-  std::lock_guard<std::mutex> lock(connection_mutex_);
+  auto connection_registry = connection_registry_;
+  std::lock_guard<std::mutex> lock(connection_registry->mutex);
+  const std::weak_ptr<ConnectionRegistry> weak_connection_registry =
+      connection_registry;
   if (config_.mode == DBMode::READ_ONLY) {
-    auto conn = std::make_shared<Connection>(snapshot_store_, query_processor_);
-    read_only_connections_.push_back(conn);
+    auto conn = std::make_shared<Connection>(
+        db_.createExecutionSlot(/*slot_id=*/0),
+        [weak_connection_registry](Connection* connection) {
+          UnregisterConnection(weak_connection_registry, connection);
+        });
+    connection_registry->read_only_connections.push_back(conn);
     return conn;
   } else if (config_.mode == DBMode::READ_WRITE) {
-    if (read_write_connection_) {
+    if (connection_registry->read_write_connection) {
       LOG(ERROR) << "There is already a read-write connection constructed.";
       THROW_TX_STATE_CONFLICT(
           "There is already a read-write connection constructed.");
     }
-    read_write_connection_ =
-        std::make_shared<Connection>(snapshot_store_, query_processor_);
-    return read_write_connection_;
+    connection_registry->read_write_connection = std::make_shared<Connection>(
+        db_.createExecutionSlot(/*slot_id=*/0),
+        [weak_connection_registry](Connection* connection) {
+          UnregisterConnection(weak_connection_registry, connection);
+        });
+    return connection_registry->read_write_connection;
   } else {
     THROW_RUNTIME_ERROR("Invalid mode.");
   }
 }
 
-void ConnectionManager::RemoveConnection(std::shared_ptr<Connection> conn) {
-  std::lock_guard<std::mutex> lock(connection_mutex_);
-  if (config_.mode == DBMode::READ_ONLY) {
-    for (auto it = read_only_connections_.begin();
-         it != read_only_connections_.end(); ++it) {
-      if (*it == conn) {
-        read_only_connections_.erase(it);
-        VLOG(10) << "Removed a read-only connection.";
-        return;
-      }
-    }
-    LOG(ERROR) << "Connection not found in read-only connections.";
-  } else if (config_.mode == DBMode::READ_WRITE) {
-    if (read_write_connection_ == conn) {
-      read_write_connection_.reset();
-      VLOG(10) << "Removed the read-write connection.";
-      return;
-    } else {
-      LOG(ERROR) << "Connection not found in read-write connection.";
-    }
-  } else {
-    THROW_RUNTIME_ERROR("Invalid mode.");
+void ConnectionManager::UnregisterConnection(
+    const std::weak_ptr<ConnectionRegistry>& weak_connection_registry,
+    Connection* conn) {
+  auto connection_registry = weak_connection_registry.lock();
+  if (!connection_registry) {
+    return;
   }
-  LOG(ERROR) << "Connection not found.";
+
+  std::lock_guard<std::mutex> lock(connection_registry->mutex);
+  if (connection_registry->read_write_connection.get() == conn) {
+    connection_registry->read_write_connection.reset();
+    VLOG(10) << "Unregistered the read-write connection.";
+    return;
+  }
+  for (auto it = connection_registry->read_only_connections.begin();
+       it != connection_registry->read_only_connections.end(); ++it) {
+    if (it->get() == conn) {
+      connection_registry->read_only_connections.erase(it);
+      VLOG(10) << "Unregistered a read-only connection.";
+      return;
+    }
+  }
 }
 
 }  // namespace neug

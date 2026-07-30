@@ -116,7 +116,8 @@ void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
     }
   }
   auto supplier = std::make_shared<CSVChunkSupplier>(v_file, std::move(config));
-  CHECK(graph.BatchAddVertices(v_label, supplier).ok());
+  auto new_vids = graph.BatchAddVertices(v_label, supplier);
+  CHECK(new_vids) << new_vids.error().ToString();
 }
 
 void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
@@ -297,11 +298,11 @@ void testOpenEmptyGraph(std::shared_ptr<neug::Checkpoint> ckp,
     add_properties.emplace_back(std::make_pair(
         std::string("creationDate"), neug::Value::TIMESTAMPMS(DateTime(0))));
     AddEdgePropertiesParamBuilder builder;
-    graph.AddEdgeProperties(builder.SrcLabel(src_vertex_type)
-                                .DstLabel(dst_vertex_type)
-                                .EdgeLabel(edge_type_name)
-                                .Properties(add_properties)
-                                .Build());
+    auto config = builder.Properties(add_properties).Build();
+    label_t src = graph.schema().get_vertex_label_id(src_vertex_type);
+    label_t dst = graph.schema().get_vertex_label_id(dst_vertex_type);
+    label_t edge = graph.schema().get_edge_label_id(edge_type_name);
+    graph.AddEdgeProperties(src, dst, edge, config);
   }
 
   // Traverse edge PERSON-KNOWS->PERSON

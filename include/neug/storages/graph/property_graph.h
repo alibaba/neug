@@ -32,6 +32,7 @@
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view.h"
+#include "neug/storages/graph/dirty_tracker.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
@@ -42,6 +43,7 @@
 
 namespace neug {
 
+class StorageIndexManager;
 /**
  * @brief Core property graph storage engine for vertices, edges, and schema.
  *
@@ -124,12 +126,34 @@ class PropertyGraph {
    */
   void Open(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
-  void Compact(timestamp_t ts);
+  void Compact();
 
   /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
   /// Callers that need a usable graph after dumping must explicitly Open() a
   /// checkpoint and rebuild any GraphView that pointed into this graph.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
+
+  DirtyTracker& dirty_tracker() { return dirty_; }
+  const DirtyTracker& dirty_tracker() const { return dirty_; }
+
+  void MarkVertexTableDirty(label_t label) { dirty_.MarkVertex(label); }
+  bool IsVertexTableDirty(label_t label) const {
+    return dirty_.IsVertexDirty(label);
+  }
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) {
+    dirty_.MarkEdge(schema_.generate_edge_label(src, dst, edge));
+  }
+  bool IsEdgeTableDirty(label_t src, label_t dst, label_t edge) const {
+    return dirty_.IsEdgeDirty(schema_.generate_edge_label(src, dst, edge));
+  }
+  void MarkSchemaDirty() { dirty_.MarkSchema(); }
+  bool IsSchemaDirty() const { return dirty_.IsSchemaDirty(); }
+  /// True if schema or any table has been marked dirty since the last
+  /// ClearAllDirty().
+  bool IsModified() const { return dirty_.IsModified(); }
+  /// Clear all table-level and schema dirty bits. Call only after a checkpoint
+  /// has been successfully published.
+  void ClearAllDirty() { dirty_.ClearAll(); }
 
   Checkpoint& checkpoint() {
     assert(ckp_);
@@ -162,6 +186,10 @@ class PropertyGraph {
    * @since v0.1.0
    */
   Schema& mutable_schema();
+
+  const StorageIndexManager& index_manager() const;
+
+  StorageIndexManager& mutable_index_manager();
 
   /**
    * @brief Clear all graph data and reset to empty state.
@@ -259,7 +287,8 @@ class PropertyGraph {
    * @return Status indicating success or failure. Returns
    *         ERR_SCHEMA_MISMATCH if a property already exists.
    */
-  Status AddVertexProperties(const AddVertexPropertiesParam& config);
+  Status AddVertexProperties(label_t label,
+                             const AddVertexPropertiesParam& config);
 
   /**
    * @brief Add properties to an existing edge type.
@@ -267,19 +296,23 @@ class PropertyGraph {
    * Each property is a (name, default_value) pair; the DataType is derived
    * from each Value's type().
    *
-   * @param config Config specifying the edge triplet and new properties
    * @return Status indicating success or failure. Returns
    *         ERR_SCHEMA_MISMATCH if a property already exists.
    */
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config);
+  Status AddEdgeProperties(label_t src, label_t dst, label_t edge,
+                           const AddEdgePropertiesParam& config);
 
-  Status RenameVertexProperties(const RenameVertexPropertiesParam& config);
+  Status RenameVertexProperties(label_t label,
+                                const RenameVertexPropertiesParam& config);
 
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config);
+  Status RenameEdgeProperties(label_t src, label_t dst, label_t edge,
+                              const RenameEdgePropertiesParam& config);
 
-  Status DeleteVertexProperties(const DeleteVertexPropertiesParam& config);
+  Status DeleteVertexProperties(label_t label,
+                                const DeleteVertexPropertiesParam& config);
 
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config);
+  Status DeleteEdgeProperties(label_t src, label_t dst, label_t edge,
+                              const DeleteEdgePropertiesParam& config);
 
   Status EnsureCapacity(label_t v_label, size_t capacity);
 
@@ -290,8 +323,8 @@ class PropertyGraph {
                         label_t edge_label, size_t src_v_cap, size_t dst_v_cap,
                         size_t capacity);
 
-  Status BatchAddVertices(label_t v_label_id,
-                          std::shared_ptr<IDataChunkSupplier> supplier);
+  result<std::vector<vid_t>> BatchAddVertices(
+      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier);
 
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
                        std::shared_ptr<IDataChunkSupplier> supplier);
@@ -610,14 +643,23 @@ class PropertyGraph {
 
   void compact_schema();
 
+  /// Insert / erase an edge table and keep the dirty tracker's edge slots
+  /// in sync.
+  void emplace_edge_table(uint32_t index, EdgeTable&& table);
+  void erase_edge_table(uint32_t index);
+
   std::shared_ptr<Checkpoint> ckp_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
   std::vector<VertexTable> vertex_tables_;
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
+  DirtyTracker dirty_;
+
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;
+
+  std::unique_ptr<StorageIndexManager> index_manager_;
 
   friend class GraphView;
 };

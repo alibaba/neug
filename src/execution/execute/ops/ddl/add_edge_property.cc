@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/ddl/add_edge_property.h"
 #include "neug/common/types/value.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -40,15 +41,23 @@ class AddEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t src, dst, edge;
+    auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
+                                      edge_type_, src, dst, edge);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to add edge property to type: " << edge_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
     AddEdgePropertiesParamBuilder builder;
     for (const auto& [prop_name, prop_value] : properties_) {
       builder.AddProperty(prop_name, prop_value);
     }
-    auto config = builder.SrcLabel(src_type_)
-                      .DstLabel(dst_type_)
-                      .EdgeLabel(edge_type_)
-                      .Build();
-    auto res = storage.AddEdgeProperties(config);
+    auto config = builder.Build();
+    auto res = storage.AddEdgeProperties(src, dst, edge, config);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));

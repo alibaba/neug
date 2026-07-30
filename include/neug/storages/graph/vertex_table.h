@@ -156,6 +156,11 @@ class VertexTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
+  /// When this table is clean, re-link prior-snapshot modules into @p meta
+  /// instead of dumping. Links exact keys for this label only.
+  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                      const CheckpointManifest& prev) const;
+
   void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);
   }
@@ -224,6 +229,15 @@ class VertexTable {
     return CreateRefColumn(*ptr);
   }
 
+  inline const ColumnBase* GetPropertyColumnBase(
+      const std::string& prop) const {
+    auto pk = vertex_schema_->primary_keys[0];
+    if (prop == std::get<1>(pk)) {
+      return &indexer_->get_keys();
+    }
+    return table_->get_column(prop);
+  }
+
   inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
       int32_t col_id) const {
     auto ptr = table_->get_column_by_id(col_id);
@@ -255,9 +269,10 @@ class VertexTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void Compact(timestamp_t ts = MAX_TIMESTAMP);
+  void Compact();
 
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
+  std::vector<vid_t> insert_vertices(
+      std::shared_ptr<IDataChunkSupplier> supplier);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 

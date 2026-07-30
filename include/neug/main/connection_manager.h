@@ -21,54 +21,50 @@
 
 namespace neug {
 
-class GraphSnapshotStore;
 class Connection;
-class IGraphPlanner;
-class QueryProcessor;
+class NeugDB;
 struct NeugDBConfig;
 
 class ConnectionManager {
+ private:
+  struct ConnectionRegistry {
+    std::shared_ptr<Connection> read_write_connection;
+    std::vector<std::shared_ptr<Connection>> read_only_connections;
+    mutable std::mutex mutex;
+  };
+
  public:
-  ConnectionManager(GraphSnapshotStore& snapshot_store,
-                    std::shared_ptr<IGraphPlanner> planner,
-                    std::shared_ptr<QueryProcessor> query_processor,
-                    const NeugDBConfig& config)
-      : snapshot_store_(snapshot_store),
-        planner_(planner),
-        query_processor_(query_processor),
-        config_(config) {}
+  ConnectionManager(NeugDB& db, const NeugDBConfig& config)
+      : db_(db),
+        config_(config),
+        connection_registry_(std::make_shared<ConnectionRegistry>()) {}
   ~ConnectionManager() { Close(); }
 
   std::shared_ptr<Connection> CreateConnection();
 
   /**
    * @brief Close all connections managed by the connection manager.
+   * @note The caller must ensure no managed Connection operation is in
+   * progress.
    */
   void Close();
 
-  /**
-   * @brief Remove a connection from the database.
-   * @param conn The connection to be removed.
-   * @note This method is used to remove a connection when it is closed, to
-   * remove the handle from the database.
-   * @note This method is not thread-safe, so it should be called only when the
-   * connection is closed. And should be only called internally.
-   */
-  void RemoveConnection(std::shared_ptr<Connection> conn);
+  /** @brief Return the number of currently open managed connections. */
+  size_t ConnectionNum() const;
 
-  size_t ConnectionNum() const {
-    return read_only_connections_.size() + (read_write_connection_ ? 1 : 0);
-  }
+  /**
+   * @brief Check whether any managed connection is still open.
+   */
+  bool HasOpenConnections() const;
 
  private:
-  GraphSnapshotStore& snapshot_store_;
-  std::shared_ptr<IGraphPlanner> planner_;
-  std::shared_ptr<QueryProcessor> query_processor_;
-  const NeugDBConfig& config_;
+  static void UnregisterConnection(
+      const std::weak_ptr<ConnectionRegistry>& connection_registry,
+      Connection* conn);
 
-  std::shared_ptr<Connection> read_write_connection_;
-  std::vector<std::shared_ptr<Connection>> read_only_connections_;
-  std::mutex connection_mutex_;
+  NeugDB& db_;
+  const NeugDBConfig& config_;
+  std::shared_ptr<ConnectionRegistry> connection_registry_;
 };
 
 }  // namespace neug

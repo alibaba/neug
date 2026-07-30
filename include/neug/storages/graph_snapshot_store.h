@@ -97,7 +97,7 @@ class GraphSnapshotStore {
 
   /// Current PropertyGraph (for UpdateTransaction to Clone).
   /// No lock — VersionManager guarantees exclusive update access
-  /// (update_state_==1, all inserters drained).
+  /// (admission_state_==kInsertsBlocked, all inserters drained).
   const PropertyGraph& CurrentSnapshot() const;
 
   /// Publish a COW PropertyGraph into a free slot and switch cur_slot_index_.

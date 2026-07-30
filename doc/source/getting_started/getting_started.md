@@ -22,14 +22,14 @@ db_persistent = neug.Database("/path/to/database")
 
 ### In-Memory Database
 - **Use case**: Temporary computations, testing, prototyping
-- **Durability**: Data is lost when the process ends
+- **Durability**: Data is lost when the database is closed
 
 ```python
 # Memory mode examples
 db_memory = neug.Database("")
 ```
 
-> **Note:** Currently, NeuG's in-memory mode creates a temporary database directory that is automatically cleaned up when the process exits.
+> **Note:** Currently, NeuG's in-memory mode creates a temporary database directory that is automatically cleaned up when the database is closed.
 
 ## Connection Modes
 
