@@ -95,6 +95,8 @@ class ReadTransaction {
 
   GraphStats statistic() const { return GraphStats(view()); }
 
+  uint64_t schema_generation() const { return lease_.schema_generation(); }
+
   const Schema& schema() const;
 
  private:

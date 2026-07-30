@@ -48,6 +48,10 @@ class ReadSnapshotLease {
   timestamp_t timestamp() const { return timestamp_; }
   /// The returned view remains valid until this lease is released or destroyed.
   const GraphView& view() const { return snapshot_.get().view(); }
+  /// Schema generation carried by the same pinned snapshot as view().
+  uint64_t schema_generation() const {
+    return snapshot_.get().schema_generation();
+  }
 
  private:
   ReadSnapshotLease(IVersionManager& version_manager, SnapshotGuard snapshot,

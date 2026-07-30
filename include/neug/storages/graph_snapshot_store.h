@@ -71,12 +71,16 @@ class GraphSnapshotStore {
     PropertyGraph* mutable_graph() { return storage_.get(); }
     /// Snapshot publication generation carried by this slot incarnation.
     uint32_t snapshot_generation() const { return snapshot_generation_; }
+    uint64_t schema_generation() const {
+      return schema_generation_.load(std::memory_order_acquire);
+    }
 
    private:
     friend class GraphSnapshotStore;
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
     uint32_t snapshot_generation_{0};
+    std::atomic<uint64_t> schema_generation_{0};
     std::atomic<int> reader_count_{0};
   };
 
@@ -134,9 +138,22 @@ class GraphSnapshotStore {
   const PropertyGraph& CurrentSnapshot() const;
 
   /// Reserve a slot/generation and fully build a pending snapshot publication.
+  /// The new snapshot inherits the current schema generation.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
   result<PreparedSnapshot> PrepareSnapshot(
       const std::shared_ptr<PropertyGraph>& new_pg);
+
+  /// Reserve and build a pending snapshot tagged with @p schema_generation.
+  /// Readers retain this tag for the lifetime of their pinned slot.
+  result<PreparedSnapshot> PrepareSnapshot(
+      const std::shared_ptr<PropertyGraph>& new_pg, uint64_t schema_generation);
+
+  /// Call only while the current slot is stable under writer admission.
+  uint64_t CurrentSchemaGeneration() const;
+
+  /// Direct-mode schema changes mutate the current slot in place after
+  /// draining readers, so they advance its generation without publishing.
+  void AdvanceCurrentSchemaGeneration();
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }

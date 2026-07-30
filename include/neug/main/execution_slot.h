@@ -252,7 +252,8 @@ class ExecutionSlot {
   }
 
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
-      const GraphStats& stats, const std::string& query, int32_t num_threads);
+      const GraphStats& stats, const std::string& query, int32_t num_threads,
+      uint64_t schema_generation);
 
   Status validatePlan(AccessMode mode,
                       const physical::ExecutionFlag& flags) const;

@@ -586,6 +586,41 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
   EXPECT_EQ(query_cache->version(), initial_version + 1);
 }
 
+TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  // Keep the old snapshot pinned while a DDL publishes a new schema.
+  auto old_txn = slot->GetReadTransaction();
+  const auto old_generation = old_txn.schema_generation();
+
+  auto ddl_slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(ddl_slot);
+  auto ddl =
+      ddl_slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "CREATE NODE TABLE cache_gen_probe(id INT64, PRIMARY KEY(id));",
+          "schema", {}));
+  ASSERT_TRUE(ddl) << ddl.error().ToString();
+
+  const auto query_cache = db_->GetQueryCache();
+  const std::string query = "MATCH (n:person) RETURN count(n);";
+
+  // Refill the cleared cache from the old snapshot, reproducing the original
+  // race. The next reader must compile a separate plan for the new schema.
+  auto old_plan = query_cache->Get(old_txn.statistic(), old_generation, query);
+  ASSERT_TRUE(old_plan) << old_plan.error().ToString();
+  const auto size_after_old_plan = query_cache->size();
+
+  auto new_txn = slot->GetReadTransaction();
+  ASSERT_GT(new_txn.schema_generation(), old_generation);
+  auto new_plan =
+      query_cache->Get(new_txn.statistic(), new_txn.schema_generation(), query);
+  ASSERT_TRUE(new_plan) << new_plan.error().ToString();
+  EXPECT_EQ(query_cache->size(), size_after_old_plan + 1);
+  EXPECT_NE(old_plan.value().get(), new_plan.value().get());
+}
+
 TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
   auto connection = db_->Connect();
   ASSERT_TRUE(

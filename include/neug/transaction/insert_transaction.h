@@ -198,6 +198,10 @@ class InsertTransaction {
 
   GraphStats statistic() const { return GraphStats(guard_.get().view()); }
 
+  uint64_t schema_generation() const {
+    return guard_.get().schema_generation();
+  }
+
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
 
  private:

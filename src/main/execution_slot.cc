@@ -160,7 +160,8 @@ CompactTransaction ExecutionSlot::GetCompactTransaction() {
 }
 
 result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
-    const GraphStats& stats, const std::string& query, int32_t num_threads) {
+    const GraphStats& stats, const std::string& query, int32_t num_threads,
+    uint64_t schema_generation) {
   if (num_threads == 0) {
     num_threads = db_config_.max_thread_num;
   }
@@ -170,7 +171,7 @@ result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
                         "Number of threads must be greater than 0"));
   }
 
-  GS_AUTO(cache_value, pipeline_cache_.Get(stats, query));
+  GS_AUTO(cache_value, pipeline_cache_.Get(stats, schema_generation, query));
   return cache_value;
 }
 
@@ -240,9 +241,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
                                : requested_mode;
 
   auto execute_on_storage = [this, &query, access_mode, &parameters,
-                             num_threads, &response](const GraphStats& stats,
-                                                     auto& storage) -> Status {
-    auto prepared = prepareQuery(stats, query, num_threads);
+                             num_threads,
+                             &response](const GraphStats& stats, auto& storage,
+                                        uint64_t schema_generation) -> Status {
+    auto prepared = prepareQuery(stats, query, num_threads, schema_generation);
     if (!prepared) {
       return prepared.error();
     }
@@ -265,6 +267,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
     }
     if (execution_strategy_ == QueryExecutionStrategy::kDirect &&
         invalidatesQueryCache(cache_value->flags)) {
+      if (cache_value->flags.schema() ||
+          cache_value->flags.create_temp_table()) {
+        snapshot_store_.AdvanceCurrentSchemaGeneration();
+      }
       pipeline_cache_.clearGlobalCache();
     }
     return Status::OK();
@@ -277,7 +283,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
           ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
       const auto& view = lease.view();
       StorageReadInterface storage(view, lease.timestamp());
-      status = execute_on_storage(GraphStats(view), storage);
+      status = execute_on_storage(GraphStats(view), storage,
+                                  lease.schema_generation());
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -288,7 +295,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageAPUpdateInterface storage(*slot.mutable_graph(),
                                        slot.mutable_view(), lease.Timestamp(),
                                        alloc_);
-      status = execute_on_storage(GraphStats(slot.view()), storage);
+      status = execute_on_storage(GraphStats(slot.view()), storage,
+                                  slot.schema_generation());
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -298,8 +306,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
   } else {
     auto execute_and_commit = [&execute_on_storage](auto& transaction,
                                                     auto& storage) -> Status {
-      auto transaction_status =
-          execute_on_storage(transaction.statistic(), storage);
+      auto transaction_status = execute_on_storage(
+          transaction.statistic(), storage, transaction.schema_generation());
       if (!transaction_status.ok()) {
         return transaction_status;
       }
@@ -408,6 +416,7 @@ void ExecutionSlot::ClearTemporarySchema() {
 
   if (!temporary_edges.empty() || !temporary_vertices.empty()) {
     slot.mutable_view().Rebuild(*graph);
+    snapshot_store_.AdvanceCurrentSchemaGeneration();
     pipeline_cache_.clearGlobalCache();
   }
 }

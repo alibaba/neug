@@ -65,6 +65,7 @@ GraphSnapshotStore::GraphSnapshotStore(
   slots_[0].storage_ = std::move(initial_pg);
   slots_[0].view_ = GraphView(*slots_[0].storage_);
   slots_[0].snapshot_generation_ = initial_snapshot_generation;
+  slots_[0].schema_generation_.store(0, std::memory_order_relaxed);
   slots_[0].reader_count_.store(1, std::memory_order_relaxed);  // cur-pin
   cur_slot_index_.store(0, std::memory_order_release);
 
@@ -107,6 +108,7 @@ void GraphSnapshotStore::cleanupSlot(int slot_index) {
   slots_[slot_index].storage_.reset();
   slots_[slot_index].view_ = GraphView();
   slots_[slot_index].snapshot_generation_ = 0;
+  slots_[slot_index].schema_generation_.store(0, std::memory_order_relaxed);
   slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel,
                                              std::memory_order_release);
   returnFreeSlot(slot_index);
@@ -208,6 +210,17 @@ GraphSnapshotStore::PrepareSnapshot(
         Status(StatusCode::ERR_INVALID_ARGUMENT,
                "Cannot prepare a null PropertyGraph snapshot"));
   }
+  return PrepareSnapshot(new_pg, CurrentSchemaGeneration());
+}
+
+result<GraphSnapshotStore::PreparedSnapshot>
+GraphSnapshotStore::PrepareSnapshot(
+    const std::shared_ptr<PropertyGraph>& new_pg, uint64_t schema_generation) {
+  if (!new_pg) {
+    return tl::unexpected(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "Cannot prepare a null PropertyGraph snapshot"));
+  }
 
   int slot_index = getFreeSlot();
   if (slot_index < 0) {
@@ -225,15 +238,19 @@ GraphSnapshotStore::PrepareSnapshot(
     slots_[slot_index].storage_ = new_pg;
     slots_[slot_index].view_ = GraphView(*new_pg);
     slots_[slot_index].snapshot_generation_ = snapshot_generation;
+    slots_[slot_index].schema_generation_.store(schema_generation,
+                                                std::memory_order_relaxed);
 
     // Convert the write guard into the token's prep-pin. The prep-pin becomes
-    // the cur-pin if Publish() succeeds, or drives cleanup if the token aborts.
+    // the cur-pin if Publish() succeeds, or drives cleanup if the token
+    // aborts.
     slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel + 1,
                                                std::memory_order_release);
   } catch (...) {
     slots_[slot_index].storage_.reset();
     slots_[slot_index].view_ = GraphView();
     slots_[slot_index].snapshot_generation_ = 0;
+    slots_[slot_index].schema_generation_.store(0, std::memory_order_relaxed);
     slots_[slot_index].reader_count_.store(0, std::memory_order_release);
     returnFreeSlot(slot_index);
     throw;
@@ -245,19 +262,35 @@ GraphSnapshotStore::PrepareSnapshot(
 void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
   CHECK_GE(slot_index, 0);
   CHECK_LT(slot_index, slot_num_);
-  // The prep-pin must still exist. A reader that retained this slot index from
-  // an older incarnation may have speculatively pinned it after reuse. Such a
-  // pin either becomes valid after the exchange or observes another current
-  // slot and releases itself.
+  // The prep-pin must still exist. A reader that retained this slot index
+  // from an older incarnation may have speculatively pinned it after reuse.
+  // Such a pin either becomes valid after the exchange or observes another
+  // current slot and releases itself.
   CHECK_GE(slots_[slot_index].reader_count_.load(std::memory_order_acquire), 1);
 
   // The prepared slot's prep-pin becomes its cur-pin at this exchange. Atomic
-  // exchange also makes simultaneous slot transfers form a safe hand-off chain.
+  // exchange also makes simultaneous slot transfers form a safe hand-off
+  // chain.
   const int old_slot_index =
       cur_slot_index_.exchange(slot_index, std::memory_order_acq_rel);
 
-  // Release the old cur-pin; cleanup is immediate only when no reader holds it.
+  // Release the old cur-pin; cleanup is immediate only when no reader holds
+  // it.
   unpinSnapshotByIndex(old_slot_index);
+}
+
+uint64_t GraphSnapshotStore::CurrentSchemaGeneration() const {
+  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
+  return slots_[slot_index].schema_generation_.load(std::memory_order_acquire);
+}
+
+void GraphSnapshotStore::AdvanceCurrentSchemaGeneration() {
+  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
+  auto& generation = slots_[slot_index].schema_generation_;
+  const uint64_t current = generation.load(std::memory_order_relaxed);
+  CHECK_NE(current, std::numeric_limits<uint64_t>::max())
+      << "Schema generation space exhausted";
+  generation.store(current + 1, std::memory_order_release);
 }
 
 }  // namespace neug

@@ -106,6 +106,8 @@ class UpdateTransaction {
    */
   timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
+  uint64_t schema_generation() const { return schema_generation_; }
+
   bool Commit();
 
   void Abort();
@@ -164,6 +166,7 @@ class UpdateTransaction {
   GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
   UpdateTimestampLease timestamp_lease_;
+  uint64_t schema_generation_;
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;

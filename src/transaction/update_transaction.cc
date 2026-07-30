@@ -332,6 +332,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       snapshot_store_(snapshot_store),
       pipeline_cache_(cache),
       timestamp_lease_(std::move(timestamp_lease)),
+      schema_generation_(snapshot_store.CurrentSchemaGeneration()),
       ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
@@ -345,13 +346,25 @@ bool UpdateTransaction::Commit() {
     return true;
   }
 
-  auto prepared_result = snapshot_store_.PrepareSnapshot(cow_graph_);
+  const bool schema_changed = wal_builder_.schema_changed();
+  if (schema_changed &&
+      schema_generation_ == std::numeric_limits<uint64_t>::max()) {
+    LOG(ERROR) << "Schema generation space exhausted";
+    Abort();
+    return false;
+  }
+  const uint64_t committed_schema_generation =
+      schema_generation_ + (schema_changed ? 1 : 0);
+
+  auto prepared_result =
+      snapshot_store_.PrepareSnapshot(cow_graph_, committed_schema_generation);
   if (!prepared_result) {
     LOG(ERROR) << "Failed to prepare graph snapshot: "
                << prepared_result.error().ToString();
     Abort();
     return false;
   }
+
   auto prepared = std::move(prepared_result).value();
 
   wal_builder_.finalize(timestamp());
@@ -363,7 +376,7 @@ bool UpdateTransaction::Commit() {
 
   timestamp_lease_.BeginCommit();
 
-  if (wal_builder_.schema_changed()) {
+  if (schema_changed) {
     pipeline_cache_.clearGlobalCache();
   }
 

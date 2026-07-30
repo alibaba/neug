@@ -14,6 +14,12 @@
  */
 #pragma once
 
+#include <cstdint>
+#include <functional>
+#include <shared_mutex>
+#include <string>
+#include <unordered_map>
+
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/execute/pipeline.h"
@@ -43,6 +49,27 @@ struct CacheValue {
         explain_mode(explain_mode) {}
 };
 
+// Clearing a query-only cache cannot prevent an old-snapshot reader from
+// repopulating it after a schema change. The pinned snapshot's schema
+// generation is therefore part of the correctness key.
+struct CacheKey {
+  uint64_t schema_generation;
+  std::string query;
+
+  bool operator==(const CacheKey& other) const {
+    return schema_generation == other.schema_generation && query == other.query;
+  }
+};
+
+struct CacheKeyHash {
+  size_t operator()(const CacheKey& key) const {
+    size_t hash = std::hash<std::string>{}(key.query);
+    hash ^= std::hash<uint64_t>{}(key.schema_generation) + 0x9e3779b9 +
+            (hash << 6) + (hash >> 2);
+    return hash;
+  }
+};
+
 /**
  * @brief A global query cache to store compiled physical plans for queries for
  * a NeugDB instance. It can be shared across multiple ExecutionSlot instances,
@@ -61,10 +88,12 @@ class GlobalQueryCache {
   uint64_t version() const { return version_.load(); }
 
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
+                                          uint64_t schema_generation,
                                           const std::string& query) {
+    const CacheKey key{schema_generation, query};
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
-      auto iter = cache_.find(query);
+      auto iter = cache_.find(key);
       if (iter != cache_.end()) {
         return iter->second;
       }
@@ -89,15 +118,15 @@ class GlobalQueryCache {
     auto explain_mode = plan_result.first.explain_mode();
     {
       std::unique_lock<std::shared_mutex> write_lock(mutex_);
-      auto iter = cache_.find(query);
+      auto iter = cache_.find(key);
       if (iter != cache_.end()) {
         return iter->second;
       }
       cache_.emplace(
-          query, std::make_shared<CacheValue>(
-                     std::move(pipeline_result), std::move(params_type), sch,
-                     plan_result.first.flag(), explain_mode));
-      return cache_.at(query);
+          key, std::make_shared<CacheValue>(
+                   std::move(pipeline_result), std::move(params_type), sch,
+                   plan_result.first.flag(), explain_mode));
+      return cache_.at(key);
     }
   }
 
@@ -107,12 +136,18 @@ class GlobalQueryCache {
     cache_.clear();
   }
 
+  size_t size() const {
+    std::shared_lock<std::shared_mutex> read_lock(mutex_);
+    return cache_.size();
+  }
+
  private:
   GlobalQueryCache() : version_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;
   std::atomic<uint64_t> version_;
-  std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
-  std::shared_mutex mutex_;
+  std::unordered_map<CacheKey, std::shared_ptr<CacheValue>, CacheKeyHash>
+      cache_;
+  mutable std::shared_mutex mutex_;
 };
 
 /**
@@ -124,18 +159,21 @@ class LocalQueryCache {
       : global_cache_(global_cache), version_(global_cache_->version()) {}
   ~LocalQueryCache() = default;
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
+                                          uint64_t schema_generation,
                                           const std::string& query) {
     if (version_ != global_cache_->version()) {
       cache_.clear();
       version_ = global_cache_->version();
     }
-    auto iter = cache_.find(query);
+    const CacheKey key{schema_generation, query};
+    auto iter = cache_.find(key);
     if (iter != cache_.end()) {
       return iter->second;
     }
-    GS_AUTO(cache_value_res, global_cache_->Get(stats, query));
-    cache_.emplace(query, cache_value_res);
-    return cache_.at(query);
+    GS_AUTO(cache_value_res,
+            global_cache_->Get(stats, schema_generation, query));
+    cache_.emplace(key, cache_value_res);
+    return cache_.at(key);
   }
 
   void clearGlobalCache() {
@@ -147,7 +185,8 @@ class LocalQueryCache {
  private:
   std::shared_ptr<GlobalQueryCache> global_cache_;
   uint64_t version_;
-  std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
+  std::unordered_map<CacheKey, std::shared_ptr<CacheValue>, CacheKeyHash>
+      cache_;
 };
 }  // namespace execution
 }  // namespace neug
