@@ -164,3 +164,6 @@ tools/python_bind/neug/_commit.py
 
 # codegraph
 .codegraph/
+
+# graphify
+.graphify-out/
