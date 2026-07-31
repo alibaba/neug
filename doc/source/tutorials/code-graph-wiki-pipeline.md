@@ -14,7 +14,7 @@ relationships are derived from the underlying code graph — for example, if a f
 file A calls a function in file B, then A and B are connected by an edge.
 
 **Time**: ~15 minutes
-**Prerequisites**: `pip install neug==0.1.3`
+**Prerequisites**: `pip install neug>=0.1.3`
 
 ---
 
