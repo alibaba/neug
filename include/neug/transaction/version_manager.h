@@ -163,29 +163,82 @@ class VersionManager : public IVersionManager {
   void revert_compact_timestamp(uint32_t ts) override;
 
  private:
-  enum class AdmissionState { kOpen, kInsertsBlocked, kAllBlocked };
-  enum class AdmissionAttempt { kAdmitted, kBlocked, kRetry };
+  enum class AdmissionState : uint8_t { kOpen, kInsertsBlocked, kAllBlocked };
 
-  struct OperationGateState {
-    AdmissionState phase;
-    uint32_t readers;
-    uint32_t inserters;
+  // Layout: [63:62] phase | [61:31] active readers | [30:0] active inserters.
+  struct OperationGateWord {
+    static constexpr uint32_t kMaxCount = 0x7fffffffu;
+    static constexpr uint64_t kInserterMask = kMaxCount;
+    static constexpr uint64_t kReaderMask = uint64_t{kMaxCount} << 31;
+    static constexpr uint64_t kPhaseMask = uint64_t{3} << 62;
+    static constexpr uint64_t kInserterUnit = 1;
+    static constexpr uint64_t kReaderUnit = uint64_t{1} << 31;
+
+    [[nodiscard]] static constexpr uint64_t empty(
+        AdmissionState phase) noexcept {
+      return static_cast<uint64_t>(phase) << 62;
+    }
+
+    [[nodiscard]] static constexpr AdmissionState phase(
+        uint64_t word) noexcept {
+      return static_cast<AdmissionState>(word >> 62);
+    }
+
+    [[nodiscard]] static constexpr uint32_t readers(uint64_t word) noexcept {
+      return static_cast<uint32_t>((word >> 31) & kMaxCount);
+    }
+
+    [[nodiscard]] static constexpr uint32_t inserters(uint64_t word) noexcept {
+      return static_cast<uint32_t>(word & kInserterMask);
+    }
+
+    [[nodiscard]] static constexpr uint64_t with_phase(
+        uint64_t word, AdmissionState desired_phase) noexcept {
+      return (word & ~kPhaseMask) |
+             (static_cast<uint64_t>(desired_phase) << 62);
+    }
+
+    // Callers validate the corresponding counter before changing it.
+    [[nodiscard]] static constexpr uint64_t increment_reader(
+        uint64_t word) noexcept {
+      return word + kReaderUnit;
+    }
+
+    [[nodiscard]] static constexpr uint64_t decrement_reader(
+        uint64_t word) noexcept {
+      return word - kReaderUnit;
+    }
+
+    [[nodiscard]] static constexpr uint64_t increment_inserter(
+        uint64_t word) noexcept {
+      return word + kInserterUnit;
+    }
+
+    [[nodiscard]] static constexpr uint64_t decrement_inserter(
+        uint64_t word) noexcept {
+      return word - kInserterUnit;
+    }
   };
 
-  static constexpr uint32_t kMaxAdmissionCount = 0x7fffffffu;
-  static uint64_t PackOperationGateState(OperationGateState state);
-  static OperationGateState UnpackOperationGateState(uint64_t packed);
+  static_assert((OperationGateWord::kPhaseMask &
+                 OperationGateWord::kReaderMask) == 0);
+  static_assert((OperationGateWord::kPhaseMask &
+                 OperationGateWord::kInserterMask) == 0);
+  static_assert((OperationGateWord::kReaderMask &
+                 OperationGateWord::kInserterMask) == 0);
+  static_assert((OperationGateWord::kPhaseMask |
+                 OperationGateWord::kReaderMask |
+                 OperationGateWord::kInserterMask) == ~uint64_t{0});
 
   int thread_num_;
   // These helpers may suspend the logical task. Callers must not hold an
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
-  void enter_exclusive_state(AdmissionState desired_state);
-  void set_admission_state(AdmissionState expected, AdmissionState desired);
-  void restore_open_after_update();
-  void wait_for_gate_change(uint64_t observed) const;
-  void wait_until_drained(bool readers, bool inserters);
-  AdmissionAttempt try_admit_reader(uint64_t& observed);
-  AdmissionAttempt try_admit_inserter(uint64_t& observed);
+  void enter_admission_phase(AdmissionState desired_phase);
+  void transition_admission_phase(AdmissionState expected_phase,
+                                  AdmissionState desired_phase);
+  void reopen_admission_after_update();
+  void wait_for_gate_state_change(uint64_t observed) const;
+  void wait_until_operations_drained(bool readers, bool inserters);
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
   RuntimeWaitFn runtime_wait_impl() const noexcept override;
