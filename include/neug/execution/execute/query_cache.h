@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -156,32 +157,42 @@ class LocalQueryCache {
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           uint64_t schema_generation,
                                           const std::string& query) {
-    if (version_ != global_cache_->version()) {
+    const auto global_version = global_cache_->version();
+    if (version_ != global_version) {
       cache_.clear();
-      version_ = global_cache_->version();
+      version_ = global_version;
+      schema_generation_.reset();
     }
-    const CacheKey key{schema_generation, query};
-    auto iter = cache_.find(key);
+    // An ExecutionSlot is leased exclusively, so its local cache only needs
+    // plans for the most recently observed schema generation. Keeping the
+    // generation outside the map avoids copying query on every cache lookup.
+    if (!schema_generation_.has_value() ||
+        schema_generation_.value() != schema_generation) {
+      cache_.clear();
+      schema_generation_ = schema_generation;
+    }
+    auto iter = cache_.find(query);
     if (iter != cache_.end()) {
       return iter->second;
     }
     GS_AUTO(cache_value_res,
             global_cache_->Get(stats, schema_generation, query));
-    cache_.emplace(key, cache_value_res);
-    return cache_.at(key);
+    cache_.emplace(query, cache_value_res);
+    return cache_value_res;
   }
 
   void clearGlobalCache() {
     global_cache_->clear();
     version_ = global_cache_->version();
     cache_.clear();
+    schema_generation_.reset();
   }
 
  private:
   std::shared_ptr<GlobalQueryCache> global_cache_;
   uint64_t version_;
-  std::unordered_map<CacheKey, std::shared_ptr<CacheValue>, CacheKeyHash>
-      cache_;
+  std::optional<uint64_t> schema_generation_;
+  std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
 };
 }  // namespace execution
 }  // namespace neug

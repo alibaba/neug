@@ -667,6 +667,18 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
       local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
   ASSERT_TRUE(new_plan_again) << new_plan_again.error().ToString();
   EXPECT_EQ(new_plan.value().get(), new_plan_again.value().get());
+
+  // A local cache only retains its most recently observed generation, while
+  // the global cache keeps both generations available. Switching generations
+  // must therefore reuse the matching global plan without mixing them.
+  auto old_plan_after_new =
+      local_cache.Get(old_txn.statistic(), old_generation, query);
+  ASSERT_TRUE(old_plan_after_new) << old_plan_after_new.error().ToString();
+  EXPECT_EQ(old_plan.value().get(), old_plan_after_new.value().get());
+  auto new_plan_after_old =
+      local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
+  ASSERT_TRUE(new_plan_after_old) << new_plan_after_old.error().ToString();
+  EXPECT_EQ(new_plan.value().get(), new_plan_after_old.value().get());
 }
 
 TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
