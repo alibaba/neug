@@ -36,7 +36,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/read_snapshot_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
@@ -45,7 +45,6 @@
 namespace neug {
 
 class PropertyGraph;
-class IVersionManager;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
 
@@ -69,16 +68,13 @@ class TypedMutableCsrBase;
 class ReadTransaction {
  public:
   /**
-   * @brief Construct a ReadTransaction with a pinned SnapshotSlot.
+   * @brief Construct a ReadTransaction with one coherent read lease.
    *
-   * @param guard SnapshotGuard managing the pinned SnapshotSlot.
-   * @param vm Reference to version manager.
-   * @param timestamp Snapshot timestamp for this transaction.
+   * @param lease Timestamp, generation, and pinned snapshot owned together.
    *
    * @since v0.1.0
    */
-  ReadTransaction(SnapshotGuard guard, IVersionManager& vm,
-                  timestamp_t timestamp);
+  explicit ReadTransaction(ReadSnapshotLease lease);
 
   /**
    * @brief Destructor that calls release().
@@ -95,19 +91,15 @@ class ReadTransaction {
 
   void Abort();
 
-  const GraphView& view() const { return guard_.get().view(); }
+  const GraphView& view() const { return lease_.view(); }
 
-  GraphStats statistic() const {
-    return GraphStats(*guard_.get().mutable_graph());
-  }
+  GraphStats statistic() const { return GraphStats(view()); }
 
   const Schema& schema() const;
 
  private:
   void release();
-  SnapshotGuard guard_;
-  IVersionManager& vm_;
-  timestamp_t timestamp_;
+  ReadSnapshotLease lease_;
 };
 
 }  // namespace neug

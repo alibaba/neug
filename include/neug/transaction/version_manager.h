@@ -16,12 +16,34 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <optional>
 
 #include "neug/transaction/runtime_wait.h"
 #include "neug/transaction/timestamp_window.h"
 #include "neug/utils/spinlock.h"
 
 namespace neug {
+
+/**
+ * @brief Atomically published reader-visible state.
+ *
+ * The visibility timestamp and snapshot generation form one logical value:
+ * readers must never combine either field with a snapshot from another
+ * publication generation.
+ */
+struct PublishedReadView {
+  uint32_t visibility_ts;
+  uint32_t snapshot_generation;
+};
+
+inline uint64_t PackPublishedReadView(const PublishedReadView& view) {
+  return (static_cast<uint64_t>(view.snapshot_generation) << 32) |
+         view.visibility_ts;
+}
+
+inline PublishedReadView UnpackPublishedReadView(uint64_t packed) {
+  return {static_cast<uint32_t>(packed), static_cast<uint32_t>(packed >> 32)};
+}
 
 /**
  * @brief Unified interface for transaction timestamp and concurrency control.
@@ -41,14 +63,19 @@ namespace neug {
  */
 class IVersionManager {
  public:
-  virtual void init_ts(uint32_t ts, int thread_num) = 0;
+  // Initialize the timestamp timeline and its coherently installed snapshot.
+  virtual void init_ts(PublishedReadView initial_read_view, int thread_num) = 0;
   // Lifecycle-only operation. The implementation closes admission while
   // checking quiescence, but the caller must still prevent new transaction
   // attempts so no already-waiting caller retains the previous runtime wait.
   virtual bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept = 0;
-  virtual uint32_t acquire_read_timestamp() = 0;
-  virtual void release_read_timestamp() = 0;
+  // Create a per-wait cursor without exposing the runtime callback itself.
+  RuntimeBackoff make_runtime_backoff() const noexcept {
+    return RuntimeBackoff(runtime_wait_impl());
+  }
+  virtual PublishedReadView acquire_read_view() = 0;
+  virtual void release_read_view() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   virtual uint32_t acquire_update_timestamp() = 0;
@@ -57,12 +84,19 @@ class IVersionManager {
   // drain readers before acquiring checkpoint-manager or other
   // OS-thread-owned mutexes.
   virtual void drain_readers() = 0;
-  virtual void release_update_timestamp(uint32_t ts) = 0;
+  // A present generation has already been installed in GraphSnapshotStore.
+  // nullopt keeps the currently installed generation.
+  virtual void finish_update_timestamp(
+      uint32_t ts,
+      std::optional<uint32_t> installed_snapshot_generation) noexcept = 0;
   virtual uint32_t acquire_compact_timestamp() = 0;
   virtual void release_compact_timestamp(uint32_t ts) = 0;
   virtual void revert_compact_timestamp(uint32_t ts) = 0;
 
   virtual ~IVersionManager() {}
+
+ protected:
+  virtual RuntimeWaitFn runtime_wait_impl() const noexcept = 0;
 };
 
 /**
@@ -80,7 +114,7 @@ class IVersionManager {
  *   | Update-exec   | yes  |  no    |   no        |    -          |   no    |
  *   | Update-commit |  no* |  no    |   -         |   no          |   no    |
  *   | Compact       |  no  |  no    |   no        |   no          |   no    |
- *   *New reads wait with the configured adaptive backoff; already-acquired
+ *   *New reads wait with the configured runtime backoff; already-acquired
  *   reads continue.
  *
  * Mechanism:
@@ -92,8 +126,8 @@ class IVersionManager {
  * - admission_state_: controls whether new readers and inserters may enter.
  *   Update execution blocks inserters; update commit and compaction block
  *   both readers and inserters.
- * - acquire_read_timestamp uses a double-check pattern (pre-check + increment
- *   + post-check) to prevent ABA races with begin_update_commit.
+ * - acquire_read_view uses a double-check pattern (pre-check + increment +
+ *   post-check) to prevent ABA races with begin_update_commit.
  * - begin_update_commit blocks new readers before snapshot publication.
  *   Readers already between the pre-check and post-check either roll back
  *   after observing the blocked state or complete as an existing reader.
@@ -107,18 +141,20 @@ class VersionManager : public IVersionManager {
   VersionManager();
   ~VersionManager() override = default;
 
-  void init_ts(uint32_t ts, int thread_num) override;
+  void init_ts(PublishedReadView initial_read_view, int thread_num) override;
   bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept override;
 
-  uint32_t acquire_read_timestamp() override;
-  void release_read_timestamp() override;
+  PublishedReadView acquire_read_view() override;
+  void release_read_view() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
-  void release_update_timestamp(uint32_t ts) override;
+  void finish_update_timestamp(
+      uint32_t ts,
+      std::optional<uint32_t> installed_snapshot_generation) noexcept override;
   uint32_t acquire_compact_timestamp() override;
   void release_compact_timestamp(uint32_t ts) override;
   void revert_compact_timestamp(uint32_t ts) override;
@@ -129,18 +165,20 @@ class VersionManager : public IVersionManager {
   enum class AdmissionState { kOpen, kInsertsBlocked, kAllBlocked };
 
   int thread_num_;
-  uint32_t acquire_read_timestamp_slow();
+  PublishedReadView acquire_read_view_slow();
   uint32_t acquire_insert_timestamp_slow();
   // These helpers may suspend the logical task. Callers must not hold an
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
   void enter_exclusive_state(AdmissionState desired_state);
   void wait_until_zero(const std::atomic<int>& counter);
-  RuntimeWaitFn runtime_wait() const noexcept;
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
+  RuntimeWaitFn runtime_wait_impl() const noexcept override;
 
   std::atomic<uint32_t> write_ts_{1};
   std::atomic<uint32_t> read_ts_{1};
+  std::atomic<uint32_t> installed_snapshot_generation_{0};
+  std::atomic<uint64_t> published_read_view_{PackPublishedReadView({1, 0})};
 
   std::atomic<int> active_readers_{0};
   std::atomic<int> active_inserters_{0};

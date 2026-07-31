@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -34,6 +35,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/property_graph_cow_state.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/wal/wal_builder.h"
 #include "neug/utils/property/table.h"
@@ -50,15 +52,15 @@ class Schema;
  * @brief Resource holder and lifecycle manager for update transactions.
  *
  * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
- * resources (WAL buffer, allocator, version manager, snapshot store).
+ * resources (WAL buffer, allocator, timestamp lease, snapshot store).
  * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
  * which accesses UpdateTransaction's private members via friend declaration.
  *
  * **COW Design:**
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
  * - StorageTPUpdateInterface performs all DDL/DML modifications on the COW copy
- * - Commit flushes WAL and publishes the COW copy via
- * GraphSnapshotStore::PublishSnapshot()
+ * - Commit prepares the COW snapshot before WAL, then performs a no-fail
+ *   publication after WAL succeeds.
  * - Abort discards the COW copy (no effect on original)
  *
  * **Concurrency contract** (VersionManager state machine):
@@ -79,18 +81,18 @@ class UpdateTransaction {
    * @param cow_graph PropertyGraph COW clone
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
-   * @param vm Reference to version manager
    * @param snapshot_store Reference to GraphSnapshotStore for commit
    * @param cache Reference to query cache
-   * @param timestamp Transaction timestamp
+   * @param timestamp_lease Owner of the transaction timestamp
    *
-   * @note NeugDB is responsible for creating the COW copy via Clone()
+   * @note The caller is responsible for acquiring the timestamp lease before
+   * creating the COW copy via Clone().
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
-                    IWalWriter& logger, IVersionManager& vm,
-                    GraphSnapshotStore& snapshot_store,
-                    execution::LocalQueryCache& cache, timestamp_t timestamp);
+                    IWalWriter& logger, GraphSnapshotStore& snapshot_store,
+                    execution::LocalQueryCache& cache,
+                    UpdateTimestampLease timestamp_lease);
 
   /**
    * @brief Destructor that calls Abort().
@@ -102,7 +104,7 @@ class UpdateTransaction {
    * @brief Get the transaction timestamp.
    * @since v0.1.0
    */
-  timestamp_t timestamp() const;
+  timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
   bool Commit();
 
@@ -113,7 +115,7 @@ class UpdateTransaction {
 
   const GraphView& view() const { return view_; }
 
-  GraphStats statistic() const { return GraphStats(*cow_graph_); }
+  GraphStats statistic() const { return GraphStats(view_); }
 
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }
@@ -132,13 +134,13 @@ class UpdateTransaction {
   CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
     return cow_graph_->GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp_);
+                                                   edge_label, timestamp());
   }
 
   CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
     return cow_graph_->GetGenericIncomingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp_);
+                                                   edge_label, timestamp());
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
@@ -150,7 +152,7 @@ class UpdateTransaction {
   friend class StorageTPUpdateInterface;
 
  private:
-  void release();
+  void release(std::optional<uint32_t> installed_snapshot_generation);
 
   // COW storage - the cloned PropertyGraph
   std::shared_ptr<PropertyGraph> cow_graph_;
@@ -159,10 +161,9 @@ class UpdateTransaction {
 
   Allocator& alloc_;
   IWalWriter& logger_;
-  IVersionManager& vm_;
   GraphSnapshotStore& snapshot_store_;
   execution::LocalQueryCache& pipeline_cache_;
-  timestamp_t timestamp_;
+  UpdateTimestampLease timestamp_lease_;
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;

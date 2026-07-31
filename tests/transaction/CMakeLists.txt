@@ -1,4 +1,5 @@
 add_neug_test(runtime_wait_test test_runtime_wait.cc)
+add_neug_test(read_view_publication_test test_read_view_publication.cc)
 
 if (BUILD_HTTP_SERVER)
 	add_neug_test(

@@ -15,6 +15,7 @@
 
 #include "neug/transaction/version_manager.h"
 
+#include <limits>
 #include <mutex>
 
 #include "neug/utils/exception/exception.h"
@@ -26,9 +27,20 @@ namespace neug {
 
 VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
 
-void VersionManager::init_ts(uint32_t ts, int thread_num) {
+void VersionManager::init_ts(PublishedReadView initial_read_view,
+                             int thread_num) {
+  const uint32_t ts = initial_read_view.visibility_ts;
+  if (ts == std::numeric_limits<uint32_t>::max()) {
+    THROW_RUNTIME_ERROR(
+        "Transaction timestamp space exhausted; checkpoint/reset the timeline "
+        "before reopening the database");
+  }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
+  installed_snapshot_generation_.store(initial_read_view.snapshot_generation,
+                                       std::memory_order_relaxed);
+  published_read_view_.store(PackPublishedReadView(initial_read_view),
+                             std::memory_order_relaxed);
   active_readers_.store(0, std::memory_order_relaxed);
   active_inserters_.store(0, std::memory_order_relaxed);
   admission_state_.store(AdmissionState::kOpen, std::memory_order_relaxed);
@@ -67,11 +79,11 @@ bool VersionManager::try_set_runtime_wait_if_quiescent(
   return quiescent;
 }
 
-uint32_t VersionManager::acquire_read_timestamp() {
+PublishedReadView VersionManager::acquire_read_view() {
   // Pre-check: avoid incrementing if in commit phase
   auto state = admission_state_.load(std::memory_order_acquire);
   if (NEUG_UNLIKELY(state == AdmissionState::kAllBlocked)) {
-    return acquire_read_timestamp_slow();
+    return acquire_read_view_slow();
   }
 
   // Optimistically increment counter
@@ -82,28 +94,29 @@ uint32_t VersionManager::acquire_read_timestamp() {
   // but misses a concurrent transition to all-blocked.
   state = admission_state_.load(std::memory_order_seq_cst);
   if (NEUG_LIKELY(state != AdmissionState::kAllBlocked)) {
-    return read_ts_.load(std::memory_order_acquire);
+    return UnpackPublishedReadView(
+        published_read_view_.load(std::memory_order_acquire));
   }
 
   // Rollback: commit started while we were incrementing
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
 
   // Slow path
-  return acquire_read_timestamp_slow();
+  return acquire_read_view_slow();
 }
 
-uint32_t VersionManager::acquire_read_timestamp_slow() {
-  AdaptiveBackoff wait(runtime_wait());
+PublishedReadView VersionManager::acquire_read_view_slow() {
+  RuntimeBackoff wait = make_runtime_backoff();
   while (admission_state_.load(std::memory_order_acquire) ==
          AdmissionState::kAllBlocked) {
     wait();
   }
 
   // Retry
-  return acquire_read_timestamp();
+  return acquire_read_view();
 }
 
-void VersionManager::release_read_timestamp() {
+void VersionManager::release_read_view() {
   active_readers_.fetch_sub(1, std::memory_order_acq_rel);
 }
 
@@ -129,7 +142,7 @@ uint32_t VersionManager::acquire_insert_timestamp() {
 }
 
 uint32_t VersionManager::acquire_insert_timestamp_slow() {
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   while (admission_state_.load(std::memory_order_acquire) !=
          AdmissionState::kOpen) {
     wait();
@@ -153,7 +166,7 @@ void VersionManager::complete_write_timestamp(uint32_t ts) {
   // Check under lock: only advance if ts == read_ts + 1
   std::unique_lock lock(lock_, std::defer_lock);
   if (!lock.try_lock()) {
-    AdaptiveBackoff wait(runtime_wait());
+    RuntimeBackoff wait = make_runtime_backoff();
     do {
       wait();
     } while (!lock.try_lock());
@@ -184,6 +197,10 @@ void VersionManager::advance_read_ts_locked() {
 
   // Sliding window maintenance
   ts_window_.slide_window(current);
+  published_read_view_.store(
+      PackPublishedReadView({current, installed_snapshot_generation_.load(
+                                          std::memory_order_relaxed)}),
+      std::memory_order_release);
 }
 
 void VersionManager::enter_exclusive_state(AdmissionState desired_state) {
@@ -194,7 +211,7 @@ void VersionManager::enter_exclusive_state(AdmissionState desired_state) {
     return;
   }
 
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   do {
     wait();
     expected = AdmissionState::kOpen;
@@ -208,13 +225,13 @@ void VersionManager::wait_until_zero(const std::atomic<int>& counter) {
     return;
   }
 
-  AdaptiveBackoff wait(runtime_wait());
+  RuntimeBackoff wait = make_runtime_backoff();
   do {
     wait();
   } while (counter.load(std::memory_order_seq_cst) > 0);
 }
 
-RuntimeWaitFn VersionManager::runtime_wait() const noexcept {
+RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
   return runtime_wait_.load(std::memory_order_acquire);
 }
 
@@ -245,10 +262,17 @@ void VersionManager::drain_readers() {
   wait_until_zero(active_readers_);
 }
 
-void VersionManager::release_update_timestamp(uint32_t ts) {
+void VersionManager::finish_update_timestamp(
+    uint32_t ts,
+    std::optional<uint32_t> installed_snapshot_generation) noexcept {
+  if (installed_snapshot_generation) {
+    installed_snapshot_generation_.store(*installed_snapshot_generation,
+                                         std::memory_order_relaxed);
+  }
   complete_write_timestamp(ts);
 
-  // Restore normal operation.
+  // Timestamp completion and any matching snapshot generation are visible
+  // before new readers and inserters are admitted.
   admission_state_.store(AdmissionState::kOpen, std::memory_order_release);
 }
 

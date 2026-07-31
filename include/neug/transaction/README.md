@@ -6,11 +6,21 @@
 
 ## Read Transaction
 
-With an `ReadTransaction`, a specific version of the graph can be read. The version is determined by the timestamp of the transaction.
+With a `ReadTransaction`, a specific version of the graph can be read. Its
+`ReadSnapshotLease` owns a visibility timestamp and a pinned graph snapshot as
+one coherent read view.
+
+Reader acquisition captures an atomically published
+`{visibility timestamp, snapshot generation}` pair, pins the current snapshot,
+and validates that the slot generation matches. If an update publishes between
+the capture and the pin, the generation mismatch is detected and the complete
+acquisition is retried. A transaction therefore cannot observe an old
+timestamp with a newly published snapshot.
 
 `ReadTransaction` provides a set of APIs to read the graph, including schema, topology, and properties.
 
-After query with the `ReadTransaction` object, the transaction should be released by calling `ReadTransaction::Release()`.
+Commit, abort, and destruction all release the snapshot pin before unregistering
+the reader from `VersionManager`.
 
 ## Insert Transaction
 
