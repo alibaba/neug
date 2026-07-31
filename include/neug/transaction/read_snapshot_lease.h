@@ -45,21 +45,17 @@ class ReadSnapshotLease {
 
   void release() noexcept;
 
-  timestamp_t timestamp() const { return published_view_.visibility_ts; }
-  uint32_t snapshot_generation() const {
-    return published_view_.snapshot_generation;
+  timestamp_t timestamp() const { return timestamp_; }
+  const GraphSnapshotStore::SnapshotSlot& snapshot() const {
+    return snapshot_.get();
   }
-  const GraphView& view() const { return snapshot_.get().view(); }
-  const PropertyGraph* graph() const { return snapshot_.get().mutable_graph(); }
-  bool valid() const { return active_; }
 
  private:
   ReadSnapshotLease(IVersionManager& version_manager, SnapshotGuard snapshot,
-                    PublishedReadView published_view) noexcept;
+                    timestamp_t timestamp) noexcept;
 
   IVersionManager* version_manager_;
-  PublishedReadView published_view_;
-  bool active_;
+  timestamp_t timestamp_;
   // Declared last so fallback destruction also unpins before reader release.
   SnapshotGuard snapshot_;
 };

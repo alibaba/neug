@@ -275,8 +275,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
     if (access_mode == AccessMode::kRead) {
       auto lease =
           ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(lease.view(), lease.timestamp());
-      status = execute_on_storage(GraphStats(*lease.graph()), storage);
+      const auto& snapshot = lease.snapshot();
+      StorageReadInterface storage(snapshot.view(), lease.timestamp());
+      status = execute_on_storage(GraphStats(*snapshot.graph()), storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -365,7 +366,7 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
 
 std::string ExecutionSlot::GetSchema() const {
   auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-  auto yaml = lease.graph()->schema().to_yaml();
+  auto yaml = lease.snapshot().graph()->schema().to_yaml();
   return get_json_string_from_yaml(yaml.value()).value();
 }
 
@@ -373,7 +374,7 @@ void ExecutionSlot::ClearTemporarySchema() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
     auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    const auto& schema = lease.graph()->schema();
+    const auto& schema = lease.snapshot().graph()->schema();
     if (schema.get_temporary_edge_triplet_keys().empty() &&
         schema.get_temporary_vertex_labels().empty()) {
       return;

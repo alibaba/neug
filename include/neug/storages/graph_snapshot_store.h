@@ -67,9 +67,10 @@ class GraphSnapshotStore {
     const GraphView& view() const { return view_; }
     /// Mutable view accessor (for InsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
-    /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
-    /// of shared_ptr constness, so this works through const SnapshotSlot& too).
-    PropertyGraph* mutable_graph() const { return storage_.get(); }
+    /// Read-only PropertyGraph accessor.
+    const PropertyGraph* graph() const { return storage_.get(); }
+    /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
+    PropertyGraph* mutable_graph() { return storage_.get(); }
     /// Snapshot publication generation carried by this slot incarnation.
     uint32_t snapshot_generation() const { return snapshot_generation_; }
 

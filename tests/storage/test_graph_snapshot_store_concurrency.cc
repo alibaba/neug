@@ -301,13 +301,13 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PublishExclusivityVsPinShared) {
 // prepared publication that installs a new cur slot.
 TEST_F(GraphSnapshotStoreConcurrencyTest, PinnedSnapshotSurvivesPublish) {
   auto& slot = store_->PinCurrentSnapshot();
-  ASSERT_NE(slot.mutable_graph(), nullptr);
+  ASSERT_NE(slot.graph(), nullptr);
 
   ASSERT_TRUE(PrepareAndPublishSnapshot(*store_, make_new_pg()).ok());
 
   // graph pointer is still safely dereferenceable: storage held alive by our
   // pin.
-  EXPECT_GE(slot.mutable_graph()->schema().vertex_label_num(), 1u);
+  EXPECT_GE(slot.graph()->schema().vertex_label_num(), 1u);
 
   store_->UnpinSnapshot(slot);
 }
@@ -331,9 +331,9 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
 
   // A new reader must observe the "company" vertex type.
   auto& slot = store_->PinCurrentSnapshot();
-  EXPECT_TRUE(slot.mutable_graph()->schema().is_vertex_label_valid("company"));
-  EXPECT_TRUE(slot.mutable_graph()->schema().is_vertex_label_valid("person"));
-  EXPECT_EQ(slot.mutable_graph()->schema().vertex_label_num(), 2u);
+  EXPECT_TRUE(slot.graph()->schema().is_vertex_label_valid("company"));
+  EXPECT_TRUE(slot.graph()->schema().is_vertex_label_valid("person"));
+  EXPECT_EQ(slot.graph()->schema().vertex_label_num(), 2u);
   store_->UnpinSnapshot(slot);
 }
 
@@ -415,7 +415,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   // Publish cow2 and verify a reader sees all three.
   ASSERT_TRUE(PrepareAndPublishSnapshot(*store_, cow2).ok());
   auto& slot = store_->PinCurrentSnapshot();
-  EXPECT_EQ(slot.mutable_graph()->VertexNum(0, MAX_TIMESTAMP), 3u);
+  EXPECT_EQ(slot.graph()->VertexNum(0, MAX_TIMESTAMP), 3u);
   store_->UnpinSnapshot(slot);
 }
 

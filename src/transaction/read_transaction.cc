@@ -39,7 +39,7 @@ bool ReadTransaction::Commit() {
 void ReadTransaction::Abort() { release(); }
 
 const Schema& ReadTransaction::schema() const {
-  return lease_.graph()->schema();
+  return lease_.snapshot().graph()->schema();
 }
 
 void ReadTransaction::release() { lease_.release(); }

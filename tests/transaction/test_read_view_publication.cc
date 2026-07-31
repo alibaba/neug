@@ -170,7 +170,7 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
   SnapshotGuard current(*store_);
   EXPECT_EQ(old_view.visibility_ts, 1u);
   EXPECT_EQ(old_view.snapshot_generation, 0u);
-  EXPECT_EQ(current.get().mutable_graph(), replacement.get());
+  EXPECT_EQ(current.get().graph(), replacement.get());
   EXPECT_NE(current.get().snapshot_generation(), old_view.snapshot_generation);
 
   current.release();
@@ -185,15 +185,15 @@ TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {
   const auto [replacement, timestamp] = PublishReplacement(version_manager);
 
   EXPECT_EQ(lease.timestamp(), 1u);
-  EXPECT_EQ(lease.snapshot_generation(), 0u);
-  EXPECT_EQ(lease.graph(), initial_graph_.get());
-  EXPECT_NE(lease.graph(), replacement.get());
+  EXPECT_EQ(lease.snapshot().snapshot_generation(), 0u);
+  EXPECT_EQ(lease.snapshot().graph(), initial_graph_.get());
+  EXPECT_NE(lease.snapshot().graph(), replacement.get());
 
   lease.release();
   auto next = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(next.timestamp(), timestamp);
-  EXPECT_EQ(next.snapshot_generation(), 1u);
-  EXPECT_EQ(next.graph(), replacement.get());
+  EXPECT_EQ(next.snapshot().snapshot_generation(), 1u);
+  EXPECT_EQ(next.snapshot().graph(), replacement.get());
 }
 
 TEST_F(ReadViewPublicationTest,
@@ -213,8 +213,8 @@ TEST_F(ReadViewPublicationTest,
 
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(lease.timestamp(), kInitialTimestamp);
-  EXPECT_EQ(lease.snapshot_generation(), kInitialSnapshotGeneration);
-  EXPECT_EQ(lease.graph(), initial_graph_.get());
+  EXPECT_EQ(lease.snapshot().snapshot_generation(), kInitialSnapshotGeneration);
+  EXPECT_EQ(lease.snapshot().graph(), initial_graph_.get());
 }
 
 TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
@@ -237,8 +237,8 @@ TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
   EXPECT_EQ(version_manager.acquire_count(), 2);
   EXPECT_EQ(version_manager.release_count(), 1);
   EXPECT_EQ(lease.timestamp(), 2u);
-  EXPECT_EQ(lease.snapshot_generation(), 1u);
-  EXPECT_EQ(lease.graph(), replacement.get());
+  EXPECT_EQ(lease.snapshot().snapshot_generation(), 1u);
+  EXPECT_EQ(lease.snapshot().graph(), replacement.get());
 
   lease.release();
   EXPECT_EQ(version_manager.release_count(), 2);
@@ -270,8 +270,9 @@ TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
   EXPECT_EQ(version_manager.release_count(), mismatch_count);
   EXPECT_EQ(runtime_wait_calls.load(std::memory_order_relaxed), 1);
   EXPECT_EQ(lease.timestamp(), static_cast<uint32_t>(mismatch_count + 1));
-  EXPECT_EQ(lease.snapshot_generation(), static_cast<uint32_t>(mismatch_count));
-  EXPECT_EQ(lease.graph(), replacement.get());
+  EXPECT_EQ(lease.snapshot().snapshot_generation(),
+            static_cast<uint32_t>(mismatch_count));
+  EXPECT_EQ(lease.snapshot().graph(), replacement.get());
 }
 
 }  // namespace
