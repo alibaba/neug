@@ -69,6 +69,16 @@ void FinishUpdate(VersionManager& manager, uint32_t timestamp) {
   manager.finish_update_timestamp(timestamp, std::nullopt);
 }
 
+void ChangeGatePhase(std::atomic<uint64_t>& gate,
+                     detail::AdmissionState expected_phase,
+                     detail::AdmissionState desired_phase) {
+  uint64_t observed = gate.load(std::memory_order_acquire);
+  while (!detail::OperationGateWord::try_change_phase(gate, observed,
+                                                      desired_phase)) {
+    ASSERT_EQ(detail::OperationGateWord::phase(observed), expected_phase);
+  }
+}
+
 template <typename Predicate>
 bool WaitUntil(Predicate predicate) {
   const auto deadline = std::chrono::steady_clock::now() + kWaitTimeout;
@@ -102,6 +112,116 @@ void ExpectRuntimeWaitWhile(WaitOperation wait, UnblockOperation unblock) {
   EXPECT_TRUE(WaitForRuntimeWait());
   unblock();
   waiter.join();
+}
+
+TEST(OperationGateWordTest, AdmissionsBeforeCompactTransitionRemainCounted) {
+  std::atomic<uint64_t> gate{
+      detail::OperationGateWord::empty(detail::AdmissionState::kOpen)};
+  uint64_t reader_observation = gate.load(std::memory_order_acquire);
+  ASSERT_TRUE(gate.compare_exchange_strong(
+      reader_observation,
+      detail::OperationGateWord::increment_reader(reader_observation),
+      std::memory_order_acq_rel, std::memory_order_acquire));
+  uint64_t inserter_observation = gate.load(std::memory_order_acquire);
+  ASSERT_TRUE(gate.compare_exchange_strong(
+      inserter_observation,
+      detail::OperationGateWord::increment_inserter(inserter_observation),
+      std::memory_order_acq_rel, std::memory_order_acquire));
+
+  ChangeGatePhase(gate, detail::AdmissionState::kOpen,
+                  detail::AdmissionState::kAllBlocked);
+
+  const uint64_t blocked = gate.load(std::memory_order_acquire);
+  EXPECT_EQ(detail::OperationGateWord::readers(blocked), 1U);
+  EXPECT_EQ(detail::OperationGateWord::inserters(blocked), 1U);
+}
+
+TEST(OperationGateWordTest, DelayedReaderRetriesAfterUpdateCommitTransition) {
+  std::atomic<uint64_t> gate{detail::OperationGateWord::empty(
+      detail::AdmissionState::kInsertsBlocked)};
+  uint64_t delayed_observation = gate.load(std::memory_order_acquire);
+
+  ChangeGatePhase(gate, detail::AdmissionState::kInsertsBlocked,
+                  detail::AdmissionState::kAllBlocked);
+
+  EXPECT_FALSE(gate.compare_exchange_strong(
+      delayed_observation,
+      detail::OperationGateWord::increment_reader(delayed_observation),
+      std::memory_order_acq_rel, std::memory_order_acquire));
+  EXPECT_EQ(detail::OperationGateWord::phase(delayed_observation),
+            detail::AdmissionState::kAllBlocked);
+  EXPECT_EQ(
+      detail::OperationGateWord::readers(gate.load(std::memory_order_acquire)),
+      0U);
+}
+
+TEST(OperationGateWordTest,
+     DelayedInserterRetriesAfterUpdateExecutionTransition) {
+  std::atomic<uint64_t> gate{
+      detail::OperationGateWord::empty(detail::AdmissionState::kOpen)};
+  uint64_t delayed_observation = gate.load(std::memory_order_acquire);
+
+  ChangeGatePhase(gate, detail::AdmissionState::kOpen,
+                  detail::AdmissionState::kInsertsBlocked);
+
+  EXPECT_FALSE(gate.compare_exchange_strong(
+      delayed_observation,
+      detail::OperationGateWord::increment_inserter(delayed_observation),
+      std::memory_order_acq_rel, std::memory_order_acquire));
+  EXPECT_EQ(detail::OperationGateWord::phase(delayed_observation),
+            detail::AdmissionState::kInsertsBlocked);
+  EXPECT_EQ(detail::OperationGateWord::inserters(
+                gate.load(std::memory_order_acquire)),
+            0U);
+}
+
+TEST(OperationGateWordTest,
+     DelayedReaderAndInserterRetryAfterCompactTransition) {
+  std::atomic<uint64_t> gate{
+      detail::OperationGateWord::empty(detail::AdmissionState::kOpen)};
+  uint64_t delayed_reader_observation = gate.load(std::memory_order_acquire);
+  uint64_t delayed_inserter_observation = delayed_reader_observation;
+
+  ChangeGatePhase(gate, detail::AdmissionState::kOpen,
+                  detail::AdmissionState::kAllBlocked);
+
+  EXPECT_FALSE(gate.compare_exchange_strong(
+      delayed_reader_observation,
+      detail::OperationGateWord::increment_reader(delayed_reader_observation),
+      std::memory_order_acq_rel, std::memory_order_acquire));
+  EXPECT_FALSE(gate.compare_exchange_strong(
+      delayed_inserter_observation,
+      detail::OperationGateWord::increment_inserter(
+          delayed_inserter_observation),
+      std::memory_order_acq_rel, std::memory_order_acquire));
+  EXPECT_EQ(detail::OperationGateWord::phase(delayed_reader_observation),
+            detail::AdmissionState::kAllBlocked);
+  EXPECT_EQ(detail::OperationGateWord::phase(delayed_inserter_observation),
+            detail::AdmissionState::kAllBlocked);
+
+  const uint64_t blocked = gate.load(std::memory_order_acquire);
+  EXPECT_EQ(detail::OperationGateWord::readers(blocked), 0U);
+  EXPECT_EQ(detail::OperationGateWord::inserters(blocked), 0U);
+}
+
+TEST(OperationGateWordTest, DetectsReaderAndInserterCounterExhaustion) {
+  const uint64_t reader_word =
+      detail::OperationGateWord::empty(detail::AdmissionState::kOpen) |
+      detail::OperationGateWord::kReaderMask;
+  EXPECT_EQ(detail::OperationGateWord::readers(reader_word),
+            detail::OperationGateWord::kMaxCount);
+  EXPECT_EQ(detail::OperationGateWord::phase(reader_word),
+            detail::AdmissionState::kOpen);
+  EXPECT_EQ(detail::OperationGateWord::inserters(reader_word), 0U);
+
+  const uint64_t inserter_word =
+      detail::OperationGateWord::empty(detail::AdmissionState::kOpen) |
+      detail::OperationGateWord::kInserterMask;
+  EXPECT_EQ(detail::OperationGateWord::inserters(inserter_word),
+            detail::OperationGateWord::kMaxCount);
+  EXPECT_EQ(detail::OperationGateWord::phase(inserter_word),
+            detail::AdmissionState::kOpen);
+  EXPECT_EQ(detail::OperationGateWord::readers(inserter_word), 0U);
 }
 
 TEST(UpdateTimestampLeaseTest, MoveTransfersAdmissionOwnership) {

@@ -94,7 +94,6 @@ PublishedReadView VersionManager::acquire_read_view() {
                       OperationGateWord::kMaxCount)) {
       THROW_RUNTIME_ERROR("Reader admission counter exhausted");
     }
-
     const uint64_t desired = OperationGateWord::increment_reader(observed);
     if (operation_gate_state_.compare_exchange_weak(
             observed, desired, std::memory_order_acq_rel,
@@ -133,7 +132,6 @@ uint32_t VersionManager::acquire_insert_timestamp() {
                       OperationGateWord::kMaxCount)) {
       THROW_RUNTIME_ERROR("Inserter admission counter exhausted");
     }
-
     const uint64_t desired = OperationGateWord::increment_inserter(observed);
     if (operation_gate_state_.compare_exchange_weak(
             observed, desired, std::memory_order_acq_rel,
@@ -212,11 +210,8 @@ void VersionManager::enter_admission_phase(AdmissionState desired_phase) {
       observed = operation_gate_state_.load(std::memory_order_acquire);
       continue;
     }
-    const uint64_t desired =
-        OperationGateWord::with_phase(observed, desired_phase);
-    if (operation_gate_state_.compare_exchange_weak(
-            observed, desired, std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
+    if (OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            desired_phase)) {
       return;
     }
   }
@@ -229,41 +224,29 @@ void VersionManager::transition_admission_phase(AdmissionState expected_phase,
     if (OperationGateWord::phase(observed) != expected_phase) {
       THROW_INTERNAL_EXCEPTION("Invalid transaction admission transition");
     }
-    const uint64_t desired =
-        OperationGateWord::with_phase(observed, desired_phase);
-    if (operation_gate_state_.compare_exchange_weak(
-            observed, desired, std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
+    if (OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            desired_phase)) {
       return;
     }
   }
 }
 
-void VersionManager::reopen_admission_after_update() {
-  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
-  while (true) {
-    const AdmissionState phase = OperationGateWord::phase(observed);
-    if (phase != AdmissionState::kInsertsBlocked &&
-        phase != AdmissionState::kAllBlocked) {
-      THROW_INTERNAL_EXCEPTION("Update released outside update state");
-    }
-    const uint64_t desired =
-        OperationGateWord::with_phase(observed, AdmissionState::kOpen);
-    if (operation_gate_state_.compare_exchange_weak(
-            observed, desired, std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
-      return;
-    }
-  }
-}
-
-void VersionManager::wait_until_operations_drained(bool readers,
-                                                   bool inserters) {
+void VersionManager::wait_for_readers_to_drain() {
   while (true) {
     const uint64_t observed =
         operation_gate_state_.load(std::memory_order_acquire);
-    if ((!readers || OperationGateWord::readers(observed) == 0) &&
-        (!inserters || OperationGateWord::inserters(observed) == 0)) {
+    if (OperationGateWord::readers(observed) == 0) {
+      return;
+    }
+    wait_for_gate_state_change(observed);
+  }
+}
+
+void VersionManager::wait_for_inserters_to_drain() {
+  while (true) {
+    const uint64_t observed =
+        operation_gate_state_.load(std::memory_order_acquire);
+    if (OperationGateWord::inserters(observed) == 0) {
       return;
     }
     wait_for_gate_state_change(observed);
@@ -276,7 +259,7 @@ RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
 
 uint32_t VersionManager::acquire_update_timestamp() {
   enter_admission_phase(AdmissionState::kInsertsBlocked);
-  wait_until_operations_drained(false, true);
+  wait_for_inserters_to_drain();
 
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
@@ -297,7 +280,7 @@ void VersionManager::drain_readers() {
     THROW_INTERNAL_EXCEPTION(
         "drain_readers called while readers are not blocked");
   }
-  wait_until_operations_drained(true, false);
+  wait_for_readers_to_drain();
 }
 
 void VersionManager::finish_update_timestamp(
@@ -311,12 +294,23 @@ void VersionManager::finish_update_timestamp(
 
   // Timestamp completion and any matching snapshot generation are visible
   // through published_read_view_ before the packed gate admits new work.
-  reopen_admission_after_update();
+  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
+  while (true) {
+    const AdmissionState phase = OperationGateWord::phase(observed);
+    DCHECK(phase == AdmissionState::kInsertsBlocked ||
+           phase == AdmissionState::kAllBlocked)
+        << "Update released outside update state";
+    if (OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            AdmissionState::kOpen)) {
+      return;
+    }
+  }
 }
 
 uint32_t VersionManager::acquire_compact_timestamp() {
   enter_admission_phase(AdmissionState::kAllBlocked);
-  wait_until_operations_drained(true, true);
+  wait_for_readers_to_drain();
+  wait_for_inserters_to_drain();
 
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
