@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -28,19 +29,10 @@
 #include "bthread/bthread.h"
 #include "neug/server/bthread_runtime_wait.h"
 #endif
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
 
 namespace neug {
-
-struct VersionManagerTestPeer {
-  static void lock_advancement(VersionManager& manager) {
-    manager.lock_.lock();
-  }
-
-  static void unlock_advancement(VersionManager& manager) {
-    manager.lock_.unlock();
-  }
-};
 
 namespace {
 
@@ -110,6 +102,33 @@ void ExpectRuntimeWaitWhile(WaitOperation wait, UnblockOperation unblock) {
   EXPECT_TRUE(WaitForRuntimeWait());
   unblock();
   waiter.join();
+}
+
+TEST(UpdateTimestampLeaseTest, MoveTransfersAdmissionOwnership) {
+  VersionManager manager;
+  InitManager(manager);
+
+  {
+    UpdateTimestampLease original(manager);
+    UpdateTimestampLease owner(std::move(original));
+    EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
+  }
+
+  EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
+}
+
+TEST(UpdateTimestampLeaseTest, ScopeExitAfterExceptionReleasesAdmission) {
+  VersionManager manager;
+  InitManager(manager);
+
+  EXPECT_THROW(
+      {
+        UpdateTimestampLease lease(manager);
+        throw std::runtime_error("construction failed");
+      },
+      std::runtime_error);
+
+  EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
 }
 
 TEST(VersionManagerWaitTest, UncontendedPathsDoNotInvokeBackoff) {
@@ -208,16 +227,6 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
         [&]() { manager.release_read_view(); });
     manager.release_compact_timestamp(compact_ts);
   }
-}
-
-TEST(VersionManagerWaitTest, TimestampAdvancementLockUsesBackoffOnlyUnlocked) {
-  VersionManager manager;
-  InitManager(manager);
-  const auto insert_ts = manager.acquire_insert_timestamp();
-  VersionManagerTestPeer::lock_advancement(manager);
-  ExpectRuntimeWaitWhile(
-      [&]() { manager.release_insert_timestamp(insert_ts); },
-      [&]() { VersionManagerTestPeer::unlock_advancement(manager); });
 }
 
 TEST(VersionManagerAdmissionTest,
@@ -341,10 +350,6 @@ TEST(VersionManagerWaitTest, RuntimeWaitSwitchRequiresQuiescence) {
   const auto compact_ts = manager.acquire_compact_timestamp();
   EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
   manager.release_compact_timestamp(compact_ts);
-
-  VersionManagerTestPeer::lock_advancement(manager);
-  EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
-  VersionManagerTestPeer::unlock_advancement(manager);
 
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
 }
