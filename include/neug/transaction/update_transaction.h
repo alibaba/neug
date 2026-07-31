@@ -115,7 +115,7 @@ class UpdateTransaction {
 
   const GraphView& view() const { return view_; }
 
-  GraphStats statistic() const { return GraphStats(*cow_graph_); }
+  GraphStats statistic() const { return GraphStats(view_); }
 
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }

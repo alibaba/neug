@@ -67,8 +67,6 @@ class GraphSnapshotStore {
     const GraphView& view() const { return view_; }
     /// Mutable view accessor (for InsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
-    /// Read-only PropertyGraph accessor.
-    const PropertyGraph* graph() const { return storage_.get(); }
     /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
     PropertyGraph* mutable_graph() { return storage_.get(); }
     /// Snapshot publication generation carried by this slot incarnation.

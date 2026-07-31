@@ -46,9 +46,8 @@ class ReadSnapshotLease {
   void release() noexcept;
 
   timestamp_t timestamp() const { return timestamp_; }
-  const GraphSnapshotStore::SnapshotSlot& snapshot() const {
-    return snapshot_.get();
-  }
+  /// The returned view remains valid until this lease is released or destroyed.
+  const GraphView& view() const { return snapshot_.get().view(); }
 
  private:
   ReadSnapshotLease(IVersionManager& version_manager, SnapshotGuard snapshot,

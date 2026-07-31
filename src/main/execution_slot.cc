@@ -275,9 +275,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
     if (access_mode == AccessMode::kRead) {
       auto lease =
           ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-      const auto& snapshot = lease.snapshot();
-      StorageReadInterface storage(snapshot.view(), lease.timestamp());
-      status = execute_on_storage(GraphStats(*snapshot.graph()), storage);
+      const auto& view = lease.view();
+      StorageReadInterface storage(view, lease.timestamp());
+      status = execute_on_storage(GraphStats(view), storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -288,7 +288,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageAPUpdateInterface storage(*slot.mutable_graph(),
                                        slot.mutable_view(), lease.Timestamp(),
                                        alloc_);
-      status = execute_on_storage(GraphStats(*slot.mutable_graph()), storage);
+      status = execute_on_storage(GraphStats(slot.view()), storage);
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -366,7 +366,7 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
 
 std::string ExecutionSlot::GetSchema() const {
   auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-  auto yaml = lease.snapshot().graph()->schema().to_yaml();
+  auto yaml = lease.view().schema().to_yaml();
   return get_json_string_from_yaml(yaml.value()).value();
 }
 
@@ -374,7 +374,7 @@ void ExecutionSlot::ClearTemporarySchema() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
     auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    const auto& schema = lease.snapshot().graph()->schema();
+    const auto& schema = lease.view().schema();
     if (schema.get_temporary_edge_triplet_keys().empty() &&
         schema.get_temporary_vertex_labels().empty()) {
       return;

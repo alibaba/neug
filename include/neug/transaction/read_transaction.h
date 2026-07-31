@@ -91,11 +91,9 @@ class ReadTransaction {
 
   void Abort();
 
-  const GraphView& view() const { return lease_.snapshot().view(); }
+  const GraphView& view() const { return lease_.view(); }
 
-  GraphStats statistic() const {
-    return GraphStats(*lease_.snapshot().graph());
-  }
+  GraphStats statistic() const { return GraphStats(view()); }
 
   const Schema& schema() const;
 

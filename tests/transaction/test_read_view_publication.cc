@@ -140,17 +140,31 @@ class ReadViewPublicationTest : public ::testing::Test {
     std::filesystem::remove_all(work_dir_);
   }
 
-  std::pair<std::shared_ptr<PropertyGraph>, uint32_t> PublishReplacement(
-      VersionManager& version_manager) {
-    const uint32_t timestamp = version_manager.acquire_update_timestamp();
+  std::shared_ptr<PropertyGraph> MakeReplacement() {
     auto replacement = initial_graph_->Clone();
+    CreateVertexTypeParamBuilder company;
+    auto status =
+        replacement->CreateVertexType(company.VertexLabel("company")
+                                          .AddProperty("id", Value::INT64(0))
+                                          .AddPrimaryKeyName("id")
+                                          .Build());
+    if (!status.ok()) {
+      ADD_FAILURE() << "Failed to create replacement marker schema: "
+                    << status.error_message();
+    }
+    return replacement;
+  }
+
+  uint32_t PublishReplacement(VersionManager& version_manager) {
+    const uint32_t timestamp = version_manager.acquire_update_timestamp();
+    auto replacement = MakeReplacement();
     auto prepared_result = store_->PrepareSnapshot(replacement);
     EXPECT_TRUE(prepared_result.has_value());
     auto prepared = std::move(prepared_result).value();
     version_manager.begin_update_commit(timestamp);
     const uint32_t snapshot_generation = std::move(prepared).Publish();
     version_manager.finish_update_timestamp(timestamp, snapshot_generation);
-    return {std::move(replacement), timestamp};
+    return timestamp;
   }
 
   std::string work_dir_;
@@ -164,13 +178,12 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
   version_manager.init_ts({1, 0}, 2);
 
   const PublishedReadView old_view = version_manager.acquire_read_view();
-  const auto publication = PublishReplacement(version_manager);
-  const auto& replacement = publication.first;
+  PublishReplacement(version_manager);
 
   SnapshotGuard current(*store_);
   EXPECT_EQ(old_view.visibility_ts, 1u);
   EXPECT_EQ(old_view.snapshot_generation, 0u);
-  EXPECT_EQ(current.get().graph(), replacement.get());
+  EXPECT_TRUE(current.get().view().schema().is_vertex_label_valid("company"));
   EXPECT_NE(current.get().snapshot_generation(), old_view.snapshot_generation);
 
   current.release();
@@ -182,18 +195,15 @@ TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {
   version_manager.init_ts({1, 0}, 2);
 
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
-  const auto [replacement, timestamp] = PublishReplacement(version_manager);
+  const auto timestamp = PublishReplacement(version_manager);
 
   EXPECT_EQ(lease.timestamp(), 1u);
-  EXPECT_EQ(lease.snapshot().snapshot_generation(), 0u);
-  EXPECT_EQ(lease.snapshot().graph(), initial_graph_.get());
-  EXPECT_NE(lease.snapshot().graph(), replacement.get());
+  EXPECT_FALSE(lease.view().schema().is_vertex_label_valid("company"));
 
   lease.release();
   auto next = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(next.timestamp(), timestamp);
-  EXPECT_EQ(next.snapshot().snapshot_generation(), 1u);
-  EXPECT_EQ(next.snapshot().graph(), replacement.get());
+  EXPECT_TRUE(next.view().schema().is_vertex_label_valid("company"));
 }
 
 TEST_F(ReadViewPublicationTest,
@@ -213,13 +223,12 @@ TEST_F(ReadViewPublicationTest,
 
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(lease.timestamp(), kInitialTimestamp);
-  EXPECT_EQ(lease.snapshot().snapshot_generation(), kInitialSnapshotGeneration);
-  EXPECT_EQ(lease.snapshot().graph(), initial_graph_.get());
+  EXPECT_FALSE(lease.view().schema().is_vertex_label_valid("company"));
 }
 
 TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
   ScriptedVersionManager version_manager({1, 0});
-  auto replacement = initial_graph_->Clone();
+  auto replacement = MakeReplacement();
   bool publish_succeeded = false;
   version_manager.set_acquire_hook([&](int acquire_count) {
     if (acquire_count == 1) {
@@ -237,8 +246,7 @@ TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
   EXPECT_EQ(version_manager.acquire_count(), 2);
   EXPECT_EQ(version_manager.release_count(), 1);
   EXPECT_EQ(lease.timestamp(), 2u);
-  EXPECT_EQ(lease.snapshot().snapshot_generation(), 1u);
-  EXPECT_EQ(lease.snapshot().graph(), replacement.get());
+  EXPECT_TRUE(lease.view().schema().is_vertex_label_valid("company"));
 
   lease.release();
   EXPECT_EQ(version_manager.release_count(), 2);
@@ -249,7 +257,7 @@ TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
   version_manager.set_runtime_wait(&CountRuntimeWait);
   runtime_wait_calls.store(0, std::memory_order_relaxed);
 
-  auto replacement = initial_graph_->Clone();
+  auto replacement = MakeReplacement();
   bool publish_succeeded = true;
   constexpr int mismatch_count = kRuntimeWaitSpinIterations + 1;
   version_manager.set_acquire_hook([&](int acquire_count) {
@@ -270,9 +278,7 @@ TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
   EXPECT_EQ(version_manager.release_count(), mismatch_count);
   EXPECT_EQ(runtime_wait_calls.load(std::memory_order_relaxed), 1);
   EXPECT_EQ(lease.timestamp(), static_cast<uint32_t>(mismatch_count + 1));
-  EXPECT_EQ(lease.snapshot().snapshot_generation(),
-            static_cast<uint32_t>(mismatch_count));
-  EXPECT_EQ(lease.snapshot().graph(), replacement.get());
+  EXPECT_TRUE(lease.view().schema().is_vertex_label_valid("company"));
 }
 
 }  // namespace
