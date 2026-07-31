@@ -49,7 +49,7 @@ namespace {
 class CapturingWalWriter : public IWalWriter {
  public:
   std::string type() const override { return "capturing"; }
-  void open() override {}
+  void open(const std::string&) override {}
   void close() override {}
 
   bool append(const char* data, size_t length) override {
