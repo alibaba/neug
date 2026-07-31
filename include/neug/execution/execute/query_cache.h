@@ -136,11 +136,6 @@ class GlobalQueryCache {
     cache_.clear();
   }
 
-  size_t size() const {
-    std::shared_lock<std::shared_mutex> read_lock(mutex_);
-    return cache_.size();
-  }
-
  private:
   GlobalQueryCache() : version_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;

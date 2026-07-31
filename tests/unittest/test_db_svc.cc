@@ -564,6 +564,8 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
 
   const auto query_cache = db_->GetQueryCache();
   const auto initial_version = query_cache->version();
+  const auto initial_generation =
+      slot->GetReadTransaction().schema_generation();
 
   auto insert =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
@@ -571,12 +573,14 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(insert) << insert.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version);
+  EXPECT_EQ(slot->GetReadTransaction().schema_generation(), initial_generation);
 
   auto update =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
           "MATCH (n:person {id: 10001}) SET n.age = 2;", "update", {}));
   ASSERT_TRUE(update) << update.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version);
+  EXPECT_EQ(slot->GetReadTransaction().schema_generation(), initial_generation);
 
   auto ddl =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
@@ -584,6 +588,43 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(ddl) << ddl.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version + 1);
+  EXPECT_EQ(slot->GetReadTransaction().schema_generation(),
+            initial_generation + 1);
+}
+
+TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
+  const auto query_cache = db_->GetQueryCache();
+  const auto initial_version = query_cache->version();
+  const auto initial_generation =
+      db_->graph_snapshot_store().CurrentSchemaGeneration();
+
+  auto connection = db_->Connect();
+  auto explain = connection->Query(
+      "EXPLAIN CREATE NODE TABLE direct_schema_probe("
+      "id INT64, PRIMARY KEY(id));",
+      "schema");
+  ASSERT_TRUE(explain) << explain.error().ToString();
+  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+            initial_generation);
+  EXPECT_EQ(query_cache->version(), initial_version);
+
+  auto create = connection->Query(
+      "CREATE NODE TABLE direct_schema_probe(id INT64, PRIMARY KEY(id));",
+      "schema");
+  ASSERT_TRUE(create) << create.error().ToString();
+  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+            initial_generation + 1);
+  EXPECT_EQ(query_cache->version(), initial_version + 1);
+
+  auto no_op = connection->Query(
+      "CREATE NODE TABLE IF NOT EXISTS direct_schema_probe("
+      "id INT64, PRIMARY KEY(id));",
+      "schema");
+  ASSERT_TRUE(no_op) << no_op.error().ToString();
+  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+            initial_generation + 1);
+  EXPECT_EQ(query_cache->version(), initial_version + 1);
+  connection->Close();
 }
 
 TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
@@ -604,21 +645,28 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
   ASSERT_TRUE(ddl) << ddl.error().ToString();
 
   const auto query_cache = db_->GetQueryCache();
+  execution::LocalQueryCache local_cache(query_cache);
   const std::string query = "MATCH (n:person) RETURN count(n);";
 
   // Refill the cleared cache from the old snapshot, reproducing the original
   // race. The next reader must compile a separate plan for the new schema.
-  auto old_plan = query_cache->Get(old_txn.statistic(), old_generation, query);
+  auto old_plan = local_cache.Get(old_txn.statistic(), old_generation, query);
   ASSERT_TRUE(old_plan) << old_plan.error().ToString();
-  const auto size_after_old_plan = query_cache->size();
+  auto old_plan_again =
+      local_cache.Get(old_txn.statistic(), old_generation, query);
+  ASSERT_TRUE(old_plan_again) << old_plan_again.error().ToString();
+  EXPECT_EQ(old_plan.value().get(), old_plan_again.value().get());
 
   auto new_txn = slot->GetReadTransaction();
-  ASSERT_GT(new_txn.schema_generation(), old_generation);
+  ASSERT_EQ(new_txn.schema_generation(), old_generation + 1);
   auto new_plan =
-      query_cache->Get(new_txn.statistic(), new_txn.schema_generation(), query);
+      local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
   ASSERT_TRUE(new_plan) << new_plan.error().ToString();
-  EXPECT_EQ(query_cache->size(), size_after_old_plan + 1);
   EXPECT_NE(old_plan.value().get(), new_plan.value().get());
+  auto new_plan_again =
+      local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
+  ASSERT_TRUE(new_plan_again) << new_plan_again.error().ToString();
+  EXPECT_EQ(new_plan.value().get(), new_plan_again.value().get());
 }
 
 TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {

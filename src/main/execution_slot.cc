@@ -80,9 +80,18 @@ void ExecutionSlotLease::reset() noexcept {
 
 namespace {
 
-bool invalidatesQueryCache(const physical::ExecutionFlag& flags) {
-  return flags.schema() || flags.create_temp_table() || flags.batch() ||
-         flags.insert() || flags.update();
+bool shouldClearQueryCacheAfterDirectExecution(
+    const execution::CacheValue& prepared_query, const Status& execution_status,
+    bool schema_changed) {
+  if (schema_changed) {
+    return true;
+  }
+  if (!execution_status.ok() ||
+      prepared_query.explain_mode == physical::ExplainMode::EXPLAIN) {
+    return false;
+  }
+  const auto& flags = prepared_query.flags;
+  return flags.batch() || flags.insert() || flags.update();
 }
 
 Status executePreparedQuery(execution::CacheValue& prepared_query,
@@ -262,16 +271,21 @@ Status ExecutionSlot::executeCore(const std::string& query,
 
     status = executePreparedQuery(*cache_value, parsed_parameters.value(),
                                   storage, response);
-    if (!status.ok()) {
-      return status;
-    }
-    if (execution_strategy_ == QueryExecutionStrategy::kDirect &&
-        invalidatesQueryCache(cache_value->flags)) {
-      if (cache_value->flags.schema() ||
-          cache_value->flags.create_temp_table()) {
+    if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
+      const auto* update_storage =
+          dynamic_cast<const StorageUpdateInterface*>(&storage);
+      const bool schema_changed =
+          update_storage != nullptr && update_storage->schema_changed();
+      if (schema_changed) {
         snapshot_store_.AdvanceCurrentSchemaGeneration();
       }
-      pipeline_cache_.clearGlobalCache();
+      if (shouldClearQueryCacheAfterDirectExecution(*cache_value, status,
+                                                    schema_changed)) {
+        pipeline_cache_.clearGlobalCache();
+      }
+    }
+    if (!status.ok()) {
+      return status;
     }
     return Status::OK();
   };
@@ -396,10 +410,16 @@ void ExecutionSlot::ClearTemporarySchema() {
   auto* graph = slot.mutable_graph();
 
   auto temporary_edges = graph->schema().get_temporary_edge_triplet_keys();
+  bool schema_changed = false;
   for (auto key : temporary_edges) {
     auto [src, dst, edge] = graph->schema().parse_edge_label(key);
     try {
-      graph->DeleteEdgeType(src, dst, edge);
+      const auto status = graph->DeleteEdgeType(src, dst, edge);
+      if (status.ok()) {
+        schema_changed = true;
+      } else {
+        LOG(WARNING) << "Failed to cleanup temp edge: " << status.ToString();
+      }
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
     }
@@ -408,13 +428,18 @@ void ExecutionSlot::ClearTemporarySchema() {
   auto temporary_vertices = graph->schema().get_temporary_vertex_labels();
   for (auto label : temporary_vertices) {
     try {
-      graph->DeleteVertexType(label);
+      const auto status = graph->DeleteVertexType(label);
+      if (status.ok()) {
+        schema_changed = true;
+      } else {
+        LOG(WARNING) << "Failed to cleanup temp vertex: " << status.ToString();
+      }
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
     }
   }
 
-  if (!temporary_edges.empty() || !temporary_vertices.empty()) {
+  if (schema_changed) {
     slot.mutable_view().Rebuild(*graph);
     snapshot_store_.AdvanceCurrentSchemaGeneration();
     pipeline_cache_.clearGlobalCache();

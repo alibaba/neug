@@ -566,6 +566,9 @@ class StorageUpdateInterface : public StorageReadInterface,
   bool readable() const override { return true; }
   bool writable() const override { return true; }
 
+  /** Whether this interface has applied a schema or catalog mutation. */
+  bool schema_changed() const { return schema_changed_; }
+
   /**
    * @brief Update a vertex property value.
    *
@@ -703,7 +706,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status CreateVertexType(const CreateVertexTypeParam& config) {
     auto st = CreateVertexTypeImpl(config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
     }
     return st;
   }
@@ -717,7 +720,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status CreateEdgeType(const CreateEdgeTypeParam& config) {
     auto st = CreateEdgeTypeImpl(config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
     }
     return st;
   }
@@ -735,7 +738,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                              const AddVertexPropertiesParam& config) {
     auto st = AddVertexPropertiesImpl(label, config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -753,7 +756,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                            const AddEdgePropertiesParam& config) {
     auto st = AddEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -769,7 +772,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                                 const RenameVertexPropertiesParam& config) {
     auto st = RenameVertexPropertiesImpl(label, config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -787,7 +790,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                               const RenameEdgePropertiesParam& config) {
     auto st = RenameEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -803,7 +806,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                                 const DeleteVertexPropertiesParam& config) {
     auto st = DeleteVertexPropertiesImpl(label, config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -821,7 +824,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                               const DeleteEdgePropertiesParam& config) {
     auto st = DeleteEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -837,7 +840,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status DeleteVertexType(label_t label) {
     auto st = DeleteVertexTypeImpl(label);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
     }
     return st;
   }
@@ -854,7 +857,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status DeleteEdgeType(label_t src, label_t dst, label_t edge) {
     auto st = DeleteEdgeTypeImpl(src, dst, edge);
     if (st.ok()) {
-      MarkSchemaDirty();
+      MarkSchemaChanged();
     }
     return st;
   }
@@ -867,11 +870,15 @@ class StorageUpdateInterface : public StorageReadInterface,
   /**
    * @brief Create, bind, and populate an index.
    */
-  virtual neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndex(const std::string& name) = 0;
+  neug::result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta);
+  Status DropIndex(const std::string& name);
 
  private:
+  void MarkSchemaChanged() {
+    MarkSchemaDirty();
+    schema_changed_ = true;
+  }
+
   virtual void MarkSchemaDirty() = 0;
 
   virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
@@ -916,6 +923,9 @@ class StorageUpdateInterface : public StorageReadInterface,
       const DeleteEdgePropertiesParam& config) = 0;
   virtual Status DeleteVertexTypeImpl(label_t label) = 0;
   virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
+  virtual neug::result<StorageIndex*> CreateIndexImpl(
+      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual Status DropIndexImpl(const std::string& name) = 0;
 
   void markIncidentEdgeTablesDirty(label_t label) {
     for (const auto& [_, es] : schema().get_all_edge_schemas()) {
@@ -925,6 +935,8 @@ class StorageUpdateInterface : public StorageReadInterface,
       }
     }
   }
+
+  bool schema_changed_ = false;
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
@@ -942,9 +954,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
 
   void CreateCheckpoint() override;
 
-  neug::result<StorageIndex*> CreateIndex(
+  neug::result<StorageIndex*> CreateIndexImpl(
       std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
+  Status DropIndexImpl(const std::string& name) override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {
