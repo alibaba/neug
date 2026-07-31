@@ -31,8 +31,8 @@ The files are hosted on Alibaba Cloud OSS and loaded straight into NeuG via the 
 extension — no manual download needed:
 
 ```python
-OSS_NODES = "oss://neug/toturial/neug-wiki-files/file_cluster_nodes.csv"
-OSS_EDGES = "oss://neug/toturial/neug-wiki-files/file_cluster_edges.csv"
+OSS_NODES = "oss://graphscope/neug/test_data/neug-wiki-files/file_cluster_nodes.csv"
+OSS_EDGES = "oss://graphscope/neug/test_data/neug-wiki-files/file_cluster_edges.csv"
 ```
 
 > **Note**: The dataset has **1,332 files** and **2,982 edges**. Make sure you
