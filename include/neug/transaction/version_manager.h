@@ -102,14 +102,18 @@ namespace detail {
 
 enum class AdmissionState : uint8_t { kOpen, kInsertsBlocked, kAllBlocked };
 
-// Layout: [63:62] phase | [61:31] active readers | [30:0] active inserters.
+// [63:62] phase | [61:31] inserters | [30] reader guard | [29:0] readers.
 struct OperationGateWord {
-  static constexpr uint32_t kMaxCount = 0x7fffffffu;
-  static constexpr uint64_t kInserterMask = kMaxCount;
-  static constexpr uint64_t kReaderMask = uint64_t{kMaxCount} << 31;
+  static constexpr uint32_t kMaxReaderCount = 0x3fffffffu;
+  static constexpr uint32_t kMaxInserterCount = 0x7fffffffu;
+  static constexpr uint64_t kReaderMask = kMaxReaderCount;
+  static constexpr uint64_t kReaderOverflowMask = uint64_t{1} << 30;
+  static constexpr uint64_t kReaderFieldMask =
+      kReaderMask | kReaderOverflowMask;
+  static constexpr uint64_t kInserterMask = uint64_t{kMaxInserterCount} << 31;
   static constexpr uint64_t kPhaseMask = uint64_t{3} << 62;
-  static constexpr uint64_t kInserterUnit = 1;
-  static constexpr uint64_t kReaderUnit = uint64_t{1} << 31;
+  static constexpr uint64_t kReaderUnit = 1;
+  static constexpr uint64_t kInserterUnit = uint64_t{1} << 31;
 
   [[nodiscard]] static constexpr uint64_t empty(AdmissionState phase) noexcept {
     return static_cast<uint64_t>(phase) << 62;
@@ -120,11 +124,17 @@ struct OperationGateWord {
   }
 
   [[nodiscard]] static constexpr uint32_t readers(uint64_t word) noexcept {
-    return static_cast<uint32_t>((word >> 31) & kMaxCount);
+    return static_cast<uint32_t>(word & kReaderMask);
+  }
+
+  // Includes the overflow guard so drain checks cannot mistake a pending
+  // overflow rollback for zero active readers.
+  [[nodiscard]] static constexpr uint32_t reader_field(uint64_t word) noexcept {
+    return static_cast<uint32_t>(word & kReaderFieldMask);
   }
 
   [[nodiscard]] static constexpr uint32_t inserters(uint64_t word) noexcept {
-    return static_cast<uint32_t>(word & kInserterMask);
+    return static_cast<uint32_t>((word >> 31) & kMaxInserterCount);
   }
 
   [[nodiscard]] static constexpr uint64_t with_phase(
@@ -132,25 +142,10 @@ struct OperationGateWord {
     return (word & ~kPhaseMask) | (static_cast<uint64_t>(desired_phase) << 62);
   }
 
-  // Callers validate the corresponding counter before changing it.
-  [[nodiscard]] static constexpr uint64_t increment_reader(
-      uint64_t word) noexcept {
-    return word + kReaderUnit;
-  }
-
-  [[nodiscard]] static constexpr uint64_t decrement_reader(
-      uint64_t word) noexcept {
-    return word - kReaderUnit;
-  }
-
+  // Callers validate the inserter counter before changing it.
   [[nodiscard]] static constexpr uint64_t increment_inserter(
       uint64_t word) noexcept {
     return word + kInserterUnit;
-  }
-
-  [[nodiscard]] static constexpr uint64_t decrement_inserter(
-      uint64_t word) noexcept {
-    return word - kInserterUnit;
   }
 
   [[nodiscard]] static bool try_change_phase(
@@ -159,17 +154,22 @@ struct OperationGateWord {
     const uint64_t desired = with_phase(observed, desired_phase);
     return gate.compare_exchange_weak(observed, desired,
                                       std::memory_order_acq_rel,
-                                      std::memory_order_acquire);
+                                      std::memory_order_relaxed);
   }
 };
 
 static_assert((OperationGateWord::kPhaseMask &
                OperationGateWord::kReaderMask) == 0);
 static_assert((OperationGateWord::kPhaseMask &
+               OperationGateWord::kReaderOverflowMask) == 0);
+static_assert((OperationGateWord::kPhaseMask &
                OperationGateWord::kInserterMask) == 0);
 static_assert((OperationGateWord::kReaderMask &
+               OperationGateWord::kReaderOverflowMask) == 0);
+static_assert((OperationGateWord::kReaderFieldMask &
                OperationGateWord::kInserterMask) == 0);
-static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
+static_assert((OperationGateWord::kPhaseMask |
+               OperationGateWord::kReaderFieldMask |
                OperationGateWord::kInserterMask) == ~uint64_t{0});
 
 }  // namespace detail
@@ -181,10 +181,11 @@ static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
  * - Update: open → inserts-blocked → all-blocked → open.
  * - Compact: open → all-blocked → open.
  *
- * Layout: phase: 2 bits | active readers: 31 bits | active inserters: 31 bits.
- * Admissions and phase changes use CAS on this one word, so an operation is
+ * Layout: phase: 2 bits | active inserters: 31 bits | reader guard: 1 bit |
+ * active readers: 30 bits. Reader admission uses fetch_add; inserter admission
+ * and phase changes use CAS on the same word. An operation is therefore
  * unambiguously counted before a blocking transition or rejected after it.
- * Admission counters are checked before increment and cannot exceed 2^31 - 1.
+ * Reader and inserter counts cannot exceed 2^30 - 1 and 2^31 - 1 respectively.
  *
  * Concurrency (new acquisitions; in-flight ops are not interrupted):
  *
@@ -205,8 +206,9 @@ static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
  * - operation_gate_state_: atomically combines admission phase and counters.
  *   Update execution blocks inserters; update commit and compaction block
  *   both readers and inserters.
- * - acquire_read_view admits the reader and increments its counter with one
- *   CAS, then captures the atomically published timestamp/generation pair.
+ * - acquire_read_view increments the reader count with fetch_add, validates the
+ *   phase and overflow state from the returned old word, then captures the
+ *   atomically published timestamp/generation pair.
  * - begin_update_commit blocks new readers through the same control word.
  *   A reader is therefore either counted before the transition or rejected
  *   after it and retried.
@@ -248,7 +250,6 @@ class VersionManager : public IVersionManager {
   void enter_admission_phase(AdmissionState desired_phase);
   void transition_admission_phase(AdmissionState expected_phase,
                                   AdmissionState desired_phase);
-  void wait_for_gate_state_change(uint64_t observed) const;
   void wait_for_readers_to_drain();
   void wait_for_inserters_to_drain();
   void complete_write_timestamp(uint32_t ts);
