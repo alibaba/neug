@@ -13,11 +13,21 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/wal/dummy_wal_writer.h"
+#include "neug/server/bthread_runtime_wait.h"
+
+#include <bthread/bthread.h>
 
 namespace neug {
-std::string DummyWalWriter::type() const { return "dummy"; }
-void DummyWalWriter::open(const std::string&) {}
-void DummyWalWriter::close() {}
-bool DummyWalWriter::append(const char* data, size_t length) { return true; }
+
+void BthreadRuntimeWait(RuntimeWaitAction action) noexcept {
+  switch (action) {
+  case RuntimeWaitAction::kYield:
+    (void) bthread_yield();
+    break;
+  case RuntimeWaitAction::kSleep:
+    (void) bthread_usleep(kRuntimeWaitSleepMicros);
+    break;
+  }
+}
+
 }  // namespace neug

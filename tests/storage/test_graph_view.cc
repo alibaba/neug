@@ -22,6 +22,7 @@
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
@@ -150,6 +151,28 @@ TEST_F(GraphViewTest, SchemaAccess) {
 
   EXPECT_EQ(view.schema().vertex_label_num(), 1);
   EXPECT_EQ(view.schema().edge_label_num(), 1);
+}
+
+TEST_F(GraphViewTest, CardinalityAccess) {
+  GraphView view(*graph_);
+  label_t person_label = view.schema().get_vertex_label_id("person");
+  label_t knows_label = view.schema().get_edge_label_id("knows");
+
+  EXPECT_EQ(view.VertexNum(person_label), 3u);
+  EXPECT_EQ(view.EdgeNum(person_label, person_label, knows_label), 2u);
+
+  GraphStats stats(view);
+  auto vertex_schema = view.schema().get_vertex_schema(person_label);
+  auto edge_schema =
+      view.schema().get_edge_schema(person_label, person_label, knows_label);
+  ASSERT_NE(vertex_schema, nullptr);
+  ASSERT_NE(edge_schema, nullptr);
+  EXPECT_EQ(stats.getTableCardinality(vertex_schema->get_entry_id(),
+                                      SchemaEntryType::NODE),
+            3u);
+  EXPECT_EQ(stats.getTableCardinality(edge_schema->get_entry_id(),
+                                      SchemaEntryType::REL),
+            2u);
 }
 
 TEST_F(GraphViewTest, IsValidLid) {

@@ -111,10 +111,10 @@ uint64_t GraphStats::getTable(uint64_t tableID) const {
     return atLeastOne(it->second);
   }
 #endif
-  if (graph_ == nullptr) {
+  if (view_ == nullptr) {
     return 1;
   }
-  if (graph_->schema().is_vertex_label_valid(tableID)) {
+  if (view_->schema().is_vertex_label_valid(tableID)) {
     return getTable(tableID, SchemaEntryType::NODE);
   }
   return getTable(tableID, SchemaEntryType::REL);
@@ -128,27 +128,27 @@ uint64_t GraphStats::getTable(uint64_t tableID,
     return atLeastOne(it->second);
   }
 #endif
-  if (graph_ == nullptr) {
+  if (view_ == nullptr) {
     return 1;
   }
   if (tableType == SchemaEntryType::NODE) {
-    if (!graph_->schema().is_vertex_label_valid(tableID)) {
+    if (!view_->schema().is_vertex_label_valid(tableID)) {
       return 1;
     }
-    return atLeastOne(graph_->VertexNum(tableID, MAX_TIMESTAMP));
+    return atLeastOne(view_->VertexNum(tableID));
   }
 
-  for (auto edge_label : graph_->schema().get_edge_label_ids()) {
-    for (auto src_label : graph_->schema().get_vertex_label_ids()) {
-      for (auto dst_label : graph_->schema().get_vertex_label_ids()) {
-        if (!graph_->schema().is_edge_triplet_valid(src_label, dst_label,
-                                                    edge_label)) {
+  for (auto edge_label : view_->schema().get_edge_label_ids()) {
+    for (auto src_label : view_->schema().get_vertex_label_ids()) {
+      for (auto dst_label : view_->schema().get_vertex_label_ids()) {
+        if (!view_->schema().is_edge_triplet_valid(src_label, dst_label,
+                                                   edge_label)) {
           continue;
         }
         auto edgeSchema =
-            graph_->schema().get_edge_schema(src_label, dst_label, edge_label);
+            view_->schema().get_edge_schema(src_label, dst_label, edge_label);
         if (edgeSchema && edgeSchema->get_entry_id() == tableID) {
-          return atLeastOne(graph_->EdgeNum(src_label, edge_label, dst_label));
+          return atLeastOne(view_->EdgeNum(src_label, dst_label, edge_label));
         }
       }
     }
@@ -166,7 +166,7 @@ uint64_t GraphStats::getTable(SchemaEntry* tableEntry) const {
     return atLeastOne(it->second);
   }
 #endif
-  if (graph_ == nullptr) {
+  if (view_ == nullptr) {
     return 1;
   }
   if (tableEntry->get_entry_type() == SchemaEntryType::NODE) {
@@ -177,14 +177,14 @@ uint64_t GraphStats::getTable(SchemaEntry* tableEntry) const {
   if (edgeSchema == nullptr) {
     THROW_EXCEPTION_WITH_FILE_LINE("Expected EdgeSchema for REL statistics");
   }
-  if (!graph_->schema().is_edge_triplet_valid(edgeSchema->getSrcTableID(),
-                                              edgeSchema->getDstTableID(),
-                                              edgeSchema->getLabelId())) {
+  if (!view_->schema().is_edge_triplet_valid(edgeSchema->getSrcTableID(),
+                                             edgeSchema->getDstTableID(),
+                                             edgeSchema->getLabelId())) {
     return 1;
   }
-  return atLeastOne(graph_->EdgeNum(edgeSchema->getSrcTableID(),
-                                    edgeSchema->getLabelId(),
-                                    edgeSchema->getDstTableID()));
+  return atLeastOne(view_->EdgeNum(edgeSchema->getSrcTableID(),
+                                   edgeSchema->getDstTableID(),
+                                   edgeSchema->getLabelId()));
 }
 
 }  // namespace neug

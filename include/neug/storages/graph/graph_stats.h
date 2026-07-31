@@ -25,7 +25,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/graph_view.h"
 
 namespace neug {
 namespace main {
@@ -37,14 +37,14 @@ class CatalogEntry;
 }
 
 // Statistics access interface used by the compiler layer. It reads
-// cardinalities directly from a PropertyGraph when estimating table sizes.
+// cardinalities from a GraphView when estimating table sizes.
 class GraphStats {
  public:
   GraphStats() = default;
-  explicit GraphStats(const PropertyGraph& graph) : graph_(&graph) {}
+  explicit GraphStats(const GraphView& view) : view_(&view) {}
 
-  void UpdateGraph(const PropertyGraph& graph) { graph_ = &graph; }
-  const Schema& schema() const { return graph_->schema(); }
+  void UpdateView(const GraphView& view) { view_ = &view; }
+  const Schema& schema() const { return view_->schema(); }
 #ifdef NEUG_BUILD_TEST
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif
@@ -64,7 +64,7 @@ class GraphStats {
   }
 
  private:
-  const PropertyGraph* graph_ = nullptr;
+  const GraphView* view_ = nullptr;
 #ifdef NEUG_BUILD_TEST
   std::unordered_map<uint64_t, uint64_t> table_cardinalities_;
 #endif

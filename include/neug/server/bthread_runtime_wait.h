@@ -12,12 +12,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-#include "neug/transaction/wal/dummy_wal_writer.h"
+#include "neug/transaction/runtime_wait.h"
 
 namespace neug {
-std::string DummyWalWriter::type() const { return "dummy"; }
-void DummyWalWriter::open(const std::string&) {}
-void DummyWalWriter::close() {}
-bool DummyWalWriter::append(const char* data, size_t length) { return true; }
+
+/**
+ * bthread-aware yield and sleep. On a normal pthread, these bthread APIs fall
+ * back to sched_yield/usleep.
+ */
+void BthreadRuntimeWait(RuntimeWaitAction action) noexcept;
+
 }  // namespace neug

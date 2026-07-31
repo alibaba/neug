@@ -23,7 +23,6 @@
 
 #include <rapidjson/document.h>
 
-#include "neug/execution/common/params_map.h"
 #include "neug/main/query_result.h"
 #include "neug/utils/result.h"
 
@@ -101,8 +100,8 @@ class Connection {
    * auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
    *
    * // Query with parameters
-   * neug::execution::ParamsMap params;
-   * params["min_age"] = neug::Value(18);
+   * rapidjson::Document params(rapidjson::kObjectType);
+   * params.AddMember("min_age", 18, params.GetAllocator());
    * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
    * "read", params);
    *
@@ -139,15 +138,8 @@ class Connection {
    */
   result<QueryResult> Query(const std::string& query_string,
                             const std::string& access_mode = "",
-                            const execution::ParamsMap& parameters = {});
-
-  /**
-   * @brief Execute a Cypher query with JSON parameters.
-   * The parameter values are provided as a JSON object.
-   */
-  result<QueryResult> Query(const std::string& query_string,
-                            const std::string& access_mode,
-                            const rapidjson::Value& parameters_json);
+                            const rapidjson::Value& parameters =
+                                rapidjson::Value{rapidjson::kObjectType});
 
   /**
    * @brief Get the database schema as a YAML string.
