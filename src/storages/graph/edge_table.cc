@@ -768,8 +768,11 @@ std::pair<int32_t, const void*> EdgeTable::AddEdge(
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
                               const IndexerType& dst_indexer,
                               std::shared_ptr<IDataChunkSupplier> supplier) {
-  in_csr_->resize(dst_indexer.size());
-  out_csr_->resize(src_indexer.size());
+  // Preserve the vertex tables' reserved capacity. Shrinking the CSR to the
+  // current vertex count would leave subsequently inserted vertices without
+  // adjacency slots until the vertex table itself needs to grow again.
+  in_csr_->resize(dst_indexer.capacity());
+  out_csr_->resize(src_indexer.capacity());
   std::vector<vid_t> src_lid, dst_lid;
   // Pre-reserve capacity to reduce vector reallocation on large graphs.
   auto total_rows = supplier->RowNum();
