@@ -21,19 +21,11 @@ namespace neug {
 
 neug::result<StorageIndex*> StorageUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
-  auto result = CreateIndexImpl(std::move(meta));
-  if (result) {
-    schema_changed_ = true;
-  }
-  return result;
+  return CreateIndexImpl(std::move(meta));
 }
 
 Status StorageUpdateInterface::DropIndex(const std::string& name) {
-  auto status = DropIndexImpl(name);
-  if (status.ok()) {
-    schema_changed_ = true;
-  }
-  return status;
+  return DropIndexImpl(name);
 }
 
 namespace {

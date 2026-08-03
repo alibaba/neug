@@ -44,6 +44,7 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class PropertyGraph;
 template <typename EDATA_T>
 class TypedMutableCsrBase;
@@ -95,11 +96,13 @@ class ReadTransaction {
 
   GraphStats statistic() const { return GraphStats(view()); }
 
-  uint64_t schema_generation() const { return lease_.schema_generation(); }
-
   const Schema& schema() const;
 
  private:
+  friend class ExecutionSlot;
+
+  uint64_t schema_generation() const { return lease_.schema_generation(); }
+
   void release();
   ReadSnapshotLease lease_;
 };

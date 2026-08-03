@@ -284,13 +284,20 @@ uint64_t GraphSnapshotStore::CurrentSchemaGeneration() const {
   return slots_[slot_index].schema_generation_.load(std::memory_order_acquire);
 }
 
-void GraphSnapshotStore::AdvanceCurrentSchemaGeneration() {
+uint32_t GraphSnapshotStore::publishCurrentSnapshot(
+    SnapshotSlot& mutated_slot, bool schema_changed) noexcept {
   const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
-  auto& generation = slots_[slot_index].schema_generation_;
-  const uint64_t current = generation.load(std::memory_order_relaxed);
-  CHECK_NE(current, std::numeric_limits<uint64_t>::max())
-      << "Schema generation space exhausted";
-  generation.store(current + 1, std::memory_order_release);
+  auto& current_slot = slots_[slot_index];
+  CHECK_EQ(&mutated_slot, &current_slot)
+      << "In-place commit must publish the slot that it mutated";
+  if (schema_changed) {
+    auto& generation = mutated_slot.schema_generation_;
+    const uint64_t current = generation.load(std::memory_order_relaxed);
+    CHECK_NE(current, std::numeric_limits<uint64_t>::max())
+        << "Schema generation space exhausted";
+    generation.store(current + 1, std::memory_order_release);
+  }
+  return mutated_slot.snapshot_generation_;
 }
 
 }  // namespace neug

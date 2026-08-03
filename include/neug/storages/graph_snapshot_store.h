@@ -27,6 +27,8 @@
 
 namespace neug {
 
+class InPlaceWriteScope;
+
 /**
  * @brief Fixed-size slot pool for MVCC PropertyGraph snapshots.
  *
@@ -151,10 +153,6 @@ class GraphSnapshotStore {
   /// Call only while the current slot is stable under writer admission.
   uint64_t CurrentSchemaGeneration() const;
 
-  /// Direct-mode schema changes mutate the current slot in place after
-  /// draining readers, so they advance its generation without publishing.
-  void AdvanceCurrentSchemaGeneration();
-
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }
 
@@ -166,6 +164,8 @@ class GraphSnapshotStore {
   }
 
  private:
+  friend class InPlaceWriteScope;
+
   int slot_num_;
   std::vector<SnapshotSlot> slots_;
   std::atomic<int> cur_slot_index_{0};
@@ -177,6 +177,8 @@ class GraphSnapshotStore {
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
   uint32_t reserveSnapshotGeneration();
+  uint32_t publishCurrentSnapshot(SnapshotSlot& mutated_slot,
+                                  bool schema_changed) noexcept;
   void publishPreparedSnapshot(int slot_index) noexcept;
   void unpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);

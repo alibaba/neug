@@ -565,7 +565,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
   const auto query_cache = db_->GetQueryCache();
   const auto initial_version = query_cache->version();
   const auto initial_generation =
-      slot->GetReadTransaction().schema_generation();
+      db_->graph_snapshot_store().CurrentSchemaGeneration();
 
   auto insert =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
@@ -573,14 +573,16 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(insert) << insert.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version);
-  EXPECT_EQ(slot->GetReadTransaction().schema_generation(), initial_generation);
+  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+            initial_generation);
 
   auto update =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
           "MATCH (n:person {id: 10001}) SET n.age = 2;", "update", {}));
   ASSERT_TRUE(update) << update.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version);
-  EXPECT_EQ(slot->GetReadTransaction().schema_generation(), initial_generation);
+  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+            initial_generation);
 
   auto ddl =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
@@ -588,7 +590,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(ddl) << ddl.error().ToString();
   EXPECT_EQ(query_cache->version(), initial_version + 1);
-  EXPECT_EQ(slot->GetReadTransaction().schema_generation(),
+  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation + 1);
 }
 
@@ -634,7 +636,9 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
 
   // Keep the old snapshot pinned while a DDL publishes a new schema.
   auto old_txn = slot->GetReadTransaction();
-  const auto old_generation = old_txn.schema_generation();
+  ASSERT_FALSE(old_txn.schema().is_vertex_label_valid("cache_gen_probe"));
+  const auto old_generation =
+      db_->graph_snapshot_store().CurrentSchemaGeneration();
 
   auto ddl_slot = service.AcquireExecutionSlot();
   ASSERT_TRUE(ddl_slot);
@@ -658,13 +662,15 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
   EXPECT_EQ(old_plan.value().get(), old_plan_again.value().get());
 
   auto new_txn = slot->GetReadTransaction();
-  ASSERT_EQ(new_txn.schema_generation(), old_generation + 1);
-  auto new_plan =
-      local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
+  ASSERT_TRUE(new_txn.schema().is_vertex_label_valid("cache_gen_probe"));
+  const auto new_generation =
+      db_->graph_snapshot_store().CurrentSchemaGeneration();
+  ASSERT_EQ(new_generation, old_generation + 1);
+  auto new_plan = local_cache.Get(new_txn.statistic(), new_generation, query);
   ASSERT_TRUE(new_plan) << new_plan.error().ToString();
   EXPECT_NE(old_plan.value().get(), new_plan.value().get());
   auto new_plan_again =
-      local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
+      local_cache.Get(new_txn.statistic(), new_generation, query);
   ASSERT_TRUE(new_plan_again) << new_plan_again.error().ToString();
   EXPECT_EQ(new_plan.value().get(), new_plan_again.value().get());
 
@@ -676,7 +682,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
   ASSERT_TRUE(old_plan_after_new) << old_plan_after_new.error().ToString();
   EXPECT_EQ(old_plan.value().get(), old_plan_after_new.value().get());
   auto new_plan_after_old =
-      local_cache.Get(new_txn.statistic(), new_txn.schema_generation(), query);
+      local_cache.Get(new_txn.statistic(), new_generation, query);
   ASSERT_TRUE(new_plan_after_old) << new_plan_after_old.error().ToString();
   EXPECT_EQ(new_plan.value().get(), new_plan_after_old.value().get());
 }

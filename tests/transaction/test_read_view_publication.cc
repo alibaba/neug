@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -27,6 +28,8 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/read_snapshot_lease.h"
+#include "neug/transaction/timestamp_lease.h"
+#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "unittest/utils.h"
 
@@ -224,6 +227,74 @@ TEST_F(ReadViewPublicationTest,
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(lease.timestamp(), kInitialTimestamp);
   EXPECT_FALSE(lease.view().schema().is_vertex_label_valid("company"));
+}
+
+TEST_F(ReadViewPublicationTest,
+       InPlaceWriteScopePublishesSchemaGenerationOnCurrentSnapshot) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+
+  const auto initial_schema_generation = store_->CurrentSchemaGeneration();
+  uint32_t initial_snapshot_generation = 0;
+  {
+    SnapshotGuard current(*store_);
+    initial_snapshot_generation = current.get().snapshot_generation();
+  }
+
+  uint32_t committed_timestamp = 0;
+  {
+    InPlaceWriteScope write_scope(version_manager, *store_);
+    committed_timestamp = write_scope.Timestamp();
+    write_scope.MarkSchemaChanged();
+  }
+
+  {
+    SnapshotGuard current(*store_);
+    EXPECT_EQ(current.get().snapshot_generation(), initial_snapshot_generation);
+    EXPECT_EQ(current.get().schema_generation(), initial_schema_generation + 1);
+  }
+
+  auto reader = ReadSnapshotLease::Acquire(version_manager, *store_);
+  EXPECT_EQ(reader.timestamp(), committed_timestamp);
+  EXPECT_EQ(reader.schema_generation(), initial_schema_generation + 1);
+}
+
+TEST_F(ReadViewPublicationTest,
+       InPlaceWriteScopeWithoutSchemaChangeKeepsGeneration) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+
+  const auto initial_schema_generation = store_->CurrentSchemaGeneration();
+  uint32_t committed_timestamp = 0;
+  {
+    InPlaceWriteScope write_scope(version_manager, *store_);
+    committed_timestamp = write_scope.Timestamp();
+  }
+
+  auto reader = ReadSnapshotLease::Acquire(version_manager, *store_);
+  EXPECT_EQ(reader.timestamp(), committed_timestamp);
+  EXPECT_EQ(reader.schema_generation(), initial_schema_generation);
+}
+
+TEST_F(ReadViewPublicationTest,
+       InPlaceWriteScopePublishesDuringStackUnwinding) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+
+  const auto initial_schema_generation = store_->CurrentSchemaGeneration();
+  uint32_t committed_timestamp = 0;
+  EXPECT_THROW(
+      [&]() {
+        InPlaceWriteScope write_scope(version_manager, *store_);
+        committed_timestamp = write_scope.Timestamp();
+        write_scope.MarkSchemaChanged();
+        throw std::runtime_error("in-place write failed after mutation");
+      }(),
+      std::runtime_error);
+
+  auto reader = ReadSnapshotLease::Acquire(version_manager, *store_);
+  EXPECT_EQ(reader.timestamp(), committed_timestamp);
+  EXPECT_EQ(reader.schema_generation(), initial_schema_generation + 1);
 }
 
 TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {

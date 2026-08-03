@@ -34,6 +34,7 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class PropertyGraph;
 class IWalWriter;
 class IVersionManager;
@@ -198,13 +199,15 @@ class InsertTransaction {
 
   GraphStats statistic() const { return GraphStats(guard_.get().view()); }
 
+  bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
+
+ private:
+  friend class ExecutionSlot;
+
   uint64_t schema_generation() const {
     return guard_.get().schema_generation();
   }
 
-  bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
-
- private:
   Value get_vertex_id(label_t label, vid_t lid) const;
 
   void create_id_indexer_if_not_exists(label_t label);

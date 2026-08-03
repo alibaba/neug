@@ -34,6 +34,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/timestamp_lease.h"
+#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -248,42 +249,30 @@ Status ExecutionSlot::executeCore(const std::string& query,
   const auto access_mode = requested_mode == AccessMode::kUnKnown
                                ? planner_->analyzeMode(query)
                                : requested_mode;
+  std::shared_ptr<execution::CacheValue> prepared_query;
 
-  auto execute_on_storage = [this, &query, access_mode, &parameters,
-                             num_threads,
-                             &response](const GraphStats& stats, auto& storage,
-                                        uint64_t schema_generation) -> Status {
+  auto execute_on_storage =
+      [this, &query, access_mode, &parameters, num_threads, &response,
+       &prepared_query](const GraphStats& stats, uint64_t schema_generation,
+                        auto& storage) -> Status {
     auto prepared = prepareQuery(stats, query, num_threads, schema_generation);
     if (!prepared) {
       return prepared.error();
     }
-    auto cache_value = std::move(prepared).value();
-    auto status = validatePlan(access_mode, cache_value->flags);
+    prepared_query = std::move(prepared).value();
+    auto status = validatePlan(access_mode, prepared_query->flags);
     if (!status.ok()) {
       return status;
     }
 
     auto parsed_parameters =
-        execution::parseJsonParameters(cache_value->params_type, parameters);
+        execution::parseJsonParameters(prepared_query->params_type, parameters);
     if (!parsed_parameters) {
       return parsed_parameters.error();
     }
 
-    status = executePreparedQuery(*cache_value, parsed_parameters.value(),
+    status = executePreparedQuery(*prepared_query, parsed_parameters.value(),
                                   storage, response);
-    if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
-      const auto* update_storage =
-          dynamic_cast<const StorageUpdateInterface*>(&storage);
-      const bool schema_changed =
-          update_storage != nullptr && update_storage->schema_changed();
-      if (schema_changed) {
-        snapshot_store_.AdvanceCurrentSchemaGeneration();
-      }
-      if (shouldClearQueryCacheAfterDirectExecution(*cache_value, status,
-                                                    schema_changed)) {
-        pipeline_cache_.clearGlobalCache();
-      }
-    }
     if (!status.ok()) {
       return status;
     }
@@ -297,20 +286,39 @@ Status ExecutionSlot::executeCore(const std::string& query,
           ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
       const auto& view = lease.view();
       StorageReadInterface storage(view, lease.timestamp());
-      status = execute_on_storage(GraphStats(view), storage,
-                                  lease.schema_generation());
+      status = execute_on_storage(GraphStats(view), lease.schema_generation(),
+                                  storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
-      UpdateTimestampLease lease(version_manager_);
-      lease.MakeUpdateExclusive();
-      SnapshotGuard guard(snapshot_store_);
-      auto& slot = guard.get();
-      StorageAPUpdateInterface storage(*slot.mutable_graph(),
-                                       slot.mutable_view(), lease.Timestamp(),
-                                       alloc_);
-      status = execute_on_storage(GraphStats(slot.view()), storage,
-                                  slot.schema_generation());
+      InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
+      auto& slot = write_scope.Snapshot();
+      StorageAPUpdateInterface storage(
+          *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
+          alloc_, [&write_scope]() { write_scope.MarkSchemaChanged(); });
+      try {
+        status = execute_on_storage(GraphStats(slot.view()),
+                                    slot.schema_generation(), storage);
+      } catch (...) {
+        if (write_scope.HasSchemaChanged()) {
+          try {
+            pipeline_cache_.clearGlobalCache();
+          } catch (const std::exception& e) {
+            LOG(ERROR) << "Failed to clear query cache after direct schema "
+                          "mutation raised an exception: "
+                       << e.what();
+          } catch (...) {
+            LOG(ERROR) << "Failed to clear query cache after direct schema "
+                          "mutation raised an exception";
+          }
+        }
+        throw;
+      }
+      if (prepared_query &&
+          shouldClearQueryCacheAfterDirectExecution(
+              *prepared_query, status, write_scope.HasSchemaChanged())) {
+        pipeline_cache_.clearGlobalCache();
+      }
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -321,7 +329,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
     auto execute_and_commit = [&execute_on_storage](auto& transaction,
                                                     auto& storage) -> Status {
       auto transaction_status = execute_on_storage(
-          transaction.statistic(), storage, transaction.schema_generation());
+          transaction.statistic(), transaction.schema_generation(), storage);
       if (!transaction_status.ok()) {
         return transaction_status;
       }
@@ -403,20 +411,17 @@ void ExecutionSlot::ClearTemporarySchema() {
     }
   }
 
-  UpdateTimestampLease lease(version_manager_);
-  lease.MakeUpdateExclusive();
-  SnapshotGuard guard(snapshot_store_);
-  auto& slot = guard.get();
+  InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
+  auto& slot = write_scope.Snapshot();
   auto* graph = slot.mutable_graph();
 
   auto temporary_edges = graph->schema().get_temporary_edge_triplet_keys();
-  bool schema_changed = false;
   for (auto key : temporary_edges) {
     auto [src, dst, edge] = graph->schema().parse_edge_label(key);
     try {
       const auto status = graph->DeleteEdgeType(src, dst, edge);
       if (status.ok()) {
-        schema_changed = true;
+        write_scope.MarkSchemaChanged();
       } else {
         LOG(WARNING) << "Failed to cleanup temp edge: " << status.ToString();
       }
@@ -430,7 +435,7 @@ void ExecutionSlot::ClearTemporarySchema() {
     try {
       const auto status = graph->DeleteVertexType(label);
       if (status.ok()) {
-        schema_changed = true;
+        write_scope.MarkSchemaChanged();
       } else {
         LOG(WARNING) << "Failed to cleanup temp vertex: " << status.ToString();
       }
@@ -439,9 +444,8 @@ void ExecutionSlot::ClearTemporarySchema() {
     }
   }
 
-  if (schema_changed) {
+  if (write_scope.HasSchemaChanged()) {
     slot.mutable_view().Rebuild(*graph);
-    snapshot_store_.AdvanceCurrentSchemaGeneration();
     pipeline_cache_.clearGlobalCache();
   }
 }

@@ -43,6 +43,7 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class PropertyGraph;
 class IWalWriter;
 class IVersionManager;
@@ -106,8 +107,6 @@ class UpdateTransaction {
    */
   timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
-  uint64_t schema_generation() const { return schema_generation_; }
-
   bool Commit();
 
   void Abort();
@@ -152,8 +151,11 @@ class UpdateTransaction {
   }
 
   friend class StorageTPUpdateInterface;
+  friend class ExecutionSlot;
 
  private:
+  uint64_t schema_generation() const { return schema_generation_; }
+
   void release(std::optional<uint32_t> installed_snapshot_generation);
 
   // COW storage - the cloned PropertyGraph
