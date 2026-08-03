@@ -435,6 +435,16 @@ TEST_F(APIndexTest, VecIndexCreateSearchUpdateAndDrop) {
   EXPECT_FLOAT_EQ(third_vector[1].GetValue<float>(), 9.0f);
 }
 
+TEST_F(APIndexTest, HnswIndexRejectsPropertyWithNonHnswIndex) {
+  CreateVectorTable();
+  auto regular = CreateIndex("idx_vector_regular", "Vector", "embedding");
+  ASSERT_TRUE(regular) << regular.error().ToString();
+
+  auto hnsw = CreateVecIndex("idx_vector_hnsw");
+  ASSERT_FALSE(hnsw);
+  EXPECT_EQ(hnsw.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+}
+
 TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {
   CreatePersonTable();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));

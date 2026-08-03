@@ -605,6 +605,16 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
   std::unique_ptr<IndexIDAccessor> index_id_accessor;
 
   if (IsHnswIndex(*meta)) {
+    GS_AUTO(existing_indexes, index_manager_.GetIndex(label_id, property_name));
+    const bool has_non_hnsw = std::any_of(
+        existing_indexes.begin(), existing_indexes.end(),
+        [](StorageIndex* index) { return !IsHnswIndex(index->GetMeta()); });
+    if (has_non_hnsw) {
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_INVALID_ARGUMENT,
+          "HNSW index cannot coexist with non-HNSW indexes on the same "
+          "property");
+    }
     if (is_primary_key) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "HNSW index cannot be created on a primary key");
@@ -629,8 +639,9 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
       index_id_accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(
           *vec->get_offset_accessor());
     } else {
-      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                          "HNSW index supports only FLOAT array properties");
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_INVALID_ARGUMENT,
+          "CreateIndex: HNSW index can only be created on VecColumn");
     }
   } else {
     index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
@@ -694,7 +705,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
             graph_.checkpoint(), graph_.memory_level());
       } else {
         THROW_RUNTIME_ERROR(
-            "DropIndex: HNSW index column must be a FLOAT VecColumn");
+            "DropIndex: HNSW index can only be created on VecColumn");
       }
     }
   }

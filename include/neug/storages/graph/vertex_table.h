@@ -29,8 +29,6 @@ class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
 class VertexTableView;
-class VecColumn;
-
 class VertexSet {
  public:
   VertexSet(vid_t size, const VertexTimestamp& v_ts_, timestamp_t ts)
