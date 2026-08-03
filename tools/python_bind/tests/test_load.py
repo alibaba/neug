@@ -1649,6 +1649,42 @@ class TestCopyFrom:
         assert records[0][4] == 5, "Times should be 5"
         assert records[0][5] is not None, "Location should not be None"
 
+    def test_create_edge_after_copy_from_edges(self):
+        """Vertices created after edge COPY retain usable CSR slots."""
+        nodes_csv = self.tmp_path / "files.csv"
+        edges_csv = self.tmp_path / "depends.csv"
+        nodes_csv.write_text(
+            "id,label\na.py,a\nb.py,b\nc.py,c\n",
+            encoding="utf-8",
+        )
+        edges_csv.write_text(
+            "src,dst,weight\na.py,b.py,1\nb.py,c.py,1\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE file(id STRING, label STRING, PRIMARY KEY(id))"
+        )
+        self.conn.execute("CREATE REL TABLE depends(FROM file TO file, weight INT64)")
+        self.conn.execute(f'COPY file FROM "{nodes_csv}" (header=true, delimiter=",")')
+        self.conn.execute(
+            f'COPY depends FROM "{edges_csv}" (header=true, delimiter=",")'
+        )
+
+        self.conn.execute("CREATE (n:file {id: 'd.py', label: 'd'})")
+        self.conn.execute(
+            "MATCH (a:file {id: 'd.py'}), (b:file {id: 'a.py'}) "
+            "CREATE (a)-[:depends {weight: 1}]->(b)"
+        )
+
+        records = list(
+            self.conn.execute(
+                "MATCH (a:file {id: 'd.py'})-[e:depends]->(b:file) "
+                "RETURN b.id, e.weight"
+            )
+        )
+        assert records == [["a.py", 1]]
+
     def test_copy_from_edge_with_column_remapping(self):
         """Test COPY FROM for edge table with column remapping."""
         person_csv = os.path.join(self.tinysnb_path, "vPerson.csv")

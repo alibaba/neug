@@ -49,6 +49,11 @@ class NeugDB;
 class ExecutionSlot;
 class TpExecutionSlotPool;
 
+enum class QueryExecutionStrategy : uint8_t {
+  kDirect,
+  kTransactional,
+};
+
 /**
  * @brief Move-only RAII handle for exclusive use of a TP ExecutionSlot.
  *
@@ -204,12 +209,8 @@ class ExecutionSlot {
 
   result<QueryResult> ExecuteQuery(const std::string& query_string,
                                    const std::string& access_mode,
-                                   const execution::ParamsMap& parameters = {},
-                                   int32_t num_threads = 0);
-
-  result<QueryResult> ExecuteQuery(const std::string& query_string,
-                                   const std::string& access_mode,
-                                   const rapidjson::Value& parameters_json,
+                                   const rapidjson::Value& parameters =
+                                       rapidjson::Value{rapidjson::kObjectType},
                                    int32_t num_threads = 0);
 
   std::string GetSchema() const;
@@ -230,45 +231,43 @@ class ExecutionSlot {
                 std::shared_ptr<IGraphPlanner> planner,
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 IVersionManager& vm, Allocator& alloc,
-                const NeugDBConfig& config_, int slot_id)
+                QueryExecutionStrategy execution_strategy,
+                IWalWriter* wal_writer, const NeugDBConfig& config_,
+                int slot_id)
       : snapshot_store_(snapshot_store),
         planner_(planner),
         pipeline_cache_(global_query_cache),
         version_manager_(vm),
         alloc_(alloc),
+        execution_strategy_(execution_strategy),
+        wal_writer_(wal_writer),
         db_config_(config_),
         slot_id_(slot_id),
         eval_duration_(0),
-        query_num_(0) {}
-
-  struct ExecutionCapabilities {
-    bool batch;
-    bool temporary_table;
-  };
+        query_num_(0) {
+    CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect ||
+          execution_strategy_ == QueryExecutionStrategy::kTransactional);
+    CHECK_EQ(execution_strategy_ == QueryExecutionStrategy::kTransactional,
+             wal_writer_ != nullptr);
+  }
 
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
-      const GraphStats& stats, const std::string& query, AccessMode mode,
-      const ExecutionCapabilities& capabilities, int32_t num_threads);
+      const GraphStats& stats, const std::string& query, int32_t num_threads);
 
-  using ParameterResolver = std::function<result<execution::ParamsMap>(
-      const execution::ParamsMetaMap&)>;
+  Status validatePlan(AccessMode mode,
+                      const physical::ExecutionFlag& flags) const;
 
-  result<QueryResult> executeQueryInternal(
-      const std::string& query_string, const std::string& access_mode,
-      const ParameterResolver& resolve_parameters, int32_t num_threads);
-
-  // TpExecutionSlotPool lifecycle only. AP callers cannot bind or observe WAL.
-  void bindWalWriterForTp(IWalWriter& wal_writer);
-  void unbindWalWriterForTp();
+  Status executeCore(const std::string& query, AccessMode requested_mode,
+                     const rapidjson::Value& parameters, int32_t num_threads,
+                     QueryResponse& response);
 
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   execution::LocalQueryCache pipeline_cache_;
   IVersionManager& version_manager_;
   Allocator& alloc_;
-  // Null for AP slots. TpExecutionSlotPool binds this before exposing a TP
-  // slot to callers.
-  IWalWriter* wal_writer_{nullptr};
+  const QueryExecutionStrategy execution_strategy_;
+  IWalWriter* const wal_writer_;
   const NeugDBConfig& db_config_;
   int slot_id_;
 

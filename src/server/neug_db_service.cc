@@ -21,6 +21,8 @@
 #include <bthread/bthread.h>
 
 #include "neug/server/brpc_service_mgr.h"
+#include "neug/server/bthread_runtime_wait.h"
+#include "neug/transaction/version_manager.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -31,6 +33,28 @@ namespace {
 constexpr auto kCompactInterval = std::chrono::seconds(30);
 constexpr size_t kCompactQueryThreshold = 100000;
 }  // namespace
+
+void NeugDBService::installBthreadRuntimeWait() {
+  CHECK(!bthread_runtime_wait_installed_);
+  if (!db_.version_manager_->try_set_runtime_wait_if_quiescent(
+          &BthreadRuntimeWait)) {
+    THROW_RUNTIME_ERROR(
+        "Cannot install bthread runtime wait while transactions are "
+        "active.");
+  }
+  bthread_runtime_wait_installed_ = true;
+}
+
+void NeugDBService::restoreNativeRuntimeWait() noexcept {
+  if (!bthread_runtime_wait_installed_) {
+    return;
+  }
+  CHECK(db_.version_manager_->try_set_runtime_wait_if_quiescent(
+      &NativeRuntimeWait))
+      << "All service transactions must be quiescent before restoring native "
+         "runtime wait";
+  bthread_runtime_wait_installed_ = false;
+}
 
 void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
@@ -72,6 +96,7 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_.reset();
   }
   execution_slot_pool_.reset();
+  restoreNativeRuntimeWait();
   db_.unregisterService(this);
 }
 

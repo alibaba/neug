@@ -830,6 +830,29 @@ TEST(CheckpointGCTest, commit_staging_checkpoint_rejects_inactive_handle) {
   EXPECT_EQ(mgr.CurrentCheckpoint()->id(), 0);
 }
 
+TEST(CheckpointGCTest, commit_open_failure_preserves_published_generation) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  auto staging = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(staging.checkpoint());
+  const auto staging_path = std::filesystem::path(staging.checkpoint()->path());
+  const auto published_path = std::filesystem::path(db_path) / "checkpoint-0";
+
+  // Keep the cached manifest valid so commit reaches the durable rename, but
+  // make reopening the renamed checkpoint fail.
+  std::ofstream(staging_path / "meta", std::ios::trunc)
+      << "invalid checkpoint manifest";
+
+  EXPECT_THROW(staging.Commit(), std::exception);
+  EXPECT_FALSE(std::filesystem::exists(staging_path));
+  EXPECT_TRUE(std::filesystem::exists(published_path));
+  EXPECT_EQ(mgr.CurrentCheckpoint(), nullptr);
+
+  staging.Discard();
+}
+
 TEST(CheckpointGCTest, staging_and_session_cleanup_cover_failure_edges) {
   auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
   std::string closed_staging_path;

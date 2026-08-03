@@ -6,11 +6,21 @@
 
 ## Read Transaction
 
-With an `ReadTransaction`, a specific version of the graph can be read. The version is determined by the timestamp of the transaction.
+With a `ReadTransaction`, a specific version of the graph can be read. Its
+`ReadSnapshotLease` owns a visibility timestamp and a pinned graph snapshot as
+one coherent read view.
+
+Reader acquisition captures an atomically published
+`{visibility timestamp, snapshot generation}` pair, pins the current snapshot,
+and validates that the slot generation matches. If an update publishes between
+the capture and the pin, the generation mismatch is detected and the complete
+acquisition is retried. A transaction therefore cannot observe an old
+timestamp with a newly published snapshot.
 
 `ReadTransaction` provides a set of APIs to read the graph, including schema, topology, and properties.
 
-After query with the `ReadTransaction` object, the transaction should be released by calling `ReadTransaction::Release()`.
+Commit, abort, and destruction all release the snapshot pin before unregistering
+the reader from `VersionManager`.
 
 ## Insert Transaction
 
@@ -46,13 +56,13 @@ The `VersionManager` state machine has three effective states for read, insert, 
 
 | State | Meaning | New Reads | New Inserts | New Updates | Existing Reads |
 |-------|---------|-----------|-------------|-------------|----------------|
-| `0` | Normal | allowed | allowed | allowed | continue |
-| `1` | Update execution | allowed | blocked | blocked | continue |
-| `2` from update | Update commit | blocked | blocked | blocked | continue |
+| `kOpen` | Normal | allowed | allowed | allowed | continue |
+| `kInsertsBlocked` | Update execution | allowed | blocked | blocked | continue |
+| `kAllBlocked` | Update commit or compaction | blocked | blocked | blocked | continue |
 
-When an `UpdateTransaction` is created, it enters the update-exec phase (`update_state_`: `0 -> 1`). It waits for all in-flight insert transactions to finish, but does not block or wait for read transactions. New insert transactions and new update transactions are blocked during this phase; existing and new reads continue.
+When an `UpdateTransaction` is created, the admission state changes from `kOpen` to `kInsertsBlocked`. It waits for all in-flight insert transactions to finish, but does not block or wait for read transactions. New insert transactions and new update transactions are blocked during this phase; existing and new reads continue.
 
-When `VersionManager::begin_update_commit` is called, the update enters the commit phase (`update_state_`: `1 -> 2`). New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 
 ## Serializability
 

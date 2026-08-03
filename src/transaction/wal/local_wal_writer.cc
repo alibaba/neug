@@ -22,6 +22,7 @@
 #include <glog/logging.h>
 #include <string.h>
 #include <unistd.h>
+#include <exception>
 #include <filesystem>
 #include <ostream>
 
@@ -31,18 +32,33 @@
 namespace neug {
 
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
-                                                 int thread_id) {
-  return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, thread_id));
+                                                 int slot_id) {
+  return std::unique_ptr<IWalWriter>(new LocalWalWriter(wal_uri, slot_id));
 }
 
-void LocalWalWriter::open() {
+LocalWalWriter::~LocalWalWriter() noexcept {
+  try {
+    close();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to close WAL writer during destruction: " << e.what();
+  } catch (...) {
+    LOG(ERROR) << "Failed to close WAL writer during destruction.";
+  }
+}
+
+void LocalWalWriter::open(const std::string& wal_uri) {
+  close();
+  wal_uri_ = wal_uri;
   auto prefix = get_wal_uri_path(wal_uri_);
   if (!std::filesystem::exists(prefix)) {
     std::filesystem::create_directories(prefix);
   }
   const int max_version = 65536;
   for (int version = 0; version != max_version; ++version) {
-    std::string path = prefix + "/thread_" + std::to_string(thread_id_) + "_" +
+    // Keep the historical on-disk prefix for WAL replay compatibility. The
+    // numeric component now identifies a logical execution slot, not a
+    // physical pthread.
+    std::string path = prefix + "/thread_" + std::to_string(slot_id_) + "_" +
                        std::to_string(version) + ".wal";
     if (std::filesystem::exists(path)) {
       continue;
@@ -64,12 +80,16 @@ void LocalWalWriter::open() {
 
 void LocalWalWriter::close() {
   if (fd_ != -1) {
-    if (::close(fd_) != 0) {
-      THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
-    }
+    // Retire the descriptor before calling close(). Retrying close() after an
+    // error is unsafe because the descriptor may already have been released
+    // and reused by another thread.
+    const int fd = fd_;
     fd_ = -1;
     file_size_ = 0;
     file_used_ = 0;
+    if (::close(fd) != 0) {
+      THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
+    }
   }
 }
 
