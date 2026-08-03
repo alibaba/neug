@@ -102,14 +102,11 @@ namespace detail {
 
 enum class AdmissionState : uint8_t { kOpen, kInsertsBlocked, kAllBlocked };
 
-// [63:62] phase | [61:31] inserters | [30] reader guard | [29:0] readers.
+// [63:62] phase | [61:31] inserters | [30:0] readers.
 struct OperationGateWord {
-  static constexpr uint32_t kMaxReaderCount = 0x3fffffffu;
+  static constexpr uint32_t kMaxReaderCount = 0x7fffffffu;
   static constexpr uint32_t kMaxInserterCount = 0x7fffffffu;
   static constexpr uint64_t kReaderMask = kMaxReaderCount;
-  static constexpr uint64_t kReaderOverflowMask = uint64_t{1} << 30;
-  static constexpr uint64_t kReaderFieldMask =
-      kReaderMask | kReaderOverflowMask;
   static constexpr uint64_t kInserterMask = uint64_t{kMaxInserterCount} << 31;
   static constexpr uint64_t kPhaseMask = uint64_t{3} << 62;
   static constexpr uint64_t kReaderUnit = 1;
@@ -125,12 +122,6 @@ struct OperationGateWord {
 
   [[nodiscard]] static constexpr uint32_t readers(uint64_t word) noexcept {
     return static_cast<uint32_t>(word & kReaderMask);
-  }
-
-  // Includes the overflow guard so drain checks cannot mistake a pending
-  // overflow rollback for zero active readers.
-  [[nodiscard]] static constexpr uint32_t reader_field(uint64_t word) noexcept {
-    return static_cast<uint32_t>(word & kReaderFieldMask);
   }
 
   [[nodiscard]] static constexpr uint32_t inserters(uint64_t word) noexcept {
@@ -161,15 +152,10 @@ struct OperationGateWord {
 static_assert((OperationGateWord::kPhaseMask &
                OperationGateWord::kReaderMask) == 0);
 static_assert((OperationGateWord::kPhaseMask &
-               OperationGateWord::kReaderOverflowMask) == 0);
-static_assert((OperationGateWord::kPhaseMask &
                OperationGateWord::kInserterMask) == 0);
 static_assert((OperationGateWord::kReaderMask &
-               OperationGateWord::kReaderOverflowMask) == 0);
-static_assert((OperationGateWord::kReaderFieldMask &
                OperationGateWord::kInserterMask) == 0);
-static_assert((OperationGateWord::kPhaseMask |
-               OperationGateWord::kReaderFieldMask |
+static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
                OperationGateWord::kInserterMask) == ~uint64_t{0});
 
 }  // namespace detail
@@ -181,11 +167,11 @@ static_assert((OperationGateWord::kPhaseMask |
  * - Update: open → inserts-blocked → all-blocked → open.
  * - Compact: open → all-blocked → open.
  *
- * Layout: phase: 2 bits | active inserters: 31 bits | reader guard: 1 bit |
- * active readers: 30 bits. Reader admission uses fetch_add; inserter admission
- * and phase changes use CAS on the same word. An operation is therefore
- * unambiguously counted before a blocking transition or rejected after it.
- * Reader and inserter counts cannot exceed 2^30 - 1 and 2^31 - 1 respectively.
+ * Layout: phase: 2 bits | active inserters: 31 bits | active readers: 31 bits.
+ * Reader admission uses fetch_add; inserter admission and phase changes use
+ * CAS on the same word. An operation is therefore unambiguously counted before
+ * a blocking transition or rejected after it. Reader and inserter counts
+ * cannot exceed 2^31 - 1.
  *
  * Concurrency (new acquisitions; in-flight ops are not interrupted):
  *

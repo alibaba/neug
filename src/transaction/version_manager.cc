@@ -93,7 +93,7 @@ PublishedReadView VersionManager::acquire_read_view() {
     // this old-word check closes the race with a concurrent phase transition.
     const uint64_t previous = operation_gate_state_.fetch_add(
         OperationGateWord::kReaderUnit, std::memory_order_acquire);
-    const bool counter_exhausted = OperationGateWord::reader_field(previous) >=
+    const bool counter_exhausted = OperationGateWord::readers(previous) >=
                                    OperationGateWord::kMaxReaderCount;
     if (NEUG_LIKELY(OperationGateWord::phase(previous) !=
                         AdmissionState::kAllBlocked &&
@@ -102,8 +102,7 @@ PublishedReadView VersionManager::acquire_read_view() {
           published_read_view_.load(std::memory_order_acquire));
     }
 
-    // The guard bit keeps this rollback inside the reader field even when the
-    // count was already at its maximum.
+    // Roll back the speculative increment and retry with backoff.
     operation_gate_state_.fetch_sub(OperationGateWord::kReaderUnit,
                                     std::memory_order_release);
     if (NEUG_UNLIKELY(counter_exhausted)) {
@@ -120,14 +119,14 @@ PublishedReadView VersionManager::acquire_read_view() {
 void VersionManager::release_read_view() {
   const uint64_t observed =
       operation_gate_state_.load(std::memory_order_relaxed);
-  if (NEUG_UNLIKELY(OperationGateWord::reader_field(observed) == 0)) {
+  if (NEUG_UNLIKELY(OperationGateWord::readers(observed) == 0)) {
     THROW_INTERNAL_EXCEPTION("release_read_view without admission");
   }
-  // A valid caller owns one count. The overflow guard keeps both releases and
-  // overflow rollbacks inside the reader field.
+  // A valid caller owns one count, so valid concurrent releases cannot borrow
+  // from an adjacent field.
   const uint64_t previous = operation_gate_state_.fetch_sub(
       OperationGateWord::kReaderUnit, std::memory_order_release);
-  DCHECK_GT(OperationGateWord::reader_field(previous), 0U);
+  DCHECK_GT(OperationGateWord::readers(previous), 0U);
 }
 
 uint32_t VersionManager::acquire_insert_timestamp() {
@@ -252,7 +251,7 @@ void VersionManager::transition_admission_phase(AdmissionState expected_phase,
 
 void VersionManager::wait_for_readers_to_drain() {
   uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
-  if (OperationGateWord::reader_field(observed) == 0) {
+  if (OperationGateWord::readers(observed) == 0) {
     return;
   }
 
@@ -260,7 +259,7 @@ void VersionManager::wait_for_readers_to_drain() {
   do {
     wait();
     observed = operation_gate_state_.load(std::memory_order_acquire);
-  } while (OperationGateWord::reader_field(observed) != 0);
+  } while (OperationGateWord::readers(observed) != 0);
 }
 
 void VersionManager::wait_for_inserters_to_drain() {

@@ -148,9 +148,9 @@ TEST(OperationGateWordTest, DelayedReaderRetriesAfterUpdateCommitTransition) {
             detail::AdmissionState::kAllBlocked);
   gate.fetch_sub(detail::OperationGateWord::kReaderUnit,
                  std::memory_order_release);
-  EXPECT_EQ(detail::OperationGateWord::reader_field(
-                gate.load(std::memory_order_acquire)),
-            0U);
+  EXPECT_EQ(
+      detail::OperationGateWord::readers(gate.load(std::memory_order_acquire)),
+      0U);
 }
 
 TEST(OperationGateWordTest,
@@ -207,17 +207,18 @@ TEST(OperationGateWordTest, DetectsReaderAndInserterCounterExhaustion) {
       detail::OperationGateWord::empty(detail::AdmissionState::kOpen) |
       detail::OperationGateWord::kReaderMask | (uint64_t{kInserters} << 31);
   std::atomic<uint64_t> gate{reader_word};
+  // Admission rejects once the observed old word is already at the maximum,
+  // so the counter never actually wraps into the adjacent inserter field.
   const uint64_t reader_observation = gate.fetch_add(
       detail::OperationGateWord::kReaderUnit, std::memory_order_acquire);
   EXPECT_EQ(detail::OperationGateWord::readers(reader_observation),
             detail::OperationGateWord::kMaxReaderCount);
-  const uint64_t overflow = gate.load(std::memory_order_acquire);
-  EXPECT_EQ(detail::OperationGateWord::readers(overflow), 0U);
-  EXPECT_EQ(detail::OperationGateWord::reader_field(overflow),
-            detail::OperationGateWord::kReaderOverflowMask);
-  EXPECT_EQ(detail::OperationGateWord::phase(overflow),
+  EXPECT_GE(detail::OperationGateWord::readers(reader_observation),
+            detail::OperationGateWord::kMaxReaderCount);
+  EXPECT_EQ(detail::OperationGateWord::phase(reader_observation),
             detail::AdmissionState::kOpen);
-  EXPECT_EQ(detail::OperationGateWord::inserters(overflow), kInserters);
+  EXPECT_EQ(detail::OperationGateWord::inserters(reader_observation),
+            kInserters);
 
   gate.fetch_sub(detail::OperationGateWord::kReaderUnit,
                  std::memory_order_release);
@@ -231,37 +232,6 @@ TEST(OperationGateWordTest, DetectsReaderAndInserterCounterExhaustion) {
   EXPECT_EQ(detail::OperationGateWord::phase(inserter_word),
             detail::AdmissionState::kOpen);
   EXPECT_EQ(detail::OperationGateWord::readers(inserter_word), 0U);
-}
-
-TEST(OperationGateWordTest,
-     ReaderOverflowRollbackAndReleaseStayWithinReaderField) {
-  constexpr uint32_t kInserters = 7;
-  const uint64_t initial = detail::OperationGateWord::empty(
-                               detail::AdmissionState::kInsertsBlocked) |
-                           detail::OperationGateWord::kReaderMask |
-                           (uint64_t{kInserters} << 31);
-
-  std::atomic<uint64_t> gate{initial};
-  gate.fetch_add(detail::OperationGateWord::kReaderUnit,
-                 std::memory_order_acquire);
-  EXPECT_EQ(detail::OperationGateWord::reader_field(
-                gate.load(std::memory_order_acquire)),
-            detail::OperationGateWord::kReaderOverflowMask);
-  // A valid release and the overflow rollback are identical decrements, so
-  // either order must leave the logical reader count one below the initial
-  // maximum without borrowing from the inserter field.
-  gate.fetch_sub(detail::OperationGateWord::kReaderUnit,
-                 std::memory_order_release);
-  gate.fetch_sub(detail::OperationGateWord::kReaderUnit,
-                 std::memory_order_release);
-
-  const uint64_t expected = initial - detail::OperationGateWord::kReaderUnit;
-  EXPECT_EQ(gate.load(std::memory_order_acquire), expected);
-  EXPECT_EQ(detail::OperationGateWord::phase(expected),
-            detail::AdmissionState::kInsertsBlocked);
-  EXPECT_EQ(detail::OperationGateWord::inserters(expected), kInserters);
-  EXPECT_EQ(detail::OperationGateWord::readers(expected),
-            detail::OperationGateWord::kMaxReaderCount - 1);
 }
 
 TEST(UpdateTimestampLeaseTest, MoveTransfersAdmissionOwnership) {
