@@ -204,17 +204,6 @@ uint32_t GraphSnapshotStore::reserveSnapshotGeneration() {
 
 result<GraphSnapshotStore::PreparedSnapshot>
 GraphSnapshotStore::PrepareSnapshot(
-    const std::shared_ptr<PropertyGraph>& new_pg) {
-  if (!new_pg) {
-    return tl::unexpected(
-        Status(StatusCode::ERR_INVALID_ARGUMENT,
-               "Cannot prepare a null PropertyGraph snapshot"));
-  }
-  return PrepareSnapshot(new_pg, CurrentSchemaGeneration());
-}
-
-result<GraphSnapshotStore::PreparedSnapshot>
-GraphSnapshotStore::PrepareSnapshot(
     const std::shared_ptr<PropertyGraph>& new_pg, uint64_t schema_generation) {
   if (!new_pg) {
     return tl::unexpected(
@@ -277,11 +266,6 @@ void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
   // Release the old cur-pin; cleanup is immediate only when no reader holds
   // it.
   unpinSnapshotByIndex(old_slot_index);
-}
-
-uint64_t GraphSnapshotStore::CurrentSchemaGeneration() const {
-  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
-  return slots_[slot_index].schema_generation_.load(std::memory_order_acquire);
 }
 
 uint32_t GraphSnapshotStore::publishInPlaceMutation(

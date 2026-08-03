@@ -129,7 +129,13 @@ class TransactionReleaseOrderTest
   }
 
   void publish_replacement_snapshot() {
-    auto prepared_result = store_->PrepareSnapshot(initial_graph_->Clone());
+    uint64_t schema_generation = 0;
+    {
+      SnapshotGuard current(*store_);
+      schema_generation = current.get().schema_generation();
+    }
+    auto prepared_result =
+        store_->PrepareSnapshot(initial_graph_->Clone(), schema_generation);
     ASSERT_TRUE(prepared_result.has_value());
     auto prepared = std::move(prepared_result).value();
     std::move(prepared).Publish();

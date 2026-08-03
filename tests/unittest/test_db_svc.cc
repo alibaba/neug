@@ -45,6 +45,11 @@ namespace {
 
 constexpr auto kBthreadTestTimeout = std::chrono::seconds(10);
 
+uint64_t ReadSchemaGeneration(GraphSnapshotStore& store) {
+  SnapshotGuard current(store);
+  return current.get().schema_generation();
+}
+
 bool WaitForFlag(const std::atomic<bool>& flag) {
   const auto deadline = std::chrono::steady_clock::now() + kBthreadTestTimeout;
   while (!flag.load(std::memory_order_acquire) &&
@@ -565,7 +570,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
   const auto query_cache = db_->GetQueryCache();
   const auto initial_cache_epoch = query_cache->cache_epoch();
   const auto initial_generation =
-      db_->graph_snapshot_store().CurrentSchemaGeneration();
+      ReadSchemaGeneration(db_->graph_snapshot_store());
 
   auto insert =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
@@ -573,7 +578,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(insert) << insert.error().ToString();
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
-  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation);
 
   auto update =
@@ -581,7 +586,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           "MATCH (n:person {id: 10001}) SET n.age = 2;", "update", {}));
   ASSERT_TRUE(update) << update.error().ToString();
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
-  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation);
 
   auto ddl =
@@ -590,7 +595,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           {}));
   ASSERT_TRUE(ddl) << ddl.error().ToString();
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
-  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
 }
 
@@ -598,7 +603,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   const auto query_cache = db_->GetQueryCache();
   const auto initial_cache_epoch = query_cache->cache_epoch();
   const auto initial_generation =
-      db_->graph_snapshot_store().CurrentSchemaGeneration();
+      ReadSchemaGeneration(db_->graph_snapshot_store());
 
   auto connection = db_->Connect();
   auto explain = connection->Query(
@@ -606,7 +611,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
       "id INT64, PRIMARY KEY(id));",
       "schema");
   ASSERT_TRUE(explain) << explain.error().ToString();
-  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation);
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
 
@@ -614,7 +619,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
       "CREATE NODE TABLE direct_schema_probe(id INT64, PRIMARY KEY(id));",
       "schema");
   ASSERT_TRUE(create) << create.error().ToString();
-  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
 
@@ -623,7 +628,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
       "id INT64, PRIMARY KEY(id));",
       "schema");
   ASSERT_TRUE(no_op) << no_op.error().ToString();
-  EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
   connection->Close();
@@ -637,8 +642,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
   // Keep the old snapshot pinned while a DDL publishes a new schema.
   auto old_txn = slot->GetReadTransaction();
   ASSERT_FALSE(old_txn.schema().is_vertex_label_valid("cache_gen_probe"));
-  const auto old_generation =
-      db_->graph_snapshot_store().CurrentSchemaGeneration();
+  const auto old_generation = ReadSchemaGeneration(db_->graph_snapshot_store());
 
   auto ddl_slot = service.AcquireExecutionSlot();
   ASSERT_TRUE(ddl_slot);
@@ -663,8 +667,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
 
   auto new_txn = slot->GetReadTransaction();
   ASSERT_TRUE(new_txn.schema().is_vertex_label_valid("cache_gen_probe"));
-  const auto new_generation =
-      db_->graph_snapshot_store().CurrentSchemaGeneration();
+  const auto new_generation = ReadSchemaGeneration(db_->graph_snapshot_store());
   ASSERT_EQ(new_generation, old_generation + 1);
   auto new_plan = local_cache.Get(new_txn.statistic(), new_generation, query);
   ASSERT_TRUE(new_plan) << new_plan.error().ToString();

@@ -80,6 +80,7 @@ class UpdateTransaction {
    * @brief Construct an UpdateTransaction with a COW PropertyGraph.
    *
    * @param cow_graph PropertyGraph COW clone
+   * @param schema_generation Schema generation of the cloned snapshot
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param snapshot_store Reference to GraphSnapshotStore for commit
@@ -90,7 +91,8 @@ class UpdateTransaction {
    * creating the COW copy via Clone().
    * @since v0.1.0
    */
-  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
+  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
+                    uint64_t schema_generation, Allocator& alloc,
                     IWalWriter& logger, GraphSnapshotStore& snapshot_store,
                     execution::LocalQueryCache& cache,
                     UpdateTimestampLease timestamp_lease);

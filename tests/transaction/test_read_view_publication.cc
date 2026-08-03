@@ -36,9 +36,17 @@
 namespace neug {
 namespace {
 
+constexpr uint64_t kReplacementSchemaGeneration = 1;
+
+uint64_t ReadSchemaGeneration(GraphSnapshotStore& store) {
+  SnapshotGuard current(store);
+  return current.get().schema_generation();
+}
+
 result<uint32_t> PrepareAndPublishSnapshot(
-    GraphSnapshotStore& store, const std::shared_ptr<PropertyGraph>& snapshot) {
-  auto prepared_result = store.PrepareSnapshot(snapshot);
+    GraphSnapshotStore& store, const std::shared_ptr<PropertyGraph>& snapshot,
+    uint64_t schema_generation) {
+  auto prepared_result = store.PrepareSnapshot(snapshot, schema_generation);
   if (!prepared_result) {
     return tl::unexpected(prepared_result.error());
   }
@@ -161,7 +169,8 @@ class ReadViewPublicationTest : public ::testing::Test {
   uint32_t PublishReplacement(VersionManager& version_manager) {
     const uint32_t timestamp = version_manager.acquire_update_timestamp();
     auto replacement = MakeReplacement();
-    auto prepared_result = store_->PrepareSnapshot(replacement);
+    auto prepared_result =
+        store_->PrepareSnapshot(replacement, kReplacementSchemaGeneration);
     EXPECT_TRUE(prepared_result.has_value());
     auto prepared = std::move(prepared_result).value();
     version_manager.begin_update_commit(timestamp);
@@ -234,7 +243,7 @@ TEST_F(ReadViewPublicationTest,
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
-  const auto initial_schema_generation = store_->CurrentSchemaGeneration();
+  const auto initial_schema_generation = ReadSchemaGeneration(*store_);
   uint32_t initial_snapshot_generation = 0;
   {
     SnapshotGuard current(*store_);
@@ -264,7 +273,7 @@ TEST_F(ReadViewPublicationTest,
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
-  const auto initial_schema_generation = store_->CurrentSchemaGeneration();
+  const auto initial_schema_generation = ReadSchemaGeneration(*store_);
   uint32_t committed_timestamp = 0;
   {
     InPlaceWriteScope write_scope(version_manager, *store_);
@@ -281,7 +290,7 @@ TEST_F(ReadViewPublicationTest,
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
-  const auto initial_schema_generation = store_->CurrentSchemaGeneration();
+  const auto initial_schema_generation = ReadSchemaGeneration(*store_);
   uint32_t committed_timestamp = 0;
   EXPECT_THROW(
       [&]() {
@@ -303,7 +312,8 @@ TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
   bool publish_succeeded = false;
   version_manager.set_acquire_hook([&](int acquire_count) {
     if (acquire_count == 1) {
-      auto published = PrepareAndPublishSnapshot(*store_, replacement);
+      auto published = PrepareAndPublishSnapshot(*store_, replacement,
+                                                 kReplacementSchemaGeneration);
       publish_succeeded = published.has_value();
       if (published) {
         version_manager.publish({2, published.value()});
@@ -333,7 +343,8 @@ TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
   constexpr int mismatch_count = kRuntimeWaitSpinIterations + 1;
   version_manager.set_acquire_hook([&](int acquire_count) {
     if (acquire_count <= mismatch_count) {
-      auto published = PrepareAndPublishSnapshot(*store_, replacement);
+      auto published = PrepareAndPublishSnapshot(*store_, replacement,
+                                                 kReplacementSchemaGeneration);
       publish_succeeded &= published.has_value();
       if (published) {
         version_manager.publish(

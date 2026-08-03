@@ -320,6 +320,7 @@ static Status deleteVertexIndexData(
 // =============================================================================
 
 UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
+                                     uint64_t schema_generation,
                                      Allocator& alloc, IWalWriter& logger,
                                      GraphSnapshotStore& snapshot_store,
                                      execution::LocalQueryCache& cache,
@@ -332,7 +333,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       snapshot_store_(snapshot_store),
       pipeline_cache_(cache),
       timestamp_lease_(std::move(timestamp_lease)),
-      schema_generation_(snapshot_store.CurrentSchemaGeneration()),
+      schema_generation_(schema_generation),
       ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }

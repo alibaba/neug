@@ -39,8 +39,9 @@ class InPlaceWriteScope;
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
- * - Update: CurrentSnapshot().Clone() -> mutate COW copy ->
- * PrepareSnapshot() -> PreparedSnapshot::Publish().
+ * - Update: pin current slot -> clone its graph and capture its schema
+ *   generation -> mutate COW copy -> PrepareSnapshot() ->
+ *   PreparedSnapshot::Publish().
  *
  * Concurrency:
  * - Lock-free PinCurrentSnapshot via optimistic pin + verify loop.
@@ -67,6 +68,8 @@ class GraphSnapshotStore {
 
     /// Read-only view accessor.
     const GraphView& view() const { return view_; }
+    /// Read-only PropertyGraph accessor.
+    const PropertyGraph& graph() const { return *storage_; }
     /// Mutable view accessor (for InsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
     /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
@@ -134,24 +137,15 @@ class GraphSnapshotStore {
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
   void UnpinSnapshot(const SnapshotSlot& slot) noexcept;
 
-  /// Current PropertyGraph (for UpdateTransaction to Clone).
-  /// No lock — VersionManager guarantees exclusive update access
-  /// (admission_state_==kInsertsBlocked, all inserters drained).
+  /// Current PropertyGraph. The caller must keep the current slot stable
+  /// through writer admission while using the returned reference.
   const PropertyGraph& CurrentSnapshot() const;
 
-  /// Reserve a slot/generation and fully build a pending snapshot publication.
-  /// The new snapshot inherits the current schema generation.
-  /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
-  result<PreparedSnapshot> PrepareSnapshot(
-      const std::shared_ptr<PropertyGraph>& new_pg);
-
   /// Reserve and build a pending snapshot tagged with @p schema_generation.
+  /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
   /// Readers retain this tag for the lifetime of their pinned slot.
   result<PreparedSnapshot> PrepareSnapshot(
       const std::shared_ptr<PropertyGraph>& new_pg, uint64_t schema_generation);
-
-  /// Call only while the current slot is stable under writer admission.
-  uint64_t CurrentSchemaGeneration() const;
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }

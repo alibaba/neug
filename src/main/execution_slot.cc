@@ -157,9 +157,11 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
 
 UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
   UpdateTimestampLease timestamp_lease(version_manager_);
-  auto cow_graph = snapshot_store_.CurrentSnapshot().Clone();
-  return UpdateTransaction(std::move(cow_graph), alloc_, *wal_writer_,
-                           snapshot_store_, pipeline_cache_,
+  SnapshotGuard current_snapshot(snapshot_store_);
+  const auto schema_generation = current_snapshot.get().schema_generation();
+  auto cow_graph = current_snapshot.get().graph().Clone();
+  return UpdateTransaction(std::move(cow_graph), schema_generation, alloc_,
+                           *wal_writer_, snapshot_store_, pipeline_cache_,
                            std::move(timestamp_lease));
 }
 
@@ -296,24 +298,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageAPUpdateInterface storage(
           *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
           alloc_, [&write_scope]() { write_scope.MarkSchemaChanged(); });
-      try {
-        status = execute_on_storage(GraphStats(slot.view()),
-                                    slot.schema_generation(), storage);
-      } catch (...) {
-        if (write_scope.HasSchemaChanged()) {
-          try {
-            pipeline_cache_.clearGlobalCache();
-          } catch (const std::exception& e) {
-            LOG(ERROR) << "Failed to clear query cache after direct schema "
-                          "mutation raised an exception: "
-                       << e.what();
-          } catch (...) {
-            LOG(ERROR) << "Failed to clear query cache after direct schema "
-                          "mutation raised an exception";
-          }
-        }
-        throw;
-      }
+      status = execute_on_storage(GraphStats(slot.view()),
+                                  slot.schema_generation(), storage);
       if (prepared_query &&
           shouldClearQueryCacheAfterDirectExecution(
               *prepared_query, status, write_scope.HasSchemaChanged())) {
