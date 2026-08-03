@@ -208,19 +208,19 @@ size_t VecColumn::size() const { return size_; }
 
 void VecColumn::resize(size_t new_size) {
   if (new_size <= size_) {
-    size_ = new_size;
     return;
   }
   if (!ckp_) {
     THROW_RUNTIME_ERROR(
         "VecColumn::resize requires an initialized checkpoint context");
   }
+  const auto bytes_per_vector =
+      array_size() * ElementSize(ArrayType::GetChildType(array_type_).id());
+  const auto old_logical_bytes = size_ * bytes_per_vector;
   auto replacement = ckp_->OpenFile(buffer_->GetPath(), level_);
-  replacement->Resize(new_size * array_size() *
-                      ElementSize(ArrayType::GetChildType(array_type_).id()));
-  if (buffer_->GetDataSize() != 0) {
-    std::memcpy(replacement->GetData(), buffer_->GetData(),
-                buffer_->GetDataSize());
+  replacement->Resize(new_size * bytes_per_vector);
+  if (old_logical_bytes != 0) {
+    std::memcpy(replacement->GetData(), buffer_->GetData(), old_logical_bytes);
   }
   buffer_ = std::move(replacement);
   size_ = new_size;
@@ -228,11 +228,11 @@ void VecColumn::resize(size_t new_size) {
 
 void VecColumn::resize(size_t new_size, const Value& default_value) {
   validateValue(default_value);
-  auto old_size = size_;
-  resize(new_size);
-  if (new_size <= old_size) {
+  if (new_size <= size_) {
     return;
   }
+  auto old_size = size_;
+  resize(new_size);
   switch (ArrayType::GetChildType(array_type_).id()) {
 #define TYPE_DISPATCHER(enum_val, type)                                    \
   case DataTypeId::enum_val:                                               \

@@ -419,6 +419,11 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
                exception::StorageException);
   EXPECT_EQ(column.get_offset_accessor()->GetIndexIDByVID(2), INVALID_INDEX_ID);
 
+  const void* buffer_before_shrink = column.get_buffer_ptr();
+  column.resize(1);
+  EXPECT_EQ(column.size(), 2);
+  EXPECT_EQ(column.get_buffer_ptr(), buffer_before_shrink);
+
   auto clone_module = column.Clone();
   auto* clone = dynamic_cast<VecColumn*>(clone_module.get());
   ASSERT_NE(clone, nullptr);
