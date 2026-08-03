@@ -80,6 +80,15 @@ class MultiLabelIndex {
           (vs.size() > 0) ? (static_cast<size_t>(max_vid) + 1) : 0;
       total_array_size += label_local_sizes_[li];
     }
+    // Fail fast: global IDs are stored as uint32_t, so the total index
+    // space must fit. (Can be exceeded with very sparse vertex IDs.)
+    if (total_array_size > UINT32_MAX) {
+      THROW_RUNTIME_ERROR(
+          "MultiLabelIndex: total global-ID space (" +
+          std::to_string(total_array_size) +
+          ") exceeds uint32_t capacity; vertex IDs are too sparse/large. "
+          "Consider projecting a smaller subgraph.");
+    }
     array_size_ = total_array_size;
 
     // --- Build global ID mappings ---
@@ -344,6 +353,15 @@ class MultiLabelIndex {
   CsrView simple_in_view_;
   std::vector<CsrView> out_views_;
   std::vector<CsrView> in_views_;
+
+  // Weight accessors
+  EdgeDataAccessor weight_accessor_;
+  std::vector<EdgeDataAccessor> triplet_weight_accessors_;
+  std::vector<bool> triplet_has_weight_;
+};
+
+}  // namespace gds
+}  // namespace neug
 
   // Weight accessors
   EdgeDataAccessor weight_accessor_;
