@@ -385,6 +385,11 @@ void VecColumn::validateValue(const Value& value) const {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn value type does not match vector type");
   }
+  const auto& children = ArrayValue::GetChildren(value);
+  if (children.size() != array_size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn value element count does not match vector dimension");
+  }
 }
 
 NEUG_REGISTER_MODULE(VecColumn);
