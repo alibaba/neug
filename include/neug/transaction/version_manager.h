@@ -54,9 +54,8 @@ inline PublishedReadView UnpackPublishedReadView(uint64_t packed) {
  * a timestamp and to coordinate exclusive/shared access with other
  * transaction types.
  *
- * The current implementation is VersionManager, which uses an atomic
- * admission state machine plus atomic counters for concurrency
- * control, replacing the earlier rw_mutex_-based design.
+ * The current implementation is VersionManager, which uses one packed atomic
+ * for the admission phase and active-operation counters.
  *
  * @see VersionManager for the concrete implementation and its
  *      concurrency matrix.
@@ -99,12 +98,80 @@ class IVersionManager {
   virtual RuntimeWaitFn runtime_wait_impl() const noexcept = 0;
 };
 
+namespace detail {
+
+enum class AdmissionState : uint8_t { kOpen, kInsertsBlocked, kAllBlocked };
+
+// [63:62] phase | [61:31] inserters | [30:0] readers.
+struct OperationGateWord {
+  static constexpr uint32_t kMaxReaderCount = 0x7fffffffu;
+  static constexpr uint32_t kMaxInserterCount = 0x7fffffffu;
+  static constexpr uint64_t kReaderMask = kMaxReaderCount;
+  static constexpr uint64_t kInserterMask = uint64_t{kMaxInserterCount} << 31;
+  static constexpr uint64_t kPhaseMask = uint64_t{3} << 62;
+  static constexpr uint64_t kReaderUnit = 1;
+  static constexpr uint64_t kInserterUnit = uint64_t{1} << 31;
+
+  [[nodiscard]] static constexpr uint64_t empty(AdmissionState phase) noexcept {
+    return static_cast<uint64_t>(phase) << 62;
+  }
+
+  [[nodiscard]] static constexpr AdmissionState phase(uint64_t word) noexcept {
+    return static_cast<AdmissionState>(word >> 62);
+  }
+
+  [[nodiscard]] static constexpr uint32_t readers(uint64_t word) noexcept {
+    return static_cast<uint32_t>(word & kReaderMask);
+  }
+
+  [[nodiscard]] static constexpr uint32_t inserters(uint64_t word) noexcept {
+    return static_cast<uint32_t>((word >> 31) & kMaxInserterCount);
+  }
+
+  [[nodiscard]] static constexpr uint64_t with_phase(
+      uint64_t word, AdmissionState desired_phase) noexcept {
+    return (word & ~kPhaseMask) | (static_cast<uint64_t>(desired_phase) << 62);
+  }
+
+  // Callers validate the inserter counter before changing it.
+  [[nodiscard]] static constexpr uint64_t increment_inserter(
+      uint64_t word) noexcept {
+    return word + kInserterUnit;
+  }
+
+  [[nodiscard]] static bool try_change_phase(
+      std::atomic<uint64_t>& gate, uint64_t& observed,
+      AdmissionState desired_phase) noexcept {
+    const uint64_t desired = with_phase(observed, desired_phase);
+    return gate.compare_exchange_weak(observed, desired,
+                                      std::memory_order_acq_rel,
+                                      std::memory_order_relaxed);
+  }
+};
+
+static_assert((OperationGateWord::kPhaseMask &
+               OperationGateWord::kReaderMask) == 0);
+static_assert((OperationGateWord::kPhaseMask &
+               OperationGateWord::kInserterMask) == 0);
+static_assert((OperationGateWord::kReaderMask &
+               OperationGateWord::kInserterMask) == 0);
+static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
+               OperationGateWord::kInserterMask) == ~uint64_t{0});
+
+}  // namespace detail
+
 /**
  * @brief VersionManager — concurrency control via atomic state machine.
  *
- * admission_state_ transitions:
+ * The packed operation gate transitions:
  * - Update: open → inserts-blocked → all-blocked → open.
  * - Compact: open → all-blocked → open.
+ *
+ * Layout: phase: 2 bits | active inserters: 31 bits | active readers: 31 bits.
+ * Reader admission uses fetch_add; inserter admission and phase changes use
+ * CAS on the same word. An operation is therefore unambiguously counted before
+ * a blocking transition or rejected after it. Reader and inserter counts
+ * cannot exceed 2^31 - 1.
  *
  * Concurrency (new acquisitions; in-flight ops are not interrupted):
  *
@@ -122,15 +189,15 @@ class IVersionManager {
  *   Storage compaction may reset per-record visibility timestamps to zero, but
  *   transaction/WAL timestamps must never be reset within a WAL timeline.
  * - read_ts_: highest timestamp fully committed and visible to all readers.
- * - active_readers_/active_inserters_: atomic counters for in-flight ops.
- * - admission_state_: controls whether new readers and inserters may enter.
+ * - operation_gate_state_: atomically combines admission phase and counters.
  *   Update execution blocks inserters; update commit and compaction block
  *   both readers and inserters.
- * - acquire_read_view uses a double-check pattern (pre-check + increment +
- *   post-check) to prevent ABA races with begin_update_commit.
- * - begin_update_commit blocks new readers before snapshot publication.
- *   Readers already between the pre-check and post-check either roll back
- *   after observing the blocked state or complete as an existing reader.
+ * - acquire_read_view increments the reader count with fetch_add, validates the
+ *   phase and overflow state from the returned old word, then captures the
+ *   atomically published timestamp/generation pair.
+ * - begin_update_commit blocks new readers through the same control word.
+ *   A reader is therefore either counted before the transition or rejected
+ *   after it and retried.
  * - SpinLock lock_: serializes read_ts advancement (check-and-advance
  *   in complete_write_timestamp).
  * - TimestampWindow ts_window_: tracks completed timestamps for read_ts
@@ -160,17 +227,17 @@ class VersionManager : public IVersionManager {
   void revert_compact_timestamp(uint32_t ts) override;
 
  private:
-  friend struct VersionManagerTestPeer;
-
-  enum class AdmissionState { kOpen, kInsertsBlocked, kAllBlocked };
+  using AdmissionState = detail::AdmissionState;
+  using OperationGateWord = detail::OperationGateWord;
 
   int thread_num_;
-  PublishedReadView acquire_read_view_slow();
-  uint32_t acquire_insert_timestamp_slow();
   // These helpers may suspend the logical task. Callers must not hold an
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
-  void enter_exclusive_state(AdmissionState desired_state);
-  void wait_until_zero(const std::atomic<int>& counter);
+  void enter_admission_phase(AdmissionState desired_phase);
+  void transition_admission_phase(AdmissionState expected_phase,
+                                  AdmissionState desired_phase);
+  void wait_for_readers_to_drain();
+  void wait_for_inserters_to_drain();
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
   RuntimeWaitFn runtime_wait_impl() const noexcept override;
@@ -180,10 +247,7 @@ class VersionManager : public IVersionManager {
   std::atomic<uint32_t> installed_snapshot_generation_{0};
   std::atomic<uint64_t> published_read_view_{PackPublishedReadView({1, 0})};
 
-  std::atomic<int> active_readers_{0};
-  std::atomic<int> active_inserters_{0};
-
-  std::atomic<AdmissionState> admission_state_{AdmissionState::kOpen};
+  std::atomic<uint64_t> operation_gate_state_{0};
 
   TimestampWindow ts_window_;
 

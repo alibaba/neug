@@ -60,9 +60,9 @@ class Schema;
  * is a correctness bug, not a performance optimization.
  *
  * **Concurrency contract** (VersionManager state machine):
- * - Insert requires admission_state_==kOpen; multiple concurrent inserts are
- *   allowed (active_inserters_ counter). Update/compact transitions the state
- *   away from kOpen, blocking new inserts.
+ * - Insert requires the packed operation gate phase to be kOpen; multiple
+ *   concurrent inserts are tracked by its active-inserter field.
+ *   Update/compact transitions the phase away from kOpen, blocking new inserts.
  * - Insert does NOT block readers, and readers do NOT block insert.
  * - The pinned slot's PropertyGraph is shared with all readers on that slot.
  *

@@ -83,7 +83,7 @@ class UpdateTransaction {
    * @param logger Reference to WAL writer
    * @param snapshot_store Reference to GraphSnapshotStore for commit
    * @param cache Reference to query cache
-   * @param timestamp_lease Owner of the transaction timestamp
+   * @param timestamp_lease Owned update timestamp and admission lifecycle
    *
    * @note The caller is responsible for acquiring the timestamp lease before
    * creating the COW copy via Clone().
