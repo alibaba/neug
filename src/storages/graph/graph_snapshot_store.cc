@@ -185,6 +185,13 @@ const PropertyGraph& GraphSnapshotStore::CurrentSnapshot() const {
   return *slots_[slot_index].storage_;
 }
 
+std::pair<std::shared_ptr<PropertyGraph>, uint64_t>
+GraphSnapshotStore::CloneCurrentForUpdate() {
+  SnapshotGuard current(*this);
+  const auto& slot = current.get();
+  return {slot.storage_->Clone(), slot.schema_generation()};
+}
+
 uint32_t GraphSnapshotStore::reserveSnapshotGeneration() {
   uint32_t current =
       last_reserved_snapshot_generation_.load(std::memory_order_relaxed);

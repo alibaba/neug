@@ -19,6 +19,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/graph/graph_view.h"
@@ -27,6 +28,7 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class InPlaceWriteScope;
 
 /**
@@ -39,8 +41,7 @@ class InPlaceWriteScope;
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
- * - Update: pin current slot -> clone its graph and capture its schema
- *   generation -> mutate COW copy -> PrepareSnapshot() ->
+ * - Update: CloneCurrentForUpdate() -> mutate COW copy -> PrepareSnapshot() ->
  *   PreparedSnapshot::Publish().
  *
  * Concurrency:
@@ -68,8 +69,6 @@ class GraphSnapshotStore {
 
     /// Read-only view accessor.
     const GraphView& view() const { return view_; }
-    /// Read-only PropertyGraph accessor.
-    const PropertyGraph& graph() const { return *storage_; }
     /// Mutable view accessor (for InsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
     /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
@@ -156,6 +155,11 @@ class GraphSnapshotStore {
     std::lock_guard<std::mutex> lock(free_list_mutex_);
     return !free_list_.empty();
   }
+
+  /// Clone the pinned current graph and capture its schema generation for an
+  /// update transaction. The caller must hold update admission to exclude
+  /// concurrent in-place writers.
+  std::pair<std::shared_ptr<PropertyGraph>, uint64_t> CloneCurrentForUpdate();
 
  private:
   friend class InPlaceWriteScope;

@@ -14,8 +14,9 @@
  */
 #pragma once
 
+#include <atomic>
 #include <cstdint>
-#include <functional>
+#include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <string>
@@ -50,27 +51,6 @@ struct CacheValue {
         explain_mode(explain_mode) {}
 };
 
-// Clearing a query-only cache cannot prevent an old-snapshot reader from
-// repopulating it after a schema change. The pinned snapshot's schema
-// generation is therefore part of the correctness key.
-struct CacheKey {
-  uint64_t schema_generation;
-  std::string query;
-
-  bool operator==(const CacheKey& other) const {
-    return schema_generation == other.schema_generation && query == other.query;
-  }
-};
-
-struct CacheKeyHash {
-  size_t operator()(const CacheKey& key) const {
-    size_t hash = std::hash<std::string>{}(key.query);
-    hash ^= std::hash<uint64_t>{}(key.schema_generation) + 0x9e3779b9 +
-            (hash << 6) + (hash >> 2);
-    return hash;
-  }
-};
-
 /**
  * @brief A global query cache to store compiled physical plans for queries for
  * a NeugDB instance. It can be shared across multiple ExecutionSlot instances,
@@ -93,12 +73,14 @@ class GlobalQueryCache {
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           uint64_t schema_generation,
                                           const std::string& query) {
-    const CacheKey key{schema_generation, query};
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
-      auto iter = cache_.find(key);
-      if (iter != cache_.end()) {
-        return iter->second;
+      auto generation_iter = cache_.find(schema_generation);
+      if (generation_iter != cache_.end()) {
+        auto query_iter = generation_iter->second.find(query);
+        if (query_iter != generation_iter->second.end()) {
+          return query_iter->second;
+        }
       }
     }
     const auto& schema = stats.schema();
@@ -121,15 +103,17 @@ class GlobalQueryCache {
     auto explain_mode = plan_result.first.explain_mode();
     {
       std::unique_lock<std::shared_mutex> write_lock(mutex_);
-      auto iter = cache_.find(key);
-      if (iter != cache_.end()) {
+      auto& generation_cache = cache_[schema_generation];
+      auto iter = generation_cache.find(query);
+      if (iter != generation_cache.end()) {
         return iter->second;
       }
-      cache_.emplace(
-          key, std::make_shared<CacheValue>(
-                   std::move(pipeline_result), std::move(params_type), sch,
-                   plan_result.first.flag(), explain_mode));
-      return cache_.at(key);
+      return generation_cache
+          .emplace(query,
+                   std::make_shared<CacheValue>(
+                       std::move(pipeline_result), std::move(params_type), sch,
+                       plan_result.first.flag(), explain_mode))
+          .first->second;
     }
   }
 
@@ -140,11 +124,16 @@ class GlobalQueryCache {
   }
 
  private:
+  using GenerationCache =
+      std::unordered_map<std::string, std::shared_ptr<CacheValue>>;
+
   GlobalQueryCache() : cache_epoch_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;
   std::atomic<uint64_t> cache_epoch_;
-  std::unordered_map<CacheKey, std::shared_ptr<CacheValue>, CacheKeyHash>
-      cache_;
+  // Clearing a query-only cache cannot prevent an old-snapshot reader from
+  // repopulating it after a schema change. Partition plans by the pinned
+  // snapshot's schema generation so an old plan remains isolated.
+  std::unordered_map<uint64_t, GenerationCache> cache_;
   mutable std::shared_mutex mutex_;
 };
 

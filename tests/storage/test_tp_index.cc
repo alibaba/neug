@@ -126,9 +126,8 @@ class TPIndexTest : public ::testing::Test {
 
   UpdateTransaction NewUpdateTransaction() {
     UpdateTimestampLease timestamp_lease(version_manager_);
-    SnapshotGuard current_snapshot(*snapshot_store_);
-    const auto schema_generation = current_snapshot.get().schema_generation();
-    auto cow_graph = current_snapshot.get().graph().Clone();
+    auto [cow_graph, schema_generation] =
+        snapshot_store_->CloneCurrentForUpdate();
     return UpdateTransaction(std::move(cow_graph), schema_generation,
                              allocator_, wal_writer_, *snapshot_store_,
                              *local_cache_, std::move(timestamp_lease));
