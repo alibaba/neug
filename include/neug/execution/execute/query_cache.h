@@ -82,11 +82,13 @@ struct CacheKeyHash {
 class GlobalQueryCache {
  public:
   GlobalQueryCache(std::shared_ptr<IGraphPlanner> planner)
-      : planner_(planner), version_(0) {
+      : planner_(planner), cache_epoch_(0) {
     cache_.clear();
   }
 
-  uint64_t version() const { return version_.load(); }
+  // Monotonic epoch for cache-wide invalidation, independent of schema
+  // generation.
+  uint64_t cache_epoch() const { return cache_epoch_.load(); }
 
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           uint64_t schema_generation,
@@ -133,14 +135,14 @@ class GlobalQueryCache {
 
   void clear() {
     std::unique_lock<std::shared_mutex> write_lock(mutex_);
-    version_.fetch_add(1);
+    cache_epoch_.fetch_add(1);
     cache_.clear();
   }
 
  private:
-  GlobalQueryCache() : version_(0) {}
+  GlobalQueryCache() : cache_epoch_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;
-  std::atomic<uint64_t> version_;
+  std::atomic<uint64_t> cache_epoch_;
   std::unordered_map<CacheKey, std::shared_ptr<CacheValue>, CacheKeyHash>
       cache_;
   mutable std::shared_mutex mutex_;
@@ -152,15 +154,16 @@ class GlobalQueryCache {
 class LocalQueryCache {
  public:
   LocalQueryCache(std::shared_ptr<GlobalQueryCache> global_cache)
-      : global_cache_(global_cache), version_(global_cache_->version()) {}
+      : global_cache_(global_cache),
+        observed_cache_epoch_(global_cache_->cache_epoch()) {}
   ~LocalQueryCache() = default;
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           uint64_t schema_generation,
                                           const std::string& query) {
-    const auto global_version = global_cache_->version();
-    if (version_ != global_version) {
+    const auto global_cache_epoch = global_cache_->cache_epoch();
+    if (observed_cache_epoch_ != global_cache_epoch) {
       cache_.clear();
-      version_ = global_version;
+      observed_cache_epoch_ = global_cache_epoch;
       schema_generation_.reset();
     }
     // An ExecutionSlot is leased exclusively, so its local cache only needs
@@ -183,14 +186,14 @@ class LocalQueryCache {
 
   void clearGlobalCache() {
     global_cache_->clear();
-    version_ = global_cache_->version();
+    observed_cache_epoch_ = global_cache_->cache_epoch();
     cache_.clear();
     schema_generation_.reset();
   }
 
  private:
   std::shared_ptr<GlobalQueryCache> global_cache_;
-  uint64_t version_;
+  uint64_t observed_cache_epoch_;
   std::optional<uint64_t> schema_generation_;
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
 };

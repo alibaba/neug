@@ -92,7 +92,7 @@ bool shouldClearQueryCacheAfterDirectExecution(
     return false;
   }
   const auto& flags = prepared_query.flags;
-  return flags.batch() || flags.insert() || flags.update();
+  return flags.batch() || flags.update();
 }
 
 Status executePreparedQuery(execution::CacheValue& prepared_query,

@@ -563,7 +563,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
   ASSERT_TRUE(slot);
 
   const auto query_cache = db_->GetQueryCache();
-  const auto initial_version = query_cache->version();
+  const auto initial_cache_epoch = query_cache->cache_epoch();
   const auto initial_generation =
       db_->graph_snapshot_store().CurrentSchemaGeneration();
 
@@ -572,7 +572,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           "CREATE (:person {id: 10001, name: 'cache-test', age: 1});", "insert",
           {}));
   ASSERT_TRUE(insert) << insert.error().ToString();
-  EXPECT_EQ(query_cache->version(), initial_version);
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
   EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation);
 
@@ -580,7 +580,7 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
           "MATCH (n:person {id: 10001}) SET n.age = 2;", "update", {}));
   ASSERT_TRUE(update) << update.error().ToString();
-  EXPECT_EQ(query_cache->version(), initial_version);
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
   EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation);
 
@@ -589,14 +589,14 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           "CREATE NODE TABLE cache_probe(id INT64, PRIMARY KEY(id));", "schema",
           {}));
   ASSERT_TRUE(ddl) << ddl.error().ToString();
-  EXPECT_EQ(query_cache->version(), initial_version + 1);
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
   EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation + 1);
 }
 
 TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   const auto query_cache = db_->GetQueryCache();
-  const auto initial_version = query_cache->version();
+  const auto initial_cache_epoch = query_cache->cache_epoch();
   const auto initial_generation =
       db_->graph_snapshot_store().CurrentSchemaGeneration();
 
@@ -608,7 +608,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(explain) << explain.error().ToString();
   EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation);
-  EXPECT_EQ(query_cache->version(), initial_version);
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
 
   auto create = connection->Query(
       "CREATE NODE TABLE direct_schema_probe(id INT64, PRIMARY KEY(id));",
@@ -616,7 +616,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(create) << create.error().ToString();
   EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation + 1);
-  EXPECT_EQ(query_cache->version(), initial_version + 1);
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
 
   auto no_op = connection->Query(
       "CREATE NODE TABLE IF NOT EXISTS direct_schema_probe("
@@ -625,7 +625,7 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(no_op) << no_op.error().ToString();
   EXPECT_EQ(db_->graph_snapshot_store().CurrentSchemaGeneration(),
             initial_generation + 1);
-  EXPECT_EQ(query_cache->version(), initial_version + 1);
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
   connection->Close();
 }
 
