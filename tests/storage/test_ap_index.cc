@@ -406,7 +406,7 @@ TEST_F(APIndexTest, VecIndexCreateSearchUpdateAndDrop) {
   auto* index = dynamic_cast<VecIndex*>(created.value());
   ASSERT_NE(index, nullptr);
 
-  const auto* vec = dynamic_cast<const VecColumn<float>*>(
+  const auto* vec = dynamic_cast<const VecColumn*>(
       vertex_table.GetPropertyColumnBase("embedding"));
   ASSERT_NE(vec, nullptr);
   EXPECT_EQ(vec->get_buffer_ptr(), original_buffer);

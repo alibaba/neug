@@ -1,8 +1,11 @@
 #include "neug/utils/property/vec_column.h"
 
 #include <cstring>
+#include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <yaml-cpp/yaml.h>
 
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
@@ -13,6 +16,7 @@ namespace neug {
 namespace {
 
 constexpr const char* kAccessorRef = "offset_accessor";
+constexpr const char* kArrayType = "array_type";
 constexpr const char* kDefaultValue = "default_value";
 
 std::string SerializeValue(const Value& value) {
@@ -29,66 +33,141 @@ Value DeserializeValue(const std::string& bytes) {
   return value;
 }
 
-}  // namespace
+template <typename T>
+constexpr bool IsPod() {
+  return std::is_pod_v<T>;
+}
+
+bool IsPodType(DataTypeId type) {
+  switch (type) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return IsPod<type>();
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    return false;
+  }
+}
+
+size_t ElementSize(DataTypeId type) {
+  switch (type) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return sizeof(type);
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn requires an array with a POD child type");
+  }
+}
 
 template <typename T>
-VecColumn<T>::VecColumn()
+void FillBuffer(void* buffer, size_t old_size, size_t new_size,
+                size_t array_size, const Value& value) {
+  auto* data = static_cast<T*>(buffer);
+  const auto& children = ArrayValue::GetChildren(value);
+  for (size_t row = old_size; row < new_size; ++row) {
+    for (size_t col = 0; col < array_size; ++col) {
+      data[row * array_size + col] = children[col].GetValue<T>();
+    }
+  }
+}
+
+template <typename T>
+void SetBufferValue(void* buffer, size_t offset, size_t array_size,
+                    const Value& value) {
+  auto* data = static_cast<T*>(buffer) + offset * array_size;
+  const auto& children = ArrayValue::GetChildren(value);
+  for (size_t i = 0; i < array_size; ++i) {
+    data[i] = children[i].GetValue<T>();
+  }
+}
+
+template <typename T>
+Value GetBufferValue(const void* buffer, size_t offset, size_t array_size,
+                     const DataType& array_type) {
+  const auto* data = static_cast<const T*>(buffer) + offset * array_size;
+  std::vector<Value> values;
+  values.reserve(array_size);
+  for (size_t i = 0; i < array_size; ++i) {
+    values.emplace_back(Value::CreateValue<T>(data[i]));
+  }
+  return Value::ARRAY(array_type, std::move(values));
+}
+
+template <typename T>
+Value ReadValue(OutArchive& arc, const DataType& array_type) {
+  const auto array_size = ArrayType::GetNumElements(array_type);
+  std::vector<Value> values;
+  values.reserve(array_size);
+  for (size_t i = 0; i < array_size; ++i) {
+    T value;
+    arc >> value;
+    values.emplace_back(Value::CreateValue<T>(value));
+  }
+  return Value::ARRAY(array_type, std::move(values));
+}
+
+}  // namespace
+
+VecColumn::VecColumn()
     : offset_accessor_(std::make_unique<DefaultIndexIDAccessor>()),
       buffer_(nullptr),
       ckp_(nullptr),
       level_(MemoryLevel::kInMemory),
-      array_size_(0),
+      array_type_(DataType::SQLNULL),
       size_(0),
       default_value_(DataType::SQLNULL) {}
 
-template <typename T>
-VecColumn<T>::VecColumn(std::shared_ptr<IDataContainer> buffer,
-                        std::unique_ptr<IndexIDAccessor> offset_accessor,
-                        uint64_t array_size, size_t size,
-                        const Value& default_value, Checkpoint& ckp,
-                        MemoryLevel level)
+VecColumn::VecColumn(std::shared_ptr<IDataContainer> buffer,
+                     std::unique_ptr<IndexIDAccessor> offset_accessor,
+                     const DataType& array_type, size_t size,
+                     const Value& default_value, Checkpoint& ckp,
+                     MemoryLevel level)
     : offset_accessor_(std::move(offset_accessor)),
       buffer_(std::move(buffer)),
       ckp_(&ckp),
       level_(level),
-      array_size_(array_size),
+      array_type_(array_type),
       size_(size),
       default_value_(default_value) {
   validateState();
 }
 
-template <typename T>
-void VecColumn<T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
-                        MemoryLevel level) {
+void VecColumn::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+                     MemoryLevel level) {
   openInternal(ckp, &ckp.GetMeta(), desc, level);
 }
 
-template <typename T>
-void VecColumn<T>::Open(Checkpoint& ckp, const CheckpointManifest& manifest,
-                        const ModuleDescriptor& desc, MemoryLevel level) {
+void VecColumn::Open(Checkpoint& ckp, const CheckpointManifest& manifest,
+                     const ModuleDescriptor& desc, MemoryLevel level) {
   openInternal(ckp, &manifest, desc, level);
 }
 
-template <typename T>
-void VecColumn<T>::openInternal(Checkpoint& ckp,
-                                const CheckpointManifest* manifest,
-                                const ModuleDescriptor& desc,
-                                MemoryLevel level) {
+void VecColumn::openInternal(Checkpoint& ckp,
+                             const CheckpointManifest* manifest,
+                             const ModuleDescriptor& desc, MemoryLevel level) {
   ckp_ = &ckp;
   level_ = level;
-  array_size_ = std::stoull(desc.get("array_size").value_or("0"));
+  auto array_type_yaml = desc.get(kArrayType);
+  if (!array_type_yaml.has_value()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn::Open: missing array_type in module descriptor");
+  }
+  auto node = YAML::Load(*array_type_yaml);
+  if (!YAML::convert<DataType>::decode(node, array_type_)) {
+    THROW_RUNTIME_ERROR(
+        "VecColumn::Open: failed to parse array_type from descriptor");
+  }
   size_ = std::stoull(desc.get("size").value_or("0"));
   auto default_value = desc.get(kDefaultValue);
-  if (default_value) {
-    default_value_ = DeserializeValue(*default_value);
-  } else {
-    std::vector<Value> children;
-    children.reserve(array_size_);
-    for (size_t i = 0; i < array_size_; ++i) {
-      children.emplace_back(Value::CreateValue<T>(T{}));
-    }
-    default_value_ = Value::ARRAY(arrayType(), std::move(children));
+  if (!default_value.has_value()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn::Open: missing default_value in module descriptor");
   }
+  default_value_ = DeserializeValue(*default_value);
   buffer_ = ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
   auto accessor_ref = desc.get_ref(kAccessorRef);
@@ -106,15 +185,15 @@ void VecColumn<T>::openInternal(Checkpoint& ckp,
   validateState();
 }
 
-template <typename T>
-void VecColumn<T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                        const std::string& key) {
+void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
+                     const std::string& key) {
   if (!buffer_) {
     THROW_RUNTIME_ERROR("VecColumn::Dump: buffer is not initialized");
   }
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
-  desc.set("array_size", std::to_string(array_size_));
+  desc.set(kArrayType,
+           YAML::Dump(YAML::convert<DataType>::encode(array_type_)));
   desc.set("size", std::to_string(size_));
   desc.set(kDefaultValue, SerializeValue(default_value_));
   desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
@@ -125,13 +204,9 @@ void VecColumn<T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   meta.set_module(key, std::move(desc));
 }
 
-template <typename T>
-size_t VecColumn<T>::size() const {
-  return size_;
-}
+size_t VecColumn::size() const { return size_; }
 
-template <typename T>
-void VecColumn<T>::resize(size_t new_size) {
+void VecColumn::resize(size_t new_size) {
   if (new_size <= size_) {
     size_ = new_size;
     return;
@@ -141,7 +216,8 @@ void VecColumn<T>::resize(size_t new_size) {
         "VecColumn::resize requires an initialized checkpoint context");
   }
   auto replacement = ckp_->OpenFile(buffer_->GetPath(), level_);
-  replacement->Resize(new_size * static_cast<size_t>(array_size_) * sizeof(T));
+  replacement->Resize(new_size * array_size() *
+                      ElementSize(ArrayType::GetChildType(array_type_).id()));
   if (buffer_->GetDataSize() != 0) {
     std::memcpy(replacement->GetData(), buffer_->GetData(),
                 buffer_->GetDataSize());
@@ -150,34 +226,34 @@ void VecColumn<T>::resize(size_t new_size) {
   size_ = new_size;
 }
 
-template <typename T>
-void VecColumn<T>::resize(size_t new_size, const Value& default_value) {
+void VecColumn::resize(size_t new_size, const Value& default_value) {
   validateValue(default_value);
   auto old_size = size_;
   resize(new_size);
   if (new_size <= old_size) {
     return;
   }
-  auto* data = static_cast<T*>(buffer_->GetData());
-  const auto& children = ArrayValue::GetChildren(default_value);
-  for (size_t row = old_size; row < new_size; ++row) {
-    for (size_t col = 0; col < array_size_; ++col) {
-      data[row * array_size_ + col] = children[col].GetValue<T>();
-    }
+  switch (ArrayType::GetChildType(array_type_).id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                    \
+  case DataTypeId::enum_val:                                               \
+    FillBuffer<type>(buffer_->GetData(), old_size, new_size, array_size(), \
+                     default_value);                                       \
+    break;
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    validatePodType();
   }
   default_value_ = default_value;
 }
 
-template <typename T>
-DataTypeId VecColumn<T>::type() const {
-  return DataTypeId::kArray;
-}
+DataTypeId VecColumn::type() const { return DataTypeId::kArray; }
 
-template <typename T>
-void VecColumn<T>::set_any(size_t vid, const Value& value, bool insert_safe) {
+void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
   if (vid > std::numeric_limits<vid_t>::max()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::set_any: invalid vid");
   }
+  validatePodType();
   validateValue(value);
   if (!insert_safe && offset_accessor_->GetNextIndexID() >= size_) {
     THROW_STORAGE_EXCEPTION(
@@ -191,16 +267,19 @@ void VecColumn<T>::set_any(size_t vid, const Value& value, bool insert_safe) {
     }
     resize(offset < 4096 ? 4096 : offset + offset / 4, default_value_);
   }
-  auto* data = static_cast<T*>(buffer_->GetData()) +
-               static_cast<size_t>(offset) * array_size_;
-  const auto& children = ArrayValue::GetChildren(value);
-  for (size_t i = 0; i < array_size_; ++i) {
-    data[i] = children[i].GetValue<T>();
+  switch (ArrayType::GetChildType(array_type_).id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                    \
+  case DataTypeId::enum_val:                                               \
+    SetBufferValue<type>(buffer_->GetData(), offset, array_size(), value); \
+    return;
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    validatePodType();
   }
 }
 
-template <typename T>
-Value VecColumn<T>::get_any(size_t vid) const {
+Value VecColumn::get_any(size_t vid) const {
   if (vid > std::numeric_limits<vid_t>::max()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::get_any: invalid vid");
   }
@@ -211,65 +290,62 @@ Value VecColumn<T>::get_any(size_t vid) const {
   if (offset >= size_) {
     THROW_RUNTIME_ERROR("VecColumn::get_any: offset out of range");
   }
-  const auto* data = static_cast<const T*>(buffer_->GetData()) +
-                     static_cast<size_t>(offset) * array_size_;
-  std::vector<Value> values;
-  values.reserve(array_size_);
-  for (size_t i = 0; i < array_size_; ++i) {
-    values.emplace_back(Value::CreateValue<T>(data[i]));
+  switch (ArrayType::GetChildType(array_type_).id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                   \
+  case DataTypeId::enum_val:                                              \
+    return GetBufferValue<type>(buffer_->GetData(), offset, array_size(), \
+                                array_type_);
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn requires an array with a POD child type");
   }
-  return Value::ARRAY(arrayType(), std::move(values));
 }
 
-template <typename T>
-void VecColumn<T>::ingest(uint32_t vid, OutArchive& arc) {
-  std::vector<Value> values;
-  values.reserve(array_size_);
-  for (size_t i = 0; i < array_size_; ++i) {
-    T value;
-    arc >> value;
-    values.emplace_back(Value::CreateValue<T>(value));
+void VecColumn::ingest(uint32_t vid, OutArchive& arc) {
+  switch (ArrayType::GetChildType(array_type_).id()) {
+#define TYPE_DISPATCHER(enum_val, type)                    \
+  case DataTypeId::enum_val:                               \
+    set_any(vid, ReadValue<type>(arc, array_type_), true); \
+    return;
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn requires an array with a POD child type");
   }
-  set_any(vid, Value::ARRAY(arrayType(), std::move(values)), true);
 }
 
-template <typename T>
-IndexIDAccessor* VecColumn<T>::get_offset_accessor() {
+IndexIDAccessor* VecColumn::get_offset_accessor() const {
   return offset_accessor_.get();
 }
 
-template <typename T>
-const void* VecColumn<T>::get_buffer_ptr() const {
+const void* VecColumn::get_buffer_ptr() const {
   return buffer_ ? buffer_->GetData() : nullptr;
 }
 
-template <typename T>
-uint64_t VecColumn<T>::array_size() const {
-  return array_size_;
+uint64_t VecColumn::array_size() const {
+  return ArrayType::GetNumElements(array_type_);
 }
 
-template <typename T>
-DataType VecColumn<T>::array_type() const {
-  return arrayType();
-}
+DataType VecColumn::array_type() const { return array_type_; }
 
-template <typename T>
-std::unique_ptr<Module> VecColumn<T>::Clone() const {
-  auto cloned = std::make_unique<VecColumn<T>>();
+std::unique_ptr<Module> VecColumn::Clone() const {
+  auto cloned = std::make_unique<VecColumn>();
   cloned->buffer_ = buffer_;
   auto accessor = offset_accessor_->Clone();
   cloned->offset_accessor_.reset(
       static_cast<IndexIDAccessor*>(accessor.release()));
   cloned->ckp_ = ckp_;
   cloned->level_ = level_;
-  cloned->array_size_ = array_size_;
+  cloned->array_type_ = array_type_;
   cloned->size_ = size_;
   cloned->default_value_ = default_value_;
   return cloned;
 }
 
-template <typename T>
-void VecColumn<T>::Detach(Checkpoint& ckp, MemoryLevel level) {
+void VecColumn::Detach(Checkpoint& ckp, MemoryLevel level) {
   ckp_ = &ckp;
   level_ = level;
   if (offset_accessor_) {
@@ -277,44 +353,40 @@ void VecColumn<T>::Detach(Checkpoint& ckp, MemoryLevel level) {
   }
 }
 
-template <typename T>
-std::string VecColumn<T>::ModuleTypeName() const {
-  return type_name();
+std::string VecColumn::ModuleTypeName() const { return type_name(); }
+
+std::string VecColumn::type_name() { return "column<vector<float>>"; }
+
+void VecColumn::validatePodType() const {
+  if (array_type_.id() != DataTypeId::kArray ||
+      !IsPodType(ArrayType::GetChildType(array_type_).id())) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn requires an array with a POD child type");
+  }
 }
 
-template <typename T>
-std::string VecColumn<T>::type_name() {
-  return "column<vector<" + ValueConverter<T>::name() + ">>";
-}
-
-template <typename T>
-DataType VecColumn<T>::arrayType() const {
-  return DataType::Array(ValueConverter<T>::type(), array_size_);
-}
-
-template <typename T>
-void VecColumn<T>::validateState() const {
-  if (!buffer_ || !offset_accessor_ || array_size_ == 0) {
+void VecColumn::validateState() const {
+  validatePodType();
+  if (!buffer_ || !offset_accessor_ || array_size() == 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn requires a buffer, accessor, and non-zero array size");
   }
-  if (buffer_->GetDataSize() < size_ * array_size_ * sizeof(T)) {
+  const auto element_size =
+      ElementSize(ArrayType::GetChildType(array_type_).id());
+  if (buffer_->GetDataSize() < size_ * array_size() * element_size) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn buffer is smaller than its logical size");
   }
   validateValue(default_value_);
 }
 
-template <typename T>
-void VecColumn<T>::validateValue(const Value& value) const {
-  if (value.type() != arrayType()) {
+void VecColumn::validateValue(const Value& value) const {
+  if (value.type() != array_type_) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn value type does not match vector type");
   }
 }
 
-template class VecColumn<float>;
-
-NEUG_REGISTER_TEMPLATE_MODULE(VecColumn, float);
+NEUG_REGISTER_MODULE(VecColumn);
 
 }  // namespace neug

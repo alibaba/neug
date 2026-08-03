@@ -504,7 +504,7 @@ TEST_F(TPIndexTest, APCreateVecColumnAndTPUpdateMaintainsVecIndexSearch) {
   ASSERT_TRUE(created) << created.error().ToString();
   auto label = graph_->schema().get_vertex_label_id("Vector");
   ASSERT_NE(
-      dynamic_cast<const VecColumn<float>*>(
+      dynamic_cast<const VecColumn*>(
           graph_->get_vertex_table(label).GetPropertyColumnBase("embedding")),
       nullptr);
 

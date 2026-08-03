@@ -20,7 +20,6 @@ inline constexpr index_id_t INVALID_OFFSET = INVALID_INDEX_ID;
 // 2. allocates a new buffer version when growing to avoid copy-on-write; and
 // 3. manages offsets shared with HNSW indexes built on this column, allowing
 //    the indexes to reuse the same offset as their primary key.
-template <typename T>
 class VecColumn : public ColumnBase {
  public:
   VecColumn();
@@ -32,7 +31,7 @@ class VecColumn : public ColumnBase {
    * directly with an ArrayColumn.
    * @param offset_accessor The accessor that maps vertex IDs to offsets in
    * buffer.
-   * @param array_size The number of elements in each vector.
+   * @param array_type The fixed-size array type stored by the column.
    * @param size The allocated buffer capacity measured in vectors.
    * @param default_value The value used to initialize newly allocated vector
    * slots.
@@ -42,7 +41,7 @@ class VecColumn : public ColumnBase {
    */
   VecColumn(std::shared_ptr<IDataContainer> buffer,
             std::unique_ptr<IndexIDAccessor> offset_accessor,
-            uint64_t array_size, size_t size, const Value& default_value,
+            const DataType& array_type, size_t size, const Value& default_value,
             Checkpoint& ckp, MemoryLevel level);
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
@@ -61,7 +60,7 @@ class VecColumn : public ColumnBase {
   void ingest(uint32_t vid, OutArchive& arc) override;
 
   // Exposes the offset accessor for use by HNSW indexes.
-  IndexIDAccessor* get_offset_accessor();
+  IndexIDAccessor* get_offset_accessor() const;
   // Exposes the vector-data buffer for use by HNSW indexes.
   const void* get_buffer_ptr() const;
   uint64_t array_size() const;
@@ -74,9 +73,9 @@ class VecColumn : public ColumnBase {
   static std::string type_name();
 
  private:
-  DataType arrayType() const;
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
+  void validatePodType() const;
   void validateState() const;
   void validateValue(const Value& value) const;
 
@@ -84,23 +83,20 @@ class VecColumn : public ColumnBase {
   std::shared_ptr<IDataContainer> buffer_;
   Checkpoint* ckp_;
   MemoryLevel level_;
-  uint64_t array_size_;
+  DataType array_type_;
   size_t size_;
   Value default_value_;
 };
 
-extern template class VecColumn<float>;
-
-template <typename T>
 class VecRefColumn : public RefColumnBase {
  public:
-  explicit VecRefColumn(const VecColumn<T>& column) : column_(column) {}
+  explicit VecRefColumn(const VecColumn& column) : column_(column) {}
   Value get_any(size_t index) const override { return column_.get_any(index); }
   DataTypeId type() const override { return DataTypeId::kArray; }
   ColType col_type() const override { return ColType::kInternal; }
 
  private:
-  const VecColumn<T>& column_;
+  const VecColumn& column_;
 };
 
 }  // namespace neug

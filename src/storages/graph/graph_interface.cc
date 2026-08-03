@@ -60,17 +60,16 @@ std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
   const auto child_type = ArrayType::GetChildType(array.array_type()).id();
   switch (child_type) {
   case DataTypeId::kFloat:
-    return std::make_unique<VecColumn<float>>(
+    return std::make_unique<VecColumn>(
         array.shared_buffer<float>(), std::move(offset_accessor),
-        array.array_size(), array.size(), default_value, ckp, level);
+        array.array_type(), array.size(), default_value, ckp, level);
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "HNSW index supports only FLOAT array properties");
   }
 }
 
-template <typename T>
-std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn<T>& vec, size_t vid_size,
+std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn& vec, size_t vid_size,
                                            size_t size,
                                            const Value& default_value,
                                            Checkpoint& ckp, MemoryLevel level) {
@@ -87,9 +86,9 @@ std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn<T>& vec, size_t vid_size,
   array_column->Open(ckp, ModuleDescriptor{}, level);
   array_column->resize(size, default_value);
 
-  const auto* src = static_cast<const T*>(vec.get_buffer_ptr());
+  const auto* src = static_cast<const float*>(vec.get_buffer_ptr());
   auto* dst =
-      static_cast<T*>(array_column->template shared_buffer<T>()->GetData());
+      static_cast<float*>(array_column->shared_buffer<float>()->GetData());
   const auto array_size = vec.array_size();
   const auto* offset_accessor = vec.get_offset_accessor();
   for (size_t vid = 0; vid < vid_size; ++vid) {
@@ -102,7 +101,7 @@ std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn<T>& vec, size_t vid_size,
       THROW_RUNTIME_ERROR("FromVecColumn: offset out of range");
     }
     std::memcpy(dst + vid * array_size, src + offset * array_size,
-                array_size * sizeof(T));
+                array_size * sizeof(float));
   }
   return array_column;
 }
@@ -626,7 +625,7 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     auto* candidate_column =
         vec_column ? vec_column.get()
                    : vertex_table.get_table().get_column_by_id(property_col);
-    if (auto* vec = dynamic_cast<VecColumn<float>*>(candidate_column)) {
+    if (auto* vec = dynamic_cast<VecColumn*>(candidate_column)) {
       index_id_accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(
           *vec->get_offset_accessor());
     } else {
@@ -689,13 +688,13 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
 
       const auto& default_value = schema->default_property_values[property_col];
       auto* column = vertex_table.get_table().get_column_by_id(property_col);
-      if (auto* vec = dynamic_cast<VecColumn<float>*>(column)) {
+      if (auto* vec = dynamic_cast<VecColumn*>(column)) {
         array_column = FromVecColumn(
             *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
             graph_.checkpoint(), graph_.memory_level());
       } else {
         THROW_RUNTIME_ERROR(
-            "DropIndex: HNSW index column must be a VecColumn<float>");
+            "DropIndex: HNSW index column must be a FLOAT VecColumn");
       }
     }
   }

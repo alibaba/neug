@@ -408,8 +408,8 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
                                             MemoryLevel::kInMemory);
   auto accessor = std::make_unique<DefaultIndexIDAccessor>();
   accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
-  VecColumn<float> column(std::move(buffer), std::move(accessor), dimension, 2,
-                          default_value, *ckp, MemoryLevel::kInMemory);
+  VecColumn column(std::move(buffer), std::move(accessor), array_type, 2,
+                   default_value, *ckp, MemoryLevel::kInMemory);
 
   column.set_any(0, make_array(1.0f, 2.0f), true);
   column.set_any(1, make_array(3.0f, 4.0f), true);
@@ -420,7 +420,7 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   EXPECT_EQ(column.get_offset_accessor()->GetIndexIDByVID(2), INVALID_INDEX_ID);
 
   auto clone_module = column.Clone();
-  auto* clone = dynamic_cast<VecColumn<float>*>(clone_module.get());
+  auto* clone = dynamic_cast<VecColumn*>(clone_module.get());
   ASSERT_NE(clone, nullptr);
   const void* old_buffer = clone->get_buffer_ptr();
   column.resize(5000);
@@ -453,7 +453,7 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
 
   CheckpointManifest manifest;
   column.Dump(*ckp, manifest, "vec");
-  VecColumn<float> reopened;
+  VecColumn reopened;
   reopened.Open(*ckp, manifest, *manifest.module("vec"),
                 MemoryLevel::kInMemory);
   EXPECT_FLOAT_EQ(

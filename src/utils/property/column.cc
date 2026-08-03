@@ -89,8 +89,8 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
 }
 
 std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
-  if (auto* vec = dynamic_cast<const VecColumn<float>*>(&column)) {
-    return std::make_shared<VecRefColumn<float>>(*vec);
+  if (auto* vec = dynamic_cast<const VecColumn*>(&column)) {
+    return std::make_shared<VecRefColumn>(*vec);
   }
   auto type = column.type();
   switch (type) {

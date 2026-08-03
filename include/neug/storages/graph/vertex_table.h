@@ -29,7 +29,6 @@ class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
 class VertexTableView;
-template <typename T>
 class VecColumn;
 
 class VertexSet {

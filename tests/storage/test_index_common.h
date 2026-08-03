@@ -223,16 +223,18 @@ struct VecIndexQueryParams : public IndexQueryParams {
 
 class VecSource {
  public:
-  VecSource(const void* buffer, size_t dimension, size_t vector_count)
-      : buffer_(static_cast<const float*>(buffer)),
-        dimension_(dimension),
+  VecSource(const VecColumn* column, size_t vector_count)
+      : column_(column),
+        dimension_(column ? column->array_size() : 0),
         vector_count_(vector_count) {}
 
   const void* get_vector(index_id_t node_id) const {
-    if (!buffer_ || node_id >= vector_count_) {
+    if (!column_ || node_id >= vector_count_) {
       return nullptr;
     }
-    return buffer_ + static_cast<size_t>(node_id) * dimension_;
+    const auto* buffer = static_cast<const float*>(column_->get_buffer_ptr());
+    return buffer ? buffer + static_cast<size_t>(node_id) * dimension_
+                  : nullptr;
   }
 
   size_t dimension() const { return dimension_; }
@@ -240,7 +242,7 @@ class VecSource {
   void set_vector_count(size_t vector_count) { vector_count_ = vector_count; }
 
  private:
-  const float* buffer_ = nullptr;
+  const VecColumn* column_ = nullptr;
   size_t dimension_ = 0;
   size_t vector_count_ = 0;
 };
@@ -248,16 +250,16 @@ class VecSource {
 class VecIndex final : public StorageIndex {
  public:
   Status Rebind(const IndexBindContext& context) override {
-    auto* column = dynamic_cast<const VecColumn<float>*>(context.column);
-    if (!column) {
+    auto* column = dynamic_cast<const VecColumn*>(context.column);
+    if (!column || ArrayType::GetChildType(column->array_type()).id() !=
+                       DataTypeId::kFloat) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "VecIndex requires a VecColumn<float>");
+                    "VecIndex requires a FLOAT VecColumn");
     }
-    auto* mutable_column = const_cast<VecColumn<float>*>(column);
+    auto* mutable_column = const_cast<VecColumn*>(column);
     index_id_accessor_ = std::make_unique<VecColumnBackedIndexIDAccessor>(
         *mutable_column->get_offset_accessor());
-    source_ = std::make_unique<VecSource>(column->get_buffer_ptr(),
-                                          column->array_size(),
+    source_ = std::make_unique<VecSource>(column,
                                           index_id_accessor_->GetNextIndexID());
     return Status::OK();
   }
