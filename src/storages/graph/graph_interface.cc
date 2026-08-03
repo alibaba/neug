@@ -18,8 +18,8 @@
 #include <cstring>
 #include <limits>
 
-#include "neug/compiler/common/string_utils.h"
 #include "neug/storages/index/index_id_accessor.h"
+#include "neug/storages/index/index_utils.h"
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/exception/exception.h"
@@ -31,12 +31,6 @@
 namespace neug {
 
 namespace {
-
-bool IsHnswIndex(const IndexMeta& meta) {
-  auto type = meta.type;
-  common::StringUtils::toLower(type);
-  return type == "hnsw";
-}
 
 std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
                                             size_t vid_size,
@@ -604,11 +598,11 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
   std::unique_ptr<ColumnBase> vec_column;
   std::unique_ptr<IndexIDAccessor> index_id_accessor;
 
-  if (IsHnswIndex(*meta)) {
+  if (IsHNSWIndex(*meta)) {
     GS_AUTO(existing_indexes, index_manager_.GetIndex(label_id, property_name));
     const bool has_non_hnsw = std::any_of(
         existing_indexes.begin(), existing_indexes.end(),
-        [](StorageIndex* index) { return !IsHnswIndex(index->GetMeta()); });
+        [](StorageIndex* index) { return !IsHNSWIndex(index->GetMeta()); });
     if (has_non_hnsw) {
       RETURN_STATUS_ERROR(
           StatusCode::ERR_INVALID_ARGUMENT,
@@ -677,7 +671,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
   std::unique_ptr<ArrayColumn> array_column;
   int32_t property_col = -1;
 
-  if (IsHnswIndex(meta)) {
+  if (IsHNSWIndex(meta)) {
     auto indexes = index_manager_.GetIndex(meta.schema.label_id,
                                            meta.schema.property_name);
     if (!indexes) {
@@ -685,7 +679,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
     }
     const bool has_other_hnsw =
         std::any_of(indexes->begin(), indexes->end(), [&](StorageIndex* index) {
-          return index->GetMeta().name != name && IsHnswIndex(index->GetMeta());
+          return index->GetMeta().name != name && IsHNSWIndex(index->GetMeta());
         });
     if (!has_other_hnsw) {
       auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
