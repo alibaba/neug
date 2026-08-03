@@ -27,11 +27,6 @@
 #include <rapidjson/rapidjson.h>
 
 namespace neug {
-struct ParamsParser {
-  static execution::ParamsMap ParseFromJsonObj(
-      const execution::ParamsMetaMap& meta,
-      const rapidjson::Document& param_json_obj);
-};
 
 struct RequestParser {
   // TODO(zhanglei): Here we use rapidjson::Document for parameters,

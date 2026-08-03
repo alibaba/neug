@@ -532,6 +532,22 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       break;
     }
 
+    case physical::PhysicalOpr_Operator::OpKindCase::kSetVertex: {
+      const auto& set_vertex_opr = plan.plan(i).opr().set_vertex();
+      for (const auto& entry : set_vertex_opr.entries()) {
+        expression_parse(entry.property_mapping().data(), params_type);
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kSetEdge: {
+      const auto& set_edge_opr = plan.plan(i).opr().set_edge();
+      for (const auto& entry : set_edge_opr.entries()) {
+        expression_parse(entry.property_mapping().data(), params_type);
+      }
+      break;
+    }
+
     case physical::PhysicalOpr_Operator::OpKindCase::kUnfold: {
       const auto& unfold_opr = plan.plan(i).opr().unfold();
       expression_parse(unfold_opr.input_expr(), params_type);

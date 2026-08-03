@@ -51,9 +51,9 @@
 namespace neug {
 
 inline std::string allocator_prefix(const std::string& allocator_dir,
-                                    int thread_id) {
+                                    int slot_id) {
   return (std::filesystem::path(allocator_dir) /
-          ("allocator_" + std::to_string(thread_id) + "_"))
+          ("allocator_" + std::to_string(slot_id) + "_"))
       .string();
 }
 
@@ -470,7 +470,10 @@ void NeugDB::initPlanner() {
 
 void NeugDB::initVersionManager() {
   auto version_manager = std::make_unique<VersionManager>();
-  version_manager->init_ts(last_ts_, max_thread_num_);
+  SnapshotGuard snapshot(*snapshot_store_);
+  const PublishedReadView initial_read_view{
+      last_ts_, snapshot.get().snapshot_generation()};
+  version_manager->init_ts(initial_read_view, max_thread_num_);
   version_manager_ = std::move(version_manager);
 }
 
@@ -482,7 +485,8 @@ std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
   CHECK_LT(slot_id, allocators_.size());
   return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
       *snapshot_store_, planner_, global_query_cache_, *version_manager_,
-      *allocators_.at(slot_id), config_, static_cast<int>(slot_id)));
+      *allocators_.at(slot_id), QueryExecutionStrategy::kDirect,
+      /*wal_writer=*/nullptr, config_, static_cast<int>(slot_id)));
 }
 
 void NeugDB::initQueryRuntime() {

@@ -80,7 +80,7 @@ void PyConnection::close() {
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& query_string, const std::string& access_mode,
     const pybind11::dict& parameters) {
-  rapidjson::Document params_json;
+  rapidjson::Document params_json(rapidjson::kObjectType);
   for (auto item : parameters) {
     std::string key = pybind11::cast<std::string>(item.first);
     pybind11::object value =

@@ -49,7 +49,7 @@ namespace {
 class CapturingWalWriter : public IWalWriter {
  public:
   std::string type() const override { return "capturing"; }
-  void open() override {}
+  void open(const std::string&) override {}
   void close() override {}
 
   bool append(const char* data, size_t length) override {
@@ -113,7 +113,7 @@ class TPIndexTest : public ::testing::Test {
     view_ = std::make_unique<GraphView>(*graph_);
     ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
                                                      allocator_);
-    version_manager_.init_ts(0, 1);
+    version_manager_.init_ts({0, 0}, 1);
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
         std::make_shared<StubPlanner>());
@@ -127,17 +127,16 @@ class TPIndexTest : public ::testing::Test {
   }
 
   UpdateTransaction NewUpdateTransaction() {
-    auto ts = version_manager_.acquire_update_timestamp();
+    UpdateTimestampLease timestamp_lease(version_manager_);
     auto cow_graph = snapshot_store_->CurrentSnapshot().Clone();
     return UpdateTransaction(std::move(cow_graph), allocator_, wal_writer_,
-                             version_manager_, *snapshot_store_, *local_cache_,
-                             ts);
+                             *snapshot_store_, *local_cache_,
+                             std::move(timestamp_lease));
   }
 
   ReadTransaction NewReadTransaction() {
-    auto ts = version_manager_.acquire_read_timestamp();
-    SnapshotGuard guard(*snapshot_store_);
-    return ReadTransaction(std::move(guard), version_manager_, ts);
+    return ReadTransaction(
+        ReadSnapshotLease::Acquire(version_manager_, *snapshot_store_));
   }
 
   void Commit(UpdateTransaction& txn) { ASSERT_TRUE(txn.Commit()); }

@@ -16,10 +16,9 @@
 #include "neug/transaction/version_manager.h"
 
 #include <glog/logging.h>
-#include <ostream>
-#include <thread>
+#include <limits>
+#include <mutex>
 
-#include "neug/utils/bitset.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
 
@@ -27,96 +26,150 @@ namespace neug {
 
 // VersionManager implementation
 
-VersionManager::VersionManager() {}
+VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
 
-VersionManager::~VersionManager() {}
-
-void VersionManager::init_ts(uint32_t ts, int thread_num) {
+void VersionManager::init_ts(PublishedReadView initial_read_view,
+                             int thread_num) {
+  const uint32_t ts = initial_read_view.visibility_ts;
+  if (ts == std::numeric_limits<uint32_t>::max()) {
+    THROW_RUNTIME_ERROR(
+        "Transaction timestamp space exhausted; checkpoint/reset the timeline "
+        "before reopening the database");
+  }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
   read_ts_.store(ts, std::memory_order_relaxed);
-  active_readers_.store(0, std::memory_order_relaxed);
-  active_inserters_.store(0, std::memory_order_relaxed);
-  update_state_.store(0, std::memory_order_relaxed);
+  installed_snapshot_generation_.store(initial_read_view.snapshot_generation,
+                                       std::memory_order_relaxed);
+  published_read_view_.store(PackPublishedReadView(initial_read_view),
+                             std::memory_order_relaxed);
+  operation_gate_state_.store(OperationGateWord::empty(AdmissionState::kOpen),
+                              std::memory_order_relaxed);
 
   ts_window_.init();
   thread_num_ = thread_num;
 }
 
-uint32_t VersionManager::acquire_read_timestamp() {
-  // Pre-check: avoid incrementing if in commit phase
-  int state = update_state_.load(std::memory_order_acquire);
-  if (NEUG_UNLIKELY(state == 2)) {
-    return acquire_read_timestamp_slow();
+bool VersionManager::try_set_runtime_wait_if_quiescent(
+    RuntimeWaitFn runtime_wait) noexcept {
+  if (runtime_wait == nullptr) {
+    return false;
+  }
+  std::unique_lock lock(lock_, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    return false;
   }
 
-  // Optimistically increment counter
-  active_readers_.fetch_add(1, std::memory_order_acq_rel);
-
-  // Double-check: ensure commit didn't start between pre-check and increment.
-  // This eliminates the ABA race where a reader increments active_readers_
-  // but misses a concurrent update_state_ 0->1->2 transition.
-  state = update_state_.load(std::memory_order_acquire);
-  if (NEUG_LIKELY(state != 2)) {
-    return read_ts_.load(std::memory_order_acquire);
+  uint64_t expected = OperationGateWord::empty(AdmissionState::kOpen);
+  const uint64_t blocked =
+      OperationGateWord::empty(AdmissionState::kAllBlocked);
+  if (!operation_gate_state_.compare_exchange_strong(
+          expected, blocked, std::memory_order_acq_rel,
+          std::memory_order_acquire)) {
+    return false;
   }
 
-  // Rollback: commit started while we were incrementing
-  active_readers_.fetch_sub(1, std::memory_order_acq_rel);
-
-  // Slow path
-  return acquire_read_timestamp_slow();
+  runtime_wait_.store(runtime_wait, std::memory_order_release);
+  operation_gate_state_.store(OperationGateWord::empty(AdmissionState::kOpen),
+                              std::memory_order_release);
+  return true;
 }
 
-uint32_t VersionManager::acquire_read_timestamp_slow() {
-  // Spin wait until update commit completes
-  while (update_state_.load(std::memory_order_acquire) == 2) {
-    // Tight spin loop for minimal latency
-  }
+PublishedReadView VersionManager::acquire_read_view() {
+  std::optional<RuntimeBackoff> wait;
+  uint64_t observed = operation_gate_state_.load(std::memory_order_relaxed);
+  while (true) {
+    if (NEUG_UNLIKELY(OperationGateWord::phase(observed) ==
+                      AdmissionState::kAllBlocked)) {
+      if (!wait) {
+        wait.emplace(make_runtime_backoff());
+      }
+      (*wait)();
+      observed = operation_gate_state_.load(std::memory_order_relaxed);
+      continue;
+    }
 
-  // Retry
-  return acquire_read_timestamp();
+    // The returned word linearizes admission with phase changes. The relaxed
+    // check above avoids unnecessary RMWs while readers are already blocked;
+    // this old-word check closes the race with a concurrent phase transition.
+    const uint64_t previous = operation_gate_state_.fetch_add(
+        OperationGateWord::kReaderUnit, std::memory_order_acquire);
+    const bool counter_exhausted = OperationGateWord::readers(previous) >=
+                                   OperationGateWord::kMaxReaderCount;
+    if (NEUG_LIKELY(OperationGateWord::phase(previous) !=
+                        AdmissionState::kAllBlocked &&
+                    !counter_exhausted)) {
+      return UnpackPublishedReadView(
+          published_read_view_.load(std::memory_order_acquire));
+    }
+
+    // Roll back the speculative increment and retry with backoff.
+    operation_gate_state_.fetch_sub(OperationGateWord::kReaderUnit,
+                                    std::memory_order_release);
+    if (NEUG_UNLIKELY(counter_exhausted)) {
+      THROW_RUNTIME_ERROR("Reader admission counter exhausted");
+    }
+    if (!wait) {
+      wait.emplace(make_runtime_backoff());
+    }
+    (*wait)();
+    observed = operation_gate_state_.load(std::memory_order_relaxed);
+  }
 }
 
-void VersionManager::release_read_timestamp() {
-  active_readers_.fetch_sub(1, std::memory_order_acq_rel);
+void VersionManager::release_read_view() {
+  const uint64_t observed =
+      operation_gate_state_.load(std::memory_order_relaxed);
+  if (NEUG_UNLIKELY(OperationGateWord::readers(observed) == 0)) {
+    THROW_INTERNAL_EXCEPTION("release_read_view without admission");
+  }
+  // A valid caller owns one count, so valid concurrent releases cannot borrow
+  // from an adjacent field.
+  const uint64_t previous = operation_gate_state_.fetch_sub(
+      OperationGateWord::kReaderUnit, std::memory_order_release);
+  DCHECK_GT(OperationGateWord::readers(previous), 0U);
 }
 
 uint32_t VersionManager::acquire_insert_timestamp() {
-  // Check state first (fast path)
-  int state = update_state_.load(std::memory_order_acquire);
-  if (NEUG_UNLIKELY(state != 0)) {
-    return acquire_insert_timestamp_slow();
+  std::optional<RuntimeBackoff> wait;
+  uint64_t observed = operation_gate_state_.load(std::memory_order_relaxed);
+  while (true) {
+    if (NEUG_UNLIKELY(OperationGateWord::phase(observed) !=
+                      AdmissionState::kOpen)) {
+      if (!wait) {
+        wait.emplace(make_runtime_backoff());
+      }
+      (*wait)();
+      observed = operation_gate_state_.load(std::memory_order_relaxed);
+      continue;
+    }
+    if (NEUG_UNLIKELY(OperationGateWord::inserters(observed) ==
+                      OperationGateWord::kMaxInserterCount)) {
+      THROW_RUNTIME_ERROR("Inserter admission counter exhausted");
+    }
+    const uint64_t desired = OperationGateWord::increment_inserter(observed);
+    // Atomic modification order linearizes admission with phase changes.
+    // Acquire is only needed after this RMW succeeds.
+    if (operation_gate_state_.compare_exchange_weak(
+            observed, desired, std::memory_order_acquire,
+            std::memory_order_relaxed)) {
+      return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+    }
   }
-
-  // Increment counter
-  active_inserters_.fetch_add(1, std::memory_order_acq_rel);
-
-  // Double check: ensure update didn't start between checks
-  state = update_state_.load(std::memory_order_acquire);
-  if (NEUG_LIKELY(state == 0)) {
-    return write_ts_.fetch_add(1, std::memory_order_acq_rel);
-  }
-
-  // Slow path: update just started
-  active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
-  return acquire_insert_timestamp_slow();
-}
-
-uint32_t VersionManager::acquire_insert_timestamp_slow() {
-  // Spin wait until update completes
-  while (update_state_.load(std::memory_order_acquire) != 0) {
-    // Tight spin loop for minimal latency
-  }
-
-  // Retry
-  return acquire_insert_timestamp();
 }
 
 void VersionManager::release_insert_timestamp(uint32_t ts) {
   complete_write_timestamp(ts);
 
-  // Decrement active inserter count
-  active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
+  const uint64_t observed =
+      operation_gate_state_.load(std::memory_order_relaxed);
+  if (NEUG_UNLIKELY(OperationGateWord::inserters(observed) == 0)) {
+    THROW_INTERNAL_EXCEPTION("release_insert_timestamp without admission");
+  }
+  // A valid caller owns one count, so valid concurrent releases cannot borrow
+  // from an adjacent field.
+  const uint64_t previous = operation_gate_state_.fetch_sub(
+      OperationGateWord::kInserterUnit, std::memory_order_release);
+  DCHECK_GT(OperationGateWord::inserters(previous), 0U);
 }
 
 void VersionManager::complete_write_timestamp(uint32_t ts) {
@@ -124,13 +177,18 @@ void VersionManager::complete_write_timestamp(uint32_t ts) {
   ts_window_.mark_completed(ts);
 
   // Check under lock: only advance if ts == read_ts + 1
-  lock_.lock();
+  std::unique_lock lock(lock_, std::defer_lock);
+  if (!lock.try_lock()) {
+    RuntimeBackoff wait = make_runtime_backoff();
+    do {
+      wait();
+    } while (!lock.try_lock());
+  }
   uint32_t current_read_ts = read_ts_.load(std::memory_order_relaxed);
   if (ts == current_read_ts + 1) {
     // May need to advance, safe under lock protection
     advance_read_ts_locked();
   }
-  lock_.unlock();
 }
 
 void VersionManager::advance_read_ts_locked() {
@@ -152,24 +210,78 @@ void VersionManager::advance_read_ts_locked() {
 
   // Sliding window maintenance
   ts_window_.slide_window(current);
+  published_read_view_.store(
+      PackPublishedReadView({current, installed_snapshot_generation_.load(
+                                          std::memory_order_relaxed)}),
+      std::memory_order_release);
+}
+
+void VersionManager::enter_admission_phase(AdmissionState desired_phase) {
+  std::optional<RuntimeBackoff> wait;
+  uint64_t observed = operation_gate_state_.load(std::memory_order_relaxed);
+  while (true) {
+    if (OperationGateWord::phase(observed) != AdmissionState::kOpen) {
+      if (!wait) {
+        wait.emplace(make_runtime_backoff());
+      }
+      (*wait)();
+      observed = operation_gate_state_.load(std::memory_order_relaxed);
+      continue;
+    }
+    if (OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            desired_phase)) {
+      return;
+    }
+  }
+}
+
+void VersionManager::transition_admission_phase(AdmissionState expected_phase,
+                                                AdmissionState desired_phase) {
+  uint64_t observed = operation_gate_state_.load(std::memory_order_relaxed);
+  while (true) {
+    if (OperationGateWord::phase(observed) != expected_phase) {
+      THROW_INTERNAL_EXCEPTION("Invalid transaction admission transition");
+    }
+    if (OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            desired_phase)) {
+      return;
+    }
+  }
+}
+
+void VersionManager::wait_for_readers_to_drain() {
+  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
+  if (OperationGateWord::readers(observed) == 0) {
+    return;
+  }
+
+  RuntimeBackoff wait = make_runtime_backoff();
+  do {
+    wait();
+    observed = operation_gate_state_.load(std::memory_order_acquire);
+  } while (OperationGateWord::readers(observed) != 0);
+}
+
+void VersionManager::wait_for_inserters_to_drain() {
+  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
+  if (OperationGateWord::inserters(observed) == 0) {
+    return;
+  }
+
+  RuntimeBackoff wait = make_runtime_backoff();
+  do {
+    wait();
+    observed = operation_gate_state_.load(std::memory_order_acquire);
+  } while (OperationGateWord::inserters(observed) != 0);
+}
+
+RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
+  return runtime_wait_.load(std::memory_order_acquire);
 }
 
 uint32_t VersionManager::acquire_update_timestamp() {
-  // Wait to enter update state (0 -> 1)
-  while (true) {
-    int expected = 0;
-    if (update_state_.compare_exchange_strong(expected, 1,
-                                              std::memory_order_acq_rel,
-                                              std::memory_order_acquire)) {
-      break;  // Successfully entered update execution phase
-    }
-    // Tight spin loop for minimal latency
-  }
-
-  // Wait for all active insert transactions to finish
-  while (active_inserters_.load(std::memory_order_acquire) > 0) {
-    // Tight spin loop for minimal latency
-  }
+  enter_admission_phase(AdmissionState::kInsertsBlocked);
+  wait_for_inserters_to_drain();
 
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
@@ -177,89 +289,73 @@ uint32_t VersionManager::acquire_update_timestamp() {
 void VersionManager::begin_update_commit(uint32_t ts) {
   (void) ts;
 
-  // Enter commit state (1 -> 2) — blocks new reads, does NOT wait for existing
-  // readers. Use seq_cst to ensure the store is globally visible before we
-  // proceed, which closes the ABA window for concurrent acquire_read_timestamp
-  // callers that may have passed their pre-check but not yet reached their
-  // double-check.
-  update_state_.store(2, std::memory_order_seq_cst);
-
-  // Drain ABA-window readers: any reader that incremented active_readers_
-  // just before this store will see update_state_==2 in their double-check
-  // and roll back (decrement active_readers_). We wait until active_readers_
-  // stops decreasing to ensure all such readers have completed their rollback.
-  // This does NOT wait for legitimate existing readers — they may hold their
-  // timestamps for an arbitrarily long time. The drain is fast because ABA-
-  // window readers roll back within nanoseconds (one atomic decrement).
-  int prev = active_readers_.load(std::memory_order_acquire);
-  while (true) {
-    int curr = active_readers_.load(std::memory_order_acquire);
-    if (curr >= prev) {
-      break;
-    }
-    prev = curr;
-  }
+  // Block new readers before publishing the new snapshot. Existing readers
+  // keep using their pinned snapshots; a racing reader is either counted
+  // before this transition or rejected after it.
+  transition_admission_phase(AdmissionState::kInsertsBlocked,
+                             AdmissionState::kAllBlocked);
 }
 
 void VersionManager::drain_readers() {
-  if (update_state_.load(std::memory_order_acquire) != 2) {
+  if (OperationGateWord::phase(operation_gate_state_.load(
+          std::memory_order_acquire)) != AdmissionState::kAllBlocked) {
     THROW_INTERNAL_EXCEPTION(
-        "drain_readers called outside update commit state");
+        "drain_readers called while readers are not blocked");
   }
-  while (active_readers_.load(std::memory_order_acquire) > 0) {
-    // P4a will replace this wait loop with a runtime-aware wait strategy.
-  }
+  wait_for_readers_to_drain();
 }
 
-void VersionManager::release_update_timestamp(uint32_t ts) {
+void VersionManager::finish_update_timestamp(
+    uint32_t ts,
+    std::optional<uint32_t> installed_snapshot_generation) noexcept {
+  if (installed_snapshot_generation) {
+    installed_snapshot_generation_.store(*installed_snapshot_generation,
+                                         std::memory_order_relaxed);
+  }
   complete_write_timestamp(ts);
 
-  // Restore to normal state (1 -> 0 or 2 -> 0)
-  update_state_.store(0, std::memory_order_release);
+  // Timestamp completion and any matching snapshot generation are visible
+  // through published_read_view_ before the packed gate admits new work.
+  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
+  while (true) {
+    const AdmissionState phase = OperationGateWord::phase(observed);
+    DCHECK(phase == AdmissionState::kInsertsBlocked ||
+           phase == AdmissionState::kAllBlocked)
+        << "Update released outside update state";
+    if (OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            AdmissionState::kOpen)) {
+      return;
+    }
+  }
 }
 
 uint32_t VersionManager::acquire_compact_timestamp() {
-  // Wait to enter compact state (0 -> 2)
-  while (true) {
-    int expected = 0;
-    if (update_state_.compare_exchange_strong(expected, 2,
-                                              std::memory_order_acq_rel,
-                                              std::memory_order_acquire)) {
-      break;  // Successfully entered compact phase
-    }
-    // Tight spin loop for minimal latency
-  }
-
-  // Wait for all active insert transactions to finish
-  while (active_inserters_.load(std::memory_order_acquire) > 0) {
-    // Tight spin loop for minimal latency
-  }
-
-  // Wait for all active readers to finish — compact rewrites storage
-  // timestamps.
-  while (active_readers_.load(std::memory_order_acquire) > 0) {
-    // Tight spin loop for minimal latency
-  }
+  enter_admission_phase(AdmissionState::kAllBlocked);
+  wait_for_readers_to_drain();
+  wait_for_inserters_to_drain();
 
   return write_ts_.fetch_add(1, std::memory_order_acq_rel);
 }
 
 void VersionManager::release_compact_timestamp(uint32_t ts) {
-  // Compact must be in state 2
-  if (update_state_.load(std::memory_order_acquire) != 2) {
+  // Compact must have blocked new readers.
+  if (OperationGateWord::phase(operation_gate_state_.load(
+          std::memory_order_acquire)) != AdmissionState::kAllBlocked) {
     THROW_INTERNAL_EXCEPTION(
         "release_compact_timestamp called while not in compact state");
   }
 
   complete_write_timestamp(ts);
 
-  // Restore to normal state (2 -> 0)
-  update_state_.store(0, std::memory_order_release);
+  // Restore normal operation.
+  transition_admission_phase(AdmissionState::kAllBlocked,
+                             AdmissionState::kOpen);
 }
 
 void VersionManager::revert_compact_timestamp(uint32_t ts) {
-  // Compact must be in state 2
-  if (update_state_.load(std::memory_order_acquire) != 2) {
+  // Compact must have blocked new readers.
+  if (OperationGateWord::phase(operation_gate_state_.load(
+          std::memory_order_acquire)) != AdmissionState::kAllBlocked) {
     THROW_INTERNAL_EXCEPTION(
         "revert_compact_timestamp called while not in compact state");
   }
@@ -267,8 +363,9 @@ void VersionManager::revert_compact_timestamp(uint32_t ts) {
   // Close the timestamp gap so later commits can advance read_ts_.
   complete_write_timestamp(ts);
 
-  // Revert to normal state (2 -> 0)
-  update_state_.store(0, std::memory_order_release);
+  // Restore normal operation.
+  transition_admission_phase(AdmissionState::kAllBlocked,
+                             AdmissionState::kOpen);
 }
 
 }  // namespace neug
