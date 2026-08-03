@@ -362,12 +362,3 @@ class MultiLabelIndex {
 
 }  // namespace gds
 }  // namespace neug
-
-  // Weight accessors
-  EdgeDataAccessor weight_accessor_;
-  std::vector<EdgeDataAccessor> triplet_weight_accessors_;
-  std::vector<bool> triplet_has_weight_;
-};
-
-}  // namespace gds
-}  // namespace neug
