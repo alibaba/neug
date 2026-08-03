@@ -331,6 +331,8 @@ void Leiden::refine() {
   if (index_.is_simple_graph()) {
     auto oe_view = index_.simple_out_view();
     auto ie_view = index_.simple_in_view();
+    const bool has_weight = index_.has_weight();
+    const auto& w_acc = index_.simple_weight_accessor();
     auto worker = [&](int tid) {
       uint32_t* r_gen =
           thread_gen_.get() + static_cast<size_t>(tid) * array_size;
@@ -373,7 +375,7 @@ void Leiden::refine() {
                 r_cw[sc] = 0.0;
                 touched_scs.push_back(sc);
               }
-              r_cw[sc] += 1.0;
+              r_cw[sc] += has_weight ? w_acc.get_typed_data<double>(it) : 1.0;
             }
             auto ies = ie_view.get_edges(u);
             for (auto it = ies.begin(); it != ies.end(); ++it) {
@@ -386,7 +388,7 @@ void Leiden::refine() {
                 r_cw[sc] = 0.0;
                 touched_scs.push_back(sc);
               }
-              r_cw[sc] += 1.0;
+              r_cw[sc] += has_weight ? w_acc.get_typed_data<double>(it) : 1.0;
             }
             uint32_t best_sc = cur_sc;
             double best_w = (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
@@ -430,6 +432,8 @@ void Leiden::refine() {
     const auto& label_in_triplets = index_.label_in_triplets();
     const auto& triplet_dst_base = index_.triplet_dst_base();
     const auto& triplet_src_base = index_.triplet_src_base();
+    const auto& triplet_weight_accessors = index_.triplet_weight_accessors();
+    const auto& triplet_has_weight = index_.triplet_has_weight();
     auto worker = [&](int tid) {
       uint32_t* r_gen =
           thread_gen_.get() + static_cast<size_t>(tid) * array_size;
@@ -478,7 +482,11 @@ void Leiden::refine() {
                   r_cw[sc] = 0.0;
                   touched_scs.push_back(sc);
                 }
-                r_cw[sc] += 1.0;
+                r_cw[sc] +=
+                    triplet_has_weight[ti]
+                        ? triplet_weight_accessors[ti].get_typed_data<double>(
+                              it)
+                        : 1.0;
               }
             }
             for (size_t ti : label_in_triplets[u_li]) {
@@ -496,7 +504,11 @@ void Leiden::refine() {
                   r_cw[sc] = 0.0;
                   touched_scs.push_back(sc);
                 }
-                r_cw[sc] += 1.0;
+                r_cw[sc] +=
+                    triplet_has_weight[ti]
+                        ? triplet_weight_accessors[ti].get_typed_data<double>(
+                              it)
+                        : 1.0;
               }
             }
             uint32_t best_sc = cur_sc;
