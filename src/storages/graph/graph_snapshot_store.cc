@@ -284,7 +284,7 @@ uint64_t GraphSnapshotStore::CurrentSchemaGeneration() const {
   return slots_[slot_index].schema_generation_.load(std::memory_order_acquire);
 }
 
-uint32_t GraphSnapshotStore::publishCurrentSnapshot(
+uint32_t GraphSnapshotStore::publishInPlaceMutation(
     SnapshotSlot& mutated_slot, bool schema_changed) noexcept {
   const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
   auto& current_slot = slots_[slot_index];

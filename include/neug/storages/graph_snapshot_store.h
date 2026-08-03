@@ -177,7 +177,7 @@ class GraphSnapshotStore {
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
   uint32_t reserveSnapshotGeneration();
-  uint32_t publishCurrentSnapshot(SnapshotSlot& mutated_slot,
+  uint32_t publishInPlaceMutation(SnapshotSlot& mutated_slot,
                                   bool schema_changed) noexcept;
   void publishPreparedSnapshot(int slot_index) noexcept;
   void unpinSnapshotByIndex(int slot_index) noexcept;

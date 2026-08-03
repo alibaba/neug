@@ -868,11 +868,10 @@ class StorageUpdateInterface : public StorageReadInterface,
 
   /**
    * @brief Create, bind, and populate an index.
-   *
-   * Index metadata is not part of the binder/planner-visible logical schema.
    */
-  neug::result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta);
-  Status DropIndex(const std::string& name);
+  virtual neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual Status DropIndex(const std::string& name) = 0;
 
  private:
   void MarkSchemaChanged() { MarkSchemaDirty(); }
@@ -921,9 +920,6 @@ class StorageUpdateInterface : public StorageReadInterface,
       const DeleteEdgePropertiesParam& config) = 0;
   virtual Status DeleteVertexTypeImpl(label_t label) = 0;
   virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
-  virtual neug::result<StorageIndex*> CreateIndexImpl(
-      std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndexImpl(const std::string& name) = 0;
 
   void markIncidentEdgeTablesDirty(label_t label) {
     for (const auto& [_, es] : schema().get_all_edge_schemas()) {
@@ -953,9 +949,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
 
   void CreateCheckpoint() override;
 
-  neug::result<StorageIndex*> CreateIndexImpl(
+  neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndexImpl(const std::string& name) override;
+  Status DropIndex(const std::string& name) override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {

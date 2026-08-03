@@ -188,9 +188,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
 
   void CreateCheckpoint() override;
 
-  neug::result<StorageIndex*> CreateIndexImpl(
+  neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndexImpl(const std::string& name) override;
+  Status DropIndex(const std::string& name) override;
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.

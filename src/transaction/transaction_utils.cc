@@ -34,7 +34,7 @@ InPlaceWriteScope::~InPlaceWriteScope() noexcept { publish(); }
 void InPlaceWriteScope::publish() noexcept {
   CHECK(snapshot_guard_ && snapshot_guard_->valid())
       << "In-place write scope requires a pinned mutable snapshot";
-  const uint32_t snapshot_generation = snapshot_store_.publishCurrentSnapshot(
+  const uint32_t snapshot_generation = snapshot_store_.publishInPlaceMutation(
       snapshot_guard_->get(), schema_changed_);
   timestamp_lease_.Finish(snapshot_generation);
 }

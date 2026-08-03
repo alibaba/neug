@@ -751,13 +751,13 @@ Status StorageTPUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
   return status;
 }
 
-neug::result<StorageIndex*> StorageTPUpdateInterface::CreateIndexImpl(
+neug::result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta>) {
   RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
                       "CreateIndex is not supported in TP mode currently.");
 }
 
-Status StorageTPUpdateInterface::DropIndexImpl(const std::string&) {
+Status StorageTPUpdateInterface::DropIndex(const std::string&) {
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "DropIndex is not supported in TP mode currently.");
 }

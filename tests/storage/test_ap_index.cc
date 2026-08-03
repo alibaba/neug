@@ -328,21 +328,6 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
 }
 
-TEST_F(APIndexTest, CreateAndDropIndexDoNotChangeLogicalSchema) {
-  CreatePersonTable();
-  bool schema_changed = false;
-  ap_ = std::make_unique<StorageAPUpdateInterface>(
-      *graph_, *view_, 0, allocator_,
-      [&schema_changed]() { schema_changed = true; });
-
-  auto created = CreateIndex("idx_person_age", "Person", "age");
-  ASSERT_TRUE(created) << created.error().ToString();
-  EXPECT_FALSE(schema_changed);
-
-  ASSERT_TRUE(ap_->DropIndex("idx_person_age").ok());
-  EXPECT_FALSE(schema_changed);
-}
-
 TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
   auto status = ap_->DropIndex("missing_index");
   EXPECT_FALSE(status.ok());

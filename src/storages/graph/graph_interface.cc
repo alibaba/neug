@@ -19,15 +19,6 @@
 
 namespace neug {
 
-neug::result<StorageIndex*> StorageUpdateInterface::CreateIndex(
-    std::unique_ptr<IndexMeta> meta) {
-  return CreateIndexImpl(std::move(meta));
-}
-
-Status StorageUpdateInterface::DropIndex(const std::string& name) {
-  return DropIndexImpl(name);
-}
-
 namespace {
 
 // Drops every index whose metadata references the given vertex label/property.
@@ -492,7 +483,7 @@ Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
   return status;
 }
 
-neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndexImpl(
+neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
@@ -515,7 +506,7 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndexImpl(
       graph_.GetVertexSet(label_id, timestamp_));
 }
 
-Status StorageAPUpdateInterface::DropIndexImpl(const std::string& name) {
+Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
   return index_manager_.DropIndex(name);
 }
 
