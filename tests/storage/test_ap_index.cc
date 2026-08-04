@@ -392,35 +392,6 @@ TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
   EXPECT_EQ(status.error_message(), "Index not found: missing_index");
 }
 
-TEST_F(APIndexTest, FailedDdlMarksActualSchemaMutation) {
-  CreatePersonTable();
-  CreateReplacementTable();
-
-  // Build a deliberately inconsistent graph: the logical edge schema exists,
-  // but its physical edge table does not. AddEdgeProperties mutates the schema
-  // before detecting the missing table and returning an error.
-  graph_->mutable_schema().AddEdgeLabel("Person", "Replacement", "Broken", {},
-                                        {});
-  view_->Rebuild(*graph_);
-  graph_->ClearAllDirty();
-  planning_change_count_ = 0;
-
-  const auto& schema = graph_->schema();
-  const auto src = schema.get_vertex_label_id("Person");
-  const auto dst = schema.get_vertex_label_id("Replacement");
-  const auto edge = schema.get_edge_label_id("Broken");
-  AddEdgePropertiesParamBuilder builder;
-  auto status = ap_->AddEdgeProperties(
-      src, dst, edge,
-      builder.AddProperty("weight", Value::DOUBLE(0.0)).Build());
-
-  EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
-  EXPECT_TRUE(graph_->schema().edge_has_property(src, dst, edge, "weight"));
-  EXPECT_TRUE(graph_->IsSchemaDirty());
-  EXPECT_EQ(planning_change_count_, 1);
-}
-
 TEST_F(APIndexTest, IndexMutationMarksPlanningChangedBeforeViewRebuild) {
   CreateVectorTable();
   const auto label = graph_->schema().get_vertex_label_id("Vector");

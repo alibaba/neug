@@ -703,7 +703,11 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param config CreateVertexTypeParam (includes type name and properties)
    */
   Status CreateVertexType(const CreateVertexTypeParam& config) {
-    return TrackSchemaMutation([&]() { return CreateVertexTypeImpl(config); });
+    auto st = CreateVertexTypeImpl(config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
   }
 
   /**
@@ -713,7 +717,11 @@ class StorageUpdateInterface : public StorageReadInterface,
    *               properties)
    */
   Status CreateEdgeType(const CreateEdgeTypeParam& config) {
-    return TrackSchemaMutation([&]() { return CreateEdgeTypeImpl(config); });
+    auto st = CreateEdgeTypeImpl(config);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
   }
 
   /**
@@ -727,9 +735,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status AddVertexProperties(label_t label,
                              const AddVertexPropertiesParam& config) {
-    auto st = TrackSchemaMutation(
-        [&]() { return AddVertexPropertiesImpl(label, config); });
+    auto st = AddVertexPropertiesImpl(label, config);
     if (st.ok()) {
+      MarkSchemaDirty();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -745,9 +753,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status AddEdgeProperties(label_t src, label_t dst, label_t edge,
                            const AddEdgePropertiesParam& config) {
-    auto st = TrackSchemaMutation(
-        [&]() { return AddEdgePropertiesImpl(src, dst, edge, config); });
+    auto st = AddEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
+      MarkSchemaDirty();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -761,9 +769,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status RenameVertexProperties(label_t label,
                                 const RenameVertexPropertiesParam& config) {
-    auto st = TrackSchemaMutation(
-        [&]() { return RenameVertexPropertiesImpl(label, config); });
+    auto st = RenameVertexPropertiesImpl(label, config);
     if (st.ok()) {
+      MarkSchemaDirty();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -779,9 +787,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status RenameEdgeProperties(label_t src, label_t dst, label_t edge,
                               const RenameEdgePropertiesParam& config) {
-    auto st = TrackSchemaMutation(
-        [&]() { return RenameEdgePropertiesImpl(src, dst, edge, config); });
+    auto st = RenameEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
+      MarkSchemaDirty();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -795,9 +803,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status DeleteVertexProperties(label_t label,
                                 const DeleteVertexPropertiesParam& config) {
-    auto st = TrackSchemaMutation(
-        [&]() { return DeleteVertexPropertiesImpl(label, config); });
+    auto st = DeleteVertexPropertiesImpl(label, config);
     if (st.ok()) {
+      MarkSchemaDirty();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -813,9 +821,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status DeleteEdgeProperties(label_t src, label_t dst, label_t edge,
                               const DeleteEdgePropertiesParam& config) {
-    auto st = TrackSchemaMutation(
-        [&]() { return DeleteEdgePropertiesImpl(src, dst, edge, config); });
+    auto st = DeleteEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
+      MarkSchemaDirty();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -829,7 +837,11 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param label Vertex label id
    */
   Status DeleteVertexType(label_t label) {
-    return TrackSchemaMutation([&]() { return DeleteVertexTypeImpl(label); });
+    auto st = DeleteVertexTypeImpl(label);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
   }
 
   /**
@@ -842,8 +854,11 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param edge Edge label id
    */
   Status DeleteEdgeType(label_t src, label_t dst, label_t edge) {
-    return TrackSchemaMutation(
-        [&]() { return DeleteEdgeTypeImpl(src, dst, edge); });
+    auto st = DeleteEdgeTypeImpl(src, dst, edge);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
   }
 
   /**
@@ -859,25 +874,6 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual Status DropIndex(const std::string& name) = 0;
 
  private:
-  template <typename Mutation>
-  Status TrackSchemaMutation(Mutation&& mutation) {
-    const auto schema_before = schema().Clone();
-    try {
-      auto status = mutation();
-      if (!schema().Equals(schema_before)) {
-        MarkSchemaDirty();
-      }
-      return status;
-    } catch (...) {
-      // An in-place implementation may throw after changing the schema and
-      // cannot roll that change back. Conservatively mark exceptional DDL so
-      // publication never exposes a changed schema under the old plan-cache
-      // generation. COW transactions discard this mark when they abort.
-      MarkSchemaDirty();
-      throw;
-    }
-  }
-
   virtual void MarkSchemaDirty() = 0;
 
   virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
