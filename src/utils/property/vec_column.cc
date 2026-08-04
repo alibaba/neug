@@ -256,15 +256,17 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
   }
   validatePodType();
   validateValue(value);
-  if (!insert_safe && offset_accessor_->GetNextIndexID() >= size_) {
-    THROW_STORAGE_EXCEPTION(
-        "VecColumn has insufficient capacity and insert_safe is false");
+  index_id_t next_offset = offset_accessor_->GetNextIndexID();
+  if (next_offset >= size_) {
+    if (!insert_safe) {
+      THROW_STORAGE_EXCEPTION(
+          "VecColumn has insufficient capacity and insert_safe is false");
+    }
+    resize(next_offset < 4096 ? 4096 : next_offset + next_offset / 4,
+           default_value_);
   }
+  assert(next_offset < size_);
   auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
-  if (insert_safe && offset >= size_) {
-    resize(offset < 4096 ? 4096 : offset + offset / 4, default_value_);
-  }
-  assert(offset < size_);
   switch (ArrayType::GetChildType(array_type_).id()) {
 #define TYPE_DISPATCHER(enum_val, type)                                    \
   case DataTypeId::enum_val:                                               \

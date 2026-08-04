@@ -638,6 +638,10 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
           "CreateIndex: HNSW index can only be created on VecColumn");
     }
   } else {
+    if (dynamic_cast<const VecColumn*>(column)) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Non-HNSW index cannot be created on VecColumn");
+    }
     index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
   }
 

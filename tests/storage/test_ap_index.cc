@@ -445,6 +445,23 @@ TEST_F(APIndexTest, HnswIndexRejectsPropertyWithNonHnswIndex) {
   EXPECT_EQ(hnsw.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
+TEST_F(APIndexTest, NonHnswIndexRejectsPropertyWithHnswIndex) {
+  CreateVectorTable();
+  auto hnsw = CreateVecIndex("idx_vector_hnsw");
+  ASSERT_TRUE(hnsw) << hnsw.error().ToString();
+
+  auto regular = CreateIndex("idx_vector_regular", "Vector", "embedding");
+  ASSERT_FALSE(regular);
+  EXPECT_EQ(regular.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+
+  ASSERT_TRUE(ap_->DropIndex("idx_vector_hnsw").ok());
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  EXPECT_NE(dynamic_cast<const ArrayColumn*>(
+                vertex_table.GetPropertyColumnBase("embedding")),
+            nullptr);
+}
+
 TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {
   CreatePersonTable();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
