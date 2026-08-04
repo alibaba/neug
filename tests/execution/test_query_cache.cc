@@ -83,11 +83,13 @@ class BlockingPlanner final : public IGraphPlanner {
 
 class QueryCacheTest : public ::testing::Test {
  protected:
-  QueryCacheTest() : view_(graph_), stats_(view_) {}
+  QueryCacheTest()
+      : view_(graph_), old_stats_(view_, 0), new_stats_(view_, 1) {}
 
   PropertyGraph graph_;
   GraphView view_;
-  GraphStats stats_;
+  GraphStats old_stats_;
+  GraphStats new_stats_;
 };
 
 TEST_F(QueryCacheTest, OldCompileCannotRepopulateAfterLazyGenerationAdvance) {
@@ -96,14 +98,14 @@ TEST_F(QueryCacheTest, OldCompileCannotRepopulateAfterLazyGenerationAdvance) {
 
   std::shared_ptr<CacheValue> blocked_value;
   std::thread blocked_compile([&]() {
-    auto result = cache->Get(stats_, 0, BlockingPlanner::kBlockedQuery);
+    auto result = cache->Get(old_stats_, BlockingPlanner::kBlockedQuery);
     if (result) {
       blocked_value = result.value();
     }
   });
 
   const bool compile_started = planner->WaitUntilBlockedCompileStarts();
-  auto current_value = cache->Get(stats_, 1, "current-query");
+  auto current_value = cache->Get(new_stats_, "current-query");
   planner->ReleaseBlockedCompile();
   blocked_compile.join();
 
@@ -112,12 +114,12 @@ TEST_F(QueryCacheTest, OldCompileCannotRepopulateAfterLazyGenerationAdvance) {
   ASSERT_NE(blocked_value, nullptr);
   EXPECT_EQ(planner->total_compile_count(), 2);
 
-  auto current_value_again = cache->Get(stats_, 1, "current-query");
+  auto current_value_again = cache->Get(new_stats_, "current-query");
   ASSERT_TRUE(current_value_again) << current_value_again.error().ToString();
   EXPECT_EQ(current_value.value().get(), current_value_again.value().get());
   EXPECT_EQ(planner->total_compile_count(), 2);
 
-  auto old_value_again = cache->Get(stats_, 0, BlockingPlanner::kBlockedQuery);
+  auto old_value_again = cache->Get(old_stats_, BlockingPlanner::kBlockedQuery);
   ASSERT_TRUE(old_value_again) << old_value_again.error().ToString();
   EXPECT_NE(blocked_value.get(), old_value_again.value().get());
   EXPECT_EQ(planner->blocked_compile_count(), 2);
@@ -130,19 +132,19 @@ TEST_F(QueryCacheTest,
   LocalQueryCache first_local(global_cache);
   LocalQueryCache second_local(global_cache);
 
-  auto first_value = first_local.Get(stats_, 0, "stable-query");
+  auto first_value = first_local.Get(old_stats_, "stable-query");
   ASSERT_TRUE(first_value) << first_value.error().ToString();
-  auto shared_value = second_local.Get(stats_, 0, "stable-query");
+  auto shared_value = second_local.Get(old_stats_, "stable-query");
   ASSERT_TRUE(shared_value) << shared_value.error().ToString();
   EXPECT_EQ(first_value.value().get(), shared_value.value().get());
   EXPECT_EQ(planner->total_compile_count(), 1);
 
-  auto refreshed_value = second_local.Get(stats_, 1, "stable-query");
+  auto refreshed_value = second_local.Get(new_stats_, "stable-query");
   ASSERT_TRUE(refreshed_value) << refreshed_value.error().ToString();
   EXPECT_NE(shared_value.value().get(), refreshed_value.value().get());
   EXPECT_EQ(planner->total_compile_count(), 2);
 
-  auto refreshed_value_again = second_local.Get(stats_, 1, "stable-query");
+  auto refreshed_value_again = second_local.Get(new_stats_, "stable-query");
   ASSERT_TRUE(refreshed_value_again)
       << refreshed_value_again.error().ToString();
   EXPECT_EQ(refreshed_value.value().get(), refreshed_value_again.value().get());
@@ -150,7 +152,7 @@ TEST_F(QueryCacheTest,
 
   // The first slot may still execute against its pinned old snapshot. A
   // planning-generation advance must not evict that slot's valid local plan.
-  auto old_snapshot_value = first_local.Get(stats_, 0, "stable-query");
+  auto old_snapshot_value = first_local.Get(old_stats_, "stable-query");
   ASSERT_TRUE(old_snapshot_value) << old_snapshot_value.error().ToString();
   EXPECT_EQ(first_value.value().get(), old_snapshot_value.value().get());
   EXPECT_EQ(planner->total_compile_count(), 2);

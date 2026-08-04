@@ -197,17 +197,14 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
-  GraphStats statistic() const { return GraphStats(guard_.get().view()); }
+  GraphStats statistic() const {
+    const auto& slot = guard_.get();
+    return GraphStats(slot.view(), slot.planning_generation());
+  }
 
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
 
  private:
-  friend class ExecutionSlot;
-
-  uint64_t planning_generation() const {
-    return guard_.get().planning_generation();
-  }
-
   Value get_vertex_id(label_t label, vid_t lid) const;
 
   void create_id_indexer_if_not_exists(label_t label);

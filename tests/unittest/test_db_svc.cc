@@ -691,10 +691,9 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesPlanningGenerations) {
   // Cache generation advances lazily when a newer published snapshot first
   // requests a plan. Until then, an old pinned snapshot may still use the old
   // generation cache without affecting queries on the new generation.
-  auto old_plan = local_cache.Get(old_txn.statistic(), old_generation, query);
+  auto old_plan = local_cache.Get(old_txn.statistic(), query);
   ASSERT_TRUE(old_plan) << old_plan.error().ToString();
-  auto old_plan_again =
-      local_cache.Get(old_txn.statistic(), old_generation, query);
+  auto old_plan_again = local_cache.Get(old_txn.statistic(), query);
   ASSERT_TRUE(old_plan_again) << old_plan_again.error().ToString();
   EXPECT_EQ(old_plan.value().get(), old_plan_again.value().get());
 
@@ -703,22 +702,19 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesPlanningGenerations) {
   const auto new_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
   ASSERT_EQ(new_generation, old_generation + 1);
-  auto new_plan = local_cache.Get(new_txn.statistic(), new_generation, query);
+  auto new_plan = local_cache.Get(new_txn.statistic(), query);
   ASSERT_TRUE(new_plan) << new_plan.error().ToString();
   EXPECT_NE(old_plan.value().get(), new_plan.value().get());
-  auto new_plan_again =
-      local_cache.Get(new_txn.statistic(), new_generation, query);
+  auto new_plan_again = local_cache.Get(new_txn.statistic(), query);
   ASSERT_TRUE(new_plan_again) << new_plan_again.error().ToString();
   EXPECT_EQ(new_plan.value().get(), new_plan_again.value().get());
 
   // Old snapshots continue to compile without global write-back. The local
   // cache may retain that result until its generation changes.
-  auto old_plan_after_new =
-      local_cache.Get(old_txn.statistic(), old_generation, query);
+  auto old_plan_after_new = local_cache.Get(old_txn.statistic(), query);
   ASSERT_TRUE(old_plan_after_new) << old_plan_after_new.error().ToString();
   EXPECT_NE(old_plan.value().get(), old_plan_after_new.value().get());
-  auto new_plan_after_old =
-      local_cache.Get(new_txn.statistic(), new_generation, query);
+  auto new_plan_after_old = local_cache.Get(new_txn.statistic(), query);
   ASSERT_TRUE(new_plan_after_old) << new_plan_after_old.error().ToString();
   EXPECT_EQ(new_plan.value().get(), new_plan_after_old.value().get());
 }

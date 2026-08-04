@@ -63,8 +63,8 @@ class GlobalQueryCache {
       : planner_(planner), planning_generation_(0) {}
 
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
-                                          uint64_t planning_generation,
                                           const std::string& query) {
+    const auto planning_generation = stats.planning_generation();
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
       if (planning_generation == planning_generation_) {
@@ -81,7 +81,8 @@ class GlobalQueryCache {
     if (planning_generation < planning_generation_) {
       return cache_value;
     }
-    // A request carries the planning generation of its pinned snapshot.
+    // The request's GraphStats carries the planning generation of its pinned
+    // snapshot.
     // Advance monotonically so an older pinned snapshot can never roll the
     // global cache back after a newer generation has been observed.
     if (planning_generation > planning_generation_) {
@@ -132,8 +133,8 @@ class LocalQueryCache {
       : global_cache_(global_cache) {}
   ~LocalQueryCache() = default;
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
-                                          uint64_t planning_generation,
                                           const std::string& query) {
+    const auto planning_generation = stats.planning_generation();
     // An ExecutionSlot is leased exclusively, so its local cache only needs
     // plans for one planning generation. Keeping the generation outside the
     // map avoids adding it to every query key.

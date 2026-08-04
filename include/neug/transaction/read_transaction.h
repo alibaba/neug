@@ -94,15 +94,13 @@ class ReadTransaction {
 
   const GraphView& view() const { return lease_.view(); }
 
-  GraphStats statistic() const { return GraphStats(view()); }
+  GraphStats statistic() const {
+    return GraphStats(view(), lease_.planning_generation());
+  }
 
   const Schema& schema() const;
 
  private:
-  friend class ExecutionSlot;
-
-  uint64_t planning_generation() const { return lease_.planning_generation(); }
-
   void release();
   ReadSnapshotLease lease_;
 };

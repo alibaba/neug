@@ -115,7 +115,9 @@ class UpdateTransaction {
 
   const GraphView& view() const { return view_; }
 
-  GraphStats statistic() const { return GraphStats(view_); }
+  GraphStats statistic() const {
+    return GraphStats(view_, planning_generation_);
+  }
 
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }
@@ -150,11 +152,8 @@ class UpdateTransaction {
   }
 
   friend class StorageTPUpdateInterface;
-  friend class ExecutionSlot;
 
  private:
-  uint64_t planning_generation() const { return planning_generation_; }
-
   void release(std::optional<uint32_t> installed_snapshot_generation);
 
   // COW storage - the cloned PropertyGraph

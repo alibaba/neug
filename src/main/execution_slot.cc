@@ -173,8 +173,7 @@ CompactTransaction ExecutionSlot::GetCompactTransaction() {
 }
 
 result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
-    const GraphStats& stats, const std::string& query, int32_t num_threads,
-    uint64_t planning_generation) {
+    const GraphStats& stats, const std::string& query, int32_t num_threads) {
   if (num_threads == 0) {
     num_threads = db_config_.max_thread_num;
   }
@@ -184,7 +183,7 @@ result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
                         "Number of threads must be greater than 0"));
   }
 
-  GS_AUTO(cache_value, pipeline_cache_.Get(stats, planning_generation, query));
+  GS_AUTO(cache_value, pipeline_cache_.Get(stats, query));
   return cache_value;
 }
 
@@ -256,10 +255,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
 
   auto execute_on_storage =
       [this, &query, access_mode, &parameters, num_threads, &response,
-       &prepared_query](const GraphStats& stats, uint64_t planning_generation,
-                        auto& storage) -> Status {
-    auto prepared =
-        prepareQuery(stats, query, num_threads, planning_generation);
+       &prepared_query](const GraphStats& stats, auto& storage) -> Status {
+    auto prepared = prepareQuery(stats, query, num_threads);
     if (!prepared) {
       return prepared.error();
     }
@@ -290,7 +287,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
           ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
       const auto& view = lease.view();
       StorageReadInterface storage(view, lease.timestamp());
-      status = execute_on_storage(GraphStats(view), lease.planning_generation(),
+      status = execute_on_storage(GraphStats(view, lease.planning_generation()),
                                   storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
@@ -300,8 +297,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageAPUpdateInterface storage(
           *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
           alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
-      status = execute_on_storage(GraphStats(slot.view()),
-                                  slot.planning_generation(), storage);
+      status = execute_on_storage(
+          GraphStats(slot.view(), slot.planning_generation()), storage);
       markPlanningChangedIfNeeded(write_scope, prepared_query.get(), status);
     } else {
       return Status(
@@ -312,8 +309,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
   } else {
     auto execute_and_commit = [&execute_on_storage](auto& transaction,
                                                     auto& storage) -> Status {
-      auto transaction_status = execute_on_storage(
-          transaction.statistic(), transaction.planning_generation(), storage);
+      auto transaction_status =
+          execute_on_storage(transaction.statistic(), storage);
       if (!transaction_status.ok()) {
         return transaction_status;
       }

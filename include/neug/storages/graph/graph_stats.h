@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -36,15 +37,21 @@ namespace catalog {
 class CatalogEntry;
 }
 
-// Statistics access interface used by the compiler layer. It reads
-// cardinalities from a GraphView when estimating table sizes.
+// Compiler inputs derived from one GraphView. planning_generation is copied
+// from the same pinned snapshot as view_, so cache lookup and compilation use
+// a coherent set of planner inputs.
 class GraphStats {
  public:
   GraphStats() = default;
-  explicit GraphStats(const GraphView& view) : view_(&view) {}
+  GraphStats(const GraphView& view, uint64_t planning_generation)
+      : view_(&view), planning_generation_(planning_generation) {}
 
-  void UpdateView(const GraphView& view) { view_ = &view; }
+  void UpdateView(const GraphView& view, uint64_t planning_generation) {
+    view_ = &view;
+    planning_generation_ = planning_generation;
+  }
   const Schema& schema() const { return view_->schema(); }
+  uint64_t planning_generation() const { return planning_generation_; }
 #ifdef NEUG_BUILD_TEST
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif
@@ -65,6 +72,7 @@ class GraphStats {
 
  private:
   const GraphView* view_ = nullptr;
+  uint64_t planning_generation_{0};
 #ifdef NEUG_BUILD_TEST
   std::unordered_map<uint64_t, uint64_t> table_cardinalities_;
 #endif
