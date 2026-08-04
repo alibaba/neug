@@ -649,6 +649,9 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
                      std::move(meta), std::move(index_id_accessor), column,
                      graph_.GetVertexSet(label_id, timestamp_)));
 
+  if (on_planning_changed_) {
+    on_planning_changed_();
+  }
   if (vec_column) {
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(vec_column));
@@ -709,6 +712,9 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
   }
 
   RETURN_IF_NOT_OK(index_manager_.DropIndex(name));
+  if (on_planning_changed_) {
+    on_planning_changed_();
+  }
   if (array_column) {
     auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
     vertex_table.SetColumn(static_cast<size_t>(property_col),

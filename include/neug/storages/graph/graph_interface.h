@@ -703,11 +703,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param config CreateVertexTypeParam (includes type name and properties)
    */
   Status CreateVertexType(const CreateVertexTypeParam& config) {
-    auto st = CreateVertexTypeImpl(config);
-    if (st.ok()) {
-      MarkSchemaDirty();
-    }
-    return st;
+    return TrackSchemaMutation([&]() { return CreateVertexTypeImpl(config); });
   }
 
   /**
@@ -717,11 +713,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    *               properties)
    */
   Status CreateEdgeType(const CreateEdgeTypeParam& config) {
-    auto st = CreateEdgeTypeImpl(config);
-    if (st.ok()) {
-      MarkSchemaDirty();
-    }
-    return st;
+    return TrackSchemaMutation([&]() { return CreateEdgeTypeImpl(config); });
   }
 
   /**
@@ -735,9 +727,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status AddVertexProperties(label_t label,
                              const AddVertexPropertiesParam& config) {
-    auto st = AddVertexPropertiesImpl(label, config);
+    auto st = TrackSchemaMutation(
+        [&]() { return AddVertexPropertiesImpl(label, config); });
     if (st.ok()) {
-      MarkSchemaDirty();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -753,9 +745,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status AddEdgeProperties(label_t src, label_t dst, label_t edge,
                            const AddEdgePropertiesParam& config) {
-    auto st = AddEdgePropertiesImpl(src, dst, edge, config);
+    auto st = TrackSchemaMutation(
+        [&]() { return AddEdgePropertiesImpl(src, dst, edge, config); });
     if (st.ok()) {
-      MarkSchemaDirty();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -769,9 +761,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status RenameVertexProperties(label_t label,
                                 const RenameVertexPropertiesParam& config) {
-    auto st = RenameVertexPropertiesImpl(label, config);
+    auto st = TrackSchemaMutation(
+        [&]() { return RenameVertexPropertiesImpl(label, config); });
     if (st.ok()) {
-      MarkSchemaDirty();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -787,9 +779,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status RenameEdgeProperties(label_t src, label_t dst, label_t edge,
                               const RenameEdgePropertiesParam& config) {
-    auto st = RenameEdgePropertiesImpl(src, dst, edge, config);
+    auto st = TrackSchemaMutation(
+        [&]() { return RenameEdgePropertiesImpl(src, dst, edge, config); });
     if (st.ok()) {
-      MarkSchemaDirty();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -803,9 +795,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status DeleteVertexProperties(label_t label,
                                 const DeleteVertexPropertiesParam& config) {
-    auto st = DeleteVertexPropertiesImpl(label, config);
+    auto st = TrackSchemaMutation(
+        [&]() { return DeleteVertexPropertiesImpl(label, config); });
     if (st.ok()) {
-      MarkSchemaDirty();
       MarkVertexTableDirty(label);
     }
     return st;
@@ -821,9 +813,9 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status DeleteEdgeProperties(label_t src, label_t dst, label_t edge,
                               const DeleteEdgePropertiesParam& config) {
-    auto st = DeleteEdgePropertiesImpl(src, dst, edge, config);
+    auto st = TrackSchemaMutation(
+        [&]() { return DeleteEdgePropertiesImpl(src, dst, edge, config); });
     if (st.ok()) {
-      MarkSchemaDirty();
       MarkEdgeTableDirty(src, dst, edge);
     }
     return st;
@@ -837,11 +829,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param label Vertex label id
    */
   Status DeleteVertexType(label_t label) {
-    auto st = DeleteVertexTypeImpl(label);
-    if (st.ok()) {
-      MarkSchemaDirty();
-    }
-    return st;
+    return TrackSchemaMutation([&]() { return DeleteVertexTypeImpl(label); });
   }
 
   /**
@@ -854,11 +842,8 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param edge Edge label id
    */
   Status DeleteEdgeType(label_t src, label_t dst, label_t edge) {
-    auto st = DeleteEdgeTypeImpl(src, dst, edge);
-    if (st.ok()) {
-      MarkSchemaDirty();
-    }
-    return st;
+    return TrackSchemaMutation(
+        [&]() { return DeleteEdgeTypeImpl(src, dst, edge); });
   }
 
   /**
@@ -874,6 +859,25 @@ class StorageUpdateInterface : public StorageReadInterface,
   virtual Status DropIndex(const std::string& name) = 0;
 
  private:
+  template <typename Mutation>
+  Status TrackSchemaMutation(Mutation&& mutation) {
+    const auto schema_before = schema().Clone();
+    try {
+      auto status = mutation();
+      if (!schema().Equals(schema_before)) {
+        MarkSchemaDirty();
+      }
+      return status;
+    } catch (...) {
+      // An in-place implementation may throw after changing the schema and
+      // cannot roll that change back. Conservatively mark exceptional DDL so
+      // publication never exposes a changed schema under the old plan-cache
+      // generation. COW transactions discard this mark when they abort.
+      MarkSchemaDirty();
+      throw;
+    }
+  }
+
   virtual void MarkSchemaDirty() = 0;
 
   virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
@@ -931,18 +935,18 @@ class StorageUpdateInterface : public StorageReadInterface,
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
  public:
-  using SchemaChangedCallback = std::function<void()>;
+  using PlanningChangedCallback = std::function<void()>;
 
   explicit StorageAPUpdateInterface(
       PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
-      neug::Allocator& alloc, SchemaChangedCallback on_schema_changed = {})
+      neug::Allocator& alloc, PlanningChangedCallback on_planning_changed = {})
       : StorageUpdateInterface(view, timestamp),
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
         timestamp_(timestamp),
         index_manager_(graph_.mutable_index_manager()),
-        on_schema_changed_(std::move(on_schema_changed)) {}
+        on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
 
   void CreateCheckpoint() override;
@@ -960,8 +964,8 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   }
   void MarkSchemaDirty() override {
     graph_.MarkSchemaDirty();
-    if (on_schema_changed_) {
-      on_schema_changed_();
+    if (on_planning_changed_) {
+      on_planning_changed_();
     }
   }
 
@@ -1021,7 +1025,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
   StorageIndexManager& index_manager_;
-  SchemaChangedCallback on_schema_changed_;
+  PlanningChangedCallback on_planning_changed_;
 };
 
 }  // namespace neug

@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -174,8 +175,13 @@ class APIndexTest : public ::testing::Test {
     graph_ = std::make_unique<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
-                                                     allocator_);
+    ap_ = std::make_unique<StorageAPUpdateInterface>(
+        *graph_, *view_, 0, allocator_, [this]() {
+          ++planning_change_count_;
+          if (planning_change_hook_) {
+            planning_change_hook_();
+          }
+        });
   }
 
   void ReopenGraph() {
@@ -188,8 +194,13 @@ class APIndexTest : public ::testing::Test {
     graph_ = std::make_unique<PropertyGraph>();
     graph_->Open(checkpoint_mgr_.CurrentCheckpoint(), MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
-                                                     allocator_);
+    ap_ = std::make_unique<StorageAPUpdateInterface>(
+        *graph_, *view_, 0, allocator_, [this]() {
+          ++planning_change_count_;
+          if (planning_change_hook_) {
+            planning_change_hook_();
+          }
+        });
   }
 
   void CreatePersonTable() {
@@ -352,18 +363,26 @@ class APIndexTest : public ::testing::Test {
   std::unique_ptr<GraphView> view_;
   Allocator allocator_{MemoryLevel::kInMemory, ""};
   std::unique_ptr<StorageAPUpdateInterface> ap_;
+  int planning_change_count_{0};
+  std::function<void()> planning_change_hook_;
 };
 
 TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   CreatePersonTable();
+  planning_change_count_ = 0;
 
   auto created = CreateIndex("idx_person_age", "Person", "age");
   ASSERT_TRUE(created) << created.error().ToString();
   EXPECT_NE(created.value(), nullptr);
+  EXPECT_EQ(planning_change_count_, 1);
 
   auto duplicate = CreateIndex("idx_person_age", "Person", "age");
   EXPECT_FALSE(duplicate);
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
+  EXPECT_EQ(planning_change_count_, 1);
+
+  ASSERT_TRUE(ap_->DropIndex("idx_person_age").ok());
+  EXPECT_EQ(planning_change_count_, 2);
 }
 
 TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
@@ -371,6 +390,66 @@ TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
   EXPECT_FALSE(status.ok());
   EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
   EXPECT_EQ(status.error_message(), "Index not found: missing_index");
+}
+
+TEST_F(APIndexTest, FailedDdlMarksActualSchemaMutation) {
+  CreatePersonTable();
+  CreateReplacementTable();
+
+  // Build a deliberately inconsistent graph: the logical edge schema exists,
+  // but its physical edge table does not. AddEdgeProperties mutates the schema
+  // before detecting the missing table and returning an error.
+  graph_->mutable_schema().AddEdgeLabel("Person", "Replacement", "Broken", {},
+                                        {});
+  view_->Rebuild(*graph_);
+  graph_->ClearAllDirty();
+  planning_change_count_ = 0;
+
+  const auto& schema = graph_->schema();
+  const auto src = schema.get_vertex_label_id("Person");
+  const auto dst = schema.get_vertex_label_id("Replacement");
+  const auto edge = schema.get_edge_label_id("Broken");
+  AddEdgePropertiesParamBuilder builder;
+  auto status = ap_->AddEdgeProperties(
+      src, dst, edge,
+      builder.AddProperty("weight", Value::DOUBLE(0.0)).Build());
+
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_TRUE(graph_->schema().edge_has_property(src, dst, edge, "weight"));
+  EXPECT_TRUE(graph_->IsSchemaDirty());
+  EXPECT_EQ(planning_change_count_, 1);
+}
+
+TEST_F(APIndexTest, IndexMutationMarksPlanningChangedBeforeViewRebuild) {
+  CreateVectorTable();
+  const auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  planning_change_count_ = 0;
+
+  bool create_callback_saw_array = false;
+  planning_change_hook_ = [&]() {
+    create_callback_saw_array =
+        dynamic_cast<const ArrayColumn*>(
+            vertex_table.GetPropertyColumnBase("embedding")) != nullptr;
+    EXPECT_NE(GetIndex("idx_vector_embedding"), nullptr);
+  };
+  auto created = CreateVecIndex("idx_vector_embedding");
+  ASSERT_TRUE(created) << created.error().ToString();
+  EXPECT_TRUE(create_callback_saw_array);
+  EXPECT_EQ(planning_change_count_, 1);
+
+  bool drop_callback_saw_vec = false;
+  planning_change_hook_ = [&]() {
+    drop_callback_saw_vec =
+        dynamic_cast<const VecColumn*>(
+            vertex_table.GetPropertyColumnBase("embedding")) != nullptr;
+    EXPECT_EQ(GetIndex("idx_vector_embedding"), nullptr);
+  };
+  ASSERT_TRUE(ap_->DropIndex("idx_vector_embedding").ok());
+  EXPECT_TRUE(drop_callback_saw_vec);
+  EXPECT_EQ(planning_change_count_, 2);
+  planning_change_hook_ = {};
 }
 
 TEST_F(APIndexTest, BulkBuildIndexesExistingVertices) {

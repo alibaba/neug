@@ -31,7 +31,7 @@ namespace neug {
  * RAII owner of a writer-exclusive in-place write.
  *
  * Construction acquires an update timestamp, blocks and drains readers, then
- * pins the current snapshot for mutation. Destruction publishes its schema
+ * pins the current snapshot for mutation. Destruction publishes its planning
  * generation first, publishes the matching timestamp/snapshot read view,
  * reopens admission, and finally releases the snapshot pin. Publication also
  * happens during stack unwinding because in-place mutations cannot be rolled
@@ -50,8 +50,7 @@ class InPlaceWriteScope {
   GraphSnapshotStore::SnapshotSlot& Snapshot() noexcept {
     return snapshot_guard_->get();
   }
-  void MarkSchemaChanged() noexcept { schema_changed_ = true; }
-  bool HasSchemaChanged() const noexcept { return schema_changed_; }
+  void MarkPlanningChanged() noexcept { planning_changed_ = true; }
 
  private:
   void publish() noexcept;
@@ -59,7 +58,7 @@ class InPlaceWriteScope {
   UpdateTimestampLease timestamp_lease_;
   GraphSnapshotStore& snapshot_store_;
   std::optional<SnapshotGuard> snapshot_guard_;
-  bool schema_changed_{false};
+  bool planning_changed_{false};
 };
 
 enum class OpType : uint8_t {

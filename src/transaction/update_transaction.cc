@@ -321,7 +321,7 @@ static Status deleteVertexIndexData(
 // =============================================================================
 
 UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
-                                     uint64_t schema_generation,
+                                     uint64_t planning_generation,
                                      Allocator& alloc, IWalWriter& logger,
                                      GraphSnapshotStore& snapshot_store,
                                      UpdateTimestampLease timestamp_lease)
@@ -332,7 +332,7 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       logger_(logger),
       snapshot_store_(snapshot_store),
       timestamp_lease_(std::move(timestamp_lease)),
-      schema_generation_(schema_generation),
+      planning_generation_(planning_generation),
       ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
@@ -348,16 +348,16 @@ bool UpdateTransaction::Commit() {
 
   const bool schema_changed = wal_builder_.schema_changed();
   if (schema_changed &&
-      schema_generation_ == std::numeric_limits<uint64_t>::max()) {
-    LOG(ERROR) << "Schema generation space exhausted";
+      planning_generation_ == std::numeric_limits<uint64_t>::max()) {
+    LOG(ERROR) << "Planning generation space exhausted";
     Abort();
     return false;
   }
-  const uint64_t committed_schema_generation =
-      schema_generation_ + (schema_changed ? 1 : 0);
+  const uint64_t committed_planning_generation =
+      planning_generation_ + (schema_changed ? 1 : 0);
 
-  auto prepared_result =
-      snapshot_store_.PrepareSnapshot(cow_graph_, committed_schema_generation);
+  auto prepared_result = snapshot_store_.PrepareSnapshot(
+      cow_graph_, committed_planning_generation);
   if (!prepared_result) {
     LOG(ERROR) << "Failed to prepare graph snapshot: "
                << prepared_result.error().ToString();

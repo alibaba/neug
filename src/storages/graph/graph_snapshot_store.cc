@@ -65,7 +65,7 @@ GraphSnapshotStore::GraphSnapshotStore(
   slots_[0].storage_ = std::move(initial_pg);
   slots_[0].view_ = GraphView(*slots_[0].storage_);
   slots_[0].snapshot_generation_ = initial_snapshot_generation;
-  slots_[0].schema_generation_.store(0, std::memory_order_relaxed);
+  slots_[0].planning_generation_.store(0, std::memory_order_relaxed);
   slots_[0].reader_count_.store(1, std::memory_order_relaxed);  // cur-pin
   cur_slot_index_.store(0, std::memory_order_release);
 
@@ -108,7 +108,7 @@ void GraphSnapshotStore::cleanupSlot(int slot_index) {
   slots_[slot_index].storage_.reset();
   slots_[slot_index].view_ = GraphView();
   slots_[slot_index].snapshot_generation_ = 0;
-  slots_[slot_index].schema_generation_.store(0, std::memory_order_relaxed);
+  slots_[slot_index].planning_generation_.store(0, std::memory_order_relaxed);
   slots_[slot_index].reader_count_.fetch_add(-kCleanupSentinel,
                                              std::memory_order_release);
   returnFreeSlot(slot_index);
@@ -189,7 +189,7 @@ std::pair<std::shared_ptr<PropertyGraph>, uint64_t>
 GraphSnapshotStore::CloneCurrentForUpdate() {
   SnapshotGuard current(*this);
   const auto& slot = current.get();
-  return {slot.storage_->Clone(), slot.schema_generation()};
+  return {slot.storage_->Clone(), slot.planning_generation()};
 }
 
 uint32_t GraphSnapshotStore::reserveSnapshotGeneration() {
@@ -211,7 +211,8 @@ uint32_t GraphSnapshotStore::reserveSnapshotGeneration() {
 
 result<GraphSnapshotStore::PreparedSnapshot>
 GraphSnapshotStore::PrepareSnapshot(
-    const std::shared_ptr<PropertyGraph>& new_pg, uint64_t schema_generation) {
+    const std::shared_ptr<PropertyGraph>& new_pg,
+    uint64_t planning_generation) {
   if (!new_pg) {
     return tl::unexpected(
         Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -234,8 +235,8 @@ GraphSnapshotStore::PrepareSnapshot(
     slots_[slot_index].storage_ = new_pg;
     slots_[slot_index].view_ = GraphView(*new_pg);
     slots_[slot_index].snapshot_generation_ = snapshot_generation;
-    slots_[slot_index].schema_generation_.store(schema_generation,
-                                                std::memory_order_relaxed);
+    slots_[slot_index].planning_generation_.store(planning_generation,
+                                                  std::memory_order_relaxed);
 
     // Convert the write guard into the token's prep-pin. The prep-pin becomes
     // the cur-pin if Publish() succeeds, or drives cleanup if the token
@@ -246,7 +247,7 @@ GraphSnapshotStore::PrepareSnapshot(
     slots_[slot_index].storage_.reset();
     slots_[slot_index].view_ = GraphView();
     slots_[slot_index].snapshot_generation_ = 0;
-    slots_[slot_index].schema_generation_.store(0, std::memory_order_relaxed);
+    slots_[slot_index].planning_generation_.store(0, std::memory_order_relaxed);
     slots_[slot_index].reader_count_.store(0, std::memory_order_release);
     returnFreeSlot(slot_index);
     throw;
@@ -276,16 +277,16 @@ void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
 }
 
 uint32_t GraphSnapshotStore::publishInPlaceMutation(
-    SnapshotSlot& mutated_slot, bool schema_changed) noexcept {
+    SnapshotSlot& mutated_slot, bool planning_changed) noexcept {
   const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
   auto& current_slot = slots_[slot_index];
   CHECK_EQ(&mutated_slot, &current_slot)
       << "In-place commit must publish the slot that it mutated";
-  if (schema_changed) {
-    auto& generation = mutated_slot.schema_generation_;
+  if (planning_changed) {
+    auto& generation = mutated_slot.planning_generation_;
     const uint64_t current = generation.load(std::memory_order_relaxed);
     CHECK_NE(current, std::numeric_limits<uint64_t>::max())
-        << "Schema generation space exhausted";
+        << "Planning generation space exhausted";
     generation.store(current + 1, std::memory_order_release);
   }
   return mutated_slot.snapshot_generation_;

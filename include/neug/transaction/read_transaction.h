@@ -101,7 +101,7 @@ class ReadTransaction {
  private:
   friend class ExecutionSlot;
 
-  uint64_t schema_generation() const { return lease_.schema_generation(); }
+  uint64_t planning_generation() const { return lease_.planning_generation(); }
 
   void release();
   ReadSnapshotLease lease_;

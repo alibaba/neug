@@ -124,7 +124,7 @@ TEST_F(QueryCacheTest, OldCompileCannotRepopulateAfterLazyGenerationAdvance) {
 }
 
 TEST_F(QueryCacheTest,
-       SchemaGenerationSeparatesLocalCachesWithoutInvalidatingPinnedReaders) {
+       PlanningGenerationSeparatesLocalCachesWithoutInvalidatingPinnedReaders) {
   auto planner = std::make_shared<BlockingPlanner>();
   auto global_cache = std::make_shared<GlobalQueryCache>(planner);
   LocalQueryCache first_local(global_cache);
@@ -148,65 +148,11 @@ TEST_F(QueryCacheTest,
   EXPECT_EQ(refreshed_value.value().get(), refreshed_value_again.value().get());
   EXPECT_EQ(planner->total_compile_count(), 2);
 
-  // The first slot may still execute against its pinned old snapshot. A schema
-  // generation advance must not evict that slot's valid local plan.
+  // The first slot may still execute against its pinned old snapshot. A
+  // planning-generation advance must not evict that slot's valid local plan.
   auto old_snapshot_value = first_local.Get(stats_, 0, "stable-query");
   ASSERT_TRUE(old_snapshot_value) << old_snapshot_value.error().ToString();
   EXPECT_EQ(first_value.value().get(), old_snapshot_value.value().get());
-  EXPECT_EQ(planner->total_compile_count(), 2);
-}
-
-TEST_F(QueryCacheTest, CacheClearDuringCompileCannotRepopulateGlobalCache) {
-  auto planner = std::make_shared<BlockingPlanner>();
-  auto cache = std::make_shared<GlobalQueryCache>(planner);
-
-  std::shared_ptr<CacheValue> blocked_value;
-  std::thread blocked_compile([&]() {
-    auto result = cache->Get(stats_, 0, BlockingPlanner::kBlockedQuery);
-    if (result) {
-      blocked_value = result.value();
-    }
-  });
-
-  const bool compile_started = planner->WaitUntilBlockedCompileStarts();
-  cache->clear();
-  planner->ReleaseBlockedCompile();
-  blocked_compile.join();
-
-  ASSERT_TRUE(compile_started);
-  ASSERT_NE(blocked_value, nullptr);
-  EXPECT_EQ(planner->blocked_compile_count(), 1);
-
-  auto value_after_clear =
-      cache->Get(stats_, 0, BlockingPlanner::kBlockedQuery);
-  ASSERT_TRUE(value_after_clear) << value_after_clear.error().ToString();
-  EXPECT_NE(blocked_value.get(), value_after_clear.value().get());
-  EXPECT_EQ(planner->blocked_compile_count(), 2);
-
-  auto cached_value = cache->Get(stats_, 0, BlockingPlanner::kBlockedQuery);
-  ASSERT_TRUE(cached_value) << cached_value.error().ToString();
-  EXPECT_EQ(value_after_clear.value().get(), cached_value.value().get());
-  EXPECT_EQ(planner->blocked_compile_count(), 2);
-}
-
-TEST_F(QueryCacheTest, CacheClearInvalidatesLocalCachesWithoutSchemaChange) {
-  auto planner = std::make_shared<BlockingPlanner>();
-  auto global_cache = std::make_shared<GlobalQueryCache>(planner);
-  LocalQueryCache first_local(global_cache);
-  LocalQueryCache second_local(global_cache);
-
-  auto first_value = first_local.Get(stats_, 0, "stable-query");
-  ASSERT_TRUE(first_value) << first_value.error().ToString();
-  auto shared_value = second_local.Get(stats_, 0, "stable-query");
-  ASSERT_TRUE(shared_value) << shared_value.error().ToString();
-  EXPECT_EQ(first_value.value().get(), shared_value.value().get());
-  EXPECT_EQ(planner->total_compile_count(), 1);
-
-  first_local.clearGlobalCache();
-
-  auto refreshed_value = second_local.Get(stats_, 0, "stable-query");
-  ASSERT_TRUE(refreshed_value) << refreshed_value.error().ToString();
-  EXPECT_NE(shared_value.value().get(), refreshed_value.value().get());
   EXPECT_EQ(planner->total_compile_count(), 2);
 }
 

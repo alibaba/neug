@@ -93,15 +93,15 @@ class GraphSnapshotStoreConcurrencyTest : public ::testing::Test {
   }
 };
 
-uint64_t ReadSchemaGeneration(GraphSnapshotStore& store) {
+uint64_t ReadPlanningGeneration(GraphSnapshotStore& store) {
   SnapshotGuard current(store);
-  return current.get().schema_generation();
+  return current.get().planning_generation();
 }
 
 Status PrepareAndPublishSnapshot(
     GraphSnapshotStore& store, const std::shared_ptr<PropertyGraph>& snapshot) {
   auto prepared_result =
-      store.PrepareSnapshot(snapshot, ReadSchemaGeneration(store));
+      store.PrepareSnapshot(snapshot, ReadPlanningGeneration(store));
   if (!prepared_result) {
     return prepared_result.error();
   }
@@ -238,7 +238,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PoolExhaustionDoesNotConsumeNewPg) {
   auto extra_pg = make_new_pg();
   long use_count_before = extra_pg.use_count();
   auto prepared_result =
-      store_->PrepareSnapshot(extra_pg, ReadSchemaGeneration(*store_));
+      store_->PrepareSnapshot(extra_pg, ReadPlanningGeneration(*store_));
   Status status = prepared_result ? Status::OK() : prepared_result.error();
   EXPECT_FALSE(status.ok());
   EXPECT_EQ(status.error_code(), StatusCode::ERR_POOL_EXHAUSTED);
@@ -257,7 +257,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest,
 
   {
     auto first_result =
-        store.PrepareSnapshot(make_new_pg(), ReadSchemaGeneration(store));
+        store.PrepareSnapshot(make_new_pg(), ReadPlanningGeneration(store));
     ASSERT_TRUE(first_result.has_value());
     auto first = std::move(first_result).value();
     EXPECT_FALSE(store.HasFreeSlot());
@@ -265,7 +265,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest,
   EXPECT_TRUE(store.HasFreeSlot());
 
   auto second_result =
-      store.PrepareSnapshot(make_new_pg(), ReadSchemaGeneration(store));
+      store.PrepareSnapshot(make_new_pg(), ReadPlanningGeneration(store));
   ASSERT_TRUE(second_result.has_value());
   auto second = std::move(second_result).value();
   EXPECT_EQ(std::move(second).Publish(), 2u)

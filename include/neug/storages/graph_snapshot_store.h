@@ -75,8 +75,9 @@ class GraphSnapshotStore {
     PropertyGraph* mutable_graph() { return storage_.get(); }
     /// Snapshot publication generation carried by this slot incarnation.
     uint32_t snapshot_generation() const { return snapshot_generation_; }
-    uint64_t schema_generation() const {
-      return schema_generation_.load(std::memory_order_acquire);
+    /// Plan-cache invalidation generation carried by this snapshot.
+    uint64_t planning_generation() const {
+      return planning_generation_.load(std::memory_order_acquire);
     }
 
    private:
@@ -84,7 +85,7 @@ class GraphSnapshotStore {
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
     uint32_t snapshot_generation_{0};
-    std::atomic<uint64_t> schema_generation_{0};
+    std::atomic<uint64_t> planning_generation_{0};
     std::atomic<int> reader_count_{0};
   };
 
@@ -140,11 +141,12 @@ class GraphSnapshotStore {
   /// through writer admission while using the returned reference.
   const PropertyGraph& CurrentSnapshot() const;
 
-  /// Reserve and build a pending snapshot tagged with @p schema_generation.
+  /// Reserve and build a pending snapshot tagged with @p planning_generation.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
   /// Readers retain this tag for the lifetime of their pinned slot.
   result<PreparedSnapshot> PrepareSnapshot(
-      const std::shared_ptr<PropertyGraph>& new_pg, uint64_t schema_generation);
+      const std::shared_ptr<PropertyGraph>& new_pg,
+      uint64_t planning_generation);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }
@@ -156,7 +158,7 @@ class GraphSnapshotStore {
     return !free_list_.empty();
   }
 
-  /// Clone the pinned current graph and capture its schema generation for an
+  /// Clone the pinned current graph and capture its planning generation for an
   /// update transaction. The caller must hold update admission to exclude
   /// concurrent in-place writers.
   std::pair<std::shared_ptr<PropertyGraph>, uint64_t> CloneCurrentForUpdate();
@@ -176,7 +178,7 @@ class GraphSnapshotStore {
   void returnFreeSlot(int slot_index);
   uint32_t reserveSnapshotGeneration();
   uint32_t publishInPlaceMutation(SnapshotSlot& mutated_slot,
-                                  bool schema_changed) noexcept;
+                                  bool planning_changed) noexcept;
   void publishPreparedSnapshot(int slot_index) noexcept;
   void unpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);

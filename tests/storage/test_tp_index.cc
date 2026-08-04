@@ -127,9 +127,9 @@ class TPIndexTest : public ::testing::Test {
 
   UpdateTransaction NewUpdateTransaction() {
     UpdateTimestampLease timestamp_lease(version_manager_);
-    auto [cow_graph, schema_generation] =
+    auto [cow_graph, planning_generation] =
         snapshot_store_->CloneCurrentForUpdate();
-    return UpdateTransaction(std::move(cow_graph), schema_generation,
+    return UpdateTransaction(std::move(cow_graph), planning_generation,
                              allocator_, wal_writer_, *snapshot_store_,
                              std::move(timestamp_lease));
   }

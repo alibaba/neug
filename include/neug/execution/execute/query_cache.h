@@ -14,10 +14,8 @@
  */
 #pragma once
 
-#include <atomic>
 #include <cstdint>
 #include <mutex>
-#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -62,62 +60,35 @@ struct CacheValue {
 class GlobalQueryCache {
  public:
   GlobalQueryCache(std::shared_ptr<IGraphPlanner> planner)
-      : planner_(planner), schema_generation_(0), cache_epoch_(0) {}
-
-  // Monotonic epoch for invalidations that do not change logical schema, such
-  // as a bulk load changing planner cardinalities.
-  uint64_t cache_epoch() const { return cache_epoch_.load(); }
+      : planner_(planner), planning_generation_(0) {}
 
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
-                                          uint64_t schema_generation,
+                                          uint64_t planning_generation,
                                           const std::string& query) {
-    bool eligible_for_global_write_back = false;
-    uint64_t observed_cache_epoch = 0;
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
-      eligible_for_global_write_back = schema_generation >= schema_generation_;
-      if (schema_generation == schema_generation_) {
+      if (planning_generation == planning_generation_) {
         auto iter = cache_.find(query);
         if (iter != cache_.end()) {
           return iter->second;
         }
       }
-      if (eligible_for_global_write_back) {
-        observed_cache_epoch = cache_epoch_.load();
-      }
     }
 
     GS_AUTO(cache_value, CompileUncached(stats, query));
-    if (!eligible_for_global_write_back) {
+
+    std::unique_lock<std::shared_mutex> write_lock(mutex_);
+    if (planning_generation < planning_generation_) {
       return cache_value;
     }
-    {
-      std::unique_lock<std::shared_mutex> write_lock(mutex_);
-      if (schema_generation < schema_generation_) {
-        return cache_value;
-      }
-      // A request carries the generation of its pinned, published snapshot.
-      // Advance monotonically so an older pinned snapshot can never roll the
-      // global cache back after a newer generation has been observed.
-      if (schema_generation > schema_generation_) {
-        // Local caches observe schema_generation directly. Do not bump the
-        // cache epoch here, or this compilation would invalidate itself.
-        schema_generation_ = schema_generation;
-        cache_.clear();
-      }
-      // A schema advance or cache-wide clear during compilation makes this
-      // plan ineligible for global write-back.
-      if (observed_cache_epoch != cache_epoch_.load()) {
-        return cache_value;
-      }
-      return cache_.emplace(query, cache_value).first->second;
+    // A request carries the planning generation of its pinned snapshot.
+    // Advance monotonically so an older pinned snapshot can never roll the
+    // global cache back after a newer generation has been observed.
+    if (planning_generation > planning_generation_) {
+      planning_generation_ = planning_generation;
+      cache_.clear();
     }
-  }
-
-  void clear() {
-    std::unique_lock<std::shared_mutex> write_lock(mutex_);
-    cache_epoch_.fetch_add(1);
-    cache_.clear();
+    return cache_.emplace(query, cache_value).first->second;
   }
 
  private:
@@ -147,8 +118,7 @@ class GlobalQueryCache {
   }
 
   std::shared_ptr<IGraphPlanner> planner_;
-  uint64_t schema_generation_;
-  std::atomic<uint64_t> cache_epoch_;
+  uint64_t planning_generation_;
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
   mutable std::shared_mutex mutex_;
 };
@@ -159,47 +129,31 @@ class GlobalQueryCache {
 class LocalQueryCache {
  public:
   LocalQueryCache(std::shared_ptr<GlobalQueryCache> global_cache)
-      : global_cache_(global_cache),
-        observed_cache_epoch_(global_cache_->cache_epoch()) {}
+      : global_cache_(global_cache) {}
   ~LocalQueryCache() = default;
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
-                                          uint64_t schema_generation,
+                                          uint64_t planning_generation,
                                           const std::string& query) {
-    const auto global_cache_epoch = global_cache_->cache_epoch();
-    if (observed_cache_epoch_ != global_cache_epoch) {
-      cache_.clear();
-      observed_cache_epoch_ = global_cache_epoch;
-      schema_generation_.reset();
-    }
     // An ExecutionSlot is leased exclusively, so its local cache only needs
-    // plans for the most recently observed schema generation. Keeping the
-    // generation outside the map avoids copying query on every cache lookup.
-    if (!schema_generation_.has_value() ||
-        schema_generation_.value() != schema_generation) {
+    // plans for one planning generation. Keeping the generation outside the
+    // map avoids adding it to every query key.
+    if (planning_generation_ != planning_generation) {
       cache_.clear();
-      schema_generation_ = schema_generation;
+      planning_generation_ = planning_generation;
     }
     auto iter = cache_.find(query);
     if (iter != cache_.end()) {
       return iter->second;
     }
     GS_AUTO(cache_value_res,
-            global_cache_->Get(stats, schema_generation, query));
+            global_cache_->Get(stats, planning_generation, query));
     cache_.emplace(query, cache_value_res);
     return cache_value_res;
   }
 
-  void clearGlobalCache() {
-    global_cache_->clear();
-    observed_cache_epoch_ = global_cache_->cache_epoch();
-    cache_.clear();
-    schema_generation_.reset();
-  }
-
  private:
   std::shared_ptr<GlobalQueryCache> global_cache_;
-  uint64_t observed_cache_epoch_;
-  std::optional<uint64_t> schema_generation_;
+  uint64_t planning_generation_{0};
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
 };
 }  // namespace execution

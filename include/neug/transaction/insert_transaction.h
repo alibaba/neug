@@ -204,8 +204,8 @@ class InsertTransaction {
  private:
   friend class ExecutionSlot;
 
-  uint64_t schema_generation() const {
-    return guard_.get().schema_generation();
+  uint64_t planning_generation() const {
+    return guard_.get().planning_generation();
   }
 
   Value get_vertex_id(label_t label, vid_t lid) const;

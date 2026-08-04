@@ -79,7 +79,7 @@ class UpdateTransaction {
    * @brief Construct an UpdateTransaction with a COW PropertyGraph.
    *
    * @param cow_graph PropertyGraph COW clone
-   * @param schema_generation Schema generation of the cloned snapshot
+   * @param planning_generation Planning generation of the cloned snapshot
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param snapshot_store Reference to GraphSnapshotStore for commit
@@ -90,7 +90,7 @@ class UpdateTransaction {
    * @since v0.1.0
    */
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
-                    uint64_t schema_generation, Allocator& alloc,
+                    uint64_t planning_generation, Allocator& alloc,
                     IWalWriter& logger, GraphSnapshotStore& snapshot_store,
                     UpdateTimestampLease timestamp_lease);
 
@@ -153,7 +153,7 @@ class UpdateTransaction {
   friend class ExecutionSlot;
 
  private:
-  uint64_t schema_generation() const { return schema_generation_; }
+  uint64_t planning_generation() const { return planning_generation_; }
 
   void release(std::optional<uint32_t> installed_snapshot_generation);
 
@@ -166,7 +166,7 @@ class UpdateTransaction {
   IWalWriter& logger_;
   GraphSnapshotStore& snapshot_store_;
   UpdateTimestampLease timestamp_lease_;
-  uint64_t schema_generation_;
+  uint64_t planning_generation_;
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;
