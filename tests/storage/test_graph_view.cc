@@ -161,7 +161,7 @@ TEST_F(GraphViewTest, CardinalityAccess) {
   EXPECT_EQ(view.VertexNum(person_label), 3u);
   EXPECT_EQ(view.EdgeNum(person_label, person_label, knows_label), 2u);
 
-  GraphStats stats(view);
+  GraphStats stats(view, 0);
   auto vertex_schema = view.schema().get_vertex_schema(person_label);
   auto edge_schema =
       view.schema().get_edge_schema(person_label, person_label, knows_label);

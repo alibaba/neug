@@ -146,8 +146,7 @@ class LocalQueryCache {
     if (iter != cache_.end()) {
       return iter->second;
     }
-    GS_AUTO(cache_value_res,
-            global_cache_->Get(stats, planning_generation, query));
+    GS_AUTO(cache_value_res, global_cache_->Get(stats, query));
     cache_.emplace(query, cache_value_res);
     return cache_value_res;
   }
