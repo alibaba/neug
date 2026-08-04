@@ -1685,6 +1685,46 @@ class TestCopyFrom:
         )
         assert records == [["a.py", 1]]
 
+    def test_copy_from_edge_dangling_warns(self):
+        """COPY edges referencing missing vertices must log a warning (#166)."""
+        nodes_csv = self.tmp_path / "persons.csv"
+        edges_csv = self.tmp_path / "knows.csv"
+        nodes_csv.write_text("ID\n1\n2\n3\n", encoding="utf-8")
+        # 2 valid edges (1->2, 2->3) and 2 dangling edges (dst 999, src 888).
+        edges_csv.write_text("src,dst\n1,2\n1,999\n888,2\n2,3\n", encoding="utf-8")
+
+        self.conn.execute("CREATE NODE TABLE person (ID INT64, PRIMARY KEY(ID))")
+        self.conn.execute("CREATE REL TABLE knows (FROM person TO person)")
+        self.conn.execute(
+            f'COPY person FROM "{nodes_csv}" (header=true, delimiter=",")'
+        )
+
+        # glog writes directly to fd 2, so capture at the fd level instead of
+        # sys.stderr.
+        saved_fd = os.dup(2)
+        capture_path = self.tmp_path / "stderr.log"
+        capture_fd = os.open(
+            str(capture_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+        )
+        try:
+            os.dup2(capture_fd, 2)
+            self.conn.execute(
+                f'COPY knows FROM "{edges_csv}" (header=true, delimiter=",")'
+            )
+        finally:
+            os.dup2(saved_fd, 2)
+            os.close(saved_fd)
+            os.close(capture_fd)
+
+        log_text = capture_path.read_text(encoding="utf-8", errors="replace")
+        assert "dropped 2 edge(s) referencing missing vertices" in log_text
+        assert "(src=1, dst=999) missing dst vertex" in log_text
+        assert "(src=888, dst=2) missing src vertex" in log_text
+
+        # Dangling edges must be dropped; valid edges must be loaded.
+        loaded = list(self.conn.execute("MATCH ()-[r:knows]->() RETURN count(r)"))
+        assert loaded[0][0] == 2
+
     def test_copy_from_edge_with_column_remapping(self):
         """Test COPY FROM for edge table with column remapping."""
         person_csv = os.path.join(self.tinysnb_path, "vPerson.csv")
