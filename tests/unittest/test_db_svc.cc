@@ -562,13 +562,11 @@ TEST_F(NeugDBServiceTest, VersionTimelineSurvivesServiceRecreation) {
   }
 }
 
-TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
+TEST_F(NeugDBServiceTest, TpDmlKeepsSchemaGenerationAndDdlAdvancesIt) {
   neug::NeugDBService service(*db_, config_);
   auto slot = service.AcquireExecutionSlot();
   ASSERT_TRUE(slot);
 
-  const auto query_cache = db_->GetQueryCache();
-  const auto initial_cache_epoch = query_cache->cache_epoch();
   const auto initial_generation =
       ReadSchemaGeneration(db_->graph_snapshot_store());
 
@@ -577,7 +575,6 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           "CREATE (:person {id: 10001, name: 'cache-test', age: 1});", "insert",
           {}));
   ASSERT_TRUE(insert) << insert.error().ToString();
-  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
   EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation);
 
@@ -585,7 +582,6 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
           "MATCH (n:person {id: 10001}) SET n.age = 2;", "update", {}));
   ASSERT_TRUE(update) << update.error().ToString();
-  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
   EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation);
 
@@ -594,14 +590,16 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsQueryCacheAndDdlInvalidatesOnce) {
           "CREATE NODE TABLE cache_probe(id INT64, PRIMARY KEY(id));", "schema",
           {}));
   ASSERT_TRUE(ddl) << ddl.error().ToString();
-  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
   EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
+
+  auto read =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "MATCH (n:person) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(read) << read.error().ToString();
 }
 
 TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
-  const auto query_cache = db_->GetQueryCache();
-  const auto initial_cache_epoch = query_cache->cache_epoch();
   const auto initial_generation =
       ReadSchemaGeneration(db_->graph_snapshot_store());
 
@@ -613,7 +611,6 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(explain) << explain.error().ToString();
   EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation);
-  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
 
   auto create = connection->Query(
       "CREATE NODE TABLE direct_schema_probe(id INT64, PRIMARY KEY(id));",
@@ -621,7 +618,9 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(create) << create.error().ToString();
   EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
-  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
+
+  auto read = connection->Query("MATCH (n:person) RETURN count(n);", "read");
+  ASSERT_TRUE(read) << read.error().ToString();
 
   auto no_op = connection->Query(
       "CREATE NODE TABLE IF NOT EXISTS direct_schema_probe("
@@ -630,7 +629,44 @@ TEST_F(NeugDBServiceTest, DirectSchemaGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(no_op) << no_op.error().ToString();
   EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
+  connection->Close();
+}
+
+TEST_F(NeugDBServiceTest,
+       DirectUpdateAndBulkLoadInvalidateCacheWithoutSchemaChange) {
+  const auto query_cache = db_->GetQueryCache();
+  const auto initial_cache_epoch = query_cache->cache_epoch();
+  const auto initial_generation =
+      ReadSchemaGeneration(db_->graph_snapshot_store());
+
+  auto connection = db_->Connect();
+  auto insert = connection->Query(
+      "CREATE (:person {id: 20001, name: 'direct-cache-test', age: 1});",
+      "insert");
+  ASSERT_TRUE(insert) << insert.error().ToString();
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch);
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
+            initial_generation);
+
+  auto update = connection->Query("MATCH (n:person {id: 20001}) SET n.age = 2;",
+                                  "update");
+  ASSERT_TRUE(update) << update.error().ToString();
   EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 1);
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
+            initial_generation);
+
+  const auto copy_path = test_dir_ / "direct-cache-copy.csv";
+  {
+    std::ofstream copy_file(copy_path);
+    copy_file << "id|name|age\n"
+              << "20002|direct-copy-cache-test|3\n";
+  }
+  auto copy = connection->Query(
+      "COPY person FROM \"" + copy_path.string() + "\";", "update");
+  ASSERT_TRUE(copy) << copy.error().ToString();
+  EXPECT_EQ(query_cache->cache_epoch(), initial_cache_epoch + 2);
+  EXPECT_EQ(ReadSchemaGeneration(db_->graph_snapshot_store()),
+            initial_generation);
   connection->Close();
 }
 
@@ -656,8 +692,9 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
   execution::LocalQueryCache local_cache(query_cache);
   const std::string query = "MATCH (n:person) RETURN count(n);";
 
-  // Refill the cleared cache from the old snapshot, reproducing the original
-  // race. The next reader must compile a separate plan for the new schema.
+  // Cache generation advances lazily when a newer published snapshot first
+  // requests a plan. Until then, an old pinned snapshot may still use the old
+  // generation cache without affecting queries on the new generation.
   auto old_plan = local_cache.Get(old_txn.statistic(), old_generation, query);
   ASSERT_TRUE(old_plan) << old_plan.error().ToString();
   auto old_plan_again =
@@ -677,13 +714,12 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesSchemaGenerations) {
   ASSERT_TRUE(new_plan_again) << new_plan_again.error().ToString();
   EXPECT_EQ(new_plan.value().get(), new_plan_again.value().get());
 
-  // A local cache only retains its most recently observed generation, while
-  // the global cache keeps both generations available. Switching generations
-  // must therefore reuse the matching global plan without mixing them.
+  // Old snapshots continue to compile without global write-back. The local
+  // cache may retain that result until its generation changes.
   auto old_plan_after_new =
       local_cache.Get(old_txn.statistic(), old_generation, query);
   ASSERT_TRUE(old_plan_after_new) << old_plan_after_new.error().ToString();
-  EXPECT_EQ(old_plan.value().get(), old_plan_after_new.value().get());
+  EXPECT_NE(old_plan.value().get(), old_plan_after_new.value().get());
   auto new_plan_after_old =
       local_cache.Get(new_txn.statistic(), new_generation, query);
   ASSERT_TRUE(new_plan_after_old) << new_plan_after_old.error().ToString();

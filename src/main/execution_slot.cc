@@ -81,18 +81,21 @@ void ExecutionSlotLease::reset() noexcept {
 
 namespace {
 
-bool shouldClearQueryCacheAfterDirectExecution(
-    const execution::CacheValue& prepared_query, const Status& execution_status,
-    bool schema_changed) {
-  if (schema_changed) {
-    return true;
+void invalidateQueryCacheIfNeeded(execution::LocalQueryCache& pipeline_cache,
+                                  const execution::CacheValue* prepared_query,
+                                  const Status& execution_status,
+                                  bool schema_changed) {
+  if (schema_changed || prepared_query == nullptr) {
+    return;
   }
   if (!execution_status.ok() ||
-      prepared_query.explain_mode == physical::ExplainMode::EXPLAIN) {
-    return false;
+      prepared_query->explain_mode == physical::ExplainMode::EXPLAIN) {
+    return;
   }
-  const auto& flags = prepared_query.flags;
-  return flags.batch() || flags.update();
+  const auto& flags = prepared_query->flags;
+  if (flags.batch() || flags.update()) {
+    pipeline_cache.clearGlobalCache();
+  }
 }
 
 Status executePreparedQuery(execution::CacheValue& prepared_query,
@@ -298,11 +301,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
           alloc_, [&write_scope]() { write_scope.MarkSchemaChanged(); });
       status = execute_on_storage(GraphStats(slot.view()),
                                   slot.schema_generation(), storage);
-      if (prepared_query &&
-          shouldClearQueryCacheAfterDirectExecution(
-              *prepared_query, status, write_scope.HasSchemaChanged())) {
-        pipeline_cache_.clearGlobalCache();
-      }
+      invalidateQueryCacheIfNeeded(pipeline_cache_, prepared_query.get(),
+                                   status, write_scope.HasSchemaChanged());
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
