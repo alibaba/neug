@@ -462,8 +462,12 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
 
   CheckpointManifest manifest;
   column.Dump(*ckp, manifest, "vec");
+  auto manifest_path = temp_dir / "vec_manifest.json";
+  manifest.Save(manifest_path.string());
+  CheckpointManifest loaded_manifest;
+  loaded_manifest.Load(manifest_path.string());
   VecColumn reopened;
-  reopened.Open(*ckp, manifest, *manifest.module("vec"),
+  reopened.Open(*ckp, loaded_manifest, *loaded_manifest.module("vec"),
                 MemoryLevel::kInMemory);
   EXPECT_FLOAT_EQ(
       ArrayValue::GetChildren(reopened.get_any(4096))[1].GetValue<float>(),

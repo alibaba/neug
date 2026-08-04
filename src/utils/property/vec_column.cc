@@ -1,7 +1,9 @@
 #include "neug/utils/property/vec_column.h"
 
 #include <cassert>
+#include <cstdint>
 #include <cstring>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -11,6 +13,7 @@
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 
@@ -19,16 +22,84 @@ namespace {
 constexpr const char* kAccessorRef = "offset_accessor";
 constexpr const char* kArrayType = "array_type";
 constexpr const char* kDefaultValue = "default_value";
+constexpr std::string_view kBase64Alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+std::string Base64Encode(std::string_view bytes) {
+  std::string encoded;
+  encoded.reserve(((bytes.size() + 2) / 3) * 4);
+  for (size_t i = 0; i < bytes.size(); i += 3) {
+    const auto first = static_cast<uint8_t>(bytes[i]);
+    const auto second =
+        i + 1 < bytes.size() ? static_cast<uint8_t>(bytes[i + 1]) : uint8_t{0};
+    const auto third =
+        i + 2 < bytes.size() ? static_cast<uint8_t>(bytes[i + 2]) : uint8_t{0};
+    const uint32_t value = (static_cast<uint32_t>(first) << 16) |
+                           (static_cast<uint32_t>(second) << 8) | third;
+    encoded.push_back(kBase64Alphabet[(value >> 18) & 0x3f]);
+    encoded.push_back(kBase64Alphabet[(value >> 12) & 0x3f]);
+    encoded.push_back(
+        i + 1 < bytes.size() ? kBase64Alphabet[(value >> 6) & 0x3f] : '=');
+    encoded.push_back(i + 2 < bytes.size() ? kBase64Alphabet[value & 0x3f]
+                                           : '=');
+  }
+  return encoded;
+}
+
+uint8_t Base64DecodeChar(char ch) {
+  auto pos = kBase64Alphabet.find(ch);
+  if (pos == std::string_view::npos) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn::Open: invalid base64 default value");
+  }
+  return static_cast<uint8_t>(pos);
+}
+
+std::string Base64Decode(std::string_view encoded) {
+  if (encoded.size() % 4 != 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn::Open: invalid base64 default value length");
+  }
+  std::string decoded;
+  decoded.reserve((encoded.size() / 4) * 3);
+  for (size_t i = 0; i < encoded.size(); i += 4) {
+    const bool last_group = i + 4 == encoded.size();
+    const bool third_padding = encoded[i + 2] == '=';
+    const bool fourth_padding = encoded[i + 3] == '=';
+    if (encoded[i] == '=' || encoded[i + 1] == '=' ||
+        (third_padding && !fourth_padding) ||
+        (!last_group && (third_padding || fourth_padding))) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "VecColumn::Open: invalid base64 default value padding");
+    }
+    const uint32_t value =
+        (static_cast<uint32_t>(Base64DecodeChar(encoded[i])) << 18) |
+        (static_cast<uint32_t>(Base64DecodeChar(encoded[i + 1])) << 12) |
+        (third_padding
+             ? 0
+             : static_cast<uint32_t>(Base64DecodeChar(encoded[i + 2])) << 6) |
+        (fourth_padding ? 0 : Base64DecodeChar(encoded[i + 3]));
+    decoded.push_back(static_cast<char>((value >> 16) & 0xff));
+    if (!third_padding) {
+      decoded.push_back(static_cast<char>((value >> 8) & 0xff));
+    }
+    if (!fourth_padding) {
+      decoded.push_back(static_cast<char>(value & 0xff));
+    }
+  }
+  return decoded;
+}
 
 std::string SerializeValue(const Value& value) {
   InArchive archive;
   archive << value;
-  return {archive.GetBuffer(), archive.GetSize()};
+  return Base64Encode({archive.GetBuffer(), archive.GetSize()});
 }
 
-Value DeserializeValue(const std::string& bytes) {
+Value DeserializeValue(const std::string& encoded) {
+  auto bytes = Base64Decode(encoded);
   OutArchive archive;
-  archive.SetSlice(const_cast<char*>(bytes.data()), bytes.size());
+  archive.SetSlice(bytes.data(), bytes.size());
   Value value;
   archive >> value;
   return value;

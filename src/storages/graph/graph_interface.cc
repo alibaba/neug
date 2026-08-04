@@ -702,8 +702,8 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
             *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
             graph_.checkpoint(), graph_.memory_level());
       } else {
-        THROW_RUNTIME_ERROR(
-            "DropIndex: HNSW index can only be created on VecColumn");
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "DropIndex: HNSW index can only be created on VecColumn");
       }
     }
   }
