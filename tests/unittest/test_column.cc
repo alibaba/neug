@@ -23,6 +23,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
+#include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -373,6 +374,104 @@ TEST(ArrayColumnTest, SetAnyRequiresArrayValue) {
   ASSERT_EQ(stored_values.size(), 2);
   EXPECT_EQ(stored_values[0].GetValue<int32_t>(), 3);
   EXPECT_EQ(stored_values[1].GetValue<int32_t>(), 4);
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("vec_column_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+  DefaultIndexIDAccessor backing_accessor;
+  backing_accessor.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  VecColumnBackedIndexIDAccessor backed_accessor(backing_accessor);
+  EXPECT_THROW(backed_accessor.UpsertVID(0), exception::RuntimeError);
+  auto allocated_index_id = backing_accessor.UpsertVID(0);
+  EXPECT_EQ(backed_accessor.UpsertVID(0), allocated_index_id);
+
+  constexpr uint64_t dimension = 2;
+  auto array_type = DataType::Array(DataType::FLOAT, dimension);
+  auto make_array = [&](float first, float second) {
+    return Value::ARRAY(array_type,
+                        {Value::FLOAT(first), Value::FLOAT(second)});
+  };
+  auto default_value = make_array(0.0f, 0.0f);
+  auto buffer = ckp->CreateRuntimeContainer(2 * dimension * sizeof(float),
+                                            MemoryLevel::kInMemory);
+  auto accessor = std::make_unique<DefaultIndexIDAccessor>();
+  accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  VecColumn column(std::move(buffer), std::move(accessor), array_type, 2,
+                   default_value, *ckp, MemoryLevel::kInMemory);
+
+  column.set_any(0, make_array(1.0f, 2.0f), true);
+  column.set_any(1, make_array(3.0f, 4.0f), true);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
+  EXPECT_THROW(column.set_any(2, make_array(5.0f, 6.0f), false),
+               exception::StorageException);
+  EXPECT_EQ(column.get_offset_accessor()->GetIndexIDByVID(2), INVALID_INDEX_ID);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(0))[0].GetValue<float>(), 1.0f);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
+
+  const void* buffer_before_shrink = column.get_buffer_ptr();
+  column.resize(1);
+  EXPECT_EQ(column.size(), 2);
+  EXPECT_EQ(column.get_buffer_ptr(), buffer_before_shrink);
+
+  auto clone_module = column.Clone();
+  auto* clone = dynamic_cast<VecColumn*>(clone_module.get());
+  ASSERT_NE(clone, nullptr);
+  const void* old_buffer = clone->get_buffer_ptr();
+  column.resize(5000);
+  EXPECT_NE(column.get_buffer_ptr(), old_buffer);
+  EXPECT_EQ(clone->get_buffer_ptr(), old_buffer);
+  auto cloned_first_value = clone->get_any(0);
+  auto cloned_second_value = clone->get_any(1);
+  const auto& cloned_first = ArrayValue::GetChildren(cloned_first_value);
+  const auto& cloned_second = ArrayValue::GetChildren(cloned_second_value);
+  ASSERT_EQ(cloned_first.size(), dimension);
+  ASSERT_EQ(cloned_second.size(), dimension);
+  EXPECT_FLOAT_EQ(cloned_first[0].GetValue<float>(), 1.0f);
+  EXPECT_FLOAT_EQ(cloned_first[1].GetValue<float>(), 2.0f);
+  EXPECT_FLOAT_EQ(cloned_second[0].GetValue<float>(), 3.0f);
+  EXPECT_FLOAT_EQ(cloned_second[1].GetValue<float>(), 4.0f);
+
+  column.set_any(4096, make_array(5.0f, 6.0f), true);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(4096))[0].GetValue<float>(), 5.0f);
+
+  auto* column_accessor = column.get_offset_accessor();
+  auto old_index_id = column_accessor->GetIndexIDByVID(0);
+  column.set_any(0, make_array(7.0f, 8.0f), false);
+  auto new_index_id = column_accessor->GetIndexIDByVID(0);
+  EXPECT_NE(new_index_id, old_index_id);
+  EXPECT_EQ(column_accessor->GetVIDByIndexID(old_index_id), INVALID_VID);
+  EXPECT_EQ(column_accessor->GetVIDByIndexID(new_index_id), 0);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(0))[1].GetValue<float>(), 8.0f);
+
+  CheckpointManifest manifest;
+  column.Dump(*ckp, manifest, "vec");
+  auto manifest_path = temp_dir / "vec_manifest.json";
+  manifest.Save(manifest_path.string());
+  CheckpointManifest loaded_manifest;
+  loaded_manifest.Load(manifest_path.string());
+  VecColumn reopened;
+  reopened.Open(*ckp, loaded_manifest, *loaded_manifest.module("vec"),
+                MemoryLevel::kInMemory);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(reopened.get_any(4096))[1].GetValue<float>(),
+      6.0f);
 
   std::filesystem::remove_all(temp_dir);
 }

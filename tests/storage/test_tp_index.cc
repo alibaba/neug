@@ -80,6 +80,8 @@ class TPIndexTest : public ::testing::Test {
   static void SetUpTestSuite() {
     ModuleFactory::instance().Register(
         kExampleIndexType, [] { return std::make_unique<ExampleIndex>(); });
+    ModuleFactory::instance().Register(
+        kVecIndexType, [] { return std::make_unique<VecIndex>(); });
   }
 
   void SetUp() override {
@@ -172,6 +174,42 @@ class TPIndexTest : public ::testing::Test {
                                   .AddPrimaryKeyName("id")
                                   .Build());
     ASSERT_TRUE(status.ok()) << status.ToString();
+  }
+
+  void CreateVectorTableAP() {
+    auto vector_type = DataType::Array(DataType::FLOAT, 2);
+    auto default_vector =
+        Value::ARRAY(vector_type, {Value::FLOAT(0.0f), Value::FLOAT(0.0f)});
+    CreateVertexTypeParamBuilder builder;
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Vector")
+                                  .AddProperty("id", Value::INT64(0))
+                                  .AddProperty("embedding", default_vector)
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
+    ASSERT_TRUE(status.ok()) << status.ToString();
+  }
+
+  vid_t AddVectorAP(int64_t id, float first, float second) {
+    auto label = graph_->schema().get_vertex_label_id("Vector");
+    auto vector_type = DataType::Array(DataType::FLOAT, 2);
+    auto vector =
+        Value::ARRAY(vector_type, {Value::FLOAT(first), Value::FLOAT(second)});
+    vid_t vid = 0;
+    auto status = ap_->AddVertex(label, Value::INT64(id), {vector}, vid);
+    EXPECT_TRUE(status.ok()) << status.ToString();
+    return vid;
+  }
+
+  result<StorageIndex*> CreateVecIndexAP(const std::string& name) {
+    auto label = graph_->schema().get_vertex_label_id("Vector");
+    auto meta = std::make_unique<IndexMeta>();
+    meta->name = name;
+    meta->type = "hnsw";
+    meta->schema.label_id = label;
+    meta->schema.property_name = "embedding";
+    meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
+    return ap_->CreateIndex(std::move(meta));
   }
 
   void CreatePersonTableTP() {
@@ -296,6 +334,22 @@ class TPIndexTest : public ::testing::Test {
     auto names = SearchPersonNames(reader, age);
     txn.Commit();
     return names;
+  }
+
+  std::vector<SearchResult> SearchVector(const StorageReadInterface& reader,
+                                         std::vector<float> query) const {
+    VecIndexQueryParams params(std::move(query));
+    auto result = reader.IndexSearch("idx_vector_embedding", params);
+    EXPECT_TRUE(result) << result.error().ToString();
+    return result ? std::move(result.value()) : std::vector<SearchResult>{};
+  }
+
+  std::vector<SearchResult> SearchVectorInCurrent(std::vector<float> query) {
+    auto txn = NewReadTransaction();
+    StorageReadInterface reader(txn.view(), txn.timestamp());
+    auto result = SearchVector(reader, std::move(query));
+    txn.Commit();
+    return result;
   }
 
   std::string work_dir_;
@@ -438,6 +492,82 @@ TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
 
   EXPECT_EQ(SearchPersonNamesInCurrent(30),
             (std::vector<std::string>{"Bob", "Charlie"}));
+}
+
+TEST_F(TPIndexTest, APCreateVecColumnAndTPUpdateMaintainsVecIndexSearch) {
+  CreateVectorTableAP();
+  auto first_vid = AddVectorAP(1, 1.0f, 1.0f);
+  AddVectorAP(2, 5.0f, 5.0f);
+  AddVectorAP(3, 9.0f, 9.0f);
+
+  auto created = CreateVecIndexAP("idx_vector_embedding");
+  ASSERT_TRUE(created) << created.error().ToString();
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  ASSERT_NE(
+      dynamic_cast<const VecColumn*>(
+          graph_->get_vertex_table(label).GetPropertyColumnBase("embedding")),
+      nullptr);
+
+  StartSnapshotStore();
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    auto vector_type = DataType::Array(DataType::FLOAT, 2);
+    auto updated_vector =
+        Value::ARRAY(vector_type, {Value::FLOAT(12.0f), Value::FLOAT(12.0f)});
+    auto status = tp.UpdateVertexProperty(label, first_vid, 0, updated_vector);
+    ASSERT_TRUE(status.ok()) << status.ToString();
+
+    auto result = SearchVector(tp, {11.5f, 12.5f});
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_EQ(result.front().vid, first_vid);
+    Commit(txn);
+  }
+
+  auto committed_result = SearchVectorInCurrent({11.5f, 12.5f});
+  ASSERT_EQ(committed_result.size(), 1);
+  EXPECT_EQ(committed_result.front().vid, first_vid);
+}
+
+TEST_F(TPIndexTest, AbortedVectorVertexDeletePreservesReadSnapshot) {
+  CreateVectorTableAP();
+  auto first_vid = AddVectorAP(1, 1.0f, 1.0f);
+  AddVectorAP(2, 5.0f, 5.0f);
+
+  auto created = CreateVecIndexAP("idx_vector_embedding");
+  ASSERT_TRUE(created) << created.error().ToString();
+  StartSnapshotStore();
+
+  auto read_txn = NewReadTransaction();
+  StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
+  auto before_delete = SearchVector(read_reader, {1.0f, 1.0f});
+  ASSERT_EQ(before_delete.size(), 1);
+  EXPECT_EQ(before_delete.front().vid, first_vid);
+
+  auto update_txn = NewUpdateTransaction();
+  StorageTPUpdateInterface tp(update_txn);
+  auto label = tp.schema().get_vertex_label_id("Vector");
+  ASSERT_TRUE(tp.DeleteVertex(label, first_vid));
+  auto update_results = SearchVector(tp, {1.0f, 1.0f});
+  EXPECT_TRUE(std::none_of(update_results.begin(), update_results.end(),
+                           [first_vid](const SearchResult& result) {
+                             return result.vid == first_vid;
+                           }));
+
+  auto during_delete = SearchVector(read_reader, {1.0f, 1.0f});
+  ASSERT_EQ(during_delete.size(), 1);
+  EXPECT_EQ(during_delete.front().vid, first_vid);
+
+  update_txn.Abort();
+
+  auto after_abort = SearchVector(read_reader, {1.0f, 1.0f});
+  ASSERT_EQ(after_abort.size(), 1);
+  EXPECT_EQ(after_abort.front().vid, first_vid);
+  read_txn.Commit();
+
+  auto current = SearchVectorInCurrent({1.0f, 1.0f});
+  ASSERT_EQ(current.size(), 1);
+  EXPECT_EQ(current.front().vid, first_vid);
 }
 
 TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {

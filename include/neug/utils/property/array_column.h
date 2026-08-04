@@ -67,6 +67,31 @@ class ArrayColumn : public ColumnBase {
 
   static std::string type_name() { return "column<array>"; }
 
+  const DataType& array_type() const { return array_type_; }
+  uint64_t array_size() const { return array_size_; }
+
+  /**
+   * @brief Return the leaf data buffer shared by this array column.
+   *
+   * This interface is primarily used when creating an HNSW index on an
+   * ArrayColumn. The ArrayColumn must first be converted to a VecColumn, and
+   * sharing its internally owned buffer lets that conversion avoid copying
+   * the array data.
+   */
+  template <typename T>
+  const std::shared_ptr<IDataContainer>& shared_buffer() const {
+    const ColumnBase* leaf = child_column_.get();
+    while (const auto* nested = dynamic_cast<const ArrayColumn*>(leaf)) {
+      leaf = nested->child_column_.get();
+    }
+    const auto* typed = dynamic_cast<const TypedColumn<T>*>(leaf);
+    if (!typed) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "ArrayColumn leaf type does not match the requested buffer type");
+    }
+    return typed->shared_buffer();
+  }
+
  private:
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);

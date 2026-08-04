@@ -156,6 +156,9 @@ class TypedColumn : public ColumnBase {
   }
 
   const IDataContainer& buffer() const { return *buffer_; }
+  const std::shared_ptr<IDataContainer>& shared_buffer() const {
+    return buffer_;
+  }
   size_t buffer_size() const { return size_; }
 
   inline T* mutable_data() { return reinterpret_cast<T*>(buffer_->GetData()); }

@@ -34,6 +34,7 @@ class IndexIDAccessor : public Module {
 
   virtual index_id_t GetIndexIDByVID(vid_t vid) const = 0;
   virtual vid_t GetVIDByIndexID(index_id_t index_id) const = 0;
+  virtual index_id_t GetNextIndexID() const = 0;
   virtual index_id_t UpsertVID(vid_t vid) = 0;
   virtual Status DeleteVID(vid_t vid) = 0;
 
@@ -60,7 +61,7 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
                ? vid_to_index_id_->GetDataSize() / sizeof(index_id_t)
                : 0;
   }
-  index_id_t GetNextIndexID() const {
+  index_id_t GetNextIndexID() const override {
     return next_index_id_->load(std::memory_order_relaxed);
   }
   index_id_t GetIndexIDByVID(vid_t vid) const override;
@@ -93,6 +94,34 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
   // Allocate index IDs monotonically. Clones share this counter so index IDs
   // allocated by aborted transactions are not reused by later transactions.
   std::shared_ptr<std::atomic<index_id_t>> next_index_id_;
+};
+
+// Non-owning adapter for indexes backed by a VecColumn. Its purpose is to
+// expose the VecColumn-owned offset mapping through the IndexIDAccessor
+// interface, so vector indexes reuse those offsets instead of allocating and
+// persisting a second VID-to-index-ID mapping. The referenced accessor must
+// outlive this adapter.
+class VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
+ public:
+  explicit VecColumnBackedIndexIDAccessor(IndexIDAccessor& offset_accessor)
+      : offset_accessor_(offset_accessor) {}
+
+  index_id_t GetIndexIDByVID(vid_t vid) const override;
+  vid_t GetVIDByIndexID(index_id_t index_id) const override;
+  index_id_t GetNextIndexID() const override;
+  index_id_t UpsertVID(vid_t vid) override;
+  Status DeleteVID(vid_t vid) override;
+
+  void Open(Checkpoint&, const ModuleDescriptor&, MemoryLevel) override {}
+  void Dump(Checkpoint&, CheckpointManifest&, const std::string&) override {}
+  std::unique_ptr<Module> Clone() const override;
+  void Detach(Checkpoint&, MemoryLevel) override {}
+  std::string ModuleTypeName() const override {
+    return "vec_column_index_id_accessor";
+  }
+
+ private:
+  IndexIDAccessor& offset_accessor_;
 };
 
 }  // namespace neug

@@ -144,6 +144,8 @@ class APIndexTest : public ::testing::Test {
   static void SetUpTestSuite() {
     ModuleFactory::instance().Register(
         kExampleIndexType, [] { return std::make_unique<ExampleIndex>(); });
+    ModuleFactory::instance().Register(
+        kVecIndexType, [] { return std::make_unique<VecIndex>(); });
   }
 
   void SetUp() override {
@@ -224,6 +226,20 @@ class APIndexTest : public ::testing::Test {
     ASSERT_TRUE(status.ok()) << status.ToString();
   }
 
+  void CreateVectorTable() {
+    auto vector_type = DataType::Array(DataType::FLOAT, 2);
+    auto default_vector =
+        Value::ARRAY(vector_type, {Value::FLOAT(0.0f), Value::FLOAT(0.0f)});
+    CreateVertexTypeParamBuilder builder;
+    auto status =
+        ap_->CreateVertexType(builder.VertexLabel("Vector")
+                                  .AddProperty("id", Value::INT64(0))
+                                  .AddProperty("embedding", default_vector)
+                                  .AddPrimaryKeyName("id")
+                                  .Build());
+    ASSERT_TRUE(status.ok()) << status.ToString();
+  }
+
   result<StorageIndex*> CreateIndex(const std::string& name,
                                     const std::string& label_name,
                                     const std::string& property_name) {
@@ -284,6 +300,28 @@ class APIndexTest : public ::testing::Test {
     auto status =
         ap_->AddVertex(label, Value::INT64(id), {Value::INT32(value)}, vid);
     ASSERT_TRUE(status.ok()) << status.ToString();
+  }
+
+  vid_t AddVector(int64_t id, float first, float second) {
+    auto label = graph_->schema().get_vertex_label_id("Vector");
+    auto vector_type = DataType::Array(DataType::FLOAT, 2);
+    auto vector =
+        Value::ARRAY(vector_type, {Value::FLOAT(first), Value::FLOAT(second)});
+    vid_t vid = 0;
+    auto status = ap_->AddVertex(label, Value::INT64(id), {vector}, vid);
+    EXPECT_TRUE(status.ok()) << status.ToString();
+    return vid;
+  }
+
+  result<StorageIndex*> CreateVecIndex(const std::string& name) {
+    auto label = graph_->schema().get_vertex_label_id("Vector");
+    auto meta = std::make_unique<IndexMeta>();
+    meta->name = name;
+    meta->type = "hnsw";
+    meta->schema.label_id = label;
+    meta->schema.property_name = "embedding";
+    meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
+    return ap_->CreateIndex(std::move(meta));
   }
 
   std::vector<std::string> SearchPersonNames(int32_t age) const {
@@ -348,6 +386,80 @@ TEST_F(APIndexTest, BulkBuildIndexesExistingVertices) {
             (std::vector<std::string>{"Alice", "Charlie"}));
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{"Bob", "Eve"}));
   EXPECT_EQ(SearchPersonNames(40), (std::vector<std::string>{"Diana"}));
+}
+
+TEST_F(APIndexTest, VecIndexCreateSearchUpdateAndDrop) {
+  CreateVectorTable();
+  auto first_vid = AddVector(1, 1.0f, 1.0f);
+  AddVector(2, 5.0f, 5.0f);
+  auto third_vid = AddVector(3, 9.0f, 9.0f);
+
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  const auto* array = dynamic_cast<const ArrayColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(array, nullptr);
+  const void* original_buffer = array->shared_buffer<float>()->GetData();
+
+  auto created = CreateVecIndex("idx_vector_embedding");
+  ASSERT_TRUE(created) << created.error().ToString();
+  auto* index = dynamic_cast<VecIndex*>(created.value());
+  ASSERT_NE(index, nullptr);
+
+  const auto* vec = dynamic_cast<const VecColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(vec, nullptr);
+  EXPECT_EQ(vec->get_buffer_ptr(), original_buffer);
+
+  VecIndexQueryParams near_first({1.2f, 0.8f});
+  auto first_result = index->Search(near_first);
+  ASSERT_TRUE(first_result) << first_result.error().ToString();
+  ASSERT_EQ(first_result->size(), 1);
+  EXPECT_EQ(first_result->front().vid, first_vid);
+
+  auto fourth_vid = AddVector(4, 12.0f, 12.0f);
+  VecIndexQueryParams near_fourth({11.5f, 12.5f});
+  auto fourth_result = index->Search(near_fourth);
+  ASSERT_TRUE(fourth_result) << fourth_result.error().ToString();
+  ASSERT_EQ(fourth_result->size(), 1);
+  EXPECT_EQ(fourth_result->front().vid, fourth_vid);
+
+  ASSERT_TRUE(ap_->DropIndex("idx_vector_embedding").ok());
+  EXPECT_EQ(GetIndex("idx_vector_embedding"), nullptr);
+  const auto* restored = dynamic_cast<const ArrayColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(restored, nullptr);
+  auto third_value = restored->get_any(third_vid);
+  const auto& third_vector = ArrayValue::GetChildren(third_value);
+  EXPECT_FLOAT_EQ(third_vector[0].GetValue<float>(), 9.0f);
+  EXPECT_FLOAT_EQ(third_vector[1].GetValue<float>(), 9.0f);
+}
+
+TEST_F(APIndexTest, HnswIndexRejectsPropertyWithNonHnswIndex) {
+  CreateVectorTable();
+  auto regular = CreateIndex("idx_vector_regular", "Vector", "embedding");
+  ASSERT_TRUE(regular) << regular.error().ToString();
+
+  auto hnsw = CreateVecIndex("idx_vector_hnsw");
+  ASSERT_FALSE(hnsw);
+  EXPECT_EQ(hnsw.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+}
+
+TEST_F(APIndexTest, NonHnswIndexRejectsPropertyWithHnswIndex) {
+  CreateVectorTable();
+  auto hnsw = CreateVecIndex("idx_vector_hnsw");
+  ASSERT_TRUE(hnsw) << hnsw.error().ToString();
+
+  auto regular = CreateIndex("idx_vector_regular", "Vector", "embedding");
+  ASSERT_FALSE(regular);
+  EXPECT_EQ(regular.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+
+  ASSERT_TRUE(ap_->DropIndex("idx_vector_hnsw").ok());
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  EXPECT_NE(dynamic_cast<const ArrayColumn*>(
+                vertex_table.GetPropertyColumnBase("embedding")),
+            nullptr);
 }
 
 TEST_F(APIndexTest, CloneRebindsIndexToClonedPropertyColumn) {

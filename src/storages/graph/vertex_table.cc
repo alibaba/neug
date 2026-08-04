@@ -22,8 +22,14 @@
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
+#include "neug/utils/property/array_column.h"
+#include "neug/utils/property/vec_column.h"
 
 namespace neug {
+
+void VertexTable::SetColumn(size_t col, std::unique_ptr<ColumnBase> column) {
+  table_->SetColumn(static_cast<int>(col), std::move(column));
+}
 
 void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   CHECK(vertex_schema_ != nullptr) << "VertexTable::Init requires schema";
