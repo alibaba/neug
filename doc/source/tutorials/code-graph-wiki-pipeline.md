@@ -285,7 +285,7 @@ conn.execute(f"""
     )
 """)
 
-# Insert edges: each new file is related to existing files. Append them to the
+# Append edges: each new file is related to existing files. Append them to the
 # existing `depends` edge table with COPY.
 edges_csv = os.path.join(tempfile.mkdtemp(), "new_edges.csv")
 with open(edges_csv, "w") as fp:
