@@ -71,24 +71,24 @@ class GlobalQueryCache {
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           uint64_t schema_generation,
                                           const std::string& query) {
-    bool eligible_for_global_cache = false;
+    bool eligible_for_global_write_back = false;
     uint64_t observed_cache_epoch = 0;
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
-      eligible_for_global_cache = schema_generation >= schema_generation_;
+      eligible_for_global_write_back = schema_generation >= schema_generation_;
       if (schema_generation == schema_generation_) {
         auto iter = cache_.find(query);
         if (iter != cache_.end()) {
           return iter->second;
         }
       }
-      if (eligible_for_global_cache) {
+      if (eligible_for_global_write_back) {
         observed_cache_epoch = cache_epoch_.load();
       }
     }
 
     GS_AUTO(cache_value, CompileUncached(stats, query));
-    if (!eligible_for_global_cache) {
+    if (!eligible_for_global_write_back) {
       return cache_value;
     }
     {
