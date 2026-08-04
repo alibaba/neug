@@ -418,6 +418,10 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   EXPECT_THROW(column.set_any(2, make_array(5.0f, 6.0f), false),
                exception::StorageException);
   EXPECT_EQ(column.get_offset_accessor()->GetIndexIDByVID(2), INVALID_INDEX_ID);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(0))[0].GetValue<float>(), 1.0f);
+  EXPECT_FLOAT_EQ(
+      ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
 
   const void* buffer_before_shrink = column.get_buffer_ptr();
   column.resize(1);

@@ -528,6 +528,47 @@ TEST_F(TPIndexTest, APCreateVecColumnAndTPUpdateMaintainsVecIndexSearch) {
   EXPECT_EQ(committed_result.front().vid, first_vid);
 }
 
+TEST_F(TPIndexTest, AbortedVectorVertexDeletePreservesReadSnapshot) {
+  CreateVectorTableAP();
+  auto first_vid = AddVectorAP(1, 1.0f, 1.0f);
+  AddVectorAP(2, 5.0f, 5.0f);
+
+  auto created = CreateVecIndexAP("idx_vector_embedding");
+  ASSERT_TRUE(created) << created.error().ToString();
+  StartSnapshotStore();
+
+  auto read_txn = NewReadTransaction();
+  StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
+  auto before_delete = SearchVector(read_reader, {1.0f, 1.0f});
+  ASSERT_EQ(before_delete.size(), 1);
+  EXPECT_EQ(before_delete.front().vid, first_vid);
+
+  auto update_txn = NewUpdateTransaction();
+  StorageTPUpdateInterface tp(update_txn);
+  auto label = tp.schema().get_vertex_label_id("Vector");
+  ASSERT_TRUE(tp.DeleteVertex(label, first_vid));
+  auto update_results = SearchVector(tp, {1.0f, 1.0f});
+  EXPECT_TRUE(std::none_of(update_results.begin(), update_results.end(),
+                           [first_vid](const SearchResult& result) {
+                             return result.vid == first_vid;
+                           }));
+
+  auto during_delete = SearchVector(read_reader, {1.0f, 1.0f});
+  ASSERT_EQ(during_delete.size(), 1);
+  EXPECT_EQ(during_delete.front().vid, first_vid);
+
+  update_txn.Abort();
+
+  auto after_abort = SearchVector(read_reader, {1.0f, 1.0f});
+  ASSERT_EQ(after_abort.size(), 1);
+  EXPECT_EQ(after_abort.front().vid, first_vid);
+  read_txn.Commit();
+
+  auto current = SearchVectorInCurrent({1.0f, 1.0f});
+  ASSERT_EQ(current.size(), 1);
+  EXPECT_EQ(current.front().vid, first_vid);
+}
+
 TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
   CreateItemTableAP();
   ASSERT_TRUE(CreateIndex("idx_item_id", "Item", "id"));

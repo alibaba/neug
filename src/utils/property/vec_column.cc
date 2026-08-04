@@ -1,5 +1,6 @@
 #include "neug/utils/property/vec_column.h"
 
+#include <cassert>
 #include <cstring>
 #include <type_traits>
 #include <utility>
@@ -217,8 +218,8 @@ void VecColumn::resize(size_t new_size) {
   const auto bytes_per_vector =
       array_size() * ElementSize(ArrayType::GetChildType(array_type_).id());
   const auto old_logical_bytes = size_ * bytes_per_vector;
-  auto replacement = ckp_->OpenFile(buffer_->GetPath(), level_);
-  replacement->Resize(new_size * bytes_per_vector);
+  auto replacement =
+      ckp_->CreateRuntimeContainer(new_size * bytes_per_vector, level_);
   if (old_logical_bytes != 0) {
     std::memcpy(replacement->GetData(), buffer_->GetData(), old_logical_bytes);
   }
@@ -260,13 +261,10 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
         "VecColumn has insufficient capacity and insert_safe is false");
   }
   auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
-  if (offset >= size_) {
-    if (!insert_safe) {
-      THROW_STORAGE_EXCEPTION(
-          "VecColumn has insufficient capacity and insert_safe is false");
-    }
+  if (insert_safe && offset >= size_) {
     resize(offset < 4096 ? 4096 : offset + offset / 4, default_value_);
   }
+  assert(offset < size_);
   switch (ArrayType::GetChildType(array_type_).id()) {
 #define TYPE_DISPATCHER(enum_val, type)                                    \
   case DataTypeId::enum_val:                                               \

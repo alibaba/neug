@@ -45,6 +45,7 @@
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -1241,9 +1242,24 @@ Status StorageTPUpdateInterface::detachVertexTableForInsert(label_t label) {
 
 Status StorageTPUpdateInterface::detachVertexTableForDelete(label_t label) {
   auto& state = cow_state_.vertex_tables[label];
+  auto& vertex_table = cow_graph_->get_vertex_table(label);
+  bool did_detach = false;
   if (!state.vertex_timestamp_detached) {
-    cow_graph_->get_vertex_table(label).DetachVertexTimestamp();
+    vertex_table.DetachVertexTimestamp();
     state.vertex_timestamp_detached = true;
+    did_detach = true;
+  }
+  for (size_t i = 0; i < state.columns_detached.size(); ++i) {
+    if (!state.columns_detached[i] &&
+        dynamic_cast<VecColumn*>(
+            vertex_table.get_table().get_column_by_id(i)) != nullptr) {
+      vertex_table.get_table().DetachColumn(i, *ckp_,
+                                            cow_graph_->memory_level());
+      state.columns_detached[i] = true;
+      did_detach = true;
+    }
+  }
+  if (did_detach) {
     mut_view_.Rebuild(*cow_graph_);
   }
   return Status::OK();
