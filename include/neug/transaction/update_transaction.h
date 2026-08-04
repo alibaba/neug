@@ -178,7 +178,8 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         mut_view_(txn.view_),
         alloc_(txn.alloc_),
         ckp_(txn.ckp_),
-        wal_(txn.wal_builder_) {}
+        wal_(txn.wal_builder_),
+        vm_(txn.vm_) {}
   ~StorageTPUpdateInterface() = default;
 
   void CreateCheckpoint() override;
@@ -274,6 +275,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Allocator& alloc_;
   std::shared_ptr<Checkpoint>& ckp_;
   WalBuilder& wal_;
+  IVersionManager& vm_;
 };
 
 }  // namespace neug

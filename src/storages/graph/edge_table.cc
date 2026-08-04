@@ -526,7 +526,12 @@ void EdgeTable::Close() {
 }
 
 void EdgeTable::SortByEdgeData(timestamp_t ts) {
-  // TODO
+  if (!meta_->is_bundled()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "sort key is not supported for unbundled edge table currently");
+  }
+  out_csr_->batch_sort_by_edge_data(ts);
+  in_csr_->batch_sort_by_edge_data(ts);
 }
 
 void EdgeTable::BatchDeleteVertices(const std::set<vid_t>& src_set,
@@ -878,12 +883,7 @@ void EdgeTable::Compact(const std::optional<std::string>& sort_key_for_nbr) {
   out_csr_->compact();
   in_csr_->compact();
   if (sort_key_for_nbr.has_value()) {
-    if (!meta_->is_bundled()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "sort key is not supported for unbundled edge table currently");
-    }
-    out_csr_->batch_sort_by_edge_data(1);
-    in_csr_->batch_sort_by_edge_data(1);
+    SortByEdgeData(1);
   }
 }
 
