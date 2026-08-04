@@ -123,7 +123,11 @@ int main(int argc, char** argv) {
     return -1;
   }
 
+#ifdef _WIN32
+  _putenv("TZ=Asia/Shanghai");
+#else
   setenv("TZ", "Asia/Shanghai", 1);
+#endif
   tzset();
 
   auto start = std::chrono::high_resolution_clock::now();
