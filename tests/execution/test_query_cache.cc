@@ -123,7 +123,8 @@ TEST_F(QueryCacheTest, OldCompileCannotRepopulateAfterLazyGenerationAdvance) {
   EXPECT_EQ(planner->blocked_compile_count(), 2);
 }
 
-TEST_F(QueryCacheTest, NewerSchemaGenerationLazilyInvalidatesLocalCaches) {
+TEST_F(QueryCacheTest,
+       SchemaGenerationSeparatesLocalCachesWithoutInvalidatingPinnedReaders) {
   auto planner = std::make_shared<BlockingPlanner>();
   auto global_cache = std::make_shared<GlobalQueryCache>(planner);
   LocalQueryCache first_local(global_cache);
@@ -145,6 +146,13 @@ TEST_F(QueryCacheTest, NewerSchemaGenerationLazilyInvalidatesLocalCaches) {
   ASSERT_TRUE(refreshed_value_again)
       << refreshed_value_again.error().ToString();
   EXPECT_EQ(refreshed_value.value().get(), refreshed_value_again.value().get());
+  EXPECT_EQ(planner->total_compile_count(), 2);
+
+  // The first slot may still execute against its pinned old snapshot. A schema
+  // generation advance must not evict that slot's valid local plan.
+  auto old_snapshot_value = first_local.Get(stats_, 0, "stable-query");
+  ASSERT_TRUE(old_snapshot_value) << old_snapshot_value.error().ToString();
+  EXPECT_EQ(first_value.value().get(), old_snapshot_value.value().get());
   EXPECT_EQ(planner->total_compile_count(), 2);
 }
 

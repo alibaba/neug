@@ -162,7 +162,7 @@ UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
   UpdateTimestampLease timestamp_lease(version_manager_);
   auto [cow_graph, schema_generation] = snapshot_store_.CloneCurrentForUpdate();
   return UpdateTransaction(std::move(cow_graph), schema_generation, alloc_,
-                           *wal_writer_, snapshot_store_, pipeline_cache_,
+                           *wal_writer_, snapshot_store_,
                            std::move(timestamp_lease));
 }
 
@@ -430,7 +430,6 @@ void ExecutionSlot::ClearTemporarySchema() {
 
   if (write_scope.HasSchemaChanged()) {
     slot.mutable_view().Rebuild(*graph);
-    pipeline_cache_.clearGlobalCache();
   }
 }
 

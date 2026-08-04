@@ -26,7 +26,6 @@
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "neug/common/types/value.h"
-#include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -84,7 +83,6 @@ class UpdateTransaction {
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
    * @param snapshot_store Reference to GraphSnapshotStore for commit
-   * @param cache Reference to query cache
    * @param timestamp_lease Owned update timestamp and admission lifecycle
    *
    * @note The caller is responsible for acquiring the timestamp lease before
@@ -94,7 +92,6 @@ class UpdateTransaction {
   UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
                     uint64_t schema_generation, Allocator& alloc,
                     IWalWriter& logger, GraphSnapshotStore& snapshot_store,
-                    execution::LocalQueryCache& cache,
                     UpdateTimestampLease timestamp_lease);
 
   /**
@@ -168,7 +165,6 @@ class UpdateTransaction {
   Allocator& alloc_;
   IWalWriter& logger_;
   GraphSnapshotStore& snapshot_store_;
-  execution::LocalQueryCache& pipeline_cache_;
   UpdateTimestampLease timestamp_lease_;
   uint64_t schema_generation_;
 

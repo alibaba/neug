@@ -324,7 +324,6 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
                                      uint64_t schema_generation,
                                      Allocator& alloc, IWalWriter& logger,
                                      GraphSnapshotStore& snapshot_store,
-                                     execution::LocalQueryCache& cache,
                                      UpdateTimestampLease timestamp_lease)
     : cow_graph_(std::move(cow_graph)),
       cow_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
@@ -332,7 +331,6 @@ UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
       alloc_(alloc),
       logger_(logger),
       snapshot_store_(snapshot_store),
-      pipeline_cache_(cache),
       timestamp_lease_(std::move(timestamp_lease)),
       schema_generation_(schema_generation),
       ckp_(cow_graph_->checkpoint_ptr()) {}
@@ -377,10 +375,6 @@ bool UpdateTransaction::Commit() {
   }
 
   timestamp_lease_.BeginCommit();
-
-  if (schema_changed) {
-    pipeline_cache_.clearGlobalCache();
-  }
 
   // Preparation completed before WAL append, so publication is a bounded,
   // no-fail current-slot switch. Finish publishes the matching read view
