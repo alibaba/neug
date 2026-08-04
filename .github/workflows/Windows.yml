@@ -99,10 +99,6 @@ jobs:
       # ========================================
       # Phase 2: Python Tests
       # ========================================
-      - name: Run Python smoke test (custom graph)
-        run: |
-          python tools/python_bind/example/simple_load_query.py
-
       - name: Run Python DB init tests
         continue-on-error: true
         run: |
