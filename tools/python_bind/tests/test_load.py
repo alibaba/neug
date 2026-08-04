@@ -1703,7 +1703,9 @@ class TestCopyFrom:
         # sys.stderr.
         saved_fd = os.dup(2)
         capture_path = self.tmp_path / "stderr.log"
-        capture_fd = os.open(str(capture_path), os.O_WRONLY | os.O_CREAT)
+        capture_fd = os.open(
+            str(capture_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+        )
         try:
             os.dup2(capture_fd, 2)
             self.conn.execute(

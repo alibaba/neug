@@ -793,6 +793,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   constexpr size_t kMaxDanglingEdgeSamples = 20;
   size_t dangling_edge_count = 0;
   std::vector<std::string> dangling_edge_samples;
+  dangling_edge_samples.reserve(kMaxDanglingEdgeSamples);
   while (true) {
     auto chunk = supplier->GetNextChunk();
     if (chunk == nullptr) {
@@ -804,6 +805,12 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     size_t dst_offset = dst_lid.size();
     src_indexer.get_index(*src_col, src_lid);
     dst_indexer.get_index(*dst_col, dst_lid);
+    // Both indexers must resolve the same chunk row count; otherwise the
+    // paired scan below would index out of bounds.
+    CHECK(src_lid.size() - src_offset == dst_lid.size() - dst_offset)
+        << "src/dst indexer resolved different row counts for edge table ["
+        << meta_->src_label_name << "]-[" << meta_->edge_label_name << "]->["
+        << meta_->dst_label_name << "]";
     size_t chunk_rows = src_lid.size() - src_offset;
     for (size_t i = 0; i < chunk_rows; ++i) {
       bool src_missing =
