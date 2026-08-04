@@ -1,0 +1,128 @@
+name: NeuG Test (Windows)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  format_check:
+    uses: ./.github/workflows/format-check.yml
+    with:
+      is_pull_request: false
+
+  # ============================================================
+  # Windows x64 Job: Build NeuG + run C++ and Python tests
+  # Uses GitHub-hosted windows-2022 runner with pre-installed
+  # MSVC 2022, vcpkg, Python, CMake, and Ninja.
+  # ============================================================
+  build_and_test_windows:
+    needs: format_check
+    if: ${{ needs.format_check.result == 'success' || needs.format_check.result == 'skipped' }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tools/python_bind/requirements.txt
+          python -m pip install pytest pytest-cov coverage
+
+      # vcpkg is pre-installed on GitHub-hosted Windows runners at C:\vcpkg.
+      # Setting VCPKG_ROOT lets CMake's vcpkg toolchain auto-install OpenSSL
+      # and other dependencies declared via find_package() in CMakeLists.txt.
+      - name: Setup vcpkg
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          echo "Using vcpkg at: $env:VCPKG_INSTALLATION_ROOT"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-x64-windows-static-md-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-x64-windows-static-md-
+
+      - name: Configure CMake
+        run: |
+          $pythonExe = (Get-Command python).Path
+          $vcpkgToolchain = Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+            -DBUILD_PYTHON=ON `
+            -DBUILD_TEST=ON `
+            -DPython_EXECUTABLE="$pythonExe" `
+            -DPYTHON_EXECUTABLE="$pythonExe" `
+            .
+
+      - name: Build
+        run: |
+          $cpuCount = [Environment]::ProcessorCount
+          $jobs = [Math]::Min($cpuCount, 8)
+          Write-Host "Building with $jobs parallel jobs"
+          cmake --build build -j $jobs
+
+      # ========================================
+      # Phase 1: C++ Tests (ctest)
+      # ========================================
+      - name: Run C++ tests
+        continue-on-error: true
+        run: |
+          cd build
+          ctest --output-on-failure --timeout 60 -j $env:NUMBER_OF_PROCESSORS
+
+      # ========================================
+      # Phase 2: Python Tests
+      # ========================================
+      - name: Run Python smoke test (custom graph)
+        run: |
+          python tools/python_bind/example/simple_load_query.py
+
+      - name: Run Python DB init tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_init.py --exitfirst
+
+      - name: Run Python schema tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_schema.py --exitfirst
+
+      - name: Run Python DML tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_dml.py --exitfirst
+
+      - name: Run Python query tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_query.py --exitfirst

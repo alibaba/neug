@@ -14,7 +14,12 @@
  */
 
 #include <gtest/gtest.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <process.h>
+#define getpid _getpid
+#endif
 #include <filesystem>
 #include <fstream>
 #include <iostream>

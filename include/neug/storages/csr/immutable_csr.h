@@ -26,12 +26,13 @@
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/module/type_name.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
 
 template <typename EDATA_T>
-class ImmutableCsr : public TypedCsrBase<EDATA_T> {
+class NEUG_API ImmutableCsr : public TypedCsrBase<EDATA_T> {
  public:
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;
@@ -142,7 +143,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 };
 
 template <typename EDATA_T>
-class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
+class NEUG_API SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
  public:
   using data_t = EDATA_T;
   using nbr_t = ImmutableNbr<EDATA_T>;

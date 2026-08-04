@@ -121,7 +121,6 @@ if(WIN32)
     set(BUILD_NODEJS OFF CACHE BOOL "Node.js binding is not supported on Windows yet" FORCE)
     set(BUILD_HTTP_SERVER OFF CACHE BOOL "HTTP server (brpc) is not supported on Windows yet" FORCE)
     set(BUILD_EXTENSIONS "" CACHE STRING "Extensions are not supported on Windows yet" FORCE)
-    set(BUILD_TEST OFF CACHE BOOL "Tests are disabled on Windows core build" FORCE)
     set(BUILD_EXECUTABLES OFF CACHE BOOL "Executables are disabled on Windows core build" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "Examples are disabled on Windows core build" FORCE)
     set(NEUG_NATIVE_ARCH OFF CACHE BOOL "Native architecture tuning is not supported on Windows" FORCE)
@@ -524,9 +523,16 @@ function(add_neug_test TEST_NAME)
     find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
-        ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    if(WIN32 AND BUILD_TEST)
+        # neug_static contains the same object files as neug.dll but exposes all
+        # symbols, which is required by tests that exercise internal APIs.
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_static
+            ${ARROW_LIB} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
+    else()
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
+            ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
+            ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    endif()
     # The bundled googletest (v1.13.0, fetched into _deps) must beat any
     # system/Homebrew gtest that leaks in via an -isystem include path; otherwise
     # tests compile against newer gtest headers but link the bundled library,
