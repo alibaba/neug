@@ -14,354 +14,390 @@
  */
 
 #include "impl/louvain_impl.h"
-
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <numeric>
 #include <random>
 #include <unordered_map>
-
+#include <unordered_set>
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "utils/aggregated_graph.h"
 #include "utils/parallel_utils.h"
-
 namespace neug {
 namespace gds {
 namespace community {
-
-Louvain::Louvain(const StorageReadInterface& graph, label_t vertex_label,
-                 label_t edge_label, double resolution, double threshold,
-                 int concurrency)
+Louvain::Louvain(const StorageReadInterface& graph,
+                 std::vector<label_t> vertex_labels,
+                 std::vector<LabelTriplet> edge_triplets, double resolution,
+                 double threshold, int concurrency,
+                 const std::string& initial_community_property,
+                 bool allow_relocation, const std::string& weight_property)
     : graph_(graph),
-      vertex_label_(vertex_label),
-      edge_label_(edge_label),
+      index_(graph, std::move(vertex_labels), std::move(edge_triplets),
+             weight_property),
       resolution_(resolution),
       threshold_(threshold),
-      concurrency_(concurrency) {
-  const auto& vertex_set = graph.GetVertexSet(vertex_label);
-  valid_vertices_.reserve(vertex_set.size());
-  vid_t max_vid = 0;
-  for (const auto& v : vertex_set) {
-    valid_vertices_.push_back(v);
-    if (v > max_vid)
-      max_vid = v;
-  }
-  vertex_count_ = valid_vertices_.size();
-
-  // Allocate arrays indexed by vid_t
-  // For contiguous vid_t values, size = max_vid + 1 ≈ vertex_count_
-  array_size_ = static_cast<size_t>(max_vid) + 1;
-  community_ = std::make_unique<uint32_t[]>(array_size_);
-  degree_ = std::make_unique<double[]>(array_size_);
-  stot_ = std::make_unique<double[]>(array_size_);
-
-  // Per-thread scratch for parallel moving phase
+      concurrency_(concurrency),
+      initial_community_property_(initial_community_property),
+      allow_relocation_(allow_relocation) {
+  const size_t array_size = index_.array_size();
+  const auto& valid_vertices = index_.valid_vertices();
+  community_ = std::make_unique<uint32_t[]>(array_size);
+  degree_ = std::make_unique<double[]>(array_size);
+  stot_ = std::make_unique<double[]>(array_size);
   num_threads_ = concurrency_ > 0
                      ? concurrency_
                      : static_cast<int>(std::thread::hardware_concurrency());
   if (num_threads_ < 1)
     num_threads_ = 1;
-  size_t total_scratch = static_cast<size_t>(num_threads_) * array_size_;
+  size_t total_scratch = static_cast<size_t>(num_threads_) * array_size;
   thread_comm_weight_ = std::make_unique<double[]>(total_scratch);
   thread_gen_ = std::make_unique<uint32_t[]>(total_scratch);
   std::fill_n(thread_comm_weight_.get(), total_scratch, 0.0);
   std::fill_n(thread_gen_.get(), total_scratch, 0);
-
-  // Initialize: each vertex in its own community
-  for (vid_t v : valid_vertices_) {
-    community_[v] = v;
-    stot_[v] = 0;
-    degree_[v] = 0;
+  if (!initial_community_property_.empty()) {
+    initial_community_ = std::make_unique<uint32_t[]>(array_size);
+    std::fill_n(initial_community_.get(), array_size, UINT32_MAX);
+    const auto& vlabels = index_.vertex_labels();
+    for (size_t li = 0; li < vlabels.size(); ++li) {
+      label_t label = vlabels[li];
+      auto prop_col =
+          graph_.GetVertexPropColumn(label, initial_community_property_);
+      const auto& vs = graph_.GetVertexSet(label);
+      size_t base = index_.label_base_offset(li);
+      for (const auto& v : vs) {
+        uint32_t gid = static_cast<uint32_t>(base + v);
+        if (prop_col) {
+          auto val = prop_col->get_any(v);
+          if (!val.IsNull()) {
+            int64_t raw = val.GetValue<int64_t>();
+            if (raw >= 0 && static_cast<uint64_t>(raw) < array_size) {
+              uint32_t cval = static_cast<uint32_t>(raw);
+              community_[gid] = cval;
+              initial_community_[gid] = cval;
+            } else {
+              community_[gid] = gid;
+            }
+          } else
+            community_[gid] = gid;
+        } else
+          community_[gid] = gid;
+        stot_[gid] = 0;
+        degree_[gid] = 0;
+      }
+    }
+  } else {
+    for (uint32_t gid : valid_vertices) {
+      community_[gid] = gid;
+      stot_[gid] = 0;
+      degree_[gid] = 0;
+    }
   }
 }
-
 void Louvain::compute() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-
-  // Compute degrees: for undirected graph, degree = out_degree + in_degree
+  const auto& valid_vertices = index_.valid_vertices();
+  const size_t array_size = index_.array_size();
+  // Parallel degree computation
   ParallelUtils::parallel_for(
-      valid_vertices_.data(), valid_vertices_.size(),
-      [&](vid_t v, int /*tid*/) {
+      valid_vertices.data(), valid_vertices.size(),
+      [&](vid_t gid, int /*tid*/) {
         double deg = 0;
-        auto oes = oe_view.get_edges(v);
-        for (auto it = oes.begin(); it != oes.end(); ++it)
-          deg += 1.0;
-        auto ies = ie_view.get_edges(v);
-        for (auto it = ies.begin(); it != ies.end(); ++it)
-          deg += 1.0;
-        degree_[v] = deg;
+        index_.for_each_neighbor(gid,
+                                 [&](uint32_t /*nbr*/, double w) { deg += w; });
+        degree_[gid] = deg;
       },
-      concurrency_);
-
-  // Compute total edge weight m (for undirected: each edge counted once)
-  // We count out-edges only, which gives us m for undirected graphs
-  {
-    std::vector<double> local_m(num_threads_, 0.0);
-    ParallelUtils::parallel_for(
-        valid_vertices_.data(), valid_vertices_.size(),
-        [&](vid_t v, int tid) {
-          auto oes = oe_view.get_edges(v);
-          double cnt = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it)
-            cnt += 1.0;
-          local_m[tid] += cnt;
-        },
-        num_threads_);
-    m_ = 0;
-    for (int i = 0; i < num_threads_; ++i)
-      m_ += local_m[i];
-  }
-
+      num_threads_);
+  // Parallel m_ computation (sum of out-edge weights = total edge weight)
+  std::vector<double> local_m(num_threads_, 0.0);
+  ParallelUtils::parallel_for(
+      valid_vertices.data(), valid_vertices.size(),
+      [&](vid_t gid, int tid) {
+        index_.for_each_out_edge(
+            gid, [&](uint32_t /*nbr*/, double w) { local_m[tid] += w; });
+      },
+      num_threads_);
+  m_ = 0;
+  for (int i = 0; i < num_threads_; ++i)
+    m_ += local_m[i];
   if (m_ == 0) {
     modularity_ = 0;
     return;
   }
-
-  // Initialize stot in parallel
-  ParallelUtils::parallel_for(
-      valid_vertices_.data(), valid_vertices_.size(),
-      [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, num_threads_);
-
-  // Iterate with convergence detection using threshold_
+  // Initialize stot_ (community degree totals)
+  std::fill_n(stot_.get(), array_size, 0.0);
+  for (uint32_t gid : valid_vertices)
+    stot_[community_[gid]] += degree_[gid];
   double prev_mod = -1.0;
   for (int level = 0; level < 100; ++level) {
     bool improved = one_level();
     if (!improved)
       break;
-
-    // Compute modularity to check convergence
+    // Compute modularity (count each undirected edge once via out-edges)
     std::vector<double> local_mod(num_threads_, 0.0);
     ParallelUtils::parallel_for(
-        valid_vertices_.data(), valid_vertices_.size(),
-        [&](vid_t v, int tid) {
-          auto oes = oe_view.get_edges(v);
-          double lm = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it) {
-            vid_t u = *it;
-            if (community_[v] == community_[u]) {
-              lm +=
-                  1.0 / (2.0 * m_) - degree_[v] * degree_[u] / (4.0 * m_ * m_);
+        valid_vertices.data(), valid_vertices.size(),
+        [&](vid_t gid, int tid) {
+          index_.for_each_out_edge(gid, [&](uint32_t ug, double w) {
+            if (community_[gid] == community_[ug]) {
+              local_mod[tid] += w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                                     degree_[ug] /
+                                                     (4.0 * m_ * m_);
             }
-          }
-          local_mod[tid] += lm;
+          });
         },
         num_threads_);
-    modularity_ = 0;
+    double new_mod = 0;
     for (int i = 0; i < num_threads_; ++i)
-      modularity_ += local_mod[i];
-
-    if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_) {
+      new_mod += local_mod[i];
+    modularity_ = new_mod;
+    if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
       break;
-    }
     prev_mod = modularity_;
   }
-
-  // Compute final modularity (if not already up-to-date)
-  if (prev_mod < 0) {
-    std::vector<double> local_mod(concurrency_, 0.0);
-    ParallelUtils::parallel_for(
-        valid_vertices_.data(), valid_vertices_.size(),
-        [&](vid_t v, int tid) {
-          auto oes = oe_view.get_edges(v);
-          double lm = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it) {
-            vid_t u = *it;
-            if (community_[v] == community_[u]) {
-              lm +=
-                  1.0 / (2.0 * m_) - degree_[v] * degree_[u] / (4.0 * m_ * m_);
-            }
-          }
-          local_mod[tid] += lm;
-        },
-        concurrency_);
-    modularity_ = 0;
-    for (int i = 0; i < concurrency_; ++i)
-      modularity_ += local_mod[i];
+  // === Graph Aggregation Phase ===
+  // Gate: skip in freeze-assign mode (old vertices must not change)
+  if (allow_relocation_ || !initial_community_) {
+    // Build unified undirected CSR adjacency over valid_vertices
+    size_t nv = valid_vertices.size();
+    std::vector<size_t> csr_offsets(nv + 1, 0);
+    for (size_t vi = 0; vi < nv; ++vi) {
+      uint32_t gid = valid_vertices[vi];
+      size_t cnt = 0;
+      index_.for_each_neighbor(gid, [&](uint32_t, double) { ++cnt; });
+      csr_offsets[vi + 1] = cnt;
+    }
+    for (size_t i = 1; i <= nv; ++i)
+      csr_offsets[i] += csr_offsets[i - 1];
+    std::vector<uint32_t> csr_adj(csr_offsets[nv]);
+    std::vector<double> csr_w(csr_offsets[nv]);
+    for (size_t vi = 0; vi < nv; ++vi) {
+      uint32_t gid = valid_vertices[vi];
+      size_t pos = csr_offsets[vi];
+      index_.for_each_neighbor(gid, [&](uint32_t nbr, double w) {
+        csr_adj[pos] = nbr;
+        csr_w[pos] = w;
+        ++pos;
+      });
+    }
+    // Iterative aggregation loop
+    for (int agg_level = 0; agg_level < 100; ++agg_level) {
+      auto agg =
+          build_aggregated_graph(valid_vertices, community_.get(),
+                                 degree_.get(), csr_offsets, csr_adj, csr_w);
+      if (agg.num_nodes <= 1)
+        break;
+      std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
+      std::vector<double> agg_cw(agg.num_nodes, 0.0);
+      bool agg_improved =
+          one_level_aggregated(agg, m_, resolution_, agg_gen, agg_cw);
+      if (!agg_improved)
+        break;
+      propagate_aggregated_communities(valid_vertices, community_.get(), agg);
+      // Rebuild stot_ after community changes
+      std::fill_n(stot_.get(), array_size, 0.0);
+      for (uint32_t gid : valid_vertices)
+        stot_[community_[gid]] += degree_[gid];
+      // Compute modularity on original graph
+      std::vector<double> local_mod2(num_threads_, 0.0);
+      ParallelUtils::parallel_for(
+          valid_vertices.data(), valid_vertices.size(),
+          [&](vid_t gid, int tid) {
+            index_.for_each_out_edge(gid, [&](uint32_t ug, double w) {
+              if (community_[gid] == community_[ug]) {
+                local_mod2[tid] += w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                                        degree_[ug] /
+                                                        (4.0 * m_ * m_);
+              }
+            });
+          },
+          num_threads_);
+      double new_mod = 0;
+      for (int i = 0; i < num_threads_; ++i)
+        new_mod += local_mod2[i];
+      modularity_ = new_mod;
+      if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+        break;
+      prev_mod = modularity_;
+    }
   }
 }
-
 bool Louvain::one_level() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-
-  std::vector<vid_t> order = valid_vertices_;
+  const auto& valid_vertices = index_.valid_vertices();
+  std::vector<uint32_t> order = valid_vertices;
   std::mt19937 rng(42);
   std::shuffle(order.begin(), order.end(), rng);
-
   bool improved = false;
   const size_t n = order.size();
-  const size_t chunk = 4096;
-  const size_t num_batches = (n + chunk - 1) / chunk;
-  const int nt = num_threads_;
-
-  // best_com[i] stores the computed best community for order[i]
-  std::vector<uint32_t> best_com(n);
-
-  // Per-thread touched community lists (reused across batches)
-  std::vector<std::vector<uint32_t>> touched(nt);
-  for (int t = 0; t < nt; ++t)
-    touched[t].reserve(256);
-
+  // Local-moving phase: sequential Gauss-Seidel updates.
+  uint32_t* mg = thread_gen_.get();
+  double* mc = thread_comm_weight_.get();
+  uint32_t gv = 0;
+  std::vector<uint32_t> mt;
+  mt.reserve(256);
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
-
-    for (size_t batch = 0; batch < num_batches; ++batch) {
-      size_t batch_start = batch * chunk;
-      size_t batch_end = std::min(batch_start + chunk, n);
-
-      // Phase 1: Compute best move for each vertex in this batch (parallel)
-      {
-        std::atomic<size_t> cursor(batch_start);
-        std::vector<std::thread> threads;
-        threads.reserve(nt - 1);
-
-        auto worker = [&](int tid) {
-          uint32_t* my_gen =
-              thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-          double* my_cw = thread_comm_weight_.get() +
-                          static_cast<size_t>(tid) * array_size_;
-          uint32_t gen_val = 0;
-          auto& my_touched = touched[tid];
-
-          while (true) {
-            size_t start = cursor.fetch_add(64);
-            if (start >= batch_end)
-              break;
-            size_t end = std::min(start + size_t(64), batch_end);
-
-            for (size_t i = start; i < end; ++i) {
-              vid_t u = order[i];
-              uint32_t cur_com = community_[u];
-              double deg_u = degree_[u];
-
-              ++gen_val;
-              my_touched.clear();
-
-              auto process_nbr = [&](vid_t v) {
-                if (v == u)
-                  return;
-                uint32_t com = community_[v];
-                if (my_gen[com] != gen_val) {
-                  my_gen[com] = gen_val;
-                  my_cw[com] = 0.0;
-                  my_touched.push_back(com);
-                }
-                my_cw[com] += 1.0;
-              };
-
-              auto oes = oe_view.get_edges(u);
-              for (auto it = oes.begin(); it != oes.end(); ++it)
-                process_nbr(*it);
-              auto ies = ie_view.get_edges(u);
-              for (auto it = ies.begin(); it != ies.end(); ++it)
-                process_nbr(*it);
-
-              double w_self =
-                  (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
-
-              // Remove u from current community for gain calculation
-              double stot_cur_minus_u = stot_[cur_com] - deg_u;
-
-              uint32_t best = cur_com;
-              double best_gain = 0.0;
-
-              for (uint32_t com : my_touched) {
-                if (com == cur_com)
-                  continue;
-                double w_com = my_cw[com];
-                // Gain = benefit of joining com - cost of leaving cur_com
-                double gain =
-                    (w_com - w_self) / m_ -
-                    resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
-                    resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
-                if (gain > best_gain) {
-                  best_gain = gain;
-                  best = com;
-                }
-              }
-
-              best_com[i] = best;
-            }
-          }
-        };
-
-        for (int t = 1; t < nt; ++t)
-          threads.emplace_back(worker, t);
-        worker(0);
-        for (auto& th : threads)
-          th.join();
-      }
-
-      // Phase 2: Apply moves (sequential — safe stot_ updates)
-      for (size_t i = batch_start; i < batch_end; ++i) {
-        vid_t u = order[i];
-        uint32_t cur_com = community_[u];
-        uint32_t new_com = best_com[i];
-        if (new_com != cur_com) {
-          stot_[cur_com] -= degree_[u];
-          stot_[new_com] += degree_[u];
-          community_[u] = new_com;
-          moved = true;
-          improved = true;
+    for (size_t i = 0; i < n; ++i) {
+      uint32_t ug = order[i];
+      if (initial_community_ && !allow_relocation_ &&
+          initial_community_[ug] != UINT32_MAX)
+        continue;
+      uint32_t cc = community_[ug];
+      double du = degree_[ug];
+      ++gv;
+      mt.clear();
+      index_.for_each_neighbor(ug, [&](uint32_t vg, double w) {
+        if (vg == ug)
+          return;
+        uint32_t cm = community_[vg];
+        if (mg[cm] != gv) {
+          mg[cm] = gv;
+          mc[cm] = 0.0;
+          mt.push_back(cm);
+        }
+        mc[cm] += w;
+      });
+      double ws = (mg[cc] == gv) ? mc[cc] : 0.0;
+      double sm = stot_[cc] - du;
+      uint32_t best = cc;
+      double bg = 0.0;
+      for (uint32_t cm : mt) {
+        if (cm == cc)
+          continue;
+        double wc = mc[cm];
+        double g = (wc - ws) / m_ -
+                   resolution_ * stot_[cm] * du / (2.0 * m_ * m_) +
+                   resolution_ * sm * du / (2.0 * m_ * m_);
+        if (g > bg) {
+          bg = g;
+          best = cm;
         }
       }
+      if (best != cc) {
+        stot_[cc] -= du;
+        stot_[best] += du;
+        community_[ug] = best;
+        moved = true;
+        improved = true;
+      }
     }
-
     if (!moved)
       break;
   }
-
   return improved;
 }
-
-void Louvain::sink(execution::Context& ctx, int node_alias,
-                   int community_alias) {
-  MSVertexColumnBuilder builder(vertex_label_);
-  builder.reserve(valid_vertices_.size());
-  ValueColumnBuilder<int64_t> community_builder;
-  community_builder.reserve(valid_vertices_.size());
-
-  // Remap communities to contiguous [0, num_coms)
-  std::unordered_map<uint32_t, uint32_t> com_remap;
-  uint32_t next_id = 0;
-
-  for (vid_t v : valid_vertices_) {
-    uint32_t c = community_[v];
-    if (com_remap.find(c) == com_remap.end())
-      com_remap[c] = next_id++;
-    builder.push_back_opt(v);
-    community_builder.push_back_opt(static_cast<int64_t>(com_remap[c]));
+void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias,
+                   int previous_community_alias) {
+  std::unordered_map<uint32_t, uint32_t> cr;
+  if (initial_community_) {
+    // Stable ID: inherit old community IDs via majority vote
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>>
+        new_to_old_counts;
+    uint32_t max_old_id = 0;
+    bool has_valid_old = false;
+    for (uint32_t gid : index_.valid_vertices()) {
+      uint32_t new_com = community_[gid];
+      uint32_t old_com = initial_community_[gid];
+      if (old_com != UINT32_MAX) {
+        new_to_old_counts[new_com][old_com]++;
+        if (!has_valid_old || old_com > max_old_id) {
+          max_old_id = old_com;
+          has_valid_old = true;
+        }
+      } else {
+        new_to_old_counts[new_com];
+      }
+    }
+    std::vector<std::pair<uint32_t, uint32_t>> com_sizes;
+    for (auto& [nc, old_counts] : new_to_old_counts) {
+      uint32_t total = 0;
+      for (auto& [_, cnt] : old_counts)
+        total += cnt;
+      com_sizes.push_back({nc, total});
+    }
+    std::sort(
+        com_sizes.begin(), com_sizes.end(), [](const auto& a, const auto& b) {
+          if (a.second != b.second)
+            return a.second > b.second;
+          return a.first < b.first;  // deterministic tie-break by new comm ID
+        });
+    std::unordered_set<uint32_t> used_ids;
+    for (auto& [nc, _] : com_sizes) {
+      auto& old_counts = new_to_old_counts[nc];
+      uint32_t best_old = UINT32_MAX;
+      uint32_t best_count = 0;
+      for (auto& [oc, cnt] : old_counts) {
+        // Prefer higher count; on tie, prefer smaller old community ID
+        // for deterministic results across runs.
+        if ((cnt > best_count ||
+             (cnt == best_count && best_old != UINT32_MAX && oc < best_old)) &&
+            used_ids.find(oc) == used_ids.end()) {
+          best_count = cnt;
+          best_old = oc;
+        }
+      }
+      if (best_old != UINT32_MAX) {
+        cr[nc] = best_old;
+        used_ids.insert(best_old);
+      }
+    }
+    uint32_t next_fresh = has_valid_old ? (max_old_id + 1) : 0;
+    for (auto& [nc, _] : com_sizes) {
+      if (cr.find(nc) == cr.end()) {
+        while (used_ids.find(next_fresh) != used_ids.end())
+          next_fresh++;
+        cr[nc] = next_fresh;
+        used_ids.insert(next_fresh);
+        next_fresh++;
+      }
+    }
+  } else {
+    uint32_t ni = 0;
+    for (uint32_t gid : index_.valid_vertices()) {
+      uint32_t c = community_[gid];
+      if (cr.find(c) == cr.end())
+        cr[c] = ni++;
+    }
   }
-
-  execution::ContextChunk chunk;
-  chunk.set(node_alias, builder.finish());
-  chunk.set(community_alias, community_builder.finish());
-  ctx.append_chunk(std::move(chunk));
+  bool need_prev = (previous_community_alias >= 0);
+  const auto& vlabels = index_.vertex_labels();
+  for (size_t li = 0; li < vlabels.size(); ++li) {
+    label_t label = vlabels[li];
+    size_t base = index_.label_base_offset(li);
+    const auto& vs = graph_.GetVertexSet(label);
+    MSVertexColumnBuilder b(label);
+    ValueColumnBuilder<int64_t> cb;
+    size_t cnt = vs.size();
+    b.reserve(cnt);
+    cb.reserve(cnt);
+    std::shared_ptr<IContextColumn> prev_col;
+    if (need_prev) {
+      ValueColumnBuilder<int64_t> prev_builder(/*is_optional=*/true);
+      prev_builder.reserve(cnt);
+      for (const auto& v : vs) {
+        uint32_t gid = static_cast<uint32_t>(base + v);
+        if (initial_community_ && initial_community_[gid] != UINT32_MAX) {
+          prev_builder.push_back_opt(
+              static_cast<int64_t>(initial_community_[gid]));
+        } else {
+          prev_builder.push_back_null();
+        }
+      }
+      prev_col = prev_builder.finish();
+    }
+    for (const auto& v : vs) {
+      uint32_t gid = static_cast<uint32_t>(base + v);
+      b.push_back_opt(v);
+      cb.push_back_opt(static_cast<int64_t>(cr[community_[gid]]));
+    }
+    execution::ContextChunk chunk;
+    chunk.set(node_alias, b.finish());
+    chunk.set(community_alias, cb.finish());
+    if (prev_col)
+      chunk.set(previous_community_alias, prev_col);
+    ctx.append_chunk(std::move(chunk));
+  }
 }
-
-LouvainResult RunLouvain(const StorageReadInterface& graph,
-                         label_t vertex_label, label_t edge_label,
-                         bool directed, double resolution, double threshold,
-                         int concurrency) {
-  (void) directed;  // TODO: directed support
-
-  Louvain louvain(graph, vertex_label, edge_label, resolution, threshold,
-                  concurrency);
-  louvain.compute();
-
-  LouvainResult result;
-  // Result is stored internally; sink() method is used for output
-  result.modularity = 0;
-  result.num_communities = 0;
-  return result;
-}
-
 }  // namespace community
 }  // namespace gds
 }  // namespace neug

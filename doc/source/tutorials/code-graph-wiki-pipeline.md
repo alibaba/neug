@@ -31,8 +31,8 @@ The files are hosted on Alibaba Cloud OSS and loaded straight into NeuG via the 
 extension — no manual download needed:
 
 ```python
-OSS_NODES = "oss://graphscope/neug/test_data/neug-wiki-files/file_cluster_nodes.csv"
-OSS_EDGES = "oss://graphscope/neug/test_data/neug-wiki-files/file_cluster_edges.csv"
+OSS_NODES = "oss://neug/tutorial/neug-wiki-files/file_cluster_nodes.csv"
+OSS_EDGES = "oss://neug/tutorial/neug-wiki-files/file_cluster_edges.csv"
 ```
 
 > **Note**: The dataset has **1,332 files** and **2,982 edges**. Make sure you
@@ -256,7 +256,8 @@ assignments frozen, and only newly added vertices get clustered.
 ### 6.1 Append the new files
 
 Suppose three new pattern matching algorithm files are added to the GDS extension, each related to two
-existing files. Insert them one by one with Cypher `CREATE` — no CSV staging needed:
+existing files. Stage the new nodes and edges as small CSVs and append them to the existing
+`file` / `depends` tables with `COPY`:
 
 ```python
 new_files = [
@@ -269,20 +270,36 @@ targets = [
     "extension/gds/include/gds_algo_function_collection.h",
 ]
 
-# Insert new file nodes. community = -1 is a sentinel meaning "no previous community",
+# Append new file nodes. community = -1 is a sentinel meaning "no previous community",
 # so freeze-assign treats them as brand-new vertices.
-for f in new_files:
-    conn.execute(f"""
-        CREATE (n:file {{id: '{f}', label: '{os.path.basename(f)}', community: -1}})
-    """)
+# Note: the CSV must carry all current columns of the `file` table (including `community`).
+nodes_csv = os.path.join(tempfile.mkdtemp(), "new_nodes.csv")
+with open(nodes_csv, "w") as fp:
+    fp.write("id,label,community\n")
+    for f in new_files:
+        fp.write(f"{f},{os.path.basename(f)},-1\n")
 
-# Insert edges: each new file is related to existing files.
-for f in new_files:
-    for t in targets:
-        conn.execute(f"""
-            MATCH (a:file {{id: '{f}'}}), (b:file {{id: '{t}'}})
-            CREATE (a)-[:depends {{weight: 1}}]->(b)
-        """)
+conn.execute(f"""
+    COPY file FROM "{nodes_csv}" (
+        header=true, delimiter=','
+    )
+""")
+
+# Append edges: each new file is related to existing files. Append them to the
+# existing `depends` edge table with COPY.
+edges_csv = os.path.join(tempfile.mkdtemp(), "new_edges.csv")
+with open(edges_csv, "w") as fp:
+    fp.write("from_file,to_file,weight\n")
+    for f in new_files:
+        for t in targets:
+            fp.write(f"{f},{t},1\n")
+
+conn.execute(f"""
+    COPY depends FROM "{edges_csv}" (
+        header=true, delimiter=',',
+        from='file', to='file'
+    )
+""")
 
 print(list(conn.execute("MATCH (f:file) RETURN count(f)")))  # [[1335]]
 ```
@@ -411,11 +428,30 @@ new_files = ["extension/gds/include/impl/pattern_match_impl.h",
            "extension/gds/include/impl/motif_count_impl.h"]
 targets = ["extension/gds/include/utils/subgraph_utils.h",
            "extension/gds/include/gds_algo_function_collection.h"]
-for f in new_files:
-    conn.execute(f"CREATE (n:file {{id: '{f}', label: '{os.path.basename(f)}', community: -1}})")
-for f in new_files:
-    for t in targets:
-        conn.execute(f"MATCH (a:file {{id: '{f}'}}), (b:file {{id: '{t}'}}) CREATE (a)-[:depends {{weight: 1}}]->(b)")
+
+nodes_csv = os.path.join(tempfile.mkdtemp(), "new_nodes.csv")
+with open(nodes_csv, "w") as fp:
+    fp.write("id,label,community\n")
+    for f in new_files:
+        fp.write(f"{f},{os.path.basename(f)},-1\n")
+conn.execute(f"""
+    COPY file FROM "{nodes_csv}" (
+        header=true, delimiter=','
+    )
+""")
+
+edges_csv = os.path.join(tempfile.mkdtemp(), "new_edges.csv")
+with open(edges_csv, "w") as fp:
+    fp.write("from_file,to_file,weight\n")
+    for f in new_files:
+        for t in targets:
+            fp.write(f"{f},{t},1\n")
+conn.execute(f"""
+    COPY depends FROM "{edges_csv}" (
+        header=true, delimiter=',',
+        from='file', to='file'
+    )
+""")
 
 conn.execute("CALL drop_projected_graph('code_graph')")
 conn.execute("CALL project_graph('code_graph', ['file'], {'[file, depends, file]': ''})")
