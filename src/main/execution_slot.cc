@@ -238,13 +238,18 @@ Status ExecutionSlot::validateCheckpointRequest(AccessMode access_mode) const {
 }
 
 Status ExecutionSlot::validatePlan(AccessMode mode,
-                                   const physical::ExecutionFlag& flags) const {
+                                   const physical::ExecutionFlag& flags,
+                                   bool is_explain) const {
   if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
       (flags.batch() || flags.create_temp_table())) {
     return Status(
         StatusCode::ERR_NOT_SUPPORTED,
         "Temporary table creation and batch operations are not supported "
         "for TP service.");
+  }
+  // EXPLAIN never executes the plan; access-mode restrictions don't apply.
+  if (is_explain) {
+    return Status::OK();
   }
   if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
       mode == AccessMode::kInsert && !IsInsertOnlyExecutionFlag(flags)) {
@@ -319,10 +324,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
     prepared_query = std::move(prepared).value();
 
     RETURN_IF_NOT_OK(validateQueryAnalysis(analysis, *prepared_query));
-    // EXPLAIN never executes the plan; access-mode restrictions don't apply.
-    if (analysis.explain_mode != physical::ExplainMode::EXPLAIN) {
-      RETURN_IF_NOT_OK(validatePlan(access_mode, prepared_query->flags));
-    }
+    RETURN_IF_NOT_OK(
+        validatePlan(access_mode, prepared_query->flags,
+                     analysis.explain_mode == physical::ExplainMode::EXPLAIN));
 
     auto parsed_parameters =
         execution::parseJsonParameters(prepared_query->params_type, parameters);
