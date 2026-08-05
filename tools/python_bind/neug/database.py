@@ -165,11 +165,11 @@ class Database(object):
 
         cpu_count = os.cpu_count()
         if cpu_count is not None and max_thread_num > cpu_count:
-            raise ValueError(
-                f"Invalid argument: max_thread_num: {max_thread_num}. "
-                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
+            logger.warning(
+                f"max_thread_num ({max_thread_num}) exceeds the number of CPU cores "
+                f"({cpu_count}); clamping to {cpu_count}."
             )
+            max_thread_num = cpu_count
 
         if db_path is None and mode in ["r", "read", "read-only", "read_only"]:
             raise ValueError(

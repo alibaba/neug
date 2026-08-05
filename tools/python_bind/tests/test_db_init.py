@@ -219,12 +219,11 @@ def test_config_param_exception(tmp_path):
 
 def test_config_param_boundary(tmp_path):
     db_dir = tmp_path / "conn_param_boundary_db"
-    # test with more than maximum cores
-    with pytest.raises(Exception) as excinfo:
-        max_cores = os.cpu_count() or 1
-        # max_thread_num should not exceed the number of cores
-        Database(str(db_dir), "w", max_thread_num=max_cores + 1)
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    # max_thread_num greater than the number of cores is clamped to cpu_count
+    max_cores = os.cpu_count() or 1
+    db = Database(str(db_dir), "w", max_thread_num=max_cores + 1)
+    assert db._max_thread_num == max_cores
+    db.close()
 
 
 def test_zero_max_thread_num_with_unknown_cpu_count(tmp_path, monkeypatch):
