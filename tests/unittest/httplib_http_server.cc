@@ -22,8 +22,8 @@
 #include <thread>
 #include <vector>
 
-#include "httplib.h"
 #include "gtest/gtest.h"
+#include "httplib.h"
 
 int submit_query(const std::string& base_url, int thread_id, int query_num,
                  const std::vector<std::string>& queries) {
@@ -35,7 +35,7 @@ int submit_query(const std::string& base_url, int thread_id, int query_num,
 
   for (int i = 0; i < query_num; ++i) {
     httplib::Client cli(base_url.c_str());
-    cli.set_connection_timeout(100, 0);   // 100 seconds
+    cli.set_connection_timeout(100, 0);  // 100 seconds
     cli.set_read_timeout(100, 0);
     cli.set_write_timeout(100, 0);
 
@@ -62,8 +62,7 @@ int submit_query(const std::string& base_url, int thread_id, int query_num,
 
     LOG(INFO) << "Thread " << thread_id << " request " << i << " completed in "
               << duration_ms << "ms"
-              << ", status=" << status_code
-              << ", content_type=" << content_type
+              << ", status=" << status_code << ", content_type=" << content_type
               << ", body_size=" << response_body.size();
   }
 
