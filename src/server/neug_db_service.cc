@@ -18,11 +18,16 @@
 
 #include <algorithm>
 
+#ifndef _WIN32
 #include <bthread/bthread.h>
 
 #include "neug/main/checkpoint_coordinator.h"
 #include "neug/server/brpc_service_mgr.h"
 #include "neug/server/bthread_runtime_wait.h"
+#else
+#include "neug/server/httplib_service_mgr.h"
+#endif
+
 #include "neug/transaction/version_manager.h"
 
 #define STRINGIFY(x) #x
@@ -81,8 +86,10 @@ void NeugDBService::init(const ServiceConfig& config) {
         static_cast<uint32_t>(db_config_.max_thread_num);
   }
 
+#ifndef _WIN32
   bthread_setconcurrency(
       std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
+#endif
 
   execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
       db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
@@ -90,6 +97,7 @@ void NeugDBService::init(const ServiceConfig& config) {
       db_.extension_manager(), db_.allocators_,
       db_.graph().checkpoint().wal_dir(), db_config_);
 
+#ifndef _WIN32
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
   hdl_mgr_->Init(effective_config);
   service_config_ = effective_config;
@@ -98,6 +106,11 @@ void NeugDBService::init(const ServiceConfig& config) {
       [pool = execution_slot_pool_.get()](const std::string& wal_uri) {
         pool->RotateWalWriters(wal_uri);
       });
+#else
+  hdl_mgr_ = std::make_unique<HttplibServiceManager>(db_, *execution_slot_pool_);
+  hdl_mgr_->Init(config);
+#endif
+  service_config_ = config;
 }
 
 NeugDBService::~NeugDBService() {
