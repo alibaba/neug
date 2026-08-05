@@ -8,6 +8,7 @@ add_library(neug_planner_operator
         OBJECT
         logical_accumulate.cpp
         logical_aggregate.cpp
+        logical_create_index.cpp
         logical_create_macro.cpp
         logical_cross_product.cpp
         logical_distinct.cpp

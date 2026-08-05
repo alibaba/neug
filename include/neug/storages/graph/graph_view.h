@@ -122,6 +122,9 @@ class GraphView {
 
   const Schema& schema() const { return *schema_; }
   result<StorageIndex*> GetIndexByName(const std::string& name) const;
+  result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::string& property_name) const;
+  result<std::vector<StorageIndex*>> GetAllIndexes() const;
 
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {

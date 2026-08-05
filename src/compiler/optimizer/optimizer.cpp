@@ -25,6 +25,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "neug/compiler/catalog/catalog_entry/rule_catalog_entry.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/optimizer/acc_hash_join_optimizer.h"
 #include "neug/compiler/optimizer/agg_key_dependency_optimizer.h"
@@ -126,6 +127,15 @@ void Optimizer::optimize(
 
     auto projectJoinConditionOptimizer = ProjectJoinConditionOptimizer(context);
     projectJoinConditionOptimizer.rewrite(plan);
+
+    auto catalog = context->getCatalog();
+    for (auto& rule_entry :
+         catalog->getRuleEntries(context->getTransaction())) {
+      auto rule = rule_entry->createRule();
+      if (rule) {
+        rule->rewrite(context, plan);
+      }
+    }
   }
 }
 
