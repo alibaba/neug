@@ -124,3 +124,23 @@ cannot advance `read_ts_` past an earlier unfinished transaction.
 Insert commit appends WAL before replaying into the live graph. Update commit
 appends WAL before publishing its COW snapshot. Both complete their timestamps
 only after the graph change is visible.
+
+Update waiters are FIFO within their own class. A caller may provide an absolute
+`steady_clock` deadline when acquiring an update timestamp; expiry before a
+timestamp is reserved returns `ERR_TX_TIMEOUT` and restores admission. Legacy
+callers provide no deadline and retain infinite-wait behavior.
+
+When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+
+Timestamp completion uses a fixed ring whose slots contain the exact completed
+timestamp, not a boolean bit. Before assigning a new write timestamp,
+`VersionManager` limits unresolved timestamps to the ring capacity. An insert
+that encounters this intentional backpressure first releases its inserter
+admission, so it cannot prevent an update or compact operation from draining
+existing inserts.
+
+## Serializability
+
+For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
+
+For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.
