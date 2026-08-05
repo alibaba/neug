@@ -111,6 +111,20 @@ jobs:
           Write-Host "Building with $jobs parallel jobs"
           cmake --build build -j $jobs
 
+      # Windows has no RPATH ($ORIGIN/@loader_path); DLLs are resolved via
+      # the DLL search order (PATH, same-dir-first).  Add the directories
+      # that contain libneug.dll and vcpkg-installed DLLs so that
+      # neug_py_bind.pyd can find all its dependencies at import time.
+      - name: Add DLL directories to PATH
+        run: |
+          $vcpkgBin = Join-Path $env:VCPKG_ROOT "installed\x64-windows-static-md\bin"
+          $buildSrc = Join-Path $env:GITHUB_WORKSPACE "build\src"
+          $buildPyBind = Join-Path $env:GITHUB_WORKSPACE "build\tools\python_bind"
+          Write-Host "Adding to PATH: $vcpkgBin, $buildSrc, $buildPyBind"
+          echo "$vcpkgBin" >> $env:GITHUB_PATH
+          echo "$buildSrc" >> $env:GITHUB_PATH
+          echo "$buildPyBind" >> $env:GITHUB_PATH
+
       # ========================================
       # Phase 1: C++ Tests (ctest)
       # Mirrors build-and-test-common.yml Phase 1.
