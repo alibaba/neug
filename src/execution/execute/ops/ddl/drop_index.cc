@@ -30,7 +30,10 @@ class DropIndexOpr : public IOperator {
                           "Index does not exist: " + indexName_);
     }
 
-    RETURN_IF_NOT_OK(updateInterface->DropIndex(indexName_));
+    auto status = updateInterface->DropIndex(indexName_);
+    if (!status.ok()) {
+      return tl::unexpected(std::move(status));
+    }
     return std::move(ctx);
   }
 

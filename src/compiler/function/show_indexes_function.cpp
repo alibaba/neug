@@ -24,6 +24,7 @@
 #include <rapidjson/writer.h>
 
 #include "neug/common/columns/value_columns.h"
+#include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/index/storage_index.h"
 #include "neug/utils/exception/exception.h"
