@@ -301,7 +301,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
                                : requested_mode;
   std::shared_ptr<execution::CacheValue> prepared_query;
 
-  if (NEUG_UNLIKELY(analysis.checkpoint())) {
+  // EXPLAIN CHECKPOINT is non-mutating; skip the checkpoint access-mode
+  // validation so it works on read-only databases and with access_mode=read.
+  if (NEUG_UNLIKELY(analysis.checkpoint() &&
+                    analysis.explain_mode != physical::ExplainMode::EXPLAIN)) {
     RETURN_IF_NOT_OK(validateCheckpointRequest(access_mode));
   }
 
@@ -316,7 +319,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
     prepared_query = std::move(prepared).value();
 
     RETURN_IF_NOT_OK(validateQueryAnalysis(analysis, *prepared_query));
-    RETURN_IF_NOT_OK(validatePlan(access_mode, prepared_query->flags));
+    // EXPLAIN never executes the plan; access-mode restrictions don't apply.
+    if (analysis.explain_mode != physical::ExplainMode::EXPLAIN) {
+      RETURN_IF_NOT_OK(validatePlan(access_mode, prepared_query->flags));
+    }
 
     auto parsed_parameters =
         execution::parseJsonParameters(prepared_query->params_type, parameters);

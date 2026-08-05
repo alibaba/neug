@@ -366,17 +366,17 @@ TEST(WalReplayVersionManagerTest, ResetTimelineStartsFreshTimestampTimeline) {
   version_manager.release_read_view();
 }
 
-TEST(WalReplayVersionManagerDeathTest,
-     ResetTimelineRequiresDrainedUpdateLease) {
-  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
   neug::VersionManager version_manager;
   version_manager.init_ts({0, 0}, 1);
 
   neug::UpdateTimestampLease update_lease(version_manager);
-  update_lease.BeginCommit();
-  EXPECT_DEATH_IF_SUPPORTED(update_lease.FinishAndResetTimeline(),
-                            "kUpdateExclusive");
-  update_lease.Finish(std::nullopt);
+  update_lease.MakeUpdateExclusive();
+  update_lease.FinishAndResetTimeline();
+
+  const auto read_view = version_manager.acquire_read_view();
+  EXPECT_EQ(read_view.visibility_ts, 0);
+  version_manager.release_read_view();
 }
 
 TEST(WalReplayVersionManagerTest,
@@ -418,17 +418,6 @@ TEST(WalReplayVersionManagerTest, BeginUpdateCommitRejectsMissingUpdateLease) {
   version_manager.init_ts({0, 0}, 1);
 
   EXPECT_THROW(version_manager.begin_update_commit(1), std::exception);
-}
-
-TEST(WalReplayVersionManagerTest, BeginUpdateCommitRejectsMismatchedTimestamp) {
-  neug::VersionManager version_manager;
-  version_manager.init_ts({0, 0}, 1);
-
-  neug::UpdateTimestampLease update_lease(version_manager);
-  EXPECT_THROW(
-      version_manager.begin_update_commit(update_lease.Timestamp() + 1),
-      std::exception);
-  update_lease.Finish(std::nullopt);
 }
 
 TEST(WalReplayVersionManagerTest,

@@ -21,8 +21,6 @@
 #include <ostream>
 #include <thread>
 
-#include <glog/logging.h>
-
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
 

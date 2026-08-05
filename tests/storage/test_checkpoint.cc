@@ -1706,6 +1706,66 @@ TEST(CheckpointOptTest, tp_checkpoint_routes_through_execution_slot) {
   db.Close();
 }
 
+TEST(CheckpointOptTest, explain_checkpoint_works_on_read_only_db) {
+  const auto db_path =
+      make_checkpoint_gc_test_dir("explain_checkpoint_read_only");
+  // Step 1: create and checkpoint the database.
+  {
+    neug::NeugDBConfig config(db_path, 1);
+    config.checkpoint_on_close = false;
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    auto conn = db.Connect();
+    seed_checkpoint_opt_graph(conn);
+    ASSERT_TRUE(conn->Query("CHECKPOINT;"));
+    conn->Close();
+    db.Close();
+  }
+
+  // Step 2: reopen read-only and verify EXPLAIN CHECKPOINT succeeds while
+  // a real CHECKPOINT is still rejected.
+  {
+    neug::NeugDBConfig config(db_path, 1);
+    config.mode = neug::DBMode::READ_ONLY;
+    config.checkpoint_on_close = false;
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+
+    {
+      neug::NeugDBService service(db);
+      // EXPLAIN CHECKPOINT is non-mutating; must succeed on a read-only DB.
+      {
+        auto slot = service.AcquireExecutionSlot();
+        auto result = slot->ExecuteTransactionalRequest(
+            R"({"query":"EXPLAIN CHECKPOINT;","parameters":{}})");
+        ASSERT_TRUE(result) << result.error().ToString();
+      }
+      // Also works with an explicit access_mode=read.
+      {
+        auto slot = service.AcquireExecutionSlot();
+        auto result = slot->ExecuteTransactionalRequest(
+            R"({"query":"EXPLAIN CHECKPOINT;","access_mode":"read",)"
+            R"("parameters":{}})");
+        ASSERT_TRUE(result) << result.error().ToString();
+      }
+      // Actual CHECKPOINT must still fail on a read-only DB.
+      {
+        auto slot = service.AcquireExecutionSlot();
+        auto result = slot->ExecuteTransactionalRequest(
+            R"({"query":"CHECKPOINT;","parameters":{}})");
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().error_code(),
+                  neug::StatusCode::ERR_INVALID_ARGUMENT);
+      }
+    }  // service destroyed here
+    db.Close();
+  }
+
+  // No new checkpoint should have been created.
+  AssertSingleCurrentCheckpoint(db_path);
+  EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-1");
+}
+
 template <typename T>
 class CheckpointTestStringProp : public CheckpointTestBase<T> {};
 
