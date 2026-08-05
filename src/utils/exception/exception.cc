@@ -252,5 +252,13 @@ TxStateConflictException::TxStateConflictException(const std::string& msg,
     : Exception("Transaction state conflict: " + msg, file_line,
                 neug::StatusCode::ERR_TX_STATE_CONFLICT) {}
 
+TransactionTimeoutException::TransactionTimeoutException(const std::string& msg)
+    : Exception("Transaction timeout: " + msg,
+                neug::StatusCode::ERR_TX_TIMEOUT) {}
+TransactionTimeoutException::TransactionTimeoutException(
+    const std::string& msg, const std::string& file_line)
+    : Exception("Transaction timeout: " + msg, file_line,
+                neug::StatusCode::ERR_TX_TIMEOUT) {}
+
 }  // namespace exception
 }  // namespace neug

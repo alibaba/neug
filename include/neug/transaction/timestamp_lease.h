@@ -15,11 +15,18 @@
 #pragma once
 
 #include <stdint.h>
+#include <chrono>
 #include <optional>
 
 namespace neug {
 
 class IVersionManager;
+
+// Same deadline time type as IVersionManager::acquire_update_timestamp.
+// Redeclared here so this RAII header does not need to include the full
+// version manager header; diverging from the manager's alias is a compile
+// error wherever both are visible.
+using MonotonicTimePoint = std::chrono::steady_clock::time_point;
 
 /**
  * @brief RAII owner of an update timestamp and its admission-state lifecycle.
@@ -31,6 +38,8 @@ class IVersionManager;
 class UpdateTimestampLease {
  public:
   explicit UpdateTimestampLease(IVersionManager& version_manager);
+  UpdateTimestampLease(IVersionManager& version_manager,
+                       MonotonicTimePoint deadline);
   UpdateTimestampLease(UpdateTimestampLease&& other) noexcept;
   ~UpdateTimestampLease() noexcept;
 

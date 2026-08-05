@@ -16,6 +16,8 @@
 #include "neug/transaction/version_manager.h"
 
 #include <glog/logging.h>
+#include <algorithm>
+#include <chrono>
 #include <limits>
 #include <mutex>
 #include <ostream>
@@ -26,9 +28,20 @@
 
 namespace neug {
 
-// VersionManager implementation
+namespace {
 
-VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
+MonotonicTimePoint DefaultMonotonicNow() noexcept {
+  return std::chrono::steady_clock::now();
+}
+
+}  // namespace
+
+VersionManager::VersionManager() : VersionManager(&DefaultMonotonicNow) {}
+
+VersionManager::VersionManager(MonotonicNowFn monotonic_now)
+    : runtime_wait_(&NativeRuntimeWait), monotonic_now_(monotonic_now) {
+  CHECK_NE(monotonic_now_, nullptr);
+}
 
 void VersionManager::init_ts(PublishedReadView initial_read_view,
                              int thread_num) {
@@ -67,6 +80,13 @@ bool VersionManager::try_set_runtime_wait_if_quiescent(
   if (!operation_gate_state_.compare_exchange_strong(
           expected, blocked, std::memory_order_acq_rel,
           std::memory_order_acquire)) {
+    return false;
+  }
+
+  std::unique_lock waiters_lock(update_waiters_lock_, std::try_to_lock);
+  if (!waiters_lock.owns_lock() || !update_waiters_.empty()) {
+    operation_gate_state_.store(OperationGateWord::empty(AdmissionState::kOpen),
+                                std::memory_order_release);
     return false;
   }
 
@@ -154,7 +174,25 @@ uint32_t VersionManager::acquire_insert_timestamp() {
     if (operation_gate_state_.compare_exchange_weak(
             observed, desired, std::memory_order_acquire,
             std::memory_order_relaxed)) {
-      return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+      const auto reservation = reserve_write_timestamp();
+      if (reservation.state == TimestampReservationState::kReserved) {
+        return reservation.timestamp;
+      }
+
+      // A waiter that has not reserved a timestamp must not keep insert
+      // admission while waiting for window capacity: an update would otherwise
+      // close admission and wait for this count forever.
+      release_insert_admission();
+      if (reservation.state == TimestampReservationState::kExhausted) {
+        throw_timestamp_reservation_failure(
+            reservation.state, read_ts_.load(std::memory_order_relaxed),
+            write_ts_.load(std::memory_order_relaxed));
+      }
+      if (!wait) {
+        wait.emplace(make_runtime_backoff());
+      }
+      (*wait)();
+      observed = operation_gate_state_.load(std::memory_order_relaxed);
     }
   }
 }
@@ -162,6 +200,10 @@ uint32_t VersionManager::acquire_insert_timestamp() {
 void VersionManager::release_insert_timestamp(uint32_t ts) {
   complete_write_timestamp(ts);
 
+  release_insert_admission();
+}
+
+void VersionManager::release_insert_admission() {
   const uint64_t observed =
       operation_gate_state_.load(std::memory_order_relaxed);
   if (NEUG_UNLIKELY(OperationGateWord::inserters(observed) == 0)) {
@@ -172,6 +214,45 @@ void VersionManager::release_insert_timestamp(uint32_t ts) {
   const uint64_t previous = operation_gate_state_.fetch_sub(
       OperationGateWord::kInserterUnit, std::memory_order_release);
   DCHECK_GT(OperationGateWord::inserters(previous), 0U);
+}
+
+VersionManager::TimestampReservation VersionManager::reserve_write_timestamp() {
+  uint32_t candidate = write_ts_.load(std::memory_order_relaxed);
+  while (true) {
+    if (candidate == std::numeric_limits<uint32_t>::max()) {
+      return {TimestampReservationState::kExhausted};
+    }
+
+    const uint32_t current_read_ts = read_ts_.load(std::memory_order_acquire);
+    DCHECK_GT(candidate, current_read_ts);
+    const uint64_t outstanding = static_cast<uint64_t>(candidate) -
+                                 static_cast<uint64_t>(current_read_ts);
+    if (outstanding > TimestampWindow::kWindowSize) {
+      return {TimestampReservationState::kWindowFull};
+    }
+
+    if (write_ts_.compare_exchange_weak(candidate, candidate + 1,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_relaxed)) {
+      return {TimestampReservationState::kReserved, candidate};
+    }
+  }
+}
+
+[[noreturn]] void VersionManager::throw_timestamp_reservation_failure(
+    TimestampReservationState state, uint32_t read_ts, uint32_t write_ts) {
+  if (state == TimestampReservationState::kWindowFull) {
+    THROW_INTERNAL_EXCEPTION(
+        "TimestampWindow invariant broken: write timestamp reservation found "
+        "the window full despite exclusive write admission (read_ts=" +
+        std::to_string(read_ts) + ", write_ts=" + std::to_string(write_ts) +
+        ", window_size=" + std::to_string(TimestampWindow::kWindowSize) +
+        "); this indicates admission/window bookkeeping corruption, not "
+        "recoverable backpressure");
+  }
+  THROW_RUNTIME_ERROR(
+      "Transaction timestamp space exhausted; checkpoint/reset the timeline "
+      "before reopening the database");
 }
 
 void VersionManager::complete_write_timestamp(uint32_t ts) {
@@ -210,8 +291,6 @@ void VersionManager::advance_read_ts_locked() {
     read_ts_.store(current, std::memory_order_release);
   }
 
-  // Sliding window maintenance
-  ts_window_.slide_window(current);
   published_read_view_.store(
       PackPublishedReadView({current, installed_snapshot_generation_.load(
                                           std::memory_order_relaxed)}),
@@ -265,27 +344,106 @@ void VersionManager::wait_for_readers_to_drain() {
 }
 
 void VersionManager::wait_for_inserters_to_drain() {
-  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
+  const uint64_t observed =
+      operation_gate_state_.load(std::memory_order_acquire);
   if (OperationGateWord::inserters(observed) == 0) {
     return;
   }
 
   RuntimeBackoff wait = make_runtime_backoff();
-  do {
+  wait_for_inserters_to_drain(std::nullopt, wait);
+}
+
+bool VersionManager::wait_for_inserters_to_drain(
+    std::optional<MonotonicTimePoint> deadline, RuntimeBackoff& wait) {
+  uint64_t observed = operation_gate_state_.load(std::memory_order_acquire);
+  while (OperationGateWord::inserters(observed) != 0) {
+    if (deadline_expired(deadline)) {
+      return false;
+    }
     wait();
     observed = operation_gate_state_.load(std::memory_order_acquire);
-  } while (OperationGateWord::inserters(observed) != 0);
+  }
+  return !deadline_expired(deadline);
 }
 
 RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
   return runtime_wait_.load(std::memory_order_acquire);
 }
 
-uint32_t VersionManager::acquire_update_timestamp() {
-  enter_admission_phase(AdmissionState::kInsertsBlocked);
-  wait_for_inserters_to_drain();
+bool VersionManager::deadline_expired(
+    std::optional<MonotonicTimePoint> deadline) const noexcept {
+  return deadline && monotonic_now_() >= *deadline;
+}
 
-  return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+void VersionManager::remove_update_waiter(UpdateWaiter* waiter) {
+  std::lock_guard lock(update_waiters_lock_);
+  const auto it =
+      std::find(update_waiters_.begin(), update_waiters_.end(), waiter);
+  // A missing waiter means admission bookkeeping is already corrupt. Aborting
+  // is safer than throwing here, where the caller may hold an admission phase
+  // that only a successful removal would ever release.
+  CHECK(it != update_waiters_.end()) << "Update waiter is not queued";
+  update_waiters_.erase(it);
+}
+
+uint32_t VersionManager::acquire_update_timestamp(
+    std::optional<MonotonicTimePoint> deadline) {
+  UpdateWaiter waiter;
+  {
+    std::lock_guard lock(update_waiters_lock_);
+    update_waiters_.push_back(&waiter);
+  }
+  // Capture after enqueue. A successful runtime change requires this queue to
+  // be empty, so a queued waiter keeps one wait policy for its whole attempt.
+  RuntimeBackoff wait = make_runtime_backoff();
+
+  while (true) {
+    if (deadline_expired(deadline)) {
+      remove_update_waiter(&waiter);
+      THROW_TRANSACTION_TIMEOUT("waiting for update admission");
+    }
+
+    bool is_head = false;
+    {
+      std::lock_guard lock(update_waiters_lock_);
+      is_head = !update_waiters_.empty() && update_waiters_.front() == &waiter;
+    }
+    if (!is_head) {
+      wait();
+      continue;
+    }
+
+    uint64_t observed = operation_gate_state_.load(std::memory_order_relaxed);
+    if (OperationGateWord::phase(observed) == AdmissionState::kOpen &&
+        OperationGateWord::try_change_phase(operation_gate_state_, observed,
+                                            AdmissionState::kInsertsBlocked)) {
+      break;
+    }
+    wait();
+  }
+
+  remove_update_waiter(&waiter);
+  if (!wait_for_inserters_to_drain(deadline, wait)) {
+    transition_admission_phase(AdmissionState::kInsertsBlocked,
+                               AdmissionState::kOpen);
+    THROW_TRANSACTION_TIMEOUT("waiting for active inserts to finish");
+  }
+  if (deadline_expired(deadline)) {
+    transition_admission_phase(AdmissionState::kInsertsBlocked,
+                               AdmissionState::kOpen);
+    THROW_TRANSACTION_TIMEOUT("reserving update timestamp");
+  }
+
+  const auto reservation = reserve_write_timestamp();
+  if (reservation.state == TimestampReservationState::kReserved) {
+    return reservation.timestamp;
+  }
+  transition_admission_phase(AdmissionState::kInsertsBlocked,
+                             AdmissionState::kOpen);
+  throw_timestamp_reservation_failure(
+      reservation.state, read_ts_.load(std::memory_order_relaxed),
+      write_ts_.load(std::memory_order_relaxed));
 }
 
 void VersionManager::begin_update_commit(uint32_t ts) {
@@ -358,7 +516,15 @@ uint32_t VersionManager::acquire_compact_timestamp() {
   wait_for_readers_to_drain();
   wait_for_inserters_to_drain();
 
-  return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+  const auto reservation = reserve_write_timestamp();
+  if (reservation.state == TimestampReservationState::kReserved) {
+    return reservation.timestamp;
+  }
+  transition_admission_phase(AdmissionState::kAllBlocked,
+                             AdmissionState::kOpen);
+  throw_timestamp_reservation_failure(
+      reservation.state, read_ts_.load(std::memory_order_relaxed),
+      write_ts_.load(std::memory_order_relaxed));
 }
 
 void VersionManager::release_compact_timestamp(uint32_t ts) {

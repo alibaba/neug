@@ -16,6 +16,9 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <chrono>
+#include <deque>
+#include <mutex>
 #include <optional>
 
 #include "neug/transaction/runtime_wait.h"
@@ -25,6 +28,8 @@
 namespace neug {
 
 class UpdateTimestampLease;
+using MonotonicTimePoint = std::chrono::steady_clock::time_point;
+using MonotonicNowFn = MonotonicTimePoint (*)() noexcept;
 
 /**
  * @brief Atomically published reader-visible state.
@@ -79,7 +84,8 @@ class IVersionManager {
   virtual void release_read_view() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
-  virtual uint32_t acquire_update_timestamp() = 0;
+  virtual uint32_t acquire_update_timestamp(
+      std::optional<MonotonicTimePoint> deadline = std::nullopt) = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
   // May invoke the runtime waiter. Checkpoint callers must enter commit and
   // drain readers before acquiring checkpoint-manager or other
@@ -216,6 +222,7 @@ static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
 class VersionManager : public IVersionManager {
  public:
   VersionManager();
+  explicit VersionManager(MonotonicNowFn monotonic_now);
   ~VersionManager() override = default;
 
   void init_ts(PublishedReadView initial_read_view, int thread_num) override;
@@ -226,7 +233,8 @@ class VersionManager : public IVersionManager {
   void release_read_view() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
-  uint32_t acquire_update_timestamp() override;
+  uint32_t acquire_update_timestamp(
+      std::optional<MonotonicTimePoint> deadline = std::nullopt) override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
   void finish_update_timestamp(
@@ -241,6 +249,15 @@ class VersionManager : public IVersionManager {
   using OperationGateWord = detail::OperationGateWord;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
+  struct UpdateWaiter {};
+
+  enum class TimestampReservationState { kReserved, kWindowFull, kExhausted };
+
+  struct TimestampReservation {
+    TimestampReservationState state;
+    uint32_t timestamp{0};
+  };
+
   int thread_num_;
   // These helpers may suspend the logical task. Callers must not hold an
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
@@ -249,6 +266,15 @@ class VersionManager : public IVersionManager {
                                   AdmissionState desired_phase);
   void wait_for_readers_to_drain();
   void wait_for_inserters_to_drain();
+  bool wait_for_inserters_to_drain(std::optional<MonotonicTimePoint> deadline,
+                                   RuntimeBackoff& wait);
+  bool deadline_expired(
+      std::optional<MonotonicTimePoint> deadline) const noexcept;
+  void remove_update_waiter(UpdateWaiter* waiter);
+  TimestampReservation reserve_write_timestamp();
+  void release_insert_admission();
+  [[noreturn]] void throw_timestamp_reservation_failure(
+      TimestampReservationState state, uint32_t read_ts, uint32_t write_ts);
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
   RuntimeWaitFn runtime_wait_impl() const noexcept override;
@@ -260,10 +286,14 @@ class VersionManager : public IVersionManager {
 
   std::atomic<uint64_t> operation_gate_state_{0};
 
+  std::mutex update_waiters_lock_;
+  std::deque<UpdateWaiter*> update_waiters_;
+
   TimestampWindow ts_window_;
 
   SpinLock lock_;
   std::atomic<RuntimeWaitFn> runtime_wait_;
+  MonotonicNowFn monotonic_now_;
 };
 
 }  // namespace neug
