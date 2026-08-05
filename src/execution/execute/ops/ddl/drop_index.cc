@@ -19,6 +19,7 @@
 
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/pb_utils.h"
+#include "neug/utils/result.h"
 
 namespace neug::execution::ops {
 
@@ -45,10 +46,7 @@ class DropIndexOpr : public IOperator {
                           "Index does not exist: " + indexName_);
     }
 
-    auto status = updateInterface->DropIndex(indexName_);
-    if (!status.ok()) {
-      return tl::unexpected(std::move(status));
-    }
+    RETURN_STATUS_ERROR_IF_NOT_OK(updateInterface->DropIndex(indexName_));
     return std::move(ctx);
   }
 
