@@ -125,10 +125,11 @@ Insert commit appends WAL before replaying into the live graph. Update commit
 appends WAL before publishing its COW snapshot. Both complete their timestamps
 only after the graph change is visible.
 
-Update waiters are FIFO within their own class. A caller may provide an absolute
-`steady_clock` deadline when acquiring an update timestamp; expiry before a
-timestamp is reserved returns `ERR_TX_TIMEOUT` and restores admission. Legacy
-callers provide no deadline and retain infinite-wait behavior.
+Update waiters directly contend the existing admission phase; acquisition order
+is unspecified. A caller may provide an absolute `steady_clock` deadline when
+acquiring an update timestamp; expiry before a timestamp is reserved returns
+`ERR_TX_TIMEOUT` and restores any phase acquired by that attempt. Legacy callers
+provide no deadline and retain infinite-wait behavior.
 
 When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 

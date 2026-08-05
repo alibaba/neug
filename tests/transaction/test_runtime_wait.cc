@@ -45,17 +45,9 @@ std::atomic<uint64_t> g_runtime_wait_calls{0};
 std::atomic<uint64_t> g_yield_calls{0};
 std::atomic<uint64_t> g_sleep_calls{0};
 std::atomic<uint32_t> g_blocked_waiters{0};
-std::atomic<int64_t> g_fake_now_ticks{0};
-std::atomic<uint64_t> g_fake_now_calls{0};
 std::mutex g_blocking_wait_lock;
 std::condition_variable g_blocking_wait_cv;
 bool g_block_waiters = false;
-
-MonotonicTimePoint FakeMonotonicNow() noexcept {
-  g_fake_now_calls.fetch_add(1, std::memory_order_relaxed);
-  return MonotonicTimePoint(std::chrono::milliseconds(
-      g_fake_now_ticks.load(std::memory_order_acquire)));
-}
 
 void RecordRuntimeWait(RuntimeWaitAction action) noexcept {
   g_runtime_wait_calls.fetch_add(1, std::memory_order_relaxed);
@@ -401,90 +393,26 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
   }
 }
 
-TEST(VersionManagerUpdateAdmissionTest, UpdateWaitersAcquireInFifoOrder) {
-  VersionManager manager(&FakeMonotonicNow);
+TEST(VersionManagerUpdateAdmissionTest,
+     ContendedTimeoutDoesNotBlockOtherWaiters) {
+  VersionManager manager;
   InitManager(manager);
   ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
   const auto holder = manager.acquire_update_timestamp();
 
   BlockRuntimeWaiters();
-  std::mutex order_lock;
-  std::vector<int> order;
-  auto acquire_and_finish = [&](int id) {
-    const auto ts = manager.acquire_update_timestamp();
-    {
-      std::lock_guard lock(order_lock);
-      order.push_back(id);
-    }
-    FinishUpdate(manager, ts);
-  };
-
-  std::thread first(acquire_and_finish, 1);
-  ASSERT_TRUE(WaitForBlockedWaiters(1));
-  std::thread second(acquire_and_finish, 2);
-  ASSERT_TRUE(WaitForBlockedWaiters(2));
-  std::thread third(acquire_and_finish, 3);
-  ASSERT_TRUE(WaitForBlockedWaiters(3));
-  EXPECT_FALSE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
-
-  ReleaseRuntimeWaiters();
-  FinishUpdate(manager, holder);
-  first.join();
-  second.join();
-  third.join();
-  EXPECT_EQ(order, (std::vector<int>{1, 2, 3}));
-}
-
-TEST(VersionManagerUpdateAdmissionTest, NoDeadlinePathsSkipMonotonicClock) {
-  g_fake_now_calls.store(0, std::memory_order_relaxed);
-  VersionManager manager(&FakeMonotonicNow);
-  InitManager(manager);
-  ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
-
-  // Contended no-deadline update: a queued waiter must not read the clock.
-  const auto holder = manager.acquire_update_timestamp();
-  BlockRuntimeWaiters();
-  std::thread waiter([&manager] {
-    const auto ts = manager.acquire_update_timestamp();
-    FinishUpdate(manager, ts);
-  });
-  ASSERT_TRUE(WaitForBlockedWaiters(1));
-  FinishUpdate(manager, holder);
-  ReleaseRuntimeWaiters();
-  waiter.join();
-
-  // Uncontended no-deadline update lease and no-deadline insert path.
-  { UpdateTimestampLease lease(manager); }
-  const auto insert_ts = manager.acquire_insert_timestamp();
-  manager.release_insert_timestamp(insert_ts);
-
-  EXPECT_EQ(g_fake_now_calls.load(std::memory_order_relaxed), 0U);
-
-  // Sanity: a deadline path reads the clock, proving the counter is live.
-  EXPECT_THROW(UpdateTimestampLease(manager, MonotonicTimePoint::min()),
-               exception::TransactionTimeoutException);
-  EXPECT_GT(g_fake_now_calls.load(std::memory_order_relaxed), 0U);
-}
-
-TEST(VersionManagerUpdateAdmissionTest, HeadTimeoutDoesNotBlockSuccessor) {
-  g_fake_now_ticks.store(10, std::memory_order_release);
-  VersionManager manager(&FakeMonotonicNow);
-  InitManager(manager);
-  ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
-  const auto holder = manager.acquire_update_timestamp();
-
-  BlockRuntimeWaiters();
-  std::promise<bool> head_timed_out;
+  std::promise<bool> waiter_timed_out;
   std::promise<uint32_t> successor_timestamp;
-  auto head_result = head_timed_out.get_future();
+  auto timeout_result = waiter_timed_out.get_future();
   auto successor_result = successor_timestamp.get_future();
-  std::thread head([&] {
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+  std::thread timed_waiter([&] {
     try {
-      (void) manager.acquire_update_timestamp(
-          MonotonicTimePoint(std::chrono::milliseconds(11)));
-      head_timed_out.set_value(false);
+      (void) manager.acquire_update_timestamp(deadline);
+      waiter_timed_out.set_value(false);
     } catch (const exception::TransactionTimeoutException&) {
-      head_timed_out.set_value(true);
+      waiter_timed_out.set_value(true);
     }
   });
   ASSERT_TRUE(WaitForBlockedWaiters(1));
@@ -495,67 +423,20 @@ TEST(VersionManagerUpdateAdmissionTest, HeadTimeoutDoesNotBlockSuccessor) {
   });
   ASSERT_TRUE(WaitForBlockedWaiters(2));
 
-  g_fake_now_ticks.store(11, std::memory_order_release);
+  std::this_thread::sleep_until(deadline);
   ReleaseRuntimeWaiters();
-  EXPECT_EQ(head_result.wait_for(kWaitTimeout), std::future_status::ready);
-  EXPECT_TRUE(head_result.get());
+  EXPECT_EQ(timeout_result.wait_for(kWaitTimeout), std::future_status::ready);
+  EXPECT_TRUE(timeout_result.get());
   FinishUpdate(manager, holder);
   EXPECT_EQ(successor_result.wait_for(kWaitTimeout), std::future_status::ready);
   EXPECT_EQ(successor_result.get(), 3U);
-  head.join();
+  timed_waiter.join();
   successor.join();
-}
-
-TEST(VersionManagerUpdateAdmissionTest, NonHeadTimeoutPreservesFifoOrder) {
-  g_fake_now_ticks.store(20, std::memory_order_release);
-  VersionManager manager(&FakeMonotonicNow);
-  InitManager(manager);
-  ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
-  const auto holder = manager.acquire_update_timestamp();
-
-  BlockRuntimeWaiters();
-  std::mutex order_lock;
-  std::vector<int> order;
-  std::promise<bool> middle_timed_out;
-  auto middle_result = middle_timed_out.get_future();
-  auto acquire_and_finish = [&](int id) {
-    const auto ts = manager.acquire_update_timestamp();
-    {
-      std::lock_guard lock(order_lock);
-      order.push_back(id);
-    }
-    FinishUpdate(manager, ts);
-  };
-  std::thread first(acquire_and_finish, 1);
-  ASSERT_TRUE(WaitForBlockedWaiters(1));
-  std::thread middle([&] {
-    try {
-      (void) manager.acquire_update_timestamp(
-          MonotonicTimePoint(std::chrono::milliseconds(21)));
-      middle_timed_out.set_value(false);
-    } catch (const exception::TransactionTimeoutException&) {
-      middle_timed_out.set_value(true);
-    }
-  });
-  ASSERT_TRUE(WaitForBlockedWaiters(2));
-  std::thread third(acquire_and_finish, 3);
-  ASSERT_TRUE(WaitForBlockedWaiters(3));
-
-  g_fake_now_ticks.store(21, std::memory_order_release);
-  ReleaseRuntimeWaiters();
-  EXPECT_EQ(middle_result.wait_for(kWaitTimeout), std::future_status::ready);
-  EXPECT_TRUE(middle_result.get());
-  FinishUpdate(manager, holder);
-  first.join();
-  middle.join();
-  third.join();
-  EXPECT_EQ(order, (std::vector<int>{1, 3}));
 }
 
 TEST(VersionManagerUpdateAdmissionTest,
      InserterDrainTimeoutRestoresAdmissionWithoutTimestamp) {
-  g_fake_now_ticks.store(30, std::memory_order_release);
-  VersionManager manager(&FakeMonotonicNow);
+  VersionManager manager;
   InitManager(manager);
   ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
   const auto insert_ts = manager.acquire_insert_timestamp();
@@ -563,10 +444,11 @@ TEST(VersionManagerUpdateAdmissionTest,
   BlockRuntimeWaiters();
   std::promise<bool> timed_out;
   auto timeout_result = timed_out.get_future();
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
   std::thread update([&] {
     try {
-      (void) manager.acquire_update_timestamp(
-          MonotonicTimePoint(std::chrono::milliseconds(31)));
+      (void) manager.acquire_update_timestamp(deadline);
       timed_out.set_value(false);
     } catch (const exception::TransactionTimeoutException&) {
       timed_out.set_value(true);
@@ -574,7 +456,7 @@ TEST(VersionManagerUpdateAdmissionTest,
   });
   ASSERT_TRUE(WaitForBlockedWaiters(1));
 
-  g_fake_now_ticks.store(31, std::memory_order_release);
+  std::this_thread::sleep_until(deadline);
   ReleaseRuntimeWaiters();
   EXPECT_EQ(timeout_result.wait_for(kWaitTimeout), std::future_status::ready);
   EXPECT_TRUE(timeout_result.get());

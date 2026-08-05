@@ -37,9 +37,9 @@ using MonotonicTimePoint = std::chrono::steady_clock::time_point;
  */
 class UpdateTimestampLease {
  public:
-  explicit UpdateTimestampLease(IVersionManager& version_manager);
-  UpdateTimestampLease(IVersionManager& version_manager,
-                       MonotonicTimePoint deadline);
+  explicit UpdateTimestampLease(
+      IVersionManager& version_manager,
+      std::optional<MonotonicTimePoint> deadline = std::nullopt);
   UpdateTimestampLease(UpdateTimestampLease&& other) noexcept;
   ~UpdateTimestampLease() noexcept;
 

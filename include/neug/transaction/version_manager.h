@@ -17,8 +17,6 @@
 #include <stdint.h>
 #include <atomic>
 #include <chrono>
-#include <deque>
-#include <mutex>
 #include <optional>
 
 #include "neug/transaction/runtime_wait.h"
@@ -29,7 +27,6 @@ namespace neug {
 
 class UpdateTimestampLease;
 using MonotonicTimePoint = std::chrono::steady_clock::time_point;
-using MonotonicNowFn = MonotonicTimePoint (*)() noexcept;
 
 /**
  * @brief Atomically published reader-visible state.
@@ -84,6 +81,8 @@ class IVersionManager {
   virtual void release_read_view() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
+  // Waiters directly contend the admission phase. Acquisition order is
+  // intentionally unspecified; the successful phase CAS linearizes ownership.
   virtual uint32_t acquire_update_timestamp(
       std::optional<MonotonicTimePoint> deadline = std::nullopt) = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
@@ -222,7 +221,6 @@ static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
 class VersionManager : public IVersionManager {
  public:
   VersionManager();
-  explicit VersionManager(MonotonicNowFn monotonic_now);
   ~VersionManager() override = default;
 
   void init_ts(PublishedReadView initial_read_view, int thread_num) override;
@@ -249,8 +247,6 @@ class VersionManager : public IVersionManager {
   using OperationGateWord = detail::OperationGateWord;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
-  struct UpdateWaiter {};
-
   enum class TimestampReservationState { kReserved, kWindowFull, kExhausted };
 
   struct TimestampReservation {
@@ -270,7 +266,6 @@ class VersionManager : public IVersionManager {
                                    RuntimeBackoff& wait);
   bool deadline_expired(
       std::optional<MonotonicTimePoint> deadline) const noexcept;
-  void remove_update_waiter(UpdateWaiter* waiter);
   TimestampReservation reserve_write_timestamp();
   void release_insert_admission();
   [[noreturn]] void throw_timestamp_reservation_failure(
@@ -286,14 +281,10 @@ class VersionManager : public IVersionManager {
 
   std::atomic<uint64_t> operation_gate_state_{0};
 
-  std::mutex update_waiters_lock_;
-  std::deque<UpdateWaiter*> update_waiters_;
-
   TimestampWindow ts_window_;
 
   SpinLock lock_;
   std::atomic<RuntimeWaitFn> runtime_wait_;
-  MonotonicNowFn monotonic_now_;
 };
 
 }  // namespace neug

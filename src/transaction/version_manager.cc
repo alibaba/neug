@@ -16,7 +16,6 @@
 #include "neug/transaction/version_manager.h"
 
 #include <glog/logging.h>
-#include <algorithm>
 #include <chrono>
 #include <limits>
 #include <mutex>
@@ -28,20 +27,7 @@
 
 namespace neug {
 
-namespace {
-
-MonotonicTimePoint DefaultMonotonicNow() noexcept {
-  return std::chrono::steady_clock::now();
-}
-
-}  // namespace
-
-VersionManager::VersionManager() : VersionManager(&DefaultMonotonicNow) {}
-
-VersionManager::VersionManager(MonotonicNowFn monotonic_now)
-    : runtime_wait_(&NativeRuntimeWait), monotonic_now_(monotonic_now) {
-  CHECK_NE(monotonic_now_, nullptr);
-}
+VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
 
 void VersionManager::init_ts(PublishedReadView initial_read_view,
                              int thread_num) {
@@ -80,13 +66,6 @@ bool VersionManager::try_set_runtime_wait_if_quiescent(
   if (!operation_gate_state_.compare_exchange_strong(
           expected, blocked, std::memory_order_acq_rel,
           std::memory_order_acquire)) {
-    return false;
-  }
-
-  std::unique_lock waiters_lock(update_waiters_lock_, std::try_to_lock);
-  if (!waiters_lock.owns_lock() || !update_waiters_.empty()) {
-    operation_gate_state_.store(OperationGateWord::empty(AdmissionState::kOpen),
-                                std::memory_order_release);
     return false;
   }
 
@@ -373,66 +352,43 @@ RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
 
 bool VersionManager::deadline_expired(
     std::optional<MonotonicTimePoint> deadline) const noexcept {
-  return deadline && monotonic_now_() >= *deadline;
-}
-
-void VersionManager::remove_update_waiter(UpdateWaiter* waiter) {
-  std::lock_guard lock(update_waiters_lock_);
-  const auto it =
-      std::find(update_waiters_.begin(), update_waiters_.end(), waiter);
-  // A missing waiter means admission bookkeeping is already corrupt. Aborting
-  // is safer than throwing here, where the caller may hold an admission phase
-  // that only a successful removal would ever release.
-  CHECK(it != update_waiters_.end()) << "Update waiter is not queued";
-  update_waiters_.erase(it);
+  return deadline && std::chrono::steady_clock::now() >= *deadline;
 }
 
 uint32_t VersionManager::acquire_update_timestamp(
     std::optional<MonotonicTimePoint> deadline) {
-  UpdateWaiter waiter;
-  {
-    std::lock_guard lock(update_waiters_lock_);
-    update_waiters_.push_back(&waiter);
-  }
-  // Capture after enqueue. A successful runtime change requires this queue to
-  // be empty, so a queued waiter keeps one wait policy for its whole attempt.
-  RuntimeBackoff wait = make_runtime_backoff();
-
-  while (true) {
-    if (deadline_expired(deadline)) {
-      remove_update_waiter(&waiter);
-      THROW_TRANSACTION_TIMEOUT("waiting for update admission");
-    }
-
-    bool is_head = false;
-    {
-      std::lock_guard lock(update_waiters_lock_);
-      is_head = !update_waiters_.empty() && update_waiters_.front() == &waiter;
-    }
-    if (!is_head) {
-      wait();
-      continue;
-    }
-
+  if (!deadline) {
+    // Preserve the legacy auto-commit fast path: no clock read and no backoff
+    // object unless admission or inserter drain is actually contended.
+    enter_admission_phase(AdmissionState::kInsertsBlocked);
+    wait_for_inserters_to_drain();
+  } else {
+    RuntimeBackoff wait = make_runtime_backoff();
     uint64_t observed = operation_gate_state_.load(std::memory_order_relaxed);
-    if (OperationGateWord::phase(observed) == AdmissionState::kOpen &&
-        OperationGateWord::try_change_phase(operation_gate_state_, observed,
-                                            AdmissionState::kInsertsBlocked)) {
-      break;
+    while (true) {
+      if (deadline_expired(deadline)) {
+        THROW_TRANSACTION_TIMEOUT("waiting for update admission");
+      }
+      if (OperationGateWord::phase(observed) == AdmissionState::kOpen &&
+          OperationGateWord::try_change_phase(
+              operation_gate_state_, observed,
+              AdmissionState::kInsertsBlocked)) {
+        break;
+      }
+      wait();
+      observed = operation_gate_state_.load(std::memory_order_relaxed);
     }
-    wait();
-  }
 
-  remove_update_waiter(&waiter);
-  if (!wait_for_inserters_to_drain(deadline, wait)) {
-    transition_admission_phase(AdmissionState::kInsertsBlocked,
-                               AdmissionState::kOpen);
-    THROW_TRANSACTION_TIMEOUT("waiting for active inserts to finish");
-  }
-  if (deadline_expired(deadline)) {
-    transition_admission_phase(AdmissionState::kInsertsBlocked,
-                               AdmissionState::kOpen);
-    THROW_TRANSACTION_TIMEOUT("reserving update timestamp");
+    if (!wait_for_inserters_to_drain(deadline, wait)) {
+      transition_admission_phase(AdmissionState::kInsertsBlocked,
+                                 AdmissionState::kOpen);
+      THROW_TRANSACTION_TIMEOUT("waiting for active inserts to finish");
+    }
+    if (deadline_expired(deadline)) {
+      transition_admission_phase(AdmissionState::kInsertsBlocked,
+                                 AdmissionState::kOpen);
+      THROW_TRANSACTION_TIMEOUT("reserving update timestamp");
+    }
   }
 
   const auto reservation = reserve_write_timestamp();
