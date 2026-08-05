@@ -141,7 +141,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     checkpoint_coordinator_ = std::make_unique<CheckpointCoordinator>(
         checkpoint_mgr_, *snapshot_store_, config_.memory_level,
         [this](const std::string& allocator_dir) {
-          activateCheckpointGeneration(allocator_dir);
+          reopenAllocators(allocator_dir);
         });
     if (initial_visibility_ts > 0 && config.checkpoint_on_recovery &&
         config_.mode == DBMode::READ_WRITE) {
@@ -406,10 +406,6 @@ void NeugDB::reopenAllocators(const std::string& allocator_dir) {
   for (size_t i = 0; i < allocators_.size(); ++i) {
     allocators_[i]->Reopen(config_.memory_level, std::move(prefixes[i]));
   }
-}
-
-void NeugDB::activateCheckpointGeneration(const std::string& allocator_dir) {
-  reopenAllocators(allocator_dir);
 }
 
 timestamp_t NeugDB::openGraphAndIngestWals() {

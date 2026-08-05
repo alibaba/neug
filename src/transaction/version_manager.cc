@@ -37,8 +37,7 @@ void VersionManager::init_ts(PublishedReadView initial_read_view,
   const uint32_t ts = initial_read_view.visibility_ts;
   if (ts == std::numeric_limits<uint32_t>::max()) {
     THROW_RUNTIME_ERROR(
-        "Transaction timestamp space exhausted; checkpoint/reset the "
-        "timeline "
+        "Transaction timestamp space exhausted; checkpoint/reset the timeline "
         "before reopening the database");
   }
   write_ts_.store(ts + 1, std::memory_order_relaxed);
@@ -292,12 +291,7 @@ uint32_t VersionManager::acquire_update_timestamp() {
 }
 
 void VersionManager::begin_update_commit(uint32_t ts) {
-  const uint64_t gate = operation_gate_state_.load(std::memory_order_acquire);
-  if (OperationGateWord::phase(gate) != AdmissionState::kInsertsBlocked ||
-      write_ts_.load(std::memory_order_acquire) != ts + 1) {
-    THROW_INTERNAL_EXCEPTION(
-        "begin_update_commit called without the matching update timestamp");
-  }
+  (void) ts;
 
   // Block new readers before publishing the new snapshot. Existing readers
   // keep using their pinned snapshots; a racing reader is either counted

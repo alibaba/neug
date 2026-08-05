@@ -94,7 +94,7 @@ class Database(object):
             Note that in memory mode, the database will not be persisted to disk, and all data will be
             lost when the program exits. In this case, the db_path should not contain any illegal characters.
         mode : str
-            Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
+            Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'read-write'.
         max_thread_num : int
             Maximum database thread count. Default is 0, which means
             auto-select from hardware concurrency and fall back to 1 if the

@@ -330,7 +330,6 @@ class NeugDB {
   void preprocessConfig();
   void initAllocators(const std::string& allocator_dir);
   void reopenAllocators(const std::string& allocator_dir);
-  void activateCheckpointGeneration(const std::string& allocator_dir);
   timestamp_t openGraphAndIngestWals();
   timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph);
   void initPlanner();

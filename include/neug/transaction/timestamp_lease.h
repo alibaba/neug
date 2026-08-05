@@ -49,20 +49,13 @@ class UpdateTimestampLease {
   void FinishAndResetTimeline() noexcept;
 
  private:
-  enum class State {
-    kActive,
-    kCommitStarted,
-    kUpdateExclusive,
-    kInactive,
-  };
-
   void reset() noexcept;
 
   static constexpr uint32_t kInactiveTimestamp = UINT32_MAX;
 
   IVersionManager* version_manager_{nullptr};
   uint32_t timestamp_{kInactiveTimestamp};
-  State state_{State::kInactive};
+  bool commit_started_{false};
 };
 
 }  // namespace neug

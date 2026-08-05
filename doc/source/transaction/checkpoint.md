@@ -21,16 +21,28 @@ For transaction boundaries and concurrency outside checkpoint operations, see
 CHECKPOINT;
 ```
 
-`CHECKPOINT` takes no arguments and runs under the `update` access mode.
-Omit `access_mode` and NeuG infers `update`, or set it explicitly:
+`CHECKPOINT` takes no arguments and must run under the `update` access
+mode.
+
+If `access_mode` is omitted, NeuG infers `update`. If it is specified
+explicitly, it must be `"update"` or `"u"`. Any other access mode
+(`"read"`/`"r"`, `"insert"`/`"i"`, or `"schema"`/`"s"`) is rejected, and
+a database opened read-only cannot create a checkpoint.
+
+Usage examples:
 
 ```python
+# NeuG infers `update` access mode
 conn.execute("CHECKPOINT")
-conn.execute("CHECKPOINT", access_mode="update")  # or "u"
 ```
 
-Any other explicit mode (`read`/`r`, `insert`/`i`, or `schema`/`s`) is
-rejected, and a database opened read-only cannot create a checkpoint.
+```python
+# or "u"; all other access modes are rejected
+conn.execute("CHECKPOINT", access_mode="update")
+```
+
+`CHECKPOINT` can also be used with an
+[`EXPLAIN`/`PROFILE` clause](../cypher_manual/explain_profile.md):
 
 - `EXPLAIN CHECKPOINT` returns the execution plan without creating a
   checkpoint.
@@ -47,14 +59,20 @@ import neug
 db = neug.Database("/path/to/database", checkpoint_on_close=False)
 conn = db.connect()
 
-conn.execute("COPY Person FROM 'people.csv'")
-conn.execute("CHECKPOINT")  # The loaded data is now durable.
+conn.execute("COPY Person FROM 'people.csv'")  # Loaded data is in memory
+conn.execute("CHECKPOINT")  # The loaded data has now been persisted to disk
 
 conn.close()
+# With the default checkpoint_on_close=True, db.close() would trigger an
+# implicit checkpoint. This example disables it and checkpoints explicitly.
 db.close()
 ```
 
 ### Service mode example
+
+This example assumes a NeuG service is already running. To start one, see
+[Service Mode](../getting_started/getting_started.md#service-mode)
+(`db.serve()`).
 
 ```python
 from neug import Session
@@ -73,7 +91,10 @@ session.close()
 ```
 
 Closing a client `Session` only disconnects that client; it neither closes
-nor checkpoints the server database.
+nor checkpoints the server database. When the server-side database is later
+closed with `checkpoint_on_close=True`, any outstanding WAL records are
+folded into the final checkpoint; if checkpointing is disabled, the WAL
+remains on disk for replay on the next startup.
 
 ## What a checkpoint does
 
@@ -92,9 +113,9 @@ Each successful checkpoint performs the following steps:
 Because step 2 writes a full copy while the current generation still exists,
 peak disk usage during a checkpoint is roughly twice the database size, and
 checkpoint time grows with database size. Disk usage drops back once the
-retired generation is removed in step 5. Run checkpoints as often as your
-recovery-point and WAL-size requirements justify, rather than on a fixed
-tight interval.
+retired generation is removed in step 5. Schedule checkpoints based on how
+much work you can afford to redo after a crash (your recovery point) and
+how large you want the WAL to grow, rather than on a fixed tight interval.
 
 ### Concurrency
 
@@ -125,30 +146,34 @@ persistence succeeded. If you set `checkpoint_on_close=False`:
 - Service mode can recover committed changes from the WAL, even if they were
   made after the last checkpoint.
 
-Checkpoints do not make a temporary in-memory database survive after it is
-closed.
-
 ## Failure and recovery
 
 On startup, NeuG opens the newest completely published checkpoint; an
 incomplete generation is never selected. In Service mode, NeuG then replays
 WAL records created after that checkpoint.
 
-A manual `CHECKPOINT` fails in one of two ways:
+A **manual** `CHECKPOINT` fails in one of two ways:
 
 - **Before the snapshot build starts** — for example, if the database cannot
   begin maintenance — the statement returns an error and the database keeps
   running normally.
 - **After the snapshot build has started**, a failure can leave the
-  in-memory state undefined, so NeuG deliberately terminates the database
-  process rather than continue. Restart the database to recover from the
+  in-memory state undefined. To avoid operating on a corrupt state, NeuG
+  intentionally terminates the database process via `LOG(FATAL)`. This is
+  by design, not a crash: restarting the database recovers cleanly from the
   latest published checkpoint and, in Service mode, the WAL.
 
-### Recovering from a failed Embedded write
+A **recovery** checkpoint (run automatically on database open) takes a
+different path: if it fails, NeuG does not terminate the process. Instead,
+the open returns an error and the database remains unopened. Fix the
+underlying cause (e.g., disk space, permissions) and retry.
 
-Large Embedded-mode writes are not fully atomic. To make a failed batch
+### Recovering from a failed bulk load in Embedded mode
+
+Bulk loads in Embedded mode are not fully atomic. To make a failed batch
 discardable, disable checkpoint on close, create a recovery point before the
-batch, and checkpoint again only after the batch succeeds:
+batch, and checkpoint again only after the batch succeeds. (Bulk load via
+`COPY`/`LOAD FROM` is currently supported only in Embedded mode.)
 
 ```python
 import neug

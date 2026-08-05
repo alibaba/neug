@@ -149,6 +149,8 @@ When executing queries, you can specify an `access_mode` to control transaction 
 
 **Access Mode Capabilities:** Access modes are operation-specific rather than a strict hierarchy. In Service mode, `read` and `insert` are narrow modes, while `update` and `schema` use the general serialized update path. Using a mode that does not support the planned operation returns an error.
 
+The following table applies to **Service mode** only:
+
 | Specified Mode | Actual Operation | Result |
 |----------------|------------------|--------|
 | `read` | read | ✅ OK |

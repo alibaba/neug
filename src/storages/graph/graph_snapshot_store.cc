@@ -223,6 +223,14 @@ void GraphSnapshotStore::CheckpointMaintenanceContext::
                                      MemoryLevel memory_level) {
   slot_.mutable_graph()->Open(std::move(checkpoint), memory_level);
   slot_.mutable_view().Rebuild(*slot_.mutable_graph());
+  // Compaction may remove schema tombstones and renumber vertex/edge labels.
+  // Bump the planning generation so cached plans compiled against the
+  // pre-compaction schema are invalidated.
+  const uint64_t current =
+      slot_.planning_generation_.load(std::memory_order_relaxed);
+  CHECK_NE(current, std::numeric_limits<uint64_t>::max())
+      << "Planning generation space exhausted";
+  slot_.planning_generation_.store(current + 1, std::memory_order_release);
 }
 
 Status GraphSnapshotStore::WithCheckpointMaintenance(
