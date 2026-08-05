@@ -26,6 +26,7 @@
 #include "neug/compiler/parser/ddl/create_table.h"
 #include "neug/compiler/parser/ddl/create_type.h"
 #include "neug/compiler/parser/ddl/drop.h"
+#include "neug/compiler/parser/ddl/drop_index.h"
 #include "neug/compiler/parser/ddl/drop_info.h"
 #include "neug/compiler/parser/transformer.h"
 #include "neug/utils/exception/exception.h"
@@ -35,6 +36,12 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace parser {
+
+std::unique_ptr<Statement> Transformer::transformDropIndex(
+    CypherParser::NEUG_DropIndexContext& ctx) {
+  return std::make_unique<DropIndex>(transformSchemaName(*ctx.oC_SchemaName()),
+                                     ctx.nEUG_IfExists() != nullptr);
+}
 
 std::unique_ptr<Statement> Transformer::transformAlterTable(
     CypherParser::NEUG_AlterTableContext& ctx) {

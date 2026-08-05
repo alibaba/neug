@@ -802,5 +802,16 @@ void GDDLConverter::convertCreateIndex(const planner::LogicalCreateIndex& op,
   plan->mutable_plan()->AddAllocated(physical_opr.release());
 }
 
+void GDDLConverter::convertDropIndex(const planner::LogicalDropIndex& op,
+                                     ::physical::PhysicalPlan* plan) {
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* drop_index = physical_opr->mutable_opr()->mutable_drop_index();
+  drop_index->set_name(op.getIndexName());
+  drop_index->set_conflict_action(op.getIfExists()
+                                      ? ::physical::ON_CONFLICT_DO_NOTHING
+                                      : ::physical::ON_CONFLICT_THROW);
+  plan->mutable_plan()->AddAllocated(physical_opr.release());
+}
+
 }  // namespace gopt
 }  // namespace neug

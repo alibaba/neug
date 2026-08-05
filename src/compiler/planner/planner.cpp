@@ -90,6 +90,9 @@ std::unique_ptr<LogicalPlan> Planner::getBestPlan(
   case StatementType::CREATE_INDEX: {
     appendCreateIndex(statement, *plan);
   } break;
+  case StatementType::DROP_INDEX: {
+    appendDropIndex(statement, *plan);
+  } break;
   case StatementType::DROP: {
     appendDrop(statement, *plan);
   } break;

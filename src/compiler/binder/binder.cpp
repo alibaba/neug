@@ -66,6 +66,9 @@ std::unique_ptr<BoundStatement> Binder::bind(const Statement& statement) {
   case StatementType::CREATE_INDEX: {
     boundStatement = bindCreateIndex(statement);
   } break;
+  case StatementType::DROP_INDEX: {
+    boundStatement = bindDropIndex(statement);
+  } break;
   case StatementType::COPY_FROM: {
     boundStatement = bindCopyFromClause(statement);
   } break;

@@ -28,6 +28,7 @@ enum class LogicalOperatorType : uint8_t {
   DETACH_DATABASE,
   DISTINCT,
   DROP,
+  DROP_INDEX,
   DUMMY_SCAN,
   DUMMY_SINK,
   EMPTY_RESULT,

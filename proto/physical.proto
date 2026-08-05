@@ -403,6 +403,7 @@ message PhysicalOpr {
 
       // Index operators
       CreateIndex create_index = 76;
+      DropIndex drop_index = 77;
     }
   }
   message MetaData {

@@ -94,6 +94,8 @@ class NEUG_API Planner {
                             LogicalPlan& plan);
   void appendCreateIndex(const binder::BoundStatement& statement,
                          LogicalPlan& plan);
+  void appendDropIndex(const binder::BoundStatement& statement,
+                       LogicalPlan& plan);
   void appendDrop(const binder::BoundStatement& statement, LogicalPlan& plan);
   void appendAlter(const binder::BoundStatement& statement, LogicalPlan& plan);
   void appendStandaloneCall(const binder::BoundStatement& statement,

@@ -41,6 +41,8 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "DISTINCT";
   case LogicalOperatorType::DROP:
     return "DROP";
+  case LogicalOperatorType::DROP_INDEX:
+    return "DROP_INDEX";
   case LogicalOperatorType::DUMMY_SCAN:
     return "DUMMY_SCAN";
   case LogicalOperatorType::DUMMY_SINK:

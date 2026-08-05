@@ -49,6 +49,9 @@ void BoundStatementVisitor::visit(const BoundStatement& statement) {
   case StatementType::CREATE_INDEX: {
     visitCreateIndex(statement);
   } break;
+  case StatementType::DROP_INDEX: {
+    visitDropIndex(statement);
+  } break;
   case StatementType::CREATE_TYPE: {
     visitCreateType(statement);
   } break;

@@ -29,6 +29,7 @@
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/ddl/bound_drop_index.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
@@ -51,6 +52,7 @@
 #include "neug/compiler/parser/ddl/create_table_info.h"
 #include "neug/compiler/parser/ddl/create_type.h"
 #include "neug/compiler/parser/ddl/drop.h"
+#include "neug/compiler/parser/ddl/drop_index.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
@@ -468,6 +470,13 @@ std::unique_ptr<BoundStatement> Binder::bindCreateIndex(
   boundInfo.ifNotExists = parsedInfo.ifNotExists;
 
   return std::make_unique<BoundCreateIndex>(std::move(boundInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindDropIndex(
+    const Statement& statement) {
+  const auto& dropIndex = statement.constCast<DropIndex>();
+  return std::make_unique<BoundDropIndex>(dropIndex.getIndexName(),
+                                          dropIndex.getIfExists());
 }
 
 std::unique_ptr<BoundStatement> Binder::bindDrop(const Statement& statement) {

@@ -12,6 +12,7 @@ oC_Statement
         | nEUG_CreateSequence
         | nEUG_CreateType
         | nEUG_CreateIndex
+        | nEUG_DropIndex
         | nEUG_Drop
         | nEUG_AlterTable
         | nEUG_CopyFrom
@@ -131,6 +132,9 @@ nEUG_CreateIndexOptionList
 
 nEUG_CreateIndexOption
     : oC_PropertyKeyName SP? '=' SP? oC_Literal ;
+
+nEUG_DropIndex
+    : DROP SP INDEX SP oC_SchemaName (SP nEUG_IfExists)? ;
 
 nEUG_SequenceOptions
     : nEUG_IncrementBy

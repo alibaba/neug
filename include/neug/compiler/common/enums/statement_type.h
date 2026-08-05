@@ -48,6 +48,7 @@ enum class StatementType : uint8_t {
   CREATE_SEQUENCE = 37,
   CREATE_TYPE = 39,
   CREATE_INDEX = 40,
+  DROP_INDEX = 41,
 };
 
 }  // namespace common

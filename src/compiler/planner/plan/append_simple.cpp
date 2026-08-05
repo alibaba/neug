@@ -12,6 +12,7 @@
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/ddl/bound_drop_index.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/ddl/logical_alter.h"
@@ -20,6 +21,7 @@
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_type.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
+#include "neug/compiler/planner/operator/ddl/logical_drop_index.h"
 #include "neug/compiler/planner/operator/logical_create_macro.h"
 #include "neug/compiler/planner/operator/logical_standalone_call.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
@@ -69,6 +71,13 @@ void Planner::appendCreateIndex(const BoundStatement& statement,
   auto info = const_cast<BoundCreateIndex&>(boundCreateIndex).moveInfo();
   auto op = std::make_shared<LogicalCreateIndex>(std::move(info));
   plan.setLastOperator(std::move(op));
+}
+
+void Planner::appendDropIndex(const BoundStatement& statement,
+                              LogicalPlan& plan) {
+  const auto& dropIndex = statement.constCast<BoundDropIndex>();
+  plan.setLastOperator(std::make_shared<LogicalDropIndex>(
+      dropIndex.getIndexName(), dropIndex.getIfExists()));
 }
 
 bool Planner::tryGetTableEntry(const std::string& labelName) {

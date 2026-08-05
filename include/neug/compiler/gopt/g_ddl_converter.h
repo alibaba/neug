@@ -25,6 +25,7 @@
 #include "neug/compiler/planner/operator/ddl/logical_create_index.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
+#include "neug/compiler/planner/operator/ddl/logical_drop_index.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
@@ -66,6 +67,8 @@ class GDDLConverter {
   // Convert LogicalCreateIndex to PhysicalPlan
   void convertCreateIndex(const planner::LogicalCreateIndex& op,
                           ::physical::PhysicalPlan* plan);
+  void convertDropIndex(const planner::LogicalDropIndex& op,
+                        ::physical::PhysicalPlan* plan);
 
  private:
   neug::catalog::Catalog* catalog;

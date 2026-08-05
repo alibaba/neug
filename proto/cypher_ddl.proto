@@ -164,3 +164,9 @@ message CreateIndex {
     // Conflict handling
     ConflictAction conflict_action = 7;
 }
+
+message DropIndex {
+    // Unique index name
+    string name = 1;
+    ConflictAction conflict_action = 2;
+}
