@@ -109,8 +109,7 @@ void HttplibServiceManager::Init(const ServiceConfig& config) {
   });
 
   // GET /schema — Retrieve graph schema
-  svr->Get("/schema", [this](const httplib::Request&,
-                               httplib::Response& res) {
+  svr->Get("/schema", [this](const httplib::Request&, httplib::Response& res) {
     auto ret = GetSchemaImpl();
     if (ret) {
       res.status = 200;
@@ -124,19 +123,19 @@ void HttplibServiceManager::Init(const ServiceConfig& config) {
   });
 
   // GET /service_status — Check service status
-  svr->Get("/service_status", [this](const httplib::Request&,
-                                       httplib::Response& res) {
-    auto ret = GetServiceStatusImpl();
-    if (ret) {
-      res.status = 200;
-      res.set_content(ret.value(), "application/json");
-    } else {
-      const auto& error = ret.error();
-      LOG(ERROR) << "Error " << error.ToString();
-      res.status = status_code_to_http_code(error.error_code());
-      res.set_content(error.ToString(), "text/plain");
-    }
-  });
+  svr->Get("/service_status",
+           [this](const httplib::Request&, httplib::Response& res) {
+             auto ret = GetServiceStatusImpl();
+             if (ret) {
+               res.status = 200;
+               res.set_content(ret.value(), "application/json");
+             } else {
+               const auto& error = ret.error();
+               LOG(ERROR) << "Error " << error.ToString();
+               res.status = status_code_to_http_code(error.error_code());
+               res.set_content(error.ToString(), "text/plain");
+             }
+           });
 }
 
 std::string HttplibServiceManager::Start() {
