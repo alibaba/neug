@@ -73,7 +73,6 @@ class VecColumn : public ColumnBase {
   DataTypeId type() const override;
   void set_any(size_t vid, const Value& value, bool insert_safe) override;
   Value get_any(size_t vid) const override;
-  void ingest(uint32_t vid, OutArchive& arc) override;
 
   // Exposes the offset accessor for use by HNSW indexes.
   IndexIDAccessor* get_offset_accessor() const;

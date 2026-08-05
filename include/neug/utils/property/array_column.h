@@ -57,8 +57,6 @@ class ArrayColumn : public ColumnBase {
 
   Value get_any(size_t index) const override;
 
-  void ingest(uint32_t index, OutArchive& arc) override;
-
   std::unique_ptr<Module> Clone() const override;
 
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
