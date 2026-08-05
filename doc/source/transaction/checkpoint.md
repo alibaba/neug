@@ -47,7 +47,7 @@ conn.execute("CHECKPOINT", access_mode="update")
 - `EXPLAIN CHECKPOINT` returns the execution plan without creating a
   checkpoint.
 - `PROFILE CHECKPOINT` creates the checkpoint and reports its execution time
-  as a single `Checkpoint` operator.
+  as a single `CHECKPOINT` operator.
 
 ### Embedded mode example
 
