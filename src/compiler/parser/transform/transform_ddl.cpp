@@ -389,14 +389,10 @@ std::unique_ptr<Statement> Transformer::transformCreateIndex(
     if (optionList) {
       for (auto* opt : optionList->nEUG_CreateIndexOption()) {
         auto key = transformPropertyKeyName(*opt->oC_PropertyKeyName());
-        // Extract string value from the literal (strip surrounding quotes)
-        auto valueText = opt->oC_Literal()->getText();
-        // Remove surrounding quotes if present
-        if (valueText.size() >= 2 &&
-            ((valueText.front() == '\'' && valueText.back() == '\'') ||
-             (valueText.front() == '"' && valueText.back() == '"'))) {
-          valueText = valueText.substr(1, valueText.size() - 2);
-        }
+        auto* literal = opt->oC_Literal();
+        auto valueText = literal->StringLiteral()
+                             ? transformStringLiteral(*literal->StringLiteral())
+                             : literal->getText();
         info.options[key] = valueText;
       }
     }

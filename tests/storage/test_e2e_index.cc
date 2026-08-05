@@ -78,7 +78,8 @@ TEST_F(E2EIndexTest, CreateShowDropAndPersistDropAcrossReopen) {
       WITH (
         metric = 'ip',
         m = 16,
-        ef_construction = 200
+        ef_construction = 200,
+        description = 'escaped\tvalue'
       );
     )");
     ASSERT_TRUE(createIndex) << createIndex.error().ToString();
@@ -93,8 +94,9 @@ TEST_F(E2EIndexTest, CreateShowDropAndPersistDropAcrossReopen) {
     EXPECT_EQ(response.arrays(1).string_array().values(0), "hnsw");
     EXPECT_EQ(response.arrays(2).string_array().values(0), "Entity");
     EXPECT_EQ(response.arrays(3).string_array().values(0), "embedding");
-    EXPECT_EQ(response.arrays(4).string_array().values(0),
-              R"({"ef_construction":"200","m":"16","metric":"ip"})");
+    EXPECT_EQ(
+        response.arrays(4).string_array().values(0),
+        R"({"description":"escapedtvalue","ef_construction":"200","m":"16","metric":"ip"})");
 
     auto showSelectedColumns =
         connection->Query("CALL SHOW_INDEXES() RETURN name, label;");
