@@ -67,6 +67,9 @@ service = db.serve(host="localhost", port=10000, blocking=False, thread_num=0)
 The default `0` auto-selects from the database `max_thread_num`. With the
 default database thread setting, `max_thread_num` is resolved from hardware
 concurrency and falls back to `1` if the runtime cannot detect it.
+Service threads run TP queries concurrently, but each query uses one execution context and one thread.
+
+Embedded (AP) queries are currently single-threaded; using `max_thread_num` for intra-query parallelism is future work.
 
 **Connect from client:**
 ```python

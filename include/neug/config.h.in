@@ -104,8 +104,11 @@ struct NeugDBConfig {
    * @brief Construct with data directory and thread count.
    *
    * @param data_dir_ Path to graph data directory
-   * @param max_thread_num_ Maximum database thread count. 0 means auto-select
-   * from hardware concurrency.
+   * @param max_thread_num_ Database query capacity. 0 selects hardware
+   * concurrency (fallback 1); higher values warn and clamp. AP queries are
+   * single-threaded; intra-query parallelism is future work. In TP mode, it
+   * sizes the slot pool and caps service threads. Concurrent TP queries each
+   * use one slot and one thread.
    */
   NeugDBConfig(const std::string& data_dir_, int max_thread_num_ = 1)
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
@@ -130,8 +133,10 @@ struct NeugDBConfig {
   /// Query planner type: "gopt" (Graph Optimizer) or "greedy"
   std::string planner_kind;
 
-  /// Maximum database thread count. 0 means auto-select from hardware
-  /// concurrency.
+  /// Database query capacity. 0 selects hardware concurrency (fallback 1);
+  /// higher values warn and clamp. AP queries are single-threaded; intra-query
+  /// parallelism is future work. In TP mode, it sizes the slot pool and caps
+  /// service threads. Concurrent TP queries each use one slot and one thread.
   int max_thread_num;
 
   /**

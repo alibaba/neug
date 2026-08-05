@@ -396,6 +396,41 @@ TEST_F(NeugDBServiceTest, AutoDatabaseMaxThreadNumFeedsServiceDefaults) {
   db.Close();
 }
 
+TEST(DatabaseMaxThreadNum, ClampedToHardwareConcurrency) {
+  const auto temp_dir =
+      std::filesystem::temp_directory_path() / "neug_test_clamp_thread";
+  if (std::filesystem::exists(temp_dir)) {
+    std::filesystem::remove_all(temp_dir);
+  }
+  std::filesystem::create_directories(temp_dir);
+
+  // RAII guard ensures cleanup even if an assertion or Open() throws.
+  struct TempDirGuard {
+    std::filesystem::path path;
+    ~TempDirGuard() {
+      std::error_code ec;
+      std::filesystem::remove_all(path, ec);
+    }
+  } guard{temp_dir};
+
+  const auto db_path = (temp_dir / "graph").string();
+  neug::NeugDB db;
+
+  auto expected_thread_num = std::thread::hardware_concurrency();
+  auto expected = static_cast<int>(expected_thread_num);
+  if (expected == 0) {
+    expected = 1;
+  }
+
+  // Use a value larger than hardware concurrency to verify clamping.
+  neug::NeugDBConfig db_cfg(db_path, expected + 1);
+  db.Open(db_cfg);
+
+  EXPECT_EQ(db.config().max_thread_num, expected);
+
+  db.Close();
+}
+
 TEST_F(NeugDBServiceTest, ServiceThreadNumCannotExceedDatabaseMaxThreadNum) {
   neug::ServiceConfig cfg;
   cfg.query_port = 0;

@@ -70,8 +70,11 @@ Open a database.
   - `mode` (str)
     Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
   - `max_thread_num` (int)
-    Maximum database thread count. The default `0` auto-selects from hardware
-    concurrency and falls back to `1` if the runtime cannot detect it.
+    Database query capacity; 0 selects hardware concurrency (fallback 1), while higher inputs warn and clamp to it.
+
+    Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
+
+    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
   - `checkpoint_on_close` (bool)
     Whether to automatically create a checkpoint when the database is closed. Default is True.
     If False, no checkpoint is created automatically when close the database.
@@ -163,11 +166,9 @@ documentation of Session.
   - `blocking` (bool)
     Whether to block the process after starting the database server.
   - `thread_num` (int)
-    Service thread count. The default `0` auto-selects from the database
-    `max_thread_num`. If set explicitly, it must be less than or equal to
-    `max_thread_num`. With the default database thread setting,
-    `max_thread_num` is resolved from hardware concurrency and falls back to
-    `1` if the runtime cannot detect it.
+    Service thread count. 0 selects max_thread_num; explicit values cannot exceed it.
+
+    Service threads run TP queries concurrently, but each query uses one execution context and one thread.
   - `auto_compaction` (bool)
     Enable background auto-compaction while serving. Default is `True`.
 

@@ -87,9 +87,11 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 
 - **Parameters:**
   - `data_dir`: Path to the graph data directory
-  - `max_thread_num`: Maximum database thread count. The default
-    `0` auto-selects from hardware concurrency (number of CPU cores), falling
-    back to `1` if the runtime cannot detect it.
+  - `max_thread_num`: Database query capacity; `0` selects hardware concurrency (fallback `1`), while higher inputs warn and clamp to it.
+
+    Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
+
+    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `checkpoint_on_close`: Create a checkpoint (persist data) when closing

@@ -330,12 +330,21 @@ void NeugDB::preprocessConfig() {
         "Invalid max_thread_num: " + std::to_string(config_.max_thread_num) +
         ". Must be a non-negative integer.");
   }
+
+  int effective_max_thread_num =
+      static_cast<int>(std::thread::hardware_concurrency());
+  if (effective_max_thread_num == 0) {
+    effective_max_thread_num = 1;
+  }
+
   if (config_.max_thread_num == 0) {
-    config_.max_thread_num =
-        static_cast<int>(std::thread::hardware_concurrency());
-    if (config_.max_thread_num == 0) {
-      config_.max_thread_num = 1;
-    }
+    config_.max_thread_num = effective_max_thread_num;
+  } else if (config_.max_thread_num > effective_max_thread_num) {
+    LOG(WARNING) << "max_thread_num (" << config_.max_thread_num
+                 << ") exceeds the detected hardware concurrency ("
+                 << effective_max_thread_num << "); clamping to "
+                 << effective_max_thread_num << ".";
+    config_.max_thread_num = effective_max_thread_num;
   }
   if (config_.data_dir.empty() || config_.data_dir == ":memory" ||
       config_.data_dir == ":memory:") {
