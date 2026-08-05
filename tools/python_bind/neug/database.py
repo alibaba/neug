@@ -420,8 +420,7 @@ class Database(object):
                     async_conn.close()
                 except Exception as e:
                     if log:
-                        logger.warning(
-                            f"Failed to close async connection: {e}")
+                        logger.warning(f"Failed to close async connection: {e}")
         if getattr(self, "_database", None):
             self._database.close()
             self._database = None
