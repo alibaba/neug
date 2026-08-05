@@ -60,8 +60,9 @@ class ReleaseOrderVersionManager : public IVersionManager {
   }
   PublishedReadView acquire_read_view() override { return {1, 0}; }
   uint32_t acquire_insert_timestamp() override { return 1; }
-  uint32_t acquire_update_timestamp(
-      std::optional<MonotonicTimePoint>) override {
+  uint32_t acquire_update_timestamp() override { return 1; }
+  uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point) override {
     return 1;
   }
   void begin_update_commit(uint32_t) override {}

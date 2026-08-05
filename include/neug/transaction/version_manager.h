@@ -26,7 +26,6 @@
 namespace neug {
 
 class UpdateTimestampLease;
-using MonotonicTimePoint = std::chrono::steady_clock::time_point;
 
 /**
  * @brief Atomically published reader-visible state.
@@ -83,8 +82,7 @@ class IVersionManager {
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   // Waiters directly contend the admission phase. Acquisition order is
   // intentionally unspecified; the successful phase CAS linearizes ownership.
-  virtual uint32_t acquire_update_timestamp(
-      std::optional<MonotonicTimePoint> deadline = std::nullopt) = 0;
+  virtual uint32_t acquire_update_timestamp() = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
   // May invoke the runtime waiter. Checkpoint callers must enter commit and
   // drain readers before acquiring checkpoint-manager or other
@@ -106,6 +104,11 @@ class IVersionManager {
 
  private:
   friend class UpdateTimestampLease;
+
+  // Timed acquisition is intentionally lease-only: callers must not receive a
+  // raw timestamp without immediately establishing RAII ownership.
+  virtual uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point deadline) = 0;
 
   /// Complete an exclusive update after external state has moved to a new
   /// timeline. Preserve the current snapshot generation and publish visibility
@@ -231,8 +234,7 @@ class VersionManager : public IVersionManager {
   void release_read_view() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
-  uint32_t acquire_update_timestamp(
-      std::optional<MonotonicTimePoint> deadline = std::nullopt) override;
+  uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
   void finish_update_timestamp(
@@ -245,6 +247,8 @@ class VersionManager : public IVersionManager {
  private:
   using AdmissionState = detail::AdmissionState;
   using OperationGateWord = detail::OperationGateWord;
+  uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point deadline) override;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
   enum class TimestampReservationState { kReserved, kWindowFull, kExhausted };
@@ -262,11 +266,10 @@ class VersionManager : public IVersionManager {
                                   AdmissionState desired_phase);
   void wait_for_readers_to_drain();
   void wait_for_inserters_to_drain();
-  bool wait_for_inserters_to_drain(std::optional<MonotonicTimePoint> deadline,
-                                   RuntimeBackoff& wait);
-  bool deadline_expired(
-      std::optional<MonotonicTimePoint> deadline) const noexcept;
+  bool wait_for_inserters_to_drain_until(
+      std::chrono::steady_clock::time_point deadline);
   TimestampReservation reserve_write_timestamp();
+  uint32_t reserve_update_timestamp();
   void release_insert_admission();
   [[noreturn]] void throw_timestamp_reservation_failure(
       TimestampReservationState state, uint32_t read_ts, uint32_t write_ts);

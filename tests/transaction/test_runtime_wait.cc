@@ -409,7 +409,7 @@ TEST(VersionManagerUpdateAdmissionTest,
       std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
   std::thread timed_waiter([&] {
     try {
-      (void) manager.acquire_update_timestamp(deadline);
+      UpdateTimestampLease lease(manager, deadline);
       waiter_timed_out.set_value(false);
     } catch (const exception::TransactionTimeoutException&) {
       waiter_timed_out.set_value(true);
@@ -448,7 +448,7 @@ TEST(VersionManagerUpdateAdmissionTest,
       std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
   std::thread update([&] {
     try {
-      (void) manager.acquire_update_timestamp(deadline);
+      UpdateTimestampLease lease(manager, deadline);
       timed_out.set_value(false);
     } catch (const exception::TransactionTimeoutException&) {
       timed_out.set_value(true);

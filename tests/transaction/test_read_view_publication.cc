@@ -98,8 +98,9 @@ class ScriptedVersionManager : public IVersionManager {
   void release_read_view() override { release_count_.fetch_add(1); }
   uint32_t acquire_insert_timestamp() override { return 1; }
   void release_insert_timestamp(uint32_t) override {}
-  uint32_t acquire_update_timestamp(
-      std::optional<MonotonicTimePoint>) override {
+  uint32_t acquire_update_timestamp() override { return 1; }
+  uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point) override {
     return 1;
   }
   void begin_update_commit(uint32_t) override {}

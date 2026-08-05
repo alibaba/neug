@@ -23,11 +23,17 @@
 
 namespace neug {
 
+UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
+    : version_manager_(&version_manager),
+      timestamp_(version_manager.acquire_update_timestamp()) {
+  CHECK_NE(timestamp_, kInactiveTimestamp);
+}
+
 UpdateTimestampLease::UpdateTimestampLease(
     IVersionManager& version_manager,
-    std::optional<MonotonicTimePoint> deadline)
+    std::chrono::steady_clock::time_point deadline)
     : version_manager_(&version_manager),
-      timestamp_(version_manager.acquire_update_timestamp(deadline)) {
+      timestamp_(version_manager.acquire_update_timestamp_until(deadline)) {
   CHECK_NE(timestamp_, kInactiveTimestamp);
 }
 
