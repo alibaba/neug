@@ -113,21 +113,60 @@ jobs:
 
       # ========================================
       # Phase 1: C++ Tests (ctest)
+      # Mirrors build-and-test-common.yml Phase 1.
+      # test_db_svc is skipped (BRPC not available on Windows).
       # ========================================
       - name: Run C++ tests
         continue-on-error: true
+        env:
+          MODERN_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+          COMPREHENSIVE_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/comprehensive_graph
+          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+          TEST_PATH: ${{ github.workspace }}/tests
+          TEST_RESOURCE: ${{ github.workspace }}/tests/compiler
         run: |
           cd build
-          ctest --output-on-failure --timeout 60 -j $env:NUMBER_OF_PROCESSORS
+          ctest -R storage_test -V
+          ctest -R transaction_test -V
+          ctest -R csr_test -V
+          ctest -R edge_table_test -V
+          ctest -R graph_view_test -V
+          ctest -R graph_snapshot_store_test -V
+          ctest -R utils_test -V
+          ctest -R execution_test -V
+          ctest -R gopt_test -V
+          ctest -R test_vertex_table -V
+          ctest -R schema_test -V
+          ctest -R test_mmap_container -V
+          ctest -R logical_delete_test -V
+          ctest -R test_connection -V
+          ctest -R test_request -V
+          ctest -R sink_test -V
+          ctest -R test_indexer -V
+          ctest -R temporary_graph_test -V
+          ctest -R copy_temp_test -V
 
       # ========================================
       # Phase 2: Python Tests
+      # Mirrors build-and-test-common.yml Phase 3.
+      # Tests depending on bulk-loaded /tmp data are skipped
+      # (bulk_loader executable is not built on Windows).
       # ========================================
+      - name: Install Python dev requirements
+        run: |
+          python -m pip install -r tools/python_bind/requirements_dev.txt
+
       - name: Run Python DB init tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_db_init.py --exitfirst
+
+      - name: Run Python DB connection test
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_connection.py --exitfirst
 
       - name: Run Python schema tests
         continue-on-error: true
@@ -146,3 +185,99 @@ jobs:
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_query.py --exitfirst
+
+      - name: Run Python path tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_path.py --exitfirst
+
+      - name: Run Python persistence tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_persistence.py --exitfirst
+
+      - name: Run Python call string literal tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_call_string_literal.py --exitfirst
+
+      - name: Run Python dataset tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_dataset.py --exitfirst
+
+      - name: Run Python merge tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_merge.py --exitfirst
+
+      - name: Run Python transaction tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_transaction.py --exitfirst
+
+      - name: Run Python import/export tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_import_export.py --exitfirst
+
+      - name: Run Python Data I/O documentation tests
+        continue-on-error: true
+        env:
+          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_data_io_docs.py --exitfirst
+
+      - name: Run Python LOAD FROM sniffer tests (CSV and JSON)
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_sniffer.py -k "csv or json" --exitfirst
+
+      - name: Run Python complex query tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_cases.py --exitfirst
+
+      - name: Run Python list/array tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_list.py --exitfirst
+          python -m pytest -sv tests/test_db_array.py --exitfirst
+
+      - name: Run Python concurrency tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_concurrent.py --exitfirst
+
+      - name: Run Python transaction concurrent tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/transaction/elle_tester_insert.py --exitfirst
+
+      - name: Run Python PyArrow related tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pip install pyarrow==18.0.0
+          python -m pytest -sv tests/test_to_arrow.py --exitfirst
+          python -m pip uninstall -y pyarrow
+
+      - name: Run Python CLI tool tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_ngcli_commands.py --exitfirst
+          python -m pytest -sv tests/test_ngcli_basics.py --exitfirst
