@@ -196,7 +196,8 @@ def test_config_param(tmp_path):
     assert db7 is not None
     db7.close()
     max_thread_num = os.cpu_count() or 1
-    db8 = Database(db_path=str(db_dir), mode="r", max_thread_num=max_thread_num)
+    db8 = Database(db_path=str(db_dir), mode="r",
+                   max_thread_num=max_thread_num)
     assert db8 is not None
     db8.close()
     db9 = Database(db_path=str(db_dir), mode="r", max_thread_num=0)
@@ -218,11 +219,13 @@ def test_config_param_exception(tmp_path):
 
 
 def test_config_param_boundary(tmp_path):
+    cpu_count = os.cpu_count()
+    if cpu_count is None:
+        pytest.skip("os.cpu_count() is unavailable; cannot verify clamping")
     db_dir = tmp_path / "conn_param_boundary_db"
-    # max_thread_num greater than the number of cores is clamped to cpu_count
-    max_cores = os.cpu_count() or 1
-    db = Database(str(db_dir), "w", max_thread_num=max_cores + 1)
-    assert db._max_thread_num == max_cores
+    # max_thread_num greater than the number of logical CPUs is clamped to cpu_count
+    db = Database(str(db_dir), "w", max_thread_num=cpu_count + 1)
+    assert db._max_thread_num == cpu_count
     db.close()
 
 
@@ -365,7 +368,8 @@ def test_file_header_corruption(tmp_path):
     except Exception as exc:
         assert str(ERR_CORRUPTION_DETECTED) in str(exc)
     else:
-        pytest.fail("Expected ERR_CORRUPTION_DETECTED but no exception was raised")
+        pytest.fail(
+            "Expected ERR_CORRUPTION_DETECTED but no exception was raised")
 
 
 # DB-001-17
@@ -421,7 +425,8 @@ def test_memory_level_sync_to_file(tmp_path):
     assert db is not None
     db.close()
     # underscore alias
-    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="sync_to_file")
+    db = Database(db_path=str(db_dir), mode="w",
+                  buffer_strategy="sync_to_file")
     assert db is not None
     db.close()
     # short literal
@@ -435,15 +440,18 @@ def test_memory_level_huge_page_preferred(tmp_path):
     """Verify that all aliases for 'HugePagePreferred' memory level are accepted."""
     db_dir = tmp_path / "huge_page_preferred_level_db"
     # canonical form
-    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="HugePagePreferred")
+    db = Database(db_path=str(db_dir), mode="w",
+                  buffer_strategy="HugePagePreferred")
     assert db is not None
     db.close()
     # lowercase alias
-    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="hugepagepreferred")
+    db = Database(db_path=str(db_dir), mode="w",
+                  buffer_strategy="hugepagepreferred")
     assert db is not None
     db.close()
     # underscore alias
-    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="huge_page_preferred")
+    db = Database(db_path=str(db_dir), mode="w",
+                  buffer_strategy="huge_page_preferred")
     assert db is not None
     db.close()
     # short literal
@@ -457,5 +465,6 @@ def test_memory_level_invalid(tmp_path):
     """Verify that an invalid memory_level raises ERR_INVALID_ARGUMENT."""
     db_dir = tmp_path / "invalid_memory_level_db"
     with pytest.raises(Exception) as excinfo:
-        Database(db_path=str(db_dir), mode="w", buffer_strategy="invalid_level")
+        Database(db_path=str(db_dir), mode="w",
+                 buffer_strategy="invalid_level")
         assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)

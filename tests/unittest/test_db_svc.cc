@@ -404,6 +404,15 @@ TEST(DatabaseMaxThreadNum, ClampedToHardwareConcurrency) {
   }
   std::filesystem::create_directories(temp_dir);
 
+  // RAII guard ensures cleanup even if an assertion or Open() throws.
+  struct TempDirGuard {
+    std::filesystem::path path;
+    ~TempDirGuard() {
+      std::error_code ec;
+      std::filesystem::remove_all(path, ec);
+    }
+  } guard{temp_dir};
+
   const auto db_path = (temp_dir / "graph").string();
   neug::NeugDB db;
 
@@ -420,7 +429,6 @@ TEST(DatabaseMaxThreadNum, ClampedToHardwareConcurrency) {
   EXPECT_EQ(db.config().max_thread_num, expected);
 
   db.Close();
-  std::filesystem::remove_all(temp_dir);
 }
 
 TEST_F(NeugDBServiceTest, ServiceThreadNumCannotExceedDatabaseMaxThreadNum) {

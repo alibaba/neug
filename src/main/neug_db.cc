@@ -341,7 +341,7 @@ void NeugDB::preprocessConfig() {
     config_.max_thread_num = effective_max_thread_num;
   } else if (config_.max_thread_num > effective_max_thread_num) {
     LOG(WARNING) << "max_thread_num (" << config_.max_thread_num
-                 << ") exceeds the number of CPU cores ("
+                 << ") exceeds the detected hardware concurrency ("
                  << effective_max_thread_num << "); clamping to "
                  << effective_max_thread_num << ".";
     config_.max_thread_num = effective_max_thread_num;

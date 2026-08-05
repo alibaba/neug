@@ -49,8 +49,8 @@ class NeugDBService;
  * - Automatic WAL (Write-Ahead Log) management per slot
  * - 4096-byte-aligned per-slot Entry storage
  *
- * **Pool Size:** Determined by `NeugDBConfig::max_thread_num`, typically
- * matching the number of concurrent request handlers.
+ * **Pool Size:** `NeugDBConfig::max_thread_num` determines the pool size. Each
+ * TP query leases one slot and one thread for its duration.
  *
  * @see NeugDBService for HTTP service wrapper
  * @see ExecutionSlotLease for RAII slot management
