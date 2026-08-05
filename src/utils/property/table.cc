@@ -263,27 +263,6 @@ void Table::resize(size_t row_num, const std::vector<Value>& default_values) {
   }
 }
 
-void Table::ingest(uint32_t index, OutArchive& arc) {
-  if (columns_.size() == 0) {
-    return;
-  }
-
-  CHECK_GT(columns_[0]->size(), index);
-  uint32_t num_updates;
-  arc >> num_updates;
-  for (uint32_t i = 0; i < num_updates; ++i) {
-    uint32_t col_id;
-    arc >> col_id;
-    if (col_id >= columns_.size()) {
-      THROW_INTERNAL_EXCEPTION(
-          "Column id out of range: " + std::to_string(col_id) +
-          " >= " + std::to_string(columns_.size()) + "Table::ingest");
-      continue;
-    }
-    columns_[col_id]->ingest(index, arc);
-  }
-}
-
 void Table::close() { columns_.clear(); }
 
 }  // namespace neug
