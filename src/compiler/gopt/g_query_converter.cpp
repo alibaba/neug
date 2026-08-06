@@ -257,6 +257,16 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
     convertExtension(*extension, plan);
     break;
   }
+  case planner::LogicalOperatorType::CREATE_INDEX: {
+    auto createIndex = op.constPtrCast<planner::LogicalCreateIndex>();
+    ddlConverter.convertCreateIndex(*createIndex, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::DROP_INDEX: {
+    auto dropIndex = op.constPtrCast<planner::LogicalDropIndex>();
+    ddlConverter.convertDropIndex(*dropIndex, plan);
+    break;
+  }
   case planner::LogicalOperatorType::CREATE_TABLE: {
     auto createTable = op.constPtrCast<planner::LogicalCreateTable>();
     ddlConverter.convertCreateTable(*createTable, plan);

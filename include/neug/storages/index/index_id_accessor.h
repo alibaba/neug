@@ -75,9 +75,9 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
             const std::string& key) override;
   std::unique_ptr<Module> Clone() const override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
-  std::string ModuleTypeName() const override {
-    return "default_index_id_accessor";
-  }
+  std::string ModuleTypeName() const override { return type_name(); }
+
+  static std::string type_name() { return "default_index_id_accessor"; }
 
  private:
   void resize(size_t new_capacity);

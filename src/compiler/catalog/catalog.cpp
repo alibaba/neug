@@ -25,6 +25,7 @@
 #include <limits>
 
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
+#include "neug/compiler/catalog/catalog_entry/rule_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/serializer/deserializer.h"
@@ -79,6 +80,7 @@ void Catalog::initCatalogSets() {
   functions = std::make_shared<CatalogSet>();
   types = std::make_shared<CatalogSet>();
   indexes = std::make_shared<CatalogSet>();
+  rules = std::make_shared<CatalogSet>();
   internalTables = std::make_shared<CatalogSet>(true /* isInternal */);
   internalSequences = std::make_shared<CatalogSet>(true /* isInternal */);
   internalFunctions = std::make_shared<CatalogSet>(true /* isInternal */);
@@ -393,6 +395,26 @@ std::vector<FunctionCatalogEntry*> Catalog::getFunctionEntries(
   std::vector<FunctionCatalogEntry*> result;
   for (auto& [_, entry] : functions->getEntries(transaction)) {
     result.push_back(entry->ptrCast<FunctionCatalogEntry>());
+  }
+  return result;
+}
+
+bool Catalog::containsRule(const Transaction* transaction,
+                           const std::string& name) const {
+  return rules->containsEntry(transaction, name);
+}
+
+void Catalog::addRule(Transaction* transaction, std::string name,
+                      RuleCatalogEntry::RuleFactory ruleFactory) {
+  rules->createEntry(transaction, std::make_unique<RuleCatalogEntry>(
+                                      std::move(name), std::move(ruleFactory)));
+}
+
+std::vector<RuleCatalogEntry*> Catalog::getRuleEntries(
+    const Transaction* transaction) const {
+  std::vector<RuleCatalogEntry*> result;
+  for (auto& [_, entry] : rules->getEntries(transaction)) {
+    result.push_back(entry->ptrCast<RuleCatalogEntry>());
   }
   return result;
 }
