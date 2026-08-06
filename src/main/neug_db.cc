@@ -339,7 +339,8 @@ void NeugDB::preprocessConfig() {
   if (config_.max_thread_num == 0) {
     int hardware_concurrency =
         static_cast<int>(std::thread::hardware_concurrency());
-    config_.max_thread_num = hardware_concurrency > 0 ? hardware_concurrency : 1;
+    config_.max_thread_num =
+        hardware_concurrency > 0 ? hardware_concurrency : 1;
   }
   if (config_.data_dir.empty() || config_.data_dir == ":memory" ||
       config_.data_dir == ":memory:") {
