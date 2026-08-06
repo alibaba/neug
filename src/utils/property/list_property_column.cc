@@ -302,10 +302,6 @@ Value ListPropertyColumn::get_any(size_t index) const {
   return Value::LIST(child_type_, std::move(children));
 }
 
-void ListPropertyColumn::ingest(uint32_t, OutArchive&) {
-  THROW_NOT_SUPPORTED_EXCEPTION("ListPropertyColumn::ingest is not supported");
-}
-
 std::unique_ptr<Module> ListPropertyColumn::Clone() const {
   auto clone = std::make_unique<ListPropertyColumn>();
   clone->list_type_ = list_type_;

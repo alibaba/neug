@@ -44,7 +44,6 @@ class ListPropertyColumn : public ColumnBase {
   DataTypeId type() const override { return DataTypeId::kList; }
   void set_any(size_t index, const Value& value, bool insert_safe) override;
   Value get_any(size_t index) const override;
-  void ingest(uint32_t index, OutArchive& arc) override;
 
   std::unique_ptr<Module> Clone() const override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;

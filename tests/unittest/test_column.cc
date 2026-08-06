@@ -493,8 +493,6 @@ TEST(ListPropertyColumnTest, ResizeDefaultAndTypeContract) {
   EXPECT_THROW(
       column.set_any(0, Value::LIST(DataType::INT32, {Value::INT64(1)}), true),
       exception::InvalidArgumentException);
-  OutArchive archive;
-  EXPECT_THROW(column.ingest(0, archive), exception::NotSupportedException);
 
   std::filesystem::remove_all(temp_dir);
 }
