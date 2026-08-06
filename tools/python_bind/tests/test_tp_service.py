@@ -1241,9 +1241,16 @@ def _single_checkpoint_dir(db_dir, expected_generation):
 
 def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port):
     db_dir = tmp_path / "test_tp_checkpoint_wal_rotation"
+    cpu_count = os.cpu_count() or 1
     db = Database(
-        db_path=str(db_dir), mode="w", checkpoint_on_close=False, max_thread_num=4
+        db_path=str(db_dir),
+        mode="w",
+        checkpoint_on_close=False,
+        max_thread_num=cpu_count + 1,
     )
+    # max_thread_num above the hardware limit is clamped down to it; the WAL
+    # count equals the effective (clamped) execution-slot count.
+    expected_slots = db._max_thread_num
     session = None
     try:
         endpoint = db.serve(
@@ -1260,7 +1267,7 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         session.execute("CHECKPOINT;")
         first_checkpoint = _single_checkpoint_dir(db_dir, 1)
         first_timeline_wals = sorted((first_checkpoint / "wal").glob("*.wal"))
-        assert len(first_timeline_wals) == 4
+        assert len(first_timeline_wals) == expected_slots
         for wal_path in first_timeline_wals:
             with wal_path.open("rb") as wal_file:
                 assert int.from_bytes(wal_file.read(4), "little") == 0
@@ -1274,7 +1281,7 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         session.execute("CHECKPOINT;")
         current_checkpoint = _single_checkpoint_dir(db_dir, 2)
         current_wals = sorted((current_checkpoint / "wal").glob("*.wal"))
-        assert len(current_wals) == 4
+        assert len(current_wals) == expected_slots
         for wal_path in current_wals:
             with wal_path.open("rb") as wal_file:
                 assert int.from_bytes(wal_file.read(4), "little") == 0
@@ -1296,7 +1303,7 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         for wal_path in current_wals:
             with wal_path.open("rb") as wal_file:
                 first_timestamps.append(int.from_bytes(wal_file.read(4), "little"))
-        assert sorted(first_timestamps) == [0, 0, 0, 1]
+        assert sorted(first_timestamps) == [0] * (expected_slots - 1) + [1]
     finally:
         if session is not None:
             session.close()

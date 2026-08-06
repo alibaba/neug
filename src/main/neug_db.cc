@@ -331,20 +331,16 @@ void NeugDB::preprocessConfig() {
         ". Must be a non-negative integer.");
   }
 
-  int effective_max_thread_num =
-      static_cast<int>(std::thread::hardware_concurrency());
-  if (effective_max_thread_num == 0) {
-    effective_max_thread_num = 1;
-  }
-
+  // 0 means auto-select from the host's hardware concurrency. A positive
+  // value is honored as-is: databases legitimately oversubscribe worker
+  // threads beyond physical cores, and tests depend on explicit counts.
+  // Guardrails against over-sized values live at the Python API boundary and
+  // the service-layer thread_num clamp.
   if (config_.max_thread_num == 0) {
-    config_.max_thread_num = effective_max_thread_num;
-  } else if (config_.max_thread_num > effective_max_thread_num) {
-    LOG(WARNING) << "max_thread_num (" << config_.max_thread_num
-                 << ") exceeds the detected hardware concurrency ("
-                 << effective_max_thread_num << "); clamping to "
-                 << effective_max_thread_num << ".";
-    config_.max_thread_num = effective_max_thread_num;
+    int hardware_concurrency =
+        static_cast<int>(std::thread::hardware_concurrency());
+    config_.max_thread_num =
+        hardware_concurrency > 0 ? hardware_concurrency : 1;
   }
   if (config_.data_dir.empty() || config_.data_dir == ":memory" ||
       config_.data_dir == ":memory:") {
