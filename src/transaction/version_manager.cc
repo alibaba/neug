@@ -59,10 +59,11 @@ TimestampReservation ReserveWriteTimestamp(
         // after frontier publication.
         candidate = write_ts.load(std::memory_order_relaxed);
         if (NEUG_UNLIKELY(candidate <= current_read_ts)) {
-          // Keep release builds fail-fast without pulling glog formatting and
-          // a stack frame into this reservation hot path.
-          DCHECK_GT(candidate, current_read_ts);
-          __builtin_trap();
+          THROW_INTERNAL_EXCEPTION(
+              "Write timestamp reservation invariant broken after refresh: "
+              "write_ts=" +
+              std::to_string(candidate) + " must be greater than read_ts=" +
+              std::to_string(current_read_ts));
         }
         continue;
       }
