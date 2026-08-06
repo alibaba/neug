@@ -84,6 +84,57 @@ Unlike the property table of vertices, the property table of edges is not column
 Fow now, only one property is supported for edges, but developers can define a struct with multiple fields to store multiple properties.
 
 
+## 5. List Property Storage
+
+Variable-length list properties (`T[]`) are stored using [ListPropertyColumn](../utils/property/list_property_column.h),
+which decomposes each list into three separate sub-columns:
+
+- **offsets** (`ULongColumn`): `offsets_[i]` is the starting index of row `i`'s elements within the elements column.
+- **lengths** (`ULongColumn`): `lengths_[i]` is the number of elements in row `i`'s list.
+- **elements** (`ColumnBase`): a contiguous column holding all list elements across all rows.
+
+```
+Row 0:  offsets_[0] = 0,  lengths_[0] = 3   →  elements_[0], elements_[1], elements_[2]
+Row 1:  offsets_[1] = 3,  lengths_[1] = 0   →  (empty list)
+Row 2:  offsets_[2] = 3,  lengths_[2] = 2   →  elements_[3], elements_[4]
+```
+
+This design allows each sub-column to use the most efficient storage format for its own type
+(e.g., `TypedColumn<T>` for POD elements, `StringColumn` for string elements), and enables
+sequential access patterns during checkpoint dump.
+
+### 5.1 Write Path
+
+When setting a list value at row `i` (`set_any`):
+
+1. If the new element count equals the existing `lengths_[i]`, the elements are overwritten
+   in place at `offsets_[i]` — no offset or length update needed.
+2. If the element count differs, the new elements are **appended** to the tail of the elements
+   column, and `offsets_[i]` / `lengths_[i]` are updated to point to the new region. The old
+   elements become dead space and are reclaimed during checkpoint dump.
+
+### 5.2 Checkpoint Dump (Compaction)
+
+During `Dump`, the column is compacted: all live elements are written contiguously into a new
+compact elements column, eliminating dead space from in-place updates that changed list lengths.
+The offsets and lengths columns are rewritten to reflect the compacted layout.
+
+### 5.3 Nested Lists
+
+For nested list types (e.g., `STRING[][]`), the `elements` sub-column is itself a
+`ListPropertyColumn`, creating a recursive storage structure. Each level of nesting adds another
+layer of offset/length/elements decomposition.
+
+For list-of-array types (e.g., `STRING[][2][]`), the elements column is an `ArrayColumn`,
+which stores fixed-size arrays inline.
+
+### 5.4 Thread Safety
+
+The `insert_safe` parameter controls resize behavior, inherited from the `ColumnBase` interface:
+- When `false`, throws on insufficient space in the elements column.
+- When `true`, the elements column is resized as needed; the caller must provide external
+  synchronization during resize.
+
 
 ## 6. Durability
 

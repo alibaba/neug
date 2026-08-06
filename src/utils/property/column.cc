@@ -22,6 +22,7 @@
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/array_column.h"
+#include "neug/utils/property/list_property_column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/property/vec_column.h"
@@ -78,6 +79,9 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
   case DataTypeId::kArray: {
     return std::make_unique<ArrayColumn>(type);
   }
+  case DataTypeId::kList: {
+    return std::make_unique<ListPropertyColumn>(type);
+  }
   case DataTypeId::kEmpty: {
     return std::make_unique<TypedColumn<EmptyType>>();
   }
@@ -107,6 +111,10 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   case DataTypeId::kArray: {
     return std::make_shared<ArrayRefColumn>(
         dynamic_cast<const ArrayColumn&>(column));
+  }
+  case DataTypeId::kList: {
+    return std::make_shared<ListPropertyRefColumn>(
+        dynamic_cast<const ListPropertyColumn&>(column));
   }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +

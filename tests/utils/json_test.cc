@@ -85,6 +85,17 @@ class JsonTest : public ::testing::Test {
     return type;
   }
 
+  std::shared_ptr<::common::DataType> createNestedStringListType() {
+    auto type = std::make_shared<::common::DataType>();
+    auto* outer_list = type->mutable_list();
+    auto* pair = outer_list->mutable_component_type()->mutable_array();
+    pair->set_fixed_length(2);
+    auto* inner_list = pair->mutable_component_type()->mutable_list();
+    auto* string_type = inner_list->mutable_component_type()->mutable_string();
+    string_type->mutable_var_char();
+    return type;
+  }
+
   std::shared_ptr<reader::ReadSharedState> createSharedState(
       const std::string& jsonFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
@@ -215,6 +226,49 @@ TEST_F(JsonTest, TestJsonArrayColumnRejectsNonArray) {
                   .find("Expected JSON array for ARRAY type: INT64[3]"),
               std::string::npos);
   }
+}
+
+TEST_F(JsonTest, TestJsonRecursiveListColumn) {
+  createJsonFile(
+      "test_json_recursive_list.json",
+      "[{\"id\":1,\"nested\":[[[\"a\"],[]],[[\"b\",\"c\"],[\"d\"]]]},"
+      "{\"id\":2,\"nested\":[]},{\"id\":3,\"nested\":null},"
+      "{\"id\":4,\"nested\":[[null,[\"h\"]],null]}]");
+  auto sharedState =
+      createSharedState("test_json_recursive_list.json", {"id", "nested"},
+                        {createUInt32Type(), createNestedStringListType()},
+                        {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  execution::Context ctx;
+  reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
+
+  ASSERT_EQ(ctx.row_num(), 4);
+  auto nested = ctx.chunk(0).columns()[1];
+  ASSERT_EQ(nested->elem_type().id(), DataTypeId::kList);
+  auto first_value = nested->get_elem(0);
+  const auto& first = ListValue::GetChildren(first_value);
+  ASSERT_EQ(first.size(), 2);
+  const auto& first_pair = ArrayValue::GetChildren(first[0]);
+  ASSERT_EQ(first_pair.size(), 2);
+  EXPECT_EQ(StringValue::Get(ListValue::GetChildren(first_pair[0])[0]), "a");
+  EXPECT_TRUE(ListValue::GetChildren(first_pair[1]).empty());
+  auto second_value = nested->get_elem(1);
+  EXPECT_TRUE(ListValue::GetChildren(second_value).empty());
+  EXPECT_FALSE(nested->has_value(2));
+  EXPECT_TRUE(nested->get_elem(2).IsNull());
+  // Nested nulls normalize to the declared defaults: null LIST child -> [],
+  // null ARRAY child -> [[], []].
+  auto fourth_value = nested->get_elem(3);
+  const auto& fourth = ListValue::GetChildren(fourth_value);
+  ASSERT_EQ(fourth.size(), 2);
+  const auto& fourth_first = ArrayValue::GetChildren(fourth[0]);
+  ASSERT_EQ(fourth_first.size(), 2);
+  EXPECT_TRUE(ListValue::GetChildren(fourth_first[0]).empty());
+  EXPECT_EQ(StringValue::Get(ListValue::GetChildren(fourth_first[1])[0]), "h");
+  const auto& fourth_second = ArrayValue::GetChildren(fourth[1]);
+  ASSERT_EQ(fourth_second.size(), 2);
+  EXPECT_TRUE(ListValue::GetChildren(fourth_second[0]).empty());
+  EXPECT_TRUE(ListValue::GetChildren(fourth_second[1]).empty());
 }
 
 }  // namespace test

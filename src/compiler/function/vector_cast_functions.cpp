@@ -27,12 +27,14 @@
 #include "neug/common/types/value.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/cast_array.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/cast/functions/cast_functions.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
@@ -74,11 +76,6 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
          getPhysicalType(inputType->id()) == PhysicalTypeID::ARRAY) &&
         (getPhysicalType(resultType->id()) == PhysicalTypeID::LIST ||
          getPhysicalType(resultType->id()) == PhysicalTypeID::ARRAY)) {
-      if (inputType->id() != resultType->id()) {
-        THROW_CONVERSION_EXCEPTION(
-            stringFormat("Unsupported casting function from {} to {}.",
-                         inputType->ToString(), resultType->ToString()));
-      }
       // copy data and nullmask from input
       memcpy(resultVector->getData(), inputVector->getData(),
              numOfEntries * resultVector->getNumBytesPerValue());
@@ -691,6 +688,21 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
       targetType.id() != DataTypeId::kStruct) {  // No need to cast.
     return nullptr;
   }
+  if (input.arguments[0]->expressionType == ExpressionType::FUNCTION) {
+    auto source = input.arguments[0]->ptrCast<ScalarFunctionExpression>();
+    if (source->getFunction().name == ListCreationFunction::name &&
+        source->getNumChildren() == 0) {
+      if (targetType.id() == DataTypeId::kArray) {
+        THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
+                                   targetType.ToString());
+      }
+      if (targetType.id() == DataTypeId::kList) {
+        source->dataType = targetType.copy();
+        source->getBindData()->resultType = targetType.copy();
+        return nullptr;
+      }
+    }
+  }
   if (ExpressionUtil::canCastStatically(*input.arguments[0], targetType) &&
       targetType.id() != DataTypeId::kStruct) {
     input.arguments[0]->cast(targetType);
@@ -709,39 +721,76 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   return bindData;
 }
 
+static Value castValue(const Value& input, const DataType& targetType) {
+  if (input.IsNull()) {
+    return Value(targetType);
+  }
+  if (input.type() == targetType) {
+    return input;
+  }
+  if (targetType.id() == DataTypeId::kList ||
+      targetType.id() == DataTypeId::kArray) {
+    const std::vector<Value>* sourceChildren = nullptr;
+    if (input.type().id() == DataTypeId::kList) {
+      sourceChildren = &ListValue::GetChildren(input);
+    } else if (input.type().id() == DataTypeId::kArray) {
+      sourceChildren = &ArrayValue::GetChildren(input);
+    } else {
+      THROW_CONVERSION_EXCEPTION("Unsupported casting function from " +
+                                 input.type().ToString() + " to " +
+                                 targetType.ToString());
+    }
+    if (targetType.id() == DataTypeId::kArray &&
+        sourceChildren->size() != ArrayType::GetNumElements(targetType)) {
+      THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
+                                 targetType.ToString());
+    }
+    const auto& childType = targetType.id() == DataTypeId::kList
+                                ? ListType::GetChildType(targetType)
+                                : ArrayType::GetChildType(targetType);
+    std::vector<Value> children;
+    children.reserve(sourceChildren->size());
+    for (const auto& child : *sourceChildren) {
+      children.push_back(castValue(child, childType));
+    }
+    if (targetType.id() == DataTypeId::kList) {
+      return Value::LIST(childType, std::move(children));
+    }
+    return Value::ARRAY(targetType, std::move(children));
+  }
+  switch (targetType.id()) {
+  case DataTypeId::kInt64:
+    return performCast<int64_t>(input);
+  case DataTypeId::kInt32:
+    return performCast<int32_t>(input);
+  case DataTypeId::kFloat:
+    return performCast<float>(input);
+  case DataTypeId::kDouble:
+    return performCast<double>(input);
+  case DataTypeId::kVarchar:
+    return performCastToString(input);
+  case DataTypeId::kDate:
+    return performCast<date_t>(input);
+  case DataTypeId::kTimestampMs:
+    return performCast<timestamp_ms_t>(input);
+  case DataTypeId::kUInt32:
+    return performCast<uint32_t>(input);
+  case DataTypeId::kUInt64:
+    return performCast<uint64_t>(input);
+  default:
+    THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
+                        targetType.ToString());
+  }
+}
+
 static neug::Value castFunc(const std::vector<neug::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
                         std::to_string(args.size()));
   }
-  const auto& arg0 = args[0];
-  const auto& arg1 = args[1];
-  auto type = StringValue::Get(arg1);
+  auto type = StringValue::Get(args[1]);
   auto targetType = common::convertFromString(std::string(type), nullptr);
-  switch (targetType.id()) {
-  case DataTypeId::kInt64:
-    return performCast<int64_t>(arg0);
-  case DataTypeId::kInt32:
-    return performCast<int32_t>(arg0);
-  case DataTypeId::kFloat:
-    return performCast<float>(arg0);
-  case DataTypeId::kDouble:
-    return performCast<double>(arg0);
-  case DataTypeId::kVarchar:
-    return performCastToString(arg0);
-  case DataTypeId::kDate:
-    return performCast<date_t>(arg0);
-  case DataTypeId::kTimestampMs:
-    return performCast<timestamp_ms_t>(arg0);
-  case DataTypeId::kUInt32:
-    return performCast<uint32_t>(arg0);
-  case DataTypeId::kUInt64:
-    return performCast<uint64_t>(arg0);
-  default:
-    THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
-                        std::string(type));
-  }
-  return neug::Value(DataType::SQLNULL);
+  return castValue(args[0], targetType);
 }
 
 function_set CastAnyFunction::getFunctionSet() {

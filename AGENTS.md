@@ -98,6 +98,11 @@ tools/python_bind/
 Cypher → ANTLR Parser → Binder → Logical Plan → gopt Converter → Physical Plan → Execution
 ```
 
+## Known Limitations
+
+- **List literals require explicit CAST**: In `CREATE`, `SET`, and `MERGE` clauses, list values must be wrapped with `CAST(..., 'TYPE[]')` — bare list literals like `[1, 2, 3]` are rejected. Use `CAST([1, 2, 3], 'INT64[]')` instead.
+- **List types cannot be primary keys**: Declaring a `PRIMARY KEY` on a `T[]` column is rejected.
+
 ## Code Style
 
 - **C++**: C++20, clang-format (style=file)
