@@ -126,10 +126,14 @@ appends WAL before publishing its COW snapshot. Both complete their timestamps
 only after the graph change is visible.
 
 Update waiters directly contend the existing admission phase; acquisition order
-is unspecified. A caller may provide an absolute `steady_clock` deadline when
-acquiring an update timestamp; expiry before a timestamp is reserved returns
-`ERR_TX_TIMEOUT` and restores any phase acquired by that attempt. Legacy callers
-provide no deadline and retain infinite-wait behavior.
+is unspecified. The public manager API retains its no-deadline fast path.
+The deadline overload of `UpdateTimestampLease` invokes a private lease-only
+manager hook. If its absolute `steady_clock` deadline expires before timestamp
+reservation, lease construction reports `ERR_TX_TIMEOUT` and restores any phase
+acquired by that attempt. Admission contention and inserter draining use separate
+backoff cursors. Existing production callers retain infinite-wait behavior and
+do not read the clock; future explicit-transaction integration will pass its
+write-wait deadline through this overload.
 
 When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 
