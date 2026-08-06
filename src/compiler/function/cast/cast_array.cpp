@@ -120,10 +120,12 @@ void CastArrayHelper::validateArrayEntries(ValueVector* inputVector,
                        inputType.ToString(), resultType.ToString()));
     }
     auto listEntry = inputVector->getValue<list_entry_t>(pos);
-    if (listEntry.size != ArrayType::GetNumElements(resultType)) {
+    auto expected_size = ArrayType::GetNumElements(resultType);
+    if (listEntry.size != expected_size) {
       THROW_CONVERSION_EXCEPTION(
-          stringFormat("Unsupported casting function from {} to {}.",
-                       inputType.ToString(), resultType.ToString()));
+          stringFormat("ARRAY value length mismatch for type {}: expected {}, "
+                       "got {}.",
+                       resultType.ToString(), expected_size, listEntry.size));
     }
     auto inputChildVector = ListVector::getDataVector(inputVector);
     for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
