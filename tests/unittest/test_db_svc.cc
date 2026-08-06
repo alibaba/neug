@@ -396,7 +396,7 @@ TEST_F(NeugDBServiceTest, AutoDatabaseMaxThreadNumFeedsServiceDefaults) {
   db.Close();
 }
 
-TEST(DatabaseMaxThreadNum, ClampedToHardwareConcurrency) {
+TEST(DatabaseMaxThreadNum, HonoredAboveHardwareConcurrency) {
   const auto temp_dir =
       std::filesystem::temp_directory_path() / "neug_test_clamp_thread";
   if (std::filesystem::exists(temp_dir)) {
@@ -416,17 +416,19 @@ TEST(DatabaseMaxThreadNum, ClampedToHardwareConcurrency) {
   const auto db_path = (temp_dir / "graph").string();
   neug::NeugDB db;
 
-  auto expected_thread_num = std::thread::hardware_concurrency();
-  auto expected = static_cast<int>(expected_thread_num);
-  if (expected == 0) {
-    expected = 1;
+  auto hardware_concurrency =
+      static_cast<int>(std::thread::hardware_concurrency());
+  if (hardware_concurrency == 0) {
+    hardware_concurrency = 1;
   }
 
-  // Use a value larger than hardware concurrency to verify clamping.
-  neug::NeugDBConfig db_cfg(db_path, expected + 1);
+  // The C++ core honors an explicit max_thread_num even when it exceeds
+  // hardware concurrency; guardrails live at the Python/service API boundary.
+  const int requested = hardware_concurrency + 1;
+  neug::NeugDBConfig db_cfg(db_path, requested);
   db.Open(db_cfg);
 
-  EXPECT_EQ(db.config().max_thread_num, expected);
+  EXPECT_EQ(db.config().max_thread_num, requested);
 
   db.Close();
 }
