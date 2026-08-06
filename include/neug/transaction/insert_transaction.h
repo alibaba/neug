@@ -192,7 +192,7 @@ class InsertTransaction {
    * @param length Byte length of @p data.
    * @param alloc Per-thread allocator for adjacency-list growth in CSR.
    */
-  static void IngestWal(GraphView& view, uint32_t timestamp, char* data,
+  static void IngestWal(GraphView& view, uint32_t timestamp, const char* data,
                         size_t length, Allocator& alloc);
 
   const Schema& schema() const;

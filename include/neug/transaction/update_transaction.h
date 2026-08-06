@@ -110,8 +110,8 @@ class UpdateTransaction {
 
   void Abort();
 
-  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
-                        size_t length, Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, uint32_t timestamp,
+                        const char* data, size_t length, Allocator& alloc);
 
   const GraphView& view() const { return view_; }
 

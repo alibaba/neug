@@ -33,9 +33,7 @@ CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
     : guard_(snapshot_store),
       wal_writer_(wal_writer),
       vm_(vm),
-      timestamp_(timestamp) {
-  arc_.Resize(sizeof(WalHeader));
-}
+      timestamp_(timestamp) {}
 
 CompactTransaction::~CompactTransaction() { Abort(); }
 
@@ -43,17 +41,14 @@ timestamp_t CompactTransaction::timestamp() const { return timestamp_; }
 
 bool CompactTransaction::Commit() {
   if (timestamp_ != INVALID_TIMESTAMP) {
-    auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
-    header->length = 0;
-    header->timestamp = timestamp_;
-    header->type = 1;
-
-    if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
+    // Compact is an explicit record kind with an empty payload; semantics are
+    // never inferred from length==0 anymore.
+    if (!wal_writer_.append_frame(timestamp_, WalRecordKind::kCompact, nullptr,
+                                  0)) {
       LOG(ERROR) << "Failed to append wal log";
       Abort();
       return false;
     }
-    arc_.Clear();
 
     LOG(INFO) << "before compact - " << timestamp_;
     {
@@ -75,7 +70,6 @@ bool CompactTransaction::Commit() {
 
 void CompactTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
-    arc_.Clear();
     guard_.release();
     vm_.revert_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;

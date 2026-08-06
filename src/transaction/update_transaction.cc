@@ -341,7 +341,7 @@ bool UpdateTransaction::Commit() {
   if (timestamp() == INVALID_TIMESTAMP) {
     return true;
   }
-  if (wal_builder_.op_num() == 0 && wal_builder_.content_size() == 0) {
+  if (wal_builder_.op_num() == 0 && wal_builder_.size() == 0) {
     release(std::nullopt);
     return true;
   }
@@ -367,8 +367,19 @@ bool UpdateTransaction::Commit() {
 
   auto prepared = std::move(prepared_result).value();
 
-  wal_builder_.finalize(timestamp());
-  if (!logger_.append(wal_builder_.data(), wal_builder_.size())) {
+  // One commit produces exactly one frame; the redo payload keeps WalBuilder's
+  // serialization order and carries no legacy header. A checkpoint-only
+  // update transaction has no redo payload and migrates to an explicit
+  // kCompact frame: the legacy format replayed every empty update record as
+  // a compaction, and replay keeps that semantics.
+  WalRecordKind kind = WalRecordKind::kCowUpdate;
+  const char* payload = wal_builder_.data();
+  size_t payload_length = wal_builder_.size();
+  if (payload_length == 0) {
+    kind = WalRecordKind::kCompact;
+    payload = nullptr;
+  }
+  if (!logger_.append_frame(timestamp(), kind, payload, payload_length)) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
@@ -1000,7 +1011,8 @@ Status StorageTPUpdateInterface::UpdateEdgePropertyImpl(
 }
 
 void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
-                                  char* data, size_t length, Allocator& alloc) {
+                                  const char* data, size_t length,
+                                  Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {

@@ -201,6 +201,40 @@ session.close()
 An optional checkpoint consolidates the WAL but is not required for statement
 durability. See [Checkpoints](checkpoint.md).
 
+### WAL File Format (v1)
+
+Each WAL file lives under the `wal` directory of exactly one checkpoint and
+uses a framed, self-describing layout. Checkpoint ownership comes from the
+directory the file was written in (guaranteed by checkpoint rotation), not
+from a field inside the file:
+
+```text
+FileHeader (24B)
+  ├─ magic / format_version / header_size
+  └─ writer_slot_id       # diagnostics only, not part of transaction order
+Frame* (one frame per committed transaction)
+  ├─ FrameHeader (24B): magic, record_kind,
+  │                     commit_timestamp, payload_length
+  ├─ payload              # redo bytes; empty only for compaction frames
+  └─ FrameTrailer (8B): commit marker, frame CRC32C over
+                          header + payload + marker
+```
+
+Key properties:
+
+- **One commit = exactly one complete frame.** The commit marker is written
+  last, so a frame whose trailer is present was fully persisted.
+- **Record kinds:** `kInsert` (append redo), `kCowUpdate` (update/delete redo),
+  `kCompact` (compaction, empty payload). AP/embedded paths never write WAL.
+- **Real logical EOF.** Files are never preallocated or zero-padded; anything
+  after the last complete frame is torn-write residue from a crash.
+- **Recovery validates first, then replays.** All files of the current
+  checkpoint's `wal` directory are parsed and checksummed up front; frames
+  from all writers are merged by `commit_timestamp` and replayed in global
+  order. Duplicate timestamps, unknown record kinds, legacy-format files and
+  any corruption *before* the final frame are hard errors. Only an incomplete
+  frame at EOF is silently discarded (the crashed transaction never committed).
+
 ## Error Recovery
 
 ### Embedded Mode

@@ -41,9 +41,7 @@ InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
       alloc_(alloc),
       wal_writer_(wal_writer),
       vm_(vm),
-      timestamp_(timestamp) {
-  arc_.Resize(sizeof(WalHeader));
-}
+      timestamp_(timestamp) {}
 
 InsertTransaction::~InsertTransaction() { Abort(); }
 
@@ -156,27 +154,25 @@ bool InsertTransaction::Commit() {
   if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
-  if (arc_.GetSize() == sizeof(WalHeader)) {
+  if (arc_.GetSize() == 0) {
     view_ = nullptr;
     guard_.release();
     vm_.release_insert_timestamp(timestamp_);
     clear();
     return true;
   }
-  auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
-  header->length = arc_.GetSize() - sizeof(WalHeader);
-  header->type = 0;
-  header->timestamp = timestamp_;
 
-  if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
+  // One commit produces exactly one kInsert frame; redo serialization order
+  // inside the payload is unchanged.
+  if (!wal_writer_.append_frame(timestamp_, WalRecordKind::kInsert,
+                                arc_.GetBuffer(), arc_.GetSize())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
   }
   // Apply WAL operations through the writable view. Capacity is assumed
   // to be sufficient; the strict insert path will throw if exhausted.
-  IngestWal(*view_, timestamp_, arc_.GetBuffer() + sizeof(WalHeader),
-            header->length, alloc_);
+  IngestWal(*view_, timestamp_, arc_.GetBuffer(), arc_.GetSize(), alloc_);
 
   view_ = nullptr;
   guard_.release();
@@ -198,7 +194,8 @@ void InsertTransaction::Abort() {
 timestamp_t InsertTransaction::timestamp() const { return timestamp_; }
 
 void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
-                                  char* data, size_t length, Allocator& alloc) {
+                                  const char* data, size_t length,
+                                  Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {

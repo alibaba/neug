@@ -31,7 +31,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <future>
 #include <iostream>
 #include <string>
@@ -40,6 +39,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/transaction/wal/wal.h"
 #include "unittest/utils.h"
 
@@ -62,40 +62,44 @@ std::string make_test_dir() {
   return (std::filesystem::temp_directory_path() / dir_name).string();
 }
 
-TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
+TEST(WalWriterTest, WriterOnlyWritesItsOwnWalDirAndRejectsAppendAfterClose) {
   const auto test_dir = make_test_dir();
   const auto old_wal_dir =
       (std::filesystem::path(test_dir) / "checkpoint-0" / "wal").string();
   const auto new_wal_dir =
       (std::filesystem::path(test_dir) / "checkpoint-1" / "wal").string();
-  constexpr uint32_t old_marker = 17;
-  constexpr uint32_t new_marker = 29;
 
   {
     auto writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
     auto* const identity = writer.get();
     writer->open(old_wal_dir);
-    ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&old_marker),
-                               sizeof(old_marker)));
+    ASSERT_TRUE(writer->append_frame(/*commit_timestamp=*/1,
+                                     neug::WalRecordKind::kInsert,
+                                     "old-payload", 11));
 
     writer->open(new_wal_dir);
     EXPECT_EQ(writer.get(), identity);
-    ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&new_marker),
-                               sizeof(new_marker)));
+    ASSERT_TRUE(writer->append_frame(/*commit_timestamp=*/1,
+                                     neug::WalRecordKind::kInsert,
+                                     "new-payload", 11));
     writer->close();
+
+    // A closed writer must reject further appends.
+    EXPECT_FALSE(writer->append_frame(/*commit_timestamp=*/2,
+                                      neug::WalRecordKind::kInsert, "late", 4));
   }
 
-  const auto read_marker = [](const std::string& wal_dir) {
-    const auto begin = std::filesystem::directory_iterator(wal_dir);
-    const auto end = std::filesystem::directory_iterator();
-    EXPECT_NE(begin, end);
-    std::ifstream wal_file(begin->path(), std::ios::binary);
-    uint32_t marker = 0;
-    wal_file.read(reinterpret_cast<char*>(&marker), sizeof(marker));
-    return marker;
+  // Each wal dir holds exactly the frames written to its own timeline.
+  const auto payloads = [](const std::string& wal_dir) {
+    neug::LocalWalParser parser(wal_dir);
+    std::vector<std::string> result;
+    for (const auto& unit : parser.replay_units()) {
+      result.emplace_back(unit.payload);
+    }
+    return result;
   };
-  EXPECT_EQ(read_marker(old_wal_dir), old_marker);
-  EXPECT_EQ(read_marker(new_wal_dir), new_marker);
+  EXPECT_EQ(payloads(old_wal_dir), std::vector<std::string>{"old-payload"});
+  EXPECT_EQ(payloads(new_wal_dir), std::vector<std::string>{"new-payload"});
 
   std::filesystem::remove_all(test_dir);
 }
@@ -242,6 +246,21 @@ bool read_has_person(neug::NeugDBService& service, int64_t id) {
   bool found = graph.GetVertexIndex(person_label, Value::INT64(id), vid);
   EXPECT_TRUE(txn.Commit());
   return found;
+}
+
+std::string read_person_name(neug::NeugDBService& service, int64_t id) {
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
+  neug::StorageReadInterface graph(txn.view(), txn.timestamp());
+  const auto person_label = graph.schema().get_vertex_label_id("person");
+  neug::vid_t vid = 0;
+  std::string name;
+  if (graph.GetVertexIndex(person_label, Value::INT64(id), vid)) {
+    auto name_col = graph.GetVertexPropColumn(person_label, "name");
+    name = name_col->get_any(vid).GetValue<std::string>();
+  }
+  EXPECT_TRUE(txn.Commit());
+  return name;
 }
 
 void create_wal_with_insert_compact_insert_collision(
@@ -575,8 +594,9 @@ TEST(CheckpointCoordinatorTest,
   wal_writer->open(old_wal_dir);
   constexpr uint32_t before_marker = 17;
   constexpr uint32_t after_marker = 29;
-  ASSERT_TRUE(wal_writer->append(reinterpret_cast<const char*>(&before_marker),
-                                 sizeof(before_marker)));
+  ASSERT_TRUE(wal_writer->append_frame(
+      before_marker, neug::WalRecordKind::kInsert,
+      reinterpret_cast<const char*>(&before_marker), sizeof(before_marker)));
 
   // Keep the checkpoint manager's only staging slot occupied.
   // PublishManualCheckpoint must fail before destructive graph maintenance,
@@ -598,8 +618,9 @@ TEST(CheckpointCoordinatorTest,
   EXPECT_FALSE(allocator_reopened);
   EXPECT_EQ(allocators[0]->allocated_memory(), allocator_marker_size);
   EXPECT_FALSE(cache_invalidated);
-  EXPECT_TRUE(wal_writer->append(reinterpret_cast<const char*>(&after_marker),
-                                 sizeof(after_marker)));
+  EXPECT_TRUE(wal_writer->append_frame(
+      after_marker, neug::WalRecordKind::kInsert,
+      reinterpret_cast<const char*>(&after_marker), sizeof(after_marker)));
 
   const auto read_view = version_manager.acquire_read_view();
   EXPECT_EQ(read_view.visibility_ts, update_ts);
@@ -765,4 +786,80 @@ TEST_F(WalReplayTest, ReopenReplaysInsertWalAcrossCompactionInDependencyOrder) {
         std::exit(code);
       },
       ::testing::ExitedWithCode(0), ".*");
+}
+
+// AP writes (schema + direct data path) must produce zero WAL frames; each
+// TP transaction kind produces exactly one committed frame.
+TEST_F(WalReplayTest, TpCommitsProduceOneFrameEachAndApWritesNone) {
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);  // AP path: must not write any WAL frame
+  {
+    neug::NeugDBService service(db);
+    insert_person(service, 1, "seed");
+
+    {
+      auto slot = service.AcquireExecutionSlot();
+      auto update_result = slot->ExecuteTransactionalRequest(
+          R"({"query":"MATCH (p:person {id: 1}) SET p.name = 'renamed';","access_mode":"update","parameters":{}})");
+      ASSERT_TRUE(update_result) << update_result.error().ToString();
+    }
+    compact(service);
+  }
+  db.Close();
+
+  // Locate the checkpoint wal directory.
+  std::string wal_dir;
+  for (const auto& entry : std::filesystem::directory_iterator(db_dir_)) {
+    if (entry.is_directory() &&
+        entry.path().filename().string().rfind("checkpoint-", 0) == 0) {
+      auto candidate = entry.path() / "wal";
+      if (std::filesystem::exists(candidate)) {
+        wal_dir = candidate.string();
+      }
+    }
+  }
+  ASSERT_FALSE(wal_dir.empty());
+
+  neug::LocalWalParser parser(wal_dir);
+  ASSERT_EQ(parser.replay_units().size(), 3u)
+      << "AP statements must not leave frames behind";
+  EXPECT_EQ(parser.replay_units()[0].kind, neug::WalRecordKind::kInsert);
+  EXPECT_EQ(parser.replay_units()[1].kind, neug::WalRecordKind::kCowUpdate);
+  EXPECT_EQ(parser.replay_units()[2].kind, neug::WalRecordKind::kCompact);
+}
+
+// Reopen must replay the whole insert -> compact -> update sequence on top
+// of the checkpoint, including an update committed after the compaction.
+TEST_F(WalReplayTest, ReopenReplaysUpdateCommittedAfterCompaction) {
+  create_checkpointed_base_graph(db_dir_);
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    {
+      neug::NeugDBService service(db);
+      insert_person(service, 2, "pre-compact");
+      compact(service);
+      auto slot = service.AcquireExecutionSlot();
+      auto update_result = slot->ExecuteTransactionalRequest(
+          R"({"query":"MATCH (p:person {id: 1}) SET p.name = 'post-compact';","access_mode":"update","parameters":{}})");
+      ASSERT_TRUE(update_result) << update_result.error().ToString();
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    {
+      neug::NeugDBService service(db);
+      EXPECT_EQ(read_person_count(service), 2);
+      EXPECT_EQ(read_person_name(service, 2), "pre-compact")
+          << "the pre-compaction insert must survive replay";
+      EXPECT_EQ(read_person_name(service, 1), "post-compact")
+          << "the update committed after compaction must be replayed";
+    }
+    db.Close();
+  }
 }
