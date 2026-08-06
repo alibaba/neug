@@ -163,6 +163,13 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
 QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
   QueryAnalysis analysis;
   analyzeQueryPrefix(query, analysis);
+
+  // EXPLAIN queries should always be read-only
+  if (analysis.explain_mode == physical::ExplainMode::EXPLAIN) {
+    analysis.access_mode = AccessMode::kRead;
+    return analysis;
+  }
+
   if (analysis.checkpoint()) {
     analysis.access_mode = AccessMode::kUpdate;
     return analysis;

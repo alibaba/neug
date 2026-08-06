@@ -157,8 +157,11 @@ Status executeCheckpoint(physical::ExplainMode explain_mode,
     checkpoint_timer_unit.start();
   }
 
-  RETURN_IF_NOT_OK(checkpoint_coordinator.PublishManualCheckpoint(
-      std::move(timestamp_lease)));
+  // EXPLAIN CHECKPOINT only generates the plan, does not execute
+  if (explain_mode != physical::ExplainMode::EXPLAIN) {
+    RETURN_IF_NOT_OK(checkpoint_coordinator.PublishManualCheckpoint(
+        std::move(timestamp_lease)));
+  }
 
   response.set_row_count(0);
   if (profile) {
@@ -340,16 +343,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
   };
 
   Status status;
-  // EXPLAIN is strategy-independent and must not acquire a write transaction,
-  // including for EXPLAIN CHECKPOINT.
-  if (NEUG_UNLIKELY(analysis.explain_mode == physical::ExplainMode::EXPLAIN)) {
-    auto read_lease =
-        ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
-    status = execute_on_storage(
-        GraphStats(read_lease.view(), read_lease.planning_generation()),
-        storage);
-  } else if (NEUG_UNLIKELY(analysis.checkpoint())) {
+  
+  if (NEUG_UNLIKELY(analysis.checkpoint())) {
     // PROFILE executes the checkpoint and is timed by executeCheckpoint().
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
