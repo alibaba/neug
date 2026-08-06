@@ -77,16 +77,12 @@ class CreateIndexOpr : public IOperator {
       if (ignore_conflict_) {
         return std::move(ctx);
       }
-      RETURN_STATUS_ERROR(StatusCode::ERR_SCHEMA_MISMATCH,
+      RETURN_STATUS_ERROR(StatusCode::ERR_ILLEGAL_OPERATION,
                           "Index already exists: " + create_index_.name());
     }
 
     auto index_meta = CreateIndexMeta(graph.schema(), create_index_);
-    auto result = update_interface->CreateIndex(std::move(index_meta));
-    if (!result) {
-      return tl::unexpected(result.error());
-    }
-
+    GS_RESULT_CHECK(update_interface->CreateIndex(std::move(index_meta)));
     return std::move(ctx);
   }
 

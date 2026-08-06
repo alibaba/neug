@@ -46,7 +46,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
                         "Cannot create index with an empty name");
   }
   if (indexes_.count(name) > 0) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_SCHEMA_MISMATCH,
+    RETURN_STATUS_ERROR(StatusCode::ERR_ILLEGAL_OPERATION,
                         "Index already exists: " + name);
   }
   if (!ckp_) {
@@ -82,7 +82,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
 Status StorageIndexManager::DropIndex(const std::string& name) {
   auto it = indexes_.find(name);
   if (it == indexes_.end()) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Index not found: " + name);
+    return Status(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
   }
   indexes_.erase(it);
   return Status::OK();

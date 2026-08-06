@@ -59,59 +59,58 @@ public:
     RuleNEUG_DefaultArg = 19, RuleNEUG_FilePaths = 20, RuleNEUG_IfNotExists = 21, 
     RuleNEUG_CreateNodeTable = 22, RuleNEUG_CreateRelTable = 23, RuleNEUG_FromToConnections = 24, 
     RuleNEUG_FromToConnection = 25, RuleNEUG_CreateSequence = 26, RuleNEUG_CreateType = 27, 
-    RuleNEUG_CreateIndex = 28, RuleNEUG_CreateIndexColumnList = 29, RuleNEUG_CreateIndexOptions = 30, 
-    RuleNEUG_CreateIndexOptionList = 31, RuleNEUG_CreateIndexOption = 32, 
-    RuleNEUG_DropIndex = 33, RuleNEUG_SequenceOptions = 34, RuleNEUG_IncrementBy = 35, 
-    RuleNEUG_MinValue = 36, RuleNEUG_MaxValue = 37, RuleNEUG_StartWith = 38, 
-    RuleNEUG_Cycle = 39, RuleNEUG_IfExists = 40, RuleNEUG_Drop = 41, RuleNEUG_AlterTable = 42, 
-    RuleNEUG_AlterOptions = 43, RuleNEUG_AddProperty = 44, RuleNEUG_Default = 45, 
-    RuleNEUG_DropProperty = 46, RuleNEUG_RenameTable = 47, RuleNEUG_RenameProperty = 48, 
-    RuleNEUG_ColumnDefinitions = 49, RuleNEUG_ColumnDefinition = 50, RuleNEUG_PropertyDefinitions = 51, 
-    RuleNEUG_PropertyDefinition = 52, RuleNEUG_CreateNodeConstraint = 53, 
-    RuleNEUG_DataType = 54, RuleNEUG_ListIdentifiers = 55, RuleNEUG_ListIdentifier = 56, 
-    RuleOC_AnyCypherOption = 57, RuleOC_Explain = 58, RuleOC_Profile = 59, 
-    RuleNEUG_Transaction = 60, RuleNEUG_Extension = 61, RuleNEUG_LoadExtension = 62, 
-    RuleNEUG_InstallExtension = 63, RuleNEUG_UninstallExtension = 64, RuleOC_Query = 65, 
-    RuleOC_RegularQuery = 66, RuleOC_Union = 67, RuleOC_CallUnionQuery = 68, 
-    RuleOC_CallUnion = 69, RuleOC_CallUnionScope = 70, RuleOC_SingleQuery = 71, 
-    RuleOC_SinglePartQuery = 72, RuleOC_MultiPartQuery = 73, RuleNEUG_QueryPart = 74, 
-    RuleOC_UpdatingClause = 75, RuleOC_ReadingClause = 76, RuleNEUG_LoadFrom = 77, 
-    RuleNEUG_CopyTemp = 78, RuleOC_YieldItem = 79, RuleOC_YieldItems = 80, 
-    RuleNEUG_InQueryCall = 81, RuleOC_Match = 82, RuleNEUG_Hint = 83, RuleNEUG_JoinNode = 84, 
-    RuleOC_Unwind = 85, RuleOC_Create = 86, RuleOC_Merge = 87, RuleOC_MergeAction = 88, 
-    RuleOC_Set = 89, RuleOC_SetItem = 90, RuleOC_Delete = 91, RuleOC_With = 92, 
-    RuleOC_Return = 93, RuleOC_ProjectionBody = 94, RuleOC_ProjectionItems = 95, 
-    RuleOC_ProjectionItem = 96, RuleOC_Order = 97, RuleOC_Skip = 98, RuleOC_Limit = 99, 
-    RuleOC_SortItem = 100, RuleOC_Where = 101, RuleOC_Pattern = 102, RuleOC_PatternPart = 103, 
-    RuleOC_AnonymousPatternPart = 104, RuleOC_PatternElement = 105, RuleOC_NodePattern = 106, 
-    RuleOC_PatternElementChain = 107, RuleOC_RelationshipPattern = 108, 
-    RuleOC_RelationshipDetail = 109, RuleNEUG_Properties = 110, RuleOC_RelationshipTypes = 111, 
-    RuleOC_NodeLabels = 112, RuleOC_NodeLabel = 113, RuleNEUG_RecursiveDetail = 114, 
-    RuleNEUG_RecursiveType = 115, RuleOC_RangeLiteral = 116, RuleNEUG_RecursiveComprehension = 117, 
-    RuleNEUG_RecursiveProjectionItems = 118, RuleOC_LowerBound = 119, RuleOC_UpperBound = 120, 
-    RuleOC_LabelName = 121, RuleOC_RelTypeName = 122, RuleOC_Expression = 123, 
-    RuleOC_OrExpression = 124, RuleOC_XorExpression = 125, RuleOC_AndExpression = 126, 
-    RuleOC_NotExpression = 127, RuleOC_ComparisonExpression = 128, RuleNEUG_ComparisonOperator = 129, 
-    RuleNEUG_BitwiseOrOperatorExpression = 130, RuleNEUG_BitwiseAndOperatorExpression = 131, 
-    RuleNEUG_BitShiftOperatorExpression = 132, RuleNEUG_BitShiftOperator = 133, 
-    RuleOC_AddOrSubtractExpression = 134, RuleNEUG_AddOrSubtractOperator = 135, 
-    RuleOC_MultiplyDivideModuloExpression = 136, RuleNEUG_MultiplyDivideModuloOperator = 137, 
-    RuleOC_PowerOfExpression = 138, RuleOC_UnaryAddSubtractOrFactorialExpression = 139, 
-    RuleOC_StringListNullOperatorExpression = 140, RuleOC_ListOperatorExpression = 141, 
-    RuleOC_StringOperatorExpression = 142, RuleOC_RegularExpression = 143, 
-    RuleOC_NullOperatorExpression = 144, RuleOC_PropertyOrLabelsExpression = 145, 
-    RuleOC_Atom = 146, RuleOC_Quantifier = 147, RuleOC_FilterExpression = 148, 
-    RuleOC_IdInColl = 149, RuleOC_Literal = 150, RuleOC_BooleanLiteral = 151, 
-    RuleOC_ListLiteral = 152, RuleNEUG_ListEntry = 153, RuleNEUG_StructLiteral = 154, 
-    RuleNEUG_StructField = 155, RuleOC_ParenthesizedExpression = 156, RuleOC_FunctionInvocation = 157, 
-    RuleOC_FunctionName = 158, RuleNEUG_FunctionParameter = 159, RuleNEUG_LambdaParameter = 160, 
-    RuleNEUG_LambdaVars = 161, RuleOC_PathPatterns = 162, RuleOC_ExistCountSubquery = 163, 
-    RuleOC_PropertyLookup = 164, RuleOC_CaseExpression = 165, RuleOC_CaseAlternative = 166, 
-    RuleOC_Variable = 167, RuleOC_NumberLiteral = 168, RuleOC_Parameter = 169, 
-    RuleOC_PropertyExpression = 170, RuleOC_PropertyKeyName = 171, RuleOC_IntegerLiteral = 172, 
-    RuleOC_DoubleLiteral = 173, RuleOC_SchemaName = 174, RuleOC_SymbolicName = 175, 
-    RuleNEUG_NonReservedKeywords = 176, RuleOC_LeftArrowHead = 177, RuleOC_RightArrowHead = 178, 
-    RuleOC_Dash = 179
+    RuleNEUG_CreateIndex = 28, RuleNEUG_CreateIndexOptions = 29, RuleNEUG_CreateIndexOptionList = 30, 
+    RuleNEUG_CreateIndexOption = 31, RuleNEUG_DropIndex = 32, RuleNEUG_SequenceOptions = 33, 
+    RuleNEUG_IncrementBy = 34, RuleNEUG_MinValue = 35, RuleNEUG_MaxValue = 36, 
+    RuleNEUG_StartWith = 37, RuleNEUG_Cycle = 38, RuleNEUG_IfExists = 39, 
+    RuleNEUG_Drop = 40, RuleNEUG_AlterTable = 41, RuleNEUG_AlterOptions = 42, 
+    RuleNEUG_AddProperty = 43, RuleNEUG_Default = 44, RuleNEUG_DropProperty = 45, 
+    RuleNEUG_RenameTable = 46, RuleNEUG_RenameProperty = 47, RuleNEUG_ColumnDefinitions = 48, 
+    RuleNEUG_ColumnDefinition = 49, RuleNEUG_PropertyDefinitions = 50, RuleNEUG_PropertyDefinition = 51, 
+    RuleNEUG_CreateNodeConstraint = 52, RuleNEUG_DataType = 53, RuleNEUG_ListIdentifiers = 54, 
+    RuleNEUG_ListIdentifier = 55, RuleOC_AnyCypherOption = 56, RuleOC_Explain = 57, 
+    RuleOC_Profile = 58, RuleNEUG_Transaction = 59, RuleNEUG_Extension = 60, 
+    RuleNEUG_LoadExtension = 61, RuleNEUG_InstallExtension = 62, RuleNEUG_UninstallExtension = 63, 
+    RuleOC_Query = 64, RuleOC_RegularQuery = 65, RuleOC_Union = 66, RuleOC_CallUnionQuery = 67, 
+    RuleOC_CallUnion = 68, RuleOC_CallUnionScope = 69, RuleOC_SingleQuery = 70, 
+    RuleOC_SinglePartQuery = 71, RuleOC_MultiPartQuery = 72, RuleNEUG_QueryPart = 73, 
+    RuleOC_UpdatingClause = 74, RuleOC_ReadingClause = 75, RuleNEUG_LoadFrom = 76, 
+    RuleNEUG_CopyTemp = 77, RuleOC_YieldItem = 78, RuleOC_YieldItems = 79, 
+    RuleNEUG_InQueryCall = 80, RuleOC_Match = 81, RuleNEUG_Hint = 82, RuleNEUG_JoinNode = 83, 
+    RuleOC_Unwind = 84, RuleOC_Create = 85, RuleOC_Merge = 86, RuleOC_MergeAction = 87, 
+    RuleOC_Set = 88, RuleOC_SetItem = 89, RuleOC_Delete = 90, RuleOC_With = 91, 
+    RuleOC_Return = 92, RuleOC_ProjectionBody = 93, RuleOC_ProjectionItems = 94, 
+    RuleOC_ProjectionItem = 95, RuleOC_Order = 96, RuleOC_Skip = 97, RuleOC_Limit = 98, 
+    RuleOC_SortItem = 99, RuleOC_Where = 100, RuleOC_Pattern = 101, RuleOC_PatternPart = 102, 
+    RuleOC_AnonymousPatternPart = 103, RuleOC_PatternElement = 104, RuleOC_NodePattern = 105, 
+    RuleOC_PatternElementChain = 106, RuleOC_RelationshipPattern = 107, 
+    RuleOC_RelationshipDetail = 108, RuleNEUG_Properties = 109, RuleOC_RelationshipTypes = 110, 
+    RuleOC_NodeLabels = 111, RuleOC_NodeLabel = 112, RuleNEUG_RecursiveDetail = 113, 
+    RuleNEUG_RecursiveType = 114, RuleOC_RangeLiteral = 115, RuleNEUG_RecursiveComprehension = 116, 
+    RuleNEUG_RecursiveProjectionItems = 117, RuleOC_LowerBound = 118, RuleOC_UpperBound = 119, 
+    RuleOC_LabelName = 120, RuleOC_RelTypeName = 121, RuleOC_Expression = 122, 
+    RuleOC_OrExpression = 123, RuleOC_XorExpression = 124, RuleOC_AndExpression = 125, 
+    RuleOC_NotExpression = 126, RuleOC_ComparisonExpression = 127, RuleNEUG_ComparisonOperator = 128, 
+    RuleNEUG_BitwiseOrOperatorExpression = 129, RuleNEUG_BitwiseAndOperatorExpression = 130, 
+    RuleNEUG_BitShiftOperatorExpression = 131, RuleNEUG_BitShiftOperator = 132, 
+    RuleOC_AddOrSubtractExpression = 133, RuleNEUG_AddOrSubtractOperator = 134, 
+    RuleOC_MultiplyDivideModuloExpression = 135, RuleNEUG_MultiplyDivideModuloOperator = 136, 
+    RuleOC_PowerOfExpression = 137, RuleOC_UnaryAddSubtractOrFactorialExpression = 138, 
+    RuleOC_StringListNullOperatorExpression = 139, RuleOC_ListOperatorExpression = 140, 
+    RuleOC_StringOperatorExpression = 141, RuleOC_RegularExpression = 142, 
+    RuleOC_NullOperatorExpression = 143, RuleOC_PropertyOrLabelsExpression = 144, 
+    RuleOC_Atom = 145, RuleOC_Quantifier = 146, RuleOC_FilterExpression = 147, 
+    RuleOC_IdInColl = 148, RuleOC_Literal = 149, RuleOC_BooleanLiteral = 150, 
+    RuleOC_ListLiteral = 151, RuleNEUG_ListEntry = 152, RuleNEUG_StructLiteral = 153, 
+    RuleNEUG_StructField = 154, RuleOC_ParenthesizedExpression = 155, RuleOC_FunctionInvocation = 156, 
+    RuleOC_FunctionName = 157, RuleNEUG_FunctionParameter = 158, RuleNEUG_LambdaParameter = 159, 
+    RuleNEUG_LambdaVars = 160, RuleOC_PathPatterns = 161, RuleOC_ExistCountSubquery = 162, 
+    RuleOC_PropertyLookup = 163, RuleOC_CaseExpression = 164, RuleOC_CaseAlternative = 165, 
+    RuleOC_Variable = 166, RuleOC_NumberLiteral = 167, RuleOC_Parameter = 168, 
+    RuleOC_PropertyExpression = 169, RuleOC_PropertyKeyName = 170, RuleOC_IntegerLiteral = 171, 
+    RuleOC_DoubleLiteral = 172, RuleOC_SchemaName = 173, RuleOC_SymbolicName = 174, 
+    RuleNEUG_NonReservedKeywords = 175, RuleOC_LeftArrowHead = 176, RuleOC_RightArrowHead = 177, 
+    RuleOC_Dash = 178
   };
 
   explicit CypherParser(antlr4::TokenStream *input);
@@ -160,7 +159,6 @@ public:
   class NEUG_CreateSequenceContext;
   class NEUG_CreateTypeContext;
   class NEUG_CreateIndexContext;
-  class NEUG_CreateIndexColumnListContext;
   class NEUG_CreateIndexOptionsContext;
   class NEUG_CreateIndexOptionListContext;
   class NEUG_CreateIndexOptionContext;
@@ -795,7 +793,7 @@ public:
     OC_SchemaNameContext* oC_SchemaName(size_t i);
     antlr4::tree::TerminalNode *ON();
     antlr4::tree::TerminalNode *USING();
-    NEUG_CreateIndexColumnListContext *nEUG_CreateIndexColumnList();
+    OC_PropertyKeyNameContext *oC_PropertyKeyName();
     NEUG_IfNotExistsContext *nEUG_IfNotExists();
     NEUG_CreateIndexOptionsContext *nEUG_CreateIndexOptions();
 
@@ -803,20 +801,6 @@ public:
   };
 
   NEUG_CreateIndexContext* nEUG_CreateIndex();
-
-  class  NEUG_CreateIndexColumnListContext : public antlr4::ParserRuleContext {
-  public:
-    NEUG_CreateIndexColumnListContext(antlr4::ParserRuleContext *parent, size_t invokingState);
-    virtual size_t getRuleIndex() const override;
-    std::vector<OC_PropertyKeyNameContext *> oC_PropertyKeyName();
-    OC_PropertyKeyNameContext* oC_PropertyKeyName(size_t i);
-    std::vector<antlr4::tree::TerminalNode *> SP();
-    antlr4::tree::TerminalNode* SP(size_t i);
-
-   
-  };
-
-  NEUG_CreateIndexColumnListContext* nEUG_CreateIndexColumnList();
 
   class  NEUG_CreateIndexOptionsContext : public antlr4::ParserRuleContext {
   public:

@@ -384,7 +384,7 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
 
   auto duplicate = CreateIndex("idx_person_age", "Person", "age");
   EXPECT_FALSE(duplicate);
-  EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
+  EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
   EXPECT_EQ(planning_change_count_, 1);
 
   ASSERT_TRUE(ap_->DropIndex("idx_person_age").ok());

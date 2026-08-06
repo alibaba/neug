@@ -374,13 +374,7 @@ std::unique_ptr<Statement> Transformer::transformCreateIndex(
   info.indexType = transformSchemaName(*schemaNames[2]);
   info.ifNotExists = ctx.nEUG_IfNotExists() != nullptr;
 
-  // Column list
-  auto* columnList = ctx.nEUG_CreateIndexColumnList();
-  if (!columnList || columnList->oC_PropertyKeyName().size() != 1) {
-    THROW_PARSER_EXCEPTION("CREATE INDEX requires exactly one property.");
-  }
-  info.propertyName =
-      transformPropertyKeyName(*columnList->oC_PropertyKeyName(0));
+  info.propertyName = transformPropertyKeyName(*ctx.oC_PropertyKeyName());
 
   // WITH options
   auto* optionsCtx = ctx.nEUG_CreateIndexOptions();

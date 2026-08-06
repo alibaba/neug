@@ -42,7 +42,7 @@ class DropIndexOpr : public IOperator {
       if (ignore_conflict_) {
         return std::move(ctx);
       }
-      RETURN_STATUS_ERROR(StatusCode::ERR_SCHEMA_MISMATCH,
+      RETURN_STATUS_ERROR(StatusCode::ERR_NOT_FOUND,
                           "Index does not exist: " + indexName_);
     }
 
