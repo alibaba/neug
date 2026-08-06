@@ -431,14 +431,15 @@ TEST(DatabaseMaxThreadNum, ClampedToHardwareConcurrency) {
   db.Close();
 }
 
-TEST_F(NeugDBServiceTest, ServiceThreadNumCannotExceedDatabaseMaxThreadNum) {
+TEST_F(NeugDBServiceTest, ServiceThreadNumClampedToDatabaseMaxThreadNum) {
   neug::ServiceConfig cfg;
   cfg.query_port = 0;
   cfg.host_str = "127.0.0.1";
   cfg.thread_num = static_cast<uint32_t>(db_->config().max_thread_num + 1);
 
-  EXPECT_THROW(neug::NeugDBService service(*db_, cfg),
-               neug::exception::InvalidArgumentException);
+  neug::NeugDBService service(*db_, cfg);
+  EXPECT_EQ(service.GetServiceConfig().thread_num,
+            static_cast<uint32_t>(db_->config().max_thread_num));
 }
 
 TEST_F(NeugDBServiceTest, ConcurrentExecutionSlotOperations) {
@@ -1058,29 +1059,30 @@ TEST_F(NeugDBServiceTest, ConnectionManagerCountsOnlyOpenConnections) {
   EXPECT_FALSE(connection_manager.HasOpenConnections());
 }
 
-TEST_F(NeugDBServiceTest, ServiceInitFailureReleasesRegistration) {
-  neug::ServiceConfig bad_cfg;
-  bad_cfg.query_port = 0;
-  bad_cfg.host_str = "127.0.0.1";
-  bad_cfg.thread_num = static_cast<uint32_t>(db_->config().max_thread_num + 1);
+TEST_F(NeugDBServiceTest,
+       OversizedThreadNumClampsAndReleasesRegistrationOnDestruction) {
+  neug::ServiceConfig oversized_cfg;
+  oversized_cfg.query_port = 0;
+  oversized_cfg.host_str = "127.0.0.1";
+  oversized_cfg.thread_num =
+      static_cast<uint32_t>(db_->config().max_thread_num + 1);
 
-  // Construction failure must release all service lifecycle state so the
-  // database can serve again.
-  EXPECT_THROW(neug::NeugDBService service(*db_, bad_cfg),
-               neug::exception::InvalidArgumentException);
-  EXPECT_FALSE(db_->HasActiveService());
-
-  neug::ServiceConfig good_cfg;
-  good_cfg.query_port = 0;
-  good_cfg.host_str = "127.0.0.1";
+  // An oversized thread_num is clamped instead of throwing, so construction
+  // succeeds and the service registers itself.
   {
-    neug::NeugDBService service(*db_, good_cfg);
+    neug::NeugDBService service(*db_, oversized_cfg);
     EXPECT_TRUE(db_->HasActiveService());
+    EXPECT_EQ(service.GetServiceConfig().thread_num,
+              static_cast<uint32_t>(db_->config().max_thread_num));
   }
+  // Destruction releases the registration so the database can serve again.
   EXPECT_FALSE(db_->HasActiveService());
 
   // A second successful lifecycle verifies that teardown leaves no hidden
   // service state behind.
+  neug::ServiceConfig good_cfg;
+  good_cfg.query_port = 0;
+  good_cfg.host_str = "127.0.0.1";
   EXPECT_NO_THROW(neug::NeugDBService service(*db_, good_cfg));
   EXPECT_FALSE(db_->HasActiveService());
 }
