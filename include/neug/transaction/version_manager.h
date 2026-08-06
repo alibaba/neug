@@ -251,13 +251,6 @@ class VersionManager : public IVersionManager {
       std::chrono::steady_clock::time_point deadline) override;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
-  enum class TimestampReservationState { kReserved, kWindowFull, kExhausted };
-
-  struct TimestampReservation {
-    TimestampReservationState state;
-    uint32_t timestamp{0};
-  };
-
   int thread_num_;
   // These helpers may suspend the logical task. Callers must not hold an
   // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
@@ -268,11 +261,8 @@ class VersionManager : public IVersionManager {
   void wait_for_inserters_to_drain();
   bool wait_for_inserters_to_drain_until(
       std::chrono::steady_clock::time_point deadline);
-  TimestampReservation reserve_write_timestamp();
   uint32_t reserve_update_timestamp();
   void release_insert_admission();
-  [[noreturn]] void throw_timestamp_reservation_failure(
-      TimestampReservationState state, uint32_t read_ts, uint32_t write_ts);
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
   RuntimeWaitFn runtime_wait_impl() const noexcept override;

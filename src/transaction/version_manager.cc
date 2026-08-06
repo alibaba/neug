@@ -33,6 +33,67 @@ bool DeadlineExpired(std::chrono::steady_clock::time_point deadline) noexcept {
   return std::chrono::steady_clock::now() >= deadline;
 }
 
+enum class TimestampReservationState { kReserved, kWindowFull, kExhausted };
+
+struct TimestampReservation {
+  TimestampReservationState state;
+  uint32_t timestamp{0};
+};
+
+TimestampReservation ReserveWriteTimestamp(
+    std::atomic<uint32_t>& write_ts, const std::atomic<uint32_t>& read_ts) {
+  uint32_t candidate = write_ts.load(std::memory_order_relaxed);
+  while (true) {
+    if (candidate == std::numeric_limits<uint32_t>::max()) {
+      return {TimestampReservationState::kExhausted};
+    }
+
+    const uint32_t current_read_ts = read_ts.load(std::memory_order_acquire);
+    const uint64_t outstanding = static_cast<uint64_t>(candidate) -
+                                 static_cast<uint64_t>(current_read_ts);
+    if (NEUG_UNLIKELY(outstanding > TimestampWindow::kWindowSize)) {
+      if (candidate <= current_read_ts) {
+        // A failed CAS leaves candidate at the then-current write_ts, but
+        // another inserter may allocate and complete that timestamp before
+        // this load of read_ts. The acquire load above orders this refresh
+        // after frontier publication.
+        candidate = write_ts.load(std::memory_order_relaxed);
+        if (NEUG_UNLIKELY(candidate <= current_read_ts)) {
+          // Keep release builds fail-fast without pulling glog formatting and
+          // a stack frame into this reservation hot path.
+          DCHECK_GT(candidate, current_read_ts);
+          __builtin_trap();
+        }
+        continue;
+      }
+      return {TimestampReservationState::kWindowFull};
+    }
+
+    if (write_ts.compare_exchange_weak(candidate, candidate + 1,
+                                       std::memory_order_acq_rel,
+                                       std::memory_order_relaxed)) {
+      return {TimestampReservationState::kReserved, candidate};
+    }
+    RuntimeCpuRelax();
+  }
+}
+
+[[noreturn]] void throw_timestamp_reservation_failure(
+    TimestampReservationState state, uint32_t read_ts, uint32_t write_ts) {
+  if (state == TimestampReservationState::kWindowFull) {
+    THROW_INTERNAL_EXCEPTION(
+        "TimestampWindow invariant broken: write timestamp reservation found "
+        "the window full despite exclusive write admission (read_ts=" +
+        std::to_string(read_ts) + ", write_ts=" + std::to_string(write_ts) +
+        ", window_size=" + std::to_string(TimestampWindow::kWindowSize) +
+        "); this indicates admission/window bookkeeping corruption, not "
+        "recoverable backpressure");
+  }
+  THROW_RUNTIME_ERROR(
+      "Transaction timestamp space exhausted; checkpoint/reset the timeline "
+      "before reopening the database");
+}
+
 }  // namespace
 
 VersionManager::VersionManager() : runtime_wait_(&NativeRuntimeWait) {}
@@ -161,7 +222,7 @@ uint32_t VersionManager::acquire_insert_timestamp() {
     if (operation_gate_state_.compare_exchange_weak(
             observed, desired, std::memory_order_acquire,
             std::memory_order_relaxed)) {
-      const auto reservation = reserve_write_timestamp();
+      const auto reservation = ReserveWriteTimestamp(write_ts_, read_ts_);
       if (reservation.state == TimestampReservationState::kReserved) {
         return reservation.timestamp;
       }
@@ -201,58 +262,6 @@ void VersionManager::release_insert_admission() {
   const uint64_t previous = operation_gate_state_.fetch_sub(
       OperationGateWord::kInserterUnit, std::memory_order_release);
   DCHECK_GT(OperationGateWord::inserters(previous), 0U);
-}
-
-VersionManager::TimestampReservation VersionManager::reserve_write_timestamp() {
-  uint32_t candidate = write_ts_.load(std::memory_order_relaxed);
-  while (true) {
-    if (candidate == std::numeric_limits<uint32_t>::max()) {
-      return {TimestampReservationState::kExhausted};
-    }
-
-    const uint32_t current_read_ts = read_ts_.load(std::memory_order_acquire);
-    const uint64_t outstanding = static_cast<uint64_t>(candidate) -
-                                 static_cast<uint64_t>(current_read_ts);
-    if (NEUG_UNLIKELY(outstanding > TimestampWindow::kWindowSize)) {
-      if (candidate <= current_read_ts) {
-        // A failed CAS leaves candidate at the then-current write_ts, but
-        // another inserter may allocate and complete that timestamp before
-        // this load of read_ts. The acquire load above orders this refresh
-        // after frontier publication.
-        candidate = write_ts_.load(std::memory_order_relaxed);
-        if (NEUG_UNLIKELY(candidate <= current_read_ts)) {
-          // Keep release builds fail-fast without pulling glog formatting and
-          // a stack frame into this reservation hot path.
-          DCHECK_GT(candidate, current_read_ts);
-          __builtin_trap();
-        }
-        continue;
-      }
-      return {TimestampReservationState::kWindowFull};
-    }
-
-    if (write_ts_.compare_exchange_weak(candidate, candidate + 1,
-                                        std::memory_order_acq_rel,
-                                        std::memory_order_relaxed)) {
-      return {TimestampReservationState::kReserved, candidate};
-    }
-  }
-}
-
-[[noreturn]] void VersionManager::throw_timestamp_reservation_failure(
-    TimestampReservationState state, uint32_t read_ts, uint32_t write_ts) {
-  if (state == TimestampReservationState::kWindowFull) {
-    THROW_INTERNAL_EXCEPTION(
-        "TimestampWindow invariant broken: write timestamp reservation found "
-        "the window full despite exclusive write admission (read_ts=" +
-        std::to_string(read_ts) + ", write_ts=" + std::to_string(write_ts) +
-        ", window_size=" + std::to_string(TimestampWindow::kWindowSize) +
-        "); this indicates admission/window bookkeeping corruption, not "
-        "recoverable backpressure");
-  }
-  THROW_RUNTIME_ERROR(
-      "Transaction timestamp space exhausted; checkpoint/reset the timeline "
-      "before reopening the database");
 }
 
 void VersionManager::complete_write_timestamp(uint32_t ts) {
@@ -379,7 +388,7 @@ RuntimeWaitFn VersionManager::runtime_wait_impl() const noexcept {
 }
 
 uint32_t VersionManager::reserve_update_timestamp() {
-  const auto reservation = reserve_write_timestamp();
+  const auto reservation = ReserveWriteTimestamp(write_ts_, read_ts_);
   if (reservation.state == TimestampReservationState::kReserved) {
     return reservation.timestamp;
   }
@@ -497,7 +506,7 @@ uint32_t VersionManager::acquire_compact_timestamp() {
   wait_for_readers_to_drain();
   wait_for_inserters_to_drain();
 
-  const auto reservation = reserve_write_timestamp();
+  const auto reservation = ReserveWriteTimestamp(write_ts_, read_ts_);
   if (reservation.state == TimestampReservationState::kReserved) {
     return reservation.timestamp;
   }
