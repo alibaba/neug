@@ -290,8 +290,7 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
   if (!insert_safe) {
     THROW_STORAGE_EXCEPTION(
         "ListPropertyColumn::set_any: list length changed from " +
-        std::to_string(old_length) + " to " +
-        std::to_string(children.size()) +
+        std::to_string(old_length) + " to " + std::to_string(children.size()) +
         ", which requires resizing elements_ but insert_safe is false");
   }
 
