@@ -125,36 +125,32 @@ jobs:
           echo "$buildSrc" >> $env:GITHUB_PATH
           echo "$buildPyBind" >> $env:GITHUB_PATH
 
-      - name: Debug DLL dependencies
+      # neug.dll links against OpenSSL dynamically (libssl-3-x64.dll /
+      # libcrypto-3-x64.dll).  Copy them next to neug_py_bind.pyd so the
+      # Windows loader finds them via the same-directory rule.
+      - name: Copy OpenSSL DLLs next to Python bindings
         shell: pwsh
         run: |
-          Write-Host "=== Listing .pyd and .dll files in build/tools/python_bind ==="
-          Get-ChildItem -Path "build\tools\python_bind" -Filter "*.pyd" | Format-Table FullName
-          Get-ChildItem -Path "build\tools\python_bind" -Filter "*.dll" | Format-Table FullName
-
-          Write-Host "=== Listing .dll files in build/src ==="
-          Get-ChildItem -Path "build\src" -Filter "*.dll" -ErrorAction SilentlyContinue | Format-Table FullName
-
-          $pyd = Get-ChildItem -Path "build\tools\python_bind" -Filter "neug_py_bind*.pyd" | Select-Object -First 1
-          if ($pyd) {
-            Write-Host "=== dumpbin /dependents for $($pyd.FullName) ==="
-            & dumpbin /dependents $pyd.FullName
+          $dest = Join-Path $env:GITHUB_WORKSPACE "build\tools\python_bind"
+          $vcpkgBin = Join-Path $env:VCPKG_ROOT "installed\x64-windows-static-md\bin"
+          $ssl = Join-Path $vcpkgBin "libssl-3-x64.dll"
+          $crypto = Join-Path $vcpkgBin "libcrypto-3-x64.dll"
+          if (Test-Path $ssl) {
+            Copy-Item $ssl $dest -Force
+            Write-Host "Copied $ssl to $dest"
           } else {
-            Write-Host "WARNING: neug_py_bind*.pyd not found in build\tools\python_bind"
-            Write-Host "=== Searching entire build tree for neug_py_bind ==="
-            Get-ChildItem -Path "build" -Recurse -Filter "neug_py_bind*" -ErrorAction SilentlyContinue | Format-Table FullName
+            Write-Host "WARNING: $ssl not found"
+            Get-ChildItem $vcpkgBin -Filter "libssl*.dll" -ErrorAction SilentlyContinue | Format-Table FullName
           }
-
-          $neugDll = Get-ChildItem -Path "build" -Recurse -Filter "*neug*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($neugDll) {
-            Write-Host "=== Found neug DLL: $($neugDll.FullName) ==="
-            Write-Host "=== dumpbin /dependents for neug DLL ==="
-            & dumpbin /dependents $neugDll.FullName
+          if (Test-Path $crypto) {
+            Copy-Item $crypto $dest -Force
+            Write-Host "Copied $crypto to $dest"
           } else {
-            Write-Host "WARNING: No *neug*.dll found in build tree"
-            Write-Host "=== Listing all .dll in build tree ==="
-            Get-ChildItem -Path "build" -Recurse -Filter "*.dll" -ErrorAction SilentlyContinue | Format-Table FullName
+            Write-Host "WARNING: $crypto not found"
+            Get-ChildItem $vcpkgBin -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | Format-Table FullName
           }
+          Write-Host "=== Files in $dest ==="
+          Get-ChildItem $dest -Filter "*.dll" | Format-Table FullName
 
       # ========================================
       # Phase 1: C++ Tests (ctest)
