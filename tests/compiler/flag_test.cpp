@@ -277,6 +277,14 @@ TEST_F(FlagTest, ExplainUpdateAnalyzeQuery) {
   analysis = planner.analyzeQuery("EXPLAIN CREATE TABLE t (id INT);");
   EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
   EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
+
+  // Unlike EXPLAIN, PROFILE does not override access_mode: it preserves the
+  // inner statement's access_mode so the query is actually executed.
+  analysis =
+      planner.analyzeQuery("PROFILE MATCH (n) SET n.value = 1 RETURN n;");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
+  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_FALSE(analysis.checkpoint());
 }
 
 // Test 11: MATCH with RETURN (read operation)

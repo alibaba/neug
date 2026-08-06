@@ -157,11 +157,8 @@ Status executeCheckpoint(physical::ExplainMode explain_mode,
     checkpoint_timer_unit.start();
   }
 
-  // EXPLAIN CHECKPOINT only generates the plan, does not execute
-  if (explain_mode != physical::ExplainMode::EXPLAIN) {
-    RETURN_IF_NOT_OK(checkpoint_coordinator.PublishManualCheckpoint(
-        std::move(timestamp_lease)));
-  }
+  RETURN_IF_NOT_OK(checkpoint_coordinator.PublishManualCheckpoint(
+      std::move(timestamp_lease)));
 
   response.set_row_count(0);
   if (profile) {
@@ -343,8 +340,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
   };
 
   Status status;
-  
-  if (NEUG_UNLIKELY(analysis.checkpoint())) {
+  // EXPLAIN CHECKPOINT is non-mutating and is routed through the normal
+  // execute_on_storage path so it compiles the query and returns the plan tree.
+  if (NEUG_UNLIKELY(analysis.checkpoint() &&
+                    analysis.explain_mode != physical::ExplainMode::EXPLAIN)) {
     // PROFILE executes the checkpoint and is timed by executeCheckpoint().
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
