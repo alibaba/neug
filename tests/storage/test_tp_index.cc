@@ -48,16 +48,28 @@ namespace {
 
 class CapturingWalWriter : public IWalWriter {
  public:
+  struct Frame {
+    uint32_t commit_timestamp{0};
+    WalRecordKind kind{WalRecordKind::kInsert};
+    std::vector<char> payload;
+  };
+
   std::string type() const override { return "capturing"; }
   void open(const std::string&) override {}
   void close() override {}
 
-  bool append(const char* data, size_t length) override {
-    records.emplace_back(data, data + length);
+  bool append_frame(uint32_t commit_timestamp, WalRecordKind kind,
+                    const char* payload, size_t length) override {
+    frames.emplace_back();
+    frames.back().commit_timestamp = commit_timestamp;
+    frames.back().kind = kind;
+    frames.back().payload.assign(payload, payload + length);
     return true;
   }
 
-  std::vector<std::vector<char>> records;
+  WalWritePhase write_phase() const override { return WalWritePhase::kIdle; }
+
+  std::vector<Frame> frames;
 };
 
 class StubPlanner : public IGraphPlanner {
@@ -112,7 +124,7 @@ class TPIndexTest : public ::testing::Test {
     ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
                                                      allocator_);
     version_manager_.init_ts({0, 0}, 1);
-    wal_writer_.records.clear();
+    wal_writer_.frames.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
         std::make_shared<StubPlanner>());
   }
@@ -720,29 +732,26 @@ TEST_F(TPIndexTest, WalReplayRestoresIndexData) {
     AddPersonTP(tp, 3, "Charlie", 30);
     Commit(txn);
   }
-  ASSERT_EQ(wal_writer_.records.size(), 1);
-  const auto& wal = wal_writer_.records.back();
-  ASSERT_GT(wal.size(), sizeof(WalHeader));
-  const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
-  ASSERT_EQ(static_cast<size_t>(header->length),
-            wal.size() - sizeof(WalHeader));
+  ASSERT_EQ(wal_writer_.frames.size(), 1);
+  const auto& wal = wal_writer_.frames.back();
+  ASSERT_EQ(wal.kind, WalRecordKind::kCowUpdate);
+  ASSERT_FALSE(wal.payload.empty());
 
   {
     GraphView before_replay_view(*replay_graph);
     StorageReadInterface before_replay_reader(before_replay_view,
-                                              header->timestamp);
+                                              wal.commit_timestamp);
     EXPECT_EQ(SearchPersonNames(before_replay_reader, 30),
               (std::vector<std::string>{}));
     EXPECT_EQ(SearchPersonNames(before_replay_reader, 25),
               (std::vector<std::string>{}));
   }
 
-  UpdateTransaction::IngestWal(
-      *replay_graph, header->timestamp,
-      const_cast<char*>(wal.data() + sizeof(WalHeader)), header->length,
-      allocator_);
+  UpdateTransaction::IngestWal(*replay_graph, wal.commit_timestamp,
+                               wal.payload.data(), wal.payload.size(),
+                               allocator_);
   GraphView replay_view(*replay_graph);
-  StorageReadInterface replay_reader(replay_view, header->timestamp);
+  StorageReadInterface replay_reader(replay_view, wal.commit_timestamp);
 
   EXPECT_EQ(SearchPersonNames(replay_reader, 30),
             (std::vector<std::string>{"Alice", "Charlie"}));

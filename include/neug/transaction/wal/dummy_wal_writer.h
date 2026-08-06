@@ -22,7 +22,8 @@
 namespace neug {
 /**
  * @brief DummyWalWriter is a no-op implementation of the IWalWriter interface.
- * It is used when write-ahead logging is disabled or not required.
+ * It is used as a test spy/fake for TP transactions; the AP execution path
+ * must never use it to simulate a NoWal boundary.
  */
 class DummyWalWriter : public IWalWriter {
  public:
@@ -34,6 +35,14 @@ class DummyWalWriter : public IWalWriter {
   void open(const std::string& wal_uri) override;
 
   void close() override;
-  bool append(const char* data, size_t length) override;
+  bool append_frame(uint32_t commit_timestamp, WalRecordKind kind,
+                    const char* payload, size_t length) override;
+  WalWritePhase write_phase() const override;
+
+  /// Number of frames accepted since construction (test observability).
+  size_t appended_frame_num() const { return appended_frame_num_; }
+
+ private:
+  size_t appended_frame_num_{0};
 };
 }  // namespace neug

@@ -252,5 +252,13 @@ TxStateConflictException::TxStateConflictException(const std::string& msg,
     : Exception("Transaction state conflict: " + msg, file_line,
                 neug::StatusCode::ERR_TX_STATE_CONFLICT) {}
 
+WalRecoveryException::WalRecoveryException(const std::string& msg)
+    : Exception("WAL recovery error: " + msg,
+                neug::StatusCode::ERR_CORRUPTION_DETECTED) {}
+WalRecoveryException::WalRecoveryException(const std::string& msg,
+                                           const std::string& file_line)
+    : Exception("WAL recovery error: " + msg, file_line,
+                neug::StatusCode::ERR_CORRUPTION_DETECTED) {}
+
 }  // namespace exception
 }  // namespace neug

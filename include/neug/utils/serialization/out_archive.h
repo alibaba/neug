@@ -64,9 +64,9 @@ class OutArchive {
 
   inline void Rewind() { begin_ = buffer_.data(); }
 
-  inline void SetSlice(char* buffer, size_t size) {
+  inline void SetSlice(const char* buffer, size_t size) {
     buffer_.clear();
-    begin_ = buffer;
+    begin_ = const_cast<char*>(buffer);
     end_ = begin_ + size;
   }
 

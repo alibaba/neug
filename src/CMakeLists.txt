@@ -35,6 +35,8 @@ if (ENABLE_GCOV)
 endif()
 target_link_libraries(neug PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(neug PRIVATE ${GFLAGS_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES})
+# CRC32C for WAL frame checksums (hardware-accelerated on x86/ARM64).
+target_link_libraries(neug PRIVATE absl::crc32c)
 target_link_libraries(neug PUBLIC ${GLOG_LIBRARIES})
 # Protobuf is PRIVATE to avoid double-initialization of global statics when
 # downstream shared libraries (e.g. neug_py_bind.so) also load libneug.dylib.

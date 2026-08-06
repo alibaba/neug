@@ -16,7 +16,6 @@
 
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/serialization/in_archive.h"
 
 namespace neug {
 
@@ -41,8 +40,6 @@ class CompactTransaction {
   IWalWriter& wal_writer_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
-
-  InArchive arc_;
 };
 
 }  // namespace neug

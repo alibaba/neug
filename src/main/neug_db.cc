@@ -58,26 +58,6 @@ inline std::string allocator_prefix(const std::string& allocator_dir,
 }
 
 class Connection;
-static void IngestWalRange(PropertyGraph& graph,
-                           std::vector<std::shared_ptr<Allocator>>& allocators,
-                           const IWalParser& parser, uint32_t from,
-                           uint32_t to) {
-  if (from >= to) {
-    return;
-  }
-  // Build a single writable GraphView covering the whole replay range.
-  // read_ts = MAX_TIMESTAMP so vertices inserted earlier in the loop are
-  // visible to later edge-resolution lookups regardless of the per-unit
-  // commit timestamp.
-  GraphView view(graph);
-  for (size_t j = from; j < to; ++j) {
-    const auto& unit = parser.get_insert_wal(j);
-    InsertTransaction::IngestWal(view, j, unit.ptr, unit.size, *allocators[0]);
-    if (j % 1000000 == 0) {
-      LOG(INFO) << "Ingested " << j << " WALs";
-    }
-  }
-}
 
 NeugDB::NeugDB() : closed_(true), is_pure_memory_(false), max_thread_num_(1) {}
 
@@ -457,25 +437,47 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
 }
 
 timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
-  uint32_t from_ts = 1;
-  LOG(INFO) << "Ingesting update wals size: "
-            << parser.get_update_wals().size();
+  // The parser already validated every frame and ordered them strictly by
+  // commit timestamp; replay consumes that unified sequence without any
+  // re-sorting or gap assumptions here. Unit payloads are views into files
+  // the parser keeps mapped, so @p parser must outlive this call.
+  const auto& units = parser.replay_units();
+  LOG(INFO) << "Ingesting " << units.size() << " wal frames";
 
-  for (auto& update_wal : parser.get_update_wals()) {
-    uint32_t to_ts = update_wal.timestamp;
-    if (from_ts < to_ts) {
-      IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
+  size_t i = 0;
+  size_t ingested = 0;
+  while (i < units.size()) {
+    const auto& unit = units[i];
+    switch (unit.kind) {
+    case WalRecordKind::kInsert: {
+      // Replay a consecutive insert run through one writable GraphView so
+      // vertices inserted earlier resolve edges inserted later.
+      GraphView view(graph);
+      while (i < units.size() && units[i].kind == WalRecordKind::kInsert) {
+        const auto& insert_unit = units[i];
+        InsertTransaction::IngestWal(
+            view, insert_unit.commit_timestamp, insert_unit.payload.data(),
+            insert_unit.payload.size(), *allocators_[0]);
+        ++i;
+        if (++ingested % 1000000 == 0) {
+          LOG(INFO) << "Ingested " << ingested << " wal frames";
+        }
+      }
+      break;
     }
-    if (update_wal.size == 0) {
+    case WalRecordKind::kCowUpdate: {
+      UpdateTransaction::IngestWal(graph, unit.commit_timestamp,
+                                   unit.payload.data(), unit.payload.size(),
+                                   *allocators_[0]);
+      ++i;
+      break;
+    }
+    case WalRecordKind::kCompact: {
       graph.Compact();
-    } else {
-      UpdateTransaction::IngestWal(graph, to_ts, update_wal.ptr,
-                                   update_wal.size, *allocators_[0]);
+      ++i;
+      break;
     }
-    from_ts = to_ts + 1;
-  }
-  if (from_ts <= parser.last_ts()) {
-    IngestWalRange(graph, allocators_, parser, from_ts, parser.last_ts() + 1);
+    }
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
   return parser.last_ts();

@@ -24,6 +24,22 @@
 
 namespace neug {
 
+/**
+ * Local WAL parser implementing the P1-2 recovery protocol:
+ * validate first, then order, then replay.
+ *
+ * open() validates every file header, frame header, frame checksum and
+ * commit trailer of the given wal_dir() against the v1 protocol. Only the
+ * last candidate frame of a file may be dropped as crash residue when it is
+ * truncated by EOF; every other inconsistency rejects the whole recovery
+ * with a typed WalRecoveryException. After all files are validated, frames
+ * are merged into a strictly timestamp-ascending sequence and duplicate
+ * timestamps are rejected. No graph mutation happens here.
+ *
+ * Validated files stay memory-mapped for the parser's lifetime; replay unit
+ * payloads are zero-copy views into those mappings. The mappings are
+ * released by close() or destruction, which invalidates the units.
+ */
 class LocalWalParser : public IWalParser {
  public:
   static std::unique_ptr<IWalParser> Make(const std::string& wal_dir) {
@@ -31,23 +47,22 @@ class LocalWalParser : public IWalParser {
   }
 
   explicit LocalWalParser(const std::string& wal_uri);
-  ~LocalWalParser() { close(); }
+  ~LocalWalParser() override;
 
   void open(const std::string& wal_uri) override;
   void close() override;
 
   uint32_t last_ts() const override;
-  const WalContentUnit& get_insert_wal(uint32_t ts) const override;
-  const std::vector<UpdateWalUnit>& get_update_wals() const override;
+  const std::vector<WalReplayUnit>& replay_units() const override;
 
  private:
-  std::vector<int> fds_;
-  std::vector<void*> mmapped_ptrs_;
-  std::vector<size_t> mmapped_size_;
-  std::vector<WalContentUnit> insert_wal_list_;
+  /// Source files kept mapped so replay unit payload views stay valid.
+  /// WalReplayUnit::file_index indexes this mapping table, which stays
+  /// opaque here because its element type is an implementation detail.
+  struct MappedFiles;
+  std::unique_ptr<MappedFiles> mapped_files_;
+  std::vector<WalReplayUnit> replay_units_;
   uint32_t last_ts_{0};
-
-  std::vector<UpdateWalUnit> update_wal_list_;
 
   static const bool registered_;
 };

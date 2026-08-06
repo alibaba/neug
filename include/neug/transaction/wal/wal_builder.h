@@ -27,15 +27,20 @@
 
 namespace neug {
 
-/// Accumulates WAL operations for a single update transaction.
+/// Accumulates WAL redo operations for a single update transaction.
 ///
 /// Each LogXxx method serializes the corresponding redo entry into an internal
 /// buffer and increments the operation count. DDL Log methods additionally set
 /// schema_changed_ = true.
 ///
+/// WalBuilder only records redo bytes. File headers, frame headers,
+/// checksums, commit markers and sync are owned by the frame writer and
+/// never leak into the Log* methods.
+///
 /// UpdateTransaction::Commit() uses:
-///   - op_num() == 0  → nothing to do, early return
-///   - op_num() > 0   → must publish snapshot
+///   - op_num() == 0 and size() == 0 → nothing to do, early return
+///   - size() > 0                    → append a kCowUpdate frame
+///   - op_num() > 0 and size() == 0  → append an empty kCompact frame
 class WalBuilder {
  public:
   WalBuilder();
@@ -86,15 +91,13 @@ class WalBuilder {
   int op_num() const { return op_num_; }
   bool schema_changed() const { return schema_changed_; }
 
-  /// Size of the WAL content excluding its header.
-  size_t content_size() const { return arc_.GetSize() - sizeof(WalHeader); }
-
-  /// Finalize the WAL header. Call only when op_num() > 0.
-  void finalize(timestamp_t timestamp);
-
-  /// Full buffer (header + content) after finalize().
-  char* data() { return arc_.GetBuffer(); }
+  /// Size of the redo payload. 0 means the transaction carries no redo
+  /// bytes (e.g. a checkpoint-only commit serialized as an empty kCompact
+  /// frame).
   size_t size() const { return arc_.GetSize(); }
+
+  /// Redo payload bytes.
+  char* data() { return arc_.GetBuffer(); }
 
   /// Reset all state for reuse or release.
   void clear();

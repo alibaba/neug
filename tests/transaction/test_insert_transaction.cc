@@ -238,26 +238,30 @@ class LocalWalParserTest : public ::testing::Test {
     }
   }
 
-  // Write a single WAL entry (header + payload) into a buffer.
-  void AppendWalEntry(std::vector<char>& buf, uint32_t ts, uint8_t type,
-                      const std::string& payload) {
-    neug::WalHeader header;
-    header.timestamp = ts;
-    header.type = type;
-    header.length = static_cast<int32_t>(payload.size());
-    const char* hdr = reinterpret_cast<const char*>(&header);
-    buf.insert(buf.end(), hdr, hdr + sizeof(neug::WalHeader));
-    buf.insert(buf.end(), payload.begin(), payload.end());
-  }
+  // Write a complete v1 WAL file (file header + one committed frame) using
+  // the same codec the writer uses.
+  void WriteWalFrameFile(const std::string& filename, uint32_t ts,
+                         neug::WalRecordKind kind, const std::string& payload) {
+    neug::WalFileHeader fh;
+    auto fhb = neug::EncodeWalFileHeader(fh);
 
-  // Append a terminator entry (timestamp=0) to mark end of WAL stream.
-  void AppendWalTerminator(std::vector<char>& buf) {
-    neug::WalHeader terminator;
-    terminator.timestamp = 0;
-    terminator.type = 0;
-    terminator.length = 0;
-    const char* hdr = reinterpret_cast<const char*>(&terminator);
-    buf.insert(buf.end(), hdr, hdr + sizeof(neug::WalHeader));
+    neug::WalFrameHeader fhdr;
+    fhdr.record_kind = kind;
+    fhdr.commit_timestamp = ts;
+    fhdr.payload_length = payload.size();
+    auto fhdrb = neug::EncodeWalFrameHeader(fhdr);
+
+    neug::WalFrameTrailer trailer;
+    auto trailerb = neug::EncodeWalFrameTrailer(
+        trailer, fhdrb.data(), reinterpret_cast<const uint8_t*>(payload.data()),
+        payload.size());
+
+    std::vector<char> buf;
+    buf.insert(buf.end(), fhb.begin(), fhb.end());
+    buf.insert(buf.end(), fhdrb.begin(), fhdrb.end());
+    buf.insert(buf.end(), payload.begin(), payload.end());
+    buf.insert(buf.end(), trailerb.begin(), trailerb.end());
+    WriteWalFile(filename, buf);
   }
 
   // Write buffer contents to a .wal file in the WAL directory.
@@ -274,19 +278,17 @@ class LocalWalParserTest : public ::testing::Test {
 
 // Test: LocalWalParser can correctly parse a valid WAL file.
 TEST_F(LocalWalParserTest, OpenAndParseValidWalFile) {
-  std::vector<char> buf;
   std::string payload = "insert_vertex_data";
-  AppendWalEntry(buf, /*ts=*/1, /*type=*/0, payload);  // insert WAL
-  AppendWalTerminator(buf);
-  WriteWalFile("thread_0_0.wal", buf);
+  WriteWalFrameFile("thread_0_0.wal", /*ts=*/1, neug::WalRecordKind::kInsert,
+                    payload);
 
   neug::LocalWalParser parser(wal_dir_);
-  EXPECT_EQ(parser.last_ts(), 1);
-  const auto& unit = parser.get_insert_wal(1);
-  EXPECT_EQ(unit.size, payload.size());
-  // The ptr should point to the payload data within the mmap region.
-  EXPECT_NE(unit.ptr, nullptr);
-  EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
+  EXPECT_EQ(parser.last_ts(), 1u);
+  ASSERT_EQ(parser.replay_units().size(), 1u);
+  const auto& unit = parser.replay_units()[0];
+  EXPECT_EQ(unit.commit_timestamp, 1u);
+  EXPECT_EQ(unit.kind, neug::WalRecordKind::kInsert);
+  EXPECT_EQ(unit.payload, payload);
 }
 
 // Test: LocalWalParser throws IOException when ::open() on a WAL file fails
@@ -378,5 +380,5 @@ TEST_F(LocalWalParserTest, MmapFailureThrowsIOException) {
 // Test: Opening an empty WAL directory does not throw and last_ts is 0.
 TEST_F(LocalWalParserTest, OpenEmptyWalDirNoThrow) {
   neug::LocalWalParser parser(wal_dir_);
-  EXPECT_EQ(parser.last_ts(), 0);
+  EXPECT_EQ(parser.last_ts(), 0u);
 }

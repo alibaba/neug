@@ -49,10 +49,11 @@ LocalWalWriter::~LocalWalWriter() noexcept {
 void LocalWalWriter::open(const std::string& wal_uri) {
   close();
   wal_uri_ = wal_uri;
-  auto prefix = get_wal_uri_path(wal_uri_);
+  auto prefix = get_wal_uri_path(wal_uri);
   if (!std::filesystem::exists(prefix)) {
     std::filesystem::create_directories(prefix);
   }
+  path_.clear();
   const int max_version = 65536;
   for (int version = 0; version != max_version; ++version) {
     // Keep the historical on-disk prefix for WAL replay compatibility. The
@@ -63,6 +64,7 @@ void LocalWalWriter::open(const std::string& wal_uri) {
     if (std::filesystem::exists(path)) {
       continue;
     }
+    path_ = path;
     fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
     break;
   }
@@ -70,12 +72,21 @@ void LocalWalWriter::open(const std::string& wal_uri) {
     THROW_IO_EXCEPTION("Failed to open wal file " +
                        std::string(strerror(errno)));
   }
-  if (ftruncate(fd_, TRUNC_SIZE) != 0) {
-    THROW_IO_EXCEPTION("Failed to truncate wal file " +
-                       std::string(strerror(errno)));
+
+  // Persist the v1 file header before any frame is accepted. The file
+  // belongs to the wal_dir() it is created in; checkpoint ownership is
+  // guaranteed by checkpoint rotation, not by header fields.
+  WalFileHeader header;
+  header.writer_slot_id = static_cast<uint32_t>(slot_id_);
+  const auto encoded = EncodeWalFileHeader(header);
+  if (!write_all(reinterpret_cast<const char*>(encoded.data()), encoded.size(),
+                 FailNextWrite::kHeader)) {
+    close();
+    THROW_IO_EXCEPTION("Injected write failure while writing wal file header");
   }
-  file_size_ = TRUNC_SIZE;
-  file_used_ = 0;
+  sync_file();
+  append_offset_ = encoded.size();
+  write_phase_ = WalWritePhase::kIdle;
 }
 
 void LocalWalWriter::close() {
@@ -85,54 +96,131 @@ void LocalWalWriter::close() {
     // and reused by another thread.
     const int fd = fd_;
     fd_ = -1;
-    file_size_ = 0;
-    file_used_ = 0;
+    path_.clear();
+    append_offset_ = 0;
+    write_phase_ = WalWritePhase::kIdle;
+    failed_ = false;
     if (::close(fd) != 0) {
       THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
     }
   }
 }
 
-bool LocalWalWriter::append(const char* data, size_t length) {
-  if (NEUG_UNLIKELY(fd_ == -1)) {
+bool LocalWalWriter::restore_clean_eof(size_t offset) {
+  if (fd_ == -1) {
+    failed_ = true;
     return false;
   }
-  size_t expected_size = file_used_ + length;
-  if (expected_size > file_size_) {
-    size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
-    if (ftruncate(fd_, new_file_size) != 0) {
-      THROW_IO_EXCEPTION("Failed to truncate wal file " +
+  if (::ftruncate(fd_, static_cast<off_t>(offset)) != 0 ||
+      ::lseek(fd_, static_cast<off_t>(offset), SEEK_SET) ==
+          static_cast<off_t>(-1)) {
+    LOG(ERROR) << "Failed to restore wal file " << path_ << " to offset "
+               << offset << ": " << strerror(errno);
+    failed_ = true;
+    return false;
+  }
+  append_offset_ = offset;
+  write_phase_ = WalWritePhase::kIdle;
+  return true;
+}
+
+bool LocalWalWriter::write_all(const char* buffer, size_t length,
+                               FailNextWrite phase) {
+  if (fail_next_write_ != FailNextWrite::kNone && fail_next_write_ == phase) {
+    fail_next_write_ = FailNextWrite::kNone;
+    return false;
+  }
+  size_t written = 0;
+  while (written < length) {
+    const ssize_t ret = ::write(fd_, buffer + written, length - written);
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      THROW_IO_EXCEPTION("Failed to write wal file " + path_ + ": " +
                          std::string(strerror(errno)));
     }
-    file_size_ = new_file_size;
+    written += static_cast<size_t>(ret);
   }
+  append_offset_ += length;
+  return true;
+}
 
-  file_used_ += length;
-
-  if (static_cast<size_t>(write(fd_, data, length)) != length) {
-    THROW_IO_EXCEPTION("Failed to write wal file " +
-                       std::string(strerror(errno)));
-  }
-
-#if 1
+void LocalWalWriter::sync_file() {
+  // Keep the current synchronous durability strategy as the transitional
+  // implementation. P1-3 splits this into pre-marker and post-marker phases.
 #ifdef F_FULLFSYNC
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
-#ifdef __APPLE__
-    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
+    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " + path_ + ": " +
                        std::string(strerror(errno)));
-#else
-    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strerrno(errno)));
-#endif
   }
 #else
-  // if (fsync(fd_) != 0) {
   if (fdatasync(fd_) != 0) {
-    THROW_IO_EXCEPTION("Failed to fsync wal file " +
+    THROW_IO_EXCEPTION("Failed to fsync wal file " + path_ + ": " +
                        std::string(strerror(errno)));
   }
 #endif
-#endif
+}
+
+bool LocalWalWriter::append_frame(uint32_t commit_timestamp, WalRecordKind kind,
+                                  const char* payload, size_t length) {
+  if (NEUG_UNLIKELY(fd_ == -1 || failed_)) {
+    return false;
+  }
+  if (length > kWalMaxPayloadLength) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("WAL frame payload too large: " +
+                                     std::to_string(length));
+  }
+
+  const auto* payload_bytes = reinterpret_cast<const uint8_t*>(payload);
+  // Clean EOF before this attempt; a failed frame is rolled back to here so
+  // its residue can never be buried mid-file by a later successful append.
+  const size_t frame_start = append_offset_;
+  const auto rollback_failed_frame = [&](const char* phase) {
+    LOG(ERROR) << "Injected write failure at " << phase
+               << ", wal file: " << path_;
+    restore_clean_eof(frame_start);
+    return false;
+  };
+
+  // 1) Frame header + payload. The commit marker must not appear before the
+  // payload is fully written.
+  WalFrameHeader header;
+  header.record_kind = kind;
+  header.commit_timestamp = commit_timestamp;
+  header.payload_length = length;
+  const auto encoded_header = EncodeWalFrameHeader(header);
+  // 2) Commit trailer with the marker, written separately after the payload.
+  WalFrameTrailer trailer;
+
+  try {
+    if (!write_all(reinterpret_cast<const char*>(encoded_header.data()),
+                   encoded_header.size(), FailNextWrite::kHeader)) {
+      return rollback_failed_frame("frame header");
+    }
+    if (length > 0 && !write_all(payload, length, FailNextWrite::kPayload)) {
+      return rollback_failed_frame("frame payload");
+    }
+    write_phase_ = WalWritePhase::kBeforeMarker;
+
+    const auto encoded_trailer = EncodeWalFrameTrailer(
+        trailer, encoded_header.data(), payload_bytes, length);
+    write_phase_ = WalWritePhase::kMarkerAttempted;
+    if (!write_all(reinterpret_cast<const char*>(encoded_trailer.data()),
+                   encoded_trailer.size(), FailNextWrite::kTrailer)) {
+      return rollback_failed_frame("frame trailer");
+    }
+  } catch (...) {
+    // Real I/O error: roll back the partial frame before rethrowing so the
+    // file keeps a clean logical EOF.
+    restore_clean_eof(frame_start);
+    throw;
+  }
+
+  // The marker is persisted; post-marker sync failures belong to the P1-3
+  // durability decision and must not roll the frame back.
+  sync_file();
+  write_phase_ = WalWritePhase::kIdle;
   return true;
 }
 

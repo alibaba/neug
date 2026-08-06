@@ -19,14 +19,7 @@
 
 namespace neug {
 
-WalBuilder::WalBuilder() { arc_.Resize(sizeof(WalHeader)); }
-
-void WalBuilder::finalize(timestamp_t timestamp) {
-  auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
-  header->length = arc_.GetSize() - sizeof(WalHeader);
-  header->type = 1;
-  header->timestamp = timestamp;
-}
+WalBuilder::WalBuilder() = default;
 
 void WalBuilder::clear() {
   arc_.Clear();
