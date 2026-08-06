@@ -52,6 +52,10 @@ class GraphStats {
   }
   const Schema& schema() const { return view_->schema(); }
   uint64_t planning_generation() const { return planning_generation_; }
+  result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::string& property_name) const {
+    return view_->GetIndex(label_id, property_name);
+  }
 #ifdef NEUG_BUILD_TEST
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif

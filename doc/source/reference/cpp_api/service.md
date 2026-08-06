@@ -45,6 +45,7 @@ count. The default `0` auto-selects from the database `max_thread_num`. If set
 explicitly, it must be less than or equal to the database `max_thread_num`. With
 the default database thread setting, `max_thread_num` is resolved from hardware
 concurrency and falls back to `1` if the runtime cannot detect it.
+Service threads run TP queries concurrently, but each query uses one execution slot and one thread.
 
 **Auto Compaction:** `ServiceConfig::auto_compaction` controls whether a
 background auto-compaction thread runs while serving. Default is `true`.
@@ -296,7 +297,7 @@ keeps its allocator alive, and owns its WAL writer.
 - Automatic WAL (Write-Ahead Log) management per slot
 - Memory-aligned TP slot contexts for cache efficiency
 
-**Pool Size:** Determined by `NeugDBConfig::max_thread_num`, typically matching the number of concurrent request handlers.
+**Pool Size:** `NeugDBConfig::max_thread_num` determines the pool size. Each query exclusively leases one slot and one thread for its duration.
 
 ### Public Methods
 

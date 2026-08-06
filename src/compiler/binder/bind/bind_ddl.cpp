@@ -24,17 +24,21 @@
 
 #include <optional>
 #include "neug/compiler/binder/ddl/bound_alter.h"
+#include "neug/compiler/binder/ddl/bound_create_index.h"
 #include "neug/compiler/binder/ddl/bound_create_sequence.h"
 #include "neug/compiler/binder/ddl/bound_create_table.h"
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
+#include "neug/compiler/binder/ddl/bound_drop_index.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/value_converter.h"
@@ -42,11 +46,13 @@
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/ddl/alter.h"
+#include "neug/compiler/parser/ddl/create_index.h"
 #include "neug/compiler/parser/ddl/create_sequence.h"
 #include "neug/compiler/parser/ddl/create_table.h"
 #include "neug/compiler/parser/ddl/create_table_info.h"
 #include "neug/compiler/parser/ddl/create_type.h"
 #include "neug/compiler/parser/ddl/drop.h"
+#include "neug/compiler/parser/ddl/drop_index.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
@@ -421,6 +427,56 @@ std::unique_ptr<BoundStatement> Binder::bindCreateSequence(
       sequenceName, startWith, increment, minValue, maxValue, info.cycle,
       info.onConflict, false /* isInternal */);
   return std::make_unique<BoundCreateSequence>(std::move(boundInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindCreateIndex(
+    const Statement& statement) {
+  auto& createIndex = statement.constCast<CreateIndex>();
+  const auto& parsedInfo = createIndex.getInfo();
+
+  // 1. Validate table exists in catalog
+  validateTableExistence(*clientContext, parsedInfo.tableName);
+
+  // 2. Get table entry and validate that it is a node table.
+  auto* tableEntry = clientContext->getCatalog()->getTableCatalogEntry(
+      clientContext->getTransaction(), parsedInfo.tableName);
+  if (tableEntry->get_entry_type() != SchemaEntryType::NODE) {
+    THROW_BINDER_EXCEPTION(
+        "Index can only be created on node tables, but " +
+        parsedInfo.tableName + " is of type " +
+        SchemaEntryTypeUtils::toString(tableEntry->get_entry_type()) + ".");
+  }
+
+  // 3. Create NodeExpression pattern
+  auto pattern = std::make_shared<NodeExpression>(
+      DataType(DataTypeId::kVertex), parsedInfo.tableName, parsedInfo.tableName,
+      std::vector<SchemaEntry*>{tableEntry});
+
+  // 4. Validate the property exists and resolve its type.
+  validateColumnExistence(tableEntry, parsedInfo.propertyName);
+  const auto propDef = tableEntry->get_property(parsedInfo.propertyName);
+
+  // 5. Build BoundCreateIndexInfo with lowercase index type
+  std::string indexType = parsedInfo.indexType;
+  common::StringUtils::toLower(indexType);
+
+  BoundCreateIndexInfo boundInfo;
+  boundInfo.indexName = parsedInfo.indexName;
+  boundInfo.pattern = std::move(pattern);
+  boundInfo.propertyName = parsedInfo.propertyName;
+  boundInfo.propertyType = propDef.getType().copy();
+  boundInfo.indexType = std::move(indexType);
+  boundInfo.options = parsedInfo.options;
+  boundInfo.ifNotExists = parsedInfo.ifNotExists;
+
+  return std::make_unique<BoundCreateIndex>(std::move(boundInfo));
+}
+
+std::unique_ptr<BoundStatement> Binder::bindDropIndex(
+    const Statement& statement) {
+  const auto& dropIndex = statement.constCast<DropIndex>();
+  return std::make_unique<BoundDropIndex>(dropIndex.getIndexName(),
+                                          dropIndex.getIfExists());
 }
 
 std::unique_ptr<BoundStatement> Binder::bindDrop(const Statement& statement) {

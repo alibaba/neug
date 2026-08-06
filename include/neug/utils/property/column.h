@@ -71,8 +71,6 @@ class ColumnBase : public Module {
   virtual void set_any(size_t index, const Value& value, bool insert_safe) = 0;
 
   virtual Value get_any(size_t index) const = 0;
-
-  virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
 
 template <typename T>
@@ -149,12 +147,6 @@ class TypedColumn : public ColumnBase {
     return Value::CreateValue<T>(get_view(index));
   }
 
-  void ingest(uint32_t index, OutArchive& arc) override {
-    T val;
-    arc >> val;
-    set_value(index, val);
-  }
-
   const IDataContainer& buffer() const { return *buffer_; }
   const std::shared_ptr<IDataContainer>& shared_buffer() const {
     return buffer_;
@@ -229,8 +221,6 @@ class TypedColumn<EmptyType> : public ColumnBase {
   Value get_any(size_t index) const override { return Value(DataType::EMPTY); }
 
   EmptyType get_view(size_t index) const { return EmptyType(); }
-
-  void ingest(uint32_t index, OutArchive& arc) override {}
 
   std::string ModuleTypeName() const override { return type_name(); }
 
@@ -525,12 +515,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   Value get_any(size_t index) const override {
     return Value::STRING(std::string(get_view(index)));
-  }
-
-  void ingest(uint32_t index, OutArchive& arc) override {
-    std::string_view val;
-    arc >> val;
-    set_value(index, val);
   }
 
   std::unique_ptr<Module> Clone() const override {

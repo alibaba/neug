@@ -390,20 +390,6 @@ Value VecColumn::get_any(size_t vid) const {
   }
 }
 
-void VecColumn::ingest(uint32_t vid, OutArchive& arc) {
-  switch (ArrayType::GetChildType(array_type_).id()) {
-#define TYPE_DISPATCHER(enum_val, type)                    \
-  case DataTypeId::enum_val:                               \
-    set_any(vid, ReadValue<type>(arc, array_type_), true); \
-    return;
-    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
-#undef TYPE_DISPATCHER
-  default:
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "VecColumn requires an array with a POD child type");
-  }
-}
-
 IndexIDAccessor* VecColumn::get_offset_accessor() const {
   return offset_accessor_.get();
 }

@@ -357,6 +357,16 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return view_.schema(); }
 
+  /** @brief Find an index by its unique name. */
+  result<StorageIndex*> GetIndexByName(const std::string& name) const {
+    return view_.GetIndexByName(name);
+  }
+
+  /** @brief Get all registered indexes. */
+  result<std::vector<StorageIndex*>> GetAllIndexes() const {
+    return view_.GetAllIndexes();
+  }
+
   /**
    * @brief Search an index selected by its unique name.
    *

@@ -400,6 +400,10 @@ message PhysicalOpr {
       ExtensionInstall ext_install = 72;
       ExtensionLoad ext_load = 73;
       ExtensionUninstall ext_uninstall = 74;
+
+      // Index operators. Field 75 is already used by gds_algo above.
+      CreateIndex create_index = 76;
+      DropIndex drop_index = 77;
     }
   }
   message MetaData {

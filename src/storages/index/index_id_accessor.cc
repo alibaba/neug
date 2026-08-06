@@ -20,6 +20,7 @@
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/module/module_factory.h"
 
 namespace neug {
 
@@ -154,5 +155,7 @@ Status VecColumnBackedIndexIDAccessor::DeleteVID(vid_t vid) {
 std::unique_ptr<Module> VecColumnBackedIndexIDAccessor::Clone() const {
   return std::make_unique<VecColumnBackedIndexIDAccessor>(offset_accessor_);
 }
+
+NEUG_REGISTER_MODULE(DefaultIndexIDAccessor);
 
 }  // namespace neug
