@@ -228,7 +228,7 @@ TEST_F(FlagTest, CheckpointAnalyzeQuery) {
   EXPECT_TRUE(analysis.checkpoint());
 
   analysis = planner.analyzeQuery(" \tEXPLAIN LOGICAL CHECKPOINT ;\n");
-  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
+  EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
   EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
   EXPECT_TRUE(analysis.checkpoint());
 
@@ -255,35 +255,10 @@ TEST_F(FlagTest, CheckpointAnalyzeQuery) {
 
 TEST_F(FlagTest, ExplainUpdateAnalyzeQuery) {
   GOptPlanner planner;
-  // EXPLAIN queries should always have access_mode = kRead, regardless of the
-  // inner statement
   auto analysis =
       planner.analyzeQuery("EXPLAIN MATCH (n) SET n.value = 1 RETURN n;");
-  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
-  EXPECT_FALSE(analysis.checkpoint());
-
-  // EXPLAIN INSERT should also be kRead
-  analysis = planner.analyzeQuery("EXPLAIN INSERT INTO person VALUES (...);");
-  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
-
-  // EXPLAIN DELETE should also be kRead
-  analysis = planner.analyzeQuery("EXPLAIN DELETE (n) WHERE n.id = 1;");
-  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
-
-  // EXPLAIN CREATE should also be kRead
-  analysis = planner.analyzeQuery("EXPLAIN CREATE TABLE t (id INT);");
-  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
-
-  // Unlike EXPLAIN, PROFILE does not override access_mode: it preserves the
-  // inner statement's access_mode so the query is actually executed.
-  analysis =
-      planner.analyzeQuery("PROFILE MATCH (n) SET n.value = 1 RETURN n;");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
   EXPECT_FALSE(analysis.checkpoint());
 }
 

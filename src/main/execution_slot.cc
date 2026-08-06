@@ -84,13 +84,14 @@ void ExecutionSlotLease::reset() noexcept {
 namespace {
 
 void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
+                                 physical::ExplainMode explain_mode,
                                  const execution::CacheValue* prepared_query,
                                  const Status& execution_status) {
   if (prepared_query == nullptr) {
     return;
   }
   if (!execution_status.ok() ||
-      prepared_query->explain_mode == physical::ExplainMode::EXPLAIN) {
+      explain_mode == physical::ExplainMode::EXPLAIN) {
     return;
   }
   const auto& flags = prepared_query->flags;
@@ -100,12 +101,13 @@ void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
 }
 
 Status executePreparedQuery(execution::CacheValue& prepared_query,
+                            physical::ExplainMode explain_mode,
                             const execution::ParamsMap& parameters,
                             IStorageInterface& storage,
                             neug::QueryResponse& response) {
   response.mutable_schema()->CopyFrom(prepared_query.result_schema);
 
-  if (prepared_query.explain_mode == physical::ExplainMode::EXPLAIN) {
+  if (explain_mode == physical::ExplainMode::EXPLAIN) {
     auto tree_result =
         prepared_query.pipeline.explain_tree(storage, parameters);
     if (!tree_result) {
@@ -120,7 +122,7 @@ Status executePreparedQuery(execution::CacheValue& prepared_query,
   }
 
   std::unique_ptr<execution::OprTimer> timer;
-  if (prepared_query.explain_mode == physical::ExplainMode::PROFILE) {
+  if (explain_mode == physical::ExplainMode::PROFILE) {
     timer = std::make_unique<execution::OprTimer>();
   }
 
@@ -334,16 +336,23 @@ Status ExecutionSlot::executeCore(const std::string& query,
       return parsed_parameters.error();
     }
 
-    RETURN_IF_NOT_OK(executePreparedQuery(
-        *prepared_query, parsed_parameters.value(), storage, response));
+    RETURN_IF_NOT_OK(
+        executePreparedQuery(*prepared_query, analysis.explain_mode,
+                             parsed_parameters.value(), storage, response));
     return Status::OK();
   };
 
   Status status;
-  // EXPLAIN CHECKPOINT is non-mutating and is routed through the normal
-  // execute_on_storage path so it compiles the query and returns the plan tree.
-  if (NEUG_UNLIKELY(analysis.checkpoint() &&
-                    analysis.explain_mode != physical::ExplainMode::EXPLAIN)) {
+  // EXPLAIN is strategy-independent and must not acquire a write transaction,
+  // including for EXPLAIN CHECKPOINT.
+  if (NEUG_UNLIKELY(analysis.explain_mode == physical::ExplainMode::EXPLAIN)) {
+    auto read_lease =
+        ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+    StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
+    status = execute_on_storage(
+        GraphStats(read_lease.view(), read_lease.planning_generation()),
+        storage);
+  } else if (NEUG_UNLIKELY(analysis.checkpoint())) {
     // PROFILE executes the checkpoint and is timed by executeCheckpoint().
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -370,7 +379,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
           alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
       status = execute_on_storage(
           GraphStats(slot.view(), slot.planning_generation()), storage);
-      markPlanningChangedIfNeeded(write_scope, prepared_query.get(), status);
+      markPlanningChangedIfNeeded(write_scope, analysis.explain_mode,
+                                  prepared_query.get(), status);
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
