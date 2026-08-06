@@ -169,13 +169,20 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   auto compact_elements = CreateColumn(child_type_);
   compact_elements->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
 
+  // Precompute total element count to resize once, avoiding O(n^2) copying
+  // from repeated resize calls inside the loop.
+  size_t total_elements = 0;
+  for (size_t row = 0; row < size_; ++row) {
+    total_elements += lengths_->get_view(row);
+  }
+  compact_elements->resize(total_elements);
+
   size_t tail = 0;
   for (size_t row = 0; row < size_; ++row) {
     auto offset = offsets_->get_view(row);
     auto length = lengths_->get_view(row);
     compact_offsets.set_value(row, tail);
     compact_lengths.set_value(row, length);
-    compact_elements->resize(tail + length);
     for (size_t i = 0; i < length; ++i) {
       compact_elements->set_any(tail + i, elements_->get_any(offset + i), true);
     }
@@ -275,6 +282,17 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
       write_child(old_offset + i, children[i], insert_safe);
     }
     return;
+  }
+
+  // List length changed: new elements must be appended to the tail of
+  // elements_, which requires a resize. Respect the insert_safe contract:
+  // when false, the caller expects no reallocation.
+  if (!insert_safe) {
+    THROW_STORAGE_EXCEPTION(
+        "ListPropertyColumn::set_any: list length changed from " +
+        std::to_string(old_length) + " to " +
+        std::to_string(children.size()) +
+        ", which requires resizing elements_ but insert_safe is false");
   }
 
   auto new_offset = elements_->size();
