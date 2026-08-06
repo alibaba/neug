@@ -444,7 +444,6 @@ message PhysicalPlan {
   // to be deprecated
   repeated PhysicalOpr plan = 3;
   ExecutionFlag flag = 4;
-  ExplainMode explain_mode = 5;
 }
 
 

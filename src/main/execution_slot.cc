@@ -173,8 +173,7 @@ Status executeCheckpoint(physical::ExplainMode explain_mode,
 
 Status validateQueryAnalysis(const QueryAnalysis& analysis,
                              const execution::CacheValue& prepared_query) {
-  if (analysis.explain_mode != prepared_query.explain_mode ||
-      analysis.checkpoint() != prepared_query.flags.checkpoint()) {
+  if (analysis.checkpoint() != prepared_query.flags.checkpoint()) {
     return Status::InternalError(
         "Lightweight query analysis does not match the compiled plan.");
   }
