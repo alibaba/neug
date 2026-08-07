@@ -6,9 +6,10 @@
 
 For ordinary queries, the transactional `ExecutionSlot` strategy uses
 `ReadTransaction`, `InsertTransaction`, and `UpdateTransaction`. The direct
-strategy usually owns an `UpdateTimestampLease` or `ReadSnapshotLease` and uses
-`StorageReadInterface` or `StorageAPUpdateInterface`. `CompactTransaction` and
-`CheckpointCoordinator` implement maintenance paths.
+strategy uses `ReadSnapshotLease` for reads, keeps the current in-place path for
+automatic insert-only statements, and uses the same COW `UpdateTransaction` as
+the transactional strategy for update and schema statements.
+`CompactTransaction` and `CheckpointCoordinator` implement maintenance paths.
 
 These objects use RAII: terminal operations disarm their resources, and
 destruction releases any active transaction or lease. Acquisition is ordered
@@ -60,19 +61,22 @@ discards buffered operations and completes the timestamp without applying them.
 Acquiring an update timestamp changes admission from `kOpen` to
 `kInsertsBlocked`, blocking new inserts and updates and waiting for active
 inserts to finish. Reads remain allowed. `ExecutionSlot` then clones the
-current `PropertyGraph`, and `StorageTPUpdateInterface` applies DML or DDL to
-that COW clone.
+current `PropertyGraph`, and `StorageCOWUpdateInterface` applies DML or DDL to
+that COW clone. `UpdateTransaction` owns the clone, CowState and timestamp
+lease; each statement temporarily supplies its allocator, and commit
+temporarily supplies the snapshot store and, when required, the WAL writer.
 
-A non-empty `Commit()` checks snapshot-slot capacity, appends the finalized WAL,
-and calls `UpdateTimestampLease::BeginCommit()`. This changes admission to
-`kAllBlocked`, preventing new readers and writers while the clone is published.
-Readers that already hold a `SnapshotGuard` are not drained and continue using
-their pinned slot. The snapshot is published before the update timestamp is
-completed, so a reader cannot observe the new timestamp with the old snapshot.
+A non-empty `Commit()` first reserves a snapshot slot. A `kWal` transaction then
+appends its finalized redo, while a `kNoWal` transaction performs no WAL
+work. Commit next calls `UpdateTimestampLease::BeginCommit()`, publishes the
+prepared clone, and completes the timestamp with the published snapshot
+generation. New readers and writers are briefly blocked during publication;
+already-pinned readers continue using their old slot.
 
-Schema changes invalidate the shared query cache before publication. An empty
-commit, `Abort()`, or destruction discards the clone, completes the timestamp,
-and reopens admission without publishing a snapshot.
+`PropertyGraphCowState::HasChanges()` decides whether a snapshot must be
+published. Data-only commits retain the planning generation; schema or index
+changes advance it once. An empty commit, `Abort()`, or destruction discards the
+clone, closes the timestamp gap, and reopens admission without publishing.
 
 ## Compact Transaction
 
@@ -121,9 +125,10 @@ includes commit, abort, and empty transactions, but only commits modify graph
 state. `TimestampWindow` records out-of-order completions so a later writer
 cannot advance `read_ts_` past an earlier unfinished transaction.
 
-Insert commit appends WAL before replaying into the live graph. Update commit
-appends WAL before publishing its COW snapshot. Both complete their timestamps
-only after the graph change is visible.
+Insert commit appends WAL before replaying into the live graph. A `kWal` update
+appends WAL before publishing its COW snapshot; a `kNoWal` update publishes
+without WAL and relies on a later checkpoint for crash persistence. Both
+complete their timestamps only after the graph change is visible.
 
 Update waiters directly contend the existing admission phase; acquisition order
 is unspecified. The public manager API retains its no-deadline fast path.
@@ -148,4 +153,4 @@ existing inserts.
 
 For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
 
-For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.
+For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp is assigned. Commit makes all modifications visible atomically. Transactional `kWal` writes are logged before publication; embedded `kNoWal` writes are not crash-durable until a later checkpoint.

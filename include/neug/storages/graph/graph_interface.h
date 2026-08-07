@@ -34,6 +34,21 @@ struct IndexMeta;
 struct IndexQueryParams;
 struct SearchResult;
 
+namespace index_ddl {
+
+using CatalogChangedCallback = std::function<void()>;
+
+neug::result<StorageIndex*> CreateIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    neug::Allocator& alloc, std::unique_ptr<IndexMeta> meta,
+    const CatalogChangedCallback& on_catalog_changed = {});
+
+Status DropIndex(PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+                 neug::Allocator& alloc, const std::string& name,
+                 const CatalogChangedCallback& on_catalog_changed = {});
+
+}  // namespace index_ddl
+
 namespace graph_interface_impl {
 
 using neug::label_t;
@@ -970,7 +985,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
         mut_view_(view),
         alloc_(alloc),
         timestamp_(timestamp),
-        index_manager_(graph_.mutable_index_manager()),
         on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
 
@@ -1047,7 +1061,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
-  StorageIndexManager& index_manager_;
   PlanningChangedCallback on_planning_changed_;
 };
 
