@@ -74,9 +74,12 @@ jobs:
           python -m pip install -r tools/python_bind/requirements.txt
           python -m pip install pytest pytest-cov coverage
 
-      # vcpkg is pre-installed on GitHub-hosted Windows runners at C:\vcpkg.
-      # Setting VCPKG_ROOT lets CMake's vcpkg toolchain auto-install OpenSSL
-      # and other dependencies declared via find_package() in CMakeLists.txt.
+      # vcpkg is pre-installed on GitHub-hosted Windows runners at C:\vcpkg
+      # but ships with NO pre-built packages. In classic mode (no vcpkg.json)
+      # the toolchain does not auto-install missing packages, so we must
+      # install OpenSSL explicitly before CMake configure. Without this step
+      # CMake falls back to the system-level dynamic OpenSSL (DLL), which
+      # Python 3.8+ cannot load (PATH is not searched for DLLs).
       - name: Setup vcpkg
         run: |
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
@@ -86,9 +89,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_ROOT }}/installed
-          key: vcpkg-x64-windows-static-md-${{ hashFiles('CMakeLists.txt') }}
+          key: vcpkg-x64-windows-static-md-openssl-${{ hashFiles('CMakeLists.txt') }}
           restore-keys: |
-            vcpkg-x64-windows-static-md-
+            vcpkg-x64-windows-static-md-openssl-
+
+      - name: Install OpenSSL via vcpkg
+        run: |
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+          $triplet = "x64-windows-static-md"
+          $installDir = Join-Path $env:VCPKG_ROOT "installed\$triplet"
+          # Skip if already installed (cache hit)
+          if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
+            Write-Host "OpenSSL already installed in $installDir (cache hit)"
+          } else {
+            Write-Host "Installing openssl:$triplet via vcpkg"
+            & $vcpkgExe install "openssl:$triplet"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "vcpkg failed to install openssl:$triplet"
+              exit 1
+            }
+          }
 
       - name: Configure CMake
         run: |
@@ -110,60 +130,6 @@ jobs:
           $jobs = [Math]::Min($cpuCount, 8)
           Write-Host "Building with $jobs parallel jobs"
           cmake --build build -j $jobs
-
-      # Windows has no RPATH ($ORIGIN/@loader_path); DLLs are resolved via
-      # the DLL search order (PATH, same-dir-first).  Add the directories
-      # that contain libneug.dll and vcpkg-installed DLLs so that
-      # neug_py_bind.pyd can find all its dependencies at import time.
-      - name: Add DLL directories to PATH
-        run: |
-          $vcpkgBin = Join-Path $env:VCPKG_ROOT "installed\x64-windows-static-md\bin"
-          $buildSrc = Join-Path $env:GITHUB_WORKSPACE "build\src"
-          $buildPyBind = Join-Path $env:GITHUB_WORKSPACE "build\tools\python_bind"
-          Write-Host "Adding to PATH: $vcpkgBin, $buildSrc, $buildPyBind"
-          echo "$vcpkgBin" >> $env:GITHUB_PATH
-          echo "$buildSrc" >> $env:GITHUB_PATH
-          echo "$buildPyBind" >> $env:GITHUB_PATH
-
-      # neug.dll links against OpenSSL dynamically (libssl-3-x64.dll /
-      # libcrypto-3-x64.dll).  Copy them next to neug_py_bind.pyd so the
-      # Windows loader finds them via the same-directory rule.
-      - name: Copy OpenSSL DLLs next to Python bindings
-        shell: pwsh
-        run: |
-          $dest = Join-Path $env:GITHUB_WORKSPACE "build\tools\python_bind"
-          $srcBuild = Join-Path $env:GITHUB_WORKSPACE "build\src"
-          $vcpkgInstalled = Join-Path $env:VCPKG_ROOT "installed"
-
-          # Search for OpenSSL DLLs across the entire vcpkg installation
-          # and the build tree (static triplet may not place them in bin/).
-          $searchDirs = @(
-            (Join-Path $vcpkgInstalled "x64-windows-static-md\bin"),
-            (Join-Path $vcpkgInstalled "x64-windows-static-md\tools"),
-            (Join-Path $vcpkgInstalled "x64-windows\bin"),
-            $srcBuild
-          )
-          foreach ($d in $searchDirs) {
-            if (Test-Path $d) {
-              Write-Host "Searching: $d"
-              Get-ChildItem -Path $d -Recurse -Filter "libssl*.dll" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Found: $($_.FullName)" }
-              Get-ChildItem -Path $d -Recurse -Filter "libcrypto*.dll" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Found: $($_.FullName)" }
-            }
-          }
-
-          # Copy all found OpenSSL DLLs to the destination
-          foreach ($d in $searchDirs) {
-            if (Test-Path $d) {
-              $ssl = Get-ChildItem -Path $d -Recurse -Filter "libssl-3-x64.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-              $crypto = Get-ChildItem -Path $d -Recurse -Filter "libcrypto-3-x64.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($ssl) { Copy-Item $ssl.FullName $dest -Force; Write-Host "Copied $($ssl.FullName) to $dest" }
-              if ($crypto) { Copy-Item $crypto.FullName $dest -Force; Write-Host "Copied $($crypto.FullName) to $dest" }
-              if ($ssl -and $crypto) { break }
-            }
-          }
-
-          Write-Host "=== All .dll files in $dest ==="
-          Get-ChildItem $dest -Filter "*.dll" | Format-Table FullName
 
       # ========================================
       # Phase 1: C++ Tests (ctest)
