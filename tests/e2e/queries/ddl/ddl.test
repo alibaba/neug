@@ -42,7 +42,10 @@ Runtime exception: Cannot parse invalid as ExtendDirection.
 -STATEMENT match (:person)-[w:workAt]-(:organisation) return w.year
 ---- error
 Binder exception: Undirected rel pattern 'w' has at least one matched rel table with storage type 'fwd' or 'bwd'. Undirected rel patterns are only supported if every matched rel table has storage type 'both'.
--STATEMENT create rel table livesIn (FROM person TO organisation, year INT64, MANY_TO_ONE) WITH (storage_direction = 'bwd');
+-STATEMENT create rel table badBwd (FROM person TO organisation, year INT64, MANY_TO_ONE) WITH (storage_direction = 'bwd');
+---- error
+Runtime exception: storage_direction 'bwd' cannot be used when outgoing side is SINGLE (MANY_TO_ONE / ONE_TO_ONE).
+-STATEMENT create rel table livesIn (FROM person TO organisation, year INT64, ONE_TO_MANY) WITH (storage_direction = 'bwd');
 ---- ok
 -STATEMENT match (:person)-[l:livesIn]->(:organisation) return l.year
 ---- error

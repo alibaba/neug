@@ -923,18 +923,32 @@ TEST_F(PBUtilsTest, MultiplicityToStorageStrategy) {
 
 TEST_F(PBUtilsTest, ApplyStorageDirection) {
   EdgeStrategy oe = EdgeStrategy::kMultiple;
-  EdgeStrategy ie = EdgeStrategy::kSingle;
+  EdgeStrategy ie = EdgeStrategy::kMultiple;
   std::string err;
 
+  // MANY_TO_ONE: oe=Single, ie=Multiple — fwd OK, bwd rejected.
+  oe = EdgeStrategy::kSingle;
+  ie = EdgeStrategy::kMultiple;
   ASSERT_TRUE(apply_storage_direction("fwd", oe, ie, err));
-  EXPECT_EQ(oe, EdgeStrategy::kMultiple);
+  EXPECT_EQ(oe, EdgeStrategy::kSingle);
   EXPECT_EQ(ie, EdgeStrategy::kNone);
 
   oe = EdgeStrategy::kSingle;
   ie = EdgeStrategy::kMultiple;
+  EXPECT_FALSE(apply_storage_direction("bwd", oe, ie, err));
+  EXPECT_NE(err.find("bwd"), std::string::npos);
+
+  // ONE_TO_MANY: oe=Multiple, ie=Single — bwd OK, fwd rejected.
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kSingle;
   ASSERT_TRUE(apply_storage_direction("BWD", oe, ie, err));
   EXPECT_EQ(oe, EdgeStrategy::kNone);
-  EXPECT_EQ(ie, EdgeStrategy::kMultiple);
+  EXPECT_EQ(ie, EdgeStrategy::kSingle);
+
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kSingle;
+  EXPECT_FALSE(apply_storage_direction("fwd", oe, ie, err));
+  EXPECT_NE(err.find("fwd"), std::string::npos);
 
   oe = EdgeStrategy::kMultiple;
   ie = EdgeStrategy::kMultiple;

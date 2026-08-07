@@ -110,16 +110,19 @@ TEST_F(StorageDDLConflictActionTest, RelStorageDirection) {
   EXPECT_NE(undirected.error().error_message().find("Undirected rel pattern"),
             std::string::npos);
 
-  // bwd: drop OE, keep IE
+  // bwd drops OE: requires oe=Multiple (ONE_TO_MANY / MANY_TO_MANY).
+  EXPECT_FALSE(conn->Query(
+      "CREATE REL TABLE badBwd(FROM person TO organisation, year INT64, "
+      "MANY_TO_ONE) WITH (storage_direction = 'bwd');"));
   ASSERT_TRUE(conn->Query(
       "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
-      "MANY_TO_ONE) WITH (storage_direction = 'bwd');"));
+      "ONE_TO_MANY) WITH (storage_direction = 'bwd');"));
   EXPECT_EQ(db->schema().get_outgoing_edge_strategy("person", "organisation",
                                                     "livesIn"),
             neug::EdgeStrategy::kNone);
   EXPECT_EQ(db->schema().get_incoming_edge_strategy("person", "organisation",
                                                     "livesIn"),
-            neug::EdgeStrategy::kMultiple);
+            neug::EdgeStrategy::kSingle);
 
   auto directed_on_bwd = conn->Query(
       "MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;");

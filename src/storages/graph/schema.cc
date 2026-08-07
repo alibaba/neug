@@ -2384,9 +2384,9 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
   assert(e_schemas_.count(index) > 0);
   auto oe_strategy = e_schemas_.at(index)->oe_strategy;
   auto ie_strategy = e_schemas_.at(index)->ie_strategy;
-  // kNone means that CSR side is absent (ONLY_OUT / ONLY_IN). Relation string
-  // still needs a multiplicity; treat the missing side as kMultiple so dump
-  // can round-trip via x_csr_params.edge_storage_strategy.
+  // kNone means that CSR side is absent (ONLY_OUT / ONLY_IN). DDL only allows
+  // dropping a kMultiple side, so treating the missing side as kMultiple
+  // recovers the original multiplicity for dump + edge_storage_strategy.
   if (oe_strategy == EdgeStrategy::kNone) {
     oe_strategy = EdgeStrategy::kMultiple;
   }

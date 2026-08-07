@@ -49,7 +49,8 @@ bool multiplicity_to_storage_strategy(
 
 // Apply CREATE REL TABLE STORAGE_DIRECTION (fwd/bwd/both) onto OE/IE
 // strategies derived from multiplicity. FWD keeps only OE, BWD keeps only IE.
-// Returns false and sets error_msg on unrecognized values.
+// Rejects directions that would drop a kSingle side (uniqueness / dump
+// round-trip). Returns false and sets error_msg on invalid values.
 bool apply_storage_direction(const std::string& storage_direction,
                              EdgeStrategy& oe_strategy,
                              EdgeStrategy& ie_strategy, std::string& error_msg);
