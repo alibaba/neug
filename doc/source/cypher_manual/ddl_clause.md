@@ -69,15 +69,26 @@ CREATE REL TABLE IF NOT EXISTS KNOWS (
 
 **Table options (`WITH`)**
 
-You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. A common key is `sort_key_for_nbr`, whose value is typically a string literal naming an edge property used for ordering. The clause is optional.
+You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. The clause is optional. Supported keys include:
 
-Example, still with `Person`, `KNOWS`, and `weight` only—here `weight` is used as the sort column name:
+- `sort_key_for_nbr`: a string literal naming an edge property used for neighbor ordering.
+- `storage_direction`: which adjacency CSR sides to materialize. Allowed values are `'fwd'`, `'bwd'`, and `'both'` (default). `'fwd'` keeps only outgoing edges; `'bwd'` keeps only incoming edges; `'both'` keeps both.
+
+`storage_direction` must not drop a `SINGLE` CSR side required by multiplicity: `'fwd'` is rejected for `ONE_TO_MANY` / `ONE_TO_ONE`, and `'bwd'` is rejected for `MANY_TO_ONE` / `ONE_TO_ONE`. Queries that need a missing side (for example an undirected pattern on a `'fwd'` table, or a forward expand on a `'bwd'` table) are rejected by the binder.
+
+Examples:
 
 ```
 CREATE REL TABLE IF NOT EXISTS KNOWS (
     FROM Person TO Person,
     weight DOUBLE
 ) WITH (sort_key_for_nbr = 'weight');
+
+CREATE REL TABLE IF NOT EXISTS WORKS_AT (
+    FROM Person TO Company,
+    year INT64,
+    MANY_TO_ONE
+) WITH (storage_direction = 'fwd');
 ```
 
 **Where multiplicity and options apply**
