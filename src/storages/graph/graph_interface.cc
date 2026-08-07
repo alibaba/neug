@@ -548,11 +548,6 @@ Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
   return status;
 }
 
-neug::result<StorageIndex*> StorageAPUpdateInterface::GetIndexByName(
-    const std::string& name) const {
-  return index_manager_.GetIndexByName(name);
-}
-
 /**
  * Creates an index for a vertex property.
  *

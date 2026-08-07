@@ -935,18 +935,19 @@ class StorageUpdateInterface : public StorageReadInterface,
  * via dynamic_cast from IStorageInterface; a null result means the current
  * storage mode does not support index management.
  *
+ * Existence checks are expressed through the DDL calls themselves:
+ * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same
+ * name already exists, and DropIndex fails with ERR_NOT_FOUND when the
+ * target index does not exist.
+ *
  * Read-side index access (GetIndexByName/GetAllIndexes/IndexSearch) stays
  * on StorageReadInterface and remains available to all readable modes.
  *
  * @since v0.1.0
  */
-class StorageIndexInterface : virtual public IStorageInterface {
+class StorageIndexDDLInterface {
  public:
-  virtual ~StorageIndexInterface() {}
-
-  /** @brief Find an index by its unique name. */
-  virtual result<StorageIndex*> GetIndexByName(
-      const std::string& name) const = 0;
+  virtual ~StorageIndexDDLInterface() {}
 
   /** @brief Create, bind, and populate an index. */
   virtual result<StorageIndex*> CreateIndex(
@@ -957,7 +958,7 @@ class StorageIndexInterface : virtual public IStorageInterface {
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface,
-                                 public StorageIndexInterface {
+                                 public StorageIndexDDLInterface {
  public:
   using PlanningChangedCallback = std::function<void()>;
 
@@ -973,8 +974,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
         on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
 
-  neug::result<StorageIndex*> GetIndexByName(
-      const std::string& name) const override;
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;

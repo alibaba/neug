@@ -376,13 +376,14 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
 
 TEST_F(TPIndexTest, IndexAdminInterfaceIsAPOnly) {
   // Index management is an AP-only capability: the AP update interface
-  // implements StorageIndexInterface while the TP update interface does not.
-  EXPECT_NE(dynamic_cast<StorageIndexInterface*>(ap_.get()), nullptr);
+  // implements StorageIndexDDLInterface while the TP update interface does
+  // not.
+  EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
 
   CreatePersonTableTP();
   auto txn = NewUpdateTransaction();
   StorageTPUpdateInterface tp(txn);
-  EXPECT_EQ(dynamic_cast<StorageIndexInterface*>(&tp), nullptr);
+  EXPECT_EQ(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
