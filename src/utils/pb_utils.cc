@@ -119,6 +119,26 @@ bool multiplicity_to_storage_strategy(
   return true;
 }
 
+bool apply_storage_direction(const std::string& storage_direction,
+                             EdgeStrategy& oe_strategy,
+                             EdgeStrategy& ie_strategy, std::string& error_msg) {
+  const auto normalized = toUpper(storage_direction);
+  // Align with schema YAML edge_storage_strategy aliases.
+  if (normalized == "FWD") {
+    ie_strategy = EdgeStrategy::kNone;
+    return true;
+  }
+  if (normalized == "BWD") {
+    oe_strategy = EdgeStrategy::kNone;
+    return true;
+  }
+  if (normalized == "BOTH") {
+    return true;
+  }
+  error_msg = "Cannot parse " + storage_direction + " as storage_direction.";
+  return false;
+}
+
 bool primitive_type_to_property_type(
     const common::PrimitiveType& primitive_type, DataType& out_type) {
   switch (primitive_type) {

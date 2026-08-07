@@ -1951,19 +1951,30 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
           vertex_type_pair_node["relation"] =
               schema.get_edge_strategy(src_v, dst_v, e_label);
           // Persist the subset of x_csr_params needed after checkpoint
-          // DumpToYaml/ToJson reopen: sort_key_for_nbr and non-default
-          // oe/ie mutability. (edge_storage_strategy is already covered by
-          // "relation"; other LoadFromYaml CSR fields are not dumped here.)
+          // DumpToYaml/ToJson reopen: sort_key_for_nbr, edge_storage_strategy
+          // (when one CSR side is absent), and non-default oe/ie mutability.
           {
             const auto edge_schema =
                 schema.get_edge_schema(src_v, dst_v, e_label);
             const auto& sort_key = edge_schema->sort_key_for_nbr;
             const bool oe_mutable = edge_schema->oe_mutable;
             const bool ie_mutable = edge_schema->ie_mutable;
-            if (sort_key.has_value() || !oe_mutable || !ie_mutable) {
+            std::string storage_strategy;
+            if (edge_schema->oe_strategy == EdgeStrategy::kNone &&
+                edge_schema->ie_strategy != EdgeStrategy::kNone) {
+              storage_strategy = "ONLY_IN";
+            } else if (edge_schema->ie_strategy == EdgeStrategy::kNone &&
+                       edge_schema->oe_strategy != EdgeStrategy::kNone) {
+              storage_strategy = "ONLY_OUT";
+            }
+            if (sort_key.has_value() || !oe_mutable || !ie_mutable ||
+                !storage_strategy.empty()) {
               YAML::Node csr_node;
               if (sort_key.has_value()) {
                 csr_node["sort_key_for_nbr"] = sort_key.value();
+              }
+              if (!storage_strategy.empty()) {
+                csr_node["edge_storage_strategy"] = storage_strategy;
               }
               if (!oe_mutable) {
                 csr_node["oe_mutability"] = "IMMUTABLE";
@@ -2373,25 +2384,25 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
   assert(e_schemas_.count(index) > 0);
   auto oe_strategy = e_schemas_.at(index)->oe_strategy;
   auto ie_strategy = e_schemas_.at(index)->ie_strategy;
+  // kNone means that CSR side is absent (ONLY_OUT / ONLY_IN). Relation string
+  // still needs a multiplicity; treat the missing side as kMultiple so dump
+  // can round-trip via x_csr_params.edge_storage_strategy.
+  if (oe_strategy == EdgeStrategy::kNone) {
+    oe_strategy = EdgeStrategy::kMultiple;
+  }
+  if (ie_strategy == EdgeStrategy::kNone) {
+    ie_strategy = EdgeStrategy::kMultiple;
+  }
   if (oe_strategy == EdgeStrategy::kMultiple) {
     if (ie_strategy == EdgeStrategy::kMultiple) {
       return "MANY_TO_MANY";
-    } else if (ie_strategy == EdgeStrategy::kSingle) {
-      return "ONE_TO_MANY";
-    } else {
-      THROW_RUNTIME_ERROR("ie_strategy should not be none");
     }
-  } else if (oe_strategy == EdgeStrategy::kSingle) {
-    if (ie_strategy == EdgeStrategy::kMultiple) {
-      return "MANY_TO_ONE";
-    } else if (ie_strategy == EdgeStrategy::kSingle) {
-      return "ONE_TO_ONE";
-    } else {
-      THROW_RUNTIME_ERROR("ie_strategy should not be none");
-    }
-  } else {
-    THROW_RUNTIME_ERROR("oe_strategy should not be none");
+    return "ONE_TO_MANY";
   }
+  if (ie_strategy == EdgeStrategy::kMultiple) {
+    return "MANY_TO_ONE";
+  }
+  return "ONE_TO_ONE";
 }
 
 void Schema::ensure_vertex_label_valid(label_t v_label_id) const {
