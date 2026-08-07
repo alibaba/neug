@@ -371,7 +371,7 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   auto duplicate =
       CreateIndexOnCurrentSnapshot("idx_person_age", "Person", "age");
   EXPECT_FALSE(duplicate);
-  EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
+  EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {

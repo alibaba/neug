@@ -99,6 +99,10 @@ class ScriptedVersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override { return 1; }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
+  uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point) override {
+    return 1;
+  }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
   void finish_update_timestamp(uint32_t,

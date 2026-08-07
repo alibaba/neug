@@ -124,3 +124,28 @@ cannot advance `read_ts_` past an earlier unfinished transaction.
 Insert commit appends WAL before replaying into the live graph. Update commit
 appends WAL before publishing its COW snapshot. Both complete their timestamps
 only after the graph change is visible.
+
+Update waiters directly contend the existing admission phase; acquisition order
+is unspecified. The public manager API retains its no-deadline fast path.
+The deadline overload of `UpdateTimestampLease` invokes a private lease-only
+manager hook. If its absolute `steady_clock` deadline expires before timestamp
+reservation, lease construction reports `ERR_TX_TIMEOUT` and restores any phase
+acquired by that attempt. Admission contention and inserter draining use separate
+backoff cursors. Existing production callers retain infinite-wait behavior and
+do not read the clock; future explicit-transaction integration will pass its
+write-wait deadline through this overload.
+
+When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+
+Timestamp completion uses a fixed ring whose slots contain the exact completed
+timestamp, not a boolean bit. Before assigning a new write timestamp,
+`VersionManager` limits unresolved timestamps to the ring capacity. An insert
+that encounters this intentional backpressure first releases its inserter
+admission, so it cannot prevent an update or compact operation from draining
+existing inserts.
+
+## Serializability
+
+For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
+
+For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.

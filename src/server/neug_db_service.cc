@@ -69,12 +69,16 @@ void NeugDBService::init(const ServiceConfig& config) {
     LOG(ERROR) << "NeugDB service is already running!";
     return;
   }
-  if (config.thread_num > 0 &&
-      config.thread_num > static_cast<uint32_t>(db_config_.max_thread_num)) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Invalid service thread_num: " + std::to_string(config.thread_num) +
-        ". Must be less than or equal to database max_thread_num: " +
-        std::to_string(db_config_.max_thread_num) + ".");
+  ServiceConfig effective_config = config;
+  if (effective_config.thread_num > 0 &&
+      effective_config.thread_num >
+          static_cast<uint32_t>(db_config_.max_thread_num)) {
+    LOG(WARNING) << "Service thread_num (" << effective_config.thread_num
+                 << ") exceeds database max_thread_num ("
+                 << db_config_.max_thread_num << "); clamping to "
+                 << db_config_.max_thread_num << ".";
+    effective_config.thread_num =
+        static_cast<uint32_t>(db_config_.max_thread_num);
   }
 
   bthread_setconcurrency(
@@ -86,8 +90,8 @@ void NeugDBService::init(const ServiceConfig& config) {
       db_.graph().checkpoint().wal_dir(), db_config_);
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
-  hdl_mgr_->Init(config);
-  service_config_ = config;
+  hdl_mgr_->Init(effective_config);
+  service_config_ = effective_config;
 
   db_.checkpoint_coordinator_->SetActivationHandler(
       [pool = execution_slot_pool_.get()](const std::string& wal_uri) {

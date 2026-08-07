@@ -11,6 +11,8 @@ oC_Statement
         | nEUG_CreateRelTable
         | nEUG_CreateSequence
         | nEUG_CreateType
+        | nEUG_CreateIndex
+        | nEUG_DropIndex
         | nEUG_Drop
         | nEUG_AlterTable
         | nEUG_CopyFrom
@@ -115,6 +117,21 @@ nEUG_CreateSequence
 
 nEUG_CreateType
     : CREATE SP TYPE SP oC_SchemaName SP AS SP nEUG_DataType SP? ;
+
+nEUG_CreateIndex
+    : CREATE SP INDEX SP oC_SchemaName (SP nEUG_IfNotExists)? SP ON SP oC_SchemaName SP USING SP oC_SchemaName SP? '(' SP? oC_PropertyKeyName SP? ')' (SP nEUG_CreateIndexOptions)? ;
+
+nEUG_CreateIndexOptions
+    : WITH SP? '(' SP? nEUG_CreateIndexOptionList SP? ')' ;
+
+nEUG_CreateIndexOptionList
+    : nEUG_CreateIndexOption ( SP? ',' SP? nEUG_CreateIndexOption )* ;
+
+nEUG_CreateIndexOption
+    : oC_PropertyKeyName SP? '=' SP? oC_Literal ;
+
+nEUG_DropIndex
+    : DROP SP INDEX SP oC_SchemaName (SP nEUG_IfExists)? ;
 
 nEUG_SequenceOptions
     : nEUG_IncrementBy
@@ -735,6 +752,7 @@ nEUG_NonReservedKeywords
         | EXTENSION
         | GRAPH
         | IF
+        | INDEX
         | IS
         | IMPORT
         | INCREMENT
@@ -762,6 +780,7 @@ nEUG_NonReservedKeywords
         | TRANSACTION
         | TYPE
         | USE
+        | USING
         | WRITE
         | FROM
         | TO
