@@ -65,24 +65,23 @@ class CreateIndexOpr : public IOperator {
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override {
-    auto* update_interface = dynamic_cast<StorageUpdateInterface*>(&graph);
-    if (!update_interface) {
+    auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+    if (!index_interface) {
       RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                          "CREATE INDEX can only be executed in update mode");
-    }
-
-    auto existing_index =
-        update_interface->GetIndexByName(create_index_.name());
-    if (existing_index) {
-      if (ignore_conflict_) {
-        return std::move(ctx);
-      }
-      RETURN_STATUS_ERROR(StatusCode::ERR_ILLEGAL_OPERATION,
-                          "Index already exists: " + create_index_.name());
+                          "CREATE INDEX is only supported in AP update mode");
     }
 
     auto index_meta = CreateIndexMeta(graph.schema(), create_index_);
-    GS_RESULT_CHECK(update_interface->CreateIndex(std::move(index_meta)));
+    auto index = index_interface->CreateIndex(std::move(index_meta));
+    if (!index) {
+      // The storage layer reports ERR_ILLEGAL_OPERATION when an index with
+      // the same name already exists; honor IF NOT EXISTS in that case.
+      if (ignore_conflict_ &&
+          index.error().error_code() == StatusCode::ERR_ILLEGAL_OPERATION) {
+        return std::move(ctx);
+      }
+      RETURN_ERROR(index.error());
+    }
     return std::move(ctx);
   }
 
