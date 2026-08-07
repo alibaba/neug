@@ -871,13 +871,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     return st;
   }
 
-  /**
-   * @brief Create, bind, and populate an index.
-   */
-  virtual neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndex(const std::string& name) = 0;
-
  private:
   virtual void MarkSchemaDirty() = 0;
 
@@ -934,7 +927,37 @@ class StorageUpdateInterface : public StorageReadInterface,
   }
 };
 
-class StorageAPUpdateInterface : public StorageUpdateInterface {
+/**
+ * @brief Admin interface for storage index DDL (create/drop).
+ *
+ * Index management is only implemented by the AP update path
+ * (StorageAPUpdateInterface). The execution layer obtains this interface
+ * via dynamic_cast from IStorageInterface; a null result means the current
+ * storage mode does not support index management.
+ *
+ * Read-side index access (GetIndexByName/GetAllIndexes/IndexSearch) stays
+ * on StorageReadInterface and remains available to all readable modes.
+ *
+ * @since v0.1.0
+ */
+class StorageIndexInterface : virtual public IStorageInterface {
+ public:
+  virtual ~StorageIndexInterface() {}
+
+  /** @brief Find an index by its unique name. */
+  virtual result<StorageIndex*> GetIndexByName(
+      const std::string& name) const = 0;
+
+  /** @brief Create, bind, and populate an index. */
+  virtual result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) = 0;
+
+  /** @brief Drop an index by its unique name. */
+  virtual Status DropIndex(const std::string& name) = 0;
+};
+
+class StorageAPUpdateInterface : public StorageUpdateInterface,
+                                 public StorageIndexInterface {
  public:
   using PlanningChangedCallback = std::function<void()>;
 
@@ -950,6 +973,8 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
 
+  neug::result<StorageIndex*> GetIndexByName(
+      const std::string& name) const override;
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;

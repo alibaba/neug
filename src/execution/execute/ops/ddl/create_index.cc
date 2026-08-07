@@ -65,14 +65,13 @@ class CreateIndexOpr : public IOperator {
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override {
-    auto* update_interface = dynamic_cast<StorageUpdateInterface*>(&graph);
-    if (!update_interface) {
+    auto* index_interface = dynamic_cast<StorageIndexInterface*>(&graph);
+    if (!index_interface) {
       RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                          "CREATE INDEX can only be executed in update mode");
+                          "CREATE INDEX is only supported in AP update mode");
     }
 
-    auto existing_index =
-        update_interface->GetIndexByName(create_index_.name());
+    auto existing_index = index_interface->GetIndexByName(create_index_.name());
     if (existing_index) {
       if (ignore_conflict_) {
         return std::move(ctx);
@@ -82,7 +81,7 @@ class CreateIndexOpr : public IOperator {
     }
 
     auto index_meta = CreateIndexMeta(graph.schema(), create_index_);
-    GS_RESULT_CHECK(update_interface->CreateIndex(std::move(index_meta)));
+    GS_RESULT_CHECK(index_interface->CreateIndex(std::move(index_meta)));
     return std::move(ctx);
   }
 
