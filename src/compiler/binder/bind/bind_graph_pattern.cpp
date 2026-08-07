@@ -226,28 +226,6 @@ static std::unique_ptr<Expression> createPropertyExpression(
                                   pattern.toString(), entries);
 }
 
-static void checkRelDirectionTypeAgainstStorageDirection(
-    const RelExpression* rel) {
-  switch (rel->getDirectionType()) {
-  case RelDirectionType::SINGLE:
-    // Directed patterns may use OE (FWD) and/or IE (BWD). Planner picks from
-    // getExtendDirections(); that helper already errors if no side is present.
-    (void) rel->getExtendDirections();
-    break;
-  case RelDirectionType::BOTH:
-    if (rel->getExtendDirections().size() < common::NUM_REL_DIRECTIONS) {
-      THROW_BINDER_EXCEPTION(stringFormat(
-          "Undirected rel pattern '{}' has at least one matched rel table with "
-          "storage type 'fwd' or 'bwd'. Undirected rel patterns are only "
-          "supported if every matched rel table has storage type 'both'.",
-          rel->toString()));
-    }
-    break;
-  default:
-    NEUG_UNREACHABLE;
-  }
-}
-
 std::shared_ptr<RelExpression> Binder::bindQueryRel(
     const RelPattern& relPattern,
     const std::shared_ptr<NodeExpression>& leftNode,
@@ -313,7 +291,9 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
     addToScope(parsedName, queryRel);
   }
   queryGraph.addQueryRel(queryRel);
-  checkRelDirectionTypeAgainstStorageDirection(queryRel.get());
+  // Storage-direction checks run after QueryGraphLabelAnalyzer::pruneRel so
+  // untyped rel patterns (e.g. [r] / [ISLOCATEDIN] without :Label) are not
+  // validated against every edge table in the catalog.
   return queryRel;
 }
 

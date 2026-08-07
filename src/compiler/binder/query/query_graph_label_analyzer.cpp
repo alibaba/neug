@@ -23,6 +23,7 @@
 #include "neug/compiler/binder/query/query_graph_label_analyzer.h"
 
 #include "neug/compiler/catalog/catalog.h"
+#include "neug/compiler/common/enums/rel_direction.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
@@ -177,8 +178,30 @@ void QueryGraphLabelAnalyzer::pruneRel(RelExpression& rel) const {
                        "connects to all of its neighbour nodes.",
                        rel.toString()));
     }
+    return;
   }
   // LCOV_EXCL_STOP
+  if (!throwOnViolate) {
+    return;
+  }
+  // Validate after prune so untyped [r] only considers endpoint-compatible
+  // tables (not every edge label in the catalog).
+  switch (rel.getDirectionType()) {
+  case RelDirectionType::SINGLE:
+    (void) rel.getExtendDirections();
+    break;
+  case RelDirectionType::BOTH:
+    if (rel.getExtendDirections().size() < common::NUM_REL_DIRECTIONS) {
+      THROW_BINDER_EXCEPTION(stringFormat(
+          "Undirected rel pattern '{}' has at least one matched rel table with "
+          "storage type 'fwd' or 'bwd'. Undirected rel patterns are only "
+          "supported if every matched rel table has storage type 'both'.",
+          rel.toString()));
+    }
+    break;
+  default:
+    NEUG_UNREACHABLE;
+  }
 }
 
 }  // namespace binder
