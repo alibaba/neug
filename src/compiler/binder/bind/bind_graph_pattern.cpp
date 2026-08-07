@@ -230,13 +230,9 @@ static void checkRelDirectionTypeAgainstStorageDirection(
     const RelExpression* rel) {
   switch (rel->getDirectionType()) {
   case RelDirectionType::SINGLE:
-    // Directed pattern is in the fwd direction
-    if (!containsValue(rel->getExtendDirections(), ExtendDirection::FWD)) {
-      THROW_BINDER_EXCEPTION(
-          stringFormat("Querying table matched in rel pattern '{}' with "
-                       "bwd-only storage direction isn't supported.",
-                       rel->toString()));
-    }
+    // Directed patterns may use OE (FWD) and/or IE (BWD). Planner picks from
+    // getExtendDirections(); that helper already errors if no side is present.
+    (void) rel->getExtendDirections();
     break;
   case RelDirectionType::BOTH:
     if (rel->getExtendDirections().size() < common::NUM_REL_DIRECTIONS) {

@@ -124,12 +124,17 @@ TEST_F(StorageDDLConflictActionTest, RelStorageDirection) {
                                                     "livesIn"),
             neug::EdgeStrategy::kSingle);
 
-  auto directed_on_bwd = conn->Query(
-      "MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;");
-  ASSERT_FALSE(directed_on_bwd);
-  EXPECT_NE(directed_on_bwd.error().error_message().find(
-                "bwd-only storage direction"),
-            std::string::npos);
+  // Directed MATCH is OK on bwd: planner extends via IE from the dst side.
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;"));
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:organisation)<-[l:livesIn]-(:person) RETURN l.year;"));
+  auto undirected_bwd =
+      conn->Query("MATCH (:person)-[l:livesIn]-(:organisation) RETURN l.year;");
+  ASSERT_FALSE(undirected_bwd);
+  EXPECT_NE(
+      undirected_bwd.error().error_message().find("Undirected rel pattern"),
+      std::string::npos);
 
   // both (default): both sides present
   ASSERT_TRUE(conn->Query(
