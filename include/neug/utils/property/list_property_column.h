@@ -49,6 +49,12 @@ class ListPropertyColumn : public ColumnBase {
   void resize(size_t size, const Value& default_value) override;
 
   DataTypeId type() const override { return DataTypeId::kList; }
+  // When insert_safe is false (the insert-transaction path), setting a
+  // non-empty list on a row whose current list length differs will throw a
+  // StorageException if the elements column has no spare capacity.  After
+  // loading from a checkpoint, elements_tail_ == elements_->size(), so there
+  // is zero spare space and any non-empty list insertion will fail.
+  // See storages/README.md §5.4 for details.
   void set_any(size_t index, const Value& value, bool insert_safe) override;
   Value get_any(size_t index) const override;
 

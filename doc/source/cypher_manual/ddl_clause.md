@@ -17,9 +17,7 @@ The following table lists the recommended syntax for defining default values for
 | `TIMESTAMP`       | `prop TIMESTAMP DEFAULT TIMESTAMP('1970-01-01')` | `TIMESTAMP('1970-01-01')`    |
 | `INTERVAL`        | `prop INTERVAL DEFAULT INTERVAL('0 year 0 month 0 day')` | `INTERVAL('0 year 0 month 0 day')`         |
 | `ARRAY`           | `prop INT32[3] DEFAULT [1, 2, 3]` | child defaults repeated to the fixed length, for example `[0, 0, 0]` for `INT32[3]` |
-| `LIST`             | `prop INT64[] DEFAULT [1, 2, 3]`  | `[]` (empty list)                  |
-
-List types (`T[]`) are variable-length and can hold any number of elements, including zero. Array types (`T[N]`) have a fixed length `N` that must be a positive integer.
+| `LIST`             | `prop INT64[] DEFAULT CAST([1, 2, 3], 'INT64[]')` | `[]` (empty list)                  |
 
 Please refer to the following examples for more usages.
 
@@ -129,7 +127,7 @@ If an array property is omitted during `CREATE`, or explicitly set to `NULL` dur
 
 ## List Properties
 
-Use `T[]` to declare a variable-length list property, where `T` is the child type. Unlike fixed-size arrays (`T[N]`), the number of elements is not constrained at the schema level.
+Use `T[]` to declare a variable-length list property, where `T` is the child type. A list can hold any number of elements, including zero. Unlike array types (`T[N]`), which have a fixed length `N` that must be a positive integer, the number of elements in a list is not constrained at the schema level.
 
 ```cypher
 CREATE NODE TABLE Person(
@@ -165,6 +163,8 @@ CREATE (p:Person {id: 1, tags: CAST(['a', 'b'], 'STRING[]')});
 CREATE (p:Person {id: 2, tags: ['a', 'b']});
 ```
 
+In transactional service mode, statements that write non-empty LIST properties cannot use the `insert` (`i`) access mode yet; use the `update` (`u`) access mode instead. This restriction also applies when LIST appears inside another LIST or ARRAY type.
+
 List properties are supported in CSV and JSON bulk loading via `COPY FROM`. List values in CSV use bracket syntax `[1, 2, 3]`, and nested lists nest the brackets:
 
 ```
@@ -172,6 +172,8 @@ id|tags
 1|[a,b,c]
 2|[]
 ```
+
+Parquet bulk loading does not support list properties yet; only fixed-size arrays (`T[N]`) can be loaded from Parquet files.
 
 For more details on array vs list type distinctions, refer to the [Array Properties](#array-properties) section above.
 

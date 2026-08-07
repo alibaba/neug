@@ -132,6 +132,10 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   elements_->Open(ckp, resolver,
                   ResolveChild(resolver, desc, kElementsRef, elements_desc),
                   level);
+  // After loading from a checkpoint, elements_tail_ equals elements_->size(),
+  // meaning there is zero spare capacity in the elements column.  Any
+  // non-empty list insertion via insert transaction (insert_safe=false)
+  // will throw a StorageException.  This is a known limitation.
   elements_tail_ = elements_->size();
 
   if (items_->size() != size_) {
@@ -276,6 +280,11 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
 
   auto new_offset = elements_tail_;
   auto required_size = new_offset + children.size();
+  // This check fails when the elements column has no spare capacity.
+  // In the insert-transaction path (insert_safe always false), this throws
+  // a StorageException.  After loading from checkpoint there is no spare
+  // space, so any non-empty list whose length differs from the current
+  // list length will trigger this error.  See storages/README.md §5.4.
   if (required_size > elements_->size()) {
     if (!insert_safe) {
       THROW_STORAGE_EXCEPTION(

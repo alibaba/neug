@@ -145,44 +145,6 @@ def test_list_point_edge_update_and_reopen(tmp_path):
     db.close()
 
 
-def test_copy_recursive_list_from_csv_and_json(tmp_path):
-    csv_path = tmp_path / "nested.csv"
-    csv_path.write_text(
-        "id|nested\n" "1|[[[a],[]],[[b,c],[d]]]\n" "2|[]\n",
-        encoding="utf-8",
-    )
-    json_path = tmp_path / "nested.json"
-    json_path.write_text(
-        '[{"id":3,"nested":[[["e"],["f","g"]]]},'
-        '{"id":4,"nested":[[null,["h"]],null]}]',
-        encoding="utf-8",
-    )
-
-    db = Database(db_path=str(tmp_path / "db"), mode="w", checkpoint_on_close=False)
-    conn = db.connect()
-    conn.execute(
-        "CREATE NODE TABLE T(id INT64, nested STRING[][2][], PRIMARY KEY(id));"
-    )
-    conn.execute(f'COPY T FROM "{csv_path}" (header = true, delim = "|");')
-    conn.execute(f'COPY T FROM "{json_path}";')
-
-    rows = list(conn.execute("MATCH (n:T) RETURN n.id, n.nested ORDER BY n.id;"))
-    assert [[row[0], _nested_list(row[1])] for row in rows] == [
-        [1, [[["a"], []], [["b", "c"], ["d"]]]],
-        [2, []],
-        [3, [[["e"], ["f", "g"]]]],
-        [4, [[[], ["h"]], [[], []]]],
-    ]
-
-    bad_json = tmp_path / "bad.json"
-    bad_json.write_text('[{"id":5,"nested":[[["x"],["y"],["z"]]]}]', encoding="utf-8")
-    with pytest.raises(Exception):
-        conn.execute(f'COPY T FROM "{bad_json}";')
-
-    conn.close()
-    db.close()
-
-
 def test_return_single_list(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()

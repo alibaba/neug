@@ -142,6 +142,28 @@ The `insert_safe` parameter controls resize behavior, inherited from the `Column
 - When `true`, the elements column is resized as needed; the caller must provide external
   synchronization during resize.
 
+**Known limitation — insert transaction with list properties:**
+
+After loading a graph from a checkpoint directory, the elements column is sized exactly to
+the live element count (`elements_tail_ == elements_->size()`), leaving zero spare capacity.
+The insert-transaction path (`GraphView::AddVertex` → `TableView::insert` → `set_any`)
+always passes `insert_safe=false`.  Therefore, inserting a **non-empty** list property
+via an insert transaction will throw a `StorageException` ("list length changed ... which
+requires resizing elements_ but insert_safe is false") unless the list length happens to
+match the row's current list length (enabling in-place overwrite).
+
+This differs from `StringColumn`, which pre-allocates ~25% extra space during `Dump` and
+persists the used-portion marker (`pos_`) in the checkpoint descriptor, allowing subsequent
+inserts to use the slack.  `ListPropertyColumn` does not currently implement an analogous
+pre-allocation strategy, so non-empty list inserts after loading from checkpoint are
+expected to fail.
+
+Workarounds:
+- Insert vertices with empty lists, then update the list values via `UpdateTransaction`
+  (which uses `insert_safe=true`).
+- Pre-populate the graph with sufficient list data during the initial bulk load before
+  checkpointing, so that insert transactions are not needed for list properties.
+
 
 ## 6. Durability
 

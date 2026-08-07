@@ -39,6 +39,16 @@ extension_test = pytest.mark.skipif(
 )
 
 
+def _nested_list(value):
+    """Normalize a returned list value into plain Python lists."""
+    if isinstance(value, (str, bytes)):
+        return value
+    try:
+        return [_nested_list(item) for item in value]
+    except TypeError:
+        return value
+
+
 def get_tinysnb_dataset_path():
     """Get the path to tinysnb dataset CSV files."""
     # Try to get from environment variable first
@@ -2363,3 +2373,40 @@ class TestCopyFrom:
                 f'COPY NewEdge FROM "{csv_edge}" '
                 f'(HEADER=true, delim=",", to="Person")'
             )
+
+    def test_copy_from_recursive_list_csv_and_json(self):
+        """COPY FROM CSV and JSON with recursive LIST properties (STRING[][2][])."""
+        csv_path = self.tmp_path / "nested.csv"
+        csv_path.write_text(
+            "id|nested\n" "1|[[[a],[]],[[b,c],[d]]]\n" "2|[]\n",
+            encoding="utf-8",
+        )
+        json_path = self.tmp_path / "nested.json"
+        json_path.write_text(
+            '[{"id":3,"nested":[[["e"],["f","g"]]]},'
+            '{"id":4,"nested":[[null,["h"]],null]}]',
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE T(id INT64, nested STRING[][2][], PRIMARY KEY(id));"
+        )
+        self.conn.execute(f'COPY T FROM "{csv_path}" (header = true, delim = "|");')
+        self.conn.execute(f'COPY T FROM "{json_path}";')
+
+        rows = list(
+            self.conn.execute("MATCH (n:T) RETURN n.id, n.nested ORDER BY n.id;")
+        )
+        assert [[row[0], _nested_list(row[1])] for row in rows] == [
+            [1, [[["a"], []], [["b", "c"], ["d"]]]],
+            [2, []],
+            [3, [[["e"], ["f", "g"]]]],
+            [4, [[[], ["h"]], [[], []]]],
+        ]
+
+        bad_json = self.tmp_path / "bad.json"
+        bad_json.write_text(
+            '[{"id":5,"nested":[[["x"],["y"],["z"]]]}]', encoding="utf-8"
+        )
+        with pytest.raises(Exception):
+            self.conn.execute(f'COPY T FROM "{bad_json}";')
