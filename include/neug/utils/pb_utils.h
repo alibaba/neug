@@ -47,6 +47,13 @@ bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
 
+// Apply CREATE REL TABLE STORAGE_DIRECTION (fwd/bwd/both) onto OE/IE
+// strategies derived from multiplicity. FWD keeps only OE, BWD keeps only IE.
+// Returns false and sets error_msg on unrecognized values.
+bool apply_storage_direction(const std::string& storage_direction,
+                             EdgeStrategy& oe_strategy,
+                             EdgeStrategy& ie_strategy, std::string& error_msg);
+
 neug::result<std::vector<std::pair<std::string, Value>>> property_defs_to_value(
     const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);

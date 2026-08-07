@@ -645,3 +645,65 @@ def test_create_rel_table_with_options(tmp_path):
     _assert_sort_key(conn2.get_schema())
     conn2.close()
     db2.close()
+
+
+def _get_edge_storage_strategy(schema_text: str, edge_name: str):
+    """Return x_csr_params.edge_storage_strategy for the first triplet, or None."""
+    by_edge = _get_edge_pair_relations_by_type_name(schema_text)
+    pairs = by_edge.get(edge_name, [])
+    assert len(pairs) == 1, pairs
+    csr = pairs[0].get("x_csr_params") or {}
+    return csr.get("edge_storage_strategy")
+
+
+def test_create_rel_table_storage_direction(tmp_path):
+    """
+    `WITH (storage_direction=...)` must reach storage (OE/IE) and the binder
+    must reject patterns that would scan the missing CSR side.
+    """
+    db_dir = str(tmp_path / "test_rel_storage_direction")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(id INT64 PRIMARY KEY);")
+        conn.execute("CREATE NODE TABLE organisation(id INT64 PRIMARY KEY);")
+
+        with pytest.raises(Exception, match="ExtendDirection"):
+            conn.execute(
+                "CREATE REL TABLE bad(FROM person TO organisation, year INT64, "
+                "MANY_TO_ONE) WITH (storage_direction = 'invalid');"
+            )
+
+        # fwd: OE only — directed OK, undirected rejected
+        conn.execute(
+            "CREATE REL TABLE workAt(FROM person TO organisation, year INT64, "
+            "MANY_TO_ONE) WITH (storage_direction = 'fwd');"
+        )
+        assert _get_edge_storage_strategy(conn.get_schema(), "workAt") == "ONLY_OUT"
+        list(conn.execute("MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"))
+        with pytest.raises(Exception, match="Undirected rel pattern"):
+            conn.execute("MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;")
+
+        # bwd: IE only — directed MATCH OK (extend from dst); undirected rejected
+        conn.execute(
+            "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
+            "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
+        )
+        assert _get_edge_storage_strategy(conn.get_schema(), "livesIn") == "ONLY_IN"
+        list(conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;"))
+        list(conn.execute("MATCH (:organisation)<-[l:livesIn]-(:person) RETURN l.year;"))
+        with pytest.raises(Exception, match="Undirected rel pattern"):
+            conn.execute("MATCH (:person)-[l:livesIn]-(:organisation) RETURN l.year;")
+
+        # both: undirected OK, no one-sided storage strategy in schema
+        conn.execute(
+            "CREATE REL TABLE studyAt(FROM person TO organisation, year INT64, "
+            "MANY_TO_ONE) WITH (storage_direction = 'both');"
+        )
+        assert _get_edge_storage_strategy(conn.get_schema(), "studyAt") is None
+        list(conn.execute("MATCH (:person)-[s:studyAt]-(:organisation) RETURN s.year;"))
+    finally:
+        conn.close()
+        db.close()
+        shutil.rmtree(db_dir, ignore_errors=True)

@@ -22,6 +22,7 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/utils/property/types.h"
 #include "unittest/utils.h"
 
 class DDLTestDBFixture : public ::testing::Test {
@@ -78,6 +79,72 @@ TEST_F(StorageDDLConflictActionTest, CreateRelTable) {
   EXPECT_TRUE(
       conn->Query("CREATE REL TABLE IF NOT EXISTS knows(FROM person TO person, "
                   "weight DOUBLE);"));
+}
+
+// Verifies STORAGE_DIRECTION reaches storage (OE/IE / EmptyCsr) and that the
+// binder rejects patterns that would read the missing direction.
+TEST_F(StorageDDLConflictActionTest, RelStorageDirection) {
+  ASSERT_TRUE(
+      conn->Query("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));"));
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE organisation(id INT64, PRIMARY KEY(id));"));
+
+  // fwd: keep OE, drop IE
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE workAt(FROM person TO organisation, year INT64, "
+      "MANY_TO_ONE) WITH (storage_direction = 'fwd');"));
+  EXPECT_EQ(db->schema().get_outgoing_edge_strategy("person", "organisation",
+                                                    "workAt"),
+            neug::EdgeStrategy::kSingle);
+  EXPECT_EQ(db->schema().get_incoming_edge_strategy("person", "organisation",
+                                                    "workAt"),
+            neug::EdgeStrategy::kNone);
+
+  // Directed expand along OE is allowed.
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"));
+  // Undirected would need both OE and IE.
+  auto undirected =
+      conn->Query("MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;");
+  ASSERT_FALSE(undirected);
+  EXPECT_NE(undirected.error().error_message().find("Undirected rel pattern"),
+            std::string::npos);
+
+  // bwd: drop OE, keep IE (including when OE was SINGLE).
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
+      "MANY_TO_ONE) WITH (storage_direction = 'bwd');"));
+  EXPECT_EQ(db->schema().get_outgoing_edge_strategy("person", "organisation",
+                                                    "livesIn"),
+            neug::EdgeStrategy::kNone);
+  EXPECT_EQ(db->schema().get_incoming_edge_strategy("person", "organisation",
+                                                    "livesIn"),
+            neug::EdgeStrategy::kMultiple);
+
+  // Directed MATCH is OK on bwd: planner extends via IE from the dst side.
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;"));
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:organisation)<-[l:livesIn]-(:person) RETURN l.year;"));
+  auto undirected_bwd =
+      conn->Query("MATCH (:person)-[l:livesIn]-(:organisation) RETURN l.year;");
+  ASSERT_FALSE(undirected_bwd);
+  EXPECT_NE(
+      undirected_bwd.error().error_message().find("Undirected rel pattern"),
+      std::string::npos);
+
+  // both (default): both sides present
+  ASSERT_TRUE(conn->Query(
+      "CREATE REL TABLE studyAt(FROM person TO organisation, year INT64, "
+      "MANY_TO_ONE) WITH (storage_direction = 'both');"));
+  EXPECT_NE(db->schema().get_outgoing_edge_strategy("person", "organisation",
+                                                    "studyAt"),
+            neug::EdgeStrategy::kNone);
+  EXPECT_NE(db->schema().get_incoming_edge_strategy("person", "organisation",
+                                                    "studyAt"),
+            neug::EdgeStrategy::kNone);
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:person)-[s:studyAt]-(:organisation) RETURN s.year;"));
 }
 
 TEST_F(StorageDDLConflictActionTest, DropNodeTable) {

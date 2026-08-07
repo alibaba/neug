@@ -921,6 +921,32 @@ TEST_F(PBUtilsTest, MultiplicityToStorageStrategy) {
       static_cast<physical::CreateEdgeSchema::Multiplicity>(999), oe, ie));
 }
 
+TEST_F(PBUtilsTest, ApplyStorageDirection) {
+  EdgeStrategy oe = EdgeStrategy::kSingle;
+  EdgeStrategy ie = EdgeStrategy::kMultiple;
+  std::string err;
+
+  ASSERT_TRUE(apply_storage_direction("fwd", oe, ie, err));
+  EXPECT_EQ(oe, EdgeStrategy::kSingle);
+  EXPECT_EQ(ie, EdgeStrategy::kNone);
+
+  // Dropping a SINGLE side is allowed (bwd on MANY_TO_ONE).
+  oe = EdgeStrategy::kSingle;
+  ie = EdgeStrategy::kMultiple;
+  ASSERT_TRUE(apply_storage_direction("BWD", oe, ie, err));
+  EXPECT_EQ(oe, EdgeStrategy::kNone);
+  EXPECT_EQ(ie, EdgeStrategy::kMultiple);
+
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kMultiple;
+  ASSERT_TRUE(apply_storage_direction("both", oe, ie, err));
+  EXPECT_EQ(oe, EdgeStrategy::kMultiple);
+  EXPECT_EQ(ie, EdgeStrategy::kMultiple);
+
+  EXPECT_FALSE(apply_storage_direction("invalid", oe, ie, err));
+  EXPECT_FALSE(err.empty());
+}
+
 TEST_F(PBUtilsTest, ConflictActionToBool) {
   EXPECT_TRUE(
       conflict_action_to_bool(::physical::ConflictAction::ON_CONFLICT_THROW));
