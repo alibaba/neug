@@ -501,6 +501,50 @@ TEST(ListPropertyColumnTest, ResizeDefaultAndTypeContract) {
   std::filesystem::remove_all(temp_dir);
 }
 
+TEST(ListPropertyColumnTest, ExceedsMaxListLength) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_property_column_maxlen_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto list_type = DataType::List(DataType::INT32);
+  ListPropertyColumn column(list_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(1);
+
+  // 65535 elements (max for 16-bit length) should succeed
+  {
+    std::vector<Value> children;
+    children.reserve(65535);
+    for (int32_t i = 0; i < 65535; ++i) {
+      children.push_back(Value::INT32(i));
+    }
+    column.set_any(0, Value::LIST(DataType::INT32, std::move(children)), true);
+    EXPECT_EQ(ListValue::GetChildren(column.get_any(0)).size(), 65535);
+  }
+
+  // 65536 elements exceeds 16-bit length field — must throw
+  {
+    std::vector<Value> children;
+    children.reserve(65536);
+    for (int32_t i = 0; i < 65536; ++i) {
+      children.push_back(Value::INT32(i));
+    }
+    EXPECT_THROW(
+        column.set_any(0, Value::LIST(DataType::INT32, std::move(children)),
+                       true),
+        exception::RuntimeError);
+  }
+
+  std::filesystem::remove_all(temp_dir);
+}
+
 TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   auto temp_dir =
       std::filesystem::temp_directory_path() /

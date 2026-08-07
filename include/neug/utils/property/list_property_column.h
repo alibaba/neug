@@ -41,6 +41,11 @@ class ListPropertyColumn : public ColumnBase {
   void Open(Checkpoint& ckp, const CheckpointManifest& manifest,
             const ModuleDescriptor& desc, MemoryLevel level) override;
 
+  // On compaction, items are streamed directly to a runtime file (no
+  // in-memory copy); elements go through an in-memory copy and the child
+  // column's Dump, since each column type owns its on-disk format.
+  // TODO(future work): stream the elements compaction too, e.g. via a
+  // DumpRanges-style API on ColumnBase.
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
 
@@ -85,15 +90,6 @@ class ListPropertyColumn : public ColumnBase {
 
   inline void set_item(size_t idx, const list_meta_item& item) {
     reinterpret_cast<list_meta_item*>(items_->mutable_data())[idx] = item;
-  }
-
-  static inline list_meta_item get_item(ULongColumn& col, size_t idx) {
-    return reinterpret_cast<const list_meta_item*>(col.data())[idx];
-  }
-
-  static inline void set_item(ULongColumn& col, size_t idx,
-                              const list_meta_item& item) {
-    reinterpret_cast<list_meta_item*>(col.mutable_data())[idx] = item;
   }
 };
 

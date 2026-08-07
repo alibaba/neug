@@ -16,6 +16,7 @@
 #include "neug/utils/property/list_property_column.h"
 
 #include <algorithm>
+#include <fstream>
 #include <optional>
 #include <vector>
 
@@ -159,36 +160,81 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
         "ListPropertyColumn::Dump: module key must not be empty");
   }
 
-  ULongColumn compact_items;
-  compact_items.Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
-  compact_items.resize(size_);
+  auto items_key = ChildModuleKey(key, kItemsRef);
+  auto elements_key = ChildModuleKey(key, kElementsRef);
 
-  auto compact_elements = CreateColumn(child_type_);
-  compact_elements->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
-
-  // Precompute total element count to resize once, avoiding O(n^2) copying
-  // from repeated resize calls inside the loop.
+  // Compute live element count to check whether compaction is needed.
   size_t total_elements = 0;
   for (size_t row = 0; row < size_; ++row) {
     total_elements += get_item(row).length;
   }
-  compact_elements->resize(total_elements);
 
-  size_t tail = 0;
-  for (size_t row = 0; row < size_; ++row) {
-    auto item = get_item(row);
-    set_item(compact_items, row, {tail, item.length});
-    for (size_t i = 0; i < item.length; ++i) {
-      compact_elements->set_any(tail + i, elements_->get_any(item.offset + i),
-                                true);
+  // Fast path: no dead space and no extra capacity — the elements column is
+  // already compact and contiguous, so dump the original columns directly
+  // without creating temporary copies.  This is the common case when a
+  // checkpoint runs after Open with no length-changing updates.
+  if (total_elements == elements_tail_ && elements_->size() == elements_tail_) {
+    items_->Dump(ckp, meta, items_key);
+    elements_->Dump(ckp, meta, elements_key);
+  } else {
+    // Slow path: compact to eliminate dead space left by length-changing
+    // updates (old elements become unreachable when a row's list is
+    // re-appended at the tail).
+
+    // Stream compacted items to a runtime file, remapping offsets on the
+    // fly.  Layout matches MMapContainer::Dump (FileHeader + payload) so
+    // Open() reads it back unchanged.
+    auto item_file = ckp.CreateRuntimeFile();
+    std::ofstream item_out(item_file.path(), std::ios::binary);
+    if (!item_out) {
+      THROW_IO_EXCEPTION("Failed to open file for dumping: " +
+                         item_file.path());
     }
-    tail += item.length;
+    FileHeader header{};
+    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+    MD5_CTX md5_ctx;
+    MD5_Init(&md5_ctx);
+    size_t tail = 0;
+    for (size_t row = 0; row < size_; ++row) {
+      auto item = get_item(row);
+      list_meta_item compact{tail, item.length};
+      item_out.write(reinterpret_cast<const char*>(&compact), sizeof(compact));
+      MD5_Update(&md5_ctx, &compact, sizeof(compact));
+      tail += item.length;
+    }
+    MD5_Final(header.data_md5, &md5_ctx);
+    item_out.seekp(0);
+    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+    item_out.flush();
+    item_out.close();
+
+    ModuleDescriptor items_desc;
+    items_desc.module_type = ULongColumn::type_name();
+    items_desc.set_path(ModuleDescriptor::kDataPath,
+                        ckp.CommitRuntimeFile(std::move(item_file)));
+    meta.set_module(items_key, std::move(items_desc));
+
+    // Elements are compacted via an in-memory copy + the child column's
+    // Dump; see the Dump declaration for the streaming future work.
+    auto compact_elements = CreateColumn(child_type_);
+    compact_elements->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    compact_elements->resize(total_elements);
+
+    size_t elem_tail = 0;
+    for (size_t row = 0; row < size_; ++row) {
+      auto item = get_item(row);
+      for (size_t i = 0; i < item.length; ++i) {
+        compact_elements->set_any(elem_tail + i,
+                                  elements_->get_any(item.offset + i), true);
+      }
+      elem_tail += item.length;
+    }
+
+    compact_elements->Dump(ckp, meta, elements_key);
   }
 
-  auto items_key = ChildModuleKey(key, kItemsRef);
-  auto elements_key = ChildModuleKey(key, kElementsRef);
-  compact_items.Dump(ckp, meta, items_key);
-  compact_elements->Dump(ckp, meta, elements_key);
   MarkReferenced(meta, items_key);
   MarkReferenced(meta, elements_key);
 

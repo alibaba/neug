@@ -108,7 +108,11 @@ def test_list_point_edge_update_and_reopen(tmp_path):
     assert row[1] == "d"
     assert _nested_list(row[2]) == [[["x"], []]]
     assert _nested_list(
-        list(conn.execute("MATCH (p:Person) RETURN collect(p.tags);"))[0][0]
+        list(
+            conn.execute(
+                "MATCH (p:Person) WITH p ORDER BY p.id " "RETURN collect(p.tags);"
+            )
+        )[0][0]
     ) == [["c", "d", "e"], ["merged"]]
     assert [
         item[0]

@@ -2279,7 +2279,6 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
 TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
   auto string_list_type = neug::DataType::List(neug::DataType::VARCHAR);
   auto pair_type = neug::DataType::Array(string_list_type, 2);
-  auto nested_type = neug::DataType::List(pair_type);
   auto strings = [](std::initializer_list<const char*> values) {
     std::vector<neug::Value> children;
     for (auto value : values) {
