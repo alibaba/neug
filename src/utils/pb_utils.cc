@@ -121,7 +121,8 @@ bool multiplicity_to_storage_strategy(
 
 bool apply_storage_direction(const std::string& storage_direction,
                              EdgeStrategy& oe_strategy,
-                             EdgeStrategy& ie_strategy, std::string& error_msg) {
+                             EdgeStrategy& ie_strategy,
+                             std::string& error_msg) {
   const auto normalized = toUpper(storage_direction);
   // Align with schema YAML edge_storage_strategy aliases.
   if (normalized == "FWD") {

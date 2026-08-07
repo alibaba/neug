@@ -86,8 +86,8 @@ TEST_F(StorageDDLConflictActionTest, CreateRelTable) {
 TEST_F(StorageDDLConflictActionTest, RelStorageDirection) {
   ASSERT_TRUE(
       conn->Query("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));"));
-  ASSERT_TRUE(
-      conn->Query("CREATE NODE TABLE organisation(id INT64, PRIMARY KEY(id));"));
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE organisation(id INT64, PRIMARY KEY(id));"));
 
   // fwd: keep OE, drop IE
   ASSERT_TRUE(conn->Query(
@@ -101,11 +101,11 @@ TEST_F(StorageDDLConflictActionTest, RelStorageDirection) {
             neug::EdgeStrategy::kNone);
 
   // Directed expand along OE is allowed.
-  EXPECT_TRUE(
-      conn->Query("MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"));
+  EXPECT_TRUE(conn->Query(
+      "MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"));
   // Undirected would need both OE and IE.
-  auto undirected = conn->Query(
-      "MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;");
+  auto undirected =
+      conn->Query("MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;");
   ASSERT_FALSE(undirected);
   EXPECT_NE(undirected.error().error_message().find("Undirected rel pattern"),
             std::string::npos);
