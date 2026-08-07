@@ -145,6 +145,19 @@ TEST(QueryResultTest, LengthAndColumnInfo) {
   EXPECT_EQ(names[3], "active");
 }
 
+TEST(QueryResultTest, ConstructFromMovedResponse) {
+  neug::QueryResponse response;
+  response.set_row_count(1);
+  response.mutable_schema()->add_name("value");
+  response.add_arrays()->mutable_string_array()->add_values("moved");
+
+  QueryResult result(std::move(response));
+
+  EXPECT_EQ(result.length(), 1u);
+  ASSERT_EQ(result.response().arrays_size(), 1);
+  EXPECT_EQ(result.response().arrays(0).string_array().values(0), "moved");
+}
+
 TEST(QueryResultTest, CursorTraversal) {
   auto result = BuildTestResult();
 

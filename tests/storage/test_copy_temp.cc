@@ -334,7 +334,6 @@ TEST_F(CopyTempTest, ReloadAfterClose) {
         conn->Query("COPY TEMP TempReuse FROM \"" + csv + "\" (header = true)");
     EXPECT_TRUE(r) << r.error().ToString();
     conn->Close();
-    db_->RemoveConnection(conn);
   }
   {
     auto conn2 = db_->Connect();
@@ -345,7 +344,6 @@ TEST_F(CopyTempTest, ReloadAfterClose) {
     auto q = conn2->Query("MATCH (n:TempReuse) RETURN count(n);");
     EXPECT_TRUE(q) << q.error().ToString();
     conn2->Close();
-    db_->RemoveConnection(conn2);
   }
 }
 

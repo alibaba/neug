@@ -199,17 +199,6 @@ Value ArrayColumn::get_any(size_t index) const {
   return Value::ARRAY(array_type_, std::move(values));
 }
 
-void ArrayColumn::ingest(uint32_t index, OutArchive& arc) {
-  if (index >= size_) {
-    THROW_RUNTIME_ERROR("ArrayColumn::ingest: index " + std::to_string(index) +
-                        " out of range (size=" + std::to_string(size_) + ")");
-  }
-  size_t base = index * array_size_;
-  for (size_t j = 0; j < array_size_; ++j) {
-    child_column_->ingest(base + j, arc);
-  }
-}
-
 std::unique_ptr<Module> ArrayColumn::Clone() const {
   auto new_col = std::make_unique<ArrayColumn>();
   new_col->array_type_ = array_type_;

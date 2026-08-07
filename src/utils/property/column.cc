@@ -24,6 +24,7 @@
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
@@ -88,6 +89,9 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
 }
 
 std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
+  if (auto* vec = dynamic_cast<const VecColumn*>(&column)) {
+    return std::make_shared<VecRefColumn>(*vec);
+  }
   auto type = column.type();
   switch (type) {
 #define TYPE_DISPATCHER(enum_val, type)            \

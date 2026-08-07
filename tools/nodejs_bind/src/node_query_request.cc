@@ -140,7 +140,7 @@ Napi::Value NodeQueryRequest::SerializeRequest(const Napi::CallbackInfo& info) {
                     rapidjson::Value(access_mode.c_str(), allocator),
                     allocator);
 
-  rapidjson::Document params_doc;
+  rapidjson::Document params_doc(rapidjson::kObjectType);
   if (info.Length() >= 3 && info[2].IsObject()) {
     Napi::Object params_obj = info[2].As<Napi::Object>();
     Napi::Array keys = params_obj.GetPropertyNames();

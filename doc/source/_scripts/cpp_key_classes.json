@@ -8,9 +8,9 @@
     "neug::QueryResult",
     "neug::RecordLine",
     "neug::NeugDBService",
-    "neug::Session",
-    "neug::SessionPool",
-    "neug::SessionGuard"
+    "neug::ExecutionSlot",
+    "neug::TpExecutionSlotPool",
+    "neug::ExecutionSlotLease"
   ],
   "class_files": {
     "neug::NeugDB": {
@@ -33,7 +33,7 @@
       "filename": "service",
       "title": "NeugDBService",
       "description": "HTTP service for high-throughput scenarios",
-      "include_classes": ["neug::Session", "neug::SessionPool", "neug::SessionGuard"]
+      "include_classes": ["neug::ExecutionSlot", "neug::TpExecutionSlotPool", "neug::ExecutionSlotLease"]
     }
   },
   "excluded_patterns": [

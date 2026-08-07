@@ -17,6 +17,7 @@ limitations under the License.
 #include <yaml-cpp/node/emit.h>
 #include <cctype>
 #include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/gopt/g_result_schema.h"
@@ -102,12 +103,71 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
   }
 }
 
+namespace {
+
 bool isTokenEnd(char ch) {
-  return ch == ' ' || ch == ';' || ch == '\n' || ch == '\t' || ch == '{' ||
+  return common::StringUtils::isSpace(ch) || ch == ';' || ch == '{' ||
          ch == '(';
 }
 
-AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
+void skipQueryWhitespace(std::string_view query, size_t& offset) {
+  while (offset < query.size() && common::StringUtils::isSpace(query[offset])) {
+    ++offset;
+  }
+}
+
+std::string_view nextKeyword(std::string_view query, size_t& offset) {
+  skipQueryWhitespace(query, offset);
+  const auto begin = offset;
+  while (offset < query.size() &&
+         std::isalpha(static_cast<unsigned char>(query[offset]))) {
+    ++offset;
+  }
+  return query.substr(begin, offset - begin);
+}
+
+bool isKeyword(std::string_view token, std::string_view keyword) {
+  return common::StringUtils::caseInsensitiveEquals(token, keyword);
+}
+
+bool isStatementEnd(std::string_view query, size_t offset) {
+  skipQueryWhitespace(query, offset);
+  if (offset < query.size() && query[offset] == ';') {
+    ++offset;
+    skipQueryWhitespace(query, offset);
+  }
+  return offset == query.size();
+}
+
+void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
+  size_t offset = 0;
+  auto statement = nextKeyword(query, offset);
+  if (isKeyword(statement, "EXPLAIN")) {
+    analysis.explain_mode = physical::ExplainMode::EXPLAIN;
+    statement = nextKeyword(query, offset);
+    if (isKeyword(statement, "LOGICAL")) {
+      statement = nextKeyword(query, offset);
+    }
+  } else if (isKeyword(statement, "PROFILE")) {
+    analysis.explain_mode = physical::ExplainMode::PROFILE;
+    statement = nextKeyword(query, offset);
+  }
+
+  if (isKeyword(statement, "CHECKPOINT") && isStatementEnd(query, offset)) {
+    analysis.kind = QueryKind::kCheckpoint;
+  }
+}
+
+}  // namespace
+
+QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
+  QueryAnalysis analysis;
+  analyzeQueryPrefix(query, analysis);
+  if (analysis.checkpoint()) {
+    analysis.access_mode = AccessMode::kUpdate;
+    return analysis;
+  }
+
   size_t i = 0;
   const size_t n = query.size();
 
@@ -146,17 +206,19 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
     std::string token(query.data() + token_start, i - token_start);
 
     if (getSchemaOpTokens().contains(token)) {
-      return AccessMode::kSchema;
+      analysis.access_mode = AccessMode::kSchema;
+      return analysis;
     }
 
     if (getUpdateOpTokens().contains(token)) {
-      return AccessMode::kUpdate;
+      analysis.access_mode = AccessMode::kUpdate;
+      return analysis;
     }
 
     ++i;
   }
 
-  return AccessMode::kRead;
+  return analysis;
 }
 
 const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {

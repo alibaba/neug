@@ -29,7 +29,6 @@ class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
 class VertexTableView;
-
 class VertexSet {
  public:
   VertexSet(vid_t size, const VertexTimestamp& v_ts_, timestamp_t ts)
@@ -229,6 +228,15 @@ class VertexTable {
     return CreateRefColumn(*ptr);
   }
 
+  inline const ColumnBase* GetPropertyColumnBase(
+      const std::string& prop) const {
+    auto pk = vertex_schema_->primary_keys[0];
+    if (prop == std::get<1>(pk)) {
+      return &indexer_->get_keys();
+    }
+    return table_->get_column(prop);
+  }
+
   inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
       int32_t col_id) const {
     auto ptr = table_->get_column_by_id(col_id);
@@ -262,12 +270,15 @@ class VertexTable {
 
   void Compact();
 
-  void insert_vertices(std::shared_ptr<IDataChunkSupplier> suppliers);
+  std::vector<vid_t> insert_vertices(
+      std::shared_ptr<IDataChunkSupplier> supplier);
 
   const VertexTimestamp& get_vertex_timestamp() const { return *v_ts_; }
 
   const Table& get_table() const { return *table_; }
   Table& get_table() { return *table_; }
+
+  void SetColumn(size_t col, std::unique_ptr<ColumnBase> column);
 
  private:
   vid_t insert_vertex_pk(const Value& id, timestamp_t ts, bool insert_safe);

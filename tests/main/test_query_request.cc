@@ -79,7 +79,7 @@ TYPED_TEST(QueryRequestSerializerTypedTest, RoundTripParameters) {
   EXPECT_EQ(query, std::get<0>(request));
   EXPECT_EQ(neug::AccessModeToString(mode), std::get<1>(request));
   auto param_meta_map = TypeParam::GetParamMetaMap();
-  auto params = ParamsParser::ParseFromJsonObj(param_meta_map, parameters);
+  auto params = execution::parseJsonParameters(param_meta_map, parameters);
   EXPECT_EQ(params, std::get<2>(request));
 }
 

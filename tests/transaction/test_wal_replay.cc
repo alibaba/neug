@@ -14,23 +14,45 @@
  */
 
 #include "neug/common/types/value.h"
+#include "neug/main/checkpoint_coordinator.h"
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/storages/allocators.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/transaction/wal/wal.h"
 
 #include <unistd.h>
+#include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <future>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
+#include "neug/transaction/wal/wal.h"
+#include "unittest/utils.h"
 
 namespace {
 
 using neug::Value;
+
+std::atomic<bool> in_place_mutation_waiting{false};
+
+void ObserveInPlaceMutationWait(neug::RuntimeWaitAction) noexcept {
+  in_place_mutation_waiting.store(true, std::memory_order_release);
+  std::this_thread::yield();
+}
 
 std::string make_test_dir() {
   const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
@@ -38,6 +60,44 @@ std::string make_test_dir() {
                         std::to_string(::getpid()) + "_" +
                         info->test_suite_name() + "_" + info->name();
   return (std::filesystem::temp_directory_path() / dir_name).string();
+}
+
+TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
+  const auto test_dir = make_test_dir();
+  const auto old_wal_dir =
+      (std::filesystem::path(test_dir) / "checkpoint-0" / "wal").string();
+  const auto new_wal_dir =
+      (std::filesystem::path(test_dir) / "checkpoint-1" / "wal").string();
+  constexpr uint32_t old_marker = 17;
+  constexpr uint32_t new_marker = 29;
+
+  {
+    auto writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
+    auto* const identity = writer.get();
+    writer->open(old_wal_dir);
+    ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&old_marker),
+                               sizeof(old_marker)));
+
+    writer->open(new_wal_dir);
+    EXPECT_EQ(writer.get(), identity);
+    ASSERT_TRUE(writer->append(reinterpret_cast<const char*>(&new_marker),
+                               sizeof(new_marker)));
+    writer->close();
+  }
+
+  const auto read_marker = [](const std::string& wal_dir) {
+    const auto begin = std::filesystem::directory_iterator(wal_dir);
+    const auto end = std::filesystem::directory_iterator();
+    EXPECT_NE(begin, end);
+    std::ifstream wal_file(begin->path(), std::ios::binary);
+    uint32_t marker = 0;
+    wal_file.read(reinterpret_cast<char*>(&marker), sizeof(marker));
+    return marker;
+  };
+  EXPECT_EQ(read_marker(old_wal_dir), old_marker);
+  EXPECT_EQ(read_marker(new_wal_dir), new_marker);
+
+  std::filesystem::remove_all(test_dir);
 }
 
 neug::NeugDBConfig make_config(const std::string& db_dir) {
@@ -67,6 +127,7 @@ void create_checkpointed_base_graph(const std::string& db_dir) {
        }) {
     assert_query_ok(*conn, query);
   }
+  conn->Close();
   db.Close();
 }
 
@@ -75,6 +136,7 @@ void create_person_schema(neug::NeugDB& db) {
   assert_query_ok(
       *conn,
       "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
+  conn->Close();
 }
 
 bool replayed_graph_matches(neug::NeugDB& db) {
@@ -116,8 +178,8 @@ bool replayed_graph_matches(neug::NeugDB& db) {
 neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
                                               int64_t id,
                                               const std::string& name) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   const auto ts = txn.timestamp();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
@@ -134,25 +196,15 @@ void insert_person(neug::NeugDBService& service, int64_t id,
 }
 
 void compact(neug::NeugDBService& service) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetCompactTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetCompactTransaction();
   ASSERT_TRUE(txn.Commit());
-}
-
-neug::timestamp_t checkpoint_and_return_ts(neug::NeugDBService& service) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetUpdateTransaction();
-  const auto ts = txn.timestamp();
-  neug::StorageTPUpdateInterface interface(txn);
-  interface.CreateCheckpoint();
-  EXPECT_TRUE(txn.Commit());
-  return ts;
 }
 
 void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
                        int64_t dst_id, int64_t since) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetInsertTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetInsertTransaction();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
   const auto knows_label = txn.schema().get_edge_label_id("knows");
@@ -169,8 +221,8 @@ void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
 }
 
 size_t read_person_count(neug::NeugDBService& service) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   size_t count = 0;
@@ -182,8 +234,8 @@ size_t read_person_count(neug::NeugDBService& service) {
 }
 
 bool read_has_person(neug::NeugDBService& service, int64_t id) {
-  auto sess = service.AcquireSession();
-  auto txn = sess->GetReadTransaction();
+  auto slot = service.AcquireExecutionSlot();
+  auto txn = slot->GetReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   neug::vid_t vid = 0;
@@ -245,7 +297,7 @@ class WalReplayTest : public ::testing::Test {
 static void expect_compact_completes_timestamp_and_preserves_next_insert(
     bool commit) {
   neug::VersionManager version_manager;
-  version_manager.init_ts(0, 1);
+  version_manager.init_ts({0, 0}, 1);
 
   const auto insert_ts = version_manager.acquire_insert_timestamp();
   version_manager.release_insert_timestamp(insert_ts);
@@ -257,10 +309,11 @@ static void expect_compact_completes_timestamp_and_preserves_next_insert(
     version_manager.revert_compact_timestamp(compact_ts);
   }
 
-  const auto read_after_compact_ts = version_manager.acquire_read_timestamp();
+  const auto read_after_compact_ts =
+      version_manager.acquire_read_view().visibility_ts;
   EXPECT_EQ(read_after_compact_ts, compact_ts)
       << "compaction timestamps must be marked complete so readers can advance";
-  version_manager.release_read_timestamp();
+  version_manager.release_read_view();
 
   const auto next_insert_ts = version_manager.acquire_insert_timestamp();
   EXPECT_GT(next_insert_ts, compact_ts)
@@ -268,10 +321,11 @@ static void expect_compact_completes_timestamp_and_preserves_next_insert(
          "replay cannot collide with pre-compaction insert records";
   version_manager.release_insert_timestamp(next_insert_ts);
 
-  const auto read_after_insert_ts = version_manager.acquire_read_timestamp();
+  const auto read_after_insert_ts =
+      version_manager.acquire_read_view().visibility_ts;
   EXPECT_EQ(read_after_insert_ts, next_insert_ts)
       << "a compact timestamp gap must not block later insert visibility";
-  version_manager.release_read_timestamp();
+  version_manager.release_read_view();
 }
 
 TEST(WalReplayVersionManagerTest,
@@ -284,7 +338,284 @@ TEST(WalReplayVersionManagerTest,
   expect_compact_completes_timestamp_and_preserves_next_insert(false);
 }
 
-TEST_F(WalReplayTest, CloseCheckpointAlwaysResetsServiceTimeline) {
+TEST(WalReplayVersionManagerTest, ResetTimelineStartsFreshTimestampTimeline) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts({40, 7}, 1);
+
+  const auto old_insert_ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(old_insert_ts, 41);
+  version_manager.release_insert_timestamp(old_insert_ts);
+
+  neug::UpdateTimestampLease update_lease(version_manager);
+  EXPECT_EQ(update_lease.Timestamp(), 42);
+  update_lease.MakeUpdateExclusive();
+  update_lease.FinishAndResetTimeline();
+
+  const auto baseline_read_view = version_manager.acquire_read_view();
+  EXPECT_EQ(baseline_read_view.visibility_ts, 0);
+  EXPECT_EQ(baseline_read_view.snapshot_generation, 7);
+  version_manager.release_read_view();
+
+  const auto new_insert_ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(new_insert_ts, 1);
+  version_manager.release_insert_timestamp(new_insert_ts);
+
+  const auto new_read_view = version_manager.acquire_read_view();
+  EXPECT_EQ(new_read_view.visibility_ts, new_insert_ts);
+  EXPECT_EQ(new_read_view.snapshot_generation, 7);
+  version_manager.release_read_view();
+}
+
+TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+
+  neug::UpdateTimestampLease update_lease(version_manager);
+  update_lease.MakeUpdateExclusive();
+  update_lease.FinishAndResetTimeline();
+
+  const auto read_view = version_manager.acquire_read_view();
+  EXPECT_EQ(read_view.visibility_ts, 0);
+  version_manager.release_read_view();
+}
+
+TEST(WalReplayVersionManagerTest,
+     UpdateLeaseReleaseCompletesWithoutResettingTimeline) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts({40, 0}, 1);
+
+  uint32_t update_ts = 0;
+  {
+    neug::UpdateTimestampLease original(version_manager);
+    update_ts = original.Timestamp();
+    auto moved = std::move(original);
+  }
+
+  const auto read_view = version_manager.acquire_read_view();
+  EXPECT_EQ(read_view.visibility_ts, update_ts);
+  version_manager.release_read_view();
+
+  const auto next_insert_ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(next_insert_ts, update_ts + 1);
+  version_manager.release_insert_timestamp(next_insert_ts);
+}
+
+TEST(WalReplayVersionManagerTest, UpdateLeaseFinishDoesNotResetTimeline) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts({40, 0}, 1);
+
+  neug::UpdateTimestampLease update_lease(version_manager);
+  const auto update_ts = update_lease.Timestamp();
+  update_lease.Finish(std::nullopt);
+
+  const auto read_after_finish = version_manager.acquire_read_view();
+  EXPECT_EQ(read_after_finish.visibility_ts, update_ts);
+  version_manager.release_read_view();
+}
+
+TEST(WalReplayVersionManagerTest, BeginUpdateCommitRejectsMissingUpdateLease) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+
+  EXPECT_THROW(version_manager.begin_update_commit(1), std::exception);
+}
+
+TEST(WalReplayVersionManagerTest,
+     OrdinaryUpdateCommitDoesNotWaitForExistingReader) {
+  using namespace std::chrono_literals;
+
+  neug::VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+  (void) version_manager.acquire_read_view();
+  neug::UpdateTimestampLease update_lease(version_manager);
+
+  auto commit = std::async(std::launch::async, [&]() {
+    update_lease.BeginCommit();
+    update_lease.Finish(std::nullopt);
+  });
+  const auto status = commit.wait_for(100ms);
+  version_manager.release_read_view();
+
+  EXPECT_EQ(status, std::future_status::ready);
+  commit.get();
+}
+
+TEST(WalReplayVersionManagerTest,
+     InPlaceMutationExclusivityWaitsForExistingReaderAndBlocksNewReader) {
+  using namespace std::chrono_literals;
+
+  neug::VersionManager version_manager;
+  version_manager.init_ts({40, 0}, 1);
+  ASSERT_TRUE(version_manager.try_set_runtime_wait_if_quiescent(
+      &ObserveInPlaceMutationWait));
+  (void) version_manager.acquire_read_view();
+
+  neug::UpdateTimestampLease update_lease(version_manager);
+
+  in_place_mutation_waiting.store(false, std::memory_order_relaxed);
+  std::atomic<bool> exclusivity_finished{false};
+  std::thread exclusivity_thread([&]() {
+    update_lease.MakeUpdateExclusive();
+    exclusivity_finished.store(true, std::memory_order_release);
+  });
+  while (!in_place_mutation_waiting.load(std::memory_order_acquire)) {
+    std::this_thread::yield();
+  }
+
+  auto new_reader = std::async(std::launch::async, [&]() {
+    const auto view = version_manager.acquire_read_view();
+    version_manager.release_read_view();
+    return view;
+  });
+  EXPECT_EQ(new_reader.wait_for(20ms), std::future_status::timeout);
+  EXPECT_FALSE(exclusivity_finished.load(std::memory_order_acquire));
+
+  version_manager.release_read_view();
+  exclusivity_thread.join();
+  EXPECT_TRUE(exclusivity_finished.load(std::memory_order_acquire));
+  EXPECT_EQ(new_reader.wait_for(20ms), std::future_status::timeout);
+
+  update_lease.FinishAndResetTimeline();
+  EXPECT_EQ(new_reader.get().visibility_ts, 0);
+}
+
+class CheckpointActivationHandlerTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    test_dir_ = make_test_dir();
+    std::filesystem::remove_all(test_dir_);
+    std::filesystem::create_directories(test_dir_);
+
+    checkpoint_manager_.Open(test_dir_);
+    graph_ = std::make_shared<neug::PropertyGraph>();
+    graph_->Open(make_checkpoint(checkpoint_manager_),
+                 neug::MemoryLevel::kInMemory);
+    snapshot_store_ = std::make_unique<neug::GraphSnapshotStore>(2, graph_);
+    coordinator_ = std::make_unique<neug::CheckpointCoordinator>(
+        checkpoint_manager_, *snapshot_store_, neug::MemoryLevel::kInMemory,
+        [this](const std::string& allocator_dir) {
+          handler_calls_.push_back(allocator_dir);
+        });
+  }
+
+  void TearDown() override {
+    coordinator_.reset();
+    snapshot_store_.reset();
+    graph_.reset();
+    checkpoint_manager_.Close();
+    std::filesystem::remove_all(test_dir_);
+  }
+
+  std::string test_dir_;
+  neug::CheckpointManager checkpoint_manager_;
+  std::shared_ptr<neug::PropertyGraph> graph_;
+  std::unique_ptr<neug::GraphSnapshotStore> snapshot_store_;
+  std::unique_ptr<neug::CheckpointCoordinator> coordinator_;
+  std::vector<std::string> handler_calls_;
+};
+
+TEST_F(CheckpointActivationHandlerTest,
+       RecoveryAndManualRunOnlyTheirConfiguredHandlers) {
+  size_t activation_calls = 0;
+  std::string observed_wal_uri;
+  coordinator_->SetActivationHandler([&](const std::string& wal_uri) {
+    // The mandatory post-reopen handler always runs first.
+    EXPECT_EQ(handler_calls_.size(), 2u);
+    ++activation_calls;
+    observed_wal_uri = wal_uri;
+  });
+
+  ASSERT_TRUE(coordinator_->PublishRecoveryCheckpoint().ok());
+  EXPECT_EQ(handler_calls_.size(), 1u);
+  EXPECT_EQ(activation_calls, 0u);
+
+  neug::VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+  neug::UpdateTimestampLease update_lease(version_manager);
+  ASSERT_TRUE(
+      coordinator_->PublishManualCheckpoint(std::move(update_lease)).ok());
+
+  EXPECT_EQ(activation_calls, 1u);
+  const auto current_checkpoint = checkpoint_manager_.CurrentCheckpoint();
+  ASSERT_NE(current_checkpoint, nullptr);
+  EXPECT_EQ(observed_wal_uri, current_checkpoint->wal_dir());
+  ASSERT_EQ(handler_calls_.size(), 2u);
+  EXPECT_EQ(handler_calls_[1], current_checkpoint->allocator_dir());
+}
+
+TEST(CheckpointCoordinatorTest,
+     PreparationFailureKeepsOldWalAndTimestampTimelineUsable) {
+  const auto test_dir = make_test_dir();
+  std::filesystem::remove_all(test_dir);
+  std::filesystem::create_directories(test_dir);
+
+  neug::CheckpointManager checkpoint_manager;
+  checkpoint_manager.Open(test_dir);
+  auto graph = std::make_shared<neug::PropertyGraph>();
+  graph->Open(make_checkpoint(checkpoint_manager),
+              neug::MemoryLevel::kInMemory);
+  neug::GraphSnapshotStore snapshot_store(2, graph);
+  std::vector<std::shared_ptr<neug::Allocator>> allocators;
+  allocators.emplace_back(
+      std::make_shared<neug::Allocator>(neug::MemoryLevel::kInMemory, ""));
+  constexpr size_t allocator_marker_size = 64;
+  ASSERT_NE(allocators[0]->allocate(allocator_marker_size), nullptr);
+  bool allocator_reopened = false;
+  bool cache_invalidated = false;
+  neug::CheckpointCoordinator coordinator(
+      checkpoint_manager, snapshot_store, neug::MemoryLevel::kInMemory,
+      [&](const std::string&) {
+        allocators[0]->Reopen(neug::MemoryLevel::kInMemory, "");
+        allocator_reopened = true;
+      });
+
+  const auto old_wal_dir =
+      (std::filesystem::path(test_dir) / "old-wal").string();
+  auto wal_writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
+  wal_writer->open(old_wal_dir);
+  constexpr uint32_t before_marker = 17;
+  constexpr uint32_t after_marker = 29;
+  ASSERT_TRUE(wal_writer->append(reinterpret_cast<const char*>(&before_marker),
+                                 sizeof(before_marker)));
+
+  // Keep the checkpoint manager's only staging slot occupied.
+  // PublishManualCheckpoint must fail before destructive graph maintenance,
+  // release the update lease normally, and leave the existing WAL writer
+  // untouched.
+  auto conflicting_staging = checkpoint_manager.CreateStagingCheckpoint();
+  neug::VersionManager version_manager;
+  version_manager.init_ts({40, 0}, 1);
+  neug::UpdateTimestampLease update_lease(version_manager);
+  const auto update_ts = update_lease.Timestamp();
+  coordinator.SetActivationHandler([&](const std::string& wal_uri) {
+    wal_writer->close();
+    wal_writer->open(wal_uri);
+    cache_invalidated = true;
+  });
+  auto status = coordinator.PublishManualCheckpoint(std::move(update_lease));
+
+  EXPECT_FALSE(status.ok());
+  EXPECT_FALSE(allocator_reopened);
+  EXPECT_EQ(allocators[0]->allocated_memory(), allocator_marker_size);
+  EXPECT_FALSE(cache_invalidated);
+  EXPECT_TRUE(wal_writer->append(reinterpret_cast<const char*>(&after_marker),
+                                 sizeof(after_marker)));
+
+  const auto read_view = version_manager.acquire_read_view();
+  EXPECT_EQ(read_view.visibility_ts, update_ts);
+  version_manager.release_read_view();
+  const auto next_insert_ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(next_insert_ts, update_ts + 1);
+  version_manager.release_insert_timestamp(next_insert_ts);
+
+  wal_writer->close();
+  coordinator.ClearActivationHandler();
+  conflicting_staging.Discard();
+  checkpoint_manager.Close();
+  std::filesystem::remove_all(test_dir);
+}
+
+TEST_F(WalReplayTest, CloseCheckpointResetsSharedApTpTimeline) {
   {
     auto config = make_config(db_dir_);
     config.checkpoint_on_close = true;
@@ -294,7 +625,8 @@ TEST_F(WalReplayTest, CloseCheckpointAlwaysResetsServiceTimeline) {
     create_person_schema(db);
     {
       neug::NeugDBService service(db);
-      EXPECT_EQ(insert_person_and_return_ts(service, 1, "old"), 1);
+      EXPECT_EQ(insert_person_and_return_ts(service, 1, "old"), 2)
+          << "TP must continue after the AP schema statement timestamp";
       EXPECT_EQ(read_person_count(service), 1);
     }
     db.Close();
@@ -311,6 +643,32 @@ TEST_F(WalReplayTest, CloseCheckpointAlwaysResetsServiceTimeline) {
     }
     db.Close();
   }
+}
+
+TEST_F(WalReplayTest, ExplainCheckpointDoesNotConsumeApOrTpUpdateTimestamp) {
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);
+
+  {
+    auto conn = db.Connect();
+    auto result = conn->Query("EXPLAIN CHECKPOINT;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    conn->Close();
+  }
+
+  {
+    neug::NeugDBService service(db);
+    {
+      auto slot = service.AcquireExecutionSlot();
+      auto result = slot->ExecuteTransactionalRequest(
+          R"({"query":"  explain CHECKPOINT;","parameters":{}})");
+      ASSERT_TRUE(result) << result.error().ToString();
+    }
+
+    EXPECT_EQ(insert_person_and_return_ts(service, 1, "after-explain"), 2);
+  }
+  db.Close();
 }
 
 TEST_F(WalReplayTest, RecoveryWithoutCheckpointContinuesFromWalTimeline) {
@@ -373,47 +731,6 @@ TEST_F(WalReplayTest, RecoveryCheckpointResetsServiceTimeline) {
   }
 }
 
-TEST_F(WalReplayTest,
-       PrepareWithoutNewCheckpointPreservesWalTimelineAndReplayOrder) {
-  create_checkpointed_base_graph(db_dir_);
-
-  neug::timestamp_t insert_ts = 0;
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    neug::timestamp_t checkpoint_ts = 0;
-    {
-      neug::NeugDBService service(db);
-      checkpoint_ts = checkpoint_and_return_ts(service);
-    }
-
-    // The in-place TP checkpoint leaves a clean graph but records its
-    // timestamp in the current WAL. PrepareForServing must not replace the VM
-    // unless it publishes a new checkpoint with a fresh WAL directory.
-    db.PrepareForServing();
-
-    {
-      neug::NeugDBService service(db);
-      insert_ts = insert_person_and_return_ts(service, 2, "post-checkpoint");
-      EXPECT_EQ(insert_ts, checkpoint_ts + 1);
-    }
-    db.Close();
-  }
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    {
-      neug::NeugDBService service(db);
-      EXPECT_TRUE(read_has_person(service, 2));
-      EXPECT_EQ(insert_person_and_return_ts(service, 3, "post-recovery"),
-                insert_ts + 1);
-      EXPECT_EQ(read_person_count(service), 3);
-    }
-    db.Close();
-  }
-}
-
 TEST_F(WalReplayTest, ReadOnlyServiceExecutesReadsAndRejectsWrites) {
   create_checkpointed_base_graph(db_dir_);
 
@@ -425,8 +742,8 @@ TEST_F(WalReplayTest, ReadOnlyServiceExecutesReadsAndRejectsWrites) {
   {
     neug::NeugDBService service(db);
     EXPECT_EQ(read_person_count(service), 1);
-    auto session = service.AcquireSession();
-    auto result = session->Eval(
+    auto slot = service.AcquireExecutionSlot();
+    auto result = slot->ExecuteTransactionalRequest(
         R"({"query":"CREATE (:person {id: 2, name: 'blocked'});","access_mode":"insert","parameters":{}})");
     EXPECT_FALSE(result);
     if (!result) {

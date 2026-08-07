@@ -32,6 +32,8 @@
 namespace neug {
 
 class PropertyGraph;
+class StorageIndex;
+class StorageIndexManager;
 
 class TableView {
  public:
@@ -58,6 +60,9 @@ class VertexTableView {
 
   bool get_lid(const Value& oid, vid_t& lid, timestamp_t ts) const;
   vid_t LidNum() const;
+  // Returns the latest storage cardinality for statistics/planning, not the
+  // number of vertices visible at a specific MVCC timestamp.
+  size_t VertexNum() const;
   bool IsValidLid(vid_t lid, timestamp_t ts) const;
   Value GetOid(vid_t lid, timestamp_t ts) const;
   VertexSet GetVertexSet(timestamp_t ts) const;
@@ -83,6 +88,9 @@ class EdgeTableView {
 
   CsrView GetOutgoingView(timestamp_t ts) const;
   CsrView GetIncomingView(timestamp_t ts) const;
+  // Returns the latest storage cardinality for statistics/planning, not a
+  // timestamp-scoped MVCC-visible count.
+  size_t EdgeNum() const;
   EdgeDataAccessor GetDataAccessor(int prop_id) const;
   EdgeDataAccessor GetDataAccessor(const std::string& prop_name) const;
 
@@ -113,6 +121,10 @@ class GraphView {
   GraphView& operator=(GraphView&&) = default;
 
   const Schema& schema() const { return *schema_; }
+  result<StorageIndex*> GetIndexByName(const std::string& name) const;
+  result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::string& property_name) const;
+  result<std::vector<StorageIndex*>> GetAllIndexes() const;
 
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {
@@ -121,6 +133,9 @@ class GraphView {
   inline vid_t LidNum(label_t label) const {
     return vertex_views_[label].LidNum();
   }
+  // Returns the latest storage cardinality for statistics/planning, not a
+  // timestamp-scoped MVCC-visible count.
+  vid_t VertexNum(label_t label) const;
   inline bool IsValidLid(label_t label, vid_t lid, timestamp_t ts) const {
     return vertex_views_[label].IsValidLid(lid, ts);
   }
@@ -140,6 +155,10 @@ class GraphView {
                                  label_t edge_label, timestamp_t ts) const;
   CsrView GetGenericIncomingView(label_t src_label, label_t dst_label,
                                  label_t edge_label, timestamp_t ts) const;
+  // Returns the latest storage cardinality for statistics/planning, not a
+  // timestamp-scoped MVCC-visible count.
+  size_t EdgeNum(label_t src_label, label_t dst_label,
+                 label_t edge_label) const;
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const;
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
@@ -170,6 +189,8 @@ class GraphView {
   DirtyTracker* dirty_{nullptr};
   // needed by api schema().
   const Schema* schema_{nullptr};
+  // read-only queries need to access index data
+  const StorageIndexManager* index_manager_{nullptr};
   std::vector<VertexTableView> vertex_views_;
   std::unordered_map<uint32_t, EdgeTableView> edge_views_;
 };

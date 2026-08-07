@@ -104,6 +104,7 @@ the database `max_thread_num`. If set explicitly, it must be less than or equal
 to the database `max_thread_num`. With the default database thread setting,
 `max_thread_num` is resolved from hardware concurrency and falls back to `1` if
 the runtime cannot detect it.
+Service threads run TP queries concurrently, but each query uses one execution context and one thread.
 
 ### Option B: Start with the C++ binary
 
@@ -135,6 +136,7 @@ Common options:
   service threads from the resulting database `max_thread_num`. With the
   default database thread setting, the database thread count is resolved from
   hardware concurrency and falls back to `1` if the runtime cannot detect it.
+  Service threads run TP queries concurrently, but each query uses one execution context and one thread.
 
 > **Note:** Make sure all local connections are closed before calling `db.serve()`.
 > Once the server is running, no new local connections are allowed until `db.stop_serving()` is called.
