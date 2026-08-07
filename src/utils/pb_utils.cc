@@ -124,25 +124,11 @@ bool apply_storage_direction(const std::string& storage_direction,
                              EdgeStrategy& ie_strategy,
                              std::string& error_msg) {
   const auto normalized = toUpper(storage_direction);
-  // Refuse to drop a kSingle CSR side: that would lose uniqueness and make
-  // schema dump relation + edge_storage_strategy round-trip incorrect.
   if (normalized == "FWD") {
-    if (ie_strategy == EdgeStrategy::kSingle) {
-      error_msg =
-          "storage_direction 'fwd' cannot be used when incoming side is "
-          "SINGLE (ONE_TO_MANY / ONE_TO_ONE).";
-      return false;
-    }
     ie_strategy = EdgeStrategy::kNone;
     return true;
   }
   if (normalized == "BWD") {
-    if (oe_strategy == EdgeStrategy::kSingle) {
-      error_msg =
-          "storage_direction 'bwd' cannot be used when outgoing side is "
-          "SINGLE (MANY_TO_ONE / ONE_TO_ONE).";
-      return false;
-    }
     oe_strategy = EdgeStrategy::kNone;
     return true;
   }

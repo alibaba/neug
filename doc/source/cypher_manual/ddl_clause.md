@@ -74,7 +74,7 @@ You can append a `WITH ( … )` clause *after* the closing `)` of the table head
 - `sort_key_for_nbr`: a string literal naming an edge property used for neighbor ordering.
 - `storage_direction`: which adjacency CSR sides to materialize. Allowed values are `'fwd'`, `'bwd'`, and `'both'` (default). `'fwd'` keeps only outgoing edges; `'bwd'` keeps only incoming edges; `'both'` keeps both.
 
-`storage_direction` must not drop a `SINGLE` CSR side required by multiplicity: `'fwd'` is rejected for `ONE_TO_MANY` / `ONE_TO_ONE`, and `'bwd'` is rejected for `MANY_TO_ONE` / `ONE_TO_ONE`. Directed patterns (`-[]->` / `<-[]-`) are allowed on one-sided tables; the planner extends using the available CSR. Undirected patterns (`-[]-`) still require `'both'`.
+Directed patterns (`-[]->` / `<-[]-`) are allowed on one-sided tables; the planner extends using the available CSR. Undirected patterns (`-[]-`) still require `'both'`.
 
 Examples:
 

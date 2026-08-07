@@ -685,16 +685,10 @@ def test_create_rel_table_storage_direction(tmp_path):
         with pytest.raises(Exception, match="Undirected rel pattern"):
             conn.execute("MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;")
 
-        # bwd drops OE: not allowed when oe is SINGLE (MANY_TO_ONE).
-        with pytest.raises(Exception, match="storage_direction 'bwd'"):
-            conn.execute(
-                "CREATE REL TABLE badBwd(FROM person TO organisation, year INT64, "
-                "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
-            )
         # bwd: IE only — directed MATCH OK (extend from dst); undirected rejected
         conn.execute(
             "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
-            "ONE_TO_MANY) WITH (storage_direction = 'bwd');"
+            "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
         )
         assert _get_edge_storage_strategy(conn.get_schema(), "livesIn") == "ONLY_IN"
         list(conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;"))
