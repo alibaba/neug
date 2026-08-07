@@ -681,15 +681,9 @@ def test_create_rel_table_storage_direction(tmp_path):
             "MANY_TO_ONE) WITH (storage_direction = 'fwd');"
         )
         assert _get_edge_storage_strategy(conn.get_schema(), "workAt") == "ONLY_OUT"
-        list(
-            conn.execute(
-                "MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"
-            )
-        )
+        list(conn.execute("MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"))
         with pytest.raises(Exception, match="Undirected rel pattern"):
-            conn.execute(
-                "MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;"
-            )
+            conn.execute("MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;")
 
         # bwd: IE only — directed pattern rejected by binder
         conn.execute(
@@ -698,9 +692,7 @@ def test_create_rel_table_storage_direction(tmp_path):
         )
         assert _get_edge_storage_strategy(conn.get_schema(), "livesIn") == "ONLY_IN"
         with pytest.raises(Exception, match="bwd-only storage direction"):
-            conn.execute(
-                "MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;"
-            )
+            conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;")
 
         # both: undirected OK, no one-sided storage strategy in schema
         conn.execute(
@@ -708,11 +700,7 @@ def test_create_rel_table_storage_direction(tmp_path):
             "MANY_TO_ONE) WITH (storage_direction = 'both');"
         )
         assert _get_edge_storage_strategy(conn.get_schema(), "studyAt") is None
-        list(
-            conn.execute(
-                "MATCH (:person)-[s:studyAt]-(:organisation) RETURN s.year;"
-            )
-        )
+        list(conn.execute("MATCH (:person)-[s:studyAt]-(:organisation) RETURN s.year;"))
     finally:
         conn.close()
         db.close()
