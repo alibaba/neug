@@ -24,7 +24,4 @@ bool DummyWalWriter::append_frame(uint32_t, WalRecordKind, const char*,
   ++appended_frame_num_;
   return true;
 }
-WalWritePhase DummyWalWriter::write_phase() const {
-  return WalWritePhase::kIdle;
-}
 }  // namespace neug

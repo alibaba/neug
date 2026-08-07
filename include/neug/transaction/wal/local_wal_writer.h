@@ -29,8 +29,8 @@ namespace neug {
  * The file holds a real logical EOF: no ftruncate() preallocation and no
  * zero-byte terminator. open() persists and syncs the file header first;
  * frames are only accepted afterwards. Each append_frame() writes the frame
- * header and payload, then persists the commit trailer separately so the
- * marker is never present before the full payload.
+ * header (whose checksum is computed over the payload before any byte is
+ * written) followed by the payload, then syncs once per frame.
  */
 class LocalWalWriter : public IWalWriter {
  public:
@@ -38,23 +38,18 @@ class LocalWalWriter : public IWalWriter {
                                           int slot_id);
 
   LocalWalWriter(const std::string& wal_uri, int slot_id)
-      : wal_uri_(wal_uri),
-        slot_id_(slot_id),
-        fd_(-1),
-        append_offset_(0),
-        write_phase_(WalWritePhase::kIdle) {}
+      : wal_uri_(wal_uri), slot_id_(slot_id), fd_(-1), append_offset_(0) {}
   ~LocalWalWriter() noexcept override;
 
   void open(const std::string& wal_uri) override;
   void close() override;
   bool append_frame(uint32_t commit_timestamp, WalRecordKind kind,
                     const char* payload, size_t length) override;
-  WalWritePhase write_phase() const override { return write_phase_; }
   std::string type() const override { return "file"; }
 
   /// Test seam: fail the next write_all() call at the given phase. The
   /// injection is one-shot and cleared after it fires.
-  enum class FailNextWrite { kNone, kHeader, kPayload, kTrailer };
+  enum class FailNextWrite { kNone, kHeader, kPayload };
   void fail_next_write(FailNextWrite phase) { fail_next_write_ = phase; }
 
  private:
@@ -73,7 +68,6 @@ class LocalWalWriter : public IWalWriter {
   int slot_id_;
   int fd_;
   size_t append_offset_;
-  WalWritePhase write_phase_;
   FailNextWrite fail_next_write_{FailNextWrite::kNone};
   bool failed_{false};
 

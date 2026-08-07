@@ -24,33 +24,40 @@ namespace neug {
 // =============================================================================
 // WAL v1 on-disk protocol.
 //
-// Every multi-byte integer is little-endian. The byte layout below is a wire
-// protocol, not a C++ object layout: encoding/decoding always goes through
-// the explicit codec functions in this header and never through
-// reinterpret_cast or struct dumps.
+// The framing layer is encoded/decoded byte-by-byte through the explicit
+// codec functions in this header; it never goes through reinterpret_cast,
+// C++ bit-fields or struct dumps. This is a parse-safety property (bounds
+// checks, rejection of invalid values), not cross-platform portability: the
+// redo payload and the data files are persisted in host layout, so a WAL
+// file is only meaningful on the machine that wrote it.
 //
 // File layout:
-//   WalFileHeader | (WalFrameHeader | payload | WalFrameTrailer)*
+//   WalFileHeader | (WalFrameHeader | payload)*
+//
+// The frame checksum lives in the frame header and covers the remaining
+// header bytes plus the payload. A frame is therefore complete exactly when
+// it is fully present and its checksum matches; recovery never needs a
+// trailing commit marker:
+//   - EOF with fewer bytes than the frame needs  -> torn tail, discarded
+//   - full frame, checksum matches               -> committed, replayed
+//   - full frame, checksum mismatch              -> corruption, rejected
 //
 // A file without a valid WalFileHeader is never silently interpreted; the
 // legacy pre-v1 format is rejected with a typed recovery error.
 // =============================================================================
 
-// "NEUW" / "NEUF" / "NEUM" as little-endian u32 constants.
+// "NEUW" as a little-endian u32 constant (codec implementation detail).
 constexpr uint32_t kWalFileMagic = 0x5755454Eu;
-constexpr uint32_t kWalFrameMagic = 0x4655454Eu;
-constexpr uint32_t kWalCommitMarker = 0x4D55454Eu;
 
 constexpr uint32_t kWalFormatVersion = 1;
 
-constexpr uint32_t kWalFileHeaderSize = 24;
-constexpr uint32_t kWalFrameHeaderSize = 24;
-constexpr uint32_t kWalFrameTrailerSize = 8;
+constexpr uint32_t kWalFileHeaderSize = 16;
+constexpr uint32_t kWalFrameHeaderSize = 13;
 
-// Protocol upper bound for a frame payload. Checked before any conversion to
-// size_t so corrupted values cannot trigger integer overflow, out-of-bounds
-// reads, or huge allocations.
-constexpr uint64_t kWalMaxPayloadLength = 1ULL << 32;
+// Protocol upper bound for a frame payload: the on-wire length field is a
+// u32. Checked before any conversion to size_t so corrupted values cannot
+// trigger integer overflow, out-of-bounds reads, or huge allocations.
+constexpr uint64_t kWalMaxPayloadLength = 0xFFFFFFFFull;
 
 /// Explicit record categories. Unknown values are always rejected; semantics
 /// are never inferred from payload length or bit flags.
@@ -75,51 +82,43 @@ std::string WalRecoveryErrorKindName(WalRecoveryErrorKind kind);
 
 /// Per-file fixed header. A WAL file belongs to the checkpoint whose
 /// wal_dir() it lives in; that ownership is guaranteed by checkpoint
-/// rotation, not by a field inside the file.
+/// rotation, not by a field inside the file. The writer identity is already
+/// carried by the file name (thread_<slot>_<version>.wal), so the header
+/// keeps no diagnostic slot field.
 ///
-/// The structural fields (magic, format_version, header_size) are validated
-/// by exact match on decode, so no header checksum is needed: only the
-/// diagnostic writer_slot_id and reserved bytes would be protected.
+/// All fields are validated by exact match on decode, so no header checksum
+/// is needed: only the reserved bytes would be protected.
 ///
 /// Wire layout (little-endian):
-///   magic u32 | format_version u32 | header_size u32 |
-///   writer_slot_id u32 | reserved u64
+///   magic u32 | format_version u32 | header_size u32 | reserved u32
 struct WalFileHeader {
   uint32_t magic{kWalFileMagic};
   uint32_t format_version{kWalFormatVersion};
   uint32_t header_size{kWalFileHeaderSize};
-  uint32_t writer_slot_id{0};
-  uint64_t reserved{0};
+  uint32_t reserved{0};
 };
 
-/// Per-transaction frame header, written before the payload.
+/// Per-transaction frame header, written before the payload. The frame
+/// checksum is part of the header, so the writer computes it over the
+/// payload before writing anything.
 ///
 /// The format version is a file-level property carried by WalFileHeader; a
 /// single writer file never mixes frame versions, so no per-frame version is
-/// stored. The payload is protected by the trailer frame_checksum.
+/// stored. There is no per-frame magic either: frames are parsed strictly
+/// sequentially from a validated file header, and the checksum rejects any
+/// corrupted frame regardless of its position.
 ///
-/// Wire layout (little-endian):
-///   frame_magic u32 | record_kind u32 | header_size u32 |
-///   commit_timestamp u32 | payload_length u64
+/// Wire layout (little-endian, fields packed in order; padding is only ever
+/// appended at the end, never between fields):
+///   record_kind u8 | payload_length u32 | commit_timestamp u32 |
+///   frame_checksum u32
 struct WalFrameHeader {
-  uint32_t frame_magic{kWalFrameMagic};
   WalRecordKind record_kind{WalRecordKind::kInsert};
-  uint32_t header_size{kWalFrameHeaderSize};
+  uint32_t payload_length{0};
   uint32_t commit_timestamp{0};
-  uint64_t payload_length{0};
-};
-
-/// Commit trailer, written after the payload. The commit marker is only
-/// persisted once the whole payload has been persisted. The timestamp and
-/// length already live in the frame header and are covered by frame_checksum,
-/// so duplicating them here would add no detection strength.
-///
-/// Wire layout (little-endian):
-///   commit_marker u32 | frame_checksum u32
-struct WalFrameTrailer {
-  uint32_t commit_marker{kWalCommitMarker};
   /// CRC32C (Castagnani, hardware-accelerated via absl) over the encoded
-  /// frame header, the payload, and the commit marker.
+  /// header bytes preceding this field and the payload. Computed by
+  /// EncodeWalFrameHeader; callers never fill it.
   uint32_t frame_checksum{0};
 };
 
@@ -142,14 +141,12 @@ std::string WalDecodeStatusName(WalDecodeStatus status);
 /// Encoders. All checksum fields are computed here; callers never fill them.
 std::array<uint8_t, kWalFileHeaderSize> EncodeWalFileHeader(
     const WalFileHeader& header);
+/// Computes @c frame_checksum over the encoded header bytes preceding the
+/// checksum field plus the payload, protecting the kind, timestamp and
+/// length fields, not only the payload.
 std::array<uint8_t, kWalFrameHeaderSize> EncodeWalFrameHeader(
-    const WalFrameHeader& header);
-/// @p frame_checksum covers the encoded frame header bytes, the payload, and
-/// the commit marker. This protects the kind, timestamp and length fields,
-/// not only the payload.
-std::array<uint8_t, kWalFrameTrailerSize> EncodeWalFrameTrailer(
-    const WalFrameTrailer& trailer, const uint8_t* frame_header_bytes,
-    const uint8_t* payload, size_t payload_length);
+    const WalFrameHeader& header, const uint8_t* payload,
+    size_t payload_length);
 
 /// Decoders. Each returns the decode status and, on success, fills @p out and
 /// reports the consumed byte count.
@@ -157,19 +154,17 @@ WalDecodeStatus DecodeWalFileHeader(const uint8_t* data, size_t remaining,
                                     WalFileHeader& out, size_t& consumed);
 WalDecodeStatus DecodeWalFrameHeader(const uint8_t* data, size_t remaining,
                                      WalFrameHeader& out, size_t& consumed);
-WalDecodeStatus DecodeWalFrameTrailer(const uint8_t* data, size_t remaining,
-                                      WalFrameTrailer& out, size_t& consumed);
 
-/// Validates the trailer against the frame it closes: recomputes the frame
-/// checksum over the header bytes, payload and commit marker. Returns kOk on
-/// success.
+/// Validates a fully read frame: recomputes the frame checksum over the
+/// header bytes preceding the checksum field plus the payload. Returns kOk
+/// on success.
 WalDecodeStatus ValidateWalFrame(const WalFrameHeader& header,
-                                 const WalFrameTrailer& trailer,
                                  const uint8_t* frame_header_bytes,
                                  const uint8_t* payload);
 
-/// The frame header carries no checksum fields, so every encoded byte is
-/// covered by frame_checksum.
-constexpr size_t kWalFrameHeaderStableSize = kWalFrameHeaderSize;
+/// Header bytes covered by frame_checksum: everything except the checksum
+/// field itself.
+constexpr size_t kWalFrameHeaderStableSize =
+    kWalFrameHeaderSize - sizeof(uint32_t);
 
 }  // namespace neug

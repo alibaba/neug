@@ -37,7 +37,6 @@ class DummyWalWriter : public IWalWriter {
   void close() override;
   bool append_frame(uint32_t commit_timestamp, WalRecordKind kind,
                     const char* payload, size_t length) override;
-  WalWritePhase write_phase() const override;
 
   /// Number of frames accepted since construction (test observability).
   size_t appended_frame_num() const { return appended_frame_num_; }

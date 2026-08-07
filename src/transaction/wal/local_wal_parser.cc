@@ -106,10 +106,9 @@ void ValidateAndCollect(
   }
   MappedWalFile file(path, file_size);
   const uint8_t* data = file.data();
-  // A committed frame occupies at least a header and a trailer; this bounds
-  // the per-file unit growth.
-  units.reserve(units.size() +
-                file_size / (kWalFrameHeaderSize + kWalFrameTrailerSize));
+  // A committed frame occupies at least a header; this bounds the per-file
+  // unit growth.
+  units.reserve(units.size() + file_size / kWalFrameHeaderSize);
 
   // ---- File header -----------------------------------------------------
   if (file_size < kWalFileHeaderSize) {
@@ -172,37 +171,24 @@ void ValidateAndCollect(
     }
 
     const uint64_t frame_total =
-        static_cast<uint64_t>(frame_header.header_size) +
-        frame_header.payload_length + kWalFrameTrailerSize;
+        kWalFrameHeaderSize + frame_header.payload_length;
     if (frame_total > remaining) {
-      // The last candidate frame is truncated by EOF: header, payload or
-      // trailer never completed. This is crash residue, not corruption; the
-      // transaction has no commit marker and is not replayed.
+      // The last candidate frame is truncated by EOF: header or payload
+      // never completed. This is crash residue, not corruption; the frame
+      // cannot pass its checksum and is not replayed.
       break;
     }
 
     const uint8_t* header_bytes = data + offset;
-    const uint8_t* payload = header_bytes + frame_header.header_size;
-    const uint8_t* trailer_bytes = payload + frame_header.payload_length;
+    const uint8_t* payload = header_bytes + kWalFrameHeaderSize;
 
-    WalFrameTrailer trailer;
-    size_t trailer_consumed = 0;
-    const auto trailer_status = DecodeWalFrameTrailer(
-        trailer_bytes, kWalFrameTrailerSize, trailer, trailer_consumed);
-    if (trailer_status != WalDecodeStatus::kOk) {
-      ThrowRecovery(WalRecoveryErrorKind::kCorruptedFrame,
-                    "wal file " + path + " frame at offset " +
-                        std::to_string(offset) +
-                        " has an invalid commit trailer: " +
-                        WalDecodeStatusName(trailer_status));
-    }
     const auto validate_status =
-        ValidateWalFrame(frame_header, trailer, header_bytes, payload);
+        ValidateWalFrame(frame_header, header_bytes, payload);
     if (validate_status != WalDecodeStatus::kOk) {
       ThrowRecovery(
           WalRecoveryErrorKind::kCorruptedFrame,
           "wal file " + path + " frame at offset " + std::to_string(offset) +
-              " failed checksum/marker validation: " +
+              " failed checksum validation: " +
               WalDecodeStatusName(validate_status) + ", commit_timestamp=" +
               std::to_string(frame_header.commit_timestamp));
     }

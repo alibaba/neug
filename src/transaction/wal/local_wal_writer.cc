@@ -75,9 +75,9 @@ void LocalWalWriter::open(const std::string& wal_uri) {
 
   // Persist the v1 file header before any frame is accepted. The file
   // belongs to the wal_dir() it is created in; checkpoint ownership is
-  // guaranteed by checkpoint rotation, not by header fields.
-  WalFileHeader header;
-  header.writer_slot_id = static_cast<uint32_t>(slot_id_);
+  // guaranteed by checkpoint rotation, and the writer identity is already
+  // carried by the file name.
+  const WalFileHeader header;
   const auto encoded = EncodeWalFileHeader(header);
   if (!write_all(reinterpret_cast<const char*>(encoded.data()), encoded.size(),
                  FailNextWrite::kHeader)) {
@@ -86,7 +86,6 @@ void LocalWalWriter::open(const std::string& wal_uri) {
   }
   sync_file();
   append_offset_ = encoded.size();
-  write_phase_ = WalWritePhase::kIdle;
 }
 
 void LocalWalWriter::close() {
@@ -98,7 +97,6 @@ void LocalWalWriter::close() {
     fd_ = -1;
     path_.clear();
     append_offset_ = 0;
-    write_phase_ = WalWritePhase::kIdle;
     failed_ = false;
     if (::close(fd) != 0) {
       THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
@@ -120,7 +118,6 @@ bool LocalWalWriter::restore_clean_eof(size_t offset) {
     return false;
   }
   append_offset_ = offset;
-  write_phase_ = WalWritePhase::kIdle;
   return true;
 }
 
@@ -148,7 +145,7 @@ bool LocalWalWriter::write_all(const char* buffer, size_t length,
 
 void LocalWalWriter::sync_file() {
   // Keep the current synchronous durability strategy as the transitional
-  // implementation. P1-3 splits this into pre-marker and post-marker phases.
+  // implementation: one full sync per frame.
 #ifdef F_FULLFSYNC
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
     THROW_IO_EXCEPTION("Failed to fcntl sync wal file " + path_ + ": " +
@@ -183,32 +180,25 @@ bool LocalWalWriter::append_frame(uint32_t commit_timestamp, WalRecordKind kind,
     return false;
   };
 
-  // 1) Frame header + payload. The commit marker must not appear before the
-  // payload is fully written.
+  // 1) Frame header. The checksum is computed over the payload before any
+  // byte is written, so a persisted header always describes the frame that
+  // follows it; recovery decides completeness purely from the checksum.
   WalFrameHeader header;
   header.record_kind = kind;
   header.commit_timestamp = commit_timestamp;
-  header.payload_length = length;
-  const auto encoded_header = EncodeWalFrameHeader(header);
-  // 2) Commit trailer with the marker, written separately after the payload.
-  WalFrameTrailer trailer;
+  header.payload_length = static_cast<uint32_t>(length);
+  const auto encoded_header =
+      EncodeWalFrameHeader(header, payload_bytes, length);
 
   try {
+    // 2) Header, then payload. A crash between or during the two writes
+    // leaves a short frame at EOF, which recovery discards as torn residue.
     if (!write_all(reinterpret_cast<const char*>(encoded_header.data()),
                    encoded_header.size(), FailNextWrite::kHeader)) {
       return rollback_failed_frame("frame header");
     }
     if (length > 0 && !write_all(payload, length, FailNextWrite::kPayload)) {
       return rollback_failed_frame("frame payload");
-    }
-    write_phase_ = WalWritePhase::kBeforeMarker;
-
-    const auto encoded_trailer = EncodeWalFrameTrailer(
-        trailer, encoded_header.data(), payload_bytes, length);
-    write_phase_ = WalWritePhase::kMarkerAttempted;
-    if (!write_all(reinterpret_cast<const char*>(encoded_trailer.data()),
-                   encoded_trailer.size(), FailNextWrite::kTrailer)) {
-      return rollback_failed_frame("frame trailer");
     }
   } catch (...) {
     // Real I/O error: roll back the partial frame before rethrowing so the
@@ -217,10 +207,9 @@ bool LocalWalWriter::append_frame(uint32_t commit_timestamp, WalRecordKind kind,
     throw;
   }
 
-  // The marker is persisted; post-marker sync failures belong to the P1-3
+  // The frame is persisted; post-write sync failures belong to the commit
   // durability decision and must not roll the frame back.
   sync_file();
-  write_phase_ = WalWritePhase::kIdle;
   return true;
 }
 

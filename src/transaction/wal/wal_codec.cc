@@ -31,24 +31,10 @@ void PutU32(uint8_t* dst, uint32_t value) {
   }
 }
 
-void PutU64(uint8_t* dst, uint64_t value) {
-  for (int i = 0; i < 8; ++i) {
-    dst[i] = static_cast<uint8_t>(value >> (8 * i));
-  }
-}
-
 uint32_t GetU32(const uint8_t* src) {
   uint32_t value = 0;
   for (int i = 0; i < 4; ++i) {
     value |= static_cast<uint32_t>(src[i]) << (8 * i);
-  }
-  return value;
-}
-
-uint64_t GetU64(const uint8_t* src) {
-  uint64_t value = 0;
-  for (int i = 0; i < 8; ++i) {
-    value |= static_cast<uint64_t>(src[i]) << (8 * i);
   }
   return value;
 }
@@ -59,34 +45,33 @@ bool IsKnownRecordKind(uint32_t value) {
          value == static_cast<uint32_t>(WalRecordKind::kCompact);
 }
 
-constexpr size_t kWalTrailerPrefixSize =
-    kWalFrameTrailerSize - sizeof(uint32_t);
-
-/// Wire bytes of the trailer preceding its checksum field: the commit marker.
-std::array<uint8_t, kWalTrailerPrefixSize> EncodeWalTrailerPrefix(
-    const WalFrameTrailer& trailer) {
-  std::array<uint8_t, kWalTrailerPrefixSize> bytes{};
-  PutU32(bytes.data() + 0, trailer.commit_marker);
+/// Encodes the frame header bytes preceding the checksum field: kind,
+/// payload length and commit timestamp. These are the header bytes covered
+/// by frame_checksum.
+std::array<uint8_t, kWalFrameHeaderStableSize> EncodeWalFrameHeaderPrefix(
+    const WalFrameHeader& header) {
+  std::array<uint8_t, kWalFrameHeaderStableSize> bytes{};
+  bytes[0] = static_cast<uint8_t>(header.record_kind);
+  PutU32(bytes.data() + 1, header.payload_length);
+  PutU32(bytes.data() + 5, header.commit_timestamp);
   return bytes;
 }
 
 /// Single source of truth for what the frame checksum covers: the encoded
-/// frame header bytes, the payload, and the commit marker. This protects the
-/// kind, timestamp and length fields, not only the payload. CRC32C is
-/// hardware-accelerated on x86 (SSE4.2) and ARM64 via absl.
+/// frame header bytes preceding the checksum field plus the payload. This
+/// protects the kind, timestamp and length fields, not only the payload.
+/// CRC32C is hardware-accelerated on x86 (SSE4.2) and ARM64 via absl.
 uint32_t WalFrameChecksum(const uint8_t* frame_header_bytes,
-                          const uint8_t* payload, size_t payload_length,
-                          const uint8_t* trailer_prefix) {
+                          const uint8_t* payload, size_t payload_length) {
   absl::crc32c_t crc = absl::ExtendCrc32c(
       absl::crc32c_t{0},
       absl::string_view(reinterpret_cast<const char*>(frame_header_bytes),
                         kWalFrameHeaderStableSize));
-  crc = absl::ExtendCrc32c(
-      crc, absl::string_view(reinterpret_cast<const char*>(payload),
-                             payload_length));
-  crc = absl::ExtendCrc32c(
-      crc, absl::string_view(reinterpret_cast<const char*>(trailer_prefix),
-                             kWalTrailerPrefixSize));
+  if (payload_length > 0) {
+    crc = absl::ExtendCrc32c(
+        crc, absl::string_view(reinterpret_cast<const char*>(payload),
+                               payload_length));
+  }
   return static_cast<uint32_t>(crc);
 }
 
@@ -146,31 +131,18 @@ std::array<uint8_t, kWalFileHeaderSize> EncodeWalFileHeader(
   PutU32(bytes.data() + 0, header.magic);
   PutU32(bytes.data() + 4, header.format_version);
   PutU32(bytes.data() + 8, header.header_size);
-  PutU32(bytes.data() + 12, header.writer_slot_id);
-  PutU64(bytes.data() + 16, header.reserved);
+  PutU32(bytes.data() + 12, header.reserved);
   return bytes;
 }
 
 std::array<uint8_t, kWalFrameHeaderSize> EncodeWalFrameHeader(
-    const WalFrameHeader& header) {
+    const WalFrameHeader& header, const uint8_t* payload,
+    size_t payload_length) {
   std::array<uint8_t, kWalFrameHeaderSize> bytes{};
-  PutU32(bytes.data() + 0, header.frame_magic);
-  PutU32(bytes.data() + 4, static_cast<uint32_t>(header.record_kind));
-  PutU32(bytes.data() + 8, header.header_size);
-  PutU32(bytes.data() + 12, header.commit_timestamp);
-  PutU64(bytes.data() + 16, header.payload_length);
-  return bytes;
-}
-
-std::array<uint8_t, kWalFrameTrailerSize> EncodeWalFrameTrailer(
-    const WalFrameTrailer& trailer, const uint8_t* frame_header_bytes,
-    const uint8_t* payload, size_t payload_length) {
-  std::array<uint8_t, kWalFrameTrailerSize> bytes{};
-  const auto prefix = EncodeWalTrailerPrefix(trailer);
+  const auto prefix = EncodeWalFrameHeaderPrefix(header);
   std::memcpy(bytes.data(), prefix.data(), prefix.size());
   PutU32(bytes.data() + prefix.size(),
-         WalFrameChecksum(frame_header_bytes, payload, payload_length,
-                          prefix.data()));
+         WalFrameChecksum(prefix.data(), payload, payload_length));
   return bytes;
 }
 
@@ -192,8 +164,7 @@ WalDecodeStatus DecodeWalFileHeader(const uint8_t* data, size_t remaining,
   if (out.header_size != kWalFileHeaderSize) {
     return WalDecodeStatus::kBadHeaderSize;
   }
-  out.writer_slot_id = GetU32(data + 12);
-  out.reserved = GetU64(data + 16);
+  out.reserved = GetU32(data + 12);
   consumed = kWalFileHeaderSize;
   return WalDecodeStatus::kOk;
 }
@@ -204,52 +175,27 @@ WalDecodeStatus DecodeWalFrameHeader(const uint8_t* data, size_t remaining,
   if (remaining < kWalFrameHeaderSize) {
     return WalDecodeStatus::kTruncated;
   }
-  out.frame_magic = GetU32(data + 0);
-  if (out.frame_magic != kWalFrameMagic) {
-    return WalDecodeStatus::kBadMagic;
-  }
-  const uint32_t kind = GetU32(data + 4);
+  const uint32_t kind = data[0];
   if (!IsKnownRecordKind(kind)) {
     return WalDecodeStatus::kUnknownRecordKind;
   }
   out.record_kind = static_cast<WalRecordKind>(kind);
-  out.header_size = GetU32(data + 8);
-  if (out.header_size != kWalFrameHeaderSize) {
-    return WalDecodeStatus::kBadHeaderSize;
-  }
-  out.commit_timestamp = GetU32(data + 12);
-  out.payload_length = GetU64(data + 16);
+  out.payload_length = GetU32(data + 1);
   if (out.payload_length > kWalMaxPayloadLength) {
     return WalDecodeStatus::kPayloadTooLarge;
   }
+  out.commit_timestamp = GetU32(data + 5);
+  out.frame_checksum = GetU32(data + 9);
   consumed = kWalFrameHeaderSize;
   return WalDecodeStatus::kOk;
 }
 
-WalDecodeStatus DecodeWalFrameTrailer(const uint8_t* data, size_t remaining,
-                                      WalFrameTrailer& out, size_t& consumed) {
-  consumed = 0;
-  if (remaining < kWalFrameTrailerSize) {
-    return WalDecodeStatus::kTruncated;
-  }
-  out.commit_marker = GetU32(data + 0);
-  if (out.commit_marker != kWalCommitMarker) {
-    return WalDecodeStatus::kBadMagic;
-  }
-  out.frame_checksum = GetU32(data + 4);
-  consumed = kWalFrameTrailerSize;
-  return WalDecodeStatus::kOk;
-}
-
 WalDecodeStatus ValidateWalFrame(const WalFrameHeader& header,
-                                 const WalFrameTrailer& trailer,
                                  const uint8_t* frame_header_bytes,
                                  const uint8_t* payload) {
-  const auto prefix = EncodeWalTrailerPrefix(trailer);
-  if (trailer.frame_checksum !=
+  if (header.frame_checksum !=
       WalFrameChecksum(frame_header_bytes, payload,
-                       static_cast<size_t>(header.payload_length),
-                       prefix.data())) {
+                       static_cast<size_t>(header.payload_length))) {
     return WalDecodeStatus::kBadChecksum;
   }
   return WalDecodeStatus::kOk;

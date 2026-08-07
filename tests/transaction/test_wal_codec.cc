@@ -48,23 +48,19 @@ WalFileFixture MakeFileHeader() {
   return fixture;
 }
 
-/// Encodes one committed frame (header + payload + trailer) into bytes.
+/// Encodes one committed frame (header + payload) into bytes.
 std::vector<uint8_t> EncodeFrame(uint32_t ts, WalRecordKind kind,
                                  const std::vector<uint8_t>& payload) {
   WalFrameHeader header;
   header.record_kind = kind;
   header.commit_timestamp = ts;
-  header.payload_length = payload.size();
-  auto header_bytes = EncodeWalFrameHeader(header);
-
-  WalFrameTrailer trailer;
-  auto trailer_bytes = EncodeWalFrameTrailer(trailer, header_bytes.data(),
-                                             payload.data(), payload.size());
+  header.payload_length = static_cast<uint32_t>(payload.size());
+  auto header_bytes =
+      EncodeWalFrameHeader(header, payload.data(), payload.size());
 
   std::vector<uint8_t> bytes;
   bytes.insert(bytes.end(), header_bytes.begin(), header_bytes.end());
   bytes.insert(bytes.end(), payload.begin(), payload.end());
-  bytes.insert(bytes.end(), trailer_bytes.begin(), trailer_bytes.end());
   return bytes;
 }
 
@@ -90,16 +86,7 @@ TEST(WalCodecTest, FrameRoundTripAllKinds) {
     EXPECT_EQ(header.commit_timestamp, 42u);
     EXPECT_EQ(header.payload_length, body.size());
 
-    const uint8_t* trailer_bytes =
-        frame.data() + kWalFrameHeaderSize + body.size();
-    WalFrameTrailer trailer;
-    ASSERT_EQ(DecodeWalFrameTrailer(trailer_bytes, kWalFrameTrailerSize,
-                                    trailer, consumed),
-              WalDecodeStatus::kOk);
-    EXPECT_EQ(consumed, kWalFrameTrailerSize);
-    EXPECT_EQ(trailer.commit_marker, kWalCommitMarker);
-
-    EXPECT_EQ(ValidateWalFrame(header, trailer, frame.data(),
+    EXPECT_EQ(ValidateWalFrame(header, frame.data(),
                                frame.data() + kWalFrameHeaderSize),
               WalDecodeStatus::kOk);
   }
@@ -107,7 +94,7 @@ TEST(WalCodecTest, FrameRoundTripAllKinds) {
 
 TEST(WalCodecTest, FileHeaderRoundTrip) {
   WalFileHeader header;
-  header.writer_slot_id = 3;
+  header.reserved = 3;
   auto bytes = EncodeWalFileHeader(header);
 
   WalFileHeader decoded;
@@ -115,8 +102,7 @@ TEST(WalCodecTest, FileHeaderRoundTrip) {
   ASSERT_EQ(DecodeWalFileHeader(bytes.data(), bytes.size(), decoded, consumed),
             WalDecodeStatus::kOk);
   EXPECT_EQ(consumed, kWalFileHeaderSize);
-  EXPECT_EQ(decoded.writer_slot_id, 3u);
-  EXPECT_EQ(decoded.reserved, 0u);
+  EXPECT_EQ(decoded.reserved, 3u);
 }
 
 TEST(WalCodecTest, FileHeaderDecodeRejectsBadMagicVersionSizeTruncation) {
@@ -147,7 +133,7 @@ TEST(WalCodecTest, FileHeaderDecodeRejectsBadMagicVersionSizeTruncation) {
             WalDecodeStatus::kBadHeaderSize);
 }
 
-TEST(WalCodecTest, FrameHeaderDecodeRejectsUnknownKindSizeOverflow) {
+TEST(WalCodecTest, FrameHeaderDecodeRejectsTruncationAndUnknownKind) {
   const std::vector<uint8_t> payload = {1, 2, 3};
   auto frame = EncodeFrame(1, WalRecordKind::kInsert, payload);
   WalFrameHeader decoded;
@@ -157,34 +143,16 @@ TEST(WalCodecTest, FrameHeaderDecodeRejectsUnknownKindSizeOverflow) {
                                  consumed),
             WalDecodeStatus::kTruncated);
 
-  // Unknown record kind: patch the kind field; the kind check runs before
-  // checksum validation at decode time.
+  // Unknown record kind: the kind is the first header byte; the kind check
+  // runs before checksum validation at decode time.
   auto corrupted = frame;
-  corrupted[4] = 9;
+  corrupted[0] = 9;
   EXPECT_EQ(DecodeWalFrameHeader(corrupted.data(), corrupted.size(), decoded,
                                  consumed),
             WalDecodeStatus::kUnknownRecordKind);
-
-  // Bad header size.
-  corrupted = frame;
-  corrupted[8] = kWalFrameHeaderSize + 1;
-  EXPECT_EQ(DecodeWalFrameHeader(corrupted.data(), corrupted.size(), decoded,
-                                 consumed),
-            WalDecodeStatus::kBadHeaderSize);
-
-  // payload_length overflow beyond kWalMaxPayloadLength.
-  corrupted = frame;
-  corrupted[16] = 0xFF;
-  corrupted[17] = 0xFF;
-  corrupted[18] = 0xFF;
-  corrupted[19] = 0xFF;
-  corrupted[20] = 0xFF;
-  EXPECT_EQ(DecodeWalFrameHeader(corrupted.data(), corrupted.size(), decoded,
-                                 consumed),
-            WalDecodeStatus::kPayloadTooLarge);
 }
 
-TEST(WalCodecTest, TamperingDetectedInPayloadHeaderAndMarker) {
+TEST(WalCodecTest, TamperingDetectedInPayloadAndHeader) {
   const std::vector<uint8_t> payload = {0x11, 0x22, 0x33, 0x44};
   auto frame = EncodeFrame(7, WalRecordKind::kCowUpdate, payload);
 
@@ -192,11 +160,6 @@ TEST(WalCodecTest, TamperingDetectedInPayloadHeaderAndMarker) {
   size_t consumed = 0;
   ASSERT_EQ(DecodeWalFrameHeader(frame.data(), frame.size(), header, consumed),
             WalDecodeStatus::kOk);
-  WalFrameTrailer trailer;
-  ASSERT_EQ(
-      DecodeWalFrameTrailer(frame.data() + kWalFrameHeaderSize + payload.size(),
-                            kWalFrameTrailerSize, trailer, consumed),
-      WalDecodeStatus::kOk);
 
   // Payload bit flip: the frame checksum must catch it.
   auto flipped = frame;
@@ -205,31 +168,34 @@ TEST(WalCodecTest, TamperingDetectedInPayloadHeaderAndMarker) {
   ASSERT_EQ(DecodeWalFrameHeader(flipped.data(), flipped.size(), flipped_header,
                                  consumed),
             WalDecodeStatus::kOk);
-  EXPECT_EQ(ValidateWalFrame(flipped_header, trailer, flipped.data(),
+  EXPECT_EQ(ValidateWalFrame(flipped_header, flipped.data(),
                              flipped.data() + kWalFrameHeaderSize),
             WalDecodeStatus::kBadChecksum);
 
-  // Frame header bit flip: the frame checksum must catch it too.
+  // Frame header bit flip (commit_timestamp field): the frame checksum
+  // covers the header bytes preceding it and must catch it too.
   auto flipped_header_bytes = frame;
-  flipped_header_bytes[12] ^= 0x01;  // commit_timestamp field
+  flipped_header_bytes[5] ^= 0x01;
   WalFrameHeader ts_header;
   ASSERT_EQ(
       DecodeWalFrameHeader(flipped_header_bytes.data(),
                            flipped_header_bytes.size(), ts_header, consumed),
       WalDecodeStatus::kOk);
-  EXPECT_EQ(ValidateWalFrame(ts_header, trailer, flipped_header_bytes.data(),
+  EXPECT_EQ(ValidateWalFrame(ts_header, flipped_header_bytes.data(),
                              flipped_header_bytes.data() + kWalFrameHeaderSize),
             WalDecodeStatus::kBadChecksum);
 
-  // Trailer marker tamper: caught at decode time by the marker check, so a
-  // corrupted commit marker never reaches validation.
-  auto bad_marker = frame;
-  bad_marker[kWalFrameHeaderSize + payload.size()] ^= 0xFF;
-  WalFrameTrailer marker_trailer;
-  EXPECT_EQ(DecodeWalFrameTrailer(
-                bad_marker.data() + kWalFrameHeaderSize + payload.size(),
-                kWalFrameTrailerSize, marker_trailer, consumed),
-            WalDecodeStatus::kBadMagic);
+  // Checksum field tamper: decoding succeeds (the checksum is opaque at
+  // decode time), but validation fails.
+  auto bad_checksum = frame;
+  bad_checksum[9] ^= 0xFF;
+  WalFrameHeader checksum_header;
+  ASSERT_EQ(DecodeWalFrameHeader(bad_checksum.data(), bad_checksum.size(),
+                                 checksum_header, consumed),
+            WalDecodeStatus::kOk);
+  EXPECT_EQ(ValidateWalFrame(checksum_header, bad_checksum.data(),
+                             bad_checksum.data() + kWalFrameHeaderSize),
+            WalDecodeStatus::kBadChecksum);
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +327,7 @@ TEST_F(WalParserFileTest, NonTailPayloadCorruptionIsRejected) {
 TEST_F(WalParserFileTest, UnknownRecordKindIsRejected) {
   auto frame =
       EncodeFrame(1, WalRecordKind::kInsert, std::vector<uint8_t>{1, 2, 3});
-  frame[4] = 42;  // unknown kind
+  frame[0] = 42;  // unknown kind (first header byte)
   WriteFile("thread_0_0.wal", BuildWalFile({frame}));
   ExpectRecoveryErrorContaining("[unknown_record_kind]");
 }
@@ -400,14 +366,10 @@ TEST_F(WalParserFileTest, TailResidueIsIgnored) {
   // Torn payload at EOF.
   WriteFile("b_half_payload.wal",
             build_torn(2, kWalFrameHeaderSize + payload.size() / 2));
-  // Torn trailer at EOF (payload complete, marker never written).
-  WriteFile("c_half_trailer.wal",
-            build_torn(3, kWalFrameHeaderSize + payload.size() +
-                              kWalFrameTrailerSize / 2));
 
   LocalWalParser parser(wal_dir_);
-  EXPECT_EQ(parser.last_ts(), 3u);
-  ASSERT_EQ(parser.replay_units().size(), 3u);
+  EXPECT_EQ(parser.last_ts(), 2u);
+  ASSERT_EQ(parser.replay_units().size(), 2u);
   for (size_t i = 0; i < parser.replay_units().size(); ++i) {
     EXPECT_EQ(parser.replay_units()[i].commit_timestamp, i + 1);
   }
@@ -480,8 +442,7 @@ TEST_F(WalParserFileTest, DuplicateTimestampsAreAlwaysRejected) {
 // committed one, so recovery never sees residue buried mid-file.
 TEST_F(WalParserFileTest, FailedFrameAttemptsRollBackToCleanEof) {
   const auto phases = {LocalWalWriter::FailNextWrite::kHeader,
-                       LocalWalWriter::FailNextWrite::kPayload,
-                       LocalWalWriter::FailNextWrite::kTrailer};
+                       LocalWalWriter::FailNextWrite::kPayload};
   int phase_index = 0;
   for (const auto phase : phases) {
     ++phase_index;
@@ -495,9 +456,6 @@ TEST_F(WalParserFileTest, FailedFrameAttemptsRollBackToCleanEof) {
     writer.fail_next_write(phase);
     ASSERT_FALSE(writer.append_frame(2, WalRecordKind::kInsert, "two", 3))
         << "phase_index=" << phase_index;
-    EXPECT_EQ(writer.write_phase(), WalWritePhase::kIdle)
-        << "a rolled-back frame leaves no write in progress, phase_index="
-        << phase_index;
 
     ASSERT_TRUE(writer.append_frame(3, WalRecordKind::kInsert, "three", 5))
         << "phase_index=" << phase_index;
@@ -543,8 +501,7 @@ TEST_F(WalCrashSubprocessTest, CrashAtEachWritePhaseLeavesOnlyCommittedFrames) {
   const std::string payload_b = "crashed-payload-not-visible";
 
   const auto phases = {LocalWalWriter::FailNextWrite::kHeader,
-                       LocalWalWriter::FailNextWrite::kPayload,
-                       LocalWalWriter::FailNextWrite::kTrailer};
+                       LocalWalWriter::FailNextWrite::kPayload};
   int phase_index = 0;
   for (const auto phase : phases) {
     ++phase_index;

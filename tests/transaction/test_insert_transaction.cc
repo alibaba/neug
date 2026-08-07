@@ -248,19 +248,14 @@ class LocalWalParserTest : public ::testing::Test {
     neug::WalFrameHeader fhdr;
     fhdr.record_kind = kind;
     fhdr.commit_timestamp = ts;
-    fhdr.payload_length = payload.size();
-    auto fhdrb = neug::EncodeWalFrameHeader(fhdr);
-
-    neug::WalFrameTrailer trailer;
-    auto trailerb = neug::EncodeWalFrameTrailer(
-        trailer, fhdrb.data(), reinterpret_cast<const uint8_t*>(payload.data()),
-        payload.size());
+    fhdr.payload_length = static_cast<uint32_t>(payload.size());
+    auto fhdrb = neug::EncodeWalFrameHeader(
+        fhdr, reinterpret_cast<const uint8_t*>(payload.data()), payload.size());
 
     std::vector<char> buf;
     buf.insert(buf.end(), fhb.begin(), fhb.end());
     buf.insert(buf.end(), fhdrb.begin(), fhdrb.end());
     buf.insert(buf.end(), payload.begin(), payload.end());
-    buf.insert(buf.end(), trailerb.begin(), trailerb.end());
     WriteWalFile(filename, buf);
   }
 

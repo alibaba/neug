@@ -67,8 +67,6 @@ class CapturingWalWriter : public IWalWriter {
     return true;
   }
 
-  WalWritePhase write_phase() const override { return WalWritePhase::kIdle; }
-
   std::vector<Frame> frames;
 };
 

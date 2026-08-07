@@ -35,19 +35,6 @@ namespace neug {
 std::string get_wal_uri_scheme(const std::string& uri);
 std::string get_wal_uri_path(const std::string& uri);
 
-/// Narrow I/O phase information exposed by the writer around the commit
-/// marker. P1-3 consumes this to decide commit durability; P1-2 does not map
-/// it to any externally visible commit result.
-enum class WalWritePhase : uint8_t {
-  /// No frame write in progress (or the last frame is fully persisted).
-  kIdle,
-  /// Frame header and payload are persisted; the commit marker write has not
-  /// been attempted yet.
-  kBeforeMarker,
-  /// The commit marker write has been attempted (success not implied).
-  kMarkerAttempted,
-};
-
 /**
  * The interface of wal writer.
  *
@@ -79,14 +66,11 @@ class IWalWriter {
   virtual void close() = 0;
 
   /**
-   * Append one complete transaction frame:
-   * frame header + payload first, then the commit trailer with its marker.
+   * Append one complete transaction frame: the frame header (including the
+   * checksum computed over the payload) followed by the payload itself.
    */
   virtual bool append_frame(uint32_t commit_timestamp, WalRecordKind kind,
                             const char* payload, size_t length) = 0;
-
-  /// Current marker-phase information (see WalWritePhase).
-  virtual WalWritePhase write_phase() const = 0;
 };
 
 /// A validated replay record produced by the parser.

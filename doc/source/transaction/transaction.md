@@ -209,21 +209,21 @@ directory the file was written in (guaranteed by checkpoint rotation), not
 from a field inside the file:
 
 ```text
-FileHeader (24B)
-  ├─ magic / format_version / header_size
-  └─ writer_slot_id       # diagnostics only, not part of transaction order
+FileHeader (16B)
+  └─ magic / format_version / header_size / reserved
 Frame* (one frame per committed transaction)
-  ├─ FrameHeader (24B): magic, record_kind,
-  │                     commit_timestamp, payload_length
-  ├─ payload              # redo bytes; empty only for compaction frames
-  └─ FrameTrailer (8B): commit marker, frame CRC32C over
-                          header + payload + marker
+  ├─ FrameHeader (13B): record_kind, payload_length,
+  │                     commit_timestamp, frame_checksum
+  │                     (CRC32C over header prefix + payload)
+  └─ payload              # redo bytes; empty only for compaction frames
 ```
 
 Key properties:
 
-- **One commit = exactly one complete frame.** The commit marker is written
-  last, so a frame whose trailer is present was fully persisted.
+- **One commit = exactly one complete frame.** The frame checksum lives in
+  the frame header and is computed over the payload before any byte is
+  written, so a frame is complete exactly when it is fully present and its
+  checksum matches; no trailing commit marker is needed.
 - **Record kinds:** `kInsert` (append redo), `kCowUpdate` (update/delete redo),
   `kCompact` (compaction, empty payload). AP/embedded paths never write WAL.
 - **Real logical EOF.** Files are never preallocated or zero-padded; anything
