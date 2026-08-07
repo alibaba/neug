@@ -275,6 +275,14 @@ void insert_varchar_impl(const TypedColumnInserter& ins, size_t dst_idx,
                      insert_safe);
 }
 
+void insert_nested_impl(const TypedColumnInserter& ins, size_t dst_idx,
+                        size_t src_idx, bool insert_safe) {
+  auto value = ins.src->get_elem(src_idx);
+  if (!value.IsNull()) {
+    ins.dst->set_any(dst_idx, value, insert_safe);
+  }
+}
+
 TypedColumnInserter make_inserter(const DataType& type,
                                   const IContextColumn* src, ColumnBase* dst) {
   switch (type.id()) {
@@ -285,6 +293,9 @@ TypedColumnInserter make_inserter(const DataType& type,
 #undef MAKE_INSERTER
   case DataTypeId::kVarchar:
     return {src, dst, &insert_varchar_impl};
+  case DataTypeId::kArray:
+  case DataTypeId::kList:
+    return {src, dst, &insert_nested_impl};
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported data type for column inserter: " +

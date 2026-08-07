@@ -646,11 +646,18 @@ struct convert<neug::DataType> {
                            : neug::STRING_DEFAULT_MAX_LENGTH;
     } else if (id == neug::DataTypeId::kDate) {
       node["temporal"]["date"] = "";
+    } else if (id == neug::DataTypeId::kTimestampMs) {
+      node["temporal"]["timestamp"] = "";
+    } else if (id == neug::DataTypeId::kInterval) {
+      node["temporal"]["interval"] = "";
     } else if (id == neug::DataTypeId::kArray) {
       auto child_type = neug::ArrayType::GetChildType(type);
       uint64_t array_size = neug::ArrayType::GetNumElements(type);
       node["array"]["component_type"] = encode(child_type);
       node["array"]["max_length"] = array_size;
+    } else if (id == neug::DataTypeId::kList) {
+      node["list"]["component_type"] =
+          encode(neug::ListType::GetChildType(type));
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type.ToString();
     }
