@@ -379,8 +379,7 @@ Status UpdateTransaction::Commit(GraphSnapshotStore& snapshot_store,
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "WAL durability requires a WAL writer");
   }
-  if (durability_ == TransactionDurability::kNoWal &&
-      wal_writer != nullptr) {
+  if (durability_ == TransactionDurability::kNoWal && wal_writer != nullptr) {
     Abort();
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "No-WAL durability must not use a WAL writer");
@@ -832,9 +831,9 @@ neug::result<StorageIndex*> StorageCOWUpdateInterface::CreateIndexDDLForAP(
   const auto name = meta->name;
   const auto label = meta->schema.label_id;
   const auto property_name = meta->schema.property_name;
-  GS_AUTO(index, index_ddl::CreateIndex(
-                     *cow_graph_, mut_view_, timestamp(), alloc_,
-                     std::move(meta), [this]() { MarkSchemaDirty(); }));
+  GS_AUTO(index, index_ddl::CreateIndex(*cow_graph_, mut_view_, timestamp(),
+                                        alloc_, std::move(meta),
+                                        [this]() { MarkSchemaDirty(); }));
   cow_state_.index_detached[name] = true;
   if (label < cow_state_.vertex_tables.size()) {
     const auto schema = cow_graph_->schema().get_vertex_schema(label);
@@ -849,9 +848,9 @@ neug::result<StorageIndex*> StorageCOWUpdateInterface::CreateIndexDDLForAP(
 }
 
 Status StorageCOWUpdateInterface::DropIndexDDLForAP(const std::string& name) {
-  RETURN_IF_NOT_OK(index_ddl::DropIndex(
-      *cow_graph_, mut_view_, timestamp(), alloc_, name,
-      [this]() { MarkSchemaDirty(); }));
+  RETURN_IF_NOT_OK(index_ddl::DropIndex(*cow_graph_, mut_view_, timestamp(),
+                                        alloc_, name,
+                                        [this]() { MarkSchemaDirty(); }));
   cow_state_.index_detached.erase(name);
   return Status::OK();
 }

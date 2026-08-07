@@ -659,8 +659,7 @@ neug::result<StorageIndex*> index_ddl::CreateIndex(
  */
 Status index_ddl::DropIndex(PropertyGraph& graph, GraphView& view,
                             timestamp_t /*timestamp*/,
-                            neug::Allocator& /*alloc*/,
-                            const std::string& name,
+                            neug::Allocator& /*alloc*/, const std::string& name,
                             const CatalogChangedCallback& on_catalog_changed) {
   auto& index_manager = graph.mutable_index_manager();
   auto target = index_manager.GetIndexByName(name);
@@ -673,8 +672,8 @@ Status index_ddl::DropIndex(PropertyGraph& graph, GraphView& view,
   int32_t property_col = -1;
 
   if (IsHNSWIndex(meta)) {
-    auto indexes = index_manager.GetIndex(meta.schema.label_id,
-                                          meta.schema.property_name);
+    auto indexes =
+        index_manager.GetIndex(meta.schema.label_id, meta.schema.property_name);
     if (!indexes) {
       return indexes.error();
     }
@@ -695,9 +694,9 @@ Status index_ddl::DropIndex(PropertyGraph& graph, GraphView& view,
       const auto& default_value = schema->default_property_values[property_col];
       auto* column = vertex_table.get_table().get_column_by_id(property_col);
       if (auto* vec = dynamic_cast<VecColumn*>(column)) {
-        array_column = FromVecColumn(
-            *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
-            graph.checkpoint(), graph.memory_level());
+        array_column = FromVecColumn(*vec, vertex_table.Size(),
+                                     vertex_table.Capacity(), default_value,
+                                     graph.checkpoint(), graph.memory_level());
       } else {
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "DropIndex: HNSW index can only be created on VecColumn");

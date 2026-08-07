@@ -375,9 +375,9 @@ TEST_F(TPIndexTest, UpdateTransactionDurabilityControlsWalPublication) {
     auto status = txn.Commit(*snapshot_store_);
     ASSERT_FALSE(status.ok());
     EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
-    EXPECT_FALSE(snapshot_store_->CurrentSnapshot()
-                     .schema()
-                     .is_vertex_label_valid("Person"));
+    EXPECT_FALSE(
+        snapshot_store_->CurrentSnapshot().schema().is_vertex_label_valid(
+            "Person"));
     EXPECT_TRUE(wal_writer_.records.empty());
   }
 
@@ -394,9 +394,9 @@ TEST_F(TPIndexTest, UpdateTransactionDurabilityControlsWalPublication) {
                     .ok());
 
     ASSERT_TRUE(txn.Commit(*snapshot_store_).ok());
-    EXPECT_TRUE(snapshot_store_->CurrentSnapshot()
-                    .schema()
-                    .is_vertex_label_valid("Person"));
+    EXPECT_TRUE(
+        snapshot_store_->CurrentSnapshot().schema().is_vertex_label_valid(
+            "Person"));
     EXPECT_TRUE(wal_writer_.records.empty());
   }
 }
