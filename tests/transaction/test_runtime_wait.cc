@@ -18,8 +18,11 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <future>
 #include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -31,6 +34,7 @@
 #endif
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -40,6 +44,10 @@ constexpr auto kWaitTimeout = std::chrono::seconds(10);
 std::atomic<uint64_t> g_runtime_wait_calls{0};
 std::atomic<uint64_t> g_yield_calls{0};
 std::atomic<uint64_t> g_sleep_calls{0};
+std::atomic<uint32_t> g_blocked_waiters{0};
+std::mutex g_blocking_wait_lock;
+std::condition_variable g_blocking_wait_cv;
+bool g_block_waiters = false;
 
 void RecordRuntimeWait(RuntimeWaitAction action) noexcept {
   g_runtime_wait_calls.fetch_add(1, std::memory_order_relaxed);
@@ -58,6 +66,26 @@ void CountingRuntimeWait(RuntimeWaitAction action) noexcept {
 void CountingNativeRuntimeWait(RuntimeWaitAction action) noexcept {
   RecordRuntimeWait(action);
   NativeRuntimeWait(action);
+}
+
+void BlockingRuntimeWait(RuntimeWaitAction) noexcept {
+  g_blocked_waiters.fetch_add(1, std::memory_order_release);
+  std::unique_lock lock(g_blocking_wait_lock);
+  g_blocking_wait_cv.wait(lock, [] { return !g_block_waiters; });
+}
+
+void BlockRuntimeWaiters() {
+  g_blocked_waiters.store(0, std::memory_order_relaxed);
+  std::lock_guard lock(g_blocking_wait_lock);
+  g_block_waiters = true;
+}
+
+void ReleaseRuntimeWaiters() {
+  {
+    std::lock_guard lock(g_blocking_wait_lock);
+    g_block_waiters = false;
+  }
+  g_blocking_wait_cv.notify_all();
 }
 
 void InitManager(VersionManager& manager) {
@@ -97,6 +125,12 @@ bool WaitForRuntimeWait() {
 bool WaitForSleep() {
   return WaitUntil(
       []() { return g_sleep_calls.load(std::memory_order_relaxed) != 0; });
+}
+
+bool WaitForBlockedWaiters(uint32_t expected) {
+  return WaitUntil([&] {
+    return g_blocked_waiters.load(std::memory_order_acquire) >= expected;
+  });
 }
 
 void ResetRuntimeWaitCalls() {
@@ -357,6 +391,139 @@ TEST(VersionManagerWaitTest, AllContendedPathsUseBackoff) {
         [&]() { manager.release_read_view(); });
     manager.release_compact_timestamp(compact_ts);
   }
+}
+
+TEST(VersionManagerUpdateAdmissionTest,
+     ContendedTimeoutDoesNotBlockOtherWaiters) {
+  VersionManager manager;
+  InitManager(manager);
+  ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
+  const auto holder = manager.acquire_update_timestamp();
+
+  BlockRuntimeWaiters();
+  std::promise<bool> waiter_timed_out;
+  std::promise<uint32_t> successor_timestamp;
+  auto timeout_result = waiter_timed_out.get_future();
+  auto successor_result = successor_timestamp.get_future();
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+  std::thread timed_waiter([&] {
+    try {
+      UpdateTimestampLease lease(manager, deadline);
+      waiter_timed_out.set_value(false);
+    } catch (const exception::TransactionTimeoutException&) {
+      waiter_timed_out.set_value(true);
+    }
+  });
+  ASSERT_TRUE(WaitForBlockedWaiters(1));
+  std::thread successor([&] {
+    const auto ts = manager.acquire_update_timestamp();
+    successor_timestamp.set_value(ts);
+    FinishUpdate(manager, ts);
+  });
+  ASSERT_TRUE(WaitForBlockedWaiters(2));
+
+  std::this_thread::sleep_until(deadline);
+  ReleaseRuntimeWaiters();
+  EXPECT_EQ(timeout_result.wait_for(kWaitTimeout), std::future_status::ready);
+  EXPECT_TRUE(timeout_result.get());
+  FinishUpdate(manager, holder);
+  EXPECT_EQ(successor_result.wait_for(kWaitTimeout), std::future_status::ready);
+  EXPECT_EQ(successor_result.get(), 3U);
+  timed_waiter.join();
+  successor.join();
+}
+
+TEST(VersionManagerUpdateAdmissionTest,
+     InserterDrainTimeoutRestoresAdmissionWithoutTimestamp) {
+  VersionManager manager;
+  InitManager(manager);
+  ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
+  const auto insert_ts = manager.acquire_insert_timestamp();
+
+  BlockRuntimeWaiters();
+  std::promise<bool> timed_out;
+  auto timeout_result = timed_out.get_future();
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+  std::thread update([&] {
+    try {
+      UpdateTimestampLease lease(manager, deadline);
+      timed_out.set_value(false);
+    } catch (const exception::TransactionTimeoutException&) {
+      timed_out.set_value(true);
+    }
+  });
+  ASSERT_TRUE(WaitForBlockedWaiters(1));
+
+  std::this_thread::sleep_until(deadline);
+  ReleaseRuntimeWaiters();
+  EXPECT_EQ(timeout_result.wait_for(kWaitTimeout), std::future_status::ready);
+  EXPECT_TRUE(timeout_result.get());
+  update.join();
+
+  manager.release_insert_timestamp(insert_ts);
+  const auto next_update = manager.acquire_update_timestamp();
+  EXPECT_EQ(next_update, 3U);
+  FinishUpdate(manager, next_update);
+}
+
+TEST(VersionManagerTimestampWindowTest,
+     FullWindowBackpressuresWithoutBlockingUpdateDrain) {
+  VersionManager manager;
+  InitManager(manager);
+  ASSERT_TRUE(manager.try_set_runtime_wait_if_quiescent(&BlockingRuntimeWait));
+  const auto oldest = manager.acquire_insert_timestamp();
+  for (size_t i = 0; i < TimestampWindow::kWindowSize - 1; ++i) {
+    const auto ts = manager.acquire_insert_timestamp();
+    manager.release_insert_timestamp(ts);
+  }
+  EXPECT_EQ(manager.acquire_read_view().visibility_ts, 1U);
+  manager.release_read_view();
+
+  BlockRuntimeWaiters();
+  std::promise<uint32_t> waiting_insert;
+  auto waiting_result = waiting_insert.get_future();
+  std::thread waiter([&] {
+    const auto ts = manager.acquire_insert_timestamp();
+    waiting_insert.set_value(ts);
+    manager.release_insert_timestamp(ts);
+  });
+  ASSERT_TRUE(WaitForBlockedWaiters(1));
+
+  std::promise<uint32_t> update_timestamp;
+  auto update_result = update_timestamp.get_future();
+  std::thread update([&] {
+    const auto ts = manager.acquire_update_timestamp();
+    FinishUpdate(manager, ts);
+    update_timestamp.set_value(ts);
+  });
+  // The full-window insert has released admission. The update can therefore
+  // close insert admission and waits only for the still-active oldest insert.
+  ASSERT_TRUE(WaitForBlockedWaiters(2));
+  manager.release_insert_timestamp(oldest);
+  ReleaseRuntimeWaiters();
+
+  EXPECT_EQ(update_result.wait_for(kWaitTimeout), std::future_status::ready);
+  EXPECT_EQ(update_result.get(), TimestampWindow::kWindowSize + 2);
+  EXPECT_EQ(waiting_result.wait_for(kWaitTimeout), std::future_status::ready);
+  EXPECT_EQ(waiting_result.get(), TimestampWindow::kWindowSize + 3);
+  update.join();
+  waiter.join();
+}
+
+TEST(VersionManagerTimestampWindowTest, TimestampExhaustionRestoresAdmission) {
+  VersionManager manager;
+  manager.init_ts({std::numeric_limits<uint32_t>::max() - 1, 0}, 1);
+
+  EXPECT_THROW(manager.acquire_insert_timestamp(), exception::RuntimeError);
+  EXPECT_THROW(manager.acquire_update_timestamp(), exception::RuntimeError);
+  EXPECT_THROW(manager.acquire_compact_timestamp(), exception::RuntimeError);
+
+  const auto read = manager.acquire_read_view();
+  EXPECT_EQ(read.visibility_ts, std::numeric_limits<uint32_t>::max() - 1);
+  manager.release_read_view();
+  EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
 }
 
 TEST(VersionManagerAdmissionTest,

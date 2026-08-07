@@ -30,6 +30,14 @@ UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
 }
 
 UpdateTimestampLease::UpdateTimestampLease(
+    IVersionManager& version_manager,
+    std::chrono::steady_clock::time_point deadline)
+    : version_manager_(&version_manager),
+      timestamp_(version_manager.acquire_update_timestamp_until(deadline)) {
+  CHECK_NE(timestamp_, kInactiveTimestamp);
+}
+
+UpdateTimestampLease::UpdateTimestampLease(
     UpdateTimestampLease&& other) noexcept
     : version_manager_(std::exchange(other.version_manager_, nullptr)),
       timestamp_(std::exchange(other.timestamp_, kInactiveTimestamp)),

@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <chrono>
 #include <optional>
 
 namespace neug {
@@ -31,6 +32,8 @@ class IVersionManager;
 class UpdateTimestampLease {
  public:
   explicit UpdateTimestampLease(IVersionManager& version_manager);
+  UpdateTimestampLease(IVersionManager& version_manager,
+                       std::chrono::steady_clock::time_point deadline);
   UpdateTimestampLease(UpdateTimestampLease&& other) noexcept;
   ~UpdateTimestampLease() noexcept;
 
