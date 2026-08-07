@@ -23,9 +23,16 @@
 
 namespace neug {
 
+struct list_meta_item {
+  uint64_t offset : 48;
+  uint64_t length : 16;
+};
+static_assert(sizeof(list_meta_item) == sizeof(uint64_t),
+              "list_meta_item must be 8 bytes to alias uint64_t");
+
 class ListPropertyColumn : public ColumnBase {
  public:
-  ListPropertyColumn() : size_(0) {}
+  ListPropertyColumn() : size_(0), elements_tail_(0) {}
   explicit ListPropertyColumn(const DataType& list_type);
   ~ListPropertyColumn() override = default;
 
@@ -62,9 +69,26 @@ class ListPropertyColumn : public ColumnBase {
   DataType list_type_;
   DataType child_type_;
   size_t size_;
-  std::unique_ptr<ULongColumn> offsets_;
-  std::unique_ptr<ULongColumn> lengths_;
+  size_t elements_tail_;
+  std::unique_ptr<ULongColumn> items_;
   std::unique_ptr<ColumnBase> elements_;
+
+  inline list_meta_item get_item(size_t idx) const {
+    return reinterpret_cast<const list_meta_item*>(items_->data())[idx];
+  }
+
+  inline void set_item(size_t idx, const list_meta_item& item) {
+    reinterpret_cast<list_meta_item*>(items_->mutable_data())[idx] = item;
+  }
+
+  static inline list_meta_item get_item(ULongColumn& col, size_t idx) {
+    return reinterpret_cast<const list_meta_item*>(col.data())[idx];
+  }
+
+  static inline void set_item(ULongColumn& col, size_t idx,
+                              const list_meta_item& item) {
+    reinterpret_cast<list_meta_item*>(col.mutable_data())[idx] = item;
+  }
 };
 
 class ListPropertyRefColumn : public RefColumnBase {

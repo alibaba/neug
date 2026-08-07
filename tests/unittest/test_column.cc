@@ -479,8 +479,12 @@ TEST(ListPropertyColumnTest, ResizeDefaultAndTypeContract) {
   EXPECT_EQ(column.get_any(0), list({5}));
   column.set_any(0, list({}), true);
   EXPECT_TRUE(ListValue::GetChildren(column.get_any(0)).empty());
+  column.set_any(1, list({6}), false);
+  EXPECT_EQ(column.get_any(1), list({6}));
   column.set_any(1, Value(list_type), true);
   EXPECT_TRUE(ListValue::GetChildren(column.get_any(1)).empty());
+  EXPECT_THROW(column.set_any(2, list({7}), false),
+               exception::StorageException);
 
   column.resize(1);
   column.resize(3);

@@ -15,6 +15,7 @@
 
 #include "neug/utils/property/list_property_column.h"
 
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -29,8 +30,7 @@
 namespace neug {
 namespace {
 
-constexpr const char* kOffsetsRef = "offsets";
-constexpr const char* kLengthsRef = "lengths";
+constexpr const char* kItemsRef = "items";
 constexpr const char* kElementsRef = "elements";
 
 std::string ChildModuleKey(const std::string& parent, const std::string& role) {
@@ -71,8 +71,8 @@ ListPropertyColumn::ListPropertyColumn(const DataType& list_type)
     : list_type_(list_type),
       child_type_(ListType::GetChildType(list_type)),
       size_(0),
-      offsets_(std::make_unique<ULongColumn>()),
-      lengths_(std::make_unique<ULongColumn>()),
+      elements_tail_(0),
+      items_(std::make_unique<ULongColumn>()),
       elements_(CreateColumn(child_type_)) {}
 
 void ListPropertyColumn::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
@@ -106,16 +106,15 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
           "ListPropertyColumn::Open: descriptor type is not LIST");
     }
     child_type_ = ListType::GetChildType(list_type_);
-    offsets_ = std::make_unique<ULongColumn>();
-    lengths_ = std::make_unique<ULongColumn>();
+    items_ = std::make_unique<ULongColumn>();
     elements_ = CreateColumn(child_type_);
   }
 
   if (desc.module_type.empty()) {
-    offsets_->Open(ckp, ModuleDescriptor{}, level);
-    lengths_->Open(ckp, ModuleDescriptor{}, level);
+    items_->Open(ckp, ModuleDescriptor{}, level);
     elements_->Open(ckp, ModuleDescriptor{}, level);
     size_ = 0;
+    elements_tail_ = 0;
     return;
   }
 
@@ -127,18 +126,15 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   size_ = std::stoull(*row_count);
 
   const auto& resolver = manifest ? *manifest : ckp.GetMeta();
-  std::optional<ModuleDescriptor> offsets_desc;
-  std::optional<ModuleDescriptor> lengths_desc;
+  std::optional<ModuleDescriptor> items_desc;
   std::optional<ModuleDescriptor> elements_desc;
-  offsets_->Open(ckp, ResolveChild(resolver, desc, kOffsetsRef, offsets_desc),
-                 level);
-  lengths_->Open(ckp, ResolveChild(resolver, desc, kLengthsRef, lengths_desc),
-                 level);
+  items_->Open(ckp, ResolveChild(resolver, desc, kItemsRef, items_desc), level);
   elements_->Open(ckp, resolver,
                   ResolveChild(resolver, desc, kElementsRef, elements_desc),
                   level);
+  elements_tail_ = elements_->size();
 
-  if (offsets_->size() != size_ || lengths_->size() != size_) {
+  if (items_->size() != size_) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::Open: row metadata size mismatch");
   }
 }
@@ -159,12 +155,9 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
         "ListPropertyColumn::Dump: module key must not be empty");
   }
 
-  ULongColumn compact_offsets;
-  ULongColumn compact_lengths;
-  compact_offsets.Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
-  compact_lengths.Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
-  compact_offsets.resize(size_);
-  compact_lengths.resize(size_);
+  ULongColumn compact_items;
+  compact_items.Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  compact_items.resize(size_);
 
   auto compact_elements = CreateColumn(child_type_);
   compact_elements->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
@@ -173,54 +166,45 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   // from repeated resize calls inside the loop.
   size_t total_elements = 0;
   for (size_t row = 0; row < size_; ++row) {
-    total_elements += lengths_->get_view(row);
+    total_elements += get_item(row).length;
   }
   compact_elements->resize(total_elements);
 
   size_t tail = 0;
   for (size_t row = 0; row < size_; ++row) {
-    auto offset = offsets_->get_view(row);
-    auto length = lengths_->get_view(row);
-    compact_offsets.set_value(row, tail);
-    compact_lengths.set_value(row, length);
-    for (size_t i = 0; i < length; ++i) {
-      compact_elements->set_any(tail + i, elements_->get_any(offset + i), true);
+    auto item = get_item(row);
+    set_item(compact_items, row, {tail, item.length});
+    for (size_t i = 0; i < item.length; ++i) {
+      compact_elements->set_any(tail + i, elements_->get_any(item.offset + i),
+                                true);
     }
-    tail += length;
+    tail += item.length;
   }
 
-  auto offsets_key = ChildModuleKey(key, kOffsetsRef);
-  auto lengths_key = ChildModuleKey(key, kLengthsRef);
+  auto items_key = ChildModuleKey(key, kItemsRef);
   auto elements_key = ChildModuleKey(key, kElementsRef);
-  compact_offsets.Dump(ckp, meta, offsets_key);
-  compact_lengths.Dump(ckp, meta, lengths_key);
+  compact_items.Dump(ckp, meta, items_key);
   compact_elements->Dump(ckp, meta, elements_key);
-  MarkReferenced(meta, offsets_key);
-  MarkReferenced(meta, lengths_key);
+  MarkReferenced(meta, items_key);
   MarkReferenced(meta, elements_key);
 
   auto desc = dumpSelfDescriptor();
-  desc.set_ref(kOffsetsRef, std::move(offsets_key));
-  desc.set_ref(kLengthsRef, std::move(lengths_key));
+  desc.set_ref(kItemsRef, std::move(items_key));
   desc.set_ref(kElementsRef, std::move(elements_key));
   meta.set_module(key, std::move(desc));
 }
 
 void ListPropertyColumn::resize(size_t size) {
   if (size <= size_) {
-    offsets_->resize(size);
-    lengths_->resize(size);
+    items_->resize(size);
     size_ = size;
     return;
   }
 
   auto old_size = size_;
-  auto tail = elements_->size();
-  offsets_->resize(size);
-  lengths_->resize(size);
+  items_->resize(size);
   for (size_t i = old_size; i < size; ++i) {
-    offsets_->set_value(i, tail);
-    lengths_->set_value(i, 0);
+    set_item(i, {elements_tail_, 0});
   }
   size_ = size;
 }
@@ -257,8 +241,14 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
                                      normalized->type().ToString());
   }
   const auto& children = ListValue::GetChildren(*normalized);
-  auto old_offset = offsets_->get_view(index);
-  auto old_length = lengths_->get_view(index);
+  if (children.size() > ((1ULL << 16) - 1)) {
+    THROW_RUNTIME_ERROR("ListPropertyColumn::set_any: list length " +
+                        std::to_string(children.size()) +
+                        " exceeds maximum supported length of 65535");
+  }
+  auto old_item = get_item(index);
+  auto old_offset = old_item.offset;
+  auto old_length = old_item.length;
 
   auto write_child = [&](size_t child_index, const Value& child,
                          bool child_insert_safe) {
@@ -284,23 +274,26 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
     return;
   }
 
-  // List length changed: new elements must be appended to the tail of
-  // elements_, which requires a resize. Respect the insert_safe contract:
-  // when false, the caller expects no reallocation.
-  if (!insert_safe) {
-    THROW_STORAGE_EXCEPTION(
-        "ListPropertyColumn::set_any: list length changed from " +
-        std::to_string(old_length) + " to " + std::to_string(children.size()) +
-        ", which requires resizing elements_ but insert_safe is false");
+  auto new_offset = elements_tail_;
+  auto required_size = new_offset + children.size();
+  if (required_size > elements_->size()) {
+    if (!insert_safe) {
+      THROW_STORAGE_EXCEPTION(
+          "ListPropertyColumn::set_any: list length changed from " +
+          std::to_string(old_length) + " to " +
+          std::to_string(children.size()) +
+          ", which requires resizing elements_ but insert_safe is false");
+    }
+    auto current_capacity = elements_->size();
+    auto new_capacity =
+        current_capacity == 0 ? required_size : current_capacity * 2;
+    elements_->resize(std::max(required_size, new_capacity));
   }
-
-  auto new_offset = elements_->size();
-  elements_->resize(new_offset + children.size());
   for (size_t i = 0; i < children.size(); ++i) {
-    write_child(new_offset + i, children[i], true);
+    write_child(new_offset + i, children[i], insert_safe);
   }
-  offsets_->set_value(index, new_offset);
-  lengths_->set_value(index, children.size());
+  elements_tail_ = required_size;
+  set_item(index, {new_offset, children.size()});
 }
 
 Value ListPropertyColumn::get_any(size_t index) const {
@@ -309,12 +302,11 @@ Value ListPropertyColumn::get_any(size_t index) const {
                         std::to_string(index) +
                         " out of range (size=" + std::to_string(size_) + ")");
   }
-  auto offset = offsets_->get_view(index);
-  auto length = lengths_->get_view(index);
+  auto item = get_item(index);
   std::vector<Value> children;
-  children.reserve(length);
-  for (size_t i = 0; i < length; ++i) {
-    children.emplace_back(elements_->get_any(offset + i));
+  children.reserve(item.length);
+  for (size_t i = 0; i < item.length; ++i) {
+    children.emplace_back(elements_->get_any(item.offset + i));
   }
   return Value::LIST(child_type_, std::move(children));
 }
@@ -324,13 +316,9 @@ std::unique_ptr<Module> ListPropertyColumn::Clone() const {
   clone->list_type_ = list_type_;
   clone->child_type_ = child_type_;
   clone->size_ = size_;
-  if (offsets_) {
-    clone->offsets_.reset(
-        static_cast<ULongColumn*>(offsets_->Clone().release()));
-  }
-  if (lengths_) {
-    clone->lengths_.reset(
-        static_cast<ULongColumn*>(lengths_->Clone().release()));
+  clone->elements_tail_ = elements_tail_;
+  if (items_) {
+    clone->items_.reset(static_cast<ULongColumn*>(items_->Clone().release()));
   }
   if (elements_) {
     clone->elements_.reset(
@@ -340,8 +328,7 @@ std::unique_ptr<Module> ListPropertyColumn::Clone() const {
 }
 
 void ListPropertyColumn::Detach(Checkpoint& ckp, MemoryLevel level) {
-  offsets_->Detach(ckp, level);
-  lengths_->Detach(ckp, level);
+  items_->Detach(ckp, level);
   elements_->Detach(ckp, level);
 }
 

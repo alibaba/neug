@@ -87,19 +87,26 @@ Fow now, only one property is supported for edges, but developers can define a s
 ## 5. List Property Storage
 
 Variable-length list properties (`T[]`) are stored using [ListPropertyColumn](../utils/property/list_property_column.h),
-which decomposes each list into three separate sub-columns:
+which decomposes each list into two sub-columns:
 
-- **offsets** (`ULongColumn`): `offsets_[i]` is the starting index of row `i`'s elements within the elements column.
-- **lengths** (`ULongColumn`): `lengths_[i]` is the number of elements in row `i`'s list.
+- **items** (`ULongColumn`): a packed index column where each row stores a 64-bit `list_meta_item`
+  struct — 48 bits for the element offset and 16 bits for the list length — aliasing the
+  underlying `uint64_t` buffer via `reinterpret_cast` (same pattern as `string_item` in
+  [column.h](../utils/property/column.h)).
 - **elements** (`ColumnBase`): a contiguous column holding all list elements across all rows.
 
 ```
-Row 0:  offsets_[0] = 0,  lengths_[0] = 3   →  elements_[0], elements_[1], elements_[2]
-Row 1:  offsets_[1] = 3,  lengths_[1] = 0   →  (empty list)
-Row 2:  offsets_[2] = 3,  lengths_[2] = 2   →  elements_[3], elements_[4]
+Row 0:  items_[0] = {offset=0, length=3}   →  elements_[0], elements_[1], elements_[2]
+Row 1:  items_[1] = {offset=3, length=0}   →  (empty list)
+Row 2:  items_[2] = {offset=3, length=2}   →  elements_[3], elements_[4]
 ```
 
-This design allows each sub-column to use the most efficient storage format for its own type
+Packing offset and length into a single 8-byte value halves the per-row metadata footprint
+(from 16 bytes to 8 bytes) and reduces the number of checkpoint sub-modules from three to
+two. The 48-bit offset supports up to 2^48 elements, and the 16-bit length supports up to
+65535 elements per list.
+
+This design allows the elements column to use the most efficient storage format for its own type
 (e.g., `TypedColumn<T>` for POD elements, `StringColumn` for string elements), and enables
 sequential access patterns during checkpoint dump.
 
@@ -107,23 +114,23 @@ sequential access patterns during checkpoint dump.
 
 When setting a list value at row `i` (`set_any`):
 
-1. If the new element count equals the existing `lengths_[i]`, the elements are overwritten
-   in place at `offsets_[i]` — no offset or length update needed.
+1. If the new element count equals the existing `items_[i].length`, the elements are overwritten
+   in place at `items_[i].offset` — no item update needed.
 2. If the element count differs, the new elements are **appended** to the tail of the elements
-   column, and `offsets_[i]` / `lengths_[i]` are updated to point to the new region. The old
-   elements become dead space and are reclaimed during checkpoint dump.
+   column, and `items_[i]` is updated with the new offset and length to point to the new region.
+   The old elements become dead space and are reclaimed during checkpoint dump.
 
 ### 5.2 Checkpoint Dump (Compaction)
 
 During `Dump`, the column is compacted: all live elements are written contiguously into a new
 compact elements column, eliminating dead space from in-place updates that changed list lengths.
-The offsets and lengths columns are rewritten to reflect the compacted layout.
+The items column is rewritten with compacted offsets to reflect the new contiguous layout.
 
 ### 5.3 Nested Lists
 
 For nested list types (e.g., `STRING[][]`), the `elements` sub-column is itself a
 `ListPropertyColumn`, creating a recursive storage structure. Each level of nesting adds another
-layer of offset/length/elements decomposition.
+layer of items/elements decomposition.
 
 For list-of-array types (e.g., `STRING[][2][]`), the elements column is an `ArrayColumn`,
 which stores fixed-size arrays inline.
