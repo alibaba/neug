@@ -124,17 +124,15 @@ bool apply_storage_direction(const std::string& storage_direction,
                              EdgeStrategy& ie_strategy,
                              std::string& error_msg) {
   const auto normalized = toUpper(storage_direction);
-  // Align with schema YAML edge_storage_strategy aliases.
-  if (normalized == "FWD" || normalized == "ONLY_OUT") {
+  if (normalized == "FWD") {
     ie_strategy = EdgeStrategy::kNone;
     return true;
   }
-  if (normalized == "BWD" || normalized == "ONLY_IN") {
+  if (normalized == "BWD") {
     oe_strategy = EdgeStrategy::kNone;
     return true;
   }
-  if (normalized == "BOTH" || normalized == "BOTH_OUT_IN" ||
-      normalized == "BOTH_IN_OUT") {
+  if (normalized == "BOTH") {
     return true;
   }
   error_msg = "Cannot parse " + storage_direction + " as storage_direction.";

@@ -942,14 +942,6 @@ TEST_F(PBUtilsTest, ApplyStorageDirection) {
   EXPECT_EQ(oe, EdgeStrategy::kMultiple);
   EXPECT_EQ(ie, EdgeStrategy::kMultiple);
 
-  ASSERT_TRUE(apply_storage_direction("ONLY_OUT", oe, ie, err));
-  EXPECT_EQ(ie, EdgeStrategy::kNone);
-
-  oe = EdgeStrategy::kMultiple;
-  ie = EdgeStrategy::kMultiple;
-  ASSERT_TRUE(apply_storage_direction("ONLY_IN", oe, ie, err));
-  EXPECT_EQ(oe, EdgeStrategy::kNone);
-
   EXPECT_FALSE(apply_storage_direction("invalid", oe, ie, err));
   EXPECT_FALSE(err.empty());
 }
