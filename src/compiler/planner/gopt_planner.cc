@@ -142,13 +142,13 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
   size_t offset = 0;
   auto statement = nextKeyword(query, offset);
   if (isKeyword(statement, "EXPLAIN")) {
-    analysis.explain_mode = physical::ExplainMode::EXPLAIN;
+    analysis.explain_mode = ExplainMode::kExplain;
     statement = nextKeyword(query, offset);
     if (isKeyword(statement, "LOGICAL")) {
       statement = nextKeyword(query, offset);
     }
   } else if (isKeyword(statement, "PROFILE")) {
-    analysis.explain_mode = physical::ExplainMode::PROFILE;
+    analysis.explain_mode = ExplainMode::kProfile;
     statement = nextKeyword(query, offset);
   }
 

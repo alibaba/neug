@@ -50,7 +50,7 @@ class BlockingPlanner final : public IGraphPlanner {
   }
 
   QueryAnalysis analyzeQuery(const std::string&) const override {
-    return QueryAnalysis{AccessMode::kRead, physical::ExplainMode::NONE,
+    return QueryAnalysis{AccessMode::kRead, ExplainMode::kNone,
                          QueryKind::kRegular};
   }
 

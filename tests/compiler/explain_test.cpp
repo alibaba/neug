@@ -33,47 +33,47 @@ class ExplainTest : public GOptTest {
 // Test 1: Regular query has explain_mode = NONE
 TEST_F(ExplainTest, RegularQueryNoExplainMode) {
   auto analysis = planner_.analyzeQuery("MATCH (n:person) RETURN n.name");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::NONE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kNone);
 }
 
 // Test 2: EXPLAIN query has explain_mode = EXPLAIN
 TEST_F(ExplainTest, ExplainQueryAnalysis) {
   auto analysis =
       planner_.analyzeQuery("EXPLAIN MATCH (n:person) RETURN n.name");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
 }
 
 // Test 3: PROFILE query has explain_mode = PROFILE
 TEST_F(ExplainTest, ProfileQueryAnalysis) {
   auto analysis =
       planner_.analyzeQuery("PROFILE MATCH (n:person) RETURN n.name");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
 }
 
 // Test 4: EXPLAIN with join
 TEST_F(ExplainTest, ExplainWithJoin) {
   auto analysis = planner_.analyzeQuery(
       "EXPLAIN MATCH (n:person)-[e:knows]->(m:person) RETURN n.name, m.name");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
 }
 
 // Test 5: PROFILE with join
 TEST_F(ExplainTest, ProfileWithJoin) {
   auto analysis = planner_.analyzeQuery(
       "PROFILE MATCH (n:person)-[e:knows]->(m:person) RETURN n.name, m.name");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
 }
 
 // Test 6: EXPLAIN with CHECKPOINT
 TEST_F(ExplainTest, ExplainCheckpoint) {
   auto analysis = planner_.analyzeQuery("EXPLAIN CHECKPOINT");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
 }
 
 // Test 7: PROFILE with CHECKPOINT
 TEST_F(ExplainTest, ProfileCheckpoint) {
   auto analysis = planner_.analyzeQuery("PROFILE CHECKPOINT");
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
 }
 
 // Test 8: All query types with EXPLAIN
@@ -87,7 +87,7 @@ TEST_F(ExplainTest, AllQueryTypesWithExplain) {
 
   for (const auto& query : queries) {
     auto analysis = planner_.analyzeQuery(query);
-    EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN)
+    EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain)
         << "Query: " << query;
   }
 }

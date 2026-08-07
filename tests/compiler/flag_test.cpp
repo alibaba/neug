@@ -224,32 +224,32 @@ TEST_F(FlagTest, CheckpointAnalyzeQuery) {
   GOptPlanner planner;
   auto analysis = planner.analyzeQuery("CHECKPOINT;");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::NONE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kNone);
   EXPECT_TRUE(analysis.checkpoint());
 
   analysis = planner.analyzeQuery(" \tEXPLAIN LOGICAL CHECKPOINT ;\n");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
   EXPECT_TRUE(analysis.checkpoint());
 
   analysis = planner.analyzeQuery("PROFILE CHECKPOINT;");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
   EXPECT_TRUE(analysis.checkpoint());
 
   analysis = planner.analyzeQuery("CHECKPOINT /*");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::NONE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kNone);
   EXPECT_FALSE(analysis.checkpoint());
 
   analysis = planner.analyzeQuery("PROFILE CHECKPOINT /*");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::PROFILE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
   EXPECT_FALSE(analysis.checkpoint());
 
   analysis = planner.analyzeQuery("RETURN 'CHECKPOINT';");
   EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::NONE);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kNone);
   EXPECT_FALSE(analysis.checkpoint());
 }
 
@@ -258,7 +258,7 @@ TEST_F(FlagTest, ExplainUpdateAnalyzeQuery) {
   auto analysis =
       planner.analyzeQuery("EXPLAIN MATCH (n) SET n.value = 1 RETURN n;");
   EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
-  EXPECT_EQ(analysis.explain_mode, physical::ExplainMode::EXPLAIN);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
   EXPECT_FALSE(analysis.checkpoint());
 }
 
