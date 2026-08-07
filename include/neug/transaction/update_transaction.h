@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -48,19 +49,22 @@ class IWalWriter;
 class IVersionManager;
 class Schema;
 
+enum class TransactionDurability : uint8_t { kNoWal, kWal };
+
 /**
  * @brief Resource holder and lifecycle manager for update transactions.
  *
- * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
- * resources (WAL buffer, allocator, timestamp lease, snapshot store).
- * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
- * which accesses UpdateTransaction's private members via friend declaration.
+ * UpdateTransaction owns one COW workspace and one update timestamp lease.
+ * Statement-local allocators and commit-time publication/WAL resources are
+ * borrowed by the caller and never retained by the transaction.
  *
  * **COW Design:**
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
- * - StorageTPUpdateInterface performs all DDL/DML modifications on the COW copy
- * - Commit prepares the COW snapshot before WAL, then performs a no-fail
- *   publication after WAL succeeds.
+ * - StorageCOWUpdateInterface performs all DDL/DML modifications on the COW
+ *   copy
+ * - kNoWal commits publish without constructing or writing redo
+ * - kWal commits prepare the snapshot before WAL, then perform a no-fail
+ *   publication after WAL succeeds
  * - Abort discards the COW copy (no effect on original)
  *
  * **Concurrency contract** (VersionManager state machine):
@@ -75,24 +79,19 @@ class Schema;
  */
 class UpdateTransaction {
  public:
-  /**
-   * @brief Construct an UpdateTransaction with a COW PropertyGraph.
-   *
-   * @param cow_graph PropertyGraph COW clone
-   * @param planning_generation Planning generation of the cloned snapshot
-   * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
-   * @param snapshot_store Reference to GraphSnapshotStore for commit
-   * @param timestamp_lease Owned update timestamp and admission lifecycle
-   *
-   * @note The caller is responsible for acquiring the timestamp lease before
-   * creating the COW copy via Clone().
-   * @since v0.1.0
-   */
-  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
-                    uint64_t planning_generation, Allocator& alloc,
-                    IWalWriter& logger, GraphSnapshotStore& snapshot_store,
-                    UpdateTimestampLease timestamp_lease);
+  static UpdateTransaction Begin(IVersionManager& version_manager,
+                                 GraphSnapshotStore& snapshot_store,
+                                 TransactionDurability durability);
+
+  static UpdateTransaction BeginUntil(
+      IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
+      TransactionDurability durability,
+      std::chrono::steady_clock::time_point deadline);
+
+  UpdateTransaction(UpdateTransaction&& other) noexcept;
+  UpdateTransaction(const UpdateTransaction&) = delete;
+  UpdateTransaction& operator=(const UpdateTransaction&) = delete;
+  UpdateTransaction& operator=(UpdateTransaction&&) = delete;
 
   /**
    * @brief Destructor that calls Abort().
@@ -106,9 +105,10 @@ class UpdateTransaction {
    */
   timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
-  bool Commit();
+  Status Commit(GraphSnapshotStore& snapshot_store,
+                IWalWriter* wal_writer = nullptr);
 
-  void Abort();
+  void Abort() noexcept;
 
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
                         size_t length, Allocator& alloc);
@@ -116,7 +116,7 @@ class UpdateTransaction {
   const GraphView& view() const { return view_; }
 
   GraphStats statistic() const {
-    return GraphStats(view_, planning_generation_);
+    return GraphStats(view_, base_planning_generation_);
   }
 
   // --- Read-only accessors (not graph modifications) ---
@@ -151,41 +151,45 @@ class UpdateTransaction {
                                            prop_id);
   }
 
-  friend class StorageTPUpdateInterface;
+  friend class StorageCOWUpdateInterface;
 
  private:
-  void release(std::optional<uint32_t> installed_snapshot_generation);
+  UpdateTransaction(TransactionDurability durability,
+                    std::shared_ptr<PropertyGraph> cow_graph,
+                    uint64_t planning_generation,
+                    UpdateTimestampLease timestamp_lease);
 
+  void release(std::optional<uint32_t> installed_snapshot_generation) noexcept;
+
+  TransactionDurability durability_;
   // COW storage - the cloned PropertyGraph
   std::shared_ptr<PropertyGraph> cow_graph_;
   PropertyGraphCowState cow_state_;
   GraphView view_;
 
-  Allocator& alloc_;
-  IWalWriter& logger_;
-  GraphSnapshotStore& snapshot_store_;
   UpdateTimestampLease timestamp_lease_;
-  uint64_t planning_generation_;
+  uint64_t base_planning_generation_;
 
   std::shared_ptr<Checkpoint> ckp_;
-  WalBuilder wal_builder_;
+  std::optional<WalBuilder> wal_builder_;
 };
 
-class StorageTPUpdateInterface : public StorageUpdateInterface {
+class StorageCOWUpdateInterface : public StorageUpdateInterface {
  public:
-  explicit StorageTPUpdateInterface(UpdateTransaction& txn)
+  StorageCOWUpdateInterface(UpdateTransaction& txn, Allocator& alloc)
       : StorageUpdateInterface(txn.view(), txn.timestamp()),
         cow_graph_(txn.cow_graph_),
         cow_state_(txn.cow_state_),
         mut_view_(txn.view_),
-        alloc_(txn.alloc_),
+        alloc_(alloc),
         ckp_(txn.ckp_),
-        wal_(txn.wal_builder_) {}
-  ~StorageTPUpdateInterface() = default;
+        wal_(txn.wal_builder_ ? &*txn.wal_builder_ : nullptr) {}
+  ~StorageCOWUpdateInterface() = default;
 
-  neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
+ protected:
+  neug::result<StorageIndex*> CreateIndexDDLForAP(
+      std::unique_ptr<IndexMeta> meta);
+  Status DropIndexDDLForAP(const std::string& name);
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.
@@ -195,7 +199,10 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
     cow_graph_->MarkEdgeTableDirty(src, dst, edge);
   }
-  void MarkSchemaDirty() override { cow_graph_->MarkSchemaDirty(); }
+  void MarkSchemaDirty() override {
+    cow_graph_->MarkSchemaDirty();
+    cow_state_.schema_changed = true;
+  }
 
   // --- DML *Impl ---
   Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
@@ -273,7 +280,23 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   GraphView& mut_view_;
   Allocator& alloc_;
   std::shared_ptr<Checkpoint>& ckp_;
-  WalBuilder& wal_;
+  WalBuilder* wal_;
+};
+
+class StorageAPCOWUpdateInterface final : public StorageCOWUpdateInterface,
+                                          public StorageIndexDDLInterface {
+ public:
+  StorageAPCOWUpdateInterface(UpdateTransaction& txn, Allocator& alloc)
+      : StorageCOWUpdateInterface(txn, alloc) {}
+
+  neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) override {
+    return CreateIndexDDLForAP(std::move(meta));
+  }
+
+  Status DropIndex(const std::string& name) override {
+    return DropIndexDDLForAP(name);
+  }
 };
 
 }  // namespace neug

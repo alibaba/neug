@@ -43,4 +43,37 @@ PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
   return bitmap;
 }
 
+bool PropertyGraphCowState::HasDetachedStorage() const {
+  for (const auto& state : vertex_tables) {
+    if (state.indexer_detached || state.vertex_timestamp_detached) {
+      return true;
+    }
+    for (bool detached : state.columns_detached) {
+      if (detached) {
+        return true;
+      }
+    }
+  }
+
+  for (const auto& [_, state] : edge_tables) {
+    if (state.out_csr_detached || state.in_csr_detached ||
+        !state.out_adjlists_detached.empty() ||
+        !state.in_adjlists_detached.empty()) {
+      return true;
+    }
+    for (bool detached : state.columns_detached) {
+      if (detached) {
+        return true;
+      }
+    }
+  }
+
+  for (const auto& [_, detached] : index_detached) {
+    if (detached) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace neug

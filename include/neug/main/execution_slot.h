@@ -157,6 +157,8 @@ class ExecutionSlot {
 
   UpdateTransaction GetUpdateTransaction();
 
+  Status CommitUpdateTransaction(UpdateTransaction& transaction);
+
   CompactTransaction GetCompactTransaction();
 
   /**

@@ -32,13 +32,15 @@ class DropIndexOpr : public IOperator {
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap&,
                              Context&& ctx, OprTimer*) override {
-    auto* updateInterface = dynamic_cast<StorageUpdateInterface*>(&graph);
-    if (!updateInterface) {
+    auto* update_interface = dynamic_cast<StorageUpdateInterface*>(&graph);
+    auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+    if (!update_interface || !index_interface) {
       RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                          "DROP INDEX can only be executed in update mode");
+                          "DROP INDEX is not supported by the current "
+                          "execution mode");
     }
 
-    if (!updateInterface->GetIndexByName(indexName_)) {
+    if (!update_interface->GetIndexByName(indexName_)) {
       if (ignore_conflict_) {
         return std::move(ctx);
       }
@@ -46,7 +48,7 @@ class DropIndexOpr : public IOperator {
                           "Index does not exist: " + indexName_);
     }
 
-    RETURN_STATUS_ERROR_IF_NOT_OK(updateInterface->DropIndex(indexName_));
+    RETURN_STATUS_ERROR_IF_NOT_OK(index_interface->DropIndex(indexName_));
     return std::move(ctx);
   }
 

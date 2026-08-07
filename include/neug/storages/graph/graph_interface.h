@@ -34,6 +34,30 @@ struct IndexMeta;
 struct IndexQueryParams;
 struct SearchResult;
 
+class StorageIndexDDLInterface {
+ public:
+  virtual ~StorageIndexDDLInterface() = default;
+
+  virtual neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual Status DropIndex(const std::string& name) = 0;
+};
+
+namespace index_ddl {
+
+using CatalogChangedCallback = std::function<void()>;
+
+neug::result<StorageIndex*> CreateIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    neug::Allocator& alloc, std::unique_ptr<IndexMeta> meta,
+    const CatalogChangedCallback& on_catalog_changed = {});
+
+Status DropIndex(PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+                 neug::Allocator& alloc, const std::string& name,
+                 const CatalogChangedCallback& on_catalog_changed = {});
+
+}  // namespace index_ddl
+
 namespace graph_interface_impl {
 
 using neug::label_t;
@@ -871,13 +895,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     return st;
   }
 
-  /**
-   * @brief Create, bind, and populate an index.
-   */
-  virtual neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndex(const std::string& name) = 0;
-
  private:
   virtual void MarkSchemaDirty() = 0;
 
@@ -934,7 +951,8 @@ class StorageUpdateInterface : public StorageReadInterface,
   }
 };
 
-class StorageAPUpdateInterface : public StorageUpdateInterface {
+class StorageAPUpdateInterface : public StorageUpdateInterface,
+                                 public StorageIndexDDLInterface {
  public:
   using PlanningChangedCallback = std::function<void()>;
 
@@ -946,7 +964,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
         mut_view_(view),
         alloc_(alloc),
         timestamp_(timestamp),
-        index_manager_(graph_.mutable_index_manager()),
         on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
 
@@ -1023,7 +1040,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
-  StorageIndexManager& index_manager_;
   PlanningChangedCallback on_planning_changed_;
 };
 
