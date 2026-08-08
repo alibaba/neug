@@ -247,6 +247,9 @@ struct VertexSchema : public SchemaEntry {
   std::string description;
   size_t max_num;
 
+  // Logical namespace this vertex type belongs to.
+  std::string namespace_name = "default";
+
   // Mark whether the vertex property is soft deleted
   std::vector<bool> vprop_soft_deleted;
 
@@ -409,6 +412,9 @@ struct EdgeSchema : public SchemaEntry {
   std::vector<std::string> property_names;
   std::vector<Value> default_property_values;
 
+  // Logical namespace this edge type belongs to.
+  std::string namespace_name = "default";
+
   // Mark whether the edge property is soft deleted
   std::vector<bool> eprop_soft_deleted;
 
@@ -556,7 +562,7 @@ class Schema {
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
       const std::vector<Value>& default_property_values = {},
-      bool temporary = false);
+      bool temporary = false, const std::string& namespace_name = "default");
 
   void AddEdgeLabel(const std::string& src_label, const std::string& dst_label,
                     const std::string& edge_label,
@@ -568,7 +574,8 @@ class Schema {
                     std::optional<std::string> sort_key_for_nbr = std::nullopt,
                     const std::string& description = "",
                     const std::vector<Value>& default_property_values = {},
-                    bool temporary = false);
+                    bool temporary = false,
+                    const std::string& namespace_name = "default");
 
   bool is_vertex_label_temporary(label_t label) const;
   bool is_edge_label_temporary(uint32_t edge_triplet_key) const;

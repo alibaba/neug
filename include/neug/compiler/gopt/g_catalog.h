@@ -36,6 +36,7 @@ class GCatalog : public Catalog {
       const std::string& signatureName);
 
   std::unique_ptr<Catalog> clone(const Schema* schema) const override;
+  std::unique_ptr<Catalog> clone(const SchemaView* schema) const override;
 
  private:
   void registerBuiltInFunctions();
