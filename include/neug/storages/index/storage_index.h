@@ -73,16 +73,12 @@ struct SearchResult {
   vid_t vid;
   double score = 0.0;
 
-  SearchResult(vid_t v, double s) : vid(v), score(s) {}
-
   bool operator==(const SearchResult&) const = default;
 };
 
 struct SearchCandidate {
   index_id_t index_id;
   double score = 0.0;
-
-  SearchCandidate(index_id_t id, double s) : index_id(id), score(s) {}
 
   bool operator==(const SearchCandidate&) const = default;
 };
