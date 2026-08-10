@@ -140,8 +140,8 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
   void push_back_null() override {
     if (!is_optional_) {
       is_optional_ = true;
-      valids_.resize(current_size_, true);
     }
+    valids_.resize(current_size_, true);
     const auto child_default = get_default_value(elem_type_);
     for (uint64_t i = 0; i < array_size_; ++i) {
       child_builder_->push_back_elem(child_default);

@@ -442,6 +442,10 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
     } else {
       list_col->add_offsets(current_offset);
     }
+    if (casted->is_optional()) {
+      auto bitmap = BoolVectorToBitmap(casted->validity_bitmap());
+      list_col->set_validity(bitmap);
+    }
 
     break;
   }
