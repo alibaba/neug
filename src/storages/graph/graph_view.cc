@@ -209,6 +209,15 @@ result<StorageIndex*> GraphView::GetIndexByName(const std::string& name) const {
   return index_manager_->GetIndexByName(name);
 }
 
+result<std::vector<StorageIndex*>> GraphView::GetIndex(
+    label_t label_id, const std::string& property_name) const {
+  return index_manager_->GetIndex(label_id, property_name);
+}
+
+result<std::vector<StorageIndex*>> GraphView::GetAllIndexes() const {
+  return index_manager_->GetAllIndexes();
+}
+
 void GraphView::Rebuild(PropertyGraph& pg) {
   dirty_ = &pg.dirty_tracker();
   schema_ = &pg.schema();

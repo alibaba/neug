@@ -61,6 +61,10 @@ class ReleaseOrderVersionManager : public IVersionManager {
   PublishedReadView acquire_read_view() override { return {1, 0}; }
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }
+  uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point) override {
+    return 1;
+  }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
   void finish_update_timestamp(uint32_t,
@@ -211,6 +215,21 @@ TEST(UpdateTimestampLeaseTest, MoveTransfersTimestampOwnership) {
 
   const auto next_timestamp = version_manager.acquire_update_timestamp();
   EXPECT_EQ(next_timestamp, 2);
+  version_manager.finish_update_timestamp(next_timestamp, std::nullopt);
+}
+
+TEST(UpdateTimestampLeaseTest, DeadlineFailureDoesNotCreateLeaseOwnership) {
+  VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 2);
+
+  const auto holder = version_manager.acquire_update_timestamp();
+  EXPECT_THROW(
+      UpdateTimestampLease(version_manager, std::chrono::steady_clock::now()),
+      exception::TransactionTimeoutException);
+
+  version_manager.finish_update_timestamp(holder, std::nullopt);
+  const auto next_timestamp = version_manager.acquire_update_timestamp();
+  EXPECT_EQ(next_timestamp, 2U);
   version_manager.finish_update_timestamp(next_timestamp, std::nullopt);
 }
 

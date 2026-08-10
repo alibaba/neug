@@ -26,6 +26,12 @@
 
 namespace neug {
 
+enum class ExplainMode {
+  kNone,
+  kExplain,
+  kProfile,
+};
+
 enum class QueryKind {
   kRegular,
   kCheckpoint,
@@ -33,7 +39,7 @@ enum class QueryKind {
 
 struct QueryAnalysis {
   AccessMode access_mode = AccessMode::kRead;
-  physical::ExplainMode explain_mode = physical::ExplainMode::NONE;
+  ExplainMode explain_mode = ExplainMode::kNone;
   QueryKind kind = QueryKind::kRegular;
 
   bool checkpoint() const { return kind == QueryKind::kCheckpoint; }

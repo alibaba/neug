@@ -384,17 +384,17 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
 
   auto duplicate = CreateIndex("idx_person_age", "Person", "age");
   EXPECT_FALSE(duplicate);
-  EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_SCHEMA_MISMATCH);
+  EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
   EXPECT_EQ(planning_change_count_, 1);
 
   ASSERT_TRUE(ap_->DropIndex("idx_person_age").ok());
   EXPECT_EQ(planning_change_count_, 2);
 }
 
-TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
+TEST_F(APIndexTest, DropMissingIndexReturnsNotFound) {
   auto status = ap_->DropIndex("missing_index");
   EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_NOT_FOUND);
   EXPECT_EQ(status.error_message(), "Index not found: missing_index");
 }
 

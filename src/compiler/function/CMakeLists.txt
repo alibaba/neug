@@ -20,6 +20,7 @@ add_library(neug_function
         function_collection.cpp
         scalar_macro_function.cpp
         show_loaded_extensions_function.cpp
+        show_indexes_function.cpp
         vector_arithmetic_functions.cpp
         vector_cast_functions.cpp
         vector_date_functions.cpp

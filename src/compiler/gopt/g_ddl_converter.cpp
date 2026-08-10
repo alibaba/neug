@@ -764,5 +764,54 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
   }
 }
 
+void GDDLConverter::convertCreateIndex(const planner::LogicalCreateIndex& op,
+                                       ::physical::PhysicalPlan* plan) {
+  const auto& info = op.getInfo();
+
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* create_index = physical_opr->mutable_opr()->mutable_create_index();
+
+  // Set index name
+  create_index->set_name(info.indexName);
+
+  // Validate pattern is NODE type
+  auto* entry = info.pattern->getSingleEntry();
+  if (entry->get_entry_type() != SchemaEntryType::NODE) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "CREATE INDEX only supports node tables, got: " + entry->get_label());
+  }
+  create_index->mutable_vertex_type()->set_id(entry->get_entry_id());
+
+  // Index type (lowercase, e.g. "int32")
+  create_index->set_create_index_type(info.indexType);
+
+  create_index->set_property(info.propertyName);
+  auto irType = typeConverter.convertLogicalType(info.propertyType);
+  create_index->set_allocated_property_type(irType->release_data_type());
+
+  // Set options
+  for (const auto& [key, value] : info.options) {
+    (*create_index->mutable_options())[key] = value;
+  }
+
+  // Set conflict action
+  create_index->set_conflict_action(info.ifNotExists
+                                        ? ::physical::ON_CONFLICT_DO_NOTHING
+                                        : ::physical::ON_CONFLICT_THROW);
+
+  plan->mutable_plan()->AddAllocated(physical_opr.release());
+}
+
+void GDDLConverter::convertDropIndex(const planner::LogicalDropIndex& op,
+                                     ::physical::PhysicalPlan* plan) {
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* drop_index = physical_opr->mutable_opr()->mutable_drop_index();
+  drop_index->set_name(op.getIndexName());
+  drop_index->set_conflict_action(op.getIfExists()
+                                      ? ::physical::ON_CONFLICT_DO_NOTHING
+                                      : ::physical::ON_CONFLICT_THROW);
+  plan->mutable_plan()->AddAllocated(physical_opr.release());
+}
+
 }  // namespace gopt
 }  // namespace neug

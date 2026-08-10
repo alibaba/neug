@@ -394,4 +394,52 @@ TEST(QueryResultTest, GetCurrentRowAsStringWithNull) {
   EXPECT_EQ(result.GetCurrentRowAsString(), "null");
 }
 
+// Build a result with a LIST column (serialized as list_array protobuf).
+// Row 0: [1, 2], row 1: NULL, row 2: [3]
+static QueryResult BuildListResult() {
+  neug::QueryResponse response;
+  response.set_row_count(3);
+
+  auto* schema = response.mutable_schema();
+  schema->add_name("nums");
+
+  auto* col = response.add_arrays();
+  auto* list_arr = col->mutable_list_array();
+  // offsets: [0, 2, 2, 3] → lengths 2, 0, 1
+  list_arr->add_offsets(0);
+  list_arr->add_offsets(2);
+  list_arr->add_offsets(2);
+  list_arr->add_offsets(3);
+
+  auto* elements = list_arr->mutable_elements()->mutable_int32_array();
+  elements->add_values(1);
+  elements->add_values(2);
+  elements->add_values(3);
+
+  // validity: row0 valid, row1 null, row2 valid → bits 0b101 = 0x05
+  list_arr->set_validity(std::string(1, static_cast<char>(0x05)));
+
+  std::string serialized;
+  response.SerializeToString(&serialized);
+  return QueryResult::From(std::move(serialized));
+}
+
+TEST(QueryResultTest, ListArrayGetStringAndIsNull) {
+  auto result = BuildListResult();
+
+  EXPECT_FALSE(result.IsNull(0));
+  EXPECT_EQ(result.GetString(0), "[1, 2]");
+  EXPECT_EQ(result.GetCurrentRowAsString(), "[1, 2]");
+
+  result.next();
+  EXPECT_TRUE(result.IsNull(0));
+  EXPECT_EQ(result.GetString(0), "null");
+  EXPECT_EQ(result.GetCurrentRowAsString(), "null");
+
+  result.next();
+  EXPECT_FALSE(result.IsNull(0));
+  EXPECT_EQ(result.GetString(0), "[3]");
+  EXPECT_EQ(result.GetCurrentRowAsString(), "[3]");
+}
+
 }  // namespace neug

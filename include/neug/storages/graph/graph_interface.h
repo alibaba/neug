@@ -357,6 +357,16 @@ class StorageReadInterface : virtual public IStorageInterface {
 
   const Schema& schema() const override { return view_.schema(); }
 
+  /** @brief Find an index by its unique name. */
+  result<StorageIndex*> GetIndexByName(const std::string& name) const {
+    return view_.GetIndexByName(name);
+  }
+
+  /** @brief Get all registered indexes. */
+  result<std::vector<StorageIndex*>> GetAllIndexes() const {
+    return view_.GetAllIndexes();
+  }
+
   /**
    * @brief Search an index selected by its unique name.
    *
@@ -861,13 +871,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     return st;
   }
 
-  /**
-   * @brief Create, bind, and populate an index.
-   */
-  virtual neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndex(const std::string& name) = 0;
-
  private:
   virtual void MarkSchemaDirty() = 0;
 
@@ -924,7 +927,38 @@ class StorageUpdateInterface : public StorageReadInterface,
   }
 };
 
-class StorageAPUpdateInterface : public StorageUpdateInterface {
+/**
+ * @brief Admin interface for storage index DDL (create/drop).
+ *
+ * Index management is only implemented by the AP update path
+ * (StorageAPUpdateInterface). The execution layer obtains this interface
+ * via dynamic_cast from IStorageInterface; a null result means the current
+ * storage mode does not support index management.
+ *
+ * Existence checks are expressed through the DDL calls themselves:
+ * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same
+ * name already exists, and DropIndex fails with ERR_NOT_FOUND when the
+ * target index does not exist.
+ *
+ * Read-side index access (GetIndexByName/GetAllIndexes/IndexSearch) stays
+ * on StorageReadInterface and remains available to all readable modes.
+ *
+ * @since v0.1.0
+ */
+class StorageIndexDDLInterface {
+ public:
+  virtual ~StorageIndexDDLInterface() {}
+
+  /** @brief Create, bind, and populate an index. */
+  virtual result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) = 0;
+
+  /** @brief Drop an index by its unique name. */
+  virtual Status DropIndex(const std::string& name) = 0;
+};
+
+class StorageAPUpdateInterface : public StorageUpdateInterface,
+                                 public StorageIndexDDLInterface {
  public:
   using PlanningChangedCallback = std::function<void()>;
 

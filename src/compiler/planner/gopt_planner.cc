@@ -60,8 +60,7 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
         std::make_shared<neug::gopt::GAliasManager>(*statement->logicalPlan);
     neug::gopt::GPhysicalConvertor converter(aliasManager,
                                              queryDatabase->getCatalog());
-    auto physicalPlan = converter.convert(*statement->logicalPlan, false,
-                                          statement->getExplainMode());
+    auto physicalPlan = converter.convert(*statement->logicalPlan, false);
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();
 
@@ -143,13 +142,13 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
   size_t offset = 0;
   auto statement = nextKeyword(query, offset);
   if (isKeyword(statement, "EXPLAIN")) {
-    analysis.explain_mode = physical::ExplainMode::EXPLAIN;
+    analysis.explain_mode = ExplainMode::kExplain;
     statement = nextKeyword(query, offset);
     if (isKeyword(statement, "LOGICAL")) {
       statement = nextKeyword(query, offset);
     }
   } else if (isKeyword(statement, "PROFILE")) {
-    analysis.explain_mode = physical::ExplainMode::PROFILE;
+    analysis.explain_mode = ExplainMode::kProfile;
     statement = nextKeyword(query, offset);
   }
 
