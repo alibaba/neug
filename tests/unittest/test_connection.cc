@@ -254,13 +254,6 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
     ::_exit(status == '1' ? 0 : 1);
   };
 
-  const pid_t first = child();
-  const pid_t second = child();
-  EXPECT_GT(first, 0);
-  EXPECT_GT(second, 0);
-  ::close(ready_pipe[1]);
-  ::close(release_pipe[0]);
-
   const auto read_status = [&]() {
     pollfd fd{ready_pipe[0], POLLIN, 0};
     char status = '0';
@@ -269,10 +262,33 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
     }
     return '0';
   };
+
+  // Fully open the first reader before starting the second. This ensures the
+  // second Checkpoint::Open sees the first process's active runtime files and
+  // exercises the cross-process orphan-cleanup race deterministically.
+  const pid_t first = child();
+  EXPECT_GT(first, 0);
   const char first_ready = read_status();
-  const char second_ready = read_status();
   EXPECT_EQ(first_ready, '1');
+
+  std::vector<std::filesystem::path> first_runtime_files;
+  const auto runtime_dir = db_dir / "checkpoint-1" / "runtime";
+  for (const auto& entry : std::filesystem::directory_iterator(runtime_dir)) {
+    if (entry.is_regular_file()) {
+      first_runtime_files.emplace_back(entry.path());
+    }
+  }
+  EXPECT_FALSE(first_runtime_files.empty());
+
+  const pid_t second = child();
+  EXPECT_GT(second, 0);
+  ::close(ready_pipe[1]);
+  ::close(release_pipe[0]);
+  const char second_ready = read_status();
   EXPECT_EQ(second_ready, '1');
+  for (const auto& path : first_runtime_files) {
+    EXPECT_TRUE(std::filesystem::exists(path));
+  }
   EXPECT_TRUE(std::filesystem::exists(allocator_marker));
 
   ::close(release_pipe[1]);
@@ -295,6 +311,9 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   EXPECT_EQ(WEXITSTATUS(first_status), 0);
   EXPECT_TRUE(WIFEXITED(second_status));
   EXPECT_EQ(WEXITSTATUS(second_status), 0);
+  for (const auto& path : first_runtime_files) {
+    EXPECT_FALSE(std::filesystem::exists(path));
+  }
   EXPECT_TRUE(std::filesystem::exists(allocator_marker));
 
   ::close(ready_pipe[0]);

@@ -1056,6 +1056,14 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
     create_valid_checkpoint(mgr);
     mgr.Close();
   }
+  {
+    // Initialize the process lock through the public DB path. Read-only opens
+    // intentionally do not create the lock file themselves.
+    neug::NeugDB initializer;
+    neug::NeugDBConfig init_config(db_path);
+    initializer.Open(init_config);
+    initializer.Close();
+  }
 
   auto bad_path = std::filesystem::path(db_path) / "checkpoint-1";
   auto bad_ckp = neug::Checkpoint::Open(bad_path.string(), 1);
@@ -1073,6 +1081,11 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   auto staging = std::filesystem::path(db_path) / "checkpoint-999.next";
   std::filesystem::create_directories(staging);
 
+  const auto orphan_runtime = std::filesystem::path(db_path) / "checkpoint-0" /
+                              "runtime" /
+                              "00000000-0000-0000-0000-000000000001";
+  write_raw_file(orphan_runtime.string(), "reader-owned-runtime");
+
   neug::NeugDBConfig config(db_path);
   config.mode = neug::DBMode::READ_ONLY;
   config.checkpoint_on_close = false;
@@ -1084,6 +1097,15 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-0"));
   EXPECT_TRUE(std::filesystem::exists(bad_path));
   EXPECT_TRUE(std::filesystem::exists(staging));
+  EXPECT_TRUE(std::filesystem::exists(orphan_runtime));
+
+  // A writer holds the exclusive database lock, so it can safely recover
+  // runtime files left behind by readers that exited without RAII cleanup.
+  neug::NeugDB writer;
+  neug::NeugDBConfig write_config(db_path);
+  writer.Open(write_config);
+  writer.Close();
+  EXPECT_FALSE(std::filesystem::exists(orphan_runtime));
 }
 
 TEST(CheckpointGCTest,
@@ -1286,6 +1308,7 @@ TEST(CheckpointFileManagerTest,
   {
     auto file = mgr.CreateRuntimeFile();
     abandoned_path = file.path();
+    ASSERT_TRUE(std::filesystem::exists(abandoned_path));
     write_raw_file(abandoned_path, "abandoned");
     ASSERT_TRUE(std::filesystem::exists(abandoned_path));
   }
