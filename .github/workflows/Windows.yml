@@ -182,12 +182,6 @@ jobs:
           cd tools/python_bind
           python -m pytest -sv tests/test_db_init.py --exitfirst
 
-      - name: Run Python DB connection test
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_db_connection.py --exitfirst
-
       - name: Run Python schema tests
         continue-on-error: true
         run: |

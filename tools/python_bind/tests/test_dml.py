@@ -567,14 +567,14 @@ def test_insert_many_edges(tmp_path):
 
 
 def test_copy_from(tmp_path):
-    db_dir = str(tmp_path / "test_copy_from")
-    shutil.rmtree(db_dir, ignore_errors=True)
-    db = Database(db_path=db_dir, mode="w")
+    db_dir = tmp_path / "test_copy_from"
+    shutil.rmtree(str(db_dir), ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     try:
         # prepare file
-        file = db_dir + "/test_data.csv"
-        with open(file, "w") as f:
+        file = db_dir / "test_data.csv"
+        with open(file, "w", encoding="utf-8") as f:
             f.write('"id","entity","entity_type"\n')
             f.write('1,"-1-10000","属性"\n')
             f.write('2,"-180°-180°","场景"\n')
@@ -598,7 +598,9 @@ def test_copy_from(tmp_path):
             )
         """
         )
-        conn.execute(f"COPY Entity FROM '{file}' (HEADER TRUE, DELIMITER=',')")
+        conn.execute(
+            f"COPY Entity FROM '{file.as_posix()}' (HEADER TRUE, DELIMITER=',')"
+        )
     finally:
         conn.close()
         db.close()
