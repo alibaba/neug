@@ -14,10 +14,10 @@
  */
 
 #include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/array_columns.h"
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/vertex_columns.h"
-#include "neug/common/types/array_columns.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {

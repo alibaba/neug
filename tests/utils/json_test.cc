@@ -197,7 +197,7 @@ TEST_F(JsonTest, TestJsonArrayColumn) {
   EXPECT_EQ(first_values[2].GetValue<int64_t>(), 3);
 }
 
-TEST_F(JsonTest, TestJsonNullArrayColumnUsesDefaultValue) {
+TEST_F(JsonTest, TestJsonNullArrayColumnIsOptional) {
   createJsonFile("test_json_null_array_column.json",
                  "[{\"id\":1,\"readings\":[1,2]},"
                  "{\"id\":2,\"readings\":null},"
@@ -212,13 +212,14 @@ TEST_F(JsonTest, TestJsonNullArrayColumnUsesDefaultValue) {
 
   ASSERT_EQ(ctx.row_num(), 3);
   auto readings_col = ctx.chunk(0).columns()[1];
-  EXPECT_FALSE(readings_col->is_optional());
+  EXPECT_TRUE(readings_col->is_optional());
+  EXPECT_TRUE(readings_col->has_value(0));
+  EXPECT_FALSE(readings_col->has_value(1));
+  EXPECT_TRUE(readings_col->has_value(2));
 
   auto null_value = readings_col->get_elem(1);
-  const auto& null_values = ArrayValue::GetChildren(null_value);
-  ASSERT_EQ(null_values.size(), 2);
-  EXPECT_EQ(null_values[0].GetValue<int32_t>(), 0);
-  EXPECT_EQ(null_values[1].GetValue<int32_t>(), 0);
+  EXPECT_TRUE(null_value.IsNull());
+  EXPECT_EQ(null_value.type(), DataType::Array(DataType::INT32, 2));
 
   auto following_value = readings_col->get_elem(2);
   const auto& following_values = ArrayValue::GetChildren(following_value);
