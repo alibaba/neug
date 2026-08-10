@@ -183,10 +183,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
-  neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
-
  private:
   // Marks go to the COW clone; abort discards them with the clone.
   void MarkVertexTableDirty(label_t label) override {

@@ -374,6 +374,18 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
 }
 
+TEST_F(TPIndexTest, IndexAdminInterfaceIsAPOnly) {
+  // Index management is an AP-only capability: the AP update interface
+  // implements StorageIndexDDLInterface while the TP update interface does
+  // not.
+  EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
+
+  CreatePersonTableTP();
+  auto txn = NewUpdateTransaction();
+  StorageTPUpdateInterface tp(txn);
+  EXPECT_EQ(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
+}
+
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
   CreatePersonTableAP();
   CreateReplacementTableAP();
@@ -685,25 +697,6 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   auto indexes = reopened->index_manager().GetIndex(person_label, "age");
   ASSERT_TRUE(indexes) << indexes.error().ToString();
   EXPECT_TRUE(indexes->empty());
-}
-
-TEST_F(TPIndexTest, DropIndexIsNotSupportedInTPMode) {
-  CreatePersonTableAP();
-  ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
-  StartSnapshotStore();
-  auto person_label =
-      snapshot_store_->CurrentSnapshot().schema().get_vertex_label_id("Person");
-  ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
-
-  auto txn = NewUpdateTransaction();
-  StorageTPUpdateInterface tp(txn);
-  auto status = tp.DropIndex("idx_person_age");
-  EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.error_code(), StatusCode::ERR_NOT_SUPPORTED);
-  txn.Abort();
-
-  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
-  EXPECT_EQ(GetIndexes(person_label, "age").size(), 1);
 }
 
 TEST_F(TPIndexTest, WalReplayRestoresIndexData) {

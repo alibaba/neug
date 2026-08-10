@@ -109,8 +109,7 @@ neug::result<StorageIndex*> StorageIndexManager::GetIndexByName(
     const std::string& name) const {
   auto it = indexes_.find(name);
   if (it == indexes_.end() || !it->second) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Index not found: " + name);
+    RETURN_STATUS_ERROR(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
   }
   return it->second.get();
 }
