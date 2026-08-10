@@ -24,7 +24,8 @@ namespace neug {
 namespace test {
 
 // End-to-end coverage for C++ QueryResult LIST/ARRAY decoding (#607):
-// Connection::Query → sink list_array → GetString / IsNull / GetCurrentRowAsString.
+// Connection::Query → sink list_array → GetString / IsNull /
+// GetCurrentRowAsString.
 TEST(QueryResultListTest, ListAndArrayColumnsViaConnection) {
   const auto test_dir =
       std::filesystem::temp_directory_path() / "neug_query_result_list_e2e";
