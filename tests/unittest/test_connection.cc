@@ -13,8 +13,20 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <signal.h>
+#include <sys/wait.h>
+
+#include <atomic>
+#include <chrono>
 #include <filesystem>
+#include <string>
+#include <thread>
+
+#include <poll.h>
+
+#include <gtest/gtest.h>
 
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
@@ -176,6 +188,104 @@ TEST_F(ConnectionTest, ReadOnlyConnectionsExecuteConcurrently) {
 
   EXPECT_EQ(successful_queries.load(),
             kConnectionCount * kQueriesPerConnection);
+}
+
+TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_read_only_process_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+
+  NeugDBConfig write_config(db_dir.string(), 1);
+  write_config.checkpoint_on_close = true;
+  write_config.memory_level = MemoryLevel::kInMemory;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(write_config));
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema"));
+    connection->Close();
+    db.Close();
+  }
+
+  int ready_pipe[2];
+  int release_pipe[2];
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  ASSERT_EQ(::pipe(release_pipe), 0);
+
+  const auto child = [&]() -> pid_t {
+    const pid_t pid = ::fork();
+    if (pid != 0) {
+      return pid;
+    }
+    ::close(ready_pipe[0]);
+    ::close(release_pipe[1]);
+    NeugDBConfig read_config(db_dir.string(), 1);
+    read_config.mode = DBMode::READ_ONLY;
+    read_config.memory_level = MemoryLevel::kSyncToFile;
+    char status = '0';
+    NeugDB db;
+    try {
+      const bool opened = db.Open(read_config);
+      auto connection = db.Connect();
+      const bool queried =
+          connection->Query("MATCH (n:person) RETURN count(n);", "read")
+              .has_value();
+      status = opened && queried ? '1' : '0';
+    } catch (...) {}
+    (void) ::write(ready_pipe[1], &status, 1);
+    char release = 0;
+    (void) ::read(release_pipe[0], &release, 1);
+    if (status == '1') {
+      db.Close();
+    }
+    ::_exit(status == '1' ? 0 : 1);
+  };
+
+  const pid_t first = child();
+  const pid_t second = child();
+  EXPECT_GT(first, 0);
+  EXPECT_GT(second, 0);
+  ::close(ready_pipe[1]);
+  ::close(release_pipe[0]);
+
+  const auto read_status = [&]() {
+    pollfd fd{ready_pipe[0], POLLIN, 0};
+    char status = '0';
+    if (::poll(&fd, 1, 5000) == 1 && ::read(ready_pipe[0], &status, 1) == 1) {
+      return status;
+    }
+    return '0';
+  };
+  const char first_ready = read_status();
+  const char second_ready = read_status();
+  EXPECT_EQ(first_ready, '1');
+  EXPECT_EQ(second_ready, '1');
+
+  ::close(release_pipe[1]);
+  const auto wait_for_child = [](pid_t child_pid) {
+    int status = 0;
+    for (int attempt = 0; attempt < 50; ++attempt) {
+      const auto result = ::waitpid(child_pid, &status, WNOHANG);
+      if (result == child_pid || result == -1) {
+        return status;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    (void) ::kill(child_pid, SIGKILL);
+    (void) ::waitpid(child_pid, &status, 0);
+    return status;
+  };
+  const int first_status = wait_for_child(first);
+  const int second_status = wait_for_child(second);
+  EXPECT_TRUE(WIFEXITED(first_status));
+  EXPECT_EQ(WEXITSTATUS(first_status), 0);
+  EXPECT_TRUE(WIFEXITED(second_status));
+  EXPECT_EQ(WEXITSTATUS(second_status), 0);
+
+  ::close(ready_pipe[0]);
+  std::filesystem::remove_all(db_dir);
 }
 
 // Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.

@@ -41,9 +41,7 @@ class FileLock {
   void unlock();
 
  private:
-  bool lock(short type, bool wait, std::string& error_msg);
   std::string lock_file_path_;
-  int fd_;
   bool locked_ = false;
 };
 
