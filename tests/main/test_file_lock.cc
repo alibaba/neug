@@ -29,6 +29,31 @@
 namespace neug {
 namespace test {
 
+TEST(FileLockTest, RejectsRepeatedLockOnSameObject) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_repeated_file_lock_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+  std::filesystem::create_directories(db_dir);
+
+  std::string error;
+  FileLock initializer(db_dir.string());
+  ASSERT_TRUE(initializer.lock(error, DBMode::READ_WRITE)) << error;
+  initializer.unlock();
+
+  FileLock reader(db_dir.string());
+  ASSERT_TRUE(reader.lock(error, DBMode::READ_ONLY)) << error;
+  EXPECT_FALSE(reader.lock(error, DBMode::READ_ONLY));
+  EXPECT_NE(error.find("already held by this object"), std::string::npos);
+  reader.unlock();
+
+  FileLock writer(db_dir.string());
+  ASSERT_TRUE(writer.lock(error, DBMode::READ_WRITE)) << error;
+  writer.unlock();
+
+  std::filesystem::remove_all(db_dir);
+}
+
 TEST(FileLockTest, ClosingOneReaderKeepsProcessLock) {
   const auto db_dir = std::filesystem::temp_directory_path() /
                       ("neug_file_lock_test_" + std::to_string(::getpid()));

@@ -144,6 +144,10 @@ FileLock::FileLock(const std::string& data_dir)
 FileLock::~FileLock() { unlock(); }
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
+  if (locked_) {
+    error_msg = "File lock is already held by this object: " + lock_file_path_;
+    return false;
+  }
   locked_ = CurrentHoldDbs::get().lock(lock_file_path_, mode, error_msg);
   return locked_;
 }
