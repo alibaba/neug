@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <thread>
 
@@ -209,6 +210,16 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
     db.Close();
   }
 
+  const auto allocator_marker =
+      db_dir / "checkpoint-1" / "allocator" / "read_only_marker";
+  ASSERT_TRUE(std::filesystem::is_directory(allocator_marker.parent_path()));
+  {
+    std::ofstream marker(allocator_marker);
+    ASSERT_TRUE(marker.is_open());
+    marker << "preserve across read-only opens";
+  }
+  ASSERT_TRUE(std::filesystem::exists(allocator_marker));
+
   int ready_pipe[2];
   int release_pipe[2];
   ASSERT_EQ(::pipe(ready_pipe), 0);
@@ -262,6 +273,7 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   const char second_ready = read_status();
   EXPECT_EQ(first_ready, '1');
   EXPECT_EQ(second_ready, '1');
+  EXPECT_TRUE(std::filesystem::exists(allocator_marker));
 
   ::close(release_pipe[1]);
   const auto wait_for_child = [](pid_t child_pid) {
@@ -283,6 +295,7 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   EXPECT_EQ(WEXITSTATUS(first_status), 0);
   EXPECT_TRUE(WIFEXITED(second_status));
   EXPECT_EQ(WEXITSTATUS(second_status), 0);
+  EXPECT_TRUE(std::filesystem::exists(allocator_marker));
 
   ::close(ready_pipe[0]);
   std::filesystem::remove_all(db_dir);

@@ -17,6 +17,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <filesystem>
@@ -28,6 +29,29 @@
 
 namespace neug {
 namespace test {
+
+TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_read_only_file_lock_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+  std::filesystem::create_directories(db_dir);
+
+  std::string error;
+  FileLock initializer(db_dir.string());
+  ASSERT_TRUE(initializer.lock(error, DBMode::READ_WRITE)) << error;
+  initializer.unlock();
+
+  const auto lock_path = db_dir / FileLock::LOCK_FILE_NAME;
+  ASSERT_EQ(::chmod(lock_path.c_str(), S_IRUSR | S_IRGRP | S_IROTH), 0);
+
+  FileLock reader(db_dir.string());
+  ASSERT_TRUE(reader.lock(error, DBMode::READ_ONLY)) << error;
+  reader.unlock();
+
+  ASSERT_EQ(::chmod(lock_path.c_str(), S_IRUSR | S_IWUSR), 0);
+  std::filesystem::remove_all(db_dir);
+}
 
 TEST(FileLockTest, RejectsRepeatedLockOnSameObject) {
   const auto db_dir =
@@ -94,6 +118,11 @@ TEST(FileLockTest, ClosingOneReaderKeepsProcessLock) {
   EXPECT_EQ(WEXITSTATUS(child_status), 0);
 
   second_reader.unlock();
+
+  FileLock final_writer(db_dir.string());
+  ASSERT_TRUE(final_writer.lock(error, DBMode::READ_WRITE)) << error;
+  final_writer.unlock();
+
   std::filesystem::remove_all(db_dir);
 }
 
