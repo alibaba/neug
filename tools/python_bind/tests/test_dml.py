@@ -483,7 +483,9 @@ def test_default_value(tmp_path):
         conn.execute(
             "MATCH (p1: Person {id: 222}), (p2: Person {id: 111}) CREATE (p1)-[k:Knows {since: 2022, NOTE: 'updated'}]->(p2);"
         )
-        res = conn.execute("MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE;")
+        res = conn.execute(
+            "MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE ORDER BY e.since;"
+        )
         records = list(res)
         assert records == [
             [2020, "none"],

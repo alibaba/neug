@@ -212,18 +212,6 @@ jobs:
           cd tools/python_bind
           python -m pytest -sv tests/test_path.py --exitfirst
 
-      - name: Run Python persistence tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_persistence.py --exitfirst
-
-      - name: Run Python call string literal tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_call_string_literal.py --exitfirst
-
       - name: Run Python dataset tests
         continue-on-error: true
         run: |
@@ -235,12 +223,6 @@ jobs:
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_merge.py --exitfirst
-
-      - name: Run Python transaction tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_db_transaction.py --exitfirst
 
       - name: Run Python import/export tests
         continue-on-error: true

@@ -271,9 +271,11 @@ class TestCopyFromDocs:
         """Load Person and KNOWS data from modern_graph CSVs."""
         person_csv = os.path.join(self.data_path, "person.csv")
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
-        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
         self.conn.execute(
-            f'COPY KNOWS FROM "{knows_csv}" '
+            f'COPY Person FROM "{Path(person_csv).as_posix()}" (header=true);'
+        )
+        self.conn.execute(
+            f'COPY KNOWS FROM "{Path(knows_csv).as_posix()}" '
             f'(from="Person", to="Person", header=true);'
         )
 
@@ -305,9 +307,11 @@ class TestCopyFromDocs:
         )
 
         # Step 3: Import data
-        self.conn.execute(f'COPY User FROM "{users_csv}" (header=true, delimiter=",");')
         self.conn.execute(
-            f'COPY FRIENDS FROM "{friendships_csv}" '
+            f'COPY User FROM "{Path(users_csv).as_posix()}" (header=true, delimiter=",");'
+        )
+        self.conn.execute(
+            f'COPY FRIENDS FROM "{Path(friendships_csv).as_posix()}" '
             f'(from="User", to="User", header=true, delimiter=",");'
         )
 
@@ -344,7 +348,9 @@ class TestCopyFromDocs:
         )
         # modern_graph has person.part1.csv and person.part2.csv
         part_pattern = os.path.join(self.data_path, "test_data/person.part*.csv")
-        self.conn.execute(f'COPY Person FROM "{part_pattern}" (header=true);')
+        self.conn.execute(
+            f'COPY Person FROM "{Path(part_pattern).as_posix()}" (header=true);'
+        )
         res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
@@ -354,9 +360,11 @@ class TestCopyFromDocs:
         self._create_modern_graph_schema()
         person_csv = os.path.join(self.data_path, "person.csv")
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
-        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
         self.conn.execute(
-            f'COPY KNOWS FROM "{knows_csv}" '
+            f'COPY Person FROM "{Path(person_csv).as_posix()}" (header=true);'
+        )
+        self.conn.execute(
+            f'COPY KNOWS FROM "{Path(knows_csv).as_posix()}" '
             f'(from="Person", to="Person", header=true);'
         )
         res = self.conn.execute("MATCH ()-[k:KNOWS]->() RETURN count(k);")
@@ -497,18 +505,22 @@ class TestCopyFromDocs:
         # Import all nodes first
         person_csv = os.path.join(self.data_path, "person.csv")
         software_csv = os.path.join(self.data_path, "software.csv")
-        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
-        self.conn.execute(f'COPY Software FROM "{software_csv}" (header=true);')
+        self.conn.execute(
+            f'COPY Person FROM "{Path(person_csv).as_posix()}" (header=true);'
+        )
+        self.conn.execute(
+            f'COPY Software FROM "{Path(software_csv).as_posix()}" (header=true);'
+        )
 
         # Then import edges
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
         created_csv = os.path.join(self.data_path, "person_created_software.csv")
         self.conn.execute(
-            f'COPY KNOWS FROM "{knows_csv}" '
+            f'COPY KNOWS FROM "{Path(knows_csv).as_posix()}" '
             f'(from="Person", to="Person", header=true);'
         )
         self.conn.execute(
-            f'COPY CREATED FROM "{created_csv}" '
+            f'COPY CREATED FROM "{Path(created_csv).as_posix()}" '
             f'(from="Person", to="Software", header=true);'
         )
 
@@ -553,9 +565,11 @@ class TestCopyToDocs:
         )
         person_csv = os.path.join(self.data_path, "person.csv")
         knows_csv = os.path.join(self.data_path, "person_knows_person.csv")
-        self.conn.execute(f'COPY Person FROM "{person_csv}" (header=true);')
         self.conn.execute(
-            f'COPY KNOWS FROM "{knows_csv}" '
+            f'COPY Person FROM "{Path(person_csv).as_posix()}" (header=true);'
+        )
+        self.conn.execute(
+            f'COPY KNOWS FROM "{Path(knows_csv).as_posix()}" '
             f'(from="Person", to="Person", header=true);'
         )
         yield

@@ -241,6 +241,6 @@ def test_call_table_func_long_string_literal_repro(conn, tmp_path):
     long_path.write_text("a,b\n1,2\n")
     assert len(str(long_path)) > SHORT_STR_LENGTH
     conn.execute("CREATE NODE TABLE long_path_node(a INT64 PRIMARY KEY, b INT64);")
-    conn.execute(f"COPY long_path_node FROM '{long_path}' (delimiter=',');")
+    conn.execute(f"COPY long_path_node FROM '{long_path.as_posix()}' (delimiter=',');")
     rows = list(conn.execute("MATCH (n:long_path_node) RETURN n.a, n.b;"))
     assert len(rows) >= 1
