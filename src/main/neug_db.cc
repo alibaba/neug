@@ -131,7 +131,12 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     file_lock_ = std::make_unique<FileLock>(config_.data_dir);
 
     std::string error_msg;
-    if (!file_lock_->lock(error_msg, config.mode)) {
+    // A pure-memory database owns a fresh private workspace, so it needs an
+    // exclusive lock to initialize the lock file even when its data access
+    // mode is read-only. Persistent read-only databases still use a shared
+    // lock and never create the lock file.
+    const auto lock_mode = is_pure_memory_ ? DBMode::READ_WRITE : config.mode;
+    if (!file_lock_->lock(error_msg, lock_mode)) {
       THROW_DATABASE_LOCKED_EXCEPTION(
           "Failed to lock data directory: " + config_.data_dir +
           ", error: " + error_msg);
