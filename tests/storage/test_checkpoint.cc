@@ -35,6 +35,7 @@
 #include "column_assertions.h"
 #include "neug/config.h"
 #include "neug/main/connection.h"
+#include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/allocators.h"
@@ -1060,14 +1061,9 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
     create_valid_checkpoint(mgr);
     mgr.Close();
   }
-  {
-    // Initialize the process lock through the public DB path. Read-only opens
-    // intentionally do not create the lock file themselves.
-    neug::NeugDB initializer;
-    neug::NeugDBConfig init_config(db_path);
-    initializer.Open(init_config);
-    initializer.Close();
-  }
+  const auto lock_path =
+      std::filesystem::path(db_path) / neug::FileLock::LOCK_FILE_NAME;
+  ASSERT_FALSE(std::filesystem::exists(lock_path));
 
   auto bad_path = std::filesystem::path(db_path) / "checkpoint-1";
   auto bad_ckp = neug::Checkpoint::Open(bad_path.string(), 1);
@@ -1098,6 +1094,7 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   db.Open(config);
   db.Close();
 
+  EXPECT_TRUE(std::filesystem::exists(lock_path));
   EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-0"));
   EXPECT_TRUE(std::filesystem::exists(bad_path));
   EXPECT_TRUE(std::filesystem::exists(staging));

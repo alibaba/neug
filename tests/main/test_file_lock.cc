@@ -30,6 +30,25 @@
 namespace neug {
 namespace test {
 
+TEST(FileLockTest, ReadOnlyCreatesMissingCoordinationFile) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_missing_file_lock_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+  std::filesystem::create_directories(db_dir);
+
+  const auto lock_path = db_dir / FileLock::LOCK_FILE_NAME;
+  ASSERT_FALSE(std::filesystem::exists(lock_path));
+
+  std::string error;
+  FileLock reader(db_dir.string());
+  ASSERT_TRUE(reader.lock(error, DBMode::READ_ONLY)) << error;
+  EXPECT_TRUE(std::filesystem::exists(lock_path));
+  reader.unlock();
+
+  std::filesystem::remove_all(db_dir);
+}
+
 TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /

@@ -61,14 +61,12 @@ class CurrentHoldDbs {
       return false;
     }
 
-    const int flags = mode == DBMode::READ_ONLY ? O_RDONLY : (O_RDWR | O_CREAT);
+    // The lock file is runtime coordination metadata rather than database
+    // state. Create it on demand for legacy databases that predate the file;
+    // read-only opens still use a read-only descriptor and a shared lock.
+    const int flags = (mode == DBMode::READ_ONLY ? O_RDONLY : O_RDWR) | O_CREAT;
     const int fd = ::open(db_path.c_str(), flags, 0600);
     if (fd == -1) {
-      if (mode == DBMode::READ_ONLY && errno == ENOENT) {
-        THROW_NO_CHECKPOINT_EXCEPTION(
-            "Read-only database is missing lock file: " + db_path +
-            ". Open it once in read-write mode to initialize the lock file.");
-      }
       if (errno == EACCES) {
         THROW_PERMISSION_DENIED(
             "Permission denied when opening lock file: " + db_path +
