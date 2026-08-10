@@ -192,10 +192,11 @@ std::string CheckpointFileManager::CreateRuntimeContainerPath() {
       ::close(fd);
       return runtime_path;
     }
-    if (errno == EEXIST) {
+    const int open_errno = errno;
+    if (open_errno == EEXIST || open_errno == EINTR) {
       continue;
     }
-    const auto error = std::error_code(errno, std::generic_category());
+    const auto error = std::error_code(open_errno, std::generic_category());
     THROW_IO_EXCEPTION("Failed to reserve runtime file " + runtime_path + ": " +
                        error.message());
   }
