@@ -391,10 +391,10 @@ TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(planning_change_count_, 2);
 }
 
-TEST_F(APIndexTest, DropMissingIndexReturnsInvalidArgument) {
+TEST_F(APIndexTest, DropMissingIndexReturnsNotFound) {
   auto status = ap_->DropIndex("missing_index");
   EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_NOT_FOUND);
   EXPECT_EQ(status.error_message(), "Index not found: missing_index");
 }
 
