@@ -16,7 +16,6 @@
 #include "neug/utils/property/list_property_column.h"
 
 #include <algorithm>
-#include <fstream>
 #include <optional>
 #include <vector>
 
@@ -71,7 +70,6 @@ const ModuleDescriptor& ResolveChild(const CheckpointManifest& manifest,
 ListPropertyColumn::ListPropertyColumn(const DataType& list_type)
     : list_type_(list_type),
       child_type_(ListType::GetChildType(list_type)),
-      size_(0),
       elements_tail_(0),
       items_(std::make_unique<ULongColumn>()),
       elements_(CreateColumn(child_type_)) {}
@@ -114,7 +112,6 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   if (desc.module_type.empty()) {
     items_->Open(ckp, ModuleDescriptor{}, level);
     elements_->Open(ckp, ModuleDescriptor{}, level);
-    size_ = 0;
     elements_tail_ = 0;
     return;
   }
@@ -124,7 +121,7 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
     THROW_RUNTIME_ERROR(
         "ListPropertyColumn::Open: missing list_row_count in descriptor");
   }
-  size_ = std::stoull(*row_count);
+  const size_t expected_rows = std::stoull(*row_count);
 
   const auto& resolver = manifest ? *manifest : ckp.GetMeta();
   std::optional<ModuleDescriptor> items_desc;
@@ -139,7 +136,7 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   // will throw a StorageException.  This is a known limitation.
   elements_tail_ = elements_->size();
 
-  if (items_->size() != size_) {
+  if (items_->size() != expected_rows) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::Open: row metadata size mismatch");
   }
 }
@@ -147,7 +144,7 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
 ModuleDescriptor ListPropertyColumn::dumpSelfDescriptor() const {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
-  desc.set("list_row_count", std::to_string(size_));
+  desc.set("list_row_count", std::to_string(items_->size()));
   desc.set("list_type",
            YAML::Dump(YAML::convert<DataType>::encode(list_type_)));
   return desc;
@@ -163,77 +160,85 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   auto items_key = ChildModuleKey(key, kItemsRef);
   auto elements_key = ChildModuleKey(key, kElementsRef);
 
-  // Compute live element count to check whether compaction is needed.
+  // Compute live element and range counts in one pass.
   size_t total_elements = 0;
-  for (size_t row = 0; row < size_; ++row) {
-    total_elements += get_item(row).length;
+  size_t live_range_count = 0;
+  for (size_t row = 0; row < size(); ++row) {
+    const auto length = get_item(row).length;
+    total_elements += length;
+    if (length != 0) {
+      ++live_range_count;
+    }
   }
+  auto* string_elements = child_type_.id() == DataTypeId::kVarchar
+                              ? static_cast<StringColumn*>(elements_.get())
+                              : nullptr;
 
-  // Fast path: no dead space and no extra capacity — the elements column is
-  // already compact and contiguous, so dump the original columns directly
-  // without creating temporary copies.  This is the common case when a
-  // checkpoint runs after Open with no length-changing updates.
-  if (total_elements == elements_tail_ && elements_->size() == elements_tail_) {
-    items_->Dump(ckp, meta, items_key);
-    elements_->Dump(ckp, meta, elements_key);
-  } else {
-    // Slow path: compact to eliminate dead space left by length-changing
-    // updates (old elements become unreachable when a row's list is
-    // re-appended at the tail).
+  if (total_elements != elements_tail_) {
+    struct LiveRange {
+      size_t row;
+      list_meta_item item;
+    };
 
-    // Stream compacted items to a runtime file, remapping offsets on the
-    // fly.  Layout matches MMapContainer::Dump (FileHeader + payload) so
-    // Open() reads it back unchanged.
-    auto item_file = ckp.CreateRuntimeFile();
-    std::ofstream item_out(item_file.path(), std::ios::binary);
-    if (!item_out) {
-      THROW_IO_EXCEPTION("Failed to open file for dumping: " +
-                         item_file.path());
-    }
-    FileHeader header{};
-    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
-                   sizeof(header.data_md5));
-    MD5_CTX md5_ctx;
-    MD5_Init(&md5_ctx);
-    size_t tail = 0;
-    for (size_t row = 0; row < size_; ++row) {
+    std::vector<LiveRange> ranges;
+    ranges.reserve(live_range_count);
+    bool ranges_sorted = true;
+    for (size_t row = 0; row < size(); ++row) {
       auto item = get_item(row);
-      list_meta_item compact{tail, item.length};
-      item_out.write(reinterpret_cast<const char*>(&compact), sizeof(compact));
-      MD5_Update(&md5_ctx, &compact, sizeof(compact));
-      tail += item.length;
-    }
-    MD5_Final(header.data_md5, &md5_ctx);
-    item_out.seekp(0);
-    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
-                   sizeof(header.data_md5));
-    item_out.flush();
-    item_out.close();
-
-    ModuleDescriptor items_desc;
-    items_desc.module_type = ULongColumn::type_name();
-    items_desc.set_path(ModuleDescriptor::kDataPath,
-                        ckp.CommitRuntimeFile(std::move(item_file)));
-    meta.set_module(items_key, std::move(items_desc));
-
-    // Elements are compacted via an in-memory copy + the child column's
-    // Dump; see the Dump declaration for the streaming future work.
-    auto compact_elements = CreateColumn(child_type_);
-    compact_elements->Open(ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
-    compact_elements->resize(total_elements);
-
-    size_t elem_tail = 0;
-    for (size_t row = 0; row < size_; ++row) {
-      auto item = get_item(row);
-      for (size_t i = 0; i < item.length; ++i) {
-        compact_elements->set_any(elem_tail + i,
-                                  elements_->get_any(item.offset + i), true);
+      if (item.length != 0) {
+        if (!ranges.empty() && ranges.back().item.offset > item.offset) {
+          ranges_sorted = false;
+        }
+        ranges.push_back({row, item});
       }
-      elem_tail += item.length;
+    }
+    if (!ranges_sorted) {
+      std::sort(ranges.begin(), ranges.end(),
+                [](const LiveRange& lhs, const LiveRange& rhs) {
+                  return lhs.item.offset < rhs.item.offset;
+                });
     }
 
-    compact_elements->Dump(ckp, meta, elements_key);
+    // Live ranges never overlap: length-changing updates append a new range,
+    // while same-length updates reuse the row's existing range.  Compacting in
+    // physical-offset order therefore keeps every destination at or before its
+    // source and makes forward, potentially overlapping moves safe.
+    size_t tail = 0;
+    for (const auto& range : ranges) {
+      if (tail != range.item.offset) {
+        if (string_elements) {
+          // StringColumn::set_any appends string bytes. Relocate only its row
+          // metadata here and let StringColumn::Dump compact the live bytes.
+          for (size_t i = 0; i < range.item.length; ++i) {
+            string_elements->copy_item(tail + i, range.item.offset + i);
+          }
+        } else {
+          for (size_t i = 0; i < range.item.length; ++i) {
+            auto value = elements_->get_any(range.item.offset + i);
+            elements_->set_any(tail + i, value, true);
+          }
+        }
+      }
+      set_item(range.row, {tail, range.item.length});
+      tail += range.item.length;
+    }
+    for (size_t row = 0; row < size(); ++row) {
+      if (get_item(row).length == 0) {
+        set_item(row, {tail, 0});
+      }
+    }
+    elements_tail_ = tail;
   }
+  if (elements_->size() != elements_tail_) {
+    if (string_elements) {
+      string_elements->shrink_items(elements_tail_);
+    } else {
+      elements_->resize(elements_tail_);
+    }
+  }
+
+  items_->Dump(ckp, meta, items_key);
+  elements_->Dump(ckp, meta, elements_key);
 
   MarkReferenced(meta, items_key);
   MarkReferenced(meta, elements_key);
@@ -245,38 +250,27 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 }
 
 void ListPropertyColumn::resize(size_t size) {
-  if (size <= size_) {
-    items_->resize(size);
-    size_ = size;
-    return;
-  }
-
-  auto old_size = size_;
+  auto old_size = this->size();
   items_->resize(size);
   for (size_t i = old_size; i < size; ++i) {
     set_item(i, {elements_tail_, 0});
   }
-  size_ = size;
 }
 
 void ListPropertyColumn::resize(size_t size, const Value& default_value) {
-  if (size <= size_) {
-    resize(size);
-    return;
-  }
-  auto old_size = size_;
+  auto old_size = this->size();
   resize(size);
-  for (size_t i = old_size; i < size_; ++i) {
+  for (size_t i = old_size; i < this->size(); ++i) {
     set_any(i, default_value, true);
   }
 }
 
 void ListPropertyColumn::set_any(size_t index, const Value& value,
                                  bool insert_safe) {
-  if (index >= size_) {
+  if (index >= size()) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::set_any: index " +
                         std::to_string(index) +
-                        " out of range (size=" + std::to_string(size_) + ")");
+                        " out of range (size=" + std::to_string(size()) + ")");
   }
 
   Value default_value;
@@ -352,10 +346,10 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
 }
 
 Value ListPropertyColumn::get_any(size_t index) const {
-  if (index >= size_) {
+  if (index >= size()) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::get_any: index " +
                         std::to_string(index) +
-                        " out of range (size=" + std::to_string(size_) + ")");
+                        " out of range (size=" + std::to_string(size()) + ")");
   }
   auto item = get_item(index);
   std::vector<Value> children;
@@ -370,7 +364,6 @@ std::unique_ptr<Module> ListPropertyColumn::Clone() const {
   auto clone = std::make_unique<ListPropertyColumn>();
   clone->list_type_ = list_type_;
   clone->child_type_ = child_type_;
-  clone->size_ = size_;
   clone->elements_tail_ = elements_tail_;
   if (items_) {
     clone->items_.reset(static_cast<ULongColumn*>(items_->Clone().release()));

@@ -540,6 +540,20 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return data_buffer_->GetDataSize() - pos_.load();
   }
 
+  // Copy only the row metadata. The referenced string bytes stay in place and
+  // are compacted by Dump, so relocating a row does not append to data_buffer_.
+  void copy_item(size_t dst, size_t src) {
+    set_string_item(dst, get_string_item(src));
+  }
+
+  // Shrink the logical rows and their metadata without resizing the string
+  // byte buffer. This is used by consuming compaction before Dump.
+  void shrink_items(size_t size) {
+    assert(size <= size_);
+    items_buffer_->Resize(size * sizeof(string_item));
+    size_ = size;
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() { return "column<string>"; }

@@ -32,7 +32,8 @@ static_assert(sizeof(list_meta_item) == sizeof(uint64_t),
 
 class ListPropertyColumn : public ColumnBase {
  public:
-  ListPropertyColumn() : size_(0), elements_tail_(0) {}
+  ListPropertyColumn()
+      : elements_tail_(0), items_(std::make_unique<ULongColumn>()) {}
   explicit ListPropertyColumn(const DataType& list_type);
   ~ListPropertyColumn() override = default;
 
@@ -41,15 +42,26 @@ class ListPropertyColumn : public ColumnBase {
   void Open(Checkpoint& ckp, const CheckpointManifest& manifest,
             const ModuleDescriptor& desc, MemoryLevel level) override;
 
-  // On compaction, items are streamed directly to a runtime file (no
-  // in-memory copy); elements go through an in-memory copy and the child
-  // column's Dump, since each column type owns its on-disk format.
-  // TODO(future work): stream the elements compaction too, e.g. via a
-  // DumpRanges-style API on ColumnBase.
+  // Dump consumes the child buffers. Dead top-level element ranges are moved
+  // forward in physical-offset order, then the child column is dumped
+  // recursively. A direct VARCHAR child moves only string-item metadata, so
+  // compaction does not append a second copy of the live string payload.
+  // Other child types currently move through get_any/set_any: fixed-width
+  // children can still allocate a compact buffer while shrinking, and ARRAY or
+  // nested LIST children with variable-width leaves can append payload during
+  // relocation. If measurements show that these cases matter, first add
+  // targeted representation-level row relocation for variable-width nested
+  // children or prefix/range dumping for fixed-width children; introduce a
+  // common nested-column compaction interface only when concrete consumers
+  // justify it.
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override;
 
-  size_t size() const override { return size_; }
+  // Row count is derived from the items column: one list_meta_item per
+  // row and ULongColumn sizes exactly (no spare capacity), so no separate
+  // size_ member is needed.  (elements_tail_ IS separate: elements_ keeps
+  // spare capacity after doubling resizes.)
+  size_t size() const override { return items_->size(); }
   void resize(size_t size) override;
   void resize(size_t size, const Value& default_value) override;
 
@@ -79,7 +91,6 @@ class ListPropertyColumn : public ColumnBase {
 
   DataType list_type_;
   DataType child_type_;
-  size_t size_;
   size_t elements_tail_;
   std::unique_ptr<ULongColumn> items_;
   std::unique_ptr<ColumnBase> elements_;
