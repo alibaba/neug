@@ -169,58 +169,6 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
   return Status::OK();
 }
 
-// Appends index entries for a batch of newly inserted vertex rows.
-static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
-                                      const std::vector<vid_t>& vids) {
-  const auto& v_schema = graph.schema().get_vertex_schema(label);
-  const auto& vtable = graph.get_vertex_table(label);
-  auto& index_manager = graph.mutable_index_manager();
-
-  // Primary keys are stored outside property_names in the vertex indexer, so
-  // read their column explicitly when maintaining indexes for a batch.
-  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndex(label, pk_name);
-  if (!pk_indexes) {
-    return pk_indexes.error();
-  }
-  if (!pk_indexes->empty()) {
-    auto pk_col = vtable.GetPropertyColumn(pk_name);
-    if (!pk_col) {
-      return Status::InternalError("Primary key column does not exist");
-    }
-    for (auto* index : pk_indexes.value()) {
-      for (vid_t vid : vids) {
-        RETURN_IF_NOT_OK(index->Upsert(vid, pk_col->get_any(vid)));
-      }
-    }
-  }
-
-  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
-       ++prop_idx) {
-    if (v_schema->vprop_soft_deleted[prop_idx]) {
-      continue;
-    }
-    auto indexes =
-        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
-    if (!indexes) {
-      return indexes.error();
-    }
-    if (indexes->empty()) {
-      continue;
-    }
-    auto col = vtable.GetPropertyColumn(static_cast<int32_t>(prop_idx));
-    if (!col) {
-      continue;
-    }
-    for (auto* index : indexes.value()) {
-      for (vid_t vid : vids) {
-        RETURN_IF_NOT_OK(index->Upsert(vid, col->get_any(vid)));
-      }
-    }
-  }
-  return Status::OK();
-}
-
 // Updates index entries for one changed vertex property. Primary keys are not
 // handled here because PropertyGraph does not allow modifying the primary key
 // of an existing vertex.
@@ -293,15 +241,14 @@ result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
   return index->Search(params);
 }
 
-Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
-                                                          vid_t lid, int col_id,
-                                                          const Value& value) {
+Status StorageAPInPlaceUpdateInterface::UpdateVertexPropertyImpl(
+    label_t label, vid_t lid, int col_id, const Value& value) {
   RETURN_IF_NOT_OK(
       graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
   return updateVertexIndexData(graph_, label, lid, col_id, value);
 }
 
-Status StorageAPUpdateInterface::UpdateEdgePropertyImpl(
+Status StorageAPInPlaceUpdateInterface::UpdateEdgePropertyImpl(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
     const Value& value) {
@@ -310,9 +257,9 @@ Status StorageAPUpdateInterface::UpdateEdgePropertyImpl(
                                    neug::timestamp_t(0));
 }
 
-Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
-                                               const std::vector<Value>& props,
-                                               vid_t& vid) {
+Status StorageAPInPlaceUpdateInterface::AddVertexImpl(
+    label_t label, const Value& id, const std::vector<Value>& props,
+    vid_t& vid) {
   const auto& vertex_table = graph_.get_vertex_table(label);
   if (vertex_table.Size() >= vertex_table.Capacity()) {
     auto new_cap = vertex_table.Size() < 4096
@@ -338,7 +285,7 @@ Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
   return Status::OK();
 }
 
-Status StorageAPUpdateInterface::AddEdgeImpl(
+Status StorageAPInPlaceUpdateInterface::AddEdgeImpl(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, const std::vector<Value>& properties,
     const void*& prop) {
@@ -366,29 +313,31 @@ Status StorageAPUpdateInterface::AddEdgeImpl(
   return status;
 }
 
-Status StorageAPUpdateInterface::DeleteVertexImpl(label_t label, vid_t lid) {
+Status StorageAPInPlaceUpdateInterface::DeleteVertexImpl(label_t label,
+                                                         vid_t lid) {
   RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, timestamp_));
   return deleteVertexIndexData(graph_, label, {lid});
 }
 
-Status StorageAPUpdateInterface::DeleteEdgeImpl(label_t src_label, vid_t src,
-                                                label_t dst_label, vid_t dst,
-                                                label_t edge_label,
-                                                int32_t oe_offset,
-                                                int32_t ie_offset) {
+Status StorageAPInPlaceUpdateInterface::DeleteEdgeImpl(
+    label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+    label_t edge_label, int32_t oe_offset, int32_t ie_offset) {
   return graph_.DeleteEdge(src_label, src, dst_label, dst, edge_label,
                            oe_offset, ie_offset, timestamp_);
 }
 
-Status StorageAPUpdateInterface::DeleteEdgesImpl(label_t src_label, vid_t src,
-                                                 label_t dst_label, vid_t dst,
-                                                 label_t edge_label) {
+Status StorageAPInPlaceUpdateInterface::DeleteEdgesImpl(label_t src_label,
+                                                        vid_t src,
+                                                        label_t dst_label,
+                                                        vid_t dst,
+                                                        label_t edge_label) {
   // AP mode: delegate to batch version with single pair
   std::vector<std::tuple<vid_t, vid_t>> edges = {{src, dst}};
   return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
 }
 
-result<std::vector<vid_t>> StorageAPUpdateInterface::BatchAddVerticesImpl(
+result<std::vector<vid_t>>
+StorageAPInPlaceUpdateInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
   if (!new_vids) {
@@ -399,34 +348,34 @@ result<std::vector<vid_t>> StorageAPUpdateInterface::BatchAddVerticesImpl(
     return new_vids;
   }
 
-  auto status = batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
+  auto status = AddBatchVertexIndexData(graph_, v_label_id, new_vids.value());
   if (!status.ok()) {
     return tl::unexpected(std::move(status));
   }
   return new_vids;
 }
 
-Status StorageAPUpdateInterface::BatchAddEdgesImpl(
+Status StorageAPInPlaceUpdateInterface::BatchAddEdgesImpl(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
   return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                               std::move(supplier));
 }
 
-Status StorageAPUpdateInterface::BatchDeleteVerticesImpl(
+Status StorageAPInPlaceUpdateInterface::BatchDeleteVerticesImpl(
     label_t v_label_id, const std::vector<vid_t>& vids) {
   RETURN_IF_NOT_OK(graph_.BatchDeleteVertices(v_label_id, vids));
   return deleteVertexIndexData(graph_, v_label_id, vids);
 }
 
-Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(
+Status StorageAPInPlaceUpdateInterface::BatchDeleteEdgesImpl(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::tuple<vid_t, vid_t>>& edges) {
   return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
                                  edges);
 }
 
-Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(
+Status StorageAPInPlaceUpdateInterface::BatchDeleteEdgesImpl(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
@@ -434,7 +383,7 @@ Status StorageAPUpdateInterface::BatchDeleteEdgesImpl(
                                  oe_edges, ie_edges);
 }
 
-Status StorageAPUpdateInterface::CreateVertexTypeImpl(
+Status StorageAPInPlaceUpdateInterface::CreateVertexTypeImpl(
     const CreateVertexTypeParam& config) {
   auto status = graph_.CreateVertexType(config);
   if (status.ok()) {
@@ -443,7 +392,7 @@ Status StorageAPUpdateInterface::CreateVertexTypeImpl(
   return status;
 }
 
-Status StorageAPUpdateInterface::CreateEdgeTypeImpl(
+Status StorageAPInPlaceUpdateInterface::CreateEdgeTypeImpl(
     const CreateEdgeTypeParam& config) {
   auto status = graph_.CreateEdgeType(config);
   if (status.ok()) {
@@ -452,7 +401,7 @@ Status StorageAPUpdateInterface::CreateEdgeTypeImpl(
   return status;
 }
 
-Status StorageAPUpdateInterface::AddVertexPropertiesImpl(
+Status StorageAPInPlaceUpdateInterface::AddVertexPropertiesImpl(
     label_t label, const AddVertexPropertiesParam& config) {
   auto status = graph_.AddVertexProperties(label, config);
   if (status.ok()) {
@@ -463,7 +412,7 @@ Status StorageAPUpdateInterface::AddVertexPropertiesImpl(
   return status;
 }
 
-Status StorageAPUpdateInterface::AddEdgePropertiesImpl(
+Status StorageAPInPlaceUpdateInterface::AddEdgePropertiesImpl(
     label_t src, label_t dst, label_t edge,
     const AddEdgePropertiesParam& config) {
   auto status = graph_.AddEdgeProperties(src, dst, edge, config);
@@ -477,7 +426,7 @@ Status StorageAPUpdateInterface::AddEdgePropertiesImpl(
   return status;
 }
 
-Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
+Status StorageAPInPlaceUpdateInterface::RenameVertexPropertiesImpl(
     label_t label, const RenameVertexPropertiesParam& config) {
   RETURN_IF_NOT_OK(graph_.RenameVertexProperties(label, config));
   for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
@@ -488,13 +437,13 @@ Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
   return Status::OK();
 }
 
-Status StorageAPUpdateInterface::RenameEdgePropertiesImpl(
+Status StorageAPInPlaceUpdateInterface::RenameEdgePropertiesImpl(
     label_t src, label_t dst, label_t edge,
     const RenameEdgePropertiesParam& config) {
   return graph_.RenameEdgeProperties(src, dst, edge, config);
 }
 
-Status StorageAPUpdateInterface::DeleteVertexPropertiesImpl(
+Status StorageAPInPlaceUpdateInterface::DeleteVertexPropertiesImpl(
     label_t label, const DeleteVertexPropertiesParam& config) {
   RETURN_IF_NOT_OK(graph_.DeleteVertexProperties(label, config));
   for (const auto& prop_name : config.GetDeleteProperties()) {
@@ -505,7 +454,7 @@ Status StorageAPUpdateInterface::DeleteVertexPropertiesImpl(
   return Status::OK();
 }
 
-Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
+Status StorageAPInPlaceUpdateInterface::DeleteEdgePropertiesImpl(
     label_t src, label_t dst, label_t edge,
     const DeleteEdgePropertiesParam& config) {
   auto status = graph_.DeleteEdgeProperties(src, dst, edge, config);
@@ -518,7 +467,7 @@ Status StorageAPUpdateInterface::DeleteEdgePropertiesImpl(
   return status;
 }
 
-Status StorageAPUpdateInterface::DeleteVertexTypeImpl(label_t label) {
+Status StorageAPInPlaceUpdateInterface::DeleteVertexTypeImpl(label_t label) {
   const auto& v_schema = graph_.schema().get_vertex_schema(label);
   std::vector<std::string> indexed_properties;
   indexed_properties.reserve(v_schema->property_names.size() + 1);
@@ -539,8 +488,9 @@ Status StorageAPUpdateInterface::DeleteVertexTypeImpl(label_t label) {
   return Status::OK();
 }
 
-Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
-                                                    label_t edge) {
+Status StorageAPInPlaceUpdateInterface::DeleteEdgeTypeImpl(label_t src,
+                                                           label_t dst,
+                                                           label_t edge) {
   auto status = graph_.DeleteEdgeType(src, dst, edge);
   if (status.ok()) {
     mut_view_.Rebuild(graph_);
@@ -717,13 +667,13 @@ Status index_ddl::DropIndex(PropertyGraph& graph, GraphView& view,
   return Status::OK();
 }
 
-neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
+neug::result<StorageIndex*> StorageAPInPlaceUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
   return index_ddl::CreateIndex(graph_, mut_view_, timestamp_, alloc_,
                                 std::move(meta), on_planning_changed_);
 }
 
-Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
+Status StorageAPInPlaceUpdateInterface::DropIndex(const std::string& name) {
   return index_ddl::DropIndex(graph_, mut_view_, timestamp_, alloc_, name,
                               on_planning_changed_);
 }

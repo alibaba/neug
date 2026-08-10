@@ -34,6 +34,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/index_utils.h"
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
@@ -389,15 +390,15 @@ Status UpdateTransaction::Commit(GraphSnapshotStore& snapshot_store,
     return Status::OK();
   }
 
-  const bool schema_changed = cow_state_.schema_changed;
-  if (schema_changed &&
+  const bool planning_changed = cow_state_.planning_changed;
+  if (planning_changed &&
       base_planning_generation_ == std::numeric_limits<uint64_t>::max()) {
     LOG(ERROR) << "Planning generation space exhausted";
     Abort();
     return Status::InternalError("Planning generation space exhausted");
   }
   const uint64_t committed_planning_generation =
-      base_planning_generation_ + (schema_changed ? 1 : 0);
+      base_planning_generation_ + (planning_changed ? 1 : 0);
 
   auto prepared_result =
       snapshot_store.PrepareSnapshot(cow_graph_, committed_planning_generation);
@@ -634,7 +635,7 @@ Status StorageCOWUpdateInterface::DeleteVertexPropertiesImpl(
       cow_graph_->schema().get_vertex_label_name(v_label);
   for (const auto& prop_name : properties) {
     if (!cow_graph_->schema().vertex_has_property(v_label, prop_name)) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                     "Property [" + prop_name + "] does not exist in vertex [" +
                         vertex_type_name + "].");
     }
@@ -681,7 +682,7 @@ Status StorageCOWUpdateInterface::DeleteEdgePropertiesImpl(
   for (const auto& prop_name : config.GetDeleteProperties()) {
     if (!schema.edge_has_property(src_label_id, dst_label_id, edge_label_id,
                                   prop_name)) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                     "Property [" + prop_name + "] does not exist in edge [" +
                         edge_type + "] between [" + src_type + "] and [" +
                         dst_type + "].");
@@ -822,7 +823,7 @@ Status StorageCOWUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
   return status;
 }
 
-neug::result<StorageIndex*> StorageCOWUpdateInterface::CreateIndexDDLForAP(
+neug::result<StorageIndex*> StorageCOWUpdateInterface::CreateIndexForAP(
     std::unique_ptr<IndexMeta> meta) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
@@ -847,7 +848,7 @@ neug::result<StorageIndex*> StorageCOWUpdateInterface::CreateIndexDDLForAP(
   return index;
 }
 
-Status StorageCOWUpdateInterface::DropIndexDDLForAP(const std::string& name) {
+Status StorageCOWUpdateInterface::DropIndexForAP(const std::string& name) {
   RETURN_IF_NOT_OK(index_ddl::DropIndex(*cow_graph_, mut_view_, read_ts_,
                                         alloc_, name,
                                         [this]() { MarkSchemaDirty(); }));
@@ -1588,6 +1589,32 @@ Status StorageCOWUpdateInterface::BatchAddEdgesImpl(
   LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "BatchAddEdges is not supported in TP mode currently.");
+}
+
+result<std::vector<vid_t>> StorageCOWUpdateInterface::BatchAddVerticesForAP(
+    label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
+  RETURN_STATUS_ERROR_IF_NOT_OK(detachVertexTableForInsert(v_label_id));
+  auto new_vids = cow_graph_->BatchAddVertices(v_label_id, std::move(supplier));
+  if (!new_vids || new_vids->empty()) {
+    return new_vids;
+  }
+  auto status = AddBatchVertexIndexData(
+      *cow_graph_, v_label_id, new_vids.value(),
+      [this](StorageIndex& index) { return detachIndex(index); });
+  if (!status.ok()) {
+    RETURN_ERROR(std::move(status));
+  }
+  return new_vids;
+}
+
+Status StorageCOWUpdateInterface::BatchAddEdgesForAP(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    std::shared_ptr<IDataChunkSupplier> supplier) {
+  uint32_t edge_triplet_id = cow_graph_->schema().generate_edge_label(
+      src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_triplet_id));
+  return cow_graph_->BatchAddEdges(src_label, dst_label, edge_label,
+                                   std::move(supplier));
 }
 
 Status StorageCOWUpdateInterface::BatchDeleteVerticesImpl(

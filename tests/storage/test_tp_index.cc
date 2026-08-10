@@ -109,8 +109,8 @@ class TPIndexTest : public ::testing::Test {
     graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
-                                                     allocator_);
+    ap_ = std::make_unique<StorageAPInPlaceUpdateInterface>(*graph_, *view_, 0,
+                                                            allocator_);
     version_manager_.init_ts({0, 0}, 1);
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
@@ -352,7 +352,7 @@ class TPIndexTest : public ::testing::Test {
   std::shared_ptr<PropertyGraph> graph_;
   std::unique_ptr<GraphView> view_;
   Allocator allocator_{MemoryLevel::kInMemory, ""};
-  std::unique_ptr<StorageAPUpdateInterface> ap_;
+  std::unique_ptr<StorageAPInPlaceUpdateInterface> ap_;
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
   VersionManager version_manager_;
   CapturingWalWriter wal_writer_;

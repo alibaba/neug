@@ -946,7 +946,7 @@ class StorageUpdateInterface : public StorageReadInterface,
  * @brief Admin interface for storage index DDL (create/drop).
  *
  * Index management is only implemented by the AP update path
- * (StorageAPUpdateInterface). The execution layer obtains this interface
+ * (StorageAPInPlaceUpdateInterface). The execution layer obtains this interface
  * via dynamic_cast from IStorageInterface; a null result means the current
  * storage mode does not support index management.
  *
@@ -972,12 +972,12 @@ class StorageIndexDDLInterface {
   virtual Status DropIndex(const std::string& name) = 0;
 };
 
-class StorageAPUpdateInterface : public StorageUpdateInterface,
-                                 public StorageIndexDDLInterface {
+class StorageAPInPlaceUpdateInterface : public StorageUpdateInterface,
+                                        public StorageIndexDDLInterface {
  public:
   using PlanningChangedCallback = std::function<void()>;
 
-  explicit StorageAPUpdateInterface(
+  explicit StorageAPInPlaceUpdateInterface(
       PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
       neug::Allocator& alloc, PlanningChangedCallback on_planning_changed = {})
       : StorageUpdateInterface(view, timestamp),
@@ -986,7 +986,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
         alloc_(alloc),
         timestamp_(timestamp),
         on_planning_changed_(std::move(on_planning_changed)) {}
-  ~StorageAPUpdateInterface() {}
+  ~StorageAPInPlaceUpdateInterface() {}
 
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;

@@ -9,6 +9,9 @@ if (BUILD_HTTP_SERVER)
     list(APPEND storage_test_src test_recovery.cc test_checkpoint.cc)
 endif()
 add_neug_test(storage_test ${storage_test_src})
+if (TARGET rt_server)
+    add_dependencies(storage_test rt_server)
+endif()
 
 add_neug_test(ap_index_test test_ap_index.cc)
 

@@ -109,6 +109,8 @@ class UpdateTransaction {
   Status Commit(GraphSnapshotStore& snapshot_store,
                 IWalWriter* wal_writer = nullptr);
 
+  void MarkPlanningChanged() noexcept { cow_state_.planning_changed = true; }
+
   void Abort() noexcept;
 
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
@@ -188,9 +190,14 @@ class StorageCOWUpdateInterface : public StorageUpdateInterface {
   ~StorageCOWUpdateInterface() = default;
 
  protected:
-  neug::result<StorageIndex*> CreateIndexDDLForAP(
-      std::unique_ptr<IndexMeta> meta);
-  Status DropIndexDDLForAP(const std::string& name);
+  // Non-virtual COW implementations exposed only by the AP capability adapter.
+  neug::result<StorageIndex*> CreateIndexForAP(std::unique_ptr<IndexMeta> meta);
+  Status DropIndexForAP(const std::string& name);
+  result<std::vector<vid_t>> BatchAddVerticesForAP(
+      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier);
+  Status BatchAddEdgesForAP(label_t src_label, label_t dst_label,
+                            label_t edge_label,
+                            std::shared_ptr<IDataChunkSupplier> supplier);
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.
@@ -203,6 +210,7 @@ class StorageCOWUpdateInterface : public StorageUpdateInterface {
   void MarkSchemaDirty() override {
     cow_graph_->MarkSchemaDirty();
     cow_state_.schema_changed = true;
+    cow_state_.planning_changed = true;
   }
 
   // --- DML *Impl ---
@@ -292,11 +300,24 @@ class StorageAPCOWUpdateInterface final : public StorageCOWUpdateInterface,
 
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override {
-    return CreateIndexDDLForAP(std::move(meta));
+    return CreateIndexForAP(std::move(meta));
   }
 
   Status DropIndex(const std::string& name) override {
-    return DropIndexDDLForAP(name);
+    return DropIndexForAP(name);
+  }
+
+ private:
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
+      label_t v_label_id,
+      std::shared_ptr<IDataChunkSupplier> supplier) override {
+    return BatchAddVerticesForAP(v_label_id, std::move(supplier));
+  }
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override {
+    return BatchAddEdgesForAP(src_label, dst_label, edge_label,
+                              std::move(supplier));
   }
 };
 

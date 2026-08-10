@@ -83,7 +83,8 @@ void ExecutionSlotLease::reset() noexcept {
 
 namespace {
 
-void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
+template <typename WriteContext>
+void markPlanningChangedIfNeeded(WriteContext& write_context,
                                  ExplainMode explain_mode,
                                  const execution::CacheValue* prepared_query,
                                  const Status& execution_status) {
@@ -95,7 +96,7 @@ void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
   }
   const auto& flags = prepared_query->flags;
   if (flags.batch() || flags.update()) {
-    write_scope.MarkPlanningChanged();
+    write_context.MarkPlanningChanged();
   }
 }
 
@@ -372,7 +373,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
     } else if (access_mode == AccessMode::kInsert) {
       InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
       auto& slot = write_scope.Snapshot();
-      StorageAPUpdateInterface storage(
+      StorageAPInPlaceUpdateInterface storage(
           *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
           alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
       status = execute_on_storage(
@@ -386,6 +387,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageAPCOWUpdateInterface storage(transaction, alloc_);
       status = execute_on_storage(transaction.statistic(), storage);
       if (status.ok()) {
+        markPlanningChangedIfNeeded(transaction, analysis.explain_mode,
+                                    prepared_query.get(), status);
         status = transaction.Commit(snapshot_store_);
       } else {
         transaction.Abort();

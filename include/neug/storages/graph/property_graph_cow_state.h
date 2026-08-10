@@ -54,6 +54,8 @@ struct PropertyGraphCowState {
   // Schema/catalog changes cannot always be inferred from detach state (for
   // example rename and delete operations), so track them explicitly.
   bool schema_changed{false};
+  // Whether publishing this COW workspace must advance the planning generation.
+  bool planning_changed{false};
 
   static PropertyGraphCowState FromSchema(const Schema& schema);
 

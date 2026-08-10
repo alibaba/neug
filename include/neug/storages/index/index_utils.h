@@ -16,10 +16,24 @@
 
 #pragma once
 
+#include <functional>
+#include <vector>
+
+#include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
+
 namespace neug {
 
 struct IndexMeta;
+class PropertyGraph;
+class StorageIndex;
 
 bool IsHNSWIndex(const IndexMeta& meta);
+
+// Adds index entries for newly inserted vertices. COW callers use
+// prepare_index to detach each index before its first mutation.
+Status AddBatchVertexIndexData(
+    PropertyGraph& graph, label_t label, const std::vector<vid_t>& vids,
+    const std::function<Status(StorageIndex&)>& prepare_index = nullptr);
 
 }  // namespace neug
