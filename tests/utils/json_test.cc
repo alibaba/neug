@@ -85,6 +85,16 @@ class JsonTest : public ::testing::Test {
     return type;
   }
 
+  std::shared_ptr<::common::DataType> createInt32ArrayType(
+      uint32_t fixed_length) {
+    auto type = std::make_shared<::common::DataType>();
+    auto* array = type->mutable_array();
+    array->set_fixed_length(fixed_length);
+    array->mutable_component_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_SIGNED_INT32);
+    return type;
+  }
+
   std::shared_ptr<::common::DataType> createNestedStringListType() {
     auto type = std::make_shared<::common::DataType>();
     auto* outer_list = type->mutable_list();
@@ -185,6 +195,36 @@ TEST_F(JsonTest, TestJsonArrayColumn) {
   EXPECT_EQ(first_values[0].GetValue<int64_t>(), 1);
   EXPECT_EQ(first_values[1].GetValue<int64_t>(), 2);
   EXPECT_EQ(first_values[2].GetValue<int64_t>(), 3);
+}
+
+TEST_F(JsonTest, TestJsonNullArrayColumnUsesDefaultValue) {
+  createJsonFile("test_json_null_array_column.json",
+                 "[{\"id\":1,\"readings\":[1,2]},"
+                 "{\"id\":2,\"readings\":null},"
+                 "{\"id\":3,\"readings\":[3,4]}]");
+  auto sharedState = createSharedState(
+      "test_json_null_array_column.json", {"id", "readings"},
+      {createUInt32Type(), createInt32ArrayType(2)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  execution::Context ctx;
+
+  reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
+
+  ASSERT_EQ(ctx.row_num(), 3);
+  auto readings_col = ctx.chunk(0).columns()[1];
+  EXPECT_FALSE(readings_col->is_optional());
+
+  auto null_value = readings_col->get_elem(1);
+  const auto& null_values = ArrayValue::GetChildren(null_value);
+  ASSERT_EQ(null_values.size(), 2);
+  EXPECT_EQ(null_values[0].GetValue<int32_t>(), 0);
+  EXPECT_EQ(null_values[1].GetValue<int32_t>(), 0);
+
+  auto following_value = readings_col->get_elem(2);
+  const auto& following_values = ArrayValue::GetChildren(following_value);
+  ASSERT_EQ(following_values.size(), 2);
+  EXPECT_EQ(following_values[0].GetValue<int32_t>(), 3);
+  EXPECT_EQ(following_values[1].GetValue<int32_t>(), 4);
 }
 
 TEST_F(JsonTest, TestJsonArrayColumnLengthMismatch) {

@@ -19,6 +19,7 @@
 #include "neug/common/types/i_context_column.h"
 #include "neug/common/types/value.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/default_value.h"
 
 namespace neug {
 
@@ -119,6 +120,13 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
     }
     for (const auto& v : children) {
       child_builder_->push_back_elem(v);
+    }
+  }
+
+  void push_back_null() override {
+    const auto child_default = get_default_value(elem_type_);
+    for (uint64_t i = 0; i < array_size_; ++i) {
+      child_builder_->push_back_elem(child_default);
     }
   }
 
