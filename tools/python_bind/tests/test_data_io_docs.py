@@ -32,6 +32,7 @@ which matches the examples in the documentation.
 import os
 import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -85,7 +86,7 @@ class TestLoadFromDocs:
         RETURN name, age;"""
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
-            f'LOAD FROM "{csv_path}" (header=true) RETURN name, age;'
+            f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true) RETURN name, age;'
         )
         records = list(result)
         assert len(records) == 4
@@ -99,7 +100,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         # Return columns in reverse order (age, name, id) vs CSV order (id, name, age)
         result = self.conn.execute(
-            f'LOAD FROM "{csv_path}" (header=true) RETURN age, name, id;'
+            f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true) RETURN age, name, id;'
         )
         records = list(result)
         assert len(records) == 4
@@ -114,7 +115,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true)
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true)
             RETURN name AS person_name, age AS years
             """
         )
@@ -128,7 +129,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true)
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true)
             RETURN name, CAST(age, 'DOUBLE') AS double_age
             """
         )
@@ -142,7 +143,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true)
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true)
             WHERE age > 25 AND age < 40
             RETURN name, age
             """
@@ -157,7 +158,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true)
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true)
             RETURN
                 COUNT(*) AS total,
                 AVG(age) AS avg_age,
@@ -178,7 +179,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true)
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true)
             RETURN name, age
             ORDER BY age DESC
             LIMIT 2
@@ -200,7 +201,7 @@ class TestLoadFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (
+            LOAD FROM "{Path(csv_path).as_posix()}" (
                 header = true,
                 parallel = true
             )
@@ -217,7 +218,7 @@ class TestLoadFromDocs:
 
         rows = list(
             self.conn.execute(
-                f'LOAD FROM "{csv_path}" (header=true, delimiter=",") '
+                f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",") '
                 "RETURN id, readings;"
             )
         )
@@ -225,7 +226,7 @@ class TestLoadFromDocs:
 
         rows = list(
             self.conn.execute(
-                f'LOAD FROM "{csv_path}" (header=true, delimiter=",") '
+                f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",") '
                 "RETURN id, CAST(readings, 'INT64[3]') AS readings;"
             )
         )
@@ -329,7 +330,9 @@ class TestCopyFromDocs:
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         csv_path = os.path.join(self.data_path, "person.csv")
-        self.conn.execute(f'COPY Person FROM "{csv_path}" (header=true);')
+        self.conn.execute(
+            f'COPY Person FROM "{Path(csv_path).as_posix()}" (header=true);'
+        )
         res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
 
@@ -381,7 +384,7 @@ class TestCopyFromDocs:
         self.conn.execute(
             f"""
             COPY Person FROM (
-                LOAD FROM "{remap_csv}" (header=true, delimiter=",")
+                LOAD FROM "{Path(remap_csv).as_posix()}" (header=true, delimiter=",")
                 RETURN id, name, age
             )
             """
@@ -404,7 +407,7 @@ class TestCopyFromDocs:
         self.conn.execute(
             f"""
             COPY Person FROM (
-                LOAD FROM "{csv_path}" (header=true)
+                LOAD FROM "{Path(csv_path).as_posix()}" (header=true)
                 WHERE age >= 18
                 RETURN *
             )
@@ -425,7 +428,7 @@ class TestCopyFromDocs:
         )
         csv_path = os.path.join(self.data_path, "person.csv")
         self.conn.execute(
-            f'COPY Person FROM "{csv_path}" (header=true, parallel=true);'
+            f'COPY Person FROM "{Path(csv_path).as_posix()}" (header=true, parallel=true);'
         )
         res = self.conn.execute("MATCH (p:Person) RETURN count(p);")
         assert list(res)[0][0] == 4
@@ -441,7 +444,7 @@ class TestCopyFromDocs:
         self.conn.execute(
             f"""
             COPY Sensor FROM (
-                LOAD FROM "{csv_path}" (header=true, delimiter=",")
+                LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")
                 RETURN id, CAST(readings, 'INT64[3]') AS readings
             );
             """
@@ -463,7 +466,7 @@ class TestCopyFromDocs:
         csv_path = os.path.join(self.data_path, "person.csv")
         self.conn.execute(
             f"""
-            COPY Person FROM "{csv_path}" (
+            COPY Person FROM "{Path(csv_path).as_posix()}" (
                 header = true,
                 batch_read = true,
                 batch_size = 2097152

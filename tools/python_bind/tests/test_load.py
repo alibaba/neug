@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import sys
+from pathlib import Path
 
 import pytest
 from conftest import COMPREHENSIVE_GRAPH_DIR
@@ -108,7 +109,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN *
         """
         result = self.conn.execute(query)
@@ -129,7 +130,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName, age
         """
         result = self.conn.execute(query)
@@ -150,7 +151,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT CAST(isStudent, 'BOOL')
         """
         result = self.conn.execute(query)
@@ -174,7 +175,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT age
         """
         result = self.conn.execute(query)
@@ -202,7 +203,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT fName
         """
         result = self.conn.execute(query)
@@ -230,7 +231,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT CAST(birthdate, 'DATE')
         """
         result = self.conn.execute(query)
@@ -256,7 +257,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT CAST(registerTime, 'TIMESTAMP')
         """
         result = self.conn.execute(query)
@@ -283,7 +284,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT isStudent, age
         """
         result = self.conn.execute(query)
@@ -316,7 +317,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN DISTINCT fName, CAST(birthdate, 'DATE'), CAST(registerTime, 'TIMESTAMP')
         """
         result = self.conn.execute(query)
@@ -346,7 +347,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         WHERE age > 30
         RETURN fName, age
         """
@@ -367,7 +368,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName, age
         ORDER BY age
         """
@@ -387,7 +388,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName, age
         ORDER BY age DESC
         """
@@ -409,7 +410,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName, age
         LIMIT 3
         """
@@ -425,7 +426,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN gender, COUNT(*) as cnt
         """
         result = self.conn.execute(query)
@@ -446,7 +447,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN gender, AVG(age) as avg_age, MAX(age) as max_age
         """
         result = self.conn.execute(query)
@@ -467,7 +468,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         WHERE age > 25
         RETURN fName, age
         ORDER BY age DESC
@@ -491,7 +492,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         WHERE age > 30
         RETURN fName, age
         LIMIT 2
@@ -512,7 +513,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN gender, COUNT(*) as cnt
         ORDER BY cnt DESC
         """
@@ -534,7 +535,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         WHERE age > 25
         RETURN gender, AVG(age) as avg_age
         ORDER BY avg_age DESC
@@ -557,7 +558,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN *
         """
         result = self.conn.execute(query)
@@ -578,7 +579,7 @@ class TestLoadFrom:
         # Assuming eMeets.csv has location and times columns
         # This is a basic test - adjust based on actual CSV structure
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN to, from, location
         ORDER BY to, from
         LIMIT 5
@@ -602,7 +603,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName AS name, age AS years
         """
         result = self.conn.execute(query)
@@ -623,7 +624,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         WHERE age > 25 AND age < 40
         RETURN fName, age
         """
@@ -643,7 +644,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN SUM(age) as total_age
         """
         result = self.conn.execute(query)
@@ -662,7 +663,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN COUNT(*) as total_count
         """
         result = self.conn.execute(query)
@@ -681,7 +682,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN MIN(age) as min_age, MAX(age) as max_age
         """
         result = self.conn.execute(query)
@@ -701,7 +702,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName, CAST(age, 'DOUBLE') as age_double
         """
         result = self.conn.execute(query)
@@ -723,7 +724,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN fName, CAST(eyeSight, 'STRING') as eyeSight_str
         """
         result = self.conn.execute(query)
@@ -745,7 +746,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         RETURN
             CAST(ID, 'INT64') as id_int,
             fName,
@@ -775,7 +776,7 @@ class TestLoadFrom:
             pytest.skip(f"CSV file not found: {csv_path}")
 
         query = f"""
-        LOAD FROM "{csv_path}" (delim=',')
+        LOAD FROM "{Path(csv_path).as_posix()}" (delim=',')
         WHERE age > 30.0
         RETURN fName, CAST(age, 'DOUBLE') as age_double
         """
@@ -1482,7 +1483,7 @@ class TestCopyFrom:
         self.conn.execute(create_schema)
 
         # Copy data from CSV
-        copy_query = f'COPY person FROM "{csv_path}" (header=true, delimiter=",")'
+        copy_query = f'COPY person FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")'
         self.conn.execute(copy_query)
 
         # Verify data with MATCH query
@@ -1522,7 +1523,7 @@ class TestCopyFrom:
         # We want: ID, age, fName, gender, isStudent
         copy_query = f"""
         COPY person_remap FROM (
-            LOAD FROM "{csv_path}" (header=true, delimiter=",")
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")
             RETURN ID, CAST(age, 'INT32') as age, fName, gender, isStudent
         )
         """
@@ -1744,7 +1745,7 @@ class TestCopyFrom:
         # Copy with complete column remapping
         copy_query = f"""
         COPY person_reordered FROM (
-            LOAD FROM "{csv_path}" (header=true, delimiter=",")
+            LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delimiter=",")
             RETURN ID, age, fName, gender, isStudent, isWorker, eyeSight
         )
         """

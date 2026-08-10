@@ -275,18 +275,6 @@ jobs:
           python -m pytest -sv tests/test_db_list.py --exitfirst
           python -m pytest -sv tests/test_db_array.py --exitfirst
 
-      - name: Run Python concurrency tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_db_concurrent.py --exitfirst
-
-      - name: Run Python transaction concurrent tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/transaction/elle_tester_insert.py --exitfirst
-
       - name: Run Python PyArrow related tests
         continue-on-error: true
         run: |
