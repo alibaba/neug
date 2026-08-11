@@ -30,6 +30,7 @@
 #include <gtest/gtest.h>
 
 #include "neug/main/file_lock.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace test {
@@ -76,6 +77,45 @@ TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
   reader.unlock();
 
   ASSERT_EQ(::chmod(lock_path.c_str(), S_IRUSR | S_IWUSR), 0);
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(FileLockTest, ReadOnlyOpenOnReadOnlyDirectoryReportsWritableHint) {
+  if (::geteuid() == 0) {
+    GTEST_SKIP() << "chmod-based permission checks do not apply to root";
+  }
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_read_only_dir_lock_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+  std::filesystem::create_directories(db_dir);
+
+  // The lock file is missing and the directory is not writable, so the
+  // O_RDONLY | O_CREAT open must fail and explain that read-only mode still
+  // requires a writable data directory.
+  ASSERT_EQ(::chmod(db_dir.c_str(),
+                    S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH),
+            0);
+
+  std::string error;
+  FileLock reader(db_dir.string());
+  bool permission_denied = false;
+  try {
+    (void) reader.lock(error, DBMode::READ_ONLY);
+  } catch (const exception::PermissionDeniedException& err) {
+    permission_denied = true;
+    EXPECT_NE(std::string(err.what())
+                  .find("Read-only mode still requires a writable data "
+                        "directory"),
+              std::string::npos)
+        << err.what();
+  }
+  EXPECT_TRUE(permission_denied)
+      << "read-only lock on a read-only directory should report a "
+         "permission error, got: "
+      << error;
+
+  ASSERT_EQ(::chmod(db_dir.c_str(), S_IRWXU), 0);
   std::filesystem::remove_all(db_dir);
 }
 

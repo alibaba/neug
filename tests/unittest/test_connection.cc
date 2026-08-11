@@ -408,6 +408,75 @@ TEST(ConnectionReadOnlyTest, SymlinkedDirectoryResolvesToSameLockEntry) {
   std::filesystem::remove_all(db_dir);
 }
 
+// Two processes opening the same database read-only at the same time must
+// both succeed: they race on the fcntl lock and on the O_EXCL runtime-file
+// reservation, and the retries must converge instead of failing.
+TEST(ConnectionReadOnlyTest, ConcurrentProcessesOpenDatabaseSimultaneously) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_concurrent_open_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+
+  NeugDBConfig write_config(db_dir.string(), 1);
+  write_config.checkpoint_on_close = true;
+  write_config.memory_level = MemoryLevel::kInMemory;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(write_config));
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema"));
+    connection->Close();
+    db.Close();
+  }
+
+  int start_pipe[2];
+  ASSERT_EQ(::pipe(start_pipe), 0);
+
+  pid_t children[2];
+  for (auto& child_pid : children) {
+    const pid_t pid = ::fork();
+    ASSERT_GE(pid, 0);
+    if (pid == 0) {
+      ::close(start_pipe[1]);
+      char token = 0;
+      // Block until the parent closes the write end, releasing every child
+      // at the same moment to start the open race.
+      while (::read(start_pipe[0], &token, 1) == -1 && errno == EINTR) {}
+      ::close(start_pipe[0]);
+
+      char status = '0';
+      try {
+        NeugDBConfig read_config(db_dir.string(), 1);
+        read_config.mode = DBMode::READ_ONLY;
+        read_config.memory_level = MemoryLevel::kSyncToFile;
+        NeugDB db;
+        const bool opened = db.Open(read_config);
+        auto connection = db.Connect();
+        const bool queried =
+            connection->Query("MATCH (n:person) RETURN count(n);", "read")
+                .has_value();
+        status = opened && queried ? '1' : '0';
+        db.Close();
+      } catch (...) {}
+      ::_exit(status == '1' ? 0 : 1);
+    }
+    child_pid = pid;
+  }
+  ::close(start_pipe[0]);
+  // Let both children block on the pipe, then release them simultaneously.
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  ::close(start_pipe[1]);
+
+  for (const auto child_pid : children) {
+    int status = 0;
+    ASSERT_EQ(::waitpid(child_pid, &status, 0), child_pid);
+    EXPECT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 0);
+  }
+  std::filesystem::remove_all(db_dir);
+}
+
 // Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.
 TEST_F(ConnectionTest, TestExplicitReadAccessModeForCall) {
   NeugDB db;
