@@ -191,6 +191,11 @@ class PropertyGraph {
 
   StorageIndexManager& mutable_index_manager();
 
+  /** Activate and bind extension-backed indexes deferred during Open. */
+  Status ActivateIndexes();
+
+  bool HasPendingIndexes() const;
+
   /**
    * @brief Clear all graph data and reset to empty state.
    *

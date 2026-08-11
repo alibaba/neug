@@ -36,6 +36,7 @@
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
@@ -82,6 +83,29 @@ const StorageIndexManager& PropertyGraph::index_manager() const {
 
 StorageIndexManager& PropertyGraph::mutable_index_manager() {
   return *index_manager_;
+}
+
+Status PropertyGraph::ActivateIndexes() {
+  auto activated = index_manager_->ActivateIndexes();
+  if (!activated) {
+    return activated.error();
+  }
+  for (auto* index : activated.value()) {
+    const auto& meta = index->GetMeta();
+    if (meta.schema.label_id >= vertex_tables_.size() ||
+        !schema_.is_vertex_label_valid(meta.schema.label_id)) {
+      return Status::InternalError("Invalid label for pending index: " +
+                                   meta.name);
+    }
+    auto* column = vertex_tables_[meta.schema.label_id].GetPropertyColumnBase(
+        meta.schema.property_name);
+    RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{column}));
+  }
+  return Status::OK();
+}
+
+bool PropertyGraph::HasPendingIndexes() const {
+  return index_manager_->HasPendingIndexes();
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {

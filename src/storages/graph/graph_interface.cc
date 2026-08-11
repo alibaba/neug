@@ -710,4 +710,13 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
   return Status::OK();
 }
 
+Status StorageAPUpdateInterface::ActivateIndexes() {
+  RETURN_IF_NOT_OK(graph_.ActivateIndexes());
+  mut_view_.Rebuild(graph_);
+  if (on_planning_changed_) {
+    on_planning_changed_();
+  }
+  return Status::OK();
+}
+
 }  // namespace neug

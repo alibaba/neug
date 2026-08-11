@@ -38,6 +38,12 @@ namespace neug {
  */
 class StorageIndexManager {
  public:
+  struct PendingIndex {
+    std::string key;
+    ModuleDescriptor descriptor;
+    IndexMeta meta;
+  };
+
   StorageIndexManager() = default;
   ~StorageIndexManager() = default;
 
@@ -80,6 +86,10 @@ class StorageIndexManager {
   void Open(std::shared_ptr<Checkpoint> ckp, ModuleBroker& store,
             MemoryLevel level);
 
+  neug::result<std::vector<StorageIndex*>> ActivateIndexes();
+
+  bool HasPendingIndexes() const { return !pending_indexes_.empty(); }
+
   /**
    * @brief Move all indexes into the module broker for persistence.
    */
@@ -99,6 +109,7 @@ class StorageIndexManager {
   std::shared_ptr<Checkpoint> ckp_;
   MemoryLevel memory_level_{MemoryLevel::kInMemory};
   std::unordered_map<std::string, std::unique_ptr<StorageIndex>> indexes_;
+  std::unordered_map<std::string, PendingIndex> pending_indexes_;
 };
 
 }  // namespace neug

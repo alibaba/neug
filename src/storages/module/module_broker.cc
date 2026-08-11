@@ -37,6 +37,9 @@ void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
     }
     auto module = factory.Create(desc.module_type);
     if (!module) {
+      if (!desc.required) {
+        continue;
+      }
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "ModuleBroker::Open: unknown module_type '" + desc.module_type +
           "' for entry '" + name +

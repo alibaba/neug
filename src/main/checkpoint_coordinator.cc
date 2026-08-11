@@ -148,6 +148,13 @@ Status CheckpointCoordinator::execute(Reason reason) {
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
 
+          if (live_graph.HasPendingIndexes()) {
+            return Status(
+                StatusCode::ERR_ILLEGAL_OPERATION,
+                "Cannot create a checkpoint while extension-backed indexes "
+                "are pending. Load the required extension first.");
+          }
+
           LOG(INFO) << "Executing " << reasonName(reason) << " checkpoint"
                     << (reopen_after_checkpoint
                             ? " and reopening the current graph"

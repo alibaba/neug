@@ -949,6 +949,9 @@ class StorageIndexDDLInterface {
  public:
   virtual ~StorageIndexDDLInterface() {}
 
+  /** Activate index modules deferred until their extension was loaded. */
+  virtual Status ActivateIndexes() = 0;
+
   /** @brief Create, bind, and populate an index. */
   virtual result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) = 0;
@@ -977,6 +980,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
+  Status ActivateIndexes() override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {
