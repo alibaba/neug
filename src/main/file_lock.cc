@@ -173,7 +173,9 @@ bool FileLock::lock(short type, bool wait, std::string& error_msg) {
   DWORD flags = 0;
   if (type == F_WRLCK)
     flags |= LOCKFILE_EXCLUSIVE_LOCK;
-  if (wait)
+  // wait=false: non-blocking, fail immediately if locked
+  // wait=true: blocking, retry until acquired
+  if (!wait)
     flags |= LOCKFILE_FAIL_IMMEDIATELY;
   if (type == F_UNLCK) {
     OVERLAPPED ov = {};
@@ -190,6 +192,11 @@ bool FileLock::lock(short type, bool wait, std::string& error_msg) {
     }
     DWORD err = GetLastError();
     if (err == ERROR_LOCK_VIOLATION) {
+      if (wait) {
+        // Blocking mode: retry after a short sleep
+        Sleep(10);
+        continue;
+      }
       error_msg =
           "Lock file is already locked by another process: " + lock_file_path_ +
           ", please check if another instance of the database is running.";

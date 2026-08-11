@@ -124,9 +124,13 @@ int main(int argc, char** argv) {
   }
 
 #ifdef _WIN32
-  _putenv("TZ=Asia/Shanghai");
+  if (_putenv("TZ=Asia/Shanghai") != 0) {
+    LOG(ERROR) << "Failed to set TZ environment variable";
+  }
 #else
-  setenv("TZ", "Asia/Shanghai", 1);
+  if (setenv("TZ", "Asia/Shanghai", 1) != 0) {
+    LOG(ERROR) << "Failed to set TZ environment variable";
+  }
 #endif
   tzset();
 

@@ -453,19 +453,13 @@ class LFIndexer {
     auto* indices_ptr = indices_->mutable_data();
     size_t index = hash_policy_.index_for_hash(hash, num_slots_minus_one_);
     while (true) {
-#ifdef _WIN32
       INDEX_T expected = sentinel;
-      if (std::atomic_compare_exchange_strong_explicit(
-              reinterpret_cast<std::atomic<INDEX_T>*>(&indices_ptr[index]),
-              &expected, ind, std::memory_order_seq_cst,
+      std::atomic_ref<INDEX_T> ref(indices_ptr[index]);
+      if (ref.compare_exchange_strong(
+              expected, ind, std::memory_order_seq_cst,
               std::memory_order_seq_cst)) {
         break;
       }
-#else
-      if (__sync_bool_compare_and_swap(&indices_ptr[index], sentinel, ind)) {
-        break;
-      }
-#endif
       index = (index + 1) % (num_slots_minus_one_ + 1);
     }
   }
