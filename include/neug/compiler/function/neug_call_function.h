@@ -36,6 +36,11 @@ class Context;
 namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
+
+  // Bind the input context immediately before execution. Call functions that
+  // do not consume an input context can use the default no-op implementation.
+  virtual void bindContext(execution::Context&& /*input_context*/) {}
+
   // Bind deferred $param args into a per-Eval input.
   // Opr stores this object unbound after bindFunc; Eval calls bindParams and
   // executes against the returned input. Default: no deferred params — return

@@ -40,6 +40,7 @@
 #include "neug/execution/execute/ops/retrieve/edge.h"
 #include "neug/execution/execute/ops/retrieve/gds_algo.h"
 #include "neug/execution/execute/ops/retrieve/group_by.h"
+#include "neug/execution/execute/ops/retrieve/index_scan.h"
 #include "neug/execution/execute/ops/retrieve/intersect.h"
 #include "neug/execution/execute/ops/retrieve/join.h"
 #include "neug/execution/execute/ops/retrieve/limit.h"
@@ -82,6 +83,7 @@ namespace execution {
 
 void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::ScanOprBuilder>());
+  register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
 
   register_operator_builder(std::make_unique<ops::DummySourceOprBuilder>());
 
@@ -188,6 +190,9 @@ static std::string get_opr_name(
   switch (op_kind) {
   case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
     return "scan";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+    return "index_scan";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
     return "edge_expand";
@@ -423,6 +428,11 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
           }
         }
       }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+      expression_parse(plan.plan(i).opr().index_scan().target_value(),
+                       params_type);
       break;
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {

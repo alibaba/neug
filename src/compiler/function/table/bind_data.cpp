@@ -35,5 +35,7 @@ std::unique_ptr<TableFuncBindData> TableFuncBindData::copy() const {
   return std::make_unique<TableFuncBindData>(*this);
 }
 
+IndexScanBindData::~IndexScanBindData() = default;
+
 }  // namespace function
 }  // namespace neug
