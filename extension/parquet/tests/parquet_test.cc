@@ -331,6 +331,40 @@ TEST_F(ParquetTest, TestOptionsTranslation_UseThreads) {
       << "Extension should translate parallel=false to use_threads=false";
 }
 
+TEST_F(ParquetTest, TestOptionsTranslation_ScannerUseThreads) {
+  createSimpleParquetFile("test_scanner_threads.parquet");
+
+  // parallel=true must also reach the dataset scanner itself
+  // (ScanOptions::use_threads), otherwise the scan stays single-threaded
+  // regardless of ArrowReaderProperties::use_threads.
+  auto sharedState = createSharedState(
+      "test_scanner_threads.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"parallel", "true"}});
+
+  reader::ArrowParquetOptionsBuilder optionsBuilder(sharedState);
+  auto options = optionsBuilder.build();
+
+  EXPECT_TRUE(options.scanOptions->use_threads)
+      << "Extension should translate parallel=true to "
+         "ScanOptions::use_threads";
+  EXPECT_NE(options.scanOptions->io_context.executor(), nullptr)
+      << "Scanner needs an IOContext with an executor for parallel scans";
+
+  // parallel=false keeps the scanner single-threaded
+  auto sharedState2 = createSharedState(
+      "test_scanner_threads.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"parallel", "false"}});
+
+  reader::ArrowParquetOptionsBuilder optionsBuilder2(sharedState2);
+  auto options2 = optionsBuilder2.build();
+
+  EXPECT_FALSE(options2.scanOptions->use_threads)
+      << "Extension should translate parallel=false to "
+         "ScanOptions::use_threads=false";
+}
+
 TEST_F(ParquetTest, TestOptionsTranslation_IoCoalescing) {
   createSimpleParquetFile("test_cache.parquet");
 
@@ -702,6 +736,52 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
   auto col0_2 = ctx2.chunk(0).columns()[0];
   EXPECT_EQ(col0_2->column_type(), ContextColumnType::kValue)
       << "Extension should use Value column type when batch_read=false";
+}
+
+TEST_F(ParquetTest, TestIntegration_ParallelReadMultiRowGroup) {
+  // Write a parquet file with multiple row groups so the parallel reader
+  // can split it into independent scan tasks.
+  auto schema = arrow::schema({arrow::field("id", arrow::int64()),
+                               arrow::field("value", arrow::float64())});
+
+  constexpr int64_t kNumRows = 100;
+  arrow::Int64Builder id_builder;
+  arrow::DoubleBuilder value_builder;
+  for (int64_t i = 0; i < kNumRows; ++i) {
+    ASSERT_TRUE(id_builder.Append(i).ok());
+    ASSERT_TRUE(value_builder.Append(static_cast<double>(i) * 1.5).ok());
+  }
+  std::shared_ptr<arrow::Array> id_array, value_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(value_builder.Finish(&value_array).ok());
+  auto table = arrow::Table::Make(schema, {id_array, value_array});
+
+  std::string filepath =
+      std::string(PARQUET_TEST_DIR) + "/test_parallel_multi_rg.parquet";
+  std::shared_ptr<arrow::io::FileOutputStream> outfile;
+  PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
+  // chunk_size=25 -> 4 row groups of 25 rows
+  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 25));
+
+  // Read with parallel=true: fragments are split by row group and scanned
+  // with the thread pool; all rows must still come back intact.
+  auto sharedState =
+      createSharedState("test_parallel_multi_rg.parquet", {"id", "value"},
+                        {createInt64Type(), createDoubleType()},
+                        {{"parallel", "true"}, {"batch_read", "true"}});
+
+  auto reader = createParquetReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  int64_t totalRows = 0;
+  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+    totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
+  }
+  EXPECT_EQ(totalRows, kNumRows)
+      << "Parallel read over multiple row groups should return all rows";
 }
 
 TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
