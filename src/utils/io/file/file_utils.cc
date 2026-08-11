@@ -39,6 +39,7 @@
 #else
 #include <direct.h>
 #include <io.h>
+#include <process.h>
 #include <sys/stat.h>
 #include <windows.h>
 

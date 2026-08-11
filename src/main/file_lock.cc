@@ -25,6 +25,7 @@
 #include <unistd.h>
 #else
 #include <io.h>
+#include <process.h>
 #include <sys/stat.h>
 #include <windows.h>
 #endif
