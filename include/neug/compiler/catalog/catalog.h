@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
@@ -65,8 +66,13 @@ namespace extension {
 class ExtensionAPI;
 }
 
+namespace optimizer {
+class LogicalRule;
+}
+
 namespace catalog {
 class FunctionCatalogEntry;
+class RuleCatalogEntry;
 class SequenceCatalogEntry;
 class IndexCatalogEntry;
 
@@ -149,6 +155,14 @@ class NEUG_API Catalog {
   std::vector<FunctionCatalogEntry*> getFunctionEntries(
       const transaction::Transaction* transaction) const;
 
+  bool containsRule(const transaction::Transaction* transaction,
+                    const std::string& name) const;
+  void addRule(
+      transaction::Transaction* transaction, std::string name,
+      std::function<std::unique_ptr<optimizer::LogicalRule>()> ruleFactory);
+  std::vector<RuleCatalogEntry*> getRuleEntries(
+      const transaction::Transaction* transaction) const;
+
   // Add function with name.
   void addFunction(transaction::Transaction* transaction,
                    CatalogEntryType entryType, std::string name,
@@ -181,6 +195,7 @@ class NEUG_API Catalog {
   std::shared_ptr<CatalogSet> functions;
   std::shared_ptr<CatalogSet> types;
   std::shared_ptr<CatalogSet> indexes;
+  std::shared_ptr<CatalogSet> rules;
   std::shared_ptr<CatalogSet> internalTables;
   std::shared_ptr<CatalogSet> internalSequences;
   std::shared_ptr<CatalogSet> internalFunctions;

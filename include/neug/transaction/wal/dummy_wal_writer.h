@@ -27,11 +27,11 @@ namespace neug {
 class DummyWalWriter : public IWalWriter {
  public:
   DummyWalWriter() {}
-  ~DummyWalWriter() {}
+  ~DummyWalWriter() noexcept override = default;
 
   std::string type() const override;
 
-  void open() override;
+  void open(const std::string& wal_uri) override;
 
   void close() override;
   bool append(const char* data, size_t length) override;

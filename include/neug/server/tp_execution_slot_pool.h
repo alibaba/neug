@@ -17,7 +17,6 @@
 #include <glog/logging.h>
 
 #include <cstdlib>
-#include <exception>
 #include <memory>
 #include <new>
 #include <string>
@@ -30,6 +29,7 @@
 #include "bthread/bthread.h"
 
 namespace neug {
+class CheckpointCoordinator;
 class NeugDBService;
 
 /**
@@ -49,8 +49,8 @@ class NeugDBService;
  * - Automatic WAL (Write-Ahead Log) management per slot
  * - 4096-byte-aligned per-slot Entry storage
  *
- * **Pool Size:** Determined by `NeugDBConfig::max_thread_num`, typically
- * matching the number of concurrent request handlers.
+ * **Pool Size:** `NeugDBConfig::max_thread_num` determines the pool size. Each
+ * TP query leases one slot and one thread for its duration.
  *
  * @see NeugDBService for HTTP service wrapper
  * @see ExecutionSlotLease for RAII slot management
@@ -64,29 +64,23 @@ class TpExecutionSlotPool {
           std::shared_ptr<IGraphPlanner> planner,
           std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
           std::shared_ptr<Allocator> alloc, IVersionManager& version_manager,
-          int slot_id, std::unique_ptr<IWalWriter> in_logger,
+          CheckpointCoordinator& checkpoint_coordinator, int slot_id,
+          std::unique_ptr<IWalWriter> in_logger, const std::string& wal_uri,
           const NeugDBConfig& config)
         : allocator(std::move(alloc)),
           logger(std::move(in_logger)),
           slot(snapshot_store, std::move(planner),
                std::move(global_query_cache), version_manager, *allocator,
-               config, slot_id) {
+               QueryExecutionStrategy::kTransactional, logger.get(),
+               checkpoint_coordinator, config, slot_id) {
       CHECK(logger != nullptr);
-      logger->open();
-      slot.bindWalWriterForTp(*logger);
-    }
-    ~Entry() {
-      if (logger) {
-        try {
-          logger->close();
-        } catch (const std::exception& e) {
-          LOG(WARNING) << "Failed to close slot WAL writer: " << e.what();
-        } catch (...) { LOG(WARNING) << "Failed to close slot WAL writer"; }
-      }
+      logger->open(wal_uri);
     }
 
     std::shared_ptr<Allocator> allocator;
     char _padding0[128 - sizeof(std::shared_ptr<Allocator>)];
+    // Declaration order is intentional: slot is destroyed before the WAL
+    // writer it references.
     std::unique_ptr<IWalWriter> logger;
     char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
                    sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
@@ -103,6 +97,7 @@ class TpExecutionSlotPool {
       std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       IVersionManager& version_manager,
+      CheckpointCoordinator& checkpoint_coordinator,
       const std::vector<std::shared_ptr<Allocator>>& allocators,
       const std::string& wal_uri, const NeugDBConfig& config)
       : entries_(nullptr), slot_num_(allocators.size()) {
@@ -121,13 +116,13 @@ class TpExecutionSlotPool {
         auto logger = WalWriterFactory::CreateWalWriter(wal_uri, slot_id);
         new (&entries_[constructed_entries])
             Entry(snapshot_store, planner, global_query_cache,
-                  allocators.at(constructed_entries), version_manager, slot_id,
-                  std::move(logger), config);
+                  allocators.at(constructed_entries), version_manager,
+                  checkpoint_coordinator, slot_id, std::move(logger), wal_uri,
+                  config);
       }
     } catch (...) {
       while (constructed_entries > 0) {
         auto& entry = entries_[--constructed_entries];
-        entry.slot.unbindWalWriterForTp();
         entry.~Entry();
       }
       free(entries_);
@@ -149,7 +144,6 @@ class TpExecutionSlotPool {
            "TpExecutionSlotPool destruction";
     if (entries_ != nullptr) {
       for (size_t slot_id = 0; slot_id < slot_num_; ++slot_id) {
-        entries_[slot_id].slot.unbindWalWriterForTp();
         entries_[slot_id].~Entry();
       }
       free(entries_);
@@ -180,6 +174,10 @@ class TpExecutionSlotPool {
     }
     return ret;
   }
+
+  // Runs while checkpoint maintenance has drained all active transactions.
+  // Rotate every stable per-slot WAL writer to the published generation.
+  void RotateWalWriters(const std::string& wal_uri);
 
  private:
   static void releaseExecutionSlot(void* owner, size_t slot_id) noexcept;

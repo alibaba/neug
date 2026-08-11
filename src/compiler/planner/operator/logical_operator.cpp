@@ -23,6 +23,8 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "COPY_FROM";
   case LogicalOperatorType::COPY_TO:
     return "COPY_TO";
+  case LogicalOperatorType::CREATE_INDEX:
+    return "CREATE_INDEX";
   case LogicalOperatorType::CREATE_MACRO:
     return "CREATE_MACRO";
   case LogicalOperatorType::CREATE_SEQUENCE:
@@ -39,6 +41,8 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "DISTINCT";
   case LogicalOperatorType::DROP:
     return "DROP";
+  case LogicalOperatorType::DROP_INDEX:
+    return "DROP_INDEX";
   case LogicalOperatorType::DUMMY_SCAN:
     return "DUMMY_SCAN";
   case LogicalOperatorType::DUMMY_SINK:

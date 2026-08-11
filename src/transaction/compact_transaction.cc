@@ -27,9 +27,13 @@
 namespace neug {
 
 CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
-                                       IWalWriter& logger, IVersionManager& vm,
+                                       IWalWriter& wal_writer,
+                                       IVersionManager& vm,
                                        timestamp_t timestamp)
-    : guard_(snapshot_store), logger_(logger), vm_(vm), timestamp_(timestamp) {
+    : guard_(snapshot_store),
+      wal_writer_(wal_writer),
+      vm_(vm),
+      timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));
 }
 
@@ -44,7 +48,7 @@ bool CompactTransaction::Commit() {
     header->timestamp = timestamp_;
     header->type = 1;
 
-    if (!logger_.append(arc_.GetBuffer(), arc_.GetSize())) {
+    if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
       LOG(ERROR) << "Failed to append wal log";
       Abort();
       return false;
@@ -54,7 +58,7 @@ bool CompactTransaction::Commit() {
     LOG(INFO) << "before compact - " << timestamp_;
     {
       // In-place compact. Keep borrowed snapshot references scoped before the
-      // timestamp lease is released.
+      // timestamp is released.
       auto& slot = guard_.get();
       slot.mutable_graph()->Compact();
       slot.mutable_view().Rebuild(*slot.mutable_graph());

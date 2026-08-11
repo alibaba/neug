@@ -94,11 +94,13 @@ class Database(object):
             Note that in memory mode, the database will not be persisted to disk, and all data will be
             lost when the program exits. In this case, the db_path should not contain any illegal characters.
         mode : str
-            Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
+            Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'readwrite'.
         max_thread_num : int
-            Maximum database thread count. Default is 0, which means
-            auto-select from hardware concurrency and fall back to 1 if the
-            runtime cannot detect it.
+            Database query capacity; 0 selects hardware concurrency (fallback 1), while higher inputs warn and clamp to it.
+
+            Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
+
+            In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
@@ -171,11 +173,11 @@ class Database(object):
 
         cpu_count = os.cpu_count()
         if cpu_count is not None and max_thread_num > cpu_count:
-            raise ValueError(
-                f"Invalid argument: max_thread_num: {max_thread_num}. "
-                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
+            logger.warning(
+                f"max_thread_num ({max_thread_num}) exceeds the number of logical "
+                f"CPUs reported by os.cpu_count() ({cpu_count}); clamping to {cpu_count}."
             )
+            max_thread_num = cpu_count
 
         if db_path is None and mode in ["r", "read", "read-only", "read_only"]:
             raise ValueError(
@@ -280,9 +282,9 @@ class Database(object):
         blocking : bool
             Whether to block the process after starting the database server.
         thread_num : int
-            Service thread count. Default is 0, which means auto-select from
-            database max_thread_num. If set explicitly, it must be less than or
-            equal to max_thread_num.
+            Service thread count. 0 selects max_thread_num; explicit values cannot exceed it.
+
+            Service threads run TP queries concurrently, but each query uses one execution context and one thread.
         auto_compaction : bool
             Enable background auto-compaction while serving. Default is True.
 
@@ -308,18 +310,18 @@ class Database(object):
                 f"Error code: {ERR_CONFIG_INVALID}."
             )
         if thread_num > self._max_thread_num:
-            raise ValueError(
-                f"Invalid argument: thread_num: {thread_num}. "
-                f"Must be less than or equal to database max_thread_num: {self._max_thread_num}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
+            logger.warning(
+                f"thread_num ({thread_num}) exceeds database max_thread_num "
+                f"({self._max_thread_num}); clamping to {self._max_thread_num}."
             )
+            thread_num = self._max_thread_num
         cpu_count = os.cpu_count()
         if cpu_count is not None and thread_num > cpu_count:
-            raise ValueError(
-                f"Invalid argument: thread_num: {thread_num}. "
-                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
+            logger.warning(
+                f"thread_num ({thread_num}) exceeds the number of logical "
+                f"CPUs reported by os.cpu_count() ({cpu_count}); clamping to {cpu_count}."
             )
+            thread_num = cpu_count
         # Before starting the server, we should check all current connections are closed.
         # And also after starting the server, no new connections should be allowed to the local database.
         for conn in self._connections:
@@ -398,7 +400,12 @@ class Database(object):
 
     def close(self, log=True):
         """
-        Close the database connection.
+        Close the database and all of its connections.
+
+        For a read-write database with ``checkpoint_on_close=True``, this method
+        creates a checkpoint before releasing database resources.
+        The method is idempotent.
+        Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.
         """
         db_path = getattr(self, "_db_path", None)
         if log and db_path and db_path.strip() != "":

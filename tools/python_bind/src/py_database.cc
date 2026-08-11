@@ -18,6 +18,16 @@
 
 namespace neug {
 
+PyDatabase::~PyDatabase() noexcept {
+  try {
+    close();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to close PyDatabase during destruction: " << e.what();
+  } catch (...) {
+    LOG(ERROR) << "Failed to close PyDatabase during destruction";
+  }
+}
+
 void PyDatabase::initialize(pybind11::handle& m) {
   pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(
       m, "PyDatabase",
@@ -55,8 +65,9 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "Returns:\n"
            "    PyConnection: A connection to the database.\n")
       .def("close", &PyDatabase::close,
-           "Close the database connection and "
-           "release resources.\n")
+           "Close the database and release all resources.\n\n"
+           "checkpoint_on_close requests an automatic checkpoint.\n"
+           "Automatic checkpoint failures are logged and suppressed.\n")
       .def("max_thread_num", &PyDatabase::max_thread_num,
            "Return the effective database max_thread_num.\n")
       .def("serve", &PyDatabase::serve, pybind11::arg("port") = 10000,

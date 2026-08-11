@@ -30,7 +30,6 @@ class ModuleBroker;
 class CheckpointManifest;
 class Checkpoint;
 class VertexTableView;
-
 class VertexSet {
  public:
   VertexSet(vid_t size, const VertexTimestamp& v_ts_, timestamp_t ts)
@@ -293,6 +292,8 @@ class NEUG_API VertexTable {
 
   const Table& get_table() const { return *table_; }
   Table& get_table() { return *table_; }
+
+  void SetColumn(size_t col, std::unique_ptr<ColumnBase> column);
 
  private:
   vid_t insert_vertex_pk(const Value& id, timestamp_t ts, bool insert_safe);

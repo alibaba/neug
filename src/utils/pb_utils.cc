@@ -248,6 +248,16 @@ bool data_type_to_property_type(const common::DataType& data_type,
     out_type = DataType::Array(child_type, fixed_length);
     return true;
   }
+  case common::DataType::kList: {
+    DataType child_type;
+    if (!data_type_to_property_type(data_type.list().component_type(),
+                                    child_type)) {
+      LOG(ERROR) << "Failed to parse list component type";
+      return false;
+    }
+    out_type = DataType::List(child_type);
+    return true;
+  }
   case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
     return false;

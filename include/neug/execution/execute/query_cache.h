@@ -14,6 +14,12 @@
  */
 #pragma once
 
+#include <cstdint>
+#include <mutex>
+#include <shared_mutex>
+#include <string>
+#include <unordered_map>
+
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/execute/pipeline.h"
@@ -30,17 +36,14 @@ struct CacheValue {
   ParamsMetaMap params_type;
   neug::MetaDatas result_schema;
   physical::ExecutionFlag flags;
-  physical::ExplainMode explain_mode = physical::ExplainMode::NONE;
 
   CacheValue(Pipeline pipeline, ParamsMetaMap params_type,
              const neug::MetaDatas& result_schema,
-             physical::ExecutionFlag flags,
-             physical::ExplainMode explain_mode = physical::ExplainMode::NONE)
+             physical::ExecutionFlag flags)
       : pipeline(std::move(pipeline)),
         params_type(std::move(params_type)),
         result_schema(result_schema),
-        flags(flags),
-        explain_mode(explain_mode) {}
+        flags(flags) {}
 };
 
 /**
@@ -54,21 +57,41 @@ struct CacheValue {
 class GlobalQueryCache {
  public:
   GlobalQueryCache(std::shared_ptr<IGraphPlanner> planner)
-      : planner_(planner), version_(0) {
-    cache_.clear();
-  }
-
-  uint64_t version() const { return version_.load(); }
+      : planner_(planner), planning_generation_(0) {}
 
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
+    const auto planning_generation = stats.planning_generation();
     {
       std::shared_lock<std::shared_mutex> read_lock(mutex_);
-      auto iter = cache_.find(query);
-      if (iter != cache_.end()) {
-        return iter->second;
+      if (planning_generation == planning_generation_) {
+        auto iter = cache_.find(query);
+        if (iter != cache_.end()) {
+          return iter->second;
+        }
       }
     }
+
+    GS_AUTO(cache_value, CompileUncached(stats, query));
+
+    std::unique_lock<std::shared_mutex> write_lock(mutex_);
+    if (planning_generation < planning_generation_) {
+      return cache_value;
+    }
+    // The request's GraphStats carries the planning generation of its pinned
+    // snapshot.
+    // Advance monotonically so an older pinned snapshot can never roll the
+    // global cache back after a newer generation has been observed.
+    if (planning_generation > planning_generation_) {
+      planning_generation_ = planning_generation;
+      cache_.clear();
+    }
+    return cache_.emplace(query, cache_value).first->second;
+  }
+
+ private:
+  result<std::shared_ptr<CacheValue>> CompileUncached(
+      const GraphStats& stats, const std::string& query) {
     const auto& schema = stats.schema();
     GS_AUTO(plan_result, planner_->compilePlan(query, &schema, stats));
     ContextMeta ctx_meta;
@@ -86,33 +109,15 @@ class GlobalQueryCache {
 
     auto params_type =
         execution::PlanParser::parse_params_type(plan_result.first);
-    auto explain_mode = plan_result.first.explain_mode();
-    {
-      std::unique_lock<std::shared_mutex> write_lock(mutex_);
-      auto iter = cache_.find(query);
-      if (iter != cache_.end()) {
-        return iter->second;
-      }
-      cache_.emplace(
-          query, std::make_shared<CacheValue>(
-                     std::move(pipeline_result), std::move(params_type), sch,
-                     plan_result.first.flag(), explain_mode));
-      return cache_.at(query);
-    }
+    return std::make_shared<CacheValue>(std::move(pipeline_result),
+                                        std::move(params_type), sch,
+                                        plan_result.first.flag());
   }
 
-  void clear() {
-    std::unique_lock<std::shared_mutex> write_lock(mutex_);
-    version_.fetch_add(1);
-    cache_.clear();
-  }
-
- private:
-  GlobalQueryCache() : version_(0) {}
   std::shared_ptr<IGraphPlanner> planner_;
-  std::atomic<uint64_t> version_;
+  uint64_t planning_generation_;
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
-  std::shared_mutex mutex_;
+  mutable std::shared_mutex mutex_;
 };
 
 /**
@@ -121,13 +126,17 @@ class GlobalQueryCache {
 class LocalQueryCache {
  public:
   LocalQueryCache(std::shared_ptr<GlobalQueryCache> global_cache)
-      : global_cache_(global_cache), version_(global_cache_->version()) {}
+      : global_cache_(global_cache) {}
   ~LocalQueryCache() = default;
   result<std::shared_ptr<CacheValue>> Get(const GraphStats& stats,
                                           const std::string& query) {
-    if (version_ != global_cache_->version()) {
+    const auto planning_generation = stats.planning_generation();
+    // An ExecutionSlot is leased exclusively, so its local cache only needs
+    // plans for one planning generation. Keeping the generation outside the
+    // map avoids adding it to every query key.
+    if (planning_generation_ != planning_generation) {
       cache_.clear();
-      version_ = global_cache_->version();
+      planning_generation_ = planning_generation;
     }
     auto iter = cache_.find(query);
     if (iter != cache_.end()) {
@@ -135,18 +144,12 @@ class LocalQueryCache {
     }
     GS_AUTO(cache_value_res, global_cache_->Get(stats, query));
     cache_.emplace(query, cache_value_res);
-    return cache_.at(query);
-  }
-
-  void clearGlobalCache() {
-    global_cache_->clear();
-    version_ = global_cache_->version();
-    cache_.clear();
+    return cache_value_res;
   }
 
  private:
   std::shared_ptr<GlobalQueryCache> global_cache_;
-  uint64_t version_;
+  uint64_t planning_generation_{0};
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
 };
 }  // namespace execution

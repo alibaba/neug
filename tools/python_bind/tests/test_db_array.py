@@ -643,8 +643,8 @@ def test_array_zero_size_rejected(tmp_path):
     db.close()
 
 
-def test_cast_does_not_convert_between_list_and_array(tmp_path):
-    """CAST should not normalize LIST and fixed-size ARRAY values."""
+def test_explicit_cast_converts_between_list_and_array(tmp_path):
+    """LIST and ARRAY convert only through an explicit CAST."""
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
@@ -653,16 +653,22 @@ def test_cast_does_not_convert_between_list_and_array(tmp_path):
     )
     conn.execute("CREATE (s:Sensor {id: 1, readings: [1, 2, 3]});")
 
-    with pytest.raises(Exception):
-        list(conn.execute("MATCH (s:Sensor) RETURN CAST(s.readings, 'INT32[]');"))
+    rows = list(conn.execute("MATCH (s:Sensor) RETURN CAST(s.readings, 'INT32[]');"))
+    assert _nested_list(rows[0][0]) == [1, 2, 3]
+
+    rows = list(
+        conn.execute(
+            "UNWIND [1, 2, 3] AS v "
+            "WITH collect(v) AS values "
+            "RETURN CAST(values, 'INT64[3]');"
+        )
+    )
+    assert _nested_list(rows[0][0]) == [1, 2, 3]
 
     with pytest.raises(Exception):
-        list(
-            conn.execute(
-                "UNWIND [1, 2, 3] AS v "
-                "WITH collect(v) AS values "
-                "RETURN CAST(values, 'INT64[3]');"
-            )
+        conn.execute(
+            "UNWIND [1, 2] AS v WITH collect(v) AS values "
+            "RETURN CAST(values, 'INT64[3]');"
         )
 
     conn.close()

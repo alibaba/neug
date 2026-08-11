@@ -34,10 +34,11 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class PropertyGraph;
-class IWalWriter;
 class IVersionManager;
 class Schema;
+class IWalWriter;
 
 /**
  * @brief Transaction for inserting new vertices and edges into the graph.
@@ -60,9 +61,9 @@ class Schema;
  * is a correctness bug, not a performance optimization.
  *
  * **Concurrency contract** (VersionManager state machine):
- * - Insert requires update_state_==0 (normal); multiple concurrent inserts
- *   allowed (active_inserters_ counter). Update/compact transitions state
- *   away from 0, blocking new inserts.
+ * - Insert requires the packed operation gate phase to be kOpen; multiple
+ *   concurrent inserts are tracked by its active-inserter field.
+ *   Update/compact transitions the phase away from kOpen, blocking new inserts.
  * - Insert does NOT block readers, and readers do NOT block insert.
  * - The pinned slot's PropertyGraph is shared with all readers on that slot.
  *
@@ -83,14 +84,15 @@ class InsertTransaction {
    * @param slot Reference to the pinned SnapshotSlot from PinCurrentSnapshot()
    * @param snapshot_store Reference to GraphSnapshotStore for releasing slot
    * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
+   * @param wal_writer Reference to the session-local WAL writer
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
    *
    * @since v0.1.0
    */
-  InsertTransaction(SnapshotGuard guard, Allocator& alloc, IWalWriter& logger,
-                    IVersionManager& vm, timestamp_t timestamp);
+  InsertTransaction(SnapshotGuard guard, Allocator& alloc,
+                    IWalWriter& wal_writer, IVersionManager& vm,
+                    timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls Abort().
@@ -162,8 +164,7 @@ class InsertTransaction {
    * @return true if commit successful
    *
    * Implementation: Checks if any operations in arc_, writes WAL via logger_,
-   * clears borrowed graph references, releases guard_, calls
-   * vm_.release_insert_timestamp(), then calls clear().
+   * releases the snapshot pin, releases the timestamp, then calls clear().
    *
    * @since v0.1.0
    */
@@ -197,7 +198,8 @@ class InsertTransaction {
   const Schema& schema() const;
 
   GraphStats statistic() const {
-    return GraphStats(*guard_.get().mutable_graph());
+    const auto& slot = guard_.get();
+    return GraphStats(slot.view(), slot.planning_generation());
   }
 
   bool GetVertexIndex(label_t label, const Value& oid, vid_t& lid) const;
@@ -219,7 +221,7 @@ class InsertTransaction {
   GraphView* view_;
 
   Allocator& alloc_;
-  IWalWriter& logger_;
+  IWalWriter& wal_writer_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
 };

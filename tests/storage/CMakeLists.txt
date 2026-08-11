@@ -12,6 +12,8 @@ add_neug_test(storage_test ${storage_test_src})
 
 add_neug_test(ap_index_test test_ap_index.cc)
 
+add_neug_test(e2e_index_test test_e2e_index.cc)
+
 add_neug_test(tp_index_test test_tp_index.cc)
 
 add_neug_test(csr_test test_csr_stream_ops.cc

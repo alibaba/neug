@@ -15,7 +15,9 @@
 #pragma once
 
 #include <cassert>
+#include <functional>
 #include <optional>
+#include <utility>
 
 #include "neug/common/types/container_types.h"
 #include "neug/common/types/value.h"
@@ -354,6 +356,16 @@ class StorageReadInterface : virtual public IStorageInterface {
   }
 
   const Schema& schema() const override { return view_.schema(); }
+
+  /** @brief Find an index by its unique name. */
+  result<StorageIndex*> GetIndexByName(const std::string& name) const {
+    return view_.GetIndexByName(name);
+  }
+
+  /** @brief Get all registered indexes. */
+  result<std::vector<StorageIndex*>> GetAllIndexes() const {
+    return view_.GetAllIndexes();
+  }
 
   /**
    * @brief Search an index selected by its unique name.
@@ -859,18 +871,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     return st;
   }
 
-  /**
-   * @brief Create a checkpoint of the current graph state.
-   */
-  virtual void CreateCheckpoint() = 0;
-
-  /**
-   * @brief Create, bind, and populate an index.
-   */
-  virtual neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
-  virtual Status DropIndex(const std::string& name) = 0;
-
  private:
   virtual void MarkSchemaDirty() = 0;
 
@@ -927,20 +927,52 @@ class StorageUpdateInterface : public StorageReadInterface,
   }
 };
 
-class StorageAPUpdateInterface : public StorageUpdateInterface {
+/**
+ * @brief Admin interface for storage index DDL (create/drop).
+ *
+ * Index management is only implemented by the AP update path
+ * (StorageAPUpdateInterface). The execution layer obtains this interface
+ * via dynamic_cast from IStorageInterface; a null result means the current
+ * storage mode does not support index management.
+ *
+ * Existence checks are expressed through the DDL calls themselves:
+ * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same
+ * name already exists, and DropIndex fails with ERR_NOT_FOUND when the
+ * target index does not exist.
+ *
+ * Read-side index access (GetIndexByName/GetAllIndexes/IndexSearch) stays
+ * on StorageReadInterface and remains available to all readable modes.
+ *
+ * @since v0.1.0
+ */
+class StorageIndexDDLInterface {
  public:
-  explicit StorageAPUpdateInterface(PropertyGraph& graph, GraphView& view,
-                                    timestamp_t timestamp,
-                                    neug::Allocator& alloc)
+  virtual ~StorageIndexDDLInterface() {}
+
+  /** @brief Create, bind, and populate an index. */
+  virtual result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) = 0;
+
+  /** @brief Drop an index by its unique name. */
+  virtual Status DropIndex(const std::string& name) = 0;
+};
+
+class StorageAPUpdateInterface : public StorageUpdateInterface,
+                                 public StorageIndexDDLInterface {
+ public:
+  using PlanningChangedCallback = std::function<void()>;
+
+  explicit StorageAPUpdateInterface(
+      PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+      neug::Allocator& alloc, PlanningChangedCallback on_planning_changed = {})
       : StorageUpdateInterface(view, timestamp),
         graph_(graph),
         mut_view_(view),
         alloc_(alloc),
         timestamp_(timestamp),
-        index_manager_(graph_.mutable_index_manager()) {}
+        index_manager_(graph_.mutable_index_manager()),
+        on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
-
-  void CreateCheckpoint() override;
 
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
@@ -953,7 +985,12 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
     graph_.MarkEdgeTableDirty(src, dst, edge);
   }
-  void MarkSchemaDirty() override { graph_.MarkSchemaDirty(); }
+  void MarkSchemaDirty() override {
+    graph_.MarkSchemaDirty();
+    if (on_planning_changed_) {
+      on_planning_changed_();
+    }
+  }
 
   Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
                                   const Value& value) override;
@@ -1011,6 +1048,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
   StorageIndexManager& index_manager_;
+  PlanningChangedCallback on_planning_changed_;
 };
 
 }  // namespace neug

@@ -15,13 +15,13 @@
 
 #include "neug/execution/common/operators/retrieve/sink.h"
 
+#include "neug/common/columns/array_columns.h"
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/path_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
-#include "neug/common/types/array_columns.h"
 #include "neug/common/types/value.h"
 #include "neug/execution/common/context.h"
 
@@ -442,6 +442,10 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
     } else {
       list_col->add_offsets(current_offset);
     }
+    if (casted->is_optional()) {
+      auto bitmap = BoolVectorToBitmap(casted->validity_bitmap());
+      list_col->set_validity(bitmap);
+    }
 
     break;
   }
@@ -462,6 +466,10 @@ static void add_column(const std::shared_ptr<IContextColumn>& col,
       current_offset += array_size;
     }
     list_col->add_offsets(current_offset);
+    if (casted->is_optional()) {
+      auto bitmap = BoolVectorToBitmap(casted->validity_bitmap());
+      list_col->set_validity(bitmap);
+    }
     break;
   }
   case DataTypeId::kStruct: {

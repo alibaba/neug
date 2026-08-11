@@ -40,21 +40,16 @@ class TimestampWindow {
   // Clear a timestamp (called after read_ts advances past it)
   void clear(uint32_t ts);
 
-  // Advance the window base position (sliding window maintenance)
-  void slide_window(uint32_t current_ts);
+  static constexpr size_t kWindowSize = 65536;
 
  private:
-  static constexpr size_t kWindowSize =
-      65536;  // Window size for timestamp tracking
-
   // Convert timestamp to array index
   inline size_t ts_index(uint32_t ts) const { return ts % kWindowSize; }
 
-  // Completed timestamp bitmap
-  std::unique_ptr<std::atomic<bool>[]> completed_ts_;
-
-  // Base position of sliding window
-  uint32_t window_base_{0};
+  // A slot contains the exact completed timestamp, or zero when empty. This
+  // prevents a timestamp that reuses the same ring index from being mistaken
+  // for an older completion.
+  std::unique_ptr<std::atomic<uint32_t>[]> completed_ts_;
 };
 
 }  // namespace neug

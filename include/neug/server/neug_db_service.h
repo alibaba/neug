@@ -116,10 +116,12 @@ class NeugDBService {
       : db_(db), db_config_(db_.config()) {
     db_.registerService(this);
     try {
+      installBthreadRuntimeWait();
       init(config);
     } catch (...) {
       hdl_mgr_.reset();
       execution_slot_pool_.reset();
+      restoreNativeRuntimeWait();
       db_.unregisterService(this);
       throw;
     }
@@ -253,6 +255,8 @@ class NeugDBService {
   NeugDBService() = delete;
   void startCompactThread();
   void stopCompactThread();
+  void installBthreadRuntimeWait();
+  void restoreNativeRuntimeWait() noexcept;
 
   /**
    * @brief Initializes the service with configuration settings
@@ -284,6 +288,7 @@ class NeugDBService {
   std::mutex mtx_;
 
   ServiceConfig service_config_;
+  bool bthread_runtime_wait_installed_{false};
 
   friend class neug::NeugDB;
 };

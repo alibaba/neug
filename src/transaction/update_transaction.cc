@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <ostream>
 #include <string_view>
 
@@ -44,6 +45,7 @@
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -319,81 +321,84 @@ static Status deleteVertexIndexData(
 // =============================================================================
 
 UpdateTransaction::UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
+                                     uint64_t planning_generation,
                                      Allocator& alloc, IWalWriter& logger,
-                                     IVersionManager& vm,
                                      GraphSnapshotStore& snapshot_store,
-                                     execution::LocalQueryCache& cache,
-                                     timestamp_t timestamp)
+                                     UpdateTimestampLease timestamp_lease)
     : cow_graph_(std::move(cow_graph)),
       cow_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
       alloc_(alloc),
       logger_(logger),
-      vm_(vm),
       snapshot_store_(snapshot_store),
-      pipeline_cache_(cache),
-      timestamp_(timestamp),
+      timestamp_lease_(std::move(timestamp_lease)),
+      planning_generation_(planning_generation),
       ckp_(cow_graph_->checkpoint_ptr()) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
 
-timestamp_t UpdateTransaction::timestamp() const { return timestamp_; }
-
 bool UpdateTransaction::Commit() {
-  if (timestamp_ == INVALID_TIMESTAMP) {
+  if (timestamp() == INVALID_TIMESTAMP) {
     return true;
   }
   if (wal_builder_.op_num() == 0 && wal_builder_.content_size() == 0) {
-    release();
+    release(std::nullopt);
     return true;
   }
 
-  if (!snapshot_store_.HasFreeSlot()) {
-    LOG(ERROR) << "GraphSnapshotStore slot exhausted; refusing to commit";
+  const bool schema_changed = wal_builder_.schema_changed();
+  if (schema_changed &&
+      planning_generation_ == std::numeric_limits<uint64_t>::max()) {
+    LOG(ERROR) << "Planning generation space exhausted";
+    Abort();
+    return false;
+  }
+  const uint64_t committed_planning_generation =
+      planning_generation_ + (schema_changed ? 1 : 0);
+
+  auto prepared_result = snapshot_store_.PrepareSnapshot(
+      cow_graph_, committed_planning_generation);
+  if (!prepared_result) {
+    LOG(ERROR) << "Failed to prepare graph snapshot: "
+               << prepared_result.error().ToString();
     Abort();
     return false;
   }
 
-  wal_builder_.finalize(timestamp_);
+  auto prepared = std::move(prepared_result).value();
+
+  wal_builder_.finalize(timestamp());
   if (!logger_.append(wal_builder_.data(), wal_builder_.size())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
   }
 
-  vm_.begin_update_commit(timestamp_);
+  timestamp_lease_.BeginCommit();
 
-  if (wal_builder_.schema_changed()) {
-    pipeline_cache_.clearGlobalCache();
-  }
-
-  // PublishSnapshot MUST happen BEFORE release() which calls
-  // release_update_timestamp (advancing read_ts_). This ordering guarantees
-  // that any new reader observing the advanced read_ts will also see the new
-  // slot.
-  auto status = snapshot_store_.PublishSnapshot(cow_graph_);
-  if (!status.ok()) {
-    // We should never fail to publish the snapshot.
-    LOG(FATAL) << "Failed to publish snapshot: " << status.ToString();
-  }
-
-  // The COW PG is now owned by the new slot. Drop our reference so this
-  // transaction does not appear to still hold the snapshot. view_ wraps
-  // cow_graph_, so reset it too to keep pg_ from dangling.
-  view_ = GraphView();
-  release();
+  // Preparation completed before WAL append, so publication is a bounded,
+  // no-fail current-slot switch. Finish publishes the matching read view
+  // before admission reopens.
+  const uint32_t snapshot_generation = std::move(prepared).Publish();
+  release(snapshot_generation);
   return true;
 }
 
-void UpdateTransaction::Abort() { release(); }
-
-void UpdateTransaction::release() {
-  if (timestamp_ != INVALID_TIMESTAMP) {
-    wal_builder_.clear();
-    vm_.release_update_timestamp(timestamp_);
-    timestamp_ = INVALID_TIMESTAMP;
+void UpdateTransaction::Abort() {
+  if (timestamp() != INVALID_TIMESTAMP) {
+    release(std::nullopt);
   }
+}
+
+void UpdateTransaction::release(
+    std::optional<uint32_t> installed_snapshot_generation) {
+  if (timestamp() != INVALID_TIMESTAMP) {
+    wal_builder_.clear();
+    timestamp_lease_.Finish(installed_snapshot_generation);
+  }
+  view_ = GraphView();
   cow_graph_.reset();
+  ckp_.reset();
 }
 
 Status StorageTPUpdateInterface::CreateVertexTypeImpl(
@@ -743,17 +748,6 @@ Status StorageTPUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
   return status;
 }
 
-neug::result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
-    std::unique_ptr<IndexMeta>) {
-  RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                      "CreateIndex is not supported in TP mode currently.");
-}
-
-Status StorageTPUpdateInterface::DropIndex(const std::string&) {
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "DropIndex is not supported in TP mode currently.");
-}
-
 Status StorageTPUpdateInterface::AddVertexImpl(label_t label, const Value& oid,
                                                const std::vector<Value>& props,
                                                vid_t& vid) {
@@ -923,7 +917,7 @@ Status StorageTPUpdateInterface::DeleteEdgeImpl(
 Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
                                            int col_id) const {
   auto col = cow_graph_->GetVertexPropertyColumn(label, col_id);
-  if (!cow_graph_->IsValidLid(label, lid, timestamp_)) {
+  if (!cow_graph_->IsValidLid(label, lid, timestamp())) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Vertex lid is not valid in this transaction");
   }
@@ -934,12 +928,12 @@ Value UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
 }
 
 Value UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
-  return cow_graph_->GetOid(label, lid, timestamp_);
+  return cow_graph_->GetOid(label, lid, timestamp());
 }
 
 bool UpdateTransaction::GetVertexIndex(label_t label, const Value& id,
                                        vid_t& index) const {
-  return cow_graph_->get_lid(label, id, index, timestamp_);
+  return cow_graph_->get_lid(label, id, index, timestamp());
 }
 
 Status StorageTPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
@@ -1246,9 +1240,24 @@ Status StorageTPUpdateInterface::detachVertexTableForInsert(label_t label) {
 
 Status StorageTPUpdateInterface::detachVertexTableForDelete(label_t label) {
   auto& state = cow_state_.vertex_tables[label];
+  auto& vertex_table = cow_graph_->get_vertex_table(label);
+  bool did_detach = false;
   if (!state.vertex_timestamp_detached) {
-    cow_graph_->get_vertex_table(label).DetachVertexTimestamp();
+    vertex_table.DetachVertexTimestamp();
     state.vertex_timestamp_detached = true;
+    did_detach = true;
+  }
+  for (size_t i = 0; i < state.columns_detached.size(); ++i) {
+    if (!state.columns_detached[i] &&
+        dynamic_cast<VecColumn*>(
+            vertex_table.get_table().get_column_by_id(i)) != nullptr) {
+      vertex_table.get_table().DetachColumn(i, *ckp_,
+                                            cow_graph_->memory_level());
+      state.columns_detached[i] = true;
+      did_detach = true;
+    }
+  }
+  if (did_detach) {
     mut_view_.Rebuild(*cow_graph_);
   }
   return Status::OK();
@@ -1438,25 +1447,6 @@ Status StorageTPUpdateInterface::prepareVertexDelete(
     }
   }
   return Status::OK();
-}
-
-void StorageTPUpdateInterface::CreateCheckpoint() {
-  if (wal_.op_num() != 0) {
-    THROW_INTERNAL_EXCEPTION(
-        "Checkpoint should be created in a update "
-        "transaction without any updates");
-  }
-  if (!cow_graph_->IsModified()) {
-    wal_.LogCheckpoint();
-    return;
-  }
-  auto ckp = cow_graph_->checkpoint_ptr();
-  auto memory_level = cow_graph_->memory_level();
-  cow_graph_->DumpAndClear(ckp);
-  cow_graph_->Open(ckp, memory_level);
-  mut_view_.Rebuild(*cow_graph_);
-  cow_graph_->ClearAllDirty();
-  wal_.LogCheckpoint();
 }
 
 result<std::vector<vid_t>> StorageTPUpdateInterface::BatchAddVerticesImpl(

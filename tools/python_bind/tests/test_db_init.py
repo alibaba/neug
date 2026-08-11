@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import logging
 import multiprocessing
 import os
 import shutil
@@ -218,13 +219,14 @@ def test_config_param_exception(tmp_path):
 
 
 def test_config_param_boundary(tmp_path):
+    cpu_count = os.cpu_count()
+    if cpu_count is None:
+        pytest.skip("os.cpu_count() is unavailable; cannot verify clamping")
     db_dir = tmp_path / "conn_param_boundary_db"
-    # test with more than maximum cores
-    with pytest.raises(Exception) as excinfo:
-        max_cores = os.cpu_count() or 1
-        # max_thread_num should not exceed the number of cores
-        Database(str(db_dir), "w", max_thread_num=max_cores + 1)
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    # max_thread_num greater than the number of logical CPUs is clamped to cpu_count
+    db = Database(str(db_dir), "w", max_thread_num=cpu_count + 1)
+    assert db._max_thread_num == cpu_count
+    db.close()
 
 
 def test_zero_max_thread_num_with_unknown_cpu_count(tmp_path, monkeypatch):
@@ -236,14 +238,15 @@ def test_zero_max_thread_num_with_unknown_cpu_count(tmp_path, monkeypatch):
     db.close()
 
 
-def test_serve_thread_num_cannot_exceed_max_thread_num(tmp_path):
+def test_serve_thread_num_clamped_to_max_thread_num(tmp_path, caplog):
     db_dir = tmp_path / "serve_thread_num_db"
     db = Database(db_path=str(db_dir), mode="w", max_thread_num=1)
 
-    with pytest.raises(ValueError) as excinfo:
-        db.serve(port=10000, host="localhost", blocking=False, thread_num=2)
-
-    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+    with caplog.at_level(logging.WARNING, logger="neug.database"):
+        db.serve(port=0, host="localhost", blocking=False, thread_num=2)
+    # thread_num greater than max_thread_num is clamped to max_thread_num
+    assert "clamping to 1" in caplog.text
+    db.stop_serving()
     db.close()
 
 

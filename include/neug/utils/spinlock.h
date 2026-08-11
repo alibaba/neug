@@ -26,8 +26,10 @@ class SpinLock {
 
  public:
   void lock() {
-    while (locked.test_and_set(std::memory_order_acquire)) {}
+    while (!try_lock()) {}
   }
+
+  bool try_lock() { return !locked.test_and_set(std::memory_order_acquire); }
 
   void unlock() { locked.clear(std::memory_order_release); }
 };

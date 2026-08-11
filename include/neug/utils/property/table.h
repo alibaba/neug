@@ -114,8 +114,6 @@ class NEUG_API Table {
    */
   void resize(size_t row_num, const std::vector<Value>& default_values);
 
-  void ingest(uint32_t index, OutArchive& arc);
-
   void close();
 
  private:

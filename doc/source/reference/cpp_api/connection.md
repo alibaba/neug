@@ -6,7 +6,7 @@ Database connection for executing Cypher queries.
 
 `Connection` is the primary interface for interacting with a NeuG database. It provides methods to execute Cypher queries, retrieve schema information, and manage the connection lifecycle.
 
-**Usage Example:** 
+**Usage Example:**
 ```cpp
 // Get connection from database
 auto conn = db.Connect();
@@ -55,7 +55,7 @@ Execute a Cypher query and return results.
 
 Compiles and executes a Cypher query string against the database. The query is processed through the planner for optimization, then executed by the query processor.
 
-**Usage Example:** 
+**Usage Example:**
 ```cpp
 // Simple read query
 auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
@@ -123,7 +123,7 @@ Get the database schema as a `YAML` string.
 
 Returns the complete graph schema definition in `YAML` format, including all vertex types, edge types, and their properties.
 
-**Usage Example:** 
+**Usage Example:**
 ```cpp
 std::string schema_yaml = conn->GetSchema();
 std::cout << "Schema:\n" << schema_yaml << std::endl;
@@ -142,7 +142,7 @@ Close the connection and release resources.
 
 Marks the connection as closed and releases any held resources. After closing, any `Query()` calls will fail.
 
-**Usage Example:** 
+**Usage Example:**
 ```cpp
 conn->Close();
 // conn->Query(...) will now return an error

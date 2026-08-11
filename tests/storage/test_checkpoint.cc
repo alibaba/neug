@@ -38,7 +38,6 @@
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
-#include "neug/storages/checkpoint_session.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -565,6 +564,15 @@ static std::vector<std::filesystem::path> list_checkpoint_dirs(
   return dirs;
 }
 
+static std::filesystem::path create_published_checkpoint_blocker(
+    const std::string& db_dir, int32_t generation) {
+  const auto blocker = std::filesystem::path(db_dir) /
+                       ("checkpoint-" + std::to_string(generation));
+  std::filesystem::create_directories(blocker);
+  std::ofstream(blocker / "blocker") << "not a checkpoint";
+  return blocker;
+}
+
 static size_t count_regular_files(const std::string& dir) {
   size_t n = 0;
   for (const auto& e : std::filesystem::directory_iterator(dir)) {
@@ -800,6 +808,7 @@ TEST(CheckpointGCTest, discard_staging_checkpoint_allows_new_staging) {
   staging.Discard();
 
   EXPECT_FALSE(std::filesystem::exists(path));
+  EXPECT_FALSE(mgr.HasCurrentCheckpoint());
   auto next_staging = mgr.CreateStagingCheckpoint();
   EXPECT_EQ(next_staging.checkpoint()->path(), path);
   next_staging.Discard();
@@ -828,6 +837,29 @@ TEST(CheckpointGCTest, commit_staging_checkpoint_rejects_inactive_handle) {
   EXPECT_THROW(staging.Commit(), std::exception);
   ASSERT_NE(mgr.CurrentCheckpoint(), nullptr);
   EXPECT_EQ(mgr.CurrentCheckpoint()->id(), 0);
+}
+
+TEST(CheckpointGCTest, commit_open_failure_preserves_published_generation) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+
+  auto staging = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(staging.checkpoint());
+  const auto staging_path = std::filesystem::path(staging.checkpoint()->path());
+  const auto published_path = std::filesystem::path(db_path) / "checkpoint-0";
+
+  // Keep the cached manifest valid so commit reaches the durable rename, but
+  // make reopening the renamed checkpoint fail.
+  std::ofstream(staging_path / "meta", std::ios::trunc)
+      << "invalid checkpoint manifest";
+
+  EXPECT_THROW(staging.Commit(), std::exception);
+  EXPECT_FALSE(std::filesystem::exists(staging_path));
+  EXPECT_TRUE(std::filesystem::exists(published_path));
+  EXPECT_EQ(mgr.CurrentCheckpoint(), nullptr);
+
+  staging.Discard();
 }
 
 TEST(CheckpointGCTest, staging_and_session_cleanup_cover_failure_edges) {
@@ -877,7 +909,7 @@ TEST(CheckpointGCTest, staging_and_session_cleanup_cover_failure_edges) {
     std::filesystem::remove_all(collision);
   }
 
-  auto session = neug::CheckpointSession::Begin(mgr);
+  auto staging = mgr.CreateStagingCheckpoint();
   {
     neug::CheckpointManifest meta;
     neug::Schema schema;
@@ -885,11 +917,10 @@ TEST(CheckpointGCTest, staging_and_session_cleanup_cover_failure_edges) {
     neug::ModuleDescriptor desc;
     desc.module_type = "missing_module_type_for_checkpoint_gc_test";
     meta.set_module("bad_module", std::move(desc));
-    session.staging_checkpoint()->UpdateMeta(std::move(meta));
+    staging.checkpoint()->UpdateMeta(std::move(meta));
   }
 
-  auto published = session.Commit();
-  EXPECT_EQ(session.Commit(), published);
+  auto published = staging.Commit();
   auto published_path = published->path();
   neug::PropertyGraph graph;
   EXPECT_THROW(graph.Open(published, neug::MemoryLevel::kInMemory),
@@ -1071,12 +1102,11 @@ TEST(CheckpointGCTest,
   ASSERT_TRUE(std::filesystem::exists(old_path));
   ASSERT_TRUE(std::filesystem::exists(old_runtime_path));
 
-  auto session = neug::CheckpointSession::Begin(mgr);
-  write_valid_empty_manifest(session.staging_checkpoint());
-  auto new_ckp = session.Commit();
+  auto staging = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(staging.checkpoint());
+  auto new_ckp = staging.Commit();
 
   EXPECT_EQ(mgr.CurrentCheckpoint(), new_ckp);
-  EXPECT_EQ(session.Commit(), new_ckp);
   EXPECT_TRUE(std::filesystem::exists(old_path));
   EXPECT_TRUE(std::filesystem::exists(old_runtime_path));
   EXPECT_TRUE(std::filesystem::exists(new_ckp->path()));
@@ -1519,45 +1549,221 @@ TEST(CheckpointOptTest, test_no_extra_files_on_unchanged_dump) {
   }
 }
 
+TEST(
+    CheckpointOptTest,
+    manual_checkpoint_reopens_same_graph_advances_generation_and_preserves_data) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_in_place");
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_path);
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  seed_checkpoint_opt_graph(conn);
+
+  const auto* graph_before = &db.graph();
+  auto res = conn->Query("CHECKPOINT;");
+  ASSERT_TRUE(res) << res.error().ToString();
+  EXPECT_EQ(&db.graph(), graph_before);
+  AssertSingleCurrentCheckpoint(db_path);
+  EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-1");
+
+  res = conn->Query("CHECKPOINT;");
+  ASSERT_TRUE(res) << res.error().ToString();
+  EXPECT_EQ(&db.graph(), graph_before);
+  AssertSingleCurrentCheckpoint(db_path);
+  EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-2");
+
+  conn->Close();
+  db.Close();
+
+  neug::NeugDB reopened_db;
+  assert_checkpoint_opt_graph(reopened_db, db_path);
+}
+
 TEST(CheckpointOptTest,
-     test_repeated_ap_checkpoint_keeps_single_current_checkpoint) {
-  std::string db_path = "/tmp/test_repeated_ap_checkpoint_db";
-  if (std::filesystem::exists(db_path)) {
-    std::filesystem::remove_all(db_path);
-  }
+     sync_to_file_checkpoint_reopens_allocator_into_new_generation) {
+  auto db_path = make_checkpoint_gc_test_dir("allocator_reopen");
+  neug::NeugDBConfig config(db_path, 1);
+  config.memory_level = neug::MemoryLevel::kSyncToFile;
+  config.checkpoint_on_close = false;
 
   {
     neug::NeugDB db;
-    open_db_for_checkpoint_test(db, db_path);
+    ASSERT_TRUE(db.Open(config));
     auto conn = db.Connect();
     seed_checkpoint_opt_graph(conn);
-    auto res = conn->Query("CHECKPOINT;");
+    auto res = conn->Query("CREATE REL TABLE Links(FROM Item TO Item);");
     ASSERT_TRUE(res) << res.error().ToString();
+    res = conn->Query(
+        "MATCH (a:Item), (b:Item) WHERE a.id=1 AND b.id=2 "
+        "CREATE (a)-[:Links]->(b);");
+    ASSERT_TRUE(res) << res.error().ToString();
+
+    auto dirs = list_checkpoint_dirs(db_path);
+    ASSERT_EQ(dirs.size(), 1u);
+    EXPECT_GT(count_regular_files((dirs[0] / "allocator").string()), 0u);
+
+    res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    AssertSingleCurrentCheckpoint(db_path);
+    dirs = list_checkpoint_dirs(db_path);
+    ASSERT_EQ(dirs[0].filename(), "checkpoint-1");
+
+    res = conn->Query("CREATE (:Item {id: 3});");
+    ASSERT_TRUE(res) << res.error().ToString();
+    res = conn->Query(
+        "MATCH (a:Item), (b:Item) WHERE a.id=3 AND b.id=1 "
+        "CREATE (a)-[:Links]->(b);");
+    ASSERT_TRUE(res) << res.error().ToString();
+    EXPECT_GT(count_regular_files((dirs[0] / "allocator").string()), 0u);
+
+    res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    AssertSingleCurrentCheckpoint(db_path);
+    dirs = list_checkpoint_dirs(db_path);
+    ASSERT_EQ(dirs[0].filename(), "checkpoint-2");
+
     conn->Close();
     db.Close();
   }
-  AssertSingleCurrentCheckpoint(db_path);
 
   {
     neug::NeugDB db;
-    open_db_for_checkpoint_test(db, db_path);
+    ASSERT_TRUE(db.Open(config));
     auto conn = db.Connect();
-    auto res = conn->Query("CHECKPOINT;");
+    auto res = conn->Query("MATCH (:Item)-[e:Links]->(:Item) RETURN COUNT(e);");
     ASSERT_TRUE(res) << res.error().ToString();
+    AssertSingleInt64Result(res.value().response(), 2);
+    conn->Close();
+    db.Close();
+  }
+}
+
+TEST(CheckpointOptTest, tp_checkpoint_routes_through_execution_slot) {
+  const auto db_path = make_checkpoint_gc_test_dir("tp_checkpoint_execution");
+  neug::NeugDBConfig config(db_path, 1);
+  config.checkpoint_on_close = false;
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  seed_checkpoint_opt_graph(conn);
+  conn->Close();
+
+  const auto* graph_before = &db.graph();
+  {
+    neug::NeugDBService service(db);
+    {
+      auto slot = service.AcquireExecutionSlot();
+      auto result = slot->ExecuteTransactionalRequest(
+          R"({"query":"EXPLAIN CHECKPOINT;","parameters":{}})");
+      ASSERT_TRUE(result) << result.error().ToString();
+    }
+    EXPECT_EQ(&db.graph(), graph_before);
+    AssertSingleCurrentCheckpoint(db_path);
+    EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-0");
+
+    {
+      auto slot = service.AcquireExecutionSlot();
+      auto result = slot->ExecuteTransactionalRequest(
+          R"({"query":"CHECKPOINT;","parameters":{}})");
+      ASSERT_TRUE(result) << result.error().ToString();
+    }
+    EXPECT_EQ(&db.graph(), graph_before);
+    AssertSingleCurrentCheckpoint(db_path);
+    EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-1");
+
+    {
+      auto slot = service.AcquireExecutionSlot();
+      auto result = slot->ExecuteTransactionalRequest(
+          R"({"query":"PROFILE CHECKPOINT;","access_mode":"u","parameters":{}})");
+      ASSERT_TRUE(result) << result.error().ToString();
+      neug::QueryResponse response;
+      ASSERT_TRUE(response.ParseFromString(result.value()));
+      EXPECT_EQ(response.row_count(), 0);
+      ASSERT_TRUE(response.has_profile_result());
+      ASSERT_EQ(response.profile_result().operators_size(), 1);
+      EXPECT_EQ(response.profile_result().operators(0).operator_name(),
+                "Checkpoint");
+    }
+    EXPECT_EQ(&db.graph(), graph_before);
+    AssertSingleCurrentCheckpoint(db_path);
+    EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-2");
+
+    for (const auto* invalid_mode : {"read", "insert", "schema"}) {
+      auto slot = service.AcquireExecutionSlot();
+      const auto request =
+          std::string(R"({"query":"CHECKPOINT;","access_mode":")") +
+          invalid_mode + R"(","parameters":{}})";
+      auto result = slot->ExecuteTransactionalRequest(request);
+      ASSERT_FALSE(result) << invalid_mode;
+      EXPECT_EQ(result.error().error_code(),
+                neug::StatusCode::ERR_INVALID_ARGUMENT)
+          << invalid_mode;
+    }
+  }
+
+  db.Close();
+}
+
+TEST(CheckpointOptTest, explain_checkpoint_works_on_read_only_db) {
+  const auto db_path =
+      make_checkpoint_gc_test_dir("explain_checkpoint_read_only");
+  // Step 1: create and checkpoint the database.
+  {
+    neug::NeugDBConfig config(db_path, 1);
+    config.checkpoint_on_close = false;
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    auto conn = db.Connect();
+    seed_checkpoint_opt_graph(conn);
+    ASSERT_TRUE(conn->Query("CHECKPOINT;"));
     conn->Close();
     db.Close();
   }
 
-  AssertSingleCurrentCheckpoint(db_path);
-  auto dirs = list_checkpoint_dirs(db_path);
-  ASSERT_EQ(dirs.size(), 1u);
-  EXPECT_TRUE(std::filesystem::exists(dirs[0] / "snapshot"));
-
-  // Data correctness: open the current checkpoint and query.
+  // Step 2: reopen read-only and verify EXPLAIN CHECKPOINT succeeds while
+  // a real CHECKPOINT is still rejected.
   {
+    neug::NeugDBConfig config(db_path, 1);
+    config.mode = neug::DBMode::READ_ONLY;
+    config.checkpoint_on_close = false;
     neug::NeugDB db;
-    assert_checkpoint_opt_graph(db, db_path);
+    ASSERT_TRUE(db.Open(config));
+
+    {
+      neug::NeugDBService service(db);
+      // EXPLAIN CHECKPOINT is non-mutating; must succeed on a read-only DB.
+      {
+        auto slot = service.AcquireExecutionSlot();
+        auto result = slot->ExecuteTransactionalRequest(
+            R"({"query":"EXPLAIN CHECKPOINT;","parameters":{}})");
+        ASSERT_TRUE(result) << result.error().ToString();
+      }
+      // Also works with an explicit access_mode=read.
+      {
+        auto slot = service.AcquireExecutionSlot();
+        auto result = slot->ExecuteTransactionalRequest(
+            R"({"query":"EXPLAIN CHECKPOINT;","access_mode":"read",)"
+            R"("parameters":{}})");
+        ASSERT_TRUE(result) << result.error().ToString();
+      }
+      // Actual CHECKPOINT must still fail on a read-only DB.
+      {
+        auto slot = service.AcquireExecutionSlot();
+        auto result = slot->ExecuteTransactionalRequest(
+            R"({"query":"CHECKPOINT;","parameters":{}})");
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().error_code(),
+                  neug::StatusCode::ERR_INVALID_ARGUMENT);
+      }
+    }  // service destroyed here
+    db.Close();
   }
+
+  // No new checkpoint should have been created.
+  AssertSingleCurrentCheckpoint(db_path);
+  EXPECT_EQ(list_checkpoint_dirs(db_path)[0].filename(), "checkpoint-1");
 }
 
 template <typename T>
@@ -1872,12 +2078,7 @@ class CheckpointSafetyTest : public CheckpointTestBase<T> {
  protected:
   std::string db_dir_;
 
-  void SetUp() override {
-    if (getuid() == 0) {
-      GTEST_SKIP() << "Cannot test permission-based failures as root";
-    }
-    db_dir_ = this->MakeUniqueDir("ckp_safety");
-  }
+  void SetUp() override { db_dir_ = this->MakeUniqueDir("ckp_safety"); }
 
   void TearDown() override {
     // Restore permissions recursively before cleanup.
@@ -1906,6 +2107,9 @@ TYPED_TEST_SUITE(CheckpointSafetyTest, AllMemoryLevels);
 
 // Fix #528: UpdateMeta re-throws on I/O failure and preserves old meta.
 TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
+  if (getuid() == 0) {
+    GTEST_SKIP() << "Cannot test permission-based failures as root";
+  }
   neug::CheckpointManager mgr;
   mgr.Open(this->db_dir_);
   auto staging = mgr.CreateStagingCheckpoint();
@@ -1932,28 +2136,13 @@ TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
   std::filesystem::permissions(ckp->path(), std::filesystem::perms::owner_all);
 }
 
-// Fix #529: DiscardStagingCheckpoint cleans up directory and map entry.
-TYPED_TEST(CheckpointSafetyTest,
-           discard_staging_checkpoint_cleans_up_directory) {
-  neug::CheckpointManager mgr;
-  mgr.Open(this->db_dir_);
-  auto staging = mgr.CreateStagingCheckpoint();
-  auto ckp = staging.checkpoint();
-  auto ckp_path = ckp->path();
-
-  ASSERT_TRUE(std::filesystem::exists(ckp_path));
-  ASSERT_FALSE(mgr.HasCurrentCheckpoint());
-
-  staging.Discard();
-
-  EXPECT_FALSE(std::filesystem::exists(ckp_path));
-  EXPECT_FALSE(mgr.HasCurrentCheckpoint());
-}
-
 // Fix #528 integration: A failed CHECKPOINT does not corrupt on-disk data —
 // recovery on restart succeeds.
 TYPED_TEST(CheckpointSafetyTest,
-           in_place_checkpoint_failure_preserves_data_on_reopen) {
+           checkpoint_prepare_failure_keeps_database_available) {
+  if (getuid() == 0) {
+    GTEST_SKIP() << "Cannot test permission-based failures as root";
+  }
   // Phase 1: Create table, insert data, and produce a valid checkpoint.
   {
     neug::NeugDB db;
@@ -1970,43 +2159,32 @@ TYPED_TEST(CheckpointSafetyTest,
     db.Close();
   }
 
-  // Phase 2: Reopen, mutate so the table is dirty, then trigger a failing
-  // in-place CHECKPOINT. Clean graphs skip dump (dirty-bit early return), so a
-  // write is required before chmod'ing the checkpoint dir.
-  // The standalone CHECKPOINT operator still dumps through the AP storage
-  // interface in this split PR; DB-close/recovery checkpoints use the new
-  // staging path.
-  // After a failed in-place CHECKPOINT, the in-memory graph may be left in an
-  // inconsistent state. Use checkpoint_on_close=false so Close() does not try
-  // to checkpoint it again while permissions are being restored.
+  // Phase 2: Reopen, mutate so the table is dirty, then trigger a checkpoint
+  // preparation failure before the snapshot build starts. The live graph must
+  // remain usable and retain the uncheckpointed mutation.
   {
     neug::NeugDB db;
     db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
     auto conn = db.Connect();
     this->ExpectQuery(*conn, "CREATE (:Item {id: 300});");
 
-    std::string ckp_dir;
-    for (const auto& entry :
-         std::filesystem::directory_iterator(this->db_dir_)) {
-      auto name = entry.path().filename().string();
-      if (entry.is_directory() && name.find("checkpoint-") == 0 &&
-          name.find(".next") == std::string::npos) {
-        ckp_dir = entry.path().string();
-        break;
-      }
-    }
-    ASSERT_FALSE(ckp_dir.empty());
-
-    std::filesystem::permissions(ckp_dir,
+    std::filesystem::permissions(this->db_dir_,
                                  std::filesystem::perms::owner_read |
                                      std::filesystem::perms::owner_exec);
 
-    // CHECKPOINT should fail because UpdateMeta cannot write meta.tmp.
+    // CHECKPOINT should fail while creating checkpoint-(N+1).next.
     auto res = conn->Query("CHECKPOINT;");
     EXPECT_FALSE(res) << "Expected CHECKPOINT to fail, but it succeeded";
+    EXPECT_FALSE(has_staging_checkpoint_dirs(this->db_dir_));
 
-    // Restore permissions so Close() and subsequent reopen work.
-    std::filesystem::permissions(ckp_dir, std::filesystem::perms::owner_all);
+    auto table = this->RunQuery(*conn, "MATCH (v:Item) RETURN v.id;");
+    EXPECT_EQ(table.row_count(), 3);
+
+    // Restore permissions and verify checkpointing can be retried.
+    std::filesystem::permissions(this->db_dir_,
+                                 std::filesystem::perms::owner_all);
+    res = conn->Query("CHECKPOINT;");
+    ASSERT_TRUE(res) << res.error().ToString();
     conn->Close();
     db.Close();
   }
@@ -2017,10 +2195,103 @@ TYPED_TEST(CheckpointSafetyTest,
     db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
     auto conn = db.Connect();
     auto table = this->RunQuery(*conn, "MATCH (v:Item) RETURN v.id;");
-    EXPECT_EQ(table.row_count(), 2);
+    EXPECT_EQ(table.row_count(), 3);
     conn->Close();
     db.Close();
   }
+}
+
+TYPED_TEST(CheckpointSafetyTest,
+           checkpoint_on_close_failure_is_suppressed_after_cleanup) {
+  auto config = this->MakeConfig(this->db_dir_);
+  neug::NeugDB db;
+  db.Open(config);
+  auto conn = db.Connect();
+  this->ExpectQuery(*conn,
+                    "CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));");
+  this->ExpectQuery(*conn, "CREATE (:Item {id: 100});");
+  conn->Close();
+
+  // checkpoint-0 is the initial durable generation. Block publication of
+  // checkpoint-1 so the best-effort checkpoint fails after consuming the
+  // live graph.
+  create_published_checkpoint_blocker(this->db_dir_, 1);
+  EXPECT_NO_THROW(db.Close());
+  EXPECT_TRUE(db.IsClosed());
+
+  // Close() must suppress the checkpoint error, release the file lock and all
+  // runtime resources, and let the same object recover through the ordinary
+  // Open path.
+  EXPECT_NO_THROW(db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_)));
+  EXPECT_TRUE(db.IsClosed() == false);
+  EXPECT_NO_THROW(db.Close());
+}
+
+TYPED_TEST(CheckpointSafetyTest,
+           destructive_checkpoint_failure_terminates_process) {
+  {
+    neug::NeugDB db;
+    db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
+    auto conn = db.Connect();
+    this->ExpectQuery(*conn,
+                      "CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));");
+    this->ExpectQuery(*conn, "CREATE (:Item {id: 100});");
+    this->ExpectQuery(*conn, "CHECKPOINT;");
+
+    // A pre-existing final generation makes publish fail after compact/dump,
+    // exercising the destructive fail-stop path with a real filesystem
+    // conflict rather than a product-code test hook.
+    create_published_checkpoint_blocker(this->db_dir_, 2);
+    EXPECT_DEATH({ (void) conn->Query("CHECKPOINT;"); },
+                 "terminating to prevent access to an invalid live graph");
+
+    conn->Close();
+    db.Close();
+  }
+
+  // Restart recovery discards incomplete staging state and uses the last
+  // durable checkpoint as its baseline.
+  {
+    neug::NeugDB db;
+    db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
+    auto conn = db.Connect();
+    AssertSingleInt64Result(
+        this->RunQuery(*conn, "MATCH (v:Item) RETURN count(v);"), 1);
+    conn->Close();
+    db.Close();
+  }
+}
+
+TYPED_TEST(CheckpointSafetyTest, checkpoint_gc_failure_is_best_effort) {
+  if (getuid() == 0) {
+    GTEST_SKIP() << "Cannot test permission-based failures as root";
+  }
+
+  neug::NeugDB db;
+  db.Open(this->MakeConfigNoCheckpointOnClose(this->db_dir_));
+  auto conn = db.Connect();
+  this->ExpectQuery(*conn,
+                    "CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));");
+  this->ExpectQuery(*conn, "CREATE (:Item {id: 1});");
+
+  const auto retired_checkpoint =
+      std::filesystem::path(this->db_dir_) / "checkpoint-0";
+  ASSERT_TRUE(std::filesystem::exists(retired_checkpoint));
+  std::filesystem::permissions(
+      retired_checkpoint,
+      std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
+  auto result = conn->Query("CHECKPOINT;");
+  ASSERT_TRUE(result) << result.error().ToString();
+  EXPECT_EQ(list_checkpoint_dirs(this->db_dir_).size(), 2u);
+
+  std::filesystem::permissions(retired_checkpoint,
+                               std::filesystem::perms::owner_all);
+  result = conn->Query("CHECKPOINT;");
+  ASSERT_TRUE(result) << result.error().ToString();
+  AssertSingleCurrentCheckpoint(this->db_dir_);
+
+  conn->Close();
+  db.Close();
 }
 
 // Fix #530: Open discards an incomplete (empty-meta) checkpoint and recovers.

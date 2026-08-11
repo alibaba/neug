@@ -61,10 +61,20 @@ Open the database from persistent storage.
 
 Initializes and opens the NeuG database from the specified data directory. This method loads the graph schema, vertex/edge data, and initializes the query processor and planner.
 
-**Data Directory Structure:** The data_dir should contain:
-- `graph.yaml`: `Schema` definition file
-- `snapshot/`: Vertex and edge data files
-- `wal/`: Write-ahead log files (optional, for recovery)
+**Data Directory Structure:** Persistent state is organized into numbered checkpoint generations:
+
+```text
+data_dir/
+├── checkpoint-N/
+│   ├── meta
+│   ├── snapshot/
+│   ├── runtime/
+│   ├── allocator/
+│   └── wal/
+└── checkpoint-(N+1).next/  # transient staging generation, when present
+```
+
+NeuG opens the highest valid published generation. A `.next` directory is not visible as the current checkpoint and is cleaned up during writable recovery if checkpoint creation did not complete.
 
 **Usage Example:** 
 ```cpp
@@ -77,9 +87,11 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 
 - **Parameters:**
   - `data_dir`: Path to the graph data directory
-  - `max_thread_num`: Maximum database thread count. The default
-    `0` auto-selects from hardware concurrency (number of CPU cores), falling
-    back to `1` if the runtime cannot detect it.
+  - `max_thread_num`: Database query capacity; `0` selects hardware concurrency (fallback `1`), while higher inputs warn and clamp to it.
+
+    Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
+
+    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `checkpoint_on_close`: Create a checkpoint (persist data) when closing
@@ -137,7 +149,8 @@ db.Close();  // Persist data and cleanup
 
 - **Notes:**
   - This method is idempotent - calling it multiple times is safe.
-  - After closing, the database cannot be reopened. Create a new `NeugDB` instance to open the database again.
+  - After closing, the same `NeugDB` instance can be opened again.
+  - Checkpoint-on-close is best effort. If it fails, `Close()` logs an error, suppresses the exception, and continues releasing resources.
   - No connection operation may be in progress when this method is called.
 
 - **Since:** v0.1.0

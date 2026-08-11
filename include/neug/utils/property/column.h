@@ -72,8 +72,6 @@ class ColumnBase : public Module {
   virtual void set_any(size_t index, const Value& value, bool insert_safe) = 0;
 
   virtual Value get_any(size_t index) const = 0;
-
-  virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
 
 template <typename T>
@@ -150,13 +148,10 @@ class TypedColumn : public ColumnBase {
     return Value::CreateValue<T>(get_view(index));
   }
 
-  void ingest(uint32_t index, OutArchive& arc) override {
-    T val;
-    arc >> val;
-    set_value(index, val);
-  }
-
   const IDataContainer& buffer() const { return *buffer_; }
+  const std::shared_ptr<IDataContainer>& shared_buffer() const {
+    return buffer_;
+  }
   size_t buffer_size() const { return size_; }
 
   inline T* mutable_data() { return reinterpret_cast<T*>(buffer_->GetData()); }
@@ -227,8 +222,6 @@ class TypedColumn<EmptyType> : public ColumnBase {
   Value get_any(size_t index) const override { return Value(DataType::EMPTY); }
 
   EmptyType get_view(size_t index) const { return EmptyType(); }
-
-  void ingest(uint32_t index, OutArchive& arc) override {}
 
   std::string ModuleTypeName() const override { return type_name(); }
 
@@ -525,12 +518,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
     return Value::STRING(std::string(get_view(index)));
   }
 
-  void ingest(uint32_t index, OutArchive& arc) override {
-    std::string_view val;
-    arc >> val;
-    set_value(index, val);
-  }
-
   std::unique_ptr<Module> Clone() const override {
     auto new_col = std::make_unique<TypedColumn<std::string_view>>(width_);
     new_col->items_buffer_ = items_buffer_;
@@ -552,6 +539,20 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     assert(pos_.load() <= data_buffer_->GetDataSize());
     return data_buffer_->GetDataSize() - pos_.load();
+  }
+
+  // Copy only the row metadata. The referenced string bytes stay in place and
+  // are compacted by Dump, so relocating a row does not append to data_buffer_.
+  void copy_item(size_t dst, size_t src) {
+    set_string_item(dst, get_string_item(src));
+  }
+
+  // Shrink the logical rows and their metadata without resizing the string
+  // byte buffer. This is used by consuming compaction before Dump.
+  void shrink_items(size_t size) {
+    assert(size <= size_);
+    items_buffer_->Resize(size * sizeof(string_item));
+    size_ = size;
   }
 
   std::string ModuleTypeName() const override { return type_name(); }

@@ -1,15 +1,16 @@
 name: NPM Package Test
 
 on:
-  schedule:
-    # Trigger at 22:00 CST (14:00 UTC) every day
-    - cron: '0 14 * * *'
-  workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/npm-package-test.yml'
+  # Nightly builds call this workflow after uploading the current run's packages.
+  workflow_call:
+    inputs:
+      package_source:
+        description: Package source, either npm or artifact
+        required: false
+        default: artifact
+        type: string
+  # Manual runs verify the packages currently published to npm.
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -18,6 +19,8 @@ concurrency:
 jobs:
   package-test:
     runs-on: ${{ matrix.os }}
+    env:
+      ARTIFACT_PLATFORM: ${{ matrix.os == 'ubuntu-latest' && 'linux-x86_64' || 'osx-arm64' }}
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +48,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: tools/nodejs_bind/package-lock.json
 
-      - name: Install NeuG npm package
+      - name: Prepare test workspace
         run: |
           set -euo pipefail
 
@@ -54,7 +57,31 @@ jobs:
 
           cp -R "${GITHUB_WORKSPACE}/tools/nodejs_bind/tests" "${TEST_WORKSPACE}/tests"
 
-          cd "${TEST_WORKSPACE}" && npm install neug@npm:@graphscope-neug/neug
+      - name: Install NeuG package from npm
+        if: inputs.package_source != 'artifact'
+        run: |
+          cd "${RUNNER_TEMP}/neug-npm-package-test"
+          npm install neug@npm:@graphscope-neug/neug
+
+      - name: Download npm packages from artifacts
+        if: inputs.package_source == 'artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: nodejs-${{ env.ARTIFACT_PLATFORM }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/neug-npm-package-test
+
+      - name: Install NeuG package from artifact
+        if: inputs.package_source == 'artifact'
+        run: |
+          set -euo pipefail
+
+          TEST_WORKSPACE="${RUNNER_TEMP}/neug-npm-package-test"
+          cd "${TEST_WORKSPACE}"
+          npm install ./graphscope-neug-"${ARTIFACT_PLATFORM}"-*.tgz
+
+          # npm aliases only support registry packages. Recreate the public
+          # "neug" alias locally after installing the scoped artifact.
+          ln -s "@graphscope-neug/${ARTIFACT_PLATFORM}" node_modules/neug
 
       - name: Prepare modern graph dataset
         env:
@@ -75,7 +102,4 @@ jobs:
       - name: Run Node.js tests
         run: |
           cd "${RUNNER_TEMP}/neug-npm-package-test"
-          for f in tests/test_*.js; do
-            echo "Running $f"
-            node "$f"
-          done
+          node tests/test-shim.js
