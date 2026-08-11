@@ -125,10 +125,18 @@ bool NeugDB::Open(const NeugDBConfig& config) {
           config_.data_dir);
     }
 
+    config_.data_dir =
+        std::filesystem::weakly_canonical(config_.data_dir).string();
+
     file_lock_ = std::make_unique<FileLock>(config_.data_dir);
 
     std::string error_msg;
-    if (!file_lock_->lock(error_msg, config.mode)) {
+    // A pure-memory database owns a fresh private workspace, so it needs an
+    // exclusive lock to initialize the lock file even when its data access
+    // mode is read-only. Persistent read-only databases use a shared lock and
+    // may create missing runtime coordination metadata for legacy databases.
+    const auto lock_mode = is_pure_memory_ ? DBMode::READ_WRITE : config.mode;
+    if (!file_lock_->lock(error_msg, lock_mode)) {
       THROW_DATABASE_LOCKED_EXCEPTION(
           "Failed to lock data directory: " + config_.data_dir +
           ", error: " + error_msg);
@@ -387,16 +395,22 @@ void NeugDB::cleanupTemporaryWorkspace() noexcept {
 }
 
 void NeugDB::initAllocators(const std::string& allocator_dir) {
-  // Initialize the default allocator for ingesting wals
+  // WAL replay needs an allocator even in read-only mode. Read-only opens
+  // must not alter the checkpoint allocator workspace, so use transient
+  // in-memory backing there. Read-write opens retain the durable workspace.
   allocators_.clear();
-  remove_directory(allocator_dir);
-  std::filesystem::create_directories(allocator_dir);
+  const bool read_only = config_.mode == DBMode::READ_ONLY;
+  if (!read_only) {
+    remove_directory(allocator_dir);
+    std::filesystem::create_directories(allocator_dir);
+  }
   assert(config_.max_thread_num > 0);
   for (int i = 0; i < config_.max_thread_num; ++i) {
     allocators_.emplace_back(std::make_shared<Allocator>(
-        config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
-                                  ? ""
-                                  : allocator_prefix(allocator_dir, i)));
+        read_only ? MemoryLevel::kInMemory : config_.memory_level,
+        !read_only && config_.memory_level == MemoryLevel::kSyncToFile
+            ? allocator_prefix(allocator_dir, i)
+            : ""));
   }
 }
 

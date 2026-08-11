@@ -78,24 +78,19 @@ class ScriptedVersionManager : public IVersionManager {
   }
 
   int acquire_count() const { return acquire_count_.load(); }
-  int release_count() const { return release_count_.load(); }
+  uint32_t active_readers() const {
+    return detail::OperationGateWord::readers(operation_gate_.load_acquire());
+  }
 
   void init_ts(PublishedReadView, int) override {}
   bool try_set_runtime_wait_if_quiescent(RuntimeWaitFn) noexcept override {
     return true;
   }
 
-  PublishedReadView acquire_read_view() override {
-    const auto captured =
-        UnpackPublishedReadView(published_.load(std::memory_order_acquire));
-    const int acquire_count = acquire_count_.fetch_add(1) + 1;
-    if (acquire_hook_) {
-      acquire_hook_(acquire_count);
-    }
-    return captured;
+  ReadOperationLease acquire_read_operation() override {
+    SharedOperationLease admission(operation_gate_);
+    return {capture_published_view(), std::move(admission)};
   }
-
-  void release_read_view() override { release_count_.fetch_add(1); }
   uint32_t acquire_insert_timestamp() override { return 1; }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
@@ -113,15 +108,25 @@ class ScriptedVersionManager : public IVersionManager {
   void revert_compact_timestamp(uint32_t) override {}
 
  private:
+  PublishedReadView capture_published_view() {
+    const auto captured =
+        UnpackPublishedReadView(published_.load(std::memory_order_acquire));
+    const int acquire_count = acquire_count_.fetch_add(1) + 1;
+    if (acquire_hook_) {
+      acquire_hook_(acquire_count);
+    }
+    return captured;
+  }
+
   RuntimeWaitFn runtime_wait_impl() const noexcept override {
     return runtime_wait_;
   }
 
   std::atomic<uint64_t> published_;
   std::atomic<int> acquire_count_{0};
-  std::atomic<int> release_count_{0};
   std::function<void(int)> acquire_hook_;
   RuntimeWaitFn runtime_wait_{&NativeRuntimeWait};
+  OperationGate operation_gate_;
 };
 
 class ReadViewPublicationTest : public ::testing::Test {
@@ -194,7 +199,8 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
-  const PublishedReadView old_view = version_manager.acquire_read_view();
+  auto operation = version_manager.acquire_read_operation();
+  const PublishedReadView old_view = operation.published_view;
   PublishReplacement(version_manager);
 
   SnapshotGuard current(*store_);
@@ -204,7 +210,7 @@ TEST_F(ReadViewPublicationTest, SplitAcquisitionExposesGenerationMismatch) {
   EXPECT_NE(current.get().snapshot_generation(), old_view.snapshot_generation);
 
   current.release();
-  version_manager.release_read_view();
+  operation.admission.release();
 }
 
 TEST_F(ReadViewPublicationTest, ValidatedReaderKeepsPinnedOldSnapshot) {
@@ -233,8 +239,9 @@ TEST_F(ReadViewPublicationTest,
   VersionManager version_manager;
   version_manager.init_ts({kInitialTimestamp, kInitialSnapshotGeneration}, 2);
 
-  const PublishedReadView initialized = version_manager.acquire_read_view();
-  version_manager.release_read_view();
+  auto operation = version_manager.acquire_read_operation();
+  const PublishedReadView initialized = operation.published_view;
+  operation.admission.release();
   ASSERT_EQ(initialized.visibility_ts, kInitialTimestamp);
   ASSERT_EQ(initialized.snapshot_generation, kInitialSnapshotGeneration);
 
@@ -331,12 +338,12 @@ TEST_F(ReadViewPublicationTest, LeaseRetriesAfterBlockedOpenCycle) {
 
   EXPECT_TRUE(publish_succeeded);
   EXPECT_EQ(version_manager.acquire_count(), 2);
-  EXPECT_EQ(version_manager.release_count(), 1);
+  EXPECT_EQ(version_manager.active_readers(), 1U);
   EXPECT_EQ(lease.timestamp(), 2u);
   EXPECT_TRUE(lease.view().schema().is_vertex_label_valid("company"));
 
   lease.release();
-  EXPECT_EQ(version_manager.release_count(), 2);
+  EXPECT_EQ(version_manager.active_readers(), 0U);
 }
 
 TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
@@ -363,7 +370,7 @@ TEST_F(ReadViewPublicationTest, LeaseRetryUsesConfiguredRuntimeWait) {
 
   EXPECT_TRUE(publish_succeeded);
   EXPECT_EQ(version_manager.acquire_count(), mismatch_count + 1);
-  EXPECT_EQ(version_manager.release_count(), mismatch_count);
+  EXPECT_EQ(version_manager.active_readers(), 1U);
   EXPECT_EQ(runtime_wait_calls.load(std::memory_order_relaxed), 1);
   EXPECT_EQ(lease.timestamp(), static_cast<uint32_t>(mismatch_count + 1));
   EXPECT_TRUE(lease.view().schema().is_vertex_label_valid("company"));

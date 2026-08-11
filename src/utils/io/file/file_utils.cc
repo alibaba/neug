@@ -18,6 +18,8 @@
 #include <glog/logging.h>
 
 #include <fcntl.h>
+#include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -80,16 +82,12 @@ static bool try_reflink(const std::string& src_path,
                         const std::string& dst_path,
                         const struct stat& src_stat) {
 #if defined(__APPLE__)
-  // clonefile() requires dst to not exist. The overwrite policy was
-  // already enforced by the caller; remove any leftover dst here.
-  ::unlink(dst_path.c_str());
+  (void) src_stat;
   if (::clonefile(src_path.c_str(), dst_path.c_str(), 0) == 0) {
     // clonefile preserves mode/timestamps/ACLs by default; no need to
     // re-apply metadata.
     return true;
   }
-  // Not on APFS or unsupported — leave no partial file behind.
-  ::unlink(dst_path.c_str());
   return false;
 #elif defined(FICLONE)
   int src_fd = ::open(src_path.c_str(), O_RDONLY);
@@ -349,6 +347,41 @@ void fallback_copy(const std::string& src_path, const std::string& dst_path,
 
 CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
                      bool overwrite) {
+  if (overwrite) {
+    // Keep dst present while copying. Some callers reserve it with O_EXCL so
+    // concurrent processes cannot claim the same runtime path. All copy fast
+    // paths are allowed to create/remove the unique staging path; only the
+    // final rename replaces dst, atomically and without exposing a gap.
+    static std::atomic<uint64_t> copy_sequence{0};
+    std::string copy_path;
+    while (true) {
+      auto sequence = copy_sequence.fetch_add(1, std::memory_order_relaxed);
+      copy_path = dst_path + ".copy-" + std::to_string(::getpid()) + "-" +
+                  std::to_string(sequence);
+      struct stat copy_stat;
+      if (::lstat(copy_path.c_str(), &copy_stat) != 0) {
+        if (errno == ENOENT) {
+          break;
+        }
+        throw std::runtime_error("Failed to inspect temporary copy path: " +
+                                 copy_path + ": " + std::strerror(errno));
+      }
+    }
+
+    try {
+      auto result = copy_file(src_path, copy_path, /*overwrite=*/false);
+      if (::rename(copy_path.c_str(), dst_path.c_str()) != 0) {
+        const int rename_errno = errno;
+        throw std::runtime_error("Failed to atomically replace destination: " +
+                                 dst_path + ": " + std::strerror(rename_errno));
+      }
+      return result;
+    } catch (...) {
+      ::unlink(copy_path.c_str());
+      throw;
+    }
+  }
+
   // Verify source file exists
   struct stat src_stat;
   if (stat(src_path.c_str(), &src_stat) < 0) {
@@ -356,11 +389,9 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
   }
 
   // Check if destination exists
-  if (!overwrite) {
-    struct stat dst_stat;
-    if (stat(dst_path.c_str(), &dst_stat) == 0) {
-      throw std::runtime_error("Destination file already exists: " + dst_path);
-    }
+  struct stat dst_stat;
+  if (stat(dst_path.c_str(), &dst_stat) == 0) {
+    throw std::runtime_error("Destination file already exists: " + dst_path);
   }
 
   // Try reflink (COW) first - fastest if supported

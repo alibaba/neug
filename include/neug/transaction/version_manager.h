@@ -19,6 +19,7 @@
 #include <chrono>
 #include <optional>
 
+#include "neug/transaction/operation_gate.h"
 #include "neug/transaction/runtime_wait.h"
 #include "neug/transaction/timestamp_window.h"
 #include "neug/utils/spinlock.h"
@@ -48,6 +49,11 @@ inline PublishedReadView UnpackPublishedReadView(uint64_t packed) {
   return {static_cast<uint32_t>(packed), static_cast<uint32_t>(packed >> 32)};
 }
 
+struct ReadOperationLease {
+  PublishedReadView published_view;
+  SharedOperationLease admission;
+};
+
 /**
  * @brief Unified interface for transaction timestamp and concurrency control.
  *
@@ -62,6 +68,7 @@ inline PublishedReadView UnpackPublishedReadView(uint64_t packed) {
  *
  * @see VersionManager for the concrete implementation and its
  *      concurrency matrix.
+ * @see OperationGate for the packed admission gate primitive.
  */
 class IVersionManager {
  public:
@@ -76,8 +83,9 @@ class IVersionManager {
   RuntimeBackoff make_runtime_backoff() const noexcept {
     return RuntimeBackoff(runtime_wait_impl());
   }
-  virtual PublishedReadView acquire_read_view() = 0;
-  virtual void release_read_view() = 0;
+  // Acquire one shared operation lease and the TP coherent read view published
+  // behind it. The returned lease owns the reader admission directly.
+  virtual ReadOperationLease acquire_read_operation() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   // Waiters directly contend the admission phase. Acquisition order is
@@ -116,68 +124,6 @@ class IVersionManager {
   virtual void finish_update_and_reset_timeline(uint32_t ts) noexcept = 0;
 };
 
-namespace detail {
-
-enum class AdmissionState : uint8_t { kOpen, kInsertsBlocked, kAllBlocked };
-
-// [63:62] phase | [61:31] inserters | [30:0] readers.
-struct OperationGateWord {
-  static constexpr uint32_t kMaxReaderCount = 0x7fffffffu;
-  static constexpr uint32_t kMaxInserterCount = 0x7fffffffu;
-  static constexpr uint64_t kReaderMask = kMaxReaderCount;
-  static constexpr uint64_t kInserterMask = uint64_t{kMaxInserterCount} << 31;
-  static constexpr uint64_t kPhaseMask = uint64_t{3} << 62;
-  static constexpr uint64_t kReaderUnit = 1;
-  static constexpr uint64_t kInserterUnit = uint64_t{1} << 31;
-
-  [[nodiscard]] static constexpr uint64_t empty(AdmissionState phase) noexcept {
-    return static_cast<uint64_t>(phase) << 62;
-  }
-
-  [[nodiscard]] static constexpr AdmissionState phase(uint64_t word) noexcept {
-    return static_cast<AdmissionState>(word >> 62);
-  }
-
-  [[nodiscard]] static constexpr uint32_t readers(uint64_t word) noexcept {
-    return static_cast<uint32_t>(word & kReaderMask);
-  }
-
-  [[nodiscard]] static constexpr uint32_t inserters(uint64_t word) noexcept {
-    return static_cast<uint32_t>((word >> 31) & kMaxInserterCount);
-  }
-
-  [[nodiscard]] static constexpr uint64_t with_phase(
-      uint64_t word, AdmissionState desired_phase) noexcept {
-    return (word & ~kPhaseMask) | (static_cast<uint64_t>(desired_phase) << 62);
-  }
-
-  // Callers validate the inserter counter before changing it.
-  [[nodiscard]] static constexpr uint64_t increment_inserter(
-      uint64_t word) noexcept {
-    return word + kInserterUnit;
-  }
-
-  [[nodiscard]] static bool try_change_phase(
-      std::atomic<uint64_t>& gate, uint64_t& observed,
-      AdmissionState desired_phase) noexcept {
-    const uint64_t desired = with_phase(observed, desired_phase);
-    return gate.compare_exchange_weak(observed, desired,
-                                      std::memory_order_acq_rel,
-                                      std::memory_order_relaxed);
-  }
-};
-
-static_assert((OperationGateWord::kPhaseMask &
-               OperationGateWord::kReaderMask) == 0);
-static_assert((OperationGateWord::kPhaseMask &
-               OperationGateWord::kInserterMask) == 0);
-static_assert((OperationGateWord::kReaderMask &
-               OperationGateWord::kInserterMask) == 0);
-static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
-               OperationGateWord::kInserterMask) == ~uint64_t{0});
-
-}  // namespace detail
-
 /**
  * @brief VersionManager — concurrency control via atomic state machine.
  *
@@ -207,11 +153,10 @@ static_assert((OperationGateWord::kPhaseMask | OperationGateWord::kReaderMask |
  *   Storage compaction may reset per-record visibility timestamps to zero, but
  *   transaction/WAL timestamps must never be reset within a WAL timeline.
  * - read_ts_: highest timestamp fully committed and visible to all readers.
- * - operation_gate_state_: atomically combines admission phase and counters.
+ * - gate_: packed operation gate combining the admission phase and counters.
  *   Update execution blocks inserters; update commit and compaction block
  *   both readers and inserters.
- * - acquire_read_view increments the reader count with fetch_add, validates the
- *   phase and overflow state from the returned old word, then captures the
+ * - acquire_read_operation owns one shared gate lease and then captures the
  *   atomically published timestamp/generation pair.
  * - begin_update_commit blocks new readers through the same control word.
  *   A reader is therefore either counted before the transition or rejected
@@ -230,8 +175,7 @@ class VersionManager : public IVersionManager {
   bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept override;
 
-  PublishedReadView acquire_read_view() override;
-  void release_read_view() override;
+  ReadOperationLease acquire_read_operation() override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;
@@ -245,24 +189,12 @@ class VersionManager : public IVersionManager {
   void revert_compact_timestamp(uint32_t ts) override;
 
  private:
-  using AdmissionState = detail::AdmissionState;
-  using OperationGateWord = detail::OperationGateWord;
   uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point deadline) override;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
   int thread_num_;
-  // These helpers may suspend the logical task. Callers must not hold an
-  // OS-thread-owned lock or retain an ordinary TLS pointer across the call.
-  void enter_admission_phase(AdmissionState desired_phase);
-  void transition_admission_phase(AdmissionState expected_phase,
-                                  AdmissionState desired_phase);
-  void wait_for_readers_to_drain();
-  void wait_for_inserters_to_drain();
-  bool wait_for_inserters_to_drain_until(
-      std::chrono::steady_clock::time_point deadline);
   uint32_t reserve_update_timestamp();
-  void release_insert_admission();
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
   RuntimeWaitFn runtime_wait_impl() const noexcept override;
@@ -272,12 +204,11 @@ class VersionManager : public IVersionManager {
   std::atomic<uint32_t> installed_snapshot_generation_{0};
   std::atomic<uint64_t> published_read_view_{PackPublishedReadView({1, 0})};
 
-  std::atomic<uint64_t> operation_gate_state_{0};
+  OperationGate gate_;
 
   TimestampWindow ts_window_;
 
   SpinLock lock_;
-  std::atomic<RuntimeWaitFn> runtime_wait_;
 };
 
 }  // namespace neug

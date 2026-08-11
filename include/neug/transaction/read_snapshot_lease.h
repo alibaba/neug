@@ -54,11 +54,11 @@ class ReadSnapshotLease {
   }
 
  private:
-  ReadSnapshotLease(IVersionManager& version_manager, SnapshotGuard snapshot,
+  ReadSnapshotLease(SharedOperationLease admission, SnapshotGuard snapshot,
                     timestamp_t timestamp) noexcept;
 
-  IVersionManager* version_manager_;
   timestamp_t timestamp_;
+  SharedOperationLease admission_;
   // Declared last so fallback destruction also unpins before reader release.
   SnapshotGuard snapshot_;
 };
