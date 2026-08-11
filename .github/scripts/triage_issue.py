@@ -139,7 +139,7 @@ def call_qwen(api_key: str, system: str, user: str) -> dict:
 def is_umbrella(cfg: dict, title: str, number: int) -> bool:
     # Skip LLM classification for tracking / milestone / umbrella issues —
     # they sit above the triage layer, so a triage comment is noise.
-    if "[Tracking]" in title or "[MILESTONE]" in title or "[Tracking," in title:
+    if "[Tracking]" in title or "[MILESTONE]" in title:
         return True
     return any(u["number"] == number for u in cfg["umbrellas"])
 
