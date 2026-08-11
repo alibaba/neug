@@ -34,8 +34,10 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/main/connection.h"
+#include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -220,6 +222,12 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   }
   ASSERT_TRUE(std::filesystem::exists(allocator_marker));
 
+  NeugDBConfig parent_read_config(db_dir.string(), 1);
+  parent_read_config.mode = DBMode::READ_ONLY;
+  parent_read_config.memory_level = MemoryLevel::kSyncToFile;
+  NeugDB parent_reader;
+  ASSERT_TRUE(parent_reader.Open(parent_read_config));
+
   int ready_pipe[2];
   int release_pipe[2];
   ASSERT_EQ(::pipe(ready_pipe), 0);
@@ -291,6 +299,14 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   }
   EXPECT_TRUE(std::filesystem::exists(allocator_marker));
 
+  // The children were forked while this reader was open. After releasing the
+  // parent's lock, their independently reacquired locks must still exclude a
+  // writer.
+  parent_reader.Close();
+  std::string lock_error;
+  FileLock writer(db_dir.string());
+  EXPECT_FALSE(writer.lock(lock_error, DBMode::READ_WRITE));
+
   ::close(release_pipe[1]);
   const auto wait_for_child = [](pid_t child_pid) {
     int status = 0;
@@ -315,8 +331,80 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
     EXPECT_FALSE(std::filesystem::exists(path));
   }
   EXPECT_TRUE(std::filesystem::exists(allocator_marker));
+  ASSERT_TRUE(writer.lock(lock_error, DBMode::READ_WRITE)) << lock_error;
+  writer.unlock();
 
   ::close(ready_pipe[0]);
+  std::filesystem::remove_all(db_dir);
+}
+
+// weakly_canonical normalizes the data directory before locking, so opening
+// the same database through a symlink resolves to the same lock-table entry.
+TEST(ConnectionReadOnlyTest, SymlinkedDirectoryResolvesToSameLockEntry) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_symlink_lock_db_test_" + std::to_string(::getpid()));
+  const auto link_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_symlink_lock_link_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+  std::filesystem::remove_all(link_dir);
+
+  NeugDBConfig write_config(db_dir.string(), 1);
+  write_config.checkpoint_on_close = true;
+  write_config.memory_level = MemoryLevel::kInMemory;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(write_config));
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema"));
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::create_directory_symlink(db_dir, link_dir);
+
+  // A writer opened through the real path conflicts with a read-only open
+  // through the symlink.
+  {
+    NeugDB writer;
+    ASSERT_TRUE(writer.Open(write_config));
+
+    NeugDBConfig symlink_read_config(link_dir.string(), 1);
+    symlink_read_config.mode = DBMode::READ_ONLY;
+    symlink_read_config.memory_level = MemoryLevel::kSyncToFile;
+    NeugDB symlink_reader;
+    EXPECT_THROW(symlink_reader.Open(symlink_read_config),
+                 neug::exception::DatabaseLockedException);
+
+    writer.Close();
+  }
+
+  // Read-only opens through the real path and the symlink share the lock
+  // entry and coexist.
+  {
+    NeugDBConfig read_config(db_dir.string(), 1);
+    read_config.mode = DBMode::READ_ONLY;
+    read_config.memory_level = MemoryLevel::kSyncToFile;
+    NeugDB first_reader;
+    ASSERT_TRUE(first_reader.Open(read_config));
+
+    NeugDBConfig symlink_read_config(link_dir.string(), 1);
+    symlink_read_config.mode = DBMode::READ_ONLY;
+    symlink_read_config.memory_level = MemoryLevel::kSyncToFile;
+    NeugDB second_reader;
+    ASSERT_TRUE(second_reader.Open(symlink_read_config));
+
+    auto connection = second_reader.Connect();
+    ASSERT_NE(connection, nullptr);
+    EXPECT_TRUE(connection->Query("MATCH (n:person) RETURN count(n);", "read"));
+    connection->Close();
+    second_reader.Close();
+    first_reader.Close();
+  }
+
+  std::filesystem::remove_all(link_dir);
   std::filesystem::remove_all(db_dir);
 }
 

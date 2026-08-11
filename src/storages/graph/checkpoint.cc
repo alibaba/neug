@@ -92,7 +92,10 @@ void Checkpoint::initialize(bool cleanup_orphan_runtime_files) {
          std::filesystem::directory_iterator(runtime_dir())) {
       if (entry.is_regular_file()) {
         std::string name = entry.path().filename().string();
-        if (is_valid_uuid(name) && referenced_runtime_files.count(name) == 0) {
+        // Everything under runtime/ is temporary working state. In addition to
+        // UUID reservations, remove copy staging files left by a process that
+        // exited before its exception/RAII cleanup ran.
+        if (referenced_runtime_files.count(name) == 0) {
           std::filesystem::remove(entry.path());
           VLOG(1) << "Checkpoint::initialize: cleaned orphan file " << name;
         }

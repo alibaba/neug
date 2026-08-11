@@ -1085,6 +1085,9 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
                               "runtime" /
                               "00000000-0000-0000-0000-000000000001";
   write_raw_file(orphan_runtime.string(), "reader-owned-runtime");
+  const auto orphan_runtime_copy =
+      std::filesystem::path(orphan_runtime.string() + ".copy-123-0");
+  write_raw_file(orphan_runtime_copy.string(), "interrupted-copy");
 
   neug::NeugDBConfig config(db_path);
   config.mode = neug::DBMode::READ_ONLY;
@@ -1099,6 +1102,7 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   EXPECT_TRUE(std::filesystem::exists(bad_path));
   EXPECT_TRUE(std::filesystem::exists(staging));
   EXPECT_TRUE(std::filesystem::exists(orphan_runtime));
+  EXPECT_TRUE(std::filesystem::exists(orphan_runtime_copy));
 
   // A writer holds the exclusive database lock, so it can safely recover
   // runtime files left behind by readers that exited without RAII cleanup.
@@ -1107,6 +1111,7 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   writer.Open(write_config);
   writer.Close();
   EXPECT_FALSE(std::filesystem::exists(orphan_runtime));
+  EXPECT_FALSE(std::filesystem::exists(orphan_runtime_copy));
 }
 
 TEST(CheckpointGCTest,

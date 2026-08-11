@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glog/logging.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -42,22 +43,28 @@ class CurrentHoldDbs {
     return instance;
   }
 
-  bool lock(const std::string& db_path, DBMode mode, std::string& error_msg) {
+  bool lock(const std::string& lock_file_path, DBMode mode,
+            std::string& error_msg, const std::string& data_dir) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto existing = opened_dbs_.find(db_path);
+    resetInheritedLockStateIfForkedLocked();
+    auto existing = opened_dbs_.find(lock_file_path);
     if (existing != opened_dbs_.end()) {
       if (existing->second.mode == DBMode::READ_ONLY &&
           mode == DBMode::READ_ONLY) {
         ++existing->second.references;
         return true;
       }
-      error_msg = mode == DBMode::READ_ONLY
-                      ? "Lock file is already locked in write mode by the "
-                        "current process: " +
-                            db_path
-                      : "Lock file is already locked in read or write mode "
-                        "by the current process: " +
-                            db_path;
+      error_msg =
+          mode == DBMode::READ_ONLY
+              ? "Database is already opened in write mode by the current "
+                "process: " +
+                    data_dir +
+                    ", you can't open it in read-only mode in the same "
+                    "process"
+              : "Database is already opened in read or write mode by the "
+                "current process: " +
+                    data_dir +
+                    ", you can't open it in write mode in the same process";
       return false;
     }
 
@@ -65,28 +72,40 @@ class CurrentHoldDbs {
     // state. Create it on demand for legacy databases that predate the file;
     // read-only opens still use a read-only descriptor and a shared lock.
     const int flags = (mode == DBMode::READ_ONLY ? O_RDONLY : O_RDWR) | O_CREAT;
-    const int fd = ::open(db_path.c_str(), flags, 0600);
+    const int fd = ::open(lock_file_path.c_str(), flags, 0600);
     if (fd == -1) {
-      if (errno == EACCES) {
+      const int open_error = errno;
+      if (mode == DBMode::READ_ONLY &&
+          (open_error == EACCES || open_error == EROFS)) {
         THROW_PERMISSION_DENIED(
-            "Permission denied when opening lock file: " + db_path +
+            "Failed to open lock file: " + lock_file_path +
+            ", error: " + std::string(strerror(open_error)) +
+            ". Read-only mode still requires a writable data directory (" +
+            data_dir +
+            ") to create the lock file and runtime working files on "
+            "demand; please check the permissions of the data directory.");
+      }
+      if (open_error == EACCES) {
+        THROW_PERMISSION_DENIED(
+            "Permission denied when opening lock file: " + lock_file_path +
             ", please check the permissions of the data directory.");
       }
-      THROW_RUNTIME_ERROR("Failed to open lock file: " + db_path +
-                          ", error: " + std::string(strerror(errno)));
+      THROW_RUNTIME_ERROR("Failed to open lock file: " + lock_file_path +
+                          ", error: " + std::string(strerror(open_error)));
     }
     if (!setLock(fd, mode == DBMode::READ_ONLY ? F_RDLCK : F_WRLCK, false,
                  error_msg)) {
       ::close(fd);
       return false;
     }
-    opened_dbs_.emplace(db_path, Entry{fd, mode, 1});
+    opened_dbs_.emplace(lock_file_path, Entry{fd, mode, 1});
     return true;
   }
 
-  void unlock(const std::string& db_path) {
+  void unlock(const std::string& lock_file_path) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto existing = opened_dbs_.find(db_path);
+    resetInheritedLockStateIfForkedLocked();
+    auto existing = opened_dbs_.find(lock_file_path);
     if (existing == opened_dbs_.end()) {
       return;
     }
@@ -101,12 +120,55 @@ class CurrentHoldDbs {
     opened_dbs_.erase(existing);
   }
 
+  void discardInheritedLockStateIfForked() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    resetInheritedLockStateIfForkedLocked();
+  }
+
  private:
+  CurrentHoldDbs() : owner_pid_(::getpid()) {
+    instance_ = this;
+    const int error =
+        ::pthread_atfork(lockBeforeFork, unlockAfterFork, unlockAfterFork);
+    if (error != 0) {
+      instance_ = nullptr;
+      THROW_RUNTIME_ERROR("Failed to register file-lock fork handlers: " +
+                          std::string(strerror(error)));
+    }
+  }
+
   struct Entry {
     int fd;
     DBMode mode;
     size_t references;
   };
+
+  static void lockBeforeFork() noexcept {
+    if (instance_ != nullptr) {
+      (void) ::pthread_mutex_lock(instance_->mutex_.native_handle());
+    }
+  }
+
+  static void unlockAfterFork() noexcept {
+    if (instance_ != nullptr) {
+      (void) ::pthread_mutex_unlock(instance_->mutex_.native_handle());
+    }
+  }
+
+  void resetInheritedLockStateIfForkedLocked() {
+    const auto current_pid = ::getpid();
+    if (owner_pid_ == current_pid) {
+      return;
+    }
+    // POSIX process-associated record locks are not inherited across fork().
+    // Drop the copied descriptors and accounting so the child acquires its own
+    // lock instead of treating the parent's entry as a local reference.
+    for (const auto& [_, entry] : opened_dbs_) {
+      ::close(entry.fd);
+    }
+    opened_dbs_.clear();
+    owner_pid_ = current_pid;
+  }
 
   static bool setLock(int fd, short type, bool wait, std::string& error_msg) {
     struct flock fl;
@@ -122,7 +184,9 @@ class CurrentHoldDbs {
         return true;
       }
       if (errno == EACCES || errno == EAGAIN) {
-        error_msg = "Lock file is already locked by another process.";
+        error_msg =
+            "Lock file is already locked by another process, please check "
+            "if another instance of the database is running.";
         return false;
       }
       if (errno != EINTR) {
@@ -134,19 +198,33 @@ class CurrentHoldDbs {
 
   std::mutex mutex_;
   std::map<std::string, Entry> opened_dbs_;
+  pid_t owner_pid_;
+  static inline CurrentHoldDbs* instance_ = nullptr;
 };
 
 FileLock::FileLock(const std::string& data_dir)
-    : lock_file_path_(data_dir + "/" + LOCK_FILE_NAME), locked_(false) {}
+    : lock_file_path_(data_dir + "/" + LOCK_FILE_NAME),
+      data_dir_(data_dir),
+      locked_(false) {}
 
 FileLock::~FileLock() { unlock(); }
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
+  const auto current_pid = ::getpid();
+  if (locked_ && locked_pid_ != current_pid) {
+    // The handle was copied by fork(), but its process-associated lock was not.
+    locked_ = false;
+    locked_pid_ = 0;
+  }
   if (locked_) {
     error_msg = "File lock is already held by this object: " + lock_file_path_;
     return false;
   }
-  locked_ = CurrentHoldDbs::get().lock(lock_file_path_, mode, error_msg);
+  locked_ =
+      CurrentHoldDbs::get().lock(lock_file_path_, mode, error_msg, data_dir_);
+  if (locked_) {
+    locked_pid_ = current_pid;
+  }
   return locked_;
 }
 
@@ -154,8 +232,13 @@ void FileLock::unlock() {
   if (!locked_) {
     return;  // Not locked, nothing to do
   }
-  CurrentHoldDbs::get().unlock(lock_file_path_);
+  if (locked_pid_ == ::getpid()) {
+    CurrentHoldDbs::get().unlock(lock_file_path_);
+  } else {
+    CurrentHoldDbs::get().discardInheritedLockStateIfForked();
+  }
   locked_ = false;
+  locked_pid_ = 0;
 }
 
 }  // namespace neug

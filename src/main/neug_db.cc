@@ -133,8 +133,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     std::string error_msg;
     // A pure-memory database owns a fresh private workspace, so it needs an
     // exclusive lock to initialize the lock file even when its data access
-    // mode is read-only. Persistent read-only databases still use a shared
-    // lock and never create the lock file.
+    // mode is read-only. Persistent read-only databases use a shared lock and
+    // may create missing runtime coordination metadata for legacy databases.
     const auto lock_mode = is_pure_memory_ ? DBMode::READ_WRITE : config.mode;
     if (!file_lock_->lock(error_msg, lock_mode)) {
       THROW_DATABASE_LOCKED_EXCEPTION(
