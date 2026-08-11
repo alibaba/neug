@@ -386,7 +386,13 @@ def test_index_persistence_after_process_restart(tmp_path):
         db = Database({str(db_path)!r}, mode="w", checkpoint_on_close=False)
         conn = db.connect()
         conn.execute("LOAD vector_search;")
-        rows = list(conn.execute("MATCH (n:Item) RETURN n.id, vector_distance_ip(n.embedding, [1.0, 0.0, 0.0, 0.0]) AS score ORDER BY score DESC LIMIT 1;"))
+        rows = list(
+            conn.execute(
+                "MATCH (n:Item) RETURN n.id, "
+                "vector_distance_ip(n.embedding, [1.0, 0.0, 0.0, 0.0]) "
+                "AS score ORDER BY score DESC LIMIT 1;"
+            )
+        )
         assert rows == [["a", 1.0]], rows
         conn.close()
         db.close()
