@@ -120,6 +120,18 @@ umbrellas:
       Transaction concurrency / WAL / rollback (those go to #86). Schema-fork
       for COW transaction (that goes to #86).
 
+  - number: 329
+    title: "Support exporting the query result to other python data format"
+    scope_in: |
+      Python-binding result conversion: turning query results into Python
+      data structures / third-party formats (pandas DataFrame, PyArrow
+      Table / Arrow record batches, numpy, polars), including type mapping
+      and zero-copy paths in python_bind.
+    scope_out: |
+      Exporting query results to external FILES (CSV / JSON / Parquet) —
+      that surface goes to #158. COPY FROM ingestion semantics (#221).
+      Non-Python bindings (Node.js goes to #418).
+
   - number: 352
     title: "GDS (Graph Data Science) Extension"
     scope_in: |
@@ -148,6 +160,47 @@ umbrellas:
     scope_out: |
       Scalar / temporal type inference (#221). Storage refactor unrelated to
       LIST (#272).
+
+  - number: 461
+    title: "NeuG v0.2 Marketing & Promotion"
+    scope_in: |
+      Release marketing and promotion: release blog posts, tutorials,
+      ongoing technical articles, open-source ecosystem outreach, demo
+      content. Content and documentation work tied to a release, not code.
+    scope_out: |
+      The engineering features themselves (each has its own umbrella).
+
+  - number: 518
+    title: "Unify Compiler and Engine Schema & Value System"
+    scope_in: |
+      Type-system unification between compiler and engine: replacing the
+      compiler's LogicalType / Catalog / Value with the engine's DataType /
+      Schema / Value, removing redundant type definitions and the conversion
+      layers between the two sides.
+    scope_out: |
+      New type support that is itself a feature (LIST / composite goes to
+      #446). COPY FROM type inference (#221).
+
+  - number: 570
+    title: "Support an index framework and vector/FTS/etc indexes in NeuG"
+    scope_in: |
+      Native index support: a generic index framework (interface for search,
+      updates, metadata; open/dump during DB open/close/checkpoint; automatic
+      index maintenance) plus concrete indexes — vector index (ZVec-backed),
+      full-text search, etc. — and their persistence / ACID integration.
+    scope_out: |
+      Storage layout refactors not tied to indexes (#272). General runtime
+      performance (#257).
+
+  - number: 743
+    title: "Support running NeuG on Windows"
+    scope_in: |
+      Native Windows support: CMake / MSVC build adaptation, an OS
+      abstraction layer for POSIX calls (mmap/munmap, file & directory I/O)
+      with Win32 equivalents, and getting the build/test green on Windows.
+    scope_out: |
+      CI test matrix for already-supported platforms (adhoc #257).
+      Linux / macOS-only build issues.
 
   - number: 779
     title: "Support explicit transaction control (BEGIN / COMMIT / ROLLBACK) end-to-end"
