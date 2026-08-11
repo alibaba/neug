@@ -14,16 +14,6 @@ milestone: "NeuG v0.3"
 auto_link_threshold: "high"   # one of: never | high | medium
 
 umbrellas:
-  - number: 49
-    title: "Bundle some almost ready features"
-    scope_in: |
-      Mid-to-large features that are nearly ready and being bundled into the v0.2
-      release. Typically external-contributor or experimental features being shaped
-      into a shippable bundle.
-    scope_out: |
-      Small bug fixes, refactors, or single-PR features. Targeted ingestion / storage
-      / transaction work (those have dedicated umbrellas).
-
   - number: 86
     title: "Refactor UpdateTransaction"
     scope_in: |
@@ -141,14 +131,6 @@ umbrellas:
     scope_out: |
       General extension-system infra (those go to #158 if remote/filesystem,
       or #257 if generic).
-
-  - number: 418
-    title: "Fully support Node.js binding for NeuG"
-    scope_in: |
-      Node.js client binding: native addon, Promise API, type definitions,
-      packaging, npm publication, Node.js-specific CI.
-    scope_out: |
-      Java / Python / C++ bindings.
 
   - number: 446
     title: "Support LIST and composite types (storage + runtime)"
