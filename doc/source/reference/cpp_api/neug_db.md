@@ -39,7 +39,10 @@ separate connections can execute queries concurrently. Individual `Connection`
 instances are not thread-safe.
 
 **Resource Management:**
-- File locking prevents concurrent database access from multiple processes
+- File locking serializes write access across processes: a database opened in
+  read-write mode is exclusive, while multiple read-only processes (or
+  multiple read-only instances within one process) can share the same
+  database directory concurrently
 - Automatic WAL (Write-Ahead Log) for crash recovery
 - Configurable checkpoint on close
 

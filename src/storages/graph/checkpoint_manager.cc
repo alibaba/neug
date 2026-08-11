@@ -132,8 +132,10 @@ void cleanup_staging_checkpoints(const std::string& db_dir,
 }
 
 std::shared_ptr<Checkpoint> open_checkpoint_checked(
-    const std::filesystem::path& path, int32_t id) {
-  auto checkpoint = Checkpoint::Open(path.string(), id);
+    const std::filesystem::path& path, int32_t id,
+    bool cleanup_orphan_runtime_files) {
+  auto checkpoint =
+      Checkpoint::Open(path.string(), id, cleanup_orphan_runtime_files);
   if (!checkpoint->GetMeta().has_schema()) {
     THROW_CHECKPOINT_EXCEPTION("Checkpoint " + path.string() +
                                " is incomplete");
@@ -188,7 +190,8 @@ CheckpointOpenResult open_current_checkpoint(const std::string& db_dir,
   auto dirs = discover_published_checkpoints(db_dir);
   for (const auto& dir : dirs) {
     try {
-      result.current_checkpoint = open_checkpoint_checked(dir.path, dir.id);
+      result.current_checkpoint =
+          open_checkpoint_checked(dir.path, dir.id, recover_workspace);
       result.current_generation = dir.id;
       break;
     } catch (const std::exception& e) {
