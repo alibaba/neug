@@ -4,11 +4,11 @@
 
 Same system dependencies as NeuG (CMake >= 3.16, C++20 compiler), plus:
 
-- Node.js >= 18.0.0
+- Node.js >= 20.0.0
 
 ### Installing Node.js
 
-NeuG Node.js bindings require **Node.js >= 18.0.0** (N-API v8). Install via nvm:
+NeuG Node.js bindings require **Node.js >= 20.0.0** (N-API v8). Install via nvm:
 
 ```bash
 # Install nvm
@@ -21,11 +21,11 @@ source ~/.zshrc
 
 # Install Node.js LTS (v22)
 nvm install --lts && nvm use --lts
-# Or install a specific version (>= 18)
-nvm install 18 && nvm use 18
+# Or install a specific version (>= 20)
+nvm install 20 && nvm use 20
 
 # Verify
-node -v   # should be >= 18.0.0
+node -v   # should be >= 20.0.0
 npm -v
 ```
 
