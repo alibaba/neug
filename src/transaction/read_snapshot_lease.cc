@@ -20,24 +20,24 @@
 
 namespace neug {
 
-ReadSnapshotLease::ReadSnapshotLease(IVersionManager& version_manager,
+ReadSnapshotLease::ReadSnapshotLease(SharedOperationLease admission,
                                      SnapshotGuard snapshot,
                                      timestamp_t timestamp) noexcept
-    : version_manager_(&version_manager),
-      timestamp_(timestamp),
+    : timestamp_(timestamp),
+      admission_(std::move(admission)),
       snapshot_(std::move(snapshot)) {}
 
 ReadSnapshotLease::ReadSnapshotLease(ReadSnapshotLease&& other) noexcept
-    : version_manager_(std::exchange(other.version_manager_, nullptr)),
-      timestamp_(other.timestamp_),
+    : timestamp_(other.timestamp_),
+      admission_(std::move(other.admission_)),
       snapshot_(std::move(other.snapshot_)) {}
 
 ReadSnapshotLease& ReadSnapshotLease::operator=(
     ReadSnapshotLease&& other) noexcept {
   if (this != &other) {
     release();
-    version_manager_ = std::exchange(other.version_manager_, nullptr);
     timestamp_ = other.timestamp_;
+    admission_ = std::move(other.admission_);
     snapshot_ = std::move(other.snapshot_);
   }
   return *this;
@@ -49,17 +49,19 @@ ReadSnapshotLease ReadSnapshotLease::Acquire(
     IVersionManager& version_manager, GraphSnapshotStore& snapshot_store) {
   std::optional<RuntimeBackoff> wait;
   for (;;) {
-    const PublishedReadView published = version_manager.acquire_read_view();
+    auto operation = version_manager.acquire_read_operation();
     SnapshotGuard snapshot(snapshot_store);
-    if (snapshot.get().snapshot_generation() == published.snapshot_generation) {
-      return ReadSnapshotLease(version_manager, std::move(snapshot),
-                               published.visibility_ts);
+    if (snapshot.get().snapshot_generation() ==
+        operation.published_view.snapshot_generation) {
+      return ReadSnapshotLease(std::move(operation.admission),
+                               std::move(snapshot),
+                               operation.published_view.visibility_ts);
     }
 
     // A snapshot was published between the read-view capture and the pin.
     // Release in protocol order, then reacquire a complete view.
     snapshot.release();
-    version_manager.release_read_view();
+    operation.admission.release();
     if (!wait) {
       wait.emplace(version_manager.make_runtime_backoff());
     }
@@ -68,12 +70,11 @@ ReadSnapshotLease ReadSnapshotLease::Acquire(
 }
 
 void ReadSnapshotLease::release() noexcept {
-  auto* version_manager = std::exchange(version_manager_, nullptr);
-  if (!version_manager) {
+  if (!admission_.active()) {
     return;
   }
   snapshot_.release();
-  version_manager->release_read_view();
+  admission_.release();
 }
 
 }  // namespace neug
