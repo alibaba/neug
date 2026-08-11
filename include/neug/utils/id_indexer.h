@@ -455,9 +455,8 @@ class LFIndexer {
     while (true) {
       INDEX_T expected = sentinel;
       std::atomic_ref<INDEX_T> ref(indices_ptr[index]);
-      if (ref.compare_exchange_strong(
-              expected, ind, std::memory_order_seq_cst,
-              std::memory_order_seq_cst)) {
+      if (ref.compare_exchange_strong(expected, ind, std::memory_order_seq_cst,
+                                      std::memory_order_seq_cst)) {
         break;
       }
       index = (index + 1) % (num_slots_minus_one_ + 1);

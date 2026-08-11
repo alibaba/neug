@@ -21,9 +21,9 @@
 
 #include <fcntl.h>
 #include <io.h>
+#include <sys/stat.h>
 #include <windows.h>
 #include <cstdint>
-#include <sys/stat.h>
 
 #include "neug/utils/io/file/file_utils.h"
 
@@ -37,9 +37,8 @@ int truncate(const char* path, int64_t length) {
   return ret;
 }
 
-void* mmap(void* addr, size_t len, int prot, int flags, int fd,
-           off_t offset) {
-  (void)addr;
+void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t offset) {
+  (void) addr;
   DWORD pageProtect = PAGE_NOACCESS;
   if (prot & PROT_WRITE) {
     pageProtect = (flags & MAP_PRIVATE) ? PAGE_WRITECOPY : PAGE_READWRITE;
@@ -52,12 +51,12 @@ void* mmap(void* addr, size_t len, int prot, int flags, int fd,
     return ptr ? ptr : MAP_FAILED;
   }
   HANDLE hFile =
-      (fd == -1) ? INVALID_HANDLE_VALUE : (HANDLE)_get_osfhandle(fd);
+      (fd == -1) ? INVALID_HANDLE_VALUE : (HANDLE) _get_osfhandle(fd);
   DWORD sizeHigh =
       static_cast<DWORD>((static_cast<uint64_t>(len) >> 32) & 0xFFFFFFFFULL);
   DWORD sizeLow = static_cast<DWORD>(len & 0xFFFFFFFFULL);
   HANDLE hMap = CreateFileMapping(hFile, nullptr, pageProtect, sizeHigh,
-                                 sizeLow, nullptr);
+                                  sizeLow, nullptr);
   if (!hMap) {
     return MAP_FAILED;
   }
@@ -74,7 +73,7 @@ void* mmap(void* addr, size_t len, int prot, int flags, int fd,
 }
 
 int munmap(void* addr, size_t len) {
-  (void)len;
+  (void) len;
   // Try VirtualFree first (for anonymous mmap via VirtualAlloc);
   // fall back to UnmapViewOfFile (for file-backed mmap).
   if (VirtualFree(addr, 0, MEM_RELEASE)) {
@@ -84,7 +83,7 @@ int munmap(void* addr, size_t len) {
 }
 
 int msync(void* addr, size_t len, int flags) {
-  (void)flags;
+  (void) flags;
   return FlushViewOfFile(addr, len) ? 0 : -1;
 }
 
