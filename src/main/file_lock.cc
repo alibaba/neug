@@ -89,8 +89,7 @@ class CurrentHoldDbs {
     // read-only opens still use a read-only descriptor and a shared lock.
     const int flags = (mode == DBMode::READ_ONLY ? O_RDONLY : O_RDWR) | O_CREAT;
 #ifdef _WIN32
-    const int fd = _open(lock_file_path.c_str(), flags,
-                        _S_IREAD | _S_IWRITE);
+    const int fd = _open(lock_file_path.c_str(), flags, _S_IREAD | _S_IWRITE);
 #else
     const int fd = ::open(lock_file_path.c_str(), flags, 0600);
 #endif
@@ -217,8 +216,7 @@ class CurrentHoldDbs {
     if (type == F_UNLCK) {
       OVERLAPPED ov = {};
       if (!UnlockFileEx(hFile, 0, 1, 0, &ov)) {
-        error_msg =
-            "Failed to unlock file: " + std::to_string(GetLastError());
+        error_msg = "Failed to unlock file: " + std::to_string(GetLastError());
         return false;
       }
       return true;
