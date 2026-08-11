@@ -84,6 +84,86 @@ Unlike the property table of vertices, the property table of edges is not column
 Fow now, only one property is supported for edges, but developers can define a struct with multiple fields to store multiple properties.
 
 
+## 5. List Property Storage
+
+Variable-length list properties (`T[]`) are stored using [ListPropertyColumn](../utils/property/list_property_column.h),
+which decomposes each list into two sub-columns:
+
+- **items** (`ULongColumn`): a packed index column where each row stores a 64-bit `list_meta_item`
+  struct — 48 bits for the element offset and 16 bits for the list length — aliasing the
+  underlying `uint64_t` buffer via `reinterpret_cast` (same pattern as `string_item` in
+  [column.h](../utils/property/column.h)).
+- **elements** (`ColumnBase`): a contiguous column holding all list elements across all rows.
+
+```
+Row 0:  items_[0] = {offset=0, length=3}   →  elements_[0], elements_[1], elements_[2]
+Row 1:  items_[1] = {offset=3, length=0}   →  (empty list)
+Row 2:  items_[2] = {offset=3, length=2}   →  elements_[3], elements_[4]
+```
+
+Packing offset and length into a single 8-byte value halves the per-row metadata footprint
+(from 16 bytes to 8 bytes) and reduces the number of checkpoint sub-modules from three to
+two. The 48-bit offset supports up to 2^48 elements, and the 16-bit length supports up to
+65535 elements per list.
+
+This design allows the elements column to use the most efficient storage format for its own type
+(e.g., `TypedColumn<T>` for POD elements, `StringColumn` for string elements), and enables
+sequential access patterns during checkpoint dump.
+
+### 5.1 Write Path
+
+When setting a list value at row `i` (`set_any`):
+
+1. If the new element count equals the existing `items_[i].length`, the elements are overwritten
+   in place at `items_[i].offset` — no item update needed.
+2. If the element count differs, the new elements are **appended** to the tail of the elements
+   column, and `items_[i]` is updated with the new offset and length to point to the new region.
+   The old elements become dead space and are reclaimed during checkpoint dump.
+
+### 5.2 Checkpoint Dump (Compaction)
+
+During `Dump`, the column is compacted: all live elements are written contiguously into a new
+compact elements column, eliminating dead space from in-place updates that changed list lengths.
+The items column is rewritten with compacted offsets to reflect the new contiguous layout.
+
+### 5.3 Nested Lists
+
+For nested list types (e.g., `STRING[][]`), the `elements` sub-column is itself a
+`ListPropertyColumn`, creating a recursive storage structure. Each level of nesting adds another
+layer of items/elements decomposition.
+
+For list-of-array types (e.g., `STRING[][2][]`), the elements column is an `ArrayColumn`,
+which stores fixed-size arrays inline.
+
+### 5.4 Thread Safety
+
+The `insert_safe` parameter controls resize behavior, inherited from the `ColumnBase` interface:
+- When `false`, throws on insufficient space in the elements column.
+- When `true`, the elements column is resized as needed; the caller must provide external
+  synchronization during resize.
+
+**Known limitation — insert transaction with list properties:**
+
+After loading a graph from a checkpoint directory, the elements column is sized exactly to
+the live element count (`elements_tail_ == elements_->size()`), leaving zero spare capacity.
+The insert-transaction path (`GraphView::AddVertex` → `TableView::insert` → `set_any`)
+always passes `insert_safe=false`.  Therefore, inserting a **non-empty** list property
+via an insert transaction will throw a `StorageException` ("list length changed ... which
+requires resizing elements_ but insert_safe is false") unless the list length happens to
+match the row's current list length (enabling in-place overwrite).
+
+This differs from `StringColumn`, which pre-allocates ~25% extra space during `Dump` and
+persists the used-portion marker (`pos_`) in the checkpoint descriptor, allowing subsequent
+inserts to use the slack.  `ListPropertyColumn` does not currently implement an analogous
+pre-allocation strategy, so non-empty list inserts after loading from checkpoint are
+expected to fail.
+
+Workarounds:
+- Insert vertices with empty lists, then update the list values via `UpdateTransaction`
+  (which uses `insert_safe=true`).
+- Pre-populate the graph with sufficient list data during the initial bulk load before
+  checkpointing, so that insert transactions are not needed for list properties.
+
 
 ## 6. Durability
 

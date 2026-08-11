@@ -56,6 +56,10 @@ ColumnBase* TableView::get_raw_column(int col_id) const {
   return columns_[col_id];
 }
 
+// insert_safe is always false in the insert-transaction path.  For list
+// property columns, setting a non-empty list on a row with no spare
+// elements capacity will throw StorageException.  After loading from
+// checkpoint there is zero spare space.  See storages/README.md §5.4.
 void TableView::insert(size_t index, const std::vector<Value>& values,
                        bool insert_safe) {
   assert(!insert_safe);
@@ -317,6 +321,10 @@ EdgeDataAccessor GraphView::GetEdgeDataAccessor(
   return it->second.GetDataAccessor(prop_name);
 }
 
+// The false here means insert_safe=false is propagated to all columns.
+// For list properties, non-empty list insertion may fail with
+// StorageException when the elements column lacks spare capacity.
+// This is a known limitation.  See storages/README.md §5.4.
 Status GraphView::AddVertex(label_t label, const Value& id,
                             const std::vector<Value>& props, vid_t& vid,
                             timestamp_t ts) {

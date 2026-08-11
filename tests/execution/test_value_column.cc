@@ -15,10 +15,10 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
+#include "neug/common/columns/array_columns.h"
 #include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/value_columns.h"
-#include "neug/common/types/array_columns.h"
 
 namespace neug {
 namespace execution {
@@ -32,6 +32,54 @@ TEST_F(ValueColumnTest, ArrayColumnBuilderRejectsNonArrayLikeValue) {
 
   EXPECT_THROW({ builder.push_back_elem(Value::INT32(42)); },
                exception::InvalidArgumentException);
+}
+
+TEST_F(ValueColumnTest, OptionalArrayShuffleAndUnfold) {
+  auto array_type = DataType::Array(DataType::INT32, 2);
+  ContextArrayColumnBuilder builder(array_type);
+  builder.push_back_elem(
+      Value::ARRAY(array_type, {Value::INT32(1), Value::INT32(2)}));
+  builder.push_back_null();
+  builder.push_back_elem(
+      Value::ARRAY(array_type, {Value::INT32(3), Value::INT32(4)}));
+  builder.push_back_null();
+  auto col = std::dynamic_pointer_cast<ContextArrayColumn>(builder.finish());
+
+  ASSERT_NE(col, nullptr);
+  ASSERT_EQ(col->size(), 4);
+  EXPECT_TRUE(col->is_optional());
+  EXPECT_TRUE(col->has_value(0));
+  EXPECT_FALSE(col->has_value(1));
+  EXPECT_TRUE(col->has_value(2));
+  EXPECT_FALSE(col->has_value(3));
+  EXPECT_TRUE(col->get_elem(1).IsNull());
+  EXPECT_TRUE(col->get_elem(3).IsNull());
+
+  sel_vec_t shuffle_offsets = {2, 1, 0};
+  auto shuffled = col->shuffle(shuffle_offsets);
+  ASSERT_TRUE(shuffled->has_value(0));
+  EXPECT_FALSE(shuffled->has_value(1));
+  ASSERT_TRUE(shuffled->has_value(2));
+  auto shuffled_value = shuffled->get_elem(0);
+  const auto& shuffled_values = ArrayValue::GetChildren(shuffled_value);
+  EXPECT_EQ(shuffled_values[0].GetValue<int32_t>(), 3);
+  EXPECT_EQ(shuffled_values[1].GetValue<int32_t>(), 4);
+
+  sel_vec_t optional_offsets = {0, std::numeric_limits<sel_t>::max(), 1, 2, 3};
+  auto optional = col->optional_shuffle(optional_offsets);
+  EXPECT_TRUE(optional->has_value(0));
+  EXPECT_FALSE(optional->has_value(1));
+  EXPECT_FALSE(optional->has_value(2));
+  EXPECT_TRUE(optional->has_value(3));
+  EXPECT_FALSE(optional->has_value(4));
+
+  auto [elements, unfold_offsets] = col->unfold();
+  EXPECT_EQ(unfold_offsets, (sel_vec_t{0, 0, 2, 2}));
+  ASSERT_EQ(elements->size(), 4);
+  EXPECT_EQ(elements->get_elem(0).GetValue<int32_t>(), 1);
+  EXPECT_EQ(elements->get_elem(1).GetValue<int32_t>(), 2);
+  EXPECT_EQ(elements->get_elem(2).GetValue<int32_t>(), 3);
+  EXPECT_EQ(elements->get_elem(3).GetValue<int32_t>(), 4);
 }
 
 TEST_F(ValueColumnTest, BoolValueColumnBasic) {
