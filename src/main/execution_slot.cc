@@ -347,7 +347,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
   if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
     if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
       auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(guard.view(), guard.timestamp());
+      StorageReadInterface storage(guard.view(), MAX_TIMESTAMP);
       status = execute_on_storage(
           GraphStats(guard.view(), guard.planning_generation()), storage);
     } else {
@@ -371,7 +371,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
                            QueryExecutionStrategy::kDirect)) {
     if (access_mode == AccessMode::kRead) {
       auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(guard.view(), guard.timestamp());
+      StorageReadInterface storage(guard.view(), MAX_TIMESTAMP);
       status = execute_on_storage(
           GraphStats(guard.view(), guard.planning_generation()), storage);
     } else if (access_mode == AccessMode::kInsert ||

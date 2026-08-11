@@ -20,38 +20,31 @@
 namespace neug {
 
 APSharedGuard::APSharedGuard(SharedOperationLease admission,
-                             SnapshotGuard snapshot,
-                             timestamp_t timestamp) noexcept
-    : timestamp_(timestamp),
-      admission_(std::move(admission)),
-      snapshot_(std::move(snapshot)) {}
+                             SnapshotGuard snapshot) noexcept
+    : admission_(std::move(admission)), snapshot_(std::move(snapshot)) {}
 
 APSharedGuard APSharedGuard::Acquire(IVersionManager& version_manager,
                                      GraphSnapshotStore& snapshot_store) {
-  auto operation = version_manager.acquire_read_operation();
+  auto admission = version_manager.acquire_shared_operation();
   SnapshotGuard snapshot(snapshot_store);
-  return APSharedGuard(std::move(operation.admission), std::move(snapshot),
-                       operation.published_view.visibility_ts);
+  return APSharedGuard(std::move(admission), std::move(snapshot));
 }
 
 APSharedGuard APSharedGuard::Acquire(
     IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
     std::chrono::steady_clock::time_point deadline) {
-  auto operation = version_manager.acquire_read_operation_until(deadline);
+  auto admission = version_manager.acquire_shared_operation_until(deadline);
   SnapshotGuard snapshot(snapshot_store);
-  return APSharedGuard(std::move(operation.admission), std::move(snapshot),
-                       operation.published_view.visibility_ts);
+  return APSharedGuard(std::move(admission), std::move(snapshot));
 }
 
 APSharedGuard::APSharedGuard(APSharedGuard&& other) noexcept
-    : timestamp_(other.timestamp_),
-      admission_(std::move(other.admission_)),
+    : admission_(std::move(other.admission_)),
       snapshot_(std::move(other.snapshot_)) {}
 
 APSharedGuard& APSharedGuard::operator=(APSharedGuard&& other) noexcept {
   if (this != &other) {
     release();
-    timestamp_ = other.timestamp_;
     admission_ = std::move(other.admission_);
     snapshot_ = std::move(other.snapshot_);
   }
