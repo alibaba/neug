@@ -165,6 +165,29 @@ def test_return_literal(tinysnb):
     assert res[1] == [2, "person"]  # Assuming there are at
 
 
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("false OR true", True),
+        ("true OR false", True),
+        ("true OR true", True),
+        ("false OR false", False),
+        ("true AND true", True),
+        ("true AND false", False),
+        ("NOT false", True),
+        ("NOT true", False),
+        ("NULL IS NULL", True),
+        ("1 IS NULL", False),
+        ("NULL IS NOT NULL", False),
+        ("1 IS NOT NULL", True),
+    ],
+)
+def test_constant_boolean_expressions(empty_db, expression, expected):
+    _, conn = empty_db
+    rows = list(conn.execute(f"RETURN {expression}", access_mode="read"))
+    assert rows == [[expected]]
+
+
 def test_no_existing_property(tinysnb):
     conn = tinysnb
     res = conn.execute(

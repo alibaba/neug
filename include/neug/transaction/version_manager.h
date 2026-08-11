@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <atomic>
+#include <chrono>
 #include <optional>
 
 #include "neug/transaction/runtime_wait.h"
@@ -79,6 +80,8 @@ class IVersionManager {
   virtual void release_read_view() = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
+  // Waiters directly contend the admission phase. Acquisition order is
+  // intentionally unspecified; the successful phase CAS linearizes ownership.
   virtual uint32_t acquire_update_timestamp() = 0;
   virtual void begin_update_commit(uint32_t ts) = 0;
   // May invoke the runtime waiter. Checkpoint callers must enter commit and
@@ -101,6 +104,11 @@ class IVersionManager {
 
  private:
   friend class UpdateTimestampLease;
+
+  // Timed acquisition is intentionally lease-only: callers must not receive a
+  // raw timestamp without immediately establishing RAII ownership.
+  virtual uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point deadline) = 0;
 
   /// Complete an exclusive update after external state has moved to a new
   /// timeline. Preserve the current snapshot generation and publish visibility
@@ -239,6 +247,8 @@ class VersionManager : public IVersionManager {
  private:
   using AdmissionState = detail::AdmissionState;
   using OperationGateWord = detail::OperationGateWord;
+  uint32_t acquire_update_timestamp_until(
+      std::chrono::steady_clock::time_point deadline) override;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
   int thread_num_;
@@ -249,6 +259,10 @@ class VersionManager : public IVersionManager {
                                   AdmissionState desired_phase);
   void wait_for_readers_to_drain();
   void wait_for_inserters_to_drain();
+  bool wait_for_inserters_to_drain_until(
+      std::chrono::steady_clock::time_point deadline);
+  uint32_t reserve_update_timestamp();
+  void release_insert_admission();
   void complete_write_timestamp(uint32_t ts);
   void advance_read_ts_locked();
   RuntimeWaitFn runtime_wait_impl() const noexcept override;

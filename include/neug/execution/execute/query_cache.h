@@ -36,17 +36,14 @@ struct CacheValue {
   ParamsMetaMap params_type;
   neug::MetaDatas result_schema;
   physical::ExecutionFlag flags;
-  physical::ExplainMode explain_mode = physical::ExplainMode::NONE;
 
   CacheValue(Pipeline pipeline, ParamsMetaMap params_type,
              const neug::MetaDatas& result_schema,
-             physical::ExecutionFlag flags,
-             physical::ExplainMode explain_mode = physical::ExplainMode::NONE)
+             physical::ExecutionFlag flags)
       : pipeline(std::move(pipeline)),
         params_type(std::move(params_type)),
         result_schema(result_schema),
-        flags(flags),
-        explain_mode(explain_mode) {}
+        flags(flags) {}
 };
 
 /**
@@ -112,10 +109,9 @@ class GlobalQueryCache {
 
     auto params_type =
         execution::PlanParser::parse_params_type(plan_result.first);
-    auto explain_mode = plan_result.first.explain_mode();
     return std::make_shared<CacheValue>(std::move(pipeline_result),
                                         std::move(params_type), sch,
-                                        plan_result.first.flag(), explain_mode);
+                                        plan_result.first.flag());
   }
 
   std::shared_ptr<IGraphPlanner> planner_;

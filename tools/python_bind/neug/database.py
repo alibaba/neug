@@ -304,18 +304,18 @@ class Database(object):
                 f"Error code: {ERR_CONFIG_INVALID}."
             )
         if thread_num > self._max_thread_num:
-            raise ValueError(
-                f"Invalid argument: thread_num: {thread_num}. "
-                f"Must be less than or equal to database max_thread_num: {self._max_thread_num}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
+            logger.warning(
+                f"thread_num ({thread_num}) exceeds database max_thread_num "
+                f"({self._max_thread_num}); clamping to {self._max_thread_num}."
             )
+            thread_num = self._max_thread_num
         cpu_count = os.cpu_count()
         if cpu_count is not None and thread_num > cpu_count:
-            raise ValueError(
-                f"Invalid argument: thread_num: {thread_num}. "
-                f"Must be less than or equal to the number of CPU cores: {cpu_count}."
-                f" Error code: {ERR_INVALID_ARGUMENT}."
+            logger.warning(
+                f"thread_num ({thread_num}) exceeds the number of logical "
+                f"CPUs reported by os.cpu_count() ({cpu_count}); clamping to {cpu_count}."
             )
+            thread_num = cpu_count
         # Before starting the server, we should check all current connections are closed.
         # And also after starting the server, no new connections should be allowed to the local database.
         for conn in self._connections:

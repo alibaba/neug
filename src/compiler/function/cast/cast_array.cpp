@@ -35,7 +35,10 @@ bool CastArrayHelper::checkCompatibleNestedTypes(DataTypeId sourceTypeID,
     return true;
   }
   case DataTypeId::kList:
-  case DataTypeId::kArray:
+  case DataTypeId::kArray: {
+    return targetTypeID == DataTypeId::kList ||
+           targetTypeID == DataTypeId::kArray;
+  }
   case DataTypeId::kMap:
   case DataTypeId::kStruct: {
     return sourceTypeID == targetTypeID;
@@ -62,12 +65,12 @@ const DataType& getListLikeChildType(const DataType& type) {
 
 bool CastArrayHelper::requiresArrayEntryValidation(const DataType& srcType,
                                                    const DataType& dstType) {
-  if (srcType.id() == DataTypeId::kArray &&
-      dstType.id() == DataTypeId::kArray) {
-    return true;
-  }
-
   if (checkCompatibleNestedTypes(srcType.id(), dstType.id())) {
+    if (dstType.id() == DataTypeId::kArray &&
+        (srcType.id() == DataTypeId::kList ||
+         srcType.id() == DataTypeId::kArray)) {
+      return true;
+    }
     switch (getPhysicalType(srcType.id())) {
     case PhysicalTypeID::LIST: {
       return requiresArrayEntryValidation(getListLikeChildType(srcType),
@@ -109,14 +112,21 @@ void CastArrayHelper::validateArrayEntries(ValueVector* inputVector,
 
   switch (getPhysicalType(resultType.id())) {
   case PhysicalTypeID::ARRAY: {
-    if (getPhysicalType(inputType.id()) != PhysicalTypeID::ARRAY ||
-        ArrayType::GetNumElements(inputType) !=
-            ArrayType::GetNumElements(resultType)) {
+    auto input_physical_type = getPhysicalType(inputType.id());
+    if (input_physical_type != PhysicalTypeID::ARRAY &&
+        input_physical_type != PhysicalTypeID::LIST) {
       THROW_CONVERSION_EXCEPTION(
           stringFormat("Unsupported casting function from {} to {}.",
                        inputType.ToString(), resultType.ToString()));
     }
     auto listEntry = inputVector->getValue<list_entry_t>(pos);
+    auto expected_size = ArrayType::GetNumElements(resultType);
+    if (listEntry.size != expected_size) {
+      THROW_CONVERSION_EXCEPTION(
+          stringFormat("ARRAY value length mismatch for type {}: expected {}, "
+                       "got {}.",
+                       resultType.ToString(), expected_size, listEntry.size));
+    }
     auto inputChildVector = ListVector::getDataVector(inputVector);
     for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;
          i++) {
@@ -125,7 +135,9 @@ void CastArrayHelper::validateArrayEntries(ValueVector* inputVector,
     }
   } break;
   case PhysicalTypeID::LIST: {
-    if (getPhysicalType(inputType.id()) == PhysicalTypeID::LIST) {
+    auto input_physical_type = getPhysicalType(inputType.id());
+    if (input_physical_type == PhysicalTypeID::LIST ||
+        input_physical_type == PhysicalTypeID::ARRAY) {
       auto listEntry = inputVector->getValue<list_entry_t>(pos);
       auto inputChildVector = ListVector::getDataVector(inputVector);
       for (auto i = listEntry.offset; i < listEntry.offset + listEntry.size;

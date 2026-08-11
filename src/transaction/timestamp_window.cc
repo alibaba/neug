@@ -20,48 +20,33 @@
 namespace neug {
 
 TimestampWindow::TimestampWindow() {
-  // Initialize completed timestamp bitmap
-  completed_ts_ = std::make_unique<std::atomic<bool>[]>(kWindowSize);
+  completed_ts_ = std::make_unique<std::atomic<uint32_t>[]>(kWindowSize);
   for (size_t i = 0; i < kWindowSize; ++i) {
-    completed_ts_[i].store(false, std::memory_order_relaxed);
+    completed_ts_[i].store(0, std::memory_order_relaxed);
   }
 }
 
 TimestampWindow::~TimestampWindow() = default;
 
 void TimestampWindow::init() {
-  window_base_ = 0;
   for (size_t i = 0; i < kWindowSize; ++i) {
-    completed_ts_[i].store(false, std::memory_order_relaxed);
+    completed_ts_[i].store(0, std::memory_order_relaxed);
   }
 }
 
 void TimestampWindow::mark_completed(uint32_t ts) {
-  size_t idx = ts_index(ts);
-  // Correctness still holds even with the buffer overflow
-  completed_ts_[idx].store(true, std::memory_order_release);
+  DCHECK_NE(ts, 0U);
+  completed_ts_[ts_index(ts)].store(ts, std::memory_order_release);
 }
 
 bool TimestampWindow::is_completed(uint32_t ts) const {
-  size_t idx = ts_index(ts);
-  return completed_ts_[idx].load(std::memory_order_acquire);
+  return completed_ts_[ts_index(ts)].load(std::memory_order_acquire) == ts;
 }
 
 void TimestampWindow::clear(uint32_t ts) {
-  size_t idx = ts_index(ts);
-  completed_ts_[idx].store(false, std::memory_order_relaxed);
-}
-
-void TimestampWindow::slide_window(uint32_t current_ts) {
-  // Sliding window (if advanced significantly)
-  if (current_ts > window_base_ + kWindowSize / 2) {
-    // Clean up old window
-    uint32_t new_base = current_ts - kWindowSize / 4;
-    for (uint32_t ts = window_base_; ts < new_base; ++ts) {
-      clear(ts);
-    }
-    window_base_ = new_base;
-  }
+  uint32_t expected = ts;
+  (void) completed_ts_[ts_index(ts)].compare_exchange_strong(
+      expected, 0, std::memory_order_relaxed, std::memory_order_relaxed);
 }
 
 }  // namespace neug

@@ -27,7 +27,6 @@
 #include <unordered_map>
 
 #include "kuzu_fwd.h"
-#include "neug/compiler/common/enums/explain_type.h"
 #include "neug/compiler/main/query_summary.h"
 #include "neug/compiler/parser/statement.h"
 #include "neug/utils/api.h"
@@ -63,12 +62,6 @@ class PreparedStatement {
 
   std::unique_ptr<planner::LogicalPlan> logicalPlan;
 
-  NEUG_API common::ExplainType getExplainMode() const;
-  NEUG_API bool isExplain() const;
-
- private:
-  bool isProfile() const;
-
  private:
   bool readOnly = false;
   bool useInternalCatalogEntry = false;
@@ -77,8 +70,6 @@ class PreparedStatement {
       parameterMap;
   std::unique_ptr<binder::BoundStatementResult> statementResult;
   std::shared_ptr<parser::Statement> parsedStatement;
-
-  common::ExplainType explainMode = common::ExplainType::NONE;
 };
 
 }  // namespace main
