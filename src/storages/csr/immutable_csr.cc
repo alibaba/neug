@@ -40,7 +40,10 @@ namespace neug {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
-  unsorted_since_ = std::stoull(desc.get("unsorted_since").value_or("0"));
+  unsorted_since_.store(
+      static_cast<timestamp_t>(
+          std::stoull(desc.get("unsorted_since").value_or("0"))),
+      std::memory_order_relaxed);
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
   degree_list_buffer_ = ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
@@ -79,7 +82,8 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                                  const std::string& key) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
-  desc.set("unsorted_since", std::to_string(unsorted_since_));
+  desc.set("unsorted_since",
+           std::to_string(unsorted_since_.load(std::memory_order_relaxed)));
   desc.set("edge_num", std::to_string(edge_num_.load()));
   desc.set_path(ModuleDescriptor::kDegreeListPath,
                 ckp.Commit(*degree_list_buffer_));
@@ -164,7 +168,7 @@ void ImmutableCsr<EDATA_T>::Close() {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
   if (!degree_list_buffer_) {
-    unsorted_since_ = ts;
+    unsorted_since_.store(ts, std::memory_order_relaxed);
     return;
   }
   vid_t vnum = size();
@@ -176,7 +180,7 @@ void ImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
         adj_arr[i], adj_arr[i] + deg_arr[i],
         [](const nbr_t& lhs, const nbr_t& rhs) { return lhs.data < rhs.data; });
   }
-  unsorted_since_ = ts;
+  unsorted_since_.store(ts, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -225,7 +229,7 @@ void ImmutableCsr<EDATA_T>::batch_delete_vertices(
     adj_arr[i] = ptr;
     ptr += deg_arr[i];
   }
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -263,7 +267,7 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
       }
     }
   }
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -294,7 +298,7 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
       }
     }
   }
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -314,7 +318,7 @@ void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   }
   nbrs[offset].neighbor = std::numeric_limits<vid_t>::max();
   edge_num_.fetch_sub(1, std::memory_order_relaxed);
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -370,8 +374,8 @@ void ImmutableCsr<EDATA_T>::batch_put_edges(
     edge_num_.fetch_add(1, std::memory_order_relaxed);
   }
   // invalidate sort flag
-  if (ts < unsorted_since_) {
-    unsorted_since_ = 0;
+  if (ts < unsorted_since_.load(std::memory_order_relaxed)) {
+    unsorted_since_.store(0, std::memory_order_relaxed);
   }
   refresh_prefetch_policy();
 }

@@ -68,10 +68,13 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.data_offset = offsetof(nbr_t, data);
     return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
                    reinterpret_cast<const int*>(degree_list_->GetData()), cfg,
-                   ts, unsorted_since_, prefetch_policy_);
+                   ts, unsorted_since_.load(std::memory_order_relaxed),
+                   prefetch_policy_);
   }
 
-  timestamp_t unsorted_since() const override { return unsorted_since_; }
+  timestamp_t unsorted_since() const override {
+    return unsorted_since_.load(std::memory_order_relaxed);
+  }
 
   size_t size() const override { return vertex_capacity(); }
 
@@ -143,8 +146,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.timestamp.store(ts);
     edge_num_.fetch_add(1);
     // invalidate sort flag
-    if (ts < unsorted_since_) {
-      unsorted_since_ = 0;
+    if (ts < unsorted_since_.load(std::memory_order_relaxed)) {
+      unsorted_since_.store(0, std::memory_order_relaxed);
     }
     const void* data_ptr = static_cast<const void*>(&nbr.data);
     sizes[src].store(sz + 1, std::memory_order_release);
@@ -215,7 +218,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->degree_list_ = degree_list_;
     cow_clone->cap_list_ = cap_list_;
     cow_clone->nbr_list_ = nbr_list_;
-    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->unsorted_since_.store(unsorted_since_.load(
+        std::memory_order_relaxed),
+                                     std::memory_order_relaxed);
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
   }
@@ -240,7 +245,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::shared_ptr<IDataContainer> degree_list_;
   std::shared_ptr<IDataContainer> cap_list_;
   std::shared_ptr<IDataContainer> nbr_list_;
-  timestamp_t unsorted_since_;
+  std::atomic<timestamp_t> unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;
 

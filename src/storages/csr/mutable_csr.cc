@@ -46,7 +46,10 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                const ModuleDescriptor& descriptor,
                                MemoryLevel memory_level) {
-  unsorted_since_ = std::stoull(descriptor.get("unsorted_since").value_or("0"));
+  unsorted_since_.store(
+      static_cast<timestamp_t>(
+          std::stoull(descriptor.get("unsorted_since").value_or("0"))),
+      std::memory_order_relaxed);
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
   degree_list_ = ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
@@ -121,7 +124,8 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                                const std::string& key) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
-  descriptor.set("unsorted_since", std::to_string(unsorted_since_));
+  descriptor.set("unsorted_since",
+                 std::to_string(unsorted_since_.load(std::memory_order_relaxed)));
   descriptor.set("edge_num", std::to_string(edge_num_.load()));
 
   size_t vnum = vertex_capacity();
@@ -272,7 +276,7 @@ void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
       });
     }
   }
-  unsorted_since_ = ts;
+  unsorted_since_.store(ts, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -326,7 +330,7 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
 
     sz_arr[src].store(cur_deg - removed, std::memory_order_relaxed);
   }
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -360,7 +364,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
       ++write_ptr;
     }
   }
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -393,7 +397,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
           std::numeric_limits<timestamp_t>::max());
     }
   }
-  unsorted_since_ = 0;
+  unsorted_since_.store(0, std::memory_order_relaxed);
   refresh_prefetch_policy();
 }
 
@@ -413,7 +417,7 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   if (old_ts <= ts) {
     nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
     edge_num_.fetch_sub(1, std::memory_order_relaxed);
-    unsorted_since_ = 0;
+    unsorted_since_.store(0, std::memory_order_relaxed);
   } else if (old_ts == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Attempting to delete already deleted edge.";
   } else {
@@ -520,8 +524,8 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   }
   edge_num_.fetch_add(added_edge_num, std::memory_order_relaxed);
   // invalidate sort flag
-  if (ts < unsorted_since_) {
-    unsorted_since_ = 0;
+  if (ts < unsorted_since_.load(std::memory_order_relaxed)) {
+    unsorted_since_.store(0, std::memory_order_relaxed);
   }
   refresh_prefetch_policy();
 }

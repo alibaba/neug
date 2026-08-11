@@ -49,10 +49,13 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     return CsrView(reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
                    reinterpret_cast<const int*>(degree_list_buffer_->GetData()),
                    cfg, std::numeric_limits<timestamp_t>::max() - 1,
-                   unsorted_since_, prefetch_policy_);
+                   unsorted_since_.load(std::memory_order_relaxed),
+                   prefetch_policy_);
   }
 
-  timestamp_t unsorted_since() const override { return unsorted_since_; }
+  timestamp_t unsorted_since() const override {
+    return unsorted_since_.load(std::memory_order_relaxed);
+  }
 
   size_t size() const override {
     return degree_list_buffer_
@@ -114,7 +117,9 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->adj_list_buffer_ = adj_list_buffer_;
     cow_clone->degree_list_buffer_ = degree_list_buffer_;
     cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
-    cow_clone->unsorted_since_ = unsorted_since_;
+    cow_clone->unsorted_since_.store(unsorted_since_.load(
+        std::memory_order_relaxed),
+                                     std::memory_order_relaxed);
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
   }
@@ -134,7 +139,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   std::shared_ptr<IDataContainer> adj_list_buffer_;
   std::shared_ptr<IDataContainer> degree_list_buffer_;
   std::shared_ptr<IDataContainer> nbr_list_buffer_;
-  timestamp_t unsorted_since_;
+  std::atomic<timestamp_t> unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
   CsrPrefetchPolicy prefetch_policy_;
 
