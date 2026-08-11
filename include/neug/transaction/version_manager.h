@@ -83,9 +83,23 @@ class IVersionManager {
   RuntimeBackoff make_runtime_backoff() const noexcept {
     return RuntimeBackoff(runtime_wait_impl());
   }
-  // Acquire one shared operation lease and the TP coherent read view published
-  // behind it. The returned lease owns the reader admission directly.
+  // Acquire one shared admission only. The returned lease owns one reader
+  // count; it neither captures a published read view nor pins a storage
+  // snapshot.
+  virtual SharedOperationLease acquire_shared_operation() = 0;
+  virtual SharedOperationLease acquire_shared_operation_until(
+      std::chrono::steady_clock::time_point deadline) = 0;
+  // Acquire exclusive admission. A successful lease owns the all-blocked
+  // phase only after active readers and inserters have drained; releasing it
+  // reopens the gate. It never reserves a write timestamp.
+  virtual ExclusiveOperationLease acquire_exclusive_operation() = 0;
+  virtual ExclusiveOperationLease acquire_exclusive_operation_until(
+      std::chrono::steady_clock::time_point deadline) = 0;
+  // TP's specialized shared admission: capture the coherent timestamp and
+  // snapshot-generation pair behind the same reader admission.
   virtual ReadOperationLease acquire_read_operation() = 0;
+  virtual ReadOperationLease acquire_read_operation_until(
+      std::chrono::steady_clock::time_point deadline) = 0;
   virtual uint32_t acquire_insert_timestamp() = 0;
   virtual void release_insert_timestamp(uint32_t ts) = 0;
   // Waiters directly contend the admission phase. Acquisition order is
@@ -175,7 +189,15 @@ class VersionManager : public IVersionManager {
   bool try_set_runtime_wait_if_quiescent(
       RuntimeWaitFn runtime_wait) noexcept override;
 
+  SharedOperationLease acquire_shared_operation() override;
+  SharedOperationLease acquire_shared_operation_until(
+      std::chrono::steady_clock::time_point deadline) override;
+  ExclusiveOperationLease acquire_exclusive_operation() override;
+  ExclusiveOperationLease acquire_exclusive_operation_until(
+      std::chrono::steady_clock::time_point deadline) override;
   ReadOperationLease acquire_read_operation() override;
+  ReadOperationLease acquire_read_operation_until(
+      std::chrono::steady_clock::time_point deadline) override;
   uint32_t acquire_insert_timestamp() override;
   void release_insert_timestamp(uint32_t ts) override;
   uint32_t acquire_update_timestamp() override;

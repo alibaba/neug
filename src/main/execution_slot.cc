@@ -34,6 +34,7 @@
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/ap_operation_guard.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
@@ -344,12 +345,19 @@ Status ExecutionSlot::executeCore(const std::string& query,
   // EXPLAIN is strategy-independent and must not acquire a write transaction,
   // including for EXPLAIN CHECKPOINT.
   if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
-    auto read_lease =
-        ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
-    status = execute_on_storage(
-        GraphStats(read_lease.view(), read_lease.planning_generation()),
-        storage);
+    if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
+      auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(guard.view(), guard.timestamp());
+      status = execute_on_storage(
+          GraphStats(guard.view(), guard.planning_generation()), storage);
+    } else {
+      auto read_lease =
+          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
+      status = execute_on_storage(
+          GraphStats(read_lease.view(), read_lease.planning_generation()),
+          storage);
+    }
   } else if (NEUG_UNLIKELY(analysis.checkpoint())) {
     // PROFILE executes the checkpoint and is timed by executeCheckpoint().
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
@@ -362,11 +370,10 @@ Status ExecutionSlot::executeCore(const std::string& query,
   } else if (NEUG_UNLIKELY(execution_strategy_ ==
                            QueryExecutionStrategy::kDirect)) {
     if (access_mode == AccessMode::kRead) {
-      auto lease =
-          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(lease.view(), lease.timestamp());
+      auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(guard.view(), guard.timestamp());
       status = execute_on_storage(
-          GraphStats(lease.view(), lease.planning_generation()), storage);
+          GraphStats(guard.view(), guard.planning_generation()), storage);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -444,6 +451,11 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
 }
 
 std::string ExecutionSlot::GetSchema() const {
+  if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
+    auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+    auto yaml = guard.view().schema().to_yaml();
+    return get_json_string_from_yaml(yaml.value()).value();
+  }
   auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
   auto yaml = lease.view().schema().to_yaml();
   return get_json_string_from_yaml(yaml.value()).value();
@@ -452,8 +464,8 @@ std::string ExecutionSlot::GetSchema() const {
 void ExecutionSlot::ClearTemporarySchema() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
-    auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    const auto& schema = lease.view().schema();
+    auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+    const auto& schema = guard.view().schema();
     if (schema.get_temporary_edge_triplet_keys().empty() &&
         schema.get_temporary_vertex_labels().empty()) {
       return;
