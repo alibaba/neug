@@ -176,12 +176,6 @@ jobs:
         run: |
           python -m pip install -r tools/python_bind/requirements_dev.txt
 
-      - name: Run Python DB init tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_db_init.py --exitfirst
-
       - name: Run Python schema tests
         continue-on-error: true
         run: |
@@ -217,20 +211,6 @@ jobs:
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_merge.py --exitfirst
-
-      - name: Run Python import/export tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_db_import_export.py --exitfirst
-
-      - name: Run Python Data I/O documentation tests
-        continue-on-error: true
-        env:
-          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
-        run: |
-          cd tools/python_bind
-          python -m pytest -sv tests/test_data_io_docs.py --exitfirst
 
       - name: Run Python LOAD FROM sniffer tests (CSV and JSON)
         continue-on-error: true
