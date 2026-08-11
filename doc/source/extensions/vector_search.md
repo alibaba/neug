@@ -378,7 +378,7 @@ Example:
 ```cypher
 MATCH (n:vector_node)
 WHERE n.id <> 1
-RETURN
+RETURN n
 ORDER BY vector_distance_l2(
     n.vec,
     [0.1, 0.2, 0.3, 0.4]
