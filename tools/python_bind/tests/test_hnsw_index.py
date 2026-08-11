@@ -358,10 +358,6 @@ def test_index_persistence_after_checkpoint_and_reopen(tmp_path):
         _close_database(db, conn)
 
 
-@pytest.mark.xfail(
-    reason=("vector_search modules are registered after Database opens the checkpoint"),
-    strict=True,
-)
 def test_index_persistence_after_process_restart(tmp_path):
     db_path = tmp_path / "database"
     create_script = textwrap.dedent(
