@@ -26,9 +26,8 @@ namespace neug {
  *
  * The shared admission is acquired before the snapshot pin. AP writers use
  * the same gate exclusively, so no AP mutation can publish or modify the
- * current snapshot while this guard is active. PR-02A temporarily takes the
- * visibility timestamp from the specialized read operation solely for the
- * legacy direct storage reader; it does not own a TP coherent read view.
+ * current snapshot while this guard is active. It does not own a TP coherent
+ * read view or a visibility timestamp.
  */
 class APSharedGuard {
  public:
@@ -53,13 +52,11 @@ class APSharedGuard {
   uint64_t planning_generation() const {
     return snapshot_.get().planning_generation();
   }
-  timestamp_t timestamp() const noexcept { return timestamp_; }
 
  private:
-  APSharedGuard(SharedOperationLease admission, SnapshotGuard snapshot,
-                timestamp_t timestamp) noexcept;
+  APSharedGuard(SharedOperationLease admission,
+                SnapshotGuard snapshot) noexcept;
 
-  timestamp_t timestamp_;
   SharedOperationLease admission_;
   // Declared last so fallback destruction unpins before reader admission
   // releases.

@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <chrono>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -50,8 +49,6 @@ class IWalWriter;
 class IVersionManager;
 class Schema;
 
-enum class TransactionDurability : uint8_t { kNoWal, kWal };
-
 /**
  * @brief Shared, private COW graph state used by AP and TP write owners.
  *
@@ -63,7 +60,7 @@ enum class TransactionDurability : uint8_t { kNoWal, kWal };
 class CowGraphState {
  public:
   CowGraphState(std::shared_ptr<PropertyGraph> cow_graph,
-                uint64_t base_planning_generation, bool track_logical_redo);
+                uint64_t base_planning_generation);
 
   CowGraphState(CowGraphState&&) noexcept = default;
   CowGraphState& operator=(CowGraphState&&) noexcept = default;
@@ -80,12 +77,8 @@ class CowGraphState {
     return base_planning_generation_;
   }
   std::shared_ptr<Checkpoint>& checkpoint() { return checkpoint_; }
-  WalBuilder* logical_redo() {
-    return logical_redo_ ? &*logical_redo_ : nullptr;
-  }
-  const WalBuilder* logical_redo() const {
-    return logical_redo_ ? &*logical_redo_ : nullptr;
-  }
+  WalBuilder& logical_redo() { return logical_redo_; }
+  const WalBuilder& logical_redo() const { return logical_redo_; }
   bool HasChanges() const { return detach_state_.HasChanges(); }
   void Reset() noexcept;
 
@@ -95,7 +88,7 @@ class CowGraphState {
   GraphView view_;
   uint64_t base_planning_generation_;
   std::shared_ptr<Checkpoint> checkpoint_;
-  std::optional<WalBuilder> logical_redo_;
+  WalBuilder logical_redo_;
 };
 
 /**
@@ -109,8 +102,7 @@ class CowGraphState {
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
  * - StorageCOWUpdateInterface performs all DDL/DML modifications on the COW
  *   copy
- * - kNoWal commits publish without constructing or writing redo
- * - kWal commits prepare the snapshot before WAL, then perform a no-fail
+ * - Commits prepare the snapshot before WAL, then perform a no-fail
  *   publication after WAL succeeds
  * - Abort discards the COW copy (no effect on original)
  *
@@ -127,13 +119,7 @@ class CowGraphState {
 class UpdateTransaction {
  public:
   static UpdateTransaction Begin(IVersionManager& version_manager,
-                                 GraphSnapshotStore& snapshot_store,
-                                 TransactionDurability durability);
-
-  static UpdateTransaction BeginUntil(
-      IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
-      TransactionDurability durability,
-      std::chrono::steady_clock::time_point deadline);
+                                 GraphSnapshotStore& snapshot_store);
 
   UpdateTransaction(UpdateTransaction&& other) noexcept;
   UpdateTransaction(const UpdateTransaction&) = delete;
@@ -152,8 +138,7 @@ class UpdateTransaction {
    */
   timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
-  Status Commit(GraphSnapshotStore& snapshot_store,
-                IWalWriter* wal_writer = nullptr);
+  Status Commit(GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer);
 
   void MarkPlanningChanged() noexcept {
     cow_graph_state_.detach_state().planning_changed = true;
@@ -202,20 +187,18 @@ class UpdateTransaction {
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    return cow_graph_state_.graph()->GetEdgeDataAccessor(
-        src_label, dst_label, edge_label, prop_id);
+    return cow_graph_state_.graph()->GetEdgeDataAccessor(src_label, dst_label,
+                                                         edge_label, prop_id);
   }
 
   friend class StorageCOWUpdateInterface;
 
  private:
-  UpdateTransaction(TransactionDurability durability,
-                    CowGraphState cow_graph_state,
+  UpdateTransaction(CowGraphState cow_graph_state,
                     UpdateTimestampLease timestamp_lease);
 
   void release(std::optional<uint32_t> installed_snapshot_generation) noexcept;
 
-  TransactionDurability durability_;
   CowGraphState cow_graph_state_;
 
   UpdateTimestampLease timestamp_lease_;
@@ -235,18 +218,8 @@ class StorageCOWUpdateInterface : public StorageUpdateInterface {
         mut_view_(cow_graph_state.view()),
         alloc_(alloc),
         ckp_(cow_graph_state.checkpoint()),
-        wal_(cow_graph_state.logical_redo()) {}
+        wal_(&cow_graph_state.logical_redo()) {}
   ~StorageCOWUpdateInterface() = default;
-
- protected:
-  // Non-virtual COW implementations exposed only by the AP capability adapter.
-  neug::result<StorageIndex*> CreateIndexForAP(std::unique_ptr<IndexMeta> meta);
-  Status DropIndexForAP(const std::string& name);
-  result<std::vector<vid_t>> BatchAddVerticesForAP(
-      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier);
-  Status BatchAddEdgesForAP(label_t src_label, label_t dst_label,
-                            label_t edge_label,
-                            std::shared_ptr<IDataChunkSupplier> supplier);
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.
@@ -339,36 +312,6 @@ class StorageCOWUpdateInterface : public StorageUpdateInterface {
   Allocator& alloc_;
   std::shared_ptr<Checkpoint>& ckp_;
   WalBuilder* wal_;
-};
-
-class StorageAPCOWUpdateInterface final : public StorageCOWUpdateInterface,
-                                          public StorageIndexDDLInterface {
- public:
-  StorageAPCOWUpdateInterface(UpdateTransaction& txn, Allocator& alloc)
-      : StorageCOWUpdateInterface(txn.cow_graph_state(), txn.timestamp(),
-                                  alloc) {}
-
-  neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) override {
-    return CreateIndexForAP(std::move(meta));
-  }
-
-  Status DropIndex(const std::string& name) override {
-    return DropIndexForAP(name);
-  }
-
- private:
-  result<std::vector<vid_t>> BatchAddVerticesImpl(
-      label_t v_label_id,
-      std::shared_ptr<IDataChunkSupplier> supplier) override {
-    return BatchAddVerticesForAP(v_label_id, std::move(supplier));
-  }
-  Status BatchAddEdgesImpl(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IDataChunkSupplier> supplier) override {
-    return BatchAddEdgesForAP(src_label, dst_label, edge_label,
-                              std::move(supplier));
-  }
 };
 
 }  // namespace neug

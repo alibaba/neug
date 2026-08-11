@@ -308,6 +308,14 @@ TEST_F(ReadViewPublicationTest, APSharedGuardBlocksExclusiveAdmission) {
   exclusive.join();
 }
 
+TEST_F(ReadViewPublicationTest,
+       APSharedGuardUsesGenericAdmissionWithoutCapturingReadView) {
+  ScriptedVersionManager version_manager({1, 0});
+  auto guard = APSharedGuard::Acquire(version_manager, *store_);
+
+  EXPECT_EQ(version_manager.acquire_count(), 0);
+}
+
 TEST_F(ReadViewPublicationTest, GenericOperationLeasesShareTheAdmissionGate) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);

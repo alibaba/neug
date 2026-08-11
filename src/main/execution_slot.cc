@@ -197,12 +197,11 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
 
 UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kTransactional);
-  return UpdateTransaction::Begin(version_manager_, snapshot_store_,
-                                  TransactionDurability::kWal);
+  return UpdateTransaction::Begin(version_manager_, snapshot_store_);
 }
 
 Status ExecutionSlot::CommitUpdateTransaction(UpdateTransaction& transaction) {
-  return transaction.Commit(snapshot_store_, wal_writer_);
+  return transaction.Commit(snapshot_store_, *wal_writer_);
 }
 
 CompactTransaction ExecutionSlot::GetCompactTransaction() {
@@ -350,7 +349,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
   if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
     if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
       auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(guard.view(), guard.timestamp());
+      StorageReadInterface storage(guard.view(), MAX_TIMESTAMP);
       status = execute_on_storage(
           GraphStats(guard.view(), guard.planning_generation()), storage);
     } else {
@@ -374,10 +373,12 @@ Status ExecutionSlot::executeCore(const std::string& query,
                            QueryExecutionStrategy::kDirect)) {
     if (access_mode == AccessMode::kRead) {
       auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(guard.view(), guard.timestamp());
+      StorageReadInterface storage(guard.view(), MAX_TIMESTAMP);
       status = execute_on_storage(
           GraphStats(guard.view(), guard.planning_generation()), storage);
-    } else if (access_mode == AccessMode::kInsert) {
+    } else if (access_mode == AccessMode::kInsert ||
+               access_mode == AccessMode::kUpdate ||
+               access_mode == AccessMode::kSchema) {
       InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
       auto& slot = write_scope.Snapshot();
       StorageAPInPlaceUpdateInterface storage(
@@ -387,19 +388,6 @@ Status ExecutionSlot::executeCore(const std::string& query,
           GraphStats(slot.view(), slot.planning_generation()), storage);
       markPlanningChangedIfNeeded(write_scope, analysis.explain_mode,
                                   prepared_query.get(), status);
-    } else if (access_mode == AccessMode::kUpdate ||
-               access_mode == AccessMode::kSchema) {
-      auto transaction = UpdateTransaction::Begin(
-          version_manager_, snapshot_store_, TransactionDurability::kNoWal);
-      StorageAPCOWUpdateInterface storage(transaction, alloc_);
-      status = execute_on_storage(transaction.statistic(), storage);
-      if (status.ok()) {
-        markPlanningChangedIfNeeded(transaction, analysis.explain_mode,
-                                    prepared_query.get(), status);
-        status = transaction.Commit(snapshot_store_);
-      } else {
-        transaction.Abort();
-      }
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -427,7 +415,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
       StorageCOWUpdateInterface storage(transaction, alloc_);
       status = execute_on_storage(transaction.statistic(), storage);
       if (status.ok()) {
-        status = transaction.Commit(snapshot_store_, wal_writer_);
+        status = transaction.Commit(snapshot_store_, *wal_writer_);
       } else {
         transaction.Abort();
       }

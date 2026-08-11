@@ -124,8 +124,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   UpdateTransaction NewUpdateTransaction() {
-    return UpdateTransaction::Begin(version_manager_, *snapshot_store_,
-                                    TransactionDurability::kWal);
+    return UpdateTransaction::Begin(version_manager_, *snapshot_store_);
   }
 
   ReadTransaction NewReadTransaction() {
@@ -134,7 +133,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   void Commit(UpdateTransaction& txn) {
-    ASSERT_TRUE(txn.Commit(*snapshot_store_, &wal_writer_).ok());
+    ASSERT_TRUE(txn.Commit(*snapshot_store_, wal_writer_).ok());
   }
 
   void CreatePersonTableAP() {
@@ -358,7 +357,7 @@ class TPIndexTest : public ::testing::Test {
   CapturingWalWriter wal_writer_;
 };
 
-TEST_F(TPIndexTest, UpdateTransactionDurabilityControlsWalPublication) {
+TEST_F(TPIndexTest, UpdateTransactionPublishesAfterWalAppend) {
   StartSnapshotStore();
 
   {
@@ -372,63 +371,12 @@ TEST_F(TPIndexTest, UpdateTransactionDurabilityControlsWalPublication) {
                                           .Build())
                     .ok());
 
-    auto status = txn.Commit(*snapshot_store_);
-    ASSERT_FALSE(status.ok());
-    EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
-    EXPECT_FALSE(
-        snapshot_store_->CurrentSnapshot().schema().is_vertex_label_valid(
-            "Person"));
-    EXPECT_TRUE(wal_writer_.records.empty());
-  }
-
-  {
-    auto txn = UpdateTransaction::Begin(version_manager_, *snapshot_store_,
-                                        TransactionDurability::kNoWal);
-    StorageCOWUpdateInterface storage(txn, allocator_);
-    CreateVertexTypeParamBuilder builder;
-    ASSERT_TRUE(storage
-                    .CreateVertexType(builder.VertexLabel("Person")
-                                          .AddProperty("id", Value::INT64(0))
-                                          .AddPrimaryKeyName("id")
-                                          .Build())
-                    .ok());
-
-    ASSERT_TRUE(txn.Commit(*snapshot_store_).ok());
+    ASSERT_TRUE(txn.Commit(*snapshot_store_, wal_writer_).ok());
     EXPECT_TRUE(
         snapshot_store_->CurrentSnapshot().schema().is_vertex_label_valid(
             "Person"));
-    EXPECT_TRUE(wal_writer_.records.empty());
+    EXPECT_EQ(wal_writer_.records.size(), 1);
   }
-}
-
-TEST_F(TPIndexTest, APUpdateTransactionSupportsIndexDDL) {
-  CreatePersonTableAP();
-  StartSnapshotStore();
-
-  {
-    auto txn = UpdateTransaction::Begin(version_manager_, *snapshot_store_,
-                                        TransactionDurability::kNoWal);
-    StorageAPCOWUpdateInterface ap(txn, allocator_);
-    auto meta = std::make_unique<IndexMeta>();
-    meta->name = "idx_person_age";
-    meta->type = "example";
-    meta->schema.label_id = ap.schema().get_vertex_label_id("Person");
-    meta->schema.property_name = "age";
-    meta->schema.property_type = DataType::INT32;
-
-    ASSERT_TRUE(ap.CreateIndex(std::move(meta))) << "CREATE INDEX failed";
-    ASSERT_TRUE(txn.Commit(*snapshot_store_).ok());
-  }
-  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
-
-  {
-    auto txn = UpdateTransaction::Begin(version_manager_, *snapshot_store_,
-                                        TransactionDurability::kNoWal);
-    StorageAPCOWUpdateInterface ap(txn, allocator_);
-    ASSERT_TRUE(ap.DropIndex("idx_person_age").ok());
-    ASSERT_TRUE(txn.Commit(*snapshot_store_).ok());
-  }
-  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
 }
 
 TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {

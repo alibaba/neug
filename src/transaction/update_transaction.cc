@@ -322,101 +322,64 @@ static Status deleteVertexIndexData(
 // =============================================================================
 
 CowGraphState::CowGraphState(std::shared_ptr<PropertyGraph> cow_graph,
-                             uint64_t base_planning_generation,
-                             bool track_logical_redo)
+                             uint64_t base_planning_generation)
     : cow_graph_(std::move(cow_graph)),
       detach_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
       base_planning_generation_(base_planning_generation),
-      checkpoint_(cow_graph_->checkpoint_ptr()) {
-  if (track_logical_redo) {
-    logical_redo_.emplace();
-  }
-}
+      checkpoint_(cow_graph_->checkpoint_ptr()) {}
 
 void CowGraphState::Reset() noexcept {
-  logical_redo_.reset();
+  logical_redo_.clear();
   view_ = GraphView();
   cow_graph_.reset();
   checkpoint_.reset();
 }
 
 UpdateTransaction UpdateTransaction::Begin(IVersionManager& version_manager,
-                                           GraphSnapshotStore& snapshot_store,
-                                           TransactionDurability durability) {
+                                           GraphSnapshotStore& snapshot_store) {
   UpdateTimestampLease timestamp_lease(version_manager);
   auto [cow_graph, planning_generation] =
       snapshot_store.CloneCurrentForUpdate();
   return UpdateTransaction(
-      durability,
-      CowGraphState(std::move(cow_graph), planning_generation,
-                    durability == TransactionDurability::kWal),
+      CowGraphState(std::move(cow_graph), planning_generation),
       std::move(timestamp_lease));
 }
 
-UpdateTransaction UpdateTransaction::BeginUntil(
-    IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
-    TransactionDurability durability,
-    std::chrono::steady_clock::time_point deadline) {
-  UpdateTimestampLease timestamp_lease(version_manager, deadline);
-  auto [cow_graph, planning_generation] =
-      snapshot_store.CloneCurrentForUpdate();
-  return UpdateTransaction(
-      durability,
-      CowGraphState(std::move(cow_graph), planning_generation,
-                    durability == TransactionDurability::kWal),
-      std::move(timestamp_lease));
-}
-
-UpdateTransaction::UpdateTransaction(TransactionDurability durability,
-                                     CowGraphState cow_graph_state,
+UpdateTransaction::UpdateTransaction(CowGraphState cow_graph_state,
                                      UpdateTimestampLease timestamp_lease)
-    : durability_(durability),
-      cow_graph_state_(std::move(cow_graph_state)),
+    : cow_graph_state_(std::move(cow_graph_state)),
       timestamp_lease_(std::move(timestamp_lease)) {}
 
 UpdateTransaction::UpdateTransaction(UpdateTransaction&& other) noexcept
-    : durability_(other.durability_),
-      cow_graph_state_(std::move(other.cow_graph_state_)),
+    : cow_graph_state_(std::move(other.cow_graph_state_)),
       timestamp_lease_(std::move(other.timestamp_lease_)) {}
 
 UpdateTransaction::~UpdateTransaction() { Abort(); }
 
 Status UpdateTransaction::Commit(GraphSnapshotStore& snapshot_store,
-                                 IWalWriter* wal_writer) {
+                                 IWalWriter& wal_writer) {
   if (timestamp() == INVALID_TIMESTAMP) {
     return Status::OK();
-  }
-  if (durability_ == TransactionDurability::kWal && wal_writer == nullptr) {
-    Abort();
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "WAL durability requires a WAL writer");
-  }
-  if (durability_ == TransactionDurability::kNoWal && wal_writer != nullptr) {
-    Abort();
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "No-WAL durability must not use a WAL writer");
   }
   if (!cow_graph_state_.HasChanges()) {
     release(std::nullopt);
     return Status::OK();
   }
 
-  const bool planning_changed = cow_graph_state_.detach_state().planning_changed;
-  if (planning_changed &&
-      cow_graph_state_.base_planning_generation() ==
-          std::numeric_limits<uint64_t>::max()) {
+  const bool planning_changed =
+      cow_graph_state_.detach_state().planning_changed;
+  if (planning_changed && cow_graph_state_.base_planning_generation() ==
+                              std::numeric_limits<uint64_t>::max()) {
     LOG(ERROR) << "Planning generation space exhausted";
     Abort();
     return Status::InternalError("Planning generation space exhausted");
   }
   const uint64_t committed_planning_generation =
-      cow_graph_state_.base_planning_generation() +
-      (planning_changed ? 1 : 0);
+      cow_graph_state_.base_planning_generation() + (planning_changed ? 1 : 0);
 
-  auto prepared_result =
-      snapshot_store.PrepareSnapshot(cow_graph_state_.graph(),
-                                     committed_planning_generation);
+  auto prepared_result = snapshot_store.PrepareSnapshot(
+      cow_graph_state_.graph(), committed_planning_generation);
   if (!prepared_result) {
     LOG(ERROR) << "Failed to prepare graph snapshot: "
                << prepared_result.error().ToString();
@@ -427,20 +390,17 @@ Status UpdateTransaction::Commit(GraphSnapshotStore& snapshot_store,
 
   auto prepared = std::move(prepared_result).value();
 
-  if (durability_ == TransactionDurability::kWal) {
-    auto* logical_redo = cow_graph_state_.logical_redo();
-    CHECK(logical_redo != nullptr);
-    if (logical_redo->op_num() == 0) {
-      Abort();
-      return Status::InternalError(
-          "Modified WAL transaction contains no redo operations");
-    }
-    logical_redo->finalize(timestamp());
-    if (!wal_writer->append(logical_redo->data(), logical_redo->size())) {
-      LOG(ERROR) << "Failed to append wal log";
-      Abort();
-      return Status::InternalError("Failed to append WAL log");
-    }
+  auto& logical_redo = cow_graph_state_.logical_redo();
+  if (logical_redo.op_num() == 0) {
+    Abort();
+    return Status::InternalError(
+        "Modified WAL transaction contains no redo operations");
+  }
+  logical_redo.finalize(timestamp());
+  if (!wal_writer.append(logical_redo.data(), logical_redo.size())) {
+    LOG(ERROR) << "Failed to append wal log";
+    Abort();
+    return Status::InternalError("Failed to append WAL log");
   }
 
   timestamp_lease_.BeginCommit();
@@ -834,39 +794,6 @@ Status StorageCOWUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
     mut_view_.Rebuild(*cow_graph_);
   }
   return status;
-}
-
-neug::result<StorageIndex*> StorageCOWUpdateInterface::CreateIndexForAP(
-    std::unique_ptr<IndexMeta> meta) {
-  if (!meta) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Cannot create index with null metadata");
-  }
-  const auto name = meta->name;
-  const auto label = meta->schema.label_id;
-  const auto property_name = meta->schema.property_name;
-  GS_AUTO(index, index_ddl::CreateIndex(*cow_graph_, mut_view_, read_ts_,
-                                        alloc_, std::move(meta),
-                                        [this]() { MarkSchemaDirty(); }));
-  cow_state_.index_detached[name] = true;
-  if (label < cow_state_.vertex_tables.size()) {
-    const auto schema = cow_graph_->schema().get_vertex_schema(label);
-    const auto column = schema->get_property_index(property_name);
-    if (column >= 0 &&
-        static_cast<size_t>(column) <
-            cow_state_.vertex_tables[label].columns_detached.size()) {
-      cow_state_.vertex_tables[label].columns_detached[column] = true;
-    }
-  }
-  return index;
-}
-
-Status StorageCOWUpdateInterface::DropIndexForAP(const std::string& name) {
-  RETURN_IF_NOT_OK(index_ddl::DropIndex(*cow_graph_, mut_view_, read_ts_,
-                                        alloc_, name,
-                                        [this]() { MarkSchemaDirty(); }));
-  cow_state_.index_detached.erase(name);
-  return Status::OK();
 }
 
 Status StorageCOWUpdateInterface::AddVertexImpl(label_t label, const Value& oid,
@@ -1602,32 +1529,6 @@ Status StorageCOWUpdateInterface::BatchAddEdgesImpl(
   LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "BatchAddEdges is not supported in TP mode currently.");
-}
-
-result<std::vector<vid_t>> StorageCOWUpdateInterface::BatchAddVerticesForAP(
-    label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  RETURN_STATUS_ERROR_IF_NOT_OK(detachVertexTableForInsert(v_label_id));
-  auto new_vids = cow_graph_->BatchAddVertices(v_label_id, std::move(supplier));
-  if (!new_vids || new_vids->empty()) {
-    return new_vids;
-  }
-  auto status = AddBatchVertexIndexData(
-      *cow_graph_, v_label_id, new_vids.value(),
-      [this](StorageIndex& index) { return detachIndex(index); });
-  if (!status.ok()) {
-    RETURN_ERROR(std::move(status));
-  }
-  return new_vids;
-}
-
-Status StorageCOWUpdateInterface::BatchAddEdgesForAP(
-    label_t src_label, label_t dst_label, label_t edge_label,
-    std::shared_ptr<IDataChunkSupplier> supplier) {
-  uint32_t edge_triplet_id = cow_graph_->schema().generate_edge_label(
-      src_label, dst_label, edge_label);
-  RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_triplet_id));
-  return cow_graph_->BatchAddEdges(src_label, dst_label, edge_label,
-                                   std::move(supplier));
 }
 
 Status StorageCOWUpdateInterface::BatchDeleteVerticesImpl(
