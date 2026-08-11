@@ -109,13 +109,15 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
   arrow::Status InitializeFileSize();
 
   /**
-   * Setup CURL handle with common options
+   * Setup CURL handle with common options.
+   * Custom headers are appended to *header_list (may be nullptr on entry);
+   * the caller owns the returned list and must free it with
+   * curl_slist_free_all() after the request completes.
    */
-  void SetupCURLHandle(CURL* curl);
+  void SetupCURLHandle(CURL* curl, struct curl_slist** header_list);
 
   std::string url_;
   common::case_insensitive_map_t<std::string> options_;
-  CURL* curl_handle_;
   int64_t file_size_;
   int64_t position_;
   bool closed_;
@@ -123,7 +125,6 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
   // Authentication
   std::string bearer_token_;
   std::vector<std::string> custom_headers_;
-  struct curl_slist* header_list_;
 };
 
 /**
