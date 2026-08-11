@@ -168,25 +168,3 @@ umbrellas:
       protocol — #272. Pure compiler / parser / binder plumbing for the
       four transaction statements themselves (#774) is a prerequisite and
       the FIRST sub-task, but its umbrella parent is this issue.
-
-  - number: 783
-    title: "Unify AP and TP query execution ownership and version lifecycle"
-    scope_in: |
-      Cross-cutting executor ownership refactor: shared `ExecutionSlot`
-      abstraction for query preparation and pipeline execution, Connection-
-      exclusive ownership of its execution slot, `TpExecutionSlotPool`
-      ownership of TP slots together with their WAL writers, moving Session
-      and version-manager lifecycle out of the server layer and into core
-      (neug/main/), keeping `NeugDB` focused on database-wide resources,
-      sharing one AP/TP version timeline with explicit checkpoint-
-      visibility semantics, and the related P1/P2 follow-ups that come out
-      of those consolidations. Sub-issues (e.g. #777) live under this
-      umbrella.
-    scope_out: |
-      Pure transaction layer internals (COW, two-phase commit, WAL
-      mechanics, rollback) — those go to #86. Persistence / checkpoint /
-      mmap / dump-load protocol — #272. Per-CSR / per-column storage
-      refactors that don't touch ownership or lifecycle — #272 or #257.
-      Pure read-side / write-side runtime performance that isn't an
-      ownership question — #257. Compiler / planner / binder refactors
-      unrelated to execution ownership — #257.
