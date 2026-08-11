@@ -71,3 +71,10 @@ Build the image locally with:
 ```bash
 make neug-manylinux-node
 ```
+
+And tag the image before pushing it to the registry:
+
+```bash
+export ARCH=arm64 # x86_64
+docker tag neug/neug-manylinux:${ARCH}-node neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-${ARCH}-node
+```

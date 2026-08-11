@@ -46,7 +46,7 @@ neug-manylinux-node:
 		--build-arg REGISTRY=$(REGISTRY) \
 		--build-arg PLATFORM=${PLATFORM} \
 		--build-arg ARCH=${ARCH} \
-		-t neug/neug-manylinux:v0.1.3-${ARCH}-node \
+		-t neug/neug-manylinux:${ARCH}-node \
 		-f ${DOCKERFILES_DIR}/neug-manylinux-node.Dockerfile .
 
 neug-dev:
