@@ -20,7 +20,10 @@
 /// Cross-platform hint to force a function to be inlined.
 #ifdef _WIN32
 #define NEUG_ALWAYS_INLINE __forceinline
-// MSVC does not support GCC's __attribute__ extension; define it away.
+// MSVC does not support GCC's __attribute__ syntax. This blanket define is
+// kept as a fallback for third-party headers that use __attribute__ directly.
+// Internal code MUST use platform-independent macros (NEUG_ALWAYS_INLINE,
+// NEUG_API, NEUG_DEPRECATED, etc.) instead of raw __attribute__.
 #define __attribute__(x)
 // MSVC does not have __builtin_prefetch; use _mm_prefetch instead.
 #include <xmmintrin.h>

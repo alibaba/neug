@@ -101,11 +101,11 @@ class SLVertexColumn : public IVertexColumn {
     return {label_, vertices_[idx]};
   }
 
-  __attribute__((always_inline)) bool is_optional() const override {
+  NEUG_ALWAYS_INLINE bool is_optional() const override {
     return is_optional_;
   }
 
-  __attribute__((always_inline)) bool has_value(size_t idx) const override {
+  NEUG_ALWAYS_INLINE bool has_value(size_t idx) const override {
     return vertices_[idx] != std::numeric_limits<vid_t>::max();
   }
 
@@ -252,7 +252,7 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
     cur_list_ = std::move(vertices);
   }
   // v should not be null
-  __attribute__((always_inline)) void push_back_vertex(
+  NEUG_ALWAYS_INLINE void push_back_vertex(
       VertexRecord v) override {
     if (v.label_ != cur_label_) {
       start_label(v.label_);
@@ -269,7 +269,7 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
     cur_label_ = label;
   }
 
-  __attribute__((always_inline)) void push_back_opt(vid_t v) {
+  NEUG_ALWAYS_INLINE void push_back_opt(vid_t v) {
     assert(v != std::numeric_limits<vid_t>::max());
     cur_list_.push_back(v);
   }
@@ -281,7 +281,7 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
 
   std::shared_ptr<IContextColumn> finish() override;
 
-  __attribute__((always_inline)) size_t cur_size() const {
+  NEUG_ALWAYS_INLINE size_t cur_size() const {
     return cur_list_.size();
   }
 
@@ -302,7 +302,7 @@ class MLVertexColumn : public IVertexColumn {
   MLVertexColumn() = default;
   ~MLVertexColumn() = default;
 
-  __attribute__((always_inline)) size_t size() const override {
+  NEUG_ALWAYS_INLINE size_t size() const override {
     return vertices_.size();
   }
 
@@ -329,16 +329,16 @@ class MLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const sel_vec_t& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
+  NEUG_ALWAYS_INLINE VertexRecord get_vertex(
       size_t idx) const override {
     return vertices_[idx];
   }
 
-  __attribute__((always_inline)) bool is_optional() const override {
+  NEUG_ALWAYS_INLINE bool is_optional() const override {
     return is_optional_;
   }
 
-  __attribute__((always_inline)) bool has_value(size_t idx) const override {
+  NEUG_ALWAYS_INLINE bool has_value(size_t idx) const override {
     return vertices_[idx].vid_ != std::numeric_limits<vid_t>::max();
   }
 
@@ -372,7 +372,7 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
   void reserve(size_t size) override { vertices_.reserve(size); }
 
   // v should not be null
-  __attribute__((always_inline)) void push_back_opt(VertexRecord v) {
+  NEUG_ALWAYS_INLINE void push_back_opt(VertexRecord v) {
     labels_.insert(v.label_);
     assert(v.vid_ != std::numeric_limits<vid_t>::max());
     vertices_.push_back(v);
@@ -405,25 +405,25 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   void reserve(size_t size) override { vertices_.reserve(size); }
 
   // v should not be null
-  __attribute__((always_inline)) void push_back_opt(VertexRecord v) {
+  NEUG_ALWAYS_INLINE void push_back_opt(VertexRecord v) {
     labels_bitmap_[v.label_] = true;
     assert(v.vid_ != std::numeric_limits<vid_t>::max());
     vertices_.push_back(v);
   }
 
   // v should not be null
-  __attribute__((always_inline)) void push_back_vertex(
+  NEUG_ALWAYS_INLINE void push_back_vertex(
       VertexRecord v) override {
     push_back_opt(v);
   }
 
-  __attribute__((always_inline)) void push_back_null() override {
+  NEUG_ALWAYS_INLINE void push_back_null() override {
     is_optional_ = true;
     vertices_.emplace_back(std::numeric_limits<label_t>::max(),
                            std::numeric_limits<vid_t>::max());
   }
 
-  __attribute__((always_inline)) std::shared_ptr<IContextColumn> finish()
+  NEUG_ALWAYS_INLINE std::shared_ptr<IContextColumn> finish()
       override {
     auto ret = std::make_shared<MLVertexColumn>();
     for (size_t i = 0; i < labels_bitmap_.size(); ++i) {
@@ -436,9 +436,9 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
     return ret;
   }
 
-  __attribute__((always_inline)) size_t size() { return vertices_.size(); }
+  NEUG_ALWAYS_INLINE size_t size() { return vertices_.size(); }
 
-  __attribute__((always_inline)) size_t cur_size() { return vertices_.size(); }
+  NEUG_ALWAYS_INLINE size_t cur_size() { return vertices_.size(); }
 
  private:
   vector_t<VertexRecord> vertices_;
