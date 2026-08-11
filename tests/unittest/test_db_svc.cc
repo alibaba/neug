@@ -689,6 +689,12 @@ TEST_F(NeugDBServiceTest,
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
 
+  auto no_op_update = connection->Query(
+      "MATCH (n:person {id: 29999}) SET n.age = 2;", "update");
+  ASSERT_TRUE(no_op_update) << no_op_update.error().ToString();
+  EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
+            initial_generation + 1);
+
   const auto copy_path = test_dir_ / "direct-cache-copy.csv";
   {
     std::ofstream copy_file(copy_path);

@@ -25,7 +25,19 @@ conn.execute("CREATE (p:Person {name: 'Alice'})")  # Transaction 1
 conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 ```
 
-> **Coming in v0.2:** Multi-statement execution (multiple statements separated by `;` in a single `execute()` call) and explicit transaction control (`BEGIN`/`COMMIT`/`ABORT`) will be supported in NeuG v0.2.
+> **Planned for NeuG v0.3:** Explicit transaction control (`BEGIN`/`COMMIT`/`ABORT`).
+> This is not available in current releases.
+
+### Explicit Transaction Scope (v0.3)
+
+NeuG does **not** plan to support multi-statement batches in the near term:
+
+- One `execute()` call continues to accept exactly one Cypher statement.
+- Statements separated by `;` in one `execute()` call are not a transaction feature and are not on the v0.3 roadmap.
+- Savepoints are out of scope for v0.3.
+
+The exact lifecycle, error and isolation rules for explicit transaction control will be published with
+the v0.3 implementation. Until then, callers must rely on the current auto-commit behavior.
 
 ## Deployment Modes Overview
 
@@ -289,10 +301,10 @@ finally:
 
 ## Roadmap
 
-**v0.2: Transaction Control**
-- Multi-statement execution: multiple statements separated by `;` in a single `execute()` call, sharing the same transaction boundary
-- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`) for fine-grained transaction control
-- Savepoint support for partial rollback within transactions
+**v0.3: Explicit Transaction Control**
+- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`)
+- No multi-statement batches: a single `execute()` call continues to execute one statement only
+- Savepoints are out of scope for v0.3
 
 **Recovery & Durability**
 - More transparent recovery mechanisms for Embedded mode

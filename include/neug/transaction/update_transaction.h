@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -34,6 +35,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/property_graph_cow_state.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/storages/index/storage_index.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/wal/wal_builder.h"
@@ -48,19 +50,68 @@ class IWalWriter;
 class IVersionManager;
 class Schema;
 
+enum class TransactionDurability : uint8_t { kNoWal, kWal };
+
+/**
+ * @brief Shared, private COW graph state used by AP and TP write owners.
+ *
+ * This is a concrete data-plane state, not a transaction interface. It owns
+ * the private graph, detach state, mutable view, base checkpoint and logical
+ * redo buffer. Admission, visibility timestamps, WAL writers and publication
+ * remain the responsibility of the owning transaction.
+ */
+class CowGraphState {
+ public:
+  CowGraphState(std::shared_ptr<PropertyGraph> cow_graph,
+                uint64_t base_planning_generation, bool track_logical_redo);
+
+  CowGraphState(CowGraphState&&) noexcept = default;
+  CowGraphState& operator=(CowGraphState&&) noexcept = default;
+  CowGraphState(const CowGraphState&) = delete;
+  CowGraphState& operator=(const CowGraphState&) = delete;
+
+  std::shared_ptr<PropertyGraph>& graph() { return cow_graph_; }
+  const std::shared_ptr<PropertyGraph>& graph() const { return cow_graph_; }
+  PropertyGraphCowState& detach_state() { return detach_state_; }
+  const PropertyGraphCowState& detach_state() const { return detach_state_; }
+  GraphView& view() { return view_; }
+  const GraphView& view() const { return view_; }
+  uint64_t base_planning_generation() const {
+    return base_planning_generation_;
+  }
+  std::shared_ptr<Checkpoint>& checkpoint() { return checkpoint_; }
+  WalBuilder* logical_redo() {
+    return logical_redo_ ? &*logical_redo_ : nullptr;
+  }
+  const WalBuilder* logical_redo() const {
+    return logical_redo_ ? &*logical_redo_ : nullptr;
+  }
+  bool HasChanges() const { return detach_state_.HasChanges(); }
+  void Reset() noexcept;
+
+ private:
+  std::shared_ptr<PropertyGraph> cow_graph_;
+  PropertyGraphCowState detach_state_;
+  GraphView view_;
+  uint64_t base_planning_generation_;
+  std::shared_ptr<Checkpoint> checkpoint_;
+  std::optional<WalBuilder> logical_redo_;
+};
+
 /**
  * @brief Resource holder and lifecycle manager for update transactions.
  *
- * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
- * resources (WAL buffer, allocator, timestamp lease, snapshot store).
- * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
- * which accesses UpdateTransaction's private members via friend declaration.
+ * UpdateTransaction owns one CowGraphState and one update timestamp lease.
+ * Statement-local allocators and commit-time publication/WAL resources are
+ * borrowed by the caller and never retained by the transaction.
  *
  * **COW Design:**
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
- * - StorageTPUpdateInterface performs all DDL/DML modifications on the COW copy
- * - Commit prepares the COW snapshot before WAL, then performs a no-fail
- *   publication after WAL succeeds.
+ * - StorageCOWUpdateInterface performs all DDL/DML modifications on the COW
+ *   copy
+ * - kNoWal commits publish without constructing or writing redo
+ * - kWal commits prepare the snapshot before WAL, then perform a no-fail
+ *   publication after WAL succeeds
  * - Abort discards the COW copy (no effect on original)
  *
  * **Concurrency contract** (VersionManager state machine):
@@ -75,24 +126,19 @@ class Schema;
  */
 class UpdateTransaction {
  public:
-  /**
-   * @brief Construct an UpdateTransaction with a COW PropertyGraph.
-   *
-   * @param cow_graph PropertyGraph COW clone
-   * @param planning_generation Planning generation of the cloned snapshot
-   * @param alloc Reference to memory allocator
-   * @param logger Reference to WAL writer
-   * @param snapshot_store Reference to GraphSnapshotStore for commit
-   * @param timestamp_lease Owned update timestamp and admission lifecycle
-   *
-   * @note The caller is responsible for acquiring the timestamp lease before
-   * creating the COW copy via Clone().
-   * @since v0.1.0
-   */
-  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
-                    uint64_t planning_generation, Allocator& alloc,
-                    IWalWriter& logger, GraphSnapshotStore& snapshot_store,
-                    UpdateTimestampLease timestamp_lease);
+  static UpdateTransaction Begin(IVersionManager& version_manager,
+                                 GraphSnapshotStore& snapshot_store,
+                                 TransactionDurability durability);
+
+  static UpdateTransaction BeginUntil(
+      IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
+      TransactionDurability durability,
+      std::chrono::steady_clock::time_point deadline);
+
+  UpdateTransaction(UpdateTransaction&& other) noexcept;
+  UpdateTransaction(const UpdateTransaction&) = delete;
+  UpdateTransaction& operator=(const UpdateTransaction&) = delete;
+  UpdateTransaction& operator=(UpdateTransaction&&) = delete;
 
   /**
    * @brief Destructor that calls Abort().
@@ -106,21 +152,30 @@ class UpdateTransaction {
    */
   timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
-  bool Commit();
+  Status Commit(GraphSnapshotStore& snapshot_store,
+                IWalWriter* wal_writer = nullptr);
 
-  void Abort();
+  void MarkPlanningChanged() noexcept {
+    cow_graph_state_.detach_state().planning_changed = true;
+  }
+
+  void Abort() noexcept;
 
   static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
                         size_t length, Allocator& alloc);
 
-  const GraphView& view() const { return view_; }
+  const GraphView& view() const { return cow_graph_state_.view(); }
+
+  CowGraphState& cow_graph_state() { return cow_graph_state_; }
+  const CowGraphState& cow_graph_state() const { return cow_graph_state_; }
 
   GraphStats statistic() const {
-    return GraphStats(view_, planning_generation_);
+    return GraphStats(cow_graph_state_.view(),
+                      cow_graph_state_.base_planning_generation());
   }
 
   // --- Read-only accessors (not graph modifications) ---
-  const Schema& schema() const { return cow_graph_->schema(); }
+  const Schema& schema() const { return cow_graph_state_.graph()->schema(); }
 
   Value GetVertexId(label_t label, vid_t lid) const;
 
@@ -130,58 +185,68 @@ class UpdateTransaction {
 
   std::shared_ptr<RefColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& col_name) const {
-    return cow_graph_->GetVertexPropertyColumn(label, col_name);
+    return cow_graph_state_.graph()->GetVertexPropertyColumn(label, col_name);
   }
 
   CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
-    return cow_graph_->GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp());
+    return cow_graph_state_.graph()->GetGenericOutgoingGraphView(
+        v_label, neighbor_label, edge_label, timestamp());
   }
 
   CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
-    return cow_graph_->GetGenericIncomingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp());
+    return cow_graph_state_.graph()->GetGenericIncomingGraphView(
+        v_label, neighbor_label, edge_label, timestamp());
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    return cow_graph_->GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                           prop_id);
+    return cow_graph_state_.graph()->GetEdgeDataAccessor(
+        src_label, dst_label, edge_label, prop_id);
   }
 
-  friend class StorageTPUpdateInterface;
+  friend class StorageCOWUpdateInterface;
 
  private:
-  void release(std::optional<uint32_t> installed_snapshot_generation);
+  UpdateTransaction(TransactionDurability durability,
+                    CowGraphState cow_graph_state,
+                    UpdateTimestampLease timestamp_lease);
 
-  // COW storage - the cloned PropertyGraph
-  std::shared_ptr<PropertyGraph> cow_graph_;
-  PropertyGraphCowState cow_state_;
-  GraphView view_;
+  void release(std::optional<uint32_t> installed_snapshot_generation) noexcept;
 
-  Allocator& alloc_;
-  IWalWriter& logger_;
-  GraphSnapshotStore& snapshot_store_;
+  TransactionDurability durability_;
+  CowGraphState cow_graph_state_;
+
   UpdateTimestampLease timestamp_lease_;
-  uint64_t planning_generation_;
-
-  std::shared_ptr<Checkpoint> ckp_;
-  WalBuilder wal_builder_;
 };
 
-class StorageTPUpdateInterface : public StorageUpdateInterface {
+class StorageCOWUpdateInterface : public StorageUpdateInterface {
  public:
-  explicit StorageTPUpdateInterface(UpdateTransaction& txn)
-      : StorageUpdateInterface(txn.view(), txn.timestamp()),
-        cow_graph_(txn.cow_graph_),
-        cow_state_(txn.cow_state_),
-        mut_view_(txn.view_),
-        alloc_(txn.alloc_),
-        ckp_(txn.ckp_),
-        wal_(txn.wal_builder_) {}
-  ~StorageTPUpdateInterface() = default;
+  StorageCOWUpdateInterface(UpdateTransaction& txn, Allocator& alloc)
+      : StorageCOWUpdateInterface(txn.cow_graph_state(), txn.timestamp(),
+                                  alloc) {}
+
+  StorageCOWUpdateInterface(CowGraphState& cow_graph_state,
+                            timestamp_t read_timestamp, Allocator& alloc)
+      : StorageUpdateInterface(cow_graph_state.view(), read_timestamp),
+        cow_graph_(cow_graph_state.graph()),
+        cow_state_(cow_graph_state.detach_state()),
+        mut_view_(cow_graph_state.view()),
+        alloc_(alloc),
+        ckp_(cow_graph_state.checkpoint()),
+        wal_(cow_graph_state.logical_redo()) {}
+  ~StorageCOWUpdateInterface() = default;
+
+ protected:
+  // Non-virtual COW implementations exposed only by the AP capability adapter.
+  neug::result<StorageIndex*> CreateIndexForAP(std::unique_ptr<IndexMeta> meta);
+  Status DropIndexForAP(const std::string& name);
+  result<std::vector<vid_t>> BatchAddVerticesForAP(
+      label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier);
+  Status BatchAddEdgesForAP(label_t src_label, label_t dst_label,
+                            label_t edge_label,
+                            std::shared_ptr<IDataChunkSupplier> supplier);
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.
@@ -191,7 +256,11 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
     cow_graph_->MarkEdgeTableDirty(src, dst, edge);
   }
-  void MarkSchemaDirty() override { cow_graph_->MarkSchemaDirty(); }
+  void MarkSchemaDirty() override {
+    cow_graph_->MarkSchemaDirty();
+    cow_state_.schema_changed = true;
+    cow_state_.planning_changed = true;
+  }
 
   // --- DML *Impl ---
   Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
@@ -269,7 +338,37 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   GraphView& mut_view_;
   Allocator& alloc_;
   std::shared_ptr<Checkpoint>& ckp_;
-  WalBuilder& wal_;
+  WalBuilder* wal_;
+};
+
+class StorageAPCOWUpdateInterface final : public StorageCOWUpdateInterface,
+                                          public StorageIndexDDLInterface {
+ public:
+  StorageAPCOWUpdateInterface(UpdateTransaction& txn, Allocator& alloc)
+      : StorageCOWUpdateInterface(txn.cow_graph_state(), txn.timestamp(),
+                                  alloc) {}
+
+  neug::result<StorageIndex*> CreateIndex(
+      std::unique_ptr<IndexMeta> meta) override {
+    return CreateIndexForAP(std::move(meta));
+  }
+
+  Status DropIndex(const std::string& name) override {
+    return DropIndexForAP(name);
+  }
+
+ private:
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
+      label_t v_label_id,
+      std::shared_ptr<IDataChunkSupplier> supplier) override {
+    return BatchAddVerticesForAP(v_label_id, std::move(supplier));
+  }
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override {
+    return BatchAddEdgesForAP(src_label, dst_label, edge_label,
+                              std::move(supplier));
+  }
 };
 
 }  // namespace neug

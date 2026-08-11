@@ -34,6 +34,7 @@
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/ap_operation_guard.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
@@ -83,7 +84,8 @@ void ExecutionSlotLease::reset() noexcept {
 
 namespace {
 
-void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
+template <typename WriteContext>
+void markPlanningChangedIfNeeded(WriteContext& write_context,
                                  ExplainMode explain_mode,
                                  const execution::CacheValue* prepared_query,
                                  const Status& execution_status) {
@@ -95,7 +97,7 @@ void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
   }
   const auto& flags = prepared_query->flags;
   if (flags.batch() || flags.update()) {
-    write_scope.MarkPlanningChanged();
+    write_context.MarkPlanningChanged();
   }
 }
 
@@ -194,12 +196,13 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
 }
 
 UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
-  UpdateTimestampLease timestamp_lease(version_manager_);
-  auto [cow_graph, planning_generation] =
-      snapshot_store_.CloneCurrentForUpdate();
-  return UpdateTransaction(std::move(cow_graph), planning_generation, alloc_,
-                           *wal_writer_, snapshot_store_,
-                           std::move(timestamp_lease));
+  CHECK(execution_strategy_ == QueryExecutionStrategy::kTransactional);
+  return UpdateTransaction::Begin(version_manager_, snapshot_store_,
+                                  TransactionDurability::kWal);
+}
+
+Status ExecutionSlot::CommitUpdateTransaction(UpdateTransaction& transaction) {
+  return transaction.Commit(snapshot_store_, wal_writer_);
 }
 
 CompactTransaction ExecutionSlot::GetCompactTransaction() {
@@ -321,22 +324,23 @@ Status ExecutionSlot::executeCore(const std::string& query,
     if (NEUG_UNLIKELY(!prepared)) {
       return prepared.error();
     }
-    prepared_query = std::move(prepared).value();
+    auto prepared_query_for_execution = std::move(prepared).value();
 
-    RETURN_IF_NOT_OK(validateQueryAnalysis(analysis, *prepared_query));
     RETURN_IF_NOT_OK(
-        validatePlan(access_mode, prepared_query->flags,
+        validateQueryAnalysis(analysis, *prepared_query_for_execution));
+    RETURN_IF_NOT_OK(
+        validatePlan(access_mode, prepared_query_for_execution->flags,
                      analysis.explain_mode == ExplainMode::kExplain));
-
-    auto parsed_parameters =
-        execution::parseJsonParameters(prepared_query->params_type, parameters);
+    auto parsed_parameters = execution::parseJsonParameters(
+        prepared_query_for_execution->params_type, parameters);
     if (NEUG_UNLIKELY(!parsed_parameters)) {
       return parsed_parameters.error();
     }
 
-    RETURN_IF_NOT_OK(
-        executePreparedQuery(*prepared_query, analysis.explain_mode,
-                             parsed_parameters.value(), storage, response));
+    RETURN_IF_NOT_OK(executePreparedQuery(
+        *prepared_query_for_execution, analysis.explain_mode,
+        parsed_parameters.value(), storage, response));
+    prepared_query = std::move(prepared_query_for_execution);
     return Status::OK();
   };
 
@@ -344,12 +348,19 @@ Status ExecutionSlot::executeCore(const std::string& query,
   // EXPLAIN is strategy-independent and must not acquire a write transaction,
   // including for EXPLAIN CHECKPOINT.
   if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
-    auto read_lease =
-        ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
-    status = execute_on_storage(
-        GraphStats(read_lease.view(), read_lease.planning_generation()),
-        storage);
+    if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
+      auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(guard.view(), guard.timestamp());
+      status = execute_on_storage(
+          GraphStats(guard.view(), guard.planning_generation()), storage);
+    } else {
+      auto read_lease =
+          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
+      status = execute_on_storage(
+          GraphStats(read_lease.view(), read_lease.planning_generation()),
+          storage);
+    }
   } else if (NEUG_UNLIKELY(analysis.checkpoint())) {
     // PROFILE executes the checkpoint and is timed by executeCheckpoint().
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
@@ -362,23 +373,33 @@ Status ExecutionSlot::executeCore(const std::string& query,
   } else if (NEUG_UNLIKELY(execution_strategy_ ==
                            QueryExecutionStrategy::kDirect)) {
     if (access_mode == AccessMode::kRead) {
-      auto lease =
-          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(lease.view(), lease.timestamp());
+      auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+      StorageReadInterface storage(guard.view(), guard.timestamp());
       status = execute_on_storage(
-          GraphStats(lease.view(), lease.planning_generation()), storage);
-    } else if (access_mode == AccessMode::kInsert ||
-               access_mode == AccessMode::kUpdate ||
-               access_mode == AccessMode::kSchema) {
+          GraphStats(guard.view(), guard.planning_generation()), storage);
+    } else if (access_mode == AccessMode::kInsert) {
       InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
       auto& slot = write_scope.Snapshot();
-      StorageAPUpdateInterface storage(
+      StorageAPInPlaceUpdateInterface storage(
           *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
           alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
       status = execute_on_storage(
           GraphStats(slot.view(), slot.planning_generation()), storage);
       markPlanningChangedIfNeeded(write_scope, analysis.explain_mode,
                                   prepared_query.get(), status);
+    } else if (access_mode == AccessMode::kUpdate ||
+               access_mode == AccessMode::kSchema) {
+      auto transaction = UpdateTransaction::Begin(
+          version_manager_, snapshot_store_, TransactionDurability::kNoWal);
+      StorageAPCOWUpdateInterface storage(transaction, alloc_);
+      status = execute_on_storage(transaction.statistic(), storage);
+      if (status.ok()) {
+        markPlanningChangedIfNeeded(transaction, analysis.explain_mode,
+                                    prepared_query.get(), status);
+        status = transaction.Commit(snapshot_store_);
+      } else {
+        transaction.Abort();
+      }
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -386,28 +407,30 @@ Status ExecutionSlot::executeCore(const std::string& query,
               std::to_string(static_cast<int>(access_mode)));
     }
   } else {
-    auto execute_and_commit = [&execute_on_storage](auto& transaction,
-                                                    auto& storage) -> Status {
-      RETURN_IF_NOT_OK(execute_on_storage(transaction.statistic(), storage));
-      if (NEUG_UNLIKELY(!transaction.Commit())) {
-        return Status::InternalError("Transaction commit failed.");
-      }
-      return Status::OK();
-    };
-
     if (access_mode == AccessMode::kRead) {
       auto transaction = GetReadTransaction();
       StorageReadInterface storage(transaction.view(), transaction.timestamp());
-      status = execute_and_commit(transaction, storage);
+      status = execute_on_storage(transaction.statistic(), storage);
+      if (status.ok() && NEUG_UNLIKELY(!transaction.Commit())) {
+        status = Status::InternalError("Transaction commit failed.");
+      }
     } else if (access_mode == AccessMode::kInsert) {
       auto transaction = GetInsertTransaction();
       StorageTPInsertInterface storage(transaction);
-      status = execute_and_commit(transaction, storage);
+      status = execute_on_storage(transaction.statistic(), storage);
+      if (status.ok() && NEUG_UNLIKELY(!transaction.Commit())) {
+        status = Status::InternalError("Transaction commit failed.");
+      }
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
       auto transaction = GetUpdateTransaction();
-      StorageTPUpdateInterface storage(transaction);
-      status = execute_and_commit(transaction, storage);
+      StorageCOWUpdateInterface storage(transaction, alloc_);
+      status = execute_on_storage(transaction.statistic(), storage);
+      if (status.ok()) {
+        status = transaction.Commit(snapshot_store_, wal_writer_);
+      } else {
+        transaction.Abort();
+      }
     } else {
       return Status(StatusCode::ERR_NOT_SUPPORTED,
                     "Access mode not supported in transactional ExecutionSlot "
@@ -444,6 +467,11 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
 }
 
 std::string ExecutionSlot::GetSchema() const {
+  if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
+    auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+    auto yaml = guard.view().schema().to_yaml();
+    return get_json_string_from_yaml(yaml.value()).value();
+  }
   auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
   auto yaml = lease.view().schema().to_yaml();
   return get_json_string_from_yaml(yaml.value()).value();
@@ -452,8 +480,8 @@ std::string ExecutionSlot::GetSchema() const {
 void ExecutionSlot::ClearTemporarySchema() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
-    auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    const auto& schema = lease.view().schema();
+    auto guard = APSharedGuard::Acquire(version_manager_, snapshot_store_);
+    const auto& schema = guard.view().schema();
     if (schema.get_temporary_edge_triplet_keys().empty() &&
         schema.get_temporary_vertex_labels().empty()) {
       return;

@@ -51,8 +51,16 @@ struct PropertyGraphCowState {
   std::unordered_map<uint32_t, EdgeTableCowState> edge_tables;
   // record index detach state according to unique index name
   std::unordered_map<std::string, bool> index_detached;
+  // Schema/catalog changes cannot always be inferred from detach state (for
+  // example rename and delete operations), so track them explicitly.
+  bool schema_changed{false};
+  // Whether publishing this COW workspace must advance the planning generation.
+  bool planning_changed{false};
 
   static PropertyGraphCowState FromSchema(const Schema& schema);
+
+  bool HasDetachedStorage() const;
+  bool HasChanges() const { return schema_changed || HasDetachedStorage(); }
 };
 
 }  // namespace neug

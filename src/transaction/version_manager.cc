@@ -141,8 +141,34 @@ bool VersionManager::try_set_runtime_wait_if_quiescent(
   return true;
 }
 
+SharedOperationLease VersionManager::acquire_shared_operation() {
+  return SharedOperationLease(gate_);
+}
+
+SharedOperationLease VersionManager::acquire_shared_operation_until(
+    std::chrono::steady_clock::time_point deadline) {
+  return SharedOperationLease(gate_, deadline);
+}
+
+ExclusiveOperationLease VersionManager::acquire_exclusive_operation() {
+  return ExclusiveOperationLease(gate_);
+}
+
+ExclusiveOperationLease VersionManager::acquire_exclusive_operation_until(
+    std::chrono::steady_clock::time_point deadline) {
+  return ExclusiveOperationLease(gate_, deadline);
+}
+
 ReadOperationLease VersionManager::acquire_read_operation() {
   SharedOperationLease admission(gate_);
+  const auto published_view = UnpackPublishedReadView(
+      published_read_view_.load(std::memory_order_acquire));
+  return {published_view, std::move(admission)};
+}
+
+ReadOperationLease VersionManager::acquire_read_operation_until(
+    std::chrono::steady_clock::time_point deadline) {
+  SharedOperationLease admission(gate_, deadline);
   const auto published_view = UnpackPublishedReadView(
       published_read_view_.load(std::memory_order_acquire));
   return {published_view, std::move(admission)};

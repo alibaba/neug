@@ -535,9 +535,13 @@ TYPED_TEST(CheckpointTest, recover_from_checkpoint) {
       {1, 4, 4, 6}, {2020, 2022, 2021, 2023}, {3, 3, 5, 3});
 
   this->ExpectQuery(*conn, "MATCH (v:person) WHERE v.id = 1 DELETE v;");
+  AssertSingleInt64Result(
+      this->RunQuery(*conn, "MATCH (v)-[e]->(a) RETURN COUNT(e);"), 3);
   this->ExpectQuery(
       *conn,
       "MATCH (v:person)-[e:created]->(f:software) WHERE v.id > 4 DELETE e;");
+  AssertSingleInt64Result(
+      this->RunQuery(*conn, "MATCH (v)-[e]->(a) RETURN COUNT(e);"), 2);
   conn->Close();
   db.Close();
 

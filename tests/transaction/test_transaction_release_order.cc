@@ -58,8 +58,26 @@ class ReleaseOrderVersionManager : public IVersionManager {
   bool try_set_runtime_wait_if_quiescent(RuntimeWaitFn) noexcept override {
     return true;
   }
+  SharedOperationLease acquire_shared_operation() override {
+    return SharedOperationLease(operation_gate_);
+  }
+  SharedOperationLease acquire_shared_operation_until(
+      std::chrono::steady_clock::time_point deadline) override {
+    return SharedOperationLease(operation_gate_, deadline);
+  }
+  ExclusiveOperationLease acquire_exclusive_operation() override {
+    return ExclusiveOperationLease(operation_gate_);
+  }
+  ExclusiveOperationLease acquire_exclusive_operation_until(
+      std::chrono::steady_clock::time_point deadline) override {
+    return ExclusiveOperationLease(operation_gate_, deadline);
+  }
   ReadOperationLease acquire_read_operation() override {
     return {{1, 0}, SharedOperationLease(operation_gate_)};
+  }
+  ReadOperationLease acquire_read_operation_until(
+      std::chrono::steady_clock::time_point deadline) override {
+    return {{1, 0}, SharedOperationLease(operation_gate_, deadline)};
   }
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }

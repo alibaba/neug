@@ -213,7 +213,8 @@ class NeugDBWALRecoverySubprocessTest : public ::testing::Test {
     }
 #endif
     if (!std::filesystem::exists(neugdb_bin_)) {
-      throw std::runtime_error("NeugDB binary not found at " + neugdb_bin_);
+      GTEST_SKIP() << "NeugDB binary not found at " << neugdb_bin_
+                   << "; configure with BUILD_EXECUTABLES=ON to run this test";
     }
     neugdb_bin_ = std::filesystem::absolute(neugdb_bin_).string();
     LOG(INFO) << "Using neugdb binary: " << neugdb_bin_;

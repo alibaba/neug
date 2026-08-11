@@ -16,21 +16,25 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/ap_operation_guard.h"
 #include "neug/transaction/read_snapshot_lease.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -58,6 +62,17 @@ std::atomic<int> runtime_wait_calls{0};
 
 void CountRuntimeWait(RuntimeWaitAction) noexcept {
   runtime_wait_calls.fetch_add(1, std::memory_order_relaxed);
+  std::this_thread::yield();
+}
+
+template <typename Predicate>
+bool WaitUntil(Predicate predicate) {
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (!predicate() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+  return predicate();
 }
 
 class ScriptedVersionManager : public IVersionManager {
@@ -87,8 +102,27 @@ class ScriptedVersionManager : public IVersionManager {
     return true;
   }
 
+  SharedOperationLease acquire_shared_operation() override {
+    return SharedOperationLease(operation_gate_);
+  }
+  SharedOperationLease acquire_shared_operation_until(
+      std::chrono::steady_clock::time_point deadline) override {
+    return SharedOperationLease(operation_gate_, deadline);
+  }
+  ExclusiveOperationLease acquire_exclusive_operation() override {
+    return ExclusiveOperationLease(operation_gate_);
+  }
+  ExclusiveOperationLease acquire_exclusive_operation_until(
+      std::chrono::steady_clock::time_point deadline) override {
+    return ExclusiveOperationLease(operation_gate_, deadline);
+  }
   ReadOperationLease acquire_read_operation() override {
     SharedOperationLease admission(operation_gate_);
+    return {capture_published_view(), std::move(admission)};
+  }
+  ReadOperationLease acquire_read_operation_until(
+      std::chrono::steady_clock::time_point deadline) override {
+    SharedOperationLease admission(operation_gate_, deadline);
     return {capture_published_view(), std::move(admission)};
   }
   uint32_t acquire_insert_timestamp() override { return 1; }
@@ -248,6 +282,87 @@ TEST_F(ReadViewPublicationTest,
   auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_EQ(lease.timestamp(), kInitialTimestamp);
   EXPECT_FALSE(lease.view().schema().is_vertex_label_valid("company"));
+}
+
+TEST_F(ReadViewPublicationTest, APSharedGuardBlocksExclusiveAdmission) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+  ASSERT_TRUE(
+      version_manager.try_set_runtime_wait_if_quiescent(&CountRuntimeWait));
+  runtime_wait_calls.store(0, std::memory_order_relaxed);
+
+  auto shared = APSharedGuard::Acquire(version_manager, *store_);
+  std::atomic<bool> exclusive_acquired{false};
+  std::thread exclusive([&] {
+    auto guard = APExclusiveGuard::Acquire(version_manager, *store_);
+    exclusive_acquired.store(true, std::memory_order_release);
+  });
+
+  EXPECT_TRUE(WaitUntil(
+      [] { return runtime_wait_calls.load(std::memory_order_relaxed) != 0; }));
+  EXPECT_FALSE(exclusive_acquired.load(std::memory_order_acquire));
+
+  shared.release();
+  EXPECT_TRUE(WaitUntil(
+      [&] { return exclusive_acquired.load(std::memory_order_acquire); }));
+  exclusive.join();
+}
+
+TEST_F(ReadViewPublicationTest, GenericOperationLeasesShareTheAdmissionGate) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+  const auto expired = std::chrono::steady_clock::time_point::min();
+
+  auto shared = version_manager.acquire_shared_operation();
+  EXPECT_THROW(version_manager.acquire_exclusive_operation_until(expired),
+               exception::TransactionTimeoutException);
+  shared.release();
+
+  auto exclusive = version_manager.acquire_exclusive_operation();
+  EXPECT_THROW(version_manager.acquire_shared_operation_until(expired),
+               exception::TransactionTimeoutException);
+}
+
+TEST_F(ReadViewPublicationTest,
+       APExclusiveGuardBlocksInsertersWithoutReservingTimestamp) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+  ASSERT_TRUE(
+      version_manager.try_set_runtime_wait_if_quiescent(&CountRuntimeWait));
+  runtime_wait_calls.store(0, std::memory_order_relaxed);
+
+  auto exclusive = APExclusiveGuard::Acquire(version_manager, *store_);
+  std::atomic<uint32_t> insert_timestamp{0};
+  std::thread inserter([&] {
+    const uint32_t timestamp = version_manager.acquire_insert_timestamp();
+    insert_timestamp.store(timestamp, std::memory_order_release);
+    version_manager.release_insert_timestamp(timestamp);
+  });
+
+  EXPECT_TRUE(WaitUntil(
+      [] { return runtime_wait_calls.load(std::memory_order_relaxed) != 0; }));
+  EXPECT_EQ(insert_timestamp.load(std::memory_order_acquire), 0U);
+
+  exclusive.release();
+  EXPECT_TRUE(WaitUntil(
+      [&] { return insert_timestamp.load(std::memory_order_acquire) != 0; }));
+  inserter.join();
+  EXPECT_EQ(insert_timestamp.load(std::memory_order_acquire), 2U);
+}
+
+TEST_F(ReadViewPublicationTest, APGuardsPropagateAdmissionDeadlines) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+  const auto expired = std::chrono::steady_clock::time_point::min();
+
+  auto shared = APSharedGuard::Acquire(version_manager, *store_);
+  EXPECT_THROW(APExclusiveGuard::Acquire(version_manager, *store_, expired),
+               exception::TransactionTimeoutException);
+  shared.release();
+
+  auto exclusive = APExclusiveGuard::Acquire(version_manager, *store_);
+  EXPECT_THROW(APSharedGuard::Acquire(version_manager, *store_, expired),
+               exception::TransactionTimeoutException);
 }
 
 TEST_F(ReadViewPublicationTest,

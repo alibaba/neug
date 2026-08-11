@@ -691,12 +691,12 @@ Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
       if (schema_.has_edge_triplet(i, label, j)) {
         size_t index = schema_.generate_edge_label(i, label, j);
         assert(edge_tables_.count(index) > 0);
-        edge_tables_.at(index).DeleteVertex(true, lid, ts);
+        edge_tables_.at(index).DeleteVertex(/*is_src=*/false, lid, ts);
       }
       if (schema_.has_edge_triplet(label, i, j)) {
         size_t index = schema_.generate_edge_label(label, i, j);
         assert(edge_tables_.count(index) > 0);
-        edge_tables_.at(index).DeleteVertex(false, lid, ts);
+        edge_tables_.at(index).DeleteVertex(/*is_src=*/true, lid, ts);
       }
     }
   }

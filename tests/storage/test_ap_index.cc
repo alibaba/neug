@@ -175,7 +175,7 @@ class APIndexTest : public ::testing::Test {
     graph_ = std::make_unique<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    ap_ = std::make_unique<StorageAPUpdateInterface>(
+    ap_ = std::make_unique<StorageAPInPlaceUpdateInterface>(
         *graph_, *view_, 0, allocator_, [this]() {
           ++planning_change_count_;
           if (planning_change_hook_) {
@@ -194,7 +194,7 @@ class APIndexTest : public ::testing::Test {
     graph_ = std::make_unique<PropertyGraph>();
     graph_->Open(checkpoint_mgr_.CurrentCheckpoint(), MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    ap_ = std::make_unique<StorageAPUpdateInterface>(
+    ap_ = std::make_unique<StorageAPInPlaceUpdateInterface>(
         *graph_, *view_, 0, allocator_, [this]() {
           ++planning_change_count_;
           if (planning_change_hook_) {
@@ -368,7 +368,7 @@ class APIndexTest : public ::testing::Test {
   std::unique_ptr<PropertyGraph> graph_;
   std::unique_ptr<GraphView> view_;
   Allocator allocator_{MemoryLevel::kInMemory, ""};
-  std::unique_ptr<StorageAPUpdateInterface> ap_;
+  std::unique_ptr<StorageAPInPlaceUpdateInterface> ap_;
   int planning_change_count_{0};
   std::function<void()> planning_change_hook_;
 };
