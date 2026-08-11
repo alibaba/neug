@@ -347,9 +347,10 @@ TEST_F(CompactTransactionTest, CompactBlocksRead) {
   AssertCompactBlocksAcquire(
       vm,
       [](neug::VersionManager& v) {
-        return v.acquire_read_view().visibility_ts;
+        auto operation = v.acquire_read_operation();
+        return operation.published_view.visibility_ts;
       },
-      [](neug::VersionManager& v, uint32_t) { v.release_read_view(); });
+      [](neug::VersionManager&, uint32_t) {});
 }
 
 TEST_F(CompactTransactionTest, CompactBlocksInsert) {
