@@ -25,84 +25,57 @@
 #include <windows.h>
 #include <cstdint>
 
-inline int truncate(const char* path, int64_t length) {
-  int fd = _open(path, _O_WRONLY, 0);
-  if (fd < 0) {
-    return -1;
-  }
-  int ret = _chsize_s(fd, length);
-  _close(fd);
-  return ret;
-}
+// POSIX-compatible shim declarations for Windows.
+// Implementations live in file_utils_win.cc to avoid ODR conflicts with
+// third-party headers that may also define these symbols.
+int truncate(const char* path, int64_t length);
 
-// Minimal POSIX mmap/munmap/msync shim for Windows.
+// Minimal POSIX mmap/munmap/msync constants for Windows.
+// Guarded with #ifndef to avoid redefinition conflicts with third-party
+// headers that may also define these macros.
+#ifndef PROT_READ
 #define PROT_READ 1
+#endif
+#ifndef PROT_WRITE
 #define PROT_WRITE 2
+#endif
+#ifndef PROT_EXEC
 #define PROT_EXEC 4
+#endif
 
+#ifndef MAP_SHARED
 #define MAP_SHARED 1
+#endif
+#ifndef MAP_PRIVATE
 #define MAP_PRIVATE 2
+#endif
+#ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS 4
+#endif
+#ifndef MAP_FIXED
 #define MAP_FIXED 0x10
+#endif
+#ifndef MAP_HUGETLB
 #define MAP_HUGETLB 0x40000
+#endif
+#ifndef MAP_FAILED
 #define MAP_FAILED ((void*) -1)
+#endif
 
+#ifndef MS_ASYNC
 #define MS_ASYNC 1
+#endif
+#ifndef MS_SYNC
 #define MS_SYNC 2
+#endif
+#ifndef MS_INVALIDATE
 #define MS_INVALIDATE 4
+#endif
 
-inline void* mmap(void* addr, size_t len, int prot, int flags, int fd,
-                  off_t offset) {
-  (void) addr;
-  DWORD pageProtect = PAGE_NOACCESS;
-  if (prot & PROT_WRITE) {
-    pageProtect = (flags & MAP_PRIVATE) ? PAGE_WRITECOPY : PAGE_READWRITE;
-  } else if (prot & PROT_READ) {
-    pageProtect = PAGE_READONLY;
-  }
-  if (flags & MAP_ANONYMOUS) {
-    // VirtualAlloc only accepts PAGE_READWRITE (not PAGE_WRITECOPY)
-    // for anonymous mappings.
-    void* ptr =
-        VirtualAlloc(nullptr, len, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    return ptr ? ptr : MAP_FAILED;
-  }
-  HANDLE hFile =
-      (fd == -1) ? INVALID_HANDLE_VALUE : (HANDLE) _get_osfhandle(fd);
-  DWORD sizeHigh =
-      static_cast<DWORD>((static_cast<uint64_t>(len) >> 32) & 0xFFFFFFFFULL);
-  DWORD sizeLow = static_cast<DWORD>(len & 0xFFFFFFFFULL);
-  HANDLE hMap = CreateFileMapping(hFile, nullptr, pageProtect, sizeHigh,
-                                  sizeLow, nullptr);
-  if (!hMap) {
-    return MAP_FAILED;
-  }
-  DWORD access = FILE_MAP_READ;
-  if (prot & PROT_WRITE) {
-    access = (flags & MAP_PRIVATE) ? FILE_MAP_COPY : FILE_MAP_WRITE;
-  }
-  DWORD offsetHigh =
-      static_cast<DWORD>((static_cast<uint64_t>(offset) >> 32) & 0xFFFFFFFFULL);
-  DWORD offsetLow = static_cast<DWORD>(offset & 0xFFFFFFFFULL);
-  void* ptr = MapViewOfFile(hMap, access, offsetHigh, offsetLow, len);
-  CloseHandle(hMap);
-  return ptr ? ptr : MAP_FAILED;
-}
-
-inline int munmap(void* addr, size_t len) {
-  (void) len;
-  // Try VirtualFree first (for anonymous mmap via VirtualAlloc);
-  // fall back to UnmapViewOfFile (for file-backed mmap).
-  if (VirtualFree(addr, 0, MEM_RELEASE)) {
-    return 0;
-  }
-  return UnmapViewOfFile(addr) ? 0 : -1;
-}
-
-inline int msync(void* addr, size_t len, int flags) {
-  (void) flags;
-  return FlushViewOfFile(addr, len) ? 0 : -1;
-}
+void* mmap(void* addr, size_t len, int prot, int flags, int fd,
+           off_t offset);
+int munmap(void* addr, size_t len);
+int msync(void* addr, size_t len, int flags);
 #endif
 
 namespace neug {
