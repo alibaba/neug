@@ -15,7 +15,12 @@
 
 #include "neug/storages/checkpoint_file_manager.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <filesystem>
+#include <system_error>
 #include <utility>
 
 #include "neug/utils/io/file/file_utils.h"
@@ -166,15 +171,35 @@ std::string CheckpointFileManager::Commit(IDataContainer& buffer) {
 
 CheckpointFileManager::RuntimeFileHandle
 CheckpointFileManager::CreateRuntimeFile() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  auto uuid = CreateRuntimeObjectNameLocked();
-  return RuntimeFileHandle(runtime_cleanup_, uuid, runtime_dir_ + "/" + uuid);
+  auto path = CreateRuntimeContainerPath();
+  auto uuid = std::filesystem::path(path).filename().string();
+  return RuntimeFileHandle(runtime_cleanup_, std::move(uuid), std::move(path));
 }
 
 std::string CheckpointFileManager::CreateRuntimeContainerPath() {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto uuid = CreateRuntimeObjectNameLocked();
-  return runtime_dir_ + "/" + uuid;
+  while (true) {
+    auto uuid = UUIDGenerator::Generate();
+    auto runtime_path = runtime_dir_ + "/" + uuid;
+    auto snapshot_path = snapshot_dir_ + "/" + uuid;
+    if (std::filesystem::exists(snapshot_path)) {
+      continue;
+    }
+
+    const int fd =
+        ::open(runtime_path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+    if (fd >= 0) {
+      ::close(fd);
+      return runtime_path;
+    }
+    const int open_errno = errno;
+    if (open_errno == EEXIST || open_errno == EINTR) {
+      continue;
+    }
+    const auto error = std::error_code(open_errno, std::generic_category());
+    THROW_IO_EXCEPTION("Failed to reserve runtime file " + runtime_path + ": " +
+                       error.message());
+  }
 }
 
 std::string CheckpointFileManager::CreateRuntimeObjectNameLocked() const {

@@ -137,6 +137,7 @@ class ConstantExpressionVisitor {
   static bool isConstant(const Expression& expr);
 
  private:
+  static bool visitBoolean(const Expression& expr);
   static bool visitFunction(const Expression& expr);
   static bool visitCase(const Expression& expr);
   static bool visitChildren(const Expression& expr);

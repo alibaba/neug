@@ -240,6 +240,14 @@ class NEUG_API TxStateConflictException : public Exception {
                            const std::string& file_line);
 };
 
+class NEUG_API TransactionTimeoutException : public Exception {
+ public:
+  explicit TransactionTimeoutException(const std::string& msg);
+
+  TransactionTimeoutException(const std::string& msg,
+                              const std::string& file_line);
+};
+
 }  // namespace exception
 
 }  // namespace neug
@@ -343,6 +351,9 @@ class NEUG_API TxStateConflictException : public Exception {
 
 #define THROW_TX_STATE_CONFLICT(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(TxStateConflictException, msg)
+
+#define THROW_TRANSACTION_TIMEOUT(msg) \
+  THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(TransactionTimeoutException, msg)
 
 #define THROW_IF_ARROW_NOT_OK(expr)                             \
   do {                                                          \

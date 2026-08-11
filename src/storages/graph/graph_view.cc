@@ -17,6 +17,7 @@
 
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
@@ -55,6 +56,10 @@ ColumnBase* TableView::get_raw_column(int col_id) const {
   return columns_[col_id];
 }
 
+// insert_safe is always false in the insert-transaction path.  For list
+// property columns, setting a non-empty list on a row with no spare
+// elements capacity will throw StorageException.  After loading from
+// checkpoint there is zero spare space.  See storages/README.md §5.4.
 void TableView::insert(size_t index, const std::vector<Value>& values,
                        bool insert_safe) {
   assert(!insert_safe);
@@ -82,6 +87,10 @@ bool VertexTableView::get_lid(const Value& oid, vid_t& lid,
 }
 
 vid_t VertexTableView::LidNum() const { return indexer_->size(); }
+
+size_t VertexTableView::VertexNum() const {
+  return v_ts_->ValidVertexNum(MAX_TIMESTAMP, indexer_->size());
+}
 
 bool VertexTableView::IsValidLid(vid_t lid, timestamp_t ts) const {
   return lid < indexer_->size() && v_ts_->IsVertexValid(lid, ts);
@@ -146,6 +155,16 @@ CsrView EdgeTableView::GetIncomingView(timestamp_t ts) const {
   return in_csr_->get_generic_view(ts);
 }
 
+size_t EdgeTableView::EdgeNum() const {
+  if (out_csr_) {
+    return out_csr_->edge_num();
+  }
+  if (in_csr_) {
+    return in_csr_->edge_num();
+  }
+  return 0;
+}
+
 EdgeDataAccessor EdgeTableView::GetDataAccessor(int prop_id) const {
   if (prop_id < 0 || static_cast<size_t>(prop_id) >= meta_->properties.size()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -190,9 +209,23 @@ std::pair<int32_t, const void*> EdgeTableView::AddEdge(
 
 GraphView::GraphView(PropertyGraph& storage) { Rebuild(storage); }
 
+result<StorageIndex*> GraphView::GetIndexByName(const std::string& name) const {
+  return index_manager_->GetIndexByName(name);
+}
+
+result<std::vector<StorageIndex*>> GraphView::GetIndex(
+    label_t label_id, const std::string& property_name) const {
+  return index_manager_->GetIndex(label_id, property_name);
+}
+
+result<std::vector<StorageIndex*>> GraphView::GetAllIndexes() const {
+  return index_manager_->GetAllIndexes();
+}
+
 void GraphView::Rebuild(PropertyGraph& pg) {
   dirty_ = &pg.dirty_tracker();
   schema_ = &pg.schema();
+  index_manager_ = &pg.index_manager();
   vertex_views_.clear();
   edge_views_.clear();
   // Use vertex_label_frontier() (total label-id space) instead of
@@ -216,6 +249,11 @@ void GraphView::Rebuild(PropertyGraph& pg) {
 
 VertexSet GraphView::GetVertexSet(label_t label, timestamp_t ts) const {
   return vertex_views_[label].GetVertexSet(ts);
+}
+
+vid_t GraphView::VertexNum(label_t label) const {
+  schema_->ensure_vertex_label_valid(label);
+  return vertex_views_[label].VertexNum();
 }
 
 Value GraphView::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
@@ -248,6 +286,14 @@ CsrView GraphView::GetGenericIncomingView(label_t src_label, label_t dst_label,
   return it->second.GetIncomingView(ts);
 }
 
+size_t GraphView::EdgeNum(label_t src_label, label_t dst_label,
+                          label_t edge_label) const {
+  uint32_t index =
+      schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  return it == edge_views_.end() ? 0 : it->second.EdgeNum();
+}
+
 EdgeDataAccessor GraphView::GetEdgeDataAccessor(label_t src_label,
                                                 label_t dst_label,
                                                 label_t edge_label,
@@ -275,6 +321,10 @@ EdgeDataAccessor GraphView::GetEdgeDataAccessor(
   return it->second.GetDataAccessor(prop_name);
 }
 
+// The false here means insert_safe=false is propagated to all columns.
+// For list properties, non-empty list insertion may fail with
+// StorageException when the elements column lacks spare capacity.
+// This is a known limitation.  See storages/README.md §5.4.
 Status GraphView::AddVertex(label_t label, const Value& id,
                             const std::vector<Value>& props, vid_t& vid,
                             timestamp_t ts) {

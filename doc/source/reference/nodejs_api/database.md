@@ -26,6 +26,10 @@ read-only mode, inside the same process or in different processes.
 When the database is opened in read-write mode, no other databases could open the same database directory in
 either read-only or read-write mode, inside the same process or in different processes.
 
+Note that opening a database in read-only mode still requires a writable data directory: the lock file is
+created on demand if missing, and read-only processes copy temporary working files into the database's
+`checkpoint-N/runtime/` directory. Read-only mode cannot be used on a read-only file system or mount.
+
 When the database is closed, all the connections to the database will be closed automatically.
 
 ```javascript
@@ -78,8 +82,11 @@ Open a database.
   - `options.mode` (string)
     Mode to open the database. Supported values: 'r', 'read', 'read-only', 'read_only', 'w', 'rw', 'write', 'readwrite', 'read-write', 'read_write'. Default is 'read-write'.
   - `options.maxThreadNum` (number)
-    Maximum database thread count. The default `0` auto-selects from hardware
-    concurrency and falls back to `1` if the runtime cannot detect it.
+    Database query capacity; `0` selects hardware concurrency (fallback `1`), while higher inputs warn and clamp to it.
+
+    Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
+
+    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
   - `options.checkpointOnClose` (boolean)
     Whether to automatically create a checkpoint when the database is closed. Default is true.
     If false, no checkpoint is created automatically when close the database.
@@ -169,5 +176,7 @@ Connect to the database asynchronously.
 close()
 ```
 
-Close the database connection and release all resources.
+Close the database and release all resources.
 All open connections and async connections will be closed automatically.
+
+For a read-write database with `checkpointOnClose: true`, this method creates a checkpoint before releasing the database resources. Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.

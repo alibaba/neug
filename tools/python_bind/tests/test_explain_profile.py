@@ -20,8 +20,8 @@
 End-to-end tests for PROFILE and EXPLAIN modes in both AP (OLAP) and TP (OLTP) modes.
 
 This test suite covers:
-- AP mode (local embedded): QueryProcessor::execute_internal
-- TP mode (remote HTTP service): Session::Eval
+- AP mode (local embedded): ExecutionSlot::ExecuteQuery
+- TP mode (remote HTTP service): ExecutionSlot::ExecuteTransactionalRequest
 - Both modes sharing the same underlying Pipeline/OprTimer machinery
 
 Tests verify:

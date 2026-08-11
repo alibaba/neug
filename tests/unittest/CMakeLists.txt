@@ -24,6 +24,8 @@ add_neug_test(test_connection test_connection.cc)
 
 add_neug_test(test_query_result test_query_result.cc)
 
+add_neug_test(test_query_result_list test_query_result_list.cc)
+
 add_neug_test(test_column test_column.cc)
 
 add_neug_test(test_explain_profile test_explain_profile.cpp)

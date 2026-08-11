@@ -129,7 +129,7 @@ std::string PyQueryRequest::serialize_request(
   req_doc.AddMember("access_mode",
                     rapidjson::Value(access_mode.c_str(), allocator),
                     allocator);
-  rapidjson::Document params_doc;
+  rapidjson::Document params_doc(rapidjson::kObjectType);
   for (auto item : parameters) {
     std::string key = item.first.cast<std::string>();
     pybind11::object parameter =

@@ -395,8 +395,25 @@ Value parse_array_element(std::string_view token, const DataType& data_type,
     }
     return Value::ARRAY(data_type, std::move(values));
   }
+  case DataTypeId::kList: {
+    auto trimmed = trim_array_token(token);
+    if (trimmed.size() < 2 || trimmed.front() != '[' || trimmed.back() != ']') {
+      THROW_CONVERSION_EXCEPTION("Expected list value for type " +
+                                 data_type.ToString() + ": " +
+                                 std::string(trimmed));
+    }
+    const auto& child_type = ListType::GetChildType(data_type);
+    auto elements = split_array_elements(trimmed.substr(1, trimmed.size() - 2));
+    std::vector<Value> values;
+    values.reserve(elements.size());
+    for (const auto& element : elements) {
+      values.push_back(
+          parse_array_element(element, child_type, true_values, false_values));
+    }
+    return Value::LIST(child_type, std::move(values));
+  }
   default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported ARRAY element type: " +
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported nested element type: " +
                                   data_type.ToString());
   }
 }
@@ -502,6 +519,7 @@ FieldAppender make_appender(const DataType& type, void* builder,
                             const std::string* column_name) {
   switch (type.id()) {
   case DataTypeId::kArray:
+  case DataTypeId::kList:
     return {builder, column_name, &type, &append_array_impl};
 #define MAKE_APPENDER(enum_val, cpp_type) \
   case DataTypeId::enum_val:              \
@@ -1546,7 +1564,8 @@ void set_properties_from_context_column(
                                                                 vids);
     break;
   }
-  case DataTypeId::kArray: {
+  case DataTypeId::kArray:
+  case DataTypeId::kList: {
     for (size_t k = 0; k < vids.size(); ++k) {
       if (vids[k] >= std::numeric_limits<vid_t>::max()) {
         continue;

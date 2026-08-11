@@ -47,7 +47,7 @@ struct ExecutionFlag {
   bool schema = false;
   bool batch = false;
   bool create_temp_table = false;
-  bool transaction = false;
+  bool checkpoint = false;
   bool procedure_call = false;
 };
 
@@ -253,7 +253,9 @@ class GPhysicalAnalyzer {
       break;
     }
     case planner::LogicalOperatorType::TRANSACTION: {
-      flag.transaction = true;
+      auto transaction = op.constPtrCast<planner::LogicalTransaction>();
+      flag.checkpoint = transaction->getTransactionAction() ==
+                        transaction::TransactionAction::CHECKPOINT;
       break;
     }
     // set read to true for graph operators

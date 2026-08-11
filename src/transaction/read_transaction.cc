@@ -20,18 +20,16 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/transaction/version_manager.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-ReadTransaction::ReadTransaction(SnapshotGuard guard, IVersionManager& vm,
-                                 timestamp_t timestamp)
-    : guard_(std::move(guard)), vm_(vm), timestamp_(timestamp) {}
+ReadTransaction::ReadTransaction(ReadSnapshotLease lease)
+    : lease_(std::move(lease)) {}
 
 ReadTransaction::~ReadTransaction() { release(); }
 
-timestamp_t ReadTransaction::timestamp() const { return timestamp_; }
+timestamp_t ReadTransaction::timestamp() const { return lease_.timestamp(); }
 
 bool ReadTransaction::Commit() {
   release();
@@ -40,16 +38,8 @@ bool ReadTransaction::Commit() {
 
 void ReadTransaction::Abort() { release(); }
 
-const Schema& ReadTransaction::schema() const {
-  return guard_.get().mutable_graph()->schema();
-}
+const Schema& ReadTransaction::schema() const { return lease_.view().schema(); }
 
-void ReadTransaction::release() {
-  if (timestamp_ != INVALID_TIMESTAMP) {
-    guard_.release();
-    vm_.release_read_timestamp();
-    timestamp_ = INVALID_TIMESTAMP;
-  }
-}
+void ReadTransaction::release() { lease_.release(); }
 
 }  // namespace neug

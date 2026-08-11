@@ -25,6 +25,7 @@ limitations under the License.
 #include <cstring>
 #include <functional>
 #include <initializer_list>
+#include <limits>
 #include <new>
 #include <ostream>
 #include <string>
@@ -53,10 +54,14 @@ struct EmptyType {
 
 using timestamp_t = uint32_t;
 using vid_t = uint32_t;
+using index_id_t = uint32_t;
 using label_t = uint8_t;
 static constexpr int32_t MAX_PLUGIN_NUM = 256;  // 2^(sizeof(uint8_t)*8)
 static constexpr const timestamp_t MAX_TIMESTAMP = 0xFFFFFFFE;
 static constexpr const timestamp_t INVALID_TIMESTAMP = 0xFFFFFFFF;
+static constexpr index_id_t INVALID_INDEX_ID =
+    std::numeric_limits<index_id_t>::max();
+static constexpr vid_t INVALID_VID = std::numeric_limits<vid_t>::max();
 
 enum class InputFormat : uint8_t {
   kCppEncoder = 0,
@@ -641,11 +646,18 @@ struct convert<neug::DataType> {
                            : neug::STRING_DEFAULT_MAX_LENGTH;
     } else if (id == neug::DataTypeId::kDate) {
       node["temporal"]["date"] = "";
+    } else if (id == neug::DataTypeId::kTimestampMs) {
+      node["temporal"]["timestamp"] = "";
+    } else if (id == neug::DataTypeId::kInterval) {
+      node["temporal"]["interval"] = "";
     } else if (id == neug::DataTypeId::kArray) {
       auto child_type = neug::ArrayType::GetChildType(type);
       uint64_t array_size = neug::ArrayType::GetNumElements(type);
       node["array"]["component_type"] = encode(child_type);
       node["array"]["max_length"] = array_size;
+    } else if (id == neug::DataTypeId::kList) {
+      node["list"]["component_type"] =
+          encode(neug::ListType::GetChildType(type));
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type.ToString();
     }

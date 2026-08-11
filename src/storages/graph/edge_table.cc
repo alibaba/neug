@@ -25,7 +25,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <ostream>
+#include <sstream>
 #include <string_view>
 #include <utility>
 
@@ -273,6 +275,14 @@ void insert_varchar_impl(const TypedColumnInserter& ins, size_t dst_idx,
                      insert_safe);
 }
 
+void insert_nested_impl(const TypedColumnInserter& ins, size_t dst_idx,
+                        size_t src_idx, bool insert_safe) {
+  auto value = ins.src->get_elem(src_idx);
+  if (!value.IsNull()) {
+    ins.dst->set_any(dst_idx, value, insert_safe);
+  }
+}
+
 TypedColumnInserter make_inserter(const DataType& type,
                                   const IContextColumn* src, ColumnBase* dst) {
   switch (type.id()) {
@@ -283,6 +293,9 @@ TypedColumnInserter make_inserter(const DataType& type,
 #undef MAKE_INSERTER
   case DataTypeId::kVarchar:
     return {src, dst, &insert_varchar_impl};
+  case DataTypeId::kArray:
+  case DataTypeId::kList:
+    return {src, dst, &insert_nested_impl};
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported data type for column inserter: " +
@@ -768,8 +781,11 @@ std::pair<int32_t, const void*> EdgeTable::AddEdge(
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
                               const IndexerType& dst_indexer,
                               std::shared_ptr<IDataChunkSupplier> supplier) {
-  in_csr_->resize(dst_indexer.size());
-  out_csr_->resize(src_indexer.size());
+  // Preserve the vertex tables' reserved capacity. Shrinking the CSR to the
+  // current vertex count would leave subsequently inserted vertices without
+  // adjacency slots until the vertex table itself needs to grow again.
+  in_csr_->resize(dst_indexer.capacity());
+  out_csr_->resize(src_indexer.capacity());
   std::vector<vid_t> src_lid, dst_lid;
   // Pre-reserve capacity to reduce vector reallocation on large graphs.
   auto total_rows = supplier->RowNum();
@@ -781,6 +797,14 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   // for unbundled: full property DataChunks).
   std::vector<std::shared_ptr<IContextColumn>> bundled_data_cols;
   std::vector<std::shared_ptr<DataChunk>> unbundled_data_chunks;
+  // Track edges whose src/dst ID does not resolve to an existing vertex so
+  // the user gets a clear warning instead of a silent drop (issue #166).
+  // Report detailed samples for the first kMaxDanglingEdgeSamples dangling
+  // edges; beyond that only count them.
+  constexpr size_t kMaxDanglingEdgeSamples = 20;
+  size_t dangling_edge_count = 0;
+  std::vector<std::string> dangling_edge_samples;
+  dangling_edge_samples.reserve(kMaxDanglingEdgeSamples);
   while (true) {
     auto chunk = supplier->GetNextChunk();
     if (chunk == nullptr) {
@@ -788,8 +812,40 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
     auto src_col = chunk->get(0);
     auto dst_col = chunk->get(1);
+    size_t src_offset = src_lid.size();
+    size_t dst_offset = dst_lid.size();
     src_indexer.get_index(*src_col, src_lid);
     dst_indexer.get_index(*dst_col, dst_lid);
+    // Both indexers must resolve the same chunk row count; otherwise the
+    // paired scan below would index out of bounds.
+    CHECK(src_lid.size() - src_offset == dst_lid.size() - dst_offset)
+        << "src/dst indexer resolved different row counts for edge table ["
+        << meta_->src_label_name << "]-[" << meta_->edge_label_name << "]->["
+        << meta_->dst_label_name << "]";
+    size_t chunk_rows = src_lid.size() - src_offset;
+    for (size_t i = 0; i < chunk_rows; ++i) {
+      bool src_missing =
+          src_lid[src_offset + i] == std::numeric_limits<vid_t>::max();
+      bool dst_missing =
+          dst_lid[dst_offset + i] == std::numeric_limits<vid_t>::max();
+      if (!src_missing && !dst_missing) {
+        continue;
+      }
+      ++dangling_edge_count;
+      if (dangling_edge_samples.size() < kMaxDanglingEdgeSamples) {
+        std::ostringstream oss;
+        oss << "(src=" << src_col->get_elem(i).to_string()
+            << ", dst=" << dst_col->get_elem(i).to_string() << ") missing ";
+        if (src_missing && dst_missing) {
+          oss << "both src and dst vertices";
+        } else if (src_missing) {
+          oss << "src vertex";
+        } else {
+          oss << "dst vertex";
+        }
+        dangling_edge_samples.push_back(oss.str());
+      }
+    }
     if (chunk->col_num() > 2) {
       if (meta_->is_bundled()) {
         // Bundled: only one property column (index 2).
@@ -809,6 +865,27 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   }
   std::vector<bool> valid_flags;
   filterInvalidEdges(src_lid, dst_lid, valid_flags);
+  if (dangling_edge_count > 0) {
+    std::ostringstream oss;
+    oss << "COPY into edge table [" << meta_->src_label_name << "]-["
+        << meta_->edge_label_name << "]->[" << meta_->dst_label_name
+        << "] dropped " << dangling_edge_count
+        << " edge(s) referencing missing vertices";
+    if (!dangling_edge_samples.empty()) {
+      oss << ". First " << dangling_edge_samples.size() << " sample(s): ";
+      for (size_t i = 0; i < dangling_edge_samples.size(); ++i) {
+        if (i > 0) {
+          oss << "; ";
+        }
+        oss << dangling_edge_samples[i];
+      }
+      if (dangling_edge_count > dangling_edge_samples.size()) {
+        oss << "; ... (" << dangling_edge_count - dangling_edge_samples.size()
+            << " more not shown)";
+      }
+    }
+    LOG(WARNING) << oss.str();
+  }
   size_t new_size = table_idx_.load() + src_lid.size();
   if (new_size >= Capacity()) {
     auto new_cap = new_size;

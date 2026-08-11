@@ -25,29 +25,11 @@
 
 namespace neug {
 
-execution::ParamsMap ParamsParser::ParseFromJsonObj(
-    const execution::ParamsMetaMap& meta,
-    const rapidjson::Document& param_json_obj) {
-  execution::ParamsMap param_map;
-  if (!param_json_obj.IsObject()) {
-    return param_map;
-  }
-  for (auto itr = param_json_obj.MemberBegin();
-       itr != param_json_obj.MemberEnd(); ++itr) {
-    auto key = itr->name.GetString();
-    if (meta.count(key) <= 0) {
-      VLOG(1) << "Parameter key not found in meta: " << key;
-    } else {
-      param_map.emplace(key, Value::FromJson(itr->value, meta.at(key)));
-    }
-  }
-  return param_map;
-}
-
 neug::Status RequestParser::ParseFromString(const std::string& req,
                                             std::string& query,
                                             AccessMode& mode,
                                             rapidjson::Document& parameters) {
+  parameters.SetObject();
   rapidjson::Document document;
   document.Parse(req.c_str(), req.size());
   if (document.HasParseError()) {
@@ -63,7 +45,11 @@ neug::Status RequestParser::ParseFromString(const std::string& req,
     access_mode_str = document["access_mode"].GetString();
     mode = neug::ParseAccessMode(access_mode_str);
   }
-  if (document.HasMember("parameters") && document["parameters"].IsObject()) {
+  if (document.HasMember("parameters")) {
+    if (!document["parameters"].IsObject()) {
+      return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Query parameters must be a JSON object.");
+    }
     parameters.CopyFrom(document["parameters"], parameters.GetAllocator());
   }
   return neug::Status::OK();

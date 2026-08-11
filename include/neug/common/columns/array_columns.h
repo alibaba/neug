@@ -19,6 +19,7 @@
 #include "neug/common/types/i_context_column.h"
 #include "neug/common/types/value.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/default_value.h"
 
 namespace neug {
 
@@ -60,7 +61,13 @@ class ContextArrayColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const sel_vec_t& offsets) const override;
 
+  std::shared_ptr<IContextColumn> optional_shuffle(
+      const sel_vec_t& offsets) const override;
+
   Value get_elem(size_t idx) const override {
+    if (!has_value(idx)) {
+      return Value(type_);
+    }
     std::vector<Value> values;
     values.reserve(array_size_);
     size_t base = idx * array_size_;
@@ -70,12 +77,17 @@ class ContextArrayColumn : public IContextColumn {
     return Value::ARRAY(type_, std::move(values));
   }
 
-  bool is_optional() const override { return false; }
+  bool is_optional() const override { return is_optional_; }
+
+  bool has_value(size_t idx) const override {
+    return !is_optional_ || valids_[idx];
+  }
 
   std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> unfold() const;
 
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
   uint64_t array_size() const { return array_size_; }
+  const vector_t<bool>& validity_bitmap() const { return valids_; }
 
  private:
   friend class ContextArrayColumnBuilder;
@@ -83,6 +95,8 @@ class ContextArrayColumn : public IContextColumn {
   DataType type_;
   uint64_t array_size_;
   std::shared_ptr<IContextColumn> datas_;
+  bool is_optional_ = false;
+  vector_t<bool> valids_;
 };
 
 /**
@@ -120,11 +134,30 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
     for (const auto& v : children) {
       child_builder_->push_back_elem(v);
     }
+    ++current_size_;
+  }
+
+  void push_back_null() override {
+    if (!is_optional_) {
+      is_optional_ = true;
+    }
+    valids_.resize(current_size_, true);
+    const auto child_default = get_default_value(elem_type_);
+    for (uint64_t i = 0; i < array_size_; ++i) {
+      child_builder_->push_back_elem(child_default);
+    }
+    valids_.push_back(false);
+    ++current_size_;
   }
 
   std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<ContextArrayColumn>(array_type_);
     ret->datas_ = child_builder_->finish();
+    if (is_optional_) {
+      valids_.resize(current_size_, true);
+      ret->valids_.swap(valids_);
+      ret->is_optional_ = true;
+    }
     return ret;
   }
 
@@ -133,6 +166,9 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
   DataType array_type_;
   uint64_t array_size_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;
+  size_t current_size_ = 0;
+  bool is_optional_ = false;
+  vector_t<bool> valids_;
 };
 
 }  // namespace neug

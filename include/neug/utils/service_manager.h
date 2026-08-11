@@ -59,7 +59,8 @@ struct ServiceConfig {
   /// HTTP port for the query endpoint (default: 10000)
   uint32_t query_port;
   /// Service thread count. 0 means auto-select from database max_thread_num. If
-  /// set, it must not exceed the database max_thread_num.
+  /// set, values above the database max_thread_num are clamped to that limit
+  /// and a warning is logged.
   uint32_t thread_num;
   /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all
   /// interfaces)

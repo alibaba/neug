@@ -147,6 +147,40 @@ TEST_F(FileUtilsCopyTest, CopyFile_SparseFilePreservesContentAndSparseness) {
   }
 }
 
+TEST_F(FileUtilsCopyTest, CopyFile_OverwritesExistingDestination) {
+  const std::string src = path("src");
+  const std::string dst = path("dst");
+  ASSERT_NO_FATAL_FAILURE(make_file(src, {{0, "replacement"}}));
+  ASSERT_NO_FATAL_FAILURE(make_file(dst, {{0, "reservation"}}));
+
+  ASSERT_NO_THROW(file_utils::copy_file(src, dst, /*overwrite=*/true));
+  EXPECT_EQ(read_at(dst, 0, std::string("replacement").size()), "replacement");
+
+  const auto copy_prefix =
+      std::filesystem::path(dst).filename().string() + ".copy-";
+  for (const auto& entry : std::filesystem::directory_iterator(tmp_dir_)) {
+    EXPECT_FALSE(entry.path().filename().string().starts_with(copy_prefix))
+        << "temporary copy was not cleaned up: " << entry.path();
+  }
+}
+
+TEST_F(FileUtilsCopyTest, CopyFile_FailurePreservesExistingDestination) {
+  const std::string missing_src = path("missing");
+  const std::string dst = path("dst");
+  ASSERT_NO_FATAL_FAILURE(make_file(dst, {{0, "reservation"}}));
+
+  EXPECT_THROW(file_utils::copy_file(missing_src, dst, /*overwrite=*/true),
+               std::runtime_error);
+  EXPECT_EQ(read_at(dst, 0, std::string("reservation").size()), "reservation");
+
+  const auto copy_prefix =
+      std::filesystem::path(dst).filename().string() + ".copy-";
+  for (const auto& entry : std::filesystem::directory_iterator(tmp_dir_)) {
+    EXPECT_FALSE(entry.path().filename().string().starts_with(copy_prefix))
+        << "temporary copy was not cleaned up: " << entry.path();
+  }
+}
+
 // Direct test of fallback_copy on a sparse source. This is the core
 // regression test for issue #440 — without sparse-awareness, dst would
 // materialize the hole bytes and bloat to logical size. Necessary as a

@@ -29,7 +29,11 @@ void AbstractPropertyGraphLoader::addVerticesToVertexTable(
     auto supplier =
         createVertexChunkSupplier(v_label_id, label_name, v_file, pk_type,
                                   pk_name, pk_ind, loading_config_, 0);
-    graph_.BatchAddVertices(v_label_id, supplier);
+    auto new_vids = graph_.BatchAddVertices(v_label_id, supplier);
+    if (!new_vids) {
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to batch add vertices: ",
+                                     new_vids.error());
+    }
   }
 }
 

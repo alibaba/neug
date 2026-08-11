@@ -37,6 +37,7 @@
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
+#include "neug/compiler/function/show_indexes_function.h"
 #include "neug/compiler/function/show_loaded_extensions_function.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
@@ -153,6 +154,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION(ReverseFunction),
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
+      TABLE_FUNCTION(ShowIndexesFunction),
       TABLE_FUNCTION(ShowProjectedGraphsFunction),
       TABLE_FUNCTION(ProjectedGraphInfoFunction),
       TABLE_FUNCTION(ProjectGraphFunction),

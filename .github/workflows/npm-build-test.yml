@@ -112,7 +112,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+            node tests/test-shim.js
           '
 
       - name: Stop container
@@ -204,7 +204,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+            node tests/test-shim.js
           '
 
       - name: Stop container
@@ -273,7 +273,7 @@ jobs:
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+          node tests/test-shim.js
 
       - name: Upload npm tarball
         uses: actions/upload-artifact@v4
@@ -281,3 +281,13 @@ jobs:
           name: nodejs-osx-arm64-${{ github.run_id }}
           path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
           if-no-files-found: error
+
+  # Nightly and manually dispatched builds verify the packages from this run
+  # through the same test suite used by the published-package check.
+  package_test:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs:
+      - build_npm_linux_x86_64
+      - build_npm_linux_arm64
+      - build_npm_macos_aarch64
+    uses: ./.github/workflows/npm-package-test.yml

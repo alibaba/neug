@@ -39,6 +39,16 @@ extension_test = pytest.mark.skipif(
 )
 
 
+def _nested_list(value):
+    """Normalize a returned list value into plain Python lists."""
+    if isinstance(value, (str, bytes)):
+        return value
+    try:
+        return [_nested_list(item) for item in value]
+    except TypeError:
+        return value
+
+
 def get_tinysnb_dataset_path():
     """Get the path to tinysnb dataset CSV files."""
     # Try to get from environment variable first
@@ -1649,6 +1659,82 @@ class TestCopyFrom:
         assert records[0][4] == 5, "Times should be 5"
         assert records[0][5] is not None, "Location should not be None"
 
+    def test_create_edge_after_copy_from_edges(self):
+        """Vertices created after edge COPY retain usable CSR slots."""
+        nodes_csv = self.tmp_path / "files.csv"
+        edges_csv = self.tmp_path / "depends.csv"
+        nodes_csv.write_text(
+            "id,label\na.py,a\nb.py,b\nc.py,c\n",
+            encoding="utf-8",
+        )
+        edges_csv.write_text(
+            "src,dst,weight\na.py,b.py,1\nb.py,c.py,1\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE file(id STRING, label STRING, PRIMARY KEY(id))"
+        )
+        self.conn.execute("CREATE REL TABLE depends(FROM file TO file, weight INT64)")
+        self.conn.execute(f'COPY file FROM "{nodes_csv}" (header=true, delimiter=",")')
+        self.conn.execute(
+            f'COPY depends FROM "{edges_csv}" (header=true, delimiter=",")'
+        )
+
+        self.conn.execute("CREATE (n:file {id: 'd.py', label: 'd'})")
+        self.conn.execute(
+            "MATCH (a:file {id: 'd.py'}), (b:file {id: 'a.py'}) "
+            "CREATE (a)-[:depends {weight: 1}]->(b)"
+        )
+
+        records = list(
+            self.conn.execute(
+                "MATCH (a:file {id: 'd.py'})-[e:depends]->(b:file) "
+                "RETURN b.id, e.weight"
+            )
+        )
+        assert records == [["a.py", 1]]
+
+    def test_copy_from_edge_dangling_warns(self):
+        """COPY edges referencing missing vertices must log a warning (#166)."""
+        nodes_csv = self.tmp_path / "persons.csv"
+        edges_csv = self.tmp_path / "knows.csv"
+        nodes_csv.write_text("ID\n1\n2\n3\n", encoding="utf-8")
+        # 2 valid edges (1->2, 2->3) and 2 dangling edges (dst 999, src 888).
+        edges_csv.write_text("src,dst\n1,2\n1,999\n888,2\n2,3\n", encoding="utf-8")
+
+        self.conn.execute("CREATE NODE TABLE person (ID INT64, PRIMARY KEY(ID))")
+        self.conn.execute("CREATE REL TABLE knows (FROM person TO person)")
+        self.conn.execute(
+            f'COPY person FROM "{nodes_csv}" (header=true, delimiter=",")'
+        )
+
+        # glog writes directly to fd 2, so capture at the fd level instead of
+        # sys.stderr.
+        saved_fd = os.dup(2)
+        capture_path = self.tmp_path / "stderr.log"
+        capture_fd = os.open(
+            str(capture_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+        )
+        try:
+            os.dup2(capture_fd, 2)
+            self.conn.execute(
+                f'COPY knows FROM "{edges_csv}" (header=true, delimiter=",")'
+            )
+        finally:
+            os.dup2(saved_fd, 2)
+            os.close(saved_fd)
+            os.close(capture_fd)
+
+        log_text = capture_path.read_text(encoding="utf-8", errors="replace")
+        assert "dropped 2 edge(s) referencing missing vertices" in log_text
+        assert "(src=1, dst=999) missing dst vertex" in log_text
+        assert "(src=888, dst=2) missing src vertex" in log_text
+
+        # Dangling edges must be dropped; valid edges must be loaded.
+        loaded = list(self.conn.execute("MATCH ()-[r:knows]->() RETURN count(r)"))
+        assert loaded[0][0] == 2
+
     def test_copy_from_edge_with_column_remapping(self):
         """Test COPY FROM for edge table with column remapping."""
         person_csv = os.path.join(self.tinysnb_path, "vPerson.csv")
@@ -2287,3 +2373,40 @@ class TestCopyFrom:
                 f'COPY NewEdge FROM "{csv_edge}" '
                 f'(HEADER=true, delim=",", to="Person")'
             )
+
+    def test_copy_from_recursive_list_csv_and_json(self):
+        """COPY FROM CSV and JSON with recursive LIST properties (STRING[][2][])."""
+        csv_path = self.tmp_path / "nested.csv"
+        csv_path.write_text(
+            "id|nested\n" "1|[[[a],[]],[[b,c],[d]]]\n" "2|[]\n",
+            encoding="utf-8",
+        )
+        json_path = self.tmp_path / "nested.json"
+        json_path.write_text(
+            '[{"id":3,"nested":[[["e"],["f","g"]]]},'
+            '{"id":4,"nested":[[null,["h"]],null]}]',
+            encoding="utf-8",
+        )
+
+        self.conn.execute(
+            "CREATE NODE TABLE T(id INT64, nested STRING[][2][], PRIMARY KEY(id));"
+        )
+        self.conn.execute(f'COPY T FROM "{csv_path}" (header = true, delim = "|");')
+        self.conn.execute(f'COPY T FROM "{json_path}";')
+
+        rows = list(
+            self.conn.execute("MATCH (n:T) RETURN n.id, n.nested ORDER BY n.id;")
+        )
+        assert [[row[0], _nested_list(row[1])] for row in rows] == [
+            [1, [[["a"], []], [["b", "c"], ["d"]]]],
+            [2, []],
+            [3, [[["e"], ["f", "g"]]]],
+            [4, [[[], ["h"]], [[], []]]],
+        ]
+
+        bad_json = self.tmp_path / "bad.json"
+        bad_json.write_text(
+            '[{"id":5,"nested":[[["x"],["y"],["z"]]]}]', encoding="utf-8"
+        )
+        with pytest.raises(Exception):
+            self.conn.execute(f'COPY T FROM "{bad_json}";')

@@ -26,7 +26,7 @@ db.Close();
 
 **Key Components:**
 - `PropertyGraph`: Underlying graph data storage engine
-- `QueryProcessor`: Cypher query compilation and execution
+- `ExecutionSlot`: Shared AP/TP Cypher query compilation and execution
 - `ConnectionManager`: Client connection pool management
 - `IGraphPlanner`: Query optimization (GOPT or Greedy planner)
 
@@ -34,10 +34,15 @@ db.Close();
 - `DBMode::READ_ONLY`: Read-only access for analytics workloads
 - `DBMode::READ_WRITE`: Full transactional read/write access
 
-**Thread Safety:** This class is thread-safe. Multiple connections can execute queries concurrently. The `ConnectionManager` handles thread synchronization internally.
+**Thread Safety:** Connection creation and registration are synchronized, and
+separate connections can execute queries concurrently. Individual `Connection`
+instances are not thread-safe.
 
 **Resource Management:**
-- File locking prevents concurrent database access from multiple processes
+- File locking serializes write access across processes: a database opened in
+  read-write mode is exclusive, while multiple read-only processes (or
+  multiple read-only instances within one process) can share the same
+  database directory concurrently
 - Automatic WAL (Write-Ahead Log) for crash recovery
 - Configurable checkpoint on close
 
@@ -59,10 +64,20 @@ Open the database from persistent storage.
 
 Initializes and opens the NeuG database from the specified data directory. This method loads the graph schema, vertex/edge data, and initializes the query processor and planner.
 
-**Data Directory Structure:** The data_dir should contain:
-- `graph.yaml`: `Schema` definition file
-- `snapshot/`: Vertex and edge data files
-- `wal/`: Write-ahead log files (optional, for recovery)
+**Data Directory Structure:** Persistent state is organized into numbered checkpoint generations:
+
+```text
+data_dir/
+├── checkpoint-N/
+│   ├── meta
+│   ├── snapshot/
+│   ├── runtime/
+│   ├── allocator/
+│   └── wal/
+└── checkpoint-(N+1).next/  # transient staging generation, when present
+```
+
+NeuG opens the highest valid published generation. A `.next` directory is not visible as the current checkpoint and is cleaned up during writable recovery if checkpoint creation did not complete.
 
 **Usage Example:** 
 ```cpp
@@ -75,9 +90,11 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 
 - **Parameters:**
   - `data_dir`: Path to the graph data directory
-  - `max_thread_num`: Maximum database thread count. The default
-    `0` auto-selects from hardware concurrency (number of CPU cores), falling
-    back to `1` if the runtime cannot detect it.
+  - `max_thread_num`: Database query capacity; `0` selects hardware concurrency (fallback `1`), while higher inputs warn and clamp to it.
+
+    Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
+
+    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `checkpoint_on_close`: Create a checkpoint (persist data) when closing
@@ -135,7 +152,9 @@ db.Close();  // Persist data and cleanup
 
 - **Notes:**
   - This method is idempotent - calling it multiple times is safe.
-  - After closing, the database cannot be reopened. Create a new `NeugDB` instance to open the database again.
+  - After closing, the same `NeugDB` instance can be opened again.
+  - Checkpoint-on-close is best effort. If it fails, `Close()` logs an error, suppresses the exception, and continues releasing resources.
+  - No connection operation may be in progress when this method is called.
 
 - **Since:** v0.1.0
 
@@ -149,7 +168,9 @@ Check if the database is closed.
 
 Create a new connection to the database for query execution.
 
-Creates and returns a `Connection` object that can be used to execute Cypher queries against the database. The connection shares the query planner and processor with other connections from the same database.
+Creates and returns a `Connection` object that can be used to execute Cypher
+queries against the database. Connections share the planner and global query
+cache, while each connection exclusively owns its execution slot.
 
 **Usage Example:** 
 ```cpp
@@ -164,7 +185,9 @@ conn->Close();  // Optional: auto-closed on destruction
 - **Notes:**
   - In READ_ONLY mode, multiple connections can be created.
   - In READ_WRITE mode, only one write connection is allowed.
+  - Calling `Connection::Close()` automatically unregisters the connection.
   - Connections share the planner instance for efficiency.
+  - Each connection must be used by only one thread at a time.
 
 - **Throws:**
   - `std::runtime_error`: if database is not open or closed
@@ -172,21 +195,3 @@ conn->Close();  // Optional: auto-closed on destruction
 - **Returns:** `std::shared_ptr`<Connection> A shared pointer to the new `Connection`
 
 - **Since:** v0.1.0
-
-#### `RemoveConnection(std::shared_ptr< Connection > conn)`
-
-Remove a connection from the database.
-
-- **Parameters:**
-  - `conn`: The connection to be removed.
-
-- **Notes:**
-  - This method is used to remove a connection when it is closed, to remove the handle from the database.
-  - This method is not thread-safe, so it should be called only when the connection is closed. And should be only called internally.
-
-#### `CloseAllConnection()`
-
-Remove all connection from the database.
-
-- **Notes:**
-  - This method is used to remove all connection when tp svc created, to remove the handle from the database.

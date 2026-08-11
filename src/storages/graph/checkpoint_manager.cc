@@ -132,8 +132,10 @@ void cleanup_staging_checkpoints(const std::string& db_dir,
 }
 
 std::shared_ptr<Checkpoint> open_checkpoint_checked(
-    const std::filesystem::path& path, int32_t id) {
-  auto checkpoint = Checkpoint::Open(path.string(), id);
+    const std::filesystem::path& path, int32_t id,
+    bool cleanup_orphan_runtime_files) {
+  auto checkpoint =
+      Checkpoint::Open(path.string(), id, cleanup_orphan_runtime_files);
   if (!checkpoint->GetMeta().has_schema()) {
     THROW_CHECKPOINT_EXCEPTION("Checkpoint " + path.string() +
                                " is incomplete");
@@ -188,7 +190,8 @@ CheckpointOpenResult open_current_checkpoint(const std::string& db_dir,
   auto dirs = discover_published_checkpoints(db_dir);
   for (const auto& dir : dirs) {
     try {
-      result.current_checkpoint = open_checkpoint_checked(dir.path, dir.id);
+      result.current_checkpoint =
+          open_checkpoint_checked(dir.path, dir.id, recover_workspace);
       result.current_generation = dir.id;
       break;
     } catch (const std::exception& e) {
@@ -224,9 +227,15 @@ std::shared_ptr<Checkpoint> create_staging_checkpoint(const std::string& db_dir,
         path.string() + ": " + ec.message());
   }
 
-  std::filesystem::create_directories(path);
-  CheckpointManifest::GenerateEmptyMeta((path / "meta").string());
-  return Checkpoint::Open(path.string(), generation);
+  try {
+    std::filesystem::create_directories(path);
+    CheckpointManifest::GenerateEmptyMeta((path / "meta").string());
+    return Checkpoint::Open(path.string(), generation);
+  } catch (...) {
+    remove_checkpoint_dir_best_effort(
+        path, "CheckpointManager::CreateStagingCheckpoint");
+    throw;
+  }
 }
 
 std::shared_ptr<Checkpoint> publish_staging_checkpoint(
@@ -288,8 +297,8 @@ std::shared_ptr<Checkpoint> publish_staging_checkpoint(
   try {
     final_checkpoint = Checkpoint::Open(final_path.string(), generation);
   } catch (...) {
-    remove_checkpoint_dir_best_effort(
-        final_path, "CheckpointManager::CommitStagingCheckpoint");
+    // rename is the durable commit point. Keep the published generation even
+    // if opening its handle fails; the next database Open will validate it.
     throw;
   }
 
