@@ -117,9 +117,9 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->adj_list_buffer_ = adj_list_buffer_;
     cow_clone->degree_list_buffer_ = degree_list_buffer_;
     cow_clone->nbr_list_buffer_ = nbr_list_buffer_;
-    cow_clone->unsorted_since_.store(unsorted_since_.load(
-        std::memory_order_relaxed),
-                                     std::memory_order_relaxed);
+    cow_clone->unsorted_since_.store(
+        unsorted_since_.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
   }

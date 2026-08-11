@@ -40,10 +40,9 @@ namespace neug {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                                  MemoryLevel memory_level) {
-  unsorted_since_.store(
-      static_cast<timestamp_t>(
-          std::stoull(desc.get("unsorted_since").value_or("0"))),
-      std::memory_order_relaxed);
+  unsorted_since_.store(static_cast<timestamp_t>(std::stoull(
+                            desc.get("unsorted_since").value_or("0"))),
+                        std::memory_order_relaxed);
   edge_num_.store(std::stoull(desc.get("edge_num").value_or("0")));
   degree_list_buffer_ = ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),

@@ -218,9 +218,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cow_clone->degree_list_ = degree_list_;
     cow_clone->cap_list_ = cap_list_;
     cow_clone->nbr_list_ = nbr_list_;
-    cow_clone->unsorted_since_.store(unsorted_since_.load(
-        std::memory_order_relaxed),
-                                     std::memory_order_relaxed);
+    cow_clone->unsorted_since_.store(
+        unsorted_since_.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
     cow_clone->edge_num_ = edge_num_.load();
     return cow_clone;
   }
