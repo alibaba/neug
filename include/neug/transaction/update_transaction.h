@@ -54,13 +54,15 @@ class Schema;
  *
  * This is a concrete data-plane state, not a transaction interface. It owns
  * the private graph, detach state, mutable view, base checkpoint and logical
- * redo buffer. Admission, visibility timestamps, WAL writers and publication
- * remain the responsibility of the owning transaction.
+ * redo buffer. It also binds the allocator selected by the transaction owner,
+ * so storage callers cannot substitute a shorter-lived allocator. Admission,
+ * visibility timestamps, WAL writers and publication remain the responsibility
+ * of the owning transaction.
  */
 class CowGraphState {
  public:
   CowGraphState(std::shared_ptr<PropertyGraph> cow_graph,
-                uint64_t base_planning_generation);
+                uint64_t base_planning_generation, Allocator& alloc);
 
   CowGraphState(CowGraphState&&) noexcept = default;
   CowGraphState& operator=(CowGraphState&&) noexcept = default;
@@ -77,6 +79,7 @@ class CowGraphState {
     return base_planning_generation_;
   }
   std::shared_ptr<Checkpoint>& checkpoint() { return checkpoint_; }
+  Allocator& allocator() const { return *alloc_; }
   WalBuilder& logical_redo() { return logical_redo_; }
   const WalBuilder& logical_redo() const { return logical_redo_; }
   bool HasChanges() const { return detach_state_.HasChanges(); }
@@ -88,15 +91,17 @@ class CowGraphState {
   GraphView view_;
   uint64_t base_planning_generation_;
   std::shared_ptr<Checkpoint> checkpoint_;
+  Allocator* alloc_;
   WalBuilder logical_redo_;
 };
 
 /**
  * @brief Resource holder and lifecycle manager for update transactions.
  *
- * UpdateTransaction owns one CowGraphState and one update timestamp lease.
- * Statement-local allocators and commit-time publication/WAL resources are
- * borrowed by the caller and never retained by the transaction.
+ * UpdateTransaction owns one CowGraphState and one update timestamp lease. The
+ * CowGraphState binds the database-owned allocator supplied when the
+ * transaction begins; commit-time publication and WAL resources remain borrowed
+ * by Commit.
  *
  * **COW Design:**
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
@@ -119,7 +124,8 @@ class CowGraphState {
 class UpdateTransaction {
  public:
   static UpdateTransaction Begin(IVersionManager& version_manager,
-                                 GraphSnapshotStore& snapshot_store);
+                                 GraphSnapshotStore& snapshot_store,
+                                 Allocator& alloc);
 
   UpdateTransaction(UpdateTransaction&& other) noexcept;
   UpdateTransaction(const UpdateTransaction&) = delete;
@@ -206,17 +212,16 @@ class UpdateTransaction {
 
 class StorageCOWUpdateInterface : public StorageUpdateInterface {
  public:
-  StorageCOWUpdateInterface(UpdateTransaction& txn, Allocator& alloc)
-      : StorageCOWUpdateInterface(txn.cow_graph_state(), txn.timestamp(),
-                                  alloc) {}
+  explicit StorageCOWUpdateInterface(UpdateTransaction& txn)
+      : StorageCOWUpdateInterface(txn.cow_graph_state(), txn.timestamp()) {}
 
   StorageCOWUpdateInterface(CowGraphState& cow_graph_state,
-                            timestamp_t read_timestamp, Allocator& alloc)
+                            timestamp_t read_timestamp)
       : StorageUpdateInterface(cow_graph_state.view(), read_timestamp),
         cow_graph_(cow_graph_state.graph()),
         cow_state_(cow_graph_state.detach_state()),
         mut_view_(cow_graph_state.view()),
-        alloc_(alloc),
+        alloc_(cow_graph_state.allocator()),
         ckp_(cow_graph_state.checkpoint()),
         wal_(&cow_graph_state.logical_redo()) {}
   ~StorageCOWUpdateInterface() = default;

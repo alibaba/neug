@@ -322,12 +322,14 @@ static Status deleteVertexIndexData(
 // =============================================================================
 
 CowGraphState::CowGraphState(std::shared_ptr<PropertyGraph> cow_graph,
-                             uint64_t base_planning_generation)
+                             uint64_t base_planning_generation,
+                             Allocator& alloc)
     : cow_graph_(std::move(cow_graph)),
       detach_state_(PropertyGraphCowState::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
       base_planning_generation_(base_planning_generation),
-      checkpoint_(cow_graph_->checkpoint_ptr()) {}
+      checkpoint_(cow_graph_->checkpoint_ptr()),
+      alloc_(&alloc) {}
 
 void CowGraphState::Reset() noexcept {
   logical_redo_.clear();
@@ -337,12 +339,13 @@ void CowGraphState::Reset() noexcept {
 }
 
 UpdateTransaction UpdateTransaction::Begin(IVersionManager& version_manager,
-                                           GraphSnapshotStore& snapshot_store) {
+                                           GraphSnapshotStore& snapshot_store,
+                                           Allocator& alloc) {
   UpdateTimestampLease timestamp_lease(version_manager);
   auto [cow_graph, planning_generation] =
       snapshot_store.CloneCurrentForUpdate();
   return UpdateTransaction(
-      CowGraphState(std::move(cow_graph), planning_generation),
+      CowGraphState(std::move(cow_graph), planning_generation, alloc),
       std::move(timestamp_lease));
 }
 
@@ -1040,8 +1043,22 @@ Status StorageCOWUpdateInterface::UpdateEdgePropertyImpl(
   }
   uint32_t edge_idx = cow_graph_->schema().generate_edge_label(
       src_label, dst_label, edge_label);
-  RETURN_IF_NOT_OK(detachEdgeColumn(edge_idx, col_id));
-  RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src, dst, alloc_));
+  if (!cow_graph_->HasEdgeTable(edge_idx)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table for edge label triplet not found");
+  }
+  if (cow_graph_->get_edge_table_by_index(edge_idx)
+          .get_edge_schema_ptr()
+          ->is_bundled()) {
+    // Bundled properties live inside the adjacency-list records, so updating
+    // them requires the CSR directory and both touched adjlists.
+    RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_idx));
+    RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src, dst, alloc_));
+  } else {
+    // Unbundled properties live in the property table; the update does not
+    // touch any CSR structure.
+    RETURN_IF_NOT_OK(detachEdgeColumn(edge_idx, col_id));
+  }
   if (wal_) {
     wal_->LogUpdateEdgeProp(src_label, GetVertexId(src_label, src), dst_label,
                             GetVertexId(dst_label, dst), edge_label, oe_offset,
@@ -1404,7 +1421,13 @@ Status StorageCOWUpdateInterface::detachEdgeTableForDelete(
 
 Status StorageCOWUpdateInterface::detachEdgeColumn(uint32_t edge_triplet_id,
                                                    int32_t col_id) {
-  RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_triplet_id));
+  // Edge property updates never detach CSRs: bundled properties live in the
+  // adjlists detached by the caller, and unbundled properties live in the
+  // property table column detached here.
+  if (!cow_graph_->HasEdgeTable(edge_triplet_id)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table for edge label triplet not found");
+  }
   auto& state = cow_state_.edge_tables[edge_triplet_id];
   auto& edge_table = cow_graph_->get_edge_table_by_index(edge_triplet_id);
   if (!edge_table.get_edge_schema_ptr()->is_bundled() && edge_table.table() &&
@@ -1475,31 +1498,15 @@ Status StorageCOWUpdateInterface::detachForResize(label_t src_label,
 
 Status StorageCOWUpdateInterface::prepareVertexDelete(
     label_t label, const std::vector<vid_t>& lids) {
-  // Step 1: detach vertex timestamp for delete.
+  // Detach the validity/timestamp module, then only the triplets that actually
+  // hold an incident edge of a deleted vertex. Per-triplet detachment covers
+  // the CSR directory arrays (required before any adjlist buffer can be
+  // redirected) and the touched adjacency lists themselves, so the write
+  // footprint stays proportional to the real delete set instead of the schema
+  // breadth.
   RETURN_IF_NOT_OK(detachVertexTableForDelete(label));
 
-  // Step 2: detach all related edge tables' CSRs (structure-level COW).
   const auto& schema = cow_graph_->schema();
-  auto vertex_label_count = schema.vertex_label_frontier();
-  auto edge_label_count = schema.edge_label_frontier();
-  for (label_t i = 0; i < vertex_label_count; ++i) {
-    if (!schema.is_vertex_label_valid(i)) {
-      continue;
-    }
-    for (label_t e = 0; e < edge_label_count; ++e) {
-      if (schema.is_edge_triplet_valid(i, label, e)) {
-        uint32_t idx = schema.generate_edge_label(i, label, e);
-        RETURN_IF_NOT_OK(detachEdgeTableForDelete(idx));
-      }
-      if (schema.is_edge_triplet_valid(label, i, e)) {
-        uint32_t idx = schema.generate_edge_label(label, i, e);
-        RETURN_IF_NOT_OK(detachEdgeTableForDelete(idx));
-      }
-    }
-  }
-
-  // Step 3: Adjlist-level COW — ensure each touched adjacency list is
-  // writable before the storage layer mutates them.
   for (vid_t lid : lids) {
     if (!cow_graph_->IsValidLid(label, lid, read_ts_)) {
       continue;
@@ -1507,6 +1514,7 @@ Status StorageCOWUpdateInterface::prepareVertexDelete(
     auto related_edges =
         fetch_edges_related_to_vertex(*this, schema, label, lid, read_ts_);
     for (auto& [edge_triplet_id, edges] : related_edges) {
+      RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_triplet_id));
       for (auto& [src, dst, oe_off, ie_off] : edges) {
         RETURN_IF_NOT_OK(detachAdjlists(edge_triplet_id, src, dst, alloc_));
       }

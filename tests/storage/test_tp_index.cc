@@ -124,7 +124,8 @@ class TPIndexTest : public ::testing::Test {
   }
 
   UpdateTransaction NewUpdateTransaction() {
-    return UpdateTransaction::Begin(version_manager_, *snapshot_store_);
+    return UpdateTransaction::Begin(version_manager_, *snapshot_store_,
+                                    allocator_);
   }
 
   ReadTransaction NewReadTransaction() {
@@ -209,7 +210,7 @@ class TPIndexTest : public ::testing::Test {
   void CreatePersonTableTP() {
     StartSnapshotStore();
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     CreateVertexTypeParamBuilder builder;
     auto status =
         tp.CreateVertexType(builder.VertexLabel("Person")
@@ -362,7 +363,7 @@ TEST_F(TPIndexTest, UpdateTransactionPublishesAfterWalAppend) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface storage(txn, allocator_);
+    StorageCOWUpdateInterface storage(txn);
     CreateVertexTypeParamBuilder builder;
     ASSERT_TRUE(storage
                     .CreateVertexType(builder.VertexLabel("Person")
@@ -401,7 +402,7 @@ TEST_F(TPIndexTest, IndexAdminInterfaceIsAPOnly) {
 
   CreatePersonTableTP();
   auto txn = NewUpdateTransaction();
-  StorageCOWUpdateInterface tp(txn, allocator_);
+  StorageCOWUpdateInterface tp(txn);
   EXPECT_EQ(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
 }
 
@@ -416,7 +417,7 @@ TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
   ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
 
   auto txn = NewUpdateTransaction();
-  StorageCOWUpdateInterface tp(txn, allocator_);
+  StorageCOWUpdateInterface tp(txn);
   auto status = tp.DeleteVertexType(person_label);
   ASSERT_TRUE(status.ok()) << status.ToString();
   Commit(txn);
@@ -434,7 +435,7 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     DeleteVertexPropertiesParamBuilder delete_builder;
     auto status = tp.DeleteVertexProperties(
         person_label, delete_builder.AddDeleteProperty("age").Build());
@@ -445,7 +446,7 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     AddVertexPropertiesParamBuilder add_builder;
     auto status = tp.AddVertexProperties(
         person_label,
@@ -460,7 +461,7 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     RenameVertexPropertiesParamBuilder rename_builder;
     auto status = tp.RenameVertexProperties(
         person_label,
@@ -488,7 +489,7 @@ TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
   vid_t alice = 0;
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     AddPersonTP(tp, 1, "Alice", 30, &alice);
     AddPersonTP(tp, 2, "Bob", 25);
     AddPersonTP(tp, 3, "Charlie", 30);
@@ -538,7 +539,7 @@ TEST_F(TPIndexTest, APCreateVecColumnAndTPUpdateMaintainsVecIndexSearch) {
   StartSnapshotStore();
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     auto vector_type = DataType::Array(DataType::FLOAT, 2);
     auto updated_vector =
         Value::ARRAY(vector_type, {Value::FLOAT(12.0f), Value::FLOAT(12.0f)});
@@ -572,7 +573,7 @@ TEST_F(TPIndexTest, AbortedVectorVertexDeletePreservesReadSnapshot) {
   EXPECT_EQ(before_delete.front().vid, first_vid);
 
   auto update_txn = NewUpdateTransaction();
-  StorageCOWUpdateInterface tp(update_txn, allocator_);
+  StorageCOWUpdateInterface tp(update_txn);
   auto label = tp.schema().get_vertex_label_id("Vector");
   ASSERT_TRUE(tp.DeleteVertex(label, first_vid));
   auto update_results = SearchVector(tp, {1.0f, 1.0f});
@@ -606,7 +607,7 @@ TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
       snapshot_store_->CurrentSnapshot().schema().get_vertex_label_id("Item");
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     vid_t vid = 0;
     ASSERT_TRUE(
         tp.AddVertex(label, Value::INT32(1), {Value::INT32(10)}, vid).ok());
@@ -628,7 +629,7 @@ TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     ASSERT_TRUE(tp.DeleteVertexType(label).ok());
     Commit(txn);
   }
@@ -641,7 +642,7 @@ TEST_F(TPIndexTest, BatchAddVerticesIsNotSupportedInTPMode) {
   StartSnapshotStore();
 
   auto txn = NewUpdateTransaction();
-  StorageCOWUpdateInterface tp(txn, allocator_);
+  StorageCOWUpdateInterface tp(txn);
   auto result =
       tp.BatchAddVertices(tp.schema().get_vertex_label_id("Person"), nullptr);
   EXPECT_FALSE(result);
@@ -656,7 +657,7 @@ TEST_F(TPIndexTest, IndexPersistsAfterCheckpointReopen) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     for (const auto& person : kPersons) {
       AddPersonTP(tp, person.id, person.name, person.age);
     }
@@ -696,7 +697,7 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     auto status = tp.DeleteVertexType(person_label);
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
@@ -726,7 +727,7 @@ TEST_F(TPIndexTest, WalReplayRestoresIndexData) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     AddPersonTP(tp, 1, "Alice", 30);
     AddPersonTP(tp, 2, "Bob", 25);
     AddPersonTP(tp, 3, "Charlie", 30);
@@ -769,14 +770,14 @@ TEST_F(TPIndexTest, AbortDiscardsIndexMutations) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     AddPersonTP(tp, 1, "Alice", 30);
     Commit(txn);
   }
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     auto label = tp.schema().get_vertex_label_id("Person");
     vid_t alice = 0;
     ASSERT_TRUE(tp.GetVertexIndex(label, Value::INT64(1), alice));
@@ -808,7 +809,7 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
   index_id_t next_index_id_after_abort = 0;
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     vid_t bob = 0;
     AddPersonTP(tp, 2, "Bob", 25, &bob);
     auto* index = dynamic_cast<ExampleIndex*>(GetIndexByName("idx_person_age"));
@@ -820,7 +821,7 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     vid_t charlie = 0;
     AddPersonTP(tp, 3, "Charlie", 30, &charlie);
     auto* index = dynamic_cast<ExampleIndex*>(GetIndexByName("idx_person_age"));
@@ -841,7 +842,7 @@ TEST_F(TPIndexTest, ReadTransactionIsolationFromUpdateTransaction) {
 
   {
     auto txn = NewUpdateTransaction();
-    StorageCOWUpdateInterface tp(txn, allocator_);
+    StorageCOWUpdateInterface tp(txn);
     AddPersonTP(tp, 1, "Alice", 30);
     Commit(txn);
   }
@@ -850,7 +851,7 @@ TEST_F(TPIndexTest, ReadTransactionIsolationFromUpdateTransaction) {
   StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
 
   auto update_txn = NewUpdateTransaction();
-  StorageCOWUpdateInterface tp(update_txn, allocator_);
+  StorageCOWUpdateInterface tp(update_txn);
   auto label = tp.schema().get_vertex_label_id("Person");
   vid_t alice = 0;
   ASSERT_TRUE(tp.GetVertexIndex(label, Value::INT64(1), alice));

@@ -238,8 +238,7 @@ std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
 bool neug_AtomicityC(neug::ExecutionSlot& db, int64_t person2_id,
                      const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
   auto vit = neug_get_random_vertex(gui, person_label_id);
@@ -268,8 +267,7 @@ bool neug_AtomicityC(neug::ExecutionSlot& db, int64_t person2_id,
 bool neug_AtomicityRB(neug::ExecutionSlot& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto vit1 = neug_get_random_vertex(gui, person_label_id);
   neug_append_string_to_field(gui, person_label_id, vit1, 2, new_email);
@@ -378,8 +376,7 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
 void G0(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
         int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
 
@@ -542,8 +539,7 @@ std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
 
 void G1B1(neug::ExecutionSlot& db, int64_t even, int64_t odd) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto vit = neug_get_random_vertex(gui, person_label_id);
   gui.UpdateVertexProperty(person_label_id, vit, 1, neug::Value::INT64(even));
@@ -571,8 +567,7 @@ int64_t G1B2(neug::ExecutionSlot& db) {
 int64_t G1C(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   neug::vid_t person1_vid;
   bool flag = false;
@@ -613,8 +608,7 @@ int64_t G1C(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
 
 void G1A1(neug::ExecutionSlot& db) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   // select a random person
   auto vit = neug_get_random_vertex(gui, person_label_id);
@@ -646,8 +640,7 @@ int64_t G1A2(neug::ExecutionSlot& db) {
 void IMP1(neug::ExecutionSlot& db) {
   auto txn = db.GetUpdateTransaction();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto vit = neug_get_random_vertex(gui, person_label_id);
   int64_t old_version =
       gui.GetVertexProperty(person_label_id, vit, 1).GetValue<int64_t>();
@@ -735,8 +728,7 @@ std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
 
 bool PMP1(neug::ExecutionSlot& db, int64_t person_id, int64_t post_id) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto post_label_id = txn.schema().get_vertex_label_id("POST");
   auto likes_label_id = txn.schema().get_edge_label_id("LIKES");
@@ -876,8 +868,7 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
 
 void OTV1(neug::ExecutionSlot& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
   vid_t vid1;
@@ -1066,8 +1057,7 @@ std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
 
 bool LU1(neug::ExecutionSlot& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
 
   neug::vid_t person_vid;
@@ -1155,8 +1145,7 @@ std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
 void WS1(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
          std::mt19937& gen) {
   auto txn = db.GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
 
   vid_t person1_vid;
@@ -1681,8 +1670,7 @@ template <typename Body>
 void cc_run_update(NeugDBService& svc, Body&& body) {
   auto slot = svc.AcquireExecutionSlot();
   auto txn = slot->GetUpdateTransaction();
-  Allocator storage_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface storage(txn, storage_alloc);
+  StorageCOWUpdateInterface storage(txn);
   body(txn, storage);
   EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
 }
@@ -1710,8 +1698,7 @@ vid_t cc_person_vid(Txn& txn, NeugDB& db, int64_t oid) {
 bool cc_update_age(NeugDBService& svc, int64_t person_id, int64_t new_age) {
   auto slot = svc.AcquireExecutionSlot();
   auto txn = slot->GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   vid_t vid;
   if (!gui.GetVertexIndex(person_label, neug::Value::INT64(person_id), vid)) {
@@ -1827,8 +1814,7 @@ double cc_read_knows_weight_via(const ReadTransaction& txn, NeugDB& db,
 void cc_setup_unbundled_created(NeugDBService& svc) {
   auto slot = svc.AcquireExecutionSlot();
   auto txn = slot->GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn, gui_alloc);
+  StorageCOWUpdateInterface gui(txn);
 
   CreateVertexTypeParamBuilder sb;
   ASSERT_TRUE(
@@ -2094,8 +2080,7 @@ TEST_F(NeugDBACIDTest, UpdateCowCloneDoesNotAffectActiveReaders) {
   // Open U and mutate without committing.
   auto sess_u = svc->AcquireExecutionSlot();
   auto txn_u = sess_u->GetUpdateTransaction();
-  Allocator gui_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface gui(txn_u, gui_alloc);
+  StorageCOWUpdateInterface gui(txn_u);
   auto person_label = db.schema().get_vertex_label_id("person");
   vid_t vid_u;
   ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(5), vid_u));
@@ -2121,8 +2106,7 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   {
     auto slot = svc->AcquireExecutionSlot();
     auto txn = slot->GetUpdateTransaction();
-    Allocator gui_alloc(MemoryLevel::kInMemory, "");
-    StorageCOWUpdateInterface gui(txn, gui_alloc);
+    StorageCOWUpdateInterface gui(txn);
     gui.UpdateVertexProperty(person_label, cc_person_vid(gui, db, 5), 1,
                              neug::Value::INT64(125));
     txn.Abort();
@@ -2134,8 +2118,7 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   {
     auto slot = svc->AcquireExecutionSlot();
     auto txn = slot->GetUpdateTransaction();
-    Allocator gui_alloc(MemoryLevel::kInMemory, "");
-    StorageCOWUpdateInterface gui(txn, gui_alloc);
+    StorageCOWUpdateInterface gui(txn);
     CreateVertexTypeParamBuilder b;
     auto status =
         gui.CreateVertexType(b.VertexLabel("foo")
@@ -2154,8 +2137,7 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   {
     auto slot = svc->AcquireExecutionSlot();
     auto txn = slot->GetUpdateTransaction();
-    Allocator gui_alloc(MemoryLevel::kInMemory, "");
-    StorageCOWUpdateInterface gui(txn, gui_alloc);
+    StorageCOWUpdateInterface gui(txn);
     DeleteEdgePropertiesParamBuilder b;
     auto config = b.AddDeleteProperty("weight").Build();
     auto status = gui.DeleteEdgeProperties(
@@ -2772,8 +2754,7 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       EXPECT_FALSE(u2_acquired.load())
           << "Second UpdateTxn must NOT acquire while first is still open";
-      Allocator gui_alloc(MemoryLevel::kInMemory, "");
-      StorageCOWUpdateInterface gui(txn, gui_alloc);
+      StorageCOWUpdateInterface gui(txn);
       auto person_label = db.schema().get_vertex_label_id("person");
       vid_t vid;
       ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
@@ -2789,8 +2770,7 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
       u2_acquired.store(true);
       EXPECT_TRUE(u1_committed.load())
           << "Second UpdateTxn must only acquire after first commits";
-      Allocator gui_alloc(MemoryLevel::kInMemory, "");
-      StorageCOWUpdateInterface gui(txn, gui_alloc);
+      StorageCOWUpdateInterface gui(txn);
       auto person_label = db.schema().get_vertex_label_id("person");
       vid_t vid;
       ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(2), vid));
@@ -2816,8 +2796,7 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       EXPECT_FALSE(insert_acquired.load())
           << "InsertTxn must NOT acquire while UpdateTxn is still open";
-      Allocator gui_alloc(MemoryLevel::kInMemory, "");
-      StorageCOWUpdateInterface gui(txn, gui_alloc);
+      StorageCOWUpdateInterface gui(txn);
       auto person_label = db.schema().get_vertex_label_id("person");
       vid_t vid;
       ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
@@ -2856,8 +2835,7 @@ TEST_F(NeugDBACIDTest, UpdateQueryPlansAfterPreviousUpdateCommits) {
 
   auto first_slot = svc->AcquireExecutionSlot();
   auto first_update = first_slot->GetUpdateTransaction();
-  Allocator first_storage_alloc(MemoryLevel::kInMemory, "");
-  StorageCOWUpdateInterface first_storage(first_update, first_storage_alloc);
+  StorageCOWUpdateInterface first_storage(first_update);
   CreateVertexTypeParamBuilder builder;
   auto create_status = first_storage.CreateVertexType(
       builder.VertexLabel("company")
@@ -2931,8 +2909,7 @@ TEST_F(NeugDBACIDTest, LongRunningReadDoesNotBlockUpdateCommit) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     auto txn = sess_u->GetUpdateTransaction();
-    Allocator gui_alloc(MemoryLevel::kInMemory, "");
-    StorageCOWUpdateInterface gui(txn, gui_alloc);
+    StorageCOWUpdateInterface gui(txn);
     auto person_label = db.schema().get_vertex_label_id("person");
     vid_t vid;
     ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
@@ -2995,8 +2972,7 @@ TEST_F(NeugDBACIDTest, CommitVisibilitySemantics) {
   {
     auto sess_u = svc->AcquireExecutionSlot();
     auto txn_u = sess_u->GetUpdateTransaction();
-    Allocator gui_alloc(MemoryLevel::kInMemory, "");
-    StorageCOWUpdateInterface gui(txn_u, gui_alloc);
+    StorageCOWUpdateInterface gui(txn_u);
     gui.UpdateVertexProperty(db.schema().get_vertex_label_id("person"),
                              cc_person_vid(gui, db, 5), 1,
                              neug::Value::INT64(9999));
@@ -3063,8 +3039,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     std::thread writer([&] {
       auto sess_u = svc->AcquireExecutionSlot();
       auto txn_u = sess_u->GetUpdateTransaction();
-      Allocator gui_alloc(MemoryLevel::kInMemory, "");
-      StorageCOWUpdateInterface gui(txn_u, gui_alloc);
+      StorageCOWUpdateInterface gui(txn_u);
       vid_t vid_u;
       ASSERT_TRUE(
           gui.GetVertexIndex(person_label, neug::Value::INT64(5), vid_u));

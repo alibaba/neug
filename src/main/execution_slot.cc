@@ -197,7 +197,7 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
 
 UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kTransactional);
-  return UpdateTransaction::Begin(version_manager_, snapshot_store_);
+  return UpdateTransaction::Begin(version_manager_, snapshot_store_, alloc_);
 }
 
 Status ExecutionSlot::CommitUpdateTransaction(UpdateTransaction& transaction) {
@@ -412,7 +412,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
       auto transaction = GetUpdateTransaction();
-      StorageCOWUpdateInterface storage(transaction, alloc_);
+      StorageCOWUpdateInterface storage(transaction);
       status = execute_on_storage(transaction.statistic(), storage);
       if (status.ok()) {
         status = transaction.Commit(snapshot_store_, *wal_writer_);
