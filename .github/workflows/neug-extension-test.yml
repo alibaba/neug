@@ -109,7 +109,20 @@ jobs:
         cd tools/python_bind
         make clean
         make requirements
-        make build
+        # Arrow's bundled AWS deps are fetched from GitHub during configure.
+        # Network timeouts are occasionally transient on self-hosted runners,
+        # so retry the build once to recover flaky download failures.
+        build_attempts=2
+        for attempt in $(seq 1 ${build_attempts}); do
+          if make build; then
+            break
+          fi
+          if [ "${attempt}" -eq "${build_attempts}" ]; then
+            echo "make build failed after ${build_attempts} attempts"
+            exit 1
+          fi
+          echo "make build failed (attempt ${attempt}/${build_attempts}); retrying..."
+        done
         ccache --show-stats
 
     - name: Verify out-of-tree extension artifact
