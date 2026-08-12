@@ -73,11 +73,14 @@ static DataType arrow_type_to_neug_type(const arrow::DataType& type) {
     return DataType::Array(arrow_type_to_neug_type(*array_type.value_type()),
                            array_type.list_size());
   }
-  case arrow::Type::LIST:
-  case arrow::Type::LARGE_LIST:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Parquet LIST is not supported as ARRAY. Specify a fixed-size Arrow "
-        "list / NeuG ARRAY type instead.");
+  case arrow::Type::LIST: {
+    const auto& list_type = static_cast<const arrow::ListType&>(type);
+    return DataType::List(arrow_type_to_neug_type(*list_type.value_type()));
+  }
+  case arrow::Type::LARGE_LIST: {
+    const auto& list_type = static_cast<const arrow::LargeListType&>(type);
+    return DataType::List(arrow_type_to_neug_type(*list_type.value_type()));
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " + type.ToString());
   }
@@ -161,6 +164,30 @@ static Value arrow_value_at(const arrow::Array& array, int64_t index,
     }
     return Value::ARRAY(type, std::move(values));
   }
+  case arrow::Type::LIST: {
+    const auto& list = static_cast<const arrow::ListArray&>(array);
+    const auto child_type = ListType::GetChildType(type);
+    std::vector<Value> values;
+    const auto offset = list.value_offset(index);
+    const auto length = list.value_length(index);
+    values.reserve(length);
+    for (int32_t i = 0; i < length; ++i) {
+      values.push_back(arrow_value_at(*list.values(), offset + i, child_type));
+    }
+    return Value::LIST(child_type, std::move(values));
+  }
+  case arrow::Type::LARGE_LIST: {
+    const auto& list = static_cast<const arrow::LargeListArray&>(array);
+    const auto child_type = ListType::GetChildType(type);
+    std::vector<Value> values;
+    const auto offset = list.value_offset(index);
+    const auto length = list.value_length(index);
+    values.reserve(length);
+    for (int64_t i = 0; i < length; ++i) {
+      values.push_back(arrow_value_at(*list.values(), offset + i, child_type));
+    }
+    return Value::LIST(child_type, std::move(values));
+  }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   array.type()->ToString());
@@ -183,6 +210,30 @@ static std::shared_ptr<IContextColumn> convert_fixed_size_list_arrays(
     for (int64_t i = 0; i < array->length(); ++i) {
       // Arrow's Parquet writer cannot currently consume null fixed-size lists.
       // This is an upstream Arrow limitation.
+      if (array->IsNull(i)) {
+        builder->push_back_null();
+        continue;
+      }
+      builder->push_back_elem(arrow_value_at(*array, i, type));
+    }
+  }
+  return builder->finish();
+}
+
+static std::shared_ptr<IContextColumn> convert_variable_list_arrays(
+    const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
+  const auto type = arrow_type_to_neug_type(*arrays.front()->type());
+  auto builder = ColumnsUtils::create_builder(type);
+  size_t size = 0;
+  for (const auto& array : arrays) {
+    size += array->length();
+  }
+  builder->reserve(size);
+  for (const auto& array : arrays) {
+    if (!array->type()->Equals(*arrays.front()->type())) {
+      THROW_SCHEMA_MISMATCH("Parquet LIST chunks have different types");
+    }
+    for (int64_t i = 0; i < array->length(); ++i) {
       if (array->IsNull(i)) {
         builder->push_back_null();
         continue;
@@ -325,9 +376,7 @@ std::shared_ptr<IContextColumn> arrow_arrays_to_value_column(
     return convert_fixed_size_list_arrays(arrays);
   case arrow::Type::LIST:
   case arrow::Type::LARGE_LIST:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Parquet LIST columns are not supported; use a fixed-size ARRAY "
-        "type such as FLOAT[3]");
+    return convert_variable_list_arrays(arrays);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   arrow_type->ToString());
