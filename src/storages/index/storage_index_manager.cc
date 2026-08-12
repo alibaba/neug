@@ -89,8 +89,14 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
 }
 
 Status StorageIndexManager::DropIndex(const std::string& name) {
-  if (pending_indexes_.count(name) > 0) {
-    return PendingIndexError(name, "drop");
+  auto pending_it = pending_indexes_.find(name);
+  if (pending_it != pending_indexes_.end()) {
+    pending_indexes_.erase(pending_it);
+    if (pending_indexes_.empty()) {
+      pending_mutations_.clear();
+    }
+    LOG(INFO) << "Dropped pending index metadata: " << name;
+    return Status::OK();
   }
   auto it = indexes_.find(name);
   if (it == indexes_.end()) {
@@ -121,6 +127,108 @@ neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndex(
     }
   }
   return target_indexes;
+}
+
+bool StorageIndexManager::HasPendingIndex(label_t label_id) const {
+  for (const auto& [_, pending] : pending_indexes_) {
+    if (pending.meta.schema.label_id == label_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool StorageIndexManager::HasPendingIndex(
+    label_t label_id, const std::string& property_name) const {
+  for (const auto& [_, pending] : pending_indexes_) {
+    if (pending.meta.schema.label_id == label_id &&
+        pending.meta.schema.property_name == property_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+result<std::vector<StorageIndexManager::PendingIndex*>>
+StorageIndexManager::GetPendingIndex(label_t label_id,
+                                     const std::string& property_name) {
+  std::vector<PendingIndex*> indexes;
+  for (auto& [_, pending] : pending_indexes_) {
+    if (pending.meta.schema.label_id == label_id &&
+        pending.meta.schema.property_name == property_name) {
+      indexes.push_back(&pending);
+    }
+  }
+  return indexes;
+}
+
+result<StorageIndexManager::PendingIndex*>
+StorageIndexManager::GetPendingIndexByName(const std::string& name) {
+  auto it = pending_indexes_.find(name);
+  if (it == pending_indexes_.end()) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
+  }
+  return &it->second;
+}
+
+void StorageIndexManager::RecordPendingInsert(
+    label_t label_id, vid_t vertex_id,
+    std::vector<std::pair<std::string, Value>> properties) {
+  if (pending_indexes_.empty()) {
+    return;
+  }
+  pending_mutations_.push_back(std::make_shared<const PendingIndexMutation>(
+      PendingIndexMutation{PendingIndexMutation::Type::kInsert, label_id,
+                           vertex_id, std::move(properties)}));
+}
+
+void StorageIndexManager::RecordPendingUpdate(label_t label_id, vid_t vertex_id,
+                                              std::string property_name,
+                                              Value value) {
+  if (pending_indexes_.empty()) {
+    return;
+  }
+  pending_mutations_.push_back(std::make_shared<const PendingIndexMutation>(
+      PendingIndexMutation{PendingIndexMutation::Type::kUpdate,
+                           label_id,
+                           vertex_id,
+                           {{std::move(property_name), std::move(value)}}}));
+}
+
+void StorageIndexManager::RecordPendingDelete(label_t label_id,
+                                              vid_t vertex_id) {
+  if (pending_indexes_.empty()) {
+    return;
+  }
+  pending_mutations_.push_back(
+      std::make_shared<const PendingIndexMutation>(PendingIndexMutation{
+          PendingIndexMutation::Type::kDelete, label_id, vertex_id, {}}));
+}
+
+static Status ReplayPendingMutations(
+    StorageIndex& index,
+    const std::vector<
+        std::shared_ptr<const StorageIndexManager::PendingIndexMutation>>&
+        mutations) {
+  const auto& meta = index.GetMeta();
+  for (const auto& mutation_ptr : mutations) {
+    const auto& mutation = *mutation_ptr;
+    if (mutation.label_id != meta.schema.label_id) {
+      continue;
+    }
+    if (mutation.type ==
+        StorageIndexManager::PendingIndexMutation::Type::kDelete) {
+      RETURN_IF_NOT_OK(index.Delete(mutation.vid));
+      continue;
+    }
+    for (const auto& [property_name, value] : mutation.properties) {
+      if (property_name == meta.schema.property_name) {
+        RETURN_IF_NOT_OK(index.Upsert(mutation.vid, value));
+        break;
+      }
+    }
+  }
+  return Status::OK();
 }
 
 neug::result<StorageIndex*> StorageIndexManager::GetIndexByName(
@@ -180,32 +288,46 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
   }
 }
 
-neug::result<std::vector<StorageIndex*>>
-StorageIndexManager::ActivateIndexes() {
-  std::vector<StorageIndex*> activated;
+Status StorageIndexManager::ActivateIndexes(const IndexColumns& columns) {
+  std::vector<std::pair<std::string, std::unique_ptr<StorageIndex>>> candidates;
   auto& factory = ModuleFactory::instance();
-  for (auto it = pending_indexes_.begin(); it != pending_indexes_.end();) {
-    auto module = factory.Create(it->second.descriptor.module_type);
+  for (const auto& [name, pending] : pending_indexes_) {
+    auto module = factory.Create(pending.descriptor.module_type);
     if (!module) {
-      ++it;
       continue;
     }
     if (!dynamic_cast<StorageIndex*>(module.get())) {
-      RETURN_STATUS_ERROR(
+      return Status(
           StatusCode::ERR_SCHEMA_MISMATCH,
-          "Module is not an index type: " + it->second.descriptor.module_type);
+          "Module is not an index type: " + pending.descriptor.module_type);
     }
-    module->Open(*ckp_, ckp_->GetMeta(), it->second.descriptor, memory_level_);
+    module->Open(*ckp_, ckp_->GetMeta(), pending.descriptor, memory_level_);
     std::unique_ptr<StorageIndex> index(
         static_cast<StorageIndex*>(module.release()));
-    const auto name = it->first;
-    auto* ptr = index.get();
+    const auto& meta = index->GetMeta();
+    auto label_it = columns.find(meta.schema.label_id);
+    if (label_it == columns.end()) {
+      return Status::InternalError("Invalid label for pending index: " + name);
+    }
+    auto property_it = label_it->second.find(meta.schema.property_name);
+    if (property_it == label_it->second.end() || !property_it->second) {
+      return Status::InternalError("Invalid property for pending index: " +
+                                   name);
+    }
+    RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
+    RETURN_IF_NOT_OK(ReplayPendingMutations(*index, pending_mutations_));
+    candidates.emplace_back(name, std::move(index));
+  }
+
+  for (auto& [name, index] : candidates) {
     indexes_[name] = std::move(index);
-    activated.push_back(ptr);
-    it = pending_indexes_.erase(it);
+    pending_indexes_.erase(name);
     LOG(INFO) << "Activated pending index: " << name;
   }
-  return activated;
+  if (pending_indexes_.empty()) {
+    pending_mutations_.clear();
+  }
+  return Status::OK();
 }
 
 void StorageIndexManager::Dump(ModuleBroker& store) {
@@ -244,12 +366,14 @@ std::unique_ptr<StorageIndexManager> StorageIndexManager::Clone() const {
     }
   }
   forked->pending_indexes_ = pending_indexes_;
+  forked->pending_mutations_ = pending_mutations_;
   return forked;
 }
 
 void StorageIndexManager::Clear() {
   indexes_.clear();
   pending_indexes_.clear();
+  pending_mutations_.clear();
   ckp_.reset();
   memory_level_ = MemoryLevel::kInMemory;
 }

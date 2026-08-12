@@ -86,22 +86,23 @@ StorageIndexManager& PropertyGraph::mutable_index_manager() {
 }
 
 Status PropertyGraph::ActivateIndexes() {
-  auto activated = index_manager_->ActivateIndexes();
-  if (!activated) {
-    return activated.error();
-  }
-  for (auto* index : activated.value()) {
-    const auto& meta = index->GetMeta();
-    if (meta.schema.label_id >= vertex_tables_.size() ||
-        !schema_.is_vertex_label_valid(meta.schema.label_id)) {
-      return Status::InternalError("Invalid label for pending index: " +
-                                   meta.name);
+  StorageIndexManager::IndexColumns columns;
+  for (label_t label = 0; label < vertex_tables_.size(); ++label) {
+    if (!schema_.is_vertex_label_valid(label)) {
+      continue;
     }
-    auto* column = vertex_tables_[meta.schema.label_id].GetPropertyColumnBase(
-        meta.schema.property_name);
-    RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{column}));
+    const auto& vertex_schema = schema_.get_vertex_schema(label);
+    auto& label_columns = columns[label];
+    const auto& primary_key = std::get<1>(vertex_schema->primary_keys[0]);
+    label_columns.emplace(
+        primary_key, vertex_tables_[label].GetPropertyColumnBase(primary_key));
+    for (const auto& property_name : vertex_schema->property_names) {
+      label_columns.emplace(
+          property_name,
+          vertex_tables_[label].GetPropertyColumnBase(property_name));
+    }
   }
-  return Status::OK();
+  return index_manager_->ActivateIndexes(columns);
 }
 
 bool PropertyGraph::HasPendingIndexes() const {

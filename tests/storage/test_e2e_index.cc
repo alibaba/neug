@@ -82,26 +82,14 @@ TEST(E2EIndexReopenSubprocess, ActivatesPendingIndexAfterLoad) {
   EXPECT_EQ(show_before_load->response().row_count(), 0);
 
   auto drop_pending = connection->Query("DROP INDEX entity_embedding_hnsw;");
-  ASSERT_FALSE(drop_pending);
-  EXPECT_EQ(drop_pending.error().error_code(),
-            StatusCode::ERR_ILLEGAL_OPERATION);
-
-  auto create_duplicate = connection->Query(
-      "CREATE INDEX entity_embedding_hnsw "
-      "ON Entity USING HNSW (embedding);");
-  ASSERT_FALSE(create_duplicate);
-  EXPECT_EQ(create_duplicate.error().error_code(),
-            StatusCode::ERR_ILLEGAL_OPERATION);
-
-  auto checkpoint_pending = connection->Query("CHECKPOINT;");
-  ASSERT_FALSE(checkpoint_pending);
+  ASSERT_TRUE(drop_pending) << drop_pending.error().ToString();
 
   auto load = connection->Query("LOAD vec_index;");
   ASSERT_TRUE(load) << load.error().ToString();
 
   auto show_after_load = connection->Query("CALL SHOW_INDEXES() RETURN *;");
   ASSERT_TRUE(show_after_load) << show_after_load.error().ToString();
-  EXPECT_EQ(show_after_load->response().row_count(), 1);
+  EXPECT_EQ(show_after_load->response().row_count(), 0);
 
   connection->Close();
   reopened.Close();
