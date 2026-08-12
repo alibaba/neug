@@ -581,7 +581,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    *
    * Reads are inherited from StorageReadInterface, borrowing the caller-owned
    * `view` (which must outlive this object — typically the owning
-   * UpdateTransaction's view).
+   * SnapshotCowWriteTransaction's view).
    *
    * @param view GraphView owned by the caller
    * @param ts Timestamp for MVCC visibility

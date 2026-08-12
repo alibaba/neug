@@ -220,7 +220,8 @@ auto write_result = lease->ExecuteTransactionalRequest(insert_query);
 **Transaction Types:**
 - ``ReadTransaction``: Read-only snapshot access
 - ``InsertTransaction``: Add new vertices and edges
-- ``UpdateTransaction``: Modify existing graph elements
+- ``SnapshotCowWriteTransaction``: Publish a transactional COW snapshot
+- ``CurrentCowWriteTransaction``: Replace the direct-mode current graph
 - ``CompactTransaction``: Background compaction operations
 
 **Thread Safety:** An execution slot must not be used concurrently. Sequential

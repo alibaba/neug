@@ -110,6 +110,8 @@ class IVersionManager {
   // drain readers before acquiring checkpoint-manager or other
   // OS-thread-owned mutexes.
   virtual void drain_readers() = 0;
+  virtual bool drain_readers_until(
+      std::chrono::steady_clock::time_point deadline) = 0;
   // A present generation has already been installed in GraphSnapshotStore.
   // nullopt keeps the currently installed generation.
   virtual void finish_update_timestamp(
@@ -203,6 +205,8 @@ class VersionManager : public IVersionManager {
   uint32_t acquire_update_timestamp() override;
   void begin_update_commit(uint32_t ts) override;
   void drain_readers() override;
+  bool drain_readers_until(
+      std::chrono::steady_clock::time_point deadline) override;
   void finish_update_timestamp(
       uint32_t ts,
       std::optional<uint32_t> installed_snapshot_generation) noexcept override;

@@ -13,14 +13,14 @@
  * limitations under the License.
  */
 
-#include "neug/storages/graph/property_graph_cow_state.h"
+#include "neug/storages/graph/cow_detach_ledger.h"
 
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
 
-PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
-  PropertyGraphCowState bitmap;
+CowDetachLedger CowDetachLedger::FromSchema(const Schema& schema) {
+  CowDetachLedger bitmap;
 
   // Build vertex table COW states from schema — one per vertex label slot.
   const auto& vertex_schemas = schema.get_all_vertex_schemas();
@@ -33,7 +33,7 @@ PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
   }
 
   for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
-    EdgeTableCowState state;
+    EdgeTableDetachState state;
     if (edge_schema) {
       state.columns_detached.resize(edge_schema->property_names.size(), false);
     }
@@ -41,39 +41,6 @@ PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
   }
 
   return bitmap;
-}
-
-bool PropertyGraphCowState::HasDetachedStorage() const {
-  for (const auto& state : vertex_tables) {
-    if (state.indexer_detached || state.vertex_timestamp_detached) {
-      return true;
-    }
-    for (bool detached : state.columns_detached) {
-      if (detached) {
-        return true;
-      }
-    }
-  }
-
-  for (const auto& [_, state] : edge_tables) {
-    if (state.out_csr_detached || state.in_csr_detached ||
-        !state.out_adjlists_detached.empty() ||
-        !state.in_adjlists_detached.empty()) {
-      return true;
-    }
-    for (bool detached : state.columns_detached) {
-      if (detached) {
-        return true;
-      }
-    }
-  }
-
-  for (const auto& [_, detached] : index_detached) {
-    if (detached) {
-      return true;
-    }
-  }
-  return false;
 }
 
 }  // namespace neug

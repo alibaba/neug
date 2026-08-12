@@ -201,8 +201,8 @@ void InitializeBrpcServiceProtocols() {
 neug::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
     brpc::Controller* cntl) {
   (void) cntl;
-  auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
-  auto read_txn = slot_lease->GetReadTransaction();
+  auto slot_lease = execution_slot_scheduler_.AcquireExecutionSlot();
+  auto read_txn = slot_lease->BeginReadTransaction();
   auto yaml = read_txn.schema().to_yaml();
   if (!yaml) {
     read_txn.Abort();
@@ -245,7 +245,7 @@ void HttpServiceImpl::PostCypherQuery(
   }
 
   // 2. Execute query
-  auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
+  auto slot_lease = execution_slot_scheduler_.AcquireExecutionSlot();
   auto result = slot_lease->ExecuteTransactionalRequest(query_request);
 
   // 3. Send Query Response
@@ -281,8 +281,8 @@ void HttpServiceImpl::GetServiceStatus(
 }
 
 BrpcServiceManager::BrpcServiceManager(neug::NeugDB& neug_db,
-                                       TpExecutionSlotPool& execution_slot_pool)
-    : neug_db_(neug_db), execution_slot_pool_(execution_slot_pool) {
+                                       ExecutionSlotScheduler& scheduler)
+    : neug_db_(neug_db), execution_slot_scheduler_(scheduler) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
@@ -306,7 +306,7 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
 
 #ifdef ENABLE_HTTP_PROTOCOL
   auto http_svc =
-      std::make_unique<HttpServiceImpl>(neug_db_, execution_slot_pool_);
+      std::make_unique<HttpServiceImpl>(neug_db_, execution_slot_scheduler_);
   if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
     LOG(ERROR) << "Failed to add http service to brpc server";
   }

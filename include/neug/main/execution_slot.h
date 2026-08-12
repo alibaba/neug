@@ -32,8 +32,8 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -47,10 +47,13 @@ class PropertyGraph;
 class RefColumnBase;
 class AppManager;
 class CheckpointCoordinator;
+class CurrentCowWriteTransaction;
+class CurrentGraphWriteGuard;
 class IVersionManager;
 class NeugDB;
 class ExecutionSlot;
-class TpExecutionSlotPool;
+class ExecutionSlotScheduler;
+class ExecutionSlotSet;
 
 enum class QueryExecutionStrategy : uint8_t {
   kDirect,
@@ -60,8 +63,9 @@ enum class QueryExecutionStrategy : uint8_t {
 /**
  * @brief Move-only RAII handle for exclusive use of a TP ExecutionSlot.
  *
- * TpExecutionSlotPool injects a noexcept release operation so this handle can
- * return the slot without exposing bthread synchronization to ExecutionSlot.
+ * ExecutionSlotScheduler injects a noexcept release operation so this handle
+ * can return the slot without exposing bthread synchronization to
+ * ExecutionSlot.
  */
 class ExecutionSlotLease {
  public:
@@ -82,7 +86,7 @@ class ExecutionSlotLease {
  private:
   using Releaser = void (*)(void*, size_t) noexcept;
 
-  friend class TpExecutionSlotPool;
+  friend class ExecutionSlotScheduler;
 
   ExecutionSlotLease(ExecutionSlot* slot, void* owner, size_t slot_id,
                      Releaser releaser)
@@ -104,7 +108,8 @@ class ExecutionSlotLease {
  * resources.
  *
  * Embedded connections exclusively own one ExecutionSlot. Service mode owns a
- * fixed set through TpExecutionSlotPool and leases them per request.
+ * fixed set through ExecutionSlotSet and leases them per request through a
+ * service scheduler.
  *
  * **Usage Example:**
  * @code{.cpp}
@@ -130,7 +135,8 @@ class ExecutionSlotLease {
  * **Transaction Types:**
  * - `ReadTransaction`: Read-only snapshot access
  * - `InsertTransaction`: Add new vertices and edges
- * - `UpdateTransaction`: Modify existing graph elements
+ * - `SnapshotCowWriteTransaction`: Publish a transactional COW snapshot
+ * - `CurrentCowWriteTransaction`: Replace the direct-mode current graph
  * - `CompactTransaction`: Background compaction operations
  *
  * **Concurrency:** An execution slot must not be used concurrently. It is not
@@ -140,26 +146,26 @@ class ExecutionSlotLease {
  *
  * **Lifetime:** All borrowed constructor dependencies must outlive the
  * ExecutionSlot and every transaction created from it. Connection and
- * TpExecutionSlotPool release their slots before NeugDB destroys those shared
+ * ExecutionSlotScheduler releases its slots before NeugDB destroys those shared
  * dependencies.
  *
  * @see NeugDBService for HTTP service wrapper
- * @see TpExecutionSlotPool for execution-slot management
+ * @see ExecutionSlotSet for execution-slot ownership
  * @since v0.1.0
  */
 class ExecutionSlot {
  public:
   ~ExecutionSlot() {}
 
-  ReadTransaction GetReadTransaction() const;
+  ReadTransaction BeginReadTransaction() const;
 
-  InsertTransaction GetInsertTransaction();
+  InsertTransaction BeginInsertTransaction();
 
-  UpdateTransaction GetUpdateTransaction();
+  SnapshotCowWriteTransaction BeginSnapshotCowWriteTransaction();
 
-  Status CommitUpdateTransaction(UpdateTransaction& transaction);
+  CurrentCowWriteTransaction BeginCurrentCowWriteTransaction();
 
-  CompactTransaction GetCompactTransaction();
+  CompactTransaction BeginCompactTransaction();
 
   /**
    * @brief Execute a serialized Cypher request in a transaction.
@@ -230,14 +236,14 @@ class ExecutionSlot {
 
  private:
   friend class NeugDB;
-  friend class TpExecutionSlotPool;
+  friend class ExecutionSlotSet;
 
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
                 std::shared_ptr<IGraphPlanner> planner,
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 IVersionManager& vm, Allocator& alloc,
                 QueryExecutionStrategy execution_strategy,
-                IWalWriter* wal_writer,
+                IWalWriter& wal_writer,
                 CheckpointCoordinator& checkpoint_coordinator,
                 const NeugDBConfig& config_, int slot_id)
       : snapshot_store_(snapshot_store),
@@ -254,8 +260,6 @@ class ExecutionSlot {
         query_num_(0) {
     CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect ||
           execution_strategy_ == QueryExecutionStrategy::kTransactional);
-    CHECK_EQ(execution_strategy_ == QueryExecutionStrategy::kTransactional,
-             wal_writer_ != nullptr);
   }
 
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
@@ -270,13 +274,16 @@ class ExecutionSlot {
                      const rapidjson::Value& parameters, int32_t num_threads,
                      QueryResponse& response);
 
+  CurrentCowWriteTransaction BeginCurrentCowWriteTransaction(
+      CurrentGraphWriteGuard guard);
+
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   execution::LocalQueryCache pipeline_cache_;
   IVersionManager& version_manager_;
   Allocator& alloc_;
   const QueryExecutionStrategy execution_strategy_;
-  IWalWriter* const wal_writer_;
+  IWalWriter& wal_writer_;
   CheckpointCoordinator& checkpoint_coordinator_;
   const NeugDBConfig& db_config_;
   int slot_id_;

@@ -19,7 +19,7 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
 
 #include <algorithm>
 #include <limits>
@@ -29,11 +29,11 @@
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
-static_assert(
-    !std::is_constructible_v<neug::StorageCOWUpdateInterface,
-                             neug::UpdateTransaction&, neug::Allocator&>);
+static_assert(!std::is_constructible_v<neug::CowGraphUpdateStorage,
+                                       neug::SnapshotCowWriteTransaction&,
+                                       neug::Allocator&>);
 
-class UpdateTransactionTest : public ::testing::Test {
+class SnapshotCowWriteTransactionTest : public ::testing::Test {
  protected:
   std::string db_dir;
   neug::MemoryLevel memory_level;
@@ -132,8 +132,8 @@ class UpdateTransactionTest : public ::testing::Test {
     return edge_count;
   }
 
-  void create_new_edge_type(neug::UpdateTransaction& txn,
-                            neug::StorageCOWUpdateInterface& interface,
+  void create_new_edge_type(neug::SnapshotCowWriteTransaction& txn,
+                            neug::CowGraphUpdateStorage& interface,
                             neug::label_t& cmp_label, neug::label_t& dev_label,
                             neug::label_t& employ_label) {
     auto person_label = interface.schema().get_vertex_label_id("person");
@@ -174,7 +174,7 @@ class UpdateTransactionTest : public ::testing::Test {
   }
 
   template <typename FUNC_T>
-  void update_edge_property(neug::UpdateTransaction& txn,
+  void update_edge_property(neug::SnapshotCowWriteTransaction& txn,
                             neug::label_t src_label, neug::label_t dst_label,
                             neug::label_t edge_label, neug::vid_t src_vid,
                             std::function<bool(neug::vid_t)> condition,
@@ -200,7 +200,7 @@ class UpdateTransactionTest : public ::testing::Test {
   }
 
   std::vector<std::string> create_string_prop_relation(
-      neug::StorageCOWUpdateInterface& graph, int num_edges) {
+      neug::CowGraphUpdateStorage& graph, int num_edges) {
     auto person_label = graph.schema().get_vertex_label_id("person");
     auto software_label = graph.schema().get_vertex_label_id("software");
     std::vector<std::pair<std::string, neug::Value>> edge_props = {
@@ -325,7 +325,7 @@ class UpdateTransactionTest : public ::testing::Test {
   }
 };
 
-TEST_F(UpdateTransactionTest, AddVertex) {
+TEST_F(SnapshotCowWriteTransactionTest, AddVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -333,19 +333,19 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     EXPECT_TRUE(gui.AddVertex(
         person_label, neug::Value::INT64(3),
         {neug::Value::STRING(std::string("Eve")), neug::Value::INT64(28)},
         vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -354,7 +354,7 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddVertexBatch) {
+TEST_F(SnapshotCowWriteTransactionTest, AddVertexBatch) {
   // To trigger the internal resize of vertex property columns,
   // we add a batch of vertices.
   neug::NeugDB db;
@@ -364,8 +364,8 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     for (int i = 4; i <= 10000; i++) {
       neug::vid_t vid;
@@ -374,11 +374,11 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
                                  neug::Value::INT64(20 + i % 10)},
                                 vid));
     }
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
@@ -387,7 +387,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddEdge) {
+TEST_F(SnapshotCowWriteTransactionTest, AddEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -395,8 +395,8 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -409,11 +409,11 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     EXPECT_TRUE(gui.AddEdge(
         person_label, vid, software_label, vid2, created_label,
         {neug::Value::DOUBLE(0.9), neug::Value::INT64(2022)}, edge_prop));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -438,7 +438,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddVertexEdge) {
+TEST_F(SnapshotCowWriteTransactionTest, AddVertexEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -446,8 +446,8 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -473,11 +473,11 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
     EXPECT_TRUE(gui.AddEdge(person_label, vid4, person_label, vid1,
                             txn.schema().get_edge_label_id("knows"),
                             {neug::Value::DOUBLE(0.95)}, edge_prop));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -506,7 +506,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, AddVertexEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -514,8 +514,8 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -536,7 +536,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -559,7 +559,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
+TEST_F(SnapshotCowWriteTransactionTest, UpdateVertexProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -567,19 +567,19 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, neug::Value::INT64(2), vertex_id));
     gui.UpdateVertexProperty(person_label, vertex_id, 1,
                              neug::Value::INT64(26));
 
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = std::dynamic_pointer_cast<
@@ -596,7 +596,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   svc.reset();
   db.Close();
 }
-TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
+TEST_F(SnapshotCowWriteTransactionTest, UpdateEdgeProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -604,8 +604,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -620,11 +620,11 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
                                  0, neug::Value::DOUBLE(0.99));
         });
 
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -648,7 +648,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddVertexAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, AddVertexAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -656,8 +656,8 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     EXPECT_TRUE(gui.AddVertex(
@@ -668,7 +668,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -683,7 +683,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddEdgeAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, AddEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -691,8 +691,8 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -708,7 +708,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -732,7 +732,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, UpdateVertexAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -740,8 +740,8 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, neug::Value::INT64(2), vertex_id));
@@ -751,7 +751,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = std::dynamic_pointer_cast<
@@ -778,7 +778,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, UpdateEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -786,8 +786,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -810,7 +810,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -854,7 +854,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
 // Regression test for: DeleteVertex with intra-label edges must collect
 // incoming intra-label edges in the COW undo log so that Abort() can properly
 // restore them. See https://github.com/alibaba/neug/issues/558
-TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -865,7 +865,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   // Setup creates: person1 -[:knows]-> person2
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -884,8 +884,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   // be properly reverted on abort.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid2;
     CHECK(txn.GetVertexIndex(person_label, neug::Value::INT64(2), vid2));
@@ -896,7 +896,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   // After abort, all intra-label "knows" edges must be restored.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -931,7 +931,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
 // detachVertexTableForInsert iterates columns_detached — stale
 // entries cause DetachColumn(out-of-bounds) -> crash without the
 // fix.
-TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
+TEST_F(SnapshotCowWriteTransactionTest,
+       DeleteVertexPropertiesThenInsertVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -939,8 +940,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     // person has name(0), age(1) — 2 non-PK columns
     // Delete "name" -> table now has age(0) — 1 column
     EXPECT_TRUE(interface.DeleteVertexProperties(
@@ -955,13 +956,13 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
     neug::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(person_label, neug::Value::INT64(3),
                                     {neug::Value::INT64(28)}, vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Verify the new vertex is readable and "name" is gone.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "name"), nullptr);
@@ -983,7 +984,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenInsertVertex) {
 // property and insert a vertex.  Without the fix, stale columns_detached
 // causes either stale detachment tracking or out-of-bounds
 // DetachColumn -> crash.
-TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
+TEST_F(SnapshotCowWriteTransactionTest,
+       DeleteVertexPropertiesThenUpdateRemaining) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -993,8 +995,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
   // First transaction: add two more properties to person.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     std::vector<std::pair<std::string, neug::Value>> new_props = {
         std::make_pair("email", neug::Value::STRING(std::string(""))),
         std::make_pair("score", neug::Value::DOUBLE(0.0))};
@@ -1010,7 +1012,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
         person_label, vid, 2,
         neug::Value::STRING(std::string("alice@test.com")));
     gui.UpdateVertexProperty(person_label, vid, 3, neug::Value::DOUBLE(95.5));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Now person has name(0), age(1), email(2), score(3) — 4 non-PK columns
@@ -1025,8 +1027,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
   //   4. With fix: columns_detached correctly has 3 entries after deletion
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     CHECK(txn.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
@@ -1058,13 +1060,13 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
          neug::Value::STRING(std::string("charlie@test.com")),
          neug::Value::DOUBLE(77.0)},
         new_vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Verify data correctness
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
 
@@ -1112,7 +1114,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexPropertiesThenUpdateRemaining) {
 // detachEdgeTableForInsert iterates columns_detached — stale
 // entries cause DetachColumn(out-of-bounds) -> crash without the
 // fix.
-TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1123,8 +1125,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
   // leaves 2 properties (avoids bundled<->unbundled conversion path).
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     std::vector<std::pair<std::string, neug::Value>> new_props = {
         std::make_pair("rating", neug::Value::DOUBLE(0.0))};
     EXPECT_TRUE(
@@ -1132,14 +1134,14 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
                               gui.schema().get_vertex_label_id("software"),
                               gui.schema().get_edge_label_id("created"),
                               BuildAddEdgePropertiesParam(new_props)));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Now "created" has weight(0), since(1), rating(2) — 3 columns
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
 
     // Delete "since" -> table now has weight(0), rating(1) — 2 columns
     EXPECT_TRUE(interface.DeleteEdgeProperties(
@@ -1162,13 +1164,13 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
     EXPECT_TRUE(interface.AddEdge(
         person_label, p1_vid, software_label, s1_vid, created_label,
         {neug::Value::DOUBLE(0.9), neug::Value::DOUBLE(4.5)}, edge_prop));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Verify the new edge data is correct
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1217,7 +1219,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
 // and insert data in the same transaction.  Without the fix,
 // cow_state_ retains stale entries for the deleted vertex table and
 // its related edge tables, which can interfere with subsequent DML.
-TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
+TEST_F(SnapshotCowWriteTransactionTest,
+       DeleteVertexTypeWithEdgesThenCreateNewTypes) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1226,8 +1229,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
 
     // Delete "software" — this also removes "created" edges
     EXPECT_TRUE(interface.DeleteVertexType(
@@ -1256,13 +1259,13 @@ TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
     const void* edge_prop = nullptr;
     EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, company_label, cmp_vid,
                                   employ_label, {}, edge_prop));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Verify: "software" and "created" are gone; new types work correctly
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     EXPECT_FALSE(gi.schema().is_vertex_label_valid("software"));
     EXPECT_FALSE(gi.schema().is_edge_label_valid("created"));
@@ -1284,7 +1287,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexTypeWithEdgesThenCreateNewTypes) {
 // Issue #3 (edge): DeleteEdgeType then create a new edge type and
 // insert data in the same transaction.  Without the fix, cow_state_
 // retains stale entries for the deleted edge table.
-TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1293,8 +1296,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
 
     // Delete "knows" edge type
     EXPECT_TRUE(interface.DeleteEdgeType(
@@ -1318,13 +1321,13 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
     EXPECT_TRUE(interface.AddEdge(person_label, p1_vid, person_label, p2_vid,
                                   friend_label, {neug::Value::DOUBLE(0.75)},
                                   edge_prop));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Verify: "knows" is gone; "friend_of" works correctly
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     EXPECT_FALSE(gi.schema().is_edge_label_valid("knows"));
     EXPECT_TRUE(gi.schema().is_edge_label_valid("friend_of"));
@@ -1350,7 +1353,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
+TEST_F(SnapshotCowWriteTransactionTest, UpdateEdgeAbort2) {
   // Update a bundled edge property and abort the transaction
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1359,8 +1362,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t vertex_id;
@@ -1379,7 +1382,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -1415,7 +1418,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   }
 }
 
-TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, AddEdgeAndUpdateAndAbort) {
   GTEST_SKIP()
       << "Currently not support update bundled edge property and abort";
   neug::NeugDB db;
@@ -1425,8 +1428,8 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -1454,7 +1457,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1486,7 +1489,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, DeleteVertex) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1495,17 +1498,17 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, neug::Value::INT64(2), vertex_id));
     EXPECT_TRUE(gui.DeleteVertex(person_label, vertex_id));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -1522,8 +1525,8 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   {
     // Delete person label and then delete vertex should throw
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(
         gui.DeleteVertexType(gui.schema().get_vertex_label_id("person")));
@@ -1536,7 +1539,7 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1545,8 +1548,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -1556,12 +1559,12 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
         txn.GetVertexIndex(software_label, neug::Value::INT64(1), vid1));
     EXPECT_TRUE(gui.DeleteEdges(person_label, vid2, software_label, vid1,
                                 created_label));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t vid1, vid2;
@@ -1573,8 +1576,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t vid1, vid2;
@@ -1606,7 +1609,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     // Check edge count
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto p_label_id = gi.schema().get_vertex_label_id("person");
@@ -1628,7 +1631,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   }
 }
 
-TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, AddDeleteVertexAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1637,8 +1640,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = interface.schema().get_vertex_label_id("person");
     neug::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, neug::Value::INT64(2), vertex_id));
@@ -1652,7 +1655,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -1665,19 +1668,19 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   {
     // Add again
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     EXPECT_TRUE(gui.AddVertex(
         person_label, neug::Value::INT64(3),
         {neug::Value::STRING(std::string("Eve")), neug::Value::INT64(28)},
         vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -1690,7 +1693,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, CreteEdgeTypeAndAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1700,14 +1703,14 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   neug::label_t dev_label, employ_label, cmp_label;
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     create_new_edge_type(txn, interface, cmp_label, dev_label, employ_label);
     txn.Abort();
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1730,7 +1733,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
+TEST_F(SnapshotCowWriteTransactionTest, CreteEdgeTypeAndCommit) {
   GTEST_SKIP() << "Enable this test after in-place AddEdge is supported";
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -1741,14 +1744,14 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   neug::label_t dev_label, employ_label, cmp_label;
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     create_new_edge_type(txn, interface, cmp_label, dev_label, employ_label);
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1763,7 +1766,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeTypeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1772,8 +1775,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto created_label = txn.schema().get_edge_label_id("created");
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
@@ -1786,7 +1789,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1800,7 +1803,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddVertexProperties) {
+TEST_F(SnapshotCowWriteTransactionTest, AddVertexProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1809,8 +1812,8 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::pair<std::string, neug::Value>> new_props = {
         std::make_pair("email", neug::Value::STRING(std::string(""))),
@@ -1824,12 +1827,12 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     gui.UpdateVertexProperty(
         person_label, vid, 2,
         neug::Value::STRING(std::string("eve@example.com")));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto height_accessor =
         txn.get_vertex_property_column(person_label, "height");
@@ -1845,7 +1848,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "address"), nullptr);
@@ -1867,7 +1870,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, AddEdgeProperties) {
+TEST_F(SnapshotCowWriteTransactionTest, AddEdgeProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1876,8 +1879,8 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     std::vector<std::pair<std::string, neug::Value>> new_props = {
         std::make_pair("version", neug::Value::INT64(0)),
         std::make_pair("license", neug::Value::STRING(std::string("")))};
@@ -1886,12 +1889,12 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
         interface.schema().get_vertex_label_id("software"),
         interface.schema().get_edge_label_id("created"),
         BuildAddEdgePropertiesParam(new_props)));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     std::vector<std::pair<std::string, neug::Value>> new_props = {
         std::make_pair("contributions", neug::Value::DOUBLE(0.0))};
     EXPECT_TRUE(interface.AddEdgeProperties(
@@ -1903,7 +1906,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     auto gi = neug::StorageReadInterface(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1933,7 +1936,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, RenameVertexProperty) {
+TEST_F(SnapshotCowWriteTransactionTest, RenameVertexProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1942,17 +1945,17 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     EXPECT_TRUE(interface.RenameVertexProperties(
         interface.schema().get_vertex_label_id("person"),
         BuildRenameVertexPropertiesParam({std::make_pair("age", "years")})));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     std::vector<std::pair<std::string, std::string>> rename_props = {
         std::make_pair("lang", "language")};
     EXPECT_TRUE(interface.RenameVertexProperties(
@@ -1962,7 +1965,7 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1975,7 +1978,7 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
+TEST_F(SnapshotCowWriteTransactionTest, RenameEdgeProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -1984,20 +1987,20 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     EXPECT_TRUE(interface.RenameEdgeProperties(
         interface.schema().get_vertex_label_id("person"),
         interface.schema().get_vertex_label_id("software"),
         interface.schema().get_edge_label_id("created"),
         BuildRenameEdgePropertiesParam(
             {std::make_pair("since", "start_year")})));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     std::vector<std::pair<std::string, std::string>> rename_props = {
         std::make_pair("weight", "importance")};
     EXPECT_TRUE(interface.RenameEdgeProperties(
@@ -2009,7 +2012,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -2035,7 +2038,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2045,8 +2048,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   {
     LOG(INFO) << "Starting delete edge properties transaction.";
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     EXPECT_TRUE(interface.DeleteEdgeProperties(
         interface.schema().get_vertex_label_id("person"),
         interface.schema().get_vertex_label_id("software"),
@@ -2061,13 +2064,13 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
         interface.schema().get_edge_label_id("created"),
         BuildAddEdgePropertiesParam(new_props)));
     LOG(INFO) << "Committing delete edge properties transaction.";
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
     LOG(INFO) << "Committed delete edge properties transaction.";
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     EXPECT_TRUE(interface.DeleteEdgeProperties(
         interface.schema().get_vertex_label_id("person"),
         interface.schema().get_vertex_label_id("software"),
@@ -2078,7 +2081,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -2115,7 +2118,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2124,8 +2127,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     // auto person_label = txn.schema().get_vertex_label_id("person");
     // auto software_label = txn.schema().get_vertex_label_id("software");
     EXPECT_TRUE(interface.DeleteVertexProperties(
@@ -2139,12 +2142,12 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     EXPECT_TRUE(interface.AddVertexProperties(
         interface.schema().get_vertex_label_id("software"),
         BuildAddVertexPropertiesParam(new_props)));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     // auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexProperties(
         interface.schema().get_vertex_label_id("person"),
@@ -2156,7 +2159,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2170,7 +2173,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, TestReplayWal) {
+TEST_F(SnapshotCowWriteTransactionTest, TestReplayWal) {
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
   config.checkpoint_on_close = false;
@@ -2180,8 +2183,8 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(
@@ -2217,14 +2220,14 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
                                        oe_offset, ie_offset, 0,
                                        neug::Value::DOUBLE(0.5));
         });
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     neug::NeugDB db;
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -2261,7 +2264,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
 
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -2282,7 +2285,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
   }
 }
 
-TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
+TEST_F(SnapshotCowWriteTransactionTest, NestedListSnapshotAbortAndWalReplay) {
   auto string_list_type = neug::DataType::List(neug::DataType::VARCHAR);
   auto pair_type = neug::DataType::Array(string_list_type, 2);
   auto strings = [](std::initializer_list<const char*> values) {
@@ -2314,8 +2317,8 @@ TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
     auto svc = std::make_shared<neug::NeugDBService>(db);
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetUpdateTransaction();
-      neug::StorageCOWUpdateInterface interface(txn);
+      auto txn = slot->BeginSnapshotCowWriteTransaction();
+      auto interface = txn.OpenStorage();
       EXPECT_TRUE(interface.CreateVertexType(BuildCreateVertexTypeParam(
           "list_holder",
           {{"id", neug::Value::INT64(0)},
@@ -2325,11 +2328,11 @@ TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
       neug::vid_t vid;
       EXPECT_TRUE(
           interface.AddVertex(label, neug::Value::INT64(1), {initial}, vid));
-      EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
     }
 
     auto old_slot = svc->AcquireExecutionSlot();
-    auto old_txn = old_slot->GetReadTransaction();
+    auto old_txn = old_slot->BeginReadTransaction();
     neug::StorageReadInterface old_reader(old_txn.view(), old_txn.timestamp());
     auto label = old_reader.schema().get_vertex_label_id("list_holder");
     neug::vid_t vid;
@@ -2340,11 +2343,11 @@ TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
 
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetUpdateTransaction();
-      neug::StorageCOWUpdateInterface interface(txn);
+      auto txn = slot->BeginSnapshotCowWriteTransaction();
+      auto interface = txn.OpenStorage();
       EXPECT_TRUE(interface.UpdateVertexProperty(label, vid, 0, committed));
       EXPECT_EQ(old_column->get_any(vid), initial);
-      EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
     }
     EXPECT_EQ(old_column->get_any(vid), initial);
     EXPECT_TRUE(old_txn.Commit());
@@ -2352,15 +2355,15 @@ TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
 
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetUpdateTransaction();
-      neug::StorageCOWUpdateInterface interface(txn);
+      auto txn = slot->BeginSnapshotCowWriteTransaction();
+      auto interface = txn.OpenStorage();
       ASSERT_TRUE(txn.GetVertexIndex(label, neug::Value::INT64(1), vid));
       EXPECT_TRUE(interface.UpdateVertexProperty(label, vid, 0, aborted));
       txn.Abort();
     }
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetReadTransaction();
+      auto txn = slot->BeginReadTransaction();
       neug::StorageReadInterface reader(txn.view(), txn.timestamp());
       auto column = reader.GetVertexPropColumn(label, "nested");
       ASSERT_NE(column, nullptr);
@@ -2374,7 +2377,7 @@ TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface reader(txn.view(), txn.timestamp());
     auto label = reader.schema().get_vertex_label_id("list_holder");
     neug::vid_t vid;
@@ -2385,7 +2388,8 @@ TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
   }
 }
 
-TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
+TEST_F(SnapshotCowWriteTransactionTest,
+       NestedListEdgeSnapshotAbortAndWalReplay) {
   auto string_list_type = neug::DataType::List(neug::DataType::VARCHAR);
   auto pair_type = neug::DataType::Array(string_list_type, 2);
   auto strings = [](std::initializer_list<const char*> values) {
@@ -2432,8 +2436,8 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
     neug::vid_t v2 = 0;
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetUpdateTransaction();
-      neug::StorageCOWUpdateInterface interface(txn);
+      auto txn = slot->BeginSnapshotCowWriteTransaction();
+      auto interface = txn.OpenStorage();
       EXPECT_TRUE(interface.CreateVertexType(BuildCreateVertexTypeParam(
           "edge_holder", {{"id", neug::Value::INT64(0)}}, {"id"})));
       label = interface.schema().get_vertex_label_id("edge_holder");
@@ -2446,18 +2450,18 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
       const void* edge_prop = nullptr;
       EXPECT_TRUE(interface.AddEdge(label, v1, label, v2, edge_label, {initial},
                                     edge_prop));
-      EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
     }
 
     auto old_slot = svc->AcquireExecutionSlot();
-    auto old_txn = old_slot->GetReadTransaction();
+    auto old_txn = old_slot->BeginReadTransaction();
     neug::StorageReadInterface old_reader(old_txn.view(), old_txn.timestamp());
     EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
 
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetUpdateTransaction();
-      neug::StorageCOWUpdateInterface interface(txn);
+      auto txn = slot->BeginSnapshotCowWriteTransaction();
+      auto interface = txn.OpenStorage();
       update_edge_property(
           txn, label, label, edge_label, v1,
           [](neug::vid_t dst_vid) { return true; },
@@ -2471,7 +2475,7 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
       ASSERT_FALSE(
           txn.schema().get_edge_schema(label, label, edge_label)->is_bundled());
       const auto& cow_state =
-          txn.cow_graph_state().detach_state().edge_tables.at(edge_triplet);
+          interface.detach_ledger().edge_tables.at(edge_triplet);
       ASSERT_EQ(cow_state.columns_detached.size(), 1);
       EXPECT_TRUE(cow_state.columns_detached[0]);
       EXPECT_FALSE(cow_state.out_csr_detached);
@@ -2479,7 +2483,7 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
       EXPECT_TRUE(cow_state.out_adjlists_detached.empty());
       EXPECT_TRUE(cow_state.in_adjlists_detached.empty());
       EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
-      EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
     }
     EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
     EXPECT_TRUE(old_txn.Commit());
@@ -2487,8 +2491,8 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
 
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetUpdateTransaction();
-      neug::StorageCOWUpdateInterface interface(txn);
+      auto txn = slot->BeginSnapshotCowWriteTransaction();
+      auto interface = txn.OpenStorage();
       update_edge_property(
           txn, label, label, edge_label, v1,
           [](neug::vid_t dst_vid) { return true; },
@@ -2501,7 +2505,7 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
     }
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetReadTransaction();
+      auto txn = slot->BeginReadTransaction();
       neug::StorageReadInterface reader(txn.view(), txn.timestamp());
       EXPECT_EQ(read_edge_value(reader, label, edge_label, v1), committed);
     }
@@ -2513,7 +2517,7 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface reader(txn.view(), txn.timestamp());
     auto label = reader.schema().get_vertex_label_id("edge_holder");
     auto edge_label = reader.schema().get_edge_label_id("carries");
@@ -2523,7 +2527,7 @@ TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
   }
 }
 
-TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
+TEST_F(SnapshotCowWriteTransactionTest, TestAPIAfterDeleteVertexLabel) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2532,8 +2536,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexType(
         interface.schema().get_vertex_label_id("person")));
@@ -2559,8 +2563,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = interface.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexProperties(
         interface.schema().get_vertex_label_id("person"),
@@ -2591,7 +2595,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
+TEST_F(SnapshotCowWriteTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2600,8 +2604,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = interface.schema().get_vertex_label_id("person");
     auto knows_label = interface.schema().get_edge_label_id("knows");
     neug::vid_t src_vid, dst_vid;
@@ -2662,8 +2666,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   {
     // Delete Edge Properties
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     EXPECT_TRUE(gui.DeleteEdgeProperties(
@@ -2695,7 +2699,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
 }
 
 // Test DeleteVertex deletes all associated outgoing edges
-TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithOutgoingEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2703,18 +2707,18 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, neug::Value::INT64(1), p1_vid));
     EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2734,7 +2738,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, DeleteVertexKeepsUnrelatedEdgeTripletShared) {
+TEST_F(SnapshotCowWriteTransactionTest,
+       DeleteVertexKeepsUnrelatedEdgeTripletShared) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2743,18 +2748,18 @@ TEST_F(UpdateTransactionTest, DeleteVertexKeepsUnrelatedEdgeTripletShared) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface storage(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
     EXPECT_TRUE(storage.CreateEdgeType(
         BuildCreateEdgeTypeParam("software", "software", "unused_sparse_edge",
                                  {{"weight", neug::Value::DOUBLE(0.0)}})));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface storage(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -2769,7 +2774,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexKeepsUnrelatedEdgeTripletShared) {
         txn.GetVertexIndex(person_label, neug::Value::INT64(1), person_vid));
     ASSERT_TRUE(storage.DeleteVertex(person_label, person_vid).ok());
 
-    const auto& cow_state = txn.cow_graph_state().detach_state();
+    const auto& cow_state = storage.detach_ledger();
     const auto& created_state = cow_state.edge_tables.at(created_triplet);
     EXPECT_TRUE(created_state.out_csr_detached);
     EXPECT_TRUE(created_state.in_csr_detached);
@@ -2792,7 +2797,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexKeepsUnrelatedEdgeTripletShared) {
 }
 
 // Test DeleteVertex with both incoming and outgoing edges
-TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithBidirectionalEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2800,8 +2805,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     neug::vid_t p1_vid, p2_vid;
@@ -2813,11 +2818,11 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
     EXPECT_TRUE(gui.AddEdge(person_label, p2_vid, person_label, p1_vid,
                             knows_label, {neug::Value::DOUBLE(0.85)},
                             edge_prop_p2_p1));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -2826,19 +2831,19 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, neug::Value::INT64(1), p1_vid));
     EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -2852,7 +2857,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
 }
 
 // Test DeleteVertex rollback restores edges correctly
-TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexAbortRestoresEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2861,8 +2866,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   size_t initial_created_count, initial_knows_count;
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -2892,11 +2897,11 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
       EXPECT_TRUE(gui.DeleteEdge(person_label, p1_vid, software_label, p2_vid,
                                  created_label, oe_offset, ie_offset));
     }
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2909,8 +2914,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
     EXPECT_TRUE(
@@ -2921,7 +2926,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   {
     // Verify person 1 and all edges are restored
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2941,7 +2946,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
 }
 
 // Test DeleteVertex with multiple edge types
-TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
+TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -2950,8 +2955,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::pair<std::string, neug::Value>> edge_props = {
         std::make_pair("since", neug::Value::INT64(2020))};
@@ -2968,23 +2973,23 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
     EXPECT_TRUE(gui.AddEdge(person_label, p1_vid, person_label, p2_vid,
                             follows_label, {neug::Value::INT64(2022)},
                             edge_prop_follows));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, neug::Value::INT64(1), p1_vid));
     EXPECT_TRUE(gui.DeleteVertex(person_label, p1_vid));
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     // Verify all edge types are deleted
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3003,7 +3008,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
+TEST_F(SnapshotCowWriteTransactionTest, TestUnsupportedInterface) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3012,8 +3017,8 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     std::vector<neug::vid_t> vids;
     std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges;
     std::vector<std::pair<neug::vid_t, int32_t>> oe_edges, ie_edges;
@@ -3024,7 +3029,7 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
   }
 }
 
-TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
+TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVertices) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3033,8 +3038,8 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t alice_vid, bob_vid;
     EXPECT_TRUE(
@@ -3044,11 +3049,11 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
     std::vector<neug::vid_t> lids = {alice_vid, bob_vid};
     EXPECT_EQ(interface.BatchDeleteVertices(person_label, lids).error_code(),
               neug::StatusCode::OK);
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 0);
@@ -3057,17 +3062,47 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
+TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
+  uint64_t initial_planning_generation = 0;
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    initial_planning_generation = txn.statistic().planning_generation();
+    auto interface = txn.OpenStorage();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    neug::vid_t p1_vid, s2_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, neug::Value::INT64(1), p1_vid));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(software_label, neug::Value::INT64(2), s2_vid));
+
+    EXPECT_TRUE(interface.DeleteEdges(person_label, p1_vid, software_label,
+                                      s2_vid, created_label));
+    const auto edge_idx = txn.schema().generate_edge_label(
+        person_label, software_label, created_label);
+    const auto& detach_state =
+        interface.detach_ledger().edge_tables.at(edge_idx);
+    EXPECT_FALSE(detach_state.out_csr_detached);
+    EXPECT_FALSE(detach_state.in_csr_detached);
+    EXPECT_TRUE(detach_state.out_adjlists_detached.empty());
+    EXPECT_TRUE(detach_state.in_adjlists_detached.empty());
+    EXPECT_TRUE(txn.Commit().ok());
+  }
+
+  {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    EXPECT_EQ(txn.statistic().planning_generation(),
+              initial_planning_generation);
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -3086,11 +3121,13 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
                                          created_label, edges)
                   .error_code(),
               neug::StatusCode::OK);
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
+    EXPECT_EQ(txn.statistic().planning_generation(),
+              initial_planning_generation + 1);
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3104,7 +3141,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
+TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVerticesFailure) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3113,8 +3150,8 @@ TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t alice_vid;
     EXPECT_TRUE(
@@ -3127,7 +3164,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -3136,7 +3173,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
+TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteEdgesFailure) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3145,8 +3182,8 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -3159,7 +3196,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3173,7 +3210,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
   db.Close();
 }
 
-TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
+TEST_F(SnapshotCowWriteTransactionTest, TestUpdateStringProperty) {
   // By default, the string property has max length: STRING_DEFAULT_MAX_LENGTH.
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
@@ -3182,8 +3219,8 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid, p2_vid;
     EXPECT_TRUE(
@@ -3203,11 +3240,11 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
     EXPECT_EQ(prop.GetValue<std::string>(), valid_name);
     auto p2_prop = interface.GetVertexProperty(person_label, p2_vid, 0);
     EXPECT_EQ(p2_prop.GetValue<std::string>(), "Bob");  // unchanged
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
@@ -3221,7 +3258,7 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
   }
 }
 
-TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
+TEST_F(SnapshotCowWriteTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3231,17 +3268,17 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   std::vector<std::string> reviews;
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     reviews = create_string_prop_relation(interface, 300);
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
   CHECK_EQ(reviews.size(), 300);
 
   // Verify initial reviews
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3257,8 +3294,8 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   {
     // Update edge string property with suffix: "_updated"
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface interface(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto interface = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto review_label = txn.schema().get_edge_label_id("reviewed");
@@ -3294,13 +3331,13 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
         updated_views.push_back(updated_review);
       }
     }
-    EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
   }
 
   // Verify updated reviews
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3323,7 +3360,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   {
     auto svc2 = std::make_shared<neug::NeugDBService>(db2);
     auto slot = svc2->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3336,7 +3373,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   }
 }
 
-TEST_F(UpdateTransactionTest, TestTPServiceStart) {
+TEST_F(SnapshotCowWriteTransactionTest, TestTPServiceStart) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3351,8 +3388,8 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
   EXPECT_FALSE(result);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    neug::StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -3375,7 +3412,7 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");

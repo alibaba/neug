@@ -179,7 +179,7 @@ neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
                                               int64_t id,
                                               const std::string& name) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   const auto ts = txn.timestamp();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
@@ -197,14 +197,14 @@ void insert_person(neug::NeugDBService& service, int64_t id,
 
 void compact(neug::NeugDBService& service) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetCompactTransaction();
+  auto txn = slot->BeginCompactTransaction();
   ASSERT_TRUE(txn.Commit());
 }
 
 void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
                        int64_t dst_id, int64_t since) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
   const auto knows_label = txn.schema().get_edge_label_id("knows");
@@ -222,7 +222,7 @@ void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
 
 size_t read_person_count(neug::NeugDBService& service) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   size_t count = 0;
@@ -235,13 +235,27 @@ size_t read_person_count(neug::NeugDBService& service) {
 
 bool read_has_person(neug::NeugDBService& service, int64_t id) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   neug::vid_t vid = 0;
   bool found = graph.GetVertexIndex(person_label, Value::INT64(id), vid);
   EXPECT_TRUE(txn.Commit());
   return found;
+}
+
+void expect_embedded_name(neug::NeugDB& db, int64_t id,
+                          const std::string& expected_name) {
+  auto conn = db.Connect();
+  auto result = conn->Query("MATCH (n:person {id: " + std::to_string(id) +
+                            "}) RETURN n.name;");
+  ASSERT_TRUE(result) << result.error().ToString();
+  const auto& response = result.value().response();
+  ASSERT_EQ(response.row_count(), 1);
+  ASSERT_EQ(response.arrays_size(), 1);
+  ASSERT_EQ(response.arrays(0).string_array().values_size(), 1);
+  EXPECT_EQ(response.arrays(0).string_array().values(0), expected_name);
+  conn->Close();
 }
 
 void create_wal_with_insert_compact_insert_collision(
@@ -544,6 +558,22 @@ TEST_F(CheckpointActivationHandlerTest,
   EXPECT_EQ(handler_calls_[1], current_checkpoint->allocator_dir());
 }
 
+TEST_F(CheckpointActivationHandlerTest,
+       PublishedCheckpointClearsUnloggedMutationBarrier) {
+  EXPECT_FALSE(coordinator_->UnloggedMutationPending());
+  coordinator_->MarkUnloggedMutation();
+  EXPECT_TRUE(coordinator_->UnloggedMutationPending());
+
+  neug::VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+  ASSERT_TRUE(
+      coordinator_
+          ->PublishManualCheckpoint(neug::UpdateTimestampLease(version_manager))
+          .ok());
+
+  EXPECT_FALSE(coordinator_->UnloggedMutationPending());
+}
+
 TEST(CheckpointCoordinatorTest,
      PreparationFailureKeepsOldWalAndTimestampTimelineUsable) {
   const auto test_dir = make_test_dir();
@@ -628,7 +658,7 @@ TEST_F(WalReplayTest, CloseCheckpointResetsSharedApTpTimeline) {
     {
       neug::NeugDBService service(db);
       EXPECT_EQ(insert_person_and_return_ts(service, 1, "old"), 2)
-          << "TP must continue after the AP schema statement timestamp";
+          << "the schema DDL and TP insert share one WAL timeline";
       EXPECT_EQ(read_person_count(service), 1);
     }
     db.Close();
@@ -671,6 +701,205 @@ TEST_F(WalReplayTest, ExplainCheckpointDoesNotConsumeApOrTpUpdateTimestamp) {
     EXPECT_EQ(insert_person_and_return_ts(service, 1, "after-explain"), 2);
   }
   db.Close();
+}
+
+TEST_F(WalReplayTest, EmbeddedOrdinaryCowWritesReplayWithoutCheckpoint) {
+  create_checkpointed_base_graph(db_dir_);
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    uint32_t generation_before = 0;
+    {
+      neug::SnapshotGuard snapshot(db.graph_snapshot_store());
+      generation_before = snapshot.get().snapshot_generation();
+    }
+    auto conn = db.Connect();
+    assert_query_ok(*conn, "CREATE (:person {id: 2, name: 'inserted'});");
+    assert_query_ok(
+        *conn,
+        "MATCH (n:person {id: 2}) SET n.name = 'updated' RETURN n.name;");
+    conn->Close();
+    {
+      neug::SnapshotGuard snapshot(db.graph_snapshot_store());
+      EXPECT_EQ(snapshot.get().snapshot_generation(), generation_before)
+          << "AP current-slot replacement must not publish a TP generation";
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    expect_embedded_name(db, 2, "updated");
+    db.Close();
+  }
+}
+
+TEST_F(WalReplayTest,
+       UnloggedBulkForcesCloseCheckpointWhenCheckpointOnCloseIsDisabled) {
+  const auto csv_path = std::filesystem::path(db_dir_) / "bulk-person.csv";
+  {
+    std::ofstream csv(csv_path);
+    csv << "id|name\n2|bulk\n";
+  }
+
+  {
+    neug::NeugDB db;
+    auto config = make_config(db_dir_);
+    ASSERT_FALSE(config.checkpoint_on_close);
+    ASSERT_TRUE(db.Open(config));
+    create_person_schema(db);
+    auto conn = db.Connect();
+    assert_query_ok(*conn, "COPY person FROM \"" + csv_path.string() + "\";");
+    conn->Close();
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    expect_embedded_name(db, 2, "bulk");
+    db.Close();
+  }
+}
+
+TEST_F(WalReplayTest, UnloggedBulkCloseCheckpointFailureIsReported) {
+  const auto csv_path = std::filesystem::path(db_dir_) / "bulk-person.csv";
+  {
+    std::ofstream csv(csv_path);
+    csv << "id|name\n2|bulk\n";
+  }
+
+  neug::NeugDB db;
+  auto config = make_config(db_dir_);
+  ASSERT_FALSE(config.checkpoint_on_close);
+  ASSERT_TRUE(db.Open(config));
+  create_person_schema(db);
+  auto conn = db.Connect();
+  assert_query_ok(*conn, "COPY person FROM \"" + csv_path.string() + "\";");
+  conn->Close();
+
+  const auto checkpoint_blocker =
+      std::filesystem::path(db_dir_) / "checkpoint-1";
+  std::filesystem::create_directories(checkpoint_blocker);
+  std::ofstream(checkpoint_blocker / "blocker") << "not a checkpoint";
+
+  EXPECT_THROW(db.Close(), std::exception);
+  EXPECT_TRUE(db.IsClosed());
+}
+
+TEST_F(WalReplayTest, FailedEmbeddedCowStatementKeepsCurrentGenerationAndData) {
+  create_checkpointed_base_graph(db_dir_);
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  uint32_t generation_before = 0;
+  const neug::PropertyGraph* graph_before = nullptr;
+  {
+    neug::SnapshotGuard snapshot(db.graph_snapshot_store());
+    generation_before = snapshot.get().snapshot_generation();
+    graph_before = &snapshot.get().graph();
+  }
+
+  auto conn = db.Connect();
+  auto failed = conn->Query("CREATE (:person {id: 1, name: 'duplicate'});");
+  ASSERT_FALSE(failed);
+  conn->Close();
+
+  {
+    neug::SnapshotGuard snapshot(db.graph_snapshot_store());
+    EXPECT_EQ(snapshot.get().snapshot_generation(), generation_before);
+    EXPECT_EQ(&snapshot.get().graph(), graph_before)
+        << "a failed private-COW statement must not replace the current graph";
+  }
+  expect_embedded_name(db, 1, "seed");
+
+  {
+    neug::NeugDBService service(db);
+    auto parser = neug::WalParserFactory::CreateWalParser(
+        db.graph().checkpoint().wal_dir());
+    EXPECT_TRUE(parser->get_update_wals().empty())
+        << "an aborted AP COW statement must not append logical redo";
+    EXPECT_EQ(insert_person_and_return_ts(service, 2, "after-abort"), 2)
+        << "abort must complete its reserved timestamp and reopen admission";
+    EXPECT_EQ(read_person_count(service), 2);
+  }
+  db.Close();
+}
+
+TEST_F(WalReplayTest, EmbeddedCowSharesOneWalAndVisibilityTimestamp) {
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);
+
+  auto conn = db.Connect();
+  assert_query_ok(*conn, "CREATE (:person {id: 1, name: 'ap'});");
+  conn->Close();
+
+  {
+    neug::NeugDBService service(db);
+    auto parser = neug::WalParserFactory::CreateWalParser(
+        db.graph().checkpoint().wal_dir());
+    const auto& update_wals = parser->get_update_wals();
+    ASSERT_EQ(update_wals.size(), 2U);
+    const auto ap_timestamp = update_wals.back().timestamp;
+    EXPECT_EQ(ap_timestamp, 2U);
+
+    {
+      neug::SnapshotGuard snapshot(db.graph_snapshot_store());
+      const auto person_label =
+          snapshot.get().view().schema().get_vertex_label_id("person");
+      neug::vid_t vid = 0;
+      neug::StorageReadInterface before(snapshot.get().view(),
+                                        ap_timestamp - 1);
+      EXPECT_FALSE(before.GetVertexIndex(person_label, Value::INT64(1), vid));
+      neug::StorageReadInterface at_commit(snapshot.get().view(), ap_timestamp);
+      EXPECT_TRUE(at_commit.GetVertexIndex(person_label, Value::INT64(1), vid));
+    }
+
+    auto slot = service.AcquireExecutionSlot();
+    auto read_txn = slot->BeginReadTransaction();
+    EXPECT_EQ(read_txn.timestamp(), ap_timestamp)
+        << "TP read admission must publish the same timestamp serialized in "
+           "the AP WAL header";
+    neug::StorageReadInterface graph(read_txn.view(), read_txn.timestamp());
+    const auto person_label = graph.schema().get_vertex_label_id("person");
+    neug::vid_t vid = 0;
+    EXPECT_TRUE(graph.GetVertexIndex(person_label, Value::INT64(1), vid));
+    EXPECT_TRUE(read_txn.Commit());
+  }
+  db.Close();
+}
+
+TEST_F(WalReplayTest, ServiceBoundaryPreservesApTpWalTimeline) {
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);
+
+  {
+    neug::NeugDBService service(db);
+    EXPECT_EQ(insert_person_and_return_ts(service, 1, "tp"), 2);
+  }
+
+  auto conn = db.Connect();
+  assert_query_ok(*conn,
+                  "MATCH (n:person {id: 1}) SET n.name = 'ap' RETURN n.name;");
+  conn->Close();
+
+  {
+    neug::NeugDBService service(db);
+    EXPECT_EQ(insert_person_and_return_ts(service, 2, "tp-again"), 4)
+        << "schema, TP insert, AP update, and the next TP insert must use one "
+           "monotonic WAL timeline";
+  }
+  db.Close();
+
+  neug::NeugDB reopened;
+  ASSERT_TRUE(reopened.Open(make_config(db_dir_)));
+  expect_embedded_name(reopened, 1, "ap");
+  expect_embedded_name(reopened, 2, "tp-again");
+  reopened.Close();
 }
 
 TEST_F(WalReplayTest, RecoveryWithoutCheckpointContinuesFromWalTimeline) {

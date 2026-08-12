@@ -63,9 +63,10 @@ class IWalWriter {
 
   virtual std::string type() const = 0;
   /**
-   * Open a WAL file. In service mode, each logical execution slot owns one
-   * writer. The slot may move between pthread workers and must retain the same
-   * writer for the full transaction.
+   * Open a WAL file. The database owns writers by logical slot id and assigns
+   * one to each transactional execution slot. A slot may move between pthread
+   * workers and must retain the same writer for the full transaction. Direct
+   * execution uses logical writer slot 0 under exclusive write admission.
    * The uri could be a file_path or a remote connection string.
    */
   virtual void open(const std::string& wal_uri) = 0;

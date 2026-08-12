@@ -166,7 +166,7 @@ void AssertSingleInt64Result(const neug::QueryResponse& table,
 void InsertItemThroughServiceWal(neug::NeugDB& db, int64_t id) {
   neug::NeugDBService service(db);
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   neug::StorageTPInsertInterface interface(txn);
   const auto item_label = txn.schema().get_vertex_label_id("Item");
   neug::vid_t vid = 0;
@@ -485,9 +485,9 @@ TYPED_TEST(CheckpointTest, compact) {
     auto svc = std::make_shared<neug::NeugDBService>(db);
     {
       // The execution-slot lease must be released before the service (and its
-      // TpExecutionSlotPool) is destroyed.
+      // service slot scheduler) is destroyed.
       auto slot = svc->AcquireExecutionSlot();
-      slot->GetCompactTransaction().Commit();
+      slot->BeginCompactTransaction().Commit();
     }
     svc.reset();
     db.Close();
@@ -503,7 +503,7 @@ TYPED_TEST(CheckpointTest, compact) {
   conn2->Close();
 
   auto svc = std::make_shared<neug::NeugDBService>(db2);
-  svc->AcquireExecutionSlot()->GetCompactTransaction().Commit();
+  svc->AcquireExecutionSlot()->BeginCompactTransaction().Commit();
   svc.reset();
 
   conn2 = db2.Connect();

@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -36,21 +37,20 @@ class UpdateTimestampLease;
  * for the entire graph and runtime-state rotation. The coordinator promotes
  * that lease to the exclusive commit phase before starting maintenance.
  *
- * Two extension points run after the graph reopens from a published
+ * Two extension points can run after the graph reopens from a published
  * checkpoint, before retired generations are reclaimed and before new
  * transactions are allowed to start:
  *
  * - PostReopenHandler (mandatory): injected at construction by the database
  *   owner and invoked on EVERY reopen (manual and recovery checkpoints). It
  *   carries correctness-critical database state activation such as reopening
- *   allocators and invalidating the compiled-plan cache. It must be infallible:
- *   it runs after the old live graph has been consumed. A manual-path failure
+ *   allocators and rotating DB-owned WAL writers. It must be infallible: it
+ *   runs after the old live graph has been consumed. A manual-path failure
  *   terminates the live process; a recovery-path failure aborts database open.
  *
- * - CheckpointActivationHandler (optional): set by the service owner and
- *   invoked on the manual path after the post-reopen handler. It activates
- *   service-owned state such as execution-slot WAL rotation for the published
- *   checkpoint.
+ * - CheckpointActivationHandler (optional): invoked on the manual path after
+ *   the post-reopen handler for non-database extensions. DB-owned allocators,
+ *   execution slots, and WAL writers must not depend on this callback.
  *
  * Shutdown checkpoints invoke neither, because they do not reopen the graph.
  */
@@ -95,6 +95,21 @@ class CheckpointCoordinator {
   /// Publish the shutdown checkpoint without reopening the live graph.
   Status PublishShutdownCheckpoint();
 
+  /// Mark current-graph mutation that has no corresponding WAL record.
+  void MarkUnloggedMutation() noexcept {
+    unlogged_mutation_pending_.store(true, std::memory_order_release);
+  }
+
+  bool UnloggedMutationPending() const noexcept {
+    return unlogged_mutation_pending_.load(std::memory_order_acquire);
+  }
+
+  /// Clear a conservative mark after the caller verifies there are no changes
+  /// to checkpoint. Successful checkpoint publication clears it internally.
+  void ClearUnloggedMutationIfNoChanges() noexcept {
+    unlogged_mutation_pending_.store(false, std::memory_order_release);
+  }
+
  private:
   enum class Reason {
     kManual,
@@ -112,6 +127,7 @@ class CheckpointCoordinator {
   PostReopenHandler post_reopen_handler_;
   std::mutex activation_handler_mutex_;
   CheckpointActivationHandler activation_handler_;
+  std::atomic<bool> unlogged_mutation_pending_{false};
 };
 
 }  // namespace neug

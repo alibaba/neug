@@ -20,6 +20,7 @@
 #include <glog/logging.h>
 
 #include "neug/transaction/version_manager.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -55,6 +56,14 @@ void UpdateTimestampLease::BeginCommit() {
 void UpdateTimestampLease::MakeUpdateExclusive() {
   BeginCommit();
   version_manager_->drain_readers();
+}
+
+void UpdateTimestampLease::MakeUpdateExclusiveUntil(
+    std::chrono::steady_clock::time_point deadline) {
+  BeginCommit();
+  if (!version_manager_->drain_readers_until(deadline)) {
+    THROW_TRANSACTION_TIMEOUT("waiting for active readers to finish");
+  }
 }
 
 void UpdateTimestampLease::Finish(

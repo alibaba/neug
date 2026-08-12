@@ -119,9 +119,8 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
     return status;
   }
 
-  // The post-reopen and activation handlers completed every database- and
-  // service-owned state transition while this lease still prevented new
-  // transactions from starting.
+  // The post-reopen handler and any optional extension completed while this
+  // lease still prevented new transactions from starting.
   timestamp_lease.FinishAndResetTimeline();
   return status;
 }
@@ -143,7 +142,7 @@ Status CheckpointCoordinator::execute(Reason reason) {
   bool destructive_phase = false;
   try {
     auto staging_checkpoint = checkpoint_manager_.CreateStagingCheckpoint();
-    return snapshot_store_.WithCheckpointMaintenance(
+    auto status = snapshot_store_.WithCheckpointMaintenance(
         [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
@@ -179,6 +178,10 @@ Status CheckpointCoordinator::execute(Reason reason) {
           }
           return Status::OK();
         });
+    if (status.ok()) {
+      unlogged_mutation_pending_.store(false, std::memory_order_release);
+    }
+    return status;
   } catch (const exception::IOException& e) {
     if (destructive_phase && reason == Reason::kManual) {
       fail_stop_live_database(e.what());

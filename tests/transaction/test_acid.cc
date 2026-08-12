@@ -32,7 +32,7 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
 
 #define SLEEP_TIME_MILLI_SEC 1
 
@@ -154,7 +154,7 @@ bool neug_get_random_vertex(const StorageReadInterface& txn, label_t label_id,
   return false;
 }
 
-auto neug_get_random_vertex(StorageCOWUpdateInterface& gi, label_t label_id) {
+auto neug_get_random_vertex(CowGraphUpdateStorage& gi, label_t label_id) {
   auto vertex_set = gi.GetVertexSet(label_id);
   int num = 0;
   neug::vid_t vid = 0;
@@ -179,7 +179,7 @@ auto neug_get_random_vertex(StorageCOWUpdateInterface& gi, label_t label_id) {
 }
 
 // Helper: append string to field
-void neug_append_string_to_field(StorageCOWUpdateInterface& gui, label_t label,
+void neug_append_string_to_field(CowGraphUpdateStorage& gui, label_t label,
                                  neug::vid_t vit, int col_id,
                                  const std::string& str) {
   std::string cur_str = std::string(
@@ -209,7 +209,7 @@ std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
   auto service = std::make_shared<neug::NeugDBService>(db);
 
   auto slot = service->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   StorageTPInsertInterface gii(txn);
@@ -237,8 +237,8 @@ std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
 
 bool neug_AtomicityC(neug::ExecutionSlot& db, int64_t person2_id,
                      const std::string& new_email, int64_t since) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
   auto vit = neug_get_random_vertex(gui, person_label_id);
@@ -261,13 +261,13 @@ bool neug_AtomicityC(neug::ExecutionSlot& db, int64_t person2_id,
     txn.Abort();
     return false;
   }
-  return db.CommitUpdateTransaction(txn).ok();
+  return txn.Commit().ok();
 }
 
 bool neug_AtomicityRB(neug::ExecutionSlot& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto vit1 = neug_get_random_vertex(gui, person_label_id);
   neug_append_string_to_field(gui, person_label_id, vit1, 2, new_email);
@@ -285,7 +285,7 @@ bool neug_AtomicityRB(neug::ExecutionSlot& db, int64_t person2_id,
       {neug::Value::INT64(person2_id), neug::Value::STRING(std::string(name)),
        neug::Value::STRING(std::string(email))},
       vid));
-  return db.CommitUpdateTransaction(txn).ok();
+  return txn.Commit().ok();
 }
 
 int64_t neug_count_email_num(const std::string_view& sv) {
@@ -301,7 +301,7 @@ int64_t neug_count_email_num(const std::string_view& sv) {
 std::pair<int64_t, int64_t> neug_AtomicityCheck(
     std::shared_ptr<neug::NeugDBService> svc) {
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   int64_t num_persons = 0, num_emails = 0;
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -336,7 +336,7 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
@@ -375,8 +375,8 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
 
 void G0(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
         int64_t txn_id) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
 
@@ -437,14 +437,14 @@ void G0(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
 
   ed_accessor.set_data(oeit, new_value, txn.timestamp());
 
-  CHECK(db.CommitUpdateTransaction(txn).ok());
+  CHECK(txn.Commit().ok());
 }
 
 std::tuple<std::string, std::string, std::string> G0Check(
     NeugDB& db, std::shared_ptr<neug::NeugDBService> svc, int64_t person1_id,
     int64_t person2_id) {
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   StorageReadInterface gi(txn.view(), txn.timestamp());
@@ -522,7 +522,7 @@ std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   StorageTPInsertInterface gii(txn);
   for (int i = 0; i < 100; ++i) {
@@ -538,18 +538,18 @@ std::shared_ptr<neug::NeugDBService> InitPersonWithVersion(
 // Intermediate Reads
 
 void G1B1(neug::ExecutionSlot& db, int64_t even, int64_t odd) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto vit = neug_get_random_vertex(gui, person_label_id);
   gui.UpdateVertexProperty(person_label_id, vit, 1, neug::Value::INT64(even));
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
   gui.UpdateVertexProperty(person_label_id, vit, 1, neug::Value::INT64(odd));
-  CHECK(db.CommitUpdateTransaction(txn).ok());
+  CHECK(txn.Commit().ok());
 }
 
 int64_t G1B2(neug::ExecutionSlot& db) {
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
 
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -566,8 +566,8 @@ int64_t G1B2(neug::ExecutionSlot& db) {
 
 int64_t G1C(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   neug::vid_t person1_vid;
   bool flag = false;
@@ -599,7 +599,7 @@ int64_t G1C(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
   int64_t ret = gui.GetVertexProperty(person_label_id, person2_vid, 1)
                     .GetValue<int64_t>();
 
-  CHECK(db.CommitUpdateTransaction(txn).ok());
+  CHECK(txn.Commit().ok());
 
   return ret;
 }
@@ -607,8 +607,8 @@ int64_t G1C(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
 // Aborted Reads
 
 void G1A1(neug::ExecutionSlot& db) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   // select a random person
   auto vit = neug_get_random_vertex(gui, person_label_id);
@@ -622,7 +622,7 @@ void G1A1(neug::ExecutionSlot& db) {
 }
 
 int64_t G1A2(neug::ExecutionSlot& db) {
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
 
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
@@ -638,19 +638,19 @@ int64_t G1A2(neug::ExecutionSlot& db) {
 // Item-Many-Preceders
 
 void IMP1(neug::ExecutionSlot& db) {
-  auto txn = db.GetUpdateTransaction();
+  auto txn = db.BeginSnapshotCowWriteTransaction();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
-  StorageCOWUpdateInterface gui(txn);
+  auto gui = txn.OpenStorage();
   auto vit = neug_get_random_vertex(gui, person_label_id);
   int64_t old_version =
       gui.GetVertexProperty(person_label_id, vit, 1).GetValue<int64_t>();
   gui.UpdateVertexProperty(person_label_id, vit, 1,
                            neug::Value::INT64(old_version + 1));
-  CHECK(db.CommitUpdateTransaction(txn).ok());
+  CHECK(txn.Commit().ok());
 }
 
 std::tuple<int64_t, int64_t> IMP2(neug::ExecutionSlot& db, int64_t person1_id) {
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   vid_t vit0_index = 0;
@@ -708,7 +708,7 @@ std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   const auto& schema = txn.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
@@ -727,8 +727,8 @@ std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
 }
 
 bool PMP1(neug::ExecutionSlot& db, int64_t person_id, int64_t post_id) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto post_label_id = txn.schema().get_vertex_label_id("POST");
   auto likes_label_id = txn.schema().get_edge_label_id("LIKES");
@@ -764,11 +764,11 @@ bool PMP1(neug::ExecutionSlot& db, int64_t person_id, int64_t post_id) {
     txn.Abort();
     return false;
   }
-  return db.CommitUpdateTransaction(txn).ok();
+  return txn.Commit().ok();
 }
 
 std::tuple<int64_t, int64_t> PMP2(neug::ExecutionSlot& db, int64_t post_id) {
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto post_label_id = txn.schema().get_vertex_label_id("POST");
@@ -837,7 +837,7 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t value = 0;
   std::vector<std::string> string_props;
@@ -867,8 +867,8 @@ std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
 }
 
 void OTV1(neug::ExecutionSlot& db, int64_t person_id) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
   vid_t vid1;
@@ -928,7 +928,7 @@ void OTV1(neug::ExecutionSlot& db, int64_t person_id) {
                         .GetValue<int64_t>() +
                     1));
 
-            CHECK(db.CommitUpdateTransaction(txn).ok());
+            CHECK(txn.Commit().ok());
             return;
           }
         }
@@ -940,7 +940,7 @@ void OTV1(neug::ExecutionSlot& db, int64_t person_id) {
 std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
            std::tuple<int64_t, int64_t, int64_t, int64_t>>
 OTV2(neug::ExecutionSlot& db, int64_t person_id) {
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = txn.schema().get_edge_label_id("KNOWS");
@@ -1037,7 +1037,7 @@ std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   StorageTPInsertInterface gii(txn);
@@ -1056,8 +1056,8 @@ std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
 }
 
 bool LU1(neug::ExecutionSlot& db, int64_t person_id) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
 
   neug::vid_t person_vid;
@@ -1079,12 +1079,12 @@ bool LU1(neug::ExecutionSlot& db, int64_t person_id) {
   gui.UpdateVertexProperty(person_label_id, person_vid, 1,
                            neug::Value::INT64(num_friends + 1));
 
-  return db.CommitUpdateTransaction(txn).ok();
+  return txn.Commit().ok();
 }
 
 std::map<int64_t, int64_t> LU2(neug::ExecutionSlot& db) {
   std::map<int64_t, int64_t> numFriends;
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto prop_col =
@@ -1119,7 +1119,7 @@ std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
 
   const auto& schema = txn.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
@@ -1144,8 +1144,8 @@ std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
 
 void WS1(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
          std::mt19937& gen) {
-  auto txn = db.GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = db.BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
 
   vid_t person1_vid;
@@ -1194,13 +1194,13 @@ void WS1(neug::ExecutionSlot& db, int64_t person1_id, int64_t person2_id,
     gui.UpdateVertexProperty(person_label_id, person2_vid, 1,
                              neug::Value::INT64(p2_value - 100));
   }
-  CHECK(db.CommitUpdateTransaction(txn).ok());
+  CHECK(txn.Commit().ok());
 }
 
 std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
     neug::ExecutionSlot& db) {
   std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> results;
-  auto txn = db.GetReadTransaction();
+  auto txn = db.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label_id = txn.schema().get_vertex_label_id("PERSON");
   auto person_prop_col =
@@ -1578,7 +1578,7 @@ std::shared_ptr<NeugDBService> cc_init(NeugDB& db, const std::string& work_dir,
                             kSeedEdges * 4);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginInsertTransaction();
   std::vector<vid_t> vids;
   vids.reserve(kSeedVertices);
   for (int i = 1; i <= kSeedVertices; ++i) {
@@ -1609,7 +1609,7 @@ std::shared_ptr<NeugDBService> cc_init(NeugDB& db, const std::string& work_dir,
 // Read age via a fresh ReadTxn from a freshly-acquired slot.
 int64_t cc_read_age(NeugDBService& svc, int64_t person_id) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1622,7 +1622,7 @@ int64_t cc_read_age(NeugDBService& svc, int64_t person_id) {
 // Read age via a fresh ReadTxn on a caller-owned slot (no contention on
 // slot pool acquisition).
 int64_t cc_read_age(ExecutionSlot& slot, NeugDB& db, int64_t person_id) {
-  auto txn = slot.GetReadTransaction();
+  auto txn = slot.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = db.schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1637,7 +1637,7 @@ int64_t cc_read_age(ExecutionSlot& slot, NeugDB& db, int64_t person_id) {
 std::pair<int64_t, int64_t> cc_read_age_timed(ExecutionSlot& slot, NeugDB& db,
                                               int64_t person_id) {
   auto t0 = std::chrono::high_resolution_clock::now();
-  auto txn = slot.GetReadTransaction();
+  auto txn = slot.BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = db.schema().get_vertex_label_id("person");
   vid_t vid;
@@ -1669,10 +1669,10 @@ int64_t cc_read_age_via(const ReadTransaction& txn, NeugDB& db,
 template <typename Body>
 void cc_run_update(NeugDBService& svc, Body&& body) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetUpdateTransaction();
-  StorageCOWUpdateInterface storage(txn);
+  auto txn = slot->BeginSnapshotCowWriteTransaction();
+  auto storage = txn.OpenStorage();
   body(txn, storage);
-  EXPECT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+  EXPECT_TRUE(txn.Commit().ok());
 }
 
 // Acquire a slot, open a fresh ReadTxn, and invoke `body(gi)` against a
@@ -1680,7 +1680,7 @@ void cc_run_update(NeugDBService& svc, Body&& body) {
 template <typename Body>
 void cc_with_fresh_read(NeugDBService& svc, Body&& body) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   body(gi);
 }
@@ -1697,8 +1697,8 @@ vid_t cc_person_vid(Txn& txn, NeugDB& db, int64_t oid) {
 // Update age via a fresh UpdateTxn + Commit. Returns true on success.
 bool cc_update_age(NeugDBService& svc, int64_t person_id, int64_t new_age) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = slot->BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   vid_t vid;
   if (!gui.GetVertexIndex(person_label, neug::Value::INT64(person_id), vid)) {
@@ -1706,13 +1706,13 @@ bool cc_update_age(NeugDBService& svc, int64_t person_id, int64_t new_age) {
     return false;
   }
   gui.UpdateVertexProperty(person_label, vid, 1, neug::Value::INT64(new_age));
-  return slot->CommitUpdateTransaction(txn).ok();
+  return txn.Commit().ok();
 }
 
 // Count visible person vertices.
 size_t cc_count_persons(NeugDBService& svc) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto person_label = svc.db().schema().get_vertex_label_id("person");
   size_t n = 0;
@@ -1768,7 +1768,7 @@ size_t cc_count_all_oe_via(const ReadTransaction& txn, label_t src_label,
 size_t cc_count_all_oe(NeugDBService& svc, const char* src, const char* dst,
                        const char* edge) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginReadTransaction();
   StorageReadInterface gi(txn.view(), txn.timestamp());
   auto sl = gi.schema().get_vertex_label_id(src);
   auto dl = gi.schema().get_vertex_label_id(dst);
@@ -1813,8 +1813,8 @@ double cc_read_knows_weight_via(const ReadTransaction& txn, NeugDB& db,
 // 1→software 1.
 void cc_setup_unbundled_created(NeugDBService& svc) {
   auto slot = svc.AcquireExecutionSlot();
-  auto txn = slot->GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn);
+  auto txn = slot->BeginSnapshotCowWriteTransaction();
+  auto gui = txn.OpenStorage();
 
   CreateVertexTypeParamBuilder sb;
   ASSERT_TRUE(
@@ -1852,7 +1852,7 @@ void cc_setup_unbundled_created(NeugDBService& svc) {
                           {neug::Value::DOUBLE(0.5), neug::Value::INT64(2020)},
                           add_edge_prop));
 
-  ASSERT_TRUE(slot->CommitUpdateTransaction(txn).ok());
+  ASSERT_TRUE(txn.Commit().ok());
 }
 
 // Read the `since` property on the unbundled created edge person 1→software 1
@@ -1941,7 +1941,7 @@ TEST_F(NeugDBACIDTest, ConcurrentInsertsCommitInOrder) {
     int64_t base = 100000 + tid * kPerThread;
     auto person_label = db.schema().get_vertex_label_id("person");
     for (int i = 0; i < kPerThread; ++i) {
-      auto txn = slot.GetInsertTransaction();
+      auto txn = slot.BeginInsertTransaction();
       vid_t vid;
       ASSERT_TRUE(txn.AddVertex(person_label, neug::Value::INT64(base + i),
                                 {neug::Value::STRING(std::string("inserted")),
@@ -2001,7 +2001,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndInsertsDoNotInterfere) {
       auto person_label = db.schema().get_vertex_label_id("person");
       while (!stop.load() && insert_count.load() < kMaxInserts) {
         int64_t id = next_id.fetch_add(1);
-        auto txn = lease->GetInsertTransaction();
+        auto txn = lease->BeginInsertTransaction();
         vid_t vid;
         if (txn.AddVertex(
                 person_label, neug::Value::INT64(id),
@@ -2036,7 +2036,7 @@ TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
 
   // Part 1: held reader is unaffected by concurrent update commit.
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   EXPECT_EQ(cc_read_age_via(txn_r, db, 5), 25);
 
   EXPECT_TRUE(cc_update_age(*svc, 5, 999));
@@ -2049,7 +2049,7 @@ TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
 
   {
     auto sess_w = svc->AcquireExecutionSlot();
-    auto txn_w = sess_w->GetInsertTransaction();
+    auto txn_w = sess_w->BeginInsertTransaction();
     auto person_label = db.schema().get_vertex_label_id("person");
     vid_t vid;
     ASSERT_TRUE(txn_w.AddVertex(
@@ -2065,7 +2065,7 @@ TEST_F(NeugDBACIDTest, SnapshotIsolationForUpdateAndInsert) {
 }
 
 // ============================================================================
-// Category 3 — UpdateTransaction COW isolation + rollback correctness
+// Category 3 — SnapshotCowWriteTransaction COW isolation + rollback correctness
 // ============================================================================
 
 TEST_F(NeugDBACIDTest, UpdateCowCloneDoesNotAffectActiveReaders) {
@@ -2074,13 +2074,13 @@ TEST_F(NeugDBACIDTest, UpdateCowCloneDoesNotAffectActiveReaders) {
   auto svc = cc_init(db, dir, thread_num_);
 
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   EXPECT_EQ(cc_read_age_via(txn_r, db, 5), 25);
 
   // Open U and mutate without committing.
   auto sess_u = svc->AcquireExecutionSlot();
-  auto txn_u = sess_u->GetUpdateTransaction();
-  StorageCOWUpdateInterface gui(txn_u);
+  auto txn_u = sess_u->BeginSnapshotCowWriteTransaction();
+  auto gui = txn_u.OpenStorage();
   auto person_label = db.schema().get_vertex_label_id("person");
   vid_t vid_u;
   ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(5), vid_u));
@@ -2105,8 +2105,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   EXPECT_EQ(cc_read_age(*svc, 5), 25);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     gui.UpdateVertexProperty(person_label, cc_person_vid(gui, db, 5), 1,
                              neug::Value::INT64(125));
     txn.Abort();
@@ -2117,8 +2117,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   size_t labels_pre = svc->db().schema().vertex_label_num();
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     CreateVertexTypeParamBuilder b;
     auto status =
         gui.CreateVertexType(b.VertexLabel("foo")
@@ -2136,8 +2136,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
   EXPECT_GT(edge_count_pre, 0u);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetUpdateTransaction();
-    StorageCOWUpdateInterface gui(txn);
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     DeleteEdgePropertiesParamBuilder b;
     auto config = b.AddDeleteProperty("weight").Build();
     auto status = gui.DeleteEdgeProperties(
@@ -2151,7 +2151,8 @@ TEST_F(NeugDBACIDTest, UpdateRollbackLeavesOriginalIntact) {
 }
 
 // ============================================================================
-// Category 3a — UpdateTransaction COW isolation across single-row DML.
+// Category 3a — SnapshotCowWriteTransaction COW isolation across single-row
+// DML.
 //
 // Pattern: open ReadTxn R, observe pre-state via R's frozen GraphView; open a
 // separate UpdateTxn U on another slot, mutate + Commit; R must continue to
@@ -2169,7 +2170,7 @@ TEST_F(NeugDBACIDTest, DMLCommitDoesNotAffectHeldReader) {
 
   // Pin a reader snapshot before any mutations.
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   size_t n_pre = cc_count_vertices_via(txn_r, p_label);
   EXPECT_EQ(n_pre, static_cast<size_t>(kSeedVertices));
   size_t e_pre = cc_count_all_oe_via(txn_r, p_label, p_label, e_label);
@@ -2284,7 +2285,7 @@ TEST_F(NeugDBACIDTest,
   set_or_add_weight(0.42);
 
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   EXPECT_EQ(cc_read_knows_weight_via(txn_r, db, 1, 2), 0.42);
 
   // Writer updates that edge to 0.99.
@@ -2296,7 +2297,7 @@ TEST_F(NeugDBACIDTest,
   bool saw_99 = false;
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     StorageReadInterface gi(txn.view(), txn.timestamp());
     auto view = gi.GetGenericOutgoingGraphView(p_label, p_label, e_label);
     auto accessor = gi.GetEdgeDataAccessor(p_label, p_label, e_label, 0);
@@ -2332,7 +2333,7 @@ TEST_F(NeugDBACIDTest,
       << "created has 2 properties and must be unbundled";
 
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   EXPECT_EQ(cc_read_created_since_via(txn_r), 2020);
 
   // Writer updates `since` to 2099 on the created edge person 1 → software 1.
@@ -2353,7 +2354,7 @@ TEST_F(NeugDBACIDTest,
   // Fresh reader: sees 2099.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     EXPECT_EQ(cc_read_created_since_via(txn), 2099);
   }
 }
@@ -2370,7 +2371,7 @@ TEST_F(NeugDBACIDTest, VertexPropertyDDLCommitDoesNotAffectHeldReader) {
   auto p_label = db.schema().get_vertex_label_id("person");
 
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   {
     StorageReadInterface gi(txn_r.view(), txn_r.timestamp());
     EXPECT_NE(gi.GetVertexPropColumn(p_label, "name"), nullptr);
@@ -2455,7 +2456,7 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
   auto e_label = db.schema().get_edge_label_id("knows");
 
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   {
     StorageReadInterface gi(txn_r.view(), txn_r.timestamp());
     auto es = gi.schema().get_edge_schema(p_label, p_label, e_label);
@@ -2518,7 +2519,7 @@ TEST_F(NeugDBACIDTest, EdgePropertyDDLCommitDoesNotAffectHeldReader) {
 
   // Pin a second reader for the unbundled edge.
   auto sess_r2 = svc->AcquireExecutionSlot();
-  auto txn_r2 = sess_r2->GetReadTransaction();
+  auto txn_r2 = sess_r2->BeginReadTransaction();
   EXPECT_EQ(cc_read_created_since_via(txn_r2), 2020);
   {
     StorageReadInterface gi(txn_r2.view(), txn_r2.timestamp());
@@ -2561,7 +2562,7 @@ TEST_F(NeugDBACIDTest, SchemaTypeDDLCommitDoesNotAffectHeldReader) {
 
   // Pin reader before any DDL.
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   size_t n_pre = cc_count_vertices_via(txn_r, p_label);
   size_t e_pre = cc_count_all_oe_via(txn_r, p_label, p_label, e_label);
   EXPECT_GT(e_pre, 0u);
@@ -2656,22 +2657,22 @@ TEST_F(NeugDBACIDTest, MultipleSequentialCommitsEachSnapshotIsolated) {
   auto svc = cc_init(db, dir, thread_num_);
 
   auto s0 = svc->AcquireExecutionSlot();
-  auto r0 = s0->GetReadTransaction();
+  auto r0 = s0->BeginReadTransaction();
   int64_t e0 = cc_read_age_via(r0, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5001));
 
   auto s1 = svc->AcquireExecutionSlot();
-  auto r1 = s1->GetReadTransaction();
+  auto r1 = s1->BeginReadTransaction();
   int64_t e1 = cc_read_age_via(r1, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5002));
 
   auto s2 = svc->AcquireExecutionSlot();
-  auto r2 = s2->GetReadTransaction();
+  auto r2 = s2->BeginReadTransaction();
   int64_t e2 = cc_read_age_via(r2, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5003));
 
   auto s3 = svc->AcquireExecutionSlot();
-  auto r3 = s3->GetReadTransaction();
+  auto r3 = s3->BeginReadTransaction();
   int64_t e3 = cc_read_age_via(r3, db, 5);
   ASSERT_TRUE(cc_update_age(*svc, 5, 5004));
 
@@ -2710,7 +2711,7 @@ TEST_F(NeugDBACIDTest, UpdateStringPropertyCommitDoesNotAffectHeldReader) {
   };
 
   auto sess_r = svc->AcquireExecutionSlot();
-  auto txn_r = sess_r->GetReadTransaction();
+  auto txn_r = sess_r->BeginReadTransaction();
   std::string name_pre = read_name_via(txn_r, 5);
   EXPECT_EQ(name_pre, "person_5");
 
@@ -2726,14 +2727,14 @@ TEST_F(NeugDBACIDTest, UpdateStringPropertyCommitDoesNotAffectHeldReader) {
   // Fresh reader: sees new name.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     EXPECT_EQ(read_name_via(txn, 5), "renamed_5");
   }
 }
 
-// Design validation: GetUpdateTransaction changes the admission state from
-// kOpen to kInsertsBlocked, so only one UpdateTxn can be open at a time.
-// InsertTxn requires kOpen, so it is also blocked by an open UpdateTxn.
+// Design validation: BeginSnapshotCowWriteTransaction changes the admission
+// state from kOpen to kInsertsBlocked, so only one UpdateTxn can be open at a
+// time. InsertTxn requires kOpen, so it is also blocked by an open UpdateTxn.
 TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
   std::string dir = work_dir_ + "/WriteMutex";
   NeugDB db;
@@ -2749,33 +2750,33 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
     std::atomic<bool> u1_committed{false};
 
     std::thread t1([&] {
-      auto txn = sess1->GetUpdateTransaction();
+      auto txn = sess1->BeginSnapshotCowWriteTransaction();
       u1_acquired.store(true);
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       EXPECT_FALSE(u2_acquired.load())
           << "Second UpdateTxn must NOT acquire while first is still open";
-      StorageCOWUpdateInterface gui(txn);
+      auto gui = txn.OpenStorage();
       auto person_label = db.schema().get_vertex_label_id("person");
       vid_t vid;
       ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
       gui.UpdateVertexProperty(person_label, vid, 1, neug::Value::INT64(100));
-      EXPECT_TRUE(sess1->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
       u1_committed.store(true);
     });
 
     std::thread t2([&] {
       while (!u1_acquired.load())
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      auto txn = sess2->GetUpdateTransaction();
+      auto txn = sess2->BeginSnapshotCowWriteTransaction();
       u2_acquired.store(true);
       EXPECT_TRUE(u1_committed.load())
           << "Second UpdateTxn must only acquire after first commits";
-      StorageCOWUpdateInterface gui(txn);
+      auto gui = txn.OpenStorage();
       auto person_label = db.schema().get_vertex_label_id("person");
       vid_t vid;
       ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(2), vid));
       gui.UpdateVertexProperty(person_label, vid, 1, neug::Value::INT64(200));
-      EXPECT_TRUE(sess2->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
     });
 
     t1.join();
@@ -2791,24 +2792,24 @@ TEST_F(NeugDBACIDTest, WriteMutexExclusionSemantics) {
     std::atomic<bool> update_committed{false};
 
     std::thread t_update([&] {
-      auto txn = sess1->GetUpdateTransaction();
+      auto txn = sess1->BeginSnapshotCowWriteTransaction();
       update_acquired.store(true);
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       EXPECT_FALSE(insert_acquired.load())
           << "InsertTxn must NOT acquire while UpdateTxn is still open";
-      StorageCOWUpdateInterface gui(txn);
+      auto gui = txn.OpenStorage();
       auto person_label = db.schema().get_vertex_label_id("person");
       vid_t vid;
       ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
       gui.UpdateVertexProperty(person_label, vid, 1, neug::Value::INT64(777));
-      EXPECT_TRUE(sess1->CommitUpdateTransaction(txn).ok());
+      EXPECT_TRUE(txn.Commit().ok());
       update_committed.store(true);
     });
 
     std::thread t_insert([&] {
       while (!update_acquired.load())
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      auto txn = sess2->GetInsertTransaction();
+      auto txn = sess2->BeginInsertTransaction();
       insert_acquired.store(true);
       EXPECT_TRUE(update_committed.load())
           << "InsertTxn must only acquire after UpdateTxn commits";
@@ -2834,8 +2835,8 @@ TEST_F(NeugDBACIDTest, UpdateQueryPlansAfterPreviousUpdateCommits) {
   auto svc = cc_init(db, dir, thread_num_);
 
   auto first_slot = svc->AcquireExecutionSlot();
-  auto first_update = first_slot->GetUpdateTransaction();
-  StorageCOWUpdateInterface first_storage(first_update);
+  auto first_update = first_slot->BeginSnapshotCowWriteTransaction();
+  auto first_storage = first_update.OpenStorage();
   CreateVertexTypeParamBuilder builder;
   auto create_status = first_storage.CreateVertexType(
       builder.VertexLabel("company")
@@ -2866,7 +2867,7 @@ TEST_F(NeugDBACIDTest, UpdateQueryPlansAfterPreviousUpdateCommits) {
       << "The second update must wait before planning against the committed "
          "schema";
 
-  EXPECT_TRUE(first_slot->CommitUpdateTransaction(first_update).ok());
+  EXPECT_TRUE(first_update.Commit().ok());
   second_update.join();
   EXPECT_TRUE(query_finished.load());
 }
@@ -2889,7 +2890,7 @@ TEST_F(NeugDBACIDTest, LongRunningReadDoesNotBlockUpdateCommit) {
   std::atomic<bool> reader_released{false};
 
   std::thread t_reader([&] {
-    auto txn = sess_r->GetReadTransaction();
+    auto txn = sess_r->BeginReadTransaction();
     reader_acquired.store(true);
     StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = db.schema().get_vertex_label_id("person");
@@ -2908,14 +2909,14 @@ TEST_F(NeugDBACIDTest, LongRunningReadDoesNotBlockUpdateCommit) {
     while (!reader_acquired.load()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    auto txn = sess_u->GetUpdateTransaction();
-    StorageCOWUpdateInterface gui(txn);
+    auto txn = sess_u->BeginSnapshotCowWriteTransaction();
+    auto gui = txn.OpenStorage();
     auto person_label = db.schema().get_vertex_label_id("person");
     vid_t vid;
     ASSERT_TRUE(gui.GetVertexIndex(person_label, neug::Value::INT64(1), vid));
     gui.UpdateVertexProperty(person_label, vid, 1, neug::Value::INT64(999));
     auto t0 = std::chrono::steady_clock::now();
-    EXPECT_TRUE(sess_u->CommitUpdateTransaction(txn).ok());
+    EXPECT_TRUE(txn.Commit().ok());
     auto elapsed = std::chrono::steady_clock::now() - t0;
     commit_finished.store(true);
 
@@ -2971,8 +2972,8 @@ TEST_F(NeugDBACIDTest, CommitVisibilitySemantics) {
   // Part 1: reads before commit see old snapshot.
   {
     auto sess_u = svc->AcquireExecutionSlot();
-    auto txn_u = sess_u->GetUpdateTransaction();
-    StorageCOWUpdateInterface gui(txn_u);
+    auto txn_u = sess_u->BeginSnapshotCowWriteTransaction();
+    auto gui = txn_u.OpenStorage();
     gui.UpdateVertexProperty(db.schema().get_vertex_label_id("person"),
                              cc_person_vid(gui, db, 5), 1,
                              neug::Value::INT64(9999));
@@ -2989,8 +2990,8 @@ TEST_F(NeugDBACIDTest, CommitVisibilitySemantics) {
 // exactly one of two consistent values (pre or post). The commit window
 // itself is brief (commit_lock_ exclusive), but visibility is determined by
 // the per-row timestamp filter: a reader's observation depends on whether
-// its read_ts (allocated at GetReadTransaction time) is < or >= the writer's
-// write_ts (allocated at GetUpdateTransaction time, published at
+// its read_ts (allocated at BeginReadTransaction time) is < or >= the writer's
+// write_ts (allocated at BeginSnapshotCowWriteTransaction time, published at
 // UpdateTimestampLease::finish time).
 //
 // Empirically the reader nearly always wins, because the writer's path from
@@ -3024,9 +3025,9 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     // both have arrived. Avoids std::barrier (libc++ requires macOS 11.0
     // deployment target which this build doesn't set).
     //
-    // The UpdateTransaction must be fully owned by the writer thread:
-    // GetUpdateTransaction changes VersionManager's admission state from
-    // kOpen to kInsertsBlocked, and Commit restores it to kOpen.
+    // The SnapshotCowWriteTransaction must be fully owned by the writer thread:
+    // BeginSnapshotCowWriteTransaction changes VersionManager's admission state
+    // from kOpen to kInsertsBlocked, and Commit restores it to kOpen.
     // Acquire+stage before the barrier preserves the
     // "post-race value staged in cow_graph" timing the test wants.
     std::atomic<int> ready{0};
@@ -3038,8 +3039,8 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
     });
     std::thread writer([&] {
       auto sess_u = svc->AcquireExecutionSlot();
-      auto txn_u = sess_u->GetUpdateTransaction();
-      StorageCOWUpdateInterface gui(txn_u);
+      auto txn_u = sess_u->BeginSnapshotCowWriteTransaction();
+      auto gui = txn_u.OpenStorage();
       vid_t vid_u;
       ASSERT_TRUE(
           gui.GetVertexIndex(person_label, neug::Value::INT64(5), vid_u));
@@ -3047,7 +3048,7 @@ TEST_F(NeugDBACIDTest, ConcurrentReadsAndCommitsObserveConsistentValues) {
                                neug::Value::INT64(post_value));
       ready.fetch_add(1);
       while (ready.load() < 2) {}
-      EXPECT_TRUE(sess_u->CommitUpdateTransaction(txn_u).ok());
+      EXPECT_TRUE(txn_u.Commit().ok());
     });
     reader.join();
     writer.join();

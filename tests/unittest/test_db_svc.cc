@@ -50,6 +50,12 @@ uint64_t ReadPlanningGeneration(GraphSnapshotStore& store) {
   return current.get().planning_generation();
 }
 
+std::pair<const GraphSnapshotStore::SnapshotSlot*, uint32_t>
+ReadCurrentSnapshotIdentity(GraphSnapshotStore& store) {
+  SnapshotGuard current(store);
+  return {&current.get(), current.get().snapshot_generation()};
+}
+
 bool WaitForFlag(const std::atomic<bool>& flag) {
   const auto deadline = std::chrono::steady_clock::now() + kBthreadTestTimeout;
   while (!flag.load(std::memory_order_acquire) &&
@@ -76,7 +82,7 @@ int StartBthread(bthread_t& tid, BthreadTask& task) {
 timestamp_t InsertModernPersonAndReturnTimestamp(NeugDBService& service,
                                                  int64_t id) {
   auto slot = service.AcquireExecutionSlot();
-  auto transaction = slot->GetInsertTransaction();
+  auto transaction = slot->BeginInsertTransaction();
   const auto timestamp = transaction.timestamp();
   StorageTPInsertInterface graph(transaction);
   const auto person_label = transaction.schema().get_vertex_label_id("person");
@@ -225,7 +231,7 @@ TEST_F(NeugDBServiceTest,
 
     BthreadTask first_task = [&]() {
       auto guard = service.AcquireExecutionSlot();
-      auto transaction = guard->GetReadTransaction();
+      auto transaction = guard->BeginReadTransaction();
       const auto logical_thread = bthread_self();
       const auto physical_thread = std::this_thread::get_id();
       int stack_marker = 0;
@@ -311,7 +317,7 @@ TEST_F(NeugDBServiceTest, ExecutionSlotsRemainExclusiveUnderBthreadStress) {
           violations.fetch_add(1);
         }
 
-        auto transaction = guard->GetReadTransaction();
+        auto transaction = guard->BeginReadTransaction();
         const auto logical_thread = bthread_self();
         (void) bthread_yield();
         (void) bthread_usleep(50);
@@ -596,7 +602,7 @@ TEST_F(NeugDBServiceTest, VersionTimelineSurvivesServiceRecreation) {
     neug::NeugDBService service(*db_, config_);
     const auto second_timestamp =
         InsertModernPersonAndReturnTimestamp(service, 1002);
-    EXPECT_GT(second_timestamp, first_timestamp);
+    EXPECT_EQ(second_timestamp, first_timestamp + 1);
   }
 }
 
@@ -638,10 +644,17 @@ TEST_F(NeugDBServiceTest, TpDmlKeepsPlanningGenerationAndDdlAdvancesIt) {
 }
 
 TEST_F(NeugDBServiceTest, DirectPlanningGenerationTracksActualDdlMutations) {
+  // Settle the fixture's unlogged COPY work so the checkpoint barrier does not
+  // contribute its own planning-generation change to the DDL assertions.
+  auto connection = db_->Connect();
+  auto checkpoint = connection->Query("CHECKPOINT;", "update");
+  ASSERT_TRUE(checkpoint) << checkpoint.error().ToString();
+
   const auto initial_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
+  const auto initial_snapshot =
+      ReadCurrentSnapshotIdentity(db_->graph_snapshot_store());
 
-  auto connection = db_->Connect();
   auto explain = connection->Query(
       "EXPLAIN CREATE NODE TABLE direct_schema_probe("
       "id INT64, PRIMARY KEY(id));",
@@ -656,6 +669,8 @@ TEST_F(NeugDBServiceTest, DirectPlanningGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(create) << create.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
+  EXPECT_EQ(ReadCurrentSnapshotIdentity(db_->graph_snapshot_store()),
+            initial_snapshot);
 
   auto read = connection->Query("MATCH (n:person) RETURN count(n);", "read");
   ASSERT_TRUE(read) << read.error().ToString();
@@ -667,33 +682,47 @@ TEST_F(NeugDBServiceTest, DirectPlanningGenerationTracksActualDdlMutations) {
   ASSERT_TRUE(no_op) << no_op.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
             initial_generation + 1);
+  EXPECT_EQ(ReadCurrentSnapshotIdentity(db_->graph_snapshot_store()),
+            initial_snapshot);
   connection->Close();
 }
 
 TEST_F(NeugDBServiceTest,
        DirectUpdateAndBulkLoadInvalidateCacheWithoutSchemaChange) {
+  // Settle the fixture's unlogged COPY work before measuring ordinary-write
+  // planning behavior. The bulk barrier intentionally checkpoints before the
+  // next WAL-backed write.
+  auto connection = db_->Connect();
+  auto checkpoint = connection->Query("CHECKPOINT;", "update");
+  ASSERT_TRUE(checkpoint) << checkpoint.error().ToString();
+
   const auto initial_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
+  const auto initial_snapshot =
+      ReadCurrentSnapshotIdentity(db_->graph_snapshot_store());
 
-  auto connection = db_->Connect();
   auto insert = connection->Query(
       "CREATE (:person {id: 20001, name: 'direct-cache-test', age: 1});",
       "insert");
   ASSERT_TRUE(insert) << insert.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
             initial_generation);
+  EXPECT_EQ(ReadCurrentSnapshotIdentity(db_->graph_snapshot_store()),
+            initial_snapshot);
 
   auto update = connection->Query("MATCH (n:person {id: 20001}) SET n.age = 2;",
                                   "update");
   ASSERT_TRUE(update) << update.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
-            initial_generation + 1);
+            initial_generation);
+  EXPECT_EQ(ReadCurrentSnapshotIdentity(db_->graph_snapshot_store()),
+            initial_snapshot);
 
   auto no_op_update = connection->Query(
       "MATCH (n:person {id: 29999}) SET n.age = 2;", "update");
   ASSERT_TRUE(no_op_update) << no_op_update.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
-            initial_generation + 1);
+            initial_generation);
 
   const auto copy_path = test_dir_ / "direct-cache-copy.csv";
   {
@@ -705,7 +734,7 @@ TEST_F(NeugDBServiceTest,
       "COPY person FROM \"" + copy_path.string() + "\";", "update");
   ASSERT_TRUE(copy) << copy.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
-            initial_generation + 2);
+            initial_generation + 1);
   connection->Close();
 }
 
@@ -715,7 +744,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesPlanningGenerations) {
   ASSERT_TRUE(slot);
 
   // Keep the old snapshot pinned while a DDL publishes a new schema.
-  auto old_txn = slot->GetReadTransaction();
+  auto old_txn = slot->BeginReadTransaction();
   ASSERT_FALSE(old_txn.schema().is_vertex_label_valid("cache_gen_probe"));
   const auto old_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
@@ -741,7 +770,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesPlanningGenerations) {
   ASSERT_TRUE(old_plan_again) << old_plan_again.error().ToString();
   EXPECT_EQ(old_plan.value().get(), old_plan_again.value().get());
 
-  auto new_txn = slot->GetReadTransaction();
+  auto new_txn = slot->BeginReadTransaction();
   ASSERT_TRUE(new_txn.schema().is_vertex_label_valid("cache_gen_probe"));
   const auto new_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
@@ -871,23 +900,31 @@ TEST_F(NeugDBServiceTest, ApUpdateAfterTpUsesCurrentReadTimestamp) {
   ASSERT_EQ(response.arrays_size(), 1);
   ASSERT_EQ(response.arrays(0).int64_array().values_size(), 1);
   EXPECT_EQ(response.arrays(0).int64_array().values(0), 31);
-}
+  connection->Close();
 
-TEST_F(NeugDBServiceTest, PrepareForServingResetsSharedApTpTimeline) {
-  timestamp_t timestamp_before_checkpoint = INVALID_TIMESTAMP;
+  // The AP COW update consumes the next shared write timestamp. Returning to
+  // service mode continues the same timeline without a transition checkpoint.
   {
     neug::NeugDBService service(*db_, config_);
-    timestamp_before_checkpoint =
+    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1002),
+              tp_timestamp + 2);
+  }
+}
+
+TEST_F(NeugDBServiceTest, PrepareForServingPreservesSharedApTpTimeline) {
+  timestamp_t timestamp_before_prepare = INVALID_TIMESTAMP;
+  {
+    neug::NeugDBService service(*db_, config_);
+    timestamp_before_prepare =
         InsertModernPersonAndReturnTimestamp(service, 1001);
-    EXPECT_GT(timestamp_before_checkpoint, 1)
-        << "TP must continue the VersionManager timeline used by AP loading";
   }
 
   db_->PrepareForServing();
 
   {
     neug::NeugDBService service(*db_, config_);
-    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1002), 1);
+    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1002),
+              timestamp_before_prepare + 1);
   }
 }
 
@@ -1105,8 +1142,8 @@ TEST_F(NeugDBServiceTest, ConnectWhileServingThrows) {
     EXPECT_THROW(db_->Connect(), neug::exception::RuntimeError);
   }
 
-  // After the TP-owned slots and their WAL writers are destroyed, a new
-  // embedded connection receives a fresh, WAL-free slot.
+  // After the service scheduler and DB-owned transactional slots are retired,
+  // a new direct connection reuses the DB-owned logical writer slot 0.
   auto conn = db_->Connect();
   ASSERT_TRUE(conn != nullptr);
   EXPECT_TRUE(conn->Query("MATCH (n) RETURN count(n);", "read"));

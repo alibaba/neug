@@ -47,7 +47,7 @@ class IWalWriter;
  * durability and per-record-timestamp visibility.
  *
  * **Isolation model — NOT snapshot isolation.**
- * Unlike UpdateTransaction, InsertTransaction does NOT COW-clone the
+ * Unlike SnapshotCowWriteTransaction, InsertTransaction does NOT COW-clone the
  * PropertyGraph. It pins the current GraphSnapshotStore slot and, on Commit(),
  * applies the WAL ops directly to the live PropertyGraph behind that slot via
  * `IngestWal(slot_->mutable_view(), ...)`. Concurrent ReadTransactions on the

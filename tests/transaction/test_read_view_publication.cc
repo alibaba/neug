@@ -29,11 +29,12 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
-#include "neug/transaction/ap_operation_guard.h"
+#include "neug/transaction/current_graph_operation_guard.h"
 #include "neug/transaction/read_snapshot_lease.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/transaction/wal/dummy_wal_writer.h"
 #include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
@@ -134,6 +135,9 @@ class ScriptedVersionManager : public IVersionManager {
   }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
+  bool drain_readers_until(std::chrono::steady_clock::time_point) override {
+    return true;
+  }
   void finish_update_timestamp(uint32_t,
                                std::optional<uint32_t>) noexcept override {}
   void finish_update_and_reset_timeline(uint32_t) noexcept override {}
@@ -284,17 +288,17 @@ TEST_F(ReadViewPublicationTest,
   EXPECT_FALSE(lease.view().schema().is_vertex_label_valid("company"));
 }
 
-TEST_F(ReadViewPublicationTest, APSharedGuardBlocksExclusiveAdmission) {
+TEST_F(ReadViewPublicationTest, CurrentGraphReadGuardBlocksExclusiveAdmission) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
   ASSERT_TRUE(
       version_manager.try_set_runtime_wait_if_quiescent(&CountRuntimeWait));
   runtime_wait_calls.store(0, std::memory_order_relaxed);
 
-  auto shared = APSharedGuard::Acquire(version_manager, *store_);
+  auto shared = CurrentGraphReadGuard::Acquire(version_manager, *store_);
   std::atomic<bool> exclusive_acquired{false};
   std::thread exclusive([&] {
-    auto guard = APExclusiveGuard::Acquire(version_manager, *store_);
+    auto guard = CurrentGraphWriteGuard::Acquire(version_manager, *store_);
     exclusive_acquired.store(true, std::memory_order_release);
   });
 
@@ -309,9 +313,9 @@ TEST_F(ReadViewPublicationTest, APSharedGuardBlocksExclusiveAdmission) {
 }
 
 TEST_F(ReadViewPublicationTest,
-       APSharedGuardUsesGenericAdmissionWithoutCapturingReadView) {
+       CurrentGraphReadGuardUsesGenericAdmissionWithoutCapturingReadView) {
   ScriptedVersionManager version_manager({1, 0});
-  auto guard = APSharedGuard::Acquire(version_manager, *store_);
+  auto guard = CurrentGraphReadGuard::Acquire(version_manager, *store_);
 
   EXPECT_EQ(version_manager.acquire_count(), 0);
 }
@@ -332,14 +336,15 @@ TEST_F(ReadViewPublicationTest, GenericOperationLeasesShareTheAdmissionGate) {
 }
 
 TEST_F(ReadViewPublicationTest,
-       APExclusiveGuardBlocksInsertersWithoutReservingTimestamp) {
+       CurrentGraphWriteGuardBlocksInsertersAndReservesWriteTimestamp) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
   ASSERT_TRUE(
       version_manager.try_set_runtime_wait_if_quiescent(&CountRuntimeWait));
   runtime_wait_calls.store(0, std::memory_order_relaxed);
 
-  auto exclusive = APExclusiveGuard::Acquire(version_manager, *store_);
+  auto exclusive = CurrentGraphWriteGuard::Acquire(version_manager, *store_);
+  EXPECT_EQ(exclusive.Timestamp(), 2U);
   std::atomic<uint32_t> insert_timestamp{0};
   std::thread inserter([&] {
     const uint32_t timestamp = version_manager.acquire_insert_timestamp();
@@ -355,7 +360,53 @@ TEST_F(ReadViewPublicationTest,
   EXPECT_TRUE(WaitUntil(
       [&] { return insert_timestamp.load(std::memory_order_acquire) != 0; }));
   inserter.join();
-  EXPECT_EQ(insert_timestamp.load(std::memory_order_acquire), 2U);
+  EXPECT_EQ(insert_timestamp.load(std::memory_order_acquire), 3U);
+}
+
+TEST_F(ReadViewPublicationTest,
+       SharedDirectWriterNeedsNoMutexUnderExclusiveAdmission) {
+  VersionManager version_manager;
+  version_manager.init_ts({1, 0}, 2);
+  ASSERT_TRUE(
+      version_manager.try_set_runtime_wait_if_quiescent(&CountRuntimeWait));
+  runtime_wait_calls.store(0, std::memory_order_relaxed);
+
+  DummyWalWriter shared_writer;
+  std::atomic<int> active_writer_sections{0};
+  std::atomic<int> max_active_writer_sections{0};
+  std::atomic<bool> first_entered{false};
+  std::atomic<bool> release_first{false};
+
+  auto enter_writer = [&](bool hold) {
+    auto guard = CurrentGraphWriteGuard::Acquire(version_manager, *store_);
+    const int active =
+        active_writer_sections.fetch_add(1, std::memory_order_acq_rel) + 1;
+    int observed_max = max_active_writer_sections.load();
+    while (observed_max < active &&
+           !max_active_writer_sections.compare_exchange_weak(observed_max,
+                                                             active)) {}
+    if (hold) {
+      first_entered.store(true, std::memory_order_release);
+      while (!release_first.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+    }
+    EXPECT_TRUE(shared_writer.append("x", 1));
+    active_writer_sections.fetch_sub(1, std::memory_order_acq_rel);
+  };
+
+  std::thread first(enter_writer, true);
+  ASSERT_TRUE(
+      WaitUntil([&] { return first_entered.load(std::memory_order_acquire); }));
+  std::thread second(enter_writer, false);
+  EXPECT_TRUE(WaitUntil(
+      [] { return runtime_wait_calls.load(std::memory_order_relaxed) != 0; }));
+  EXPECT_EQ(max_active_writer_sections.load(std::memory_order_acquire), 1);
+
+  release_first.store(true, std::memory_order_release);
+  first.join();
+  second.join();
+  EXPECT_EQ(max_active_writer_sections.load(std::memory_order_acquire), 1);
 }
 
 TEST_F(ReadViewPublicationTest, APGuardsPropagateAdmissionDeadlines) {
@@ -363,14 +414,16 @@ TEST_F(ReadViewPublicationTest, APGuardsPropagateAdmissionDeadlines) {
   version_manager.init_ts({1, 0}, 2);
   const auto expired = std::chrono::steady_clock::time_point::min();
 
-  auto shared = APSharedGuard::Acquire(version_manager, *store_);
-  EXPECT_THROW(APExclusiveGuard::Acquire(version_manager, *store_, expired),
-               exception::TransactionTimeoutException);
+  auto shared = CurrentGraphReadGuard::Acquire(version_manager, *store_);
+  EXPECT_THROW(
+      CurrentGraphWriteGuard::Acquire(version_manager, *store_, expired),
+      exception::TransactionTimeoutException);
   shared.release();
 
-  auto exclusive = APExclusiveGuard::Acquire(version_manager, *store_);
-  EXPECT_THROW(APSharedGuard::Acquire(version_manager, *store_, expired),
-               exception::TransactionTimeoutException);
+  auto exclusive = CurrentGraphWriteGuard::Acquire(version_manager, *store_);
+  EXPECT_THROW(
+      CurrentGraphReadGuard::Acquire(version_manager, *store_, expired),
+      exception::TransactionTimeoutException);
 }
 
 TEST_F(ReadViewPublicationTest,

@@ -129,9 +129,9 @@ void InitializeBrpcServiceProtocols();
 class UnifiedServiceImpl {
  public:
   explicit UnifiedServiceImpl(neug::NeugDB& neug_db,
-                              TpExecutionSlotPool& execution_slot_pool)
+                              ExecutionSlotScheduler& execution_slot_scheduler)
       : neug_db_(neug_db),
-        execution_slot_pool_(execution_slot_pool),
+        execution_slot_scheduler_(execution_slot_scheduler),
         planner_(neug_db_.GetPlanner()) {}
 
   virtual ~UnifiedServiceImpl() {}
@@ -142,15 +142,15 @@ class UnifiedServiceImpl {
 
  protected:
   neug::NeugDB& neug_db_;
-  TpExecutionSlotPool& execution_slot_pool_;
+  ExecutionSlotScheduler& execution_slot_scheduler_;
   std::shared_ptr<neug::IGraphPlanner> planner_;
 };
 
 class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
  public:
   explicit HttpServiceImpl(neug::NeugDB& neug_db,
-                           TpExecutionSlotPool& execution_slot_pool)
-      : UnifiedServiceImpl(neug_db, execution_slot_pool),
+                           ExecutionSlotScheduler& execution_slot_scheduler)
+      : UnifiedServiceImpl(neug_db, execution_slot_scheduler),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
   virtual ~HttpServiceImpl() {}
 
@@ -173,7 +173,7 @@ class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
 class BrpcServiceManager : public IServiceManager {
  public:
   explicit BrpcServiceManager(neug::NeugDB& neug_db,
-                              TpExecutionSlotPool& execution_slot_pool);
+                              ExecutionSlotScheduler& execution_slot_scheduler);
 
   ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
@@ -184,7 +184,7 @@ class BrpcServiceManager : public IServiceManager {
 
  private:
   neug::NeugDB& neug_db_;
-  TpExecutionSlotPool& execution_slot_pool_;
+  ExecutionSlotScheduler& execution_slot_scheduler_;
   uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 

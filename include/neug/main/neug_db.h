@@ -36,7 +36,7 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
 
@@ -55,6 +55,8 @@ class IVersionManager;
 class IWalParser;
 class Schema;
 class ExecutionSlot;
+class ExecutionSlotSet;
+class WalWriterSet;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -216,9 +218,14 @@ class NeugDB {
    * @endcode
    *
    * @note This method is idempotent - calling it multiple times is safe.
-   * @note After closing, the database cannot be reopened. Create a new
-   *       NeugDB instance to open the database again.
+   * @note If unlogged bulk data requires a shutdown checkpoint and publication
+   *       fails, this method reports the failure after releasing runtime
+   *       resources and file locks. The database is closed in that case.
    * @warning The caller must ensure no Connection operation is in progress.
+   *
+   * @throws neug::exception::IOException or
+   * neug::exception::InternalException if a mandatory shutdown checkpoint for
+   * unlogged bulk data fails.
    *
    * @since v0.1.0
    */
@@ -337,8 +344,10 @@ class NeugDB {
   void initPlanner();
   void initQueryRuntime();
   void clearQueryRuntime() noexcept;
-  void closeAllConnections();
+  void prepareQueryRuntimeForServing();
   std::unique_ptr<ExecutionSlot> createExecutionSlot(size_t slot_id);
+  ExecutionSlotSet& activateTransactionalRuntime();
+  void deactivateTransactionalRuntime() noexcept;
   void initVersionManager(timestamp_t initial_visibility_ts);
   void cleanupTemporaryWorkspace() noexcept;
   bool createCheckpointAfterRecovery();
@@ -367,9 +376,9 @@ class NeugDB {
    * closed first (and registration is rejected). A service can therefore
    * never be registered onto a closed or closing database.
    *
-   * Registration closes embedded connections before the service constructs
-   * its TP execution-slot pool. The caller must ensure those connections are
-   * not in use.
+   * Registration activates the DB-owned transactional slots and returns them
+   * to the service scheduler. The caller must close embedded connections
+   * first.
    *
    * @param svc The service instance to register.
    *
@@ -377,7 +386,7 @@ class NeugDB {
    * associated with this database, or if the database is closed or being
    * closed.
    */
-  void registerService(NeugDBService* svc);
+  ExecutionSlotSet& registerService(NeugDBService* svc);
 
   /**
    * @brief Unregister the active NeugDBService from this database.
@@ -407,6 +416,11 @@ class NeugDB {
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;
+  // Physical WAL writers and transactional slots are database runtime
+  // resources. Direct connections share writer slot 0; service execution
+  // activates one writer and one stable slot per logical slot id.
+  std::unique_ptr<WalWriterSet> wal_writers_;
+  std::unique_ptr<ExecutionSlotSet> transactional_slots_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::unique_ptr<ConnectionManager> connection_manager_;

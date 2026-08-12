@@ -17,6 +17,7 @@
 
 #include <glog/logging.h>
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 #include "neug/generated/proto/plan/error.pb.h"
@@ -332,6 +333,27 @@ void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
   // Release the old cur-pin; cleanup is immediate only when no reader holds
   // it.
   unpinSnapshotByIndex(old_slot_index);
+}
+
+void GraphSnapshotStore::publishCurrentReplacement(
+    SnapshotSlot& target, std::shared_ptr<PropertyGraph>& prepared_storage,
+    GraphView& prepared_view, uint64_t planning_generation) noexcept {
+  static_assert(std::is_nothrow_swappable_v<std::shared_ptr<PropertyGraph>>);
+  static_assert(std::is_nothrow_swappable_v<GraphView>);
+
+  const int current_index = cur_slot_index_.load(std::memory_order_acquire);
+  auto& current = slots_[current_index];
+  CHECK_EQ(&target, &current);
+  // The current slot owns one cur-pin and CurrentCowWriteTransaction owns one
+  // writer pin. Any additional pin would retain references into the
+  // storage/view pair that is about to be replaced in place.
+  CHECK_EQ(current.reader_count_.load(std::memory_order_acquire), 2);
+
+  using std::swap;
+  swap(current.storage_, prepared_storage);
+  swap(current.view_, prepared_view);
+  current.planning_generation_.store(planning_generation,
+                                     std::memory_order_release);
 }
 
 uint32_t GraphSnapshotStore::publishInPlaceMutation(

@@ -42,9 +42,12 @@ class UpdateTimestampLease {
   UpdateTimestampLease& operator=(UpdateTimestampLease&&) = delete;
 
   uint32_t Timestamp() const noexcept { return timestamp_; }
+  bool active() const noexcept { return timestamp_ != kInactiveTimestamp; }
 
   void BeginCommit();
   void MakeUpdateExclusive();
+  void MakeUpdateExclusiveUntil(
+      std::chrono::steady_clock::time_point deadline);
   void Finish(std::optional<uint32_t> installed_snapshot_generation) noexcept;
   /// Finish after storage and WAL have moved to a new timeline. The installed
   /// snapshot generation is preserved while transaction visibility timestamps

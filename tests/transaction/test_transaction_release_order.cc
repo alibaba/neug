@@ -87,6 +87,10 @@ class ReleaseOrderVersionManager : public IVersionManager {
   }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
+  bool drain_readers_until(
+      std::chrono::steady_clock::time_point) override {
+    return true;
+  }
   void finish_update_timestamp(uint32_t,
                                std::optional<uint32_t>) noexcept override {}
   void finish_update_and_reset_timeline(uint32_t) noexcept override {}

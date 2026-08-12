@@ -57,7 +57,8 @@ void NeugDBService::restoreNativeRuntimeWait() noexcept {
   bthread_runtime_wait_installed_ = false;
 }
 
-void NeugDBService::init(const ServiceConfig& config) {
+void NeugDBService::init(const ServiceConfig& config,
+                         ExecutionSlotSet& execution_slots) {
   if (db_.IsClosed()) {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
   }
@@ -84,19 +85,13 @@ void NeugDBService::init(const ServiceConfig& config) {
   bthread_setconcurrency(
       std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
 
-  execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
-      db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
-      *db_.version_manager_, *db_.checkpoint_coordinator_, db_.allocators_,
-      db_.graph().checkpoint().wal_dir(), db_config_);
+  execution_slot_scheduler_ =
+      std::make_unique<neug::ExecutionSlotScheduler>(execution_slots);
 
-  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
+  hdl_mgr_ =
+      std::make_unique<BrpcServiceManager>(db_, *execution_slot_scheduler_);
   hdl_mgr_->Init(effective_config);
   service_config_ = effective_config;
-
-  db_.checkpoint_coordinator_->SetActivationHandler(
-      [pool = execution_slot_pool_.get()](const std::string& wal_uri) {
-        pool->RotateWalWriters(wal_uri);
-      });
 }
 
 NeugDBService::~NeugDBService() {
@@ -105,10 +100,7 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
-  if (db_.checkpoint_coordinator_) {
-    db_.checkpoint_coordinator_->ClearActivationHandler();
-  }
-  execution_slot_pool_.reset();
+  execution_slot_scheduler_.reset();
   restoreNativeRuntimeWait();
   db_.unregisterService(this);
 }
@@ -118,7 +110,7 @@ const ServiceConfig& NeugDBService::GetServiceConfig() const {
 }
 
 neug::ExecutionSlotLease NeugDBService::AcquireExecutionSlot() {
-  return execution_slot_pool_->AcquireExecutionSlot();
+  return execution_slot_scheduler_->AcquireExecutionSlot();
 }
 
 bool NeugDBService::IsRunning() const {
@@ -126,7 +118,7 @@ bool NeugDBService::IsRunning() const {
 }
 
 neug::result<std::string> NeugDBService::service_status() {
-  if (!hdl_mgr_ || !execution_slot_pool_) {
+  if (!hdl_mgr_ || !execution_slot_scheduler_) {
     return neug::result<std::string>(
         "NeugDB service has not been initialized!");
   }
@@ -193,7 +185,7 @@ std::string NeugDBService::Start() {
 }
 
 size_t NeugDBService::getExecutedQueryNum() const {
-  return execution_slot_pool_->getExecutedQueryNum();
+  return execution_slot_scheduler_->ExecutedQueryNum();
 }
 
 void NeugDBService::stopCompactThread() {
@@ -234,7 +226,7 @@ void NeugDBService::startCompactThread() {
             VLOG(10) << "Trigger auto compaction";
             last_compaction_at = query_num_after;
             auto slot_lease = AcquireExecutionSlot();
-            auto txn = slot_lease->GetCompactTransaction();
+            auto txn = slot_lease->BeginCompactTransaction();
             txn.Commit();
             VLOG(10) << "Finish compaction";
           }

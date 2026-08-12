@@ -31,11 +31,11 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/config.h"
 #include "neug/main/neug_db.h"
-#include "neug/server/tp_execution_slot_pool.h"
+#include "neug/server/execution_slot_scheduler.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
@@ -89,10 +89,10 @@ namespace neug {
  * - `GET /status` - Check service status
  *
  * **Thread Safety:** All public methods are thread-safe. The service uses
- * a TpExecutionSlotPool internally to handle concurrent requests efficiently.
+ * an ExecutionSlotScheduler internally to lease DB-owned slots efficiently.
  *
  * @see ExecutionSlot for execution slot-based query execution
- * @see TpExecutionSlotPool for execution slot management
+ * @see ExecutionSlotScheduler for service slot scheduling
  * @since v0.1.0
  */
 class NeugDBService {
@@ -114,13 +114,13 @@ class NeugDBService {
    */
   NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
       : db_(db), db_config_(db_.config()) {
-    db_.registerService(this);
+    auto& execution_slots = db_.registerService(this);
     try {
       installBthreadRuntimeWait();
-      init(config);
+      init(config, execution_slots);
     } catch (...) {
       hdl_mgr_.reset();
-      execution_slot_pool_.reset();
+      execution_slot_scheduler_.reset();
       restoreNativeRuntimeWait();
       db_.unregisterService(this);
       throw;
@@ -248,7 +248,7 @@ class NeugDBService {
   size_t getExecutedQueryNum() const;
 
   size_t ExecutionSlotNum() const {
-    return execution_slot_pool_->ExecutionSlotNum();
+    return execution_slot_scheduler_->ExecutionSlotNum();
   }
 
  private:
@@ -272,11 +272,11 @@ class NeugDBService {
    * @note This method can be called only once. Subsequent calls are ignored.
    * @note Must be called before Start() or run_and_wait_for_exit()
    */
-  void init(const ServiceConfig& config);
+  void init(const ServiceConfig& config, ExecutionSlotSet& execution_slots);
 
   neug::NeugDB& db_;
   neug::NeugDBConfig db_config_;
-  std::unique_ptr<neug::TpExecutionSlotPool> execution_slot_pool_;
+  std::unique_ptr<neug::ExecutionSlotScheduler> execution_slot_scheduler_;
   std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;

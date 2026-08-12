@@ -119,25 +119,25 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
   // 1) Compact + Commit
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginCompactTransaction();
     EXPECT_TRUE(compact_txn.Commit());
   }
   // 2) Compact + Abort
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginCompactTransaction();
     compact_txn.Abort();
   }
   // 3) Destructor auto-abort (no Commit/Abort call)
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginCompactTransaction();
   }
 
   // Verify all data intact after all three paths
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -174,7 +174,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   // Verify deletion visible before compact
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 1);
@@ -184,14 +184,14 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   // Compact
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginCompactTransaction();
     EXPECT_TRUE(compact_txn.Commit());
   }
 
   // Verify data after compact — deletion should be permanent
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -232,7 +232,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     // Compact explicitly before close
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto compact_txn = slot->GetCompactTransaction();
+      auto compact_txn = slot->BeginCompactTransaction();
       EXPECT_TRUE(compact_txn.Commit());
     }
 
@@ -249,7 +249,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     auto svc2 = std::make_shared<neug::NeugDBService>(db2);
 
     auto slot = svc2->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -274,7 +274,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginCompactTransaction();
     EXPECT_TRUE(compact_txn.Commit());
     EXPECT_TRUE(compact_txn.Commit());  // double commit — no-op
     compact_txn.Abort();                // abort after commit — no-op
@@ -283,7 +283,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
   // Verify data intact
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -297,10 +297,10 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 // Concurrency exclusion tests: CompactTransaction blocks all other
 // transaction types (Read, Insert, Update, and another Compact).
 //
-// Tests at VersionManager level to avoid TpExecutionSlotPool size constraints.
-// Strategy: main thread acquires compact timestamp (holds exclusive lock),
-// worker thread tries to acquire another timestamp type — should be blocked
-// until main thread releases compact.
+// Tests at VersionManager level to avoid service slot-scheduler size
+// constraints. Strategy: main thread acquires compact timestamp (holds
+// exclusive lock), worker thread tries to acquire another timestamp type —
+// should be blocked until main thread releases compact.
 // ---------------------------------------------------------------------------
 
 // Helper: verify that `acquire_fn` is blocked while compact timestamp is

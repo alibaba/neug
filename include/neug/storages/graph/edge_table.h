@@ -186,7 +186,7 @@ class EdgeTable {
   std::shared_ptr<const EdgeSchema> meta() const { return meta_; }
 
   /// Detach the outgoing adjlist of vertex vid.
-  /// Called by UpdateTransaction via PropertyGraphCowState when the adjlist
+  /// Called by SnapshotCowWriteTransaction via CowDetachLedger when the adjlist
   /// has not yet been detached in the current transaction.
   void DetachOutAdjlist(vid_t vid, Allocator& alloc);
 

@@ -5,15 +5,19 @@
 > [Transaction Management](../../../doc/source/transaction/transaction.md).
 
 For ordinary queries, the transactional `ExecutionSlot` strategy uses
-`ReadTransaction`, `InsertTransaction`, and `UpdateTransaction`. The direct
-strategy uses `APSharedGuard` for reads and `InPlaceWriteScope` with
-`StorageAPInPlaceUpdateInterface` for automatic writes.
-`CompactTransaction` and `CheckpointCoordinator` implement maintenance paths.
+`ReadTransaction`, `InsertTransaction`, and `SnapshotCowWriteTransaction`. The
+direct strategy uses `CurrentGraphReadGuard` for reads and
+`CurrentCowWriteTransaction` for ordinary DML and DDL. COPY, other bulk paths,
+and temporary-schema cleanup still use the exclusive in-place path until their
+checkpoint protocol is migrated. `CompactTransaction` and
+`CheckpointCoordinator` implement maintenance paths.
 
 These objects use RAII: terminal operations disarm their resources, and
 destruction releases any active transaction or lease. Acquisition is ordered
 before graph access: read and insert timestamps are acquired before pinning a
-snapshot, while an update lease is acquired before cloning the current graph.
+snapshot, a snapshot COW write lease is acquired before cloning the current
+graph, and a current COW write guard holds exclusive admission while cloning and
+replacing the current graph.
 
 ## Read Transaction
 
@@ -55,26 +59,36 @@ subsequent edge inserts can resolve them before WAL replay.
 An empty commit only releases the transaction. `Abort()` or destruction
 discards buffered operations and completes the timestamp without applying them.
 
-## Update Transaction
+## COW Write Transactions
 
-Acquiring an update timestamp changes admission from `kOpen` to
-`kInsertsBlocked`, blocking new inserts and updates and waiting for active
-inserts to finish. Reads remain allowed. `ExecutionSlot` then clones the
-current `PropertyGraph`, and `StorageCOWUpdateInterface` applies DML or DDL to
-that COW clone. `UpdateTransaction` owns the clone, CowState and timestamp
-lease; each statement temporarily supplies its allocator, while commit
-temporarily supplies the snapshot store and WAL writer.
+`CowGraphWriteSet` owns the private graph clone, detach ledger, private
+`GraphView`, logical redo, and planning delta, and borrows the execution-slot
+allocator. It is mutation state, not a transaction. `CowGraphUpdateStorage` is
+the shared DML/DDL facade. The two transaction owners differ only where their
+admission, visibility, and publication protocols differ.
 
-A non-empty `Commit()` first reserves a snapshot slot, appends its finalized
-redo, then calls `UpdateTimestampLease::BeginCommit()`, publishes the prepared
-clone, and completes the timestamp with the published snapshot generation. New
-readers and writers are briefly blocked during publication; already-pinned
-readers continue using their old slot.
+`CurrentCowWriteTransaction` is the direct-mode owner. It holds exclusive
+current-graph admission, clones the pinned current graph, executes ordinary
+writes against the private clone, appends logical redo, and replaces the graph
+and view inside the existing current slot. Abort discards the clone. It does not
+create a snapshot slot or advance the snapshot generation.
 
-`PropertyGraphCowState::HasChanges()` decides whether a snapshot must be
-published. Data-only commits retain the planning generation; schema or index
-changes advance it once. An empty commit, `Abort()`, or destruction discards the
-clone, closes the timestamp gap, and reopens admission without publishing.
+`SnapshotCowWriteTransaction` is the transactional-mode owner. Acquiring its
+update timestamp changes admission from `kOpen` to `kInsertsBlocked`, blocking
+new inserts and updates and waiting for active inserts to finish while reads
+continue on their pinned snapshots.
+
+A non-empty snapshot COW `Commit()` first reserves a snapshot slot, appends its
+finalized redo, then calls `UpdateTimestampLease::BeginCommit()`, publishes the
+prepared clone, and completes the timestamp with the published snapshot
+generation. New readers and writers are briefly blocked during publication;
+already-pinned readers continue using their old slot.
+
+Logical redo decides whether a snapshot must be published; physical detach
+state is only used to deduplicate COW work. Schema/index-definition changes and
+successful non-empty batch insert/delete operations advance the planning
+generation once; ordinary DML retains it. For either owner, an empty commit,
+`Abort()`, or destruction discards the private clone without publication.
 
 ## Compact Transaction
 
@@ -92,8 +106,8 @@ readers, and runs maintenance only after `GraphSnapshotStore` verifies that no
 ordinary or stale snapshot pins remain.
 
 Maintenance compacts and dumps the live graph, publishes the checkpoint, and
-reopens the graph. The database handler then reopens allocators and invalidates
-the query cache; service mode additionally rotates execution-slot WAL writers.
+reopens the graph. The database handler then reopens allocators, rotates every
+active writer in the DB-owned `WalWriterSet`, and invalidates the query cache.
 New transactions remain blocked until these steps finish. Success resets the
 timestamp timeline (`read_ts = 0`, next `write_ts = 1`) and reopens admission.
 
@@ -112,10 +126,11 @@ active-inserter counters:
 | `kInsertsBlocked` | allowed | blocked | blocked | update execution; active inserts are drained |
 | `kAllBlocked` | blocked | blocked | blocked | update commit or in-place maintenance |
 
-An ordinary update does not drain readers already admitted before
-`kAllBlocked`; compact and manual checkpoint explicitly drain them before
-in-place maintenance. Contended acquisition uses `AdaptiveBackoff` with the
-runtime wait function configured for the current runtime.
+A snapshot COW update does not drain readers already admitted before its brief
+`kAllBlocked` publication phase. A current COW update, compact, and manual
+checkpoint drain readers before accessing the current graph exclusively.
+Contended acquisition uses `AdaptiveBackoff` with the runtime wait function
+configured for the current runtime.
 
 `write_ts_` allocates unique write timestamps. `read_ts_` is the highest
 contiguous completed timestamp and is returned to new readers. Completion
@@ -137,7 +152,7 @@ backoff cursors. Existing production callers retain infinite-wait behavior and
 do not read the clock; future explicit-transaction integration will pass its
 write-wait deadline through this overload.
 
-When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `SnapshotCowWriteTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 
 Timestamp completion uses a fixed ring whose slots contain the exact completed
 timestamp, not a boolean bit. Before assigning a new write timestamp,
@@ -150,4 +165,4 @@ existing inserts.
 
 For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
 
-For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp is assigned. Commit makes all modifications visible atomically. Transactional writes are logged before publication.
+For each `InsertTransaction` or `SnapshotCowWriteTransaction`, a unique timestamp is assigned. Commit makes all modifications visible atomically. Transactional writes are logged before publication.

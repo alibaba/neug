@@ -33,7 +33,7 @@ namespace neug {
 /// buffer and increments the operation count. DDL Log methods additionally set
 /// schema_changed_ = true.
 ///
-/// UpdateTransaction::Commit() uses:
+/// SnapshotCowWriteTransaction::Commit() uses:
 ///   - op_num() == 0  → nothing to do, early return
 ///   - op_num() > 0   → must publish snapshot
 class WalBuilder {

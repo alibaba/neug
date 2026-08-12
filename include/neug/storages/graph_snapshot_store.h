@@ -31,6 +31,7 @@ namespace neug {
 
 class ExecutionSlot;
 class InPlaceWriteScope;
+class CurrentCowWriteTransaction;
 class Checkpoint;
 
 /**
@@ -77,6 +78,8 @@ class GraphSnapshotStore {
     GraphView& mutable_view() { return view_; }
     /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
     PropertyGraph* mutable_graph() { return storage_.get(); }
+    /// Read-only PropertyGraph accessor.
+    const PropertyGraph& graph() const { return *storage_; }
     /// Snapshot publication generation carried by this slot incarnation.
     uint32_t snapshot_generation() const { return snapshot_generation_; }
     /// Plan-cache invalidation generation carried by this snapshot.
@@ -213,6 +216,7 @@ class GraphSnapshotStore {
 
  private:
   friend class InPlaceWriteScope;
+  friend class CurrentCowWriteTransaction;
 
   int slot_num_;
   std::vector<SnapshotSlot> slots_;
@@ -227,6 +231,9 @@ class GraphSnapshotStore {
   uint32_t reserveSnapshotGeneration();
   uint32_t publishInPlaceMutation(SnapshotSlot& mutated_slot,
                                   bool planning_changed) noexcept;
+  void publishCurrentReplacement(
+      SnapshotSlot& target, std::shared_ptr<PropertyGraph>& prepared_storage,
+      GraphView& prepared_view, uint64_t planning_generation) noexcept;
   void publishPreparedSnapshot(int slot_index) noexcept;
   void unpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);

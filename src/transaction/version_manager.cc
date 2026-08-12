@@ -308,6 +308,16 @@ void VersionManager::drain_readers() {
   gate_.wait_readers_drained();
 }
 
+bool VersionManager::drain_readers_until(
+    std::chrono::steady_clock::time_point deadline) {
+  if (OperationGateWord::phase(gate_.load_acquire()) !=
+      AdmissionState::kAllBlocked) {
+    THROW_INTERNAL_EXCEPTION(
+        "drain_readers_until called while readers are not blocked");
+  }
+  return gate_.wait_readers_drained_until(deadline);
+}
+
 void VersionManager::finish_update_timestamp(
     uint32_t ts,
     std::optional<uint32_t> installed_snapshot_generation) noexcept {

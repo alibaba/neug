@@ -1,6 +1,7 @@
 add_neug_test(runtime_wait_test test_runtime_wait.cc)
 add_neug_test(operation_gate_test test_operation_gate.cc)
 add_neug_test(read_view_publication_test test_read_view_publication.cc)
+add_neug_test(wal_writer_set_test test_wal_writer_set.cc)
 
 if (BUILD_HTTP_SERVER)
 	add_neug_test(

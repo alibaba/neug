@@ -59,10 +59,11 @@ The storage layer manages graph data persistence, indexing, and access patterns.
 Implements both embedded (global lock) and service (MVCC) transaction models.
 
 - **Core Transaction Types:**
-  - `read_transaction.cc` - Read-only transaction implementation
-  - `insert_transaction.cc` - Data insertion transaction handling
-  - `update_transaction.cc` - Data modification transaction logic
-  - `compact_transaction.cc` - Background compaction operations
+  - `read_transaction.cc` - Read-only snapshot transaction
+  - `insert_transaction.cc` - Concurrent insert-only transaction
+  - `cow_graph_write.cc` - Shared COW mutation data plane and snapshot-publishing write transaction
+  - `current_cow_write_transaction.cc` - Current-slot COW write transaction
+  - `compact_transaction.cc` - Background compaction transaction
 - **`version_manager.cc`** - MVCC timestamp and version management
 - **`wal/`** - Write-Ahead Logging implementation
   - WAL record management
@@ -113,4 +114,4 @@ HTTP and RPC server implementations for service mode operations.
 - **Service Management:**
   - `brpc_service_mgr.cc` - BRPC service framework management
   - `neug_db_service.cc` - Database service implementation and API endpoints
-  - `tp_execution_slot_pool.cc` - ExecutionSlot pooling and resource management
+  - `execution_slot_scheduler.cc` - service scheduling for DB-owned execution slots
