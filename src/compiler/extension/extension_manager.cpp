@@ -61,16 +61,24 @@ void* ExtensionManager::GetLoadedExtensionHandle(const std::string& name) {
 }
 
 void ExtensionManager::InitLoadedExtensions() {
-  std::vector<InitFunc> init_functions;
+  std::vector<std::pair<std::string, InitFunc>> init_functions;
   {
     std::lock_guard<std::mutex> lock(loaded_extensions_mutex_);
     init_functions.reserve(loaded_extensions_.size());
-    for (const auto& [_, extension] : loaded_extensions_) {
-      init_functions.push_back(extension.init);
+    for (const auto& [name, extension] : loaded_extensions_) {
+      init_functions.emplace_back(name, extension.init);
     }
   }
-  for (auto init : init_functions) {
-    init();
+  for (const auto& [name, init] : init_functions) {
+    try {
+      init();
+    } catch (const std::exception& e) {
+      THROW_RUNTIME_ERROR("Extension initialization failed: " + name +
+                          ". Error: " + std::string(e.what()));
+    } catch (...) {
+      THROW_RUNTIME_ERROR(
+          "Extension initialization failed with unknown error: " + name);
+    }
   }
 }
 
