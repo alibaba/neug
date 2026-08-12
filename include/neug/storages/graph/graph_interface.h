@@ -31,6 +31,7 @@ namespace neug {
 class StorageIndex;
 class StorageIndexManager;
 struct IndexMeta;
+struct PendingIndex;
 struct IndexQueryParams;
 struct SearchResult;
 
@@ -365,6 +366,10 @@ class StorageReadInterface : virtual public IStorageInterface {
   /** @brief Get all registered indexes. */
   result<std::vector<StorageIndex*>> GetAllIndexes() const {
     return view_.GetAllIndexes();
+  }
+
+  result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const {
+    return view_.GetAllPendingIndexes();
   }
 
   /**

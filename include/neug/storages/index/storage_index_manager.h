@@ -29,6 +29,12 @@
 
 namespace neug {
 
+struct PendingIndex {
+  std::string key;
+  ModuleDescriptor descriptor;
+  IndexMeta meta;
+};
+
 /**
  * @brief Manages all index instances in the storage layer.
  *
@@ -38,6 +44,7 @@ namespace neug {
  */
 class StorageIndexManager {
  public:
+  using PendingIndex = neug::PendingIndex;
   using IndexColumns =
       std::unordered_map<label_t,
                          std::unordered_map<std::string, const ColumnBase*>>;
@@ -49,12 +56,6 @@ class StorageIndexManager {
     label_t label_id;
     vid_t vid;
     std::vector<std::pair<std::string, Value>> properties;
-  };
-
-  struct PendingIndex {
-    std::string key;
-    ModuleDescriptor descriptor;
-    IndexMeta meta;
   };
 
   StorageIndexManager() = default;
@@ -90,6 +91,7 @@ class StorageIndexManager {
   neug::result<std::vector<PendingIndex*>> GetPendingIndex(
       label_t label_id, const std::string& property_name);
   result<PendingIndex*> GetPendingIndexByName(const std::string& name);
+  result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;
 
   void RecordPendingInsert(
       label_t label_id, vid_t vertex_id,

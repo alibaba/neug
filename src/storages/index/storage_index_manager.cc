@@ -25,12 +25,14 @@ namespace neug {
 static constexpr const char* kIndexPrefix = "index_";
 
 static Status PendingIndexError(const std::string& name,
-                                const std::string& operation) {
+                                const std::string& operation,
+                                const std::string& module_type) {
   return Status(
       StatusCode::ERR_ILLEGAL_OPERATION,
       "Cannot " + operation + " pending index '" + name +
-          "' before its module is loaded. If this is an HNSW index, execute "
-          "LOAD vector_search first.");
+          "' before module type '" + module_type +
+          "' is loaded. Load the extension that registers this module type "
+          "first.");
 }
 
 neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
@@ -111,7 +113,8 @@ neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndex(
   for (const auto& [name, pending] : pending_indexes_) {
     if (pending.meta.schema.label_id == label_id &&
         pending.meta.schema.property_name == property_name) {
-      return tl::unexpected(PendingIndexError(name, "access"));
+      return tl::unexpected(
+          PendingIndexError(name, "access", pending.descriptor.module_type));
     }
   }
   std::vector<StorageIndex*> target_indexes;
@@ -169,6 +172,16 @@ StorageIndexManager::GetPendingIndexByName(const std::string& name) {
     RETURN_STATUS_ERROR(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
   }
   return &it->second;
+}
+
+result<std::vector<const StorageIndexManager::PendingIndex*>>
+StorageIndexManager::GetAllPendingIndexes() const {
+  std::vector<const PendingIndex*> indexes;
+  indexes.reserve(pending_indexes_.size());
+  for (const auto& [_, pending] : pending_indexes_) {
+    indexes.push_back(&pending);
+  }
+  return indexes;
 }
 
 void StorageIndexManager::RecordPendingInsert(
@@ -234,7 +247,9 @@ static Status ReplayPendingMutations(
 neug::result<StorageIndex*> StorageIndexManager::GetIndexByName(
     const std::string& name) const {
   if (pending_indexes_.count(name) > 0) {
-    return tl::unexpected(PendingIndexError(name, "access"));
+    const auto& pending = pending_indexes_.at(name);
+    return tl::unexpected(
+        PendingIndexError(name, "access", pending.descriptor.module_type));
   }
   auto it = indexes_.find(name);
   if (it == indexes_.end() || !it->second) {

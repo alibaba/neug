@@ -15,6 +15,8 @@
 
 #include "neug/storages/module/module_broker.h"
 
+#include <glog/logging.h>
+
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -38,6 +40,9 @@ void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
     auto module = factory.Create(desc.module_type);
     if (!module) {
       if (!desc.required) {
+        LOG(INFO) << "ModuleBroker::Open: skipping optional unknown module "
+                     "type '"
+                  << desc.module_type << "' for entry '" << name << "'";
         continue;
       }
       THROW_INVALID_ARGUMENT_EXCEPTION(
