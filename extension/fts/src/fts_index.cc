@@ -1,0 +1,434 @@
+#include "fts_index.h"
+
+#include <sqlite3.h>
+
+#include <filesystem>
+#include <limits>
+#include <memory>
+#include <regex>
+#include <string>
+#include <unordered_set>
+#include <utility>
+
+#include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/index/index_id_accessor.h"
+#include "neug/storages/module/module_factory.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/property/column.h"
+
+namespace neug::fts_ext {
+namespace {
+
+// Help users locate the character that caused an FTS tokenizer parsing error.
+std::string EnhanceFTS5Error(const std::string& query,
+                             const std::string& error) {
+  static const std::regex kSyntaxErrorPattern(
+      R"fts(fts5: syntax error near "([^"]+)")fts");
+  std::smatch match;
+  if (!std::regex_search(error, match, kSyntaxErrorPattern) ||
+      match.size() < 2 || match.str(1).empty()) {
+    return error;
+  }
+
+  const auto character = match.str(1);
+  const auto position = query.find(character);
+  std::string enhanced = error +
+                         ". FTS5 query cannot parse the unquoted character '" +
+                         character + "'";
+  if (position != std::string::npos) {
+    enhanced += " at position " + std::to_string(position);
+  }
+  enhanced +=
+      "; wrap the query in double quotes to form a phrase or escape the "
+      "character";
+  return enhanced;
+}
+
+// Escape SQLite string literals to prevent SQL injection.
+std::string QuoteSQLiteLiteral(const std::string& value) {
+  std::string quoted{"'"};
+  for (char character : value) {
+    if (character == '\'') {
+      quoted += '\'';
+    }
+    quoted += character;
+  }
+  quoted += '\'';
+  return quoted;
+}
+
+}  // namespace
+
+FTSDumpContainer::FTSDumpContainer(
+    std::shared_ptr<SQLiteConnection> read_connection,
+    std::shared_ptr<SQLiteConnection> write_connection,
+    std::string runtime_path)
+    : read_connection_(std::move(read_connection)),
+      write_connection_(std::move(write_connection)),
+      runtime_path_(std::move(runtime_path)) {}
+
+void FTSDumpContainer::Sync() {
+  if (!read_connection_ || !read_connection_->IsOpen() || !write_connection_ ||
+      !write_connection_->IsOpen()) {
+    THROW_RUNTIME_ERROR("FTSDumpContainer: connections are not open");
+  }
+  read_connection_->Close();
+  write_connection_->Execute("PRAGMA wal_checkpoint(TRUNCATE);");
+  write_connection_->Flush();
+  write_connection_->Close();
+}
+
+void FTSDumpContainer::Dump(const std::string& new_path) {
+  Sync();
+  std::filesystem::rename(runtime_path_, new_path);
+  runtime_path_ = new_path;
+}
+
+void FTSDumpContainer::Close() {
+  if (read_connection_ && read_connection_->IsOpen()) {
+    read_connection_->Close();
+  }
+  if (write_connection_ && write_connection_->IsOpen()) {
+    write_connection_->Close();
+  }
+}
+
+std::shared_ptr<IDataContainer> FTSDumpContainer::Fork(Checkpoint&,
+                                                       MemoryLevel) {
+  THROW_NOT_SUPPORTED_EXCEPTION("FTSDumpContainer does not support Fork");
+}
+
+FTSIndex::~FTSIndex() = default;
+
+void FTSIndex::ParseOptions() {
+  if (!meta_) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex metadata is not initialized");
+  }
+  if (meta_->name.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex name must not be empty");
+  }
+  if (!std::regex_match(meta_->name,
+                        std::regex("[A-Za-z_][A-Za-z0-9_]*"))) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FTSIndex name must start with a letter or underscore and contain "
+        "only letters, digits, or underscores");
+  }
+  if (meta_->schema.property_type.id() != DataTypeId::kVarchar) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex property must be STRING");
+  }
+
+  static const std::unordered_set<std::string> kKnownOptions = {
+      "tokenizer", "prefix", "detail"};
+  for (const auto& [name, value] : meta_->options) {
+    if (!kKnownOptions.contains(name)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported FTSIndex option: " + name);
+    }
+  }
+
+  if (auto option = meta_->options.find("tokenizer");
+      option != meta_->options.end()) {
+    tokenizer_ = option->second;
+  }
+  if (auto option = meta_->options.find("prefix");
+      option != meta_->options.end()) {
+    prefix_ = option->second;
+  }
+  if (auto option = meta_->options.find("detail");
+      option != meta_->options.end()) {
+    detail_ = option->second;
+  }
+  table_name_ = "neug_fts_" + meta_->name;
+}
+
+void FTSIndex::CreateTable() {
+  std::string sql = "CREATE VIRTUAL TABLE " + table_name_ +
+                    " USING fts5(text, content='', tokenize=" +
+                    QuoteSQLiteLiteral(tokenizer_);
+  if (!prefix_.empty()) {
+    sql += ", prefix=" + QuoteSQLiteLiteral(prefix_);
+  }
+  sql += ", detail=" + QuoteSQLiteLiteral(detail_) + ");";
+  write_connection_->Execute(sql);
+}
+
+void FTSIndex::ValidateExistingTable() {
+  auto statement = write_connection_->Prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1 "
+      "AND sql LIKE '%USING fts5(%';");
+  statement.BindText(1, table_name_);
+  if (statement.Step() != SQLITE_ROW) {
+    THROW_RUNTIME_ERROR("FTSIndex persisted FTS5 table is missing: " +
+                        table_name_);
+  }
+}
+
+void FTSIndex::PrepareStatements() {
+  auto append_sql = "INSERT INTO " + table_name_ +
+                    "(rowid, text) VALUES (?1, ?2);";
+  auto search_sql = "SELECT rowid, rank FROM " + table_name_ + " WHERE " +
+                    table_name_ + " MATCH ?1 ORDER BY rank ASC LIMIT ?2;";
+
+  *append_statements_ = write_connection_->Prepare(append_sql);
+  *search_statements_ = read_connection_->Prepare(search_sql);
+}
+
+void FTSIndex::FinalizeStatements() {
+  *append_statements_ = SQLiteStatement{};
+  *search_statements_ = SQLiteStatement{};
+}
+
+void FTSIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+                    MemoryLevel level) {
+  OpenInternal(ckp, nullptr, descriptor, level);
+}
+
+void FTSIndex::Open(Checkpoint& ckp, const CheckpointManifest& manifest,
+                    const ModuleDescriptor& descriptor, MemoryLevel level) {
+  OpenInternal(ckp, &manifest, descriptor, level);
+}
+
+void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
+                            const ModuleDescriptor& descriptor,
+                            MemoryLevel level) {
+  StorageIndex::Open(ckp, descriptor, level);
+  ParseOptions();
+
+  if (!index_id_accessor_) {
+    index_id_accessor_ = std::make_unique<DefaultIndexIDAccessor>();
+  }
+  ModuleDescriptor accessor_descriptor;
+  if (auto accessor_ref = descriptor.get_ref(kAccessorRef)) {
+    const auto& resolver = manifest ? *manifest : ckp.GetMeta();
+    auto resolved = resolver.module(*accessor_ref);
+    if (!resolved) {
+      THROW_RUNTIME_ERROR(
+          "FTSIndex::Open: missing index ID accessor descriptor");
+    }
+    accessor_descriptor = std::move(*resolved);
+  }
+  index_id_accessor_->Open(ckp, accessor_descriptor, level);
+
+  runtime_file_ = std::make_shared<CheckpointFileManager::RuntimeFileHandle>(
+      ckp.CreateRuntimeFile());
+  runtime_path_ = runtime_file_->path();
+  auto index_path = descriptor.get_path(kIndexFilePath);
+  bool has_existing = index_path && !index_path->empty() &&
+                      std::filesystem::exists(*index_path);
+  read_connection_ = std::make_shared<SQLiteConnection>();
+  write_connection_ = std::make_shared<SQLiteConnection>();
+  search_statements_ = std::make_shared<SQLiteStatement>();
+  append_statements_ = std::make_shared<SQLiteStatement>();
+  try {
+    if (has_existing) {
+      file_utils::copy_file(*index_path, runtime_path_, true);
+    }
+    write_connection_->Open(runtime_path_);
+    if (has_existing) {
+      ValidateExistingTable();
+    } else {
+      CreateTable();
+    }
+    read_connection_->Open(runtime_path_);
+    PrepareStatements();
+  } catch (...) {
+    FinalizeStatements();
+    read_connection_->Close();
+    write_connection_->Close();
+    std::error_code error;
+    std::filesystem::remove(runtime_path_, error);
+    runtime_path_.clear();
+    throw;
+  }
+}
+
+void FTSIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
+                    const std::string& key) {
+  if (key.empty()) {
+    THROW_RUNTIME_ERROR("FTSIndex::Dump: module key must not be empty");
+  }
+  if (!read_connection_->IsOpen() || !write_connection_->IsOpen()) {
+    THROW_RUNTIME_ERROR("FTSIndex::Dump: index is not open");
+  }
+
+  std::scoped_lock lock(search_statements_->mutex(),
+                        append_statements_->mutex());
+  FinalizeStatements();
+  try {
+    StorageIndex::Dump(ckp, manifest, key);
+    const auto accessor_key = "fts_accessor_" + meta_->name;
+    index_id_accessor_->Dump(ckp, manifest, accessor_key);
+    manifest.mutable_modules().at(accessor_key).mark_as_referenced_module();
+    manifest.mutable_modules().at(key).set_ref(kAccessorRef, accessor_key);
+
+    FTSDumpContainer container(read_connection_, write_connection_,
+                               runtime_path_);
+    auto persisted_path = ckp.Commit(container);
+    manifest.mutable_modules().at(key).set_path(kIndexFilePath, persisted_path);
+    runtime_file_.reset();
+    runtime_path_.clear();
+  } catch (...) {
+    FinalizeStatements();
+    throw;
+  }
+}
+
+void FTSIndex::Detach(Checkpoint& ckp, MemoryLevel level) {
+  if (index_id_accessor_) {
+    index_id_accessor_->Detach(ckp, level);
+  }
+}
+
+std::unique_ptr<Module> FTSIndex::Clone() const {
+  auto cloned = std::make_unique<FTSIndex>();
+  if (meta_) {
+    cloned->meta_ = std::make_unique<IndexMeta>(*meta_);
+  }
+  if (index_id_accessor_) {
+    auto accessor = index_id_accessor_->Clone();
+    cloned->index_id_accessor_.reset(
+        static_cast<IndexIDAccessor*>(accessor.release()));
+  }
+  cloned->read_connection_ = read_connection_;
+  cloned->write_connection_ = write_connection_;
+  cloned->search_statements_ = search_statements_;
+  cloned->append_statements_ = append_statements_;
+  cloned->runtime_file_ = runtime_file_;
+  cloned->runtime_path_ = runtime_path_;
+  cloned->table_name_ = table_name_;
+  cloned->tokenizer_ = tokenizer_;
+  cloned->prefix_ = prefix_;
+  cloned->detail_ = detail_;
+  cloned->bound_column_ = bound_column_;
+  return cloned;
+}
+
+Status FTSIndex::Rebind(const IndexBindContext& context) {
+  if (!context.column) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "FTSIndex requires a property column binding");
+  }
+  bound_column_ = context.column;
+  return Status::OK();
+}
+
+Status FTSIndex::BulkBuild(const VertexSet& vertices) {
+  if (!bound_column_) {
+    return Status::RuntimeError("FTSIndex is not bound");
+  }
+  if (!write_connection_->IsOpen()) {
+    return Status::RuntimeError("FTSIndex must be open before bulk build");
+  }
+  try {
+    write_connection_->Execute("BEGIN TRANSACTION;");
+    for (vid_t vid : vertices) {
+      auto status = Upsert(vid, bound_column_->get_any(vid));
+      if (!status.ok()) {
+        write_connection_->Execute("ROLLBACK;");
+        return status;
+      }
+    }
+    write_connection_->Execute("COMMIT;");
+    return Status::OK();
+  } catch (const std::exception& error) {
+    if (write_connection_->InTransaction()) {
+      write_connection_->Execute("ROLLBACK;");
+    }
+    return Status::RuntimeError("FTSIndex bulk build failed: " +
+                                std::string(error.what()));
+  }
+}
+
+result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
+    const IndexQueryParams& params) {
+  const auto* fts_params = dynamic_cast<const FTSQueryParams*>(&params);
+  if (!fts_params) {
+    RETURN_INVALID_ARGUMENT_ERROR("FTSIndex::Search requires FTSQueryParams");
+  }
+  if (fts_params->topk == 0) {
+    RETURN_INVALID_ARGUMENT_ERROR("FTS topk must be positive");
+  }
+  if (!index_id_accessor_) {
+    RETURN_ERROR(
+        Status::RuntimeError("FTS index ID accessor is not initialized"));
+  }
+  if (!read_connection_->IsOpen()) {
+    RETURN_ERROR(Status::RuntimeError("FTS index is not open"));
+  }
+  try {
+    // Convert the streaming scalar filter to a hash set for fast filtering.
+    std::unordered_set<index_id_t> allowed;
+    if (fts_params->use_scalar_filter) {
+      allowed.reserve(fts_params->scalar_filter.size());
+      for (auto vid : fts_params->scalar_filter) {
+        auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
+        if (index_id != INVALID_INDEX_ID) {
+          allowed.insert(index_id);
+        }
+      }
+    }
+
+    std::lock_guard lock(search_statements_->mutex());
+    search_statements_->Reset();
+    search_statements_->BindText(1, fts_params->query_string);
+    // Set fetch_limit to max to preserve correctness after scalar/MVCC filtering.
+    search_statements_->BindInt64(2, std::numeric_limits<int64_t>::max());
+
+    std::vector<SearchCandidate> results;
+    results.reserve(fts_params->topk);
+    while (search_statements_->Step() == SQLITE_ROW) {
+      auto rowid = search_statements_->ColumnInt64(0);
+      if (rowid < 0 || static_cast<uint64_t>(rowid) >
+                           std::numeric_limits<index_id_t>::max()) {
+        continue;
+      }
+      const auto index_id = static_cast<index_id_t>(rowid);
+      // Apply the scalar filter.
+      if (fts_params->use_scalar_filter && !allowed.contains(index_id)) {
+        continue;
+      }
+      // Apply the MVCC visibility filter.
+      if (index_id_accessor_->GetVIDByIndexID(index_id) == INVALID_VID) {
+        continue;
+      }
+      results.push_back(
+          SearchCandidate{index_id, search_statements_->ColumnDouble(1)});
+      if (results.size() == fts_params->topk) {
+        break;
+      }
+    }
+    return results;
+  } catch (const std::exception& error) {
+    RETURN_ERROR(Status::RuntimeError(
+        "FTS query failed: " +
+        EnhanceFTS5Error(fts_params->query_string, error.what())));
+  }
+}
+
+Status FTSIndex::AppendImpl(index_id_t index_id, const Value& value) {
+  if (value.IsNull() || value.type().id() != DataTypeId::kVarchar) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "FTS value must be a non-null STRING");
+  }
+  if (!write_connection_->IsOpen()) {
+    return Status::RuntimeError("FTSIndex must be open before append");
+  }
+  try {
+    std::lock_guard lock(append_statements_->mutex());
+    auto& statement = *append_statements_;
+    statement.Reset();
+    statement.BindInt64(1, index_id);
+    statement.BindText(2, value.GetValue<std::string>());
+    statement.Step();
+    return Status::OK();
+  } catch (const std::exception& error) {
+    return Status::RuntimeError("FTSIndex append failed: " +
+                                std::string(error.what()));
+  }
+}
+
+NEUG_REGISTER_MODULE(FTSIndex);
+
+}  // namespace neug::fts_ext
