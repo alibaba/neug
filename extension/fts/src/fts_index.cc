@@ -168,8 +168,9 @@ void FTSIndex::ValidateExistingTable() {
 void FTSIndex::PrepareStatements() {
   auto append_sql = "INSERT INTO " + table_name_ +
                     "(rowid, text) VALUES (?1, ?2);";
-  auto search_sql = "SELECT rowid, rank FROM " + table_name_ + " WHERE " +
-                    table_name_ + " MATCH ?1 ORDER BY rank ASC LIMIT ?2;";
+  auto search_sql = "SELECT rowid, bm25(" + table_name_ +
+                    ") AS score FROM " + table_name_ + " WHERE " +
+                    table_name_ + " MATCH ?1 ORDER BY score ASC LIMIT ?2;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
   *search_statements_ = read_connection_->Prepare(search_sql);
