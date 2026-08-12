@@ -482,47 +482,39 @@ Status load_extension(const std::string& extension_name) {
     bool newly_loaded = handle == nullptr;
     if (newly_loaded) {
       handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
-    }
-    if (!handle) {
-      return Status(StatusCode::ERR_IO_ERROR,
-                    "Failed to load extension library: " + userLibPath +
-                        ". Error: " + std::string(dlerror()));
-    }
-    dlerror();
-    typedef void (*init_func_t)();
-    init_func_t init_func = (init_func_t) dlsym(handle, "Init");
-    const char* dlsym_error = dlerror();
-    if (dlsym_error) {
-      if (newly_loaded) {
-        dlclose(handle);
+      if (!handle) {
+        return Status(StatusCode::ERR_IO_ERROR,
+                      "Failed to load extension library: " + userLibPath +
+                          ". Error: " + std::string(dlerror()));
       }
-      return Status(
-          StatusCode::ERR_IO_ERROR,
-          "Failed to find 'Init' function in extension: " + extension_name +
-              ". Error: " + std::string(dlsym_error));
-    }
-    try {
-      (*init_func)();
-      if (newly_loaded) {
+      dlerror();
+      typedef void (*init_func_t)();
+      init_func_t init_func = (init_func_t) dlsym(handle, "Init");
+      const char* dlsym_error = dlerror();
+      if (dlsym_error) {
+        dlclose(handle);
+        return Status(
+            StatusCode::ERR_IO_ERROR,
+            "Failed to find 'Init' function in extension: " + extension_name +
+                ". Error: " + std::string(dlsym_error));
+      }
+      try {
+        (*init_func)();
         ExtensionManager::RegisterLoadedExtension(extension_name, handle,
                                                   init_func);
-      }
-      LOG(INFO) << "[Admin] Extension " << extension_name
-                << " loaded and initialized successfully";
-    } catch (const std::exception& e) {
-      if (newly_loaded) {
+        LOG(INFO) << "[Admin] Extension " << extension_name
+                  << " loaded and initialized successfully";
+      } catch (const std::exception& e) {
         dlclose(handle);
-      }
-      return Status(StatusCode::ERR_IO_ERROR,
-                    "Extension initialization failed: " + extension_name +
-                        ". Error: " + std::string(e.what()));
-    } catch (...) {
-      if (newly_loaded) {
+        return Status(StatusCode::ERR_IO_ERROR,
+                      "Extension initialization failed: " + extension_name +
+                          ". Error: " + std::string(e.what()));
+      } catch (...) {
         dlclose(handle);
+        return Status(StatusCode::ERR_IO_ERROR,
+                      "Extension initialization failed with unknown error: " +
+                          extension_name);
       }
-      return Status(StatusCode::ERR_IO_ERROR,
-                    "Extension initialization failed with unknown error: " +
-                        extension_name);
     }
     LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
     return Status::OK();

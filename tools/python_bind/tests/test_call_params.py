@@ -20,8 +20,10 @@
 import os
 
 import pytest
+from conftest import wait_for_server_ready
 
 from neug import Database
+from neug import Session
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
     "1",
@@ -62,4 +64,43 @@ def test_call_echo_param(tmp_path):
         assert literal == [["literal-ok"]]
     finally:
         conn.close()
+        db.close()
+
+
+@extension_test
+def test_extension_catalog_function_available_after_reopen(tmp_path, unused_tcp_port):
+    db = Database(db_path=str(tmp_path / "call_params_reopen"), mode="w")
+    conn = db.connect()
+    session = None
+    served = False
+    try:
+        conn.execute("LOAD test_out_of_tree;")
+        assert list(conn.execute("CALL TEST_ECHO_PARAM('ap') RETURN value;")) == [
+            ["ap"]
+        ]
+        conn.close()
+
+        endpoint = db.serve(
+            port=unused_tcp_port,
+            host="localhost",
+            blocking=False,
+            auto_compaction=False,
+        )
+        served = True
+        wait_for_server_ready(endpoint)
+        session = Session(endpoint, timeout="10s")
+
+        # Starting TP service recreates the planner and its catalog. The
+        # extension Init function must repopulate that catalog without another
+        # LOAD statement.
+        assert list(session.execute("CALL TEST_ECHO_PARAM('tp') RETURN value;")) == [
+            ["tp"]
+        ]
+    finally:
+        if session is not None:
+            session.close()
+        if conn.is_open:
+            conn.close()
+        if served:
+            db.stop_serving()
         db.close()
