@@ -51,6 +51,51 @@ bool IsVectorDistanceFunction(const function::ScalarFunction& function) {
          function.name == "VECTOR_DISTANCE_IP";
 }
 
+std::string DistanceMetric(const function::ScalarFunction& function) {
+  if (function.name == "VECTOR_DISTANCE_L2") {
+    return "l2";
+  }
+  if (function.name == "VECTOR_DISTANCE_COSINE") {
+    return "cosine";
+  }
+  if (function.name == "VECTOR_DISTANCE_IP") {
+    return "ip";
+  }
+  return {};
+}
+
+std::string IndexMetric(const IndexMeta& meta) {
+  auto metric = meta.options.find("metric");
+  if (metric == meta.options.end() || metric->second == "l2" ||
+      metric->second == "l2sq") {
+    return "l2";
+  }
+  if (metric->second == "inner_product" || metric->second == "ip") {
+    return "ip";
+  }
+  return metric->second;
+}
+
+bool IsCompatibleHNSWIndex(const StorageIndex& index,
+                           const binder::ScalarFunctionExpression& distance,
+                           const binder::Expression& target) {
+  const auto& meta = index.GetMeta();
+  if (!IsHNSWIndex(meta) ||
+      IndexMetric(meta) != DistanceMetric(distance.getFunction())) {
+    return false;
+  }
+  const auto& property_type = meta.schema.property_type;
+  const auto& target_type = target.getDataType();
+  if (property_type.id() != DataTypeId::kArray ||
+      target_type.id() != DataTypeId::kArray) {
+    return false;
+  }
+  return ArrayType::GetChildType(property_type) ==
+             ArrayType::GetChildType(target_type) &&
+         ArrayType::GetNumElements(property_type) ==
+             ArrayType::GetNumElements(target_type);
+}
+
 std::shared_ptr<binder::ScalarFunctionExpression> FindDistanceExpression(
     const planner::LogicalOrderBy& order_by,
     const planner::LogicalProjection& projection) {
@@ -380,7 +425,7 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
   }
   const StorageIndex* hnsw_index = nullptr;
   for (const auto* index : indexes.value()) {
-    if (index != nullptr && IsHNSWIndex(index->GetMeta())) {
+    if (index != nullptr && IsCompatibleHNSWIndex(*index, *distance, *target)) {
       hnsw_index = index;
       break;
     }

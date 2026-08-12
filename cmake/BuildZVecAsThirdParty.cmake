@@ -27,6 +27,39 @@ function(build_zvec_as_third_party)
             "third_party/zvec")
     endif()
 
+    set(_zvec_patch "${CMAKE_SOURCE_DIR}/third_party/zvec.patch")
+    if(EXISTS "${_zvec_patch}")
+        execute_process(
+            COMMAND git apply --check "${_zvec_patch}"
+            WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
+            RESULT_VARIABLE _zvec_patch_check
+            ERROR_VARIABLE _zvec_patch_error)
+        if(_zvec_patch_check EQUAL 0)
+            execute_process(
+                COMMAND git apply "${_zvec_patch}"
+                WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
+                RESULT_VARIABLE _zvec_patch_result
+                ERROR_VARIABLE _zvec_patch_error)
+            if(NOT _zvec_patch_result EQUAL 0)
+                message(FATAL_ERROR
+                    "Failed to apply zvec.patch: ${_zvec_patch_error}")
+            endif()
+        else()
+            execute_process(
+                COMMAND git apply --reverse --check "${_zvec_patch}"
+                WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
+                RESULT_VARIABLE _zvec_patch_applied
+                ERROR_VARIABLE _zvec_patch_reverse_error)
+            if(_zvec_patch_applied EQUAL 0)
+                message(STATUS "zvec.patch is already applied.")
+            else()
+                message(FATAL_ERROR
+                    "zvec.patch neither applies nor appears already applied: "
+                    "${_zvec_patch_error}")
+            endif()
+        endif()
+    endif()
+
     include(ExternalProject)
 
     set(_zvec_binary_dir "${CMAKE_BINARY_DIR}/third_party/zvec-build")
