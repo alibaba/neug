@@ -14,9 +14,11 @@
  */
 
 #include <gtest/gtest.h>
+#ifndef _WIN32
 #include <poll.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -1301,6 +1303,7 @@ TEST(CheckpointFileManagerTest,
   EXPECT_TRUE(std::filesystem::exists(committed_snapshot));
 }
 
+#ifndef _WIN32
 TEST(CheckpointFileManagerTest,
      ConcurrentProcessesOpenSnapshotIntoDistinctRuntimeFiles) {
   auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
@@ -1420,6 +1423,7 @@ TEST(CheckpointFileManagerTest,
   EXPECT_FALSE(std::filesystem::exists(first_path));
   EXPECT_FALSE(std::filesystem::exists(second_path));
 }
+#endif
 
 TEST(CheckpointFileManagerTest,
      ManualRuntimeFileHandleCommitAndAbandonCleanup) {

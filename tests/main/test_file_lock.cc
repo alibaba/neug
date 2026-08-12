@@ -13,19 +13,23 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
-
-#include <errno.h>
-#include <fcntl.h>
+#ifndef _WIN32
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
+#include <poll.h>
+#else
+#include <process.h>
+#endif
+
+#include <errno.h>
+#include <fcntl.h>
 
 #include <filesystem>
 #include <string>
 #include <type_traits>
-
-#include <poll.h>
 
 #include <gtest/gtest.h>
 
@@ -193,6 +197,7 @@ TEST(FileLockTest, RejectsIncompatibleModeInSameProcess) {
   std::filesystem::remove_all(db_dir);
 }
 
+#ifndef _WIN32
 TEST(FileLockTest, ClosingOneReaderKeepsProcessLock) {
   const auto db_dir = std::filesystem::temp_directory_path() /
                       ("neug_file_lock_test_" + std::to_string(::getpid()));
@@ -240,7 +245,9 @@ TEST(FileLockTest, ClosingOneReaderKeepsProcessLock) {
 
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
+#ifndef _WIN32
 TEST(FileLockTest, ForkedChildReacquiresProcessLock) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -322,6 +329,7 @@ TEST(FileLockTest, ForkedChildReacquiresProcessLock) {
   writer.unlock();
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 }  // namespace test
 }  // namespace neug
