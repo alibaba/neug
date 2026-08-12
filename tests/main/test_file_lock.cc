@@ -61,6 +61,7 @@ TEST(FileLockTest, ReadOnlyCreatesMissingCoordinationFile) {
   std::filesystem::remove_all(db_dir);
 }
 
+#ifndef _WIN32
 TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -83,7 +84,9 @@ TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
   ASSERT_EQ(::chmod(lock_path.c_str(), S_IRUSR | S_IWUSR), 0);
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
+#ifndef _WIN32
 TEST(FileLockTest, ReadOnlyOpenOnReadOnlyDirectoryReportsWritableHint) {
   if (::geteuid() == 0) {
     GTEST_SKIP() << "chmod-based permission checks do not apply to root";
@@ -122,6 +125,7 @@ TEST(FileLockTest, ReadOnlyOpenOnReadOnlyDirectoryReportsWritableHint) {
   ASSERT_EQ(::chmod(db_dir.c_str(), S_IRWXU), 0);
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 TEST(FileLockTest, RejectsRepeatedLockOnSameObject) {
   const auto db_dir =
