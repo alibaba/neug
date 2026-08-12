@@ -44,6 +44,10 @@ struct CallFuncInputBase {
       const execution::ParamsMap& /*params*/) const {
     return nullptr;
   }
+
+  // Index scan functions may consume rows produced by an optimized child
+  // operator. Procedure calls leave this hook unused.
+  virtual void bindContext(execution::Context&& /*context*/) {}
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(

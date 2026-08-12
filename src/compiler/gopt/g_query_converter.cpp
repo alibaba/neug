@@ -1232,11 +1232,40 @@ void GQueryConvertor::convertTableFunc(
   auto bindData = funcCall.getBindData();
   if (dynamic_cast<const function::ScanFileBindData*>(bindData)) {
     convertDataSource(funcCall, plan);
+  } else if (dynamic_cast<const function::IndexScanBindData*>(bindData)) {
+    convertIndexScan(funcCall, plan);
   } else if (dynamic_cast<const function::GDSFuncBindData*>(bindData)) {
     convertGDSFunction(funcCall, plan);
   } else {
     convertProcedureCall(funcCall, plan);
   }
+}
+
+void GQueryConvertor::convertIndexScan(
+    const planner::LogicalTableFunctionCall& funcCall,
+    ::physical::PhysicalPlan* plan) {
+  const auto& bindData =
+      funcCall.getBindData()->cast<function::IndexScanBindData>();
+  if (!bindData.targetValue) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Index scan target expression must not be null.");
+  }
+
+  auto indexScanPB = std::make_unique<::physical::IndexScan>();
+  indexScanPB->set_index_scan_function(funcCall.getTableFunc().signatureName);
+  indexScanPB->set_unique_index_name(bindData.uniqueIndexName);
+  indexScanPB->set_allocated_target_value(
+      exprConvertor->convert(*bindData.targetValue, {}).release());
+  for (const auto& [key, value] : bindData.options) {
+    (*indexScanPB->mutable_options())[key] = value;
+  }
+
+  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
+  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
+  oprPB->set_allocated_index_scan(indexScanPB.release());
+  physicalPB->set_allocated_opr(oprPB.release());
+  setMetaData(physicalPB.get(), funcCall, bindData.columns);
+  plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
 void GQueryConvertor::convertGDSFunction(

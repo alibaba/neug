@@ -40,6 +40,7 @@
 #include "neug/execution/execute/ops/retrieve/edge.h"
 #include "neug/execution/execute/ops/retrieve/gds_algo.h"
 #include "neug/execution/execute/ops/retrieve/group_by.h"
+#include "neug/execution/execute/ops/retrieve/index_scan.h"
 #include "neug/execution/execute/ops/retrieve/intersect.h"
 #include "neug/execution/execute/ops/retrieve/join.h"
 #include "neug/execution/execute/ops/retrieve/limit.h"
@@ -139,6 +140,7 @@ void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::UpdateEdgeOprBuilder>());
   // TODO: Review which pipeline should procedureCall be put.
   register_operator_builder(std::make_unique<ops::ProcedureCallOprBuilder>());
+  register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
   register_operator_builder(std::make_unique<ops::GDSAlgoOprBuilder>());
 
   // ---------------------- DDL Operators ----------------------
@@ -266,6 +268,9 @@ static std::string get_opr_name(
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
     return "procedure_call";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+    return "index_scan";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kGdsAlgo: {
     return "gds_algo";
@@ -569,6 +574,13 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
           continue;
         }
         params_type[param.name()] = parse_from_ir_data_type(param.data_type());
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+      const auto& index_scan = plan.plan(i).opr().index_scan();
+      if (index_scan.has_target_value()) {
+        expression_parse(index_scan.target_value(), params_type);
       }
       break;
     }
