@@ -27,10 +27,16 @@
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/index/storage_index.h"
+#include "neug/storages/index/storage_index_manager.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug::function {
 namespace {
+
+struct ShowIndexRow {
+  IndexMeta meta;
+  std::string state;
+};
 
 std::string OptionsToJson(const IndexMeta& meta) {
   std::vector<std::pair<std::string, std::string>> options(meta.options.begin(),
@@ -58,7 +64,8 @@ function_set ShowIndexesFunction::getFunctionSet() {
                           {"type", varchar},
                           {"label", varchar},
                           {"property", varchar},
-                          {"options", varchar}});
+                          {"options", varchar},
+                          {"state", varchar}});
 
   function->bindFunc = [](const Schema&, const execution::ContextMeta&,
                           const ::physical::PhysicalPlan&,
@@ -78,31 +85,46 @@ function_set ShowIndexesFunction::getFunctionSet() {
                           indexesResult.error().ToString());
     }
     auto indexes = std::move(indexesResult).value();
-    std::sort(indexes.begin(), indexes.end(),
-              [](const StorageIndex* lhs, const StorageIndex* rhs) {
-                return lhs->GetMeta().name < rhs->GetMeta().name;
-              });
+    auto pendingResult = readInterface->GetAllPendingIndexes();
+    if (!pendingResult) {
+      THROW_RUNTIME_ERROR("SHOW_INDEXES failed: " +
+                          pendingResult.error().ToString());
+    }
+
+    std::vector<ShowIndexRow> rows;
+    rows.reserve(indexes.size() + pendingResult->size());
+    for (const auto* index : indexes) {
+      rows.push_back({index->GetMeta(), "active"});
+    }
+    for (const auto* pending_index : pendingResult.value()) {
+      rows.push_back({pending_index->meta, "pending"});
+    }
+    std::sort(rows.begin(), rows.end(), [](const auto& lhs, const auto& rhs) {
+      return lhs.meta.name < rhs.meta.name;
+    });
 
     ValueColumnBuilder<std::string> nameBuilder;
     ValueColumnBuilder<std::string> typeBuilder;
     ValueColumnBuilder<std::string> labelBuilder;
     ValueColumnBuilder<std::string> propertyBuilder;
     ValueColumnBuilder<std::string> optionsBuilder;
-    nameBuilder.reserve(indexes.size());
-    typeBuilder.reserve(indexes.size());
-    labelBuilder.reserve(indexes.size());
-    propertyBuilder.reserve(indexes.size());
-    optionsBuilder.reserve(indexes.size());
+    ValueColumnBuilder<std::string> stateBuilder;
+    nameBuilder.reserve(rows.size());
+    typeBuilder.reserve(rows.size());
+    labelBuilder.reserve(rows.size());
+    propertyBuilder.reserve(rows.size());
+    optionsBuilder.reserve(rows.size());
+    stateBuilder.reserve(rows.size());
 
     const auto& schema = graph.schema();
-    for (const auto* index : indexes) {
-      const auto& meta = index->GetMeta();
+    for (const auto& [meta, state] : rows) {
       nameBuilder.push_back_opt(meta.name);
       typeBuilder.push_back_opt(meta.type);
       labelBuilder.push_back_opt(
           schema.get_vertex_label_name(meta.schema.label_id));
       propertyBuilder.push_back_opt(meta.schema.property_name);
       optionsBuilder.push_back_opt(OptionsToJson(meta));
+      stateBuilder.push_back_opt(state);
     }
 
     execution::Context ctx;
@@ -112,8 +134,9 @@ function_set ShowIndexesFunction::getFunctionSet() {
     chunk.set(2, labelBuilder.finish());
     chunk.set(3, propertyBuilder.finish());
     chunk.set(4, optionsBuilder.finish());
+    chunk.set(5, stateBuilder.finish());
     ctx.append_chunk(std::move(chunk));
-    ctx.tag_ids = {0, 1, 2, 3, 4};
+    ctx.tag_ids = {0, 1, 2, 3, 4, 5};
     return ctx;
   };
 

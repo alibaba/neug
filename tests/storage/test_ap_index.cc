@@ -42,6 +42,19 @@
 namespace neug {
 namespace {
 
+TEST(ModuleDescriptorTest, RequiredDefaultsTrueAndRoundTripsFalse) {
+  ModuleDescriptor required;
+  EXPECT_TRUE(required.required);
+
+  ModuleDescriptor optional;
+  optional.module_type = "extension_module";
+  optional.required = false;
+  rapidjson::Document document;
+  document.Parse(optional.ToJsonString().c_str());
+  auto restored = ModuleDescriptor::FromJson(document);
+  EXPECT_FALSE(restored.required);
+}
+
 TEST(IndexMetaTest, PreservesDetailedPropertyType) {
   IndexMeta meta;
   meta.name = "array_index";

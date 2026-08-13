@@ -1028,8 +1028,28 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
         inserted = true;
       }
       if (inserted) {
-        auto ret =
-            addVertexIndexData(graph, redo.label, vid, redo.oid, redo.props);
+        auto& index_manager = graph.mutable_index_manager();
+        Status ret;
+        if (index_manager.HasPendingIndex(redo.label)) {
+          const auto& v_schema = graph.schema().get_vertex_schema(redo.label);
+          std::vector<std::pair<std::string, Value>> properties;
+          properties.emplace_back(std::get<1>(v_schema->primary_keys[0]),
+                                  redo.oid);
+          for (size_t prop_idx = 0;
+               prop_idx < v_schema->property_names.size() &&
+               prop_idx < redo.props.size();
+               ++prop_idx) {
+            if (!v_schema->vprop_soft_deleted[prop_idx]) {
+              properties.emplace_back(v_schema->property_names[prop_idx],
+                                      redo.props[prop_idx]);
+            }
+          }
+          index_manager.RecordPendingInsert(redo.label, vid,
+                                            std::move(properties));
+        } else {
+          ret =
+              addVertexIndexData(graph, redo.label, vid, redo.oid, redo.props);
+        }
         THROW_STORAGE_EXCEPTION_STATUS(
             "Failed to append vertex indexes in redo: ", ret);
       }
@@ -1056,8 +1076,19 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                             redo.value, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to update vertex property in redo: ", ret);
-      ret = updateVertexIndexData(graph, redo.label, vid, redo.prop_id,
-                                  redo.value);
+      const auto& v_schema = graph.schema().get_vertex_schema(redo.label);
+      if (redo.prop_id >= 0 &&
+          static_cast<size_t>(redo.prop_id) < v_schema->property_names.size() &&
+          !v_schema->vprop_soft_deleted[redo.prop_id] &&
+          graph.mutable_index_manager().HasPendingIndex(
+              redo.label, v_schema->property_names[redo.prop_id])) {
+        graph.mutable_index_manager().RecordPendingUpdate(
+            redo.label, vid, v_schema->property_names[redo.prop_id],
+            redo.value);
+      } else {
+        ret = updateVertexIndexData(graph, redo.label, vid, redo.prop_id,
+                                    redo.value);
+      }
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to update vertex property indexes in redo: ", ret);
     } else if (op_type == OpType::kUpdateEdgeProp) {
@@ -1087,7 +1118,11 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       }
       auto ret = graph.DeleteVertex(redo.label, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete vertex in redo: ", ret);
-      ret = deleteVertexIndexData(graph, redo.label, {vid});
+      if (graph.mutable_index_manager().HasPendingIndex(redo.label)) {
+        graph.mutable_index_manager().RecordPendingDelete(redo.label, vid);
+      } else {
+        ret = deleteVertexIndexData(graph, redo.label, {vid});
+      }
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex indexes in redo: ", ret);
     } else if (op_type == OpType::kRemoveEdge) {

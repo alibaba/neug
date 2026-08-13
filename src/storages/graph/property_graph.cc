@@ -36,6 +36,7 @@
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
@@ -82,6 +83,34 @@ const StorageIndexManager& PropertyGraph::index_manager() const {
 
 StorageIndexManager& PropertyGraph::mutable_index_manager() {
   return *index_manager_;
+}
+
+result<size_t> PropertyGraph::ActivateIndexes() {
+  StorageIndexManager::IndexColumns columns;
+  for (label_t label = 0; label < vertex_tables_.size(); ++label) {
+    if (!schema_.is_vertex_label_valid(label)) {
+      continue;
+    }
+    const auto& vertex_schema = schema_.get_vertex_schema(label);
+    auto& label_columns = columns[label];
+    const auto& primary_key = std::get<1>(vertex_schema->primary_keys[0]);
+    label_columns.emplace(
+        primary_key, vertex_tables_[label].GetPropertyColumnBase(primary_key));
+    for (const auto& property_name : vertex_schema->property_names) {
+      label_columns.emplace(
+          property_name,
+          vertex_tables_[label].GetPropertyColumnBase(property_name));
+    }
+  }
+  return index_manager_->ActivateIndexes(columns);
+}
+
+bool PropertyGraph::HasPendingIndexes() const {
+  return index_manager_->HasPendingIndexes();
+}
+
+bool PropertyGraph::HasPendingMutations() const {
+  return index_manager_->HasPendingMutations();
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -1020,7 +1049,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     }
   }
 
-  index_manager_->Dump(store);
+  index_manager_->Dump(store, *ckp, meta);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
