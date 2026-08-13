@@ -15,20 +15,10 @@
 
 #include "neug/server/brpc_service_mgr.h"
 
-#include <gflags/gflags.h>
-
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/error.pb.h"
 
-namespace brpc {
-DECLARE_int32(event_dispatcher_num);
-}
-
 namespace neug {
-
-namespace {
-constexpr int32_t kBrpcEventDispatcherNum = 8;
-}
 
 static pthread_once_t brpc_service_protocol_init_once = PTHREAD_ONCE_INIT;
 
@@ -311,9 +301,6 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
 }
 
 std::string BrpcServiceManager::Start() {
-  // BRPC initializes its process-wide event dispatchers lazily when the server
-  // starts. Set NeuG's runtime policy before that initialization happens.
-  brpc::FLAGS_event_dispatcher_num = kBrpcEventDispatcherNum;
   LOG(INFO) << "Starting brpc server";
   butil::EndPoint endpoint;
   std::string ip_port = service_config_.host_str + ":" +
