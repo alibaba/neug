@@ -14,6 +14,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <poll.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -31,6 +35,7 @@
 #include "column_assertions.h"
 #include "neug/config.h"
 #include "neug/main/connection.h"
+#include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/allocators.h"
@@ -1056,6 +1061,9 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
     create_valid_checkpoint(mgr);
     mgr.Close();
   }
+  const auto lock_path =
+      std::filesystem::path(db_path) / neug::FileLock::LOCK_FILE_NAME;
+  ASSERT_FALSE(std::filesystem::exists(lock_path));
 
   auto bad_path = std::filesystem::path(db_path) / "checkpoint-1";
   auto bad_ckp = neug::Checkpoint::Open(bad_path.string(), 1);
@@ -1073,6 +1081,14 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   auto staging = std::filesystem::path(db_path) / "checkpoint-999.next";
   std::filesystem::create_directories(staging);
 
+  const auto orphan_runtime = std::filesystem::path(db_path) / "checkpoint-0" /
+                              "runtime" /
+                              "00000000-0000-0000-0000-000000000001";
+  write_raw_file(orphan_runtime.string(), "reader-owned-runtime");
+  const auto orphan_runtime_copy =
+      std::filesystem::path(orphan_runtime.string() + ".copy-123-0");
+  write_raw_file(orphan_runtime_copy.string(), "interrupted-copy");
+
   neug::NeugDBConfig config(db_path);
   config.mode = neug::DBMode::READ_ONLY;
   config.checkpoint_on_close = false;
@@ -1081,9 +1097,21 @@ TEST(CheckpointGCTest, neugdb_readonly_open_does_not_recover_workspace) {
   db.Open(config);
   db.Close();
 
+  EXPECT_TRUE(std::filesystem::exists(lock_path));
   EXPECT_TRUE(std::filesystem::exists(db_path + "/checkpoint-0"));
   EXPECT_TRUE(std::filesystem::exists(bad_path));
   EXPECT_TRUE(std::filesystem::exists(staging));
+  EXPECT_TRUE(std::filesystem::exists(orphan_runtime));
+  EXPECT_TRUE(std::filesystem::exists(orphan_runtime_copy));
+
+  // A writer holds the exclusive database lock, so it can safely recover
+  // runtime files left behind by readers that exited without RAII cleanup.
+  neug::NeugDB writer;
+  neug::NeugDBConfig write_config(db_path);
+  writer.Open(write_config);
+  writer.Close();
+  EXPECT_FALSE(std::filesystem::exists(orphan_runtime));
+  EXPECT_FALSE(std::filesystem::exists(orphan_runtime_copy));
 }
 
 TEST(CheckpointGCTest,
@@ -1274,6 +1302,126 @@ TEST(CheckpointFileManagerTest,
 }
 
 TEST(CheckpointFileManagerTest,
+     ConcurrentProcessesOpenSnapshotIntoDistinctRuntimeFiles) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
+  auto snapshot_dir = std::filesystem::path(db_path) / "snapshot";
+  auto runtime_dir = std::filesystem::path(db_path) / "runtime";
+  std::filesystem::create_directories(snapshot_dir);
+  std::filesystem::create_directories(runtime_dir);
+
+  std::string source_snapshot;
+  {
+    neug::CheckpointFileManager mgr(snapshot_dir.string(),
+                                    runtime_dir.string());
+    auto source =
+        mgr.CreateRuntimeContainer(64, neug::MemoryLevel::kSyncToFile);
+    write_container_payload(*source, "concurrent-open");
+    source_snapshot = mgr.Commit(*source);
+  }
+
+  int start_pipe[2];
+  int release_pipe[2];
+  int first_result_pipe[2];
+  int second_result_pipe[2];
+  ASSERT_EQ(::pipe(start_pipe), 0);
+  ASSERT_EQ(::pipe(release_pipe), 0);
+  ASSERT_EQ(::pipe(first_result_pipe), 0);
+  ASSERT_EQ(::pipe(second_result_pipe), 0);
+
+  const auto spawn_reader = [&](int result_pipe[2]) {
+    const pid_t pid = ::fork();
+    if (pid != 0) {
+      ::close(result_pipe[1]);
+      return pid;
+    }
+
+    ::close(start_pipe[1]);
+    ::close(release_pipe[1]);
+    ::close(result_pipe[0]);
+    char signal = 0;
+    if (::read(start_pipe[0], &signal, 1) != 1) {
+      ::_exit(1);
+    }
+
+    std::string runtime_path;
+    std::shared_ptr<neug::IDataContainer> container;
+    try {
+      neug::CheckpointFileManager mgr(snapshot_dir.string(),
+                                      runtime_dir.string());
+      container = mgr.OpenFile(source_snapshot, neug::MemoryLevel::kSyncToFile);
+      runtime_path = container->GetPath();
+    } catch (...) {}
+
+    const uint32_t path_size = static_cast<uint32_t>(runtime_path.size());
+    bool reported =
+        ::write(result_pipe[1], &path_size, sizeof(path_size)) ==
+            sizeof(path_size) &&
+        (path_size == 0 ||
+         ::write(result_pipe[1], runtime_path.data(), path_size) == path_size);
+    if (reported) {
+      (void) ::read(release_pipe[0], &signal, 1);
+    }
+    container.reset();
+    ::_exit(reported && path_size > 0 ? 0 : 1);
+  };
+
+  const pid_t first = spawn_reader(first_result_pipe);
+  ASSERT_GT(first, 0);
+  const pid_t second = spawn_reader(second_result_pipe);
+  ASSERT_GT(second, 0);
+  ::close(start_pipe[0]);
+  ::close(release_pipe[0]);
+  ASSERT_EQ(::write(start_pipe[1], "12", 2), 2);
+  ::close(start_pipe[1]);
+
+  const auto read_path = [](int fd) {
+    pollfd ready{fd, POLLIN, 0};
+    if (::poll(&ready, 1, 5000) != 1) {
+      return std::string{};
+    }
+    uint32_t path_size = 0;
+    if (::read(fd, &path_size, sizeof(path_size)) != sizeof(path_size) ||
+        path_size == 0) {
+      return std::string{};
+    }
+    std::string path(path_size, '\0');
+    size_t offset = 0;
+    while (offset < path.size()) {
+      auto bytes = ::read(fd, path.data() + offset, path.size() - offset);
+      if (bytes <= 0) {
+        return std::string{};
+      }
+      offset += static_cast<size_t>(bytes);
+    }
+    return path;
+  };
+
+  auto first_path = read_path(first_result_pipe[0]);
+  auto second_path = read_path(second_result_pipe[0]);
+  EXPECT_FALSE(first_path.empty());
+  EXPECT_FALSE(second_path.empty());
+  EXPECT_NE(first_path, second_path);
+  EXPECT_TRUE(std::filesystem::exists(first_path));
+  EXPECT_TRUE(std::filesystem::exists(second_path));
+
+  ASSERT_EQ(::write(release_pipe[1], "12", 2), 2);
+  ::close(release_pipe[1]);
+  ::close(first_result_pipe[0]);
+  ::close(second_result_pipe[0]);
+
+  int first_status = 0;
+  int second_status = 0;
+  ASSERT_EQ(::waitpid(first, &first_status, 0), first);
+  ASSERT_EQ(::waitpid(second, &second_status, 0), second);
+  EXPECT_TRUE(WIFEXITED(first_status));
+  EXPECT_EQ(WEXITSTATUS(first_status), 0);
+  EXPECT_TRUE(WIFEXITED(second_status));
+  EXPECT_EQ(WEXITSTATUS(second_status), 0);
+  EXPECT_FALSE(std::filesystem::exists(first_path));
+  EXPECT_FALSE(std::filesystem::exists(second_path));
+}
+
+TEST(CheckpointFileManagerTest,
      ManualRuntimeFileHandleCommitAndAbandonCleanup) {
   auto db_path = make_checkpoint_gc_test_dir("checkpoint_file_manager");
   auto snapshot_dir = std::filesystem::path(db_path) / "snapshot";
@@ -1286,6 +1434,7 @@ TEST(CheckpointFileManagerTest,
   {
     auto file = mgr.CreateRuntimeFile();
     abandoned_path = file.path();
+    ASSERT_TRUE(std::filesystem::exists(abandoned_path));
     write_raw_file(abandoned_path, "abandoned");
     ASSERT_TRUE(std::filesystem::exists(abandoned_path));
   }

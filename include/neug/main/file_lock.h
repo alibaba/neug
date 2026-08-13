@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <sys/types.h>
 #include <cstdio>
 #include <filesystem>
 #include <set>
@@ -36,15 +37,18 @@ class FileLock {
 
   ~FileLock();
 
+  FileLock(const FileLock&) = delete;
+  FileLock& operator=(const FileLock&) = delete;
+
   bool lock(std::string& error_msg, DBMode mode);
 
   void unlock();
 
  private:
-  bool lock(short type, bool wait, std::string& error_msg);
   std::string lock_file_path_;
-  int fd_;
+  std::string data_dir_;
   bool locked_ = false;
+  pid_t locked_pid_ = 0;
 };
 
 }  // namespace neug

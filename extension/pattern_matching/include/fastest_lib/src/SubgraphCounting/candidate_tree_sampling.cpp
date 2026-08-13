@@ -148,15 +148,11 @@ void QueryTree::Initialize(PatternGraph* query, int root_idx) {
   tree_adj_list.clear();
   tree_children.clear();
   tree_sequence.clear();
-  parent.clear();
-  child_index.clear();
   root = root_idx;
 
   tree_adj_list.resize(query_->GetNumVertices());
   tree_children.resize(query_->GetNumVertices());
   tree_sequence.resize(query_->GetNumVertices(), -1);
-  parent.resize(query_->GetNumVertices(), -1);
-  child_index.resize(query_->GetNumVertices(), -1);
 }
 
 void QueryTree::AddEdge(int u, int v) {
@@ -169,7 +165,6 @@ void QueryTree::BuildTree() {
   std::fill(visit, visit + query_->GetNumVertices(), false);
   std::queue<int> q;
   int id = 0;
-  parent[root] = -1;
   tree_sequence[id++] = root;
   q.push(root);
   visit[root] = true;
@@ -180,9 +175,7 @@ void QueryTree::BuildTree() {
       if (!visit[c]) {
         q.push(c);
         visit[c] = true;
-        child_index[c] = tree_children[v].size();
         tree_children[v].push_back(c);
-        parent[c] = v;
         tree_sequence[id++] = c;
       }
     }
@@ -310,7 +303,6 @@ void CandidateTreeSampler::CountCandidateTrees() {
   for (int i = 0; i < query_->GetNumVertices(); i++) {
     memset(num_trees_[i], 0, sizeof(double) * CS->GetCandidateSetSize(i));
   }
-  int cnt = 0;
   sample_candidate_weights_.resize(query_->GetNumVertices());
   sample_dist_.resize(query_->GetNumVertices());
   for (int i = 0; i < query_->GetNumVertices(); i++) {
@@ -345,7 +337,6 @@ void CandidateTreeSampler::CountCandidateTrees() {
         sample_dist_[u][cs_idx][j] = std::discrete_distribution<int>(
             sample_candidate_weights_[u][cs_idx][j].begin(),
             sample_candidate_weights_[u][cs_idx][j].end());
-        cnt++;
       }
       num_trees_[u][cs_idx] = num_;
     }

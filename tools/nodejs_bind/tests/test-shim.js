@@ -20,7 +20,8 @@ const path = require('path');
 const { fork } = require('child_process');
 
 /**
- * Minimal test shim compatible with Node.js 16 (no node:test built-in).
+ * Minimal test shim compatible with Node.js 20 (will migrate to the built-in
+ * node:test in the future).
  * Provides test(), before(), and after() with basic TAP-style output.
  * When run directly, discovers and aggregates all test_*.js files.
  */

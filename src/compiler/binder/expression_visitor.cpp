@@ -320,20 +320,29 @@ bool ConstantExpressionVisitor::isConstant(const Expression& expr) {
   case ExpressionType::XOR:
   case ExpressionType::AND:
   case ExpressionType::NOT:
+  case ExpressionType::IS_NULL:
+  case ExpressionType::IS_NOT_NULL:
+    return visitBoolean(expr);
   case ExpressionType::EQUALS:
   case ExpressionType::NOT_EQUALS:
   case ExpressionType::GREATER_THAN:
   case ExpressionType::GREATER_THAN_EQUALS:
   case ExpressionType::LESS_THAN:
   case ExpressionType::LESS_THAN_EQUALS:
-  case ExpressionType::IS_NULL:
-  case ExpressionType::IS_NOT_NULL:
     return visitChildren(expr);
     // LCOV_EXCL_START
   default:
     THROW_NOT_IMPLEMENTED_EXCEPTION("ConstantExpressionVisitor::isConstant");
     // LCOV_EXCL_STOP
   }
+}
+
+bool ConstantExpressionVisitor::visitBoolean(const Expression& expr) {
+  auto& funcExpr = expr.constCast<ScalarFunctionExpression>();
+  if (!funcExpr.getFunction().execFunc) {
+    return false;
+  }
+  return visitChildren(expr);
 }
 
 bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {

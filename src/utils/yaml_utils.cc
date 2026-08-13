@@ -84,6 +84,10 @@ YAML::Node property_type_to_yaml(const DataType& type) {
     node["array"]["max_length"] = array_size;
     break;
   }
+  case DataTypeId::kList:
+    node["list"]["component_type"] =
+        property_type_to_yaml(ListType::GetChildType(type));
+    break;
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unrecognized property type for YAML encoding: " + type.ToString());

@@ -23,6 +23,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
+#include "neug/utils/property/list_property_column.h"
 #include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
 
@@ -339,6 +340,37 @@ TYPED_TEST(TypedColumnStringCowTest, CowIsolationAndDumpOpenMatrix) {
   expect_signature_eq(reopened_sig, cow_after);
 }
 
+TEST(StringColumnTest, CopyItemDoesNotAppendPayload) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("string_column_copy_item_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  StringColumn column;
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(3);
+  column.set_value(0, "dead");
+  column.set_value(1, "keep-one");
+  column.set_value(2, "keep-two");
+
+  auto available_space = column.available_space();
+  column.copy_item(0, 1);
+  column.copy_item(1, 2);
+  column.shrink_items(2);
+  EXPECT_EQ(column.available_space(), available_space);
+  EXPECT_EQ(column.size(), 2);
+  EXPECT_EQ(column.get_view(0), "keep-one");
+  EXPECT_EQ(column.get_view(1), "keep-two");
+
+  std::filesystem::remove_all(temp_dir);
+}
+
 TEST(ArrayColumnTest, SetAnyRequiresArrayValue) {
   auto temp_dir =
       std::filesystem::temp_directory_path() /
@@ -374,6 +406,213 @@ TEST(ArrayColumnTest, SetAnyRequiresArrayValue) {
   ASSERT_EQ(stored_values.size(), 2);
   EXPECT_EQ(stored_values[0].GetValue<int32_t>(), 3);
   EXPECT_EQ(stored_values[1].GetValue<int32_t>(), 4);
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, RecursiveLifecycle) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_property_column_recursive_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto string_list_type = DataType::List(DataType::VARCHAR);
+  auto pair_type = DataType::Array(string_list_type, 2);
+  auto outer_type = DataType::List(pair_type);
+  auto strings = [&](std::initializer_list<const char*> values) {
+    std::vector<Value> children;
+    for (auto value : values) {
+      children.push_back(Value::STRING(value));
+    }
+    return Value::LIST(DataType::VARCHAR, std::move(children));
+  };
+  auto pair = [&](Value lhs, Value rhs) {
+    std::vector<Value> children;
+    children.push_back(std::move(lhs));
+    children.push_back(std::move(rhs));
+    return Value::ARRAY(pair_type, std::move(children));
+  };
+  auto outer = [&](std::vector<Value> values) {
+    return Value::LIST(pair_type, std::move(values));
+  };
+
+  ListPropertyColumn column(outer_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(2);
+  auto initial = outer({pair(strings({"a"}), strings({})),
+                        pair(strings({"b", "c"}), strings({"d"}))});
+  column.set_any(0, initial, true);
+  column.set_any(1, outer({}), true);
+  EXPECT_EQ(column.get_any(0), initial);
+  EXPECT_EQ(ListValue::GetChildren(column.get_any(1)).size(), 0);
+
+  auto clone_module = column.Clone();
+  auto* clone = dynamic_cast<ListPropertyColumn*>(clone_module.get());
+  ASSERT_NE(clone, nullptr);
+  clone->Detach(*ckp, MemoryLevel::kInMemory);
+  auto clone_value = outer({pair(strings({"x", "y"}), strings({"z"}))});
+  clone->set_any(0, clone_value, true);
+  EXPECT_EQ(column.get_any(0), initial);
+  EXPECT_EQ(clone->get_any(0), clone_value);
+
+  auto final_value = outer({pair(strings({}), strings({"last"}))});
+  clone->set_any(0, final_value, true);
+  CheckpointManifest manifest;
+  clone->Dump(*ckp, manifest, "list");
+  ListPropertyColumn reopened;
+  reopened.Open(*ckp, manifest, *manifest.module("list"),
+                MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.list_type(), outer_type);
+  EXPECT_EQ(reopened.get_any(0), final_value);
+  EXPECT_EQ(ListValue::GetChildren(reopened.get_any(1)).size(), 0);
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, DumpCompactsByPhysicalOffset) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_property_column_in_place_compaction_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto list_type = DataType::List(DataType::INT32);
+  auto list = [](std::initializer_list<int32_t> values) {
+    std::vector<Value> children;
+    for (auto value : values) {
+      children.push_back(Value::INT32(value));
+    }
+    return Value::LIST(DataType::INT32, std::move(children));
+  };
+
+  ListPropertyColumn column(list_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(3);
+  column.set_any(0, list({10}), true);
+  column.set_any(1, list({20, 21}), true);
+  column.set_any(0, list({30, 31, 32}), true);
+
+  CheckpointManifest manifest;
+  column.Dump(*ckp, manifest, "list");
+
+  ListPropertyColumn reopened;
+  reopened.Open(*ckp, manifest, *manifest.module("list"),
+                MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.get_any(0), list({30, 31, 32}));
+  EXPECT_EQ(reopened.get_any(1), list({20, 21}));
+  EXPECT_TRUE(ListValue::GetChildren(reopened.get_any(2)).empty());
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, ResizeDefaultAndTypeContract) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_property_column_resize_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto list_type = DataType::List(DataType::INT32);
+  auto list = [](std::initializer_list<int32_t> values) {
+    std::vector<Value> children;
+    for (auto value : values) {
+      children.push_back(Value::INT32(value));
+    }
+    return Value::LIST(DataType::INT32, std::move(children));
+  };
+
+  ListPropertyColumn column(list_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(3);
+  for (size_t i = 0; i < column.size(); ++i) {
+    EXPECT_TRUE(ListValue::GetChildren(column.get_any(i)).empty());
+  }
+
+  column.set_any(0, list({1, 2}), true);
+  column.set_any(0, list({3, 4}), false);
+  EXPECT_EQ(column.get_any(0), list({3, 4}));
+  column.set_any(0, list({5}), true);
+  EXPECT_EQ(column.get_any(0), list({5}));
+  column.set_any(0, list({}), true);
+  EXPECT_TRUE(ListValue::GetChildren(column.get_any(0)).empty());
+  column.set_any(1, list({6}), false);
+  EXPECT_EQ(column.get_any(1), list({6}));
+  column.set_any(1, Value(list_type), true);
+  EXPECT_TRUE(ListValue::GetChildren(column.get_any(1)).empty());
+  EXPECT_THROW(column.set_any(2, list({7}), false),
+               exception::StorageException);
+
+  column.resize(1);
+  column.resize(3);
+  EXPECT_TRUE(ListValue::GetChildren(column.get_any(1)).empty());
+  EXPECT_TRUE(ListValue::GetChildren(column.get_any(2)).empty());
+
+  EXPECT_THROW(
+      column.set_any(0, Value::LIST(DataType::INT64, {Value::INT64(1)}), true),
+      exception::InvalidArgumentException);
+  EXPECT_THROW(
+      column.set_any(0, Value::LIST(DataType::INT32, {Value::INT64(1)}), true),
+      exception::InvalidArgumentException);
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, ExceedsMaxListLength) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_property_column_maxlen_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto list_type = DataType::List(DataType::INT32);
+  ListPropertyColumn column(list_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(1);
+
+  // 65535 elements (max for 16-bit length) should succeed
+  {
+    std::vector<Value> children;
+    children.reserve(65535);
+    for (int32_t i = 0; i < 65535; ++i) {
+      children.push_back(Value::INT32(i));
+    }
+    column.set_any(0, Value::LIST(DataType::INT32, std::move(children)), true);
+    EXPECT_EQ(ListValue::GetChildren(column.get_any(0)).size(), 65535);
+  }
+
+  // 65536 elements exceeds 16-bit length field — must throw
+  {
+    std::vector<Value> children;
+    children.reserve(65536);
+    for (int32_t i = 0; i < 65536; ++i) {
+      children.push_back(Value::INT32(i));
+    }
+    EXPECT_THROW(
+        column.set_any(0, Value::LIST(DataType::INT32, std::move(children)),
+                       true),
+        exception::RuntimeError);
+  }
 
   std::filesystem::remove_all(temp_dir);
 }

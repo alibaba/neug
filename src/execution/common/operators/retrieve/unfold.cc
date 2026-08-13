@@ -15,9 +15,9 @@
 
 #include "neug/execution/common/operators/retrieve/unfold.h"
 
+#include "neug/common/columns/array_columns.h"
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/list_columns.h"
-#include "neug/common/types/array_columns.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"

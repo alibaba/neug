@@ -14,10 +14,10 @@
  */
 
 #include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/array_columns.h"
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/struct_columns.h"
 #include "neug/common/columns/vertex_columns.h"
-#include "neug/common/types/array_columns.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -119,6 +119,37 @@ std::shared_ptr<IContextColumn> ListColumn::shuffle(
   }
   ptr->items_.swap(new_items);
   ptr->datas_ = datas_;
+  ptr->is_optional_ = is_optional_;
+  if (is_optional_) {
+    ptr->valids_.reserve(offsets.size());
+    for (auto offset : offsets) {
+      ptr->valids_.push_back(valids_[offset]);
+    }
+  }
+  return ptr;
+}
+
+std::shared_ptr<IContextColumn> ListColumn::optional_shuffle(
+    const sel_vec_t& offsets) const {
+  auto ptr = std::make_shared<ListColumn>(elem_type_);
+  vector_t<list_item> new_items(offsets.size());
+  ptr->valids_.reserve(offsets.size());
+  for (size_t i = 0; i < offsets.size(); ++i) {
+    if (offsets[i] == std::numeric_limits<sel_t>::max()) {
+      new_items[i] = {0, 0};
+      ptr->valids_.push_back(false);
+    } else {
+      new_items[i] = items_[offsets[i]];
+      if (is_optional_) {
+        ptr->valids_.push_back(valids_[offsets[i]]);
+      } else {
+        ptr->valids_.push_back(true);
+      }
+    }
+  }
+  ptr->items_.swap(new_items);
+  ptr->datas_ = datas_;
+  ptr->is_optional_ = true;
   return ptr;
 }
 

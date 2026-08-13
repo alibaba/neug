@@ -58,7 +58,9 @@ class ReleaseOrderVersionManager : public IVersionManager {
   bool try_set_runtime_wait_if_quiescent(RuntimeWaitFn) noexcept override {
     return true;
   }
-  PublishedReadView acquire_read_view() override { return {1, 0}; }
+  ReadOperationLease acquire_read_operation() override {
+    return {{1, 0}, SharedOperationLease(operation_gate_)};
+  }
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp_until(
@@ -72,7 +74,6 @@ class ReleaseOrderVersionManager : public IVersionManager {
   void finish_update_and_reset_timeline(uint32_t) noexcept override {}
   uint32_t acquire_compact_timestamp() override { return 1; }
 
-  void release_read_view() override { record_release(); }
   void release_insert_timestamp(uint32_t) override { record_release(); }
   void release_compact_timestamp(uint32_t) override { record_release(); }
   void revert_compact_timestamp(uint32_t) override { record_release(); }
@@ -82,6 +83,9 @@ class ReleaseOrderVersionManager : public IVersionManager {
   }
 
   int release_count() const { return release_count_; }
+  uint32_t active_readers() const {
+    return detail::OperationGateWord::readers(operation_gate_.load_acquire());
+  }
 
  private:
   RuntimeWaitFn runtime_wait_impl() const noexcept override {
@@ -96,6 +100,7 @@ class ReleaseOrderVersionManager : public IVersionManager {
   }
 
   GraphSnapshotStore& store_;
+  OperationGate operation_gate_;
   bool snapshot_was_released_first_{false};
   int release_count_{0};
 };
@@ -196,9 +201,15 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
   }
   }
 
-  EXPECT_EQ(version_manager.release_count(), 1);
-  EXPECT_TRUE(version_manager.snapshot_was_released_first())
-      << "The snapshot pin must be released before the timestamp lease";
+  if (path.transaction_kind == TransactionKind::kRead) {
+    EXPECT_EQ(version_manager.release_count(), 0);
+    EXPECT_EQ(version_manager.active_readers(), 0U);
+    EXPECT_TRUE(store_->HasFreeSlot());
+  } else {
+    EXPECT_EQ(version_manager.release_count(), 1);
+    EXPECT_TRUE(version_manager.snapshot_was_released_first())
+        << "The snapshot pin must be released before the timestamp lease";
+  }
 }
 
 TEST(UpdateTimestampLeaseTest, MoveTransfersTimestampOwnership) {
@@ -237,7 +248,7 @@ TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
   VersionManager version_manager;
   version_manager.init_ts({0, 0}, 2);
 
-  version_manager.acquire_read_view();
+  auto reader = version_manager.acquire_read_operation();
 
   std::promise<void> entered_commit;
   std::promise<void> drained;
@@ -256,7 +267,7 @@ TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
   EXPECT_EQ(drained_future.wait_for(std::chrono::milliseconds(20)),
             std::future_status::timeout);
 
-  version_manager.release_read_view();
+  reader.admission.release();
   EXPECT_EQ(drained_future.wait_for(std::chrono::seconds(1)),
             std::future_status::ready);
   writer.join();
@@ -275,9 +286,8 @@ TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
   auto acquired_read_future = acquired_read.get_future();
   std::thread reader([&]() {
     attempting_read.set_value();
-    const auto published = version_manager.acquire_read_view();
-    acquired_read.set_value(published.visibility_ts);
-    version_manager.release_read_view();
+    auto operation = version_manager.acquire_read_operation();
+    acquired_read.set_value(operation.published_view.visibility_ts);
   });
 
   attempting_read_future.wait();

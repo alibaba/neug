@@ -309,11 +309,12 @@ static void expect_compact_completes_timestamp_and_preserves_next_insert(
     version_manager.revert_compact_timestamp(compact_ts);
   }
 
-  const auto read_after_compact_ts =
-      version_manager.acquire_read_view().visibility_ts;
-  EXPECT_EQ(read_after_compact_ts, compact_ts)
-      << "compaction timestamps must be marked complete so readers can advance";
-  version_manager.release_read_view();
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, compact_ts)
+        << "compaction timestamps must be marked complete so readers can "
+           "advance";
+  }
 
   const auto next_insert_ts = version_manager.acquire_insert_timestamp();
   EXPECT_GT(next_insert_ts, compact_ts)
@@ -321,11 +322,11 @@ static void expect_compact_completes_timestamp_and_preserves_next_insert(
          "replay cannot collide with pre-compaction insert records";
   version_manager.release_insert_timestamp(next_insert_ts);
 
-  const auto read_after_insert_ts =
-      version_manager.acquire_read_view().visibility_ts;
-  EXPECT_EQ(read_after_insert_ts, next_insert_ts)
-      << "a compact timestamp gap must not block later insert visibility";
-  version_manager.release_read_view();
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, next_insert_ts)
+        << "a compact timestamp gap must not block later insert visibility";
+  }
 }
 
 TEST(WalReplayVersionManagerTest,
@@ -351,19 +352,21 @@ TEST(WalReplayVersionManagerTest, ResetTimelineStartsFreshTimestampTimeline) {
   update_lease.MakeUpdateExclusive();
   update_lease.FinishAndResetTimeline();
 
-  const auto baseline_read_view = version_manager.acquire_read_view();
-  EXPECT_EQ(baseline_read_view.visibility_ts, 0);
-  EXPECT_EQ(baseline_read_view.snapshot_generation, 7);
-  version_manager.release_read_view();
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, 0);
+    EXPECT_EQ(read.published_view.snapshot_generation, 7);
+  }
 
   const auto new_insert_ts = version_manager.acquire_insert_timestamp();
   EXPECT_EQ(new_insert_ts, 1);
   version_manager.release_insert_timestamp(new_insert_ts);
 
-  const auto new_read_view = version_manager.acquire_read_view();
-  EXPECT_EQ(new_read_view.visibility_ts, new_insert_ts);
-  EXPECT_EQ(new_read_view.snapshot_generation, 7);
-  version_manager.release_read_view();
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, new_insert_ts);
+    EXPECT_EQ(read.published_view.snapshot_generation, 7);
+  }
 }
 
 TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
@@ -374,9 +377,8 @@ TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
   update_lease.MakeUpdateExclusive();
   update_lease.FinishAndResetTimeline();
 
-  const auto read_view = version_manager.acquire_read_view();
-  EXPECT_EQ(read_view.visibility_ts, 0);
-  version_manager.release_read_view();
+  auto read = version_manager.acquire_read_operation();
+  EXPECT_EQ(read.published_view.visibility_ts, 0);
 }
 
 TEST(WalReplayVersionManagerTest,
@@ -391,9 +393,10 @@ TEST(WalReplayVersionManagerTest,
     auto moved = std::move(original);
   }
 
-  const auto read_view = version_manager.acquire_read_view();
-  EXPECT_EQ(read_view.visibility_ts, update_ts);
-  version_manager.release_read_view();
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, update_ts);
+  }
 
   const auto next_insert_ts = version_manager.acquire_insert_timestamp();
   EXPECT_EQ(next_insert_ts, update_ts + 1);
@@ -408,9 +411,8 @@ TEST(WalReplayVersionManagerTest, UpdateLeaseFinishDoesNotResetTimeline) {
   const auto update_ts = update_lease.Timestamp();
   update_lease.Finish(std::nullopt);
 
-  const auto read_after_finish = version_manager.acquire_read_view();
-  EXPECT_EQ(read_after_finish.visibility_ts, update_ts);
-  version_manager.release_read_view();
+  auto read = version_manager.acquire_read_operation();
+  EXPECT_EQ(read.published_view.visibility_ts, update_ts);
 }
 
 TEST(WalReplayVersionManagerTest, BeginUpdateCommitRejectsMissingUpdateLease) {
@@ -426,7 +428,7 @@ TEST(WalReplayVersionManagerTest,
 
   neug::VersionManager version_manager;
   version_manager.init_ts({0, 0}, 1);
-  (void) version_manager.acquire_read_view();
+  auto reader = version_manager.acquire_read_operation();
   neug::UpdateTimestampLease update_lease(version_manager);
 
   auto commit = std::async(std::launch::async, [&]() {
@@ -434,7 +436,7 @@ TEST(WalReplayVersionManagerTest,
     update_lease.Finish(std::nullopt);
   });
   const auto status = commit.wait_for(100ms);
-  version_manager.release_read_view();
+  reader.admission.release();
 
   EXPECT_EQ(status, std::future_status::ready);
   commit.get();
@@ -448,7 +450,7 @@ TEST(WalReplayVersionManagerTest,
   version_manager.init_ts({40, 0}, 1);
   ASSERT_TRUE(version_manager.try_set_runtime_wait_if_quiescent(
       &ObserveInPlaceMutationWait));
-  (void) version_manager.acquire_read_view();
+  auto existing_reader = version_manager.acquire_read_operation();
 
   neug::UpdateTimestampLease update_lease(version_manager);
 
@@ -463,14 +465,13 @@ TEST(WalReplayVersionManagerTest,
   }
 
   auto new_reader = std::async(std::launch::async, [&]() {
-    const auto view = version_manager.acquire_read_view();
-    version_manager.release_read_view();
-    return view;
+    auto read = version_manager.acquire_read_operation();
+    return read.published_view;
   });
   EXPECT_EQ(new_reader.wait_for(20ms), std::future_status::timeout);
   EXPECT_FALSE(exclusivity_finished.load(std::memory_order_acquire));
 
-  version_manager.release_read_view();
+  existing_reader.admission.release();
   exclusivity_thread.join();
   EXPECT_TRUE(exclusivity_finished.load(std::memory_order_acquire));
   EXPECT_EQ(new_reader.wait_for(20ms), std::future_status::timeout);
@@ -601,9 +602,10 @@ TEST(CheckpointCoordinatorTest,
   EXPECT_TRUE(wal_writer->append(reinterpret_cast<const char*>(&after_marker),
                                  sizeof(after_marker)));
 
-  const auto read_view = version_manager.acquire_read_view();
-  EXPECT_EQ(read_view.visibility_ts, update_ts);
-  version_manager.release_read_view();
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, update_ts);
+  }
   const auto next_insert_ts = version_manager.acquire_insert_timestamp();
   EXPECT_EQ(next_insert_ts, update_ts + 1);
   version_manager.release_insert_timestamp(next_insert_ts);
