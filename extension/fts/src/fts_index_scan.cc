@@ -62,10 +62,9 @@ const binder::ScalarFunctionExpression* FindBM25Expression(
   return nullptr;
 }
 
-bool ExtractBM25Arguments(
-    const binder::ScalarFunctionExpression& expression,
-    const binder::PropertyExpression*& property,
-    std::shared_ptr<binder::LiteralExpression>& query) {
+bool ExtractBM25Arguments(const binder::ScalarFunctionExpression& expression,
+                          const binder::PropertyExpression*& property,
+                          std::shared_ptr<binder::LiteralExpression>& query) {
   auto children = expression.getChildren();
   if (children.size() != 2 ||
       children[0]->expressionType != common::ExpressionType::PROPERTY ||

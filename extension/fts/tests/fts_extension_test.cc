@@ -135,8 +135,10 @@ TEST(FTSIndexTest, SearchSupportsWordsPhrasesAndPrefixes) {
   ASSERT_TRUE(third.ok()) << third.error_message();
 
   const std::vector<std::pair<std::string, std::vector<vid_t>>> cases = {
-      {"quick", {7, 3}}, {"\"quick brown\"", {7}},
-      {"bro*", {7, 9}},  {"missing", {}}};
+      {"quick", {7, 3}},
+      {"\"quick brown\"", {7}},
+      {"bro*", {7, 9}},
+      {"missing", {}}};
   for (const auto& [query, expected] : cases) {
     auto params = MakeQuery(query);
     auto results = index->Search(params);

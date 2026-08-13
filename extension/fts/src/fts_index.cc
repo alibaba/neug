@@ -110,8 +110,7 @@ void FTSIndex::ParseOptions() {
   if (meta_->name.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex name must not be empty");
   }
-  if (!std::regex_match(meta_->name,
-                        std::regex("[A-Za-z_][A-Za-z0-9_]*"))) {
+  if (!std::regex_match(meta_->name, std::regex("[A-Za-z_][A-Za-z0-9_]*"))) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "FTSIndex name must start with a letter or underscore and contain "
         "only letters, digits, or underscores");
@@ -166,11 +165,11 @@ void FTSIndex::ValidateExistingTable() {
 }
 
 void FTSIndex::PrepareStatements() {
-  auto append_sql = "INSERT INTO " + table_name_ +
-                    "(rowid, text) VALUES (?1, ?2);";
-  auto search_sql = "SELECT rowid, bm25(" + table_name_ +
-                    ") AS score FROM " + table_name_ + " WHERE " +
-                    table_name_ + " MATCH ?1 ORDER BY score ASC LIMIT ?2;";
+  auto append_sql =
+      "INSERT INTO " + table_name_ + "(rowid, text) VALUES (?1, ?2);";
+  auto search_sql = "SELECT rowid, bm25(" + table_name_ + ") AS score FROM " +
+                    table_name_ + " WHERE " + table_name_ +
+                    " MATCH ?1 ORDER BY score ASC LIMIT ?2;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
   *search_statements_ = read_connection_->Prepare(search_sql);
@@ -374,7 +373,8 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
     std::lock_guard lock(search_statements_->mutex());
     search_statements_->Reset();
     search_statements_->BindText(1, fts_params->query_string);
-    // Set fetch_limit to max to preserve correctness after scalar/MVCC filtering.
+    // Set fetch_limit to max to preserve correctness after scalar/MVCC
+    // filtering.
     search_statements_->BindInt64(2, std::numeric_limits<int64_t>::max());
 
     std::vector<SearchCandidate> results;
