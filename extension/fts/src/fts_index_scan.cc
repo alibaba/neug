@@ -80,24 +80,6 @@ bool ExtractBM25Arguments(const binder::ScalarFunctionExpression& expression,
          query->getDataType().id() == DataTypeId::kVarchar;
 }
 
-bool ContainsPrimaryKeyPredicate(
-    const std::shared_ptr<binder::Expression>& expression,
-    common::table_id_t table_id) {
-  if (!expression) {
-    return false;
-  }
-  if (expression->expressionType == common::ExpressionType::PROPERTY) {
-    return expression->constCast<binder::PropertyExpression>().isPrimaryKey(
-        table_id);
-  }
-  for (const auto& child : expression->getChildren()) {
-    if (ContainsPrimaryKeyPredicate(child, table_id)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 std::shared_ptr<binder::Expression> MakeScanColumn(
     const binder::PropertyExpression& property, DataType node_type) {
   auto output = std::make_shared<binder::VariableExpression>(
@@ -382,15 +364,14 @@ FTSIndexScanOptimizer::visitOrderByReplace(
       planner::LogicalOperatorType::SCAN_NODE_TABLE) {
     auto scan = input_op->ptrCast<planner::LogicalScanNodeTable>();
     if (scan->getTableIDs().size() != 1 ||
-        scan->getScanType() != planner::LogicalScanNodeTableType::SCAN ||
-        ContainsPrimaryKeyPredicate(scan->getPredicates(),
-                                    scan->getTableIDs()[0]) ||
         property->getVariableName() != scan->getAliasName() ||
         property->getSingleTableID() != scan->getTableIDs()[0]) {
       return op;
     }
     vertex_output = &scan->getNodeID()->constCast<binder::PropertyExpression>();
-    attach_input = scan->getPredicates() != nullptr ||
+    attach_input = scan->getScanType() ==
+                       planner::LogicalScanNodeTableType::PRIMARY_KEY_SCAN ||
+                   scan->getPredicates() != nullptr ||
                    !scan->getPropertyPredicates().empty();
   } else {
     vertex_output = FindVertexOutput(*input_op, *property);
