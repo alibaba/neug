@@ -38,18 +38,15 @@ struct LabelVidHash {
   std::size_t operator()(const std::pair<label_t, vid_t>& p) const;
 };
 
-// Integer-based edge key to replace string-based EdgeToKey for performance.
-// Avoids heap allocation, string hashing, and string comparison.
+// Integer edge key used by FaSTest candidate sets.
 struct EdgeKey {
   int32_t src;
   int32_t dst;
   uint8_t label;
-  EdgeKey() : src(-1), dst(-1), label(255) {}
   EdgeKey(int32_t s, int32_t d, uint8_t l) : src(s), dst(d), label(l) {}
   bool operator==(const EdgeKey& o) const {
     return src == o.src && dst == o.dst && label == o.label;
   }
-  bool invalid() const { return src == -1; }
 };
 
 struct EdgeKeyHash {
@@ -71,7 +68,6 @@ enum class CompType {
 
 class PropCons {
  public:
-  PropCons() : _value(neug::DataTypeId::kUnknown) {}
   PropCons(std::string prop_name, CompType comp_type, Value value)
       : _prop_name(prop_name),
         _comp_type(comp_type),
@@ -102,16 +98,17 @@ struct LabelStatistics {
  */
 class DataGraphMeta {
  public:
-  explicit DataGraphMeta(const StorageReadInterface& graph);
+  DataGraphMeta() = default;
   ~DataGraphMeta() = default;
 
   // Main preprocessing function
-  void Preprocess();
+  void Preprocess(const StorageReadInterface& graph);
 
   // Checkpoint serialization: save/load precomputed metadata to/from binary
   // file
   bool SaveToFile(const std::string& filepath) const;
-  bool LoadFromFile(const std::string& filepath);
+  bool LoadFromFile(const std::string& filepath,
+                    const StorageReadInterface& graph);
 
   // Getters
   inline int GetNumVertices() const { return num_vertex_; }
@@ -119,32 +116,19 @@ class DataGraphMeta {
   inline int GetNumLabels() const { return num_labels_; }
   inline int GetNumEdgeLabels() const { return num_edge_labels_; }
   inline int GetMaxDegree() const { return max_degree_; }
-  inline int GetMaxInDegree() const { return max_in_degree_; }
-  inline int GetMaxOutDegree() const { return max_out_degree_; }
   inline int GetDegeneracy() const { return degeneracy_; }
 
-  int GetDegree(int global_id) const;
   // Get vertex label by global_id (returns label_t as int)
   int GetVertexLabel(int global_id) const;
   // Get undirected neighbors by global_id (returns global_ids)
   std::vector<int> GetNeighbors(int global_id) const;
   int GetCoreNum(int global_id) const;
-  inline const std::vector<int>& GetDegeneracyOrder() const {
-    return degeneracy_order_;
-  }
-  inline const std::vector<int>& GetCoreNums() const { return core_num_; }
-  inline const LabelStatistics& GetLabelStatistics() const {
-    return label_statistics_;
-  }
 
   // Edge representation: (src_global_id, dst_global_id, edge_label)
   using Edge = std::tuple<int, int, label_t>;
 
   // Edge lookup: check if edge exists, return edge or invalid edge
   Edge GetEdge(int u, int v, int label) const;
-
-  // Check if edge exists (any label), u, v are global_ids
-  int GetEdgeIndex(int u, int v) const;
 
   // Check if edge with specific label exists, u, v are global_ids
   int GetEdgeIndex(int u, int v, int label) const;
@@ -170,12 +154,6 @@ class DataGraphMeta {
   // Get all in-edges to vertex (by global_id)
   std::vector<Edge> GetAllInIncidentEdges(int global_id) const;
 
-  // Get out-neighbors with flat boolean dedup
-  std::vector<int> GetOutNeighbors(int global_id) const;
-
-  // Get in-neighbors with flat boolean dedup
-  std::vector<int> GetInNeighbors(int global_id) const;
-
   // Get the count of out-neighbors with vertex label target_dst_label that are
   // in the mask. Used by CheckNeighborSafety to count per-label masked
   // neighbors directly.
@@ -188,17 +166,6 @@ class DataGraphMeta {
   int GetInNeighborCountMasked(int global_id, int target_src_label,
                                const bool* mask) const;
 
-  // Count out-neighbors of specific label that are in a boolean set, with early
-  // termination. Skips dedup (slight over-count is conservative for safety
-  // checks).
-  int CountOutNeighborsInSet(int global_id, int target_dst_label,
-                             const bool* set, int needed) const;
-
-  // Count in-neighbors of specific label that are in a boolean set, with early
-  // termination.
-  int CountInNeighborsInSet(int global_id, int target_src_label,
-                            const bool* set, int needed) const;
-
   // Edge accessors (using Edge tuple with global_ids)
   inline label_t GetEdgeLabel(const Edge& edge) const {
     return std::get<2>(edge);
@@ -210,19 +177,8 @@ class DataGraphMeta {
     return std::get<0>(edge);  // Returns global_id
   }
 
-  // Convert Edge to unique string key (legacy, prefer EdgeToIntKey)
-  std::string EdgeToKey(const Edge& edge) const;
-
-  std::string EdgeToKey(int src, int dst, label_t label) const;
-
   // Integer-based edge key (no heap allocation, fast hash)
   EdgeKey EdgeToIntKey(const Edge& edge) const;
-
-  EdgeKey EdgeToIntKey(int src, int dst, label_t label) const;
-
-  // Configuration flags
-  bool build_triangle = false;
-  bool build_four_cycle = false;
 
   // ========== ID Mapping Methods ==========
   // Map (label, vid) to global_id
@@ -231,24 +187,17 @@ class DataGraphMeta {
   // Map global_id back to (label, vid)
   std::pair<label_t, vid_t> ToLocalId(int global_id) const;
 
-  // Get vertex label from global_id
-  label_t GetVertexLabelFromGlobal(int global_id) const;
-
-  // Get original vid from global_id
-  vid_t GetOriginalVid(int global_id) const;
-
   // Fast ToGlobalId using direct array indexing (no hash map)
   int FastToGlobalId(label_t label, vid_t vid) const;
 
  private:
-  void BuildIdMapping();
-  void BuildNeighbors();
+  void BuildIdMapping(const StorageReadInterface& graph);
+  void BuildNeighbors(const StorageReadInterface& graph);
   void ComputeCoreNum();
   void ComputeLabelStatistics();
-  void BuildSchemaIndex();
+  void BuildSchemaIndex(const StorageReadInterface& graph);
 
-  // Per-thread scratch for dedup in GetNeighbors / GetOutNeighbors /
-  // GetInNeighbors. The DataGraphMeta instance is shared across threads via
+  // Per-thread scratch for dedup in GetNeighbors. DataGraphMeta is shared via
   // GraphDataCache, so the dedup bitmap must NOT live on the object — it
   // would race. Each thread reuses its own scratch across calls (and across
   // DataGraphMeta instances of varying sizes); the bitmap only ever grows.
@@ -261,8 +210,6 @@ class DataGraphMeta {
 
   static uint32_t PackLabelPair(label_t a, label_t b);
   static uint64_t PackViewKey(label_t src, label_t dst, label_t edge);
-
-  const StorageReadInterface& graph_;
 
   // ========== ID Mapping ==========
   std::unordered_map<std::pair<label_t, vid_t>, int, LabelVidHash>

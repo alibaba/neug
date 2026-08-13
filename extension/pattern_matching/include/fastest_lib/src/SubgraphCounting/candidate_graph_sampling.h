@@ -35,7 +35,6 @@ namespace CardinalityEstimation {
 class CandidateGraphSampler {
   CardEstOption opt;
   CandidateSpace* CS;
-  const neug::StorageReadInterface& graph_;
   DataGraphMeta& data_meta_;
   PatternGraph* query_;
   dict info;
@@ -45,8 +44,6 @@ class CandidateGraphSampler {
   int min_cand;
   bool* seen;
   int **local_candidates, *local_candidate_size;
-
-  int num_embeddings = 0;
 
  public:
   dict GetInfo() { return info; }
@@ -73,8 +70,6 @@ class CandidateGraphSampler {
 
   void Intersection(int index);
 };
-
-inline int printcnt = 0;
 
 }  // namespace CardinalityEstimation
 }  // namespace graphlib

@@ -27,11 +27,7 @@ jobs:
         os:
           - ubuntu-latest
           - macos-15
-        node-version: ["16", "20", "24"]
-        # skip Node.js 24 on ubuntu-latest, requires C++11
-        exclude:
-          - os: ubuntu-latest
-            node-version: "24"
+        node-version: ["20", "22", "24"]
 
     steps:
       - name: checkout

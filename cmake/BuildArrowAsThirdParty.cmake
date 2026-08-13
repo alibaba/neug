@@ -259,6 +259,78 @@ function(build_arrow_as_third_party)
         add_subdirectory(${arrow_SOURCE_DIR}/cpp ${arrow_BINARY_DIR} EXCLUDE_FROM_ALL)
     endif()
 
+    # Backport upstream Arrow fix for an out-of-bounds write in
+    # BufferedInputStream that corrupts the heap when reading large Parquet
+    # files with buffered stream enabled (use-after-free in
+    # SerializedPageReader page-header reads, see alibaba/neug#839).
+    # Arrow 18.0.0's SetBufferSize() caps the new buffer size at
+    # `bytes_buffered_ + remaining` without accounting for buffer_pos_, so a
+    # subsequent fill writes past the end of the buffer.
+    # Upstream fix: apache/arrow GH-48311 / PR #48322 (merged for Arrow 20).
+    set(_buffered_cc "${arrow_SOURCE_DIR}/cpp/src/arrow/io/buffered.cc")
+    file(READ "${_buffered_cc}" _buffered_cc_content)
+    string(FIND "${_buffered_cc_content}" "NEUG_GH48311_PATCHED" _buffered_cc_patched)
+    if(_buffered_cc_patched EQUAL -1)
+        set(_buffered_cc_old [=[
+  Status SetBufferSize(int64_t new_buffer_size) {
+    if (new_buffer_size <= 0) {
+      return Status::Invalid("Buffer size should be positive");
+    }
+    if ((buffer_pos_ + bytes_buffered_) >= new_buffer_size) {
+      return Status::Invalid("Cannot shrink read buffer if buffered data remains");
+    }
+    if (raw_read_bound_ >= 0) {
+      // No need to reserve space for more than the total remaining number of bytes.
+      new_buffer_size = std::min(new_buffer_size,
+                                 bytes_buffered_ + (raw_read_bound_ - raw_read_total_));
+    }
+    return ResizeBuffer(new_buffer_size);
+  }]=])
+        set(_buffered_cc_new [=[
+  // NEUG_GH48311_PATCHED: backport of apache/arrow GH-48311 / PR #48322.
+  Status SetBufferSize(int64_t new_buffer_size) {
+    if (new_buffer_size <= 0) {
+      return Status::Invalid("Buffer size should be positive");
+    }
+    if ((buffer_pos_ + bytes_buffered_) >= new_buffer_size) {
+      return Status::Invalid("Cannot shrink read buffer if buffered data remains");
+    }
+    bool need_reset_buffer_pos = false;
+    if (raw_read_bound_ >= 0) {
+      if (bytes_buffered_ == 0) {
+        // Special case: we can override data in the current buffer because it
+        // does not contain any required data. Reset buffer_pos_ to 0 so the
+        // buffer head is reused.
+        new_buffer_size = std::min(new_buffer_size, raw_read_bound_ - raw_read_total_);
+        need_reset_buffer_pos = true;
+      } else {
+        // We should keep the current buffer because it contains data that can
+        // be read. Reserve space for the buffered data plus buffer_pos_.
+        new_buffer_size =
+            std::min(new_buffer_size, buffer_pos_ + bytes_buffered_ +
+                                          (raw_read_bound_ - raw_read_total_));
+      }
+    }
+    auto status = ResizeBuffer(new_buffer_size);
+    if (status.ok() && need_reset_buffer_pos) {
+      buffer_pos_ = 0;
+    }
+    return status;
+  }]=])
+        string(FIND "${_buffered_cc_content}" "${_buffered_cc_old}" _buffered_cc_match)
+        if(_buffered_cc_match EQUAL -1)
+            message(FATAL_ERROR
+                "Cannot apply GH-48311 buffered.cc patch: expected Arrow 18.0.0 "
+                "SetBufferSize() implementation not found in ${_buffered_cc}. "
+                "The Arrow source may have changed; update the patch in "
+                "BuildArrowAsThirdParty.cmake.")
+        endif()
+        string(REPLACE "${_buffered_cc_old}" "${_buffered_cc_new}"
+            _buffered_cc_content "${_buffered_cc_content}")
+        file(WRITE "${_buffered_cc}" "${_buffered_cc_content}")
+        message(STATUS "Patched Arrow buffered.cc (GH-48311 OOB write in BufferedInputStream)")
+    endif()
+
     if(ARROW_SOURCE_URL)
         # Try different possible Arrow target names
         if(TARGET Arrow::arrow_static)

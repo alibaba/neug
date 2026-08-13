@@ -35,10 +35,10 @@ void CandidateGraphSampler::ClearSampledResult() {
   sampled_result.clear();
 }
 
-CandidateGraphSampler::CandidateGraphSampler(
-    const neug::StorageReadInterface& graph, DataGraphMeta& data_meta,
-    CardEstOption opt_)
-    : graph_(graph), data_meta_(data_meta) {
+CandidateGraphSampler::CandidateGraphSampler(const neug::StorageReadInterface&,
+                                             DataGraphMeta& data_meta,
+                                             CardEstOption opt_)
+    : data_meta_(data_meta) {
   seen = new bool[data_meta_.GetNumVertices()];
   opt = opt_;
   local_candidates = new int*[opt.MAX_QUERY_VERTEX];
@@ -71,7 +71,6 @@ void CandidateGraphSampler::Preprocess(PatternGraph* query,
 }
 
 double CandidateGraphSampler::Estimate(int ub_initial, int sample_total_size) {
-  printcnt = 0;
   std::vector<int> num_cands(query_->GetNumVertices());
   for (int i = 0; i < query_->GetNumVertices(); i++) {
     num_cands[i] = CS->GetCandidateSetSize(i);
