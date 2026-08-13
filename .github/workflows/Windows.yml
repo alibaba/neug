@@ -154,6 +154,7 @@ jobs:
       # test_db_svc is skipped (BRPC not available on Windows).
       # ========================================
       - name: Run C++ tests
+        id: cpp-tests
         continue-on-error: true
         env:
           MODERN_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
@@ -194,54 +195,63 @@ jobs:
           python -m pip install -r tools/python_bind/requirements_dev.txt
 
       - name: Run Python schema tests
+        id: python-schema-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_schema.py --exitfirst
 
       - name: Run Python DML tests
+        id: python-dml-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_dml.py --exitfirst
 
       - name: Run Python query tests
+        id: python-query-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_query.py --exitfirst
 
       - name: Run Python path tests
+        id: python-path-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_path.py --exitfirst
 
       - name: Run Python dataset tests
+        id: python-dataset-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_dataset.py --exitfirst
 
       - name: Run Python merge tests
+        id: python-merge-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_merge.py --exitfirst
 
       - name: Run Python LOAD FROM sniffer tests (CSV and JSON)
+        id: python-sniffer-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_sniffer.py -k "csv or json" --exitfirst
 
       - name: Run Python complex query tests
+        id: python-complex-query-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_db_cases.py --exitfirst
 
       - name: Run Python list/array tests
+        id: python-list-array-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
@@ -249,6 +259,7 @@ jobs:
           python -m pytest -sv tests/test_db_array.py --exitfirst
 
       - name: Run Python PyArrow related tests
+        id: python-pyarrow-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
@@ -257,8 +268,37 @@ jobs:
           python -m pip uninstall -y pyarrow
 
       - name: Run Python CLI tool tests
+        id: python-cli-tests
         continue-on-error: true
         run: |
           cd tools/python_bind
           python -m pytest -sv tests/test_ngcli_commands.py --exitfirst
           python -m pytest -sv tests/test_ngcli_basics.py --exitfirst
+
+      # ========================================
+      # Summary: fail the job if any test step actually failed.
+      # Individual steps use continue-on-error during initial Windows bring-up
+      # so that we can collect a full picture of failures, but this step
+      # ensures the overall CI is red when tests are not passing.
+      # ========================================
+      - name: Check test results
+        if: always()
+        run: |
+          $failed = @()
+          if ('${{ steps.cpp-tests.outcome }}' -eq 'failure') { $failed += 'cpp-tests' }
+          if ('${{ steps.python-schema-tests.outcome }}' -eq 'failure') { $failed += 'python-schema-tests' }
+          if ('${{ steps.python-dml-tests.outcome }}' -eq 'failure') { $failed += 'python-dml-tests' }
+          if ('${{ steps.python-query-tests.outcome }}' -eq 'failure') { $failed += 'python-query-tests' }
+          if ('${{ steps.python-path-tests.outcome }}' -eq 'failure') { $failed += 'python-path-tests' }
+          if ('${{ steps.python-dataset-tests.outcome }}' -eq 'failure') { $failed += 'python-dataset-tests' }
+          if ('${{ steps.python-merge-tests.outcome }}' -eq 'failure') { $failed += 'python-merge-tests' }
+          if ('${{ steps.python-sniffer-tests.outcome }}' -eq 'failure') { $failed += 'python-sniffer-tests' }
+          if ('${{ steps.python-complex-query-tests.outcome }}' -eq 'failure') { $failed += 'python-complex-query-tests' }
+          if ('${{ steps.python-list-array-tests.outcome }}' -eq 'failure') { $failed += 'python-list-array-tests' }
+          if ('${{ steps.python-pyarrow-tests.outcome }}' -eq 'failure') { $failed += 'python-pyarrow-tests' }
+          if ('${{ steps.python-cli-tests.outcome }}' -eq 'failure') { $failed += 'python-cli-tests' }
+          if ($failed.Count -gt 0) {
+            Write-Error "The following test steps failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "All test steps passed."

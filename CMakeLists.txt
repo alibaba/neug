@@ -147,6 +147,13 @@ if(WIN32)
     # Force-include platform.h so that GCC extensions such as __attribute__ are
     # neutralized for MSVC without touching every source file. Restrict to CXX
     # so the resource compiler (RC) does not see the option.
+    #
+    # NOTE: platform.h defines __attribute__(x) as an empty macro on Windows.
+    # This is a global blanket no-op and may silently strip attributes from
+    # third-party headers that rely on __attribute__ (rather than guarding it
+    # with #ifdef __GNUC__). Verified compatible with: abseil-cpp, protobuf,
+    # glog, gflags, yaml-cpp, rapidjson, re2, antlr4_runtime. When adding a new
+    # third-party dependency, check that it does not break under this macro.
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_SOURCE_DIR}/include/neug/utils/platform.h>)
     # Force-include api.h so NEUG_API is visible everywhere (needed because
     # protobuf-generated headers use dllexport_decl=NEUG_API).

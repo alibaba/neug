@@ -487,8 +487,8 @@ static void ensureNeugSymbolsGlobal() {
   }
   promoted = true;
 #else
-  // On Windows, symbols are exported via WINDOWS_EXPORT_ALL_SYMBOLS,
-  // so no promotion is needed.
+  // On Windows, symbols are exported via NEUG_API macros, so no promotion is
+  // needed.
 #endif
 }
 

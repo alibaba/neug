@@ -151,7 +151,7 @@ bool LocalWalWriter::append(const char* data, size_t length) {
                        std::string(strerror(errno)));
 #else
     THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strErrno(errno)));
+                       std::string(strerror(errno)));
 #endif
   }
 #else
