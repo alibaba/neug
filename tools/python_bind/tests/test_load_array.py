@@ -656,9 +656,7 @@ class TestLoadArray:
         )
         self.conn.execute("LOAD PARQUET")
         result = list(
-            self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, tags ORDER BY id'
-            )
+            self.conn.execute(f'LOAD FROM "{parquet_path}" RETURN id, tags ORDER BY id')
         )
         assert result == [
             [1, [1, 2, 3]],
@@ -748,18 +746,11 @@ class TestLoadArray:
         """Round-trip: create graph with LIST property, COPY TO parquet, LOAD FROM."""
         # Create graph with a LIST property
         self.conn.execute(
-            "CREATE NODE TABLE Tag(id INT64, tags STRING[], "
-            "PRIMARY KEY(id));"
+            "CREATE NODE TABLE Tag(id INT64, tags STRING[], " "PRIMARY KEY(id));"
         )
-        self.conn.execute(
-            "CREATE (t:Tag {id: 1, tags: CAST(['a', 'b'], 'STRING[]')});"
-        )
-        self.conn.execute(
-            "CREATE (t:Tag {id: 2, tags: CAST(['c'], 'STRING[]')});"
-        )
-        self.conn.execute(
-            "CREATE (t:Tag {id: 3, tags: CAST([], 'STRING[]')});"
-        )
+        self.conn.execute("CREATE (t:Tag {id: 1, tags: CAST(['a', 'b'], 'STRING[]')});")
+        self.conn.execute("CREATE (t:Tag {id: 2, tags: CAST(['c'], 'STRING[]')});")
+        self.conn.execute("CREATE (t:Tag {id: 3, tags: CAST([], 'STRING[]')});")
 
         # Export to parquet
         out_path = os.path.join(self.parquet_dir, "list_roundtrip.parquet")
@@ -771,9 +762,7 @@ class TestLoadArray:
 
         # Load back from parquet
         result = list(
-            self.conn.execute(
-                f'LOAD FROM "{out_path}" RETURN * ORDER BY "t.id"'
-            )
+            self.conn.execute(f'LOAD FROM "{out_path}" RETURN * ORDER BY "t.id"')
         )
         assert len(result) == 3
         assert result[0][0] == 1
