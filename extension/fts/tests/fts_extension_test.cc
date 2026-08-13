@@ -237,6 +237,40 @@ TEST(FTSExtensionTest, FusedTopKQueryReturnsNodesAndScores) {
   EXPECT_FALSE(invalid_match.has_value());
 }
 
+TEST(FTSExtensionTest, PrimaryKeyRangeFilterUsesFTSIndexScan) {
+  const auto build_root = FindBuildRoot();
+  ASSERT_FALSE(build_root.empty());
+  ASSERT_EQ(setenv("NEUG_EXTENSION_HOME_PYENV", build_root.c_str(), 1), 0);
+
+  TemporaryDatabaseDirectory database_directory;
+  NeugDB database;
+  ASSERT_TRUE(database.Open(database_directory.path()));
+  auto connection = database.Connect();
+  ASSERT_NE(connection, nullptr);
+  ASSERT_TRUE(connection->Query("LOAD fts;").has_value());
+  ASSERT_TRUE(connection
+                  ->Query("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, "
+                          "text STRING);")
+                  .has_value());
+  ASSERT_TRUE(connection
+                  ->Query("CREATE (:Item {id: 1, text: 'search alpha'}), "
+                          "(:Item {id: 2, text: 'search beta'}), "
+                          "(:Item {id: 3, text: 'gamma'});")
+                  .has_value());
+  ASSERT_TRUE(connection
+                  ->Query("CREATE INDEX item_text_fts ON Item USING FTS "
+                          "(text);")
+                  .has_value());
+
+  auto result = connection->Query(
+      "MATCH (n:Item) WHERE n.id > 1 "
+      "RETURN n.id, bm25(n.text, 'search') AS score "
+      "ORDER BY score ASC LIMIT 10;");
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  ASSERT_EQ(result->length(), 1);
+  EXPECT_EQ(result->response().arrays(0).int64_array().values(0), 2);
+}
+
 TEST(FTSExtensionTest, ReopenPreservesIndexAndAcceptsNewRows) {
   const auto build_root = FindBuildRoot();
   ASSERT_FALSE(build_root.empty());
