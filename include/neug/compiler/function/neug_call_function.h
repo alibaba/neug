@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 #include "neug/common/types.h"
 #include "neug/compiler/function/function.h"
@@ -35,8 +36,14 @@ class Context;
 namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
-  // Resolve deferred $param args against query ParamsMap before execFunc.
-  virtual void bindParams(const execution::ParamsMap& /*params*/) {}
+  // Bind deferred $param args into a per-Eval input.
+  // Opr stores this object unbound after bindFunc; Eval calls bindParams and
+  // executes against the returned input. Default: no deferred params — return
+  // nullptr and Opr will exec with the unbound template (must stay immutable).
+  virtual std::unique_ptr<CallFuncInputBase> bindParams(
+      const execution::ParamsMap& /*params*/) const {
+    return nullptr;
+  }
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(

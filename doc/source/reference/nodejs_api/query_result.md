@@ -21,6 +21,7 @@ It has the following methods to iterate over the results:
     - `getAt(index)`: Returns the result at the specified index.
     - `length()`: Returns the total number of results.
     - `columnNames()`: Returns the projected column names as strings.
+    - `getProfileMetrics()`: Returns structured PROFILE or EXPLAIN metrics.
 
 ```javascript
 
@@ -173,6 +174,35 @@ close()
 ```
 
 Close the query result and release resources.
+
+<a id="neug.query_result.QueryResult.getProfileMetrics"></a>
+
+### getProfileMetrics
+
+```javascript
+getProfileMetrics() -> Object
+```
+
+Return detailed PROFILE or EXPLAIN metrics as a JavaScript object:
+
+```javascript
+{
+  total_elapsed_ms: number,
+  total_output_rows: number,
+  operators: [
+    {
+      operator_id: number,
+      parent_id: number,
+      operator_name: string,
+      elapsed_ms: number,
+      output_rows: number,
+      child_ids: number[],
+    },
+  ],
+}
+```
+
+Returns an empty object when no profile result is available.
 
 <a id="neug.query_result.QueryResult.Symbol.iterator"></a>
 

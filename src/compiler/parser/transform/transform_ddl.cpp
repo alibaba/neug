@@ -21,10 +21,12 @@
  */
 
 #include "neug/compiler/parser/ddl/alter.h"
+#include "neug/compiler/parser/ddl/create_index.h"
 #include "neug/compiler/parser/ddl/create_sequence.h"
 #include "neug/compiler/parser/ddl/create_table.h"
 #include "neug/compiler/parser/ddl/create_type.h"
 #include "neug/compiler/parser/ddl/drop.h"
+#include "neug/compiler/parser/ddl/drop_index.h"
 #include "neug/compiler/parser/ddl/drop_info.h"
 #include "neug/compiler/parser/transformer.h"
 #include "neug/utils/exception/exception.h"
@@ -34,6 +36,12 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace parser {
+
+std::unique_ptr<Statement> Transformer::transformDropIndex(
+    CypherParser::NEUG_DropIndexContext& ctx) {
+  return std::make_unique<DropIndex>(transformSchemaName(*ctx.oC_SchemaName()),
+                                     ctx.nEUG_IfExists() != nullptr);
+}
 
 std::unique_ptr<Statement> Transformer::transformAlterTable(
     CypherParser::NEUG_AlterTableContext& ctx) {
@@ -353,6 +361,38 @@ std::string Transformer::transformPrimaryKey(
 std::string Transformer::transformPrimaryKey(
     CypherParser::NEUG_ColumnDefinitionContext& ctx) {
   return transformPropertyKeyName(*ctx.oC_PropertyKeyName());
+}
+
+std::unique_ptr<Statement> Transformer::transformCreateIndex(
+    CypherParser::NEUG_CreateIndexContext& ctx) {
+  ParsedCreateIndexInfo info;
+
+  // oC_SchemaName(0) = index name, (1) = table name, (2) = index type
+  auto schemaNames = ctx.oC_SchemaName();
+  info.indexName = transformSchemaName(*schemaNames[0]);
+  info.tableName = transformSchemaName(*schemaNames[1]);
+  info.indexType = transformSchemaName(*schemaNames[2]);
+  info.ifNotExists = ctx.nEUG_IfNotExists() != nullptr;
+
+  info.propertyName = transformPropertyKeyName(*ctx.oC_PropertyKeyName());
+
+  // WITH options
+  auto* optionsCtx = ctx.nEUG_CreateIndexOptions();
+  if (optionsCtx) {
+    auto* optionList = optionsCtx->nEUG_CreateIndexOptionList();
+    if (optionList) {
+      for (auto* opt : optionList->nEUG_CreateIndexOption()) {
+        auto key = transformPropertyKeyName(*opt->oC_PropertyKeyName());
+        auto* literal = opt->oC_Literal();
+        auto valueText = literal->StringLiteral()
+                             ? transformStringLiteral(*literal->StringLiteral())
+                             : literal->getText();
+        info.options[key] = valueText;
+      }
+    }
+  }
+
+  return std::make_unique<CreateIndex>(std::move(info));
 }
 
 }  // namespace parser

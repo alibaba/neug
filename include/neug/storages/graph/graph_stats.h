@@ -22,10 +22,11 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
-#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/graph_view.h"
 
 namespace neug {
 namespace main {
@@ -36,15 +37,25 @@ namespace catalog {
 class CatalogEntry;
 }
 
-// Statistics access interface used by the compiler layer. It reads
-// cardinalities directly from a PropertyGraph when estimating table sizes.
+// Compiler inputs derived from one GraphView. planning_generation is copied
+// from the same pinned snapshot as view_, so cache lookup and compilation use
+// a coherent set of planner inputs.
 class GraphStats {
  public:
   GraphStats() = default;
-  explicit GraphStats(const PropertyGraph& graph) : graph_(&graph) {}
+  GraphStats(const GraphView& view, uint64_t planning_generation)
+      : view_(&view), planning_generation_(planning_generation) {}
 
-  void UpdateGraph(const PropertyGraph& graph) { graph_ = &graph; }
-  const Schema& schema() const { return graph_->schema(); }
+  void UpdateView(const GraphView& view, uint64_t planning_generation) {
+    view_ = &view;
+    planning_generation_ = planning_generation;
+  }
+  const Schema& schema() const { return view_->schema(); }
+  uint64_t planning_generation() const { return planning_generation_; }
+  result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::string& property_name) const {
+    return view_->GetIndex(label_id, property_name);
+  }
 #ifdef NEUG_BUILD_TEST
   void LoadFromJson(const Schema& schema, const std::string& stats_json);
 #endif
@@ -64,7 +75,8 @@ class GraphStats {
   }
 
  private:
-  const PropertyGraph* graph_ = nullptr;
+  const GraphView* view_ = nullptr;
+  uint64_t planning_generation_{0};
 #ifdef NEUG_BUILD_TEST
   std::unordered_map<uint64_t, uint64_t> table_cardinalities_;
 #endif

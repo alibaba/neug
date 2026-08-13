@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -25,7 +26,6 @@
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "neug/common/types/value.h"
-#include "neug/execution/execute/query_cache.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -34,6 +34,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/property_graph_cow_state.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/wal/wal_builder.h"
 #include "neug/utils/property/table.h"
@@ -41,6 +42,7 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class PropertyGraph;
 class IWalWriter;
 class IVersionManager;
@@ -50,15 +52,15 @@ class Schema;
  * @brief Resource holder and lifecycle manager for update transactions.
  *
  * UpdateTransaction owns the COW-cloned PropertyGraph and all associated
- * resources (WAL buffer, allocator, version manager, snapshot store).
+ * resources (WAL buffer, allocator, timestamp lease, snapshot store).
  * Graph modification logic (DDL/DML) is implemented by StorageTPUpdateInterface
  * which accesses UpdateTransaction's private members via friend declaration.
  *
  * **COW Design:**
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
  * - StorageTPUpdateInterface performs all DDL/DML modifications on the COW copy
- * - Commit flushes WAL and publishes the COW copy via
- * GraphSnapshotStore::PublishSnapshot()
+ * - Commit prepares the COW snapshot before WAL, then performs a no-fail
+ *   publication after WAL succeeds.
  * - Abort discards the COW copy (no effect on original)
  *
  * **Concurrency contract** (VersionManager state machine):
@@ -77,20 +79,20 @@ class UpdateTransaction {
    * @brief Construct an UpdateTransaction with a COW PropertyGraph.
    *
    * @param cow_graph PropertyGraph COW clone
+   * @param planning_generation Planning generation of the cloned snapshot
    * @param alloc Reference to memory allocator
    * @param logger Reference to WAL writer
-   * @param vm Reference to version manager
    * @param snapshot_store Reference to GraphSnapshotStore for commit
-   * @param cache Reference to query cache
-   * @param timestamp Transaction timestamp
+   * @param timestamp_lease Owned update timestamp and admission lifecycle
    *
-   * @note NeugDB is responsible for creating the COW copy via Clone()
+   * @note The caller is responsible for acquiring the timestamp lease before
+   * creating the COW copy via Clone().
    * @since v0.1.0
    */
-  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph, Allocator& alloc,
-                    IWalWriter& logger, IVersionManager& vm,
-                    GraphSnapshotStore& snapshot_store,
-                    execution::LocalQueryCache& cache, timestamp_t timestamp);
+  UpdateTransaction(std::shared_ptr<PropertyGraph> cow_graph,
+                    uint64_t planning_generation, Allocator& alloc,
+                    IWalWriter& logger, GraphSnapshotStore& snapshot_store,
+                    UpdateTimestampLease timestamp_lease);
 
   /**
    * @brief Destructor that calls Abort().
@@ -102,7 +104,7 @@ class UpdateTransaction {
    * @brief Get the transaction timestamp.
    * @since v0.1.0
    */
-  timestamp_t timestamp() const;
+  timestamp_t timestamp() const { return timestamp_lease_.Timestamp(); }
 
   bool Commit();
 
@@ -113,7 +115,9 @@ class UpdateTransaction {
 
   const GraphView& view() const { return view_; }
 
-  GraphStats statistic() const { return GraphStats(*cow_graph_); }
+  GraphStats statistic() const {
+    return GraphStats(view_, planning_generation_);
+  }
 
   // --- Read-only accessors (not graph modifications) ---
   const Schema& schema() const { return cow_graph_->schema(); }
@@ -132,13 +136,13 @@ class UpdateTransaction {
   CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
     return cow_graph_->GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp_);
+                                                   edge_label, timestamp());
   }
 
   CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
     return cow_graph_->GetGenericIncomingGraphView(v_label, neighbor_label,
-                                                   edge_label, timestamp_);
+                                                   edge_label, timestamp());
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
@@ -150,7 +154,7 @@ class UpdateTransaction {
   friend class StorageTPUpdateInterface;
 
  private:
-  void release();
+  void release(std::optional<uint32_t> installed_snapshot_generation);
 
   // COW storage - the cloned PropertyGraph
   std::shared_ptr<PropertyGraph> cow_graph_;
@@ -159,10 +163,9 @@ class UpdateTransaction {
 
   Allocator& alloc_;
   IWalWriter& logger_;
-  IVersionManager& vm_;
   GraphSnapshotStore& snapshot_store_;
-  execution::LocalQueryCache& pipeline_cache_;
-  timestamp_t timestamp_;
+  UpdateTimestampLease timestamp_lease_;
+  uint64_t planning_generation_;
 
   std::shared_ptr<Checkpoint> ckp_;
   WalBuilder wal_builder_;
@@ -180,59 +183,72 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
-  // --- DML methods ---
-  Status UpdateVertexProperty(label_t label, vid_t lid, int col_id,
-                              const Value& value) override;
-  Status UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
-                            vid_t dst, label_t edge_label, int32_t oe_offset,
-                            int32_t ie_offset, int32_t col_id,
-                            const Value& value) override;
-  Status AddVertex(label_t label, const Value& id,
-                   const std::vector<Value>& props, vid_t& vid) override;
-  Status AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                 label_t edge_label, const std::vector<Value>& properties,
-                 const void*& prop) override;
-  Status DeleteVertex(label_t label, vid_t lid) override;
-  Status DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                     label_t edge_label) override;
-  Status DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                    label_t edge_label, int32_t oe_offset,
-                    int32_t ie_offset) override;
+ private:
+  // Marks go to the COW clone; abort discards them with the clone.
+  void MarkVertexTableDirty(label_t label) override {
+    cow_graph_->MarkVertexTableDirty(label);
+  }
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
+    cow_graph_->MarkEdgeTableDirty(src, dst, edge);
+  }
+  void MarkSchemaDirty() override { cow_graph_->MarkSchemaDirty(); }
 
-  // --- Batch methods ---
-  void CreateCheckpoint() override;
-  Status BatchAddVertices(
+  // --- DML *Impl ---
+  Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
+                                  const Value& value) override;
+  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src, label_t dst_label,
+                                vid_t dst, label_t edge_label,
+                                int32_t oe_offset, int32_t ie_offset,
+                                int32_t col_id, const Value& value) override;
+  Status AddVertexImpl(label_t label, const Value& id,
+                       const std::vector<Value>& props, vid_t& vid) override;
+  Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                     label_t edge_label, const std::vector<Value>& properties,
+                     const void*& prop) override;
+  Status DeleteVertexImpl(label_t label, vid_t lid) override;
+  Status DeleteEdgesImpl(label_t src_label, vid_t src, label_t dst_label,
+                         vid_t dst, label_t edge_label) override;
+  Status DeleteEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
+                        vid_t dst, label_t edge_label, int32_t oe_offset,
+                        int32_t ie_offset) override;
+
+  // --- Batch *Impl ---
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
-                       std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchDeleteVertices(label_t v_label_id,
-                             const std::vector<vid_t>& vids) override;
-  Status BatchDeleteEdges(
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchDeleteVerticesImpl(label_t v_label_id,
+                                 const std::vector<vid_t>& vids) override;
+  Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges) override;
-  Status BatchDeleteEdges(
+  Status BatchDeleteEdgesImpl(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
 
-  // --- DDL methods ---
-  Status CreateVertexType(const CreateVertexTypeParam& config) override;
-  Status CreateEdgeType(const CreateEdgeTypeParam& config) override;
-  Status AddVertexProperties(const AddVertexPropertiesParam& config) override;
-  Status AddEdgeProperties(const AddEdgePropertiesParam& config) override;
-  Status RenameVertexProperties(
-      const RenameVertexPropertiesParam& config) override;
-  Status RenameEdgeProperties(const RenameEdgePropertiesParam& config) override;
-  Status DeleteVertexProperties(
-      const DeleteVertexPropertiesParam& config) override;
-  Status DeleteEdgeProperties(const DeleteEdgePropertiesParam& config) override;
-  Status DeleteVertexType(const std::string& vertex_type_name) override;
-  Status DeleteEdgeType(const std::string& src_type,
-                        const std::string& dst_type,
-                        const std::string& edge_type) override;
+  // --- DDL *Impl ---
+  Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;
+  Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) override;
+  Status AddVertexPropertiesImpl(
+      label_t label, const AddVertexPropertiesParam& config) override;
+  Status AddEdgePropertiesImpl(label_t src, label_t dst, label_t edge,
+                               const AddEdgePropertiesParam& config) override;
+  Status RenameVertexPropertiesImpl(
+      label_t label, const RenameVertexPropertiesParam& config) override;
+  Status RenameEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const RenameEdgePropertiesParam& config) override;
+  Status DeleteVertexPropertiesImpl(
+      label_t label, const DeleteVertexPropertiesParam& config) override;
+  Status DeleteEdgePropertiesImpl(
+      label_t src, label_t dst, label_t edge,
+      const DeleteEdgePropertiesParam& config) override;
+  Status DeleteVertexTypeImpl(label_t label) override;
+  Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
- private:
   // --- COW detach helpers ---
   Status detachVertexTableForInsert(label_t label);
   Status detachVertexTableForDelete(label_t label);
@@ -246,6 +262,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   Status detachForResize(label_t src_label, label_t dst_label,
                          label_t edge_label, size_t capacity);
   Status prepareVertexDelete(label_t label, const std::vector<vid_t>& lids);
+  Status detachIndex(StorageIndex& index);
 
   std::shared_ptr<PropertyGraph>& cow_graph_;
   PropertyGraphCowState& cow_state_;

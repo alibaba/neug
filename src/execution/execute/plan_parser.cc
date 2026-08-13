@@ -62,9 +62,11 @@
 #include "neug/execution/execute/ops/ddl/add_edge_property.h"
 #include "neug/execution/execute/ops/ddl/add_vertex_property.h"
 #include "neug/execution/execute/ops/ddl/create_edge_type.h"
+#include "neug/execution/execute/ops/ddl/create_index.h"
 #include "neug/execution/execute/ops/ddl/create_vertex_type.h"
 #include "neug/execution/execute/ops/ddl/drop_edge_property.h"
 #include "neug/execution/execute/ops/ddl/drop_edge_type.h"
+#include "neug/execution/execute/ops/ddl/drop_index.h"
 #include "neug/execution/execute/ops/ddl/drop_vertex_property.h"
 #include "neug/execution/execute/ops/ddl/drop_vertex_type.h"
 #include "neug/execution/execute/ops/ddl/rename_edge_property.h"
@@ -143,6 +145,8 @@ void PlanParser::init() {
   register_operator_builder(
       std::make_unique<ops::CreateVertexTypeOprBuilder>());
   register_operator_builder(std::make_unique<ops::CreateEdgeTypeOprBuilder>());
+  register_operator_builder(std::make_unique<ops::CreateIndexOprBuilder>());
+  register_operator_builder(std::make_unique<ops::DropIndexOprBuilder>());
   register_operator_builder(
       std::make_unique<ops::AddVertexPropertySchemaOprBuilder>());
   register_operator_builder(
@@ -532,9 +536,40 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       break;
     }
 
+    case physical::PhysicalOpr_Operator::OpKindCase::kSetVertex: {
+      const auto& set_vertex_opr = plan.plan(i).opr().set_vertex();
+      for (const auto& entry : set_vertex_opr.entries()) {
+        expression_parse(entry.property_mapping().data(), params_type);
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kSetEdge: {
+      const auto& set_edge_opr = plan.plan(i).opr().set_edge();
+      for (const auto& entry : set_edge_opr.entries()) {
+        expression_parse(entry.property_mapping().data(), params_type);
+      }
+      break;
+    }
+
     case physical::PhysicalOpr_Operator::OpKindCase::kUnfold: {
       const auto& unfold_opr = plan.plan(i).opr().unfold();
       expression_parse(unfold_opr.input_expr(), params_type);
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
+      const auto& query = plan.plan(i).opr().procedure_call().query();
+      for (int j = 0; j < query.arguments_size(); ++j) {
+        const auto& arg = query.arguments(j);
+        if (!arg.has_param()) {
+          continue;
+        }
+        const auto& param = arg.param();
+        if (params_type.find(param.name()) != params_type.end()) {
+          continue;
+        }
+        params_type[param.name()] = parse_from_ir_data_type(param.data_type());
+      }
       break;
     }
     default: {

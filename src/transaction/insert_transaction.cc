@@ -34,12 +34,12 @@
 namespace neug {
 
 InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
-                                     IWalWriter& logger, IVersionManager& vm,
-                                     timestamp_t timestamp)
+                                     IWalWriter& wal_writer,
+                                     IVersionManager& vm, timestamp_t timestamp)
     : guard_(std::move(guard)),
       view_(&guard_.get().mutable_view()),
       alloc_(alloc),
-      logger_(logger),
+      wal_writer_(wal_writer),
       vm_(vm),
       timestamp_(timestamp) {
   arc_.Resize(sizeof(WalHeader));
@@ -168,7 +168,7 @@ bool InsertTransaction::Commit() {
   header->type = 0;
   header->timestamp = timestamp_;
 
-  if (!logger_.append(arc_.GetBuffer(), arc_.GetSize())) {
+  if (!wal_writer_.append(arc_.GetBuffer(), arc_.GetSize())) {
     LOG(ERROR) << "Failed to append wal log";
     Abort();
     return false;
@@ -212,6 +212,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
           view.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to add vertex during WAL ingestion", ret);
+      view.MarkVertexTableDirty(redo.label);
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
@@ -225,6 +226,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
                               alloc, oe_offset_unused, prop_unused);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge during WAL ingestion",
                                      ret);
+      view.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected op-" +
                                std::to_string(static_cast<int>(op_type)));
@@ -234,11 +236,9 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
 
 void InsertTransaction::clear() {
   arc_.Clear();
-  arc_.Resize(sizeof(WalHeader));
   added_vertices_.clear();
   added_vertices_base_.clear();
   vertex_nums_.clear();
-
   timestamp_ = INVALID_TIMESTAMP;
 }
 
@@ -274,14 +274,15 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   }
 }
 
-Status StorageTPInsertInterface::BatchAddVertices(
+result<std::vector<vid_t>> StorageTPInsertInterface::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddVertices is not supported in TP mode currently.";
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "BatchAddVertices is not supported in TP mode currently.");
+  RETURN_STATUS_ERROR(
+      StatusCode::ERR_NOT_SUPPORTED,
+      "BatchAddVertices is not supported in TP mode currently.");
 }
 
-Status StorageTPInsertInterface::BatchAddEdges(
+Status StorageTPInsertInterface::BatchAddEdgesImpl(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
   LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";

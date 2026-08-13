@@ -15,14 +15,21 @@
 
 #include "neug/storages/graph/vertex_table.h"
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
+#include "neug/utils/property/array_column.h"
+#include "neug/utils/property/vec_column.h"
 
 namespace neug {
+
+void VertexTable::SetColumn(size_t col, std::unique_ptr<ColumnBase> column) {
+  table_->SetColumn(static_cast<int>(col), std::move(column));
+}
 
 void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   CHECK(vertex_schema_ != nullptr) << "VertexTable::Init requires schema";
@@ -45,8 +52,9 @@ void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   v_ts_->Open(*ckp_, ModuleDescriptor{}, level);
 }
 
-void VertexTable::insert_vertices(
+std::vector<vid_t> VertexTable::insert_vertices(
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  std::vector<vid_t> new_vids;
   auto row_nums = supplier->RowNum();
   if (row_nums < 0) {
     VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
@@ -96,6 +104,12 @@ void VertexTable::insert_vertices(
 
     auto vids = insert_primary_keys(pk_col);
 
+    for (auto vid : vids) {
+      if (vid != std::numeric_limits<vid_t>::max()) {
+        new_vids.push_back(vid);
+      }
+    }
+
     for (size_t i = 0; i < prop_cols.size(); ++i) {
       auto col = table_->get_column_by_id(i);
       set_properties_from_context_column(col, prop_cols[i], vids);
@@ -103,6 +117,7 @@ void VertexTable::insert_vertices(
     VLOG(10) << "Inserted " << chunk_rows
              << " vertices, current vertex num: " << VertexNum();
   }
+  return new_vids;
 }
 
 void VertexTable::Close() {
@@ -293,7 +308,7 @@ void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
   }
 }
 
-void VertexTable::Compact(timestamp_t ts) {
+void VertexTable::Compact() {
   v_ts_->Compact();
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
@@ -383,6 +398,23 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
     table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
+}
+
+void VertexTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
+                                 const CheckpointManifest& prev) const {
+  const auto& lbl = vertex_schema_->label_name;
+  if (!prev.has_module(KeyKeys(lbl))) {
+    return;
+  }
+  // Exact keys only — prefix matching is ambiguous when labels contain
+  // underscores (e.g. "a" vs "a_b").
+  meta.LinkModuleFrom(prev, KeyKeys(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyIndices(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyIndexer(lbl), ckp);
+  meta.LinkModuleFrom(prev, KeyVertexTimestamp(lbl), ckp);
+  for (size_t i = 0; i < vertex_schema_->property_types.size(); ++i) {
+    meta.LinkModuleFrom(prev, KeyProperty(lbl, i), ckp);
+  }
 }
 
 VertexTable VertexTable::Clone() const {

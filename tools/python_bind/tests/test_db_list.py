@@ -14,22 +14,143 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
-import os
-import shutil
-import sys
 
 import pytest
 
 from neug.database import Database
 
 
+def _nested_list(value):
+    if isinstance(value, (str, bytes)):
+        return value
+    try:
+        return [_nested_list(item) for item in value]
+    except TypeError:
+        return value
+
+
+def test_list_cast_contract(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    assert _nested_list(list(conn.execute("RETURN CAST([], 'STRING[]');"))[0][0]) == []
+    assert _nested_list(
+        list(conn.execute("RETURN CAST([1, 2, 3], 'INT64[]');"))[0][0]
+    ) == [1, 2, 3]
+    assert _nested_list(
+        list(
+            conn.execute(
+                "UNWIND [1, 2, 3] AS v WITH collect(v) AS values "
+                "RETURN CAST(values, 'INT64[3]');"
+            )
+        )[0][0]
+    ) == [1, 2, 3]
+
+    with pytest.raises(Exception):
+        conn.execute(
+            "UNWIND [1, 2] AS v WITH collect(v) AS values "
+            "RETURN CAST(values, 'INT64[3]');"
+        )
+    with pytest.raises(Exception):
+        conn.execute("RETURN CAST([], 'INT64[2]');")
+
+    conn.execute("CREATE NODE TABLE T(id INT64, values INT64[], PRIMARY KEY(id));")
+    with pytest.raises(Exception):
+        conn.execute("CREATE (:T {id: 1, values: [1, 2]});")
+    with pytest.raises(Exception):
+        conn.execute("CREATE NODE TABLE Bad(id INT64[], PRIMARY KEY(id));")
+
+    conn.close()
+    db.close()
+
+
+def test_list_point_edge_update_and_reopen(tmp_path):
+    db_path = str(tmp_path)
+    db = Database(db_path=db_path, mode="w")
+    conn = db.connect()
+
+    conn.execute(
+        "CREATE NODE TABLE Person("
+        "id INT64, tags STRING[], nested STRING[][2][], PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, scores INT64[]);")
+    conn.execute(
+        "CREATE (:Person {id: 1, tags: CAST(['a'], 'STRING[]'), nested: "
+        "CAST([CAST([CAST(['x'], 'STRING[]'), CAST([], 'STRING[]')], "
+        "'STRING[][2]')], 'STRING[][2][]')});"
+    )
+    conn.execute(
+        "CREATE (:Person {id: 2, tags: CAST([], 'STRING[]'), "
+        "nested: CAST([], 'STRING[][2][]')});"
+    )
+    conn.execute(
+        "MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
+        "CREATE (a)-[:Knows {scores: CAST([1, 2], 'INT64[]')}]->(b);"
+    )
+
+    conn.execute("MATCH (p:Person {id: 1}) SET p.tags = CAST(['b'], 'STRING[]');")
+    conn.execute(
+        "MATCH (p:Person {id: 1}) " "SET p.tags = CAST(['c', 'd', 'e'], 'STRING[]');"
+    )
+    conn.execute(
+        "MATCH (:Person {id: 1})-[e:Knows]->(:Person {id: 2}) "
+        "SET e.scores = CAST([7], 'INT64[]');"
+    )
+    conn.execute(
+        "MERGE (p:Person {id: 2}) "
+        "ON MATCH SET p.tags = CAST(['merged'], 'STRING[]');"
+    )
+
+    row = list(
+        conn.execute("MATCH (p:Person {id: 1}) RETURN p.tags, p.tags[1], p.nested;")
+    )[0]
+    assert _nested_list(row[0]) == ["c", "d", "e"]
+    assert row[1] == "d"
+    assert _nested_list(row[2]) == [[["x"], []]]
+    assert _nested_list(
+        list(
+            conn.execute(
+                "MATCH (p:Person) WITH p ORDER BY p.id " "RETURN collect(p.tags);"
+            )
+        )[0][0]
+    ) == [["c", "d", "e"], ["merged"]]
+    assert [
+        item[0]
+        for item in conn.execute(
+            "MATCH (p:Person {id: 1}) UNWIND p.tags AS tag " "RETURN tag ORDER BY tag;"
+        )
+    ] == ["c", "d", "e"]
+    assert [
+        item[0]
+        for item in conn.execute(
+            "MATCH (p:Person {id: 1}) UNWIND p.nested AS pair "
+            "UNWIND pair[0] AS value RETURN value;"
+        )
+    ] == ["x"]
+
+    conn.close()
+    db.close()
+
+    db = Database(db_path=db_path, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    assert _nested_list(
+        list(conn.execute("MATCH (p:Person {id: 1}) RETURN p.tags;"))[0][0]
+    ) == ["c", "d", "e"]
+    assert _nested_list(
+        list(
+            conn.execute(
+                "MATCH (:Person {id: 1})-[e:Knows]->(:Person {id: 2}) "
+                "RETURN e.scores;"
+            )
+        )[0][0]
+    ) == [7]
+
+    conn.close()
+    db.close()
+
+
 def test_return_single_list(tmp_path):
-    db_dir = tmp_path / "return_list"
-    shutil.rmtree(db_dir, ignore_errors=True)
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
+    db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
     conn.execute(
@@ -38,7 +159,9 @@ def test_return_single_list(tmp_path):
     conn.execute("CREATE (p: PERSON {id: 0, name: 'Alice', score: 99.5});")
     conn.execute("CREATE (p: PERSON {id: 1, name: 'Bob', score: 98.5});")
 
-    result = conn.execute("MATCH (p: PERSON) RETURN [p.id, p.name, p.score];")
+    result = conn.execute(
+        "MATCH (p: PERSON) RETURN [p.id, p.name, p.score] ORDER BY p.id;"
+    )
     result = list(result)
     assert result[0][0] == [0, "Alice", 99.5]
     assert result[1][0] == [1, "Bob", 98.5]
@@ -48,10 +171,7 @@ def test_return_single_list(tmp_path):
 
 
 def test_return_multiple_lists(tmp_path):
-    db_dir = tmp_path / "return_multiple_lists"
-    shutil.rmtree(db_dir, ignore_errors=True)
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
+    db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
     conn.execute(
@@ -60,35 +180,14 @@ def test_return_multiple_lists(tmp_path):
     conn.execute("CREATE (p: PERSON {id: 0, name: 'Alice', score: 99.5});")
     conn.execute("CREATE (p: PERSON {id: 1, name: 'Bob', score: 98.5});")
 
-    result = conn.execute("MATCH (p: PERSON) RETURN [p.id], [p.name, p.score];")
+    result = conn.execute(
+        "MATCH (p: PERSON) RETURN [p.id], [p.name, p.score] ORDER BY p.id;"
+    )
     result = list(result)
     assert result[0][0] == [0]
     assert result[0][1] == ["Alice", 99.5]
     assert result[1][0] == [1]
     assert result[1][1] == ["Bob", 98.5]
-
-    conn.close()
-    db.close()
-
-
-@pytest.mark.skip(reason="list nesting is not supported")
-def test_return_nesting_lists(tmp_path):
-    db_dir = tmp_path / "return_nesting_lists"
-    shutil.rmtree(db_dir, ignore_errors=True)
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
-    conn = db.connect()
-
-    conn.execute(
-        "CREATE NODE TABLE PERSON(id INT64, name STRING, score FLOAT, PRIMARY KEY(id));"
-    )
-    conn.execute("CREATE (p: PERSON {id: 0, name: 'Alice', score: 99.5});")
-    conn.execute("CREATE (p: PERSON {id: 1, name: 'Bob', score: 98.5});")
-
-    result = conn.execute("MATCH (p: PERSON) RETURN [[p.id], [p.name, p.score]];")
-    result = list(result)
-    assert result[0][0] == [[0], ["Alice", 99.5]]
-    assert result[1][0] == [[1], ["Bob", 98.5]]
 
     conn.close()
     db.close()

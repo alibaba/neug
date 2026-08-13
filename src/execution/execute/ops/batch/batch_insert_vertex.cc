@@ -78,8 +78,9 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
         vertex_type_.DebugString());
   }
   auto supplier = create_data_chunk_supplier(ctx, prop_mappings_);
-  RETURN_STATUS_ERROR_IF_NOT_OK(
-      graph.BatchAddVertices(vertex_label_id, supplier));
+  GS_AUTO(inserted_vids,
+          graph.BatchAddVertices(vertex_label_id, std::move(supplier)));
+  (void) inserted_vids;
   return neug::result<Context>(std::move(ctx));
 }
 

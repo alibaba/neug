@@ -29,6 +29,8 @@ message Argument {
   oneof value {
     common.Value const = 3;  // real value
     common.Variable var = 4;
+    // Dynamic query param ($name): resolved from ParamsMap at exec time.
+    common.DynamicParam param = 5;
   }
 }
 

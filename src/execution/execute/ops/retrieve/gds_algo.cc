@@ -31,6 +31,7 @@ GDSAlgoOpr::GDSAlgoOpr(std::unique_ptr<function::CallFuncInputBase> algo_input,
 neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
     neug::execution::Context&& ctx, neug::execution::OprTimer* timer) {
+  (void) ctx;
   (void) timer;
   if (algo_func_ == nullptr) {
     THROW_RUNTIME_ERROR("GDSAlgoOpr: GDSAlgoFunction pointer is null");
@@ -42,8 +43,9 @@ neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
   if (algo_input_ == nullptr) {
     THROW_RUNTIME_ERROR("GDSAlgoOpr: algo input is null");
   }
-  algo_input_->bindParams(params);
-  return algo_func_->execFunc(*algo_input_, graph_interface);
+  auto bound_input = algo_input_->bindParams(params);
+  const auto& input = bound_input ? *bound_input : *algo_input_;
+  return algo_func_->execFunc(input, graph_interface);
 }
 
 neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(

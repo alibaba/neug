@@ -76,6 +76,8 @@ DataType NeuGTypeConverter::convert(const ::common::DataType& type) const {
     }
     return DataType::Array(childType, fixed_length);
   }
+  case ::common::DataType::kList:
+    return DataType::List(convert(type.list().component_type()));
   default:
     THROW_CONVERSION_EXCEPTION("Unsupported DataType for NeuG conversion");
   }
@@ -144,6 +146,13 @@ std::shared_ptr<::common::DataType> NeuGTypeConverter::inferCommonType(
     *array_msg->mutable_component_type() = *child_common;
     array_msg->set_fixed_length(static_cast<uint32_t>(num_elements));
     commonType->set_allocated_array(array_msg.release());
+    break;
+  }
+  case DataTypeId::kList: {
+    auto list_msg = std::make_unique<::common::List>();
+    auto child_common = inferCommonType(ListType::GetChildType(type));
+    *list_msg->mutable_component_type() = *child_common;
+    commonType->set_allocated_list(list_msg.release());
     break;
   }
   default:

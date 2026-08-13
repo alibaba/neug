@@ -52,17 +52,23 @@ std::string get_wal_uri_path(const std::string& uri);
 
 /**
  * The interface of wal writer.
+ *
+ * Implementations own their resources and must release them without throwing
+ * from their destructors. close() remains available for callers that need
+ * explicit error reporting.
  */
 class IWalWriter {
  public:
-  virtual ~IWalWriter() {}
+  virtual ~IWalWriter() noexcept = default;
 
   virtual std::string type() const = 0;
   /**
-   * Open a wal file. In our design, each thread has its own wal file.
+   * Open a WAL file. In service mode, each logical execution slot owns one
+   * writer. The slot may move between pthread workers and must retain the same
+   * writer for the full transaction.
    * The uri could be a file_path or a remote connection string.
    */
-  virtual void open() = 0;
+  virtual void open(const std::string& wal_uri) = 0;
 
   /**
    * Close the wal writer. If a remote connection is hold by the wal writer,
@@ -106,7 +112,7 @@ class IWalParser {
 class WalWriterFactory {
  public:
   using wal_writer_initializer_t = std::unique_ptr<IWalWriter> (*)(
-      const std::string& wal_uri, int32_t thread_id);
+      const std::string& wal_uri, int32_t slot_id);
 
   static void Init();
 
@@ -115,7 +121,7 @@ class WalWriterFactory {
   static std::unique_ptr<IWalWriter> CreateDummyWalWriter();
 
   static std::unique_ptr<IWalWriter> CreateWalWriter(const std::string& wal_uri,
-                                                     int32_t thread_id);
+                                                     int32_t slot_id);
 
   static bool RegisterWalWriter(const std::string& wal_writer_type,
                                 wal_writer_initializer_t initializer);
@@ -157,37 +163,69 @@ struct CreateEdgeTypeRedo {
 };
 
 struct AddVertexPropertiesRedo {
-  static void Serialize(InArchive& arc, const AddVertexPropertiesParam& config);
-  static AddVertexPropertiesParam Deserialize(OutArchive& arc);
+  std::string vertex_type;
+  AddVertexPropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& vertex_type,
+                        const AddVertexPropertiesParam& config);
+  static AddVertexPropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct AddEdgePropertiesRedo {
-  static void Serialize(InArchive& arc, const AddEdgePropertiesParam& config);
-  static AddEdgePropertiesParam Deserialize(OutArchive& arc);
+  std::string src_type;
+  std::string dst_type;
+  std::string edge_type;
+  AddEdgePropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
+                        const AddEdgePropertiesParam& config);
+  static AddEdgePropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct RenameVertexPropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string vertex_type;
+  RenameVertexPropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& vertex_type,
                         const RenameVertexPropertiesParam& config);
-  static RenameVertexPropertiesParam Deserialize(OutArchive& arc);
+  static RenameVertexPropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct RenameEdgePropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string src_type;
+  std::string dst_type;
+  std::string edge_type;
+  RenameEdgePropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
                         const RenameEdgePropertiesParam& config);
-  static RenameEdgePropertiesParam Deserialize(OutArchive& arc);
+  static RenameEdgePropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct DeleteVertexPropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string vertex_type;
+  DeleteVertexPropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& vertex_type,
                         const DeleteVertexPropertiesParam& config);
-  static DeleteVertexPropertiesParam Deserialize(OutArchive& arc);
+  static DeleteVertexPropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct DeleteEdgePropertiesRedo {
-  static void Serialize(InArchive& arc,
+  std::string src_type;
+  std::string dst_type;
+  std::string edge_type;
+  DeleteEdgePropertiesParam config;
+
+  static void Serialize(InArchive& arc, const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
                         const DeleteEdgePropertiesParam& config);
-  static DeleteEdgePropertiesParam Deserialize(OutArchive& arc);
+  static DeleteEdgePropertiesRedo Deserialize(OutArchive& arc);
 };
 
 struct DeleteVertexTypeRedo {

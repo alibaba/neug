@@ -102,7 +102,6 @@ CreateEdgeTypeParam CreateEdgeTypeParam::Deserialize(OutArchive& arc) {
 }
 
 void AddVertexPropertiesParam::Serialize(InArchive& arc) const {
-  arc << vertex_label_name;
   arc << static_cast<uint32_t>(properties.size());
   for (const auto& [name, default_value] : properties) {
     arc << default_value.type() << name << default_value;
@@ -112,9 +111,6 @@ void AddVertexPropertiesParam::Serialize(InArchive& arc) const {
 AddVertexPropertiesParam AddVertexPropertiesParam::Deserialize(
     OutArchive& arc) {
   AddVertexPropertiesParamBuilder builder;
-  std::string vertex_type;
-  arc >> vertex_type;
-  builder.VertexLabel(vertex_type);
   uint32_t prop_size;
   arc >> prop_size;
   for (size_t i = 0; i < prop_size; ++i) {
@@ -128,7 +124,6 @@ AddVertexPropertiesParam AddVertexPropertiesParam::Deserialize(
 }
 
 void AddEdgePropertiesParam::Serialize(InArchive& arc) const {
-  arc << src_label_name << dst_label_name << edge_label_name;
   arc << static_cast<uint32_t>(properties.size());
   for (const auto& [name, default_value] : properties) {
     arc << default_value.type() << name << default_value;
@@ -137,11 +132,6 @@ void AddEdgePropertiesParam::Serialize(InArchive& arc) const {
 
 AddEdgePropertiesParam AddEdgePropertiesParam::Deserialize(OutArchive& arc) {
   AddEdgePropertiesParamBuilder builder;
-  std::string src_type;
-  std::string dst_type;
-  std::string edge_type;
-  arc >> src_type >> dst_type >> edge_type;
-  builder.SrcLabel(src_type).DstLabel(dst_type).EdgeLabel(edge_type);
   uint32_t prop_size;
   arc >> prop_size;
   for (size_t i = 0; i < prop_size; ++i) {
@@ -155,7 +145,6 @@ AddEdgePropertiesParam AddEdgePropertiesParam::Deserialize(OutArchive& arc) {
 }
 
 void RenameVertexPropertiesParam::Serialize(InArchive& arc) const {
-  arc << vertex_label_name;
   arc << static_cast<uint32_t>(rename_properties.size());
   for (const auto& [old_name, new_name] : rename_properties) {
     arc << old_name << new_name;
@@ -165,9 +154,6 @@ void RenameVertexPropertiesParam::Serialize(InArchive& arc) const {
 RenameVertexPropertiesParam RenameVertexPropertiesParam::Deserialize(
     OutArchive& arc) {
   RenameVertexPropertiesParamBuilder builder;
-  std::string vertex_type;
-  arc >> vertex_type;
-  builder.VertexLabel(vertex_type);
   uint32_t prop_size;
   arc >> prop_size;
   for (size_t i = 0; i < prop_size; ++i) {
@@ -180,7 +166,6 @@ RenameVertexPropertiesParam RenameVertexPropertiesParam::Deserialize(
 }
 
 void RenameEdgePropertiesParam::Serialize(InArchive& arc) const {
-  arc << src_label_name << dst_label_name << edge_label_name;
   arc << static_cast<uint32_t>(rename_properties.size());
   for (const auto& [old_name, new_name] : rename_properties) {
     arc << old_name << new_name;
@@ -190,11 +175,6 @@ void RenameEdgePropertiesParam::Serialize(InArchive& arc) const {
 RenameEdgePropertiesParam RenameEdgePropertiesParam::Deserialize(
     OutArchive& arc) {
   RenameEdgePropertiesParamBuilder builder;
-  std::string src_type;
-  std::string dst_type;
-  std::string edge_type;
-  arc >> src_type >> dst_type >> edge_type;
-  builder.SrcLabel(src_type).DstLabel(dst_type).EdgeLabel(edge_type);
   uint32_t prop_size;
   arc >> prop_size;
   for (size_t i = 0; i < prop_size; ++i) {
@@ -207,7 +187,6 @@ RenameEdgePropertiesParam RenameEdgePropertiesParam::Deserialize(
 }
 
 void DeleteVertexPropertiesParam::Serialize(InArchive& arc) const {
-  arc << vertex_label_name;
   arc << static_cast<uint32_t>(delete_properties.size());
   for (const auto& prop_name : delete_properties) {
     arc << prop_name;
@@ -217,9 +196,6 @@ void DeleteVertexPropertiesParam::Serialize(InArchive& arc) const {
 DeleteVertexPropertiesParam DeleteVertexPropertiesParam::Deserialize(
     OutArchive& arc) {
   DeleteVertexPropertiesParamBuilder builder;
-  std::string vertex_type;
-  arc >> vertex_type;
-  builder.VertexLabel(vertex_type);
   uint32_t prop_size;
   arc >> prop_size;
   for (size_t i = 0; i < prop_size; ++i) {
@@ -231,7 +207,6 @@ DeleteVertexPropertiesParam DeleteVertexPropertiesParam::Deserialize(
 }
 
 void DeleteEdgePropertiesParam::Serialize(InArchive& arc) const {
-  arc << src_label_name << dst_label_name << edge_label_name;
   arc << static_cast<uint32_t>(delete_properties.size());
   for (const auto& prop_name : delete_properties) {
     arc << prop_name;
@@ -241,11 +216,6 @@ void DeleteEdgePropertiesParam::Serialize(InArchive& arc) const {
 DeleteEdgePropertiesParam DeleteEdgePropertiesParam::Deserialize(
     OutArchive& arc) {
   DeleteEdgePropertiesParamBuilder builder;
-  std::string src_type;
-  std::string dst_type;
-  std::string edge_type;
-  arc >> src_type >> dst_type >> edge_type;
-  builder.SrcLabel(src_type).DstLabel(dst_type).EdgeLabel(edge_type);
   uint32_t prop_size;
   arc >> prop_size;
   for (size_t i = 0; i < prop_size; ++i) {

@@ -55,24 +55,24 @@ class ArrayServiceTest : public ::testing::Test {
   std::unique_ptr<NeugDB> db_;
 };
 
-TEST_F(ArrayServiceTest, SessionCreateAndReturnArrayProperty) {
+TEST_F(ArrayServiceTest, ExecutionSlotCreateAndReturnArrayProperty) {
   ServiceConfig config;
   config.query_port = 0;
   config.host_str = "127.0.0.1";
   NeugDBService service(*db_, config);
 
-  auto guard = service.AcquireSession();
-  ASSERT_TRUE(guard);
+  auto lease = service.AcquireExecutionSlot();
+  ASSERT_TRUE(lease);
 
-  auto create1 = guard->Eval(
+  auto create1 = lease->ExecuteTransactionalRequest(
       R"({"query":"CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});","access_mode":"","parameters":null})");
   ASSERT_TRUE(create1) << create1.error().ToString();
 
-  auto create2 = guard->Eval(
+  auto create2 = lease->ExecuteTransactionalRequest(
       R"({"query":"CREATE (s:Sensor {id: 2, readings: [40, 50, 60]});","access_mode":"","parameters":null})");
   ASSERT_TRUE(create2) << create2.error().ToString();
 
-  auto result = guard->Eval(
+  auto result = lease->ExecuteTransactionalRequest(
       R"({"query":"MATCH (s:Sensor) WHERE s.id = 1 RETURN s.readings;","access_mode":"","parameters":null})");
   ASSERT_TRUE(result) << result.error().ToString();
 

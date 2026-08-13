@@ -54,4 +54,35 @@ Each result set exposes metadata for column names and types:
 ResultSetMetaData metaData = rs.getMetaData();
 ```
 
+## PROFILE and EXPLAIN
+
+The Java driver also exposes PROFILE or EXPLAIN metadata through:
+
+- `getProfileMetrics()`
+
+### getProfileMetrics
+
+Returns detailed PROFILE or EXPLAIN metrics as a `Map<String, Object>`:
+
+```java
+{
+    "total_elapsed_ms" -> Double,
+    "total_output_rows" -> Long,
+    "operators" -> List<Map<String, Object>>
+}
+```
+
+Each operator entry in `operators` has this structure:
+
+```java
+{
+    "operator_id" -> Long,
+    "parent_id" -> Long,
+    "operator_name" -> String,
+    "elapsed_ms" -> Double,
+    "output_rows" -> Long,
+    "child_ids" -> List<Long>
+}
+```
+
 See also: [ResultSetMetaData](result_set_metadata), [Session](session)

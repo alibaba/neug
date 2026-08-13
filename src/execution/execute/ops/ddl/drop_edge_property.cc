@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/drop_edge_property.h"
+#include "neug/execution/execute/ops/ddl/ddl_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -40,13 +41,20 @@ class DropEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t src, dst, edge;
+    auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
+                                      edge_type_, src, dst, edge);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return neug::result<Context>(std::move(ctx));
+      }
+      LOG(ERROR) << "Fail to drop edge property from type: " << edge_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
     DeleteEdgePropertiesParamBuilder builder;
-    auto config = builder.SrcLabel(src_type_)
-                      .DstLabel(dst_type_)
-                      .EdgeLabel(edge_type_)
-                      .DeleteProperties(property_names_)
-                      .Build();
-    auto res = storage.DeleteEdgeProperties(config);
+    auto config = builder.DeleteProperties(property_names_).Build();
+    auto res = storage.DeleteEdgeProperties(src, dst, edge, config);
     if (!res.ok()) {
       if (ignore_conflict_ && IsSchemaConflictError(res)) {
         return neug::result<Context>(std::move(ctx));

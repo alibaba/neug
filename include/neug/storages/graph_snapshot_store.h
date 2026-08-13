@@ -17,8 +17,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/graph/graph_view.h"
@@ -26,6 +28,10 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+class ExecutionSlot;
+class InPlaceWriteScope;
+class Checkpoint;
 
 /**
  * @brief Fixed-size slot pool for MVCC PropertyGraph snapshots.
@@ -37,13 +43,13 @@ namespace neug {
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
  *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
- * - Update: CurrentSnapshot().Clone() -> mutate COW copy ->
- * PublishSnapshot().
+ * - Update: CloneCurrentForUpdate() -> mutate COW copy -> PrepareSnapshot() ->
+ *   PreparedSnapshot::Publish().
  *
  * Concurrency:
  * - Lock-free PinCurrentSnapshot via optimistic pin + verify loop.
  * - Concurrent installs are NOT safe — VersionManager serializes
- *   updates via begin_update_commit (CAS 0→1), ensuring only one
+ *   updates via its update-execution state, ensuring only one
  *   update/compact can be in progress at a time.
  * - PublishSnapshot publishes the new slot BEFORE VersionManager advances
  *   read_ts_, so readers never see "new ts + old slot".
@@ -69,66 +75,160 @@ class GraphSnapshotStore {
     const GraphView& view() const { return view_; }
     /// Mutable view accessor (for InsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
-    /// Mutable PropertyGraph pointer (storage_.get() yields T* regardless
-    /// of shared_ptr constness, so this works through const SnapshotSlot& too).
-    PropertyGraph* mutable_graph() const { return storage_.get(); }
+    /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
+    PropertyGraph* mutable_graph() { return storage_.get(); }
+    /// Snapshot publication generation carried by this slot incarnation.
+    uint32_t snapshot_generation() const { return snapshot_generation_; }
+    /// Plan-cache invalidation generation carried by this snapshot.
+    uint64_t planning_generation() const {
+      return planning_generation_.load(std::memory_order_acquire);
+    }
 
    private:
     friend class GraphSnapshotStore;
     std::shared_ptr<PropertyGraph> storage_;
     GraphView view_;
+    uint32_t snapshot_generation_{0};
+    std::atomic<uint64_t> planning_generation_{0};
     std::atomic<int> reader_count_{0};
   };
+
+  /**
+   * @brief RAII owner of a prepared snapshot slot.
+   *
+   * Preparation reserves a pool slot and snapshot generation and builds the
+   * GraphView. Publish() only switches the current slot and therefore cannot
+   * fail. Destruction without Publish() discards the prepared slot and returns
+   * it to the pool.
+   */
+  class PreparedSnapshot {
+   public:
+    ~PreparedSnapshot() noexcept;
+
+    PreparedSnapshot(const PreparedSnapshot&) = delete;
+    PreparedSnapshot& operator=(const PreparedSnapshot&) = delete;
+
+    PreparedSnapshot(PreparedSnapshot&& other) noexcept;
+    PreparedSnapshot& operator=(PreparedSnapshot&&) = delete;
+
+    /// Consumes this preparation, installs its slot, and returns its
+    /// generation.
+    uint32_t Publish() && noexcept;
+
+   private:
+    friend class GraphSnapshotStore;
+
+    PreparedSnapshot(GraphSnapshotStore& store, int slot_index) noexcept;
+
+    GraphSnapshotStore* store_;
+    int slot_index_;
+  };
+
+  /**
+   * Callback-scoped capability for destructive in-place maintenance.
+   *
+   * GraphSnapshotStore owns the precondition checks and creates this context
+   * only for the duration of WithCheckpointMaintenance(). The context keeps the
+   * low-level mutable/reopen operations out of the public GraphSnapshotStore
+   * API while preventing callers from taking ownership of the maintenance
+   * window.
+   */
+  class CheckpointMaintenanceContext {
+   public:
+    CheckpointMaintenanceContext(const CheckpointMaintenanceContext&) = delete;
+    CheckpointMaintenanceContext& operator=(
+        const CheckpointMaintenanceContext&) = delete;
+    CheckpointMaintenanceContext(CheckpointMaintenanceContext&&) = delete;
+    CheckpointMaintenanceContext& operator=(CheckpointMaintenanceContext&&) =
+        delete;
+
+    PropertyGraph& MutableCurrentSnapshot();
+    void ReopenCurrentGraphFromCheckpoint(
+        std::shared_ptr<Checkpoint> checkpoint, MemoryLevel memory_level);
+
+   private:
+    friend class GraphSnapshotStore;
+
+    explicit CheckpointMaintenanceContext(SnapshotSlot& slot) noexcept;
+
+    SnapshotSlot& slot_;
+  };
+
+  using CheckpointMaintenanceFn =
+      std::function<Status(CheckpointMaintenanceContext&)>;
 
   /// @param slot_num  Pool capacity (default 128).
   /// @param initial_pg Published into slot 0.
   explicit GraphSnapshotStore(int slot_num,
-                              std::shared_ptr<PropertyGraph> initial_pg);
+                              std::shared_ptr<PropertyGraph> initial_pg,
+                              uint32_t initial_snapshot_generation = 0);
 
   ~GraphSnapshotStore();
 
   /// Pin the current slot via lock-free optimistic loop: load cur_slot_index_,
-  /// fetch_add reader_count, verify index unchanged. Retries on concurrent
-  /// PublishSnapshot or cleanup-in-progress. Caller must UnpinSnapshot().
+  /// increment a positive reader_count with CAS, then verify the index is
+  /// unchanged. Retries on concurrent publication or cleanup-in-progress.
+  /// Caller must UnpinSnapshot().
   SnapshotSlot& PinCurrentSnapshot() noexcept;
 
   /// Unpin a slot. Cleans up and recycles if last reader on a stale slot.
   void UnpinSnapshot(const SnapshotSlot& slot) noexcept;
 
-  /// Current PropertyGraph (for UpdateTransaction to Clone).
-  /// No lock — VersionManager guarantees exclusive update access
-  /// (update_state_==1, all inserters drained).
-  const PropertyGraph& CurrentSnapshot() const;
+  /// Current PropertyGraph. The caller must keep the current slot stable
+  /// through writer admission while using the returned reference.
+  const PropertyGraph& CurrentSnapshot() const noexcept;
 
-  /// Publish a COW PropertyGraph into a free slot and switch cur_slot_index_.
-  /// Steps: reserve free slot -> prep-pin new slot -> write PG + build view
-  /// -> phantom-pin old slot -> switch (release store) -> release phantom pin
-  /// -> release prep pin. Old slots are recycled lazily by UnpinSnapshot.
+  /// Reserve and build a pending snapshot tagged with @p planning_generation.
   /// Returns ERR_POOL_EXHAUSTED without touching @p new_pg on failure.
-  Status PublishSnapshot(const std::shared_ptr<PropertyGraph>& new_pg);
+  /// Readers retain this tag for the lifetime of their pinned slot.
+  result<PreparedSnapshot> PrepareSnapshot(
+      const std::shared_ptr<PropertyGraph>& new_pg,
+      uint64_t planning_generation);
 
   /// Pool capacity.
   int SlotCount() const { return slot_num_; }
 
-  /// Best-effort check for a free slot. Used by Commit() to fail-fast
-  /// before writing WAL. Stable under serialized Updates; `false` may
-  /// become `true` asynchronously as readers unpin stale slots.
+  /// Best-effort diagnostic used by lifecycle and pool-reclamation tests.
+  /// `false` may become `true` asynchronously as readers unpin stale slots.
   bool HasFreeSlot() const {
     std::lock_guard<std::mutex> lock(free_list_mutex_);
     return !free_list_.empty();
   }
 
+  /// Clone the pinned current graph and capture its planning generation for an
+  /// update transaction. The caller must hold update admission to exclude
+  /// concurrent in-place writers.
+  std::pair<std::shared_ptr<PropertyGraph>, uint64_t> CloneCurrentForUpdate();
+
+  /**
+   * Run checkpoint maintenance after external quiescence has been acquired.
+   *
+   * The caller must already guarantee transaction quiescence through the
+   * database lifecycle or an exclusive VersionManager state. This method
+   * verifies that the current slot has no ordinary pins and that every
+   * non-current slot has already been reclaimed, then invokes @p fn with a
+   * callback-scoped context for the maintenance-only operations.
+   */
+  Status WithCheckpointMaintenance(CheckpointMaintenanceFn fn);
+
  private:
+  friend class InPlaceWriteScope;
+
   int slot_num_;
   std::vector<SnapshotSlot> slots_;
   std::atomic<int> cur_slot_index_{0};
+  std::atomic<uint32_t> last_reserved_snapshot_generation_{0};
   std::vector<int> free_list_;
   mutable std::mutex free_list_mutex_;
 
   void initFreeList();
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
-  void UnpinSnapshotByIndex(int slot_index) noexcept;
+  uint32_t reserveSnapshotGeneration();
+  uint32_t publishInPlaceMutation(SnapshotSlot& mutated_slot,
+                                  bool planning_changed) noexcept;
+  void publishPreparedSnapshot(int slot_index) noexcept;
+  void unpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);
 };
 

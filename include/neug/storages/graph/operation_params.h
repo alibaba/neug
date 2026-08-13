@@ -204,15 +204,15 @@ class CreateEdgeTypeParamBuilder {
   }
 };
 
+/// Property payload only; label identity is passed as label_t beside this
+/// Param.
 class AddVertexPropertiesParam {
  private:
-  std::string vertex_label_name;
   std::vector<std::pair<std::string, Value>> properties;
   AddVertexPropertiesParam() = default;
   friend class AddVertexPropertiesParamBuilder;
 
  public:
-  const std::string& GetVertexLabel() const { return vertex_label_name; }
   const std::vector<std::pair<std::string, Value>>& GetProperties() const {
     return properties;
   }
@@ -225,11 +225,6 @@ class AddVertexPropertiesParamBuilder {
  public:
   AddVertexPropertiesParam config;
   AddVertexPropertiesParamBuilder() = default;
-  AddVertexPropertiesParamBuilder& VertexLabel(
-      const std::string& vertex_label_name) {
-    config.vertex_label_name = vertex_label_name;
-    return *this;
-  }
 
   AddVertexPropertiesParamBuilder& Properties(
       const std::vector<std::pair<std::string, Value>>& properties) {
@@ -243,28 +238,16 @@ class AddVertexPropertiesParamBuilder {
     return *this;
   }
 
-  AddVertexPropertiesParam Build() {
-    if (config.vertex_label_name.empty()) {
-      LOG(ERROR) << "Vertex label must be specified.";
-      THROW_INVALID_ARGUMENT_EXCEPTION("Vertex label must be specified.");
-    }
-    return std::move(config);
-  }
+  AddVertexPropertiesParam Build() { return std::move(config); }
 };
 
 class AddEdgePropertiesParam {
  private:
-  std::string src_label_name;
-  std::string dst_label_name;
-  std::string edge_label_name;
   std::vector<std::pair<std::string, Value>> properties;
   AddEdgePropertiesParam() = default;
   friend class AddEdgePropertiesParamBuilder;
 
  public:
-  const std::string& GetSrcLabel() const { return src_label_name; }
-  const std::string& GetDstLabel() const { return dst_label_name; }
-  const std::string& GetEdgeLabel() const { return edge_label_name; }
   const std::vector<std::pair<std::string, Value>>& GetProperties() const {
     return properties;
   }
@@ -278,21 +261,6 @@ class AddEdgePropertiesParamBuilder {
   AddEdgePropertiesParam config;
   AddEdgePropertiesParamBuilder() = default;
 
-  AddEdgePropertiesParamBuilder& SrcLabel(const std::string& src_label_name) {
-    config.src_label_name = src_label_name;
-    return *this;
-  }
-
-  AddEdgePropertiesParamBuilder& DstLabel(const std::string& dst_label_name) {
-    config.dst_label_name = dst_label_name;
-    return *this;
-  }
-
-  AddEdgePropertiesParamBuilder& EdgeLabel(const std::string& edge_label_name) {
-    config.edge_label_name = edge_label_name;
-    return *this;
-  }
-
   AddEdgePropertiesParamBuilder& Properties(
       const std::vector<std::pair<std::string, Value>>& properties) {
     config.properties = properties;
@@ -305,25 +273,16 @@ class AddEdgePropertiesParamBuilder {
     return *this;
   }
 
-  AddEdgePropertiesParam Build() {
-    if (config.src_label_name.empty() || config.dst_label_name.empty() ||
-        config.edge_label_name.empty()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Source/Destination/Edge labels must be specified.");
-    }
-    return std::move(config);
-  }
+  AddEdgePropertiesParam Build() { return std::move(config); }
 };
 
 class RenameVertexPropertiesParam {
  private:
-  std::string vertex_label_name;
   std::vector<std::pair<std::string, std::string>> rename_properties;
   RenameVertexPropertiesParam() = default;
   friend class RenameVertexPropertiesParamBuilder;
 
  public:
-  const std::string& GetVertexLabel() const { return vertex_label_name; }
   const std::vector<std::pair<std::string, std::string>>& GetRenameProperties()
       const {
     return rename_properties;
@@ -338,12 +297,6 @@ class RenameVertexPropertiesParamBuilder {
   RenameVertexPropertiesParam config;
   RenameVertexPropertiesParamBuilder() = default;
 
-  RenameVertexPropertiesParamBuilder& VertexLabel(
-      const std::string& vertex_label_name) {
-    config.vertex_label_name = vertex_label_name;
-    return *this;
-  }
-
   RenameVertexPropertiesParamBuilder& RenameProperties(
       const std::vector<std::pair<std::string, std::string>>&
           rename_properties) {
@@ -357,27 +310,16 @@ class RenameVertexPropertiesParamBuilder {
     return *this;
   }
 
-  RenameVertexPropertiesParam Build() {
-    if (config.vertex_label_name.empty()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Vertex label must be specified.");
-    }
-    return std::move(config);
-  }
+  RenameVertexPropertiesParam Build() { return std::move(config); }
 };
 
 class RenameEdgePropertiesParam {
  private:
-  std::string src_label_name;
-  std::string dst_label_name;
-  std::string edge_label_name;
   std::vector<std::pair<std::string, std::string>> rename_properties;
   RenameEdgePropertiesParam() = default;
   friend class RenameEdgePropertiesParamBuilder;
 
  public:
-  const std::string& GetSrcLabel() const { return src_label_name; }
-  const std::string& GetDstLabel() const { return dst_label_name; }
-  const std::string& GetEdgeLabel() const { return edge_label_name; }
   const std::vector<std::pair<std::string, std::string>>& GetRenameProperties()
       const {
     return rename_properties;
@@ -392,24 +334,6 @@ class RenameEdgePropertiesParamBuilder {
   RenameEdgePropertiesParam config;
   RenameEdgePropertiesParamBuilder() = default;
 
-  RenameEdgePropertiesParamBuilder& SrcLabel(
-      const std::string& src_label_name) {
-    config.src_label_name = src_label_name;
-    return *this;
-  }
-
-  RenameEdgePropertiesParamBuilder& DstLabel(
-      const std::string& dst_label_name) {
-    config.dst_label_name = dst_label_name;
-    return *this;
-  }
-
-  RenameEdgePropertiesParamBuilder& EdgeLabel(
-      const std::string& edge_label_name) {
-    config.edge_label_name = edge_label_name;
-    return *this;
-  }
-
   RenameEdgePropertiesParamBuilder& RenameProperties(
       const std::vector<std::pair<std::string, std::string>>&
           rename_properties) {
@@ -423,25 +347,16 @@ class RenameEdgePropertiesParamBuilder {
     return *this;
   }
 
-  RenameEdgePropertiesParam Build() {
-    if (config.src_label_name.empty() || config.dst_label_name.empty() ||
-        config.edge_label_name.empty()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Source/Destination/Edge labels must be specified.");
-    }
-    return std::move(config);
-  }
+  RenameEdgePropertiesParam Build() { return std::move(config); }
 };
 
 class DeleteVertexPropertiesParam {
  private:
-  std::string vertex_label_name;
   std::vector<std::string> delete_properties;
   DeleteVertexPropertiesParam() = default;
   friend class DeleteVertexPropertiesParamBuilder;
 
  public:
-  const std::string& GetVertexLabel() const { return vertex_label_name; }
   const std::vector<std::string>& GetDeleteProperties() const {
     return delete_properties;
   }
@@ -455,12 +370,6 @@ class DeleteVertexPropertiesParamBuilder {
   DeleteVertexPropertiesParam config;
   DeleteVertexPropertiesParamBuilder() = default;
 
-  DeleteVertexPropertiesParamBuilder& VertexLabel(
-      const std::string& vertex_label_name) {
-    config.vertex_label_name = vertex_label_name;
-    return *this;
-  }
-
   DeleteVertexPropertiesParamBuilder& DeleteProperties(
       const std::vector<std::string>& delete_properties) {
     config.delete_properties = delete_properties;
@@ -473,27 +382,16 @@ class DeleteVertexPropertiesParamBuilder {
     return *this;
   }
 
-  DeleteVertexPropertiesParam Build() {
-    if (config.vertex_label_name.empty()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Vertex label must be specified.");
-    }
-    return std::move(config);
-  }
+  DeleteVertexPropertiesParam Build() { return std::move(config); }
 };
 
 class DeleteEdgePropertiesParam {
  private:
-  std::string src_label_name;
-  std::string dst_label_name;
-  std::string edge_label_name;
   std::vector<std::string> delete_properties;
   DeleteEdgePropertiesParam() = default;
   friend class DeleteEdgePropertiesParamBuilder;
 
  public:
-  const std::string& GetSrcLabel() const { return src_label_name; }
-  const std::string& GetDstLabel() const { return dst_label_name; }
-  const std::string& GetEdgeLabel() const { return edge_label_name; }
   const std::vector<std::string>& GetDeleteProperties() const {
     return delete_properties;
   }
@@ -507,24 +405,6 @@ class DeleteEdgePropertiesParamBuilder {
   DeleteEdgePropertiesParam config;
   DeleteEdgePropertiesParamBuilder() = default;
 
-  DeleteEdgePropertiesParamBuilder& SrcLabel(
-      const std::string& src_label_name) {
-    config.src_label_name = src_label_name;
-    return *this;
-  }
-
-  DeleteEdgePropertiesParamBuilder& DstLabel(
-      const std::string& dst_label_name) {
-    config.dst_label_name = dst_label_name;
-    return *this;
-  }
-
-  DeleteEdgePropertiesParamBuilder& EdgeLabel(
-      const std::string& edge_label_name) {
-    config.edge_label_name = edge_label_name;
-    return *this;
-  }
-
   DeleteEdgePropertiesParamBuilder& DeleteProperties(
       const std::vector<std::string>& delete_properties) {
     config.delete_properties = delete_properties;
@@ -537,14 +417,7 @@ class DeleteEdgePropertiesParamBuilder {
     return *this;
   }
 
-  DeleteEdgePropertiesParam Build() {
-    if (config.src_label_name.empty() || config.dst_label_name.empty() ||
-        config.edge_label_name.empty()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Source/Destination/Edge labels must be specified.");
-    }
-    return std::move(config);
-  }
+  DeleteEdgePropertiesParam Build() { return std::move(config); }
 };
 
 }  // namespace neug

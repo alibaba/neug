@@ -27,7 +27,7 @@ The following options control how Parquet files are read:
 
 | Option                   | Type  | Default | Description                                                                                                                                 |
 | ------------------------ | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance.                                                                         |
+| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance. The buffer size in bytes is controlled by the generic `batch_size` option (default 1 MiB). |
 | `pre_buffer`             | bool  | `false` | Pre-buffer column data before decoding. Recommended for high-latency filesystems such as S3.                                                |
 | `enable_io_coalescing`   | bool  | `true`  | Enable Arrow I/O read coalescing (hole-filling cache) to reduce I/O overhead when reading non-contiguous byte ranges. When `true`, uses lazy coalescing; when `false`, uses eager coalescing. |
 | `parquet_batch_rows`     | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches.                                            |

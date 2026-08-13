@@ -157,6 +157,43 @@ static void get_value(const neug::Array& array, size_t row_index,
     }
     break;
   }
+  case neug::Array::kListArray: {
+    const auto& list_array = array.list_array();
+    if (!is_valid(list_array.validity(), row_index)) {
+      ss << "null";
+      break;
+    }
+    // Offsets are size = row_count + 1; elements between
+    // [offsets[i], offsets[i+1]).
+    const auto list_size =
+        list_array.offsets(row_index + 1) - list_array.offsets(row_index);
+    const size_t offset = list_array.offsets(row_index);
+    ss << '[';
+    for (uint32_t i = 0; i < list_size; ++i) {
+      if (i > 0) {
+        ss << ", ";
+      }
+      get_value(list_array.elements(), offset + i, ss);
+    }
+    ss << ']';
+    break;
+  }
+  case neug::Array::kStructArray: {
+    const auto& struct_array = array.struct_array();
+    if (!is_valid(struct_array.validity(), row_index)) {
+      ss << "null";
+      break;
+    }
+    ss << '[';
+    for (int i = 0; i < struct_array.fields_size(); ++i) {
+      if (i > 0) {
+        ss << ", ";
+      }
+      get_value(struct_array.fields(i), row_index, ss);
+    }
+    ss << ']';
+    break;
+  }
   default: {
     LOG(WARNING) << "Unsupported array type in QueryResult: "
                  << array.typed_array_case();
@@ -314,6 +351,12 @@ bool QueryResult::IsNull(size_t column_index) const {
     break;
   case neug::Array::kPathArray:
     validity = &array.path_array().validity();
+    break;
+  case neug::Array::kListArray:
+    validity = &array.list_array().validity();
+    break;
+  case neug::Array::kStructArray:
+    validity = &array.struct_array().validity();
     break;
   default:
     return true;
@@ -569,8 +612,8 @@ class ProfileTree {
     oss << "║         PROFILE REPORT                 ║\n";
     oss << "╚════════════════════════════════════════╝\n";
     oss << "Total output tuples: " << profile_.total_output_rows() << "\n";
-    oss << "Total elapsed time: " << std::fixed << std::setprecision(3)
-        << profile_.total_elapsed_ms() / 1000.0 << " s\n\n";
+    oss << "Total elapsed time: " << std::fixed << std::setprecision(2)
+        << profile_.total_elapsed_ms() << " ms\n\n";
 
     // Build operator map for quick lookup
     std::map<int64_t, const neug::ProfileResult_OperatorMetrics*> op_map;
@@ -609,18 +652,12 @@ class ProfileTree {
       max_field_width = std::max(
           max_field_width, static_cast<uint32_t>(op.operator_name().length()));
 
-      // Metrics string width: "time: X.XXXs | rows: YYYY tuples"
+      // Metrics string width: "time: X.XXms | rows: YYYY tuples"
       std::ostringstream metrics_oss;
-      double elapsed_sec = op.elapsed_ms() / 1000.0;
-      if (elapsed_sec < 10.0) {
-        metrics_oss << "time: " << std::fixed << std::setprecision(3)
-                    << elapsed_sec;
-      } else {
-        metrics_oss << "time: " << std::fixed << std::setprecision(2)
-                    << elapsed_sec;
-      }
-      metrics_oss << "s | rows: " << std::setw(5) << op.output_rows()
-                  << " tuples";
+      double elapsed_ms = op.elapsed_ms();
+      metrics_oss << "time: " << std::fixed << std::setprecision(2)
+                  << elapsed_ms << "ms | rows: " << std::setw(5)
+                  << op.output_rows() << " tuples";
       max_field_width = std::max(
           max_field_width, static_cast<uint32_t>(metrics_oss.str().length()));
     }
@@ -664,16 +701,9 @@ class ProfileTree {
     // Metrics line with fixed-width formatting (ASCII only for correct
     // alignment)
     std::ostringstream metrics_oss;
-    double elapsed_sec = op.elapsed_ms() / 1000.0;
-    if (elapsed_sec < 10.0) {
-      metrics_oss << "time: " << std::fixed << std::setprecision(3)
-                  << elapsed_sec;
-    } else {
-      metrics_oss << "time: " << std::fixed << std::setprecision(2)
-                  << elapsed_sec;
-    }
-    // Right-align output rows to 5 digits
-    metrics_oss << "s | rows: " << std::setw(5) << op.output_rows()
+    double elapsed_ms = op.elapsed_ms();
+    metrics_oss << "time: " << std::fixed << std::setprecision(2) << elapsed_ms
+                << "ms | rows: " << std::setw(5) << op.output_rows()
                 << " tuples";
     std::string metrics = metrics_oss.str();
     left_pad = (available - metrics.length()) / 2;

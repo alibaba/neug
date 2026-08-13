@@ -56,6 +56,7 @@ NeuG documentation
    cypher_manual/dml_clause
    cypher_manual/expression/index
    cypher_manual/query_clauses/index
+   cypher_manual/explain_profile
 
 .. toctree::
    :maxdepth: 1
@@ -72,6 +73,7 @@ NeuG documentation
    :caption: Transaction
 
    transaction/transaction.md
+   transaction/checkpoint.md
 
 .. toctree::
    :maxdepth: 1

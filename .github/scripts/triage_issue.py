@@ -137,7 +137,9 @@ def call_qwen(api_key: str, system: str, user: str) -> dict:
 
 
 def is_umbrella(cfg: dict, title: str, number: int) -> bool:
-    if "[Tracking]" in title:
+    # Skip LLM classification for tracking / milestone / umbrella issues —
+    # they sit above the triage layer, so a triage comment is noise.
+    if "[Tracking]" in title or "[MILESTONE]" in title:
         return True
     return any(u["number"] == number for u in cfg["umbrellas"])
 
@@ -242,13 +244,14 @@ def render_comment(
     umbrella = result.get("umbrella")
     confidence = result.get("confidence", "low")
     reason = result.get("reason", "")
+    milestone = cfg.get("milestone", "current")
 
     lines = []
 
     if umbrella is None:
         lines.append(
-            "🤖 **Auto-triage**: could not confidently classify this issue "
-            "under any current v0.2 umbrella."
+            f"🤖 **Auto-triage**: could not confidently classify this issue "
+            f"under any current {milestone} umbrella."
         )
     else:
         match = next((u for u in cfg["umbrellas"] if u["number"] == umbrella), None)

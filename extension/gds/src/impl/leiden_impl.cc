@@ -14,492 +14,650 @@
  */
 
 #include "impl/leiden_impl.h"
-
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <numeric>
 #include <random>
+#include <thread>
 #include <unordered_map>
-
+#include <unordered_set>
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "utils/aggregated_graph.h"
 #include "utils/parallel_utils.h"
-
 namespace neug {
 namespace gds {
 namespace community {
-
-Leiden::Leiden(const StorageReadInterface& graph, label_t vertex_label,
-               label_t edge_label, double resolution, double threshold,
-               int concurrency)
+Leiden::Leiden(const StorageReadInterface& graph,
+               std::vector<label_t> vertex_labels,
+               std::vector<LabelTriplet> edge_triplets, double resolution,
+               double threshold, int concurrency,
+               const std::string& initial_community_property,
+               bool allow_relocation, const std::string& weight_property)
     : graph_(graph),
-      vertex_label_(vertex_label),
-      edge_label_(edge_label),
+      index_(graph, std::move(vertex_labels), std::move(edge_triplets),
+             weight_property),
       resolution_(resolution),
       threshold_(threshold),
-      concurrency_(concurrency) {
-  const auto& vertex_set = graph.GetVertexSet(vertex_label);
-  valid_vertices_.reserve(vertex_set.size());
-  vid_t max_vid = 0;
-  for (const auto& v : vertex_set) {
-    valid_vertices_.push_back(v);
-    if (v > max_vid)
-      max_vid = v;
-  }
-  vertex_count_ = valid_vertices_.size();
-
-  array_size_ = static_cast<size_t>(max_vid) + 1;
-  community_ = std::make_unique<uint32_t[]>(array_size_);
-  degree_ = std::make_unique<double[]>(array_size_);
-  stot_ = std::make_unique<double[]>(array_size_);
-  sub_com_flat_ = std::make_unique<uint32_t[]>(array_size_);
-
+      concurrency_(concurrency),
+      initial_community_property_(initial_community_property),
+      allow_relocation_(allow_relocation) {
+  const size_t array_size = index_.array_size();
+  const auto& valid_vertices = index_.valid_vertices();
+  community_ = std::make_unique<uint32_t[]>(array_size);
+  degree_ = std::make_unique<double[]>(array_size);
+  stot_ = std::make_unique<double[]>(array_size);
+  sub_com_flat_ = std::make_unique<uint32_t[]>(array_size);
   num_threads_ = concurrency_ > 0
                      ? concurrency_
                      : static_cast<int>(std::thread::hardware_concurrency());
   if (num_threads_ < 1)
     num_threads_ = 1;
-  size_t total_scratch = static_cast<size_t>(num_threads_) * array_size_;
+  size_t total_scratch = static_cast<size_t>(num_threads_) * array_size;
   thread_comm_weight_ = std::make_unique<double[]>(total_scratch);
   thread_gen_ = std::make_unique<uint32_t[]>(total_scratch);
   std::fill_n(thread_comm_weight_.get(), total_scratch, 0.0);
   std::fill_n(thread_gen_.get(), total_scratch, 0);
-
-  for (size_t i = 0; i < array_size_; ++i) {
+  for (size_t i = 0; i < array_size; ++i)
     sub_com_flat_[i] = kInvalidSubCom;
-  }
-  for (vid_t v : valid_vertices_) {
-    community_[v] = v;
-    stot_[v] = 0;
-    degree_[v] = 0;
+  if (!initial_community_property_.empty()) {
+    initial_community_ = std::make_unique<uint32_t[]>(array_size);
+    std::fill_n(initial_community_.get(), array_size, UINT32_MAX);
+    const auto& vlabels = index_.vertex_labels();
+    for (size_t li = 0; li < vlabels.size(); ++li) {
+      label_t label = vlabels[li];
+      auto prop_col =
+          graph_.GetVertexPropColumn(label, initial_community_property_);
+      const auto& vs = graph_.GetVertexSet(label);
+      size_t base = index_.label_base_offset(li);
+      for (const auto& v : vs) {
+        uint32_t gid = static_cast<uint32_t>(base + v);
+        if (prop_col) {
+          auto val = prop_col->get_any(v);
+          if (!val.IsNull()) {
+            int64_t raw = val.GetValue<int64_t>();
+            if (raw >= 0 && static_cast<uint64_t>(raw) < array_size) {
+              uint32_t cval = static_cast<uint32_t>(raw);
+              community_[gid] = cval;
+              initial_community_[gid] = cval;
+            } else {
+              community_[gid] = gid;
+            }
+          } else {
+            community_[gid] = gid;
+          }
+        } else {
+          community_[gid] = gid;
+        }
+        stot_[gid] = 0;
+        degree_[gid] = 0;
+      }
+    }
+  } else {
+    for (uint32_t gid : valid_vertices) {
+      community_[gid] = gid;
+      stot_[gid] = 0;
+      degree_[gid] = 0;
+    }
   }
 }
-
 void Leiden::compute() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-
+  const auto& valid_vertices = index_.valid_vertices();
+  const size_t array_size = index_.array_size();
+  // Parallel degree computation
   ParallelUtils::parallel_for(
-      valid_vertices_.data(), valid_vertices_.size(),
-      [&](vid_t v, int /*tid*/) {
+      valid_vertices.data(), valid_vertices.size(),
+      [&](vid_t gid, int /*tid*/) {
         double deg = 0;
-        auto oes = oe_view.get_edges(v);
-        for (auto it = oes.begin(); it != oes.end(); ++it)
-          deg += 1.0;
-        auto ies = ie_view.get_edges(v);
-        for (auto it = ies.begin(); it != ies.end(); ++it)
-          deg += 1.0;
-        degree_[v] = deg;
+        index_.for_each_neighbor(gid, [&](uint32_t, double w) { deg += w; });
+        degree_[gid] = deg;
       },
-      concurrency_);
-
-  {
-    std::vector<double> local_m(concurrency_, 0.0);
-    ParallelUtils::parallel_for(
-        valid_vertices_.data(), valid_vertices_.size(),
-        [&](vid_t v, int tid) {
-          auto oes = oe_view.get_edges(v);
-          double cnt = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it)
-            cnt += 1.0;
-          local_m[tid] += cnt;
-        },
-        num_threads_);
-    m_ = 0;
-    for (int i = 0; i < num_threads_; ++i)
-      m_ += local_m[i];
-  }
-
+      num_threads_);
+  // Parallel m_ computation
+  std::vector<double> local_m(num_threads_, 0.0);
+  ParallelUtils::parallel_for(
+      valid_vertices.data(), valid_vertices.size(),
+      [&](vid_t gid, int tid) {
+        index_.for_each_out_edge(
+            gid, [&](uint32_t, double w) { local_m[tid] += w; });
+      },
+      num_threads_);
+  m_ = 0;
+  for (int i = 0; i < num_threads_; ++i)
+    m_ += local_m[i];
   if (m_ == 0) {
     modularity_ = 0;
     return;
   }
-
-  ParallelUtils::parallel_for(
-      valid_vertices_.data(), valid_vertices_.size(),
-      [&](vid_t v, int /*tid*/) { stot_[v] = degree_[v]; }, num_threads_);
-
+  // Initialize stot_
+  std::fill_n(stot_.get(), array_size, 0.0);
+  for (uint32_t gid : valid_vertices)
+    stot_[community_[gid]] += degree_[gid];
+  double prev_mod = -1.0;
   for (int level = 0; level < 100; ++level) {
     bool improved = local_moving_phase();
     if (!improved)
       break;
-
-    refine();
-
+    if (allow_relocation_ || !initial_community_)
+      refine();
+    // Rebuild stot_ after refine() which may split/rename communities.
+    std::fill_n(stot_.get(), array_size, 0.0);
+    for (uint32_t gid : valid_vertices)
+      stot_[community_[gid]] += degree_[gid];
+    // Compute modularity
     std::vector<double> local_mod(num_threads_, 0.0);
     ParallelUtils::parallel_for(
-        valid_vertices_.data(), valid_vertices_.size(),
-        [&](vid_t v, int tid) {
-          auto oes = oe_view.get_edges(v);
-          double lm = 0;
-          for (auto it = oes.begin(); it != oes.end(); ++it) {
-            vid_t u = *it;
-            if (community_[v] == community_[u]) {
-              lm +=
-                  1.0 / (2.0 * m_) - degree_[v] * degree_[u] / (4.0 * m_ * m_);
+        valid_vertices.data(), valid_vertices.size(),
+        [&](vid_t gid, int tid) {
+          index_.for_each_out_edge(gid, [&](uint32_t ug, double w) {
+            if (community_[gid] == community_[ug]) {
+              local_mod[tid] += w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                                     degree_[ug] /
+                                                     (4.0 * m_ * m_);
             }
-          }
-          local_mod[tid] += lm;
+          });
         },
         num_threads_);
     double new_mod = 0;
     for (int i = 0; i < num_threads_; ++i)
       new_mod += local_mod[i];
-    if (std::abs(new_mod - modularity_) < threshold_)
-      break;
     modularity_ = new_mod;
+    if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+      break;
+    prev_mod = modularity_;
+  }
+  // === Graph Aggregation Phase ===
+  if (allow_relocation_ || !initial_community_) {
+    size_t nv = valid_vertices.size();
+    std::vector<size_t> csr_offsets(nv + 1, 0);
+    for (size_t vi = 0; vi < nv; ++vi) {
+      uint32_t gid = valid_vertices[vi];
+      size_t cnt = 0;
+      index_.for_each_neighbor(gid, [&](uint32_t, double) { ++cnt; });
+      csr_offsets[vi + 1] = cnt;
+    }
+    for (size_t i = 1; i <= nv; ++i)
+      csr_offsets[i] += csr_offsets[i - 1];
+    std::vector<uint32_t> csr_adj(csr_offsets[nv]);
+    std::vector<double> csr_w(csr_offsets[nv]);
+    for (size_t vi = 0; vi < nv; ++vi) {
+      uint32_t gid = valid_vertices[vi];
+      size_t pos = csr_offsets[vi];
+      index_.for_each_neighbor(gid, [&](uint32_t nbr, double w) {
+        csr_adj[pos] = nbr;
+        csr_w[pos] = w;
+        ++pos;
+      });
+    }
+    // Iterative aggregation loop
+    for (int agg_level = 0; agg_level < 100; ++agg_level) {
+      auto agg =
+          build_aggregated_graph(valid_vertices, community_.get(),
+                                 degree_.get(), csr_offsets, csr_adj, csr_w);
+      if (agg.num_nodes <= 1)
+        break;
+      std::vector<uint32_t> agg_gen(agg.num_nodes, 0);
+      std::vector<double> agg_cw(agg.num_nodes, 0.0);
+      bool agg_improved =
+          one_level_aggregated(agg, m_, resolution_, agg_gen, agg_cw);
+      if (!agg_improved)
+        break;
+      propagate_aggregated_communities(valid_vertices, community_.get(), agg);
+      std::fill_n(stot_.get(), array_size, 0.0);
+      for (uint32_t gid : valid_vertices)
+        stot_[community_[gid]] += degree_[gid];
+      std::vector<double> local_mod2(num_threads_, 0.0);
+      ParallelUtils::parallel_for(
+          valid_vertices.data(), valid_vertices.size(),
+          [&](vid_t gid, int tid) {
+            index_.for_each_out_edge(gid, [&](uint32_t ug, double w) {
+              if (community_[gid] == community_[ug]) {
+                local_mod2[tid] += w / (2.0 * m_) - resolution_ * degree_[gid] *
+                                                        degree_[ug] /
+                                                        (4.0 * m_ * m_);
+              }
+            });
+          },
+          num_threads_);
+      double new_mod = 0;
+      for (int i = 0; i < num_threads_; ++i)
+        new_mod += local_mod2[i];
+      modularity_ = new_mod;
+      if (prev_mod >= 0 && std::abs(modularity_ - prev_mod) < threshold_)
+        break;
+      prev_mod = modularity_;
+    }
   }
 }
-
 bool Leiden::local_moving_phase() {
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-  auto ie_view = graph_.GetGenericIncomingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-
-  std::vector<vid_t> order = valid_vertices_;
+  const auto& valid_vertices = index_.valid_vertices();
+  std::vector<uint32_t> order = valid_vertices;
   std::mt19937 rng(42);
   std::shuffle(order.begin(), order.end(), rng);
-
   bool improved = false;
   const size_t n = order.size();
-  const size_t chunk = 4096;
-  const size_t num_batches = (n + chunk - 1) / chunk;
-  const int nt = num_threads_;
-
-  std::vector<uint32_t> best_com(n);
-  std::vector<std::vector<uint32_t>> touched(nt);
-  for (int t = 0; t < nt; ++t)
-    touched[t].reserve(256);
-
+  // Sequential Gauss-Seidel updates
+  uint32_t* my_gen = thread_gen_.get();
+  double* my_cw = thread_comm_weight_.get();
+  uint32_t gen_val = 0;
+  std::vector<uint32_t> touched;
+  touched.reserve(256);
   for (int pass = 0; pass < 10; ++pass) {
     bool moved = false;
-
-    for (size_t batch = 0; batch < num_batches; ++batch) {
-      size_t batch_start = batch * chunk;
-      size_t batch_end = std::min(batch_start + chunk, n);
-
-      // Phase 1: Compute best move in parallel
-      {
-        std::atomic<size_t> cursor(batch_start);
-        std::vector<std::thread> threads;
-        threads.reserve(nt - 1);
-
-        auto worker = [&](int tid) {
-          uint32_t* my_gen =
-              thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-          double* my_cw = thread_comm_weight_.get() +
-                          static_cast<size_t>(tid) * array_size_;
-          uint32_t gen_val = 0;
-          auto& my_touched = touched[tid];
-
-          while (true) {
-            size_t start = cursor.fetch_add(64);
-            if (start >= batch_end)
-              break;
-            size_t end = std::min(start + size_t(64), batch_end);
-
-            for (size_t i = start; i < end; ++i) {
-              vid_t u = order[i];
-              uint32_t cur_com = community_[u];
-              double deg_u = degree_[u];
-
-              ++gen_val;
-              my_touched.clear();
-
-              auto process_nbr = [&](vid_t v) {
-                if (v == u)
-                  return;
-                uint32_t com = community_[v];
-                if (my_gen[com] != gen_val) {
-                  my_gen[com] = gen_val;
-                  my_cw[com] = 0.0;
-                  my_touched.push_back(com);
-                }
-                my_cw[com] += 1.0;
-              };
-
-              auto oes = oe_view.get_edges(u);
-              for (auto it = oes.begin(); it != oes.end(); ++it)
-                process_nbr(*it);
-              auto ies = ie_view.get_edges(u);
-              for (auto it = ies.begin(); it != ies.end(); ++it)
-                process_nbr(*it);
-
-              double w_self =
-                  (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
-
-              // Remove u from current community for gain calculation
-              double stot_cur_minus_u = stot_[cur_com] - deg_u;
-
-              uint32_t best = cur_com;
-              double best_gain = 0.0;
-
-              for (uint32_t com : my_touched) {
-                if (com == cur_com)
-                  continue;
-                double w_com = my_cw[com];
-                // Gain = benefit of joining com - cost of leaving cur_com
-                double gain =
-                    (w_com - w_self) / m_ -
-                    resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
-                    resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
-                if (gain > best_gain) {
-                  best_gain = gain;
-                  best = com;
-                }
-              }
-
-              best_com[i] = best;
-            }
-          }
-        };
-
-        for (int t = 1; t < nt; ++t)
-          threads.emplace_back(worker, t);
-        worker(0);
-        for (auto& th : threads)
-          th.join();
-      }
-
-      // Phase 2: Apply moves sequentially
-      for (size_t i = batch_start; i < batch_end; ++i) {
-        vid_t u = order[i];
-        uint32_t cur_com = community_[u];
-        uint32_t new_com = best_com[i];
-        if (new_com != cur_com) {
-          stot_[cur_com] -= degree_[u];
-          stot_[new_com] += degree_[u];
-          community_[u] = new_com;
-          moved = true;
-          improved = true;
+    for (size_t i = 0; i < n; ++i) {
+      uint32_t u_gid = order[i];
+      if (initial_community_ && !allow_relocation_ &&
+          initial_community_[u_gid] != UINT32_MAX)
+        continue;
+      uint32_t cur_com = community_[u_gid];
+      double deg_u = degree_[u_gid];
+      ++gen_val;
+      touched.clear();
+      index_.for_each_neighbor(u_gid, [&](uint32_t v_gid, double w) {
+        if (v_gid == u_gid)
+          return;
+        uint32_t com = community_[v_gid];
+        if (my_gen[com] != gen_val) {
+          my_gen[com] = gen_val;
+          my_cw[com] = 0.0;
+          touched.push_back(com);
+        }
+        my_cw[com] += w;
+      });
+      double w_self = (my_gen[cur_com] == gen_val) ? my_cw[cur_com] : 0.0;
+      double stot_cur_minus_u = stot_[cur_com] - deg_u;
+      uint32_t best = cur_com;
+      double best_gain = 0.0;
+      for (uint32_t com : touched) {
+        if (com == cur_com)
+          continue;
+        double w_com = my_cw[com];
+        double gain = (w_com - w_self) / m_ -
+                      resolution_ * stot_[com] * deg_u / (2.0 * m_ * m_) +
+                      resolution_ * stot_cur_minus_u * deg_u / (2.0 * m_ * m_);
+        if (gain > best_gain) {
+          best_gain = gain;
+          best = com;
         }
       }
+      if (best != cur_com) {
+        stot_[cur_com] -= deg_u;
+        stot_[best] += deg_u;
+        community_[u_gid] = best;
+        moved = true;
+        improved = true;
+      }
     }
-
     if (!moved)
       break;
   }
-
   return improved;
 }
-
 void Leiden::refine() {
-  // Group vertices by community using sorted pairs (avoids unordered_map)
-  std::vector<std::pair<uint32_t, vid_t>> com_vertex_pairs;
-  com_vertex_pairs.reserve(valid_vertices_.size());
-  for (vid_t v : valid_vertices_) {
-    com_vertex_pairs.emplace_back(community_[v], v);
-  }
+  const auto& valid_vertices = index_.valid_vertices();
+  const size_t array_size = index_.array_size();
+  std::vector<std::pair<uint32_t, uint32_t>> com_vertex_pairs;
+  com_vertex_pairs.reserve(valid_vertices.size());
+  for (uint32_t gid : valid_vertices)
+    com_vertex_pairs.emplace_back(community_[gid], gid);
   std::sort(com_vertex_pairs.begin(), com_vertex_pairs.end());
-
-  auto oe_view = graph_.GetGenericOutgoingGraphView(vertex_label_,
-                                                    vertex_label_, edge_label_);
-
-  // Collect multi-vertex communities for parallel processing
   struct CommunityRange {
     size_t start;
     size_t end;
   };
   std::vector<CommunityRange> multi_comms;
-
-  size_t i = 0;
-  size_t n = com_vertex_pairs.size();
+  size_t i = 0, n = com_vertex_pairs.size();
   uint32_t next_com = 0;
-
-  // Assign new community IDs to single-vertex communities immediately
   while (i < n) {
     uint32_t com_id = com_vertex_pairs[i].first;
     size_t j = i;
     while (j < n && com_vertex_pairs[j].first == com_id)
       ++j;
-    size_t com_size = j - i;
-
-    if (com_size <= 1) {
-      for (size_t k = i; k < j; ++k) {
+    if (j - i <= 1) {
+      for (size_t k = i; k < j; ++k)
         community_[com_vertex_pairs[k].second] = next_com++;
-      }
-    } else {
+    } else
       multi_comms.push_back({i, j});
-    }
     i = j;
   }
-
-  // Process multi-vertex communities in parallel
   std::atomic<uint32_t> atomic_next_com(next_com);
-  const int nt = num_threads_;
-
   if (multi_comms.empty())
     return;
-
+  // Cap sub-community IDs to scratch array bounds (array_size per thread)
+  const uint32_t max_sub_com = std::min<uint32_t>(50, array_size);
   std::atomic<size_t> cursor(0);
   std::vector<std::thread> threads;
-  threads.reserve(nt - 1);
-
-  auto worker = [&](int tid) {
-    // Each thread uses its own scratch arrays
-    uint32_t* r_gen =
-        thread_gen_.get() + static_cast<size_t>(tid) * array_size_;
-    double* r_cw =
-        thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size_;
-    std::vector<uint32_t> touched_scs;
-    touched_scs.reserve(64);
-    uint32_t sc_to_new[64];
-
-    while (true) {
-      size_t idx = cursor.fetch_add(1);
-      if (idx >= multi_comms.size())
-        break;
-
-      auto& range = multi_comms[idx];
-      size_t com_start = range.start;
-      size_t com_end = range.end;
-      size_t com_size = com_end - com_start;
-
-      // Mark community membership and init sub-communities to 0
-      for (size_t k = com_start; k < com_end; ++k) {
-        vid_t v = com_vertex_pairs[k].second;
-        sub_com_flat_[v] = 0;
-      }
-
-      // Collect nodes for this community
-      std::vector<vid_t> nodes;
-      nodes.reserve(com_size);
-      for (size_t k = com_start; k < com_end; ++k) {
-        nodes.push_back(com_vertex_pairs[k].second);
-      }
-
-      std::vector<vid_t> order = nodes;
-      std::mt19937 rng(42 + static_cast<uint32_t>(idx));
-      std::shuffle(order.begin(), order.end(), rng);
-
-      bool improved = true;
-      uint32_t next_sub = 1;
+  threads.reserve(num_threads_ - 1);
+  if (index_.is_simple_graph()) {
+    auto oe_view = index_.simple_out_view();
+    auto ie_view = index_.simple_in_view();
+    const bool has_weight = index_.has_weight();
+    const auto& w_acc = index_.simple_weight_accessor();
+    auto worker = [&](int tid) {
+      uint32_t* r_gen =
+          thread_gen_.get() + static_cast<size_t>(tid) * array_size;
+      double* r_cw =
+          thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size;
+      std::vector<uint32_t> touched_scs;
+      touched_scs.reserve(64);
+      std::fill_n(r_gen, std::min<size_t>(64, array_size), 0);
       uint32_t refine_gen = 0;
-
-      while (improved && next_sub < 50) {
-        improved = false;
-        for (vid_t u : order) {
-          uint32_t cur_sc = sub_com_flat_[u];
-
-          ++refine_gen;
-          touched_scs.clear();
-
-          auto oes = oe_view.get_edges(u);
-          for (auto it = oes.begin(); it != oes.end(); ++it) {
-            vid_t v = *it;
-            if (v == u || sub_com_flat_[v] == kInvalidSubCom)
-              continue;
-            uint32_t sc = sub_com_flat_[v];
-            if (r_gen[sc] != refine_gen) {
-              r_gen[sc] = refine_gen;
-              r_cw[sc] = 0.0;
-              touched_scs.push_back(sc);
+      while (true) {
+        size_t idx = cursor.fetch_add(1);
+        if (idx >= multi_comms.size())
+          break;
+        auto& range = multi_comms[idx];
+        for (size_t k = range.start; k < range.end; ++k)
+          sub_com_flat_[com_vertex_pairs[k].second] = 0;
+        std::vector<uint32_t> nodes;
+        nodes.reserve(range.end - range.start);
+        for (size_t k = range.start; k < range.end; ++k)
+          nodes.push_back(com_vertex_pairs[k].second);
+        std::vector<uint32_t> order = nodes;
+        std::mt19937 rng(42 + static_cast<uint32_t>(idx));
+        std::shuffle(order.begin(), order.end(), rng);
+        bool sub_improved = true;
+        uint32_t next_sub = 1;
+        while (sub_improved && next_sub < max_sub_com) {
+          sub_improved = false;
+          for (vid_t u : order) {
+            uint32_t cur_sc = sub_com_flat_[u];
+            ++refine_gen;
+            touched_scs.clear();
+            auto oes = oe_view.get_edges(u);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              vid_t v = *it;
+              if (v == u || sub_com_flat_[v] == kInvalidSubCom)
+                continue;
+              uint32_t sc = sub_com_flat_[v];
+              if (r_gen[sc] != refine_gen) {
+                r_gen[sc] = refine_gen;
+                r_cw[sc] = 0.0;
+                touched_scs.push_back(sc);
+              }
+              r_cw[sc] += has_weight ? w_acc.get_typed_data<double>(it) : 1.0;
             }
-            r_cw[sc] += 1.0;
-          }
-
-          double w_self = (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
-
-          uint32_t best_sc = cur_sc;
-          double best_gain = 0.0;
-
-          for (uint32_t sc : touched_scs) {
-            double w_sc = r_cw[sc];
-            double gain = w_sc - w_self;
-            if (gain > best_gain) {
-              best_gain = gain;
-              best_sc = sc;
+            auto ies = ie_view.get_edges(u);
+            for (auto it = ies.begin(); it != ies.end(); ++it) {
+              vid_t v = *it;
+              if (v == u || sub_com_flat_[v] == kInvalidSubCom)
+                continue;
+              uint32_t sc = sub_com_flat_[v];
+              if (r_gen[sc] != refine_gen) {
+                r_gen[sc] = refine_gen;
+                r_cw[sc] = 0.0;
+                touched_scs.push_back(sc);
+              }
+              r_cw[sc] += has_weight ? w_acc.get_typed_data<double>(it) : 1.0;
             }
-          }
-
-          double gain_new = -w_self;
-          if (gain_new > best_gain) {
-            best_gain = gain_new;
-            best_sc = next_sub;
-          }
-
-          if (best_sc != cur_sc) {
-            sub_com_flat_[u] = best_sc;
-            if (best_sc == next_sub)
-              next_sub++;
-            improved = true;
+            uint32_t best_sc = cur_sc;
+            double best_w = (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
+            for (uint32_t sc : touched_scs) {
+              if (sc == cur_sc)
+                continue;
+              if (r_cw[sc] > best_w) {
+                best_w = r_cw[sc];
+                best_sc = sc;
+              }
+            }
+            if (best_sc != cur_sc) {
+              if (best_sc == next_sub)
+                ++next_sub;
+              sub_com_flat_[u] = best_sc;
+              sub_improved = true;
+            }
           }
         }
-      }
-
-      // Map sub-communities to new community IDs
-      uint32_t max_sc_seen = 0;
-      for (vid_t v : nodes) {
-        uint32_t sc = sub_com_flat_[v];
-        if (sc > max_sc_seen)
-          max_sc_seen = sc;
-        sc_to_new[sc] = UINT32_MAX;
-      }
-      for (vid_t v : nodes) {
-        uint32_t sc = sub_com_flat_[v];
-        if (sc_to_new[sc] == UINT32_MAX) {
-          sc_to_new[sc] = atomic_next_com.fetch_add(1);
+        // Assign new community IDs based on sub-communities
+        std::unordered_map<uint32_t, uint32_t> sc_to_com;
+        for (uint32_t u : nodes) {
+          uint32_t sc = sub_com_flat_[u];
+          if (sc_to_com.find(sc) == sc_to_com.end())
+            sc_to_com[sc] = atomic_next_com.fetch_add(1);
+          community_[u] = sc_to_com[sc];
         }
-        community_[v] = sc_to_new[sc];
+        for (uint32_t u : nodes)
+          sub_com_flat_[u] = kInvalidSubCom;
       }
-
-      // Reset sub_com_flat_ for these vertices
-      for (vid_t v : nodes) {
-        sub_com_flat_[v] = kInvalidSubCom;
+    };
+    for (int tid = 1; tid < num_threads_; ++tid)
+      threads.emplace_back(worker, tid);
+    worker(0);
+    for (auto& t : threads)
+      t.join();
+  } else {
+    const auto& out_views = index_.out_views();
+    const auto& in_views = index_.in_views();
+    const auto& label_out_triplets = index_.label_out_triplets();
+    const auto& label_in_triplets = index_.label_in_triplets();
+    const auto& triplet_dst_base = index_.triplet_dst_base();
+    const auto& triplet_src_base = index_.triplet_src_base();
+    const auto& triplet_weight_accessors = index_.triplet_weight_accessors();
+    const auto& triplet_has_weight = index_.triplet_has_weight();
+    auto worker = [&](int tid) {
+      uint32_t* r_gen =
+          thread_gen_.get() + static_cast<size_t>(tid) * array_size;
+      double* r_cw =
+          thread_comm_weight_.get() + static_cast<size_t>(tid) * array_size;
+      std::vector<uint32_t> touched_scs;
+      touched_scs.reserve(64);
+      std::fill_n(r_gen, std::min<size_t>(64, array_size), 0);
+      uint32_t refine_gen = 0;
+      while (true) {
+        size_t idx = cursor.fetch_add(1);
+        if (idx >= multi_comms.size())
+          break;
+        auto& range = multi_comms[idx];
+        for (size_t k = range.start; k < range.end; ++k)
+          sub_com_flat_[com_vertex_pairs[k].second] = 0;
+        std::vector<uint32_t> nodes;
+        nodes.reserve(range.end - range.start);
+        for (size_t k = range.start; k < range.end; ++k)
+          nodes.push_back(com_vertex_pairs[k].second);
+        std::vector<uint32_t> order = nodes;
+        std::mt19937 rng(42 + static_cast<uint32_t>(idx));
+        std::shuffle(order.begin(), order.end(), rng);
+        bool sub_improved = true;
+        uint32_t next_sub = 1;
+        while (sub_improved && next_sub < max_sub_com) {
+          sub_improved = false;
+          for (uint32_t u_gid : order) {
+            uint32_t cur_sc = sub_com_flat_[u_gid];
+            vid_t u_local = index_.local_vid(u_gid);
+            size_t u_li = index_.label_idx(u_gid);
+            ++refine_gen;
+            touched_scs.clear();
+            for (size_t ti : label_out_triplets[u_li]) {
+              if (triplet_dst_base[ti] == SIZE_MAX)
+                continue;
+              size_t db = triplet_dst_base[ti];
+              auto oes = out_views[ti].get_edges(u_local);
+              for (auto it = oes.begin(); it != oes.end(); ++it) {
+                uint32_t v_gid = static_cast<uint32_t>(db + (*it));
+                if (v_gid == u_gid || sub_com_flat_[v_gid] == kInvalidSubCom)
+                  continue;
+                uint32_t sc = sub_com_flat_[v_gid];
+                if (r_gen[sc] != refine_gen) {
+                  r_gen[sc] = refine_gen;
+                  r_cw[sc] = 0.0;
+                  touched_scs.push_back(sc);
+                }
+                r_cw[sc] +=
+                    triplet_has_weight[ti]
+                        ? triplet_weight_accessors[ti].get_typed_data<double>(
+                              it)
+                        : 1.0;
+              }
+            }
+            for (size_t ti : label_in_triplets[u_li]) {
+              if (triplet_src_base[ti] == SIZE_MAX)
+                continue;
+              size_t sb = triplet_src_base[ti];
+              auto ies = in_views[ti].get_edges(u_local);
+              for (auto it = ies.begin(); it != ies.end(); ++it) {
+                uint32_t v_gid = static_cast<uint32_t>(sb + (*it));
+                if (v_gid == u_gid || sub_com_flat_[v_gid] == kInvalidSubCom)
+                  continue;
+                uint32_t sc = sub_com_flat_[v_gid];
+                if (r_gen[sc] != refine_gen) {
+                  r_gen[sc] = refine_gen;
+                  r_cw[sc] = 0.0;
+                  touched_scs.push_back(sc);
+                }
+                r_cw[sc] +=
+                    triplet_has_weight[ti]
+                        ? triplet_weight_accessors[ti].get_typed_data<double>(
+                              it)
+                        : 1.0;
+              }
+            }
+            uint32_t best_sc = cur_sc;
+            double best_w = (r_gen[cur_sc] == refine_gen) ? r_cw[cur_sc] : 0.0;
+            for (uint32_t sc : touched_scs) {
+              if (sc == cur_sc)
+                continue;
+              if (r_cw[sc] > best_w) {
+                best_w = r_cw[sc];
+                best_sc = sc;
+              }
+            }
+            if (best_sc != cur_sc) {
+              if (best_sc == next_sub)
+                ++next_sub;
+              sub_com_flat_[u_gid] = best_sc;
+              sub_improved = true;
+            }
+          }
+        }
+        std::unordered_map<uint32_t, uint32_t> sc_to_com;
+        for (uint32_t u : nodes) {
+          uint32_t sc = sub_com_flat_[u];
+          if (sc_to_com.find(sc) == sc_to_com.end())
+            sc_to_com[sc] = atomic_next_com.fetch_add(1);
+          community_[u] = sc_to_com[sc];
+        }
+        for (uint32_t u : nodes)
+          sub_com_flat_[u] = kInvalidSubCom;
+      }
+    };
+    for (int tid = 1; tid < num_threads_; ++tid)
+      threads.emplace_back(worker, tid);
+    worker(0);
+    for (auto& t : threads)
+      t.join();
+  }
+}
+void Leiden::sink(execution::Context& ctx, int node_alias, int community_alias,
+                  int previous_community_alias) {
+  const auto& valid_vertices = index_.valid_vertices();
+  std::unordered_map<uint32_t, uint32_t> com_remap;
+  if (initial_community_) {
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>>
+        new_to_old_counts;
+    uint32_t max_old_id = 0;
+    bool has_valid_old = false;
+    for (uint32_t gid : valid_vertices) {
+      uint32_t new_com = community_[gid];
+      uint32_t old_com = initial_community_[gid];
+      if (old_com != UINT32_MAX) {
+        new_to_old_counts[new_com][old_com]++;
+        if (!has_valid_old || old_com > max_old_id) {
+          max_old_id = old_com;
+          has_valid_old = true;
+        }
+      } else {
+        new_to_old_counts[new_com];
       }
     }
-  };
-
-  for (int t = 1; t < nt; ++t)
-    threads.emplace_back(worker, t);
-  worker(0);
-  for (auto& th : threads)
-    th.join();
-}
-
-void Leiden::sink(execution::Context& ctx, int node_alias,
-                  int community_alias) {
-  MSVertexColumnBuilder builder(vertex_label_);
-  builder.reserve(valid_vertices_.size());
-  ValueColumnBuilder<int64_t> community_builder;
-  community_builder.reserve(valid_vertices_.size());
-
-  std::unordered_map<uint32_t, uint32_t> com_remap;
-  uint32_t next_id = 0;
-
-  for (vid_t v : valid_vertices_) {
-    uint32_t c = community_[v];
-    if (com_remap.find(c) == com_remap.end())
-      com_remap[c] = next_id++;
-    builder.push_back_opt(v);
-    community_builder.push_back_opt(static_cast<int64_t>(com_remap[c]));
+    std::vector<std::pair<uint32_t, uint32_t>> com_sizes;
+    for (auto& [nc, old_counts] : new_to_old_counts) {
+      uint32_t total = 0;
+      for (auto& [_, cnt] : old_counts)
+        total += cnt;
+      com_sizes.push_back({nc, total});
+    }
+    std::sort(com_sizes.begin(), com_sizes.end(),
+              [](const auto& a, const auto& b) {
+                if (a.second != b.second)
+                  return a.second > b.second;
+                return a.first < b.first;
+              });
+    std::unordered_set<uint32_t> used_ids;
+    for (auto& [nc, _] : com_sizes) {
+      auto& old_counts = new_to_old_counts[nc];
+      uint32_t best_old = UINT32_MAX;
+      uint32_t best_count = 0;
+      for (auto& [oc, cnt] : old_counts) {
+        if ((cnt > best_count ||
+             (cnt == best_count && best_old != UINT32_MAX && oc < best_old)) &&
+            used_ids.find(oc) == used_ids.end()) {
+          best_count = cnt;
+          best_old = oc;
+        }
+      }
+      if (best_old != UINT32_MAX) {
+        com_remap[nc] = best_old;
+        used_ids.insert(best_old);
+      }
+    }
+    uint32_t next_fresh = has_valid_old ? (max_old_id + 1) : 0;
+    for (auto& [nc, _] : com_sizes) {
+      if (com_remap.find(nc) == com_remap.end()) {
+        while (used_ids.find(next_fresh) != used_ids.end())
+          next_fresh++;
+        com_remap[nc] = next_fresh;
+        used_ids.insert(next_fresh);
+        next_fresh++;
+      }
+    }
+  } else {
+    uint32_t next_id = 0;
+    for (uint32_t gid : valid_vertices) {
+      uint32_t c = community_[gid];
+      if (com_remap.find(c) == com_remap.end())
+        com_remap[c] = next_id++;
+    }
   }
-
-  execution::ContextChunk chunk;
-  chunk.set(node_alias, builder.finish());
-  chunk.set(community_alias, community_builder.finish());
-  ctx.append_chunk(std::move(chunk));
+  bool need_prev = (previous_community_alias >= 0);
+  const auto& vlabels = index_.vertex_labels();
+  for (size_t li = 0; li < vlabels.size(); ++li) {
+    label_t label = vlabels[li];
+    size_t base = index_.label_base_offset(li);
+    const auto& vertex_set = graph_.GetVertexSet(label);
+    MSVertexColumnBuilder builder(label);
+    ValueColumnBuilder<int64_t> community_builder;
+    size_t count = vertex_set.size();
+    builder.reserve(count);
+    community_builder.reserve(count);
+    std::shared_ptr<IContextColumn> prev_col;
+    if (need_prev) {
+      ValueColumnBuilder<int64_t> prev_builder(/*is_optional=*/true);
+      prev_builder.reserve(count);
+      for (const auto& v : vertex_set) {
+        uint32_t gid = static_cast<uint32_t>(base + v);
+        if (initial_community_ && initial_community_[gid] != UINT32_MAX) {
+          prev_builder.push_back_opt(
+              static_cast<int64_t>(initial_community_[gid]));
+        } else {
+          prev_builder.push_back_null();
+        }
+      }
+      prev_col = prev_builder.finish();
+    }
+    for (const auto& v : vertex_set) {
+      uint32_t gid = static_cast<uint32_t>(base + v);
+      builder.push_back_opt(v);
+      community_builder.push_back_opt(
+          static_cast<int64_t>(com_remap[community_[gid]]));
+    }
+    execution::ContextChunk chunk;
+    chunk.set(node_alias, builder.finish());
+    chunk.set(community_alias, community_builder.finish());
+    if (prev_col)
+      chunk.set(previous_community_alias, prev_col);
+    ctx.append_chunk(std::move(chunk));
+  }
 }
-
-LeidenResult RunLeiden(const StorageReadInterface& graph, label_t vertex_label,
-                       label_t edge_label, bool directed, double resolution,
-                       double threshold, int concurrency) {
-  (void) directed;
-
-  Leiden leiden(graph, vertex_label, edge_label, resolution, threshold,
-                concurrency);
-  leiden.compute();
-
-  LeidenResult result;
-  result.modularity = 0;
-  result.num_communities = 0;
-  return result;
-}
-
 }  // namespace community
 }  // namespace gds
 }  // namespace neug

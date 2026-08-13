@@ -22,9 +22,9 @@ add_neug_test(test_mmap_container test_mmap_container.cc)
 
 add_neug_test(test_connection test_connection.cc)
 
-add_neug_test(test_call_params test_call_params.cc)
-
 add_neug_test(test_query_result test_query_result.cc)
+
+add_neug_test(test_query_result_list test_query_result_list.cc)
 
 add_neug_test(test_column test_column.cc)
 

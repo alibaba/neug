@@ -91,7 +91,12 @@ std::shared_ptr<Expression> ExpressionBinder::bindExpression(
         "bindExpression(" + ExpressionTypeUtil::toString(expressionType) +
         ").");
   }
-  if (ConstantExpressionVisitor::needFold(*expression)) {
+  // Keep ANY-typed constants unfolded (e.g. the empty list literal `[]`):
+  // CAST binding retypes the list-creation function in place, which is only
+  // reachable while the argument is still a function expression, not a
+  // folded literal.
+  if (ConstantExpressionVisitor::needFold(*expression) &&
+      !expression->getDataType().containsAny()) {
     return foldExpression(expression);
   }
   return expression;

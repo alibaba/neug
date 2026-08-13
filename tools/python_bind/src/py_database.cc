@@ -18,6 +18,16 @@
 
 namespace neug {
 
+PyDatabase::~PyDatabase() noexcept {
+  try {
+    close();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Failed to close PyDatabase during destruction: " << e.what();
+  } catch (...) {
+    LOG(ERROR) << "Failed to close PyDatabase during destruction";
+  }
+}
+
 void PyDatabase::initialize(pybind11::handle& m) {
   pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(
       m, "PyDatabase",
@@ -55,8 +65,9 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "Returns:\n"
            "    PyConnection: A connection to the database.\n")
       .def("close", &PyDatabase::close,
-           "Close the database connection and "
-           "release resources.\n")
+           "Close the database and release all resources.\n\n"
+           "checkpoint_on_close requests an automatic checkpoint.\n"
+           "Automatic checkpoint failures are logged and suppressed.\n")
       .def("max_thread_num", &PyDatabase::max_thread_num,
            "Return the effective database max_thread_num.\n")
       .def("serve", &PyDatabase::serve, pybind11::arg("port") = 10000,
@@ -109,6 +120,11 @@ std::string PyDatabase::serve(int port, const std::string& host,
         "Invalid thread_num: " + std::to_string(thread_num) +
         ". Must be less than or equal to database max_thread_num: " +
         std::to_string(database->config().max_thread_num) + ".");
+  }
+  if (database->HasOpenConnections()) {
+    THROW_RUNTIME_ERROR(
+        "Cannot start the server while local connections are open. Close all "
+        "Connection objects before calling Database.serve().");
   }
 
   database->PrepareForServing();

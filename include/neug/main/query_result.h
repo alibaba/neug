@@ -51,6 +51,9 @@ class QueryResult {
   QueryResult(const neug::QueryResponse& response)
       : response_(std::make_shared<neug::QueryResponse>(response)) {}
 
+  QueryResult(neug::QueryResponse&& response)
+      : response_(std::make_shared<neug::QueryResponse>(std::move(response))) {}
+
   QueryResult(const QueryResult& other) = delete;
   QueryResult& operator=(const QueryResult& other) = delete;
 

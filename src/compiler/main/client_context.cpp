@@ -215,12 +215,10 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
   prepareTimer.start();
 
   auto statementToPrepare = parsedStatement;
-  preparedStatement->explainMode = common::ExplainType::NONE;
 
   if (parsedStatement->getStatementType() == common::StatementType::EXPLAIN) {
     auto explainStmt =
         std::static_pointer_cast<parser::ExplainStatement>(parsedStatement);
-    preparedStatement->explainMode = explainStmt->getExplainType();
     statementToPrepare = explainStmt->takeStatementToExplain();
   }
 

@@ -22,6 +22,7 @@
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace extension {
@@ -69,6 +70,20 @@ class ExtensionAPI {
                                  neug::fsys::FileSystemFactory factory) {
     auto vfs = neug::main::MetadataRegistry::getVFS();
     vfs->Register(protocol, std::move(factory));
+  }
+
+  template <typename T>
+  static void registerRule(catalog::CatalogEntryType entryType) {
+    if (entryType != catalog::CatalogEntryType::RULE_ENTRY) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Rules must be registered with RULE_ENTRY");
+    }
+    auto catalog = neug::main::MetadataRegistry::getCatalog();
+    if (catalog->containsRule(&neug::transaction::DUMMY_TRANSACTION, T::name)) {
+      return;
+    }
+    catalog->addRule(&neug::transaction::DUMMY_TRANSACTION, T::name,
+                     []() { return std::make_unique<T>(); });
   }
 
   static void registerExtension(const ExtensionInfo& info);

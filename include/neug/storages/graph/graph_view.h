@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -21,6 +22,7 @@
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
+#include "neug/storages/graph/dirty_tracker.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -30,6 +32,9 @@
 namespace neug {
 
 class PropertyGraph;
+struct PendingIndex;
+class StorageIndex;
+class StorageIndexManager;
 
 class TableView {
  public:
@@ -56,6 +61,9 @@ class VertexTableView {
 
   bool get_lid(const Value& oid, vid_t& lid, timestamp_t ts) const;
   vid_t LidNum() const;
+  // Returns the latest storage cardinality for statistics/planning, not the
+  // number of vertices visible at a specific MVCC timestamp.
+  size_t VertexNum() const;
   bool IsValidLid(vid_t lid, timestamp_t ts) const;
   Value GetOid(vid_t lid, timestamp_t ts) const;
   VertexSet GetVertexSet(timestamp_t ts) const;
@@ -81,6 +89,9 @@ class EdgeTableView {
 
   CsrView GetOutgoingView(timestamp_t ts) const;
   CsrView GetIncomingView(timestamp_t ts) const;
+  // Returns the latest storage cardinality for statistics/planning, not a
+  // timestamp-scoped MVCC-visible count.
+  size_t EdgeNum() const;
   EdgeDataAccessor GetDataAccessor(int prop_id) const;
   EdgeDataAccessor GetDataAccessor(const std::string& prop_name) const;
 
@@ -111,6 +122,11 @@ class GraphView {
   GraphView& operator=(GraphView&&) = default;
 
   const Schema& schema() const { return *schema_; }
+  result<StorageIndex*> GetIndexByName(const std::string& name) const;
+  result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::string& property_name) const;
+  result<std::vector<StorageIndex*>> GetAllIndexes() const;
+  result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;
 
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {
@@ -119,6 +135,9 @@ class GraphView {
   inline vid_t LidNum(label_t label) const {
     return vertex_views_[label].LidNum();
   }
+  // Returns the latest storage cardinality for statistics/planning, not a
+  // timestamp-scoped MVCC-visible count.
+  vid_t VertexNum(label_t label) const;
   inline bool IsValidLid(label_t label, vid_t lid, timestamp_t ts) const {
     return vertex_views_[label].IsValidLid(lid, ts);
   }
@@ -138,6 +157,10 @@ class GraphView {
                                  label_t edge_label, timestamp_t ts) const;
   CsrView GetGenericIncomingView(label_t src_label, label_t dst_label,
                                  label_t edge_label, timestamp_t ts) const;
+  // Returns the latest storage cardinality for statistics/planning, not a
+  // timestamp-scoped MVCC-visible count.
+  size_t EdgeNum(label_t src_label, label_t dst_label,
+                 label_t edge_label) const;
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const;
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
@@ -154,9 +177,22 @@ class GraphView {
 
   void Rebuild(PropertyGraph& pg);
 
+  void MarkVertexTableDirty(label_t label) {
+    assert(dirty_ != nullptr);
+    dirty_->MarkVertex(label);
+  }
+  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) {
+    assert(dirty_ != nullptr && schema_ != nullptr);
+    dirty_->MarkEdge(schema_->generate_edge_label(src, dst, edge));
+  }
+
  private:
+  // Borrowed from the PropertyGraph passed to Rebuild(); null until then.
+  DirtyTracker* dirty_{nullptr};
   // needed by api schema().
   const Schema* schema_{nullptr};
+  // read-only queries need to access index data
+  const StorageIndexManager* index_manager_{nullptr};
   std::vector<VertexTableView> vertex_views_;
   std::unordered_map<uint32_t, EdgeTableView> edge_views_;
 };

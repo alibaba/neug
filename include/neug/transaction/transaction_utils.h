@@ -14,14 +14,52 @@
  */
 #pragma once
 
+#include <optional>
+
 #include "glog/logging.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
+
+/**
+ * RAII owner of a writer-exclusive in-place write.
+ *
+ * Construction acquires an update timestamp, blocks and drains readers, then
+ * pins the current snapshot for mutation. Destruction publishes its planning
+ * generation first, publishes the matching timestamp/snapshot read view,
+ * reopens admission, and finally releases the snapshot pin. Publication also
+ * happens during stack unwinding because in-place mutations cannot be rolled
+ * back.
+ */
+class InPlaceWriteScope {
+ public:
+  InPlaceWriteScope(IVersionManager& version_manager,
+                    GraphSnapshotStore& snapshot_store);
+  ~InPlaceWriteScope() noexcept;
+
+  InPlaceWriteScope(const InPlaceWriteScope&) = delete;
+  InPlaceWriteScope& operator=(const InPlaceWriteScope&) = delete;
+
+  uint32_t Timestamp() const noexcept { return timestamp_lease_.Timestamp(); }
+  GraphSnapshotStore::SnapshotSlot& Snapshot() noexcept {
+    return snapshot_guard_->get();
+  }
+  void MarkPlanningChanged() noexcept { planning_changed_ = true; }
+
+ private:
+  void publish() noexcept;
+
+  UpdateTimestampLease timestamp_lease_;
+  GraphSnapshotStore& snapshot_store_;
+  std::optional<SnapshotGuard> snapshot_guard_;
+  bool planning_changed_{false};
+};
 
 enum class OpType : uint8_t {
   kCreateVertexType = 0,

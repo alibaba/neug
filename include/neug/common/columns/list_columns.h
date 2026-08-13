@@ -47,8 +47,14 @@ class ListColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const sel_vec_t& offsets) const override;
 
+  std::shared_ptr<IContextColumn> optional_shuffle(
+      const sel_vec_t& offsets) const override;
+
   const DataType& elem_type() const override { return type_; }
   Value get_elem(size_t idx) const override {
+    if (is_optional_ && !valids_[idx]) {
+      return Value(type_);
+    }
     std::vector<Value> list_values;
     for (size_t i = items_[idx].offset;
          i < items_[idx].offset + items_[idx].length; ++i) {
@@ -79,12 +85,24 @@ class ListColumn : public IContextColumn {
       }
     }
     ptr->items_.swap(new_items);
-
+    ptr->is_optional_ = is_optional_;
+    if (is_optional_) {
+      ptr->valids_ = valids_;
+    }
     ptr->datas_ = datas_->shuffle(indices);
     return ptr;
   }
 
-  bool is_optional() const override { return false; }
+  bool is_optional() const override { return is_optional_; }
+
+  bool has_value(size_t idx) const override {
+    if (!is_optional_) {
+      return true;
+    }
+    return valids_[idx];
+  }
+
+  const vector_t<bool>& validity_bitmap() const { return valids_; }
 
  private:
   template <typename T>
@@ -107,6 +125,8 @@ class ListColumn : public IContextColumn {
   DataType type_;
   vector_t<list_item> items_;
   std::shared_ptr<IContextColumn> datas_;
+  bool is_optional_ = false;
+  vector_t<bool> valids_;
 };
 
 class ListColumnBuilder : public IContextColumnBuilder {
@@ -117,7 +137,12 @@ class ListColumnBuilder : public IContextColumnBuilder {
 
   ~ListColumnBuilder() = default;
 
-  void reserve(size_t size) override { items_.reserve(size); }
+  void reserve(size_t size) override {
+    items_.reserve(size);
+    if (is_optional_) {
+      valids_.reserve(size);
+    }
+  }
   void push_back_elem(const Value& val) override {
     assert(val.type().id() == DataTypeId::kList);
     const auto& values = ListValue::GetChildren(val);
@@ -129,16 +154,33 @@ class ListColumnBuilder : public IContextColumnBuilder {
     cur_offset_ += values.size();
   }
 
+  void push_back_null() override {
+    if (valids_.empty()) {
+      is_optional_ = true;
+    }
+    valids_.resize(items_.size(), true);
+    valids_.push_back(false);
+    list_item item = {cur_offset_, 0};
+    items_.push_back(item);
+  }
+
   std::shared_ptr<IContextColumn> finish() override {
     auto ret = std::make_shared<ListColumn>(type_);
     ret->datas_ = child_builder_->finish();
     ret->items_.swap(items_);
+    if (is_optional_) {
+      valids_.resize(ret->items_.size(), true);
+      ret->valids_.swap(valids_);
+      ret->is_optional_ = true;
+    }
     return ret;
   }
 
  private:
   DataType type_;
   size_t cur_offset_;
+  bool is_optional_ = false;
+  vector_t<bool> valids_;
 
   vector_t<list_item> items_;
   std::shared_ptr<IContextColumnBuilder> child_builder_;

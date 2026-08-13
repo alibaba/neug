@@ -20,20 +20,17 @@
 namespace neug {
 namespace pattern_matching {
 
-DataGraphMeta::DataGraphMeta(const StorageReadInterface& graph)
-    : graph_(graph) {}
-
-void DataGraphMeta::Preprocess() {
+void DataGraphMeta::Preprocess(const StorageReadInterface& graph) {
   LOG(INFO) << "[DataGraphMeta] Starting preprocessing...";
 
   // Step 0: Build ID mapping (label, vid) <-> global_id
-  BuildIdMapping();
+  BuildIdMapping(graph);
 
   // Step 1: Build neighbors_ and compute degree statistics
-  BuildNeighbors();
+  BuildNeighbors(graph);
 
   // Step 2: Build schema index and cache views
-  BuildSchemaIndex();
+  BuildSchemaIndex(graph);
 
   // Step 3: Compute k-core decomposition
   ComputeCoreNum();
@@ -49,8 +46,8 @@ void DataGraphMeta::Preprocess() {
   LOG(INFO) << "  Degeneracy: " << degeneracy_;
 }
 
-void DataGraphMeta::BuildIdMapping() {
-  const auto& schema = graph_.schema();
+void DataGraphMeta::BuildIdMapping(const StorageReadInterface& graph) {
+  const auto& schema = graph.schema();
   label_t num_vertex_labels = schema.vertex_label_num();
   label_t num_edge_labels = schema.edge_label_num();
   num_labels_ = num_vertex_labels;
@@ -70,7 +67,7 @@ void DataGraphMeta::BuildIdMapping() {
   for (label_t label = 0; label < num_vertex_labels; ++label) {
     if (!schema.is_vertex_label_valid(label))
       continue;
-    VertexSet vs = graph_.GetVertexSet(label);
+    VertexSet vs = graph.GetVertexSet(label);
     for (vid_t vid : vs) {
       if (vid >= max_vid_per_label[label])
         max_vid_per_label[label] = vid + 1;
@@ -86,7 +83,7 @@ void DataGraphMeta::BuildIdMapping() {
     if (!schema.is_vertex_label_valid(label))
       continue;
 
-    VertexSet vs = graph_.GetVertexSet(label);
+    VertexSet vs = graph.GetVertexSet(label);
     LOG(INFO) << "[BuildIdMapping] Label " << (int) label << " ("
               << schema.get_vertex_label_name(label) << ")"
               << " has " << vs.size() << " vertices";
@@ -104,8 +101,8 @@ void DataGraphMeta::BuildIdMapping() {
   LOG(INFO) << "[BuildIdMapping] Total vertices (global): " << num_vertex_;
 }
 
-void DataGraphMeta::BuildNeighbors() {
-  const auto& schema = graph_.schema();
+void DataGraphMeta::BuildNeighbors(const StorageReadInterface& graph) {
+  const auto& schema = graph.schema();
 
   if (num_vertex_ == 0) {
     LOG(WARNING) << "[BuildNeighbors] No vertices found";
@@ -141,11 +138,11 @@ void DataGraphMeta::BuildNeighbors() {
 
     try {
       CsrView out_view =
-          graph_.GetGenericOutgoingGraphView(src_label, dst_label, e_label);
+          graph.GetGenericOutgoingGraphView(src_label, dst_label, e_label);
 
-      VertexSet src_vs = graph_.GetVertexSet(src_label);
+      VertexSet src_vs = graph.GetVertexSet(src_label);
       for (vid_t src_vid : src_vs) {
-        if (!graph_.IsValidVertex(src_label, src_vid))
+        if (!graph.IsValidVertex(src_label, src_vid))
           continue;
 
         int src_global = ToGlobalId(src_label, src_vid);
@@ -328,7 +325,7 @@ void DataGraphMeta::ComputeLabelStatistics() {
             << ", Entropy: " << label_statistics_.vertex_label_entropy;
 }
 
-void DataGraphMeta::BuildSchemaIndex() {
+void DataGraphMeta::BuildSchemaIndex(const StorageReadInterface& graph) {
   out_schema_index_.clear();
   in_schema_index_.clear();
   out_view_cache_.clear();
@@ -336,7 +333,7 @@ void DataGraphMeta::BuildSchemaIndex() {
   out_schemas_by_src_.clear();
   in_schemas_by_dst_.clear();
 
-  const auto& schema = graph_.schema();
+  const auto& schema = graph.schema();
   for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
     auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
 
@@ -347,11 +344,11 @@ void DataGraphMeta::BuildSchemaIndex() {
 
     try {
       out_view_cache_[PackViewKey(s_label, d_label, e_label)] =
-          graph_.GetGenericOutgoingGraphView(s_label, d_label, e_label);
+          graph.GetGenericOutgoingGraphView(s_label, d_label, e_label);
     } catch (...) {}
     try {
       in_view_cache_[PackViewKey(d_label, s_label, e_label)] =
-          graph_.GetGenericIncomingGraphView(d_label, s_label, e_label);
+          graph.GetGenericIncomingGraphView(d_label, s_label, e_label);
     } catch (...) {}
   }
 
@@ -434,7 +431,8 @@ bool DataGraphMeta::SaveToFile(const std::string& filepath) const {
   return true;
 }
 
-bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
+bool DataGraphMeta::LoadFromFile(const std::string& filepath,
+                                 const StorageReadInterface& graph) {
   std::ifstream ifs(filepath, std::ios::binary);
   if (!ifs.is_open()) {
     LOG(WARNING) << "[DataGraphMeta] Checkpoint file not found: " << filepath;
@@ -606,7 +604,7 @@ bool DataGraphMeta::LoadFromFile(const std::string& filepath) {
     }
   }
 
-  BuildSchemaIndex();
+  BuildSchemaIndex(graph);
 
   LOG(INFO) << "[DataGraphMeta] Loaded checkpoint from: " << filepath << " ("
             << num_vertex_ << " vertices, " << num_edge_ << " edges)";
@@ -668,29 +666,6 @@ DataGraphMeta::Edge DataGraphMeta::GetEdge(int u, int v, int label) const {
       return {u, v, (label_t) label};
   }
   return {-1, -1, 255};
-}
-
-int DataGraphMeta::GetEdgeIndex(int u, int v) const {
-  if (u < 0 || u >= num_vertex_ || v < 0 || v >= num_vertex_)
-    return -1;
-  auto [src_label, src_vid] = ToLocalId(u);
-  auto [dst_label, dst_vid] = ToLocalId(v);
-  uint32_t sk = PackLabelPair(src_label, dst_label);
-  auto sit = out_schema_index_.find(sk);
-  if (sit == out_schema_index_.end())
-    return -1;
-  for (label_t e_label : sit->second) {
-    uint64_t vk = PackViewKey(src_label, dst_label, e_label);
-    auto vit = out_view_cache_.find(vk);
-    if (vit == out_view_cache_.end())
-      continue;
-    NbrList edges = vit->second.get_edges(src_vid);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      if (*it == dst_vid)
-        return e_label;
-    }
-  }
-  return -1;
 }
 
 std::vector<DataGraphMeta::Edge> DataGraphMeta::GetOutIncidentEdges(
@@ -791,72 +766,6 @@ std::vector<DataGraphMeta::Edge> DataGraphMeta::GetAllInIncidentEdges(
   return result;
 }
 
-std::vector<int> DataGraphMeta::GetOutNeighbors(int global_id) const {
-  std::vector<int> result;
-  if (global_id < 0 || global_id >= num_vertex_)
-    return result;
-  auto [src_label, src_vid] = ToLocalId(global_id);
-  auto sit = out_schemas_by_src_.find(src_label);
-  if (sit == out_schemas_by_src_.end())
-    return result;
-  auto& scratch = GetDedupScratch();
-  scratch.EnsureSize(num_vertex_);
-  auto& seen = scratch.seen;
-  auto& reset_list = scratch.reset_list;
-  for (const auto& [d_label, e_label] : sit->second) {
-    uint64_t vk = PackViewKey(src_label, d_label, e_label);
-    auto vit = out_view_cache_.find(vk);
-    if (vit == out_view_cache_.end())
-      continue;
-    NbrList edges = vit->second.get_edges(src_vid);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      int dst_global = FastToGlobalId(d_label, *it);
-      if (dst_global >= 0 && !seen[dst_global]) {
-        seen[dst_global] = true;
-        reset_list.push_back(dst_global);
-        result.push_back(dst_global);
-      }
-    }
-  }
-  for (int v : reset_list)
-    seen[v] = false;
-  reset_list.clear();
-  return result;
-}
-
-std::vector<int> DataGraphMeta::GetInNeighbors(int global_id) const {
-  std::vector<int> result;
-  if (global_id < 0 || global_id >= num_vertex_)
-    return result;
-  auto [dst_label, dst_vid] = ToLocalId(global_id);
-  auto sit = in_schemas_by_dst_.find(dst_label);
-  if (sit == in_schemas_by_dst_.end())
-    return result;
-  auto& scratch = GetDedupScratch();
-  scratch.EnsureSize(num_vertex_);
-  auto& seen = scratch.seen;
-  auto& reset_list = scratch.reset_list;
-  for (const auto& [s_label, e_label] : sit->second) {
-    uint64_t vk = PackViewKey(dst_label, s_label, e_label);
-    auto vit = in_view_cache_.find(vk);
-    if (vit == in_view_cache_.end())
-      continue;
-    NbrList edges = vit->second.get_edges(dst_vid);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      int src_global = FastToGlobalId(s_label, *it);
-      if (src_global >= 0 && !seen[src_global]) {
-        seen[src_global] = true;
-        reset_list.push_back(src_global);
-        result.push_back(src_global);
-      }
-    }
-  }
-  for (int v : reset_list)
-    seen[v] = false;
-  reset_list.clear();
-  return result;
-}
-
 int DataGraphMeta::GetOutNeighborCountMasked(int global_id,
                                              int target_dst_label,
                                              const bool* mask) const {
@@ -910,86 +819,9 @@ int DataGraphMeta::GetInNeighborCountMasked(int global_id, int target_src_label,
   return count;
 }
 
-int DataGraphMeta::CountOutNeighborsInSet(int global_id, int target_dst_label,
-                                          const bool* set, int needed) const {
-  if (global_id < 0 || global_id >= num_vertex_ || needed <= 0)
-    return 0;
-  auto [src_label, src_vid] = ToLocalId(global_id);
-  uint32_t sk = PackLabelPair(src_label, (label_t) target_dst_label);
-  auto sit = out_schema_index_.find(sk);
-  if (sit == out_schema_index_.end())
-    return 0;
-  int count = 0;
-  for (label_t e_label : sit->second) {
-    uint64_t vk = PackViewKey(src_label, (label_t) target_dst_label, e_label);
-    auto vit = out_view_cache_.find(vk);
-    if (vit == out_view_cache_.end())
-      continue;
-    NbrList edges = vit->second.get_edges(src_vid);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      int dst_global = FastToGlobalId((label_t) target_dst_label, *it);
-      if (dst_global >= 0 && set[dst_global]) {
-        if (++count >= needed)
-          return count;
-      }
-    }
-  }
-  return count;
-}
-
-int DataGraphMeta::CountInNeighborsInSet(int global_id, int target_src_label,
-                                         const bool* set, int needed) const {
-  if (global_id < 0 || global_id >= num_vertex_ || needed <= 0)
-    return 0;
-  auto [dst_label, dst_vid] = ToLocalId(global_id);
-  uint32_t sk = PackLabelPair(dst_label, (label_t) target_src_label);
-  auto sit = in_schema_index_.find(sk);
-  if (sit == in_schema_index_.end())
-    return 0;
-  int count = 0;
-  for (label_t e_label : sit->second) {
-    uint64_t vk = PackViewKey(dst_label, (label_t) target_src_label, e_label);
-    auto vit = in_view_cache_.find(vk);
-    if (vit == in_view_cache_.end())
-      continue;
-    NbrList edges = vit->second.get_edges(dst_vid);
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
-      int src_global = FastToGlobalId((label_t) target_src_label, *it);
-      if (src_global >= 0 && set[src_global]) {
-        if (++count >= needed)
-          return count;
-      }
-    }
-  }
-  return count;
-}
-
-std::string DataGraphMeta::EdgeToKey(const Edge& edge) const {
-  int src = std::get<0>(edge);
-  int dst = std::get<1>(edge);
-  label_t label = std::get<2>(edge);
-  if (src == -1)
-    return "";
-  return std::to_string(src) + ":" + std::to_string(dst) + ":" +
-         std::to_string(label);
-}
-
-std::string DataGraphMeta::EdgeToKey(int src, int dst, label_t label) const {
-  if (src == -1)
-    return "";
-  return std::to_string(src) + ":" + std::to_string(dst) + ":" +
-         std::to_string(label);
-}
-
 std::size_t LabelVidHash::operator()(const std::pair<label_t, vid_t>& p) const {
   return std::hash<uint64_t>()((static_cast<uint64_t>(p.first) << 32) |
                                p.second);
-}
-
-int DataGraphMeta::GetDegree(int global_id) const {
-  return (global_id >= 0 && global_id < (int) degree_.size())
-             ? degree_[global_id]
-             : 0;
 }
 
 int DataGraphMeta::GetVertexLabel(int global_id) const {
@@ -1032,10 +864,6 @@ EdgeKey DataGraphMeta::EdgeToIntKey(const Edge& edge) const {
   return EdgeKey(std::get<0>(edge), std::get<1>(edge), std::get<2>(edge));
 }
 
-EdgeKey DataGraphMeta::EdgeToIntKey(int src, int dst, label_t label) const {
-  return EdgeKey(src, dst, label);
-}
-
 int DataGraphMeta::ToGlobalId(label_t label, vid_t vid) const {
   auto key = std::make_pair(label, vid);
   auto it = local_to_global_.find(key);
@@ -1047,18 +875,6 @@ std::pair<label_t, vid_t> DataGraphMeta::ToLocalId(int global_id) const {
     return {255, (vid_t) -1};  // Invalid
   }
   return global_to_local_[global_id];
-}
-
-label_t DataGraphMeta::GetVertexLabelFromGlobal(int global_id) const {
-  if (global_id < 0 || global_id >= (int) global_to_local_.size())
-    return 255;
-  return global_to_local_[global_id].first;
-}
-
-vid_t DataGraphMeta::GetOriginalVid(int global_id) const {
-  if (global_id < 0 || global_id >= (int) global_to_local_.size())
-    return (vid_t) -1;
-  return global_to_local_[global_id].second;
 }
 
 int DataGraphMeta::FastToGlobalId(label_t label, vid_t vid) const {

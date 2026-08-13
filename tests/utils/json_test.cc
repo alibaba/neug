@@ -75,6 +75,37 @@ class JsonTest : public ::testing::Test {
     return type;
   }
 
+  std::shared_ptr<::common::DataType> createInt64ArrayType(
+      uint32_t fixed_length) {
+    auto type = std::make_shared<::common::DataType>();
+    auto* array = type->mutable_array();
+    array->set_fixed_length(fixed_length);
+    array->mutable_component_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_SIGNED_INT64);
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createInt32ArrayType(
+      uint32_t fixed_length) {
+    auto type = std::make_shared<::common::DataType>();
+    auto* array = type->mutable_array();
+    array->set_fixed_length(fixed_length);
+    array->mutable_component_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_SIGNED_INT32);
+    return type;
+  }
+
+  std::shared_ptr<::common::DataType> createNestedStringListType() {
+    auto type = std::make_shared<::common::DataType>();
+    auto* outer_list = type->mutable_list();
+    auto* pair = outer_list->mutable_component_type()->mutable_array();
+    pair->set_fixed_length(2);
+    auto* inner_list = pair->mutable_component_type()->mutable_list();
+    auto* string_type = inner_list->mutable_component_type()->mutable_string();
+    string_type->mutable_var_char();
+    return type;
+  }
+
   std::shared_ptr<reader::ReadSharedState> createSharedState(
       const std::string& jsonFile, const std::vector<std::string>& columnNames,
       const std::vector<std::shared_ptr<::common::DataType>>& columnTypes,
@@ -138,6 +169,147 @@ TEST_F(JsonTest, TestJsonArray) {
   ASSERT_EQ(col2->column_type(), ContextColumnType::kValue);
   EXPECT_DOUBLE_EQ(col2->get_elem(0).GetValue<double>(), 25.0);
   EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
+}
+
+TEST_F(JsonTest, TestJsonArrayColumn) {
+  createJsonFile("test_json_array_column.json",
+                 "[{\"id\": 1, \"readings\": [1, 2, 3]}, "
+                 "{\"id\": 2, \"readings\": [4, 5, 6]}]");
+  auto sharedState = createSharedState(
+      "test_json_array_column.json", {"id", "readings"},
+      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 2);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto readings_col = ctx.chunk(0).columns()[1];
+  ASSERT_EQ(readings_col->column_type(), ContextColumnType::kValue);
+  auto first = readings_col->get_elem(0);
+  const auto& first_values = ArrayValue::GetChildren(first);
+  ASSERT_EQ(first_values.size(), 3);
+  EXPECT_EQ(first_values[0].GetValue<int64_t>(), 1);
+  EXPECT_EQ(first_values[1].GetValue<int64_t>(), 2);
+  EXPECT_EQ(first_values[2].GetValue<int64_t>(), 3);
+}
+
+TEST_F(JsonTest, TestJsonNullArrayColumnIsOptional) {
+  createJsonFile("test_json_null_array_column.json",
+                 "[{\"id\":1,\"readings\":[1,2]},"
+                 "{\"id\":2,\"readings\":null},"
+                 "{\"id\":3,\"readings\":[3,4]}]");
+  auto sharedState = createSharedState(
+      "test_json_null_array_column.json", {"id", "readings"},
+      {createUInt32Type(), createInt32ArrayType(2)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  execution::Context ctx;
+
+  reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
+
+  ASSERT_EQ(ctx.row_num(), 3);
+  auto readings_col = ctx.chunk(0).columns()[1];
+  EXPECT_TRUE(readings_col->is_optional());
+  EXPECT_TRUE(readings_col->has_value(0));
+  EXPECT_FALSE(readings_col->has_value(1));
+  EXPECT_TRUE(readings_col->has_value(2));
+
+  auto null_value = readings_col->get_elem(1);
+  EXPECT_TRUE(null_value.IsNull());
+  EXPECT_EQ(null_value.type(), DataType::Array(DataType::INT32, 2));
+
+  auto following_value = readings_col->get_elem(2);
+  const auto& following_values = ArrayValue::GetChildren(following_value);
+  ASSERT_EQ(following_values.size(), 2);
+  EXPECT_EQ(following_values[0].GetValue<int32_t>(), 3);
+  EXPECT_EQ(following_values[1].GetValue<int32_t>(), 4);
+}
+
+TEST_F(JsonTest, TestJsonArrayColumnLengthMismatch) {
+  createJsonFile("test_json_array_length_mismatch.json",
+                 "[{\"id\": 1, \"readings\": [1, 2]}]");
+  auto sharedState = createSharedState(
+      "test_json_array_length_mismatch.json", {"id", "readings"},
+      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  try {
+    reader->read(localState, ctx);
+    FAIL() << "Expected an ARRAY length mismatch";
+  } catch (const std::exception& error) {
+    EXPECT_NE(
+        std::string(error.what())
+            .find("ARRAY value length mismatch for type INT64[3]: expected 3, "
+                  "got 2"),
+        std::string::npos);
+  }
+}
+
+TEST_F(JsonTest, TestJsonArrayColumnRejectsNonArray) {
+  createJsonFile("test_json_non_array.json", "[{\"id\": 1, \"readings\": 42}]");
+  auto sharedState = createSharedState(
+      "test_json_non_array.json", {"id", "readings"},
+      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  try {
+    reader->read(localState, ctx);
+    FAIL() << "Expected a non-array conversion error";
+  } catch (const std::exception& error) {
+    EXPECT_NE(std::string(error.what())
+                  .find("Expected JSON array for ARRAY type: INT64[3]"),
+              std::string::npos);
+  }
+}
+
+TEST_F(JsonTest, TestJsonRecursiveListColumn) {
+  createJsonFile(
+      "test_json_recursive_list.json",
+      "[{\"id\":1,\"nested\":[[[\"a\"],[]],[[\"b\",\"c\"],[\"d\"]]]},"
+      "{\"id\":2,\"nested\":[]},{\"id\":3,\"nested\":null},"
+      "{\"id\":4,\"nested\":[[null,[\"h\"]],null]}]");
+  auto sharedState =
+      createSharedState("test_json_recursive_list.json", {"id", "nested"},
+                        {createUInt32Type(), createNestedStringListType()},
+                        {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  execution::Context ctx;
+  reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
+
+  ASSERT_EQ(ctx.row_num(), 4);
+  auto nested = ctx.chunk(0).columns()[1];
+  ASSERT_EQ(nested->elem_type().id(), DataTypeId::kList);
+  auto first_value = nested->get_elem(0);
+  const auto& first = ListValue::GetChildren(first_value);
+  ASSERT_EQ(first.size(), 2);
+  const auto& first_pair = ArrayValue::GetChildren(first[0]);
+  ASSERT_EQ(first_pair.size(), 2);
+  EXPECT_EQ(StringValue::Get(ListValue::GetChildren(first_pair[0])[0]), "a");
+  EXPECT_TRUE(ListValue::GetChildren(first_pair[1]).empty());
+  auto second_value = nested->get_elem(1);
+  EXPECT_TRUE(ListValue::GetChildren(second_value).empty());
+  EXPECT_FALSE(nested->has_value(2));
+  EXPECT_TRUE(nested->get_elem(2).IsNull());
+  // Nested nulls normalize to the declared defaults: null LIST child -> [],
+  // null ARRAY child -> [[], []].
+  auto fourth_value = nested->get_elem(3);
+  const auto& fourth = ListValue::GetChildren(fourth_value);
+  ASSERT_EQ(fourth.size(), 2);
+  const auto& fourth_first = ArrayValue::GetChildren(fourth[0]);
+  ASSERT_EQ(fourth_first.size(), 2);
+  EXPECT_TRUE(ListValue::GetChildren(fourth_first[0]).empty());
+  EXPECT_EQ(StringValue::Get(ListValue::GetChildren(fourth_first[1])[0]), "h");
+  const auto& fourth_second = ArrayValue::GetChildren(fourth[1]);
+  ASSERT_EQ(fourth_second.size(), 2);
+  EXPECT_TRUE(ListValue::GetChildren(fourth_second[0]).empty());
+  EXPECT_TRUE(ListValue::GetChildren(fourth_second[1]).empty());
 }
 
 }  // namespace test

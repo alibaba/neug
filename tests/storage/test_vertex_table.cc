@@ -28,6 +28,7 @@
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
 
 #include <glog/logging.h>
@@ -691,7 +692,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
 
   EXPECT_EQ(table.VertexNum(), 10000);
   EXPECT_EQ(table.LidNum(), 10000);
-  table.Compact(true);
+  table.Compact();
   EXPECT_EQ(table.get_vertex_timestamp().InitVertexNum(), 10000);
 
   auto desc = DumpVertexTableLegacy(table, *ckp);

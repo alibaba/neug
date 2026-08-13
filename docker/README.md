@@ -55,3 +55,26 @@ The `neug-release` image builds and installs a Python wheel. That wheel is a
 portable package artifact, so the release image build passes
 `NEUG_PACKAGE_BUILD=ON` and `NEUG_NATIVE_ARCH=OFF`. Development and manylinux
 images are build environments and do not force package mode by themselves.
+
+## manylinux_2_28 for node
+
+To support Node.js 20 and later, use the newer manylinux_2_28 images for Node.js
+package builds:
+
+```bash
+docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64-node
+docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64-node
+```
+
+Build the image locally with:
+
+```bash
+make neug-manylinux-node
+```
+
+And tag the image before pushing it to the registry:
+
+```bash
+export ARCH=arm64 # x86_64
+docker tag neug/neug-manylinux:${ARCH}-node neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-${ARCH}-node
+```

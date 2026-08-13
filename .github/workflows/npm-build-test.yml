@@ -59,12 +59,12 @@ jobs:
             -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
-            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64 \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64-node \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             mkdir -p /home/neug/.local
-            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-x64.tar.xz \
+            curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-x64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             export PATH=/home/neug/.local/bin:$PATH
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
@@ -112,7 +112,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+            node tests/test-shim.js
           '
 
       - name: Stop container
@@ -151,12 +151,12 @@ jobs:
             -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
-            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64 \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64-node \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             mkdir -p /home/neug/.local
-            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-arm64.tar.xz \
+            curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-arm64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             export PATH=/home/neug/.local/bin:$PATH
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
@@ -204,7 +204,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+            node tests/test-shim.js
           '
 
       - name: Stop container
@@ -232,7 +232,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '16.0.0'
+          node-version: '20'
 
       - name: Install dependencies
         run: |
@@ -273,7 +273,7 @@ jobs:
         run: |
           source ~/.neug_env
           cd tools/nodejs_bind
-          FAILED=0; for f in tests/test_*.js; do echo "=== $f ===" && node "$f" || FAILED=1; done; exit $FAILED
+          node tests/test-shim.js
 
       - name: Upload npm tarball
         uses: actions/upload-artifact@v4
@@ -281,3 +281,13 @@ jobs:
           name: nodejs-osx-arm64-${{ github.run_id }}
           path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
           if-no-files-found: error
+
+  # Nightly and manually dispatched builds verify the packages from this run
+  # through the same test suite used by the published-package check.
+  package_test:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs:
+      - build_npm_linux_x86_64
+      - build_npm_linux_arm64
+      - build_npm_macos_aarch64
+    uses: ./.github/workflows/npm-package-test.yml

@@ -37,6 +37,7 @@
 #include "neug/utils/io/read/common/row_expression_filter.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/property/default_value.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 
@@ -148,6 +149,49 @@ Value parse_json_value(const rapidjson::Value& value,
       return Value::STRING(value.GetString());
     }
     return Value::STRING(rapidjson_stringify(value));
+  case DataTypeId::kArray: {
+    if (!value.IsArray()) {
+      THROW_CONVERSION_EXCEPTION("Expected JSON array for ARRAY type: " +
+                                 data_type.ToString());
+    }
+    const auto expected_size = ArrayType::GetNumElements(data_type);
+    if (value.Size() != expected_size) {
+      THROW_CONVERSION_EXCEPTION("ARRAY value length mismatch for type " +
+                                 data_type.ToString() + ": expected " +
+                                 std::to_string(expected_size) + ", got " +
+                                 std::to_string(value.Size()));
+    }
+    const auto& child_type = ArrayType::GetChildType(data_type);
+    std::vector<Value> values;
+    values.reserve(value.Size());
+    for (const auto& item : value.GetArray()) {
+      // A nested JSON null normalizes to the declared child default,
+      // matching property-column write semantics.
+      if (item.IsNull()) {
+        values.push_back(get_default_value(child_type));
+      } else {
+        values.push_back(parse_json_value(item, child_type));
+      }
+    }
+    return Value::ARRAY(data_type, std::move(values));
+  }
+  case DataTypeId::kList: {
+    if (!value.IsArray()) {
+      THROW_CONVERSION_EXCEPTION("Expected JSON array for LIST type: " +
+                                 data_type.ToString());
+    }
+    const auto& child_type = ListType::GetChildType(data_type);
+    std::vector<Value> values;
+    values.reserve(value.Size());
+    for (const auto& item : value.GetArray()) {
+      if (item.IsNull()) {
+        values.push_back(get_default_value(child_type));
+      } else {
+        values.push_back(parse_json_value(item, child_type));
+      }
+    }
+    return Value::LIST(child_type, std::move(values));
+  }
   default:
     if (value.IsString()) {
       return Value::STRING(value.GetString());
@@ -232,8 +276,13 @@ class JsonChunkSupplier : public IDataChunkSupplier {
               "Column '" + name +
               "' not found in JSON object in file: " + file_path_);
         }
-        builders[col]->push_back_elem(
-            parse_json_value(obj[name.c_str()], selected_types[col]));
+        const auto& json_value = obj[name.c_str()];
+        if (json_value.IsNull()) {
+          builders[col]->push_back_null();
+        } else {
+          builders[col]->push_back_elem(
+              parse_json_value(json_value, selected_types[col]));
+        }
       }
       ++rows_in_chunk;
     }

@@ -805,6 +805,9 @@ rapidjson::Value Value::ToJson(const Value& value,
   }
   auto type_id = value.type().id();
   switch (type_id) {
+  case DataTypeId::kBoolean: {
+    return rapidjson::Value(value.GetValue<bool>());
+  }
   case DataTypeId::kVarchar: {
     return rapidjson::Value(value.GetValue<std::string>().c_str(), allocator);
   }

@@ -22,14 +22,14 @@ db_persistent = neug.Database("/path/to/database")
 
 ### In-Memory Database
 - **Use case**: Temporary computations, testing, prototyping
-- **Durability**: Data is lost when the process ends
+- **Durability**: Data is lost when the database is closed
 
 ```python
 # Memory mode examples
 db_memory = neug.Database("")
 ```
 
-> **Note:** Currently, NeuG's in-memory mode creates a temporary database directory that is automatically cleaned up when the process exits.
+> **Note:** Currently, NeuG's in-memory mode creates a temporary database directory that is automatically cleaned up when the database is closed.
 
 ## Connection Modes
 
@@ -67,6 +67,9 @@ service = db.serve(host="localhost", port=10000, blocking=False, thread_num=0)
 The default `0` auto-selects from the database `max_thread_num`. With the
 default database thread setting, `max_thread_num` is resolved from hardware
 concurrency and falls back to `1` if the runtime cannot detect it.
+Service threads run TP queries concurrently, but each query uses one execution context and one thread.
+
+Embedded (AP) queries are currently single-threaded; using `max_thread_num` for intra-query parallelism is future work.
 
 **Connect from client:**
 ```python
