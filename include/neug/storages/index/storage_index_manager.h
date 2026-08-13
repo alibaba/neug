@@ -115,7 +115,7 @@ class StorageIndexManager {
   void Open(std::shared_ptr<Checkpoint> ckp, ModuleBroker& store,
             MemoryLevel level);
 
-  Status ActivateIndexes(const IndexColumns& columns);
+  result<size_t> ActivateIndexes(const IndexColumns& columns);
 
   bool HasPendingIndexes() const { return !pending_indexes_.empty(); }
   bool HasPendingMutations() const { return !pending_mutations_.empty(); }

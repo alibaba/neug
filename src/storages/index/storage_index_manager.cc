@@ -284,8 +284,9 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
     if (!index) {
       auto index_meta = desc.get("index_meta");
       if (!index_meta) {
-        THROW_RUNTIME_ERROR("Index module '" + key +
-                            "' has no persisted index_meta");
+        LOG(ERROR) << "Skipping unavailable index module '" << key
+                   << "' because its descriptor has no persisted index_meta";
+        continue;
       }
       auto parsed_meta = IndexMeta::FromJsonString(*index_meta);
       auto name = parsed_meta.name;
@@ -303,7 +304,8 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
   }
 }
 
-Status StorageIndexManager::ActivateIndexes(const IndexColumns& columns) {
+result<size_t> StorageIndexManager::ActivateIndexes(
+    const IndexColumns& columns) {
   std::vector<std::pair<std::string, std::unique_ptr<StorageIndex>>> candidates;
   auto& factory = ModuleFactory::instance();
   for (const auto& [name, pending] : pending_indexes_) {
@@ -342,7 +344,7 @@ Status StorageIndexManager::ActivateIndexes(const IndexColumns& columns) {
   if (pending_indexes_.empty()) {
     pending_mutations_.clear();
   }
-  return Status::OK();
+  return candidates.size();
 }
 
 void StorageIndexManager::Dump(ModuleBroker& store, Checkpoint& ckp,

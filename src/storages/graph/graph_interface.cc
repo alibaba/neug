@@ -736,7 +736,13 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
 }
 
 Status StorageAPUpdateInterface::ActivateIndexes() {
-  RETURN_IF_NOT_OK(graph_.ActivateIndexes());
+  auto activated = graph_.ActivateIndexes();
+  if (!activated) {
+    return activated.error();
+  }
+  if (activated.value() == 0) {
+    return Status::OK();
+  }
   mut_view_.Rebuild(graph_);
   if (on_planning_changed_) {
     on_planning_changed_();

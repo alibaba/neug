@@ -85,7 +85,7 @@ StorageIndexManager& PropertyGraph::mutable_index_manager() {
   return *index_manager_;
 }
 
-Status PropertyGraph::ActivateIndexes() {
+result<size_t> PropertyGraph::ActivateIndexes() {
   StorageIndexManager::IndexColumns columns;
   for (label_t label = 0; label < vertex_tables_.size(); ++label) {
     if (!schema_.is_vertex_label_valid(label)) {
