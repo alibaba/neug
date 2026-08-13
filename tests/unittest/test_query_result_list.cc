@@ -52,6 +52,32 @@ TEST(QueryResultListTest, ListAndArrayColumnsViaConnection) {
     EXPECT_EQ(qr.GetCurrentRowAsString(), "[1, 2]");
   }
 
+  // Preserve NULL LIST versus empty LIST through ContextColumn -> sink protobuf
+  // -> QueryResult.
+  {
+    auto res = conn->Query(
+        "UNWIND [1, 2, 3] AS x "
+        "RETURN CASE WHEN x = 1 THEN CAST([x], 'INT64[]') "
+        "WHEN x = 2 THEN CAST(null, 'INT64[]') "
+        "ELSE CAST([], 'INT64[]') END AS nums;");
+    ASSERT_TRUE(res) << res.error().ToString();
+    auto& qr = res.value();
+
+    ASSERT_TRUE(qr.hasNext());
+    EXPECT_FALSE(qr.IsNull(0));
+    EXPECT_EQ(qr.GetString(0), "[1]");
+
+    qr.next();
+    ASSERT_TRUE(qr.hasNext());
+    EXPECT_TRUE(qr.IsNull(0));
+    EXPECT_EQ(qr.GetString(0), "null");
+
+    qr.next();
+    ASSERT_TRUE(qr.hasNext());
+    EXPECT_FALSE(qr.IsNull(0));
+    EXPECT_EQ(qr.GetString(0), "[]");
+  }
+
   // Fixed-size ARRAY property (serialized as list_array on the wire)
   {
     auto ddl = conn->Query(

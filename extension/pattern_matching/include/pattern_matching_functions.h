@@ -90,25 +90,6 @@ CompType parse_operator(const std::string& op_in);
 // Helper function to create Value from rapidjson
 Value create_value_from_rapidjson(const rapidjson::Value& val);
 
-// Helper function: escape a string for JSON output
-inline std::string escape_json_string(const std::string& s);
-
-/**
- * @brief Convert a neug::Value to JSON format string (preserving
- * types)
- *
- * This function properly serializes different value types:
- * - INT32/INT64/UINT64: output as number (no quotes)
- * - DOUBLE/FLOAT: output as number (handle infinity/NaN)
- * - BOOL: output as true/false (no quotes)
- * - STRING/DATE/TIMESTAMP/etc: output as quoted, escaped string
- * - NULL/NONE: output as null
- *
- * @param val The Value to serialize
- * @return JSON-formatted string representation
- */
-inline std::string value_to_json_string(const neug::Value& val);
-
 // Helper function to parse constraints from rapidjson
 std::vector<PropCons> parse_constraints(
     const rapidjson::Value& constraints_json);
@@ -144,66 +125,38 @@ std::string normalize_pattern_input_to_json_file(const std::string& arg,
                                                  const char* log_tag);
 
 // ============================================================================
-// GraphDataCache: caches preprocessed graph metadata so repeated
-// SAMPLED_PATTERN_MATCH calls on the same graph avoid rebuilding DataGraphMeta
-// every time.
+// GraphDataCache: catalog-owned cache for one database. Every registered
+// function captures the same instance, so repeated LOADs in the same catalog
+// preserve the warm cache and destroying the catalog releases it.
 // ============================================================================
 
 class GraphDataCache {
  public:
-  static GraphDataCache& instance() {
-    static GraphDataCache instance;
-    return instance;
-  }
-
   struct CachedData {
-    std::unique_ptr<DataGraphMeta> data_meta;
+    std::unique_ptr<DataGraphMeta> data_meta =
+        std::make_unique<DataGraphMeta>();
     std::shared_ptr<std::unordered_map<
         label_t, std::unordered_map<label_t, std::vector<label_t>>>>
-        schema_graph;
+        schema_graph = std::make_shared<std::unordered_map<
+            label_t, std::unordered_map<label_t, std::vector<label_t>>>>();
+    // Guards the first initialization and checkpoint I/O. Once preprocessed
+    // becomes true, data_meta and schema_graph are immutable.
+    mutable std::mutex mutex;
     bool preprocessed = false;
   };
 
-  // Returns the cache slot for `graph`, creating it lazily on first use.
-  //
-  // Keyed by the address of the graph's Schema (&graph.schema()), obtained
-  // purely through the public StorageReadInterface API. The Schema is a
-  // value member of the underlying graph, so its address is stable for the
-  // graph's lifetime and distinct per graph -- unlike the per-query
-  // StorageReadInterface wrapper, which is a stack-local rebuilt every query
-  // (keying on it would miss across queries and rebuild the preprocessing every
-  // call). This needs no graph-object exposure from the storage layer.
-  //
-  // Residual: if a graph is destroyed and a different graph is later allocated
-  // with its Schema at the same address, a stale entry could be served. The
-  // cache is process-global and not cleared on graph teardown, so callers
-  // recycling graph objects should clear_all() between distinct graphs.
-  static const void* key_of(const StorageReadInterface& graph) {
-    return static_cast<const void*>(&graph.schema());
-  }
+  using Handle = std::shared_ptr<CachedData>;
 
-  CachedData& get_or_create(const StorageReadInterface& graph);
-
-  bool has_cache(const StorageReadInterface& graph) const;
-
-  void clear_cache(const StorageReadInterface& graph) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    cache_.erase(key_of(graph));
-  }
-
-  void clear_all() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    cache_.clear();
-  }
-
- private:
   GraphDataCache() = default;
   ~GraphDataCache() = default;
+
+  Handle get() const { return cached_data_; }
+
+ private:
   GraphDataCache(const GraphDataCache&) = delete;
   GraphDataCache& operator=(const GraphDataCache&) = delete;
 
-  mutable std::mutex mutex_;
-  std::unordered_map<const void*, CachedData> cache_;
+  Handle cached_data_ = std::make_shared<CachedData>();
 };
 
 // ============================================================================
@@ -228,15 +181,8 @@ bool load_schema_graph(
  * Files written: {checkpoint_dir}/data_graph_meta.bin,
  * {checkpoint_dir}/schema_graph.bin
  */
-inline bool save_graph_checkpoint(const StorageReadInterface& graph,
+inline bool save_graph_checkpoint(GraphDataCache& cache,
                                   const std::string& checkpoint_dir);
-
-/**
- * @brief Try to load graph initialization data from checkpoint files.
- * @return true if checkpoint was loaded successfully, false if not available.
- */
-bool load_graph_checkpoint(const StorageReadInterface& graph,
-                           const std::string& checkpoint_dir);
 
 // ============================================================================
 // Graph initialization: builds label mappings and runs DataGraphMeta
@@ -252,7 +198,8 @@ bool load_graph_checkpoint(const StorageReadInterface& graph,
  *                        directory before falling back to full preprocessing.
  * @return true on success.
  */
-bool do_graph_initialization(const StorageReadInterface& graph,
+bool do_graph_initialization(GraphDataCache& cache,
+                             const StorageReadInterface& graph,
                              bool verbose = true,
                              const std::string& checkpoint_dir = "");
 
@@ -338,21 +285,12 @@ ParsePatternOutputColumnsJsonFile(const std::string& pattern_json_file,
 
 class SampledSubgraphMatcher {
  public:
-  // Tag struct used to construct the matcher with an in-memory JSON pattern
-  // (so callers that already have the JSON in hand can skip the temp-file
-  // round-trip that file-based callers do).
-  struct PatternJsonText {
-    std::string json;
-  };
-
-  SampledSubgraphMatcher(const StorageReadInterface& graph,
+  SampledSubgraphMatcher(GraphDataCache& cache,
+                         const StorageReadInterface& graph,
                          const std::string& pattern_file, long long sample_size)
-      : graph_(graph), pattern_file_(pattern_file), sample_size_(sample_size) {}
-
-  SampledSubgraphMatcher(const StorageReadInterface& graph,
-                         PatternJsonText pattern, long long sample_size)
-      : graph_(graph),
-        pattern_json_(std::move(pattern.json)),
+      : cache_(cache),
+        graph_(graph),
+        pattern_file_(pattern_file),
         sample_size_(sample_size) {}
 
   /**
@@ -365,7 +303,6 @@ class SampledSubgraphMatcher {
   const std::vector<int>& get_sampled_results() const {
     return sampled_results_;
   }
-  double get_estimated_count() const { return estimated_count_; }
   int get_pattern_vertex_count() const {
     return pattern_graph_ ? pattern_graph_->GetNumVertices() : 0;
   }
@@ -373,27 +310,6 @@ class SampledSubgraphMatcher {
     return pattern_graph_ ? pattern_graph_->GetNumEdges() : 0;
   }
   label_t get_pattern_vertex_label(int pattern_vertex_idx) const;
-  label_t get_pattern_edge_label(int pattern_edge_idx) const;
-  std::string get_pattern_vertex_label_name(int pattern_vertex_idx) const;
-  std::string get_pattern_edge_label_name(int pattern_edge_idx) const;
-  const std::vector<std::string>& get_vertex_required_props(
-      int pattern_vertex_idx) const {
-    static const std::vector<std::string> kEmpty;
-    if (pattern_vertex_idx < 0 ||
-        pattern_vertex_idx >= static_cast<int>(vertex_required_props_.size())) {
-      return kEmpty;
-    }
-    return vertex_required_props_[pattern_vertex_idx];
-  }
-  const std::vector<std::string>& get_edge_required_props(
-      int pattern_edge_idx) const {
-    static const std::vector<std::string> kEmpty;
-    if (pattern_edge_idx < 0 ||
-        pattern_edge_idx >= static_cast<int>(edge_required_props_.size())) {
-      return kEmpty;
-    }
-    return edge_required_props_[pattern_edge_idx];
-  }
 
   // Get pattern edge list: [(src_pattern_idx, dst_pattern_idx, edge_label),
   // ...]
@@ -407,14 +323,6 @@ class SampledSubgraphMatcher {
     return modifiers_;
   }
 
-  std::string get_pattern_vertex_alias(int pattern_vertex_idx) const;
-
-  std::string get_pattern_edge_alias(int pattern_edge_idx) const;
-
-  // Get sampled edge keys for a specific sample and pattern edge
-  // Returns edge key in format "src_global:dst_global:edge_label"
-  std::string get_sampled_edge_key(int sample_idx, int pattern_edge_idx) const;
-
  private:
   // NOTE: BuildLabelMappings logic has been moved to do_graph_initialization()
   // for better code reuse and explicit initialization via CALL Initialize().
@@ -425,21 +333,16 @@ class SampledSubgraphMatcher {
       neug::pattern_matching::graphlib::SubgraphMatching::PatternGraph>
   create_pattern_from_json_file(const std::string& pattern_file);
 
-  // Core pattern loader. Takes the JSON text directly so Cypher callers can
-  // skip the write-tempfile / re-read / re-parse round-trip. The
-  // `origin_label` is purely for log lines (file path or "<inline>").
+  // Core pattern loader. The origin label is used only in diagnostics.
   std::unique_ptr<
       neug::pattern_matching::graphlib::SubgraphMatching::PatternGraph>
   create_pattern_from_json_text(const std::string& json_content,
                                 const std::string& origin_label);
 
   // Member variables
+  GraphDataCache& cache_;
   const StorageReadInterface& graph_;
-  // Exactly one of these is non-empty: pattern_file_ for the legacy JSON
-  // path that reads a file off disk, pattern_json_ for callers that
-  // already have the JSON text in memory (e.g. the Cypher translator).
   std::string pattern_file_;
-  std::string pattern_json_;
   std::unique_ptr<
       neug::pattern_matching::graphlib::SubgraphMatching::PatternGraph>
       pattern_graph_;
@@ -447,57 +350,12 @@ class SampledSubgraphMatcher {
 
   // Results (per-call, not cached)
   std::vector<int> sampled_results_;
-  double estimated_count_ = 0.0;
 
-  // Required properties per pattern vertex/edge (parsed from pattern JSON)
-  // pattern_vertex_idx -> list of property names (empty = none, ["*"] = all)
-  std::vector<std::vector<std::string>> vertex_required_props_;
-  // pattern_edge_idx -> list of property names
-  std::vector<std::vector<std::string>> edge_required_props_;
   std::vector<std::string> vertex_aliases_;
   std::vector<std::string> vertex_labels_;
   std::vector<PatternOutputEdgeInfo> edge_aliases_;
   std::vector<PatternOutputColumn> output_columns_;
   PatternExecutionModifiers modifiers_;
-
- public:
-  /**
-   * @brief Convert NeuG DataTypeId to a portable type string for biagent.
-   *
-   * Mapping: kInt32->"int32", kInt64->"int64", kDouble->"double",
-   *          kFloat->"float", kBoolean->"boolean", kVarchar->"string",
-   *          kDate/kTimestampMs/kInterval->"string", others->"string".
-   */
-  static std::string data_type_id_to_string(DataTypeId type);
-
-  /**
-   * @brief After match(), fetch required properties for all sampled results
-   *        and write to a deduplicated JSON file with schema information.
-   * @return Path to the JSON properties file, or "" if no properties needed.
-   *
-   * JSON format:
-   * {
-   *   "schema": {
-   *     "vertices": [
-   *       {"label": "Publication", "properties": {"year": "int64", "title":
-   * "string"}}
-   *     ],
-   *     "edges": [
-   *       {"label": "knows", "src_label": "Person", "dst_label": "Person",
-   *        "properties": {"weight": "double"}}
-   *     ]
-   *   },
-   *   "vertices": [
-   *     {"id": 12345, "props": {"year": 2021, "title": "Paper A"}},
-   *     ...
-   *   ],
-   *   "edges": [
-   *     {"id": "100:200:3", "props": {"weight": 0.5}},
-   *     ...
-   *   ]
-   * }
-   */
-  std::string fetch_and_write_properties();
 };
 
 // ============================================================================
@@ -516,7 +374,8 @@ struct InitializeGraphInput : public function::CallFuncInputBase {
 struct InitializeGraphFunction {
   static constexpr const char* name = "INITIALIZE";
 
-  static function::function_set getFunctionSet();
+  static function::function_set getFunctionSet(
+      const std::shared_ptr<GraphDataCache>& cache);
 };
 
 // ============================================================================
@@ -535,7 +394,8 @@ struct SaveSampledmatchCheckpointInput : public function::CallFuncInputBase {
 struct SaveSampledmatchCheckpointFunction {
   static constexpr const char* name = "SAVE_SAMPLEDMATCH_CHECKPOINT";
 
-  static function::function_set getFunctionSet();
+  static function::function_set getFunctionSet(
+      const std::shared_ptr<GraphDataCache>& cache);
 };
 
 // ============================================================================
@@ -551,7 +411,6 @@ struct ExactPatternSpec {
     std::string label_name;
     std::string alias;
     std::vector<PropCons> constraints;
-    std::vector<std::string> required_props;
   };
 
   struct EdgeSpec {
@@ -561,7 +420,6 @@ struct ExactPatternSpec {
     std::string label_name;
     std::string alias;
     std::vector<PropCons> constraints;
-    std::vector<std::string> required_props;
   };
 
   std::vector<VertexSpec> vertices;
@@ -569,8 +427,6 @@ struct ExactPatternSpec {
   std::vector<PatternOutputColumn> output_columns;
   PatternExecutionModifiers modifiers;
 };
-
-std::vector<std::string> parse_required_props(const rapidjson::Value& obj);
 
 std::optional<ExactPatternSpec> parse_exact_pattern_json_file(
     const std::string& pattern_json_file, const Schema& schema);
@@ -639,11 +495,6 @@ std::vector<std::vector<MatchVertex>> enumerate_exact_matches_with_neug(
     const StorageReadInterface& graph, const DataGraphMeta& data_meta,
     const ExactPatternSpec& spec, uint64_t limit);
 
-std::string fetch_and_write_exact_properties(
-    const StorageReadInterface& graph, const DataGraphMeta& data_meta,
-    const ExactPatternSpec& spec,
-    const std::vector<std::vector<MatchVertex>>& matches);
-
 bool find_directed_edge_data_ptr(const StorageReadInterface& graph,
                                  const DataGraphMeta& data_meta, int src_global,
                                  int dst_global, label_t edge_label,
@@ -688,7 +539,8 @@ struct PatternMatchInput : public function::CallFuncInputBase {
 };
 
 execution::Context execute_pattern_match_pipeline(
-    const PatternMatchInput& input, IStorageInterface& graph);
+    GraphDataCache& cache, const PatternMatchInput& input,
+    IStorageInterface& graph);
 
 // PatternMatchFunction is the single unified CALL PATTERN_MATCH(...) entry; it
 // is defined after the sampled-match helpers below because its sampled overload
@@ -702,17 +554,10 @@ execution::Context execute_pattern_match_pipeline(
 // ============================================================================
 
 struct SampledMatchInput : public function::CallFuncInputBase {
-  std::string pattern_file_path;  // legacy JSON-file path; empty for text flow
-  // In-memory JSON pattern, populated by the Cypher text flow.
-  std::string pattern_json_text;
+  std::string pattern_file_path;
   long long sample_size;
   SampledMatchInput(std::string path, long long sample_size)
       : pattern_file_path(std::move(path)), sample_size(sample_size) {}
-  // Tag-dispatched ctor for the in-memory variant; keeps the call site
-  // explicit about which pattern source it is using.
-  struct InlineJsonTag {};
-  SampledMatchInput(InlineJsonTag, std::string json, long long sample_size)
-      : pattern_json_text(std::move(json)), sample_size(sample_size) {}
   ~SampledMatchInput() override = default;
 };
 
@@ -720,7 +565,8 @@ struct SampledMatchInput : public function::CallFuncInputBase {
 // SampledPatternMatchFunction can reuse it after normalizing its input to a
 // temporary JSON pattern file.
 execution::Context execute_sampled_match_pipeline(
-    const SampledMatchInput& match_input, IStorageInterface& graph);
+    GraphDataCache& cache, const SampledMatchInput& match_input,
+    IStorageInterface& graph);
 
 // ============================================================================
 // PatternMatchFunction: the single unified subgraph-matching entry point.
@@ -743,7 +589,8 @@ execution::Context execute_sampled_match_pipeline(
 struct PatternMatchFunction {
   static constexpr const char* name = "PATTERN_MATCH";
 
-  static function::function_set getFunctionSet();
+  static function::function_set getFunctionSet(
+      const std::shared_ptr<GraphDataCache>& cache);
 };
 
 // ============================================================================
@@ -769,7 +616,8 @@ struct GetVertexPropertyInput : public function::CallFuncInputBase {
 struct GetVertexPropertyFunction {
   static constexpr const char* name = "GET_VERTEX_PROPERTY";
 
-  static function::function_set getFunctionSet();
+  static function::function_set getFunctionSet(
+      const std::shared_ptr<GraphDataCache>& cache);
 };
 
 // ============================================================================
@@ -796,7 +644,8 @@ struct GetEdgePropertyInput : public function::CallFuncInputBase {
 struct GetEdgePropertyFunction {
   static constexpr const char* name = "GET_EDGE_PROPERTY";
 
-  static function::function_set getFunctionSet();
+  static function::function_set getFunctionSet(
+      const std::shared_ptr<GraphDataCache>& cache);
 };
 
 }  // namespace pattern_matching

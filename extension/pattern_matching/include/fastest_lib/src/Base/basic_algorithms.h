@@ -33,8 +33,6 @@ struct UnionFind {
 
   UnionFind(int n = 0);
 
-  void init();
-
   int find(int x) { return x == par[x] ? x : (par[x] = find(par[x])); }
 
   bool unite(int x, int y);
@@ -45,8 +43,6 @@ struct BipartiteMaximumMatching {
   int left_len, right_len, arr_len;
   bool* used;
   int **adj, *adj_size;
-  int** adj_index;
-
   bool** matchable;
   bool* bfs_visited;
   int *right_order, *inverse_right_order;
@@ -71,25 +67,11 @@ struct BipartiteMaximumMatching {
 
   void AddEdge(int u, int v);
 
-  int RemoveEdge(int u, int v);
-
-  void Revert(int* tmp_left);
-
   // Time: O( V(V+E) )
   int Solve(int ignore = -1);
 
   bool dfs(int r);
-
-  bool FindAugmentingPath(int r);
 };
-
-void MultiWayIntersection(
-    std::vector<std::pair<std::vector<int>::iterator,
-                          std::vector<int>::iterator>>& iterators,
-    int* results, int& results_size);
-
-void VectorIntersection(std::vector<int>& A, std::vector<int>& B,
-                        std::vector<int>& results);
 
 }  // namespace graphlib
 }  // namespace pattern_matching

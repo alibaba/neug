@@ -26,6 +26,7 @@ BUILD_PROGRESS  	?= auto
 
 # Base images and develop images
 .PHONY: neug-manylinux
+.PHONY: neug-manylinux-node
 
 all: neug-dev neug-manylinux neug-release
 
@@ -38,6 +39,15 @@ neug-manylinux:
 		--build-arg MANYLINUXVERSION=${MANYLINUXVERSION} \
 		-t neug/neug-manylinux:${ARCH}  \
 		-f ${DOCKERFILES_DIR}/neug-manylinux.Dockerfile .
+
+neug-manylinux-node:
+	cd .. && \
+	docker build \
+		--build-arg REGISTRY=$(REGISTRY) \
+		--build-arg PLATFORM=${PLATFORM} \
+		--build-arg ARCH=${ARCH} \
+		-t neug/neug-manylinux:${ARCH}-node \
+		-f ${DOCKERFILES_DIR}/neug-manylinux-node.Dockerfile .
 
 neug-dev:
 	cd .. && \

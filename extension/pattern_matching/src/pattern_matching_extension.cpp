@@ -16,7 +16,30 @@
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/utils/exception/exception.h"
 
+#include <memory>
+#include <mutex>
+
 #include "pattern_matching_functions.h"
+
+namespace {
+
+std::weak_ptr<neug::pattern_matching::GraphDataCache> registration_cache;
+
+template <typename T>
+struct WithGraphCache {
+  static constexpr const char* name = T::name;
+
+  static neug::function::function_set getFunctionSet() {
+    auto cache = registration_cache.lock();
+    if (!cache) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Pattern matching registration cache is unavailable");
+    }
+    return T::getFunctionSet(cache);
+  }
+};
+
+}  // namespace
 
 extern "C" {
 
@@ -25,9 +48,17 @@ extern "C" {
 // extension metadata so SQL callers can invoke them.
 void Init() {
   try {
+    // The extension DSO is process-wide, but registration and cache ownership
+    // are catalog-local. Serialize concurrent LOADs so every registered
+    // function for a catalog captures the same cache.
+    static std::mutex init_mutex;
+    std::lock_guard<std::mutex> lock(init_mutex);
+    auto cache = std::make_shared<neug::pattern_matching::GraphDataCache>();
+    registration_cache = cache;
+
     // Graph cache bootstrap: loads / prepares the in-memory data graph.
     neug::extension::ExtensionAPI::registerFunction<
-        neug::pattern_matching::InitializeGraphFunction>(
+        WithGraphCache<neug::pattern_matching::InitializeGraphFunction>>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     // Unified subgraph matching entry: PATTERN_MATCH(cypher) runs exact
@@ -35,22 +66,22 @@ void Init() {
     // runs sampled matching (FaSTest, is_sampled=true) or exact matching with
     // early termination after `size` matches (is_sampled=false).
     neug::extension::ExtensionAPI::registerFunction<
-        neug::pattern_matching::PatternMatchFunction>(
+        WithGraphCache<neug::pattern_matching::PatternMatchFunction>>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     // Vertex property lookup for matched vertices.
     neug::extension::ExtensionAPI::registerFunction<
-        neug::pattern_matching::GetVertexPropertyFunction>(
+        WithGraphCache<neug::pattern_matching::GetVertexPropertyFunction>>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     // Edge property lookup for matched edges.
     neug::extension::ExtensionAPI::registerFunction<
-        neug::pattern_matching::GetEdgePropertyFunction>(
+        WithGraphCache<neug::pattern_matching::GetEdgePropertyFunction>>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     // Persists the prepared graph cache to disk for faster restarts.
-    neug::extension::ExtensionAPI::registerFunction<
-        neug::pattern_matching::SaveSampledmatchCheckpointFunction>(
+    neug::extension::ExtensionAPI::registerFunction<WithGraphCache<
+        neug::pattern_matching::SaveSampledmatchCheckpointFunction>>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     neug::extension::ExtensionAPI::registerExtension(

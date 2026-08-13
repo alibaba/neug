@@ -75,7 +75,6 @@ struct QueryTree {
   PatternGraph* query_;
   vector<vector<int>> tree_adj_list, tree_children;
   vector<int> tree_sequence;
-  vector<int> parent, child_index;
   int root;
 
   void Initialize(PatternGraph* query, int root_idx);
@@ -85,8 +84,6 @@ struct QueryTree {
   void BuildTree();
 
   vector<int>& GetChildren(int v) { return tree_children[v]; }
-  int GetParent(int v) { return parent[v]; }
-  int GetChildIndex(int v) { return child_index[v]; }
   int GetKthVertex(int k) { return tree_sequence[k]; }
 };
 class CandidateTreeSampler {

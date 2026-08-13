@@ -5,7 +5,7 @@
 # umbrella's full GitHub body here (it usually contains a child-issue list
 # which would leak labels during backtesting).
 
-milestone: "NeuG v0.2"
+milestone: "NeuG v0.3"
 
 # Minimum confidence required to auto-link as sub-issue (without human approval).
 # "high" = unambiguous fit. Recommended starting value: never auto-link
@@ -14,16 +14,6 @@ milestone: "NeuG v0.2"
 auto_link_threshold: "high"   # one of: never | high | medium
 
 umbrellas:
-  - number: 49
-    title: "Bundle some almost ready features"
-    scope_in: |
-      Mid-to-large features that are nearly ready and being bundled into the v0.2
-      release. Typically external-contributor or experimental features being shaped
-      into a shippable bundle.
-    scope_out: |
-      Small bug fixes, refactors, or single-PR features. Targeted ingestion / storage
-      / transaction work (those have dedicated umbrellas).
-
   - number: 86
     title: "Refactor UpdateTransaction"
     scope_in: |
@@ -120,6 +110,18 @@ umbrellas:
       Transaction concurrency / WAL / rollback (those go to #86). Schema-fork
       for COW transaction (that goes to #86).
 
+  - number: 329
+    title: "Support exporting the query result to other python data format"
+    scope_in: |
+      Python-binding result conversion: turning query results into Python
+      data structures / third-party formats (pandas DataFrame, PyArrow
+      Table / Arrow record batches, numpy, polars), including type mapping
+      and zero-copy paths in python_bind.
+    scope_out: |
+      Exporting query results to external FILES (CSV / JSON / Parquet) —
+      that surface goes to #158. COPY FROM ingestion semantics (#221).
+      Non-Python bindings (Node.js goes to #418).
+
   - number: 352
     title: "GDS (Graph Data Science) Extension"
     scope_in: |
@@ -129,14 +131,6 @@ umbrellas:
     scope_out: |
       General extension-system infra (those go to #158 if remote/filesystem,
       or #257 if generic).
-
-  - number: 418
-    title: "Fully support Node.js binding for NeuG"
-    scope_in: |
-      Node.js client binding: native addon, Promise API, type definitions,
-      packaging, npm publication, Node.js-specific CI.
-    scope_out: |
-      Java / Python / C++ bindings.
 
   - number: 446
     title: "Support LIST and composite types (storage + runtime)"
@@ -148,3 +142,64 @@ umbrellas:
     scope_out: |
       Scalar / temporal type inference (#221). Storage refactor unrelated to
       LIST (#272).
+
+  - number: 461
+    title: "NeuG v0.2 Marketing & Promotion"
+    scope_in: |
+      Release marketing and promotion: release blog posts, tutorials,
+      ongoing technical articles, open-source ecosystem outreach, demo
+      content. Content and documentation work tied to a release, not code.
+    scope_out: |
+      The engineering features themselves (each has its own umbrella).
+
+  - number: 518
+    title: "Unify Compiler and Engine Schema & Value System"
+    scope_in: |
+      Type-system unification between compiler and engine: replacing the
+      compiler's LogicalType / Catalog / Value with the engine's DataType /
+      Schema / Value, removing redundant type definitions and the conversion
+      layers between the two sides.
+    scope_out: |
+      New type support that is itself a feature (LIST / composite goes to
+      #446). COPY FROM type inference (#221).
+
+  - number: 570
+    title: "Support an index framework and vector/FTS/etc indexes in NeuG"
+    scope_in: |
+      Native index support: a generic index framework (interface for search,
+      updates, metadata; open/dump during DB open/close/checkpoint; automatic
+      index maintenance) plus concrete indexes — vector index (ZVec-backed),
+      full-text search, etc. — and their persistence / ACID integration.
+    scope_out: |
+      Storage layout refactors not tied to indexes (#272). General runtime
+      performance (#257).
+
+  - number: 743
+    title: "Support running NeuG on Windows"
+    scope_in: |
+      Native Windows support: CMake / MSVC build adaptation, an OS
+      abstraction layer for POSIX calls (mmap/munmap, file & directory I/O)
+      with Win32 equivalents, and getting the build/test green on Windows.
+    scope_out: |
+      CI test matrix for already-supported platforms (adhoc #257).
+      Linux / macOS-only build issues.
+
+  - number: 779
+    title: "Support explicit transaction control (BEGIN / COMMIT / ROLLBACK) end-to-end"
+    scope_in: |
+      User-facing explicit transaction support: parsing & binding of BEGIN
+      TRANSACTION [READ ONLY] / COMMIT / ROLLBACK statements, session /
+      Connection-level active-transaction state, auto-commit default and
+      rollback-on-close, multi-statement execution so BEGIN ... COMMIT spans
+      one Query call, READ ONLY runtime guard, Python binding
+      (`Connection.begin/commit/rollback`) and HTTP service transaction
+      handle, crash-recovery of in-flight explicit transactions,
+      documentation for the explicit-txn surface.
+    scope_out: |
+      Transaction layer internals (COW, two-phase commit, WAL mechanics,
+      schema forkability, rollback of bulk insert/update) — those go to
+      #86. The underlying UpdateTransaction / TxnManager refactor that the
+      explicit-txn runtime drives — also #86. Persistence / checkpoint
+      protocol — #272. Pure compiler / parser / binder plumbing for the
+      four transaction statements themselves (#774) is a prerequisite and
+      the FIRST sub-task, but its umbrella parent is this issue.
