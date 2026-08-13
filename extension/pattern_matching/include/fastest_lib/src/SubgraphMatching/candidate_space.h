@@ -30,7 +30,6 @@
 #include "Base/base.h"
 #include "Base/basic_algorithms.h"
 #include "DataStructure/graph.h"
-#include "SubgraphMatching/data_graph.h"
 #include "SubgraphMatching/pattern_graph.h"
 #include "pattern_matching_data_graph_meta.h"
 #include "pattern_matching_value.h"  // Value with comparison operators (>, <, >=, <=)
@@ -130,7 +129,6 @@ class CandidateSpace {
   dict GetCSInfo() { return CSInfo; };
 
   int GetNumCSVertex() { return num_candidate_vertex; };
-  int GetNumCSEdge() { return num_candidate_edge; };
 
  private:
   // Per-instance bipartite matcher: previously a single inline global,
@@ -183,8 +181,6 @@ class CandidateSpace {
   bool NeighborBipartiteSafety(int cur, int cand);
 
   bool EdgeBipartiteSafety(int cur, int cand);
-
-  bool EdgeCandidacy(int query_edge_id, const EdgeKey& data_edge_key);
 
   bool TriangleSafety(int query_edge_id, int data_edge_id);
 

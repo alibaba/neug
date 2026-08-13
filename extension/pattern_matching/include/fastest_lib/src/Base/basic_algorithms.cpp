@@ -36,12 +36,6 @@ UnionFind::UnionFind(int n) {
   }
 }
 
-void UnionFind::init() {
-  for (int i = 0; i < par.size(); i++) {
-    par[i] = i, sz[i] = 1;
-  }
-}
-
 bool UnionFind::unite(int x, int y) {
   int u = find(x), v = find(y);
   if (u == v)
@@ -186,8 +180,6 @@ void BipartiteMaximumMatching::Initialize(int max_left, int max_right,
   arr_len = max_query_vertex;
   used = new bool[max_left]();
   adj = new int*[max_left];
-  adj_index = new int*[max_left];
-
   matchable = new bool*[max_left];
   lower_graph = new int*[max_right];
   lower_graph_size = new int[max_right]();
@@ -198,7 +190,6 @@ void BipartiteMaximumMatching::Initialize(int max_left, int max_right,
   inverse_right_order = new int[max_right]();
   for (int i = 0; i < max_left; i++) {
     adj[i] = new int[max_right]();
-    adj_index[i] = new int[max_right]();
     matchable[i] = new bool[max_right]();
     upper_graph[i] = new int[max_left]();
   }
@@ -224,30 +215,7 @@ void BipartiteMaximumMatching::Reset(bool reset_edges) {
 }
 
 void BipartiteMaximumMatching::AddEdge(int u, int v) {
-  adj_index[u][v] = adj_size[u];
   adj[u][adj_size[u]++] = v;
-}
-
-int BipartiteMaximumMatching::RemoveEdge(int u, int v) {
-  if (adj_size[u] > 1) {
-    adj_index[u][adj[u][adj_size[u] - 1]] = adj_index[u][v];
-    std::swap(adj[u][adj_size[u] - 1], adj[u][adj_index[u][v]]);
-  }
-  return --adj_size[u];
-}
-
-void BipartiteMaximumMatching::Revert(int* tmp_left) {
-  for (int i = 0; i < left_len; i++) {
-    if (left[i] == -1)
-      continue;
-    right[left[i]] = -1;
-  }
-  std::memcpy(left, tmp_left, sizeof(int) * left_len);
-  for (int i = 0; i < left_len; i++) {
-    if (left[i] == -1)
-      continue;
-    right[left[i]] = i;
-  }
 }
 
 int BipartiteMaximumMatching::Solve(int ignore) {
@@ -280,77 +248,6 @@ bool BipartiteMaximumMatching::dfs(int r) {
     }
   }
   return false;
-}
-
-bool BipartiteMaximumMatching::FindAugmentingPath(int r) {
-  if (used[r])
-    return false;
-  used[r] = true;
-  for (int i = 0; i < adj_size[r]; i++) {
-    int c = adj[r][i];
-    int k = right[c];
-    if (k == -1 or FindAugmentingPath(k)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void MultiWayIntersection(
-    std::vector<std::pair<std::vector<int>::iterator,
-                          std::vector<int>::iterator>>& iterators,
-    int* results, int& results_size) {
-  if (results_size > 0)
-    return;
-  int num_vectors = iterators.size();
-  if (num_vectors == 1) {
-    while (iterators[0].first != iterators[0].second) {
-      results[results_size++] = (*iterators[0].first);
-      ++iterators[0].first;
-    }
-    return;
-  }
-  while (iterators[0].first != iterators[0].second) {
-    int target = *iterators[0].first;
-    for (int i = 1; i < num_vectors; i++) {
-      while (iterators[i].first != iterators[i].second) {
-        if (*iterators[i].first < target) {
-          ++iterators[i].first;
-        } else if (*iterators[i].first > target) {
-          goto nxt_target;
-        } else
-          break;
-      }
-      if (iterators[i].first == iterators[i].second)
-        return;
-    }
-    results[results_size++] = target;
-  nxt_target:
-    ++iterators[0].first;
-  }
-}
-
-void VectorIntersection(std::vector<int>& A, std::vector<int>& B,
-                        std::vector<int>& results) {
-  int a_idx = 0, b_idx = 0;
-  while (a_idx < A.size()) {
-    int target = A[a_idx];
-    if (target > B[b_idx])
-      return;
-    while (b_idx < B.size()) {
-      if (B[b_idx] < target) {
-        b_idx++;
-      } else if (B[b_idx] > target) {
-        goto nxt_target;
-      } else
-        break;
-    }
-    if (target == B[b_idx]) {
-      results.push_back(target);
-    }
-  nxt_target:
-    a_idx++;
-  }
 }
 
 }  // namespace graphlib

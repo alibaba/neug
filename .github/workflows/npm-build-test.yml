@@ -59,12 +59,12 @@ jobs:
             -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
-            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64 \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64-node \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             mkdir -p /home/neug/.local
-            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-x64.tar.xz \
+            curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-x64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             export PATH=/home/neug/.local/bin:$PATH
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
@@ -151,12 +151,12 @@ jobs:
             -u 1001:1001 \
             -v ${{ github.workspace }}:/project \
             -w /project \
-            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64 \
+            neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64-node \
             sleep infinity
 
           docker exec ${{ env.CONTAINER_NAME }} bash -c '
             mkdir -p /home/neug/.local
-            curl -fsSL https://nodejs.org/dist/v16.0.0/node-v16.0.0-linux-arm64.tar.xz \
+            curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-arm64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
             export PATH=/home/neug/.local/bin:$PATH
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
@@ -232,7 +232,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '16.0.0'
+          node-version: '20'
 
       - name: Install dependencies
         run: |

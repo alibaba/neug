@@ -30,7 +30,8 @@ namespace reader {
  *
  * These options control Parquet file reading behavior:
  * - buffered_stream: Enable buffered I/O stream for better performance
- * (default: true)
+ * (default: true). The I/O buffer size in bytes comes from the generic
+ * ReadOptions::batch_size (default: 1 << 20, i.e. 1 MiB).
  * - pre_buffer: Pre-buffer data for high-latency filesystems like S3 (default:
  * false)
  * - enable_io_coalescing: Enable Arrow I/O read coalescing (hole-filling cache)
@@ -38,7 +39,8 @@ namespace reader {
  *   When true, uses lazy coalescing (CacheOptions::LazyDefaults); when false,
  * uses eager coalescing (CacheOptions::Defaults).
  * - row_batch_size: Number of rows per Arrow batch when converting from Parquet
- * (default: 65536)
+ *   (default: 65536). This is a ROW count, independent of the byte-based
+ *   buffer options above.
  *
  */
 struct ParquetParseOptions {
