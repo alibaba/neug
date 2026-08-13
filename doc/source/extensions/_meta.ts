@@ -4,4 +4,5 @@ export default {
   load_json: "JSON Extension",
   load_parquet: "Parquet Extension",
   pattern_match: "Pattern Match Extension",
+  fts_search: "Full-Text Search Extension",
 };
