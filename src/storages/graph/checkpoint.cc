@@ -52,14 +52,15 @@ Checkpoint::~Checkpoint() = default;
 Checkpoint::Checkpoint(std::string path, uint32_t id)
     : path_(std::move(path)), id_(id) {}
 
-std::shared_ptr<Checkpoint> Checkpoint::Open(std::string path, uint32_t id) {
+std::shared_ptr<Checkpoint> Checkpoint::Open(
+    std::string path, uint32_t id, bool cleanup_orphan_runtime_files) {
   // Can't use make_shared because constructor is private.
   auto ckp = std::shared_ptr<Checkpoint>(new Checkpoint(std::move(path), id));
-  ckp->initialize();
+  ckp->initialize(cleanup_orphan_runtime_files);
   return ckp;
 }
 
-void Checkpoint::initialize() {
+void Checkpoint::initialize(bool cleanup_orphan_runtime_files) {
   create_dirs();
   file_mgr_ =
       std::make_unique<CheckpointFileManager>(snapshot_dir(), runtime_dir());
@@ -74,7 +75,13 @@ void Checkpoint::initialize() {
     meta_->set_module(key, std::move(absolute_desc));
   }
 
-  // Clean orphaned runtime files not referenced by meta.
+  if (!cleanup_orphan_runtime_files) {
+    return;
+  }
+
+  // Clean orphaned runtime files not referenced by meta. This is only safe for
+  // a writer holding the exclusive database lock: a shared read-only process
+  // may otherwise delete another reader's active temporary backing file.
   std::set<std::string> referenced_runtime_files;
   for (auto& [key, desc] : meta_->modules()) {
     CollectReferencedFiles(desc, runtime_dir(), referenced_runtime_files);
@@ -85,7 +92,10 @@ void Checkpoint::initialize() {
          std::filesystem::directory_iterator(runtime_dir())) {
       if (entry.is_regular_file()) {
         std::string name = entry.path().filename().string();
-        if (is_valid_uuid(name) && referenced_runtime_files.count(name) == 0) {
+        // Everything under runtime/ is temporary working state. In addition to
+        // UUID reservations, remove copy staging files left by a process that
+        // exited before its exception/RAII cleanup ran.
+        if (referenced_runtime_files.count(name) == 0) {
           std::filesystem::remove(entry.path());
           VLOG(1) << "Checkpoint::initialize: cleaned orphan file " << name;
         }

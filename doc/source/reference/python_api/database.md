@@ -26,6 +26,10 @@ read-only mode, inside the same process or in different processes.
 When the database is opened in read-write mode, no other databases could open the same database directory in
 either read-only or read-write mode, inside the same process or in different processes.
 
+Note that opening a database in read-only mode still requires a writable data directory: the lock file is
+created on demand if missing, and read-only processes copy temporary working files into the database's
+`checkpoint-N/runtime/` directory. Read-only mode cannot be used on a read-only file system or mount.
+
 When the database is closed, all the connections to the database will be closed automatically.
 
 ```python

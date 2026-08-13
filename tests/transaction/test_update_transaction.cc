@@ -2276,6 +2276,235 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
   }
 }
 
+TEST_F(UpdateTransactionTest, NestedListSnapshotAbortAndWalReplay) {
+  auto string_list_type = neug::DataType::List(neug::DataType::VARCHAR);
+  auto pair_type = neug::DataType::Array(string_list_type, 2);
+  auto strings = [](std::initializer_list<const char*> values) {
+    std::vector<neug::Value> children;
+    for (auto value : values) {
+      children.push_back(neug::Value::STRING(value));
+    }
+    return neug::Value::LIST(neug::DataType::VARCHAR, std::move(children));
+  };
+  auto pair = [&](neug::Value lhs, neug::Value rhs) {
+    return neug::Value::ARRAY(pair_type, {std::move(lhs), std::move(rhs)});
+  };
+  auto nested = [&](std::vector<neug::Value> values) {
+    return neug::Value::LIST(pair_type, std::move(values));
+  };
+  auto initial = nested({pair(strings({"a"}), strings({}))});
+  auto committed = nested({pair(strings({"b", "c"}), strings({"d"})),
+                           pair(strings({}), strings({"e"}))});
+  auto aborted = nested({pair(strings({"not"}), strings({"visible"}))});
+
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  config.max_thread_num = 2;
+  config.checkpoint_on_close = false;
+  config.checkpoint_on_recovery = true;
+  {
+    neug::NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<neug::NeugDBService>(db);
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      neug::StorageTPUpdateInterface interface(txn);
+      EXPECT_TRUE(interface.CreateVertexType(BuildCreateVertexTypeParam(
+          "list_holder",
+          {{"id", neug::Value::INT64(0)},
+           {"nested", neug::Value::LIST(pair_type, {})}},
+          {"id"})));
+      auto label = interface.schema().get_vertex_label_id("list_holder");
+      neug::vid_t vid;
+      EXPECT_TRUE(
+          interface.AddVertex(label, neug::Value::INT64(1), {initial}, vid));
+      EXPECT_TRUE(txn.Commit());
+    }
+
+    auto old_slot = svc->AcquireExecutionSlot();
+    auto old_txn = old_slot->GetReadTransaction();
+    neug::StorageReadInterface old_reader(old_txn.view(), old_txn.timestamp());
+    auto label = old_reader.schema().get_vertex_label_id("list_holder");
+    neug::vid_t vid;
+    ASSERT_TRUE(old_reader.GetVertexIndex(label, neug::Value::INT64(1), vid));
+    auto old_column = old_reader.GetVertexPropColumn(label, "nested");
+    ASSERT_NE(old_column, nullptr);
+    EXPECT_EQ(old_column->get_any(vid), initial);
+
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      neug::StorageTPUpdateInterface interface(txn);
+      EXPECT_TRUE(interface.UpdateVertexProperty(label, vid, 0, committed));
+      EXPECT_EQ(old_column->get_any(vid), initial);
+      EXPECT_TRUE(txn.Commit());
+    }
+    EXPECT_EQ(old_column->get_any(vid), initial);
+    EXPECT_TRUE(old_txn.Commit());
+    old_slot = {};
+
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      neug::StorageTPUpdateInterface interface(txn);
+      ASSERT_TRUE(txn.GetVertexIndex(label, neug::Value::INT64(1), vid));
+      EXPECT_TRUE(interface.UpdateVertexProperty(label, vid, 0, aborted));
+      txn.Abort();
+    }
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetReadTransaction();
+      neug::StorageReadInterface reader(txn.view(), txn.timestamp());
+      auto column = reader.GetVertexPropColumn(label, "nested");
+      ASSERT_NE(column, nullptr);
+      EXPECT_EQ(column->get_any(vid), committed);
+    }
+    svc.reset();
+    db.Close();
+  }
+  {
+    neug::NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<neug::NeugDBService>(db);
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetReadTransaction();
+    neug::StorageReadInterface reader(txn.view(), txn.timestamp());
+    auto label = reader.schema().get_vertex_label_id("list_holder");
+    neug::vid_t vid;
+    ASSERT_TRUE(reader.GetVertexIndex(label, neug::Value::INT64(1), vid));
+    auto column = reader.GetVertexPropColumn(label, "nested");
+    ASSERT_NE(column, nullptr);
+    EXPECT_EQ(column->get_any(vid), committed);
+  }
+}
+
+TEST_F(UpdateTransactionTest, NestedListEdgeSnapshotAbortAndWalReplay) {
+  auto string_list_type = neug::DataType::List(neug::DataType::VARCHAR);
+  auto pair_type = neug::DataType::Array(string_list_type, 2);
+  auto strings = [](std::initializer_list<const char*> values) {
+    std::vector<neug::Value> children;
+    for (auto value : values) {
+      children.push_back(neug::Value::STRING(value));
+    }
+    return neug::Value::LIST(neug::DataType::VARCHAR, std::move(children));
+  };
+  auto pair = [&](neug::Value lhs, neug::Value rhs) {
+    return neug::Value::ARRAY(pair_type, {std::move(lhs), std::move(rhs)});
+  };
+  auto nested = [&](std::vector<neug::Value> values) {
+    return neug::Value::LIST(pair_type, std::move(values));
+  };
+  auto initial = nested({pair(strings({"a"}), strings({}))});
+  auto committed = nested({pair(strings({"b", "c"}), strings({"d"})),
+                           pair(strings({}), strings({"e"}))});
+  auto aborted = nested({pair(strings({"not"}), strings({"visible"}))});
+
+  auto read_edge_value = [](auto& reader, neug::label_t label,
+                            neug::label_t edge_label,
+                            neug::vid_t src_vid) -> neug::Value {
+    auto ed_accessor = reader.GetEdgeDataAccessor(label, label, edge_label, 0);
+    auto view = reader.GetGenericOutgoingGraphView(label, label, edge_label);
+    auto edges = view.get_edges(src_vid);
+    auto it = edges.begin();
+    EXPECT_NE(it, edges.end());
+    return ed_accessor.get_data(it);
+  };
+
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  config.max_thread_num = 2;
+  config.checkpoint_on_close = false;
+  config.checkpoint_on_recovery = true;
+  {
+    neug::NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<neug::NeugDBService>(db);
+    neug::label_t label = 0;
+    neug::label_t edge_label = 0;
+    neug::vid_t v1 = 0;
+    neug::vid_t v2 = 0;
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      neug::StorageTPUpdateInterface interface(txn);
+      EXPECT_TRUE(interface.CreateVertexType(BuildCreateVertexTypeParam(
+          "edge_holder", {{"id", neug::Value::INT64(0)}}, {"id"})));
+      label = interface.schema().get_vertex_label_id("edge_holder");
+      EXPECT_TRUE(interface.CreateEdgeType(BuildCreateEdgeTypeParam(
+          "edge_holder", "edge_holder", "carries",
+          {{"nested", neug::Value::LIST(pair_type, {})}})));
+      edge_label = interface.schema().get_edge_label_id("carries");
+      EXPECT_TRUE(interface.AddVertex(label, neug::Value::INT64(1), {}, v1));
+      EXPECT_TRUE(interface.AddVertex(label, neug::Value::INT64(2), {}, v2));
+      const void* edge_prop = nullptr;
+      EXPECT_TRUE(interface.AddEdge(label, v1, label, v2, edge_label, {initial},
+                                    edge_prop));
+      EXPECT_TRUE(txn.Commit());
+    }
+
+    auto old_slot = svc->AcquireExecutionSlot();
+    auto old_txn = old_slot->GetReadTransaction();
+    neug::StorageReadInterface old_reader(old_txn.view(), old_txn.timestamp());
+    EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
+
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      neug::StorageTPUpdateInterface interface(txn);
+      update_edge_property(
+          txn, label, label, edge_label, v1,
+          [](neug::vid_t dst_vid) { return true; },
+          [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+            EXPECT_TRUE(interface.UpdateEdgeProperty(label, v1, label, dst_vid,
+                                                     edge_label, oe_offset,
+                                                     ie_offset, 0, committed));
+          });
+      EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
+      EXPECT_TRUE(txn.Commit());
+    }
+    EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
+    EXPECT_TRUE(old_txn.Commit());
+    old_slot = {};
+
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      neug::StorageTPUpdateInterface interface(txn);
+      update_edge_property(
+          txn, label, label, edge_label, v1,
+          [](neug::vid_t dst_vid) { return true; },
+          [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+            EXPECT_TRUE(interface.UpdateEdgeProperty(label, v1, label, dst_vid,
+                                                     edge_label, oe_offset,
+                                                     ie_offset, 0, aborted));
+          });
+      txn.Abort();
+    }
+    {
+      auto slot = svc->AcquireExecutionSlot();
+      auto txn = slot->GetReadTransaction();
+      neug::StorageReadInterface reader(txn.view(), txn.timestamp());
+      EXPECT_EQ(read_edge_value(reader, label, edge_label, v1), committed);
+    }
+    svc.reset();
+    db.Close();
+  }
+  {
+    neug::NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<neug::NeugDBService>(db);
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->GetReadTransaction();
+    neug::StorageReadInterface reader(txn.view(), txn.timestamp());
+    auto label = reader.schema().get_vertex_label_id("edge_holder");
+    auto edge_label = reader.schema().get_edge_label_id("carries");
+    neug::vid_t v1;
+    ASSERT_TRUE(reader.GetVertexIndex(label, neug::Value::INT64(1), v1));
+    EXPECT_EQ(read_edge_value(reader, label, edge_label, v1), committed);
+  }
+}
+
 TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);

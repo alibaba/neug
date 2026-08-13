@@ -22,6 +22,7 @@
 #include "neug/utils/bitset.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/encoder.h"
+#include "neug/utils/io/read/common/type_converter.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/string_view_vector.h"
 #include "neug/utils/yaml_utils.h"
@@ -1476,6 +1477,36 @@ TEST_F(YamlUtilsTest, PropertyTypeToYaml_TemporalTypes) {
     YAML::Node node = property_type_to_yaml(type);
     EXPECT_TRUE(node["temporal"]);
   }
+}
+
+TEST_F(YamlUtilsTest, RecursiveListTypeRoundTrip) {
+  auto type =
+      DataType::List(DataType::Array(DataType::List(DataType::VARCHAR), 2));
+
+  auto encoded = YAML::convert<DataType>::encode(type);
+  DataType decoded;
+  ASSERT_TRUE(YAML::convert<DataType>::decode(encoded, decoded));
+  EXPECT_EQ(decoded, type);
+
+  auto schema_yaml = property_type_to_yaml(type);
+  DataType schema_decoded;
+  ASSERT_TRUE(YAML::convert<DataType>::decode(schema_yaml, schema_decoded));
+  EXPECT_EQ(schema_decoded, type);
+
+  reader::NeuGTypeConverter converter;
+  auto common_type = converter.convert(type);
+  ASSERT_NE(common_type, nullptr);
+  EXPECT_EQ(converter.convert(*common_type), type);
+
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> properties;
+  auto* property = properties.Add();
+  property->set_name("nested");
+  property->mutable_type()->CopyFrom(*common_type);
+  auto defaults = property_defs_to_value(properties);
+  ASSERT_TRUE(defaults.has_value());
+  ASSERT_EQ(defaults->size(), 1);
+  EXPECT_EQ(defaults->front().second.type(), type);
+  EXPECT_TRUE(ListValue::GetChildren(defaults->front().second).empty());
 }
 
 TEST_F(YamlUtilsTest, PropertyTypeToYaml_UnknownType_Throws) {
