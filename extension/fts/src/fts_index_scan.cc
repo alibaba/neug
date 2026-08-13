@@ -19,6 +19,7 @@
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/planner/operator/logical_order_by.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
@@ -26,13 +27,13 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/index/storage_index_manager.h"
+#include "neug/storages/graph/graph_stats.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug::fts_ext {
 namespace {
 
-const binder::ScalarFunctionExpression* FindBM25Expression(
+std::shared_ptr<binder::ScalarFunctionExpression> FindBM25Expression(
     const planner::LogicalOrderBy& order_by,
     const planner::LogicalProjection& projection) {
   const auto order_expressions = order_by.getExpressionsToOrderBy();
@@ -46,7 +47,8 @@ const binder::ScalarFunctionExpression* FindBM25Expression(
     auto* function =
         order_expression->ptrCast<binder::ScalarFunctionExpression>();
     if (function->getFunction().name == FTSBM25Function::name) {
-      return function;
+      return std::static_pointer_cast<binder::ScalarFunctionExpression>(
+          order_expression);
     }
   }
   for (const auto& expression : projection.getExpressionsToProject()) {
@@ -56,7 +58,8 @@ const binder::ScalarFunctionExpression* FindBM25Expression(
     }
     auto* function = expression->ptrCast<binder::ScalarFunctionExpression>();
     if (function->getFunction().name == FTSBM25Function::name) {
-      return function;
+      return std::static_pointer_cast<binder::ScalarFunctionExpression>(
+          expression);
     }
   }
   return nullptr;
@@ -166,18 +169,15 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   const auto& scan = op.opr().index_scan();
   auto input = std::make_unique<FTSIndexScanFuncInput>();
   std::string label;
-  std::string property;
   std::string topk;
   for (const auto& option : scan.options()) {
     if (option.first == "label_id") {
       label = option.second;
-    } else if (option.first == "property_name") {
-      property = option.second;
     } else if (option.first == "topk") {
       topk = option.second;
     }
   }
-  if (label.empty() || property.empty() || topk.empty()) {
+  if (label.empty() || scan.unique_index_name().empty() || topk.empty()) {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN is missing required options");
   }
   const auto& target = scan.target_value();
@@ -189,7 +189,7 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN must produce node and score columns");
   }
   input->label_id = static_cast<label_t>(std::stoul(label));
-  input->property_name = property;
+  input->unique_index_name = scan.unique_index_name();
   input->query_string = target.operators(0).const_().str();
   input->topk = static_cast<uint32_t>(std::stoul(topk));
   input->node_alias = op.meta_data(0).alias();
@@ -205,29 +205,12 @@ execution::Context ExecuteFTSIndexScan(
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN requires a readable graph");
   }
 
-  auto indexes = reader->GetAllIndexes();
-  if (!indexes) {
-    THROW_RUNTIME_ERROR(indexes.error().ToString());
-  }
-  FTSIndex* fts_index = nullptr;
-  for (auto* index : indexes.value()) {
-    const auto& meta = index->GetMeta();
-    if (meta.schema.label_id == input.label_id &&
-        meta.schema.property_name == input.property_name &&
-        (fts_index = dynamic_cast<FTSIndex*>(index)) != nullptr) {
-      break;
-    }
-  }
-  if (!fts_index) {
-    THROW_RUNTIME_ERROR("FTS index not found for the requested label/property");
-  }
-
   FTSQueryParams params;
   params.query_string = input.query_string;
   params.topk = input.topk;
   for (const auto& context_chunk : input.context.chunks()) {
     if (!context_chunk.exist(input.node_alias)) {
-      continue;
+      THROW_RUNTIME_ERROR("FTS_INDEX_SCAN filter input alias not found");
     }
     params.use_scalar_filter = true;
     auto vertices = std::dynamic_pointer_cast<IVertexColumn>(
@@ -239,12 +222,15 @@ execution::Context ExecuteFTSIndexScan(
     params.scalar_filter.reserve(params.scalar_filter.size() +
                                  vertices->size());
     foreach_vertex(*vertices, [&](size_t, label_t label, vid_t vid) {
-      if (label == input.label_id && vid != INVALID_VID) {
+      if (label != input.label_id) {
+        THROW_RUNTIME_ERROR("FTS_INDEX_SCAN filter input label mismatch");
+      }
+      if (vid != INVALID_VID) {
         params.scalar_filter.push_back(vid);
       }
     });
   }
-  auto results = fts_index->Search(params);
+  auto results = reader->IndexSearch(input.unique_index_name, params);
   if (!results) {
     THROW_RUNTIME_ERROR(results.error().ToString());
   }
@@ -353,7 +339,7 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   }
   auto input_op = projection->getChild(0);
 
-  auto* bm25 = FindBM25Expression(*order_by, *projection);
+  auto bm25 = FindBM25Expression(*order_by, *projection);
   if (!bm25) {
     return op;
   }
@@ -365,6 +351,31 @@ FTSIndexScanOptimizer::visitOrderByReplace(
         "BM25 on the current storage index API requires one node STRING "
         "property and a string literal query");
   }
+
+  auto* metadata_manager = context_->getMetadataManager();
+  if (!metadata_manager) {
+    return op;
+  }
+  auto graph_stats = metadata_manager->getGraphStats();
+  if (!graph_stats) {
+    return op;
+  }
+  auto indexes = graph_stats->GetIndex(property->getSingleTableID(),
+                                       property->getPropertyName());
+  if (!indexes.has_value()) {
+    THROW_RUNTIME_ERROR("FTS index not found for the requested label/property");
+  }
+  const StorageIndex* fts_index = nullptr;
+  for (const auto* index : indexes.value()) {
+    if (index && dynamic_cast<const FTSIndex*>(index)) {
+      fts_index = index;
+      break;
+    }
+  }
+  if (!fts_index) {
+    THROW_RUNTIME_ERROR("FTS index not found for the requested label/property");
+  }
+
   const binder::PropertyExpression* vertex_output = nullptr;
   bool attach_input = true;
   if (input_op->getOperatorType() ==
@@ -396,12 +407,10 @@ FTSIndexScanOptimizer::visitOrderByReplace(
       MakeScanColumn(*vertex_output,
                      MakeScanNodeType(*context_, property->getSingleTableID()));
   auto score_column = MakeScoreColumn(*bm25);
-  const auto score_unique_name = bm25->Expression::getUniqueName();
   binder::expression_vector columns{node_column, score_column};
-  auto bind_data =
-      std::make_unique<function::IndexScanBindData>(columns, "", query);
+  auto bind_data = std::make_unique<function::IndexScanBindData>(
+      columns, fts_index->GetMeta().name, query);
   bind_data->options["label_id"] = std::to_string(property->getSingleTableID());
-  bind_data->options["property_name"] = property->getPropertyName();
   bind_data->options["topk"] = std::to_string(order_by->getLimitNum());
 
   auto table_call = std::make_shared<planner::LogicalTableFunctionCall>(
@@ -411,12 +420,7 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   }
   table_call->computeFlatSchema();
   projection->setChild(0, std::move(table_call));
-  for (auto& expression : projection->getExpressionsToProjectRef()) {
-    if (expression->getUniqueName() == score_unique_name) {
-      expression = score_column;
-    }
-  }
-  projection->computeFlatSchema();
+  // FTSIndex::SearchImpl guarantees ordered results, so remove OrderBy.
   return child;
 }
 

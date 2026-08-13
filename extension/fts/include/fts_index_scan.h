@@ -11,7 +11,7 @@ namespace neug::fts_ext {
 
 struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   label_t label_id;
-  std::string property_name;
+  std::string unique_index_name;
   std::string query_string;
   uint32_t topk;
   int32_t node_alias;
