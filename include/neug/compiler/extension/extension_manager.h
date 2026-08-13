@@ -22,7 +22,9 @@
 
 #pragma once
 
-#include <mutex>
+#include <atomic>
+#include <memory>
+#include <string>
 #include <unordered_map>
 
 #include "neug/compiler/main/client_context.h"
@@ -37,26 +39,46 @@ struct ExtensionEntry {
 };
 
 class ExtensionManager {
+ private:
+  struct LoadedExtension;
+
  public:
   using InitFunc = void (*)();
 
+  enum class LoadState { LOADING, LOADED, FAILED };
+
+  struct LoadTicket {
+    bool owns_load;
+
+   private:
+    friend class ExtensionManager;
+    std::shared_ptr<LoadedExtension> extension;
+
+    LoadTicket(bool owns_load, std::shared_ptr<LoadedExtension> extension)
+        : owns_load(owns_load), extension(std::move(extension)) {}
+  };
+
   const main::ExtensionOption* getExtensionOption(std::string name) const;
 
-  static void RegisterLoadedExtension(const std::string& name, void* handle,
-                                      InitFunc init);
-  static void* GetLoadedExtensionHandle(const std::string& name);
-  static void InitLoadedExtensions();
+  static LoadTicket AcquireLoad(const std::string& name);
+  static void CompleteLoad(const LoadTicket& ticket, void* handle,
+                           InitFunc init);
+  static void FailLoad(const LoadTicket& ticket);
+  static void ReplayLoadedExtensions();
 
  private:
   struct LoadedExtension {
-    void* handle;
-    InitFunc init;
+    std::atomic<LoadState> state{LoadState::LOADING};
+    void* handle = nullptr;
+    InitFunc init = nullptr;
   };
+
+  using LoadedExtensionMap =
+      std::unordered_map<std::string, std::shared_ptr<LoadedExtension>>;
 
   static std::string NormalizeExtensionName(std::string name);
 
-  static std::mutex loaded_extensions_mutex_;
-  static std::unordered_map<std::string, LoadedExtension> loaded_extensions_;
+  static std::atomic<const LoadedExtensionMap*> loaded_extensions_;
 
   std::unordered_map<std::string, main::ExtensionOption> extensionOptions;
 };

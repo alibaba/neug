@@ -22,6 +22,9 @@
 
 #include "neug/compiler/extension/extension_manager.h"
 
+#include <utility>
+#include <vector>
+
 #include "generated_extension_loader.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension.h"
@@ -29,9 +32,8 @@
 namespace neug {
 namespace extension {
 
-std::mutex ExtensionManager::loaded_extensions_mutex_;
-std::unordered_map<std::string, ExtensionManager::LoadedExtension>
-    ExtensionManager::loaded_extensions_;
+std::atomic<const ExtensionManager::LoadedExtensionMap*>
+    ExtensionManager::loaded_extensions_{new LoadedExtensionMap()};
 
 std::string ExtensionManager::NormalizeExtensionName(std::string name) {
   common::StringUtils::toLower(name);
@@ -44,29 +46,76 @@ const main::ExtensionOption* ExtensionManager::getExtensionOption(
   return extensionOptions.contains(name) ? &extensionOptions.at(name) : nullptr;
 }
 
-void ExtensionManager::RegisterLoadedExtension(const std::string& name,
-                                               void* handle, InitFunc init) {
-  if (!handle || !init) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Cannot register an extension with a null handle or init function");
+ExtensionManager::LoadTicket ExtensionManager::AcquireLoad(
+    const std::string& name) {
+  const auto normalized_name = NormalizeExtensionName(name);
+  while (true) {
+    auto snapshot = loaded_extensions_.load(std::memory_order_acquire);
+    auto iter = snapshot->find(normalized_name);
+    if (iter == snapshot->end()) {
+      auto extension = std::make_shared<LoadedExtension>();
+      // Published snapshots live for the process lifetime so lock-free readers
+      // can safely retain raw snapshot pointers. Extensions and their dynamic
+      // library handles have the same lifetime.
+      auto updated = new LoadedExtensionMap(*snapshot);
+      updated->emplace(normalized_name, extension);
+      if (loaded_extensions_.compare_exchange_weak(snapshot, updated,
+                                                   std::memory_order_release,
+                                                   std::memory_order_acquire)) {
+        return LoadTicket(true, std::move(extension));
+      }
+      delete updated;
+      continue;
+    }
+
+    auto extension = iter->second;
+    auto state = extension->state.load(std::memory_order_acquire);
+    while (state == LoadState::LOADING) {
+      extension->state.wait(state, std::memory_order_acquire);
+      state = extension->state.load(std::memory_order_acquire);
+    }
+    if (state == LoadState::LOADED) {
+      return LoadTicket(false, std::move(extension));
+    }
+    if (extension->state.compare_exchange_weak(state, LoadState::LOADING,
+                                               std::memory_order_acq_rel,
+                                               std::memory_order_acquire)) {
+      return LoadTicket(true, std::move(extension));
+    }
   }
-  std::lock_guard<std::mutex> lock(loaded_extensions_mutex_);
-  loaded_extensions_[NormalizeExtensionName(name)] = {handle, init};
 }
 
-void* ExtensionManager::GetLoadedExtensionHandle(const std::string& name) {
-  std::lock_guard<std::mutex> lock(loaded_extensions_mutex_);
-  auto iter = loaded_extensions_.find(NormalizeExtensionName(name));
-  return iter == loaded_extensions_.end() ? nullptr : iter->second.handle;
+void ExtensionManager::CompleteLoad(const LoadTicket& ticket, void* handle,
+                                    InitFunc init) {
+  if (!ticket.owns_load || !ticket.extension || !handle || !init) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid extension load completion");
+  }
+  ticket.extension->handle = handle;
+  ticket.extension->init = init;
+  ticket.extension->state.store(LoadState::LOADED, std::memory_order_release);
+  ticket.extension->state.notify_all();
 }
 
-void ExtensionManager::InitLoadedExtensions() {
+void ExtensionManager::FailLoad(const LoadTicket& ticket) {
+  if (!ticket.owns_load || !ticket.extension) {
+    return;
+  }
+  ticket.extension->state.store(LoadState::FAILED, std::memory_order_release);
+  ticket.extension->state.notify_all();
+}
+
+void ExtensionManager::ReplayLoadedExtensions() {
   std::vector<std::pair<std::string, InitFunc>> init_functions;
-  {
-    std::lock_guard<std::mutex> lock(loaded_extensions_mutex_);
-    init_functions.reserve(loaded_extensions_.size());
-    for (const auto& [name, extension] : loaded_extensions_) {
-      init_functions.emplace_back(name, extension.init);
+  auto snapshot = loaded_extensions_.load(std::memory_order_acquire);
+  init_functions.reserve(snapshot->size());
+  for (const auto& [name, extension] : *snapshot) {
+    auto state = extension->state.load(std::memory_order_acquire);
+    while (state == LoadState::LOADING) {
+      extension->state.wait(state, std::memory_order_acquire);
+      state = extension->state.load(std::memory_order_acquire);
+    }
+    if (state == LoadState::LOADED) {
+      init_functions.emplace_back(name, extension->init);
     }
   }
   for (const auto& [name, init] : init_functions) {

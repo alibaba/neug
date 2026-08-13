@@ -29,7 +29,9 @@ class GOptPlanner : public neug::IGraphPlanner {
   GOptPlanner() : IGraphPlanner() {
     database = std::make_unique<neug::main::MetadataManager>();
     neug::main::MetadataRegistry::registerMetadata(database.get());
-    neug::extension::ExtensionManager::InitLoadedExtensions();
+    // A new planner owns a new catalog. Replay extension registration into
+    // that catalog without reloading the extension library.
+    neug::extension::ExtensionManager::ReplayLoadedExtensions();
   }
 
   inline std::string type() const override { return "gopt"; }

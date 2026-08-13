@@ -478,11 +478,11 @@ Status load_extension(const std::string& extension_name) {
     // libneug.so's copy, which would cause heap corruption on exit.
     // neug symbols are still resolvable because ensureNeugSymbolsGlobal()
     // has already promoted libneug.so to RTLD_GLOBAL.
-    void* handle = ExtensionManager::GetLoadedExtensionHandle(extension_name);
-    bool newly_loaded = handle == nullptr;
-    if (newly_loaded) {
-      handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+    auto load_ticket = ExtensionManager::AcquireLoad(extension_name);
+    if (load_ticket.owns_load) {
+      void* handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
       if (!handle) {
+        ExtensionManager::FailLoad(load_ticket);
         return Status(StatusCode::ERR_IO_ERROR,
                       "Failed to load extension library: " + userLibPath +
                           ". Error: " + std::string(dlerror()));
@@ -493,6 +493,7 @@ Status load_extension(const std::string& extension_name) {
       const char* dlsym_error = dlerror();
       if (dlsym_error) {
         dlclose(handle);
+        ExtensionManager::FailLoad(load_ticket);
         return Status(
             StatusCode::ERR_IO_ERROR,
             "Failed to find 'Init' function in extension: " + extension_name +
@@ -500,17 +501,18 @@ Status load_extension(const std::string& extension_name) {
       }
       try {
         (*init_func)();
-        ExtensionManager::RegisterLoadedExtension(extension_name, handle,
-                                                  init_func);
+        ExtensionManager::CompleteLoad(load_ticket, handle, init_func);
         LOG(INFO) << "[Admin] Extension " << extension_name
                   << " loaded and initialized successfully";
       } catch (const std::exception& e) {
         dlclose(handle);
+        ExtensionManager::FailLoad(load_ticket);
         return Status(StatusCode::ERR_IO_ERROR,
                       "Extension initialization failed: " + extension_name +
                           ". Error: " + std::string(e.what()));
       } catch (...) {
         dlclose(handle);
+        ExtensionManager::FailLoad(load_ticket);
         return Status(StatusCode::ERR_IO_ERROR,
                       "Extension initialization failed with unknown error: " +
                           extension_name);
