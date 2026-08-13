@@ -142,7 +142,8 @@ std::shared_ptr<Checkpoint> open_checkpoint_checked(
   }
   for (const auto& [module_name, desc] : checkpoint->GetMeta().modules()) {
     if (!desc.module_type.empty() &&
-        ModuleFactory::instance().Create(desc.module_type) == nullptr) {
+        ModuleFactory::instance().Create(desc.module_type) == nullptr &&
+        desc.required) {
       THROW_CHECKPOINT_EXCEPTION(
           "Checkpoint " + path.string() + " references unknown module type " +
           desc.module_type + " from module " + module_name);

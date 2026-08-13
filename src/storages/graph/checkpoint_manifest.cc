@@ -61,7 +61,12 @@ void CheckpointManifest::LinkModuleFrom(const CheckpointManifest& prev,
   if (!desc.has_value()) {
     return;
   }
-  set_module(key, ModuleDescriptor::Link(*desc, ckp));
+  if (!has_module(key)) {
+    set_module(key, ModuleDescriptor::Link(*desc, ckp));
+  }
+  for (const auto& [_, referenced_key] : desc->refs()) {
+    LinkModuleFrom(prev, referenced_key, ckp);
+  }
 }
 
 const std::unordered_map<std::string, ModuleDescriptor>&
