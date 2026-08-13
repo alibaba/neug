@@ -24,6 +24,7 @@
 namespace neug {
 
 class Checkpoint;
+enum class CheckpointWriteMode;
 
 /**
  * @brief Abstract interface for persistent graph-storage modules.
@@ -57,15 +58,18 @@ class Module {
    * @brief Persist module state and write the descriptor to @p meta under
    * @p key.
    *
-   * Composite modules may write additional referenced module entries.
+   * Composite modules may write additional referenced module entries. Consume
+   * mode transfers owned storage into the checkpoint; snapshot mode leaves
+   * shared live storage usable.
    */
   virtual void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                    const std::string& key) = 0;
+                    const std::string& key, CheckpointWriteMode mode) = 0;
 
   /**
    * @brief Create an independent module object that shares the same storage.
    * Zero-copy: creates a new Module object sharing the same IDataContainer(s).
-   * The clone must call Detach() before it can be mutated safely.
+   * The clone must call Detach() before it can be mutated. A snapshot-mode
+   * Dump() may persist shared storage without consuming it.
    */
   virtual std::unique_ptr<Module> Clone() const = 0;
 

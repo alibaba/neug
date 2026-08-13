@@ -113,6 +113,12 @@ void assert_query_ok(neug::Connection& conn, const std::string& query) {
   ASSERT_TRUE(result) << query << ": " << result.error().ToString();
 }
 
+void write_person_csv(const std::filesystem::path& path,
+                      std::string_view rows) {
+  std::ofstream csv(path);
+  csv << "id|name\n" << rows;
+}
+
 void create_checkpointed_base_graph(const std::string& db_dir) {
   auto config = make_config(db_dir);
   config.checkpoint_on_close = true;
@@ -510,6 +516,9 @@ class CheckpointActivationHandlerTest : public ::testing::Test {
         checkpoint_manager_, *snapshot_store_, neug::MemoryLevel::kInMemory,
         [this](const std::string& allocator_dir) {
           handler_calls_.push_back(allocator_dir);
+        },
+        [this](const std::string& wal_dir) {
+          wal_rotation_calls_.push_back(wal_dir);
         });
   }
 
@@ -527,6 +536,7 @@ class CheckpointActivationHandlerTest : public ::testing::Test {
   std::unique_ptr<neug::GraphSnapshotStore> snapshot_store_;
   std::unique_ptr<neug::CheckpointCoordinator> coordinator_;
   std::vector<std::string> handler_calls_;
+  std::vector<std::string> wal_rotation_calls_;
 };
 
 TEST_F(CheckpointActivationHandlerTest,
@@ -542,6 +552,7 @@ TEST_F(CheckpointActivationHandlerTest,
 
   ASSERT_TRUE(coordinator_->PublishRecoveryCheckpoint().ok());
   EXPECT_EQ(handler_calls_.size(), 1u);
+  EXPECT_EQ(wal_rotation_calls_.size(), 1u);
   EXPECT_EQ(activation_calls, 0u);
 
   neug::VersionManager version_manager;
@@ -556,6 +567,8 @@ TEST_F(CheckpointActivationHandlerTest,
   EXPECT_EQ(observed_wal_uri, current_checkpoint->wal_dir());
   ASSERT_EQ(handler_calls_.size(), 2u);
   EXPECT_EQ(handler_calls_[1], current_checkpoint->allocator_dir());
+  ASSERT_EQ(wal_rotation_calls_.size(), 2u);
+  EXPECT_EQ(wal_rotation_calls_[1], current_checkpoint->wal_dir());
 }
 
 TEST_F(CheckpointActivationHandlerTest,
@@ -572,6 +585,40 @@ TEST_F(CheckpointActivationHandlerTest,
           .ok());
 
   EXPECT_FALSE(coordinator_->UnloggedMutationPending());
+}
+
+TEST_F(CheckpointActivationHandlerTest,
+       IncrementalCheckpointKeepsGraphAllocatorAndTimestampTimeline) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts({40, 0}, 1);
+  neug::UpdateTimestampLease update_lease(version_manager);
+  const auto update_ts = update_lease.Timestamp();
+  update_lease.MakeUpdateExclusive();
+  const neug::PropertyGraph* graph_before = nullptr;
+  {
+    neug::SnapshotGuard snapshot(*snapshot_store_);
+    graph_before = &snapshot.get().graph();
+  }
+
+  coordinator_->MarkUnloggedMutation();
+  ASSERT_TRUE(
+      coordinator_->PublishIncrementalCheckpoint(std::move(update_lease)).ok());
+
+  {
+    neug::SnapshotGuard snapshot(*snapshot_store_);
+    EXPECT_EQ(&snapshot.get().graph(), graph_before);
+  }
+  EXPECT_TRUE(handler_calls_.empty());
+  ASSERT_EQ(wal_rotation_calls_.size(), 1u);
+  EXPECT_EQ(wal_rotation_calls_[0], graph_->checkpoint().wal_dir());
+  EXPECT_FALSE(coordinator_->UnloggedMutationPending());
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, update_ts);
+  }
+  const auto next_insert_ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(next_insert_ts, update_ts + 1);
+  version_manager.release_insert_timestamp(next_insert_ts);
 }
 
 TEST(CheckpointCoordinatorTest,
@@ -598,7 +645,8 @@ TEST(CheckpointCoordinatorTest,
       [&](const std::string&) {
         allocators[0]->Reopen(neug::MemoryLevel::kInMemory, "");
         allocator_reopened = true;
-      });
+      },
+      [](const std::string&) {});
 
   const auto old_wal_dir =
       (std::filesystem::path(test_dir) / "old-wal").string();
@@ -736,13 +784,11 @@ TEST_F(WalReplayTest, EmbeddedOrdinaryCowWritesReplayWithoutCheckpoint) {
   }
 }
 
-TEST_F(WalReplayTest,
-       UnloggedBulkForcesCloseCheckpointWhenCheckpointOnCloseIsDisabled) {
-  const auto csv_path = std::filesystem::path(db_dir_) / "bulk-person.csv";
-  {
-    std::ofstream csv(csv_path);
-    csv << "id|name\n2|bulk\n";
-  }
+TEST_F(WalReplayTest, DefaultVertexAndEdgeCopyPublishCheckpointWithoutWal) {
+  const auto person_csv = std::filesystem::path(db_dir_) / "bulk-person.csv";
+  const auto edge_csv = std::filesystem::path(db_dir_) / "bulk-knows.csv";
+  write_person_csv(person_csv, "1|seed\n2|bulk\n");
+  std::ofstream(edge_csv) << "from|to|since\n1|2|2026\n";
 
   {
     neug::NeugDB db;
@@ -751,7 +797,19 @@ TEST_F(WalReplayTest,
     ASSERT_TRUE(db.Open(config));
     create_person_schema(db);
     auto conn = db.Connect();
-    assert_query_ok(*conn, "COPY person FROM \"" + csv_path.string() + "\";");
+    assert_query_ok(
+        *conn, "CREATE REL TABLE knows(FROM person TO person, since INT64);");
+    assert_query_ok(*conn, "COPY person FROM \"" + person_csv.string() + "\";");
+    EXPECT_TRUE(std::filesystem::exists(std::filesystem::path(db_dir_) /
+                                        "checkpoint-1"));
+    assert_query_ok(*conn, "COPY knows FROM \"" + edge_csv.string() +
+                               "\" (from=\"person\", to=\"person\");");
+    EXPECT_TRUE(std::filesystem::exists(std::filesystem::path(db_dir_) /
+                                        "checkpoint-2"));
+    auto parser = neug::WalParserFactory::CreateWalParser(
+        db.graph().checkpoint().wal_dir());
+    EXPECT_EQ(parser->last_ts(), 0U);
+    EXPECT_TRUE(parser->get_update_wals().empty());
     conn->Close();
     db.Close();
   }
@@ -759,17 +817,96 @@ TEST_F(WalReplayTest,
   {
     neug::NeugDB db;
     ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    expect_embedded_name(db, 2, "bulk");
+    EXPECT_TRUE(replayed_graph_matches(db));
     db.Close();
   }
 }
 
-TEST_F(WalReplayTest, UnloggedBulkCloseCheckpointFailureIsReported) {
-  const auto csv_path = std::filesystem::path(db_dir_) / "bulk-person.csv";
-  {
-    std::ofstream csv(csv_path);
-    csv << "id|name\n2|bulk\n";
-  }
+TEST_F(WalReplayTest, ReadOnlyBatchDoesNotPublishCheckpointOrLeaveBarrier) {
+  const auto input = std::filesystem::path(db_dir_) / "input.csv";
+  const auto output = std::filesystem::path(db_dir_) / "output.csv";
+  write_person_csv(input, "2|loaded\n");
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);
+  auto planning_generation = [&]() {
+    neug::SnapshotGuard snapshot(db.graph_snapshot_store());
+    return snapshot.get().planning_generation();
+  };
+  const auto generation_before = planning_generation();
+
+  auto conn = db.Connect();
+  assert_query_ok(*conn, "COPY (MATCH (n:person) RETURN n.*) TO '" +
+                             output.string() + "' (header=true);");
+  assert_query_ok(*conn, "LOAD FROM '" + input.string() +
+                             "' (header=true, delim='|') RETURN *;");
+  EXPECT_EQ(planning_generation(), generation_before);
+  EXPECT_FALSE(
+      std::filesystem::exists(std::filesystem::path(db_dir_) / "checkpoint-1"));
+
+  assert_query_ok(*conn, "CREATE (:person {id: 3, name: 'wal'});");
+  EXPECT_FALSE(
+      std::filesystem::exists(std::filesystem::path(db_dir_) / "checkpoint-1"));
+  conn->Close();
+  db.Close();
+}
+
+TEST_F(WalReplayTest, ConsecutiveCopiesPublishIndependentCheckpoints) {
+  const auto first = std::filesystem::path(db_dir_) / "first.csv";
+  const auto second = std::filesystem::path(db_dir_) / "second.csv";
+  write_person_csv(first, "2|first\n");
+  write_person_csv(second, "3|second\n");
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);
+  auto conn = db.Connect();
+  assert_query_ok(*conn, "COPY person FROM \"" + first.string() + "\";");
+  EXPECT_TRUE(
+      std::filesystem::exists(std::filesystem::path(db_dir_) / "checkpoint-1"));
+  assert_query_ok(*conn, "COPY person FROM \"" + second.string() + "\";");
+  EXPECT_TRUE(
+      std::filesystem::exists(std::filesystem::path(db_dir_) / "checkpoint-2"));
+
+  assert_query_ok(*conn, "CREATE (:person {id: 4, name: 'wal'});");
+  EXPECT_FALSE(
+      std::filesystem::exists(std::filesystem::path(db_dir_) / "checkpoint-3"));
+  conn->Close();
+  db.Close();
+
+  neug::NeugDB reopened;
+  ASSERT_TRUE(reopened.Open(make_config(db_dir_)));
+  expect_embedded_name(reopened, 2, "first");
+  expect_embedded_name(reopened, 3, "second");
+  expect_embedded_name(reopened, 4, "wal");
+  reopened.Close();
+}
+
+TEST_F(WalReplayTest, FailedCopyAllowsReadsAndAnotherCopy) {
+  const auto failed_csv = std::filesystem::path(db_dir_) / "failed.csv";
+  const auto next_csv = std::filesystem::path(db_dir_) / "next.csv";
+  write_person_csv(failed_csv, "2|partial\ninvalid|bad\n");
+  write_person_csv(next_csv, "3|next\n");
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  create_person_schema(db);
+  auto conn = db.Connect();
+  auto failed =
+      conn->Query("COPY person FROM \"" + failed_csv.string() + "\";");
+  ASSERT_FALSE(failed);
+  auto read = conn->Query("MATCH (n:person) RETURN count(n);");
+  ASSERT_TRUE(read) << read.error().ToString();
+  assert_query_ok(*conn, "COPY person FROM \"" + next_csv.string() + "\";");
+  conn->Close();
+  expect_embedded_name(db, 3, "next");
+  db.Close();
+}
+
+TEST_F(WalReplayTest, FailedCopyCloseCheckpointFailureIsReported) {
+  const auto csv_path = std::filesystem::path(db_dir_) / "failed-person.csv";
+  write_person_csv(csv_path, "2|partial\ninvalid|bad\n");
 
   neug::NeugDB db;
   auto config = make_config(db_dir_);
@@ -777,7 +914,7 @@ TEST_F(WalReplayTest, UnloggedBulkCloseCheckpointFailureIsReported) {
   ASSERT_TRUE(db.Open(config));
   create_person_schema(db);
   auto conn = db.Connect();
-  assert_query_ok(*conn, "COPY person FROM \"" + csv_path.string() + "\";");
+  EXPECT_FALSE(conn->Query("COPY person FROM \"" + csv_path.string() + "\";"));
   conn->Close();
 
   const auto checkpoint_blocker =

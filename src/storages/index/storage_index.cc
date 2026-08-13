@@ -200,7 +200,7 @@ void StorageIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
 }
 
 void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                        const std::string& key) {
+                        const std::string& key, CheckpointWriteMode) {
   if (!meta_) {
     THROW_RUNTIME_ERROR(
         "Cannot dump storage index before metadata is initialized");

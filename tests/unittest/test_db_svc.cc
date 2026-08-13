@@ -203,6 +203,39 @@ TEST_F(NeugDBServiceTest, ExecutionSlotLeaseMoveTransfersSingleLease) {
 }
 
 TEST_F(NeugDBServiceTest,
+       ServiceShutdownDrainsLeasesAndEscapedTransactions) {
+  auto service = std::make_unique<NeugDBService>(*db_, config_);
+  auto transaction_slot = service->AcquireExecutionSlot();
+  auto escaped_transaction = transaction_slot->BeginReadTransaction();
+  transaction_slot = {};
+  std::vector<ExecutionSlotLease> leases;
+  for (size_t i = 0; i < service->ExecutionSlotNum(); ++i) {
+    leases.emplace_back(service->AcquireExecutionSlot());
+  }
+
+  std::atomic<bool> shutdown_started{false};
+  std::atomic<bool> service_destroyed{false};
+  std::thread shutdown([owned_service = std::move(service), &shutdown_started,
+                        &service_destroyed]() mutable {
+    shutdown_started.store(true, std::memory_order_release);
+    owned_service.reset();
+    service_destroyed.store(true, std::memory_order_release);
+  });
+  ASSERT_TRUE(WaitForFlag(shutdown_started));
+  EXPECT_FALSE(service_destroyed.load(std::memory_order_acquire));
+
+  leases.clear();
+  EXPECT_FALSE(service_destroyed.load(std::memory_order_acquire));
+  EXPECT_TRUE(escaped_transaction.Commit());
+  shutdown.join();
+  EXPECT_TRUE(service_destroyed.load(std::memory_order_acquire));
+
+  auto connection = db_->Connect();
+  ASSERT_TRUE(connection->Query("MATCH (n) RETURN count(n);"));
+  connection->Close();
+}
+
+TEST_F(NeugDBServiceTest,
        SingleExecutionSlotLeaseSurvivesBthreadWaitsExclusively) {
   const auto single_slot_path = (test_dir_ / "single_slot_graph").string();
   NeugDB single_slot_db;

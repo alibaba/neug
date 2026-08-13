@@ -4,9 +4,9 @@
 > behavior, see
 > [Transaction Management](../../../doc/source/transaction/transaction.md).
 
-For ordinary queries, the transactional `ExecutionSlot` strategy uses
-`ReadTransaction`, `InsertTransaction`, and `SnapshotCowWriteTransaction`. The
-direct strategy uses `CurrentGraphReadGuard` for reads and
+For ordinary queries, both `ExecutionSlot` strategies use `ReadTransaction`.
+The transactional strategy additionally uses `InsertTransaction` and
+`SnapshotCowWriteTransaction`; the direct strategy uses
 `CurrentCowWriteTransaction` for ordinary DML and DDL. COPY, other bulk paths,
 and temporary-schema cleanup still use the exclusive in-place path until their
 checkpoint protocol is migrated. `CompactTransaction` and
@@ -21,9 +21,10 @@ replacing the current graph.
 
 ## Read Transaction
 
-With a `ReadTransaction`, a specific version of the graph can be read. Its
-`ReadSnapshotLease` owns a visibility timestamp and a pinned graph snapshot as
-one coherent read view.
+With a `ReadTransaction`, AP and TP both read a coherent version of the graph.
+Its `ReadSnapshotLease` owns a visibility timestamp and a pinned graph snapshot
+as one coherent read view. AP writers still take exclusive admission and drain
+readers, so this shared timestamp does not introduce AP read/write concurrency.
 
 Reader acquisition captures an atomically published
 `{visibility timestamp, snapshot generation}` pair, pins the current snapshot,

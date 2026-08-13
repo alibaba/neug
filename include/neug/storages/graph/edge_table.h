@@ -81,6 +81,9 @@ class EdgeTable {
 
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
+  /// Persist this table through non-consuming module snapshots.
+  void WriteSnapshotTo(ModuleBroker& store, CheckpointManifest& meta,
+                       Checkpoint& ckp) const;
 
   /// When this table is clean, re-link prior-snapshot modules/scalars into
   /// @p meta instead of dumping. Links exact keys for this triplet only.
@@ -194,6 +197,9 @@ class EdgeTable {
   void DetachInAdjlist(vid_t vid, Allocator& alloc);
 
  private:
+  void disassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                     Checkpoint& ckp, CheckpointWriteMode mode);
+
   void dropAndCreateNewBundledCSR(Checkpoint& ckp, ColumnBase* prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 

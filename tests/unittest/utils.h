@@ -271,7 +271,7 @@ neug::ModuleDescriptor dump_module_descriptor(ModuleT& module,
                                               neug::Checkpoint& ckp,
                                               const std::string& key) {
   neug::CheckpointManifest meta;
-  module.Dump(ckp, meta, key);
+  module.Dump(ckp, meta, key, neug::CheckpointWriteMode::kConsumeSource);
   auto desc = meta.module(key);
   if (!desc.has_value()) {
     throw std::runtime_error("Module did not write descriptor for key: " + key);
@@ -414,7 +414,8 @@ inline neug::CheckpointManifest DumpVertexTableLegacy(neug::VertexTable& vt,
   // leaves transfer ownership into a transient store that Dumps + cleans up.
   auto table = vt.TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
-    table->get_column_by_id(i)->Dump(ckp, meta, VertexPropKey(i));
+    table->get_column_by_id(i)->Dump(ckp, meta, VertexPropKey(i),
+                                     neug::CheckpointWriteMode::kConsumeSource);
   }
   neug::ModuleBroker store;
   store.SetModule(kVertexIndexerKeys, idx.TakeKeys());
@@ -469,7 +470,8 @@ inline neug::CheckpointManifest DumpEdgeTableLegacy(neug::EdgeTable& et,
     meta.SetScalar(kEdgeTableIdx, std::to_string(et.GetTableIdx()));
     auto table = et.TakeTable();
     for (size_t i = 0; i < table->col_num(); ++i) {
-      table->get_column_by_id(i)->Dump(ckp, meta, EdgePropKey(i));
+      table->get_column_by_id(i)->Dump(
+          ckp, meta, EdgePropKey(i), neug::CheckpointWriteMode::kConsumeSource);
     }
   }
   neug::ModuleBroker store;

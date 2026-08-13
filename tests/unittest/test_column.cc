@@ -464,7 +464,8 @@ TEST(ListPropertyColumnTest, RecursiveLifecycle) {
   auto final_value = outer({pair(strings({}), strings({"last"}))});
   clone->set_any(0, final_value, true);
   CheckpointManifest manifest;
-  clone->Dump(*ckp, manifest, "list");
+  clone->Dump(*ckp, manifest, "list",
+              neug::CheckpointWriteMode::kConsumeSource);
   ListPropertyColumn reopened;
   reopened.Open(*ckp, manifest, *manifest.module("list"),
                 MemoryLevel::kInMemory);
@@ -504,7 +505,8 @@ TEST(ListPropertyColumnTest, DumpCompactsByPhysicalOffset) {
   column.set_any(0, list({30, 31, 32}), true);
 
   CheckpointManifest manifest;
-  column.Dump(*ckp, manifest, "list");
+  column.Dump(*ckp, manifest, "list",
+              neug::CheckpointWriteMode::kConsumeSource);
 
   ListPropertyColumn reopened;
   reopened.Open(*ckp, manifest, *manifest.module("list"),
@@ -512,6 +514,47 @@ TEST(ListPropertyColumnTest, DumpCompactsByPhysicalOffset) {
   EXPECT_EQ(reopened.get_any(0), list({30, 31, 32}));
   EXPECT_EQ(reopened.get_any(1), list({20, 21}));
   EXPECT_TRUE(ListValue::GetChildren(reopened.get_any(2)).empty());
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(ListPropertyColumnTest, SnapshotDumpDoesNotCompactLiveColumn) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("list_property_column_snapshot_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto list_type = DataType::List(DataType::INT32);
+  auto list = [](std::initializer_list<int32_t> values) {
+    std::vector<Value> children;
+    for (auto value : values) {
+      children.push_back(Value::INT32(value));
+    }
+    return Value::LIST(DataType::INT32, std::move(children));
+  };
+
+  ListPropertyColumn column(list_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(2);
+  column.set_any(0, list({1}), true);
+  column.set_any(0, list({2, 3}), true);
+
+  CheckpointManifest manifest;
+  column.Dump(*ckp, manifest, "list", CheckpointWriteMode::kPreserveSource);
+  EXPECT_EQ(column.get_any(0), list({2, 3}));
+  column.set_any(1, list({4}), true);
+
+  ListPropertyColumn reopened;
+  reopened.Open(*ckp, manifest, *manifest.module("list"),
+                MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.get_any(0), list({2, 3}));
+  EXPECT_TRUE(ListValue::GetChildren(reopened.get_any(1)).empty());
 
   std::filesystem::remove_all(temp_dir);
 }
@@ -700,7 +743,7 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
       ArrayValue::GetChildren(column.get_any(0))[1].GetValue<float>(), 8.0f);
 
   CheckpointManifest manifest;
-  column.Dump(*ckp, manifest, "vec");
+  column.Dump(*ckp, manifest, "vec", neug::CheckpointWriteMode::kConsumeSource);
   auto manifest_path = temp_dir / "vec_manifest.json";
   manifest.Save(manifest_path.string());
   CheckpointManifest loaded_manifest;

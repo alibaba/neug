@@ -169,6 +169,17 @@ std::string CheckpointFileManager::Commit(IDataContainer& buffer) {
   return CommitRuntimeFile(std::move(runtime_file));
 }
 
+std::string CheckpointFileManager::WriteSnapshot(IDataContainer& buffer) {
+  auto original_path = buffer.GetPath();
+  if (!buffer.IsDirty() && is_file_in_dir(original_path, snapshot_dir_)) {
+    return original_path;
+  }
+
+  auto runtime_file = CreateRuntimeFile();
+  buffer.WriteSnapshot(runtime_file.path());
+  return CommitRuntimeFile(std::move(runtime_file));
+}
+
 CheckpointFileManager::RuntimeFileHandle
 CheckpointFileManager::CreateRuntimeFile() {
   auto path = CreateRuntimeContainerPath();

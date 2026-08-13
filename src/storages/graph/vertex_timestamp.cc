@@ -47,7 +47,13 @@ void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
 }
 
 void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                           const std::string& key) {
+                           const std::string& key, CheckpointWriteMode mode) {
+  if (mode == CheckpointWriteMode::kPreserveSource) {
+    auto staged = Clone();
+    staged->Detach(ckp, MemoryLevel::kInMemory);
+    staged->Dump(ckp, meta, key, CheckpointWriteMode::kConsumeSource);
+    return;
+  }
   auto runtime_file = ckp.CreateRuntimeFile();
   const auto& ts_filename = runtime_file.path();
   // Before dump, reset the timestamp of modified vertices

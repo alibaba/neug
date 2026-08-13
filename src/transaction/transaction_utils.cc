@@ -24,19 +24,35 @@ namespace neug {
 
 InPlaceWriteScope::InPlaceWriteScope(IVersionManager& version_manager,
                                      GraphSnapshotStore& snapshot_store)
-    : timestamp_lease_(version_manager), snapshot_store_(snapshot_store) {
-  timestamp_lease_.MakeUpdateExclusive();
-  snapshot_guard_.emplace(snapshot_store_);
+    : InPlaceWriteScope(
+          CurrentGraphWriteGuard::Acquire(version_manager, snapshot_store),
+          snapshot_store) {}
+
+InPlaceWriteScope::InPlaceWriteScope(
+    CurrentGraphWriteGuard guard, GraphSnapshotStore& snapshot_store) noexcept
+    : guard_(std::move(guard)), snapshot_store_(&snapshot_store) {
+  CHECK(guard_.active());
 }
 
 InPlaceWriteScope::~InPlaceWriteScope() noexcept { publish(); }
 
 void InPlaceWriteScope::publish() noexcept {
-  CHECK(snapshot_guard_ && snapshot_guard_->valid())
-      << "In-place write scope requires a pinned mutable snapshot";
-  const uint32_t snapshot_generation = snapshot_store_.publishInPlaceMutation(
-      snapshot_guard_->get(), planning_changed_);
-  timestamp_lease_.Finish(snapshot_generation);
+  if (snapshot_store_ == nullptr) {
+    return;
+  }
+  const uint32_t snapshot_generation =
+      snapshot_store_->publishInPlaceMutation(Snapshot(), planning_changed_);
+  guard_.release(snapshot_generation);
+  snapshot_store_ = nullptr;
+}
+
+UpdateTimestampLease InPlaceWriteScope::ReleaseForCheckpoint() noexcept {
+  CHECK(snapshot_store_ != nullptr);
+  // Publish before releasing the pin because checkpoint preparation can fail
+  // while the partially mutated current graph remains live.
+  snapshot_store_->publishInPlaceMutation(Snapshot(), planning_changed_);
+  snapshot_store_ = nullptr;
+  return guard_.ReleaseForCheckpoint();
 }
 
 }  // namespace neug

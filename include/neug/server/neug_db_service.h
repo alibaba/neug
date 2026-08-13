@@ -257,6 +257,7 @@ class NeugDBService {
   void stopCompactThread();
   void installBthreadRuntimeWait();
   void restoreNativeRuntimeWait() noexcept;
+  void drainExecutionRuntime() noexcept;
 
   /**
    * @brief Initializes the service with configuration settings

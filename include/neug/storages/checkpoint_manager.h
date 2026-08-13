@@ -60,10 +60,12 @@ class CheckpointManager {
     std::shared_ptr<Checkpoint> checkpoint() const;
     /// Publish this staging checkpoint as the current checkpoint. If
     /// previous_checkpoint_path is non-null, it receives the retired checkpoint
-    /// directory path. The caller decides when that directory is safe to
-    /// delete.
+    /// directory path. If publication_committed is non-null, it is set after
+    /// the atomic rename commit point. The caller decides when that directory
+    /// is safe to delete.
     std::shared_ptr<Checkpoint> Commit(
-        std::string* previous_checkpoint_path = nullptr);
+        std::string* previous_checkpoint_path = nullptr,
+        bool* publication_committed = nullptr);
     void Discard() noexcept;
 
    private:
@@ -133,7 +135,8 @@ class CheckpointManager {
 
  private:
   std::shared_ptr<Checkpoint> CommitStagingCheckpoint(
-      StagingCheckpoint& staging, std::string* previous_checkpoint_path);
+      StagingCheckpoint& staging, std::string* previous_checkpoint_path,
+      bool* publication_committed);
   void DiscardStagingCheckpoint(StagingCheckpoint& staging) noexcept;
 
   std::string db_dir_;

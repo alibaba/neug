@@ -54,8 +54,8 @@ class ListPropertyColumn : public ColumnBase {
   // children or prefix/range dumping for fixed-width children; introduce a
   // common nested-column compaction interface only when concrete consumers
   // justify it.
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override;
 
   // Row count is derived from the items column: one list_meta_item per
   // row and ULongColumn sizes exactly (no spare capacity), so no separate
@@ -68,9 +68,9 @@ class ListPropertyColumn : public ColumnBase {
   DataTypeId type() const override { return DataTypeId::kList; }
   // When insert_safe is false (the insert-transaction path), setting a
   // non-empty list on a row whose current list length differs will throw a
-  // StorageException if the elements column has no spare capacity.  After
-  // loading from a checkpoint, elements_tail_ == elements_->size(), so there
-  // is zero spare space and any non-empty list insertion will fail.
+  // StorageException if the elements column has no spare capacity. Consuming
+  // checkpoints compact to that state; snapshot checkpoints preserve the
+  // current tail and capacity.
   // See storages/README.md §5.4 for details.
   void set_any(size_t index, const Value& value, bool insert_safe) override;
   Value get_any(size_t index) const override;

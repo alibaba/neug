@@ -17,7 +17,7 @@
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/transaction/cow_graph_update_storage.h"
 #include "neug/transaction/cow_graph_write_set.h"
-#include "neug/transaction/current_graph_operation_guard.h"
+#include "neug/transaction/current_graph_write_guard.h"
 
 namespace neug {
 

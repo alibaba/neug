@@ -76,14 +76,16 @@ void ImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                                 const std::string& key) {
+                                 const std::string& key,
+                                 CheckpointWriteMode mode) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
   desc.set("unsorted_since", std::to_string(unsorted_since_));
   desc.set("edge_num", std::to_string(edge_num_.load()));
   desc.set_path(ModuleDescriptor::kDegreeListPath,
-                ckp.Commit(*degree_list_buffer_));
-  desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
+                ckp.PersistContainer(*degree_list_buffer_, mode));
+  desc.set_path(ModuleDescriptor::kNbrListPath,
+                ckp.PersistContainer(*nbr_list_buffer_, mode));
   meta.set_module(key, desc);
 }
 
@@ -398,10 +400,12 @@ void SingleImmutableCsr<EDATA_T>::refresh_prefetch_policy() {
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
                                        CheckpointManifest& meta,
-                                       const std::string& key) {
+                                       const std::string& key,
+                                       CheckpointWriteMode mode) {
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
-  desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
+  desc.set_path(ModuleDescriptor::kNbrListPath,
+                ckp.PersistContainer(*nbr_list_buffer_, mode));
   desc.set("edge_num", std::to_string(edge_num_.load()));
   meta.set_module(key, desc);
 }

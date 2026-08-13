@@ -130,11 +130,13 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   elements_->Open(ckp, resolver,
                   ResolveChild(resolver, desc, kElementsRef, elements_desc),
                   level);
-  // After loading from a checkpoint, elements_tail_ equals elements_->size(),
-  // meaning there is zero spare capacity in the elements column.  Any
-  // non-empty list insertion via insert transaction (insert_safe=false)
-  // will throw a StorageException.  This is a known limitation.
-  elements_tail_ = elements_->size();
+  elements_tail_ = static_cast<size_t>(
+      std::stoull(desc.get("list_elements_tail")
+                      .value_or(std::to_string(elements_->size()))));
+  if (elements_tail_ > elements_->size()) {
+    THROW_RUNTIME_ERROR(
+        "ListPropertyColumn::Open: elements tail exceeds capacity");
+  }
 
   if (items_->size() != expected_rows) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::Open: row metadata size mismatch");
@@ -151,7 +153,8 @@ ModuleDescriptor ListPropertyColumn::dumpSelfDescriptor() const {
 }
 
 void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                              const std::string& key) {
+                              const std::string& key,
+                              CheckpointWriteMode mode) {
   if (key.empty()) {
     THROW_RUNTIME_ERROR(
         "ListPropertyColumn::Dump: module key must not be empty");
@@ -160,90 +163,90 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   auto items_key = ChildModuleKey(key, kItemsRef);
   auto elements_key = ChildModuleKey(key, kElementsRef);
 
-  // Compute live element and range counts in one pass.
-  size_t total_elements = 0;
-  size_t live_range_count = 0;
-  for (size_t row = 0; row < size(); ++row) {
-    const auto length = get_item(row).length;
-    total_elements += length;
-    if (length != 0) {
-      ++live_range_count;
-    }
-  }
-  auto* string_elements = child_type_.id() == DataTypeId::kVarchar
-                              ? static_cast<StringColumn*>(elements_.get())
-                              : nullptr;
-
-  if (total_elements != elements_tail_) {
-    struct LiveRange {
-      size_t row;
-      list_meta_item item;
-    };
-
-    std::vector<LiveRange> ranges;
-    ranges.reserve(live_range_count);
-    bool ranges_sorted = true;
+  if (mode == CheckpointWriteMode::kConsumeSource) {
+    // Compute live element and range counts in one pass.
+    size_t total_elements = 0;
+    size_t live_range_count = 0;
     for (size_t row = 0; row < size(); ++row) {
-      auto item = get_item(row);
-      if (item.length != 0) {
-        if (!ranges.empty() && ranges.back().item.offset > item.offset) {
-          ranges_sorted = false;
-        }
-        ranges.push_back({row, item});
+      const auto length = get_item(row).length;
+      total_elements += length;
+      if (length != 0) {
+        ++live_range_count;
       }
     }
-    if (!ranges_sorted) {
-      std::sort(ranges.begin(), ranges.end(),
-                [](const LiveRange& lhs, const LiveRange& rhs) {
-                  return lhs.item.offset < rhs.item.offset;
-                });
-    }
+    auto* string_elements = child_type_.id() == DataTypeId::kVarchar
+                                ? static_cast<StringColumn*>(elements_.get())
+                                : nullptr;
 
-    // Live ranges never overlap: length-changing updates append a new range,
-    // while same-length updates reuse the row's existing range.  Compacting in
-    // physical-offset order therefore keeps every destination at or before its
-    // source and makes forward, potentially overlapping moves safe.
-    size_t tail = 0;
-    for (const auto& range : ranges) {
-      if (tail != range.item.offset) {
-        if (string_elements) {
-          // StringColumn::set_any appends string bytes. Relocate only its row
-          // metadata here and let StringColumn::Dump compact the live bytes.
-          for (size_t i = 0; i < range.item.length; ++i) {
-            string_elements->copy_item(tail + i, range.item.offset + i);
+    if (total_elements != elements_tail_) {
+      struct LiveRange {
+        size_t row;
+        list_meta_item item;
+      };
+
+      std::vector<LiveRange> ranges;
+      ranges.reserve(live_range_count);
+      bool ranges_sorted = true;
+      for (size_t row = 0; row < size(); ++row) {
+        auto item = get_item(row);
+        if (item.length != 0) {
+          if (!ranges.empty() && ranges.back().item.offset > item.offset) {
+            ranges_sorted = false;
           }
-        } else {
-          for (size_t i = 0; i < range.item.length; ++i) {
-            auto value = elements_->get_any(range.item.offset + i);
-            elements_->set_any(tail + i, value, true);
-          }
+          ranges.push_back({row, item});
         }
       }
-      set_item(range.row, {tail, range.item.length});
-      tail += range.item.length;
-    }
-    for (size_t row = 0; row < size(); ++row) {
-      if (get_item(row).length == 0) {
-        set_item(row, {tail, 0});
+      if (!ranges_sorted) {
+        std::sort(ranges.begin(), ranges.end(),
+                  [](const LiveRange& lhs, const LiveRange& rhs) {
+                    return lhs.item.offset < rhs.item.offset;
+                  });
       }
+
+      // Live ranges never overlap: length-changing updates append a new range,
+      // while same-length updates reuse the row's existing range. Compacting in
+      // physical-offset order keeps every destination at or before its source.
+      size_t tail = 0;
+      for (const auto& range : ranges) {
+        if (tail != range.item.offset) {
+          if (string_elements) {
+            for (size_t i = 0; i < range.item.length; ++i) {
+              string_elements->copy_item(tail + i, range.item.offset + i);
+            }
+          } else {
+            for (size_t i = 0; i < range.item.length; ++i) {
+              auto value = elements_->get_any(range.item.offset + i);
+              elements_->set_any(tail + i, value, true);
+            }
+          }
+        }
+        set_item(range.row, {tail, range.item.length});
+        tail += range.item.length;
+      }
+      for (size_t row = 0; row < size(); ++row) {
+        if (get_item(row).length == 0) {
+          set_item(row, {tail, 0});
+        }
+      }
+      elements_tail_ = tail;
     }
-    elements_tail_ = tail;
-  }
-  if (elements_->size() != elements_tail_) {
-    if (string_elements) {
-      string_elements->shrink_items(elements_tail_);
-    } else {
-      elements_->resize(elements_tail_);
+    if (elements_->size() != elements_tail_) {
+      if (string_elements) {
+        string_elements->shrink_items(elements_tail_);
+      } else {
+        elements_->resize(elements_tail_);
+      }
     }
   }
 
-  items_->Dump(ckp, meta, items_key);
-  elements_->Dump(ckp, meta, elements_key);
+  items_->Dump(ckp, meta, items_key, mode);
+  elements_->Dump(ckp, meta, elements_key, mode);
 
   MarkReferenced(meta, items_key);
   MarkReferenced(meta, elements_key);
 
   auto desc = dumpSelfDescriptor();
+  desc.set("list_elements_tail", std::to_string(elements_tail_));
   desc.set_ref(kItemsRef, std::move(items_key));
   desc.set_ref(kElementsRef, std::move(elements_key));
   meta.set_module(key, std::move(desc));

@@ -124,6 +124,15 @@ void FileSharedMMap::Sync() {
   }
 }
 
+void FileSharedMMap::WriteSnapshot(const std::string& path) {
+  if (path_.empty()) {
+    MMapContainer::WriteSnapshot(path);
+    return;
+  }
+  Sync();
+  file_utils::copy_file(path_, path, /*overwrite=*/true);
+}
+
 void FileSharedMMap::Dump(const std::string& path) {
   // If there is no backing file, fall back to the fwrite-based base Dump().
   if (path_.empty()) {

@@ -160,6 +160,11 @@ void StorageIndexManager::Dump(ModuleBroker& store) {
   indexes_.clear();
 }
 
+void StorageIndexManager::StageSnapshotModules(ModuleBroker& store) const {
+  auto staged = Clone();
+  staged->Dump(store);
+}
+
 bool StorageIndexManager::IsIndexModule(const std::string& name) {
   return name.rfind(kIndexPrefix, 0) == 0;
 }

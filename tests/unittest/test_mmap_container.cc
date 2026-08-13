@@ -15,6 +15,8 @@
 
 #include <gtest/gtest.h>
 
+#include <sys/stat.h>
+
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -98,4 +100,34 @@ TEST_F(MMapContainerTest, IsDirty_SharedMMap) {
 
   static_cast<char*>(container.GetData())[0] ^= 0xFF;
   EXPECT_TRUE(container.IsDirty());
+}
+
+TEST_F(MMapContainerTest, SharedSnapshotPreservesLiveContainerAndRenameDump) {
+  const char payload[] = "shared mmap snapshot";
+  auto source_path = CreateTestFile("source.bin", payload, sizeof(payload));
+  auto snapshot_path = (test_dir_ / "snapshot.bin").string();
+  auto dump_path = (test_dir_ / "dump.bin").string();
+
+  neug::FileSharedMMap container;
+  container.Open(source_path);
+  static_cast<char*>(container.GetData())[0] = 'S';
+  container.WriteSnapshot(snapshot_path);
+  ASSERT_NE(container.GetData(), nullptr);
+  EXPECT_EQ(container.GetPath(), source_path);
+
+  static_cast<char*>(container.GetData())[0] = 'T';
+  container.Sync();
+  neug::FilePrivateMMap snapshot;
+  snapshot.Open(snapshot_path);
+  EXPECT_EQ(static_cast<const char*>(snapshot.GetData())[0], 'S');
+
+  struct stat source_stat;
+  ASSERT_EQ(::stat(source_path.c_str(), &source_stat), 0);
+  container.Dump(dump_path);
+  EXPECT_EQ(container.GetData(), nullptr);
+  EXPECT_FALSE(std::filesystem::exists(source_path));
+  EXPECT_TRUE(std::filesystem::exists(dump_path));
+  struct stat dump_stat;
+  ASSERT_EQ(::stat(dump_path.c_str(), &dump_stat), 0);
+  EXPECT_EQ(dump_stat.st_ino, source_stat.st_ino);
 }

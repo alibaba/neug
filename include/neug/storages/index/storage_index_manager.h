@@ -85,6 +85,9 @@ class StorageIndexManager {
    */
   void Dump(ModuleBroker& store);
 
+  /// Stage shallow index clones for non-consuming snapshot persistence.
+  void StageSnapshotModules(ModuleBroker& store) const;
+
   void Clear();
 
   /**

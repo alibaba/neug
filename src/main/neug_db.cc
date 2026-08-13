@@ -45,6 +45,7 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/cow_graph_wal_replayer.h"
+#include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -153,10 +154,9 @@ bool NeugDB::Open(const NeugDBConfig& config) {
         checkpoint_mgr_, *snapshot_store_, config_.memory_level,
         [this](const std::string& allocator_dir) {
           reopenAllocators(allocator_dir);
+        },
+        [this](const std::string& wal_dir) {
           if (wal_writers_) {
-            const auto wal_dir =
-                (std::filesystem::path(allocator_dir).parent_path() / "wal")
-                    .string();
             wal_writers_->RotateActive(wal_dir);
           }
         });
@@ -251,6 +251,9 @@ void NeugDB::Close() {
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
+  if (config_.mode == DBMode::READ_WRITE) {
+    checkpoint_mgr_.CleanupRetiredCheckpoints();
+  }
   checkpoint_mgr_.Close();
   cleanupTemporaryWorkspace();
 
@@ -354,22 +357,9 @@ void NeugDB::PrepareForServing() {
 
 void NeugDB::prepareQueryRuntimeForServing() {
   clearQueryRuntime();
-  const bool checkpoint_required =
-      checkpoint_coordinator_->UnloggedMutationPending();
-  bool checkpoint_created = false;
-  if (checkpoint_required && config_.mode == DBMode::READ_WRITE) {
-    checkpoint_created = createCheckpointAfterRecovery();
-  }
-  if (checkpoint_created) {
-    // Replacing the VM is safe only after publishing a new checkpoint whose
-    // WAL directory starts a fresh transaction timeline. A clean graph may
-    // still have WAL records (for example an in-place TP checkpoint), so keep
-    // the current VM in that case.
-    initVersionManager(0);
-  } else if (checkpoint_required) {
-    // Bulk admission marks the barrier conservatively before knowing whether
-    // any in-place data changed. A no-op bulk needs no checkpoint.
-    checkpoint_coordinator_->ClearUnloggedMutationIfNoChanges();
+  if (checkpoint_coordinator_->UnloggedMutationPending() &&
+      config_.mode == DBMode::READ_WRITE) {
+    publishPendingBulkCheckpoint();
   }
   initQueryRuntime();
 }
@@ -640,6 +630,28 @@ bool NeugDB::createCheckpointAfterRecovery() {
   return true;
 }
 
+void NeugDB::publishPendingBulkCheckpoint() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  {
+    SnapshotGuard guard(*snapshot_store_);
+    if (!guard.get().graph().IsModified()) {
+      checkpoint_coordinator_->ClearUnloggedMutationIfNoChanges();
+      return;
+    }
+  }
+
+  UpdateTimestampLease timestamp_lease(*version_manager_);
+  timestamp_lease.MakeUpdateExclusive();
+  auto outcome = checkpoint_coordinator_->PublishIncrementalCheckpoint(
+      std::move(timestamp_lease));
+  if (!outcome.ok()) {
+    if (outcome.error_code() == StatusCode::ERR_IO_ERROR) {
+      THROW_IO_EXCEPTION(outcome.error_message());
+    }
+    THROW_INTERNAL_EXCEPTION(outcome.error_message());
+  }
+}
+
 void NeugDB::createCheckpointOnClose() {
   std::lock_guard<std::mutex> lock(mutex_);
   {
@@ -656,13 +668,6 @@ void NeugDB::createCheckpointOnClose() {
     }
     THROW_INTERNAL_EXCEPTION(outcome.error_message());
   }
-
-  // Close-path checkpointing does not reopen a live graph. Release all
-  // snapshot/container/mmap resources before deleting the retired checkpoint.
-  checkpoint_coordinator_.reset();
-  snapshot_store_.reset();
-  allocators_.clear();
-  checkpoint_mgr_.CleanupRetiredCheckpoints();
 }
 
 }  // namespace neug

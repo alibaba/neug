@@ -23,48 +23,6 @@
 namespace neug {
 
 /**
- * @brief Shared operation admission paired with a pinned current snapshot.
- *
- * The shared admission is acquired before the snapshot pin. Current-graph
- * writers use the same gate exclusively, so no mutation can publish or modify
- * the current snapshot while this guard is active. It does not own a coherent
- * read view or a visibility timestamp.
- */
-class CurrentGraphReadGuard {
- public:
-  static CurrentGraphReadGuard Acquire(IVersionManager& version_manager,
-                                       GraphSnapshotStore& snapshot_store);
-  static CurrentGraphReadGuard Acquire(
-      IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
-      std::chrono::steady_clock::time_point deadline);
-
-  CurrentGraphReadGuard(CurrentGraphReadGuard&& other) noexcept;
-  CurrentGraphReadGuard& operator=(CurrentGraphReadGuard&& other) noexcept;
-
-  CurrentGraphReadGuard(const CurrentGraphReadGuard&) = delete;
-  CurrentGraphReadGuard& operator=(const CurrentGraphReadGuard&) = delete;
-
-  ~CurrentGraphReadGuard() noexcept;
-
-  void release() noexcept;
-  bool active() const noexcept { return admission_.active(); }
-
-  const GraphView& view() const { return snapshot_.get().view(); }
-  uint64_t planning_generation() const {
-    return snapshot_.get().planning_generation();
-  }
-
- private:
-  CurrentGraphReadGuard(SharedOperationLease admission,
-                        SnapshotGuard snapshot) noexcept;
-
-  SharedOperationLease admission_;
-  // Declared last so fallback destruction unpins before reader admission
-  // releases.
-  SnapshotGuard snapshot_;
-};
-
-/**
  * @brief Exclusive operation admission paired with a pinned current snapshot.
  *
  * The guard reserves one database write timestamp, immediately upgrades the
@@ -89,11 +47,13 @@ class CurrentGraphWriteGuard {
 
   ~CurrentGraphWriteGuard() noexcept;
 
-  timestamp_t Timestamp() const noexcept { return timestamp_lease_.Timestamp(); }
+  timestamp_t Timestamp() const noexcept {
+    return timestamp_lease_.Timestamp();
+  }
 
-  void release(
-      std::optional<uint32_t> installed_snapshot_generation = std::nullopt)
-      noexcept;
+  void release(std::optional<uint32_t> installed_snapshot_generation =
+                   std::nullopt) noexcept;
+  UpdateTimestampLease ReleaseForCheckpoint() noexcept;
   bool active() const noexcept { return timestamp_lease_.active(); }
 
   GraphSnapshotStore::SnapshotSlot& Snapshot() { return snapshot_.get(); }

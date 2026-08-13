@@ -129,7 +129,7 @@ void MMapContainer::Resize(size_t size) {
   size_ = size;
 }
 
-void MMapContainer::Dump(const std::string& path) {
+void MMapContainer::WriteSnapshot(const std::string& path) {
   FileHeader header;
   MD5((unsigned char*) data_, size_, header.data_md5);
   std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(path.c_str(), "wb"),
@@ -147,6 +147,10 @@ void MMapContainer::Dump(const std::string& path) {
       THROW_IO_EXCEPTION("Failed to write data to file: " + path);
     }
   }
+}
+
+void MMapContainer::Dump(const std::string& path) {
+  WriteSnapshot(path);
   Close();
 }
 

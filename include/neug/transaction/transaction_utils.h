@@ -19,6 +19,7 @@
 #include "glog/logging.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/current_graph_write_guard.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
@@ -32,32 +33,33 @@ namespace neug {
  *
  * Construction acquires an update timestamp, blocks and drains readers, then
  * pins the current snapshot for mutation. Destruction publishes its planning
- * generation first, publishes the matching timestamp/snapshot read view,
- * reopens admission, and finally releases the snapshot pin. Publication also
- * happens during stack unwinding because in-place mutations cannot be rolled
- * back.
+ * generation, releases the snapshot pin, then publishes the matching
+ * timestamp/snapshot read view and reopens admission. Publication also happens
+ * during stack unwinding because in-place mutations cannot be rolled back.
  */
 class InPlaceWriteScope {
  public:
   InPlaceWriteScope(IVersionManager& version_manager,
                     GraphSnapshotStore& snapshot_store);
+  InPlaceWriteScope(CurrentGraphWriteGuard guard,
+                    GraphSnapshotStore& snapshot_store) noexcept;
   ~InPlaceWriteScope() noexcept;
 
   InPlaceWriteScope(const InPlaceWriteScope&) = delete;
   InPlaceWriteScope& operator=(const InPlaceWriteScope&) = delete;
 
-  uint32_t Timestamp() const noexcept { return timestamp_lease_.Timestamp(); }
+  uint32_t Timestamp() const noexcept { return guard_.Timestamp(); }
   GraphSnapshotStore::SnapshotSlot& Snapshot() noexcept {
-    return snapshot_guard_->get();
+    return guard_.Snapshot();
   }
   void MarkPlanningChanged() noexcept { planning_changed_ = true; }
+  UpdateTimestampLease ReleaseForCheckpoint() noexcept;
 
  private:
   void publish() noexcept;
 
-  UpdateTimestampLease timestamp_lease_;
-  GraphSnapshotStore& snapshot_store_;
-  std::optional<SnapshotGuard> snapshot_guard_;
+  CurrentGraphWriteGuard guard_;
+  GraphSnapshotStore* snapshot_store_;
   bool planning_changed_{false};
 };
 

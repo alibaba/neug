@@ -351,6 +351,7 @@ class NeugDB {
   void initVersionManager(timestamp_t initial_visibility_ts);
   void cleanupTemporaryWorkspace() noexcept;
   bool createCheckpointAfterRecovery();
+  void publishPendingBulkCheckpoint();
 
   /**
    * @brief Create a checkpoint while closing the DB.

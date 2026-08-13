@@ -38,14 +38,15 @@ void DefaultIndexIDAccessor::Open(Checkpoint& ckp,
 }
 
 void DefaultIndexIDAccessor::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                                  const std::string& key) {
+                                  const std::string& key,
+                                  CheckpointWriteMode mode) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
   descriptor.set(
       ModuleDescriptor::kNextIndexId,
       std::to_string(next_index_id_->load(std::memory_order_relaxed)));
   descriptor.set_path(ModuleDescriptor::kVidToIndexIdPath,
-                      ckp.Commit(*vid_to_index_id_));
+                      ckp.PersistContainer(*vid_to_index_id_, mode));
   meta.set_module(key, std::move(descriptor));
 }
 

@@ -90,6 +90,12 @@ class IDataContainer {
   virtual void Dump(const std::string& path) = 0;
 
   /**
+   * @brief Write the current contents to an independent file without closing
+   * this container.
+   */
+  virtual void WriteSnapshot(const std::string& path) = 0;
+
+  /**
    * @brief Check if the data has been modified.
    */
   virtual bool IsDirty() = 0;

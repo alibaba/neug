@@ -863,11 +863,31 @@ TEST(CheckpointGCTest, commit_open_failure_preserves_published_generation) {
   std::ofstream(staging_path / "meta", std::ios::trunc)
       << "invalid checkpoint manifest";
 
-  EXPECT_THROW(staging.Commit(), std::exception);
+  bool publication_committed = false;
+  EXPECT_THROW(staging.Commit(nullptr, &publication_committed), std::exception);
+  EXPECT_TRUE(publication_committed);
   EXPECT_FALSE(std::filesystem::exists(staging_path));
   EXPECT_TRUE(std::filesystem::exists(published_path));
   EXPECT_EQ(mgr.CurrentCheckpoint(), nullptr);
 
+  staging.Discard();
+}
+
+TEST(CheckpointGCTest, commit_rejects_changed_base_generation) {
+  auto db_path = make_checkpoint_gc_test_dir("checkpoint_gc");
+  neug::CheckpointManager mgr;
+  mgr.Open(db_path);
+  create_valid_checkpoint(mgr);
+
+  auto staging = mgr.CreateStagingCheckpoint();
+  write_valid_empty_manifest(staging.checkpoint());
+  const auto replacement_path = std::filesystem::path(db_path) / "checkpoint-2";
+  auto replacement = neug::Checkpoint::Open(replacement_path.string(), 2);
+  write_valid_empty_manifest(replacement);
+  mgr.RestoreCurrentCheckpoint(replacement);
+
+  EXPECT_THROW(staging.Commit(), std::exception);
+  EXPECT_EQ(mgr.CurrentCheckpoint(), replacement);
   staging.Discard();
 }
 
@@ -1515,7 +1535,8 @@ TEST(CheckpointFileManagerTest,
   original.set_value(1, "bravo");
   original.set_value(2, "charlie");
   neug::CheckpointManifest manifest;
-  original.Dump(*old_ckp, manifest, "test");
+  original.Dump(*old_ckp, manifest, "test",
+                neug::CheckpointWriteMode::kConsumeSource);
   auto old_desc = *manifest.module("test");
   original.Close();
 
@@ -1527,7 +1548,8 @@ TEST(CheckpointFileManagerTest,
   ASSERT_GE(retired_runtime_files.size(), 2u);
 
   neug::CheckpointManifest new_manifest;
-  clean.Dump(*new_ckp, new_manifest, "test");
+  clean.Dump(*new_ckp, new_manifest, "test",
+             neug::CheckpointWriteMode::kConsumeSource);
   auto new_desc = *new_manifest.module("test");
   auto new_items = new_desc.get_path(neug::ModuleDescriptor::kItemsPath);
   auto new_data = new_desc.get_path(neug::ModuleDescriptor::kDataPath);
@@ -1562,7 +1584,8 @@ TEST(CheckpointFileManagerTest,
   original.resize(4);
   original.batch_put_edges({0, 1, 1}, {1, 2, 3}, {10, 20, 30}, 0);
   neug::CheckpointManifest manifest;
-  original.Dump(*old_ckp, manifest, "test");
+  original.Dump(*old_ckp, manifest, "test",
+                neug::CheckpointWriteMode::kConsumeSource);
   auto old_desc = *manifest.module("test");
   original.Close();
 
@@ -1573,7 +1596,8 @@ TEST(CheckpointFileManagerTest,
   ASSERT_GE(retired_runtime_files.size(), 3u);
 
   neug::CheckpointManifest new_manifest;
-  clean.Dump(*new_ckp, new_manifest, "test");
+  clean.Dump(*new_ckp, new_manifest, "test",
+             neug::CheckpointWriteMode::kConsumeSource);
   auto new_desc = *new_manifest.module("test");
   auto new_nbr_list = new_desc.get_path(neug::ModuleDescriptor::kNbrListPath);
   ASSERT_TRUE(new_nbr_list.has_value());

@@ -64,8 +64,8 @@ class VecColumn : public ColumnBase {
             MemoryLevel level) override;
   void Open(Checkpoint& ckp, const CheckpointManifest& manifest,
             const ModuleDescriptor& desc, MemoryLevel level) override;
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override;
 
   size_t size() const override;
   void resize(size_t size) override;

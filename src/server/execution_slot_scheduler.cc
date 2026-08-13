@@ -34,6 +34,7 @@ ExecutionSlotScheduler::ExecutionSlotScheduler(ExecutionSlotSet& slots)
 }
 
 ExecutionSlotScheduler::~ExecutionSlotScheduler() noexcept {
+  CloseAndDrain();
   CHECK_EQ(available_slot_ids_.size(), slots_.Size())
       << "All ExecutionSlotLease objects must be released before scheduler "
          "destruction";
@@ -43,15 +44,35 @@ ExecutionSlotScheduler::~ExecutionSlotScheduler() noexcept {
 
 ExecutionSlotLease ExecutionSlotScheduler::AcquireExecutionSlot() {
   bthread_mutex_lock(&mutex_);
-  while (available_slot_ids_.empty()) {
+  ++active_acquirers_;
+  while (available_slot_ids_.empty() && !closing_) {
     bthread_cond_wait(&cond_, &mutex_);
+  }
+
+  if (closing_) {
+    --active_acquirers_;
+    bthread_cond_broadcast(&cond_);
+    bthread_mutex_unlock(&mutex_);
+    THROW_RUNTIME_ERROR("Execution slot scheduler is closing");
   }
 
   const auto slot_id = available_slot_ids_.back();
   available_slot_ids_.pop_back();
+  --active_acquirers_;
   bthread_mutex_unlock(&mutex_);
   return ExecutionSlotLease(&slots_.At(slot_id), this, slot_id,
                             &ExecutionSlotScheduler::ReleaseExecutionSlot);
+}
+
+void ExecutionSlotScheduler::CloseAndDrain() noexcept {
+  bthread_mutex_lock(&mutex_);
+  closing_ = true;
+  bthread_cond_broadcast(&cond_);
+  while (available_slot_ids_.size() != slots_.Size() ||
+         active_acquirers_ != 0) {
+    bthread_cond_wait(&cond_, &mutex_);
+  }
+  bthread_mutex_unlock(&mutex_);
 }
 
 size_t ExecutionSlotScheduler::ExecutionSlotNum() const noexcept {
@@ -71,7 +92,11 @@ void ExecutionSlotScheduler::ReleaseExecutionSlot(void* owner,
   CHECK_GE(scheduler->available_slot_ids_.capacity(), scheduler->slots_.Size());
   scheduler->available_slot_ids_.push_back(slot_id);
   VLOG(10) << "Released slot_id=" << slot_id;
-  bthread_cond_signal(&scheduler->cond_);
+  if (scheduler->closing_) {
+    bthread_cond_broadcast(&scheduler->cond_);
+  } else {
+    bthread_cond_signal(&scheduler->cond_);
+  }
   bthread_mutex_unlock(&scheduler->mutex_);
 }
 

@@ -1189,6 +1189,17 @@ EdgeTable EdgeTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
 
 void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                               Checkpoint& ckp) {
+  disassembleTo(store, meta, ckp, CheckpointWriteMode::kConsumeSource);
+}
+
+void EdgeTable::WriteSnapshotTo(ModuleBroker& store, CheckpointManifest& meta,
+                                Checkpoint& ckp) const {
+  auto staged = Clone();
+  staged.disassembleTo(store, meta, ckp, CheckpointWriteMode::kPreserveSource);
+}
+
+void EdgeTable::disassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                              Checkpoint& ckp, CheckpointWriteMode mode) {
   if (!meta_) {
     return;
   }
@@ -1202,7 +1213,7 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
     auto table = TakeTable();
     for (size_t i = 0; i < table->col_num(); ++i) {
       table->get_column_by_id(i)->Dump(ckp, meta,
-                                       KeyProperty(src, edge, dst, i));
+                                       KeyProperty(src, edge, dst, i), mode);
     }
     meta.SetScalar(ScalarKey(src, edge, dst, "table_idx"),
                    std::to_string(GetTableIdx()));

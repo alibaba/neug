@@ -155,6 +155,10 @@ class VertexTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
+  /// Persist this table through non-consuming module snapshots.
+  void WriteSnapshotTo(ModuleBroker& store, CheckpointManifest& meta,
+                       Checkpoint& ckp) const;
+
   /// When this table is clean, re-link prior-snapshot modules into @p meta
   /// instead of dumping. Links exact keys for this label only.
   void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
@@ -281,6 +285,9 @@ class VertexTable {
   void SetColumn(size_t col, std::unique_ptr<ColumnBase> column);
 
  private:
+  void disassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                     Checkpoint& ckp, CheckpointWriteMode mode);
+
   vid_t insert_vertex_pk(const Value& id, timestamp_t ts, bool insert_safe);
 
   std::vector<vid_t> insert_primary_keys(

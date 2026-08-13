@@ -133,6 +133,14 @@ class PropertyGraph {
   /// checkpoint and rebuild any GraphView that pointed into this graph.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
+  /// Persist dirty modules through non-consuming snapshots. The live graph,
+  /// its view, allocator, and visibility timeline remain unchanged.
+  void DumpIncremental(std::shared_ptr<Checkpoint> ckp);
+
+  /// Install the durable root after DumpIncremental() is atomically published.
+  void AcceptIncrementalCheckpoint(
+      std::shared_ptr<Checkpoint> published_checkpoint) noexcept;
+
   DirtyTracker& dirty_tracker() { return dirty_; }
   const DirtyTracker& dirty_tracker() const { return dirty_; }
 
@@ -642,6 +650,9 @@ class PropertyGraph {
                             label_t edge_label) const;
 
   void compact_schema();
+  void dumpToCheckpoint(std::shared_ptr<Checkpoint> ckp,
+                        bool reserve_reopen_capacity,
+                        CheckpointWriteMode write_mode);
 
   /// Insert / erase an edge table and keep the dirty tracker's edge slots
   /// in sync.

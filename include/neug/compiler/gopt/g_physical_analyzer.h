@@ -49,6 +49,7 @@ struct ExecutionFlag {
   bool create_temp_table = false;
   bool checkpoint = false;
   bool procedure_call = false;
+  bool copy_from = false;
 };
 
 class GPhysicalAnalyzer {
@@ -215,7 +216,11 @@ class GPhysicalAnalyzer {
       flag.update = true;
       break;
     }
-    case planner::LogicalOperatorType::COPY_FROM:
+    case planner::LogicalOperatorType::COPY_FROM: {
+      flag.copy_from = true;
+      flag.batch = true;
+      break;
+    }
     case planner::LogicalOperatorType::COPY_TO: {
       flag.batch = true;
       break;

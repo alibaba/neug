@@ -347,6 +347,7 @@ void BrpcServiceManager::RunAndWaitForExit() {
 void BrpcServiceManager::Stop() {
   LOG(INFO) << "Stopping brpc server";
   brpc_server_->Stop(0);
+  brpc_server_->Join();
   LOG(INFO) << "Brpc server stopped";
 }
 

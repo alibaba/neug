@@ -939,7 +939,9 @@ void PropertyGraph::Compact() {
   LOG(INFO) << "Compaction completed.";
 }
 
-void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
+void PropertyGraph::dumpToCheckpoint(std::shared_ptr<Checkpoint> ckp,
+                                     bool reserve_reopen_capacity,
+                                     CheckpointWriteMode write_mode) {
   LOG(INFO) << "Creating checkpoint at " << ckp->path();
 
   CheckpointManifest meta;
@@ -960,7 +962,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
         schema_.is_vertex_label_temporary(i)) {
       continue;
     }
-    if (IsVertexTableDirty(i)) {
+    if (reserve_reopen_capacity && IsVertexTableDirty(i)) {
       auto v_size = vertex_tables_[i].LidNum();
       EnsureCapacity(i, v_size < 4096 ? 4096 : v_size + v_size / 4);
     }
@@ -972,7 +974,11 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
       continue;
     }
     if (IsVertexTableDirty(i)) {
-      vertex_tables_[i].DisassembleTo(store, meta, *ckp);
+      if (write_mode == CheckpointWriteMode::kConsumeSource) {
+        vertex_tables_[i].DisassembleTo(store, meta, *ckp);
+      } else {
+        vertex_tables_[i].WriteSnapshotTo(store, meta, *ckp);
+      }
     } else if (prev != nullptr) {
       vertex_tables_[i].LinkToSnapshot(*ckp, meta, *prev);
     }
@@ -1007,12 +1013,18 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
         }
         auto& edge_table = edge_tables_.at(index);
         if (IsEdgeTableDirty(src_label_i, dst_label_i, e_label_i)) {
-          auto e_size = edge_table.PropTableSize();
-          auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
-          EnsureCapacity(src_label_i, dst_label_i, e_label_i,
-                         vertex_capacity[src_label_i],
-                         vertex_capacity[dst_label_i], new_cap);
-          edge_table.DisassembleTo(store, meta, *ckp);
+          if (reserve_reopen_capacity) {
+            auto e_size = edge_table.PropTableSize();
+            auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
+            EnsureCapacity(src_label_i, dst_label_i, e_label_i,
+                           vertex_capacity[src_label_i],
+                           vertex_capacity[dst_label_i], new_cap);
+          }
+          if (write_mode == CheckpointWriteMode::kConsumeSource) {
+            edge_table.DisassembleTo(store, meta, *ckp);
+          } else {
+            edge_table.WriteSnapshotTo(store, meta, *ckp);
+          }
         } else if (prev != nullptr) {
           edge_table.LinkToSnapshot(*ckp, meta, *prev);
         }
@@ -1020,9 +1032,13 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     }
   }
 
-  index_manager_->Dump(store);
+  if (write_mode == CheckpointWriteMode::kConsumeSource) {
+    index_manager_->Dump(store);
+  } else {
+    index_manager_->StageSnapshotModules(store);
+  }
 
-  store.Dump(*ckp, meta);
+  store.Dump(*ckp, meta, write_mode);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
   // and must not appear in the checkpoint. StripTemporary() creates a clean
   // copy without any temporary vertex/edge labels.
@@ -1030,8 +1046,22 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   ckp->UpdateMeta(
       std::move(meta));  // Persist meta and set checkpoint to use this meta.
   LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
+}
 
+void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
+  dumpToCheckpoint(std::move(ckp), true, CheckpointWriteMode::kConsumeSource);
   Clear();
+}
+
+void PropertyGraph::DumpIncremental(std::shared_ptr<Checkpoint> ckp) {
+  dumpToCheckpoint(std::move(ckp), false, CheckpointWriteMode::kPreserveSource);
+}
+
+void PropertyGraph::AcceptIncrementalCheckpoint(
+    std::shared_ptr<Checkpoint> published_checkpoint) noexcept {
+  CHECK(published_checkpoint != nullptr);
+  ckp_ = std::move(published_checkpoint);
+  dirty_.ClearAll();
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }

@@ -430,6 +430,7 @@ message ExecutionFlag {
   // the index data must be updated accordingly whenever the vertex data is modified (via create, delete, or update operations).
   // This boolean value indicates whether the index needs to be updated.
   bool index = 9;
+  bool copy_from = 10;
 }
 
 // A single Cypher query ending with a semicolon (;)

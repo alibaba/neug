@@ -34,6 +34,7 @@ class ExecutionSlotScheduler {
   ExecutionSlotScheduler& operator=(const ExecutionSlotScheduler&) = delete;
 
   ExecutionSlotLease AcquireExecutionSlot();
+  void CloseAndDrain() noexcept;
   size_t ExecutionSlotNum() const noexcept;
   size_t ExecutedQueryNum() const noexcept;
 
@@ -44,6 +45,8 @@ class ExecutionSlotScheduler {
   std::vector<size_t> available_slot_ids_;
   bthread_mutex_t mutex_;
   bthread_cond_t cond_;
+  size_t active_acquirers_{0};
+  bool closing_{false};
 };
 
 }  // namespace neug

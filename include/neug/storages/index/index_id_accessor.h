@@ -40,8 +40,8 @@ class IndexIDAccessor : public Module {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override = 0;
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override = 0;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override = 0;
   std::unique_ptr<Module> Clone() const override = 0;
   void Detach(Checkpoint& ckp, MemoryLevel level) override = 0;
 };
@@ -71,8 +71,8 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override;
   std::unique_ptr<Module> Clone() const override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::string ModuleTypeName() const override { return type_name(); }
@@ -113,7 +113,8 @@ class VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
   Status DeleteVID(vid_t vid) override;
 
   void Open(Checkpoint&, const ModuleDescriptor&, MemoryLevel) override {}
-  void Dump(Checkpoint&, CheckpointManifest&, const std::string&) override {}
+  void Dump(Checkpoint&, CheckpointManifest&, const std::string&,
+            CheckpointWriteMode) override {}
   std::unique_ptr<Module> Clone() const override;
   void Detach(Checkpoint&, MemoryLevel) override {}
   std::string ModuleTypeName() const override {

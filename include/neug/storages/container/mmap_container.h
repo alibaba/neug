@@ -50,6 +50,7 @@ class MMapContainer : public IDataContainer {
   void Open(const std::string& path) override;
   void Close() override;
   void Dump(const std::string& path) override;
+  void WriteSnapshot(const std::string& path) override;
   virtual void Sync() override;
   bool IsDirty() override;
   std::shared_ptr<IDataContainer> Fork(Checkpoint& checkpoint,

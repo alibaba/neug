@@ -83,6 +83,8 @@ class ModuleBroker {
    * scalars — callers manage those directly on @p meta.
    */
   void Dump(Checkpoint& checkpoint, CheckpointManifest& meta);
+  void Dump(Checkpoint& checkpoint, CheckpointManifest& meta,
+            CheckpointWriteMode mode);
 
   /**
    * @brief True if a module is registered under @p name.

@@ -57,6 +57,16 @@ void NeugDBService::restoreNativeRuntimeWait() noexcept {
   bthread_runtime_wait_installed_ = false;
 }
 
+void NeugDBService::drainExecutionRuntime() noexcept {
+  if (!execution_slot_scheduler_) {
+    return;
+  }
+  execution_slot_scheduler_->CloseAndDrain();
+  auto lifecycle_lease = db_.version_manager_->acquire_exclusive_operation();
+  lifecycle_lease.release();
+  execution_slot_scheduler_.reset();
+}
+
 void NeugDBService::init(const ServiceConfig& config,
                          ExecutionSlotSet& execution_slots) {
   if (db_.IsClosed()) {
@@ -100,7 +110,7 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
-  execution_slot_scheduler_.reset();
+  drainExecutionRuntime();
   restoreNativeRuntimeWait();
   db_.unregisterService(this);
 }

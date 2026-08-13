@@ -242,7 +242,11 @@ std::shared_ptr<Checkpoint> publish_staging_checkpoint(
     const std::string& db_dir,
     const std::shared_ptr<Checkpoint>& staging_checkpoint,
     const std::shared_ptr<Checkpoint>& current_checkpoint,
-    int32_t current_generation, std::string* previous_checkpoint_path) {
+    int32_t current_generation, std::string* previous_checkpoint_path,
+    bool* publication_committed) {
+  if (publication_committed != nullptr) {
+    *publication_committed = false;
+  }
   const int32_t generation = static_cast<int32_t>(staging_checkpoint->id());
   if (current_generation != kInvalidCheckpointGeneration &&
       generation <= current_generation) {
@@ -286,6 +290,9 @@ std::shared_ptr<Checkpoint> publish_staging_checkpoint(
     THROW_IO_EXCEPTION("CheckpointManager::CommitStagingCheckpoint: rename " +
                        staging_path.string() + " -> " + final_path.string() +
                        " failed: " + ec.message());
+  }
+  if (publication_committed != nullptr) {
+    *publication_committed = true;
   }
   if (!file_utils::fsync_directory(db_dir)) {
     LOG(WARNING)
@@ -369,11 +376,12 @@ std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::checkpoint()
 }
 
 std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::Commit(
-    std::string* previous_checkpoint_path) {
+    std::string* previous_checkpoint_path, bool* publication_committed) {
   if (checkpoint_ == nullptr) {
     THROW_CHECKPOINT_EXCEPTION("Staging checkpoint handle is inactive.");
   }
-  return manager_.CommitStagingCheckpoint(*this, previous_checkpoint_path);
+  return manager_.CommitStagingCheckpoint(*this, previous_checkpoint_path,
+                                          publication_committed);
 }
 
 void CheckpointManager::StagingCheckpoint::Discard() noexcept {
@@ -479,7 +487,11 @@ CheckpointManager::CreateStagingCheckpoint() {
 }
 
 std::shared_ptr<Checkpoint> CheckpointManager::CommitStagingCheckpoint(
-    StagingCheckpoint& staging, std::string* previous_checkpoint_path) {
+    StagingCheckpoint& staging, std::string* previous_checkpoint_path,
+    bool* publication_committed) {
+  if (publication_committed != nullptr) {
+    *publication_committed = false;
+  }
   if (previous_checkpoint_path != nullptr) {
     previous_checkpoint_path->clear();
   }
@@ -498,10 +510,21 @@ std::shared_ptr<Checkpoint> CheckpointManager::CommitStagingCheckpoint(
           "CheckpointManager::CommitStagingCheckpoint: staging checkpoint is "
           "not active");
     }
+    const int32_t expected_generation =
+        current_generation_ == kInvalidCheckpointGeneration
+            ? 0
+            : current_generation_ + 1;
+    if (static_cast<int32_t>(staging.checkpoint_->id()) !=
+        expected_generation) {
+      THROW_CHECKPOINT_EXCEPTION(
+          "CheckpointManager::CommitStagingCheckpoint: expected generation " +
+          std::to_string(expected_generation) + ", got " +
+          std::to_string(staging.checkpoint_->id()));
+    }
 
     current_checkpoint_ = publish_staging_checkpoint(
         db_dir_, staging_checkpoint_, current_checkpoint_, current_generation_,
-        previous_checkpoint_path);
+        previous_checkpoint_path, publication_committed);
     current_generation_ = static_cast<int32_t>(current_checkpoint_->id());
     staging_checkpoint_.reset();
     staging.release();

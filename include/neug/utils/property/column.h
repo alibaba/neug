@@ -89,10 +89,11 @@ class TypedColumn : public ColumnBase {
 
   void Close() { buffer_.reset(); }
 
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override {
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override {
     ModuleDescriptor desc;
-    desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
+    desc.set_path(ModuleDescriptor::kDataPath,
+                  ckp.PersistContainer(*buffer_, mode));
     desc.module_type = ModuleTypeName();
     meta.set_module(key, std::move(desc));
   }
@@ -202,8 +203,8 @@ class TypedColumn<EmptyType> : public ColumnBase {
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {}
 
-  void Dump(Checkpoint&, CheckpointManifest& meta,
-            const std::string& key) override {
+  void Dump(Checkpoint&, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
     meta.set_module(key, std::move(desc));
@@ -288,8 +289,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override {
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
     if (!items_buffer_ || !data_buffer_) {

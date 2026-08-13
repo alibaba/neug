@@ -123,8 +123,8 @@ class StorageIndex : public Module {
    */
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override;
   std::string ModuleTypeName() const override;
 
   /**

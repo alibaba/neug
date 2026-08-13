@@ -125,7 +125,7 @@ ModuleDescriptor ArrayColumn::dumpSelfDescriptor() const {
 }
 
 void ArrayColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                       const std::string& key) {
+                       const std::string& key, CheckpointWriteMode mode) {
   if (key.empty()) {
     THROW_RUNTIME_ERROR("ArrayColumn::Dump: module key must not be empty");
   }
@@ -134,7 +134,7 @@ void ArrayColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   }
   auto desc = dumpSelfDescriptor();
   auto child_key = MakeChildModuleKey(key, kElementRef);
-  child_column_->Dump(ckp, meta, child_key);
+  child_column_->Dump(ckp, meta, child_key, mode);
   auto child_it = meta.mutable_modules().find(child_key);
   if (child_it == meta.mutable_modules().end()) {
     THROW_RUNTIME_ERROR(

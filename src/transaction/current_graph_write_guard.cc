@@ -13,55 +13,11 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/current_graph_operation_guard.h"
+#include "neug/transaction/current_graph_write_guard.h"
 
 #include <utility>
 
 namespace neug {
-
-CurrentGraphReadGuard::CurrentGraphReadGuard(SharedOperationLease admission,
-                                             SnapshotGuard snapshot) noexcept
-    : admission_(std::move(admission)), snapshot_(std::move(snapshot)) {}
-
-CurrentGraphReadGuard CurrentGraphReadGuard::Acquire(
-    IVersionManager& version_manager, GraphSnapshotStore& snapshot_store) {
-  auto admission = version_manager.acquire_shared_operation();
-  SnapshotGuard snapshot(snapshot_store);
-  return CurrentGraphReadGuard(std::move(admission), std::move(snapshot));
-}
-
-CurrentGraphReadGuard CurrentGraphReadGuard::Acquire(
-    IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
-    std::chrono::steady_clock::time_point deadline) {
-  auto admission = version_manager.acquire_shared_operation_until(deadline);
-  SnapshotGuard snapshot(snapshot_store);
-  return CurrentGraphReadGuard(std::move(admission), std::move(snapshot));
-}
-
-CurrentGraphReadGuard::CurrentGraphReadGuard(
-    CurrentGraphReadGuard&& other) noexcept
-    : admission_(std::move(other.admission_)),
-      snapshot_(std::move(other.snapshot_)) {}
-
-CurrentGraphReadGuard& CurrentGraphReadGuard::operator=(
-    CurrentGraphReadGuard&& other) noexcept {
-  if (this != &other) {
-    release();
-    admission_ = std::move(other.admission_);
-    snapshot_ = std::move(other.snapshot_);
-  }
-  return *this;
-}
-
-CurrentGraphReadGuard::~CurrentGraphReadGuard() noexcept { release(); }
-
-void CurrentGraphReadGuard::release() noexcept {
-  if (!admission_.active()) {
-    return;
-  }
-  snapshot_.release();
-  admission_.release();
-}
 
 CurrentGraphWriteGuard::CurrentGraphWriteGuard(
     UpdateTimestampLease timestamp_lease, SnapshotGuard snapshot) noexcept
@@ -73,7 +29,8 @@ CurrentGraphWriteGuard CurrentGraphWriteGuard::Acquire(
   UpdateTimestampLease timestamp_lease(version_manager);
   timestamp_lease.MakeUpdateExclusive();
   SnapshotGuard snapshot(snapshot_store);
-  return CurrentGraphWriteGuard(std::move(timestamp_lease), std::move(snapshot));
+  return CurrentGraphWriteGuard(std::move(timestamp_lease),
+                                std::move(snapshot));
 }
 
 CurrentGraphWriteGuard CurrentGraphWriteGuard::Acquire(
@@ -82,7 +39,8 @@ CurrentGraphWriteGuard CurrentGraphWriteGuard::Acquire(
   UpdateTimestampLease timestamp_lease(version_manager, deadline);
   timestamp_lease.MakeUpdateExclusiveUntil(deadline);
   SnapshotGuard snapshot(snapshot_store);
-  return CurrentGraphWriteGuard(std::move(timestamp_lease), std::move(snapshot));
+  return CurrentGraphWriteGuard(std::move(timestamp_lease),
+                                std::move(snapshot));
 }
 
 CurrentGraphWriteGuard::CurrentGraphWriteGuard(
@@ -99,6 +57,12 @@ void CurrentGraphWriteGuard::release(
   }
   snapshot_.release();
   timestamp_lease_.Finish(installed_snapshot_generation);
+}
+
+UpdateTimestampLease CurrentGraphWriteGuard::ReleaseForCheckpoint() noexcept {
+  CHECK(timestamp_lease_.active());
+  snapshot_.release();
+  return std::move(timestamp_lease_);
 }
 
 }  // namespace neug

@@ -54,11 +54,16 @@ void ModuleBroker::SetModule(const std::string& name,
 }
 
 void ModuleBroker::Dump(Checkpoint& checkpoint, CheckpointManifest& meta) {
+  Dump(checkpoint, meta, CheckpointWriteMode::kConsumeSource);
+}
+
+void ModuleBroker::Dump(Checkpoint& checkpoint, CheckpointManifest& meta,
+                        CheckpointWriteMode mode) {
   for (auto& [name, module] : modules_) {
     if (!module) {
       continue;
     }
-    module->Dump(checkpoint, meta, name);
+    module->Dump(checkpoint, meta, name, mode);
   }
 }
 

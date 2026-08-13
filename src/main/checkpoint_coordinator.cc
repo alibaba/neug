@@ -63,14 +63,20 @@ const char* CheckpointCoordinator::reasonName(Reason reason) {
 
 CheckpointCoordinator::CheckpointCoordinator(
     CheckpointManager& checkpoint_manager, GraphSnapshotStore& snapshot_store,
-    MemoryLevel memory_level, PostReopenHandler post_reopen_handler)
+    MemoryLevel memory_level, PostReopenHandler post_reopen_handler,
+    WalRotationHandler wal_rotation_handler)
     : checkpoint_manager_(checkpoint_manager),
       snapshot_store_(snapshot_store),
       memory_level_(memory_level),
-      post_reopen_handler_(std::move(post_reopen_handler)) {
+      post_reopen_handler_(std::move(post_reopen_handler)),
+      wal_rotation_handler_(std::move(wal_rotation_handler)) {
   if (!post_reopen_handler_) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Checkpoint post-reopen handler must not be empty");
+  }
+  if (!wal_rotation_handler_) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Checkpoint WAL rotation handler must not be empty");
   }
 }
 
@@ -125,6 +131,47 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
   return status;
 }
 
+Status CheckpointCoordinator::PublishIncrementalCheckpoint(
+    UpdateTimestampLease timestamp_lease) {
+  bool publication_committed = false;
+  try {
+    auto staging_checkpoint = checkpoint_manager_.CreateStagingCheckpoint();
+    auto status = snapshot_store_.WithCheckpointMaintenance(
+        [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
+            -> Status {
+          auto& live_graph = maintenance.MutableCurrentSnapshot();
+          live_graph.DumpIncremental(staging_checkpoint.checkpoint());
+          auto published_checkpoint =
+              staging_checkpoint.Commit(nullptr, &publication_committed);
+          live_graph.AcceptIncrementalCheckpoint(published_checkpoint);
+          wal_rotation_handler_(published_checkpoint->wal_dir());
+          return Status::OK();
+        });
+    if (status.ok()) {
+      unlogged_mutation_pending_.store(false, std::memory_order_release);
+      timestamp_lease.Finish(std::nullopt);
+    }
+    return status;
+  } catch (const exception::IOException& e) {
+    if (publication_committed) {
+      fail_stop_live_database(e.what());
+    }
+    return Status(StatusCode::ERR_IO_ERROR, e.what());
+  } catch (const std::exception& e) {
+    if (publication_committed) {
+      fail_stop_live_database(e.what());
+    }
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (...) {
+    if (publication_committed) {
+      fail_stop_live_database(
+          "Unknown incremental checkpoint publication failure");
+    }
+    return Status(StatusCode::ERR_INTERNAL_ERROR,
+                  "Unknown incremental checkpoint preparation failure");
+  }
+}
+
 Status CheckpointCoordinator::PublishRecoveryCheckpoint() {
   return execute(Reason::kRecovery);
 }
@@ -169,6 +216,7 @@ Status CheckpointCoordinator::execute(Reason reason) {
             // throwing handler fails the live manual path closed or aborts
             // recovery.
             post_reopen_handler_(published_checkpoint->allocator_dir());
+            wal_rotation_handler_(published_checkpoint->wal_dir());
 
             if (reason == Reason::kManual) {
               invokeActivationHandler(published_checkpoint->wal_dir());

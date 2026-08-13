@@ -90,7 +90,8 @@ static CheckpointManifest DumpTableLegacy(Table& t, Checkpoint& ckp) {
   // Table holds columns by unique_ptr; dump inline directly.
   CheckpointManifest meta;
   for (size_t i = 0; i < t.col_num(); ++i) {
-    t.get_column_by_id(i)->Dump(ckp, meta, TablePropKey(i));
+    t.get_column_by_id(i)->Dump(ckp, meta, TablePropKey(i),
+                                neug::CheckpointWriteMode::kConsumeSource);
   }
   return meta;
 }
@@ -452,7 +453,8 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   EXPECT_EQ(string_column->get_any(1).GetValue<std::string>(),
             "new value new value new value");
   CheckpointManifest meta;
-  string_column->Dump(*ckp, meta, TablePropKey(0));
+  string_column->Dump(*ckp, meta, TablePropKey(0),
+                      neug::CheckpointWriteMode::kConsumeSource);
   auto desc = meta.module(TablePropKey(0));
   ASSERT_TRUE(desc.has_value());
   StringColumn new_string_column;

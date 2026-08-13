@@ -28,6 +28,11 @@
 
 namespace neug {
 
+enum class CheckpointWriteMode {
+  kConsumeSource,
+  kPreserveSource,
+};
+
 /**
  * @brief Represents a single numbered checkpoint directory.
  *
@@ -125,6 +130,14 @@ class Checkpoint {
   /// container; callers must not access it after Commit() returns.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
+  }
+
+  /// Persist a module container according to the checkpoint lifecycle.
+  std::string PersistContainer(IDataContainer& buffer,
+                               CheckpointWriteMode mode) {
+    return mode == CheckpointWriteMode::kConsumeSource
+               ? file_mgr_->Commit(buffer)
+               : file_mgr_->WriteSnapshot(buffer);
   }
 
   void UpdateMeta(CheckpointManifest&& meta);

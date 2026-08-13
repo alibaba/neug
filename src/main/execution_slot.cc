@@ -22,6 +22,7 @@
 #include <chrono>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -35,7 +36,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/current_cow_write_transaction.h"
-#include "neug/transaction/current_graph_operation_guard.h"
+#include "neug/transaction/current_graph_write_guard.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
@@ -97,7 +98,8 @@ void markPlanningChangedIfNeeded(WriteContext& write_context,
     return;
   }
   const auto& flags = prepared_query->flags;
-  if (flags.batch() || flags.update()) {
+  if (flags.copy_from() || flags.insert() || flags.update() || flags.schema() ||
+      flags.index()) {
     write_context.MarkPlanningChanged();
   }
 }
@@ -324,21 +326,6 @@ Status ExecutionSlot::executeCore(const std::string& query,
     RETURN_IF_NOT_OK(validateCheckpointRequest(access_mode));
   }
 
-  // A later WAL record must not depend on unlogged bulk state that is absent
-  // from the recovery checkpoint. Resolve the barrier before the next direct
-  // write. W3 may defer this until physical-plan classification to coalesce
-  // adjacent bulk operations; the transitional path uses the stronger bound.
-  if (execution_strategy_ == QueryExecutionStrategy::kDirect &&
-      analysis.explain_mode != ExplainMode::kExplain &&
-      !analysis.checkpoint() &&
-      (access_mode == AccessMode::kInsert ||
-       access_mode == AccessMode::kUpdate ||
-       access_mode == AccessMode::kSchema) &&
-      checkpoint_coordinator_.UnloggedMutationPending()) {
-    RETURN_IF_NOT_OK(checkpoint_coordinator_.PublishManualCheckpoint(
-        UpdateTimestampLease(version_manager_)));
-  }
-
   auto execute_prepared_on_storage =
       [this, access_mode, &analysis, &parameters, &response, &prepared_query](
           std::shared_ptr<execution::CacheValue> prepared_query_for_execution,
@@ -372,23 +359,12 @@ Status ExecutionSlot::executeCore(const std::string& query,
   };
 
   Status status;
-  // EXPLAIN is strategy-independent and must not acquire a write transaction,
-  // including for EXPLAIN CHECKPOINT.
+  // EXPLAIN is strategy-independent and uses the same coherent read lease as
+  // ordinary AP and TP reads; it must not acquire a write transaction.
   if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
-    if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
-      auto guard =
-          CurrentGraphReadGuard::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(guard.view(), MAX_TIMESTAMP);
-      status = execute_on_storage(
-          GraphStats(guard.view(), guard.planning_generation()), storage);
-    } else {
-      auto read_lease =
-          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
-      status = execute_on_storage(
-          GraphStats(read_lease.view(), read_lease.planning_generation()),
-          storage);
-    }
+    auto transaction = BeginReadTransaction();
+    StorageReadInterface storage(transaction.view(), transaction.timestamp());
+    status = execute_on_storage(transaction.statistic(), storage);
   } else if (NEUG_UNLIKELY(analysis.checkpoint())) {
     // PROFILE executes the checkpoint and is timed by executeCheckpoint().
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
@@ -398,54 +374,86 @@ Status ExecutionSlot::executeCore(const std::string& query,
     status =
         executeCheckpoint(analysis.explain_mode, checkpoint_coordinator_,
                           UpdateTimestampLease(version_manager_), response);
+  } else if (access_mode == AccessMode::kRead) {
+    auto transaction = BeginReadTransaction();
+    StorageReadInterface storage(transaction.view(), transaction.timestamp());
+    status = execute_on_storage(transaction.statistic(), storage);
+    if (status.ok() && NEUG_UNLIKELY(!transaction.Commit())) {
+      status = Status::InternalError("Transaction commit failed.");
+    }
   } else if (NEUG_UNLIKELY(execution_strategy_ ==
                            QueryExecutionStrategy::kDirect)) {
-    if (access_mode == AccessMode::kRead) {
-      auto guard =
-          CurrentGraphReadGuard::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(guard.view(), MAX_TIMESTAMP);
-      status = execute_on_storage(
-          GraphStats(guard.view(), guard.planning_generation()), storage);
-    } else if (access_mode == AccessMode::kInsert ||
-               access_mode == AccessMode::kUpdate ||
-               access_mode == AccessMode::kSchema) {
+    if (access_mode == AccessMode::kInsert ||
+        access_mode == AccessMode::kUpdate ||
+        access_mode == AccessMode::kSchema) {
       std::shared_ptr<execution::CacheValue> prepared_query_for_execution;
       // Classify under writer exclusion, but delay constructing the private
       // COW graph until we know this is an ordinary write. The same guard is
       // then adopted by CurrentCowWriteTransaction, so no writer can invalidate
       // the prepared plan between compilation and execution.
-      auto guard =
-          CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_);
-      const auto& current = guard.Snapshot();
-      auto prepared = prepareQuery(
-          GraphStats(current.view(), current.planning_generation()), query,
-          num_threads);
-      if (NEUG_UNLIKELY(!prepared)) {
-        return prepared.error();
-      }
-      prepared_query_for_execution = std::move(prepared).value();
+      std::optional<CurrentGraphWriteGuard> guard;
+      guard.emplace(
+          CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
+      auto prepare_current = [&]() -> Status {
+        const auto& current = guard->Snapshot();
+        auto prepared = prepareQuery(
+            GraphStats(current.view(), current.planning_generation()), query,
+            num_threads);
+        if (NEUG_UNLIKELY(!prepared)) {
+          return prepared.error();
+        }
+        prepared_query_for_execution = std::move(prepared).value();
+        return Status::OK();
+      };
+      RETURN_IF_NOT_OK(prepare_current());
 
-      // COPY/batch and index builds keep their existing exclusive in-place
-      // implementation until W3 gives them checkpointed bulk semantics.
+      // An earlier failed unlogged bulk may have left partial changes. Publish
+      // them before an ordinary WAL write, then compile once more after
+      // reacquiring current-graph admission in case another writer intervened.
+      if (!prepared_query_for_execution->flags.copy_from() &&
+          checkpoint_coordinator_.UnloggedMutationPending()) {
+        RETURN_IF_NOT_OK(checkpoint_coordinator_.PublishIncrementalCheckpoint(
+            guard->ReleaseForCheckpoint()));
+        guard.reset();
+        guard.emplace(
+            CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
+        RETURN_IF_NOT_OK(prepare_current());
+      }
+
+      // Bulk and legacy structural writes use the in-place path. Reuse the
+      // guard and prepared plan so classification does not add a second
+      // timestamp, admission round, or compilation.
       if (prepared_query_for_execution->flags.batch() ||
           prepared_query_for_execution->flags.index()) {
-        guard.release();
-        InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
+        InPlaceWriteScope write_scope(std::move(*guard), snapshot_store_);
         auto& slot = write_scope.Snapshot();
         StorageAPInPlaceUpdateInterface storage(
             *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
             alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
-        // Mark before invoking the legacy in-place path: an exception or an
-        // error return may still leave partial current-graph changes behind.
-        checkpoint_coordinator_.MarkUnloggedMutation();
-        // Re-prepare after reacquiring legacy in-place writer exclusion. W3
-        // removes this transitional second admission/compile step.
-        status = execute_on_storage(
-            GraphStats(slot.view(), slot.planning_generation()), storage);
+        const bool copy_from = prepared_query_for_execution->flags.copy_from();
+        const bool mutates_graph =
+            copy_from || prepared_query_for_execution->flags.insert() ||
+            prepared_query_for_execution->flags.update() ||
+            prepared_query_for_execution->flags.schema() ||
+            prepared_query_for_execution->flags.index();
+        // Mark before invoking in-place mutation: an error may still leave a
+        // partially modified current graph.
+        if (mutates_graph) {
+          checkpoint_coordinator_.MarkUnloggedMutation();
+        }
+        if (copy_from) {
+          write_scope.MarkPlanningChanged();
+        }
+        status = execute_prepared_on_storage(
+            std::move(prepared_query_for_execution), storage);
         markPlanningChangedIfNeeded(write_scope, analysis.explain_mode,
                                     prepared_query.get(), status);
+        if (status.ok() && copy_from) {
+          status = checkpoint_coordinator_.PublishIncrementalCheckpoint(
+              write_scope.ReleaseForCheckpoint());
+        }
       } else {
-        auto transaction = BeginCurrentCowWriteTransaction(std::move(guard));
+        auto transaction = BeginCurrentCowWriteTransaction(std::move(*guard));
         auto storage = transaction.OpenStorage();
         status = execute_prepared_on_storage(
             std::move(prepared_query_for_execution), storage);
@@ -462,14 +470,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
               std::to_string(static_cast<int>(access_mode)));
     }
   } else {
-    if (access_mode == AccessMode::kRead) {
-      auto transaction = BeginReadTransaction();
-      StorageReadInterface storage(transaction.view(), transaction.timestamp());
-      status = execute_on_storage(transaction.statistic(), storage);
-      if (status.ok() && NEUG_UNLIKELY(!transaction.Commit())) {
-        status = Status::InternalError("Transaction commit failed.");
-      }
-    } else if (access_mode == AccessMode::kInsert) {
+    if (access_mode == AccessMode::kInsert) {
       auto transaction = BeginInsertTransaction();
       StorageTPInsertInterface storage(transaction);
       status = execute_on_storage(transaction.statistic(), storage);
@@ -522,23 +523,16 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
 }
 
 std::string ExecutionSlot::GetSchema() const {
-  if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
-    auto guard =
-        CurrentGraphReadGuard::Acquire(version_manager_, snapshot_store_);
-    auto yaml = guard.view().schema().to_yaml();
-    return get_json_string_from_yaml(yaml.value()).value();
-  }
-  auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-  auto yaml = lease.view().schema().to_yaml();
+  auto transaction = BeginReadTransaction();
+  auto yaml = transaction.schema().to_yaml();
   return get_json_string_from_yaml(yaml.value()).value();
 }
 
 void ExecutionSlot::ClearTemporarySchema() {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
   {
-    auto guard =
-        CurrentGraphReadGuard::Acquire(version_manager_, snapshot_store_);
-    const auto& schema = guard.view().schema();
+    auto transaction = BeginReadTransaction();
+    const auto& schema = transaction.schema();
     if (schema.get_temporary_edge_triplet_keys().empty() &&
         schema.get_temporary_vertex_labels().empty()) {
       return;

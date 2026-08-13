@@ -162,6 +162,7 @@ TEST_F(FlagTest, CopyFrom) {
   GPhysicalAnalyzer analyzer(getCatalog());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
+  EXPECT_TRUE(flag.copy_from);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -178,6 +179,7 @@ TEST_F(FlagTest, CopyTo) {
   GPhysicalAnalyzer analyzer(getCatalog());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
+  EXPECT_FALSE(flag.copy_from);
   EXPECT_TRUE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -195,6 +197,7 @@ TEST_F(FlagTest, LoadFrom) {
   GPhysicalAnalyzer analyzer(getCatalog());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
+  EXPECT_FALSE(flag.copy_from);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);

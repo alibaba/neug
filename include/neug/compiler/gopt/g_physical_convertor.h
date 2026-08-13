@@ -63,6 +63,7 @@ class GPhysicalConvertor {
     flagPB->set_create_temp_table(flag.create_temp_table);
     flagPB->set_checkpoint(flag.checkpoint);
     flagPB->set_procedure_call(flag.procedure_call);
+    flagPB->set_copy_from(flag.copy_from);
     return flagPB;
   }
 

@@ -118,9 +118,9 @@ Status PrepareAndPublishSnapshot(
 TEST_F(GraphSnapshotStoreConcurrencyTest,
        MaintenanceAccessRejectsExistingReader) {
   auto& pinned = store_->PinCurrentSnapshot();
-  CheckpointCoordinator coordinator(checkpoint_mgr_, *store_,
-                                    MemoryLevel::kInMemory,
-                                    [](const std::string&) {});
+  CheckpointCoordinator coordinator(
+      checkpoint_mgr_, *store_, MemoryLevel::kInMemory,
+      [](const std::string&) {}, [](const std::string&) {});
   VersionManager version_manager;
   version_manager.init_ts({0, 0}, 1);
   auto status = coordinator.PublishManualCheckpoint(

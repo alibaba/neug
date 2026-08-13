@@ -86,6 +86,9 @@ class CheckpointFileManager {
   /// Returns the absolute path to the committed file.
   std::string Commit(IDataContainer& buffer);
 
+  /// Persist an independent snapshot of a live container without closing it.
+  std::string WriteSnapshot(IDataContainer& buffer);
+
   /// Create a runtime file for manual writers. The handle removes the file if
   /// it is destroyed before CommitRuntimeFile() consumes it.
   RuntimeFileHandle CreateRuntimeFile();

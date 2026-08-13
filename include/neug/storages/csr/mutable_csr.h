@@ -80,8 +80,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel level) override;
 
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override;
 
   void compact() override;
 
@@ -285,8 +285,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel) override;
 
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override;
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override;
 
   void compact() override;
 
@@ -420,8 +420,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel /* level */) override {}
 
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override {
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode) override {
     ModuleDescriptor desc;
     desc.module_type = type_name();
     meta.set_module(key, desc);

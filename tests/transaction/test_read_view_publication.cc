@@ -29,7 +29,7 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
-#include "neug/transaction/current_graph_operation_guard.h"
+#include "neug/transaction/current_graph_write_guard.h"
 #include "neug/transaction/read_snapshot_lease.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
@@ -288,14 +288,14 @@ TEST_F(ReadViewPublicationTest,
   EXPECT_FALSE(lease.view().schema().is_vertex_label_valid("company"));
 }
 
-TEST_F(ReadViewPublicationTest, CurrentGraphReadGuardBlocksExclusiveAdmission) {
+TEST_F(ReadViewPublicationTest, ReadSnapshotLeaseBlocksExclusiveAdmission) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
   ASSERT_TRUE(
       version_manager.try_set_runtime_wait_if_quiescent(&CountRuntimeWait));
   runtime_wait_calls.store(0, std::memory_order_relaxed);
 
-  auto shared = CurrentGraphReadGuard::Acquire(version_manager, *store_);
+  auto shared = ReadSnapshotLease::Acquire(version_manager, *store_);
   std::atomic<bool> exclusive_acquired{false};
   std::thread exclusive([&] {
     auto guard = CurrentGraphWriteGuard::Acquire(version_manager, *store_);
@@ -313,11 +313,12 @@ TEST_F(ReadViewPublicationTest, CurrentGraphReadGuardBlocksExclusiveAdmission) {
 }
 
 TEST_F(ReadViewPublicationTest,
-       CurrentGraphReadGuardUsesGenericAdmissionWithoutCapturingReadView) {
+       ReadSnapshotLeaseCapturesCoherentReadViewForAPAdmission) {
   ScriptedVersionManager version_manager({1, 0});
-  auto guard = CurrentGraphReadGuard::Acquire(version_manager, *store_);
+  auto lease = ReadSnapshotLease::Acquire(version_manager, *store_);
 
-  EXPECT_EQ(version_manager.acquire_count(), 0);
+  EXPECT_EQ(version_manager.acquire_count(), 1);
+  EXPECT_EQ(lease.timestamp(), 1U);
 }
 
 TEST_F(ReadViewPublicationTest, GenericOperationLeasesShareTheAdmissionGate) {
@@ -409,21 +410,17 @@ TEST_F(ReadViewPublicationTest,
   EXPECT_EQ(max_active_writer_sections.load(std::memory_order_acquire), 1);
 }
 
-TEST_F(ReadViewPublicationTest, APGuardsPropagateAdmissionDeadlines) {
+TEST_F(ReadViewPublicationTest,
+       CurrentGraphWriteGuardHonorsReaderAdmissionDeadline) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
   const auto expired = std::chrono::steady_clock::time_point::min();
 
-  auto shared = CurrentGraphReadGuard::Acquire(version_manager, *store_);
+  auto shared = ReadSnapshotLease::Acquire(version_manager, *store_);
   EXPECT_THROW(
       CurrentGraphWriteGuard::Acquire(version_manager, *store_, expired),
       exception::TransactionTimeoutException);
   shared.release();
-
-  auto exclusive = CurrentGraphWriteGuard::Acquire(version_manager, *store_);
-  EXPECT_THROW(
-      CurrentGraphReadGuard::Acquire(version_manager, *store_, expired),
-      exception::TransactionTimeoutException);
 }
 
 TEST_F(ReadViewPublicationTest,

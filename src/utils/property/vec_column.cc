@@ -274,7 +274,7 @@ void VecColumn::openInternal(Checkpoint& ckp,
 }
 
 void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                     const std::string& key) {
+                     const std::string& key, CheckpointWriteMode mode) {
   if (!buffer_) {
     THROW_RUNTIME_ERROR("VecColumn::Dump: buffer is not initialized");
   }
@@ -284,9 +284,10 @@ void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
            YAML::Dump(YAML::convert<DataType>::encode(array_type_)));
   desc.set("size", std::to_string(size_));
   desc.set(kDefaultValue, SerializeValue(default_value_));
-  desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
+  desc.set_path(ModuleDescriptor::kDataPath,
+                ckp.PersistContainer(*buffer_, mode));
   auto accessor_key = key + "/" + kAccessorRef;
-  offset_accessor_->Dump(ckp, meta, accessor_key);
+  offset_accessor_->Dump(ckp, meta, accessor_key, mode);
   meta.mutable_modules().at(accessor_key).mark_as_referenced_module();
   desc.set_ref(kAccessorRef, accessor_key);
   meta.set_module(key, std::move(desc));
@@ -421,6 +422,9 @@ std::unique_ptr<Module> VecColumn::Clone() const {
 void VecColumn::Detach(Checkpoint& ckp, MemoryLevel level) {
   ckp_ = &ckp;
   level_ = level;
+  if (buffer_) {
+    buffer_ = buffer_->Fork(ckp, level);
+  }
   if (offset_accessor_) {
     offset_accessor_->Detach(ckp, level);
   }

@@ -61,6 +61,7 @@ class FileSharedMMap : public MMapContainer {
 
   void Resize(size_t size) override;
   void Sync() override;
+  void WriteSnapshot(const std::string& path) override;
 
   /**
    * @brief Dump data to a file preserving sparse structure.

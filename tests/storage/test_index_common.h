@@ -109,7 +109,8 @@ class ExampleIndex : public StorageIndex {
     descriptor.module_type = ModuleTypeName();
     if (index_id_accessor_) {
       CheckpointManifest accessor_meta;
-      index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
+      index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor",
+                               neug::CheckpointWriteMode::kConsumeSource);
       auto accessor_desc = accessor_meta.module("index_id_accessor");
       if (auto next_index_id =
               accessor_desc->get(ModuleDescriptor::kNextIndexId)) {
@@ -130,6 +131,9 @@ class ExampleIndex : public StorageIndex {
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
     if (index_id_accessor_) {
       index_id_accessor_->Detach(ckp, level);
+    }
+    if (index_buffer_) {
+      index_buffer_ = index_buffer_->Fork(ckp, level);
     }
   }
 

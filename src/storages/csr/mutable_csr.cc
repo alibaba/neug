@@ -118,7 +118,8 @@ bool is_nbr_list_unmodified(MD5_CTX& ctx, FileHeader& header,
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                               const std::string& key) {
+                               const std::string& key,
+                               CheckpointWriteMode mode) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
   descriptor.set("unsorted_since", std::to_string(unsorted_since_));
@@ -129,7 +130,7 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   // Each internal buffer's path is stored as a named entry in the
   // descriptor's typed paths_ map.
   descriptor.set_path(ModuleDescriptor::kDegreeListPath,
-                      ckp.Commit(*degree_list_));
+                      ckp.PersistContainer(*degree_list_, mode));
 
   const nbr_t* const* adj_lists =
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
@@ -165,7 +166,7 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   }
 
   descriptor.set_path(ModuleDescriptor::kCapacityListPath,
-                      ckp.Commit(*cap_list_));
+                      ckp.PersistContainer(*cap_list_, mode));
   meta.set_module(key, descriptor);
 }
 
@@ -548,10 +549,12 @@ void SingleMutableCsr<EDATA_T>::refresh_prefetch_policy() {
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
-                                     const std::string& key) {
+                                     const std::string& key,
+                                     CheckpointWriteMode mode) {
   ModuleDescriptor descriptor;
   descriptor.module_type = ModuleTypeName();
-  descriptor.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_));
+  descriptor.set_path(ModuleDescriptor::kNbrListPath,
+                      ckp.PersistContainer(*nbr_list_, mode));
   descriptor.set("edge_num", std::to_string(edge_num_.load()));
   meta.set_module(key, descriptor);
 }

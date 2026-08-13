@@ -380,6 +380,17 @@ VertexTable VertexTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
 
 void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                                 Checkpoint& ckp) {
+  disassembleTo(store, meta, ckp, CheckpointWriteMode::kConsumeSource);
+}
+
+void VertexTable::WriteSnapshotTo(ModuleBroker& store, CheckpointManifest& meta,
+                                  Checkpoint& ckp) const {
+  auto staged = Clone();
+  staged.disassembleTo(store, meta, ckp, CheckpointWriteMode::kPreserveSource);
+}
+
+void VertexTable::disassembleTo(ModuleBroker& store, CheckpointManifest& meta,
+                                Checkpoint& ckp, CheckpointWriteMode mode) {
   const auto& lbl = vertex_schema_->label_name;
   auto& idx = get_indexer();
 
@@ -395,7 +406,7 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
 
   auto table = TakeTable();
   for (size_t i = 0; i < table->col_num(); ++i) {
-    table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
+    table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i), mode);
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }
