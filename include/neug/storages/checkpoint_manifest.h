@@ -68,8 +68,9 @@ class CheckpointManifest {
   bool has_module(const std::string& key) const;
 
   /**
-   * @brief If @p key exists in @p prev, hardlink its paths into @p ckp and
-   * store the resulting descriptor under the same key in this manifest.
+   * @brief If @p key exists in @p prev, hardlink its paths and the complete
+   * referenced-module dependency closure into @p ckp, then store their
+   * descriptors here.
    */
   void LinkModuleFrom(const CheckpointManifest& prev, const std::string& key,
                       Checkpoint& ckp);

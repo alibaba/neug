@@ -202,6 +202,12 @@ class NEUG_API PropertyGraph {
 
   StorageIndexManager& mutable_index_manager();
 
+  /** Activate and bind extension-backed indexes deferred during Open. */
+  result<size_t> ActivateIndexes();
+
+  bool HasPendingIndexes() const;
+  bool HasPendingMutations() const;
+
   /**
    * @brief Clear all graph data and reset to empty state.
    *
