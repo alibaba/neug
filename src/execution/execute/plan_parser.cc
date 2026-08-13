@@ -83,6 +83,7 @@ namespace execution {
 
 void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::ScanOprBuilder>());
+  register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
 
   register_operator_builder(std::make_unique<ops::DummySourceOprBuilder>());
 
@@ -140,7 +141,6 @@ void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::UpdateEdgeOprBuilder>());
   // TODO: Review which pipeline should procedureCall be put.
   register_operator_builder(std::make_unique<ops::ProcedureCallOprBuilder>());
-  register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
   register_operator_builder(std::make_unique<ops::GDSAlgoOprBuilder>());
 
   // ---------------------- DDL Operators ----------------------
@@ -190,6 +190,9 @@ static std::string get_opr_name(
   switch (op_kind) {
   case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
     return "scan";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+    return "index_scan";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
     return "edge_expand";
@@ -268,9 +271,6 @@ static std::string get_opr_name(
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
     return "procedure_call";
-  }
-  case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
-    return "index_scan";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kGdsAlgo: {
     return "gds_algo";
@@ -430,6 +430,11 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       }
       break;
     }
+    case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+      expression_parse(plan.plan(i).opr().index_scan().target_value(),
+                       params_type);
+      break;
+    }
     case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
       const auto& edge_opr = plan.plan(i).opr().edge();
       if (edge_opr.has_params() && edge_opr.params().has_predicate()) {
@@ -574,13 +579,6 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
           continue;
         }
         params_type[param.name()] = parse_from_ir_data_type(param.data_type());
-      }
-      break;
-    }
-    case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
-      const auto& index_scan = plan.plan(i).opr().index_scan();
-      if (index_scan.has_target_value()) {
-        expression_parse(index_scan.target_value(), params_type);
       }
       break;
     }

@@ -42,6 +42,7 @@
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/gds/gds_algo_function.h"
 #include "neug/compiler/function/read_function.h"
+#include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/function/table/table_function.h"
@@ -1246,11 +1247,6 @@ void GQueryConvertor::convertIndexScan(
     ::physical::PhysicalPlan* plan) {
   const auto& bindData =
       funcCall.getBindData()->cast<function::IndexScanBindData>();
-  if (!bindData.targetValue) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Index scan target expression must not be null.");
-  }
-
   auto indexScanPB = std::make_unique<::physical::IndexScan>();
   indexScanPB->set_index_scan_function(funcCall.getTableFunc().signatureName);
   indexScanPB->set_unique_index_name(bindData.uniqueIndexName);

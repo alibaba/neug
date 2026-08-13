@@ -15,90 +15,83 @@
 
 #include "neug/execution/execute/ops/retrieve/index_scan.h"
 
-#include <mutex>
-
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/pb_utils.h"
 
 namespace neug::execution::ops {
 namespace {
 
 class IndexScanOpr final : public IOperator {
  public:
-  IndexScanOpr(std::unique_ptr<function::CallFuncInputBase> unbound_input,
+  IndexScanOpr(std::unique_ptr<function::CallFuncInputBase> input,
                function::NeugCallFunction* function)
-      : unbound_input_(std::move(unbound_input)), function_(function) {}
+      : input{std::move(input)}, function{function} {}
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer*) override {
-    if (!function_ || !function_->execFunc) {
+    if (input == nullptr) {
+      THROW_RUNTIME_ERROR("IndexScanOpr: index scan input is null");
+    }
+    if (function == nullptr || function->execFunc == nullptr) {
       THROW_RUNTIME_ERROR(
           "IndexScanOpr: index scan function is not executable");
     }
-    if (!unbound_input_) {
-      THROW_RUNTIME_ERROR("IndexScanOpr: bound input is null");
+    auto bound_input = input->bindParams(params);
+    if (bound_input == nullptr) {
+      THROW_RUNTIME_ERROR(
+          "IndexScanOpr: index scan input did not create a per-Eval instance");
     }
-
-    // bindContext mutates the per-call input. Protect the immutable template
-    // fallback for functions that have no deferred parameters and therefore do
-    // not allocate a per-Eval input from bindParams().
-    std::lock_guard lock(input_mutex_);
-    auto bound_input = unbound_input_->bindParams(params);
-    auto& input = bound_input ? *bound_input : *unbound_input_;
-    input.bindContext(std::move(ctx));
-    return function_->execFunc(input, graph);
+    bound_input->bindContext(std::move(ctx));
+    return function->execFunc(*bound_input, graph);
   }
 
   std::string get_operator_name() const override { return "IndexScanOpr"; }
 
  private:
-  std::unique_ptr<function::CallFuncInputBase> unbound_input_;
-  function::NeugCallFunction* function_;
-  std::mutex input_mutex_;
+  std::unique_ptr<function::CallFuncInputBase> input;
+  function::NeugCallFunction* function;
 };
 
 }  // namespace
 
 neug::result<OpBuildResultT> IndexScanOprBuilder::Build(
-    const neug::Schema& schema, const ContextMeta& ctx_meta,
-    const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& physical_op = plan.plan(op_idx);
-  const auto& index_scan = physical_op.opr().index_scan();
-  if (index_scan.index_scan_function().empty()) {
-    THROW_RUNTIME_ERROR("IndexScanOprBuilder: function name is empty");
-  }
-
+    const neug::Schema& schema, const ContextMeta& ctxMeta,
+    const physical::PhysicalPlan& plan, int opIdx) {
+  const auto& indexScan = plan.plan(opIdx).opr().index_scan();
   auto* catalog = main::MetadataRegistry::getCatalog();
-  auto* base_function =
-      catalog->getFunctionWithSignature(index_scan.index_scan_function());
-  auto* function = dynamic_cast<function::NeugCallFunction*>(base_function);
-  if (!function) {
-    THROW_RUNTIME_ERROR(
-        "IndexScanOprBuilder: registered function is not a NeugCallFunction");
+  if (catalog == nullptr) {
+    THROW_RUNTIME_ERROR("IndexScanOprBuilder: catalog is not available");
   }
-  if (!function->bindFunc) {
+  auto* baseFunction =
+      catalog->getFunctionWithSignature(indexScan.index_scan_function());
+  if (baseFunction == nullptr) {
+    THROW_RUNTIME_ERROR("IndexScanOprBuilder: function not found: " +
+                        indexScan.index_scan_function());
+  }
+  auto* function = dynamic_cast<function::NeugCallFunction*>(baseFunction);
+  if (function == nullptr) {
+    THROW_RUNTIME_ERROR(
+        "IndexScanOprBuilder: function is not a NeugCallFunction: " +
+        indexScan.index_scan_function());
+  }
+  if (function->bindFunc == nullptr) {
     THROW_RUNTIME_ERROR("IndexScanOprBuilder: bind function is not registered");
   }
-  if (!function->execFunc) {
-    THROW_RUNTIME_ERROR("IndexScanOprBuilder: exec function is not registered");
+
+  auto input = function->bindFunc(schema, ctxMeta, plan, opIdx);
+  if (input == nullptr) {
+    THROW_RUNTIME_ERROR("IndexScanOprBuilder: index scan input is null");
   }
 
-  auto input = function->bindFunc(schema, ctx_meta, plan, op_idx);
-  if (!input) {
-    THROW_RUNTIME_ERROR("IndexScanOprBuilder: bind function returned null");
+  ContextMeta outputMeta = ctxMeta;
+  const auto& metadata = plan.plan(opIdx).meta_data();
+  for (const auto& meta : metadata) {
+    outputMeta.set(meta.alias(), parse_from_ir_data_type(meta.type()));
   }
-
-  ContextMeta output_meta = ctx_meta;
-  for (int i = 0; i < physical_op.meta_data_size(); ++i) {
-    const auto& meta = physical_op.meta_data(i);
-    output_meta.set(meta.alias(), parse_from_ir_data_type(meta.type()));
-  }
-
   return std::make_pair(
       std::make_unique<IndexScanOpr>(std::move(input), function),
-      std::move(output_meta));
+      std::move(outputMeta));
 }
 
 }  // namespace neug::execution::ops

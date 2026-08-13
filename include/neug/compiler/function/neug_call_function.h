@@ -36,6 +36,11 @@ class Context;
 namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
+
+  // Bind the input context immediately before execution. Call functions that
+  // do not consume an input context can use the default no-op implementation.
+  virtual void bindContext(execution::Context&& /*input_context*/) {}
+
   // Bind deferred $param args into a per-Eval input.
   // Opr stores this object unbound after bindFunc; Eval calls bindParams and
   // executes against the returned input. Default: no deferred params — return
@@ -44,10 +49,6 @@ struct CallFuncInputBase {
       const execution::ParamsMap& /*params*/) const {
     return nullptr;
   }
-
-  // Index scan functions may consume rows produced by an optimized child
-  // operator. Procedure calls leave this hook unused.
-  virtual void bindContext(execution::Context&& /*context*/) {}
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(

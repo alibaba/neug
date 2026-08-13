@@ -18,6 +18,11 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   int32_t score_alias;
   execution::Context context;
 
+  std::unique_ptr<function::CallFuncInputBase> bindParams(
+      const execution::ParamsMap&) const override {
+    return std::make_unique<FTSIndexScanFuncInput>(*this);
+  }
+
   void bindContext(execution::Context&& input_context) override {
     context = std::move(input_context);
   }

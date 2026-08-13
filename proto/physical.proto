@@ -325,9 +325,6 @@ message GDSAlgo {
   map<string, string> options = 3;
 }
 
-// Generic bridge from a logical index-scan table function to an
-// extension-provided implementation. Index-specific semantics live in the
-// registered function and its options rather than in the core physical plan.
 message IndexScan {
   string index_scan_function = 1;
   string unique_index_name = 2;

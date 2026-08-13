@@ -19,12 +19,12 @@
 
 namespace neug::execution::ops {
 
-class IndexScanOprBuilder final : public IOperatorBuilder {
+class IndexScanOprBuilder : public IOperatorBuilder {
  public:
   neug::result<OpBuildResultT> Build(const neug::Schema& schema,
-                                     const ContextMeta& ctx_meta,
+                                     const ContextMeta& ctxMeta,
                                      const physical::PhysicalPlan& plan,
-                                     int op_idx) override;
+                                     int opIdx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

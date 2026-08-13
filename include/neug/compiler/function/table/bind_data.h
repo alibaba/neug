@@ -100,9 +100,6 @@ struct NEUG_API TableFuncBindData {
   std::shared_ptr<binder::Expression> rowSkips;
 };
 
-// Bind data used by extension-provided index scan functions. The core planner
-// only carries the common routing information; index-specific query semantics
-// remain in the extension function named by the logical table function.
 struct NEUG_API IndexScanBindData final : TableFuncBindData {
   std::string uniqueIndexName;
   std::shared_ptr<binder::Expression> targetValue;
