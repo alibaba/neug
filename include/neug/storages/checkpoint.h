@@ -67,11 +67,15 @@ class Checkpoint {
   /**
    * @brief Create and initialize a checkpoint at @p path.
    *
-   * Creates directories, loads meta JSON, absolutizes paths, and cleans up
-   * orphaned runtime files.  Returns nullptr only on unrecoverable errors
-   * (currently throws instead).
+   * Creates directories, loads meta JSON, and absolutizes paths. When
+   * @p cleanup_orphan_runtime_files is true, also removes orphaned runtime
+   * files. Read-only database opens disable that cleanup because another
+   * read-only process may own those temporary files.
+   *
+   * Returns nullptr only on unrecoverable errors (currently throws instead).
    */
-  static std::shared_ptr<Checkpoint> Open(std::string path, uint32_t id);
+  static std::shared_ptr<Checkpoint> Open(
+      std::string path, uint32_t id, bool cleanup_orphan_runtime_files = true);
 
   ~Checkpoint();  // defined in .cc where CheckpointManifest is complete
   Checkpoint(const Checkpoint&) = delete;
@@ -156,8 +160,9 @@ class Checkpoint {
   /// Private constructor — only initializes members. Use Open() to create.
   Checkpoint(std::string path, uint32_t id);
 
-  /// Performs all I/O: create dirs, load meta, absolutize paths, clean orphans.
-  void initialize();
+  /// Performs all I/O: create dirs, load meta, absolutize paths, and optionally
+  /// clean orphaned runtime files.
+  void initialize(bool cleanup_orphan_runtime_files);
 
   void create_dirs() const;
 

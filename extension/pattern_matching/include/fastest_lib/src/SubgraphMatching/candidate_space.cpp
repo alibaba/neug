@@ -699,14 +699,6 @@ bool CandidateSpace::CheckNeighborSafety(int cur, int cand) {
   return true;
 }
 
-bool CandidateSpace::EdgeCandidacy(int query_edge_id,
-                                   const EdgeKey& data_edge_key) {
-  if (query_edge_id == -1 || data_edge_key.invalid()) {
-    return false;
-  }
-  return BitsetEdgeCS[query_edge_id].count(data_edge_key) > 0;
-}
-
 // Triangle and FourCycle safety checks - disabled as DataGraphMeta doesn't
 // store local cycles
 // TODO: Implement when DataGraphMeta supports cycle enumeration

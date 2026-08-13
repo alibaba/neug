@@ -36,15 +36,10 @@ void PatternGraph::ProcessPattern(
         schema_graph) {
   // Construct adj list and label frequency
   // Labels are already consecutive integers starting from 0, no transfer needed
-  // For directed graph: update max_out_degree, max_in_degree, and max_degree
+  // Track the maximum total degree.
   max_degree = 0;
-  max_out_degree = 0;
-  max_in_degree = 0;
   for (int v = 0; v < GetNumVertices(); v++) {
     // vertex_label[v] is already set correctly, no need to transfer
-    // For directed graph: track both out and in degrees
-    max_out_degree = std::max(max_out_degree, (int) (out_adj_list[v].size()));
-    max_in_degree = std::max(max_in_degree, (int) (in_adj_list[v].size()));
     max_degree = std::max(max_degree, (int) (adj_list[v].size()));
   }
   num_vertex_labels = data_meta.GetNumLabels();
@@ -65,15 +60,6 @@ void PatternGraph::ProcessPattern(
     // in_adj_idx: index in in_candidate_neighbors (no offset needed)
     for (size_t i = 0; i < in_adj_list[u].size(); i++) {
       in_adj_idx[u][in_adj_list[u][i]] = i;
-    }
-  }
-
-  // Legacy adj_idx (for backward compatibility, may have issues with
-  // bidirectional edges)
-  adj_idx.resize(GetNumVertices(), std::vector<int>(GetNumVertices(), -1));
-  for (int u = 0; u < GetNumVertices(); u++) {
-    for (size_t i = 0; i < adj_list[u].size(); i++) {
-      adj_idx[u][adj_list[u][i]] = i;
     }
   }
 }

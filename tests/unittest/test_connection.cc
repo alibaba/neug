@@ -13,16 +13,31 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <signal.h>
+#include <sys/wait.h>
+
+#include <atomic>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <string>
+#include <thread>
+
+#include <poll.h>
+
+#include <gtest/gtest.h>
 
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/main/connection.h"
+#include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -176,6 +191,290 @@ TEST_F(ConnectionTest, ReadOnlyConnectionsExecuteConcurrently) {
 
   EXPECT_EQ(successful_queries.load(),
             kConnectionCount * kQueriesPerConnection);
+}
+
+TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_read_only_process_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+
+  NeugDBConfig write_config(db_dir.string(), 1);
+  write_config.checkpoint_on_close = true;
+  write_config.memory_level = MemoryLevel::kInMemory;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(write_config));
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema"));
+    connection->Close();
+    db.Close();
+  }
+
+  const auto allocator_marker =
+      db_dir / "checkpoint-1" / "allocator" / "read_only_marker";
+  ASSERT_TRUE(std::filesystem::is_directory(allocator_marker.parent_path()));
+  {
+    std::ofstream marker(allocator_marker);
+    ASSERT_TRUE(marker.is_open());
+    marker << "preserve across read-only opens";
+  }
+  ASSERT_TRUE(std::filesystem::exists(allocator_marker));
+
+  NeugDBConfig parent_read_config(db_dir.string(), 1);
+  parent_read_config.mode = DBMode::READ_ONLY;
+  parent_read_config.memory_level = MemoryLevel::kSyncToFile;
+  NeugDB parent_reader;
+  ASSERT_TRUE(parent_reader.Open(parent_read_config));
+
+  int ready_pipe[2];
+  int release_pipe[2];
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  ASSERT_EQ(::pipe(release_pipe), 0);
+
+  const auto child = [&]() -> pid_t {
+    const pid_t pid = ::fork();
+    if (pid != 0) {
+      return pid;
+    }
+    ::close(ready_pipe[0]);
+    ::close(release_pipe[1]);
+    NeugDBConfig read_config(db_dir.string(), 1);
+    read_config.mode = DBMode::READ_ONLY;
+    read_config.memory_level = MemoryLevel::kSyncToFile;
+    char status = '0';
+    NeugDB db;
+    try {
+      const bool opened = db.Open(read_config);
+      auto connection = db.Connect();
+      const bool queried =
+          connection->Query("MATCH (n:person) RETURN count(n);", "read")
+              .has_value();
+      status = opened && queried ? '1' : '0';
+    } catch (...) {}
+    (void) ::write(ready_pipe[1], &status, 1);
+    char release = 0;
+    (void) ::read(release_pipe[0], &release, 1);
+    if (status == '1') {
+      db.Close();
+    }
+    ::_exit(status == '1' ? 0 : 1);
+  };
+
+  const auto read_status = [&]() {
+    pollfd fd{ready_pipe[0], POLLIN, 0};
+    char status = '0';
+    if (::poll(&fd, 1, 5000) == 1 && ::read(ready_pipe[0], &status, 1) == 1) {
+      return status;
+    }
+    return '0';
+  };
+
+  // Fully open the first reader before starting the second. This ensures the
+  // second Checkpoint::Open sees the first process's active runtime files and
+  // exercises the cross-process orphan-cleanup race deterministically.
+  const pid_t first = child();
+  EXPECT_GT(first, 0);
+  const char first_ready = read_status();
+  EXPECT_EQ(first_ready, '1');
+
+  std::vector<std::filesystem::path> first_runtime_files;
+  const auto runtime_dir = db_dir / "checkpoint-1" / "runtime";
+  for (const auto& entry : std::filesystem::directory_iterator(runtime_dir)) {
+    if (entry.is_regular_file()) {
+      first_runtime_files.emplace_back(entry.path());
+    }
+  }
+  EXPECT_FALSE(first_runtime_files.empty());
+
+  const pid_t second = child();
+  EXPECT_GT(second, 0);
+  ::close(ready_pipe[1]);
+  ::close(release_pipe[0]);
+  const char second_ready = read_status();
+  EXPECT_EQ(second_ready, '1');
+  for (const auto& path : first_runtime_files) {
+    EXPECT_TRUE(std::filesystem::exists(path));
+  }
+  EXPECT_TRUE(std::filesystem::exists(allocator_marker));
+
+  // The children were forked while this reader was open. After releasing the
+  // parent's lock, their independently reacquired locks must still exclude a
+  // writer.
+  parent_reader.Close();
+  std::string lock_error;
+  FileLock writer(db_dir.string());
+  EXPECT_FALSE(writer.lock(lock_error, DBMode::READ_WRITE));
+
+  ::close(release_pipe[1]);
+  const auto wait_for_child = [](pid_t child_pid) {
+    int status = 0;
+    for (int attempt = 0; attempt < 50; ++attempt) {
+      const auto result = ::waitpid(child_pid, &status, WNOHANG);
+      if (result == child_pid || result == -1) {
+        return status;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    (void) ::kill(child_pid, SIGKILL);
+    (void) ::waitpid(child_pid, &status, 0);
+    return status;
+  };
+  const int first_status = wait_for_child(first);
+  const int second_status = wait_for_child(second);
+  EXPECT_TRUE(WIFEXITED(first_status));
+  EXPECT_EQ(WEXITSTATUS(first_status), 0);
+  EXPECT_TRUE(WIFEXITED(second_status));
+  EXPECT_EQ(WEXITSTATUS(second_status), 0);
+  for (const auto& path : first_runtime_files) {
+    EXPECT_FALSE(std::filesystem::exists(path));
+  }
+  EXPECT_TRUE(std::filesystem::exists(allocator_marker));
+  ASSERT_TRUE(writer.lock(lock_error, DBMode::READ_WRITE)) << lock_error;
+  writer.unlock();
+
+  ::close(ready_pipe[0]);
+  std::filesystem::remove_all(db_dir);
+}
+
+// weakly_canonical normalizes the data directory before locking, so opening
+// the same database through a symlink resolves to the same lock-table entry.
+TEST(ConnectionReadOnlyTest, SymlinkedDirectoryResolvesToSameLockEntry) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_symlink_lock_db_test_" + std::to_string(::getpid()));
+  const auto link_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_symlink_lock_link_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+  std::filesystem::remove_all(link_dir);
+
+  NeugDBConfig write_config(db_dir.string(), 1);
+  write_config.checkpoint_on_close = true;
+  write_config.memory_level = MemoryLevel::kInMemory;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(write_config));
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema"));
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::create_directory_symlink(db_dir, link_dir);
+
+  // A writer opened through the real path conflicts with a read-only open
+  // through the symlink.
+  {
+    NeugDB writer;
+    ASSERT_TRUE(writer.Open(write_config));
+
+    NeugDBConfig symlink_read_config(link_dir.string(), 1);
+    symlink_read_config.mode = DBMode::READ_ONLY;
+    symlink_read_config.memory_level = MemoryLevel::kSyncToFile;
+    NeugDB symlink_reader;
+    EXPECT_THROW(symlink_reader.Open(symlink_read_config),
+                 neug::exception::DatabaseLockedException);
+
+    writer.Close();
+  }
+
+  // Read-only opens through the real path and the symlink share the lock
+  // entry and coexist.
+  {
+    NeugDBConfig read_config(db_dir.string(), 1);
+    read_config.mode = DBMode::READ_ONLY;
+    read_config.memory_level = MemoryLevel::kSyncToFile;
+    NeugDB first_reader;
+    ASSERT_TRUE(first_reader.Open(read_config));
+
+    NeugDBConfig symlink_read_config(link_dir.string(), 1);
+    symlink_read_config.mode = DBMode::READ_ONLY;
+    symlink_read_config.memory_level = MemoryLevel::kSyncToFile;
+    NeugDB second_reader;
+    ASSERT_TRUE(second_reader.Open(symlink_read_config));
+
+    auto connection = second_reader.Connect();
+    ASSERT_NE(connection, nullptr);
+    EXPECT_TRUE(connection->Query("MATCH (n:person) RETURN count(n);", "read"));
+    connection->Close();
+    second_reader.Close();
+    first_reader.Close();
+  }
+
+  std::filesystem::remove_all(link_dir);
+  std::filesystem::remove_all(db_dir);
+}
+
+// Two processes opening the same database read-only at the same time must
+// both succeed: they race on the fcntl lock and on the O_EXCL runtime-file
+// reservation, and the retries must converge instead of failing.
+TEST(ConnectionReadOnlyTest, ConcurrentProcessesOpenDatabaseSimultaneously) {
+  const auto db_dir =
+      std::filesystem::temp_directory_path() /
+      ("neug_concurrent_open_test_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(db_dir);
+
+  NeugDBConfig write_config(db_dir.string(), 1);
+  write_config.checkpoint_on_close = true;
+  write_config.memory_level = MemoryLevel::kInMemory;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(write_config));
+    auto connection = db.Connect();
+    ASSERT_TRUE(connection->Query(
+        "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));", "schema"));
+    connection->Close();
+    db.Close();
+  }
+
+  int start_pipe[2];
+  ASSERT_EQ(::pipe(start_pipe), 0);
+
+  pid_t children[2];
+  for (auto& child_pid : children) {
+    const pid_t pid = ::fork();
+    ASSERT_GE(pid, 0);
+    if (pid == 0) {
+      ::close(start_pipe[1]);
+      char token = 0;
+      // Block until the parent closes the write end, releasing every child
+      // at the same moment to start the open race.
+      while (::read(start_pipe[0], &token, 1) == -1 && errno == EINTR) {}
+      ::close(start_pipe[0]);
+
+      char status = '0';
+      try {
+        NeugDBConfig read_config(db_dir.string(), 1);
+        read_config.mode = DBMode::READ_ONLY;
+        read_config.memory_level = MemoryLevel::kSyncToFile;
+        NeugDB db;
+        const bool opened = db.Open(read_config);
+        auto connection = db.Connect();
+        const bool queried =
+            connection->Query("MATCH (n:person) RETURN count(n);", "read")
+                .has_value();
+        status = opened && queried ? '1' : '0';
+        db.Close();
+      } catch (...) {}
+      ::_exit(status == '1' ? 0 : 1);
+    }
+    child_pid = pid;
+  }
+  ::close(start_pipe[0]);
+  // Let both children block on the pipe, then release them simultaneously.
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  ::close(start_pipe[1]);
+
+  for (const auto child_pid : children) {
+    int status = 0;
+    ASSERT_EQ(::waitpid(child_pid, &status, 0), child_pid);
+    EXPECT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 0);
+  }
+  std::filesystem::remove_all(db_dir);
 }
 
 // Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.

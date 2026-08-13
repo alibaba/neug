@@ -43,7 +43,7 @@ pip install neug
 </details>
 
 <details>
-<summary><b>Node.js</b> &nbsp;·&nbsp; requires Node.js 18+ &nbsp;(since v0.1.3)</summary>
+<summary><b>Node.js</b> &nbsp;·&nbsp; requires Node.js 20+ &nbsp;(since v0.1.3)</summary>
 
 ```bash
 npm install @graphscope-neug/neug

@@ -501,6 +501,67 @@ TEST_F(PatternMatchingTest, InitializeReportsGraphCounts) {
               response.arrays(2).int64_array().values(0) == 18);
 }
 
+TEST_F(PatternMatchingTest, RepeatedLoadPreservesWarmCache) {
+  result<QueryResult> init_holder;
+  QueryOk(
+      "CALL INITIALIZE() "
+      "RETURN status, num_vertices, num_edges, max_degree, degeneracy;",
+      &init_holder);
+
+  auto reload = conn_->Query("LOAD pattern_matching;");
+  ASSERT_TRUE(reload.has_value()) << reload.error().ToString();
+
+  auto ckpt_dir = test_dir_ / "checkpoint_after_reload";
+  result<QueryResult> save_holder;
+  const auto& save = QueryOk("CALL SAVE_SAMPLEDMATCH_CHECKPOINT('" +
+                                 ckpt_dir.string() + "') RETURN status;",
+                             &save_holder);
+  ASSERT_EQ(save.length(), 1u);
+  EXPECT_EQ(save.response().arrays(0).string_array().values(0), "success");
+}
+
+TEST_F(PatternMatchingTest, NewDatabaseGetsIndependentCache) {
+  result<QueryResult> first_holder;
+  const auto& first = QueryOk(
+      "CALL INITIALIZE() RETURN status, num_vertices, num_edges, max_degree, "
+      "degeneracy;",
+      &first_holder);
+  ASSERT_EQ(first.response().arrays(1).int64_array().values(0), 6);
+
+  conn_.reset();
+  db_->Close();
+  db_.reset();
+
+  db_ = std::make_unique<neug::NeugDB>();
+  ASSERT_TRUE(db_->Open(test_dir_ / "db_b"));
+  conn_ = db_->Connect();
+  ASSERT_TRUE(conn_);
+
+  const std::string setup_queries[] = {
+      "CREATE NODE TABLE Person(id INT32 PRIMARY KEY);",
+      "CREATE REL TABLE person_knows_person(FROM Person TO Person);",
+      "CREATE (n:Person {id: 0});",
+      "CREATE (n:Person {id: 1});",
+      "MATCH (a:Person), (b:Person) WHERE a.id = 0 AND b.id = 1 "
+      "CREATE (a)-[:person_knows_person]->(b);",
+      "LOAD pattern_matching;",
+  };
+  for (const auto& query : setup_queries) {
+    auto result = conn_->Query(query);
+    ASSERT_TRUE(result.has_value())
+        << query << ": " << result.error().ToString();
+  }
+
+  result<QueryResult> second_holder;
+  const auto& second = QueryOk(
+      "CALL INITIALIZE() RETURN status, num_vertices, num_edges, max_degree, "
+      "degeneracy;",
+      &second_holder);
+  EXPECT_EQ(second.response().arrays(1).int64_array().values(0), 2);
+  EXPECT_TRUE(second.response().arrays(2).int64_array().values(0) == 1 ||
+              second.response().arrays(2).int64_array().values(0) == 2);
+}
+
 TEST_F(PatternMatchingTest, PatternMatchRejectsUnknownVertexLabel) {
   ExpectPatternJsonFails(R"({
     "vertices": [
