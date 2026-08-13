@@ -195,6 +195,7 @@ class PropertyGraph {
   Status ActivateIndexes();
 
   bool HasPendingIndexes() const;
+  bool HasPendingMutations() const;
 
   /**
    * @brief Clear all graph data and reset to empty state.

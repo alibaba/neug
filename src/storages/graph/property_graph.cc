@@ -109,6 +109,10 @@ bool PropertyGraph::HasPendingIndexes() const {
   return index_manager_->HasPendingIndexes();
 }
 
+bool PropertyGraph::HasPendingMutations() const {
+  return index_manager_->HasPendingMutations();
+}
+
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
   if (schema_.is_vertex_label_valid(v_label)) {
     auto old_cap = vertex_tables_[v_label].Capacity();
@@ -1045,7 +1049,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     }
   }
 
-  index_manager_->Dump(store);
+  index_manager_->Dump(store, *ckp, meta);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped

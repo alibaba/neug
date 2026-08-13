@@ -118,11 +118,12 @@ class StorageIndexManager {
   Status ActivateIndexes(const IndexColumns& columns);
 
   bool HasPendingIndexes() const { return !pending_indexes_.empty(); }
+  bool HasPendingMutations() const { return !pending_mutations_.empty(); }
 
   /**
    * @brief Move all indexes into the module broker for persistence.
    */
-  void Dump(ModuleBroker& store);
+  void Dump(ModuleBroker& store, Checkpoint& ckp, CheckpointManifest& meta);
 
   void Clear();
 

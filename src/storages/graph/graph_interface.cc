@@ -641,6 +641,7 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
   if (vec_column) {
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(vec_column));
+    MarkVertexTableDirty(label_id);
     mut_view_.Rebuild(graph_);
   }
   return index;
@@ -728,6 +729,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
     auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(array_column));
+    MarkVertexTableDirty(meta.schema.label_id);
     mut_view_.Rebuild(graph_);
   }
   return Status::OK();

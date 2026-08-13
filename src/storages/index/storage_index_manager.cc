@@ -345,11 +345,25 @@ Status StorageIndexManager::ActivateIndexes(const IndexColumns& columns) {
   return Status::OK();
 }
 
-void StorageIndexManager::Dump(ModuleBroker& store) {
-  if (!pending_indexes_.empty()) {
+void StorageIndexManager::Dump(ModuleBroker& store, Checkpoint& ckp,
+                               CheckpointManifest& meta) {
+  if (!pending_mutations_.empty()) {
     THROW_RUNTIME_ERROR(
-        "Cannot create a checkpoint while extension-backed indexes are "
-        "pending. Load the required extension first.");
+        "Cannot create a checkpoint while mutations for pending "
+        "extension-backed indexes have not been applied. Load the required "
+        "extension first.");
+  }
+  if (!pending_indexes_.empty() && !ckp_) {
+    THROW_RUNTIME_ERROR(
+        "Cannot preserve pending indexes without a previous checkpoint");
+  }
+  for (const auto& [_, pending] : pending_indexes_) {
+    if (!ckp_->GetMeta().has_module(pending.key)) {
+      THROW_RUNTIME_ERROR("Cannot preserve pending index module '" +
+                          pending.key +
+                          "': descriptor is missing from previous checkpoint");
+    }
+    meta.LinkModuleFrom(ckp_->GetMeta(), pending.key, ckp);
   }
   for (auto& [name, index] : indexes_) {
     if (!index)
