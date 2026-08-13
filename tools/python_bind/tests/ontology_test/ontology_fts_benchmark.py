@@ -82,8 +82,7 @@ def load_database(data_dir, db_path):
             '(from="Entity", to="Product");'
         )
     conn.execute(
-        "CREATE INDEX entity_description_fts "
-        "ON Entity USING FTS (description);"
+        "CREATE INDEX entity_description_fts " "ON Entity USING FTS (description);"
     )
     conn.close()
     db.close()
@@ -311,9 +310,7 @@ def main():
         raise FileNotFoundError(f"database is unavailable: {args.db_path}")
 
     weights = parse_weights(args.weights)
-    query_terms = load_query_terms(
-        args.data_dir, args.query_pool_size, args.seed
-    )
+    query_terms = load_query_terms(args.data_dir, args.query_pool_size, args.seed)
     queries = build_query_pool(query_terms, args.topk)
     stats, errors = run_benchmark(
         args.db_path,

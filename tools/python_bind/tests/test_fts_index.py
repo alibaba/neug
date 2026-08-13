@@ -47,9 +47,7 @@ def load_fts(connection, skip_if_unavailable=False):
 
 
 def create_item_table(connection):
-    connection.execute(
-        "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, text STRING);"
-    )
+    connection.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, text STRING);")
 
 
 def search(connection, query, limit=10):
@@ -91,9 +89,7 @@ def test_fts_tracks_inserts_updates_and_deletes(fts_database):
     fts_database.execute("CREATE (:Item {id: 4, text: 'durable fox'});")
     assert [row[0] for row in search(fts_database, "durable")] == [4]
 
-    fts_database.execute(
-        "MATCH (n:Item) WHERE n.id = 4 SET n.text = 'current fox';"
-    )
+    fts_database.execute("MATCH (n:Item) WHERE n.id = 4 SET n.text = 'current fox';")
     assert search(fts_database, "durable") == []
     assert [row[0] for row in search(fts_database, "current")] == [4]
 
@@ -119,9 +115,7 @@ def test_fts_index_survives_database_reopen(tmp_path):
         load_fts(reopened_connection)
         assert [row[0] for row in search(reopened_connection, "durable")] == [1]
 
-        reopened_connection.execute(
-            "CREATE (:Item {id: 2, text: 'durable hare'});"
-        )
+        reopened_connection.execute("CREATE (:Item {id: 2, text: 'durable hare'});")
         assert {row[0] for row in search(reopened_connection, "durable")} == {
             1,
             2,
@@ -133,9 +127,7 @@ def test_fts_index_survives_database_reopen(tmp_path):
 
 def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
     database_path = str(tmp_path / "explicit_checkpoint_fts_db")
-    db = Database(
-        db_path=database_path, mode="w", checkpoint_on_close=False
-    )
+    db = Database(db_path=database_path, mode="w", checkpoint_on_close=False)
     connection = db.connect()
     load_fts(connection, skip_if_unavailable=True)
     create_item_table(connection)
@@ -148,16 +140,12 @@ def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
     connection.close()
     db.close()
 
-    reopened_db = Database(
-        db_path=database_path, mode="w", checkpoint_on_close=False
-    )
+    reopened_db = Database(db_path=database_path, mode="w", checkpoint_on_close=False)
     reopened_connection = reopened_db.connect()
     try:
         load_fts(reopened_connection)
         rows = list(
-            reopened_connection.execute(
-                "MATCH (n:Item) RETURN n.id ORDER BY n.id;"
-            )
+            reopened_connection.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")
         )
         assert rows == [[1]]
         assert [row[0] for row in search(reopened_connection, "durable")] == [1]
