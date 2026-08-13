@@ -31,6 +31,7 @@ namespace neug {
 class StorageIndex;
 class StorageIndexManager;
 struct IndexMeta;
+struct PendingIndex;
 struct IndexQueryParams;
 struct SearchResult;
 
@@ -365,6 +366,10 @@ class StorageReadInterface : virtual public IStorageInterface {
   /** @brief Get all registered indexes. */
   result<std::vector<StorageIndex*>> GetAllIndexes() const {
     return view_.GetAllIndexes();
+  }
+
+  result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const {
+    return view_.GetAllPendingIndexes();
   }
 
   /**
@@ -949,6 +954,9 @@ class StorageIndexDDLInterface {
  public:
   virtual ~StorageIndexDDLInterface() {}
 
+  /** Activate index modules deferred until their extension was loaded. */
+  virtual Status ActivateIndexes() = 0;
+
   /** @brief Create, bind, and populate an index. */
   virtual result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) = 0;
@@ -977,6 +985,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
   neug::result<StorageIndex*> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
+  Status ActivateIndexes() override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {

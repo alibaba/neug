@@ -31,6 +31,7 @@ rapidjson::Value ModuleDescriptor::ToJson(
                        static_cast<rapidjson::SizeType>(module_type.size()),
                        alloc),
       alloc);
+  obj.AddMember("required", rapidjson::Value(required), alloc);
   if (!extra_.empty()) {
     rapidjson::Value extra_obj(rapidjson::kObjectType);
     for (const auto& [k, v] : extra_) {
@@ -74,6 +75,9 @@ ModuleDescriptor ModuleDescriptor::FromJson(const rapidjson::Value& obj) {
   ModuleDescriptor desc;
   if (obj.HasMember("module_type") && obj["module_type"].IsString()) {
     desc.module_type = obj["module_type"].GetString();
+  }
+  if (obj.HasMember("required") && obj["required"].IsBool()) {
+    desc.required = obj["required"].GetBool();
   }
   if (obj.HasMember("extra") && obj["extra"].IsObject()) {
     for (auto& m : obj["extra"].GetObject()) {
