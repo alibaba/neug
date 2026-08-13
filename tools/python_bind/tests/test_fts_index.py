@@ -25,7 +25,6 @@ import pytest
 from neug.database import Database
 from neug.session import Session
 
-
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
     "1",
     "true",
