@@ -642,13 +642,9 @@ void EdgeTable::EnsureCapacity(vid_t src_v_cap, vid_t dst_v_cap,
 }
 
 size_t EdgeTable::EdgeNum() const {
-  if (out_csr_) {
-    return out_csr_->edge_num();
-  } else if (in_csr_) {
-    return in_csr_->edge_num();
-  } else {
-    return 0;
-  }
+  const auto out_num = out_csr_ ? out_csr_->edge_num() : 0;
+  const auto in_num = in_csr_ ? in_csr_->edge_num() : 0;
+  return std::max(out_num, in_num);
 }
 
 size_t EdgeTable::PropertyNum() const { return table_->col_num(); }
