@@ -39,30 +39,8 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
     const parser::Statement& statement) {
   auto& callStatement =
       neug_dynamic_cast<const parser::StandaloneCall&>(statement);
-  const main::Option* option =
-      clientContext->getExtensionOption(callStatement.getOptionName());
-  if (option == nullptr) {
-    THROW_BINDER_EXCEPTION(
-        "Invalid option name: " + callStatement.getOptionName() + ".");
-  }
-  auto optionValue =
-      expressionBinder.bindExpression(*callStatement.getOptionValue());
-  ExpressionUtil::validateExpressionType(*optionValue, ExpressionType::LITERAL);
-  if (LogicalTypeUtils::isFloatingPoint(optionValue->dataType.id()) &&
-      LogicalTypeUtils::isIntegral(DataType(option->parameterType))) {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "Expression {} has data type {} but expected {}. Implicit cast is not "
-        "supported.",
-        optionValue->toString(),
-        LogicalTypeUtils::toString(optionValue->dataType.id()),
-        LogicalTypeUtils::toString(option->parameterType)));
-  }
-  optionValue = expressionBinder.implicitCastIfNecessary(
-      optionValue, DataType(option->parameterType));
-  if (ConstantExpressionVisitor::needFold(*optionValue)) {
-    optionValue = expressionBinder.foldExpression(optionValue);
-  }
-  return std::make_unique<BoundStandaloneCall>(option, std::move(optionValue));
+  THROW_BINDER_EXCEPTION(
+      "Invalid option name: " + callStatement.getOptionName() + ".");
 }
 
 }  // namespace binder

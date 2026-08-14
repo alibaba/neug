@@ -22,13 +22,12 @@
 
 #pragma once
 
-#include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
-#include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/option_config.h"
+#include "neug/utils/result.h"
 
 namespace neug {
 namespace extension {
@@ -45,42 +44,28 @@ class ExtensionManager {
  public:
   using InitFunc = void (*)();
 
-  enum class LoadState { LOADING, LOADED, FAILED };
-
-  struct LoadTicket {
-    bool owns_load;
-
-   private:
-    friend class ExtensionManager;
-    std::shared_ptr<LoadedExtension> extension;
-
-    LoadTicket(bool owns_load, std::shared_ptr<LoadedExtension> extension)
-        : owns_load(owns_load), extension(std::move(extension)) {}
+  struct LoadResult {
+    std::string canonical_name;
+    bool newly_loaded;
   };
 
-  const main::ExtensionOption* getExtensionOption(std::string name) const;
-
-  static LoadTicket AcquireLoad(const std::string& name);
-  static void CompleteLoad(const LoadTicket& ticket, void* handle,
-                           InitFunc init);
-  static void FailLoad(const LoadTicket& ticket);
-  static void ReplayLoadedExtensions();
+  Status InstallExtension(const std::string& name,
+                          const std::string& repository = {});
+  result<LoadResult> LoadExtension(const std::string& name);
+  Status UninstallExtension(const std::string& name);
+  bool IsLoaded(const std::string& name) const;
 
  private:
   struct LoadedExtension {
-    std::atomic<LoadState> state{LoadState::LOADING};
+    std::string library_path;
     void* handle = nullptr;
     InitFunc init = nullptr;
   };
 
-  using LoadedExtensionMap =
-      std::unordered_map<std::string, std::shared_ptr<LoadedExtension>>;
-
   static std::string NormalizeExtensionName(std::string name);
 
-  static std::atomic<const LoadedExtensionMap*> loaded_extensions_;
-
-  std::unordered_map<std::string, main::ExtensionOption> extensionOptions;
+  mutable std::mutex mutex_;
+  std::unordered_map<std::string, LoadedExtension> loaded_extensions_;
 };
 
 }  // namespace extension

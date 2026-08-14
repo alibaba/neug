@@ -154,7 +154,8 @@ static void trySetCaCertPaths(httplib::SSLClient& cli) {
 }
 #endif
 
-Status install_extension(const std::string& extension_name) {
+Status install_extension(const std::string& extension_name,
+                         const std::string& repository) {
   LOG(INFO) << "[Admin] INSTALL extension: " << extension_name;
   std::string extDir = getUserExtensionDir(extension_name);
 
@@ -171,7 +172,9 @@ Status install_extension(const std::string& extension_name) {
   auto localLibPath = extDir + "/" + fileName;
 
   const std::string& repo =
-      neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
+      repository.empty()
+          ? neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO
+          : repository;
   auto repoInfo = neug::extension::ExtensionUtils::getExtensionLibRepoInfo(
       extension_name, repo);
 
@@ -463,12 +466,33 @@ static void ensureNeugSymbolsGlobal() {
 }
 
 Status load_extension(const std::string& extension_name) {
-  LOG(INFO) << "[Admin] LOAD extension: " << extension_name;
+  return Status(
+      StatusCode::ERR_ILLEGAL_OPERATION,
+      "LOAD EXTENSION must be executed by ExtensionManager: " + extension_name);
+}
+
+Status ExtensionManager::InstallExtension(const std::string& name,
+                                          const std::string& repository) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return install_extension(NormalizeExtensionName(name), repository);
+}
+
+result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
+    const std::string& extension_name) {
+  const auto canonical_name = NormalizeExtensionName(extension_name);
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (loaded_extensions_.contains(canonical_name)) {
+    LOG(WARNING) << "[Admin] Extension " << canonical_name
+                 << " is already loaded; skipping library initialization";
+    return LoadResult{canonical_name, false};
+  }
+
+  LOG(INFO) << "[Admin] LOAD extension: " << canonical_name;
   ensureNeugSymbolsGlobal();
   auto fileName =
-      neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
+      neug::extension::ExtensionUtils::getExtensionFileName(canonical_name);
 
-  std::string userExtDir = getUserExtensionDir(extension_name);
+  std::string userExtDir = getUserExtensionDir(canonical_name);
   std::string userLibPath = userExtDir + "/" + fileName;
   if (std::filesystem::exists(userLibPath)) {
     LOG(INFO) << "[Admin] Loading extension from user install: " << userLibPath;
@@ -478,56 +502,49 @@ Status load_extension(const std::string& extension_name) {
     // libneug.so's copy, which would cause heap corruption on exit.
     // neug symbols are still resolvable because ensureNeugSymbolsGlobal()
     // has already promoted libneug.so to RTLD_GLOBAL.
-    auto load_ticket = ExtensionManager::AcquireLoad(extension_name);
-    if (load_ticket.owns_load) {
-      void* handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
-      if (!handle) {
-        ExtensionManager::FailLoad(load_ticket);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Failed to load extension library: " + userLibPath +
-                          ". Error: " + std::string(dlerror()));
-      }
-      dlerror();
-      typedef void (*init_func_t)();
-      init_func_t init_func = (init_func_t) dlsym(handle, "Init");
-      const char* dlsym_error = dlerror();
-      if (dlsym_error) {
-        dlclose(handle);
-        ExtensionManager::FailLoad(load_ticket);
-        return Status(
-            StatusCode::ERR_IO_ERROR,
-            "Failed to find 'Init' function in extension: " + extension_name +
-                ". Error: " + std::string(dlsym_error));
-      }
-      try {
-        (*init_func)();
-        ExtensionManager::CompleteLoad(load_ticket, handle, init_func);
-        LOG(INFO) << "[Admin] Extension " << extension_name
-                  << " loaded and initialized successfully";
-      } catch (const std::exception& e) {
-        dlclose(handle);
-        ExtensionManager::FailLoad(load_ticket);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension initialization failed: " + extension_name +
-                          ". Error: " + std::string(e.what()));
-      } catch (...) {
-        dlclose(handle);
-        ExtensionManager::FailLoad(load_ticket);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension initialization failed with unknown error: " +
-                          extension_name);
-      }
+    void* handle = dlopen(userLibPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!handle) {
+      RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR,
+                          "Failed to load extension library: " + userLibPath +
+                              ". Error: " + std::string(dlerror())));
     }
-    LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
-    return Status::OK();
+    dlerror();
+    auto init_func = reinterpret_cast<InitFunc>(dlsym(handle, "Init"));
+    const char* dlsym_error = dlerror();
+    if (dlsym_error) {
+      dlclose(handle);
+      RETURN_ERROR(Status(
+          StatusCode::ERR_IO_ERROR,
+          "Failed to find 'Init' function in extension: " + canonical_name +
+              ". Error: " + std::string(dlsym_error)));
+    }
+    try {
+      (*init_func)();
+    } catch (const std::exception& e) {
+      dlclose(handle);
+      RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR,
+                          "Extension initialization failed: " + canonical_name +
+                              ". Error: " + e.what()));
+    } catch (...) {
+      dlclose(handle);
+      RETURN_ERROR(
+          Status(StatusCode::ERR_IO_ERROR,
+                 "Extension initialization failed with unknown error: " +
+                     canonical_name));
+    }
+    loaded_extensions_.emplace(canonical_name,
+                               LoadedExtension{userLibPath, handle, init_func});
+    LOG(INFO) << "[Admin] Extension " << canonical_name
+              << " loaded and initialized successfully";
+    return LoadResult{canonical_name, true};
   }
 
   // Not found
   LOG(ERROR) << "[Admin] Extension " << userLibPath
              << " not found in user install or wheel package";
-  return Status(StatusCode::ERR_IO_ERROR,
-                "Extension " + userLibPath +
-                    " not found in user install or wheel package");
+  RETURN_ERROR(Status(StatusCode::ERR_IO_ERROR,
+                      "Extension " + userLibPath +
+                          " not found in user install or wheel package"));
 }
 
 Status uninstall_extension(const std::string& extension_name) {
@@ -547,6 +564,11 @@ Status uninstall_extension(const std::string& extension_name) {
   LOG(INFO) << "[Admin] Extension: " << extension_name
             << " has been uninstalled";
   return Status::OK();
+}
+
+Status ExtensionManager::UninstallExtension(const std::string& name) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return uninstall_extension(NormalizeExtensionName(name));
 }
 
 }  // namespace extension

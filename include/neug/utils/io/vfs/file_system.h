@@ -47,7 +47,9 @@ class FileSystemRegistry {
   FileSystemRegistry();
   ~FileSystemRegistry() = default;
 
-  void Register(const std::string& protocol, FileSystemFactory factory);
+  // Returns true when the factory is inserted. An existing protocol is left
+  // unchanged so extension initialization can be replayed safely.
+  bool Register(const std::string& protocol, FileSystemFactory factory);
 
   std::unique_ptr<FileSystem> Provide(const reader::FileSchema& schema);
 
