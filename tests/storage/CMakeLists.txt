@@ -13,9 +13,14 @@ add_neug_test(storage_test ${storage_test_src})
 add_neug_test(ap_index_test test_ap_index.cc)
 
 add_neug_test(e2e_index_test test_e2e_index.cc)
-add_dependencies(e2e_index_test neug_test_vec_index_extension)
-target_compile_definitions(e2e_index_test PRIVATE
-    NEUG_TEST_VEC_INDEX_EXTENSION_HOME="${NEUG_TEST_VEC_INDEX_EXTENSION_HOME}")
+# The standalone VecIndex test extension uses internal NeuG symbols that are
+# not exported from neug.dll on Windows.  It is therefore only built on
+# non-Windows platforms; the extension home macro is only needed there.
+if(NOT WIN32)
+    add_dependencies(e2e_index_test neug_test_vec_index_extension)
+    target_compile_definitions(e2e_index_test PRIVATE
+        NEUG_TEST_VEC_INDEX_EXTENSION_HOME="${NEUG_TEST_VEC_INDEX_EXTENSION_HOME}")
+endif()
 
 add_neug_test(tp_index_test test_tp_index.cc)
 
