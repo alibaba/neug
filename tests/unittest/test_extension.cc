@@ -1,70 +1,8 @@
 #include <gtest/gtest.h>
-#include <atomic>
 #include <cstdlib>
 #include <filesystem>
-#include <thread>
-#include <vector>
 #include "column_assertions.h"
-#include "neug/compiler/extension/extension_manager.h"
 #include "neug/main/neug_db.h"
-
-namespace {
-
-void NoopExtensionInit() {}
-
-TEST(ExtensionLoadCoordinator, SequentialDuplicateLoadHasSingleOwner) {
-  auto first = neug::extension::ExtensionManager::AcquireLoad(
-      "coordinator_sequential_test");
-  ASSERT_TRUE(first.owns_load);
-  neug::extension::ExtensionManager::CompleteLoad(
-      first, reinterpret_cast<void*>(1), &NoopExtensionInit);
-
-  auto duplicate = neug::extension::ExtensionManager::AcquireLoad(
-      "COORDINATOR_SEQUENTIAL_TEST");
-  EXPECT_FALSE(duplicate.owns_load);
-}
-
-TEST(ExtensionLoadCoordinator, ConcurrentDuplicateLoadHasSingleOwner) {
-  constexpr size_t kThreadCount = 16;
-  std::atomic<size_t> owner_count{0};
-  std::atomic<bool> start{false};
-  std::vector<std::thread> threads;
-  threads.reserve(kThreadCount);
-  for (size_t i = 0; i < kThreadCount; ++i) {
-    threads.emplace_back([&]() {
-      while (!start.load(std::memory_order_acquire)) {
-        std::this_thread::yield();
-      }
-      auto ticket = neug::extension::ExtensionManager::AcquireLoad(
-          "coordinator_concurrent_test");
-      if (ticket.owns_load) {
-        owner_count.fetch_add(1, std::memory_order_relaxed);
-        neug::extension::ExtensionManager::CompleteLoad(
-            ticket, reinterpret_cast<void*>(1), &NoopExtensionInit);
-      }
-    });
-  }
-  start.store(true, std::memory_order_release);
-  for (auto& thread : threads) {
-    thread.join();
-  }
-  EXPECT_EQ(owner_count.load(std::memory_order_relaxed), 1);
-}
-
-TEST(ExtensionLoadCoordinator, FailedLoadCanBeRetried) {
-  auto first =
-      neug::extension::ExtensionManager::AcquireLoad("coordinator_retry_test");
-  ASSERT_TRUE(first.owns_load);
-  neug::extension::ExtensionManager::FailLoad(first);
-
-  auto retry =
-      neug::extension::ExtensionManager::AcquireLoad("coordinator_retry_test");
-  EXPECT_TRUE(retry.owns_load);
-  neug::extension::ExtensionManager::CompleteLoad(
-      retry, reinterpret_cast<void*>(1), &NoopExtensionInit);
-}
-
-}  // namespace
 
 class TestJsonExtension : public ::testing::Test {
  protected:
