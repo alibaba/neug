@@ -318,13 +318,14 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   }
   const auto& oe_strategy = config.GetOEEdgeStrategy();
   const auto& ie_strategy = config.GetIEEdgeStrategy();
+  const auto& relation = config.GetRelation();
   bool oe_mutable = true, ie_mutable = true;
   auto sort_key_for_nbr = config.GetSortKeyForNbr();
   std::string description;
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
                        property_types, property_names, oe_strategy, ie_strategy,
                        oe_mutable, ie_mutable, sort_key_for_nbr, description,
-                       default_property_values, config.IsTemporary());
+                       default_property_values, config.IsTemporary(), relation);
   edge_label_total_count_ = schema_.edge_label_frontier();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);

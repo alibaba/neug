@@ -570,25 +570,17 @@ def _get_edge_pair_relations_by_type_name(schema_text: str):
     return out
 
 
-def test_create_rel_table_edge_multiplicity(tmp_path):
+def test_create_rel_table_edge_multiplicity_and_strategy(tmp_path):
     """
-    `CREATE REL TABLE` with a multiplicity token (e.g. MANY_TO_ONE) is compiled to
-    a physical `CreateEdgeSchema` with a matching `multiplicity` value. The Python
-    API does not return raw physical plan text; the persisted graph schema from
-    `get_schema()` exposes the same information per triplet as the ``relation``
-    field (MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, MANY_TO_MANY).
-
-    Example: ``CREATE REL TABLE LivesIn(FROM User TO City, MANY_TO_ONE);`` — use
-    ``pytest -s`` to see the printed lines.
+    Logical multiplicity and physical CSR strategies are persisted separately.
     """
     cases = [
-        # (edge_table, Cypher token) -> same labels as CreateEdgeSchema::Multiplicity
-        ("LivesIn", "MANY_TO_ONE", "MANY_TO_ONE"),
-        ("Serves", "ONE_TO_MANY", "ONE_TO_MANY"),
-        ("Tie", "ONE_TO_ONE", "ONE_TO_ONE"),
-        ("Social", "MANY_TO_MANY", "MANY_TO_MANY"),
+        ("LivesIn", "MANY_TO_ONE", "SINGLE", "MULTIPLE"),
+        ("Serves", "ONE_TO_MANY", "MULTIPLE", "SINGLE"),
+        ("Tie", "ONE_TO_ONE", "SINGLE", "SINGLE"),
+        ("Social", "MANY_TO_MANY", "MULTIPLE", "MULTIPLE"),
     ]
-    for rel_name, mul_token, expect_relation in cases:
+    for rel_name, mul_token, expect_oe, expect_ie in cases:
         db_dir = str(tmp_path / f"test_edge_mul_{rel_name}")
         shutil.rmtree(db_dir, ignore_errors=True)
 
@@ -601,13 +593,10 @@ def test_create_rel_table_edge_multiplicity(tmp_path):
         by_edge = _get_edge_pair_relations_by_type_name(schema_text)
         pairs = by_edge.get(rel_name, [])
         assert len(pairs) == 1, f"{rel_name}: {pairs!r}"
-        rel = pairs[0].get("relation")
-        assert (
-            rel == expect_relation
-        ), f"{rel_name} {mul_token}: got {rel!r}, want {expect_relation!r}"
-        print(
-            f"CREATE REL TABLE {rel_name}(..., {mul_token}) -> "
-            f"CreateEdgeSchema multiplicity: {rel}"
+        assert pairs[0].get("relation") == mul_token
+        assert _get_edge_strategies(schema_text, rel_name) == (
+            expect_oe,
+            expect_ie,
         )
         conn.close()
         db.close()
@@ -647,13 +636,31 @@ def test_create_rel_table_with_options(tmp_path):
     db2.close()
 
 
-def _get_edge_storage_strategy(schema_text: str, edge_name: str):
-    """Return x_csr_params.edge_storage_strategy for the first triplet, or None."""
+def _get_edge_strategies(schema_text: str, edge_name: str):
+    """Return persisted OE and IE strategies for the first triplet."""
     by_edge = _get_edge_pair_relations_by_type_name(schema_text)
     pairs = by_edge.get(edge_name, [])
     assert len(pairs) == 1, pairs
+    relation = pairs[0].get("relation")
+    defaults = {
+        "ONE_TO_ONE": ("SINGLE", "SINGLE"),
+        "ONE_TO_MANY": ("MULTIPLE", "SINGLE"),
+        "MANY_TO_ONE": ("SINGLE", "MULTIPLE"),
+        "MANY_TO_MANY": ("MULTIPLE", "MULTIPLE"),
+    }
+    default_oe, default_ie = defaults[relation]
     csr = pairs[0].get("x_csr_params") or {}
-    return csr.get("edge_storage_strategy")
+    return (
+        csr.get("oe_strategy", default_oe),
+        csr.get("ie_strategy", default_ie),
+    )
+
+
+def _get_edge_relation(schema_text: str, edge_name: str):
+    by_edge = _get_edge_pair_relations_by_type_name(schema_text)
+    pairs = by_edge.get(edge_name, [])
+    assert len(pairs) == 1, pairs
+    return pairs[0].get("relation")
 
 
 def test_create_rel_table_storage_direction(tmp_path):
@@ -680,7 +687,11 @@ def test_create_rel_table_storage_direction(tmp_path):
             "CREATE REL TABLE workAt(FROM person TO organisation, year INT64, "
             "MANY_TO_ONE) WITH (storage_direction = 'fwd');"
         )
-        assert _get_edge_storage_strategy(conn.get_schema(), "workAt") == "ONLY_OUT"
+        assert _get_edge_strategies(conn.get_schema(), "workAt") == (
+            "SINGLE",
+            "NONE",
+        )
+        assert _get_edge_relation(conn.get_schema(), "workAt") == "MANY_TO_ONE"
         list(conn.execute("MATCH (:person)-[w:workAt]->(:organisation) RETURN w.year;"))
         with pytest.raises(Exception, match="Undirected rel pattern"):
             conn.execute("MATCH (:person)-[w:workAt]-(:organisation) RETURN w.year;")
@@ -690,7 +701,11 @@ def test_create_rel_table_storage_direction(tmp_path):
             "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
             "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
         )
-        assert _get_edge_storage_strategy(conn.get_schema(), "livesIn") == "ONLY_IN"
+        assert _get_edge_strategies(conn.get_schema(), "livesIn") == (
+            "NONE",
+            "MULTIPLE",
+        )
+        assert _get_edge_relation(conn.get_schema(), "livesIn") == "MANY_TO_ONE"
         list(
             conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;")
         )
@@ -700,14 +715,51 @@ def test_create_rel_table_storage_direction(tmp_path):
         with pytest.raises(Exception, match="Undirected rel pattern"):
             conn.execute("MATCH (:person)-[l:livesIn]-(:organisation) RETURN l.year;")
 
-        # both: undirected OK, no one-sided storage strategy in schema
+        # both: undirected OK, both CSR strategies are present
         conn.execute(
             "CREATE REL TABLE studyAt(FROM person TO organisation, year INT64, "
             "MANY_TO_ONE) WITH (storage_direction = 'both');"
         )
-        assert _get_edge_storage_strategy(conn.get_schema(), "studyAt") is None
+        assert _get_edge_strategies(conn.get_schema(), "studyAt") == (
+            "SINGLE",
+            "MULTIPLE",
+        )
+        assert _get_edge_relation(conn.get_schema(), "studyAt") == "MANY_TO_ONE"
         list(conn.execute("MATCH (:person)-[s:studyAt]-(:organisation) RETURN s.year;"))
     finally:
         conn.close()
         db.close()
         shutil.rmtree(db_dir, ignore_errors=True)
+
+
+def test_edge_strategy_checkpoint_round_trip(tmp_path):
+    db_dir = str(tmp_path / "test_edge_strategy_round_trip")
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE NODE TABLE organisation(id INT64 PRIMARY KEY);")
+    conn.execute(
+        "CREATE REL TABLE livesIn(FROM person TO organisation, MANY_TO_ONE) "
+        "WITH (storage_direction = 'bwd');"
+    )
+    assert _get_edge_strategies(conn.get_schema(), "livesIn") == (
+        "NONE",
+        "MULTIPLE",
+    )
+    assert _get_edge_relation(conn.get_schema(), "livesIn") == "MANY_TO_ONE"
+    conn.close()
+    db.close()
+
+    reopened_db = Database(db_dir, "r")
+    reopened_conn = reopened_db.connect()
+    try:
+        assert _get_edge_strategies(reopened_conn.get_schema(), "livesIn") == (
+            "NONE",
+            "MULTIPLE",
+        )
+        assert (
+            _get_edge_relation(reopened_conn.get_schema(), "livesIn") == "MANY_TO_ONE"
+        )
+    finally:
+        reopened_conn.close()
+        reopened_db.close()

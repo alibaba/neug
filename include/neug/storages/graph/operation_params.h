@@ -108,6 +108,7 @@ class CreateEdgeTypeParam {
   std::vector<std::pair<std::string, Value>> properties;
   EdgeStrategy oe_edge_strategy;
   EdgeStrategy ie_edge_strategy;
+  std::string relation;
   std::optional<std::string> sort_key_for_nbr;
   bool temporary = false;
   CreateEdgeTypeParam() = default;
@@ -122,6 +123,7 @@ class CreateEdgeTypeParam {
   }
   EdgeStrategy GetOEEdgeStrategy() const { return oe_edge_strategy; }
   EdgeStrategy GetIEEdgeStrategy() const { return ie_edge_strategy; }
+  const std::string& GetRelation() const { return relation; }
   const std::optional<std::string>& GetSortKeyForNbr() const {
     return sort_key_for_nbr;
   }
@@ -137,6 +139,7 @@ class CreateEdgeTypeParamBuilder {
   CreateEdgeTypeParamBuilder() {
     config.oe_edge_strategy = EdgeStrategy::kMultiple;
     config.ie_edge_strategy = EdgeStrategy::kMultiple;
+    config.relation = "MANY_TO_MANY";
     config.sort_key_for_nbr = std::nullopt;
   }
   CreateEdgeTypeParamBuilder& SrcLabel(const std::string& src_label) {
@@ -173,6 +176,11 @@ class CreateEdgeTypeParamBuilder {
 
   CreateEdgeTypeParamBuilder& IEEdgeStrategy(EdgeStrategy ie_edge_strategy) {
     config.ie_edge_strategy = ie_edge_strategy;
+    return *this;
+  }
+
+  CreateEdgeTypeParamBuilder& Relation(const std::string& relation) {
+    config.relation = relation;
     return *this;
   }
 

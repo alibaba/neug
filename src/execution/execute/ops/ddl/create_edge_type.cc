@@ -27,7 +27,8 @@ class CreateEdgeTypeOpr : public IOperator {
   using property_def_t = std::vector<std::pair<std::string, Value>>;
   using create_edge_type_t =
       std::tuple<std::string, std::string, std::string, property_def_t,
-                 EdgeStrategy, EdgeStrategy, std::optional<std::string>, bool>;
+                 EdgeStrategy, EdgeStrategy, std::string,
+                 std::optional<std::string>, bool>;
   CreateEdgeTypeOpr(const std::vector<create_edge_type_t>& create_edge_types,
                     bool ignore_conflict)
       : create_edge_types_(create_edge_types),
@@ -56,8 +57,9 @@ class CreateEdgeTypeOpr : public IOperator {
           .EdgeLabel(std::get<2>(create_edge_def))
           .OEEdgeStrategy(std::get<4>(create_edge_def))
           .IEEdgeStrategy(std::get<5>(create_edge_def))
-          .SortKeyForNbr(std::get<6>(create_edge_def))
-          .Temporary(std::get<7>(create_edge_def));
+          .Relation(std::get<6>(create_edge_def))
+          .SortKeyForNbr(std::get<7>(create_edge_def))
+          .Temporary(std::get<8>(create_edge_def));
       status = storage.CreateEdgeType(config_builder.Build());
       if (!status.ok()) {
         if (ignore_conflict_ && IsSchemaConflictError(status)) {
@@ -177,6 +179,8 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
           "Invalid edge multiplicity: " +
               physical::CreateEdgeSchema_Multiplicity_Name(multiplicity)));
     }
+    const auto relation =
+        physical::CreateEdgeSchema_Multiplicity_Name(multiplicity);
     std::string error_msg;
     if (!apply_storage_direction(storage_direction, oe_stragety, ie_stragety,
                                  error_msg)) {
@@ -185,8 +189,8 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     }
     create_edge_defs.emplace_back(src_vertex_type_name, dst_vertex_type_name,
                                   edge_type_name, tuple_res.value(),
-                                  oe_stragety, ie_stragety, sortkey_for_nbr,
-                                  is_temporary);
+                                  oe_stragety, ie_stragety, relation,
+                                  sortkey_for_nbr, is_temporary);
   }
 
   return std::make_pair(
