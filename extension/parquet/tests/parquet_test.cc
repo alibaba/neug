@@ -16,11 +16,14 @@
 
 #include <arrow/api.h>
 #include <arrow/filesystem/localfs.h>
+#include <arrow/io/buffered.h>
 #include <arrow/io/caching.h>
 #include <arrow/io/file.h>
+#include <arrow/io/memory.h>
 #include <gtest/gtest.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
+#include <parquet/properties.h>
 #include <filesystem>
 #include <memory>
 #include <vector>
@@ -236,7 +239,8 @@ TEST_F(ParquetTest, TestOptionsBuilder_BuildsValidParquetFragmentScanOptions) {
 TEST_F(ParquetTest, TestOptionsTranslation_BufferSize) {
   createSimpleParquetFile("test_buffer.parquet");
 
-  // Test custom buffer_size option
+  // The generic batch_size option is a BYTE count and feeds the buffered
+  // stream buffer size (see issue #839).
   const int64_t custom_buffer_size = 2048;
   auto sharedState = createSharedState(
       "test_buffer.parquet", {"id", "name", "value"},
@@ -252,11 +256,15 @@ TEST_F(ParquetTest, TestOptionsTranslation_BufferSize) {
   ASSERT_NE(parquetFragmentOpts, nullptr);
   ASSERT_NE(parquetFragmentOpts->reader_properties, nullptr);
 
-  // Verify the Neug batch_size option is correctly translated to Arrow
-  // buffer_size
+  // Verify batch_size (bytes) is translated to Arrow buffer_size
   EXPECT_EQ(parquetFragmentOpts->reader_properties->buffer_size(),
             custom_buffer_size)
-      << "Extension should translate batch_size option to Arrow buffer_size";
+      << "Extension should translate batch_size (bytes) to Arrow buffer_size";
+
+  // batch_size must NOT affect the row batch size.
+  ASSERT_NE(parquetFragmentOpts->arrow_reader_properties, nullptr);
+  EXPECT_EQ(parquetFragmentOpts->arrow_reader_properties->batch_size(), 65536)
+      << "batch_size (bytes) must not affect rows per Arrow batch";
 }
 
 TEST_F(ParquetTest, TestOptionsTranslation_ParquetBatchRows) {
@@ -282,6 +290,24 @@ TEST_F(ParquetTest, TestOptionsTranslation_ParquetBatchRows) {
   EXPECT_EQ(parquetFragmentOpts->arrow_reader_properties->batch_size(),
             custom_batch_rows)
       << "Extension should translate PARQUET_BATCH_ROWS to Arrow batch_size";
+
+  // The byte-based batch_size option must not leak into the row batch size.
+  auto sharedState2 = createSharedState(
+      "test_batch_rows.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"batch_size", "7777"}});
+
+  reader::ArrowParquetOptionsBuilder optionsBuilder2(sharedState2);
+  auto options2 = optionsBuilder2.build();
+
+  auto parquetFragmentOpts2 =
+      std::dynamic_pointer_cast<arrow::dataset::ParquetFragmentScanOptions>(
+          options2.scanOptions->fragment_scan_options);
+  ASSERT_NE(parquetFragmentOpts2, nullptr);
+  ASSERT_NE(parquetFragmentOpts2->arrow_reader_properties, nullptr);
+  EXPECT_EQ(parquetFragmentOpts2->arrow_reader_properties->batch_size(), 65536)
+      << "batch_size (bytes) must not affect rows per Arrow batch; the "
+         "default PARQUET_BATCH_ROWS=65536 should be used";
 }
 
 TEST_F(ParquetTest, TestOptionsTranslation_PreBuffer) {
@@ -329,6 +355,40 @@ TEST_F(ParquetTest, TestOptionsTranslation_UseThreads) {
   // Verify parallel option is translated to use_threads
   EXPECT_FALSE(parquetFragmentOpts->arrow_reader_properties->use_threads())
       << "Extension should translate parallel=false to use_threads=false";
+}
+
+TEST_F(ParquetTest, TestOptionsTranslation_ScannerUseThreads) {
+  createSimpleParquetFile("test_scanner_threads.parquet");
+
+  // parallel=true must also reach the dataset scanner itself
+  // (ScanOptions::use_threads), otherwise the scan stays single-threaded
+  // regardless of ArrowReaderProperties::use_threads.
+  auto sharedState = createSharedState(
+      "test_scanner_threads.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"parallel", "true"}});
+
+  reader::ArrowParquetOptionsBuilder optionsBuilder(sharedState);
+  auto options = optionsBuilder.build();
+
+  EXPECT_TRUE(options.scanOptions->use_threads)
+      << "Extension should translate parallel=true to "
+         "ScanOptions::use_threads";
+  EXPECT_NE(options.scanOptions->io_context.executor(), nullptr)
+      << "Scanner needs an IOContext with an executor for parallel scans";
+
+  // parallel=false keeps the scanner single-threaded
+  auto sharedState2 = createSharedState(
+      "test_scanner_threads.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"parallel", "false"}});
+
+  reader::ArrowParquetOptionsBuilder optionsBuilder2(sharedState2);
+  auto options2 = optionsBuilder2.build();
+
+  EXPECT_FALSE(options2.scanOptions->use_threads)
+      << "Extension should translate parallel=false to "
+         "ScanOptions::use_threads=false";
 }
 
 TEST_F(ParquetTest, TestOptionsTranslation_IoCoalescing) {
@@ -404,9 +464,19 @@ TEST_F(ParquetTest, TestOptionsTranslation_DefaultValues) {
   EXPECT_FALSE(parquetFragmentOpts->arrow_reader_properties->pre_buffer())
       << "Extension should use default PRE_BUFFER=false";
 
-  // Default parallel/use_threads = true
-  EXPECT_TRUE(parquetFragmentOpts->arrow_reader_properties->use_threads())
-      << "Extension should use default parallel=true";
+  // Default parallel/use_threads = false (parallel scanning is opt-in)
+  EXPECT_FALSE(parquetFragmentOpts->arrow_reader_properties->use_threads())
+      << "Extension should use default parallel=false";
+
+  // Default buffer size = 1 MiB, from the batch_size default (bytes)
+  ASSERT_NE(parquetFragmentOpts->reader_properties, nullptr);
+  EXPECT_EQ(parquetFragmentOpts->reader_properties->buffer_size(), 1 << 20)
+      << "Extension should use default batch_size=1MiB as buffer size";
+
+  // Default BUFFERED_STREAM = true
+  EXPECT_TRUE(
+      parquetFragmentOpts->reader_properties->is_buffered_stream_enabled())
+      << "Extension should use default BUFFERED_STREAM=true";
 }
 
 TEST_F(ParquetTest, TestFileFormatConfiguration_SharesFragmentOptions) {
@@ -702,6 +772,81 @@ TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
   auto col0_2 = ctx2.chunk(0).columns()[0];
   EXPECT_EQ(col0_2->column_type(), ContextColumnType::kValue)
       << "Extension should use Value column type when batch_read=false";
+}
+
+TEST_F(ParquetTest, TestIntegration_ParallelReadMultiRowGroup) {
+  // Write a parquet file with multiple row groups so the parallel reader
+  // can split it into independent scan tasks.
+  auto schema = arrow::schema({arrow::field("id", arrow::int64()),
+                               arrow::field("value", arrow::float64())});
+
+  constexpr int64_t kNumRows = 100;
+  arrow::Int64Builder id_builder;
+  arrow::DoubleBuilder value_builder;
+  for (int64_t i = 0; i < kNumRows; ++i) {
+    ASSERT_TRUE(id_builder.Append(i).ok());
+    ASSERT_TRUE(value_builder.Append(static_cast<double>(i) * 1.5).ok());
+  }
+  std::shared_ptr<arrow::Array> id_array, value_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(value_builder.Finish(&value_array).ok());
+  auto table = arrow::Table::Make(schema, {id_array, value_array});
+
+  std::string filepath =
+      std::string(PARQUET_TEST_DIR) + "/test_parallel_multi_rg.parquet";
+  std::shared_ptr<arrow::io::FileOutputStream> outfile;
+  PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
+  // chunk_size=25 -> 4 row groups of 25 rows
+  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 25));
+
+  // Read with parallel=true: fragments are split by row group and scanned
+  // with the thread pool; all rows must still come back intact.
+  auto sharedState =
+      createSharedState("test_parallel_multi_rg.parquet", {"id", "value"},
+                        {createInt64Type(), createDoubleType()},
+                        {{"parallel", "true"}, {"batch_read", "true"}});
+
+  auto reader = createParquetReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  reader->read(localState, ctx);
+
+  int64_t totalRows = 0;
+  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+    totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
+  }
+  EXPECT_EQ(totalRows, kNumRows)
+      << "Parallel read over multiple row groups should return all rows";
+
+  // A row count alone cannot catch duplicated or dropped rows. Read again in
+  // full (non-batch) mode and verify the aggregate of each value column.
+  auto sharedState2 =
+      createSharedState("test_parallel_multi_rg.parquet", {"id", "value"},
+                        {createInt64Type(), createDoubleType()},
+                        {{"parallel", "true"}, {"batch_read", "false"}});
+  auto reader2 = createParquetReader(sharedState2);
+  auto localState2 = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx2;
+  reader2->read(localState2, ctx2);
+
+  int64_t id_sum = 0;
+  double value_sum = 0.0;
+  int64_t totalRows2 = 0;
+  for (size_t i = 0; i < ctx2.chunk_num(); ++i) {
+    auto& chunk = ctx2.chunk(i).chunk();
+    totalRows2 += static_cast<int64_t>(chunk.row_num());
+    ASSERT_EQ(chunk.columns.size(), 2u);
+    for (size_t r = 0; r < chunk.row_num(); ++r) {
+      id_sum += chunk.columns[0]->get_elem(r).GetValue<int64_t>();
+      value_sum += chunk.columns[1]->get_elem(r).GetValue<double>();
+    }
+  }
+  EXPECT_EQ(totalRows2, kNumRows);
+  EXPECT_EQ(id_sum, kNumRows * (kNumRows - 1) / 2)
+      << "Parallel read must not duplicate or drop rows (id sum mismatch)";
+  EXPECT_DOUBLE_EQ(value_sum, 1.5 * kNumRows * (kNumRows - 1) / 2)
+      << "Parallel read must not duplicate or drop rows (value sum mismatch)";
 }
 
 TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
@@ -2007,6 +2152,118 @@ TEST_F(ParquetTest, TestParquetNonExistentColumnThrows) {
 
   EXPECT_THROW(reader->read(localState, ctx),
                exception::SchemaMismatchException);
+}
+
+// =============================================================================
+// Test Suite: Issue #839 regression tests
+// COPY FROM large ZSTD parquet crashed with heap corruption due to an
+// out-of-bounds write in Arrow 18's BufferedInputStream (upstream
+// apache/arrow GH-48311, fixed in PR #48322). The bundled Arrow is patched
+// in cmake/BuildArrowAsThirdParty.cmake; these tests guard the fix.
+// =============================================================================
+
+// Mirrors upstream apache/arrow PR #48322's PeekAfterExhaustingBuffer test.
+// Before the patch, Peek() after exhausting the buffer resized the internal
+// buffer without accounting for buffer_pos_, then wrote past the end of the
+// (too small) buffer. Under ASan/Debug builds this is detected immediately;
+// the state assertions below pin down the corrected behavior.
+TEST_F(ParquetTest, TestBufferedStream_PeekAfterExhaustingBuffer) {
+  const std::string example = "0123456789ABCDEFGHIJabcde";  // 25 bytes
+  auto raw = std::make_shared<arrow::io::BufferReader>(example);
+
+  auto buffered_result = arrow::io::BufferedInputStream::Create(
+      /*buffer_size=*/10, arrow::default_memory_pool(), raw,
+      /*raw_total_bytes_bound=*/25);
+  ASSERT_TRUE(buffered_result.ok()) << buffered_result.status().ToString();
+  auto buffered = buffered_result.ValueOrDie();
+
+  // Fill the buffer.
+  auto view_result = buffered->Peek(10);
+  ASSERT_TRUE(view_result.ok()) << view_result.status().ToString();
+  EXPECT_EQ(view_result.ValueOrDie(), example.substr(0, 10));
+
+  // Read all buffered bytes to exhaust the buffer (bytes_buffered == 0),
+  // leaving buffer_pos_ non-zero.
+  auto bytes_result = buffered->Read(10);
+  ASSERT_TRUE(bytes_result.ok()) << bytes_result.status().ToString();
+  EXPECT_EQ(bytes_result.ValueOrDie()->ToString(), example.substr(0, 10));
+
+  // Peek now triggers SetBufferSize with bytes_buffered == 0. The patched
+  // implementation resets buffer_pos_ to 0 and reuses the buffer head, so
+  // the buffer holds exactly the 15 remaining bytes with no overflow.
+  view_result = buffered->Peek(15);
+  ASSERT_TRUE(view_result.ok()) << view_result.status().ToString();
+  EXPECT_EQ(view_result.ValueOrDie(), example.substr(10, 15));
+  EXPECT_EQ(15, buffered->buffer_size());
+
+  // Consume the rest and verify the content end-to-end.
+  bytes_result = buffered->Read(15);
+  ASSERT_TRUE(bytes_result.ok()) << bytes_result.status().ToString();
+  EXPECT_EQ(bytes_result.ValueOrDie()->ToString(), example.substr(10, 15));
+}
+
+// End-to-end regression: read a ZSTD-compressed parquet file through the
+// extension with a deliberately small buffered-stream buffer so that the
+// page-header Peek()/SetBufferSize() growth path is exercised heavily,
+// including near the end of each column chunk where the pre-patch code
+// wrote out of bounds (issue #839).
+TEST_F(ParquetTest, TestIntegration_ReadZstdWithSmallBufferedStream) {
+  constexpr int64_t kNumRows = 200000;
+
+  auto schema = arrow::schema({arrow::field("id", arrow::int64()),
+                               arrow::field("name", arrow::utf8()),
+                               arrow::field("value", arrow::float64())});
+
+  arrow::Int64Builder id_builder;
+  arrow::StringBuilder name_builder;
+  arrow::DoubleBuilder value_builder;
+  for (int64_t i = 0; i < kNumRows; ++i) {
+    ASSERT_TRUE(id_builder.Append(i).ok());
+    ASSERT_TRUE(name_builder.Append("name_" + std::to_string(i % 1000)).ok());
+    ASSERT_TRUE(value_builder.Append(static_cast<double>(i) * 0.5).ok());
+  }
+
+  std::shared_ptr<arrow::Array> id_array, name_array, value_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(name_builder.Finish(&name_array).ok());
+  ASSERT_TRUE(value_builder.Finish(&value_array).ok());
+
+  auto table = arrow::Table::Make(schema, {id_array, name_array, value_array});
+
+  // ZSTD compression (like the file in issue #839) plus small data pages so
+  // each column chunk contains many pages and page headers.
+  auto writer_props = parquet::WriterProperties::Builder()
+                          .compression(arrow::Compression::ZSTD)
+                          ->data_pagesize(16 * 1024)
+                          ->build();
+
+  std::string filepath =
+      std::string(PARQUET_TEST_DIR) + "/test_zstd_small_buffer.parquet";
+  std::shared_ptr<arrow::io::FileOutputStream> outfile;
+  PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
+  PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, kNumRows, writer_props));
+
+  // Read through the extension with a tiny (4 KiB) buffered-stream buffer to
+  // stress the Peek()/SetBufferSize() path. Pre-fix this path could corrupt
+  // the heap; post-fix the read must succeed with all rows intact.
+  auto sharedState = createSharedState(
+      "test_zstd_small_buffer.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"batch_read", "true"}, {"batch_size", "4096"}});
+
+  auto reader = createParquetReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+  ASSERT_NO_THROW(reader->read(localState, ctx))
+      << "Reading ZSTD parquet with small buffered stream must not crash";
+
+  int64_t totalRows = 0;
+  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
+    totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
+  }
+  EXPECT_EQ(totalRows, kNumRows)
+      << "All rows must be read back through the buffered stream";
 }
 
 // End of Test Suites

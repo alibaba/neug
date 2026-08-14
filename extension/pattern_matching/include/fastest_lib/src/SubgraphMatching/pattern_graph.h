@@ -32,11 +32,10 @@ namespace neug {
 namespace pattern_matching {
 namespace graphlib {
 namespace SubgraphMatching {
-class PatternGraph : public Graph {
+class PatternGraph final : public Graph {
  public:
-  PatternGraph(){};
-  PatternGraph(const Graph& g) : Graph(g){};
-  ~PatternGraph(){};
+  PatternGraph() = default;
+  ~PatternGraph() = default;
 
   PatternGraph& operator=(const PatternGraph&) = delete;
   PatternGraph(const PatternGraph&) = delete;
@@ -57,10 +56,6 @@ class PatternGraph : public Graph {
   inline int GetOutAdjIdx(int u, int uc) const { return out_adj_idx[u][uc]; }
   // GetInAdjIdx: for query edge uc -> u, get index in in_candidate_neighbors
   inline int GetInAdjIdx(int u, int uc) const { return in_adj_idx[u][uc]; }
-
-  // Legacy interface (deprecated, use GetOutAdjIdx/GetInAdjIdx instead)
-  std::vector<std::vector<int>> adj_idx;
-  inline int GetAdjIdx(int u, int uc) const { return adj_idx[u][uc]; }
 
   std::vector<std::vector<PropCons>> vertex_property_constraints;
   std::vector<std::vector<PropCons>> edge_property_constraints;

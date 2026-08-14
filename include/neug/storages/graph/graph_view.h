@@ -32,6 +32,7 @@
 namespace neug {
 
 class PropertyGraph;
+struct PendingIndex;
 class StorageIndex;
 class StorageIndexManager;
 
@@ -125,6 +126,7 @@ class GraphView {
   result<std::vector<StorageIndex*>> GetIndex(
       label_t label_id, const std::string& property_name) const;
   result<std::vector<StorageIndex*>> GetAllIndexes() const;
+  result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;
 
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {

@@ -641,6 +641,7 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
   if (vec_column) {
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(vec_column));
+    MarkVertexTableDirty(label_id);
     mut_view_.Rebuild(graph_);
   }
   return index;
@@ -655,25 +656,48 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
  * obsolete vector versions addressed by previous index IDs are discarded.
  */
 Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
-  auto target = index_manager_.GetIndexByName(name);
-  if (!target) {
-    return target.error();
+  auto pending = index_manager_.GetPendingIndexByName(name);
+  const bool is_pending = pending.has_value();
+  IndexMeta meta;
+  if (is_pending) {
+    meta = pending.value()->meta;
+  } else {
+    auto target = index_manager_.GetIndexByName(name);
+    if (!target) {
+      return target.error();
+    }
+    meta = target.value()->GetMeta();
   }
-
-  const auto meta = target.value()->GetMeta();
   std::unique_ptr<ArrayColumn> array_column;
   int32_t property_col = -1;
 
   if (IsHNSWIndex(meta)) {
-    auto indexes = index_manager_.GetIndex(meta.schema.label_id,
-                                           meta.schema.property_name);
-    if (!indexes) {
-      return indexes.error();
+    bool has_other_hnsw = false;
+    auto pending_indexes = index_manager_.GetPendingIndex(
+        meta.schema.label_id, meta.schema.property_name);
+    if (!pending_indexes) {
+      return pending_indexes.error();
     }
-    const bool has_other_hnsw =
-        std::any_of(indexes->begin(), indexes->end(), [&](StorageIndex* index) {
-          return index->GetMeta().name != name && IsHNSWIndex(index->GetMeta());
+    has_other_hnsw = std::any_of(
+        pending_indexes->begin(), pending_indexes->end(),
+        [&](const StorageIndexManager::PendingIndex* index) {
+          return index->meta.name != name && IsHNSWIndex(index->meta);
         });
+    if (!has_other_hnsw) {
+      auto indexes = index_manager_.GetAllIndexes();
+      if (!indexes) {
+        return indexes.error();
+      }
+      has_other_hnsw = std::any_of(
+          indexes->begin(), indexes->end(), [&](StorageIndex* index) {
+            const auto& other_meta = index->GetMeta();
+            return other_meta.name != name &&
+                   other_meta.schema.label_id == meta.schema.label_id &&
+                   other_meta.schema.property_name ==
+                       meta.schema.property_name &&
+                   IsHNSWIndex(other_meta);
+          });
+    }
     if (!has_other_hnsw) {
       auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
       const auto schema = vertex_table.get_vertex_schema_ptr();
@@ -705,7 +729,23 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
     auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(array_column));
+    MarkVertexTableDirty(meta.schema.label_id);
     mut_view_.Rebuild(graph_);
+  }
+  return Status::OK();
+}
+
+Status StorageAPUpdateInterface::ActivateIndexes() {
+  auto activated = graph_.ActivateIndexes();
+  if (!activated) {
+    return activated.error();
+  }
+  if (activated.value() == 0) {
+    return Status::OK();
+  }
+  mut_view_.Rebuild(graph_);
+  if (on_planning_changed_) {
+    on_planning_changed_();
   }
   return Status::OK();
 }

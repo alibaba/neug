@@ -54,8 +54,8 @@ class ModuleBroker {
 
   /**
    * @brief Instantiate (via ModuleFactory) and Open every module entry from
-   * @p checkpoint 's CheckpointManifest.  Throws if any entry's `module_type`
-   * is not registered with the factory.
+   * @p checkpoint 's CheckpointManifest. Unknown modules with
+   * `required=false` are deferred to their owner; required types throw.
    */
   void Open(Checkpoint& checkpoint, MemoryLevel level);
 
