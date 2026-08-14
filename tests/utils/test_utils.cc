@@ -926,16 +926,27 @@ TEST_F(PBUtilsTest, ApplyStorageDirection) {
   EdgeStrategy ie = EdgeStrategy::kMultiple;
   std::string err;
 
+  // MANY_TO_ONE: dropping MULTIPLE IE is allowed; dropping SINGLE OE is not.
   ASSERT_TRUE(apply_storage_direction("fwd", oe, ie, err));
   EXPECT_EQ(oe, EdgeStrategy::kSingle);
   EXPECT_EQ(ie, EdgeStrategy::kNone);
 
-  // Dropping a SINGLE side is allowed (bwd on MANY_TO_ONE).
   oe = EdgeStrategy::kSingle;
   ie = EdgeStrategy::kMultiple;
+  EXPECT_FALSE(apply_storage_direction("BWD", oe, ie, err));
+  EXPECT_NE(err.find("bwd"), std::string::npos);
+
+  // ONE_TO_MANY: dropping MULTIPLE OE is allowed; dropping SINGLE IE is not.
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kSingle;
   ASSERT_TRUE(apply_storage_direction("BWD", oe, ie, err));
   EXPECT_EQ(oe, EdgeStrategy::kNone);
-  EXPECT_EQ(ie, EdgeStrategy::kMultiple);
+  EXPECT_EQ(ie, EdgeStrategy::kSingle);
+
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kSingle;
+  EXPECT_FALSE(apply_storage_direction("fwd", oe, ie, err));
+  EXPECT_NE(err.find("fwd"), std::string::npos);
 
   oe = EdgeStrategy::kMultiple;
   ie = EdgeStrategy::kMultiple;

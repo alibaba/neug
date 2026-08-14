@@ -682,6 +682,17 @@ def test_create_rel_table_storage_direction(tmp_path):
                 "MANY_TO_ONE) WITH (storage_direction = 'invalid');"
             )
 
+        with pytest.raises(Exception, match="outgoing side is SINGLE"):
+            conn.execute(
+                "CREATE REL TABLE badBwd(FROM person TO organisation, "
+                "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
+            )
+        with pytest.raises(Exception, match="incoming side is SINGLE"):
+            conn.execute(
+                "CREATE REL TABLE badFwd(FROM person TO organisation, "
+                "ONE_TO_MANY) WITH (storage_direction = 'fwd');"
+            )
+
         # fwd: OE only — directed OK, undirected rejected
         conn.execute(
             "CREATE REL TABLE workAt(FROM person TO organisation, year INT64, "
@@ -699,13 +710,13 @@ def test_create_rel_table_storage_direction(tmp_path):
         # bwd: IE only — directed MATCH OK (extend from dst); undirected rejected
         conn.execute(
             "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
-            "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
+            "ONE_TO_MANY) WITH (storage_direction = 'bwd');"
         )
         assert _get_edge_strategies(conn.get_schema(), "livesIn") == (
             "NONE",
-            "MULTIPLE",
+            "SINGLE",
         )
-        assert _get_edge_relation(conn.get_schema(), "livesIn") == "MANY_TO_ONE"
+        assert _get_edge_relation(conn.get_schema(), "livesIn") == "ONE_TO_MANY"
         list(
             conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;")
         )
@@ -739,14 +750,14 @@ def test_edge_strategy_checkpoint_round_trip(tmp_path):
     conn.execute("CREATE NODE TABLE person(id INT64 PRIMARY KEY);")
     conn.execute("CREATE NODE TABLE organisation(id INT64 PRIMARY KEY);")
     conn.execute(
-        "CREATE REL TABLE livesIn(FROM person TO organisation, MANY_TO_ONE) "
+        "CREATE REL TABLE livesIn(FROM person TO organisation, ONE_TO_MANY) "
         "WITH (storage_direction = 'bwd');"
     )
     assert _get_edge_strategies(conn.get_schema(), "livesIn") == (
         "NONE",
-        "MULTIPLE",
+        "SINGLE",
     )
-    assert _get_edge_relation(conn.get_schema(), "livesIn") == "MANY_TO_ONE"
+    assert _get_edge_relation(conn.get_schema(), "livesIn") == "ONE_TO_MANY"
     conn.close()
     db.close()
 
@@ -755,10 +766,10 @@ def test_edge_strategy_checkpoint_round_trip(tmp_path):
     try:
         assert _get_edge_strategies(reopened_conn.get_schema(), "livesIn") == (
             "NONE",
-            "MULTIPLE",
+            "SINGLE",
         )
         assert (
-            _get_edge_relation(reopened_conn.get_schema(), "livesIn") == "MANY_TO_ONE"
+            _get_edge_relation(reopened_conn.get_schema(), "livesIn") == "ONE_TO_MANY"
         )
     finally:
         reopened_conn.close()

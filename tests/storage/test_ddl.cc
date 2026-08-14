@@ -110,16 +110,24 @@ TEST_F(StorageDDLConflictActionTest, RelStorageDirection) {
   EXPECT_NE(undirected.error().error_message().find("Undirected rel pattern"),
             std::string::npos);
 
-  // bwd: drop OE, keep IE (including when OE was SINGLE).
+  // Dropping a SINGLE side would lose the declared multiplicity constraint.
+  EXPECT_FALSE(conn->Query(
+      "CREATE REL TABLE badBwd(FROM person TO organisation, year INT64, "
+      "MANY_TO_ONE) WITH (storage_direction = 'bwd');"));
+  EXPECT_FALSE(conn->Query(
+      "CREATE REL TABLE badFwd(FROM person TO organisation, year INT64, "
+      "ONE_TO_MANY) WITH (storage_direction = 'fwd');"));
+
+  // bwd: drop MULTIPLE OE, keep SINGLE IE.
   ASSERT_TRUE(conn->Query(
       "CREATE REL TABLE livesIn(FROM person TO organisation, year INT64, "
-      "MANY_TO_ONE) WITH (storage_direction = 'bwd');"));
+      "ONE_TO_MANY) WITH (storage_direction = 'bwd');"));
   EXPECT_EQ(db->schema().get_outgoing_edge_strategy("person", "organisation",
                                                     "livesIn"),
             neug::EdgeStrategy::kNone);
   EXPECT_EQ(db->schema().get_incoming_edge_strategy("person", "organisation",
                                                     "livesIn"),
-            neug::EdgeStrategy::kMultiple);
+            neug::EdgeStrategy::kSingle);
 
   // Directed MATCH is OK on bwd: planner extends via IE from the dst side.
   EXPECT_TRUE(conn->Query(
