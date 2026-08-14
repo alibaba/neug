@@ -691,8 +691,12 @@ def test_create_rel_table_storage_direction(tmp_path):
             "MANY_TO_ONE) WITH (storage_direction = 'bwd');"
         )
         assert _get_edge_storage_strategy(conn.get_schema(), "livesIn") == "ONLY_IN"
-        list(conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;"))
-        list(conn.execute("MATCH (:organisation)<-[l:livesIn]-(:person) RETURN l.year;"))
+        list(
+            conn.execute("MATCH (:person)-[l:livesIn]->(:organisation) RETURN l.year;")
+        )
+        list(
+            conn.execute("MATCH (:organisation)<-[l:livesIn]-(:person) RETURN l.year;")
+        )
         with pytest.raises(Exception, match="Undirected rel pattern"):
             conn.execute("MATCH (:person)-[l:livesIn]-(:organisation) RETURN l.year;")
 
