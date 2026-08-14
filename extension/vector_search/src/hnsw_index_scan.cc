@@ -152,19 +152,27 @@ bool ExtractDistanceArguments(const binder::ScalarFunctionExpression& distance,
   return property != nullptr && target != nullptr;
 }
 
-bool ContainsPrimaryKeyPredicate(
+bool ContainsPrimaryKeyEqualityPredicate(
     const std::shared_ptr<binder::Expression>& expression,
     common::table_id_t table_id) {
   if (!expression) {
     return false;
   }
-  if (expression->expressionType == common::ExpressionType::PROPERTY) {
-    return expression->constCast<binder::PropertyExpression>().isPrimaryKey(
-        table_id);
+  if (expression->expressionType == common::ExpressionType::EQUALS &&
+      expression->getNumChildren() == 2) {
+    for (const auto& child : expression->getChildren()) {
+      if (child->expressionType == common::ExpressionType::PROPERTY &&
+          child->constCast<binder::PropertyExpression>().isPrimaryKey(
+              table_id)) {
+        return true;
+      }
+    }
   }
-  for (const auto& child : expression->getChildren()) {
-    if (ContainsPrimaryKeyPredicate(child, table_id)) {
-      return true;
+  if (expression->expressionType == common::ExpressionType::AND) {
+    for (const auto& child : expression->getChildren()) {
+      if (ContainsPrimaryKeyEqualityPredicate(child, table_id)) {
+        return true;
+      }
     }
   }
   return false;
@@ -224,48 +232,8 @@ const binder::PropertyExpression* GetVertexOnlyOutput(
   return vertex;
 }
 
-Value ParseScalarValue(const ::common::Value& value) {
-  if (value.has_f32()) {
-    return Value::FLOAT(value.f32());
-  }
-  if (value.has_f64()) {
-    return Value::DOUBLE(value.f64());
-  }
-  THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN target must contain numeric values");
-}
-
-Value ParseTargetValue(const ::common::Expression& expression) {
-  if (expression.operators_size() != 1 ||
-      !expression.operators(0).has_to_array()) {
-    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN target must be an array literal");
-  }
-  const auto& array = expression.operators(0).to_array();
-  std::vector<Value> children;
-  children.reserve(array.fields_size());
-  DataType child_type;
-  for (const auto& field : array.fields()) {
-    if (field.operators_size() != 1 || !field.operators(0).has_const_()) {
-      THROW_RUNTIME_ERROR(
-          "HNSW_INDEX_SCAN target array must contain only literals");
-    }
-    auto value = ParseScalarValue(field.operators(0).const_());
-    if (children.empty()) {
-      child_type = value.type().copy();
-    } else if (value.type() != child_type) {
-      THROW_RUNTIME_ERROR(
-          "HNSW_INDEX_SCAN target array elements must have one type");
-    }
-    children.push_back(std::move(value));
-  }
-  if (children.empty()) {
-    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN target array cannot be empty");
-  }
-  return Value::ARRAY(DataType::Array(child_type, children.size()),
-                      std::move(children));
-}
-
 std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
-    const Schema&, const execution::ContextMeta&,
+    const Schema&, const execution::ContextMeta& context_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx);
   const auto& scan = op.opr().index_scan();
@@ -285,7 +253,8 @@ std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
   input->label_id = static_cast<label_t>(std::stoul(label));
   input->unique_index_name = scan.unique_index_name();
   input->topk = static_cast<uint32_t>(std::stoul(topk));
-  input->target_value = ParseTargetValue(scan.target_value());
+  input->target_value = execution::parse_expression(
+      scan.target_value(), context_meta, execution::VarType::kRecord);
   if (op.meta_data_size() != 2) {
     THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN must have vertex and score outputs");
   }
@@ -303,7 +272,7 @@ execution::Context ExecuteHNSWIndexScan(
   }
 
   HNSWIndexQueryParams params;
-  params.target_value = input.target_value;
+  params.target_value = input.bound_target_value;
   params.topk = input.topk;
   params.ef_search = std::max<uint32_t>(input.topk, 100);
 
@@ -359,6 +328,29 @@ execution::Context ExecuteHNSWIndexScan(
 }
 
 }  // namespace
+
+std::unique_ptr<function::CallFuncInputBase> HNSWIndexScanFuncInput::bindParams(
+    const execution::ParamsMap& params) const {
+  if (target_value == nullptr) {
+    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN target expression is not initialized");
+  }
+  auto bound_expression = target_value->bind(nullptr, params);
+  if (bound_expression == nullptr) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "HNSW_INDEX_SCAN target expression contains an unbound parameter");
+  }
+
+  auto bound = std::make_unique<HNSWIndexScanFuncInput>();
+  bound->label_id = label_id;
+  bound->unique_index_name = unique_index_name;
+  bound->topk = topk;
+  bound->vertex_alias = vertex_alias;
+  bound->score_alias = score_alias;
+  bound->bound_target_value =
+      bound_expression->Cast<execution::RecordExprBase>().eval_record(
+          DataChunk(), 0);
+  return bound;
+}
 
 function::function_set HNSWIndexScanFunction::getFunctionSet() {
   auto function = std::make_unique<function::NeugCallFunction>(
@@ -441,8 +433,8 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
     auto scan = input_op->ptrCast<planner::LogicalScanNodeTable>();
     if (scan->getTableIDs().size() != 1 ||
         scan->getScanType() != planner::LogicalScanNodeTableType::SCAN ||
-        ContainsPrimaryKeyPredicate(scan->getPredicates(),
-                                    scan->getTableIDs()[0]) ||
+        ContainsPrimaryKeyEqualityPredicate(scan->getPredicates(),
+                                            scan->getTableIDs()[0]) ||
         property->getVariableName() != scan->getAliasName() ||
         property->getSingleTableID() != scan->getTableIDs()[0]) {
       return op;

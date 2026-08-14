@@ -258,9 +258,23 @@ CALL SHOW_INDEXES() RETURN *;
 
 For the index created above, the result contains the following entry:
 
-| name | type | label | property | options |
-| ---- | ---- | ----- | -------- | ------- |
-| `vec_hnsw_index` | `HNSW` | `vector_node` | `vec` | `{"ef_construction":"200","m":"16","metric":"ip"}` |
+| name | type | label | property | options | state |
+| ---- | ---- | ----- | -------- | ------- | ----- |
+| `vec_hnsw_index` | `HNSW` | `vector_node` | `vec` | `{"ef_construction":"200","m":"16","metric":"ip"}` | `active` |
+
+The `state` column describes whether an index is currently available:
+
+- `active`: The index implementation is loaded, the index is bound to its
+  property column, and the index is available for queries and online
+  maintenance.
+- `pending`: NeuG restored the index metadata from a checkpoint, but the
+  extension that provides the index implementation has not been loaded yet.
+  A pending index is not available for querying. For an HNSW index, run
+  `LOAD vector_search;` to load the extension and activate the index.
+
+`pending` does not mean that NeuG is building the index in the background. It
+represents a persisted index waiting for its extension module to become
+available.
 
 ---
 
@@ -272,6 +286,7 @@ NeuG provides vector query capabilities through:
 - HNSW-based similarity search
 - Graph and vector hybrid retrieval
 - Index-filtering vector search
+- Graph filtering during vector search
 
 ### Vector Functions
 
@@ -394,19 +409,23 @@ is evaluated during HNSW search instead of after retrieving results.
 
 ### Graph Filtering During Vector Search
 
-NeuG also supports graph-based filtering during vector retrieval.
+NeuG supports graph-based filtering during vector retrieval. The graph pattern
+is evaluated first, and the matching vertices are used as a filter during the
+HNSW search.
 
-For example, retrieving the most similar neighbors of a specific node:
+For example, the following query retrieves the most similar outgoing neighbors
+of a specific node:
+
 ```cypher
 MATCH (n1:vector_node {id: 1})
       -[:links]->
       (n2:vector_node)
-
-RETURN
-ORDER BY vector_distance_l2(
-    n2.vec,
-    [0.1, 0.2, 0.3, 0.4]
-)
+RETURN n2,
+       vector_distance_l2(
+           n2.vec,
+           [0.1, 0.2, 0.3, 0.4]
+       ) AS score
+ORDER BY score ASC
 LIMIT 3;
 ```
 

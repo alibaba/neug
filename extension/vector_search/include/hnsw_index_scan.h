@@ -21,25 +21,34 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/optimizer/logical_rule.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/expression/expr.h"
 
 namespace neug::vector_search_ext {
 
 struct HNSWIndexScanFuncInput final : function::CallFuncInputBase {
   label_t label_id;
   std::string unique_index_name;
-  Value target_value;
+  std::unique_ptr<execution::ExprBase> target_value;
+  Value bound_target_value;
   uint32_t topk;
   int32_t vertex_alias;
   int32_t score_alias;
   execution::Context context;
 
   std::unique_ptr<function::CallFuncInputBase> bindParams(
-      const execution::ParamsMap&) const override {
-    return std::make_unique<HNSWIndexScanFuncInput>(*this);
-  }
+      const execution::ParamsMap& params) const override;
 
-  void bindContext(execution::Context&& input_context) override {
-    context = std::move(input_context);
+  std::unique_ptr<function::CallFuncInputBase> bindContext(
+      execution::Context&& input_context) const override {
+    auto bound = std::make_unique<HNSWIndexScanFuncInput>();
+    bound->label_id = label_id;
+    bound->unique_index_name = unique_index_name;
+    bound->bound_target_value = bound_target_value;
+    bound->topk = topk;
+    bound->vertex_alias = vertex_alias;
+    bound->score_alias = score_alias;
+    bound->context = std::move(input_context);
+    return bound;
   }
 };
 

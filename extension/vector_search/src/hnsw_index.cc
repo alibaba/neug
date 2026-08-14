@@ -229,6 +229,16 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
                       std::filesystem::exists(*index_path);
   if (has_existing) {
     file_utils::copy_file(*index_path, zvec_runtime_path_, true);
+  } else {
+    // CreateRuntimeFile reserves the runtime path with an empty file, while
+    // ZVec initializes new storage only when the path does not exist.
+    std::error_code ec;
+    if (!std::filesystem::remove(zvec_runtime_path_, ec) || ec) {
+      THROW_IO_EXCEPTION(
+          "Failed to remove reserved runtime file before creating ZVec "
+          "index: " +
+          zvec_runtime_path_ + ": " + ec.message());
+    }
   }
 
   zvec::core_interface::StorageOptions options;
@@ -253,6 +263,16 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
     THROW_RUNTIME_ERROR("HNSWIndex::Dump: index is not open");
 
   StorageIndex::Dump(ckp, manifest, key);
+  auto descriptor = manifest.mutable_modules().find(key);
+  if (descriptor == manifest.mutable_modules().end()) {
+    THROW_RUNTIME_ERROR(
+        "HNSWIndex::Dump: StorageIndex did not write module descriptor for '" +
+        key + "'");
+  }
+  // HNSW is provided by the vector_search extension. Allow the graph to open
+  // before that extension is loaded; the pending index is activated after
+  // LOAD vector_search registers the hnsw_index module type.
+  descriptor->second.required = false;
   if (zvec_index_->GetDocCount() == 0) {
     return;
   }
@@ -262,12 +282,6 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
   zvec_runtime_file_.reset();
   zvec_runtime_path_ = persisted_path;
 
-  auto descriptor = manifest.mutable_modules().find(key);
-  if (descriptor == manifest.mutable_modules().end()) {
-    THROW_RUNTIME_ERROR(
-        "HNSWIndex::Dump: StorageIndex did not write module descriptor for '" +
-        key + "'");
-  }
   descriptor->second.set_path(kIndexBufferPath, std::move(persisted_path));
 }
 
@@ -382,11 +396,20 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   query_param->prefetch_lines = hnsw_params->prefetch_lines;
 
   if (hnsw_params->use_scalar_filter) {
+    // Build the allowlist from each matching vertex's current index ID. This
+    // also filters tombstones: deleted vertices resolve to INVALID_INDEX_ID,
+    // while an updated vertex contributes only its latest index ID, not the
+    // stale ID left in HNSW.
     auto allowed = std::make_shared<roaring::Roaring>();
     for (auto vid : hnsw_params->scalar_filter) {
       auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
       if (index_id != INVALID_INDEX_ID)
         allowed->add(index_id);
+    }
+    // An enabled scalar filter with no valid index IDs cannot match anything.
+    // Avoid invoking ZVec with a filter that rejects every document.
+    if (allowed->isEmpty()) {
+      return std::vector<SearchCandidate>{};
     }
     allowed->runOptimize();
     query_param->filter = std::make_shared<zvec::core_interface::IndexFilter>();
@@ -394,6 +417,25 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
       return key > std::numeric_limits<uint32_t>::max() ||
              !allowed->contains(static_cast<uint32_t>(key));
     });
+  } else {
+    // Without a scalar allowlist, explicitly reject tombstoned index IDs so
+    // HNSW excludes them before selecting top-k results.
+    auto deleted = std::make_shared<roaring::Roaring>();
+    const auto next_index_id = index_id_accessor_->GetNextIndexID();
+    for (index_id_t index_id = 0; index_id < next_index_id; ++index_id) {
+      if (index_id_accessor_->GetVIDByIndexID(index_id) == INVALID_VID) {
+        deleted->add(index_id);
+      }
+    }
+    if (!deleted->isEmpty()) {
+      deleted->runOptimize();
+      query_param->filter =
+          std::make_shared<zvec::core_interface::IndexFilter>();
+      query_param->filter->set([deleted](uint64_t key) {
+        return key > std::numeric_limits<uint32_t>::max() ||
+               deleted->contains(static_cast<uint32_t>(key));
+      });
+    }
   }
 
   zvec::core_interface::VectorData query;

@@ -42,8 +42,12 @@ class IndexScanOpr final : public IOperator {
       THROW_RUNTIME_ERROR(
           "IndexScanOpr: index scan input did not create a per-Eval instance");
     }
-    bound_input->bindContext(std::move(ctx));
-    return function->execFunc(*bound_input, graph);
+    auto context_bound_input = bound_input->bindContext(std::move(ctx));
+    if (context_bound_input == nullptr) {
+      THROW_RUNTIME_ERROR(
+          "IndexScanOpr: index scan input did not bind the input context");
+    }
+    return function->execFunc(*context_bound_input, graph);
   }
 
   std::string get_operator_name() const override { return "IndexScanOpr"; }
@@ -86,8 +90,15 @@ neug::result<OpBuildResultT> IndexScanOprBuilder::Build(
 
   ContextMeta outputMeta = ctxMeta;
   const auto& metadata = plan.plan(opIdx).meta_data();
-  for (const auto& meta : metadata) {
-    outputMeta.set(meta.alias(), parse_from_ir_data_type(meta.type()));
+  for (int i = 0; i < metadata.size(); ++i) {
+    const auto& meta = metadata.Get(i);
+    // An index scan's first output is a vertex column. The logical expression
+    // used to carry its alias may be the vertex's internal ID, so the physical
+    // metadata can incorrectly describe it as INT64. Keep ContextMeta aligned
+    // with the column produced by the index scan executor so downstream
+    // property access (for example, n.id) uses a vertex accessor.
+    outputMeta.set(meta.alias(), i == 0 ? DataType(DataTypeId::kVertex)
+                                        : parse_from_ir_data_type(meta.type()));
   }
   return std::make_pair(
       std::make_unique<IndexScanOpr>(std::move(input), function),

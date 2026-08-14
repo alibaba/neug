@@ -83,10 +83,17 @@ def _l2_search(conn, query_value, topk=10, predicate=""):
     )
 
 
+def _profile_operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
+
+
 def _create_advanced_data(conn):
     conn.execute(
         "CREATE NODE TABLE Item("
-        "id INT64 PRIMARY KEY, group_id INT64, "
+        "id INT64 PRIMARY KEY, group_id INT64, name STRING, "
         f"l2_vec FLOAT[{DIMENSION}], "
         f"cosine_vec FLOAT[{DIMENSION}], "
         f"ip_vec FLOAT[{DIMENSION}]);"
@@ -97,7 +104,7 @@ def _create_advanced_data(conn):
         for index in range(start, min(start + 100, NUM_VECTORS)):
             nodes.append(
                 "(:Item {"
-                f"id: {index}, group_id: {index % 2}, "
+                f"id: {index}, group_id: {index % 2}, name: 'item_{index}', "
                 f"l2_vec: {_array_literal(_constant_vector(index))}, "
                 f"cosine_vec: {_array_literal(_cosine_vector(index))}, "
                 f"ip_vec: {_array_literal(_constant_vector(index))}"
@@ -163,6 +170,54 @@ def test_l2_index_scan_and_index_filtering(advanced_connection):
     assert [row[0] for row in filtered] == [4, 2]
 
 
+def test_l2_query_uses_hnsw_index_scan(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    list(result)
+    assert "IndexScanOpr" in _profile_operator_names(result)
+
+
+def test_property_access_after_hnsw_index_scan(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, n.name, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    rows = list(result)
+    assert [(row[0], row[1]) for row in rows] == [
+        (500, "item_500"),
+        (501, "item_501"),
+        (499, "item_499"),
+    ]
+    assert "IndexScanOpr" in _profile_operator_names(result)
+
+
+def test_primary_key_equality_does_not_use_hnsw_index_scan(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) WHERE n.id = 500 RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    rows = list(result)
+    assert rows[0] == pytest.approx([500, 0.16], abs=3e-5)
+    assert "IndexScanOpr" not in _profile_operator_names(result)
+
+
+def test_hnsw_index_scan_with_dynamic_target(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        "vector_distance_l2(n.l2_vec, $target) AS score "
+        "ORDER BY score ASC LIMIT 3;",
+        parameters={"target": _constant_vector(500.1)},
+    )
+    rows = list(result)
+    assert [row[0] for row in rows] == [500, 501, 499]
+    assert "IndexScanOpr" in _profile_operator_names(result)
+
+
 def test_cosine_index_scan(advanced_connection):
     target_id = 181
     rows = list(
@@ -201,6 +256,14 @@ def test_graph_filtering_during_index_scan(advanced_connection):
     )
     assert rows[0][0] == 500
     assert {row[0] for row in rows[1:3]} == {499, 501}
+
+    empty_result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) WHERE n.group_id = 99 RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    assert list(empty_result) == []
+    assert "IndexScanOpr" in _profile_operator_names(empty_result)
 
 
 def test_update_and_delete_maintain_index(advanced_connection):
