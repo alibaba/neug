@@ -55,6 +55,9 @@ struct ModuleDescriptor {
   /// Module type identifier for factory registration.
   std::string module_type;
 
+  /// Whether opening the checkpoint must fail when this module cannot load.
+  bool required = true;
+
   /**
    * @brief Set an extra key-value pair.  Returns *this for chaining.
    */
