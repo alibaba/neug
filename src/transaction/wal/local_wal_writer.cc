@@ -79,7 +79,9 @@ void LocalWalWriter::open(const std::string& wal_uri) {
                        std::string(strerror(errno)));
   }
 #ifdef _WIN32
-  if (_chsize_s(fd_, TRUNC_SIZE) != 0) {
+  const errno_t trunc_err = _chsize_s(fd_, TRUNC_SIZE);
+  if (trunc_err != 0) {
+    errno = static_cast<int>(trunc_err);
 #else
   if (ftruncate(fd_, TRUNC_SIZE) != 0) {
 #endif
@@ -117,7 +119,9 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   if (expected_size > file_size_) {
     size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
 #ifdef _WIN32
-    if (_chsize_s(fd_, new_file_size) != 0) {
+    const errno_t resize_err = _chsize_s(fd_, new_file_size);
+    if (resize_err != 0) {
+      errno = static_cast<int>(resize_err);
 #else
     if (ftruncate(fd_, new_file_size) != 0) {
 #endif

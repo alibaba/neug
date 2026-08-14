@@ -32,9 +32,13 @@ int truncate(const char* path, int64_t length) {
   if (fd < 0) {
     return -1;
   }
-  int ret = _chsize_s(fd, length);
+  errno_t ret = _chsize_s(fd, length);
   _close(fd);
-  return ret;
+  if (ret != 0) {
+    errno = static_cast<int>(ret);
+    return -1;
+  }
+  return 0;
 }
 
 void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t offset) {

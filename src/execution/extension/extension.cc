@@ -23,6 +23,7 @@
 #include <winsock2.h>
 
 #include <windows.h>
+#include <cstdio>
 // Windows shims for POSIX dlopen/dlsym/dlclose/dlerror.
 #define RTLD_NOW 0
 #define RTLD_LOCAL 0

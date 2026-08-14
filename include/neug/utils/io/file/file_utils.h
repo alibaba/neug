@@ -22,6 +22,7 @@
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
+#include <sys/types.h>
 #include <windows.h>
 #include <cstdint>
 
