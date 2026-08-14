@@ -194,9 +194,20 @@ static Value arrow_value_at(const arrow::Array& array, int64_t index,
   }
 }
 
-static std::shared_ptr<IContextColumn> convert_fixed_size_list_arrays(
-    const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
-  const auto type = arrow_type_to_neug_type(*arrays.front()->type());
+/// Shared conversion for FIXED_SIZE_LIST / LIST / LARGE_LIST arrays.
+/// Validates that every chunk has the same arrow type before writing any
+/// data, so a type mismatch never leaves a partially built column.
+static std::shared_ptr<IContextColumn> convert_list_arrays(
+    const std::vector<std::shared_ptr<arrow::Array>>& arrays,
+    const std::string& type_label) {
+  const auto& front_type = *arrays.front()->type();
+  for (const auto& array : arrays) {
+    if (!array->type()->Equals(front_type)) {
+      THROW_SCHEMA_MISMATCH("Parquet " + type_label +
+                            " chunks have different types");
+    }
+  }
+  const auto type = arrow_type_to_neug_type(front_type);
   auto builder = ColumnsUtils::create_builder(type);
   size_t size = 0;
   for (const auto& array : arrays) {
@@ -204,36 +215,9 @@ static std::shared_ptr<IContextColumn> convert_fixed_size_list_arrays(
   }
   builder->reserve(size);
   for (const auto& array : arrays) {
-    if (!array->type()->Equals(*arrays.front()->type())) {
-      THROW_SCHEMA_MISMATCH("Parquet ARRAY chunks have different types");
-    }
     for (int64_t i = 0; i < array->length(); ++i) {
-      // Arrow's Parquet writer cannot currently consume null fixed-size lists.
-      // This is an upstream Arrow limitation.
-      if (array->IsNull(i)) {
-        builder->push_back_null();
-        continue;
-      }
-      builder->push_back_elem(arrow_value_at(*array, i, type));
-    }
-  }
-  return builder->finish();
-}
-
-static std::shared_ptr<IContextColumn> convert_variable_list_arrays(
-    const std::vector<std::shared_ptr<arrow::Array>>& arrays) {
-  const auto type = arrow_type_to_neug_type(*arrays.front()->type());
-  auto builder = ColumnsUtils::create_builder(type);
-  size_t size = 0;
-  for (const auto& array : arrays) {
-    size += array->length();
-  }
-  builder->reserve(size);
-  for (const auto& array : arrays) {
-    if (!array->type()->Equals(*arrays.front()->type())) {
-      THROW_SCHEMA_MISMATCH("Parquet LIST chunks have different types");
-    }
-    for (int64_t i = 0; i < array->length(); ++i) {
+      // Null list entries (including null fixed-size lists, which Arrow's
+      // Parquet writer cannot currently produce but readers may still see).
       if (array->IsNull(i)) {
         builder->push_back_null();
         continue;
@@ -373,10 +357,10 @@ std::shared_ptr<IContextColumn> arrow_arrays_to_value_column(
   case arrow::Type::TIMESTAMP:
     return convert_timestamp_arrays(arrays);
   case arrow::Type::FIXED_SIZE_LIST:
-    return convert_fixed_size_list_arrays(arrays);
+    return convert_list_arrays(arrays, "ARRAY");
   case arrow::Type::LIST:
   case arrow::Type::LARGE_LIST:
-    return convert_variable_list_arrays(arrays);
+    return convert_list_arrays(arrays, "LIST");
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   arrow_type->ToString());

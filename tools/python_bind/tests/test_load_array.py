@@ -716,6 +716,31 @@ class TestLoadArray:
         ]
 
     @extension_test
+    def test_parquet_variable_length_list_null_elements(self):
+        """LOAD FROM Parquet preserves null elements inside variable-length lists."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_null_elems.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "values": pa.array(
+                    [[1, None, 3], [4, 5]],
+                    type=pa.list_(pa.int64()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, [1, None, 3]],
+            [2, [4, 5]],
+        ]
+
+    @extension_test
     def test_parquet_variable_length_empty_list(self):
         """LOAD FROM Parquet preserves empty variable-length lists."""
         pa = pytest.importorskip("pyarrow")
