@@ -818,6 +818,35 @@ TEST_F(ParquetTest, TestIntegration_ParallelReadMultiRowGroup) {
   }
   EXPECT_EQ(totalRows, kNumRows)
       << "Parallel read over multiple row groups should return all rows";
+
+  // A row count alone cannot catch duplicated or dropped rows. Read again in
+  // full (non-batch) mode and verify the aggregate of each value column.
+  auto sharedState2 =
+      createSharedState("test_parallel_multi_rg.parquet", {"id", "value"},
+                        {createInt64Type(), createDoubleType()},
+                        {{"parallel", "true"}, {"batch_read", "false"}});
+  auto reader2 = createParquetReader(sharedState2);
+  auto localState2 = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx2;
+  reader2->read(localState2, ctx2);
+
+  int64_t id_sum = 0;
+  double value_sum = 0.0;
+  int64_t totalRows2 = 0;
+  for (size_t i = 0; i < ctx2.chunk_num(); ++i) {
+    auto& chunk = ctx2.chunk(i).chunk();
+    totalRows2 += static_cast<int64_t>(chunk.row_num());
+    ASSERT_EQ(chunk.columns.size(), 2u);
+    for (size_t r = 0; r < chunk.row_num(); ++r) {
+      id_sum += chunk.columns[0]->get_elem(r).GetValue<int64_t>();
+      value_sum += chunk.columns[1]->get_elem(r).GetValue<double>();
+    }
+  }
+  EXPECT_EQ(totalRows2, kNumRows);
+  EXPECT_EQ(id_sum, kNumRows * (kNumRows - 1) / 2)
+      << "Parallel read must not duplicate or drop rows (id sum mismatch)";
+  EXPECT_DOUBLE_EQ(value_sum, 1.5 * kNumRows * (kNumRows - 1) / 2)
+      << "Parallel read must not duplicate or drop rows (value sum mismatch)";
 }
 
 TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {

@@ -407,6 +407,11 @@ arrow::Result<int64_t> HTTPRandomAccessFile::ReadRange(int64_t offset,
   // thread keeps its own handle instead of sharing a per-file handle.
   // Sharing one handle previously caused heap corruption
   // ("double free or corruption") under concurrent reads.
+  // The handle is intentionally never cleaned up so that subsequent reads
+  // on the same thread reuse the connection.  The number of live handles is
+  // bounded by the scan thread pool size; if the executor ever recycles
+  // worker threads, each recycled thread leaks one handle until process
+  // exit, which is an accepted trade-off for simplicity here.
   thread_local CURL* thread_curl = nullptr;
   if (!thread_curl) {
     thread_curl = curl_easy_init();

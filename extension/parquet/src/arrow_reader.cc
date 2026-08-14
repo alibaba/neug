@@ -14,6 +14,8 @@
  */
 
 #include <arrow/compute/expression.h>
+// NOTE: internal Arrow API (provides FragmentDataset). Recheck this include
+// and its usage when bumping the bundled Arrow version.
 #include <arrow/dataset/dataset_internal.h>
 #include <arrow/dataset/discovery.h>
 #include <arrow/dataset/file_parquet.h>
@@ -161,6 +163,9 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
           dataset = std::make_shared<arrow::dataset::FragmentDataset>(
               dataset->schema(), std::move(split_fragments));
         }
+      } else {
+        LOG(WARNING) << "Failed to collect fragments for row group splitting: "
+                     << fragments_vec_result.status().message();
       }
     } else {
       LOG(WARNING) << "Failed to get fragments for row group splitting: "
