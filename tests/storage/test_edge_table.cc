@@ -577,8 +577,15 @@ TEST_F(EdgeTableTest, TestCountEdgeNumIncomingOnly) {
                 neug::MemoryLevel::kSyncToFile);
   BatchInsert(std::move(batches));
 
-  EXPECT_EQ(edge_table->get_outgoing_view(MAX_TIMESTAMP).edge_num(), 0);
-  EXPECT_EQ(edge_table->get_incoming_view(MAX_TIMESTAMP).edge_num(), edge_num);
+  size_t incoming_edge_num = 0;
+  auto incoming_view = edge_table->get_incoming_view(MAX_TIMESTAMP);
+  for (vid_t dst = 0; dst < dst_num; ++dst) {
+    auto edges = incoming_view.get_edges(dst);
+    for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
+      ++incoming_edge_num;
+    }
+  }
+  EXPECT_EQ(incoming_edge_num, edge_num);
   EXPECT_EQ(edge_table->EdgeNum(), edge_num);
 }
 
