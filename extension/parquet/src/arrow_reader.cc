@@ -13,7 +13,12 @@
  * limitations under the License.
  */
 
+#include <arrow/compute/expression.h>
+// NOTE: internal Arrow API (provides FragmentDataset). Recheck this include
+// and its usage when bumping the bundled Arrow version.
+#include <arrow/dataset/dataset_internal.h>
 #include <arrow/dataset/discovery.h>
+#include <arrow/dataset/file_parquet.h>
 #include <arrow/result.h>
 #include <arrow/status.h>
 #include <arrow/table.h>
@@ -124,6 +129,49 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
                        dataset_result.status().message());
   }
   auto dataset = dataset_result.ValueOrDie();
+
+  // A single Parquet file corresponds to one fragment, i.e. one scan task,
+  // so a threaded scanner would have nothing to parallelize over. Split
+  // Parquet fragments by row group to create independent scan tasks.
+  if (scan_opts->use_threads) {
+    auto fragments_result = dataset->GetFragments();
+    if (fragments_result.ok()) {
+      auto fragments_vec_result = fragments_result.ValueOrDie().ToVector();
+      if (fragments_vec_result.ok()) {
+        arrow::dataset::FragmentVector split_fragments;
+        bool split_any = false;
+        for (auto& fragment : fragments_vec_result.ValueOrDie()) {
+          auto pq_fragment =
+              std::dynamic_pointer_cast<arrow::dataset::ParquetFileFragment>(
+                  fragment);
+          if (pq_fragment) {
+            auto rg_fragments =
+                pq_fragment->SplitByRowGroup(arrow::compute::literal(true));
+            if (rg_fragments.ok() && rg_fragments->size() > 1) {
+              split_any = true;
+              split_fragments.insert(split_fragments.end(),
+                                     rg_fragments->begin(),
+                                     rg_fragments->end());
+              continue;
+            }
+          }
+          split_fragments.push_back(std::move(fragment));
+        }
+        if (split_any) {
+          LOG(INFO) << "Split parquet fragments by row group into "
+                    << split_fragments.size() << " scan tasks";
+          dataset = std::make_shared<arrow::dataset::FragmentDataset>(
+              dataset->schema(), std::move(split_fragments));
+        }
+      } else {
+        LOG(WARNING) << "Failed to collect fragments for row group splitting: "
+                     << fragments_vec_result.status().message();
+      }
+    } else {
+      LOG(WARNING) << "Failed to get fragments for row group splitting: "
+                   << fragments_result.status().message();
+    }
+  }
 
   arrow::dataset::ScannerBuilder scanner_builder(dataset, scan_opts);
   auto scanner_result = scanner_builder.Finish();
