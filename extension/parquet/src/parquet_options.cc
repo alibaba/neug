@@ -18,6 +18,7 @@
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/file_base.h>
 #include <arrow/dataset/file_parquet.h>
+#include <arrow/io/interfaces.h>
 #include <arrow/table.h>
 #include <arrow/type.h>
 #include <glog/logging.h>
@@ -38,6 +39,15 @@ ArrowOptions ArrowParquetOptionsBuilder::build() const {
   }
 
   auto scanOptions = std::make_shared<arrow::dataset::ScanOptions>();
+
+  // Propagate the generic `parallel` option to the dataset scanner. Without
+  // this the scanner always runs single-threaded, regardless of
+  // ArrowReaderProperties::set_use_threads() below.
+  ReadOptions readOpts;
+  scanOptions->use_threads =
+      readOpts.use_threads.get(state->schema.file.options);
+  // The scanner needs an IOContext with an executor for parallel scans.
+  scanOptions->io_context = arrow::io::default_io_context();
 
   // Build format-specific fragment scan options
   auto fragment_scan_options = buildFragmentOptions();

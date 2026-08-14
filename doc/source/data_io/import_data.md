@@ -355,7 +355,7 @@ For the full set of relational operations available in `LOAD FROM` subqueries, s
 | -------------- | ----- | ----------------- | ----------------------------------------------------------------- |
 | `batch_read` | bool  | `false`         | Read data incrementally in batches.                               |
 | `batch_size` | int64 | `1048576` (1MB) | Batch size in bytes when `batch_read` is enabled.               |
-| `parallel`   | bool  | `false`         | Enable parallel reading using multiple threads (max core number). |
+| `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
 ```cypher
 COPY User FROM "large_users.csv" (header=true, parallel=true);

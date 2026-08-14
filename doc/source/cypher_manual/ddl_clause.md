@@ -173,8 +173,6 @@ id|tags
 2|[]
 ```
 
-Parquet bulk loading does not support list properties yet; only fixed-size arrays (`T[N]`) can be loaded from Parquet files.
-
 For more details on array vs list type distinctions, refer to the [Array Properties](#array-properties) section above.
 
 ## Drop Node Type

@@ -639,3 +639,160 @@ class TestLoadArray:
             datetime(2001, 1, 1, 0, 0),
         ]
         assert result[1][3] == ["1 year 2 months", "4 days"]
+
+    @extension_test
+    def test_parquet_variable_length_list_int64(self):
+        """LOAD FROM Parquet with a variable-length LIST<INT64> column."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_int64.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "tags": pa.array(
+                    [[1, 2, 3], [4, 5], [6]],
+                    type=pa.list_(pa.int64()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(f'LOAD FROM "{parquet_path}" RETURN id, tags ORDER BY id')
+        )
+        assert result == [
+            [1, [1, 2, 3]],
+            [2, [4, 5]],
+            [3, [6]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_list_string(self):
+        """LOAD FROM Parquet with a variable-length LIST<STRING> column."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_string.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "names": pa.array(
+                    [["alice", "bob"], ["charlie"]],
+                    type=pa.list_(pa.string()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, names ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, ["alice", "bob"]],
+            [2, ["charlie"]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_list_with_nulls(self):
+        """LOAD FROM Parquet preserves null variable-length lists."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_nulls.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "values": pa.array(
+                    [[1.0, 2.0], None, [3.0, 4.0, 5.0]],
+                    type=pa.list_(pa.float64()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, [1.0, 2.0]],
+            [2, None],
+            [3, [3.0, 4.0, 5.0]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_list_null_elements(self):
+        """LOAD FROM Parquet preserves null elements inside variable-length lists."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_null_elems.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "values": pa.array(
+                    [[1, None, 3], [4, 5]],
+                    type=pa.list_(pa.int64()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, [1, None, 3]],
+            [2, [4, 5]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_empty_list(self):
+        """LOAD FROM Parquet preserves empty variable-length lists."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_empty.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "values": pa.array(
+                    [[1, 2, 3], [], [4]],
+                    type=pa.list_(pa.int32()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, [1, 2, 3]],
+            [2, []],
+            [3, [4]],
+        ]
+
+    @extension_test
+    def test_parquet_export_import_roundtrip_list(self):
+        """Round-trip: create graph with LIST property, COPY TO parquet, LOAD FROM."""
+        # Create graph with a LIST property
+        self.conn.execute(
+            "CREATE NODE TABLE Tag(id INT64, tags STRING[], " "PRIMARY KEY(id));"
+        )
+        self.conn.execute("CREATE (t:Tag {id: 1, tags: CAST(['a', 'b'], 'STRING[]')});")
+        self.conn.execute("CREATE (t:Tag {id: 2, tags: CAST(['c'], 'STRING[]')});")
+        self.conn.execute("CREATE (t:Tag {id: 3, tags: CAST([], 'STRING[]')});")
+
+        # Export to parquet
+        out_path = os.path.join(self.parquet_dir, "list_roundtrip.parquet")
+        self.conn.execute("LOAD PARQUET")
+        self.conn.execute(
+            f"COPY (MATCH (t:Tag) RETURN t.id, t.tags "
+            f"ORDER BY t.id) TO '{out_path}'"
+        )
+
+        # Load back from parquet
+        result = list(
+            self.conn.execute(f'LOAD FROM "{out_path}" RETURN * ORDER BY "t.id"')
+        )
+        assert len(result) == 3
+        assert result[0][0] == 1
+        assert result[0][1] == ["a", "b"]
+        assert result[1][0] == 2
+        assert result[1][1] == ["c"]
+        assert result[2][0] == 3
+        assert result[2][1] == []
