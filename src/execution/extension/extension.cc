@@ -465,12 +465,6 @@ static void ensureNeugSymbolsGlobal() {
   promoted = true;
 }
 
-Status load_extension(const std::string& extension_name) {
-  return Status(
-      StatusCode::ERR_ILLEGAL_OPERATION,
-      "LOAD EXTENSION must be executed by ExtensionManager: " + extension_name);
-}
-
 Status ExtensionManager::InstallExtension(const std::string& name,
                                           const std::string& repository) {
   std::lock_guard<std::mutex> lock(mutex_);

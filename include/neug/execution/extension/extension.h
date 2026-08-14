@@ -25,8 +25,6 @@ namespace extension {
 Status install_extension(const std::string& extension_name,
                          const std::string& repository = {});
 
-Status load_extension(const std::string& extension_name);
-
 Status uninstall_extension(const std::string& extension_name);
 
 Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
