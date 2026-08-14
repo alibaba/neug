@@ -14,9 +14,9 @@ namespace {
 using GetInitCountFunc = uint64_t (*)();
 
 TEST(ExtensionLoad, DuplicateQueryInitializesExtensionOnce) {
-  ASSERT_EQ(setenv("NEUG_EXTENSION_HOME_PYENV",
-                   TEST_OUT_OF_TREE_EXTENSION_HOME, 1),
-            0);
+  ASSERT_EQ(
+      setenv("NEUG_EXTENSION_HOME_PYENV", TEST_OUT_OF_TREE_EXTENSION_HOME, 1),
+      0);
 
   const auto db_path = std::filesystem::temp_directory_path() /
                        "neug_duplicate_extension_load_test";
@@ -31,8 +31,7 @@ TEST(ExtensionLoad, DuplicateQueryInitializesExtensionOnce) {
   ASSERT_TRUE(first_load.has_value()) << first_load.error().ToString();
 
   auto duplicate_load = conn->Query("LOAD test_out_of_tree;");
-  ASSERT_TRUE(duplicate_load.has_value())
-      << duplicate_load.error().ToString();
+  ASSERT_TRUE(duplicate_load.has_value()) << duplicate_load.error().ToString();
 
   void* handle = dlopen(TEST_OUT_OF_TREE_EXTENSION_PATH, RTLD_NOW | RTLD_LOCAL);
   ASSERT_NE(handle, nullptr) << dlerror();
