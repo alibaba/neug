@@ -464,9 +464,9 @@ TEST_F(ParquetTest, TestOptionsTranslation_DefaultValues) {
   EXPECT_FALSE(parquetFragmentOpts->arrow_reader_properties->pre_buffer())
       << "Extension should use default PRE_BUFFER=false";
 
-  // Default parallel/use_threads = true
-  EXPECT_TRUE(parquetFragmentOpts->arrow_reader_properties->use_threads())
-      << "Extension should use default parallel=true";
+  // Default parallel/use_threads = false (parallel scanning is opt-in)
+  EXPECT_FALSE(parquetFragmentOpts->arrow_reader_properties->use_threads())
+      << "Extension should use default parallel=false";
 
   // Default buffer size = 1 MiB, from the batch_size default (bytes)
   ASSERT_NE(parquetFragmentOpts->reader_properties, nullptr);
