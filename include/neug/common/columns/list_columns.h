@@ -147,7 +147,11 @@ class ListColumnBuilder : public IContextColumnBuilder {
     assert(val.type().id() == DataTypeId::kList);
     const auto& values = ListValue::GetChildren(val);
     for (const auto& v : values) {
-      child_builder_->push_back_elem(v);
+      if (v.IsNull()) {
+        child_builder_->push_back_null();
+      } else {
+        child_builder_->push_back_elem(v);
+      }
     }
     list_item item = {cur_offset_, values.size()};
     items_.push_back(item);
