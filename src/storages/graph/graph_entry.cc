@@ -13,6 +13,72 @@
 
 namespace neug {
 
+result<YAML::Node> ProjectedGraphEntry::ToYaml() const {
+  YAML::Node node(YAML::NodeType::Map);
+  auto vertices = vertexInfos;
+  auto edges = edgeInfos;
+  std::sort(vertices.begin(), vertices.end(),
+            [](const auto& lhs, const auto& rhs) {
+              return lhs.labelName < rhs.labelName;
+            });
+  std::sort(edges.begin(), edges.end(), [](const auto& lhs, const auto& rhs) {
+    return std::tie(lhs.srcLabelName, lhs.edgeLabelName, lhs.dstLabelName) <
+           std::tie(rhs.srcLabelName, rhs.edgeLabelName, rhs.dstLabelName);
+  });
+  for (const auto& info : vertices) {
+    YAML::Node item;
+    item["label"] = info.labelName;
+    item["predicate"] = info.predicate;
+    node["vertices"].push_back(item);
+  }
+  for (const auto& info : edges) {
+    YAML::Node item;
+    item["src"] = info.srcLabelName;
+    item["label"] = info.edgeLabelName;
+    item["dst"] = info.dstLabelName;
+    item["predicate"] = info.predicate;
+    node["edges"].push_back(item);
+  }
+  return node;
+}
+
+result<ProjectedGraphEntry> ProjectedGraphEntry::FromYaml(
+    const YAML::Node& node) {
+  if (!node.IsMap()) {
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA,
+                        "projected graph entry must be a map"));
+  }
+  ProjectedGraphEntry entry;
+  try {
+    if (node["vertices"] && !node["vertices"].IsSequence()) {
+      RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA,
+                          "projected graph vertices must be a sequence"));
+    }
+    for (const auto& item : node["vertices"]) {
+      entry.vertexInfos.push_back(
+          {item["label"].as<std::string>(),
+           item["predicate"] ? item["predicate"].as<std::string>() : ""});
+    }
+    if (node["edges"] && !node["edges"].IsSequence()) {
+      RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA,
+                          "projected graph edges must be a sequence"));
+    }
+    for (const auto& item : node["edges"]) {
+      entry.edgeInfos.push_back(
+          {item["src"].as<std::string>(), item["label"].as<std::string>(),
+           item["dst"].as<std::string>(),
+           item["predicate"] ? item["predicate"].as<std::string>() : ""});
+    }
+  } catch (const YAML::Exception& e) {
+    RETURN_ERROR(
+        Status(StatusCode::ERR_INVALID_SCHEMA,
+               std::string("invalid projected graph entry: ") + e.what()));
+  }
+  GraphEntrySet validator;
+  validator.AddEntry("entry", entry);
+  return entry;
+}
+
 bool GraphEntrySet::HasEntry(const std::string& name) const {
   return name_to_entry_.contains(name);
 }

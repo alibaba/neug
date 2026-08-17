@@ -22,8 +22,8 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/function/table/table_function.h"
-#include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/utils/exception/exception.h"
@@ -152,10 +152,13 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
   if (metadataManager == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
   }
-  auto& graphEntrySet = metadataManager->getGraphEntrySetUnsafe();
-  graphEntrySet.validateGraphExist(graphName);
-  const auto& parsed = graphEntrySet.getEntry(graphName);
-  auto graphEntry = graph::GDSFunction::bindGraphEntry(*clientContext, parsed);
+  const auto& graphEntrySet = metadataManager->getGraphEntrySet();
+  if (!graphEntrySet.HasEntry(graphName)) {
+    THROW_BINDER_EXCEPTION("Projected graph '" + graphName +
+                           "' does not exist.");
+  }
+  auto graphEntry = graph::GDSFunction::bindGraphEntry(
+      *clientContext, graphEntrySet.GetEntry(graphName));
   auto options = extractStringOptions(input->getValue(1));
   binder::expression_vector columns;
   const auto& yieldVariables = input->yieldVariables;

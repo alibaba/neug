@@ -348,7 +348,7 @@ class Binder {
   /*** bind graph pattern ***/
   BoundGraphPattern bindGraphPattern(
       const std::vector<parser::PatternElement>& graphPattern,
-      NamespaceBindingMode namespaceMode);
+      NamespaceBindingMode namespaceMode = NamespaceBindingMode::DISALLOW);
 
   QueryGraph bindPatternElement(const parser::PatternElement& patternElement);
   std::shared_ptr<Expression> createPath(const std::string& pathName,

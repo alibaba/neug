@@ -34,11 +34,11 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/function/gds/rec_joins.h"
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/gopt/g_graph_type.h"
-#include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/storages/graph/schema.h"
@@ -812,7 +812,7 @@ static NamespaceLabel parseNamespaceLabel(const std::string& name) {
   return {name.substr(0, dot), label, true, label == "*"};
 }
 
-static const graph::ParsedGraphEntry& getProjectedGraph(
+static const ProjectedGraphEntry& getProjectedGraph(
     main::ClientContext* context, const std::string& name);
 
 static void validateNamespaceScope(const std::vector<std::string>& names) {
@@ -902,11 +902,11 @@ void Binder::collectNamespaceRelPredicate(
       }
       auto* edge = dynamic_cast<EdgeSchema*>(info.entry);
       NEUG_ASSERT(edge != nullptr);
-      for (const auto& parsedNodeInfo : projected.nodeInfos) {
+      for (const auto& parsedNodeInfo : projected.vertexInfos) {
         auto addEndpointPredicate =
             [&](const std::shared_ptr<NodeExpression>& endpoint) {
               auto nodeInfo = graph::GDSFunction::bindNodeEntry(
-                  *clientContext, parsedNodeInfo.tableName,
+                  *clientContext, parsedNodeInfo.labelName,
                   parsedNodeInfo.predicate);
               if (!nodeInfo.predicate) {
                 return;
@@ -918,7 +918,7 @@ void Binder::collectNamespaceRelPredicate(
                   ExpressionType::AND, branch, endpointPredicate);
             };
         auto nodeInfo = graph::GDSFunction::bindNodeEntry(
-            *clientContext, parsedNodeInfo.tableName, "");
+            *clientContext, parsedNodeInfo.labelName, "");
         if (nodeInfo.entry->get_entry_id() == edge->getSrcTableID()) {
           addEndpointPredicate(rel->getSrcNode());
         }
@@ -935,15 +935,17 @@ void Binder::collectNamespaceRelPredicate(
   }
 }
 
-static const graph::ParsedGraphEntry& getProjectedGraph(
+static const ProjectedGraphEntry& getProjectedGraph(
     main::ClientContext* context, const std::string& name) {
   auto* metadata = context->getMetadataManager();
   if (metadata == nullptr) {
     THROW_BINDER_EXCEPTION("Metadata manager is not set.");
   }
   const auto& entries = metadata->getGraphEntrySet();
-  entries.validateGraphExist(name);
-  return entries.getEntry(name);
+  if (!entries.HasEntry(name)) {
+    THROW_BINDER_EXCEPTION("Projected graph '" + name + "' does not exist.");
+  }
+  return entries.GetEntry(name);
 }
 
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
@@ -969,11 +971,11 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
         const auto& projected =
             getProjectedGraph(clientContext, qualified.graphName);
         bool found = false;
-        for (const auto& info : projected.nodeInfos) {
-          if (!qualified.wildcard && info.tableName != qualified.labelName) {
+        for (const auto& info : projected.vertexInfos) {
+          if (!qualified.wildcard && info.labelName != qualified.labelName) {
             continue;
           }
-          auto* entry = bindNodeTableEntry(info.tableName);
+          auto* entry = bindNodeTableEntry(info.labelName);
           entrySet.insert(entry);
           found = true;
         }

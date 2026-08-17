@@ -34,6 +34,9 @@ struct ProjectedGraphEntry {
   std::vector<VertexEntryInfo> vertexInfos;
   std::vector<EdgeEntryInfo> edgeInfos;
   bool operator==(const ProjectedGraphEntry&) const = default;
+
+  result<YAML::Node> ToYaml() const;
+  static result<ProjectedGraphEntry> FromYaml(const YAML::Node& node);
 };
 
 class GraphEntrySet {

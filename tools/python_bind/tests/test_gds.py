@@ -96,13 +96,13 @@ def test_project_graph_with_predicates(tmp_path):
         conn.execute(
             "CALL project_graph("
             "'my_subgraph', "
-            "{'person': 'age > 20'}, "
+            "{'person': 'n.age > 20'}, "
             "{'[person, knows, person]': 'r.date > Date(\"2021-01-01\")'}"
             ");"
         )
         rows = _projected_graph_info_rows(conn, "my_subgraph")
         label_to_pred = {row[0]: row[1] for row in rows}
-        assert label_to_pred.get("person") == "age > 20"
+        assert label_to_pred.get("person") == "n.age > 20"
         rel_rows = [lbl for lbl in label_to_pred if "[" in lbl or "knows" in lbl]
         assert (
             len(rel_rows) >= 1
@@ -182,7 +182,7 @@ def test_projected_graph_persists_after_reopen(tmp_path):
     db.load_builtin_dataset("tinysnb")
     conn = db.connect()
     conn.execute(
-        "CALL project_graph('adult_graph', {'person': 'age > 20'}, "
+        "CALL project_graph('adult_graph', {'person': 'n.age > 20'}, "
         "{'[person, knows, person]': ''});"
     )
     conn.close()

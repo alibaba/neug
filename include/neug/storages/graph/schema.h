@@ -831,19 +831,19 @@ class Schema {
 
   inline std::string GetGraphId() const { return id_; }
 
-  const GraphEntrySet& GetGraphEntrySet() const { return graph_entry_set_; }
+  bool HasGraphEntry(const std::string& name) const {
+    return graph_entry_set_.HasEntry(name);
+  }
   const ProjectedGraphEntry& GetGraphEntry(const std::string& name) const {
     return graph_entry_set_.GetEntry(name);
   }
+  std::vector<std::string> GetGraphEntryNames() const;
   void AddGraphEntry(const std::string& name,
                      const ProjectedGraphEntry& entry) {
     graph_entry_set_.AddEntry(name, entry);
   }
   void DropGraphEntry(const std::string& name) {
     graph_entry_set_.DropEntry(name);
-  }
-  void SetGraphEntrySet(GraphEntrySet entries) {
-    graph_entry_set_ = std::move(entries);
   }
 
   std::string GetDescription() const;

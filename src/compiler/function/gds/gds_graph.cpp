@@ -20,11 +20,8 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include "neug/compiler/graph/graph_entry.h"
-#include <cctype>
+#include "neug/compiler/function/gds/gds_graph.h"
 #include <string>
-#include <string_view>
-#include <unordered_set>
 #include <vector>
 
 #include "neug/compiler/binder/binder.h"
@@ -46,91 +43,6 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace graph {
-
-static std::string qualifyPredicateProperties(
-    const std::string& predicate, std::string_view variable,
-    const std::vector<std::string>& propertyNames) {
-  std::unordered_set<std::string> properties(propertyNames.begin(),
-                                             propertyNames.end());
-  std::string result;
-  result.reserve(predicate.size() + variable.size() * 2);
-  char quote = '\0';
-  for (size_t i = 0; i < predicate.size();) {
-    const auto ch = predicate[i];
-    if (quote != '\0') {
-      result.push_back(ch);
-      if (ch == quote && (i == 0 || predicate[i - 1] != '\\')) {
-        quote = '\0';
-      }
-      ++i;
-      continue;
-    }
-    if (ch == '\'' || ch == '"') {
-      quote = ch;
-      result.push_back(ch);
-      ++i;
-      continue;
-    }
-    if (std::isalpha(static_cast<unsigned char>(ch)) || ch == '_') {
-      auto end = i + 1;
-      while (end < predicate.size() &&
-             (std::isalnum(static_cast<unsigned char>(predicate[end])) ||
-              predicate[end] == '_')) {
-        ++end;
-      }
-      auto token = predicate.substr(i, end - i);
-      auto previous = i;
-      while (previous > 0 && std::isspace(static_cast<unsigned char>(
-                                 predicate[previous - 1]))) {
-        --previous;
-      }
-      auto next = end;
-      while (next < predicate.size() &&
-             std::isspace(static_cast<unsigned char>(predicate[next]))) {
-        ++next;
-      }
-      const bool alreadyQualified =
-          previous > 0 && predicate[previous - 1] == '.';
-      const bool functionName =
-          next < predicate.size() && predicate[next] == '(';
-      if (properties.contains(token) && !alreadyQualified && !functionName) {
-        result.append(variable);
-        result.push_back('.');
-      }
-      result.append(token);
-      i = end;
-      continue;
-    }
-    result.push_back(ch);
-    ++i;
-  }
-  return result;
-}
-
-GraphEntrySet::GraphEntrySet(const neug::GraphEntrySet& entries) {
-  for (const auto& [name, stored] : entries.Entries()) {
-    ParsedGraphEntry parsed;
-    for (const auto& vertex : stored.vertexInfos) {
-      parsed.nodeInfos.emplace_back(vertex.labelName, vertex.predicate);
-    }
-    for (const auto& edge : stored.edgeInfos) {
-      parsed.relInfos.emplace_back(
-          common::stringFormat("[{},{},{}]", edge.srcLabelName,
-                               edge.edgeLabelName, edge.dstLabelName),
-          edge.predicate);
-    }
-    addGraph(name, parsed);
-  }
-}
-
-std::string ParsedGraphEntryTableInfo::toString() const {
-  auto result = common::stringFormat("{'table': '{}'", tableName);
-  if (predicate != "") {
-    result += common::stringFormat(",'predicate': '{}'", predicate);
-  }
-  result += "}";
-  return result;
-}
 
 GraphEntry::GraphEntry(std::vector<SchemaEntry*> nodeEntries,
                        std::vector<SchemaEntry*> relEntries) {
@@ -194,20 +106,6 @@ void GraphEntry::setRelPredicate(std::shared_ptr<Expression> predicate) {
   }
 }
 
-void GraphEntrySet::validateGraphNotExist(const std::string& name) const {
-  if (hasGraph(name)) {
-    THROW_BINDER_EXCEPTION(
-        stringFormat("Projected graph '{}' already exists.", name));
-  }
-}
-
-void GraphEntrySet::validateGraphExist(const std::string& name) const {
-  if (!hasGraph(name)) {
-    THROW_BINDER_EXCEPTION(
-        stringFormat("Projected graph '{}' does not exist.", name));
-  }
-}
-
 static expression_vector getResultColumns(const std::string& cypher,
                                           main::ClientContext* context) {
   auto parsedStatements = parser::Parser::parseQuery(cypher);
@@ -228,12 +126,8 @@ BoundGraphEntryTableInfo GDSFunction::bindNodeEntry(
   }
   auto nodeLabel = nodeEntry->get_label();
   if (!predicate.empty()) {
-    auto* nodeSchema = dynamic_cast<VertexSchema*>(nodeEntry);
-    NEUG_ASSERT(nodeSchema != nullptr);
-    auto qualified =
-        qualifyPredicateProperties(predicate, "n", nodeSchema->property_names);
     auto cypher =
-        stringFormat("MATCH (n:`{}`) RETURN n, {}", nodeLabel, qualified);
+        stringFormat("MATCH (n:`{}`) RETURN n, {}", nodeLabel, predicate);
     auto columns = getResultColumns(cypher, &context);
     NEUG_ASSERT(columns.size() == 2);
     return {nodeEntry, columns[0], columns[1]};
@@ -264,12 +158,8 @@ BoundGraphEntryTableInfo GDSFunction::bindRelEntry(
   }
   auto relLabel = relEntry->get_label();
   if (!predicate.empty()) {
-    auto* edgeSchema = dynamic_cast<EdgeSchema*>(relEntry);
-    NEUG_ASSERT(edgeSchema != nullptr);
-    auto qualified =
-        qualifyPredicateProperties(predicate, "r", edgeSchema->property_names);
     auto cypher =
-        stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}", relLabel, qualified);
+        stringFormat("MATCH ()-[r:`{}`]->() RETURN r, {}", relLabel, predicate);
     auto columns = getResultColumns(cypher, &context);
     NEUG_ASSERT(columns.size() == 2);
     return {relEntry, columns[0], columns[1]};
@@ -334,63 +224,15 @@ static void validateRelSrcDstNodeAreProjected(
                         catalog, transaction);
 }
 
-// parse edgeTableName in format '[src, edge, dst]' into [src, edge, dst]
-// triplets pay attention to the whitespace in the string, i.e, [ src,  edge,
-// dst  ]
-static std::vector<std::string> parseTriplets(
-    const std::string& edgeTableName) {
-  auto trimmed =
-      common::StringUtils::rtrim(common::StringUtils::ltrim(edgeTableName));
-  if (trimmed.size() < 2u || trimmed.front() != '[' || trimmed.back() != ']') {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "Invalid edge triplet format '{}', expected '[src, edge, dst]'.",
-        edgeTableName));
-  }
-  std::string_view inner(trimmed.data() + 1, trimmed.size() - 2u);
-  inner = common::StringUtils::rtrim(common::StringUtils::ltrim(inner));
-
-  std::vector<std::string> parts;
-  parts.reserve(3);
-  size_t start = 0;
-  while (start <= inner.size()) {
-    const auto comma = inner.find(',', start);
-    const auto segment = comma == std::string_view::npos
-                             ? inner.substr(start)
-                             : inner.substr(start, comma - start);
-    auto piece =
-        common::StringUtils::rtrim(common::StringUtils::ltrim(segment));
-    parts.emplace_back(std::string(piece));
-    if (comma == std::string_view::npos) {
-      break;
-    }
-    start = comma + 1;
-  }
-
-  if (parts.size() != 3u) {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "Invalid edge triplet '{}': expected exactly 3 comma-separated names "
-        "inside [...], got {}.",
-        edgeTableName, parts.size()));
-  }
-  for (const auto& name : parts) {
-    if (name.empty()) {
-      THROW_BINDER_EXCEPTION(stringFormat(
-          "Invalid edge triplet '{}': empty src, edge, or dst name.",
-          edgeTableName));
-    }
-  }
-  return parts;
-}
-
 GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
-                                       const ParsedGraphEntry& entry) {
+                                       const ProjectedGraphEntry& entry) {
   auto* catalog = context.getCatalog();
   auto* transaction = context.getTransaction();
   GraphEntry result;
   table_id_set_t projectedNodeTableIDSet;
-  for (auto& nodeInfo : entry.nodeInfos) {
+  for (auto& nodeInfo : entry.vertexInfos) {
     auto boundInfo =
-        bindNodeEntry(context, nodeInfo.tableName, nodeInfo.predicate);
+        bindNodeEntry(context, nodeInfo.labelName, nodeInfo.predicate);
     if (boundInfo.predicate) {
       binder::RenameDependentVar renameVar(gopt::DEFAULT_ALIAS_NAME);
       renameVar.visit(boundInfo.predicate);
@@ -398,8 +240,9 @@ GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
     projectedNodeTableIDSet.insert(boundInfo.entry->get_entry_id());
     result.nodeInfos.push_back(std::move(boundInfo));
   }
-  for (auto& relInfo : entry.relInfos) {
-    const auto& triplets = parseTriplets(relInfo.tableName);
+  for (auto& relInfo : entry.edgeInfos) {
+    const std::vector<std::string> triplets = {
+        relInfo.srcLabelName, relInfo.edgeLabelName, relInfo.dstLabelName};
     auto boundInfo = bindRelEntry(context, triplets, relInfo.predicate);
     if (boundInfo.predicate) {
       binder::RenameDependentVar renameVar(gopt::DEFAULT_ALIAS_NAME);

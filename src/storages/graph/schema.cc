@@ -1328,6 +1328,16 @@ bool Schema::Equals(const Schema& other) const {
   return true;
 }
 
+std::vector<std::string> Schema::GetGraphEntryNames() const {
+  std::vector<std::string> names;
+  names.reserve(graph_entry_set_.Entries().size());
+  for (const auto& [name, _] : graph_entry_set_.Entries()) {
+    names.push_back(name);
+  }
+  std::sort(names.begin(), names.end());
+  return names;
+}
+
 neug::result<YAML::Node> Schema::to_yaml() const {
   return Schema::DumpToYaml(*this);
 }
@@ -1879,7 +1889,9 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
     if (!entries) {
       return entries.error();
     }
-    schema.SetGraphEntrySet(std::move(entries.value()));
+    for (const auto& [name, entry] : entries.value().Entries()) {
+      schema.AddGraphEntry(name, entry);
+    }
   }
   return Status::OK();
 }

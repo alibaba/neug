@@ -49,7 +49,7 @@ MetadataManager::MetadataManager() {
   // the catalog is initialized only once and is empty before data loading
   this->catalog = std::make_unique<neug::catalog::GCatalog>();
   this->statsManager = neug::GraphStats();
-  this->graphEntrySet = std::make_shared<graph::GraphEntrySet>();
+  this->graphEntrySet = std::make_shared<GraphEntrySet>();
 }
 
 MetadataManager::~MetadataManager() = default;
@@ -59,7 +59,7 @@ MetadataManager::MetadataManager(
     std::shared_ptr<storage::MemoryManager> memoryManager,
     std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
     std::shared_ptr<extension::ExtensionManager> extensionManager,
-    std::shared_ptr<graph::GraphEntrySet> graphEntrySet)
+    std::shared_ptr<GraphEntrySet> graphEntrySet)
     : catalog{std::move(catalog)},
       statsManager{std::move(statsManager)},
       memoryManager{std::move(memoryManager)},
@@ -72,20 +72,19 @@ std::unique_ptr<MetadataManager> MetadataManager::clone(
   if (!catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
-  auto entries =
-      schema == nullptr
-          ? graphEntrySet
-          : std::make_shared<graph::GraphEntrySet>(schema->GetGraphEntrySet());
+  auto entries = graphEntrySet;
+  if (schema != nullptr) {
+    entries = std::make_shared<GraphEntrySet>();
+    for (const auto& name : schema->GetGraphEntryNames()) {
+      entries->AddEntry(name, schema->GetGraphEntry(name));
+    }
+  }
   return std::unique_ptr<MetadataManager>(
       new MetadataManager(catalog->clone(schema), stats, memoryManager, vfs,
                           extensionManager, std::move(entries)));
 }
 
-graph::GraphEntrySet& MetadataManager::getGraphEntrySetUnsafe() {
-  return *graphEntrySet;
-}
-
-const graph::GraphEntrySet& MetadataManager::getGraphEntrySet() const {
+const GraphEntrySet& MetadataManager::getGraphEntrySet() const {
   return *graphEntrySet;
 }
 

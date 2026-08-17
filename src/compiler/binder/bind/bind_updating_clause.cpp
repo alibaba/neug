@@ -97,8 +97,8 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindInsertClause(
   auto& insertClause = updatingClause.constCast<InsertClause>();
   auto patternsScope = populatePatternsScope(scope);
   // bindGraphPattern will update scope.
-  auto boundGraphPattern = bindGraphPattern(
-      insertClause.getPatternElementsRef(), NamespaceBindingMode::DISALLOW);
+  auto boundGraphPattern =
+      bindGraphPattern(insertClause.getPatternElementsRef());
   auto insertInfos =
       bindInsertInfos(boundGraphPattern.queryGraphCollection, patternsScope);
   return std::make_unique<BoundInsertClause>(std::move(insertInfos));
@@ -145,8 +145,8 @@ std::unique_ptr<BoundUpdatingClause> Binder::bindMergeClause(
   auto& mergeClause = updatingClause.constCast<MergeClause>();
   auto patternsScope = populatePatternsScope(scope);
   // bindGraphPattern will update scope.
-  auto boundGraphPattern = bindGraphPattern(mergeClause.getPatternElementsRef(),
-                                            NamespaceBindingMode::DISALLOW);
+  auto boundGraphPattern =
+      bindGraphPattern(mergeClause.getPatternElementsRef());
   auto columnDataExprs =
       getColumnDataExprs(boundGraphPattern.queryGraphCollection);
   // Rewrite key value pairs in MATCH clause as predicate

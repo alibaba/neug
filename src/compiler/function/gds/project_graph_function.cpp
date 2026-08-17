@@ -25,10 +25,10 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
-#include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/metadata_registry.h"
@@ -80,9 +80,58 @@ static std::vector<std::string> getListVal(const compiler_impl::Value& value) {
   return vals;
 }
 
-static std::vector<graph::ParsedGraphEntryTableInfo>
-extractGraphEntryTableInfos(const compiler_impl::Value& value) {
-  std::vector<graph::ParsedGraphEntryTableInfo> infos;
+static std::vector<std::string> parseEdgeTriplet(const std::string& value) {
+  auto text = common::StringUtils::rtrim(common::StringUtils::ltrim(value));
+  if (text.size() < 2 || text.front() != '[' || text.back() != ']') {
+    THROW_BINDER_EXCEPTION("Invalid edge triplet '" + value + "'.");
+  }
+  text = text.substr(1, text.size() - 2);
+  std::vector<std::string> result;
+  size_t start = 0;
+  while (start <= text.size()) {
+    auto comma = text.find(',', start);
+    auto part = text.substr(
+        start, comma == std::string::npos ? std::string::npos : comma - start);
+    part = std::string(
+        common::StringUtils::rtrim(common::StringUtils::ltrim(part)));
+    result.push_back(std::move(part));
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  if (result.size() != 3 || result[0].empty() || result[1].empty() ||
+      result[2].empty()) {
+    THROW_BINDER_EXCEPTION("Invalid edge triplet '" + value + "'.");
+  }
+  return result;
+}
+
+static void extractGraphEntryTableInfos(const compiler_impl::Value& value,
+                                        bool relationships,
+                                        ProjectedGraphEntry& entry) {
+  auto addInfo = [&](const std::string& name, const std::string& predicate) {
+    if (relationships) {
+      auto triplet = parseEdgeTriplet(name);
+      entry.edgeInfos.push_back(
+          {triplet[0], triplet[1], triplet[2], predicate});
+    } else {
+      entry.vertexInfos.push_back({name, predicate});
+    }
+  };
+  auto addTriplet = [&](const std::vector<std::string>& triplet,
+                        const std::string& predicate) {
+    if (!relationships) {
+      THROW_BINDER_EXCEPTION("A vertex projection must use a label name.");
+    }
+    if (triplet.size() != 3) {
+      THROW_BINDER_EXCEPTION(common::stringFormat(
+          "Invalid edge triplet, must have exactly 3 elements [src, edge, "
+          "dst], but got: {}",
+          triplet.size()));
+    }
+    entry.edgeInfos.push_back({triplet[0], triplet[1], triplet[2], predicate});
+  };
   switch (value.getDataType().id()) {
   case common::DataTypeId::kArray:
   case common::DataTypeId::kList: {
@@ -92,20 +141,12 @@ extractGraphEntryTableInfos(const compiler_impl::Value& value) {
       switch (type.id()) {
       case common::DataTypeId::kVarchar: {
         auto tableName = getStringVal(childValue);
-        infos.emplace_back(tableName, "" /* empty predicate */);
+        addInfo(tableName, "" /* empty predicate */);
       } break;
       case common::DataTypeId::kArray:
       case common::DataTypeId::kList: {
         auto triplets = getListVal(childValue);
-        if (triplets.size() != 3) {
-          THROW_BINDER_EXCEPTION(
-              common::stringFormat("Invalid edge triplet, must have exactly 3 "
-                                   "elements [src, edge, dst], but got: "
-                                   "{}",
-                                   triplets.size()));
-        }
-        infos.emplace_back(triplets[0], triplets[1], triplets[2],
-                           "" /* empty predicate */);
+        addTriplet(triplets, "" /* empty predicate */);
       } break;
       default: {
         THROW_BINDER_EXCEPTION(common::stringFormat(
@@ -121,7 +162,7 @@ extractGraphEntryTableInfos(const compiler_impl::Value& value) {
          ++i) {
       auto tableName = common::StructType::GetChildName(value.getDataType(), i);
       auto predicate = getStringVal(*common::NestedVal::getChildVal(&value, i));
-      infos.emplace_back(tableName, predicate);
+      addInfo(tableName, predicate);
     }
   } break;
   case common::DataTypeId::kMap: {
@@ -150,19 +191,12 @@ extractGraphEntryTableInfos(const compiler_impl::Value& value) {
       switch (tableType.id()) {
       case common::DataTypeId::kVarchar: {
         auto tableName = getStringVal(tableField);
-        infos.emplace_back(tableName, predicate);
+        addInfo(tableName, predicate);
       } break;
       case common::DataTypeId::kArray:
       case common::DataTypeId::kList: {
         auto triplets = getListVal(tableField);
-        if (triplets.size() != 3) {
-          THROW_BINDER_EXCEPTION(
-              common::stringFormat("Invalid edge triplet, must have exactly 3 "
-                                   "elements [src, edge, dst], but got: "
-                                   "{}",
-                                   triplets.size()));
-        }
-        infos.emplace_back(triplets[0], triplets[1], triplets[2], predicate);
+        addTriplet(triplets, predicate);
       } break;
       default: {
         THROW_BINDER_EXCEPTION(common::stringFormat(
@@ -179,7 +213,6 @@ extractGraphEntryTableInfos(const compiler_impl::Value& value) {
         "expected.",
         value.toString(), value.getDataType().ToString()));
   }
-  return infos;
 }
 
 static std::unique_ptr<TableFuncBindData> makeEmptyBindData(
@@ -189,57 +222,8 @@ static std::unique_ptr<TableFuncBindData> makeEmptyBindData(
   return std::make_unique<TableFuncBindData>(std::move(cols), 0, params);
 }
 
-static std::vector<std::string> parseEdgeTriplet(const std::string& value) {
-  auto text = common::StringUtils::rtrim(common::StringUtils::ltrim(value));
-  if (text.size() < 2 || text.front() != '[' || text.back() != ']') {
-    THROW_BINDER_EXCEPTION("Invalid edge triplet '" + value + "'.");
-  }
-  text = text.substr(1, text.size() - 2);
-  std::vector<std::string> result;
-  size_t start = 0;
-  while (start <= text.size()) {
-    auto comma = text.find(',', start);
-    auto part = text.substr(
-        start, comma == std::string::npos ? std::string::npos : comma - start);
-    part = std::string(
-        common::StringUtils::rtrim(common::StringUtils::ltrim(part)));
-    result.push_back(std::move(part));
-    if (comma == std::string::npos) {
-      break;
-    }
-    start = comma + 1;
-  }
-  if (result.size() != 3 || result[0].empty() || result[1].empty() ||
-      result[2].empty()) {
-    THROW_BINDER_EXCEPTION("Invalid edge triplet '" + value + "'.");
-  }
-  return result;
-}
-
-static ProjectedGraphEntry toProjectedGraphEntry(
-    const graph::ParsedGraphEntry& parsed) {
-  ProjectedGraphEntry result;
-  for (const auto& info : parsed.nodeInfos) {
-    result.vertexInfos.push_back({info.tableName, info.predicate});
-  }
-  for (const auto& info : parsed.relInfos) {
-    if (!info.srcTableName.empty() || !info.dstTableName.empty()) {
-      result.edgeInfos.push_back({info.srcTableName, info.tableName,
-                                  info.dstTableName, info.predicate});
-    } else {
-      auto triplet = parseEdgeTriplet(info.tableName);
-      result.edgeInfos.push_back(
-          {triplet[0], triplet[1], triplet[2], info.predicate});
-    }
-  }
-  return result;
-}
-
-static std::string serializeProjectedGraph(const std::string& name,
-                                           const ProjectedGraphEntry& entry) {
-  GraphEntrySet entries;
-  entries.AddEntry(name, entry);
-  auto yaml = entries.ToYaml();
+static std::string serializeProjectedGraph(const ProjectedGraphEntry& entry) {
+  auto yaml = entry.ToYaml();
   if (!yaml) {
     THROW_BINDER_EXCEPTION(yaml.error().ToString());
   }
@@ -251,16 +235,15 @@ static std::unique_ptr<TableFuncBindData> bindProjectGraph(
   auto graphName = input->getLiteralVal<std::string>(0);
   auto nodeVal = input->getValue(1);
   auto relVal = input->getValue(2);
-  graph::ParsedGraphEntry entry;
-  entry.nodeInfos = extractGraphEntryTableInfos(nodeVal);
-  entry.relInfos = extractGraphEntryTableInfos(relVal);
+  ProjectedGraphEntry entry;
+  extractGraphEntryTableInfos(nodeVal, false, entry);
+  extractGraphEntryTableInfos(relVal, true, entry);
   (void) graph::GDSFunction::bindGraphEntry(*clientContext, entry);
-  auto projected = toProjectedGraphEntry(entry);
   binder::expression_vector params;
   params.push_back(std::make_shared<binder::LiteralExpression>(
       compiler_impl::Value(graphName), ""));
   params.push_back(std::make_shared<binder::LiteralExpression>(
-      compiler_impl::Value(serializeProjectedGraph(graphName, projected)), ""));
+      compiler_impl::Value(serializeProjectedGraph(entry)), ""));
   binder::expression_vector cols;
   return std::make_unique<TableFuncBindData>(std::move(cols), 0,
                                              std::move(params));
@@ -303,12 +286,13 @@ function_set ProjectGraphFunction::getFunctionSet() {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid project_graph physical input");
     }
     auto graphName = args[0].const_().str();
-    auto entries = GraphEntrySet::FromYaml(YAML::Load(args[1].const_().str()));
-    if (!entries) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(entries.error().ToString());
+    auto entry =
+        ProjectedGraphEntry::FromYaml(YAML::Load(args[1].const_().str()));
+    if (!entry) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(entry.error().ToString());
     }
-    return std::make_unique<ProjectGraphCallInput>(
-        graphName, entries.value().GetEntry(graphName));
+    return std::make_unique<ProjectGraphCallInput>(graphName,
+                                                   std::move(entry.value()));
   };
 
   func->execFunc = [](const CallFuncInputBase& input,
@@ -394,14 +378,8 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
                           neug::IStorageInterface& graph) {
     neug::execution::Context out;
     neug::ValueColumnBuilder<std::string> name_builder;
-    const auto& nameToEntryMap = graph.schema().GetGraphEntrySet().Entries();
-    name_builder.reserve(nameToEntryMap.size());
-    std::vector<std::string> names;
-    names.reserve(nameToEntryMap.size());
-    for (const auto& [name, _] : nameToEntryMap) {
-      names.push_back(name);
-    }
-    std::sort(names.begin(), names.end());
+    auto names = graph.schema().GetGraphEntryNames();
+    name_builder.reserve(names.size());
     for (const auto& name : names) {
       name_builder.push_back_opt(name);
     }
