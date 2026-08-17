@@ -78,6 +78,14 @@ def test_list_preserves_null_elements_during_unwind(tmp_path):
 
     rows = list(
         conn.execute(
+            "UNWIND CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]') AS value "
+            "RETURN collect(value);"
+        )
+    )
+    assert _nested_list(rows[0][0]) == [1, 3]
+
+    rows = list(
+        conn.execute(
             "UNWIND CAST([CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]')], "
             "'INT64[][]') AS values "
             "UNWIND values AS value RETURN value;"

@@ -5,7 +5,7 @@ Aggregate Functions are primarily used to group current data and perform aggrega
 Function | Description | Can be used with DISTINCT | Example
 ---------|-------------|---------------------------|--------
 count | return the row counts | YES | RETURN count(a.name);
-collect | collect the elements in a single list | YES | RETURN collect(a.name);
+collect | collect the non-null elements in a single list | YES | RETURN collect(a.name);
 min | return the minimum value | NO | RETURN min(a.age);
 max | return the maximum value | NO | RETURN max(a.age);
 sum | sum up the value | NO | RETURN sum(a.age);
