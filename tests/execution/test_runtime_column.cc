@@ -1464,6 +1464,46 @@ TEST_F(ArrowColumnTest, DataChunkSupplierBasic) {
   EXPECT_GT(total_rows, 0);
 }
 
+TEST_F(ArrowColumnTest, CsvCollectionNullElements) {
+  const char* var = std::getenv("TEST_PATH");
+  std::string test_path = var ? var : "/workspaces/neug/tests";
+  std::string file_path =
+      test_path + "/execution/resources/collection_null.csv";
+
+  CsvReadConfig config;
+  put_boolean_option(config);
+  config.delimiter = '|';
+  config.quoting = false;
+  config.skip_rows = 1;
+  config.column_names = {"id", "list_values", "array_values"};
+  config.include_columns = config.column_names;
+  config.column_types.emplace("id", DataType(DataTypeId::kInt64));
+  config.column_types.emplace("list_values",
+                              DataType::List(DataType(DataTypeId::kInt64)));
+  config.column_types.emplace("array_values",
+                              DataType::Array(DataType(DataTypeId::kInt64), 3));
+  config.null_values = {"NULL"};
+
+  CSVChunkSupplier supplier(file_path, std::move(config));
+  auto chunk = supplier.GetNextChunk();
+  ASSERT_NE(chunk, nullptr);
+  ASSERT_EQ(chunk->row_num(), 1);
+
+  auto list_value = chunk->get(1)->get_elem(0);
+  const auto& list_children = ListValue::GetChildren(list_value);
+  ASSERT_EQ(list_children.size(), 3);
+  EXPECT_EQ(list_children[0].GetValue<int64_t>(), 1);
+  EXPECT_TRUE(list_children[1].IsNull());
+  EXPECT_EQ(list_children[2].GetValue<int64_t>(), 3);
+
+  auto array_value = chunk->get(2)->get_elem(0);
+  const auto& array_children = ArrayValue::GetChildren(array_value);
+  ASSERT_EQ(array_children.size(), 3);
+  EXPECT_EQ(array_children[0].GetValue<int64_t>(), 4);
+  EXPECT_TRUE(array_children[1].IsNull());
+  EXPECT_EQ(array_children[2].GetValue<int64_t>(), 6);
+}
+
 }  // namespace test
 }  // namespace execution
 }  // namespace neug
