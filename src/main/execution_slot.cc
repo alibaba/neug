@@ -225,16 +225,38 @@ result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
   return cache_value;
 }
 
-Status ExecutionSlot::validateCheckpointRequest(AccessMode access_mode) const {
+Status ExecutionSlot::validateAdminRequest(const AdminRequest& request,
+                                           AccessMode access_mode) const {
+  switch (request.type) {
+  case AdminType::kCheckpoint:
+    if (request.extension) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "CHECKPOINT admin request must not include extension "
+                    "details");
+    }
+    break;
+  case AdminType::kInstallExtension:
+  case AdminType::kLoadExtension:
+  case AdminType::kUninstallExtension:
+    if (!request.extension) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Extension admin request is missing extension details");
+    }
+    break;
+  default:
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Unsupported admin request type: " +
+                      std::to_string(static_cast<uint8_t>(request.type)));
+  }
   if (access_mode != AccessMode::kUpdate) {
-    return Status(
-        StatusCode::ERR_INVALID_ARGUMENT,
-        "CHECKPOINT only accepts the default or update/u access mode");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Admin requests only accept the default or update/u access "
+                  "mode");
   }
   if (db_config_.mode == DBMode::READ_ONLY) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Database is in read-only mode; write operations are not "
-                  "allowed.");
+                  "Admin requests are not allowed when the database is in "
+                  "read-only mode");
   }
   return Status::OK();
 }
@@ -246,8 +268,16 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     return executeCheckpoint(explain_mode, checkpoint_coordinator_,
                              UpdateTimestampLease(version_manager_), response);
   }
+  if (request.type != AdminType::kInstallExtension &&
+      request.type != AdminType::kLoadExtension &&
+      request.type != AdminType::kUninstallExtension) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Unsupported admin request type: " +
+                      std::to_string(static_cast<uint8_t>(request.type)));
+  }
   if (!request.extension) {
-    return Status::InternalError("Extension admin request is missing details");
+    return Status::InternalError(
+        "Extension admin request is missing extension details");
   }
   const auto& info = *request.extension;
   execution::ops::checkDeprecatedExtension(info.name);
@@ -262,7 +292,6 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     response.set_row_count(0);
     return Status::OK();
   }
-
   auto load_result = extension_manager_.LoadExtension(info.name);
   if (!load_result) {
     return load_result.error();
@@ -352,11 +381,11 @@ Status ExecutionSlot::executeCore(const std::string& query,
                                : requested_mode;
   std::shared_ptr<execution::CacheValue> prepared_query;
 
-  // EXPLAIN CHECKPOINT is non-mutating; skip the checkpoint access-mode
-  // validation so it works on read-only databases and with access_mode=read.
+  // EXPLAIN is non-mutating; skip Admin access-mode validation so it works on
+  // read-only databases and with access_mode=read.
   if (NEUG_UNLIKELY(analysis.isAdmin() &&
                     analysis.explain_mode != ExplainMode::kExplain)) {
-    RETURN_IF_NOT_OK(validateCheckpointRequest(access_mode));
+    RETURN_IF_NOT_OK(validateAdminRequest(*analysis.admin, access_mode));
   }
 
   auto execute_on_storage = [this, &query, access_mode, &analysis, &parameters,

@@ -465,10 +465,12 @@ static void ensureNeugSymbolsGlobal() {
   promoted = true;
 }
 
+}  // namespace extension
+
 Status ExtensionManager::InstallExtension(const std::string& name,
                                           const std::string& repository) {
   std::lock_guard<std::mutex> lock(mutex_);
-  return install_extension(NormalizeExtensionName(name), repository);
+  return extension::install_extension(NormalizeExtensionName(name), repository);
 }
 
 result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
@@ -482,11 +484,11 @@ result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
   }
 
   LOG(INFO) << "[Admin] LOAD extension: " << canonical_name;
-  ensureNeugSymbolsGlobal();
+  extension::ensureNeugSymbolsGlobal();
   auto fileName =
       neug::extension::ExtensionUtils::getExtensionFileName(canonical_name);
 
-  std::string userExtDir = getUserExtensionDir(canonical_name);
+  std::string userExtDir = extension::getUserExtensionDir(canonical_name);
   std::string userLibPath = userExtDir + "/" + fileName;
   if (std::filesystem::exists(userLibPath)) {
     LOG(INFO) << "[Admin] Loading extension from user install: " << userLibPath;
@@ -541,6 +543,8 @@ result<ExtensionManager::LoadResult> ExtensionManager::LoadExtension(
                           " not found in user install or wheel package"));
 }
 
+namespace extension {
+
 Status uninstall_extension(const std::string& extension_name) {
   LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
   std::string extDir = getUserExtensionDir(extension_name);
@@ -560,10 +564,11 @@ Status uninstall_extension(const std::string& extension_name) {
   return Status::OK();
 }
 
+}  // namespace extension
+
 Status ExtensionManager::UninstallExtension(const std::string& name) {
   std::lock_guard<std::mutex> lock(mutex_);
-  return uninstall_extension(NormalizeExtensionName(name));
+  return extension::uninstall_extension(NormalizeExtensionName(name));
 }
 
-}  // namespace extension
 }  // namespace neug

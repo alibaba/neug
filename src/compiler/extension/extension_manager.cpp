@@ -25,7 +25,6 @@
 #include "neug/compiler/common/string_utils.h"
 
 namespace neug {
-namespace extension {
 
 std::string ExtensionManager::NormalizeExtensionName(std::string name) {
   common::StringUtils::toLower(name);
@@ -37,5 +36,4 @@ bool ExtensionManager::IsLoaded(const std::string& name) const {
   return loaded_extensions_.contains(NormalizeExtensionName(name));
 }
 
-}  // namespace extension
 }  // namespace neug

@@ -164,7 +164,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       checkpoint_mgr_.CleanupRetiredCheckpoints();
     }
     initVersionManager(initial_visibility_ts);
-    extension_manager_ = std::make_unique<extension::ExtensionManager>();
+    extension_manager_ = std::make_unique<ExtensionManager>();
     initPlanner();
     initQueryRuntime();
   } catch (...) {

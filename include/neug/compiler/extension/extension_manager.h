@@ -30,7 +30,6 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace extension {
 
 struct ExtensionEntry {
   const char* name;
@@ -68,5 +67,4 @@ class ExtensionManager {
   std::unordered_map<std::string, LoadedExtension> loaded_extensions_;
 };
 
-}  // namespace extension
 }  // namespace neug

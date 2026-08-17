@@ -65,7 +65,7 @@ class TpExecutionSlotPool {
           std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
           std::shared_ptr<Allocator> alloc, IVersionManager& version_manager,
           CheckpointCoordinator& checkpoint_coordinator, int slot_id,
-          extension::ExtensionManager& extension_manager,
+          ExtensionManager& extension_manager,
           std::unique_ptr<IWalWriter> in_logger, const std::string& wal_uri,
           const NeugDBConfig& config)
         : allocator(std::move(alloc)),
@@ -99,7 +99,7 @@ class TpExecutionSlotPool {
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       IVersionManager& version_manager,
       CheckpointCoordinator& checkpoint_coordinator,
-      extension::ExtensionManager& extension_manager,
+      ExtensionManager& extension_manager,
       const std::vector<std::shared_ptr<Allocator>>& allocators,
       const std::string& wal_uri, const NeugDBConfig& config)
       : entries_(nullptr), slot_num_(allocators.size()) {
