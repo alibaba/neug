@@ -636,6 +636,72 @@ def test_array_preserves_null_elements(tmp_path):
     db.close()
 
 
+def test_parquet_list_and_array_preserve_null_elements(tmp_path):
+    """Parquet LIST/ARRAY reads and LIST UNWIND preserve inner NULLs."""
+    pa = pytest.importorskip("pyarrow")
+    import pyarrow.parquet as pq
+
+    list_path = tmp_path / "list_nulls.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "values": pa.array(
+                    [[1, None, 3], [4, 5]], type=pa.list_(pa.int64())
+                ),
+            }
+        ),
+        list_path,
+    )
+
+    array_path = tmp_path / "array_nulls.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "vec": pa.array(
+                    [[1.0, None, 3.0], [4.0, 5.0, 6.0]],
+                    type=pa.list_(pa.float64(), 3),
+                ),
+            }
+        ),
+        array_path,
+    )
+
+    db = Database(db_path=str(tmp_path / "list_db"), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD PARQUET")
+
+    rows = list(
+        conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id')
+    )
+    assert rows == [[1, [1, None, 3]], [2, [4, 5]]]
+
+    rows = list(
+        conn.execute(
+            f'LOAD FROM "{list_path}" '
+            "UNWIND values AS value RETURN value ORDER BY value"
+        )
+    )
+    assert rows == [[1], [None], [3], [4], [5]]
+
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(tmp_path / "array_db"), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD PARQUET")
+
+    rows = list(conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id'))
+    assert rows == [
+        [1, [1.0, None, 3.0]],
+        [2, [4.0, 5.0, 6.0]],
+    ]
+
+    conn.close()
+    db.close()
+
+
 def test_array_wrong_size_throws(tmp_path):
     """Inserting an array with wrong number of elements should fail."""
     db = Database(db_path=str(tmp_path), mode="w")
