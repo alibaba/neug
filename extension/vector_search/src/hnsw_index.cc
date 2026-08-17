@@ -356,6 +356,9 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
     cloned->index_id_accessor_.reset(
         static_cast<IndexIDAccessor*>(accessor.release()));
   }
+  // ZVec supports concurrent reads of a shared index: search state is held in
+  // thread-local contexts and its HNSW streamer protects shared state with
+  // internal shared locks. Keep one index instance across read-only clones.
   cloned->zvec_index_ = zvec_index_;
   if (vec_source_) {
     cloned->vec_source_ = std::make_unique<HNSWVecSource>(*vec_source_);
@@ -413,6 +416,7 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
     }
     allowed->runOptimize();
     query_param->filter = std::make_shared<zvec::core_interface::IndexFilter>();
+    // ZVec's filter predicate returns true to exclude the key.
     query_param->filter->set([allowed](uint64_t key) {
       return key > std::numeric_limits<uint32_t>::max() ||
              !allowed->contains(static_cast<uint32_t>(key));
@@ -431,6 +435,7 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
       deleted->runOptimize();
       query_param->filter =
           std::make_shared<zvec::core_interface::IndexFilter>();
+      // ZVec's filter predicate returns true to exclude the key.
       query_param->filter->set([deleted](uint64_t key) {
         return key > std::numeric_limits<uint32_t>::max() ||
                deleted->contains(static_cast<uint32_t>(key));

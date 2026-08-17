@@ -43,6 +43,9 @@ struct HNSWIndexScanFuncInput final : function::CallFuncInputBase {
     auto bound = std::make_unique<HNSWIndexScanFuncInput>();
     bound->label_id = label_id;
     bound->unique_index_name = unique_index_name;
+    // bindParams() has already evaluated target_value. From this stage onward,
+    // the per-Eval input needs only the immutable bound scalar, not a copy of
+    // the expression tree.
     bound->bound_target_value = bound_target_value;
     bound->topk = topk;
     bound->vertex_alias = vertex_alias;

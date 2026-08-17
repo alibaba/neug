@@ -331,6 +331,8 @@ RETURN vector_distance_l2(
 ) AS d;
 ```
 
+>Note: When calculating the distance between a vector property and a constant vector, the constant is automatically cast to the property's numeric array type. For example, if the property is FLOAT[N], a DOUBLE[N] constant is converted to FLOAT[N], which may result in precision loss. To avoid unintended precision loss, use arguments with the same numeric array type whenever possible.
+
 
 This query performs a brute-force distance calculation:
 
