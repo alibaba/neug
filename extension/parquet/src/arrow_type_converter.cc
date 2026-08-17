@@ -91,6 +91,16 @@ std::shared_ptr<arrow::DataType> ArrowTypeConverter::convert(
     }
     return arrow::map(keyType, valueType);
   }
+  case ::common::DataType::kList: {
+    // Handle list type (variable-length)
+    const auto& list = type.list();
+    auto componentType = convert(list.component_type());
+    if (!componentType) {
+      THROW_CONVERSION_EXCEPTION(
+          "Failed to convert LIST component type to Arrow DataType");
+    }
+    return arrow::list(componentType);
+  }
   case ::common::DataType::kDecimal:
   case ::common::DataType::ITEM_NOT_SET:
   default:
@@ -163,16 +173,27 @@ std::shared_ptr<::common::DataType> ArrowTypeConverter::convert(
     break;
   }
 
-  case arrow::Type::LIST:
-  case arrow::Type::LARGE_LIST: {
-    auto* array = commonType->mutable_array();
-    auto listType = static_cast<const arrow::ListType*>(&arrowType);
-    auto componentType = convert(*listType->value_type());
+  case arrow::Type::LIST: {
+    auto* list = commonType->mutable_list();
+    const auto& listType = static_cast<const arrow::ListType&>(arrowType);
+    auto componentType = convert(*listType.value_type());
     if (!componentType) {
       THROW_CONVERSION_EXCEPTION(
-          "Failed to convert ARRAY component type from Arrow DataType");
+          "Failed to convert LIST component type from Arrow DataType");
     }
-    *array->mutable_component_type() = *componentType;
+    *list->mutable_component_type() = *componentType;
+    break;
+  }
+
+  case arrow::Type::LARGE_LIST: {
+    auto* list = commonType->mutable_list();
+    const auto& listType = static_cast<const arrow::LargeListType&>(arrowType);
+    auto componentType = convert(*listType.value_type());
+    if (!componentType) {
+      THROW_CONVERSION_EXCEPTION(
+          "Failed to convert LARGE_LIST component type from Arrow DataType");
+    }
+    *list->mutable_component_type() = *componentType;
     break;
   }
 
