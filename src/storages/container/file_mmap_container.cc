@@ -188,8 +188,8 @@ void FileSharedMMap::Dump(const std::string& path) {
 
   // Cross-filesystem fallback: copy then remove the source.
   if (ec != std::errc::cross_device_link) {
-    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " +
-                        path + " (" + ec.message() + ")");
+    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " + path +
+                       " (" + ec.message() + ")");
   }
 
   // copy_file tries copy_file_range (kernel-side, no userspace buffer) first,
