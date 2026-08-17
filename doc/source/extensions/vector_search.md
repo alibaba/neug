@@ -176,9 +176,7 @@ COPY vector_node FROM (
 
 Vector data can also be imported from Parquet files.
 
-The vector column must use an Arrow fixed-size list whose element type and
-length match the target vector property. For example, `vec` below has the
-Arrow type `fixed_size_list<float>[4]`.
+The `vec` data in the Parquet file is stored as a `FLOAT32[4]` array.
 
 Example:
 
