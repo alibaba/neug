@@ -57,6 +57,17 @@
 namespace {
 
 // ---------------------------------------------------------------------------
+// Cross-platform helper: returns the current real user id on POSIX and a
+// non-root value on Windows.  Used by permission-based tests that need to
+// skip when running as root.
+inline int GetTestUid() {
+#ifdef _WIN32
+  return 1;
+#else
+  return getuid();
+#endif
+}
+
 // Memory level traits for typed tests.
 // ---------------------------------------------------------------------------
 template <neug::MemoryLevel kLevel>
@@ -2260,7 +2271,7 @@ TYPED_TEST_SUITE(CheckpointSafetyTest, AllMemoryLevels);
 
 // Fix #528: UpdateMeta re-throws on I/O failure and preserves old meta.
 TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
-  if (getuid() == 0) {
+  if (GetTestUid() == 0) {
     GTEST_SKIP() << "Cannot test permission-based failures as root";
   }
   neug::CheckpointManager mgr;
@@ -2293,7 +2304,7 @@ TYPED_TEST(CheckpointSafetyTest, update_meta_rethrows_on_failure) {
 // recovery on restart succeeds.
 TYPED_TEST(CheckpointSafetyTest,
            checkpoint_prepare_failure_keeps_database_available) {
-  if (getuid() == 0) {
+  if (GetTestUid() == 0) {
     GTEST_SKIP() << "Cannot test permission-based failures as root";
   }
   // Phase 1: Create table, insert data, and produce a valid checkpoint.
@@ -2416,7 +2427,7 @@ TYPED_TEST(CheckpointSafetyTest,
 }
 
 TYPED_TEST(CheckpointSafetyTest, checkpoint_gc_failure_is_best_effort) {
-  if (getuid() == 0) {
+  if (GetTestUid() == 0) {
     GTEST_SKIP() << "Cannot test permission-based failures as root";
   }
 
