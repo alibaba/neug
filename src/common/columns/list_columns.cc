@@ -37,11 +37,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        if (elem.IsNull()) {
-          builder.push_back_null();
-        } else {
-          builder.push_back_elem(elem);
-        }
+        builder.push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;
@@ -55,11 +51,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        if (elem.IsNull()) {
-          builder.push_back_null();
-        } else {
-          builder.push_back_elem(elem);
-        }
+        builder.push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;
@@ -73,11 +65,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        if (elem.IsNull()) {
-          builder.push_back_null();
-        } else {
-          builder.push_back_elem(elem);
-        }
+        builder.push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;
@@ -91,11 +79,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        if (elem.IsNull()) {
-          builder.push_back_null();
-        } else {
-          builder.push_back_elem(elem);
-        }
+        builder.push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;
@@ -109,14 +93,7 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        if (elem.IsNull()) {
-          builder.push_back_null();
-        } else {
-          auto edge = elem.GetValue<edge_t>();
-          builder.insert_label(edge.label);
-          builder.push_back_opt(edge.label, edge.src, edge.dst, edge.prop,
-                                edge.dir);
-        }
+        builder.push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;

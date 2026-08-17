@@ -120,6 +120,10 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
   }
 
   void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     if (val.type().id() != DataTypeId::kArray) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "ContextArrayColumnBuilder: expected ARRAY value, got " +
@@ -132,11 +136,7 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
           " elements, got " + std::to_string(children.size()));
     }
     for (const auto& v : children) {
-      if (v.IsNull()) {
-        child_builder_->push_back_null();
-      } else {
-        child_builder_->push_back_elem(v);
-      }
+      child_builder_->push_back_elem(v);
     }
     ++current_size_;
   }
