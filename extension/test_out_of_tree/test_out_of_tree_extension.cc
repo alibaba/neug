@@ -21,7 +21,12 @@
 #include "neug/execution/common/params_map.h"
 #include "neug/utils/exception/exception.h"
 
+#include <atomic>
+#include <cstdint>
+
 namespace {
+
+std::atomic<uint64_t> init_count{0};
 
 // String literal, or $param (ParamsMap key without '$').
 struct DeferredCallArg {
@@ -128,6 +133,7 @@ struct TestEchoParamFunction {
 extern "C" {
 
 void Init() {
+  init_count.fetch_add(1, std::memory_order_relaxed);
   neug::extension::ExtensionAPI::registerFunction<TestEchoParamFunction>(
       neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
   neug::extension::ExtensionAPI::registerExtension(
@@ -138,5 +144,7 @@ void Init() {
 }
 
 const char* Name() { return "TEST_OUT_OF_TREE"; }
+
+uint64_t GetInitCount() { return init_count.load(std::memory_order_relaxed); }
 
 }  // extern "C"

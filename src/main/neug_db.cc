@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
@@ -163,11 +164,13 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       checkpoint_mgr_.CleanupRetiredCheckpoints();
     }
     initVersionManager(initial_visibility_ts);
+    extension_manager_ = std::make_unique<ExtensionManager>();
     initPlanner();
     initQueryRuntime();
   } catch (...) {
     clearQueryRuntime();
     planner_.reset();
+    extension_manager_.reset();
     version_manager_.reset();
     checkpoint_coordinator_.reset();
     snapshot_store_.reset();
@@ -221,6 +224,7 @@ void NeugDB::Close() {
   version_manager_.reset();
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
+  extension_manager_.reset();
   allocators_.clear();
   checkpoint_mgr_.Close();
   cleanupTemporaryWorkspace();
@@ -524,8 +528,8 @@ std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
   return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
       *snapshot_store_, planner_, global_query_cache_, *version_manager_,
       *allocators_.at(slot_id), QueryExecutionStrategy::kDirect,
-      /*wal_writer=*/nullptr, *checkpoint_coordinator_, config_,
-      static_cast<int>(slot_id)));
+      /*wal_writer=*/nullptr, *checkpoint_coordinator_, *extension_manager_,
+      config_, static_cast<int>(slot_id)));
 }
 
 void NeugDB::initQueryRuntime() {
