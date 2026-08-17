@@ -54,19 +54,6 @@ static void RegisterHTTPProvider() {
                "http, https";
 }
 
-// Finalize Arrow S3 to prevent exit crash (called at process exit)
-static void FinalizeS3OnExit() {
-  try {
-    auto status = arrow::fs::FinalizeS3();
-    if (!status.ok()) {
-      LOG(WARNING) << "[s3 extension] Failed to finalize Arrow S3: "
-                   << status.ToString();
-    }
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "[s3 extension] cleanup failed: " << e.what();
-  }
-}
-
 }  // namespace httpfs
 }  // namespace extension
 }  // namespace neug
@@ -94,8 +81,11 @@ void Init() {
     // Register HTTP/HTTPS filesystem provider
     neug::extension::httpfs::RegisterHTTPProvider();
 
-    // Register atexit handler to finalize S3 on process exit
-    std::atexit(neug::extension::httpfs::FinalizeS3OnExit);
+    // Do not register arrow::fs::FinalizeS3() with std::atexit. Arrow's S3
+    // state is initialized lazily, so it may be destroyed before an
+    // earlier-registered atexit handler runs. Calling FinalizeS3() then is
+    // explicitly unsupported by Arrow and can cause a use-after-free during
+    // shutdown. Let Arrow manage its own process-exit lifecycle.
 
     LOG(INFO) << "[httpfs extension] initialized (s3, oss, http, https)";
   } catch (const std::exception& e) {
