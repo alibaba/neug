@@ -288,6 +288,16 @@ def test_documented_schema_index_and_query_examples(tmp_path):
             "CREATE NODE TABLE vector_node("
             "id INT64, vec FLOAT[4], PRIMARY KEY (id));"
         )
+        conn.execute(
+            "CREATE NODE TABLE vector_node_with_default("
+            "id INT64, vec FLOAT[4] DEFAULT [0.1, 0.1, 0.2, 0.2], "
+            "PRIMARY KEY (id));"
+        )
+        conn.execute("CREATE (:vector_node_with_default {id: 1});")
+        default_vector = list(
+            conn.execute("MATCH (n:vector_node_with_default {id: 1}) RETURN n.vec;")
+        )
+        assert default_vector[0][0] == pytest.approx([0.1, 0.1, 0.2, 0.2], abs=1e-6)
         conn.execute("ALTER TABLE vector_node ADD IF NOT EXISTS vec2 FLOAT[4];")
         conn.execute("CREATE REL TABLE links(FROM vector_node TO vector_node);")
         conn.execute(
@@ -361,6 +371,26 @@ def test_documented_schema_index_and_query_examples(tmp_path):
             )
         )
         assert [row[0] for row in graph_filtered] == [3, 2, 4]
+
+        # Missing fixed-length vectors use the implicit all-zero default and are
+        # maintained by HNSW in the same way as explicitly supplied vectors.
+        conn.execute("CREATE (:vector_node {id: 5});")
+        implicit_default = list(
+            conn.execute(
+                "MATCH (n:vector_node {id: 5}) RETURN n.vec, "
+                "vector_distance_l2(n.vec, [0.0, 0.0, 0.0, 0.0]);"
+            )
+        )
+        assert implicit_default[0][0] == pytest.approx([0.0, 0.0, 0.0, 0.0])
+        assert implicit_default[0][1] == pytest.approx(0.0)
+        zero_nearest = list(
+            conn.execute(
+                "MATCH (n:vector_node) RETURN n.id, "
+                "vector_distance_l2(n.vec, [0.0, 0.0, 0.0, 0.0]) AS score "
+                "ORDER BY score ASC LIMIT 1;"
+            )
+        )
+        assert zero_nearest[0] == pytest.approx([5, 0.0])
 
         conn.execute(
             "MATCH (n:vector_node) WHERE n.id = 1 " "SET n.vec = [0.2, 0.2, 0.1, 0.1];"

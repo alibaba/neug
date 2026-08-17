@@ -79,6 +79,20 @@ CREATE NODE TABLE vector_node (
 );
 ```
 
+If no default value is specified, a vector property is implicitly initialized
+to `[0.0, 0.0, 0.0, ...]`, with one FP32 zero for each vector dimension. This
+may cause nodes containing the default vector to appear in vector similarity
+query results. To avoid relying on the implicit zero vector, explicitly specify
+a default value appropriate for your application. For example:
+
+```cypher
+CREATE NODE TABLE vector_node (
+    id INT64,
+    vec FLOAT[4] DEFAULT [0.1, 0.1, 0.2, 0.2],
+    PRIMARY KEY (id)
+);
+```
+
 ### Drop Vector Property
 
 Dropping a node type will automatically remove:
