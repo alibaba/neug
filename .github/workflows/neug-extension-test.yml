@@ -12,6 +12,7 @@ on:
       - 'cmake/neug_extension.cmake'
       - 'extension/**'
       - 'tools/python_bind/tests/test_hnsw_index.py'
+      - 'tools/python_bind/tests/test_hnsw_index_tp.py'
       - 'tools/python_bind/tests/test_gds.py'
       - 'tools/python_bind/tests/test_gds_path.py'
       - 'tools/python_bind/tests/test_gds_concurrency.py'

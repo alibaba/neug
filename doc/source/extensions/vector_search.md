@@ -104,7 +104,7 @@ Example:
 ```cypher
 // Add vector column
 ALTER TABLE vector_node
-ADD IF NOT EXISTS embedding FLOAT[4];
+ADD IF NOT EXISTS vec2 FLOAT[4];
 ```
 
 ---
