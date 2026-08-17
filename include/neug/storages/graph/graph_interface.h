@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cassert>
+#include <cctype>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -27,6 +28,28 @@
 #include "neug/utils/property/types.h"
 
 namespace neug {
+
+inline bool PredicateReferencesProperty(const std::string& predicate,
+                                        const std::string& property) {
+  for (size_t pos = 0; pos < predicate.size();) {
+    if (!std::isalpha(static_cast<unsigned char>(predicate[pos])) &&
+        predicate[pos] != '_') {
+      ++pos;
+      continue;
+    }
+    auto end = pos + 1;
+    while (end < predicate.size() &&
+           (std::isalnum(static_cast<unsigned char>(predicate[end])) ||
+            predicate[end] == '_')) {
+      ++end;
+    }
+    if (predicate.compare(pos, end - pos, property) == 0) {
+      return true;
+    }
+    pos = end;
+  }
+  return false;
+}
 
 class StorageIndex;
 class StorageIndexManager;
@@ -580,6 +603,23 @@ class StorageUpdateInterface : public StorageReadInterface,
       : StorageReadInterface(view, ts), StorageInsertInterface() {}
   virtual ~StorageUpdateInterface() {}
 
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry) {
+    auto st = AddGraphEntryImpl(name, entry);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
+  }
+
+  Status DropGraphEntry(const std::string& name) {
+    auto st = DropGraphEntryImpl(name);
+    if (st.ok()) {
+      MarkSchemaDirty();
+    }
+    return st;
+  }
+
   bool readable() const override { return true; }
   bool writable() const override { return true; }
 
@@ -818,6 +858,22 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status DeleteVertexProperties(label_t label,
                                 const DeleteVertexPropertiesParam& config) {
+    const auto& labelName = schema().get_vertex_label_name(label);
+    for (const auto& property : config.GetDeleteProperties()) {
+      for (const auto& [graphName, entry] :
+           schema().GetGraphEntrySet().Entries()) {
+        for (const auto& vertex : entry.vertexInfos) {
+          if (vertex.labelName == labelName &&
+              PredicateReferencesProperty(vertex.predicate, property)) {
+            return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Property '" + property +
+                              "' is referenced by "
+                              "projected graph '" +
+                              graphName + "'.");
+          }
+        }
+      }
+    }
     auto st = DeleteVertexPropertiesImpl(label, config);
     if (st.ok()) {
       MarkSchemaDirty();
@@ -836,6 +892,26 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status DeleteEdgeProperties(label_t src, label_t dst, label_t edge,
                               const DeleteEdgePropertiesParam& config) {
+    const auto& srcName = schema().get_vertex_label_name(src);
+    const auto& dstName = schema().get_vertex_label_name(dst);
+    const auto& edgeName = schema().get_edge_label_name(edge);
+    for (const auto& property : config.GetDeleteProperties()) {
+      for (const auto& [graphName, entry] :
+           schema().GetGraphEntrySet().Entries()) {
+        for (const auto& edgeInfo : entry.edgeInfos) {
+          if (edgeInfo.srcLabelName == srcName &&
+              edgeInfo.dstLabelName == dstName &&
+              edgeInfo.edgeLabelName == edgeName &&
+              PredicateReferencesProperty(edgeInfo.predicate, property)) {
+            return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Property '" + property +
+                              "' is referenced by "
+                              "projected graph '" +
+                              graphName + "'.");
+          }
+        }
+      }
+    }
     auto st = DeleteEdgePropertiesImpl(src, dst, edge, config);
     if (st.ok()) {
       MarkSchemaDirty();
@@ -852,6 +928,27 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param label Vertex label id
    */
   Status DeleteVertexType(label_t label) {
+    const auto& labelName = schema().get_vertex_label_name(label);
+    for (const auto& [graphName, entry] :
+         schema().GetGraphEntrySet().Entries()) {
+      for (const auto& vertex : entry.vertexInfos) {
+        if (vertex.labelName == labelName) {
+          return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Vertex type '" + labelName +
+                            "' is referenced by projected graph '" + graphName +
+                            "'.");
+        }
+      }
+      for (const auto& edgeInfo : entry.edgeInfos) {
+        if (edgeInfo.srcLabelName == labelName ||
+            edgeInfo.dstLabelName == labelName) {
+          return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Vertex type '" + labelName +
+                            "' is referenced by projected graph '" + graphName +
+                            "'.");
+        }
+      }
+    }
     auto st = DeleteVertexTypeImpl(label);
     if (st.ok()) {
       MarkSchemaDirty();
@@ -869,6 +966,22 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @param edge Edge label id
    */
   Status DeleteEdgeType(label_t src, label_t dst, label_t edge) {
+    const auto& srcName = schema().get_vertex_label_name(src);
+    const auto& dstName = schema().get_vertex_label_name(dst);
+    const auto& edgeName = schema().get_edge_label_name(edge);
+    for (const auto& [graphName, entry] :
+         schema().GetGraphEntrySet().Entries()) {
+      for (const auto& edgeInfo : entry.edgeInfos) {
+        if (edgeInfo.srcLabelName == srcName &&
+            edgeInfo.dstLabelName == dstName &&
+            edgeInfo.edgeLabelName == edgeName) {
+          return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Edge type '[" + srcName + "," + edgeName + "," +
+                            dstName + "]' is referenced by projected graph '" +
+                            graphName + "'.");
+        }
+      }
+    }
     auto st = DeleteEdgeTypeImpl(src, dst, edge);
     if (st.ok()) {
       MarkSchemaDirty();
@@ -921,6 +1034,9 @@ class StorageUpdateInterface : public StorageReadInterface,
       const DeleteEdgePropertiesParam& config) = 0;
   virtual Status DeleteVertexTypeImpl(label_t label) = 0;
   virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
+  virtual Status AddGraphEntryImpl(const std::string& name,
+                                   const ProjectedGraphEntry& entry) = 0;
+  virtual Status DropGraphEntryImpl(const std::string& name) = 0;
 
   void markIncidentEdgeTablesDirty(label_t label) {
     for (const auto& [_, es] : schema().get_all_edge_schemas()) {
@@ -1051,6 +1167,15 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
       const DeleteEdgePropertiesParam& config) override;
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
+  Status AddGraphEntryImpl(const std::string& name,
+                           const ProjectedGraphEntry& entry) override {
+    graph_.mutable_schema().AddGraphEntry(name, entry);
+    return Status::OK();
+  }
+  Status DropGraphEntryImpl(const std::string& name) override {
+    graph_.mutable_schema().DropGraphEntry(name);
+    return Status::OK();
+  }
 
   PropertyGraph& graph_;
   GraphView& mut_view_;

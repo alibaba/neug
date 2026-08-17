@@ -1238,6 +1238,14 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
           graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
+    } else if (op_type == OpType::kAddGraphEntry) {
+      auto redo = AddGraphEntryRedo::Deserialize(arc);
+      graph.mutable_schema().AddGraphEntry(redo.name, redo.entry);
+      graph.MarkSchemaDirty();
+    } else if (op_type == OpType::kDropGraphEntry) {
+      auto redo = DropGraphEntryRedo::Deserialize(arc);
+      graph.mutable_schema().DropGraphEntry(redo.name);
+      graph.MarkSchemaDirty();
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
                                     std::to_string(static_cast<int>(op_type)));

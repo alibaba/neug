@@ -21,6 +21,7 @@
  */
 
 #include <memory>
+#include <optional>
 #include <unordered_set>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
@@ -37,7 +38,9 @@
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
@@ -58,7 +61,11 @@ using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 // We do not store key-value pairs in query graph primarily because we will
 // merge key-value std::pairs with other predicates specified in WHERE clause.
 BoundGraphPattern Binder::bindGraphPattern(
-    const std::vector<PatternElement>& graphPattern) {
+    const std::vector<PatternElement>& graphPattern,
+    NamespaceBindingMode namespaceMode) {
+  auto previousMode = namespaceBindingMode;
+  namespaceBindingMode = namespaceMode;
+  namespacePredicates.clear();
   auto queryGraphCollection = QueryGraphCollection();
   for (auto& patternElement : graphPattern) {
     queryGraphCollection.addAndMergeQueryGraphIfConnected(
@@ -67,6 +74,7 @@ BoundGraphPattern Binder::bindGraphPattern(
   queryGraphCollection.finalize();
   auto boundPattern = BoundGraphPattern();
   boundPattern.queryGraphCollection = std::move(queryGraphCollection);
+  namespaceBindingMode = previousMode;
   return boundPattern;
 }
 
@@ -313,6 +321,7 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
   queryRel->setLeftNode(leftNode);
   queryRel->setRightNode(rightNode);
   queryRel->setAlias(parsedName);
+  collectNamespaceRelPredicate(relPattern, queryRel);
   if (!parsedName.empty()) {
     addToScope(parsedName, queryRel);
   }
@@ -710,6 +719,7 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
         expressionBinder.implicitCastIfNecessary(boundRhs, boundLhs->dataType);
     queryNode->addPropertyDataExpr(propertyName, std::move(boundRhs));
   }
+  collectNamespaceNodePredicate(nodePattern, queryNode);
   queryGraph.addQueryNode(queryNode);
   return queryNode;
 }
@@ -717,8 +727,9 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
     const NodePattern& nodePattern) {
   auto parsedName = nodePattern.getVariableName();
-  return createQueryNode(parsedName,
-                         bindNodeTableEntries(nodePattern.getTableNames()));
+  auto node = createQueryNode(
+      parsedName, bindNodeTableEntries(nodePattern.getTableNames()));
+  return node;
 }
 
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
@@ -782,6 +793,159 @@ static std::vector<SchemaEntry*> sortEntries(const schema_entry_set_t& set) {
   return entries;
 }
 
+struct NamespaceLabel {
+  std::string graphName;
+  std::string labelName;
+  bool qualified = false;
+  bool wildcard = false;
+};
+
+static NamespaceLabel parseNamespaceLabel(const std::string& name) {
+  auto dot = name.find('.');
+  if (dot == std::string::npos) {
+    return {"", name, false, false};
+  }
+  if (dot == 0 || dot + 1 >= name.size()) {
+    THROW_BINDER_EXCEPTION("Invalid namespace-qualified label '" + name + "'.");
+  }
+  auto label = name.substr(dot + 1);
+  return {name.substr(0, dot), label, true, label == "*"};
+}
+
+static const graph::ParsedGraphEntry& getProjectedGraph(
+    main::ClientContext* context, const std::string& name);
+
+static void validateNamespaceScope(const std::vector<std::string>& names) {
+  std::optional<std::string> graphName;
+  bool hasUnqualified = false;
+  for (const auto& name : names) {
+    const auto qualified = parseNamespaceLabel(name);
+    if (!qualified.qualified) {
+      hasUnqualified = true;
+      continue;
+    }
+    if (graphName && *graphName != qualified.graphName) {
+      THROW_BINDER_EXCEPTION(
+          "A pattern element cannot mix labels from different namespaces.");
+    }
+    graphName = qualified.graphName;
+  }
+  if (graphName && hasUnqualified) {
+    THROW_BINDER_EXCEPTION(
+        "A pattern element cannot mix original-graph and namespace labels.");
+  }
+}
+
+void Binder::collectNamespaceNodePredicate(
+    const NodePattern& nodePattern,
+    const std::shared_ptr<NodeExpression>& node) {
+  for (const auto& name : nodePattern.getTableNames()) {
+    auto qualified = parseNamespaceLabel(name);
+    if (!qualified.qualified) {
+      continue;
+    }
+    const auto& projected =
+        getProjectedGraph(clientContext, qualified.graphName);
+    auto bound = graph::GDSFunction::bindGraphEntry(*clientContext, projected);
+    std::shared_ptr<Expression> combined;
+    for (const auto& info : bound.nodeInfos) {
+      if (!qualified.wildcard &&
+          info.entry->get_label() != qualified.labelName) {
+        continue;
+      }
+      auto label = expressionBinder.createLiteralExpression(
+          compiler_impl::Value(info.entry->get_label()));
+      auto branch = expressionBinder.createEqualityComparisonExpression(
+          node->getLabelExpression(), label);
+      auto predicate = info.predicate;
+      if (predicate) {
+        RenameDependentVar rename(node->getUniqueName());
+        rename.visit(predicate);
+        branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
+                                                            branch, predicate);
+      }
+      combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
+                                                            combined, branch);
+    }
+    if (combined) {
+      namespacePredicates.push_back(std::move(combined));
+    }
+  }
+}
+
+void Binder::collectNamespaceRelPredicate(
+    const RelPattern& relPattern, const std::shared_ptr<RelExpression>& rel) {
+  for (const auto& name : relPattern.getTableNames()) {
+    auto qualified = parseNamespaceLabel(name);
+    if (!qualified.qualified) {
+      continue;
+    }
+    const auto& projected =
+        getProjectedGraph(clientContext, qualified.graphName);
+    auto bound = graph::GDSFunction::bindGraphEntry(*clientContext, projected);
+    std::shared_ptr<Expression> combined;
+    for (const auto& info : bound.relInfos) {
+      if (!qualified.wildcard &&
+          info.entry->get_label() != qualified.labelName) {
+        continue;
+      }
+      auto label = expressionBinder.createLiteralExpression(
+          compiler_impl::Value(info.entry->get_label()));
+      auto branch = expressionBinder.createEqualityComparisonExpression(
+          rel->getLabelExpression(), label);
+      auto predicate = info.predicate;
+      if (predicate) {
+        RenameDependentVar rename(rel->getUniqueName());
+        rename.visit(predicate);
+        branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
+                                                            branch, predicate);
+      }
+      auto* edge = dynamic_cast<EdgeSchema*>(info.entry);
+      NEUG_ASSERT(edge != nullptr);
+      for (const auto& parsedNodeInfo : projected.nodeInfos) {
+        auto addEndpointPredicate =
+            [&](const std::shared_ptr<NodeExpression>& endpoint) {
+              auto nodeInfo = graph::GDSFunction::bindNodeEntry(
+                  *clientContext, parsedNodeInfo.tableName,
+                  parsedNodeInfo.predicate);
+              if (!nodeInfo.predicate) {
+                return;
+              }
+              auto endpointPredicate = nodeInfo.predicate;
+              RenameDependentVar rename(endpoint->getUniqueName());
+              rename.visit(endpointPredicate);
+              branch = expressionBinder.combineBooleanExpressions(
+                  ExpressionType::AND, branch, endpointPredicate);
+            };
+        auto nodeInfo = graph::GDSFunction::bindNodeEntry(
+            *clientContext, parsedNodeInfo.tableName, "");
+        if (nodeInfo.entry->get_entry_id() == edge->getSrcTableID()) {
+          addEndpointPredicate(rel->getSrcNode());
+        }
+        if (nodeInfo.entry->get_entry_id() == edge->getDstTableID()) {
+          addEndpointPredicate(rel->getDstNode());
+        }
+      }
+      combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
+                                                            combined, branch);
+    }
+    if (combined) {
+      namespacePredicates.push_back(std::move(combined));
+    }
+  }
+}
+
+static const graph::ParsedGraphEntry& getProjectedGraph(
+    main::ClientContext* context, const std::string& name) {
+  auto* metadata = context->getMetadataManager();
+  if (metadata == nullptr) {
+    THROW_BINDER_EXCEPTION("Metadata manager is not set.");
+  }
+  const auto& entries = metadata->getGraphEntrySet();
+  entries.validateGraphExist(name);
+  return entries.getEntry(name);
+}
+
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     const std::vector<std::string>& tableNames) const {
   auto transaction = clientContext->getTransaction();
@@ -793,13 +957,39 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
       entrySet.insert(entry);
     }
   } else {
+    validateNamespaceScope(tableNames);
     for (auto& name : tableNames) {
-      auto entry = bindNodeTableEntry(name);
-      if (entry->get_entry_type() != SchemaEntryType::NODE) {
-        THROW_BINDER_EXCEPTION(stringFormat(
-            "Cannot bind {} as a node pattern label.", entry->get_label()));
+      auto qualified = parseNamespaceLabel(name);
+      if (qualified.qualified) {
+        if (namespaceBindingMode != NamespaceBindingMode::ALLOW_FOR_MATCH) {
+          THROW_BINDER_EXCEPTION(
+              "Namespace-qualified labels are only supported in MATCH "
+              "clauses.");
+        }
+        const auto& projected =
+            getProjectedGraph(clientContext, qualified.graphName);
+        bool found = false;
+        for (const auto& info : projected.nodeInfos) {
+          if (!qualified.wildcard && info.tableName != qualified.labelName) {
+            continue;
+          }
+          auto* entry = bindNodeTableEntry(info.tableName);
+          entrySet.insert(entry);
+          found = true;
+        }
+        if (!found) {
+          THROW_BINDER_EXCEPTION(
+              stringFormat("Label '{}' is not part of projected graph '{}'.",
+                           qualified.labelName, qualified.graphName));
+        }
+      } else {
+        auto entry = bindNodeTableEntry(name);
+        if (entry->get_entry_type() != SchemaEntryType::NODE) {
+          THROW_BINDER_EXCEPTION(stringFormat(
+              "Cannot bind {} as a node pattern label.", entry->get_label()));
+        }
+        entrySet.insert(entry);
       }
-      entrySet.insert(entry);
     }
   }
   return sortEntries(entrySet);
@@ -826,8 +1016,34 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
       entrySet.insert(entry);
     }
   } else {
+    validateNamespaceScope(tableNames);
     for (auto& name : tableNames) {
-      if (catalog->containsRelGroup(transaction, name)) {
+      auto qualified = parseNamespaceLabel(name);
+      if (qualified.qualified) {
+        if (namespaceBindingMode != NamespaceBindingMode::ALLOW_FOR_MATCH) {
+          THROW_BINDER_EXCEPTION(
+              "Namespace-qualified labels are only supported in MATCH "
+              "clauses.");
+        }
+        const auto& projected =
+            getProjectedGraph(clientContext, qualified.graphName);
+        auto bound =
+            graph::GDSFunction::bindGraphEntry(*clientContext, projected);
+        bool found = false;
+        for (const auto& info : bound.relInfos) {
+          if (!qualified.wildcard &&
+              info.entry->get_label() != qualified.labelName) {
+            continue;
+          }
+          entrySet.insert(info.entry);
+          found = true;
+        }
+        if (!found) {
+          THROW_BINDER_EXCEPTION(
+              stringFormat("Label '{}' is not part of projected graph '{}'.",
+                           qualified.labelName, qualified.graphName));
+        }
+      } else if (catalog->containsRelGroup(transaction, name)) {
         auto groupEntry = catalog->getRelGroupEntry(transaction, name);
         for (auto& relEntry : groupEntry) {
           entrySet.insert(relEntry);

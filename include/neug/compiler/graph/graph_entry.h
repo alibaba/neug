@@ -126,6 +126,8 @@ struct NEUG_API GraphEntry {
 
 class GraphEntrySet {
  public:
+  GraphEntrySet() = default;
+  explicit GraphEntrySet(const neug::GraphEntrySet& entries);
   bool hasGraph(const std::string& name) const {
     return nameToEntry.contains(name);
   }

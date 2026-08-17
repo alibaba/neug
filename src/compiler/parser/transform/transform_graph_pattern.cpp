@@ -245,12 +245,26 @@ std::string Transformer::transformNodeLabel(
 
 std::string Transformer::transformLabelName(
     CypherParser::OC_LabelNameContext& ctx) {
-  return transformSchemaName(*ctx.oC_SchemaName());
+  auto names = ctx.oC_SchemaName();
+  auto result = transformSchemaName(*names[0]);
+  if (names.size() == 2) {
+    result += "." + transformSchemaName(*names[1]);
+  } else if (ctx.STAR()) {
+    result += ".*";
+  }
+  return result;
 }
 
 std::string Transformer::transformRelTypeName(
     CypherParser::OC_RelTypeNameContext& ctx) {
-  return transformSchemaName(*ctx.oC_SchemaName());
+  auto names = ctx.oC_SchemaName();
+  auto result = transformSchemaName(*names[0]);
+  if (names.size() == 2) {
+    result += "." + transformSchemaName(*names[1]);
+  } else if (ctx.STAR()) {
+    result += ".*";
+  }
+  return result;
 }
 
 }  // namespace parser

@@ -15,10 +15,14 @@
  */
 
 #include "neug/compiler/function/gds/project_graph_function.h"
+#include <algorithm>
 #include <string>
 
+#include <yaml-cpp/yaml.h>
 #include "neug/common/columns/value_columns.h"
+#include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
 #include "neug/compiler/function/neug_call_function.h"
@@ -37,9 +41,18 @@ namespace function {
 
 namespace {
 
-struct ProjectGraphCallInput : public CallFuncInputBase {};
+struct ProjectGraphCallInput : public CallFuncInputBase {
+  ProjectGraphCallInput(std::string graphName, ProjectedGraphEntry entry)
+      : graphName(std::move(graphName)), entry(std::move(entry)) {}
+  std::string graphName;
+  ProjectedGraphEntry entry;
+};
 
-struct DropProjectedGraphCallInput : public CallFuncInputBase {};
+struct DropProjectedGraphCallInput : public CallFuncInputBase {
+  explicit DropProjectedGraphCallInput(std::string graphName)
+      : graphName(std::move(graphName)) {}
+  std::string graphName;
+};
 
 struct ShowProjectedGraphsCallInput : public CallFuncInputBase {};
 
@@ -176,6 +189,63 @@ static std::unique_ptr<TableFuncBindData> makeEmptyBindData(
   return std::make_unique<TableFuncBindData>(std::move(cols), 0, params);
 }
 
+static std::vector<std::string> parseEdgeTriplet(const std::string& value) {
+  auto text = common::StringUtils::rtrim(common::StringUtils::ltrim(value));
+  if (text.size() < 2 || text.front() != '[' || text.back() != ']') {
+    THROW_BINDER_EXCEPTION("Invalid edge triplet '" + value + "'.");
+  }
+  text = text.substr(1, text.size() - 2);
+  std::vector<std::string> result;
+  size_t start = 0;
+  while (start <= text.size()) {
+    auto comma = text.find(',', start);
+    auto part = text.substr(
+        start, comma == std::string::npos ? std::string::npos : comma - start);
+    part = std::string(
+        common::StringUtils::rtrim(common::StringUtils::ltrim(part)));
+    result.push_back(std::move(part));
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  if (result.size() != 3 || result[0].empty() || result[1].empty() ||
+      result[2].empty()) {
+    THROW_BINDER_EXCEPTION("Invalid edge triplet '" + value + "'.");
+  }
+  return result;
+}
+
+static ProjectedGraphEntry toProjectedGraphEntry(
+    const graph::ParsedGraphEntry& parsed) {
+  ProjectedGraphEntry result;
+  for (const auto& info : parsed.nodeInfos) {
+    result.vertexInfos.push_back({info.tableName, info.predicate});
+  }
+  for (const auto& info : parsed.relInfos) {
+    if (!info.srcTableName.empty() || !info.dstTableName.empty()) {
+      result.edgeInfos.push_back({info.srcTableName, info.tableName,
+                                  info.dstTableName, info.predicate});
+    } else {
+      auto triplet = parseEdgeTriplet(info.tableName);
+      result.edgeInfos.push_back(
+          {triplet[0], triplet[1], triplet[2], info.predicate});
+    }
+  }
+  return result;
+}
+
+static std::string serializeProjectedGraph(const std::string& name,
+                                           const ProjectedGraphEntry& entry) {
+  GraphEntrySet entries;
+  entries.AddEntry(name, entry);
+  auto yaml = entries.ToYaml();
+  if (!yaml) {
+    THROW_BINDER_EXCEPTION(yaml.error().ToString());
+  }
+  return YAML::Dump(yaml.value());
+}
+
 static std::unique_ptr<TableFuncBindData> bindProjectGraph(
     main::ClientContext* clientContext, const TableFuncBindInput* input) {
   auto graphName = input->getLiteralVal<std::string>(0);
@@ -184,28 +254,27 @@ static std::unique_ptr<TableFuncBindData> bindProjectGraph(
   graph::ParsedGraphEntry entry;
   entry.nodeInfos = extractGraphEntryTableInfos(nodeVal);
   entry.relInfos = extractGraphEntryTableInfos(relVal);
-  auto metadataManager = clientContext->getMetadataManager();
-  if (metadataManager == nullptr) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
-  }
-  auto& graphEntrySet = metadataManager->getGraphEntrySetUnsafe();
-  graphEntrySet.validateGraphNotExist(graphName);
   (void) graph::GDSFunction::bindGraphEntry(*clientContext, entry);
-  graphEntrySet.addGraph(graphName, entry);
-  return makeEmptyBindData(input);
+  auto projected = toProjectedGraphEntry(entry);
+  binder::expression_vector params;
+  params.push_back(std::make_shared<binder::LiteralExpression>(
+      compiler_impl::Value(graphName), ""));
+  params.push_back(std::make_shared<binder::LiteralExpression>(
+      compiler_impl::Value(serializeProjectedGraph(graphName, projected)), ""));
+  binder::expression_vector cols;
+  return std::make_unique<TableFuncBindData>(std::move(cols), 0,
+                                             std::move(params));
 }
 
 static std::unique_ptr<TableFuncBindData> bindDropProjectedGraph(
     main::ClientContext* clientContext, const TableFuncBindInput* input) {
   auto graphName = input->getLiteralVal<std::string>(0);
-  auto metadataManager = clientContext->getMetadataManager();
-  if (metadataManager == nullptr) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
-  }
-  auto& graphEntrySet = metadataManager->getGraphEntrySetUnsafe();
-  graphEntrySet.validateGraphExist(graphName);
-  graphEntrySet.dropGraph(graphName);
-  return makeEmptyBindData(input);
+  binder::expression_vector params;
+  params.push_back(std::make_shared<binder::LiteralExpression>(
+      compiler_impl::Value(graphName), ""));
+  binder::expression_vector cols;
+  return std::make_unique<TableFuncBindData>(std::move(cols), 0,
+                                             std::move(params));
 }
 
 }  // namespace
@@ -224,13 +293,36 @@ function_set ProjectGraphFunction::getFunctionSet() {
 
   func->bindFunc = [](const neug::Schema& /*schema*/,
                       const neug::execution::ContextMeta& /*ctx_meta*/,
-                      const ::physical::PhysicalPlan& /*plan*/,
-                      int /*op_idx*/) -> std::unique_ptr<CallFuncInputBase> {
-    return std::make_unique<ProjectGraphCallInput>();
+                      const ::physical::PhysicalPlan& plan,
+                      int op_idx) -> std::unique_ptr<CallFuncInputBase> {
+    const auto& args =
+        plan.plan(op_idx).opr().procedure_call().query().arguments();
+    if (args.size() != 2 || !args[0].has_const_() ||
+        !args[0].const_().has_str() || !args[1].has_const_() ||
+        !args[1].const_().has_str()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid project_graph physical input");
+    }
+    auto graphName = args[0].const_().str();
+    auto entries = GraphEntrySet::FromYaml(YAML::Load(args[1].const_().str()));
+    if (!entries) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(entries.error().ToString());
+    }
+    return std::make_unique<ProjectGraphCallInput>(
+        graphName, entries.value().GetEntry(graphName));
   };
 
-  func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/) {
+  func->execFunc = [](const CallFuncInputBase& input,
+                      neug::IStorageInterface& graph) {
+    auto* update = dynamic_cast<StorageUpdateInterface*>(&graph);
+    if (update == nullptr) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "project_graph requires a writable storage interface");
+    }
+    const auto& project = dynamic_cast<const ProjectGraphCallInput&>(input);
+    auto status = update->AddGraphEntry(project.graphName, project.entry);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR(status.ToString());
+    }
     return execution::Context{};
   };
 
@@ -251,13 +343,31 @@ function_set DropProjectedGraphFunction::getFunctionSet() {
 
   func->bindFunc = [](const neug::Schema& /*schema*/,
                       const neug::execution::ContextMeta& /*ctx_meta*/,
-                      const ::physical::PhysicalPlan& /*plan*/,
-                      int /*op_idx*/) -> std::unique_ptr<CallFuncInputBase> {
-    return std::make_unique<DropProjectedGraphCallInput>();
+                      const ::physical::PhysicalPlan& plan,
+                      int op_idx) -> std::unique_ptr<CallFuncInputBase> {
+    const auto& args =
+        plan.plan(op_idx).opr().procedure_call().query().arguments();
+    if (args.size() != 1 || !args[0].has_const_() ||
+        !args[0].const_().has_str()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Invalid drop_projected_graph physical input");
+    }
+    return std::make_unique<DropProjectedGraphCallInput>(
+        args[0].const_().str());
   };
 
-  func->execFunc = [](const CallFuncInputBase& /*input*/,
-                      neug::IStorageInterface& /*graph*/) {
+  func->execFunc = [](const CallFuncInputBase& input,
+                      neug::IStorageInterface& graph) {
+    auto* update = dynamic_cast<StorageUpdateInterface*>(&graph);
+    if (update == nullptr) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "drop_projected_graph requires a writable storage interface");
+    }
+    const auto& drop = dynamic_cast<const DropProjectedGraphCallInput&>(input);
+    auto status = update->DropGraphEntry(drop.graphName);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR(status.ToString());
+    }
     return execution::Context{};
   };
 
@@ -281,17 +391,18 @@ function_set ShowProjectedGraphsFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& /*input*/,
-                          neug::IStorageInterface& /*graph*/) {
+                          neug::IStorageInterface& graph) {
     neug::execution::Context out;
     neug::ValueColumnBuilder<std::string> name_builder;
-    auto metadataManager = main::MetadataRegistry::getMetadata();
-    if (metadataManager == nullptr) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
-    }
-    auto& graphEntrySet = metadataManager->getGraphEntrySetUnsafe();
-    auto& nameToEntryMap = graphEntrySet.getNameToEntryMap();
+    const auto& nameToEntryMap = graph.schema().GetGraphEntrySet().Entries();
     name_builder.reserve(nameToEntryMap.size());
+    std::vector<std::string> names;
+    names.reserve(nameToEntryMap.size());
     for (const auto& [name, _] : nameToEntryMap) {
+      names.push_back(name);
+    }
+    std::sort(names.begin(), names.end());
+    for (const auto& name : names) {
       name_builder.push_back_opt(name);
     }
     neug::DataChunk chunk;
@@ -336,30 +447,35 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
   };
 
   function->execFunc = [](const CallFuncInputBase& input,
-                          neug::IStorageInterface& /*graph*/) {
+                          neug::IStorageInterface& graph) {
     neug::execution::Context out;
     neug::ValueColumnBuilder<std::string> name_builder;
     neug::ValueColumnBuilder<std::string> predicate_builder;
-    auto metadataManager = main::MetadataRegistry::getMetadata();
-    if (metadataManager == nullptr) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
-    }
     auto& projectInput =
         dynamic_cast<const ProjectedGraphInfoCallInput&>(input);
-    auto& graphEntrySet = metadataManager->getGraphEntrySetUnsafe();
-    graphEntrySet.validateGraphExist(projectInput.getGraphName());
-    auto& entry = graphEntrySet.getEntry(projectInput.getGraphName());
-    size_t total_size = entry.nodeInfos.size() + entry.relInfos.size();
+    const auto& entry =
+        graph.schema().GetGraphEntry(projectInput.getGraphName());
+    size_t total_size = entry.vertexInfos.size() + entry.edgeInfos.size();
     name_builder.reserve(total_size);
     predicate_builder.reserve(total_size);
-    for (const auto& nodeInfo : entry.nodeInfos) {
-      name_builder.push_back_opt(nodeInfo.tableName);
+    auto vertices = entry.vertexInfos;
+    auto edges = entry.edgeInfos;
+    std::sort(vertices.begin(), vertices.end(),
+              [](const auto& lhs, const auto& rhs) {
+                return lhs.labelName < rhs.labelName;
+              });
+    std::sort(edges.begin(), edges.end(), [](const auto& lhs, const auto& rhs) {
+      return std::tie(lhs.srcLabelName, lhs.edgeLabelName, lhs.dstLabelName) <
+             std::tie(rhs.srcLabelName, rhs.edgeLabelName, rhs.dstLabelName);
+    });
+    for (const auto& nodeInfo : vertices) {
+      name_builder.push_back_opt(nodeInfo.labelName);
       predicate_builder.push_back_opt(nodeInfo.predicate);
     }
-    for (const auto& relInfo : entry.relInfos) {
+    for (const auto& relInfo : edges) {
       std::string triplets =
-          common::stringFormat("[{},{},{}]", relInfo.srcTableName,
-                               relInfo.tableName, relInfo.dstTableName);
+          common::stringFormat("[{},{},{}]", relInfo.srcLabelName,
+                               relInfo.edgeLabelName, relInfo.dstLabelName);
       name_builder.push_back_opt(std::move(triplets));
       predicate_builder.push_back_opt(relInfo.predicate);
     }

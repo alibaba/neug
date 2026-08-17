@@ -9,8 +9,8 @@ Cypher Manual
    data_types
    ddl_clause
    dml_clause
+   namespace
    expression
    query_clauses
    explain_profile
-
 

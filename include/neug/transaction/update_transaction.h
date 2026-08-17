@@ -248,6 +248,17 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       const DeleteEdgePropertiesParam& config) override;
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
+  Status AddGraphEntryImpl(const std::string& name,
+                           const ProjectedGraphEntry& entry) override {
+    wal_.LogAddGraphEntry(name, entry);
+    cow_graph_->mutable_schema().AddGraphEntry(name, entry);
+    return Status::OK();
+  }
+  Status DropGraphEntryImpl(const std::string& name) override {
+    wal_.LogDropGraphEntry(name);
+    cow_graph_->mutable_schema().DropGraphEntry(name);
+    return Status::OK();
+  }
 
   // --- COW detach helpers ---
   Status detachVertexTableForInsert(label_t label);

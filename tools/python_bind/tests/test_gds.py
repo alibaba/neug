@@ -96,13 +96,13 @@ def test_project_graph_with_predicates(tmp_path):
         conn.execute(
             "CALL project_graph("
             "'my_subgraph', "
-            "{'person': 'n.age > 20'}, "
+            "{'person': 'age > 20'}, "
             "{'[person, knows, person]': 'r.date > Date(\"2021-01-01\")'}"
             ");"
         )
         rows = _projected_graph_info_rows(conn, "my_subgraph")
         label_to_pred = {row[0]: row[1] for row in rows}
-        assert label_to_pred.get("person") == "n.age > 20"
+        assert label_to_pred.get("person") == "age > 20"
         rel_rows = [lbl for lbl in label_to_pred if "[" in lbl or "knows" in lbl]
         assert (
             len(rel_rows) >= 1
@@ -114,6 +114,94 @@ def test_project_graph_with_predicates(tmp_path):
 
         conn.execute("CALL drop_projected_graph('my_subgraph');")
         assert "my_subgraph" not in _shown_projected_graph_names(conn)
+
+
+def test_namespace_match_isolation_and_clause_scope(tmp_path):
+    """Namespace labels filter MATCH data and are rejected in write patterns."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph("
+            "'adult_graph', "
+            "{'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        ages = [
+            row[0]
+            for row in conn.execute(
+                "MATCH (n:adult_graph.person) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert ages
+        assert all(age > 20 for age in ages)
+
+        wildcard_ages = [
+            row[0]
+            for row in conn.execute(
+                "MATCH (n:adult_graph.*) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert wildcard_ages == ages
+
+        endpoints = list(
+            conn.execute("MATCH (a)-[r:adult_graph.knows]->(b) " "RETURN a.age, b.age;")
+        )
+        assert all(src_age > 20 and dst_age > 20 for src_age, dst_age in endpoints)
+
+        wildcard_endpoints = list(
+            conn.execute(
+                "MATCH (a:adult_graph.*)-[r:adult_graph.*]->"
+                "(b:adult_graph.*) RETURN a.age, b.age;"
+            )
+        )
+        assert sorted(wildcard_endpoints) == sorted(endpoints)
+
+        with pytest.raises(Exception, match="does not exist"):
+            conn.execute("MATCH (n:missing_graph.person) RETURN n;")
+
+        with pytest.raises(Exception, match="is not part of projected graph"):
+            conn.execute("MATCH (n:adult_graph.organisation) RETURN n;")
+
+        with pytest.raises(Exception, match="only supported in MATCH"):
+            conn.execute("CREATE (:adult_graph.person {ID: 999});")
+
+        with pytest.raises(Exception, match="only supported in MATCH"):
+            conn.execute("MERGE (:adult_graph.person {ID: 999});")
+
+        conn.execute(
+            "CALL project_graph('z_graph', ['person'], "
+            "{'[person, knows, person]': ''});"
+        )
+        assert _shown_projected_graph_names(conn) == ["adult_graph", "z_graph"]
+
+
+def test_projected_graph_persists_after_reopen(tmp_path):
+    db_dir = tmp_path / "namespace_reopen_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    conn.execute(
+        "CALL project_graph('adult_graph', {'person': 'age > 20'}, "
+        "{'[person, knows, person]': ''});"
+    )
+    conn.close()
+    db.close()
+
+    reopened = Database(db_path=str(db_dir), mode="w")
+    reopened_conn = reopened.connect()
+    try:
+        assert _shown_projected_graph_names(reopened_conn) == ["adult_graph"]
+        ages = [
+            row[0]
+            for row in reopened_conn.execute(
+                "MATCH (n:adult_graph.person) RETURN n.age;"
+            )
+        ]
+        assert ages and all(age > 20 for age in ages)
+    finally:
+        reopened_conn.close()
+        reopened.close()
 
 
 def test_run_cdlp(tmp_path):

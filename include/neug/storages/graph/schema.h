@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 #include "neug/common/types/value.h"
+#include "neug/storages/graph/graph_entry.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/property_definition.h"
@@ -830,6 +831,21 @@ class Schema {
 
   inline std::string GetGraphId() const { return id_; }
 
+  const GraphEntrySet& GetGraphEntrySet() const { return graph_entry_set_; }
+  const ProjectedGraphEntry& GetGraphEntry(const std::string& name) const {
+    return graph_entry_set_.GetEntry(name);
+  }
+  void AddGraphEntry(const std::string& name,
+                     const ProjectedGraphEntry& entry) {
+    graph_entry_set_.AddEntry(name, entry);
+  }
+  void DropGraphEntry(const std::string& name) {
+    graph_entry_set_.DropEntry(name);
+  }
+  void SetGraphEntrySet(GraphEntrySet entries) {
+    graph_entry_set_ = std::move(entries);
+  }
+
   std::string GetDescription() const;
 
   void SetDescription(const std::string& description);
@@ -882,6 +898,7 @@ class Schema {
   Bitset vlabel_tomb_;
   Bitset elabel_tomb_;          // tombstone for edge label
   Bitset elabel_triplet_tomb_;  // tombstone for edge label triplet
+  GraphEntrySet graph_entry_set_;
 
   friend class PropertyGraph;
 };

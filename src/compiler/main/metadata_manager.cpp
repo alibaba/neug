@@ -72,9 +72,13 @@ std::unique_ptr<MetadataManager> MetadataManager::clone(
   if (!catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
+  auto entries =
+      schema == nullptr
+          ? graphEntrySet
+          : std::make_shared<graph::GraphEntrySet>(schema->GetGraphEntrySet());
   return std::unique_ptr<MetadataManager>(
       new MetadataManager(catalog->clone(schema), stats, memoryManager, vfs,
-                          extensionManager, graphEntrySet));
+                          extensionManager, std::move(entries)));
 }
 
 graph::GraphEntrySet& MetadataManager::getGraphEntrySetUnsafe() {

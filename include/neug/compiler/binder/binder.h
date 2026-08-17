@@ -77,6 +77,8 @@ class Transaction;
 }  // namespace transaction
 
 namespace binder {
+
+enum class NamespaceBindingMode : uint8_t { DISALLOW, ALLOW_FOR_MATCH };
 struct BoundBaseScanSource;
 struct BoundCreateTableInfo;
 struct BoundInsertInfo;
@@ -345,7 +347,8 @@ class Binder {
 
   /*** bind graph pattern ***/
   BoundGraphPattern bindGraphPattern(
-      const std::vector<parser::PatternElement>& graphPattern);
+      const std::vector<parser::PatternElement>& graphPattern,
+      NamespaceBindingMode namespaceMode);
 
   QueryGraph bindPatternElement(const parser::PatternElement& patternElement);
   std::shared_ptr<Expression> createPath(const std::string& pathName,
@@ -381,6 +384,11 @@ class Binder {
   NEUG_API std::shared_ptr<NodeExpression> createQueryNode(
       const std::string& parsedName, const std::vector<SchemaEntry*>& entries);
   static void bindQueryNodeProperties(NodeExpression& node);
+  void collectNamespaceNodePredicate(
+      const parser::NodePattern& nodePattern,
+      const std::shared_ptr<NodeExpression>& node);
+  void collectNamespaceRelPredicate(const parser::RelPattern& relPattern,
+                                    const std::shared_ptr<RelExpression>& rel);
 
   /*** bind table entries ***/
   std::vector<SchemaEntry*> bindNodeTableEntries(
@@ -451,6 +459,8 @@ class Binder {
   BinderScope scope;
   ExpressionBinder expressionBinder;
   main::ClientContext* clientContext;
+  NamespaceBindingMode namespaceBindingMode = NamespaceBindingMode::DISALLOW;
+  expression_vector namespacePredicates;
 };
 
 }  // namespace binder

@@ -456,10 +456,10 @@ oC_UpperBound
     : DecimalInteger ;
 
 oC_LabelName
-    : oC_SchemaName ;
+    : oC_SchemaName (SP? '.' SP? (oC_SchemaName | '*'))? ;
 
 oC_RelTypeName
-    : oC_SchemaName ;
+    : oC_SchemaName (SP? '.' SP? (oC_SchemaName | '*'))? ;
 
 oC_Expression
     : oC_OrExpression ;
