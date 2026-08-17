@@ -98,15 +98,6 @@ bool GraphEntrySet::HasEntry(const std::string& name) const {
   return name_to_entry_.contains(name);
 }
 
-result<ProjectedGraphEntry*> GraphEntrySet::GetEntry(const std::string& name) {
-  auto it = name_to_entry_.find(name);
-  if (it == name_to_entry_.end()) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Projected graph '" + name + "' does not exist.");
-  }
-  return &it->second;
-}
-
 result<const ProjectedGraphEntry*> GraphEntrySet::GetEntry(
     const std::string& name) const {
   auto it = name_to_entry_.find(name);

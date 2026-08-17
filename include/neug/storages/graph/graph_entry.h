@@ -55,7 +55,6 @@ struct ProjectedGraphEntry {
 class GraphEntrySet {
  public:
   bool HasEntry(const std::string& name) const;
-  result<ProjectedGraphEntry*> GetEntry(const std::string& name);
   result<const ProjectedGraphEntry*> GetEntry(const std::string& name) const;
   Status AddEntry(const std::string& name, const ProjectedGraphEntry& entry);
   Status DropEntry(const std::string& name);

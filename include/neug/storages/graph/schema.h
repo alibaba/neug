@@ -834,9 +834,6 @@ class Schema {
   bool HasGraphEntry(const std::string& name) const {
     return graph_entry_set_.HasEntry(name);
   }
-  result<ProjectedGraphEntry*> GetGraphEntry(const std::string& name) {
-    return graph_entry_set_.GetEntry(name);
-  }
   result<const ProjectedGraphEntry*> GetGraphEntry(
       const std::string& name) const {
     return graph_entry_set_.GetEntry(name);

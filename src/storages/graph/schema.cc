@@ -2689,31 +2689,9 @@ Schema Schema::StripTemporary() const {
   stripped.elabel_triplet_tomb_.resize(
       stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
 
-  for (const auto& [name, entry] : graph_entry_set_.Entries()) {
-    bool valid = true;
-    for (const auto& vertex : entry.vertexInfos) {
-      if (!stripped.is_vertex_label_valid(vertex.labelName)) {
-        valid = false;
-        break;
-      }
-    }
-    if (valid) {
-      for (const auto& edge : entry.edgeInfos) {
-        if (!stripped.is_edge_triplet_valid(
-                edge.srcLabelName, edge.dstLabelName, edge.edgeLabelName)) {
-          valid = false;
-          break;
-        }
-      }
-    }
-    if (valid) {
-      auto status = stripped.graph_entry_set_.AddEntry(name, entry);
-      if (!status.ok()) {
-        THROW_STORAGE_EXCEPTION_STATUS("Failed to copy projected graph: ",
-                                       status);
-      }
-    }
-  }
+  // Projected graph metadata has lower priority than the physical schema.
+  // Keep it intact and defer missing-label validation to query binding.
+  stripped.graph_entry_set_ = graph_entry_set_;
 
   return stripped;
 }
