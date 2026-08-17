@@ -171,6 +171,17 @@ TEST(SigV4Test, GetObjectGoldenVector) {
             "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, "
             "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039"
             "c6036bdb41");
+
+  // Regression: the Authorization header must be part of the outgoing header
+  // set — the HTTP client sends signed_req.headers verbatim.
+  bool found_auth = false;
+  for (const auto& h : signed_req.headers) {
+    if (h.first == "authorization") {
+      found_auth = true;
+      EXPECT_EQ(h.second, signed_req.authorization);
+    }
+  }
+  EXPECT_TRUE(found_auth) << "Authorization header missing from headers";
 }
 
 // PUT Object example (payload "Welcome to Amazon S3.", key "test$file.text",
@@ -210,6 +221,10 @@ TEST(SigV4Test, AnonymousSkipsSigning) {
 
   auto signed_req = SignSigV4(creds, "us-east-1", "s3", req, 1369353600);
   EXPECT_TRUE(signed_req.authorization.empty());
+  for (const auto& h : signed_req.headers) {
+    EXPECT_NE(h.first, "authorization")
+        << "Anonymous requests must not carry an Authorization header";
+  }
 }
 
 TEST(SigV4Test, UriEncode) {

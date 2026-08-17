@@ -274,6 +274,9 @@ SigV4SignedRequest SignSigV4(const SigV4Credentials& creds,
                              ", SignedHeaders=" + signed_headers +
                              ", Signature=" + signature;
   signed_req.headers = canonical_headers;
+  // The Authorization header must be part of the outgoing header set; the
+  // caller sends signed_req.headers verbatim.
+  signed_req.headers.emplace_back("authorization", signed_req.authorization);
   return signed_req;
 }
 
