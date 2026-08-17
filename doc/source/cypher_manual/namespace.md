@@ -2,6 +2,10 @@
 
 A **Namespace** is a named, reusable logical view over part of a graph. It restricts queries and graph analysis to selected node types, relationship types, and property conditions **without copying or materializing the underlying graph data**.
 
+Namespaces can be used directly in Cypher queries to define a logical graph view. They are also used by the **GDS extension** as the input graph view for graph algorithms, allowing algorithms to run on a selected subset of the original graph.
+
+NeuG provides a set of Projected Graph APIs, including `project_graph`, `show_projected_graphs`, `projected_graph_info`, and `drop_projected_graph`, to create and manage Namespaces.
+
 Consider a graph that contains two node tables, `Entity` and `Product`, and two relationship tables, `rel_ee` and `rel_ep`:
 
 ```cypher
@@ -43,7 +47,11 @@ CREATE REL TABLE rel_ep(
 );
 ```
 
-In this example, both `Entity` and `Product` contain a `domain` property. The property identifies the logical domain or group to which a node belongs. For example:
+In this example, both `Entity` and `Product` contain a `domain` property. The property identifies the logical domain or group to which a node belongs. 
+
+> **Note:** `domain` is only an example property used in this document. It is **not** a special or reserved property required by Namespace, and users do not need to add a `domain` property to their schema before using Namespace. Any existing property can be used to define filtering conditions according to the application's data model.
+
+For example:
 
 ```text
 Entity A   domain = "user1"
@@ -73,8 +81,6 @@ A Namespace contains:
 Both endpoint types of every relationship triplet must be included in the Namespace.
 
 ## Create a Namespace
-
-Namespace does not introduce additional DDL or a separate creation syntax. Instead, it directly reuses the existing `project_graph` procedure.
 
 Use `CALL project_graph` to create a named Namespace by specifying:
 
