@@ -81,6 +81,10 @@ class PathColumnBuilder : public IContextColumnBuilder {
   ~PathColumnBuilder() = default;
   inline void push_back_opt(const Path& p) { data_.push_back(p); }
   inline void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     data_.push_back(PathValue::Get(val));
   }
   void push_back_null() override {

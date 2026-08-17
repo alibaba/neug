@@ -716,11 +716,11 @@ class TestLoadArray:
         ]
 
     @extension_test
-    def test_parquet_variable_length_list_null_elements(self):
-        """LOAD FROM Parquet preserves null elements inside variable-length lists."""
+    def test_parquet_list_and_array_preserve_null_elements(self):
+        """Parquet LIST/ARRAY reads and LIST UNWIND preserve inner NULLs."""
         pa = pytest.importorskip("pyarrow")
-        parquet_path = self._write_parquet(
-            "var_list_null_elems.parquet",
+        list_path = self._write_parquet(
+            "list_nulls.parquet",
             {
                 "id": pa.array([1, 2], type=pa.int64()),
                 "values": pa.array(
@@ -729,15 +729,40 @@ class TestLoadArray:
                 ),
             },
         )
-        self.conn.execute("LOAD PARQUET")
-        result = list(
-            self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
-            )
+        array_path = self._write_parquet(
+            "array_nulls.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "vec": pa.array(
+                    [[1.0, None, 3.0], [4.0, 5.0, 6.0]],
+                    type=pa.list_(pa.float64(), 3),
+                ),
+            },
         )
-        assert result == [
+        self.conn.execute("LOAD PARQUET")
+
+        rows = list(
+            self.conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id')
+        )
+        assert rows == [
             [1, [1, None, 3]],
             [2, [4, 5]],
+        ]
+
+        rows = list(
+            self.conn.execute(
+                f'LOAD FROM "{list_path}" '
+                "UNWIND values AS value RETURN value ORDER BY value"
+            )
+        )
+        assert rows == [[1], [None], [3], [4], [5]]
+
+        rows = list(
+            self.conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id')
+        )
+        assert rows == [
+            [1, [1.0, None, 3.0]],
+            [2, [4.0, 5.0, 6.0]],
         ]
 
     @extension_test
