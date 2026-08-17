@@ -37,7 +37,11 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        builder.push_back_elem(elem);
+        if (elem.IsNull()) {
+          builder.push_back_null();
+        } else {
+          builder.push_back_elem(elem);
+        }
         offsets.push_back(i);
       }
       ++i;
@@ -51,7 +55,11 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        builder.push_back_elem(elem);
+        if (elem.IsNull()) {
+          builder.push_back_null();
+        } else {
+          builder.push_back_elem(elem);
+        }
         offsets.push_back(i);
       }
       ++i;
@@ -65,7 +73,11 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        builder.push_back_elem(elem);
+        if (elem.IsNull()) {
+          builder.push_back_null();
+        } else {
+          builder.push_back_elem(elem);
+        }
         offsets.push_back(i);
       }
       ++i;
@@ -79,7 +91,11 @@ std::pair<std::shared_ptr<IContextColumn>, sel_vec_t> ListColumn::unfold()
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
         auto elem = datas_->get_elem(j);
-        builder.push_back_elem(elem);
+        if (elem.IsNull()) {
+          builder.push_back_null();
+        } else {
+          builder.push_back_elem(elem);
+        }
         offsets.push_back(i);
       }
       ++i;

@@ -624,6 +624,14 @@ def test_array_preserves_null_elements(tmp_path):
     )
     assert _nested_list(rows[0][0]) == [1, None, 3]
 
+    rows = list(
+        conn.execute(
+            "UNWIND CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[3]') AS value "
+            "RETURN value;"
+        )
+    )
+    assert rows == [[1], [None], [3]]
+
     conn.close()
     db.close()
 
