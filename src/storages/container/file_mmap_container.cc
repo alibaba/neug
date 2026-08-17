@@ -176,21 +176,27 @@ void FileSharedMMap::Dump(const std::string& path) {
   std::string src_path = std::move(path_);
   Close();  // munmap; all dirty pages already flushed by Sync() above.
 
-  // Try atomic rename first. On the same filesystem this is O(1) and
-  // involves no data copying — only a directory-entry update.
-  if (::rename(src_path.c_str(), path.c_str()) == 0) {
+  // std::filesystem::rename atomically replaces the destination if it
+  // already exists on all platforms (MoveFileEx + MOVEFILE_REPLACE_EXISTING
+  // on Windows, rename(2) on POSIX).  The CRT ::rename on Windows fails
+  // when the destination exists, so we must not use it here.
+  std::error_code ec;
+  std::filesystem::rename(src_path, path, ec);
+  if (!ec) {
     return;
   }
 
-  if (errno != EXDEV) {
-    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " + path);
+  // Cross-filesystem fallback: copy then remove the source.
+  if (ec != std::errc::cross_device_link) {
+    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " +
+                        path + " (" + ec.message() + ")");
   }
 
-  // Cross-filesystem fallback: copy then remove the source.
   // copy_file tries copy_file_range (kernel-side, no userspace buffer) first,
   // then falls back to a 64 KB read/write loop.
   file_utils::copy_file(src_path, path, /*overwrite=*/true);
-  ::unlink(src_path.c_str());
+  std::error_code unlink_ec;
+  std::filesystem::remove(src_path, unlink_ec);
 }
 
 }  // namespace neug

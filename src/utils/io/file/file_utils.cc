@@ -448,10 +448,11 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
 
     try {
       auto result = copy_file(src_path, copy_path, /*overwrite=*/false);
-      if (::rename(copy_path.c_str(), dst_path.c_str()) != 0) {
-        const int rename_errno = errno;
+      std::error_code rename_ec;
+      std::filesystem::rename(copy_path, dst_path, rename_ec);
+      if (rename_ec) {
         throw std::runtime_error("Failed to atomically replace destination: " +
-                                 dst_path + ": " + std::strerror(rename_errno));
+                                 dst_path + ": " + rename_ec.message());
       }
       return result;
     } catch (...) {
