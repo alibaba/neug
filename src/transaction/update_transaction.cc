@@ -750,15 +750,15 @@ Status StorageTPUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
 
 Status StorageTPUpdateInterface::AddGraphEntry(
     const std::string& name, const ProjectedGraphEntry& entry) {
-  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().AddGraphEntry(name, entry));
   wal_.LogAddGraphEntry(name, entry);
+  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().AddGraphEntry(name, entry));
   MarkSchemaDirty();
   return Status::OK();
 }
 
 Status StorageTPUpdateInterface::DropGraphEntry(const std::string& name) {
-  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().DropGraphEntry(name));
   wal_.LogDropGraphEntry(name);
+  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().DropGraphEntry(name));
   MarkSchemaDirty();
   return Status::OK();
 }
