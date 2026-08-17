@@ -350,7 +350,14 @@ neug::Status CsvQueryExportWriter::writeTable(
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "entry_schema is null");
   }
-  auto stream = io::openLocalOutputStream(schema_.paths[0]);
+  // Use the injected stream when provided (e.g. a remote stream resolved via
+  // the VFS); otherwise fall back to a local file.
+  std::unique_ptr<io::OutputStream> local_stream;
+  io::OutputStream* stream = injected_stream_.get();
+  if (!stream) {
+    local_stream = io::openLocalOutputStream(schema_.paths[0]);
+    stream = local_stream.get();
+  }
   if (!stream) {
     return neug::Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }

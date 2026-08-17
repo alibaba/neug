@@ -23,6 +23,7 @@
 
 #include <string>
 
+#include "neug/compiler/function/export/export_stream.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/generated/proto/response/response.pb.h"
@@ -343,7 +344,15 @@ static Status writeTableWithBuffer(StringFormatBuffer& buffer,
   if (schema.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
   }
-  auto stream = io::openLocalOutputStream(schema.paths[0]);
+  // Resolve the output stream through the VFS so remote schemes
+  // (s3/oss/http/https) are written via the httpfs extension.
+  std::unique_ptr<io::OutputStream> stream;
+  try {
+    stream = neug::function::openExportOutputStream(schema);
+  } catch (const std::exception& e) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Failed to open output file: " + std::string(e.what()));
+  }
   if (!stream) {
     return Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }

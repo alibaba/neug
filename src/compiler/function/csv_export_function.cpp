@@ -21,6 +21,7 @@
  */
 
 #include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/function/export/export_stream.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/io/write/writer.h"
 
@@ -62,6 +63,9 @@ execution::Context writeExecFunc(
   convertFileSchemaOptions(schema);
   auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
       schema, entry_schema);
+  // Resolve the output stream through the VFS so remote schemes
+  // (s3/oss/http/https) are written via the httpfs extension.
+  writer->setOutputStream(openExportOutputStream(schema));
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     if (status.error_code() == StatusCode::ERR_PERMISSION) {
