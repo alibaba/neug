@@ -15,9 +15,11 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "neug/compiler/transaction/transaction_action.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/schema.h"
@@ -41,8 +43,10 @@ struct QueryAnalysis {
   AccessMode access_mode = AccessMode::kRead;
   ExplainMode explain_mode = ExplainMode::kNone;
   QueryKind kind = QueryKind::kRegular;
+  std::optional<transaction::TransactionAction> transaction_action;
 
   bool checkpoint() const { return kind == QueryKind::kCheckpoint; }
+  bool transaction() const { return transaction_action.has_value(); }
 };
 
 /**

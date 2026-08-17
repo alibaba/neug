@@ -37,13 +37,13 @@ namespace neug {
 class CowGraphUpdateStorage : public StorageUpdateInterface {
  public:
   CowGraphUpdateStorage(CowGraphWriteSet& write_set, timestamp_t read_timestamp,
-                        timestamp_t write_timestamp)
+                        timestamp_t write_timestamp, Allocator& alloc)
       : StorageUpdateInterface(write_set.view(), read_timestamp),
         write_set_(write_set),
         cow_graph_(write_set.graph()),
         cow_state_(write_set.detach_state()),
         mut_view_(write_set.view()),
-        alloc_(write_set.allocator()),
+        alloc_(alloc),
         ckp_(write_set.graph()->checkpoint()),
         logical_redo_(write_set.logical_redo()),
         write_ts_(write_timestamp) {}

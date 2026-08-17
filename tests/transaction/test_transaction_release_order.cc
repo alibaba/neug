@@ -81,14 +81,14 @@ class ReleaseOrderVersionManager : public IVersionManager {
   }
   uint32_t acquire_insert_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp() override { return 1; }
+  std::optional<uint32_t> try_acquire_update_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point) override {
     return 1;
   }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
-  bool drain_readers_until(
-      std::chrono::steady_clock::time_point) override {
+  bool drain_readers_until(std::chrono::steady_clock::time_point) override {
     return true;
   }
   void finish_update_timestamp(uint32_t,

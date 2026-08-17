@@ -64,6 +64,24 @@ ExecutionSlotLease ExecutionSlotScheduler::AcquireExecutionSlot() {
                             &ExecutionSlotScheduler::ReleaseExecutionSlot);
 }
 
+ExecutionSlotLease ExecutionSlotScheduler::TryAcquireExecutionSlot() {
+  bthread_mutex_lock(&mutex_);
+  if (closing_) {
+    bthread_mutex_unlock(&mutex_);
+    THROW_RUNTIME_ERROR("Execution slot scheduler is closing");
+  }
+  if (available_slot_ids_.empty()) {
+    bthread_mutex_unlock(&mutex_);
+    return {};
+  }
+
+  const auto slot_id = available_slot_ids_.back();
+  available_slot_ids_.pop_back();
+  bthread_mutex_unlock(&mutex_);
+  return ExecutionSlotLease(&slots_.At(slot_id), this, slot_id,
+                            &ExecutionSlotScheduler::ReleaseExecutionSlot);
+}
+
 void ExecutionSlotScheduler::CloseAndDrain() noexcept {
   bthread_mutex_lock(&mutex_);
   closing_ = true;

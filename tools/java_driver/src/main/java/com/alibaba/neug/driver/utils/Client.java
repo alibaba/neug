@@ -30,8 +30,11 @@ import okhttp3.ResponseBody;
  */
 public class Client {
 
-    private final String uri;
+    private static final String TRANSACTION_ID_HEADER = "X-Transaction-Id";
+
+    private final String baseUri;
     private OkHttpClient httpClient = null;
+    private OkHttpClient transactionHttpClient = null;
     private boolean closed = false;
 
     /**
@@ -41,10 +44,11 @@ public class Client {
      * @param config the configuration for connection pooling and timeouts
      */
     public Client(String uri, Config config) {
-        this.uri = (uri != null && uri.endsWith("/")) ? uri + "cypher" : uri + "/cypher";
+        this.baseUri =
+                (uri != null && uri.endsWith("/")) ? uri.substring(0, uri.length() - 1) : uri;
         this.closed = false;
 
-        httpClient =
+        OkHttpClient.Builder builder =
                 new OkHttpClient.Builder()
                         .connectionPool(
                                 new ConnectionPool(
@@ -54,8 +58,9 @@ public class Client {
                         .retryOnConnectionFailure(true)
                         .connectTimeout(config.getConnectionTimeoutMillis(), TimeUnit.MILLISECONDS)
                         .readTimeout(config.getReadTimeoutMillis(), TimeUnit.MILLISECONDS)
-                        .writeTimeout(config.getWriteTimeoutMillis(), TimeUnit.MILLISECONDS)
-                        .build();
+                        .writeTimeout(config.getWriteTimeoutMillis(), TimeUnit.MILLISECONDS);
+        httpClient = builder.build();
+        transactionHttpClient = httpClient.newBuilder().retryOnConnectionFailure(false).build();
     }
 
     /**
@@ -69,17 +74,34 @@ public class Client {
         if (closed) {
             throw new IllegalStateException("Client is already closed");
         }
+        HttpResponse response = executePost(httpClient, "/cypher", request, null);
+        if (!response.isSuccessful()) {
+            throw new IOException("Unexpected HTTP status " + response.getStatusCode());
+        }
+        return response.getBody();
+    }
+
+    /** Sends a transaction POST without automatic transport retries. */
+    public HttpResponse post(String path, byte[] request, String transactionId) throws IOException {
+        return executePost(transactionHttpClient, path, request, transactionId);
+    }
+
+    private HttpResponse executePost(
+            OkHttpClient client, String path, byte[] request, String transactionId)
+            throws IOException {
+        if (closed) {
+            throw new IllegalStateException("Client is already closed");
+        }
         RequestBody body = RequestBody.create(request);
-        Request httpRequest = new Request.Builder().url(uri).post(body).build();
-        try (Response response = httpClient.newCall(httpRequest).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected code " + response);
-            }
+        Request.Builder requestBuilder = new Request.Builder().url(baseUri + path).post(body);
+        if (transactionId != null) {
+            requestBuilder.header(TRANSACTION_ID_HEADER, transactionId);
+        }
+        try (Response response = client.newCall(requestBuilder.build()).execute()) {
             ResponseBody responseBody = response.body();
-            if (responseBody == null) {
-                throw new IOException("Response body is null");
-            }
-            return responseBody.bytes();
+            byte[] responseBytes = responseBody == null ? new byte[0] : responseBody.bytes();
+            return new HttpResponse(
+                    response.code(), responseBytes, response.header(TRANSACTION_ID_HEADER));
         }
     }
 
@@ -110,6 +132,35 @@ public class Client {
                 }
             }
             closed = true;
+        }
+    }
+
+    /** HTTP response envelope retained for transaction state decisions. */
+    public static final class HttpResponse {
+        private final int statusCode;
+        private final byte[] body;
+        private final String transactionId;
+
+        public HttpResponse(int statusCode, byte[] body, String transactionId) {
+            this.statusCode = statusCode;
+            this.body = body;
+            this.transactionId = transactionId;
+        }
+
+        public boolean isSuccessful() {
+            return statusCode >= 200 && statusCode < 300;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public byte[] getBody() {
+            return body;
+        }
+
+        public String getTransactionId() {
+            return transactionId;
         }
     }
 }

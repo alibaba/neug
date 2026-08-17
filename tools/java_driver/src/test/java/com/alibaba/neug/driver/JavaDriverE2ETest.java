@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.alibaba.neug.driver.utils.*;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -38,6 +39,16 @@ public class JavaDriverE2ETest {
         String uri = System.getenv(E2E_URI_ENV);
         assumeTrue(uri != null && !uri.isBlank(), E2E_URI_ENV + " is not set");
         return uri;
+    }
+
+    private static long countPerson(Session session, long id) {
+        try (ResultSet resultSet =
+                session.run("MATCH (n:person {id: " + id + "}) RETURN count(n) AS count")) {
+            assertTrue(resultSet.next());
+            long count = resultSet.getLong("count");
+            assertFalse(resultSet.next());
+            return count;
+        }
     }
 
     @Test
@@ -79,6 +90,41 @@ public class JavaDriverE2ETest {
             assertEquals(Types.INT32, resultSet.getMetaData().getColumnType(0));
             assertEquals("_0_n.age", resultSet.getMetaData().getColumnName(0));
             assertFalse(resultSet.next());
+        }
+    }
+
+    @Test
+    public void testExplicitTransactionCommitAndRollbackAgainstLiveServer() {
+        String uri = requireE2EUri();
+        long committedId = ThreadLocalRandom.current().nextLong(1_000_000_000L, Long.MAX_VALUE - 1);
+        long rolledBackId = committedId + 1;
+
+        try (Driver driver = GraphDatabase.driver(uri);
+                Session writer = driver.session();
+                Session observer = driver.session()) {
+            writer.beginTransaction(TransactionMode.READ_WRITE);
+            try (ResultSet ignored =
+                    writer.run(
+                            "CREATE (:person {id: "
+                                    + committedId
+                                    + ", name: 'java-explicit-commit', age: 51})")) {
+                assertEquals(1, countPerson(writer, committedId));
+                assertEquals(0, countPerson(observer, committedId));
+            }
+            writer.commit();
+            assertEquals(1, countPerson(observer, committedId));
+
+            writer.beginTransaction(TransactionMode.READ_WRITE);
+            try (ResultSet ignored =
+                    writer.run(
+                            "CREATE (:person {id: "
+                                    + rolledBackId
+                                    + ", name: 'java-explicit-rollback', age: 52})")) {
+                assertEquals(1, countPerson(writer, rolledBackId));
+                assertEquals(0, countPerson(observer, rolledBackId));
+            }
+            writer.rollback();
+            assertEquals(0, countPerson(observer, rolledBackId));
         }
     }
 }

@@ -21,6 +21,8 @@ int main() {
   config.host_str = "0.0.0.0";
   config.thread_num = 0;  // Auto-select service threads from database max_thread_num.
   config.auto_compaction = true;
+  config.max_explicit_transactions = 64;
+  config.explicit_transaction_timeout_ms = 60000;
   // 3. Start HTTP service
   neug::NeugDBService service(db, config);
   std::string url = service.Start();
@@ -35,10 +37,15 @@ int main() {
 
 **HTTP Endpoints:**
 - `POST /cypher` - Execute Cypher queries
+- `POST /transactions` - Begin an explicit transaction
+- `POST /transactions/query` - Execute within an explicit transaction
+- `POST /transactions/commit` - Commit an explicit transaction
+- `POST /transactions/rollback` - Roll back an explicit transaction
+- `GET /transactions/schema` - Retrieve the active transaction schema
 - `GET /schema` - Retrieve graph schema
-- `GET /status` - Check service status
+- `GET /service_status` - Check service status
 
-**Thread Safety:** All public methods are thread-safe. The service uses a `TpExecutionSlotPool` internally to handle concurrent requests efficiently.
+**Thread Safety:** All public methods are thread-safe. The service uses an `ExecutionSlotScheduler` internally to handle concurrent requests efficiently. Requests using the same transaction id are single-flight and concurrent use is rejected.
 
 **Service Threads:** `ServiceConfig::thread_num` controls the service thread
 count. The default `0` auto-selects from the database `max_thread_num`. If set
@@ -49,6 +56,8 @@ Service threads run TP queries concurrently, but each query uses one execution s
 
 **Auto Compaction:** `ServiceConfig::auto_compaction` controls whether a
 background auto-compaction thread runs while serving. Default is `true`.
+
+**Explicit Transactions:** `ServiceConfig::max_explicit_transactions` limits long-lived service transaction owners; `0` selects the execution-slot count without reserving slots. `ServiceConfig::explicit_transaction_timeout_ms` is an absolute transaction lifetime measured with a monotonic clock; it defaults to 60 seconds, is not extended by queries, and `0` explicitly disables timeout reclamation.
 
 ### Constructors & Destructors
 

@@ -42,6 +42,9 @@
 
 namespace neug {
 
+class HttpServiceImpl;
+class ServiceTransactionManager;
+
 /**
  * @brief NeuG database HTTP service for high-throughput scenarios.
  *
@@ -112,20 +115,8 @@ class NeugDBService {
    * @throws neug::exception::RuntimeError If local connections are still open
    * or another NeugDBService is already associated with the database
    */
-  NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
-      : db_(db), db_config_(db_.config()) {
-    auto& execution_slots = db_.registerService(this);
-    try {
-      installBthreadRuntimeWait();
-      init(config, execution_slots);
-    } catch (...) {
-      hdl_mgr_.reset();
-      execution_slot_scheduler_.reset();
-      restoreNativeRuntimeWait();
-      db_.unregisterService(this);
-      throw;
-    }
-  }
+  NeugDBService(neug::NeugDB& db,
+                const ServiceConfig& config = ServiceConfig());
 
   /**
    * @brief Gets direct access to the underlying graph database
@@ -258,6 +249,8 @@ class NeugDBService {
   void installBthreadRuntimeWait();
   void restoreNativeRuntimeWait() noexcept;
   void drainExecutionRuntime() noexcept;
+  ExecutionSlotLease TryAcquireExecutionSlot();
+  ServiceTransactionManager& transactionManager();
 
   /**
    * @brief Initializes the service with configuration settings
@@ -278,6 +271,7 @@ class NeugDBService {
   neug::NeugDB& db_;
   neug::NeugDBConfig db_config_;
   std::unique_ptr<neug::ExecutionSlotScheduler> execution_slot_scheduler_;
+  std::unique_ptr<neug::ServiceTransactionManager> transaction_manager_;
   std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;
@@ -292,6 +286,8 @@ class NeugDBService {
   bool bthread_runtime_wait_installed_{false};
 
   friend class neug::NeugDB;
+  friend class HttpServiceImpl;
+  friend class ServiceTransactionManager;
 };
 
 }  // namespace neug

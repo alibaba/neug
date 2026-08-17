@@ -129,8 +129,9 @@ class IVersionManager {
  private:
   friend class UpdateTimestampLease;
 
-  // Timed acquisition is intentionally lease-only: callers must not receive a
-  // raw timestamp without immediately establishing RAII ownership.
+  // Try/timed acquisition is intentionally lease-only: callers must not
+  // receive a raw timestamp without immediately establishing RAII ownership.
+  virtual std::optional<uint32_t> try_acquire_update_timestamp() = 0;
   virtual uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point deadline) = 0;
 
@@ -215,6 +216,7 @@ class VersionManager : public IVersionManager {
   void revert_compact_timestamp(uint32_t ts) override;
 
  private:
+  std::optional<uint32_t> try_acquire_update_timestamp() override;
   uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point deadline) override;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;

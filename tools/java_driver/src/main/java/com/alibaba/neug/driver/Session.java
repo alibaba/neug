@@ -35,6 +35,23 @@ import java.util.Map;
  * }</pre>
  */
 public interface Session extends AutoCloseable {
+    /** Begins one read-write explicit transaction owned by this session. */
+    default void beginTransaction() {
+        beginTransaction(TransactionMode.READ_WRITE);
+    }
+
+    /** Begins one explicit transaction owned by this session. */
+    void beginTransaction(TransactionMode mode);
+
+    /** Commits the active explicit transaction. */
+    void commit();
+
+    /** Rolls back the active or rollback-only explicit transaction. */
+    void rollback();
+
+    /** Returns whether this session owns an active or rollback-only transaction. */
+    boolean hasActiveTransaction();
+
     /**
      * Executes a Cypher statement and returns the results.
      *

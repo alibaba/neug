@@ -39,6 +39,8 @@
 
 namespace neug {
 
+class ServiceTransactionManager;
+
 int32_t status_code_to_http_code(neug::StatusCode code);
 
 /**
@@ -128,11 +130,8 @@ void InitializeBrpcServiceProtocols();
  */
 class UnifiedServiceImpl {
  public:
-  explicit UnifiedServiceImpl(neug::NeugDB& neug_db,
-                              ExecutionSlotScheduler& execution_slot_scheduler)
-      : neug_db_(neug_db),
-        execution_slot_scheduler_(execution_slot_scheduler),
-        planner_(neug_db_.GetPlanner()) {}
+  explicit UnifiedServiceImpl(NeugDBService& service)
+      : service_(service), planner_(service.db().GetPlanner()) {}
 
   virtual ~UnifiedServiceImpl() {}
 
@@ -141,22 +140,41 @@ class UnifiedServiceImpl {
   neug::result<std::string> GetServiceStatusImpl(brpc::Controller* cntl_base);
 
  protected:
-  neug::NeugDB& neug_db_;
-  ExecutionSlotScheduler& execution_slot_scheduler_;
+  NeugDBService& service_;
   std::shared_ptr<neug::IGraphPlanner> planner_;
 };
 
 class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
  public:
-  explicit HttpServiceImpl(neug::NeugDB& neug_db,
-                           ExecutionSlotScheduler& execution_slot_scheduler)
-      : UnifiedServiceImpl(neug_db, execution_slot_scheduler),
+  explicit HttpServiceImpl(NeugDBService& service)
+      : UnifiedServiceImpl(service),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
   virtual ~HttpServiceImpl() {}
 
   void PostCypherQuery(google::protobuf::RpcController* cntl_base,
                        const HttpRequest* request, HttpResponse* response,
                        google::protobuf::Closure* done);
+
+  void BeginTransaction(google::protobuf::RpcController* cntl_base,
+                        const HttpRequest* request, HttpResponse* response,
+                        google::protobuf::Closure* done);
+
+  void PostTransactionQuery(google::protobuf::RpcController* cntl_base,
+                            const HttpRequest* request, HttpResponse* response,
+                            google::protobuf::Closure* done);
+
+  void CommitTransaction(google::protobuf::RpcController* cntl_base,
+                         const HttpRequest* request, HttpResponse* response,
+                         google::protobuf::Closure* done);
+
+  void RollbackTransaction(google::protobuf::RpcController* cntl_base,
+                           const HttpRequest* request, HttpResponse* response,
+                           google::protobuf::Closure* done);
+
+  void GetTransactionSchema(google::protobuf::RpcController* cntl_base,
+                            const google::protobuf::Empty*,
+                            HttpResponse* response,
+                            google::protobuf::Closure* done);
 
   void GetSchema(google::protobuf::RpcController* cntl_base,
                  const google::protobuf::Empty*, HttpResponse* response,
@@ -172,8 +190,7 @@ class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
 
 class BrpcServiceManager : public IServiceManager {
  public:
-  explicit BrpcServiceManager(neug::NeugDB& neug_db,
-                              ExecutionSlotScheduler& execution_slot_scheduler);
+  explicit BrpcServiceManager(NeugDBService& service);
 
   ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
@@ -183,8 +200,7 @@ class BrpcServiceManager : public IServiceManager {
   bool IsRunning() const override { return brpc_server_->IsRunning(); }
 
  private:
-  neug::NeugDB& neug_db_;
-  ExecutionSlotScheduler& execution_slot_scheduler_;
+  NeugDBService& service_;
   uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 

@@ -270,6 +270,18 @@ uint32_t VersionManager::acquire_update_timestamp() {
   return reserve_update_timestamp();
 }
 
+std::optional<uint32_t> VersionManager::try_acquire_update_timestamp() {
+  if (!gate_.try_enter_phase(AdmissionState::kInsertsBlocked)) {
+    return std::nullopt;
+  }
+  if (OperationGateWord::inserters(gate_.load_acquire()) != 0) {
+    gate_.transition_phase(AdmissionState::kInsertsBlocked,
+                           AdmissionState::kOpen);
+    return std::nullopt;
+  }
+  return reserve_update_timestamp();
+}
+
 uint32_t VersionManager::acquire_update_timestamp_until(
     std::chrono::steady_clock::time_point deadline) {
   if (!gate_.enter_phase_until(AdmissionState::kInsertsBlocked, deadline)) {

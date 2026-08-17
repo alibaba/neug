@@ -32,15 +32,16 @@ CurrentCowWriteTransaction CurrentCowWriteTransaction::Begin(
   auto cow_graph = base.graph().Clone();
   return CurrentCowWriteTransaction(
       std::move(guard),
-      CowGraphWriteSet(std::move(cow_graph), base.planning_generation(), alloc),
+      CowGraphWriteSet(std::move(cow_graph), base.planning_generation()), alloc,
       snapshot_store, wal_writer);
 }
 
 CurrentCowWriteTransaction::CurrentCowWriteTransaction(
-    CurrentGraphWriteGuard guard, CowGraphWriteSet write_set,
+    CurrentGraphWriteGuard guard, CowGraphWriteSet write_set, Allocator& alloc,
     GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer) noexcept
     : guard_(std::move(guard)),
       write_set_(std::move(write_set)),
+      alloc_(alloc),
       snapshot_store_(snapshot_store),
       wal_writer_(wal_writer) {}
 
@@ -48,6 +49,7 @@ CurrentCowWriteTransaction::CurrentCowWriteTransaction(
     CurrentCowWriteTransaction&& other) noexcept
     : guard_(std::move(other.guard_)),
       write_set_(std::move(other.write_set_)),
+      alloc_(other.alloc_),
       snapshot_store_(other.snapshot_store_),
       wal_writer_(other.wal_writer_) {}
 

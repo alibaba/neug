@@ -48,7 +48,8 @@ class CurrentCowWriteTransaction {
   void Abort() noexcept;
 
   CowGraphUpdateStorage OpenStorage() {
-    return CowGraphUpdateStorage(write_set_, kReadTimestamp, timestamp());
+    return CowGraphUpdateStorage(write_set_, kReadTimestamp, timestamp(),
+                                 alloc_);
   }
 
   timestamp_t timestamp() const noexcept { return guard_.Timestamp(); }
@@ -56,6 +57,8 @@ class CurrentCowWriteTransaction {
   GraphStats statistic() const {
     return GraphStats(write_set_.view(), write_set_.base_planning_generation());
   }
+
+  const Schema& schema() const { return write_set_.view().schema(); }
 
  private:
   friend class ExecutionSlot;
@@ -66,7 +69,7 @@ class CurrentCowWriteTransaction {
                                           IWalWriter& wal_writer);
 
   CurrentCowWriteTransaction(CurrentGraphWriteGuard guard,
-                             CowGraphWriteSet write_set,
+                             CowGraphWriteSet write_set, Allocator& alloc,
                              GraphSnapshotStore& snapshot_store,
                              IWalWriter& wal_writer) noexcept;
 
@@ -76,6 +79,9 @@ class CurrentCowWriteTransaction {
 
   CurrentGraphWriteGuard guard_;
   CowGraphWriteSet write_set_;
+  // Database-owned. The active write guard prevents checkpoint reopen while
+  // the transaction may reference allocator-backed COW storage.
+  Allocator& alloc_;
   GraphSnapshotStore& snapshot_store_;
   IWalWriter& wal_writer_;
 };

@@ -129,6 +129,7 @@ class ScriptedVersionManager : public IVersionManager {
   uint32_t acquire_insert_timestamp() override { return 1; }
   void release_insert_timestamp(uint32_t) override {}
   uint32_t acquire_update_timestamp() override { return 1; }
+  std::optional<uint32_t> try_acquire_update_timestamp() override { return 1; }
   uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point) override {
     return 1;

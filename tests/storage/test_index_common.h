@@ -102,9 +102,9 @@ class ExampleIndex : public StorageIndex {
         descriptor.get_path(kIndexBufferPath).value_or(""), level));
   }
 
-  void Dump(Checkpoint& ckp, CheckpointManifest& meta,
-            const std::string& key) override {
-    StorageIndex::Dump(ckp, meta, key);
+  void Dump(Checkpoint& ckp, CheckpointManifest& meta, const std::string& key,
+            CheckpointWriteMode mode) override {
+    StorageIndex::Dump(ckp, meta, key, mode);
     auto descriptor = meta.module(key).value_or(ModuleDescriptor{});
     descriptor.module_type = ModuleTypeName();
     if (index_id_accessor_) {

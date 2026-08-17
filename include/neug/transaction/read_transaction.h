@@ -76,6 +76,11 @@ class ReadTransaction {
    */
   explicit ReadTransaction(ReadSnapshotLease lease);
 
+  ReadTransaction(const ReadTransaction&) = delete;
+  ReadTransaction& operator=(const ReadTransaction&) = delete;
+  ReadTransaction(ReadTransaction&&) noexcept = default;
+  ReadTransaction& operator=(ReadTransaction&&) noexcept = default;
+
   /**
    * @brief Destructor that calls release().
    *

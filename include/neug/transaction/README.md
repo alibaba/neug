@@ -145,13 +145,15 @@ only after the graph change is visible.
 
 Update waiters directly contend the existing admission phase; acquisition order
 is unspecified. The public manager API retains its no-deadline fast path.
-The deadline overload of `UpdateTimestampLease` invokes a private lease-only
-manager hook. If its absolute `steady_clock` deadline expires before timestamp
-reservation, lease construction reports `ERR_TX_TIMEOUT` and restores any phase
-acquired by that attempt. Admission contention and inserter draining use separate
-backoff cursors. Existing production callers retain infinite-wait behavior and
-do not read the clock; future explicit-transaction integration will pass its
-write-wait deadline through this overload.
+`UpdateTimestampLease::TryAcquire()` invokes a private lease-only manager hook;
+it returns an empty optional when another update owns admission or an insert is
+active, without entering runtime wait or exposing a raw timestamp. TP service
+explicit-transaction begin uses this path and reports service unavailable
+instead of retaining an execution slot while waiting. The deadline constructor
+remains a bounded admission wait: expiration before timestamp reservation
+reports `ERR_TX_TIMEOUT` and restores any phase acquired by that attempt.
+Admission contention and inserter draining use separate backoff cursors. This
+admission deadline is independent of the service transaction lifetime deadline.
 
 When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `SnapshotCowWriteTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 

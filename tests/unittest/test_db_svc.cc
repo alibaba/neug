@@ -17,9 +17,11 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
@@ -33,7 +35,10 @@
 #include "neug/main/connection_manager.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
+#include "neug/main/transaction_context.h"
+#include "neug/server/brpc_service_mgr.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/server/service_transaction_manager.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
 
@@ -122,6 +127,20 @@ WalPrefixSnapshot readWalPrefixes(const std::filesystem::path& wal_dir) {
 
 class NeugDBServiceTest : public ::testing::Test {
  protected:
+  static std::unique_lock<std::mutex> LockTransactionEntry(
+      ServiceTransactionManager& manager, const std::string& transaction_id) {
+    std::shared_ptr<ServiceTransactionManager::SessionEntry> entry;
+    {
+      std::lock_guard lock(manager.registry_mutex_);
+      entry = manager.entries_.at(transaction_id);
+    }
+    return std::unique_lock(entry->mutex);
+  }
+
+  static void ReapExpired(ServiceTransactionManager& manager) {
+    manager.ReapExpired();
+  }
+
   void SetUp() override {
     // Create temporary directory for test database
     test_dir_ = std::filesystem::temp_directory_path() / "neug_test_db";
@@ -202,9 +221,30 @@ TEST_F(NeugDBServiceTest, ExecutionSlotLeaseMoveTransfersSingleLease) {
   EXPECT_EQ(assigned.get(), slot);
 }
 
-TEST_F(NeugDBServiceTest,
-       ServiceShutdownDrainsLeasesAndEscapedTransactions) {
+TEST_F(NeugDBServiceTest, ServiceShutdownDrainsLeasesAndEscapedTransactions) {
   auto service = std::make_unique<NeugDBService>(*db_, config_);
+  {
+    HttpServiceImpl http_service(*service);
+    HttpRequest request;
+    HttpResponse response;
+    brpc::Controller begin;
+    begin.http_request().set_method(brpc::HTTP_METHOD_POST);
+    begin.request_attachment().append(R"({"mode":"read_write"})");
+    http_service.BeginTransaction(&begin, &request, &response, nullptr);
+    ASSERT_FALSE(begin.Failed()) << begin.ErrorText();
+    const auto* transaction_id =
+        begin.http_response().GetHeader("X-Transaction-Id");
+    ASSERT_NE(transaction_id, nullptr);
+
+    brpc::Controller query;
+    query.http_request().set_method(brpc::HTTP_METHOD_POST);
+    query.http_request().SetHeader("X-Transaction-Id", *transaction_id);
+    query.request_attachment().append(RequestSerializer::SerializeRequest(
+        "CREATE (:person {id: 900006, name: 'shutdown-rollback', age: 36});",
+        "insert", {}));
+    http_service.PostTransactionQuery(&query, &request, &response, nullptr);
+    ASSERT_FALSE(query.Failed()) << query.ErrorText();
+  }
   auto transaction_slot = service->AcquireExecutionSlot();
   auto escaped_transaction = transaction_slot->BeginReadTransaction();
   transaction_slot = {};
@@ -231,8 +271,474 @@ TEST_F(NeugDBServiceTest,
   EXPECT_TRUE(service_destroyed.load(std::memory_order_acquire));
 
   auto connection = db_->Connect();
-  ASSERT_TRUE(connection->Query("MATCH (n) RETURN count(n);"));
+  auto rolled_back =
+      connection->Query("MATCH (n:person {id: 900006}) RETURN n.name;", "read");
+  ASSERT_TRUE(rolled_back) << rolled_back.error().ToString();
+  EXPECT_EQ(rolled_back->response().row_count(), 0);
+  ASSERT_TRUE(connection->Query(
+      "CREATE (:person {id: 900006, name: 'after-shutdown', age: 36});"));
   connection->Close();
+}
+
+TEST_F(NeugDBServiceTest, SnapshotWriteTransactionOutlivesExecutionSlotLease) {
+  NeugDBService service(*db_, config_);
+
+  auto owner_slot = service.AcquireExecutionSlot();
+  TransactionContext transaction_context;
+  auto transaction = owner_slot->TryBeginSnapshotCowWriteTransaction();
+  ASSERT_TRUE(transaction);
+  transaction_context.Begin(std::move(*transaction));
+  const auto person_label =
+      transaction_context.schema().get_vertex_label_id("person");
+  const auto knows_label =
+      transaction_context.schema().get_edge_label_id("knows");
+  vid_t new_person = 0;
+  transaction_context.VisitWriteTransaction([&](auto& transaction) {
+    auto storage = transaction.OpenStorage();
+    ASSERT_TRUE(storage.AddVertex(person_label, Value::INT64(900001),
+                                  {Value::STRING("escaped"), Value::INT64(31)},
+                                  new_person));
+  });
+
+  owner_slot = {};
+  {
+    auto reused_slot = service.AcquireExecutionSlot();
+    auto reader = reused_slot->BeginReadTransaction();
+    StorageReadInterface published(reader.view(), reader.timestamp());
+    vid_t unpublished = 0;
+    EXPECT_FALSE(published.GetVertexIndex(person_label, Value::INT64(900001),
+                                          unpublished));
+    EXPECT_TRUE(reader.Commit());
+  }
+
+  transaction_context.VisitWriteTransaction([&](auto& transaction) {
+    auto storage = transaction.OpenStorage();
+    vid_t existing_person = 0;
+    ASSERT_TRUE(
+        storage.GetVertexIndex(person_label, Value::INT64(1), existing_person));
+    const void* edge_property = nullptr;
+    ASSERT_TRUE(storage.AddEdge(person_label, new_person, person_label,
+                                existing_person, knows_label,
+                                {Value::DOUBLE(0.75)}, edge_property));
+  });
+  ASSERT_TRUE(transaction_context.Commit().ok());
+
+  auto verify_slot = service.AcquireExecutionSlot();
+  auto reader = verify_slot->BeginReadTransaction();
+  StorageReadInterface published(reader.view(), reader.timestamp());
+  vid_t committed_person = 0;
+  EXPECT_TRUE(published.GetVertexIndex(person_label, Value::INT64(900001),
+                                       committed_person));
+  EXPECT_EQ(committed_person, new_person);
+  EXPECT_TRUE(reader.Commit());
+}
+
+TEST_F(NeugDBServiceTest,
+       ServiceTransactionManagerOwnsSessionsWithoutHoldingSlots) {
+  config_.max_explicit_transactions = 1;
+  NeugDBService service(*db_, config_);
+  ServiceTransactionManager manager(service, 1, 0);
+
+  auto read_id = manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_TRUE(read_id);
+  EXPECT_EQ(read_id->size(), 22U);
+  EXPECT_EQ(
+      read_id->find_first_not_of(
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"),
+      std::string::npos);
+  std::vector<ExecutionSlotLease> slots;
+  for (size_t i = 0; i < service.ExecutionSlotNum(); ++i) {
+    slots.emplace_back(service.AcquireExecutionSlot());
+  }
+  auto no_slot = manager.ExecuteRequest(
+      *read_id, RequestSerializer::SerializeRequest(
+                    "MATCH (n) RETURN count(n);", "read", {}));
+  ASSERT_FALSE(no_slot);
+  EXPECT_EQ(no_slot.error().error_code(), StatusCode::ERR_SERVICE_UNAVAILABLE);
+  auto over_capacity = manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_FALSE(over_capacity);
+  EXPECT_EQ(over_capacity.error().error_code(),
+            StatusCode::ERR_SERVICE_UNAVAILABLE);
+  slots.clear();
+  EXPECT_TRUE(manager.ExecuteRequest(
+      *read_id, RequestSerializer::SerializeRequest(
+                    "MATCH (n) RETURN count(n);", "read", {})));
+  EXPECT_TRUE(manager.Rollback(*read_id).ok());
+  EXPECT_EQ(manager.Rollback(*read_id).error_code(), StatusCode::ERR_NOT_FOUND);
+
+  auto write_id = manager.BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(write_id);
+  auto create = manager.ExecuteRequest(
+      *write_id, RequestSerializer::SerializeRequest(
+                     "CREATE (:person {id: 900002, name: 'manager', age: 32});",
+                     "insert", {}));
+  ASSERT_TRUE(create) << create.error().ToString();
+  auto private_read = manager.ExecuteRequest(
+      *write_id,
+      RequestSerializer::SerializeRequest(
+          "MATCH (n:person {id: 900002}) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(private_read) << private_read.error().ToString();
+  auto private_result = QueryResult::From(std::move(*private_read));
+  EXPECT_EQ(private_result.GetInt64(0), 1);
+
+  slots.clear();
+  for (size_t i = 0; i < service.ExecutionSlotNum(); ++i) {
+    slots.emplace_back(service.AcquireExecutionSlot());
+  }
+  slots.clear();
+  EXPECT_TRUE(manager.Rollback(*write_id).ok());
+
+  auto verify_slot = service.AcquireExecutionSlot();
+  auto published = verify_slot->ExecuteTransactionalRequest(
+      RequestSerializer::SerializeRequest(
+          "MATCH (n:person {id: 900002}) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(published);
+  auto published_result = QueryResult::From(std::move(*published));
+  EXPECT_EQ(published_result.GetInt64(0), 0);
+
+  auto rollback_only_id = manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_TRUE(rollback_only_id);
+  auto rejected = manager.ExecuteRequest(
+      *rollback_only_id,
+      RequestSerializer::SerializeRequest(
+          "CREATE (:person {id: 900003, name: 'rejected', age: 33});", "insert",
+          {}));
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+  auto after_failure = manager.ExecuteRequest(
+      *rollback_only_id, RequestSerializer::SerializeRequest(
+                             "MATCH (n) RETURN count(n);", "read", {}));
+  ASSERT_FALSE(after_failure);
+  EXPECT_EQ(after_failure.error().error_code(),
+            StatusCode::ERR_TX_STATE_CONFLICT);
+  EXPECT_TRUE(manager.Rollback(*rollback_only_id).ok());
+
+  auto schema_id = manager.BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(schema_id);
+  auto create_schema = manager.ExecuteRequest(
+      *schema_id,
+      RequestSerializer::SerializeRequest("CREATE NODE TABLE service_tx_node("
+                                          "id INT64, PRIMARY KEY(id));",
+                                          "schema", {}));
+  ASSERT_TRUE(create_schema) << create_schema.error().ToString();
+  auto private_schema = manager.GetSchema(*schema_id);
+  ASSERT_TRUE(private_schema);
+  EXPECT_NE(private_schema->find("service_tx_node"), std::string::npos);
+  EXPECT_EQ(service.AcquireExecutionSlot()->GetSchema().find("service_tx_node"),
+            std::string::npos);
+  ASSERT_TRUE(manager.Commit(*schema_id).ok());
+  EXPECT_NE(service.AcquireExecutionSlot()->GetSchema().find("service_tx_node"),
+            std::string::npos);
+  EXPECT_EQ(manager.Commit(*schema_id).error_code(), StatusCode::ERR_NOT_FOUND);
+}
+
+TEST_F(NeugDBServiceTest,
+       ServiceTransactionWriteAdmissionFailureReturnsSlotAndPreservesOwner) {
+  NeugDBService service(*db_, config_);
+  ServiceTransactionManager manager(service, 2, 0);
+
+  auto first_writer = manager.BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(first_writer);
+
+  auto blocked_writer = manager.BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_FALSE(blocked_writer);
+  EXPECT_EQ(blocked_writer.error().error_code(),
+            StatusCode::ERR_SERVICE_UNAVAILABLE);
+
+  std::vector<ExecutionSlotLease> slots;
+  for (size_t i = 1; i < service.ExecutionSlotNum(); ++i) {
+    slots.emplace_back(service.AcquireExecutionSlot());
+  }
+  auto request = manager.ExecuteRequest(
+      *first_writer, RequestSerializer::SerializeRequest(
+                         "MATCH (n) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(request) << request.error().ToString();
+  slots.clear();
+
+  ASSERT_TRUE(manager.Rollback(*first_writer).ok());
+  auto next_writer = manager.BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(next_writer);
+  EXPECT_TRUE(manager.Rollback(*next_writer).ok());
+}
+
+TEST_F(NeugDBServiceTest,
+       ServiceTransactionDeadlineReclaimsIdleAndStopsBeforeWal) {
+  NeugDBService service(*db_, config_);
+  const auto base = ServiceTransactionManager::Clock::now();
+  auto now = base;
+  ServiceTransactionManager idle_manager(service, 2, 1000,
+                                         [&now] { return now; });
+  auto idle_id = idle_manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_TRUE(idle_id);
+  now += std::chrono::seconds(2);
+  ReapExpired(idle_manager);
+  auto expired = idle_manager.ExecuteRequest(
+      *idle_id, RequestSerializer::SerializeRequest(
+                    "MATCH (n) RETURN count(n);", "read", {}));
+  ASSERT_FALSE(expired);
+  EXPECT_EQ(expired.error().error_code(), StatusCode::ERR_NOT_FOUND);
+
+  now = base;
+  ServiceTransactionManager boundary_manager(service, 2, 1000,
+                                             [&now] { return now; });
+  auto boundary_id =
+      boundary_manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_TRUE(boundary_id);
+  now += std::chrono::seconds(2);
+  auto boundary_expired = boundary_manager.GetSchema(*boundary_id);
+  ASSERT_FALSE(boundary_expired);
+  EXPECT_EQ(boundary_expired.error().error_code(), StatusCode::ERR_TX_TIMEOUT);
+  EXPECT_EQ(boundary_manager.Rollback(*boundary_id).error_code(),
+            StatusCode::ERR_NOT_FOUND);
+
+  size_t clock_calls = 0;
+  ServiceTransactionManager commit_manager(service, 2, 1000, [&] {
+    return base + (clock_calls++ >= 4 ? std::chrono::seconds(2)
+                                      : std::chrono::milliseconds(0));
+  });
+  auto write_id = commit_manager.BeginTransaction(TransactionMode::kReadWrite);
+  ASSERT_TRUE(write_id);
+  auto create = commit_manager.ExecuteRequest(
+      *write_id, RequestSerializer::SerializeRequest(
+                     "CREATE (:person {id: 900005, name: 'timeout', age: 35});",
+                     "insert", {}));
+  ASSERT_TRUE(create) << create.error().ToString();
+  auto commit = commit_manager.Commit(*write_id);
+  EXPECT_EQ(commit.error_code(), StatusCode::ERR_TX_TIMEOUT);
+
+  auto verify = service.AcquireExecutionSlot()->ExecuteTransactionalRequest(
+      RequestSerializer::SerializeRequest(
+          "MATCH (n:person {id: 900005}) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(verify);
+  EXPECT_EQ(QueryResult::From(std::move(*verify)).GetInt64(0), 0);
+}
+
+TEST_F(NeugDBServiceTest,
+       ServiceTransactionDeadlineExpiresAtInFlightSafeBoundary) {
+  NeugDBService service(*db_, config_);
+  const auto base = ServiceTransactionManager::Clock::now();
+  auto now = base;
+  std::mutex clock_mutex;
+  std::condition_variable clock_cv;
+  std::thread::id request_thread;
+  size_t request_clock_calls = 0;
+  bool safe_boundary_reached = false;
+  bool release_safe_boundary = false;
+
+  ServiceTransactionManager manager(service, 2, 1000, [&] {
+    std::unique_lock lock(clock_mutex);
+    if (std::this_thread::get_id() == request_thread &&
+        ++request_clock_calls == 2) {
+      safe_boundary_reached = true;
+      clock_cv.notify_all();
+      clock_cv.wait(lock, [&] { return release_safe_boundary; });
+    }
+    return now;
+  });
+  auto transaction_id = manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_TRUE(transaction_id);
+
+  std::atomic<int32_t> result_code{
+      static_cast<int32_t>(StatusCode::ERR_UNKNOWN)};
+  std::thread request([&] {
+    {
+      std::lock_guard lock(clock_mutex);
+      request_thread = std::this_thread::get_id();
+    }
+    auto result = manager.ExecuteRequest(
+        *transaction_id, RequestSerializer::SerializeRequest(
+                             "MATCH (n) RETURN count(n);", "read", {}));
+    result_code.store(
+        static_cast<int32_t>(result ? StatusCode::OK
+                                    : result.error().error_code()),
+        std::memory_order_release);
+  });
+
+  bool reached = false;
+  {
+    std::unique_lock lock(clock_mutex);
+    reached = clock_cv.wait_for(lock, kBthreadTestTimeout,
+                                [&] { return safe_boundary_reached; });
+    if (reached) {
+      now += std::chrono::seconds(2);
+    }
+  }
+  if (reached) {
+    // The request still owns the entry mutex. The reaper may only mark it
+    // expired; the request must perform rollback at its post-execution
+    // boundary.
+    ReapExpired(manager);
+  }
+  {
+    std::lock_guard lock(clock_mutex);
+    release_safe_boundary = true;
+  }
+  clock_cv.notify_all();
+  request.join();
+
+  ASSERT_TRUE(reached);
+  EXPECT_EQ(result_code.load(std::memory_order_acquire),
+            static_cast<int32_t>(StatusCode::ERR_TX_TIMEOUT));
+  EXPECT_EQ(manager.Rollback(*transaction_id).error_code(),
+            StatusCode::ERR_NOT_FOUND);
+}
+
+TEST_F(NeugDBServiceTest,
+       ServiceTransactionManagerRejectsSameIdConflictBeforeSlotAdmission) {
+  NeugDBService service(*db_, config_);
+  ServiceTransactionManager manager(service, 2, 0);
+  auto transaction_id = manager.BeginTransaction(TransactionMode::kReadOnly);
+  ASSERT_TRUE(transaction_id);
+
+  auto entry_lock = LockTransactionEntry(manager, *transaction_id);
+  std::vector<ExecutionSlotLease> slots;
+  for (size_t i = 0; i < service.ExecutionSlotNum(); ++i) {
+    slots.emplace_back(service.AcquireExecutionSlot());
+  }
+
+  std::atomic<int32_t> error_code{0};
+  std::thread concurrent([&] {
+    auto result = manager.ExecuteRequest(
+        *transaction_id, RequestSerializer::SerializeRequest(
+                             "MATCH (n) RETURN count(n);", "read", {}));
+    if (!result) {
+      error_code.store(static_cast<int32_t>(result.error().error_code()),
+                       std::memory_order_release);
+    }
+  });
+  concurrent.join();
+  EXPECT_EQ(error_code.load(std::memory_order_acquire),
+            static_cast<int32_t>(StatusCode::ERR_TX_STATE_CONFLICT));
+
+  slots.clear();
+  entry_lock.unlock();
+  EXPECT_TRUE(manager.Rollback(*transaction_id).ok());
+}
+
+TEST_F(NeugDBServiceTest,
+       TransactionHttpAdapterValidatesProtocolAndPreservesState) {
+  NeugDBService service(*db_, config_);
+  HttpServiceImpl http_service(service);
+  HttpRequest request;
+  HttpResponse response;
+
+  brpc::Controller malformed_begin;
+  malformed_begin.http_request().set_method(brpc::HTTP_METHOD_POST);
+  malformed_begin.request_attachment().append(R"({"mode":"invalid"})");
+  http_service.BeginTransaction(&malformed_begin, &request, &response, nullptr);
+  EXPECT_TRUE(malformed_begin.Failed());
+  EXPECT_EQ(malformed_begin.http_response().status_code(),
+            brpc::HTTP_STATUS_BAD_REQUEST);
+  ASSERT_NE(malformed_begin.http_response().GetHeader("Cache-Control"),
+            nullptr);
+  EXPECT_EQ(*malformed_begin.http_response().GetHeader("Cache-Control"),
+            "no-store");
+
+  brpc::Controller begin;
+  begin.http_request().set_method(brpc::HTTP_METHOD_POST);
+  begin.request_attachment().append(R"({"mode":"read_write"})");
+  http_service.BeginTransaction(&begin, &request, &response, nullptr);
+  ASSERT_FALSE(begin.Failed()) << begin.ErrorText();
+  EXPECT_EQ(begin.http_response().status_code(), brpc::HTTP_STATUS_OK);
+  const auto* transaction_id =
+      begin.http_response().GetHeader("X-Transaction-Id");
+  ASSERT_NE(transaction_id, nullptr);
+  ASSERT_EQ(transaction_id->size(), 22U);
+
+  brpc::Controller query;
+  query.http_request().set_method(brpc::HTTP_METHOD_POST);
+  query.http_request().SetHeader("X-Transaction-Id", *transaction_id);
+  query.request_attachment().append(RequestSerializer::SerializeRequest(
+      "CREATE (:person {id: 900004, name: 'http', age: 34});", "insert", {}));
+  http_service.PostTransactionQuery(&query, &request, &response, nullptr);
+  ASSERT_FALSE(query.Failed()) << query.ErrorText();
+
+  brpc::Controller control_statement;
+  control_statement.http_request().set_method(brpc::HTTP_METHOD_POST);
+  control_statement.http_request().SetHeader("X-Transaction-Id",
+                                             *transaction_id);
+  control_statement.request_attachment().append(
+      RequestSerializer::SerializeRequest("ROLLBACK", "", {}));
+  http_service.PostTransactionQuery(&control_statement, &request, &response,
+                                    nullptr);
+  EXPECT_TRUE(control_statement.Failed());
+  EXPECT_EQ(control_statement.http_response().status_code(),
+            brpc::HTTP_STATUS_BAD_REQUEST);
+
+  brpc::Controller private_read;
+  private_read.http_request().set_method(brpc::HTTP_METHOD_POST);
+  private_read.http_request().SetHeader("X-Transaction-Id", *transaction_id);
+  private_read.request_attachment().append(RequestSerializer::SerializeRequest(
+      "MATCH (n:person {id: 900004}) RETURN count(n);", "read", {}));
+  http_service.PostTransactionQuery(&private_read, &request, &response,
+                                    nullptr);
+  ASSERT_FALSE(private_read.Failed()) << private_read.ErrorText();
+  auto private_result =
+      QueryResult::From(private_read.response_attachment().to_string());
+  EXPECT_EQ(private_result.GetInt64(0), 1);
+
+  brpc::Controller transaction_schema;
+  transaction_schema.http_request().set_method(brpc::HTTP_METHOD_GET);
+  transaction_schema.http_request().SetHeader("X-Transaction-Id",
+                                              *transaction_id);
+  google::protobuf::Empty empty;
+  http_service.GetTransactionSchema(&transaction_schema, &empty, &response,
+                                    nullptr);
+  ASSERT_FALSE(transaction_schema.Failed()) << transaction_schema.ErrorText();
+  EXPECT_NE(transaction_schema.response_attachment().to_string().find("person"),
+            std::string::npos);
+
+  brpc::Controller commit;
+  commit.http_request().set_method(brpc::HTTP_METHOD_POST);
+  commit.http_request().SetHeader("X-Transaction-Id", *transaction_id);
+  http_service.CommitTransaction(&commit, &request, &response, nullptr);
+  ASSERT_FALSE(commit.Failed()) << commit.ErrorText();
+  EXPECT_EQ(commit.http_response().status_code(), brpc::HTTP_STATUS_OK);
+
+  brpc::Controller terminal_query;
+  terminal_query.http_request().set_method(brpc::HTTP_METHOD_POST);
+  terminal_query.http_request().SetHeader("X-Transaction-Id", *transaction_id);
+  terminal_query.request_attachment().append(
+      RequestSerializer::SerializeRequest("MATCH (n) RETURN count(n);", "read",
+                                          {}));
+  http_service.PostTransactionQuery(&terminal_query, &request, &response,
+                                    nullptr);
+  EXPECT_TRUE(terminal_query.Failed());
+  EXPECT_EQ(terminal_query.http_response().status_code(),
+            brpc::HTTP_STATUS_NOT_FOUND);
+
+  brpc::Controller missing_id;
+  missing_id.http_request().set_method(brpc::HTTP_METHOD_POST);
+  missing_id.request_attachment().append(RequestSerializer::SerializeRequest(
+      "MATCH (n) RETURN count(n);", "read", {}));
+  http_service.PostTransactionQuery(&missing_id, &request, &response, nullptr);
+  EXPECT_TRUE(missing_id.Failed());
+  EXPECT_EQ(missing_id.http_response().status_code(),
+            brpc::HTTP_STATUS_BAD_REQUEST);
+
+  brpc::Controller auto_commit_with_id;
+  auto_commit_with_id.http_request().set_method(brpc::HTTP_METHOD_POST);
+  auto_commit_with_id.http_request().SetHeader("X-Transaction-Id",
+                                               *transaction_id);
+  auto_commit_with_id.request_attachment().append(
+      RequestSerializer::SerializeRequest("MATCH (n) RETURN count(n);", "read",
+                                          {}));
+  http_service.PostCypherQuery(&auto_commit_with_id, &request, &response,
+                               nullptr);
+  EXPECT_TRUE(auto_commit_with_id.Failed());
+  EXPECT_EQ(auto_commit_with_id.http_response().status_code(),
+            brpc::HTTP_STATUS_BAD_REQUEST);
+
+  auto published = service.AcquireExecutionSlot()->ExecuteTransactionalRequest(
+      RequestSerializer::SerializeRequest(
+          "MATCH (n:person {id: 900004}) RETURN count(n);", "read", {}));
+  ASSERT_TRUE(published);
+  EXPECT_EQ(QueryResult::From(std::move(*published)).GetInt64(0), 1);
+
+  EXPECT_EQ(status_code_to_http_code(StatusCode::ERR_TX_STATE_CONFLICT),
+            brpc::HTTP_STATUS_CONFLICT);
+  EXPECT_EQ(status_code_to_http_code(StatusCode::ERR_TX_TIMEOUT),
+            brpc::HTTP_STATUS_CONFLICT);
 }
 
 TEST_F(NeugDBServiceTest,
@@ -395,6 +901,10 @@ TEST_F(NeugDBServiceTest, GetServiceConfig) {
   EXPECT_EQ(retrieved_config.host_str, config_.host_str);
   EXPECT_EQ(retrieved_config.thread_num, config_.thread_num);
   EXPECT_EQ(retrieved_config.auto_compaction, config_.auto_compaction);
+  EXPECT_EQ(retrieved_config.max_explicit_transactions,
+            config_.max_explicit_transactions);
+  EXPECT_EQ(retrieved_config.explicit_transaction_timeout_ms,
+            config_.explicit_transaction_timeout_ms);
 }
 
 TEST_F(NeugDBServiceTest, DefaultServiceThreadsFollowDatabaseMaxThreadNum) {

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <rapidjson/document.h>
@@ -51,9 +52,12 @@ class CurrentCowWriteTransaction;
 class CurrentGraphWriteGuard;
 class IVersionManager;
 class NeugDB;
+class Connection;
 class ExecutionSlot;
 class ExecutionSlotScheduler;
 class ExecutionSlotSet;
+class ServiceTransactionManager;
+class TransactionContext;
 
 enum class QueryExecutionStrategy : uint8_t {
   kDirect,
@@ -163,7 +167,10 @@ class ExecutionSlot {
 
   SnapshotCowWriteTransaction BeginSnapshotCowWriteTransaction();
 
-  CurrentCowWriteTransaction BeginCurrentCowWriteTransaction();
+  std::optional<SnapshotCowWriteTransaction>
+  TryBeginSnapshotCowWriteTransaction();
+
+  result<CurrentCowWriteTransaction> BeginCurrentCowWriteTransaction();
 
   CompactTransaction BeginCompactTransaction();
 
@@ -237,6 +244,8 @@ class ExecutionSlot {
  private:
   friend class NeugDB;
   friend class ExecutionSlotSet;
+  friend class Connection;
+  friend class ServiceTransactionManager;
 
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
                 std::shared_ptr<IGraphPlanner> planner,
@@ -264,6 +273,20 @@ class ExecutionSlot {
 
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
       const GraphStats& stats, const std::string& query, int32_t num_threads);
+  result<std::shared_ptr<execution::CacheValue>> prepareQueryUncached(
+      const GraphStats& stats, const std::string& query, int32_t num_threads);
+
+  QueryAnalysis AnalyzeQuery(const std::string& query) const;
+  result<QueryResult> ExecuteQueryWithAnalysis(
+      const std::string& query_string, const std::string& access_mode,
+      const rapidjson::Value& parameters, int32_t num_threads,
+      const QueryAnalysis& analysis);
+  result<QueryResult> ExecuteQueryInTransaction(
+      const std::string& query_string, const std::string& access_mode,
+      const rapidjson::Value& parameters, int32_t num_threads,
+      const QueryAnalysis& analysis, TransactionContext& transaction_context);
+  result<std::string> ExecuteTransactionalRequest(
+      const std::string& request, TransactionContext* transaction_context);
 
   Status validatePlan(AccessMode mode, const physical::ExecutionFlag& flags,
                       bool is_explain) const;
@@ -272,7 +295,8 @@ class ExecutionSlot {
 
   Status executeCore(const std::string& query, AccessMode requested_mode,
                      const rapidjson::Value& parameters, int32_t num_threads,
-                     QueryResponse& response);
+                     const QueryAnalysis& analysis, QueryResponse& response,
+                     TransactionContext* transaction_context = nullptr);
 
   CurrentCowWriteTransaction BeginCurrentCowWriteTransaction(
       CurrentGraphWriteGuard guard);

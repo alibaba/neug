@@ -24,6 +24,7 @@
 #include <rapidjson/document.h>
 
 #include "neug/main/query_result.h"
+#include "neug/main/transaction_context.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -131,6 +132,8 @@ class Connection {
    *
    * @note Use parameterized queries for dynamic values to prevent injection.
    * @note Specifying correct access_mode ensures proper transaction handling.
+   * @note Control explicit transactions with BeginTransaction(), Commit(), and
+   * Rollback(); Query() does not support transaction control statements.
    *
    * @see QueryResult For iterating over results
    *
@@ -140,6 +143,17 @@ class Connection {
                             const std::string& access_mode = "",
                             const rapidjson::Value& parameters =
                                 rapidjson::Value{rapidjson::kObjectType});
+
+  /** Begin a Connection-owned explicit transaction. */
+  Status BeginTransaction(TransactionMode mode = TransactionMode::kReadWrite);
+  /** Commit the active explicit transaction. */
+  Status Commit();
+  /** Roll back the active or rollback-only explicit transaction. */
+  Status Rollback();
+  /** True until an explicit transaction is committed or rolled back. */
+  bool HasActiveTransaction() const noexcept {
+    return transaction_context_.HasActiveTransaction();
+  }
 
   /**
    * @brief Get the database schema as a YAML string.
@@ -195,6 +209,7 @@ class Connection {
 
  private:
   std::unique_ptr<ExecutionSlot> execution_slot_;
+  TransactionContext transaction_context_;
   CloseCallback on_close_;
 
   std::atomic<bool> is_closed_{false};

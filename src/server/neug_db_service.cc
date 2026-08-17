@@ -23,6 +23,7 @@
 #include "neug/main/checkpoint_coordinator.h"
 #include "neug/server/brpc_service_mgr.h"
 #include "neug/server/bthread_runtime_wait.h"
+#include "neug/server/service_transaction_manager.h"
 #include "neug/transaction/version_manager.h"
 
 #define STRINGIFY(x) #x
@@ -34,6 +35,22 @@ namespace {
 constexpr auto kCompactInterval = std::chrono::seconds(30);
 constexpr size_t kCompactQueryThreshold = 100000;
 }  // namespace
+
+NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
+    : db_(db), db_config_(db_.config()) {
+  auto& execution_slots = db_.registerService(this);
+  try {
+    installBthreadRuntimeWait();
+    init(config, execution_slots);
+  } catch (...) {
+    hdl_mgr_.reset();
+    transaction_manager_.reset();
+    execution_slot_scheduler_.reset();
+    restoreNativeRuntimeWait();
+    db_.unregisterService(this);
+    throw;
+  }
+}
 
 void NeugDBService::installBthreadRuntimeWait() {
   CHECK(!bthread_runtime_wait_installed_);
@@ -97,18 +114,27 @@ void NeugDBService::init(const ServiceConfig& config,
 
   execution_slot_scheduler_ =
       std::make_unique<neug::ExecutionSlotScheduler>(execution_slots);
+  transaction_manager_ = std::make_unique<neug::ServiceTransactionManager>(
+      *this, effective_config.max_explicit_transactions,
+      effective_config.explicit_transaction_timeout_ms);
 
-  hdl_mgr_ =
-      std::make_unique<BrpcServiceManager>(db_, *execution_slot_scheduler_);
+  hdl_mgr_ = std::make_unique<BrpcServiceManager>(*this);
   hdl_mgr_->Init(effective_config);
   service_config_ = effective_config;
 }
 
 NeugDBService::~NeugDBService() {
+  if (transaction_manager_) {
+    transaction_manager_->CloseAdmission();
+  }
   stopCompactThread();
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
+  }
+  if (transaction_manager_) {
+    transaction_manager_->CloseAndDrain();
+    transaction_manager_.reset();
   }
   drainExecutionRuntime();
   restoreNativeRuntimeWait();
@@ -121,6 +147,14 @@ const ServiceConfig& NeugDBService::GetServiceConfig() const {
 
 neug::ExecutionSlotLease NeugDBService::AcquireExecutionSlot() {
   return execution_slot_scheduler_->AcquireExecutionSlot();
+}
+
+neug::ExecutionSlotLease NeugDBService::TryAcquireExecutionSlot() {
+  return execution_slot_scheduler_->TryAcquireExecutionSlot();
+}
+
+ServiceTransactionManager& NeugDBService::transactionManager() {
+  return *transaction_manager_;
 }
 
 bool NeugDBService::IsRunning() const {
@@ -145,6 +179,7 @@ void NeugDBService::run_and_wait_for_exit() {
   if (!hdl_mgr_) {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
+  transaction_manager_->OpenAdmission();
   startCompactThread();
   running_.store(true, std::memory_order_relaxed);
   try {
@@ -153,9 +188,11 @@ void NeugDBService::run_and_wait_for_exit() {
   } catch (...) {
     running_.store(false, std::memory_order_relaxed);
     stopCompactThread();
+    transaction_manager_->CloseAndDrain();
     throw;
   }
   stopCompactThread();
+  transaction_manager_->CloseAndDrain();
 }
 
 void NeugDBService::Stop() {
@@ -165,9 +202,11 @@ void NeugDBService::Stop() {
     return;
   }
   if (hdl_mgr_) {
+    transaction_manager_->CloseAdmission();
     hdl_mgr_->Stop();
     running_.store(false, std::memory_order_relaxed);
     stopCompactThread();
+    transaction_manager_->CloseAndDrain();
     return;
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
@@ -180,6 +219,7 @@ std::string NeugDBService::Start() {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
   if (hdl_mgr_) {
+    transaction_manager_->OpenAdmission();
     startCompactThread();
     try {
       auto ret = hdl_mgr_->Start();
@@ -187,6 +227,7 @@ std::string NeugDBService::Start() {
       return ret;
     } catch (...) {
       stopCompactThread();
+      transaction_manager_->CloseAndDrain();
       throw;
     }
   } else {

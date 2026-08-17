@@ -154,6 +154,34 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
 
   if (isKeyword(statement, "CHECKPOINT") && isStatementEnd(query, offset)) {
     analysis.kind = QueryKind::kCheckpoint;
+    return;
+  }
+  if (analysis.explain_mode != ExplainMode::kNone) {
+    return;
+  }
+  if (isKeyword(statement, "BEGIN")) {
+    const auto transaction_keyword = nextKeyword(query, offset);
+    if (!isKeyword(transaction_keyword, "TRANSACTION")) {
+      return;
+    }
+    const auto modifier = nextKeyword(query, offset);
+    if (modifier.empty() && isStatementEnd(query, offset)) {
+      analysis.transaction_action = transaction::TransactionAction::BEGIN_WRITE;
+    } else if (isKeyword(modifier, "READ")) {
+      const auto only = nextKeyword(query, offset);
+      if (isKeyword(only, "ONLY") && isStatementEnd(query, offset)) {
+        analysis.transaction_action =
+            transaction::TransactionAction::BEGIN_READ;
+      }
+    }
+    return;
+  }
+  if (isStatementEnd(query, offset)) {
+    if (isKeyword(statement, "COMMIT")) {
+      analysis.transaction_action = transaction::TransactionAction::COMMIT;
+    } else if (isKeyword(statement, "ROLLBACK")) {
+      analysis.transaction_action = transaction::TransactionAction::ROLLBACK;
+    }
   }
 }
 

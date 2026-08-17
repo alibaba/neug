@@ -627,6 +627,160 @@ TEST_F(ConnectionTest, TestConnectionQueryResult) {
   EXPECT_EQ(ids, expected_ids);
 }
 
+TEST_F(ConnectionTest, ExplicitReadWriteTransactionCommitsAcrossQueries) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  EXPECT_FALSE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100001, name: 'explicit-commit', age: 42});"));
+
+  auto in_transaction =
+      conn->Query("MATCH (n:person {id: 100001}) RETURN n.name;", "read");
+  ASSERT_TRUE(in_transaction) << in_transaction.error().ToString();
+  EXPECT_EQ(in_transaction.value().response().row_count(), 1);
+
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_FALSE(conn->HasActiveTransaction());
+  EXPECT_FALSE(conn->Commit().ok());
+  auto committed =
+      conn->Query("MATCH (n:person {id: 100001}) RETURN n.name;", "read");
+  ASSERT_TRUE(committed) << committed.error().ToString();
+  EXPECT_EQ(committed.value().response().row_count(), 1);
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100005, name: 'close-rollback', age: 46});"));
+  conn->Close();
+  auto reopened_connection = db.Connect();
+  auto closed_rollback = reopened_connection->Query(
+      "MATCH (n:person {id: 100005}) RETURN n.name;", "read");
+  ASSERT_TRUE(closed_rollback) << closed_rollback.error().ToString();
+  EXPECT_EQ(closed_rollback.value().response().row_count(), 0);
+}
+
+TEST_F(ConnectionTest,
+       ExplicitTransactionFailureRollsBackAndRejectsCypherControlStatements) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100002, name: 'explicit-abort', age: 43});"));
+
+  auto failed = conn->Query("MATCH (n:missing) RETURN n;", "read");
+  ASSERT_FALSE(failed);
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  EXPECT_FALSE(conn->Query("MATCH (n:person) RETURN count(n);", "read"));
+  EXPECT_FALSE(conn->Commit());
+
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_FALSE(conn->HasActiveTransaction());
+  auto rolled_back =
+      conn->Query("MATCH (n:person {id: 100002}) RETURN n.name;", "read");
+  ASSERT_TRUE(rolled_back) << rolled_back.error().ToString();
+  EXPECT_EQ(rolled_back.value().response().row_count(), 0);
+
+  for (const auto* statement : {"BEGIN TRANSACTION;", "COMMIT;", "ROLLBACK;"}) {
+    auto control = conn->Query(statement);
+    ASSERT_FALSE(control);
+    EXPECT_EQ(control.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+    EXPECT_FALSE(conn->HasActiveTransaction());
+  }
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100003, name: 'explicit-reopen', age: 44});"));
+  ASSERT_TRUE(conn->Commit().ok());
+  auto committed =
+      conn->Query("MATCH (n:person {id: 100003}) RETURN n.name;", "read");
+  ASSERT_TRUE(committed) << committed.error().ToString();
+  EXPECT_EQ(committed.value().response().row_count(), 1);
+}
+
+TEST_F(ConnectionTest, ExplicitTransactionRestrictsReadOnlyAndPrivateSchema) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  ASSERT_TRUE(conn->Query("MATCH (n:person) RETURN count(n);", "read"));
+  auto write_in_read_only =
+      conn->Query("CREATE (:person {id: 100004, name: 'read-only', age: 45});");
+  ASSERT_FALSE(write_in_read_only);
+  EXPECT_EQ(write_in_read_only.error().error_code(),
+            StatusCode::ERR_TX_STATE_CONFLICT);
+  EXPECT_THROW(conn->GetSchema(), neug::exception::TxStateConflictException);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE W5TxNode (id INT64, PRIMARY KEY(id));", "schema"));
+  EXPECT_NE(conn->GetSchema().find("W5TxNode"), std::string::npos);
+  ASSERT_TRUE(conn->Query("MATCH (n:W5TxNode) RETURN count(n);", "read"));
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_EQ(conn->GetSchema().find("W5TxNode"), std::string::npos);
+  EXPECT_FALSE(conn->Query("MATCH (n:W5TxNode) RETURN count(n);", "read"));
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  const char* csv_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
+  ASSERT_NE(csv_dir, nullptr);
+  auto copy = conn->Query("COPY person FROM \"" + std::string(csv_dir) +
+                          "/person.csv\";");
+  ASSERT_FALSE(copy);
+  EXPECT_EQ(copy.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  auto checkpoint = conn->Query("CHECKPOINT;");
+  ASSERT_FALSE(checkpoint);
+  EXPECT_EQ(checkpoint.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  ASSERT_TRUE(conn->Rollback().ok());
+}
+
+TEST_F(ConnectionTest, ExplicitTransactionCommitReplaysAfterRestart) {
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+
+  {
+    NeugDB db;
+    db.Open(config);
+    auto conn = db.Connect();
+    ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+    ASSERT_TRUE(conn->Query(
+        "CREATE (:person {id: 100006, name: 'explicit-replay', age: 47});"));
+    ASSERT_TRUE(conn->Commit().ok());
+    conn->Close();
+    db.Close();
+  }
+
+  {
+    NeugDB db;
+    db.Open(config);
+    auto conn = db.Connect();
+    auto replayed =
+        conn->Query("MATCH (n:person {id: 100006}) RETURN n.name;", "read");
+    ASSERT_TRUE(replayed) << replayed.error().ToString();
+    EXPECT_EQ(replayed.value().response().row_count(), 1);
+    db.Close();
+  }
+}
+
 TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
   NeugDBConfig config;
   config.data_dir = DB_DIR;

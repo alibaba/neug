@@ -192,6 +192,16 @@ void OperationGate::enter_phase(AdmissionState desired_phase) {
   }
 }
 
+bool OperationGate::try_enter_phase(AdmissionState desired_phase) noexcept {
+  uint64_t observed = state_.load(std::memory_order_relaxed);
+  while (OperationGateWord::phase(observed) == AdmissionState::kOpen) {
+    if (OperationGateWord::try_change_phase(state_, observed, desired_phase)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool OperationGate::enter_phase_until(
     AdmissionState desired_phase,
     std::chrono::steady_clock::time_point deadline) {

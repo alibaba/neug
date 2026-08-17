@@ -31,6 +31,7 @@
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/main/checkpoint_coordinator.h"
 #include "neug/main/query_request.h"
+#include "neug/main/transaction_context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
@@ -204,6 +205,13 @@ SnapshotCowWriteTransaction ExecutionSlot::BeginSnapshotCowWriteTransaction() {
                                             alloc_, wal_writer_);
 }
 
+std::optional<SnapshotCowWriteTransaction>
+ExecutionSlot::TryBeginSnapshotCowWriteTransaction() {
+  CHECK(execution_strategy_ == QueryExecutionStrategy::kTransactional);
+  return SnapshotCowWriteTransaction::TryBegin(
+      version_manager_, snapshot_store_, alloc_, wal_writer_);
+}
+
 CurrentCowWriteTransaction ExecutionSlot::BeginCurrentCowWriteTransaction(
     CurrentGraphWriteGuard guard) {
   CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect);
@@ -211,9 +219,18 @@ CurrentCowWriteTransaction ExecutionSlot::BeginCurrentCowWriteTransaction(
                                            snapshot_store_, wal_writer_);
 }
 
-CurrentCowWriteTransaction ExecutionSlot::BeginCurrentCowWriteTransaction() {
-  return BeginCurrentCowWriteTransaction(
-      CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
+result<CurrentCowWriteTransaction>
+ExecutionSlot::BeginCurrentCowWriteTransaction() {
+  auto guard =
+      CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_);
+  if (checkpoint_coordinator_.UnloggedMutationPending()) {
+    RETURN_STATUS_ERROR_IF_NOT_OK(
+        checkpoint_coordinator_.PublishIncrementalCheckpoint(
+            guard.ReleaseForCheckpoint()));
+    return BeginCurrentCowWriteTransaction(
+        CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
+  }
+  return BeginCurrentCowWriteTransaction(std::move(guard));
 }
 
 CompactTransaction ExecutionSlot::BeginCompactTransaction() {
@@ -234,6 +251,27 @@ result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
 
   GS_AUTO(cache_value, pipeline_cache_.Get(stats, query));
   return cache_value;
+}
+
+result<std::shared_ptr<execution::CacheValue>>
+ExecutionSlot::prepareQueryUncached(const GraphStats& stats,
+                                    const std::string& query,
+                                    int32_t num_threads) {
+  if (num_threads == 0) {
+    num_threads = db_config_.max_thread_num;
+  }
+  num_threads = std::min(num_threads, db_config_.max_thread_num);
+  if (num_threads < 1) {
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Number of threads must be greater than 0"));
+  }
+
+  GS_AUTO(cache_value, pipeline_cache_.CompileUncached(stats, query));
+  return cache_value;
+}
+
+QueryAnalysis ExecutionSlot::AnalyzeQuery(const std::string& query) const {
+  return planner_->analyzeQuery(query);
 }
 
 Status ExecutionSlot::validateCheckpointRequest(AccessMode access_mode) const {
@@ -294,6 +332,14 @@ Status ExecutionSlot::validatePlan(AccessMode mode,
 result<QueryResult> ExecutionSlot::ExecuteQuery(
     const std::string& query_string, const std::string& access_mode,
     const rapidjson::Value& parameters, int32_t num_threads) {
+  return ExecuteQueryWithAnalysis(query_string, access_mode, parameters,
+                                  num_threads, AnalyzeQuery(query_string));
+}
+
+result<QueryResult> ExecutionSlot::ExecuteQueryWithAnalysis(
+    const std::string& query_string, const std::string& access_mode,
+    const rapidjson::Value& parameters, int32_t num_threads,
+    const QueryAnalysis& analysis) {
   if (execution_strategy_ != QueryExecutionStrategy::kDirect) {
     RETURN_ERROR(
         Status(StatusCode::ERR_NOT_SUPPORTED,
@@ -303,7 +349,26 @@ result<QueryResult> ExecutionSlot::ExecuteQuery(
       access_mode.empty() ? AccessMode::kUnKnown : ParseAccessMode(access_mode);
   neug::QueryResponse response;
   RETURN_STATUS_ERROR_IF_NOT_OK(executeCore(query_string, requested_mode,
-                                            parameters, num_threads, response));
+                                            parameters, num_threads, analysis,
+                                            response));
+  return QueryResult(std::move(response));
+}
+
+result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
+    const std::string& query_string, const std::string& access_mode,
+    const rapidjson::Value& parameters, int32_t num_threads,
+    const QueryAnalysis& analysis, TransactionContext& transaction_context) {
+  CHECK(transaction_context.IsActive());
+  if (!transaction_context.IsReadOnly()) {
+    CHECK_EQ(transaction_context.IsSnapshotWriteTransaction(),
+             execution_strategy_ == QueryExecutionStrategy::kTransactional);
+  }
+  const auto requested_mode =
+      access_mode.empty() ? AccessMode::kUnKnown : ParseAccessMode(access_mode);
+  neug::QueryResponse response;
+  RETURN_STATUS_ERROR_IF_NOT_OK(executeCore(query_string, requested_mode,
+                                            parameters, num_threads, analysis,
+                                            response, &transaction_context));
   return QueryResult(std::move(response));
 }
 
@@ -311,9 +376,15 @@ Status ExecutionSlot::executeCore(const std::string& query,
                                   AccessMode requested_mode,
                                   const rapidjson::Value& parameters,
                                   int32_t num_threads,
-                                  QueryResponse& response) {
+                                  const QueryAnalysis& analysis,
+                                  QueryResponse& response,
+                                  TransactionContext* transaction_context) {
   const auto start = std::chrono::high_resolution_clock::now();
-  const auto analysis = planner_->analyzeQuery(query);
+  if (NEUG_UNLIKELY(analysis.transaction())) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Transaction control statements are not supported by query "
+                  "execution; use the programmatic transaction API.");
+  }
   const auto access_mode = requested_mode == AccessMode::kUnKnown
                                ? analysis.access_mode
                                : requested_mode;
@@ -321,13 +392,18 @@ Status ExecutionSlot::executeCore(const std::string& query,
 
   // EXPLAIN CHECKPOINT is non-mutating; skip the checkpoint access-mode
   // validation so it works on read-only databases and with access_mode=read.
+  if (NEUG_UNLIKELY(transaction_context != nullptr && analysis.checkpoint())) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "CHECKPOINT is not supported in an explicit transaction.");
+  }
   if (NEUG_UNLIKELY(analysis.checkpoint() &&
                     analysis.explain_mode != ExplainMode::kExplain)) {
     RETURN_IF_NOT_OK(validateCheckpointRequest(access_mode));
   }
 
   auto execute_prepared_on_storage =
-      [this, access_mode, &analysis, &parameters, &response, &prepared_query](
+      [this, access_mode, &analysis, &parameters, &response, &prepared_query,
+       transaction_context](
           std::shared_ptr<execution::CacheValue> prepared_query_for_execution,
           auto& storage) -> Status {
     RETURN_IF_NOT_OK(
@@ -335,6 +411,23 @@ Status ExecutionSlot::executeCore(const std::string& query,
     RETURN_IF_NOT_OK(
         validatePlan(access_mode, prepared_query_for_execution->flags,
                      analysis.explain_mode == ExplainMode::kExplain));
+    if (transaction_context != nullptr) {
+      const auto& flags = prepared_query_for_execution->flags;
+      if (transaction_context->IsReadOnly() &&
+          !IsReadOnlyExecutionFlag(flags)) {
+        return Status(
+            StatusCode::ERR_TX_STATE_CONFLICT,
+            "Write queries are not allowed in a read-only transaction.");
+      }
+      if (!transaction_context->IsReadOnly() &&
+          (flags.batch() || flags.index() || flags.create_temp_table() ||
+           flags.procedure_call() || flags.checkpoint())) {
+        return Status(StatusCode::ERR_NOT_SUPPORTED,
+                      "Bulk, index, temporary schema, mutating procedure, and "
+                      "maintenance operations are not supported in an explicit "
+                      "transaction.");
+      }
+    }
     auto parsed_parameters = execution::parseJsonParameters(
         prepared_query_for_execution->params_type, parameters);
     if (NEUG_UNLIKELY(!parsed_parameters)) {
@@ -349,9 +442,13 @@ Status ExecutionSlot::executeCore(const std::string& query,
   };
 
   auto execute_on_storage =
-      [this, &query, num_threads, &execute_prepared_on_storage](
-          const GraphStats& stats, auto& storage) -> Status {
-    auto prepared = prepareQuery(stats, query, num_threads);
+      [this, &query, num_threads, &execute_prepared_on_storage,
+       transaction_context](const GraphStats& stats, auto& storage) -> Status {
+    auto prepared = transaction_context != nullptr &&
+                            !transaction_context->IsReadOnly() &&
+                            transaction_context->PrivateViewChanged()
+                        ? prepareQueryUncached(stats, query, num_threads)
+                        : prepareQuery(stats, query, num_threads);
     if (NEUG_UNLIKELY(!prepared)) {
       return prepared.error();
     }
@@ -359,9 +456,26 @@ Status ExecutionSlot::executeCore(const std::string& query,
   };
 
   Status status;
-  // EXPLAIN is strategy-independent and uses the same coherent read lease as
-  // ordinary AP and TP reads; it must not acquire a write transaction.
-  if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
+  if (transaction_context != nullptr) {
+    if (transaction_context->IsReadOnly()) {
+      auto& transaction = transaction_context->ReadTransactionOwner();
+      StorageReadInterface storage(transaction.view(), transaction.timestamp());
+      status = execute_on_storage(transaction.statistic(), storage);
+    } else {
+      status = transaction_context->VisitWriteTransaction(
+          [&execute_on_storage](auto& transaction) {
+            auto storage = transaction.OpenStorage();
+            return execute_on_storage(transaction.statistic(), storage);
+          });
+      if (status.ok() && prepared_query != nullptr &&
+          analysis.explain_mode != ExplainMode::kExplain &&
+          !IsReadOnlyExecutionFlag(prepared_query->flags)) {
+        transaction_context->MarkPrivateViewChanged();
+      }
+    }
+  } else if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
+    // EXPLAIN is strategy-independent and uses the same coherent read lease as
+    // ordinary AP and TP reads; it must not acquire a write transaction.
     auto transaction = BeginReadTransaction();
     StorageReadInterface storage(transaction.view(), transaction.timestamp());
     status = execute_on_storage(transaction.statistic(), storage);
@@ -508,18 +622,43 @@ Status ExecutionSlot::executeCore(const std::string& query,
 
 result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
     const std::string& request) {
+  return ExecuteTransactionalRequest(request, nullptr);
+}
+
+result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
+    const std::string& request, TransactionContext* transaction_context) {
   std::string query;
   AccessMode requested_mode = AccessMode::kUnKnown;
   rapidjson::Document parameters_json;
   RETURN_STATUS_ERROR_IF_NOT_OK(RequestParser::ParseFromString(
       request, query, requested_mode, parameters_json));
+  const auto analysis = AnalyzeQuery(query);
+  if (transaction_context != nullptr && analysis.transaction()) {
+    RETURN_ERROR(Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Transaction control statements are not accepted by this endpoint."));
+  }
 
   google::protobuf::Arena arena;
   auto* response =
       google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
-  RETURN_STATUS_ERROR_IF_NOT_OK(executeCore(
-      query, requested_mode, parameters_json, /*num_threads=*/0, *response));
-  return response->SerializeAsString();
+  try {
+    auto status = executeCore(query, requested_mode, parameters_json,
+                              /*num_threads=*/0, analysis, *response,
+                              transaction_context);
+    if (!status.ok()) {
+      if (transaction_context != nullptr) {
+        transaction_context->AbortAndMarkRollbackOnly();
+      }
+      RETURN_ERROR(status);
+    }
+    return response->SerializeAsString();
+  } catch (...) {
+    if (transaction_context != nullptr) {
+      transaction_context->AbortAndMarkRollbackOnly();
+    }
+    throw;
+  }
 }
 
 std::string ExecutionSlot::GetSchema() const {

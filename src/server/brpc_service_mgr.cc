@@ -15,12 +15,97 @@
 
 #include "neug/server/brpc_service_mgr.h"
 
+#include <algorithm>
+
+#include <rapidjson/document.h>
+
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/server/service_transaction_manager.h"
 
 namespace neug {
 
 static pthread_once_t brpc_service_protocol_init_once = PTHREAD_ONCE_INIT;
+
+namespace {
+
+constexpr char kTransactionIdHeader[] = "X-Transaction-Id";
+constexpr char kNoStoreHeader[] = "Cache-Control";
+
+void SetHttpError(brpc::Controller* cntl, const Status& status) {
+  const auto http_code = status_code_to_http_code(status.error_code());
+  cntl->SetFailed(http_code, "%s", status.ToString().c_str());
+  cntl->http_response().set_status_code(http_code);
+}
+
+void SetTransactionResponseHeaders(brpc::Controller* cntl) {
+  cntl->http_response().SetHeader(kNoStoreHeader, "no-store");
+}
+
+bool RequirePost(brpc::Controller* cntl) {
+  if (cntl->http_request().method() == brpc::HTTP_METHOD_POST) {
+    return true;
+  }
+  cntl->SetFailed(brpc::HTTP_STATUS_METHOD_NOT_ALLOWED, "%s",
+                  "This transaction endpoint requires POST");
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_METHOD_NOT_ALLOWED);
+  return false;
+}
+
+bool RequireGet(brpc::Controller* cntl) {
+  if (cntl->http_request().method() == brpc::HTTP_METHOD_GET) {
+    return true;
+  }
+  cntl->SetFailed(brpc::HTTP_STATUS_METHOD_NOT_ALLOWED, "%s",
+                  "This transaction endpoint requires GET");
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_METHOD_NOT_ALLOWED);
+  return false;
+}
+
+bool IsValidTransactionId(const std::string& transaction_id) {
+  return transaction_id.size() == 22 &&
+         std::all_of(transaction_id.begin(), transaction_id.end(), [](char c) {
+           return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                  (c >= '0' && c <= '9') || c == '-' || c == '_';
+         });
+}
+
+result<std::string> GetTransactionId(brpc::Controller* cntl) {
+  const auto* transaction_id =
+      cntl->http_request().GetHeader(kTransactionIdHeader);
+  if (transaction_id == nullptr || !IsValidTransactionId(*transaction_id)) {
+    RETURN_ERROR(Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "A valid X-Transaction-Id header is required for this endpoint."));
+  }
+  return *transaction_id;
+}
+
+result<TransactionMode> ParseTransactionMode(brpc::Controller* cntl) {
+  const auto body = cntl->request_attachment().to_string();
+  rapidjson::Document document;
+  if (body.empty() ||
+      document.Parse(body.data(), body.size()).HasParseError() ||
+      !document.IsObject() || !document.HasMember("mode") ||
+      !document["mode"].IsString()) {
+    RETURN_ERROR(
+        Status(StatusCode::ERR_INVALID_ARGUMENT,
+               "Transaction body must be an object with a string mode field."));
+  }
+
+  const std::string_view mode(document["mode"].GetString(),
+                              document["mode"].GetStringLength());
+  if (mode == "read_only") {
+    return TransactionMode::kReadOnly;
+  }
+  if (mode == "read_write") {
+    return TransactionMode::kReadWrite;
+  }
+  RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Transaction mode must be read_only or read_write."));
+}
+
+}  // namespace
 
 int32_t status_code_to_http_code(neug::StatusCode code) {
   switch (code) {
@@ -43,7 +128,7 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
   case neug::StatusCode::ERR_INTERNAL_ERROR:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   case neug::StatusCode::ERR_NOT_FOUND:
-    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    return brpc::HTTP_STATUS_NOT_FOUND;
   case neug::StatusCode::ERR_NO_CHECKPOINT:
     return brpc::HTTP_STATUS_NOT_FOUND;
   case neug::StatusCode::ERR_INVALID_ARGUMENT:
@@ -52,6 +137,9 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   case neug::StatusCode::ERR_SERVICE_UNAVAILABLE:
     return brpc::HTTP_STATUS_SERVICE_UNAVAILABLE;
+  case neug::StatusCode::ERR_TX_STATE_CONFLICT:
+  case neug::StatusCode::ERR_TX_TIMEOUT:
+    return brpc::HTTP_STATUS_CONFLICT;
   default:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   }
@@ -84,12 +172,7 @@ void SendHttpQueryResponse(brpc::Controller* cntl,
   } else {
     const auto& status = response.error();
     LOG(ERROR) << "Query failed: " << status.ToString();
-    auto http_code = status_code_to_http_code(status.error_code());
-    cntl->SetFailed(http_code, "%s", status.ToString().c_str());
-    // brpc treats SetFailed's integer as an RPC error code and maps unknown
-    // values (including HTTP 501) back to 500. Override the HTTP status after
-    // SetFailed, as required by brpc::Controller's contract.
-    cntl->http_response().set_status_code(http_code);
+    SetHttpError(cntl, status);
   }
   return;
 }
@@ -103,9 +186,7 @@ void SendHttpStringResponse(brpc::Controller* cntl,
   } else {
     const auto& error = schema.error();
     LOG(ERROR) << "Error " << error.ToString();
-    auto http_code = status_code_to_http_code(error.error_code());
-    cntl->SetFailed(http_code, "%s", error.ToString().c_str());
-    cntl->http_response().set_status_code(http_code);
+    SetHttpError(cntl, error);
   }
 }
 
@@ -201,7 +282,7 @@ void InitializeBrpcServiceProtocols() {
 neug::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
     brpc::Controller* cntl) {
   (void) cntl;
-  auto slot_lease = execution_slot_scheduler_.AcquireExecutionSlot();
+  auto slot_lease = service_.AcquireExecutionSlot();
   auto read_txn = slot_lease->BeginReadTransaction();
   auto yaml = read_txn.schema().to_yaml();
   if (!yaml) {
@@ -230,6 +311,12 @@ void HttpServiceImpl::PostCypherQuery(
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+  if (cntl->http_request().GetHeader(kTransactionIdHeader) != nullptr) {
+    SetTransactionResponseHeaders(cntl);
+    SetHttpError(cntl, Status(StatusCode::ERR_INVALID_ARGUMENT,
+                              "X-Transaction-Id is not accepted by /cypher."));
+    return;
+  }
   std::string query_request;
   // 1. Parse query request
   if (!protocol_.parse_query_request(cntl, (void*) request, query_request)) {
@@ -245,7 +332,7 @@ void HttpServiceImpl::PostCypherQuery(
   }
 
   // 2. Execute query
-  auto slot_lease = execution_slot_scheduler_.AcquireExecutionSlot();
+  auto slot_lease = service_.AcquireExecutionSlot();
   auto result = slot_lease->ExecuteTransactionalRequest(query_request);
 
   // 3. Send Query Response
@@ -255,12 +342,148 @@ void HttpServiceImpl::PostCypherQuery(
   return;
 }
 
+void HttpServiceImpl::BeginTransaction(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  SetTransactionResponseHeaders(cntl);
+  if (!RequirePost(cntl)) {
+    return;
+  }
+  if (cntl->http_request().GetHeader(kTransactionIdHeader) != nullptr) {
+    SetHttpError(
+        cntl,
+        Status(
+            StatusCode::ERR_TX_STATE_CONFLICT,
+            "X-Transaction-Id is not accepted when beginning a transaction."));
+    return;
+  }
+
+  auto mode = ParseTransactionMode(cntl);
+  if (!mode) {
+    SetHttpError(cntl, mode.error());
+    return;
+  }
+  auto transaction_id = service_.transactionManager().BeginTransaction(*mode);
+  if (!transaction_id) {
+    SetHttpError(cntl, transaction_id.error());
+    return;
+  }
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
+  cntl->http_response().SetHeader(kTransactionIdHeader, *transaction_id);
+}
+
+void HttpServiceImpl::PostTransactionQuery(
+    google::protobuf::RpcController* cntl_base, const HttpRequest* request,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  SetTransactionResponseHeaders(cntl);
+  if (!RequirePost(cntl)) {
+    return;
+  }
+  auto transaction_id = GetTransactionId(cntl);
+  if (!transaction_id) {
+    SetHttpError(cntl, transaction_id.error());
+    return;
+  }
+
+  std::string query_request;
+  if (!protocol_.parse_query_request(cntl, (void*) request, query_request)) {
+    return;
+  }
+  auto result = service_.transactionManager().ExecuteRequest(*transaction_id,
+                                                             query_request);
+  protocol_.send_query_response(cntl, result);
+}
+
+void HttpServiceImpl::RollbackTransaction(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  SetTransactionResponseHeaders(cntl);
+  if (!RequirePost(cntl)) {
+    return;
+  }
+  auto transaction_id = GetTransactionId(cntl);
+  if (!transaction_id) {
+    SetHttpError(cntl, transaction_id.error());
+    return;
+  }
+  if (cntl->request_attachment().size() != 0) {
+    SetHttpError(cntl, Status(StatusCode::ERR_INVALID_ARGUMENT,
+                              "Transaction rollback requires an empty body."));
+    return;
+  }
+
+  auto status = service_.transactionManager().Rollback(*transaction_id);
+  if (!status.ok()) {
+    SetHttpError(cntl, status);
+    return;
+  }
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
+}
+
+void HttpServiceImpl::CommitTransaction(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  SetTransactionResponseHeaders(cntl);
+  if (!RequirePost(cntl)) {
+    return;
+  }
+  auto transaction_id = GetTransactionId(cntl);
+  if (!transaction_id) {
+    SetHttpError(cntl, transaction_id.error());
+    return;
+  }
+  if (cntl->request_attachment().size() != 0) {
+    SetHttpError(cntl, Status(StatusCode::ERR_INVALID_ARGUMENT,
+                              "Transaction commit requires an empty body."));
+    return;
+  }
+
+  auto status = service_.transactionManager().Commit(*transaction_id);
+  if (!status.ok()) {
+    SetHttpError(cntl, status);
+    return;
+  }
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
+}
+
+void HttpServiceImpl::GetTransactionSchema(
+    google::protobuf::RpcController* cntl_base, const google::protobuf::Empty*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  SetTransactionResponseHeaders(cntl);
+  if (!RequireGet(cntl)) {
+    return;
+  }
+  auto transaction_id = GetTransactionId(cntl);
+  if (!transaction_id) {
+    SetHttpError(cntl, transaction_id.error());
+    return;
+  }
+  auto schema = service_.transactionManager().GetSchema(*transaction_id);
+  protocol_.send_schema_response(cntl, schema);
+}
+
 void HttpServiceImpl::GetSchema(google::protobuf::RpcController* cntl_base,
                                 const google::protobuf::Empty*,
                                 HttpResponse* response,
                                 google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+  if (cntl->http_request().GetHeader(kTransactionIdHeader) != nullptr) {
+    SetTransactionResponseHeaders(cntl);
+    SetHttpError(cntl, Status(StatusCode::ERR_INVALID_ARGUMENT,
+                              "X-Transaction-Id is not accepted by /schema."));
+    return;
+  }
   // No need to parse request for Schema
   auto ret = GetSchemaImpl(cntl);
 
@@ -273,6 +496,13 @@ void HttpServiceImpl::GetServiceStatus(
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+  if (cntl->http_request().GetHeader(kTransactionIdHeader) != nullptr) {
+    SetTransactionResponseHeaders(cntl);
+    SetHttpError(
+        cntl, Status(StatusCode::ERR_INVALID_ARGUMENT,
+                     "X-Transaction-Id is not accepted by /service_status."));
+    return;
+  }
   // No need to parse request for ServiceStatus
   auto ret = GetServiceStatusImpl(cntl);
 
@@ -280,9 +510,8 @@ void HttpServiceImpl::GetServiceStatus(
   return;
 }
 
-BrpcServiceManager::BrpcServiceManager(neug::NeugDB& neug_db,
-                                       ExecutionSlotScheduler& scheduler)
-    : neug_db_(neug_db), execution_slot_scheduler_(scheduler) {
+BrpcServiceManager::BrpcServiceManager(NeugDBService& service)
+    : service_(service) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
@@ -301,12 +530,16 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
   svc_options.ownership = brpc::SERVER_DOESNT_OWN_SERVICE;
   svc_options.restful_mappings =
       "/cypher => PostCypherQuery,"
+      "/transactions => BeginTransaction,"
+      "/transactions/query => PostTransactionQuery,"
+      "/transactions/commit => CommitTransaction,"
+      "/transactions/rollback => RollbackTransaction,"
+      "/transactions/schema => GetTransactionSchema,"
       "/service_status => GetServiceStatus,"
       "/schema => GetSchema";
 
 #ifdef ENABLE_HTTP_PROTOCOL
-  auto http_svc =
-      std::make_unique<HttpServiceImpl>(neug_db_, execution_slot_scheduler_);
+  auto http_svc = std::make_unique<HttpServiceImpl>(service_);
   if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
     LOG(ERROR) << "Failed to add http service to brpc server";
   }
@@ -324,7 +557,7 @@ std::string BrpcServiceManager::Start() {
                         std::to_string(service_config_.query_port);
   brpc::ServerOptions options = get_server_options();
   LOG(INFO) << "Service config: db_max_thread_num="
-            << neug_db_.config().max_thread_num
+            << service_.db().config().max_thread_num
             << ", configured_thread_num=" << service_config_.thread_num
             << ", resolved_num_threads=" << options.num_threads;
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
@@ -355,7 +588,7 @@ uint32_t BrpcServiceManager::resolve_num_threads() const {
   if (service_config_.thread_num != 0) {
     return service_config_.thread_num;
   }
-  const auto max_thread_num = neug_db_.config().max_thread_num;
+  const auto max_thread_num = service_.db().config().max_thread_num;
   if (max_thread_num <= 0) {
     return 1;
   }

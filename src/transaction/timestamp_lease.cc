@@ -24,6 +24,22 @@
 
 namespace neug {
 
+std::optional<UpdateTimestampLease> UpdateTimestampLease::TryAcquire(
+    IVersionManager& version_manager) {
+  auto timestamp = version_manager.try_acquire_update_timestamp();
+  if (!timestamp) {
+    return std::nullopt;
+  }
+  return std::optional<UpdateTimestampLease>(
+      UpdateTimestampLease(version_manager, *timestamp));
+}
+
+UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager,
+                                           uint32_t timestamp) noexcept
+    : version_manager_(&version_manager), timestamp_(timestamp) {
+  CHECK_NE(timestamp_, kInactiveTimestamp);
+}
+
 UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
     : version_manager_(&version_manager),
       timestamp_(version_manager.acquire_update_timestamp()) {

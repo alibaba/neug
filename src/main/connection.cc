@@ -16,6 +16,8 @@
 #include "neug/main/connection.h"
 
 #include "neug/main/execution_slot.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/yaml_utils.h"
 
 namespace neug {
 
@@ -33,6 +35,15 @@ std::string Connection::GetSchema() const {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
+  if (transaction_context_.IsRollbackOnly()) {
+    THROW_TX_STATE_CONFLICT(
+        "Transaction is rollback-only; Rollback() is required before "
+        "GetSchema.");
+  }
+  if (transaction_context_.IsActive()) {
+    auto yaml = transaction_context_.schema().to_yaml();
+    return get_json_string_from_yaml(yaml.value()).value();
+  }
   return execution_slot_->GetSchema();
 }
 
@@ -42,6 +53,8 @@ void Connection::Close() {
     return;
   }
   LOG(INFO) << "Closing connection.";
+
+  transaction_context_.Rollback();
 
   // Clean up all temporary schemas created through embedded execution.
   // This is safe to do globally because LOAD AS is only supported in
@@ -58,6 +71,54 @@ void Connection::Close() {
   }
 }
 
+Status Connection::BeginTransaction(TransactionMode mode) {
+  if (IsClosed()) {
+    return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+  }
+  if (transaction_context_.HasActiveTransaction()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "An explicit transaction is already active.");
+  }
+
+  if (mode == TransactionMode::kReadOnly) {
+    transaction_context_.Begin(execution_slot_->BeginReadTransaction());
+  } else {
+    auto transaction = execution_slot_->BeginCurrentCowWriteTransaction();
+    if (!transaction) {
+      return transaction.error();
+    }
+    transaction_context_.Begin(std::move(transaction).value());
+  }
+  return Status::OK();
+}
+
+Status Connection::Commit() {
+  if (IsClosed()) {
+    return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+  }
+  if (transaction_context_.IsRollbackOnly()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "Transaction is rollback-only; Rollback() is required.");
+  }
+  if (!transaction_context_.IsActive()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "No explicit transaction is active.");
+  }
+  return transaction_context_.Commit();
+}
+
+Status Connection::Rollback() {
+  if (IsClosed()) {
+    return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+  }
+  if (!transaction_context_.HasActiveTransaction()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "No explicit transaction is active.");
+  }
+  transaction_context_.Rollback();
+  return Status::OK();
+}
+
 result<QueryResult> Connection::Query(const std::string& query_string,
                                       const std::string& access_mode,
                                       const rapidjson::Value& parameters) {
@@ -67,7 +128,42 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  return execution_slot_->ExecuteQuery(query_string, access_mode, parameters);
+  const auto analysis = execution_slot_->AnalyzeQuery(query_string);
+  if (analysis.transaction()) {
+    if (*analysis.transaction_action ==
+        transaction::TransactionAction::CHECKPOINT) {
+      RETURN_ERROR(
+          Status(StatusCode::ERR_INTERNAL_ERROR,
+                 "CHECKPOINT is not a connection transaction control."));
+    }
+    RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
+                        "Transaction control statements are not supported by "
+                        "Connection::Query(); "
+                        "use BeginTransaction(), Commit(), or Rollback()."));
+  }
+
+  if (transaction_context_.IsRollbackOnly()) {
+    RETURN_ERROR(
+        Status(StatusCode::ERR_TX_STATE_CONFLICT,
+               "Transaction is rollback-only; Rollback() is required."));
+  }
+  if (!transaction_context_.IsActive()) {
+    return execution_slot_->ExecuteQueryWithAnalysis(
+        query_string, access_mode, parameters, /*num_threads=*/0, analysis);
+  }
+
+  try {
+    auto result = execution_slot_->ExecuteQueryInTransaction(
+        query_string, access_mode, parameters, /*num_threads=*/0, analysis,
+        transaction_context_);
+    if (!result) {
+      transaction_context_.AbortAndMarkRollbackOnly();
+    }
+    return result;
+  } catch (...) {
+    transaction_context_.AbortAndMarkRollbackOnly();
+    throw;
+  }
 }
 
 }  // namespace neug

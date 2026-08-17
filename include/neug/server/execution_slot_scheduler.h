@@ -34,6 +34,7 @@ class ExecutionSlotScheduler {
   ExecutionSlotScheduler& operator=(const ExecutionSlotScheduler&) = delete;
 
   ExecutionSlotLease AcquireExecutionSlot();
+  ExecutionSlotLease TryAcquireExecutionSlot();
   void CloseAndDrain() noexcept;
   size_t ExecutionSlotNum() const noexcept;
   size_t ExecutedQueryNum() const noexcept;

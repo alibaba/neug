@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <memory>
 
-#include "neug/storages/allocators.h"
 #include "neug/storages/graph/cow_detach_ledger.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
@@ -29,15 +28,13 @@ namespace neug {
  * @brief Private graph clone plus the sparse set of detached storage modules.
  *
  * This is shared mutation state, not a transaction. Admission, visibility,
- * durability and publication belong to the transaction that owns it. The
- * allocator is borrowed from the execution slot: abort drops every graph/view
- * reference created by this write set, but a monotonic allocator may retain
- * the bytes that were allocated by the failed transaction.
+ * durability, publication and allocation lifetime belong to the transaction
+ * that owns it.
  */
 class CowGraphWriteSet {
  public:
   CowGraphWriteSet(std::shared_ptr<PropertyGraph> cow_graph,
-                   uint64_t base_planning_generation, Allocator& alloc);
+                   uint64_t base_planning_generation);
 
   CowGraphWriteSet(CowGraphWriteSet&&) noexcept = default;
   CowGraphWriteSet& operator=(CowGraphWriteSet&&) noexcept = default;
@@ -53,7 +50,6 @@ class CowGraphWriteSet {
   uint64_t base_planning_generation() const {
     return base_planning_generation_;
   }
-  Allocator& allocator() const { return *alloc_; }
   WalBuilder& logical_redo() { return logical_redo_; }
   const WalBuilder& logical_redo() const { return logical_redo_; }
   void MarkBatchMutation() noexcept { batch_mutation_changed_ = true; }
@@ -67,7 +63,6 @@ class CowGraphWriteSet {
   CowDetachLedger detach_state_;
   GraphView view_;
   uint64_t base_planning_generation_;
-  Allocator* alloc_;
   WalBuilder logical_redo_;
   bool batch_mutation_changed_{false};
 };

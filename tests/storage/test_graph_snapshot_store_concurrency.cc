@@ -340,8 +340,8 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PinnedSnapshotSurvivesPublish) {
 }
 
 // 7. COW publish → pin sees new snapshot (E2E visibility).
-// Simulates the SnapshotCowWriteTransaction commit path: clone PG, mutate, publish,
-// then verify a new reader observes the mutation.
+// Simulates the SnapshotCowWriteTransaction commit path: clone PG, mutate,
+// publish, then verify a new reader observes the mutation.
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
   // Clone and add a new vertex type to the COW copy.
   auto cow_pg = initial_pg_->Clone();
@@ -365,8 +365,8 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
 }
 
 // 8. Abort-style release recycles the slot properly.
-// Simulates an SnapshotCowWriteTransaction that clones, publishes, then the caller
-// releases the old pin (as Abort would). Verifies no slot leak.
+// Simulates an SnapshotCowWriteTransaction that clones, publishes, then the
+// caller releases the old pin (as Abort would). Verifies no slot leak.
 TEST_F(GraphSnapshotStoreConcurrencyTest, AbortReleasesSlotWithoutLeak) {
   // Pin the current slot (simulates PinCurrentSnapshot in txn constructor).
   auto& old_slot = store_->PinCurrentSnapshot();

@@ -148,6 +148,9 @@ class OperationGate {
   // Wait until the phase is open, then enter desired_phase. Waiters contend
   // on the phase CAS; acquisition order is intentionally unspecified.
   void enter_phase(detail::AdmissionState desired_phase);
+  // Enter desired_phase only while the gate is open. This never invokes the
+  // runtime waiter and leaves the gate unchanged when another phase owns it.
+  bool try_enter_phase(detail::AdmissionState desired_phase) noexcept;
   // Timed variant. Returns false when the deadline expires before admission;
   // the gate is left unchanged on failure.
   bool enter_phase_until(detail::AdmissionState desired_phase,

@@ -31,6 +31,11 @@ class IVersionManager;
  */
 class UpdateTimestampLease {
  public:
+  // Returns no lease when update admission is busy or an insert is active.
+  // The attempt never invokes the runtime waiter.
+  static std::optional<UpdateTimestampLease> TryAcquire(
+      IVersionManager& version_manager);
+
   explicit UpdateTimestampLease(IVersionManager& version_manager);
   UpdateTimestampLease(IVersionManager& version_manager,
                        std::chrono::steady_clock::time_point deadline);
@@ -46,8 +51,7 @@ class UpdateTimestampLease {
 
   void BeginCommit();
   void MakeUpdateExclusive();
-  void MakeUpdateExclusiveUntil(
-      std::chrono::steady_clock::time_point deadline);
+  void MakeUpdateExclusiveUntil(std::chrono::steady_clock::time_point deadline);
   void Finish(std::optional<uint32_t> installed_snapshot_generation) noexcept;
   /// Finish after storage and WAL have moved to a new timeline. The installed
   /// snapshot generation is preserved while transaction visibility timestamps
@@ -55,6 +59,8 @@ class UpdateTimestampLease {
   void FinishAndResetTimeline() noexcept;
 
  private:
+  UpdateTimestampLease(IVersionManager& version_manager,
+                       uint32_t timestamp) noexcept;
   void reset() noexcept;
 
   static constexpr uint32_t kInactiveTimestamp = UINT32_MAX;

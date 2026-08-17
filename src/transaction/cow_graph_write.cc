@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include <algorithm>
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <limits>
@@ -322,13 +323,11 @@ static Status deleteVertexIndexData(
 // =============================================================================
 
 CowGraphWriteSet::CowGraphWriteSet(std::shared_ptr<PropertyGraph> cow_graph,
-                                   uint64_t base_planning_generation,
-                                   Allocator& alloc)
+                                   uint64_t base_planning_generation)
     : cow_graph_(std::move(cow_graph)),
       detach_state_(CowDetachLedger::FromSchema(cow_graph_->schema())),
       view_(*cow_graph_),
-      base_planning_generation_(base_planning_generation),
-      alloc_(&alloc) {}
+      base_planning_generation_(base_planning_generation) {}
 
 void CowGraphWriteSet::Reset() noexcept {
   logical_redo_.clear();
@@ -340,18 +339,40 @@ void CowGraphWriteSet::Reset() noexcept {
 SnapshotCowWriteTransaction SnapshotCowWriteTransaction::Begin(
     IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
     Allocator& alloc, IWalWriter& wal_writer) {
-  UpdateTimestampLease timestamp_lease(version_manager);
+  return BeginWithLease(UpdateTimestampLease(version_manager), snapshot_store,
+                        alloc, wal_writer);
+}
+
+std::optional<SnapshotCowWriteTransaction>
+SnapshotCowWriteTransaction::TryBegin(IVersionManager& version_manager,
+                                      GraphSnapshotStore& snapshot_store,
+                                      Allocator& alloc,
+                                      IWalWriter& wal_writer) {
+  auto timestamp_lease = UpdateTimestampLease::TryAcquire(version_manager);
+  if (!timestamp_lease) {
+    return std::nullopt;
+  }
+  auto transaction = BeginWithLease(std::move(*timestamp_lease), snapshot_store,
+                                    alloc, wal_writer);
+  return std::optional<SnapshotCowWriteTransaction>(std::move(transaction));
+}
+
+SnapshotCowWriteTransaction SnapshotCowWriteTransaction::BeginWithLease(
+    UpdateTimestampLease timestamp_lease, GraphSnapshotStore& snapshot_store,
+    Allocator& alloc, IWalWriter& wal_writer) {
   auto [cow_graph, planning_generation] =
       snapshot_store.CloneCurrentForUpdate();
   return SnapshotCowWriteTransaction(
-      CowGraphWriteSet(std::move(cow_graph), planning_generation, alloc),
+      CowGraphWriteSet(std::move(cow_graph), planning_generation), alloc,
       std::move(timestamp_lease), snapshot_store, wal_writer);
 }
 
 SnapshotCowWriteTransaction::SnapshotCowWriteTransaction(
-    CowGraphWriteSet write_set, UpdateTimestampLease timestamp_lease,
-    GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer)
+    CowGraphWriteSet write_set, Allocator& alloc,
+    UpdateTimestampLease timestamp_lease, GraphSnapshotStore& snapshot_store,
+    IWalWriter& wal_writer)
     : write_set_(std::move(write_set)),
+      alloc_(alloc),
       timestamp_lease_(std::move(timestamp_lease)),
       snapshot_store_(snapshot_store),
       wal_writer_(wal_writer) {}
@@ -359,19 +380,26 @@ SnapshotCowWriteTransaction::SnapshotCowWriteTransaction(
 SnapshotCowWriteTransaction::SnapshotCowWriteTransaction(
     SnapshotCowWriteTransaction&& other) noexcept
     : write_set_(std::move(other.write_set_)),
+      alloc_(other.alloc_),
       timestamp_lease_(std::move(other.timestamp_lease_)),
       snapshot_store_(other.snapshot_store_),
-      wal_writer_(other.wal_writer_) {}
+      wal_writer_(other.wal_writer_),
+      prepared_snapshot_(std::move(other.prepared_snapshot_)),
+      commit_prepared_(std::exchange(other.commit_prepared_, false)) {}
 
 SnapshotCowWriteTransaction::~SnapshotCowWriteTransaction() { Abort(); }
 
-Status SnapshotCowWriteTransaction::Commit() {
+Status SnapshotCowWriteTransaction::PrepareCommit() {
+  if (commit_prepared_) {
+    return Status::OK();
+  }
   if (timestamp() == INVALID_TIMESTAMP) {
+    commit_prepared_ = true;
     return Status::OK();
   }
   auto& logical_redo = write_set_.logical_redo();
   if (logical_redo.op_num() == 0) {
-    release(std::nullopt);
+    commit_prepared_ = true;
     return Status::OK();
   }
 
@@ -395,13 +423,38 @@ Status SnapshotCowWriteTransaction::Commit() {
     return error;
   }
 
-  auto prepared = std::move(prepared_result).value();
-
+  prepared_snapshot_.emplace(std::move(prepared_result).value());
   logical_redo.finalize(timestamp());
-  if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
-    LOG(ERROR) << "Failed to append wal log";
-    Abort();
-    return Status::InternalError("Failed to append WAL log");
+  commit_prepared_ = true;
+  return Status::OK();
+}
+
+Status SnapshotCowWriteTransaction::CommitPrepared() {
+  CHECK(commit_prepared_);
+  if (timestamp() == INVALID_TIMESTAMP) {
+    return Status::OK();
+  }
+  auto& logical_redo = write_set_.logical_redo();
+  if (logical_redo.op_num() == 0) {
+    release(std::nullopt);
+    return Status::OK();
+  }
+
+  // The current WAL API cannot distinguish a pre-write failure from an
+  // uncertain partial append. Until W1 framing supplies that decision, any
+  // append failure must fail-stop instead of releasing the timestamp lease and
+  // admitting another writer against an uncertain durable state.
+  try {
+    if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
+      LOG(FATAL) << "TP WAL append failed after commit append began; "
+                    "terminating with the prepared snapshot unpublished";
+    }
+  } catch (const std::exception& e) {
+    LOG(FATAL) << "TP WAL append failed after commit append began: " << e.what()
+               << "; terminating with the prepared snapshot unpublished";
+  } catch (...) {
+    LOG(FATAL) << "TP WAL append failed after commit append began; "
+                  "terminating with the prepared snapshot unpublished";
   }
 
   timestamp_lease_.BeginCommit();
@@ -409,9 +462,19 @@ Status SnapshotCowWriteTransaction::Commit() {
   // Preparation completed before WAL append, so publication is a bounded,
   // no-fail current-slot switch. Finish publishes the matching read view
   // before admission reopens.
-  const uint32_t snapshot_generation = std::move(prepared).Publish();
+  CHECK(prepared_snapshot_.has_value());
+  const uint32_t snapshot_generation = std::move(*prepared_snapshot_).Publish();
+  prepared_snapshot_.reset();
   release(snapshot_generation);
   return Status::OK();
+}
+
+Status SnapshotCowWriteTransaction::Commit() {
+  auto status = PrepareCommit();
+  if (!status.ok()) {
+    return status;
+  }
+  return CommitPrepared();
 }
 
 void SnapshotCowWriteTransaction::Abort() noexcept {
@@ -422,6 +485,8 @@ void SnapshotCowWriteTransaction::Abort() noexcept {
 
 void SnapshotCowWriteTransaction::release(
     std::optional<uint32_t> installed_snapshot_generation) noexcept {
+  prepared_snapshot_.reset();
+  commit_prepared_ = false;
   write_set_.Reset();
   if (timestamp() != INVALID_TIMESTAMP) {
     timestamp_lease_.Finish(installed_snapshot_generation);

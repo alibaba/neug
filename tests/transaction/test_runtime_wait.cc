@@ -295,6 +295,28 @@ TEST(UpdateTimestampLeaseTest, ScopeExitAfterExceptionReleasesAdmission) {
   EXPECT_TRUE(manager.try_set_runtime_wait_if_quiescent(&NativeRuntimeWait));
 }
 
+TEST(UpdateTimestampLeaseTest, TryAcquireNeverWaitsOrLeaksAdmission) {
+  VersionManager manager;
+  InitManager(manager);
+
+  auto owner = UpdateTimestampLease::TryAcquire(manager);
+  ASSERT_TRUE(owner);
+
+  ResetRuntimeWaitCalls();
+  EXPECT_FALSE(UpdateTimestampLease::TryAcquire(manager));
+  EXPECT_EQ(g_runtime_wait_calls.load(std::memory_order_relaxed), 0U);
+  owner.reset();
+
+  const auto insert_timestamp = manager.acquire_insert_timestamp();
+  ResetRuntimeWaitCalls();
+  EXPECT_FALSE(UpdateTimestampLease::TryAcquire(manager));
+  EXPECT_EQ(g_runtime_wait_calls.load(std::memory_order_relaxed), 0U);
+  manager.release_insert_timestamp(insert_timestamp);
+
+  auto next = UpdateTimestampLease::TryAcquire(manager);
+  EXPECT_TRUE(next);
+}
+
 TEST(VersionManagerWaitTest, UncontendedPathsDoNotInvokeBackoff) {
   VersionManager manager;
   InitManager(manager);

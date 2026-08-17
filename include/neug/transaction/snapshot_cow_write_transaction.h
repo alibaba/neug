@@ -36,13 +36,14 @@ class IWalWriter;
 class IVersionManager;
 class Schema;
 class CowGraphUpdateStorage;
+class TransactionContext;
 
 /**
  * @brief Snapshot-publishing COW write transaction.
  *
- * Owns one CowGraphWriteSet and one update timestamp lease. The write set binds
- * the database-owned allocator, while the transaction binds its publication
- * store and WAL writer when it begins.
+ * Owns one CowGraphWriteSet and one update timestamp lease. The transaction
+ * borrows its database-owned allocator, publication store and WAL writer when
+ * it begins.
  *
  * **COW Design:**
  * - Holds a shared_ptr to a COW-cloned PropertyGraph
@@ -141,13 +142,24 @@ class SnapshotCowWriteTransaction {
 
  private:
   friend class ExecutionSlot;
+  friend class TransactionContext;
+
+  Status PrepareCommit();
+
+  Status CommitPrepared();
 
   static SnapshotCowWriteTransaction Begin(IVersionManager& version_manager,
                                            GraphSnapshotStore& snapshot_store,
                                            Allocator& alloc,
                                            IWalWriter& wal_writer);
+  static std::optional<SnapshotCowWriteTransaction> TryBegin(
+      IVersionManager& version_manager, GraphSnapshotStore& snapshot_store,
+      Allocator& alloc, IWalWriter& wal_writer);
+  static SnapshotCowWriteTransaction BeginWithLease(
+      UpdateTimestampLease timestamp_lease, GraphSnapshotStore& snapshot_store,
+      Allocator& alloc, IWalWriter& wal_writer);
 
-  SnapshotCowWriteTransaction(CowGraphWriteSet write_set,
+  SnapshotCowWriteTransaction(CowGraphWriteSet write_set, Allocator& alloc,
                               UpdateTimestampLease timestamp_lease,
                               GraphSnapshotStore& snapshot_store,
                               IWalWriter& wal_writer);
@@ -155,13 +167,18 @@ class SnapshotCowWriteTransaction {
   void release(std::optional<uint32_t> installed_snapshot_generation) noexcept;
 
   CowGraphWriteSet write_set_;
+  // Database-owned. The active update lease prevents checkpoint reopen while
+  // the transaction may reference allocator-backed COW storage.
+  Allocator& alloc_;
   UpdateTimestampLease timestamp_lease_;
   GraphSnapshotStore& snapshot_store_;
   IWalWriter& wal_writer_;
+  std::optional<GraphSnapshotStore::PreparedSnapshot> prepared_snapshot_;
+  bool commit_prepared_{false};
 };
 
 inline CowGraphUpdateStorage SnapshotCowWriteTransaction::OpenStorage() {
-  return CowGraphUpdateStorage(write_set_, timestamp(), timestamp());
+  return CowGraphUpdateStorage(write_set_, timestamp(), timestamp(), alloc_);
 }
 
 }  // namespace neug
