@@ -104,7 +104,7 @@ Example:
 ```cypher
 // Add vector column
 ALTER TABLE vector_node
-ADD IF NOT EXISTS vec FLOAT[4];
+ADD IF NOT EXISTS embedding FLOAT[4];
 ```
 
 ---
@@ -176,10 +176,13 @@ COPY vector_node FROM (
 
 Vector data can also be imported from Parquet files.
 
+The vector column must use an Arrow fixed-size list whose element type and
+length match the target vector property. For example, `vec` below has the
+Arrow type `fixed_size_list<float>[4]`.
+
 Example:
 
 ```cypher
-// Vector data is stored as BLOB in parquet file
 COPY vector_node FROM (
     LOAD FROM 'vec.parquet'
     RETURN id,

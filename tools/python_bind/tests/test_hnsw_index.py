@@ -372,9 +372,9 @@ def test_documented_schema_index_and_query_examples(tmp_path):
         _close_database(db, conn)
 
 
-@pytest.mark.parametrize("file_format", ["csv", "json"])
+@pytest.mark.parametrize("file_format", ["csv", "json", "parquet"])
 def test_documented_vector_import_examples(tmp_path, file_format):
-    """Exercise the CSV and JSON COPY/LOAD FROM examples."""
+    """Exercise the documented CSV, JSON, and Parquet import examples."""
     db, conn = _open_database(tmp_path / f"import-{file_format}")
     try:
         conn.execute(
@@ -384,7 +384,7 @@ def test_documented_vector_import_examples(tmp_path, file_format):
         if file_format == "csv":
             path = tmp_path / "vec.csv"
             path.write_text("id|vec\n1|[0.1, 0.2, 0.3, 0.4]\n2|[0.2, 0.1, 0.1, 0.1]\n")
-        else:
+        elif file_format == "json":
             path = tmp_path / "vec.json"
             path.write_text(
                 json.dumps(
@@ -394,6 +394,23 @@ def test_documented_vector_import_examples(tmp_path, file_format):
                     ]
                 )
             )
+        else:
+            pa = pytest.importorskip("pyarrow")
+            pq = pytest.importorskip("pyarrow.parquet")
+            path = tmp_path / "vec.parquet"
+            pq.write_table(
+                pa.table(
+                    {
+                        "id": pa.array([1, 2], type=pa.int64()),
+                        "vec": pa.array(
+                            [[0.1, 0.2, 0.3, 0.4], [0.2, 0.1, 0.1, 0.1]],
+                            type=pa.list_(pa.float32(), 4),
+                        ),
+                    }
+                ),
+                path,
+            )
+            conn.execute("LOAD parquet;")
         conn.execute(
             f'COPY vector_node FROM (LOAD FROM "{path}" '
             "RETURN id, CAST(vec, 'FLOAT[4]') AS vec);"
