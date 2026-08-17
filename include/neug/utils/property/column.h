@@ -257,6 +257,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
+    if (auto width = desc.get("width")) {
+      width_ = static_cast<uint16_t>(std::stoul(*width));
+    }
     items_buffer_ = ckp.OpenFile(
         desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level);
     data_buffer_ = ckp.OpenFile(
@@ -292,6 +295,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
             const std::string& key) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
+    desc.set("width", std::to_string(width_));
     if (!items_buffer_ || !data_buffer_) {
       THROW_RUNTIME_ERROR("Buffers not initialized for dumping");
     }
