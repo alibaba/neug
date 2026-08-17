@@ -542,6 +542,13 @@ void CsvReader::full_read(
     execution::Context& output, const CsvReadConfig& output_config) {
   auto merged = read_all_chunks(suppliers);
 
+  if (merged.col_num() == 0) {
+    // No data rows at all (e.g. a header-only file). Emit an empty result;
+    // there is nothing to validate, filter or project.
+    output.clear();
+    return;
+  }
+
   int expected_cols = sharedState_->columnNum();
   if (expected_cols > 0 &&
       static_cast<int>(merged.col_num()) != expected_cols &&
