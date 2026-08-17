@@ -617,11 +617,7 @@ def test_array_preserves_null_elements(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
-    rows = list(
-        conn.execute(
-            "RETURN CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[3]');"
-        )
-    )
+    rows = list(conn.execute("RETURN CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[3]');"))
     assert _nested_list(rows[0][0]) == [1, None, 3]
 
     rows = list(
@@ -646,9 +642,7 @@ def test_parquet_list_and_array_preserve_null_elements(tmp_path):
         pa.table(
             {
                 "id": pa.array([1, 2], type=pa.int64()),
-                "values": pa.array(
-                    [[1, None, 3], [4, 5]], type=pa.list_(pa.int64())
-                ),
+                "values": pa.array([[1, None, 3], [4, 5]], type=pa.list_(pa.int64())),
             }
         ),
         list_path,
@@ -672,9 +666,7 @@ def test_parquet_list_and_array_preserve_null_elements(tmp_path):
     conn = db.connect()
     conn.execute("LOAD PARQUET")
 
-    rows = list(
-        conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id')
-    )
+    rows = list(conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id'))
     assert rows == [[1, [1, None, 3]], [2, [4, 5]]]
 
     rows = list(
