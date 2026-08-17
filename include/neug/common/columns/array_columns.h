@@ -132,7 +132,11 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
           " elements, got " + std::to_string(children.size()));
     }
     for (const auto& v : children) {
-      child_builder_->push_back_elem(v);
+      if (v.IsNull()) {
+        child_builder_->push_back_null();
+      } else {
+        child_builder_->push_back_elem(v);
+      }
     }
     ++current_size_;
   }
