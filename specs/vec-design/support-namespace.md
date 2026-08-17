@@ -77,7 +77,7 @@ CALL project_graph(
 
 ## GraphEntrySet 持久化
 
-GraphEntrySet 目前被保存在 Compiler 模块的 MetadataManager 中，无法被持久化，我们需要让他可以被持久化。
+GraphEntrySet 持久化在 Schema 中，并通过 Catalog 向 Compiler 提供当前 snapshot 的查询接口；MetadataManager 不保存独立副本。
 
 ### 基本结构
 
@@ -162,11 +162,11 @@ GraphEntrySet 用于统一维护所有已 project 子图，提供查找/新增/�
 ```c++
 class GraphEntrySet : Module {
  public:
-  const GraphEntry& GetEntry(const std::string& name) const;
-
-  void AddEntry(const std::string& name, const GraphEntry& entry);
-
-  void DropEntry(const std::string& name);
+  result<ProjectedGraphEntry*> GetEntry(const std::string& name);
+  result<const ProjectedGraphEntry*> GetEntry(const std::string& name) const;
+  Status AddEntry(const std::string& name,
+                  const ProjectedGraphEntry& entry);
+  Status DropEntry(const std::string& name);
 
   result<YAML::Node> ToYaml();
 
@@ -184,9 +184,12 @@ class GraphEntrySet : Module {
 ```c++
 class Schema {
 public:
-  const GraphEntry& GetEntry(const std::string& name) const;
-  void AddEntry(const std::string& name, const GraphEntry& entry);
-  void DropEntry(const std::string& name);
+  result<ProjectedGraphEntry*> GetGraphEntry(const std::string& name);
+  result<const ProjectedGraphEntry*> GetGraphEntry(
+      const std::string& name) const;
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry);
+  Status DropGraphEntry(const std::string& name);
   // 在 LoadFromYaml 和 DumpToYaml 中提供对 GraphEntrySet 序列化和反序列化支持
 private:
 	GraphEntrySet entry_set;
@@ -200,8 +203,9 @@ private:
 ```c++
 class StorageUpdateInterface {
 public:
-	void AddEntry(const std::string& name, const GraphEntry& entry);
-    void DropEntry(const std::string& name);
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry);
+  Status DropGraphEntry(const std::string& name);
 };
 ```
 
@@ -302,10 +306,11 @@ struct ProjectedGraphEntry {
 class GraphEntrySet {
  public:
   bool HasEntry(const std::string& name) const;
-  const ProjectedGraphEntry& GetEntry(const std::string& name) const;
-  void AddEntry(const std::string& name,
-                const ProjectedGraphEntry& entry);
-  void DropEntry(const std::string& name);
+  result<ProjectedGraphEntry*> GetEntry(const std::string& name);
+  result<const ProjectedGraphEntry*> GetEntry(const std::string& name) const;
+  Status AddEntry(const std::string& name,
+                  const ProjectedGraphEntry& entry);
+  Status DropEntry(const std::string& name);
   result<YAML::Node> ToYaml() const;
   static result<GraphEntrySet> FromYaml(const YAML::Node& node);
 };
@@ -318,12 +323,16 @@ class GraphEntrySet {
 `Schema` 增加 `GraphEntrySet graph_entry_set_`，并提供只读查询和受控变更接口：
 
 ```c++
-const GraphEntrySet& GetGraphEntrySet() const;
-const ProjectedGraphEntry& GetGraphEntry(const std::string& name) const;
-void AddGraphEntry(const std::string& name,
-                   const ProjectedGraphEntry& entry);
-void DropGraphEntry(const std::string& name);
+result<ProjectedGraphEntry*> GetGraphEntry(const std::string& name);
+result<const ProjectedGraphEntry*> GetGraphEntry(
+    const std::string& name) const;
+Status AddGraphEntry(const std::string& name,
+                     const ProjectedGraphEntry& entry);
+Status DropGraphEntry(const std::string& name);
 ```
+
+上述接口不直接抛异常。不存在、重复名称和非法 entry 都通过
+`result`/`Status` 返回给 Schema、Catalog、compiler 或执行层处理。
 
 `Clear`、`Clone`、`Compact`、`StripTemporary`、`Equals` 都必须明确处理 `GraphEntrySet`。其中：
 
@@ -431,7 +440,7 @@ DropGraphEntryRedo(name)
 
 执行顺序为：修改事务 COW Schema、写入 redo、提交时发布新 snapshot。WAL replay 调用 `PropertyGraph::mutable_schema()` 执行相同的 Add/Drop，并标记 Schema dirty。
 
-checkpoint 使用已有 `Schema::DumpToYaml`，重开时由 `Schema::LoadFromYamlNode` 恢复。恢复后 compiler 的 metadata clone 必须从当前 `Schema::GetGraphEntrySet()` 获取 Namespace，不能继续共享进程级、与 snapshot 无关的 `GraphEntrySet`。
+checkpoint 使用已有 `Schema::DumpToYaml`，重开时由 `Schema::LoadFromYamlNode` 恢复。compiler 通过当前 snapshot 的 `Catalog` 透传 `Schema::HasGraphEntry/GetGraphEntry/GetGraphEntryNames`，`MetadataManager` 不再持有或复制 `GraphEntrySet`。
 
 ### 6. dot 语法
 
@@ -569,7 +578,7 @@ OR
 ```c++
 function->execFunc = [](const CallFuncInputBase&,
                         IStorageInterface& graph) {
-  const auto& entries = graph.schema().GetGraphEntrySet();
+  auto names = graph.schema().GetGraphEntryNames();
   // 构造并返回 execution::Context
 };
 ```
@@ -577,7 +586,7 @@ function->execFunc = [](const CallFuncInputBase&,
 因此“放到执行层”具体包含：
 
 - bind 阶段只生成空的 `CallFuncInputBase` 和固定输出列，不读取 Namespace 数据；
-- exec 阶段通过传入的 `graph_interface`，即 `IStorageInterface& graph`，读取 `graph.schema().GetGraphEntrySet()`；
+- exec 阶段通过传入的 `graph_interface`，即 `IStorageInterface& graph`，调用 `graph.schema().GetGraphEntryNames()`；
 - 不访问 `MetadataRegistry`，不读取 compiler 进程级缓存；
 - 输出 Namespace 名称按字典序排序，保证结果稳定；
 - 读取当前执行 snapshot 对应的 Schema，从而自然遵守事务可见性。

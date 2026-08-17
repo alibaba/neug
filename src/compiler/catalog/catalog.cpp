@@ -86,6 +86,23 @@ void Catalog::initCatalogSets() {
   internalFunctions = std::make_shared<CatalogSet>(true /* isInternal */);
 }
 
+bool Catalog::hasGraphEntry(const std::string& name) const {
+  return schema != nullptr && schema->HasGraphEntry(name);
+}
+
+result<const ProjectedGraphEntry*> Catalog::getGraphEntry(
+    const std::string& name) const {
+  if (schema == nullptr) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_SCHEMA, "Schema is not set");
+  }
+  return schema->GetGraphEntry(name);
+}
+
+std::vector<std::string> Catalog::getGraphEntryNames() const {
+  return schema == nullptr ? std::vector<std::string>{}
+                           : schema->GetGraphEntryNames();
+}
+
 bool Catalog::containsTable(const Transaction* transaction,
                             const std::string& tableName,
                             bool useInternal) const {

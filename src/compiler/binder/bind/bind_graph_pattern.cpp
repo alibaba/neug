@@ -937,15 +937,15 @@ void Binder::collectNamespaceRelPredicate(
 
 static const ProjectedGraphEntry& getProjectedGraph(
     main::ClientContext* context, const std::string& name) {
-  auto* metadata = context->getMetadataManager();
-  if (metadata == nullptr) {
-    THROW_BINDER_EXCEPTION("Metadata manager is not set.");
-  }
-  const auto& entries = metadata->getGraphEntrySet();
-  if (!entries.HasEntry(name)) {
+  auto* catalog = context->getCatalog();
+  if (!catalog->hasGraphEntry(name)) {
     THROW_BINDER_EXCEPTION("Projected graph '" + name + "' does not exist.");
   }
-  return entries.GetEntry(name);
+  auto entry = catalog->getGraphEntry(name);
+  if (!entry) {
+    THROW_BINDER_EXCEPTION(entry.error().error_message());
+  }
+  return **entry;
 }
 
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(

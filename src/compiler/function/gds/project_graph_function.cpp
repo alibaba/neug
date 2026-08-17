@@ -431,8 +431,12 @@ function_set ProjectedGraphInfoFunction::getFunctionSet() {
     neug::ValueColumnBuilder<std::string> predicate_builder;
     auto& projectInput =
         dynamic_cast<const ProjectedGraphInfoCallInput&>(input);
-    const auto& entry =
+    auto entryResult =
         graph.schema().GetGraphEntry(projectInput.getGraphName());
+    if (!entryResult) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(entryResult.error().error_message());
+    }
+    const auto& entry = **entryResult;
     size_t total_size = entry.vertexInfos.size() + entry.edgeInfos.size();
     name_builder.reserve(total_size);
     predicate_builder.reserve(total_size);

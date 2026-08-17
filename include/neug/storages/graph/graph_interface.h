@@ -990,6 +990,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
   Status ActivateIndexes() override;
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry) override;
+  Status DropGraphEntry(const std::string& name) override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {
@@ -1055,18 +1058,6 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
       const DeleteEdgePropertiesParam& config) override;
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
-  Status AddGraphEntry(const std::string& name,
-                       const ProjectedGraphEntry& entry) override {
-    graph_.mutable_schema().AddGraphEntry(name, entry);
-    MarkSchemaDirty();
-    return Status::OK();
-  }
-  Status DropGraphEntry(const std::string& name) override {
-    graph_.mutable_schema().DropGraphEntry(name);
-    MarkSchemaDirty();
-    return Status::OK();
-  }
-
   PropertyGraph& graph_;
   GraphView& mut_view_;
   neug::Allocator& alloc_;

@@ -1135,7 +1135,11 @@ void Schema::Serialize(std::ostream& os) const {
   std::sort(graph_names.begin(), graph_names.end());
   arc << graph_names.size();
   for (const auto& name : graph_names) {
-    arc << name << graph_entry_set_.GetEntry(name);
+    auto entry = graph_entry_set_.GetEntry(name);
+    if (!entry) {
+      THROW_STORAGE_EXCEPTION(entry.error().error_message());
+    }
+    arc << name << **entry;
   }
   size_t size = arc.GetSize();
   os.write(reinterpret_cast<char*>(&size), sizeof(size));
@@ -1177,7 +1181,9 @@ void Schema::Deserialize(std::istream& is) {
     std::string name;
     ProjectedGraphEntry entry;
     arc >> name >> entry;
-    graph_entry_set_.AddEntry(name, entry);
+    auto status = graph_entry_set_.AddEntry(name, entry);
+    THROW_STORAGE_EXCEPTION_STATUS("Failed to deserialize projected graph: ",
+                                   status);
   }
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
@@ -1890,7 +1896,7 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
       return entries.error();
     }
     for (const auto& [name, entry] : entries.value().Entries()) {
-      schema.AddGraphEntry(name, entry);
+      RETURN_IF_NOT_OK(schema.AddGraphEntry(name, entry));
     }
   }
   return Status::OK();
@@ -2701,7 +2707,11 @@ Schema Schema::StripTemporary() const {
       }
     }
     if (valid) {
-      stripped.graph_entry_set_.AddEntry(name, entry);
+      auto status = stripped.graph_entry_set_.AddEntry(name, entry);
+      if (!status.ok()) {
+        THROW_STORAGE_EXCEPTION_STATUS("Failed to copy projected graph: ",
+                                       status);
+      }
     }
   }
 

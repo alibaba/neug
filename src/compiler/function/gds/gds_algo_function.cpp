@@ -19,6 +19,7 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
+#include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/nested.h"
@@ -148,17 +149,17 @@ std::unique_ptr<TableFuncBindData> bindGDSFunction(
   }
   auto& binder = *input->binder;
   auto graphName = input->getLiteralVal<std::string>(0);
-  auto metadataManager = clientContext->getMetadataManager();
-  if (metadataManager == nullptr) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
-  }
-  const auto& graphEntrySet = metadataManager->getGraphEntrySet();
-  if (!graphEntrySet.HasEntry(graphName)) {
+  auto catalog = clientContext->getCatalog();
+  if (!catalog->hasGraphEntry(graphName)) {
     THROW_BINDER_EXCEPTION("Projected graph '" + graphName +
                            "' does not exist.");
   }
-  auto graphEntry = graph::GDSFunction::bindGraphEntry(
-      *clientContext, graphEntrySet.GetEntry(graphName));
+  auto projectedGraph = catalog->getGraphEntry(graphName);
+  if (!projectedGraph) {
+    THROW_BINDER_EXCEPTION(projectedGraph.error().error_message());
+  }
+  auto graphEntry =
+      graph::GDSFunction::bindGraphEntry(*clientContext, **projectedGraph);
   auto options = extractStringOptions(input->getValue(1));
   binder::expression_vector columns;
   const auto& yieldVariables = input->yieldVariables;

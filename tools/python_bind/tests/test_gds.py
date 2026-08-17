@@ -84,10 +84,22 @@ def test_project_graph_and_drop_roundtrip(tmp_path):
             "person" in lbl and "knows" in lbl for lbl in labels
         ), "PROJECTED_GRAPH_INFO must expose relationship triplets"
 
+        with pytest.raises(Exception, match="already exists"):
+            conn.execute(
+                "CALL project_graph("
+                "'my_subgraph', "
+                "['person'], "
+                "{'[person, knows, person]': ''}"
+                ");"
+            )
+
         conn.execute("CALL drop_projected_graph('my_subgraph');")
         assert "my_subgraph" not in _shown_projected_graph_names(
             conn
         ), "SHOW_PROJECTED_GRAPHS must not list a dropped alias"
+
+        with pytest.raises(Exception, match="does not exist"):
+            conn.execute("CALL drop_projected_graph('my_subgraph');")
 
 
 def test_project_graph_with_predicates(tmp_path):

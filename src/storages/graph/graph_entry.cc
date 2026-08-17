@@ -1,4 +1,17 @@
-/** Copyright 2020 Alibaba Group Holding Limited. */
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include "neug/storages/graph/graph_entry.h"
 
@@ -7,7 +20,6 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include "neug/utils/exception/exception.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -75,7 +87,10 @@ result<ProjectedGraphEntry> ProjectedGraphEntry::FromYaml(
                std::string("invalid projected graph entry: ") + e.what()));
   }
   GraphEntrySet validator;
-  validator.AddEntry("entry", entry);
+  auto status = validator.AddEntry("entry", entry);
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
   return entry;
 }
 
@@ -83,56 +98,69 @@ bool GraphEntrySet::HasEntry(const std::string& name) const {
   return name_to_entry_.contains(name);
 }
 
-const ProjectedGraphEntry& GraphEntrySet::GetEntry(
-    const std::string& name) const {
-  if (!HasEntry(name)) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Projected graph '" + name +
-                                     "' does not exist.");
+result<ProjectedGraphEntry*> GraphEntrySet::GetEntry(const std::string& name) {
+  auto it = name_to_entry_.find(name);
+  if (it == name_to_entry_.end()) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Projected graph '" + name + "' does not exist.");
   }
-  return name_to_entry_.at(name);
+  return &it->second;
 }
 
-void GraphEntrySet::AddEntry(const std::string& name,
-                             const ProjectedGraphEntry& entry) {
+result<const ProjectedGraphEntry*> GraphEntrySet::GetEntry(
+    const std::string& name) const {
+  auto it = name_to_entry_.find(name);
+  if (it == name_to_entry_.end()) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Projected graph '" + name + "' does not exist.");
+  }
+  return &it->second;
+}
+
+Status GraphEntrySet::AddEntry(const std::string& name,
+                               const ProjectedGraphEntry& entry) {
   if (name.empty() || name.find('.') != std::string::npos) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
+    return Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
         "Projected graph name must be a non-empty identifier without '.'.");
   }
   std::unordered_set<std::string> vertices;
   for (const auto& vertex : entry.vertexInfos) {
     if (vertex.labelName.empty() || !vertices.insert(vertex.labelName).second) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Projected graph '" + name +
-          "' contains an empty or duplicate vertex label.");
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Projected graph '" + name +
+                        "' contains an empty or duplicate vertex label.");
     }
   }
   std::unordered_set<std::string> edges;
   for (const auto& edge : entry.edgeInfos) {
     if (!vertices.contains(edge.srcLabelName) ||
         !vertices.contains(edge.dstLabelName)) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Projected graph '" + name +
-          "' contains an edge whose endpoint is not projected.");
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Projected graph '" + name +
+                        "' contains an edge whose endpoint is not projected.");
     }
     auto key = edge.srcLabelName + "\x1f" + edge.edgeLabelName + "\x1f" +
                edge.dstLabelName;
     if (edge.edgeLabelName.empty() || !edges.insert(std::move(key)).second) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Projected graph '" + name +
-          "' contains an empty or duplicate edge triplet.");
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Projected graph '" + name +
+                        "' contains an empty or duplicate edge triplet.");
     }
   }
   if (!name_to_entry_.emplace(name, entry).second) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Projected graph '" + name +
-                                     "' already exists.");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Projected graph '" + name + "' already exists.");
   }
+  return Status::OK();
 }
 
-void GraphEntrySet::DropEntry(const std::string& name) {
+Status GraphEntrySet::DropEntry(const std::string& name) {
   if (name_to_entry_.erase(name) == 0) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Projected graph '" + name +
-                                     "' does not exist.");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Projected graph '" + name + "' does not exist.");
   }
+  return Status::OK();
 }
 
 result<YAML::Node> GraphEntrySet::ToYaml() const {

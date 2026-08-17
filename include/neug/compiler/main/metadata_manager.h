@@ -94,22 +94,18 @@ class MetadataManager {
 
   std::shared_ptr<GraphStats> getGraphStats() const;
 
-  const GraphEntrySet& getGraphEntrySet() const;
-
  private:
-  MetadataManager(std::unique_ptr<catalog::Catalog> catalog,
-                  GraphStats statsManager,
-                  std::shared_ptr<storage::MemoryManager> memoryManager,
-                  std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
-                  std::shared_ptr<extension::ExtensionManager> extensionManager,
-                  std::shared_ptr<GraphEntrySet> graphEntrySet);
+  MetadataManager(
+      std::unique_ptr<catalog::Catalog> catalog, GraphStats statsManager,
+      std::shared_ptr<storage::MemoryManager> memoryManager,
+      std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
+      std::shared_ptr<extension::ExtensionManager> extensionManager);
 
   std::unique_ptr<catalog::Catalog> catalog;
   GraphStats statsManager;
   std::shared_ptr<storage::MemoryManager> memoryManager;
   std::shared_ptr<neug::fsys::FileSystemRegistry> vfs;
   std::shared_ptr<extension::ExtensionManager> extensionManager;
-  std::shared_ptr<GraphEntrySet> graphEntrySet;
 };
 
 }  // namespace main
