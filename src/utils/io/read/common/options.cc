@@ -60,7 +60,9 @@ CsvReadConfig CsvOptionsBuilder::build() const {
     } else if (!fileSchema.paths.empty()) {
       CsvReadConfig header_config = config;
       header_config.column_names.clear();
-      config.column_names = read_header(fileSchema.paths[0], header_config);
+      config.column_names = read_header(
+          fileSchema.paths[0], header_config,
+          io::bindInputStream(state->stream_opener, fileSchema.paths[0]));
       column_count = config.column_names.size();
     }
     config.column_names.clear();
@@ -71,7 +73,9 @@ CsvReadConfig CsvOptionsBuilder::build() const {
   } else if (entrySchema && !entrySchema->columnNames.empty()) {
     config.column_names = entrySchema->columnNames;
   } else if (!fileSchema.paths.empty()) {
-    config.column_names = read_header(fileSchema.paths[0], config);
+    config.column_names = read_header(
+        fileSchema.paths[0], config,
+        io::bindInputStream(state->stream_opener, fileSchema.paths[0]));
     if (parseOpts.has_header.get(options) &&
         !readOpts.autogenerate_column_names.get(options) &&
         config.skip_rows == 0) {

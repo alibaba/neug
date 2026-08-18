@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -37,6 +38,7 @@
 #include "neug/utils/io/read/common/row_expression_filter.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
+#include "neug/utils/io/stream/input_stream.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
@@ -66,8 +68,30 @@ std::string read_file_to_string(const std::string& path) {
   return ss.str();
 }
 
-rapidjson::Document parse_json_array_file(const std::string& path) {
-  const auto content = read_file_to_string(path);
+std::string read_stream_to_string(const io::InputStreamFactory& factory) {
+  auto stream = factory();
+  std::string content;
+  constexpr int64_t kBufSize = 1 << 20;  // 1 MB
+  std::vector<char> buffer(kBufSize);
+  while (true) {
+    auto r = stream->Read(buffer.data(), kBufSize);
+    if (!r) {
+      THROW_IO_EXCEPTION("Failed to read JSON source: " +
+                         r.error().error_message());
+    }
+    if (*r == 0) {
+      break;
+    }
+    content.append(buffer.data(), static_cast<size_t>(*r));
+  }
+  return content;
+}
+
+rapidjson::Document parse_json_array_file(
+    const std::string& path,
+    const io::InputStreamFactory& stream_factory = nullptr) {
+  const auto content = stream_factory ? read_stream_to_string(stream_factory)
+                                      : read_file_to_string(path);
   rapidjson::Document document;
   document.Parse(content.c_str(), content.size());
   if (document.HasParseError()) {
@@ -86,8 +110,10 @@ rapidjson::Document parse_json_array_file(const std::string& path) {
   return document;
 }
 
-std::vector<std::string> convert_json_array_to_lines(const std::string& path) {
-  auto document = parse_json_array_file(path);
+std::vector<std::string> convert_json_array_to_lines(
+    const std::string& path,
+    const io::InputStreamFactory& stream_factory = nullptr) {
+  auto document = parse_json_array_file(path, stream_factory);
   std::vector<std::string> lines;
   lines.reserve(document.Size());
   for (const auto& obj : document.GetArray()) {
@@ -200,14 +226,74 @@ Value parse_json_value(const rapidjson::Value& value,
   }
 }
 
+/// Line reader over io::InputStream, mirroring std::getline semantics
+/// (split on '\n', terminator stripped). Used for JSONL sources where
+/// no local file exists (remote objects).
+class StreamLineReader {
+ public:
+  explicit StreamLineReader(std::unique_ptr<io::InputStream> stream)
+      : stream_(std::move(stream)) {}
+
+  /// Reads the next line into \p line. Returns false at end of
+  /// stream (a final line without trailing newline is still yielded).
+  bool nextLine(std::string& line) {
+    line.clear();
+    while (true) {
+      if (pos_ >= len_) {
+        auto r = stream_->Read(buffer_, sizeof(buffer_));
+        if (!r) {
+          THROW_IO_EXCEPTION("Failed to read JSON source: " +
+                             r.error().error_message());
+        }
+        if (*r == 0) {
+          return !line.empty();
+        }
+        pos_ = 0;
+        len_ = static_cast<size_t>(*r);
+      }
+      const char* begin = buffer_ + pos_;
+      const size_t avail = len_ - pos_;
+      const char* nl =
+          static_cast<const char*>(std::memchr(begin, '\n', avail));
+      if (nl) {
+        line.append(begin, static_cast<size_t>(nl - begin));
+        pos_ += static_cast<size_t>(nl - begin) + 1;
+        return true;
+      }
+      line.append(begin, avail);
+      pos_ = len_;
+    }
+  }
+
+ private:
+  std::unique_ptr<io::InputStream> stream_;
+  char buffer_[64 * 1024];
+  size_t pos_ = 0;
+  size_t len_ = 0;
+};
+
 class JsonChunkSupplier : public IDataChunkSupplier {
  public:
-  JsonChunkSupplier(const std::string& file_path, JsonReadConfig config)
+  /// When stream_factory is non-null the data is read through it
+  /// (remote objects); otherwise file_path is read as a local file.
+  JsonChunkSupplier(const std::string& file_path, JsonReadConfig config,
+                    io::InputStreamFactory stream_factory = nullptr)
       : file_path_(file_path), config_(std::move(config)) {
     if (config_.json_array_input) {
-      document_ = parse_json_array_file(file_path_);
+      document_ = parse_json_array_file(file_path_, stream_factory);
       doc_index_ = 0;
       row_num_ = static_cast<int64_t>(document_.Size());
+    } else if (stream_factory) {
+      {
+        StreamLineReader counter(stream_factory());
+        std::string line;
+        while (counter.nextLine(line)) {
+          if (!line.empty()) {
+            ++row_num_;
+          }
+        }
+      }
+      line_reader_ = std::make_unique<StreamLineReader>(stream_factory());
     } else {
       input_ = std::make_unique<std::ifstream>(file_path_);
       if (!input_->is_open()) {
@@ -255,7 +341,11 @@ class JsonChunkSupplier : public IDataChunkSupplier {
         obj_ptr = &document_.GetArray()[doc_index_++];
       } else {
         std::string line;
-        if (!input_ || !std::getline(*input_, line)) {
+        const bool got_line =
+            line_reader_
+                ? line_reader_->nextLine(line)
+                : (input_ && static_cast<bool>(std::getline(*input_, line)));
+        if (!got_line) {
           break;
         }
         if (line.empty()) {
@@ -305,6 +395,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
   rapidjson::SizeType doc_index_ = 0;
   rapidjson::Document line_doc_;  // reusable parse buffer for JSONL mode
   std::unique_ptr<std::ifstream> input_;
+  std::unique_ptr<StreamLineReader> line_reader_;  // remote JSONL mode
 };
 
 JsonReadConfig read_config_for_supplier(const JsonReadConfig& config) {
@@ -361,7 +452,9 @@ void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
   suppliers.reserve(paths.size());
   for (const auto& path : paths) {
-    suppliers.push_back(std::make_shared<JsonChunkSupplier>(path, read_config));
+    suppliers.push_back(std::make_shared<JsonChunkSupplier>(
+        path, read_config,
+        io::bindInputStream(sharedState_->stream_opener, path)));
   }
 
   if (use_batch_read && !sharedState_->skipRows) {
@@ -428,16 +521,25 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
   }
 
   JsonReadConfig sniff_config = config;
+  const io::InputStreamFactory stream_factory =
+      io::bindInputStream(sharedState_->stream_opener, paths[0]);
   sniff_config.include_columns.clear();
   if (config.column_names.empty()) {
     std::string sample_line;
     if (config.json_array_input) {
-      auto lines = convert_json_array_to_lines(paths[0]);
+      auto lines = convert_json_array_to_lines(paths[0], stream_factory);
       if (lines.empty()) {
         RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                             "Empty JSON array in file: " + paths[0]);
       }
       sample_line = lines.front();
+    } else if (stream_factory) {
+      StreamLineReader reader(stream_factory());
+      while (reader.nextLine(sample_line)) {
+        if (!sample_line.empty()) {
+          break;
+        }
+      }
     } else {
       std::ifstream input(paths[0]);
       while (std::getline(input, sample_line)) {
@@ -467,9 +569,17 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
   std::vector<std::string> sample_lines;
   const size_t max_sample_rows = 64;
   if (config.json_array_input) {
-    auto all_lines = convert_json_array_to_lines(paths[0]);
+    auto all_lines = convert_json_array_to_lines(paths[0], stream_factory);
     for (size_t i = 0; i < std::min(all_lines.size(), max_sample_rows); ++i) {
       sample_lines.push_back(std::move(all_lines[i]));
+    }
+  } else if (stream_factory) {
+    StreamLineReader reader(stream_factory());
+    std::string line;
+    while (sample_lines.size() < max_sample_rows && reader.nextLine(line)) {
+      if (!line.empty()) {
+        sample_lines.push_back(std::move(line));
+      }
     }
   } else {
     std::ifstream input(paths[0]);

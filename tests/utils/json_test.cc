@@ -27,6 +27,7 @@
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
+#include "neug/utils/io/stream/input_stream.h"
 
 namespace neug {
 namespace test {
@@ -140,6 +141,13 @@ class JsonTest : public ::testing::Test {
         std::make_unique<reader::JsonOptionsBuilder>(sharedState, true);
     return std::make_shared<reader::JsonReader>(sharedState,
                                                 std::move(optionsBuilder));
+  }
+
+  // Stream opener backed by local files; injecting it drives the same
+  // streaming read paths used for remote objects.
+  static io::InputStreamOpener localStreamOpener() {
+    return
+        [](const std::string& path) { return io::openLocalInputStream(path); };
   }
 };
 
@@ -310,6 +318,37 @@ TEST_F(JsonTest, TestJsonRecursiveListColumn) {
   ASSERT_EQ(fourth_second.size(), 2);
   EXPECT_TRUE(ListValue::GetChildren(fourth_second[0]).empty());
   EXPECT_TRUE(ListValue::GetChildren(fourth_second[1]).empty());
+}
+
+// Same as TestJsonArray, but with a stream opener injected: the whole
+// object is read through an InputStream instead of a local file read.
+TEST_F(JsonTest, TestJsonArrayStreaming) {
+  createJsonFile("test_json_array_stream.json",
+                 "[{\"id\": 1, \"name\": \"Alice\", \"age\": 25}, {\"id\": 2, "
+                 "\"name\": \"Bob\", \"age\": 30}]");
+  auto sharedState = createSharedState(
+      "test_json_array_stream.json", {"id", "name", "age"},
+      {createUInt32Type(), createStringType(), createDoubleType()},
+      {{"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 2);
+
+  auto col0 = ctx.chunk(0).columns()[0];
+  ASSERT_EQ(col0->column_type(), ContextColumnType::kValue);
+  EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
+  EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
+
+  auto col2 = ctx.chunk(0).columns()[2];
+  ASSERT_EQ(col2->column_type(), ContextColumnType::kValue);
+  EXPECT_DOUBLE_EQ(col2->get_elem(0).GetValue<double>(), 25.0);
+  EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
 }
 
 }  // namespace test
