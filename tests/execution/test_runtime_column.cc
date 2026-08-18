@@ -42,7 +42,7 @@ class VertexColumnTest : public ::testing::Test {
     col_builder.push_back_elem(Value::VERTEX(VertexRecord(label, kVid0)));
     col_builder.push_back_vertex(VertexRecord(label, kVid1));
     if (is_optional) {
-      col_builder.push_back_elem(Value());
+      col_builder.push_back_elem(Value(DataType::VERTEX));
     }
     std::shared_ptr<IContextColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<SLVertexColumn>(col);
@@ -55,7 +55,7 @@ class VertexColumnTest : public ::testing::Test {
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid1));
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid2));
     if (is_optional) {
-      col_builder.push_back_elem(Value());
+      col_builder.push_back_elem(Value(DataType::VERTEX));
     }
     std::shared_ptr<IContextColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<MSVertexColumn>(col);
@@ -68,7 +68,7 @@ class VertexColumnTest : public ::testing::Test {
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid1));
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid2));
     if (is_optional) {
-      col_builder.push_back_elem(Value());
+      col_builder.push_back_elem(Value(DataType::VERTEX));
     }
     std::shared_ptr<IContextColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<MLVertexColumn>(col);
@@ -387,7 +387,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnOptional) {
   EdgeRecord e = EdgeRecord{label, kVid1, kVid2, nullptr, Direction::kOut};
   builder.push_back_elem(Value::EDGE(e));
   builder.push_back_opt(kVid1, kVid2, nullptr);
-  builder.push_back_elem(Value());
+  builder.push_back_elem(Value(DataType::EDGE));
   auto col_ptr = builder.finish();
   auto* sl_col = dynamic_cast<SDSLEdgeColumn*>(col_ptr.get());
 
@@ -505,7 +505,7 @@ TEST_F(EdgeColumnTest, BDSLEdgeColumnShuffle) {
 
   BDSLEdgeColumnBuilder optional_builder(label);
   optional_builder.push_back_opt(kVid0, kVid1, nullptr, Direction::kOut);
-  optional_builder.push_back_elem(Value());
+  optional_builder.push_back_elem(Value(DataType::EDGE));
   optional_builder.push_back_opt(kVid1, kVid0, nullptr, Direction::kIn);
 
   auto optional_col_ptr = optional_builder.finish();
@@ -605,7 +605,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnShuffle) {
 
   SDMLEdgeColumnBuilder optional_builder(Direction::kOut, labels);
   optional_builder.push_back_opt(label0, kVid0, kVid1, nullptr);
-  optional_builder.push_back_elem(Value());
+  optional_builder.push_back_elem(Value(DataType::EDGE));
   optional_builder.push_back_opt(label1, kVid1, kVid0, nullptr);
 
   auto optional_col_ptr = optional_builder.finish();
@@ -707,7 +707,7 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnShuffle) {
   BDMLEdgeColumnBuilder optional_builder(labels);
   optional_builder.push_back_opt(label0, kVid0, kVid1, nullptr,
                                  Direction::kOut);
-  optional_builder.push_back_elem(Value());
+  optional_builder.push_back_elem(Value(DataType::EDGE));
   optional_builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
 
   auto optional_col_ptr = optional_builder.finish();
@@ -761,7 +761,7 @@ TEST_F(EdgeColumnTest, MSEdgeColumnFromBuilder) {
   builder.push_back_opt(kVid0, kVid1, nullptr);
   builder.start_label_dir(label1, Direction::kIn);
   builder.push_back_opt(kVid1, kVid2, nullptr);
-  builder.push_back_elem(Value());
+  builder.push_back_elem(Value(DataType::EDGE));
   auto col_ptr = builder.finish();
   std::shared_ptr<MSEdgeColumn> ms_col =
       std::dynamic_pointer_cast<MSEdgeColumn>(col_ptr);
@@ -1295,7 +1295,7 @@ TEST_F(PathColumnTest, OptionalPathColumnBasic) {
 
   PathColumnBuilder builder(true);
   builder.push_back_opt(p1);
-  builder.push_back_elem(Value());
+  builder.push_back_elem(Value(DataType::PATH));
   builder.push_back_elem(Value::PATH(p2));
 
   auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
