@@ -42,6 +42,11 @@ class CheckpointManifest {
   /// Bump only on breaking changes to the JSON layout (renamed/removed
   /// fields, changed value semantics).  Additive changes (new optional
   /// fields) do not require a bump.  Readers must reject unknown versions.
+  ///
+  /// Version 2 was briefly written by an intermediate, never-released
+  /// revision of this format; version 3 is intentionally the next shipped
+  /// number so that any directory produced by those intermediate builds is
+  /// rejected instead of being misread.
   static constexpr int kFormatVersion = 3;
 
   CheckpointManifest() = default;

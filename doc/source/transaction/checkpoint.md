@@ -103,16 +103,17 @@ A persistent database uses one manifest selector, immutable objects shared by ma
 ```text
 data_dir/
 ├── checkpoint/
-│   ├── CURRENT                 # decimal ID of the selected manifest
+│   ├── CURRENT                 # decimal manifest ID + trailing newline
 │   ├── manifests/<id>.manifest
 │   └── objects/<object-id>
 ├── wal/<id>/                   # WAL epoch for manifest <id>
-└── runtime/open-<epoch>/       # temporary files for one database open
+└── runtime/open-<id>/          # temporary files for one database open;
+                                # <id> is an opaque unique suffix (a UUID)
 ```
 
-`CURRENT` is the sole publication selector. A published manifest has the required fields `v`, `id`, `base_ts`, `schema`, and `modules`; it may also contain `scalars`. Module descriptors persist object IDs, not absolute paths. The same ID names the manifest and its WAL epoch. `base_ts` is the highest transaction timestamp already represented by the manifest, so recovery replays the selected epoch from `base_ts + 1`. Full checkpoints use `base_ts=0` and reset the transaction timeline after reopening.
+`CURRENT` is the sole publication selector. Its content is the selected manifest's decimal ID followed by a single trailing newline (for example `3\n`), written via an atomic rename; operators may inspect or rewrite it manually with a plain text editor. A published manifest has the required fields `v`, `id`, `base_ts`, `schema`, and `modules`; it may also contain `scalars`. Module descriptors persist object IDs, not absolute paths. The same ID names the manifest and its WAL epoch. `base_ts` is the highest transaction timestamp already represented by the manifest, so recovery replays the selected epoch from `base_ts + 1`. Full checkpoints use `base_ts=0` and reset the transaction timeline after reopening.
 
-Checkpoint objects are immutable and may be referenced by several manifests. Runtime files are not checkpoint data: each database open receives its own `runtime/open-<epoch>/` directory, and closing that database removes only its own unpinned workspace. Existing `checkpoint-N` directories are unsupported and rejected without modification; this format does not migrate or read them. Recover or rebuild such a database with a version that supports the legacy format first.
+Checkpoint objects are immutable and may be referenced by several manifests. Runtime files are not checkpoint data: each database open receives its own `runtime/open-<id>/` directory (the suffix is an opaque unique ID, not a timestamp or manifest ID), and closing that database removes only its own unpinned workspace. Existing `checkpoint-N` directories are unsupported and rejected without modification; this format does not migrate or read them. Recover or rebuild such a database with a version that supports the legacy format first.
 
 ## What a checkpoint does
 
@@ -123,6 +124,12 @@ After publication, NeuG reopens the graph and allocators from the new checkpoint
 Recovery and shutdown checkpoints use the same compacting, destructive dump. Recovery reopens the graph and allocators before the database starts serving; shutdown persists without reopening. Garbage collection removes manifests, WAL epochs, and objects only when they are neither current nor retained by a live checkpoint reference.
 
 "Full" describes the runtime lifecycle boundary; it does not require rewriting every clean immutable object. Checkpoint disk growth is therefore driven by rewritten modules plus objects retained by live references. Schedule checkpoints based on the acceptable replay work after a crash and WAL growth, rather than a fixed tight interval.
+
+### Disk space reclamation
+
+Retired manifests, WAL epochs, immutable objects, and abandoned `runtime/open-<id>/` workspaces are removed by garbage collection, which runs only at three points: read-write database open, a successful manual `CHECKPOINT`, and database close. Deleting rows or dropping tables therefore does not shrink disk usage until one of those points is reached.
+
+Read-only opens never run garbage collection. A pure read-only deployment accumulates the stale `runtime/open-<id>/` workspaces left behind by crashed read-only processes; the next read-write open reclaims them.
 
 ### Concurrency
 

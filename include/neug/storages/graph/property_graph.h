@@ -142,6 +142,12 @@ class NEUG_API PropertyGraph {
   /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
   /// Callers that need a usable graph after dumping must explicitly Open() a
   /// checkpoint and rebuild any GraphView that pointed into this graph.
+  ///
+  /// Precondition: the graph must already be compacted. DumpAndClear never
+  /// compacts implicitly; the production checkpoint path always calls
+  /// Compact() immediately before this (see CheckpointCoordinator). Custom
+  /// StorageIndex implementations that dump via this path should follow the
+  /// same sequence.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
   DirtyTracker& dirty_tracker() { return dirty_; }

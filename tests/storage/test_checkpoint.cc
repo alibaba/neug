@@ -15,9 +15,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
@@ -508,7 +510,103 @@ TEST(CheckpointFormatTest,
   std::filesystem::remove_all(db_dir);
 }
 
-TEST(CheckpointFormatTest, ManualCheckpointPreservesDeletedVertexState) {
+// Restores the memory-level coverage of the replaced suite: the core
+// roundtrip and reopen-GC scenarios run at both kInMemory and kSyncToFile,
+// whose object stores differ (hardlink vs copy, mmap'd objects).
+class CheckpointRoundtripTest
+    : public ::testing::TestWithParam<neug::MemoryLevel> {
+ protected:
+  neug::NeugDBConfig Config(const std::string& data_dir) {
+    auto config = ::Config(data_dir);
+    config.memory_level = GetParam();
+    return config;
+  }
+
+  std::string TestDir(const std::string& name) {
+    const auto* suffix =
+        GetParam() == neug::MemoryLevel::kInMemory ? "in_memory" : "sync_file";
+    return ::TestDir(name + "_" + suffix);
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(AllMemoryLevels, CheckpointRoundtripTest,
+                         ::testing::Values(neug::MemoryLevel::kInMemory,
+                                           neug::MemoryLevel::kSyncToFile));
+
+TEST_P(CheckpointRoundtripTest, ReopenReclaimsRetiredCheckpointsAndWalEpochs) {
+  const auto db_dir = TestDir("reopen_reclaims_retired");
+  uint64_t current_id = 0;
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "CREATE NODE TABLE Person(id INT64, age INT32, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Person {id: 1, age: 30});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+
+    // Dirty the vertex module so the second checkpoint cannot reuse the
+    // first checkpoint's objects.
+    connection = db.Connect();
+    result = connection->Query("MATCH (p:Person {id: 1}) SET p.age = 31;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+      const auto checkpoint = db.graph().checkpoint_ptr();
+      ASSERT_NE(checkpoint, nullptr);
+      current_id = checkpoint->id();
+      EXPECT_GT(current_id, 0u);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    const auto checkpoint = db.graph().checkpoint_ptr();
+    ASSERT_NE(checkpoint, nullptr);
+    EXPECT_EQ(checkpoint->id(), current_id);
+
+    // The reclaiming reopen (RW open runs GC) leaves only the current
+    // manifest and its WAL epoch behind.
+    std::vector<std::string> manifests;
+    for (const auto& entry : std::filesystem::directory_iterator(
+             std::filesystem::path(db_dir) / "checkpoint" / "manifests")) {
+      manifests.push_back(entry.path().filename().string());
+    }
+    std::sort(manifests.begin(), manifests.end());
+    EXPECT_EQ(manifests, std::vector<std::string>{std::to_string(current_id) +
+                                                  ".manifest"});
+
+    std::vector<std::string> wal_epochs;
+    for (const auto& entry : std::filesystem::directory_iterator(
+             std::filesystem::path(db_dir) / "wal")) {
+      wal_epochs.push_back(entry.path().filename().string());
+    }
+    std::sort(wal_epochs.begin(), wal_epochs.end());
+    EXPECT_EQ(wal_epochs, std::vector<std::string>{std::to_string(current_id)});
+
+    // Rows survive the reclaiming reopen.
+    auto connection = db.Connect();
+    auto result = connection->Query("MATCH (p:Person) RETURN p.age;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    EXPECT_EQ(result.value().response().row_count(), 1);
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST_P(CheckpointRoundtripTest, ManualCheckpointPreservesDeletedVertexState) {
   const auto db_dir = TestDir("manual_deleted_vertex");
   {
     neug::NeugDB db;
@@ -554,8 +652,8 @@ TEST(CheckpointFormatTest, ManualCheckpointPreservesDeletedVertexState) {
   std::filesystem::remove_all(db_dir);
 }
 
-TEST(CheckpointFormatTest,
-     ManualCheckpointRoundTripsEvolvedVertexAndEdgeDescriptors) {
+TEST_P(CheckpointRoundtripTest,
+       ManualCheckpointRoundTripsEvolvedVertexAndEdgeDescriptors) {
   const auto db_dir = TestDir("evolved_vertex_edge_descriptors");
   {
     neug::NeugDB db;

@@ -332,6 +332,16 @@ std::shared_ptr<Checkpoint> CheckpointManager::PublishStagingCheckpoint(
         "could not be confirmed: " +
         std::string(e.what()));
   }
+  // Commit-unknown handling: AtomicFileWriter::Commit() returns kCommitUnknown
+  // only when the rename succeeded but the parent-directory fsync failed, so
+  // CURRENT has already been atomically replaced with the new ID. Rolling
+  // back to the previous ID is attempted first because that rename is
+  // verifiable; if the rollback itself cannot be confirmed, the new CURRENT
+  // is deliberately kept: it names a manifest that was fully persisted
+  // above, which is strictly safer than an unverified rollback. This branch
+  // is review-verified rather than test-covered: no unit-test seam can
+  // inject a parent-directory fsync failure after a successful rename
+  // without a fault-injection hook in AtomicFileWriter.
   if (publish_result != file_utils::AtomicFileWriter::CommitResult::kDurable) {
     if (restore_current(selector, previous_id)) {
       THROW_IO_EXCEPTION(
