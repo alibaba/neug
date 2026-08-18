@@ -8,6 +8,7 @@ add_neug_test(
 	test_file_system.cc
 	test_sniffer.cc
 	test_input_stream.cc
+	test_output_stream.cc
 	json_test.cc)
 if(NOT WIN32)
     target_sources(utils_test PRIVATE test_file_utils.cc)
