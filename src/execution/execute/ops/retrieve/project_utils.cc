@@ -218,11 +218,7 @@ struct GeneralExpr : public ProjectExprBase {
 
     for (size_t i = 0; i < chunk.row_num(); ++i) {
       const auto& val = e.eval_record(chunk.chunk(), i);
-      if (val.IsNull()) {
-        column_builder->push_back_null();
-      } else {
-        column_builder->push_back_elem(val);
-      }
+      column_builder->push_back_elem(val);
     }
     return column_builder->finish();
   }

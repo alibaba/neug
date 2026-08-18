@@ -22,9 +22,8 @@
 namespace neug {
 namespace extension {
 
-Status install_extension(const std::string& extension_name);
-
-Status load_extension(const std::string& extension_name);
+Status install_extension(const std::string& extension_name,
+                         const std::string& repository = {});
 
 Status uninstall_extension(const std::string& extension_name);
 
