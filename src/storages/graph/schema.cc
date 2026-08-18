@@ -1174,16 +1174,27 @@ void Schema::Deserialize(std::istream& is) {
   }
 
   arc >> description_ >> name_ >> id_;
-  size_t graph_count;
-  arc >> graph_count;
   graph_entry_set_.Clear();
-  for (size_t i = 0; i < graph_count; ++i) {
-    std::string name;
-    ProjectedGraphEntry entry;
-    arc >> name >> entry;
-    auto status = graph_entry_set_.AddEntry(name, entry);
-    THROW_STORAGE_EXCEPTION_STATUS("Failed to deserialize projected graph: ",
-                                   status);
+  // Projected graphs were added as an optional tail to the length-delimited
+  // schema archive. Legacy archives end immediately after id_, so an empty
+  // archive here is a valid pre-projected-graph schema rather than a graph
+  // count. Keeping the legacy path explicit also avoids reading past the
+  // archive and interpreting unrelated bytes as graph_count.
+  if (!arc.Empty()) {
+    if (arc.GetSize() < sizeof(size_t)) {
+      THROW_STORAGE_EXCEPTION(
+          "Invalid schema archive: truncated projected graph count");
+    }
+    size_t graph_count;
+    arc >> graph_count;
+    for (size_t i = 0; i < graph_count; ++i) {
+      std::string name;
+      ProjectedGraphEntry entry;
+      arc >> name >> entry;
+      auto status = graph_entry_set_.AddEntry(name, entry);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to deserialize projected graph: ",
+                                     status);
+    }
   }
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
