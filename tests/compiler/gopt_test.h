@@ -199,6 +199,10 @@ class GOptTest : public ::testing::Test {
                                 : database->getCatalog();
   }
 
+  main::MetadataManager* getMetadataManager() {
+    return currentQueryDatabase ? currentQueryDatabase.get() : database.get();
+  }
+
   std::string getGOptResourcePath(const std::string& resourceName) {
     return Utils::getTestResourcePath("resources/" + resourceName);
   }
@@ -246,7 +250,7 @@ class GOptTest : public ::testing::Test {
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
       const planner::LogicalPlan& plan,
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
-    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getMetadataManager());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -255,7 +259,7 @@ class GOptTest : public ::testing::Test {
       const planner::LogicalPlan& plan) {
     // Convert to physical plan
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
-    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getMetadataManager());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }

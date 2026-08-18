@@ -74,6 +74,7 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
             "CREATE NODE TABLE Item("
             "id INT64 PRIMARY KEY, name STRING, embedding FLOAT[4]);"
         )
+        conn.execute("CREATE REL TABLE Similar(FROM Item TO Item, weight DOUBLE);")
         conn.execute(
             f'COPY Item FROM (LOAD FROM "{csv_path}" '
             "RETURN id, name, CAST(embedding, 'FLOAT[4]') AS embedding);"
@@ -101,8 +102,22 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
         )
 
         session.execute(
+            "MATCH (src:Item {id: 2}), (dst:Item {id: 3}) "
+            "CREATE (src)-[:Similar {weight: 0.5}]->(dst);",
+            access_mode="insert",
+        )
+        result = session.execute(
+            "MATCH (:Item {id: 2})-[e:Similar]->(:Item {id: 3}) " "RETURN e.weight;",
+            access_mode="read",
+        )
+        assert list(result) == [[0.5]]
+
+        create_indexed_item = (
             "CREATE (:Item {id: 4, name: 'four', " "embedding: [0.9, 0.0, 0.0, 0.0]});"
         )
+        with pytest.raises(Exception, match="Insert-only mode"):
+            session.execute(create_indexed_item, access_mode="insert")
+        session.execute(create_indexed_item)
         _check_search(
             failures,
             "search after insert",
