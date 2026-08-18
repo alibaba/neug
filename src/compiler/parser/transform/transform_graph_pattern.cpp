@@ -245,10 +245,19 @@ std::string Transformer::transformNodeLabel(
 
 std::string Transformer::transformLabelName(
     CypherParser::OC_LabelNameContext& ctx) {
-  auto names = ctx.oC_SchemaName();
-  auto result = transformSchemaName(*names[0]);
+  if (auto* name = ctx.oC_SchemaName()) {
+    if (!name->oC_SymbolicName()->EscapedSymbolicName()) {
+      return transformSchemaName(*name);
+    }
+    // Preserve the escape markers until namespace parsing. Otherwise an
+    // escaped physical label containing dots is indistinguishable from a
+    // namespace-qualified label after transformSchemaName().
+    return name->oC_SymbolicName()->EscapedSymbolicName()->getText();
+  }
+  auto names = ctx.nEUG_UnescapedSchemaName();
+  auto result = names[0]->getText();
   if (names.size() == 2) {
-    result += "." + transformSchemaName(*names[1]);
+    result += "." + names[1]->getText();
   } else if (ctx.STAR()) {
     result += ".*";
   }
@@ -257,10 +266,16 @@ std::string Transformer::transformLabelName(
 
 std::string Transformer::transformRelTypeName(
     CypherParser::OC_RelTypeNameContext& ctx) {
-  auto names = ctx.oC_SchemaName();
-  auto result = transformSchemaName(*names[0]);
+  if (auto* name = ctx.oC_SchemaName()) {
+    if (!name->oC_SymbolicName()->EscapedSymbolicName()) {
+      return transformSchemaName(*name);
+    }
+    return name->oC_SymbolicName()->EscapedSymbolicName()->getText();
+  }
+  auto names = ctx.nEUG_UnescapedSchemaName();
+  auto result = names[0]->getText();
   if (names.size() == 2) {
-    result += "." + transformSchemaName(*names[1]);
+    result += "." + names[1]->getText();
   } else if (ctx.STAR()) {
     result += ".*";
   }

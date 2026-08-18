@@ -455,11 +455,17 @@ oC_LowerBound
 oC_UpperBound
     : DecimalInteger ;
 
+// Namespace-qualified labels and relationship types deliberately use
+// nEUG_UnescapedSchemaName for both namespace segments. This prevents a
+// namespace from containing backtick-escaped identifiers, while an escaped
+// name such as `a.b.name` remains one unqualified physical name.
 oC_LabelName
-    : oC_SchemaName (SP? '.' SP? (oC_SchemaName | '*'))? ;
+    : oC_SchemaName
+    | nEUG_UnescapedSchemaName SP? '.' SP? (nEUG_UnescapedSchemaName | '*') ;
 
 oC_RelTypeName
-    : oC_SchemaName (SP? '.' SP? (oC_SchemaName | '*'))? ;
+    : oC_SchemaName
+    | nEUG_UnescapedSchemaName SP? '.' SP? (nEUG_UnescapedSchemaName | '*') ;
 
 oC_Expression
     : oC_OrExpression ;
@@ -717,6 +723,12 @@ RegularDecimalReal
 
 oC_SchemaName
     : oC_SymbolicName ;
+
+nEUG_UnescapedSchemaName
+    : UnescapedSymbolicName
+        | HexLetter
+        | nEUG_NonReservedKeywords
+        ;
 
 oC_SymbolicName
     : UnescapedSymbolicName

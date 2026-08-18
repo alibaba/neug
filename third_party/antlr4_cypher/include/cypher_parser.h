@@ -108,9 +108,9 @@ public:
     RuleOC_PropertyLookup = 163, RuleOC_CaseExpression = 164, RuleOC_CaseAlternative = 165, 
     RuleOC_Variable = 166, RuleOC_NumberLiteral = 167, RuleOC_Parameter = 168, 
     RuleOC_PropertyExpression = 169, RuleOC_PropertyKeyName = 170, RuleOC_IntegerLiteral = 171, 
-    RuleOC_DoubleLiteral = 172, RuleOC_SchemaName = 173, RuleOC_SymbolicName = 174, 
-    RuleNEUG_NonReservedKeywords = 175, RuleOC_LeftArrowHead = 176, RuleOC_RightArrowHead = 177, 
-    RuleOC_Dash = 178
+    RuleOC_DoubleLiteral = 172, RuleOC_SchemaName = 173, RuleNEUG_UnescapedSchemaName = 174, 
+    RuleOC_SymbolicName = 175, RuleNEUG_NonReservedKeywords = 176, RuleOC_LeftArrowHead = 177, 
+    RuleOC_RightArrowHead = 178, RuleOC_Dash = 179
   };
 
   explicit CypherParser(antlr4::TokenStream *input);
@@ -304,6 +304,7 @@ public:
   class OC_IntegerLiteralContext;
   class OC_DoubleLiteralContext;
   class OC_SchemaNameContext;
+  class NEUG_UnescapedSchemaNameContext;
   class OC_SymbolicNameContext;
   class NEUG_NonReservedKeywordsContext;
   class OC_LeftArrowHeadContext;
@@ -2164,8 +2165,9 @@ public:
   public:
     OC_LabelNameContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<OC_SchemaNameContext *> oC_SchemaName();
-    OC_SchemaNameContext* oC_SchemaName(size_t i);
+    OC_SchemaNameContext *oC_SchemaName();
+    std::vector<NEUG_UnescapedSchemaNameContext *> nEUG_UnescapedSchemaName();
+    NEUG_UnescapedSchemaNameContext* nEUG_UnescapedSchemaName(size_t i);
     antlr4::tree::TerminalNode *STAR();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
@@ -2179,8 +2181,9 @@ public:
   public:
     OC_RelTypeNameContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    std::vector<OC_SchemaNameContext *> oC_SchemaName();
-    OC_SchemaNameContext* oC_SchemaName(size_t i);
+    OC_SchemaNameContext *oC_SchemaName();
+    std::vector<NEUG_UnescapedSchemaNameContext *> nEUG_UnescapedSchemaName();
+    NEUG_UnescapedSchemaNameContext* nEUG_UnescapedSchemaName(size_t i);
     antlr4::tree::TerminalNode *STAR();
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
@@ -2933,6 +2936,19 @@ public:
   };
 
   OC_SchemaNameContext* oC_SchemaName();
+
+  class  NEUG_UnescapedSchemaNameContext : public antlr4::ParserRuleContext {
+  public:
+    NEUG_UnescapedSchemaNameContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    antlr4::tree::TerminalNode *UnescapedSymbolicName();
+    antlr4::tree::TerminalNode *HexLetter();
+    NEUG_NonReservedKeywordsContext *nEUG_NonReservedKeywords();
+
+   
+  };
+
+  NEUG_UnescapedSchemaNameContext* nEUG_UnescapedSchemaName();
 
   class  OC_SymbolicNameContext : public antlr4::ParserRuleContext {
   public:

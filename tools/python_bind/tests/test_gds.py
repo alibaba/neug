@@ -188,6 +188,39 @@ def test_namespace_match_isolation_and_clause_scope(tmp_path):
         assert _shown_projected_graph_names(conn) == ["adult_graph", "z_graph"]
 
 
+def test_dotted_physical_labels_are_not_namespace_qualified(tmp_path):
+    db = Database(db_path=str(tmp_path / "dotted_labels_db"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE `a.b.name`(id INT64 PRIMARY KEY);")
+        conn.execute("CREATE REL TABLE `r.s.type`(FROM `a.b.name` TO `a.b.name`);")
+        conn.execute("CREATE (a:`a.b.name` {id: 1}), (b:`a.b.name` {id: 2});")
+        conn.execute(
+            "MATCH (a:`a.b.name` {id: 1}), (b:`a.b.name` {id: 2}) "
+            "CREATE (a)-[:`r.s.type`]->(b);"
+        )
+
+        assert list(
+            conn.execute(
+                "MATCH (a:`a.b.name`)-[r:`r.s.type`]->(b:`a.b.name`) "
+                "RETURN a.id, b.id;"
+            )
+        ) == [[1, 2]]
+
+        invalid_qualified_names = [
+            "MATCH (n:`a.b`.name) RETURN n;",
+            "MATCH (n:a.`b.name`) RETURN n;",
+            "MATCH (n:a.b.name) RETURN n;",
+            "MATCH ()-[r:`r.s`.type]->() RETURN r;",
+        ]
+        for query in invalid_qualified_names:
+            with pytest.raises(Exception):
+                conn.execute(query)
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_projected_graph_persists_after_reopen(tmp_path):
     db_dir = tmp_path / "namespace_reopen_db"
     db = Database(db_path=str(db_dir), mode="w")

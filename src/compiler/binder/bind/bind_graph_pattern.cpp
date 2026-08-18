@@ -801,11 +801,19 @@ struct NamespaceLabel {
 };
 
 static NamespaceLabel parseNamespaceLabel(const std::string& name) {
+  if (name.size() >= 2 && name.front() == '`' && name.back() == '`') {
+    return {"", name.substr(1, name.size() - 2), false, false};
+  }
+  if (name.find('`') != std::string::npos) {
+    THROW_BINDER_EXCEPTION("Invalid escaped label or relationship type '" +
+                           name + "'.");
+  }
   auto dot = name.find('.');
   if (dot == std::string::npos) {
     return {"", name, false, false};
   }
-  if (dot == 0 || dot + 1 >= name.size()) {
+  if (dot == 0 || dot + 1 >= name.size() ||
+      name.find('.', dot + 1) != std::string::npos) {
     THROW_BINDER_EXCEPTION("Invalid namespace-qualified label '" + name + "'.");
   }
   auto label = name.substr(dot + 1);
@@ -985,7 +993,7 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
                            qualified.labelName, qualified.graphName));
         }
       } else {
-        auto entry = bindNodeTableEntry(name);
+        auto entry = bindNodeTableEntry(qualified.labelName);
         if (entry->get_entry_type() != SchemaEntryType::NODE) {
           THROW_BINDER_EXCEPTION(stringFormat(
               "Cannot bind {} as a node pattern label.", entry->get_label()));
@@ -1045,14 +1053,15 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
               stringFormat("Label '{}' is not part of projected graph '{}'.",
                            qualified.labelName, qualified.graphName));
         }
-      } else if (catalog->containsRelGroup(transaction, name)) {
-        auto groupEntry = catalog->getRelGroupEntry(transaction, name);
+      } else if (catalog->containsRelGroup(transaction, qualified.labelName)) {
+        auto groupEntry =
+            catalog->getRelGroupEntry(transaction, qualified.labelName);
         for (auto& relEntry : groupEntry) {
           entrySet.insert(relEntry);
         }
-      } else if (catalog->containsTable(transaction, name)) {
-        auto entry =
-            catalog->getTableCatalogEntry(transaction, name, useInternal);
+      } else if (catalog->containsTable(transaction, qualified.labelName)) {
+        auto entry = catalog->getTableCatalogEntry(
+            transaction, qualified.labelName, useInternal);
         if (entry->get_entry_type() != SchemaEntryType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",
@@ -1060,7 +1069,8 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
         }
         entrySet.insert(entry);
       } else {
-        THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", name));
+        THROW_BINDER_EXCEPTION(
+            stringFormat("Table {} does not exist.", qualified.labelName));
       }
     }
   }
