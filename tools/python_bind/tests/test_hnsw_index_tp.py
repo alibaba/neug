@@ -134,6 +134,51 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
             [2, "two-updated"],
         )
 
+        target = [2.0, 0.0, 0.0, 0.0]
+        with pytest.raises(Exception):
+            session.execute(
+                "CREATE (:Item {id: 5, name: 'aborted', "
+                "embedding: [2.0, 0.0, 0.0, 0.0]}), "
+                "(:Item {id: 3, name: 'duplicate', "
+                "embedding: [0.0, 0.0, 0.0, 0.0]});"
+            )
+        _check_search(
+            failures,
+            "search after aborted insert",
+            _search(session, target),
+            [2, "two-updated"],
+        )
+
+        with pytest.raises(Exception):
+            session.execute(
+                "MATCH (n:Item {id: 4}) DELETE n "
+                "CREATE (:Item {id: 3, name: 'duplicate', "
+                "embedding: [0.0, 0.0, 0.0, 0.0]});",
+                access_mode="update",
+            )
+        _check_search(
+            failures,
+            "search after aborted delete",
+            _search(session, [0.9, 0.0, 0.0, 0.0]),
+            [4, "four"],
+        )
+
+        with pytest.raises(Exception):
+            session.execute(
+                "MATCH (n:Item {id: 2}) "
+                "SET n.name = 'aborted-upsert', "
+                "n.embedding = [2.5, 0.0, 0.0, 0.0] "
+                "CREATE (:Item {id: 3, name: 'duplicate', "
+                "embedding: [0.0, 0.0, 0.0, 0.0]});",
+                access_mode="update",
+            )
+        _check_search(
+            failures,
+            "search after aborted upsert",
+            _search(session, [1.5, 0.0, 0.0, 0.0]),
+            [2, "two-updated"],
+        )
+
         assert not failures, "\n".join(failures)
     finally:
         if session is not None:

@@ -34,6 +34,7 @@
 #include "neug/utils/io/file/file_utils.h"
 
 namespace neug::vector_search_ext {
+
 namespace {
 constexpr const char* kIndexBufferPath = "index_buffer";
 
@@ -421,23 +422,24 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
       return key > std::numeric_limits<uint32_t>::max() ||
              !allowed->contains(static_cast<uint32_t>(key));
     });
-  } else {
-    // Without a scalar allowlist, explicitly reject tombstoned index IDs so
-    // HNSW excludes them before selecting top-k results.
-    auto deleted = std::make_shared<roaring::Roaring>();
-    const auto next_index_id = index_id_accessor_->GetNextIndexID();
-    for (index_id_t index_id = 0; index_id < next_index_id; ++index_id) {
-      if (index_id_accessor_->GetVIDByIndexID(index_id) == INVALID_VID) {
-        deleted->add(index_id);
+  } else if (index_id_accessor_) {
+    const auto visible_limit = index_id_accessor_->GetVisibleLimit();
+    const auto& deleted_index_ids = index_id_accessor_->GetDeletedIndexIDs();
+    // Skip the filter in the read-only steady state: every allocated index ID
+    // is visible and there are no tombstones to exclude.
+    if (visible_limit < index_id_accessor_->GetNextIndexID() ||
+        !deleted_index_ids.empty()) {
+      auto deleted = std::make_shared<roaring::Roaring>();
+      if (!deleted_index_ids.empty()) {
+        for (auto index_id : deleted_index_ids) {
+          deleted->add(index_id);
+        }
+        deleted->runOptimize();
       }
-    }
-    if (!deleted->isEmpty()) {
-      deleted->runOptimize();
       query_param->filter =
           std::make_shared<zvec::core_interface::IndexFilter>();
-      // ZVec's filter predicate returns true to exclude the key.
-      query_param->filter->set([deleted](uint64_t key) {
-        return key > std::numeric_limits<uint32_t>::max() ||
+      query_param->filter->set([visible_limit, deleted](uint64_t key) {
+        return key >= visible_limit ||
                deleted->contains(static_cast<uint32_t>(key));
       });
     }

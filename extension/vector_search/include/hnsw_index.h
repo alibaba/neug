@@ -22,6 +22,7 @@
 #include <zvec/core/interface/index.h>
 #include <zvec/core/interface/index_param.h>
 #include <zvec/core/interface/vector_source.h>
+#include <roaring.hh>
 
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/container/i_container.h"
