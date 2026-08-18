@@ -75,7 +75,9 @@ class NEUG_API CheckpointManager {
   StagingCheckpoint CreateStaging();
 
   /// Reclaim manifests, WAL epochs, and immutable objects not held by the
-  /// current checkpoint or a live Checkpoint shared_ptr.
+  /// current checkpoint or a live Checkpoint shared_ptr, plus runtime
+  /// workspaces abandoned by earlier processes. The caller must hold exclusive
+  /// database-writer ownership; the current open epoch is always preserved.
   void CollectGarbage();
 
   std::string database_dir() const;

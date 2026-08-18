@@ -309,7 +309,7 @@ std::shared_ptr<Checkpoint> CheckpointManager::PublishStagingCheckpoint(
       !file_utils::fsync_directory(wal_dir.parent_path().string())) {
     THROW_IO_EXCEPTION("CheckpointManager::Publish: failed to fsync WAL epoch");
   }
-  staging_checkpoint_->PersistManifest();
+  staging_checkpoint_->persist_manifest();
 
   const auto selector = current_path(database_dir_);
   file_utils::AtomicFileWriter::CommitResult publish_result;
@@ -435,9 +435,32 @@ void CheckpointManager::CollectGarbage() {
       }
     }
   }
+
+  bool removed_runtime_workspace = false;
+  const auto runtime_root = std::filesystem::path(database_dir_) / "runtime";
+  const auto active_runtime = std::filesystem::path(*runtime_workspace_);
+  if (std::filesystem::is_directory(runtime_root)) {
+    for (const auto& entry :
+         std::filesystem::directory_iterator(runtime_root)) {
+      if (!entry.is_directory() ||
+          !entry.path().filename().string().starts_with("open-") ||
+          entry.path() == active_runtime) {
+        continue;
+      }
+      std::filesystem::remove_all(entry.path(), ec);
+      if (ec) {
+        THROW_IO_EXCEPTION(
+            "Checkpoint GC: failed to remove runtime workspace " +
+            entry.path().string() + ": " + ec.message());
+      }
+      removed_runtime_workspace = true;
+    }
+  }
   if (!file_utils::fsync_directory(manifests.string()) ||
       !file_utils::fsync_directory(wal_root.string()) ||
-      !file_utils::fsync_directory(objects.string())) {
+      !file_utils::fsync_directory(objects.string()) ||
+      (removed_runtime_workspace &&
+       !file_utils::fsync_directory(runtime_root.string()))) {
     THROW_IO_EXCEPTION("Checkpoint GC: failed to fsync checkpoint directories");
   }
 }

@@ -141,13 +141,6 @@ void CheckpointManifest::Load(const std::string& file_path) {
         std::to_string(kFormatVersion) + ") in " + file_path);
   }
 
-  if (!doc.HasMember("id") || !doc["id"].IsUint64()) {
-    THROW_STORAGE_EXCEPTION(
-        "CheckpointManifest::Load: missing or invalid "
-        "'id' in " +
-        file_path);
-  }
-  checkpoint_id_ = doc["id"].GetUint64();
   if (!doc.HasMember("base_ts") || !doc["base_ts"].IsUint64()) {
     THROW_STORAGE_EXCEPTION(
         "CheckpointManifest::Load: missing or invalid "
@@ -190,7 +183,6 @@ void CheckpointManifest::Save(const std::string& file_path) const {
   doc.SetObject();
   auto& alloc = doc.GetAllocator();
   doc.AddMember("v", rapidjson::Value(kFormatVersion), alloc);
-  doc.AddMember("id", rapidjson::Value(checkpoint_id_), alloc);
   doc.AddMember("base_ts", rapidjson::Value(base_timestamp_), alloc);
 
   auto schema_res = schema_.ToJson();

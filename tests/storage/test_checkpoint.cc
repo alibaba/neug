@@ -104,6 +104,12 @@ neug::NeugDBConfig CheckpointOnCloseConfig(const std::string& data_dir) {
   return config;
 }
 
+neug::NeugDBConfig SyncToFileConfig(const std::string& data_dir) {
+  auto config = Config(data_dir);
+  config.memory_level = neug::MemoryLevel::kSyncToFile;
+  return config;
+}
+
 void RegisterExampleIndex() {
   static const bool registered = [] {
     return neug::ModuleFactory::instance().Register(
@@ -356,6 +362,87 @@ TEST(CheckpointFormatTest, CurrentSelectsManifestAndGcRespectsCheckpointPins) {
   std::filesystem::remove_all(db_dir);
 }
 
+TEST(CheckpointFormatTest, CurrentIsAuthoritativeAndDoesNotFallback) {
+  const auto db_dir = TestDir("current_is_authoritative");
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+  auto first = PublishCheckpoint(manager, "first");
+  auto second = PublishCheckpoint(manager, "second");
+  const auto second_manifest = second->manifest_path();
+  manager.Close();
+
+  const auto current_path =
+      std::filesystem::path(db_dir) / "checkpoint" / "CURRENT";
+  {
+    std::ofstream current(current_path, std::ios::trunc);
+    ASSERT_TRUE(current.is_open());
+    current << "99\n";
+  }
+
+  neug::CheckpointManager reopened;
+  EXPECT_THROW(reopened.Open(db_dir), std::exception);
+  EXPECT_TRUE(std::filesystem::exists(second_manifest));
+  EXPECT_EQ(std::ifstream(current_path).peek(), '9');
+  reopened.Close();
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest,
+     OpenEpochWorkspacesAreDistinctAndIndependentlyOwned) {
+  const auto db_dir = TestDir("distinct_open_epoch_workspaces");
+  neug::CheckpointManager first;
+  neug::CheckpointManager second;
+  first.Open(db_dir);
+  const auto first_runtime = first.CreateStaging().checkpoint()->runtime_dir();
+  second.Open(db_dir);
+  const auto second_runtime =
+      second.CreateStaging().checkpoint()->runtime_dir();
+
+  EXPECT_NE(first_runtime, second_runtime);
+  EXPECT_TRUE(std::filesystem::exists(first_runtime));
+  EXPECT_TRUE(std::filesystem::exists(second_runtime));
+  first.Close();
+  EXPECT_FALSE(std::filesystem::exists(first_runtime));
+  EXPECT_TRUE(std::filesystem::exists(second_runtime));
+  second.Close();
+  EXPECT_FALSE(std::filesystem::exists(second_runtime));
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, GarbageCollectionReclaimsAbandonedOpenEpochs) {
+  const auto db_dir = TestDir("abandoned_open_epochs");
+  const auto runtime_root = std::filesystem::path(db_dir) / "runtime";
+  const auto abandoned = runtime_root / "open-abandoned";
+  const auto unrelated = runtime_root / "keep-this-directory";
+  std::filesystem::create_directories(abandoned / "allocator");
+  std::filesystem::create_directories(unrelated);
+  {
+    std::ofstream payload(abandoned / "allocator" / "data");
+    ASSERT_TRUE(payload.is_open());
+    payload << "stale runtime data";
+  }
+
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+  auto current = PublishCheckpoint(manager);
+  const auto active_runtime = current->runtime_dir();
+  ASSERT_TRUE(std::filesystem::exists(active_runtime));
+
+  manager.CollectGarbage();
+  EXPECT_FALSE(std::filesystem::exists(abandoned));
+  EXPECT_TRUE(std::filesystem::exists(active_runtime));
+  EXPECT_TRUE(std::filesystem::exists(unrelated));
+
+  current.reset();
+  manager.Close();
+  EXPECT_FALSE(std::filesystem::exists(active_runtime));
+  EXPECT_TRUE(std::filesystem::exists(unrelated));
+
+  std::filesystem::remove_all(db_dir);
+}
+
 TEST(CheckpointFormatTest,
      ManualCheckpointReopensRuntimeAndReplaysOnlyNewWalEpoch) {
   const auto db_dir = TestDir("manual_wal_epoch");
@@ -460,6 +547,239 @@ TEST(CheckpointFormatTest, ManualCheckpointPreservesDeletedVertexState) {
     auto result = connection->Query("MATCH (v:Item) RETURN v.id;");
     ASSERT_TRUE(result) << result.error().ToString();
     EXPECT_EQ(result.value().response().row_count(), 1);
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest,
+     ManualCheckpointRoundTripsEvolvedVertexAndEdgeDescriptors) {
+  const auto db_dir = TestDir("evolved_vertex_edge_descriptors");
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "CREATE NODE TABLE Person(id STRING, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "CREATE NODE TABLE Software(id STRING, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "CREATE REL TABLE Uses(FROM Person TO Software, weight DOUBLE);");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Person {id: 'alice'});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Software {id: 'neug'});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "MATCH (p:Person {id: 'alice'}), (s:Software {id: 'neug'}) "
+        "CREATE (p)-[:Uses {weight: 1.5}]->(s);");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+
+    connection = db.Connect();
+    result = connection->Query("ALTER TABLE Person ADD score INT64;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result =
+        connection->Query("MATCH (p:Person {id: 'alice'}) SET p.score = 42;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("ALTER TABLE Uses ADD description STRING;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "MATCH (:Person)-[e:Uses]->(:Software) SET e.description = 'core';");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "MATCH (p:Person)-[e:Uses]->(:Software) "
+        "RETURN p.score, e.weight, e.description;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    const auto& response = result.value().response();
+    ASSERT_EQ(response.row_count(), 1);
+    ASSERT_EQ(response.arrays_size(), 3);
+    EXPECT_EQ(response.arrays(0).int64_array().values(0), 42);
+    EXPECT_DOUBLE_EQ(response.arrays(1).double_array().values(0), 1.5);
+    EXPECT_EQ(response.arrays(2).string_array().values(0), "core");
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest,
+     DropEdgeTableCheckpointReopenRecreateHasNoStaleData) {
+  const auto db_dir = TestDir("drop_edge_recreate");
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "CREATE NODE TABLE Person(id STRING, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "CREATE NODE TABLE Software(id STRING, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "CREATE REL TABLE Created(FROM Person TO Software, weight DOUBLE);");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Person {id: 'alice'});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Software {id: 'neug'});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "MATCH (p:Person), (s:Software) CREATE (p)-[:Created {weight: "
+        "1.0}]->(s);");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+
+    connection = db.Connect();
+    result = connection->Query("DROP TABLE Created;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "CREATE REL TABLE Created(FROM Person TO Software, weight DOUBLE);");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result =
+        connection->Query("MATCH (:Person)-[e:Created]->(:Software) RETURN e;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    EXPECT_EQ(result.value().response().row_count(), 0);
+    result = connection->Query(
+        "MATCH (p:Person), (s:Software) CREATE (p)-[:Created {weight: "
+        "2.0}]->(s);");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "MATCH (:Person)-[e:Created]->(:Software) RETURN e.weight;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    const auto& response = result.value().response();
+    ASSERT_EQ(response.row_count(), 1);
+    EXPECT_DOUBLE_EQ(response.arrays(0).double_array().values(0), 2.0);
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, DropLabelDoesNotSweepSiblingWithSharedPrefix) {
+  const auto db_dir = TestDir("drop_sibling_prefix");
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query(
+        "CREATE NODE TABLE User(id STRING, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query(
+        "CREATE NODE TABLE UserAccount(id STRING, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:User {id: 'u1'});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:UserAccount {id: 'a1'});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+
+    connection = db.Connect();
+    result = connection->Query("DROP TABLE User;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query("MATCH (u:UserAccount) RETURN u.id;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    const auto& response = result.value().response();
+    ASSERT_EQ(response.row_count(), 1);
+    EXPECT_EQ(response.arrays(0).string_array().values(0), "a1");
+    connection->Close();
+    db.Close();
+  }
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, SyncToFileCheckpointRecoversAcrossOpenEpochs) {
+  const auto db_dir = TestDir("sync_to_file_reopen");
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(SyncToFileConfig(db_dir)));
+    auto connection = db.Connect();
+    auto result =
+        connection->Query("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Item {id: 1}), (:Item {id: 2});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+    }
+    db.Close();
+  }
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(SyncToFileConfig(db_dir)));
+    auto connection = db.Connect();
+    auto result = connection->Query("MATCH (v:Item) RETURN v.id;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    EXPECT_EQ(result.value().response().row_count(), 2);
     connection->Close();
     db.Close();
   }

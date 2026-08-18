@@ -255,9 +255,8 @@ static Status updateVertexIndexData(
     return Status::OK();
   }
 
-  auto& index_manager = graph.mutable_index_manager();
-  auto indexes =
-      index_manager.GetIndex(label, v_schema->property_names[col_id]);
+  auto indexes = graph.mutable_index_manager().GetIndex(
+      label, v_schema->property_names[col_id]);
   if (!indexes) {
     return indexes.error();
   }

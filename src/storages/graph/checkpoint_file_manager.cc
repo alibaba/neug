@@ -39,11 +39,20 @@ namespace neug {
 namespace {
 
 void sync_file(const std::string& path) {
+#ifdef _WIN32
+  const int fd = ::_open(path.c_str(), _O_RDWR);
+#else
   const int fd = ::open(path.c_str(), O_RDONLY);
+#endif
   if (fd < 0) {
     THROW_IO_EXCEPTION("Checkpoint object open failed: " + path);
   }
-  if (::fsync(fd) != 0) {
+#ifdef _WIN32
+  const int sync_result = ::_commit(fd);
+#else
+  const int sync_result = ::fsync(fd);
+#endif
+  if (sync_result != 0) {
     const auto message = std::string(std::strerror(errno));
     ::close(fd);
     THROW_IO_EXCEPTION("Checkpoint object fsync failed: " + path + ": " +

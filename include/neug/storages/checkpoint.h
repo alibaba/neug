@@ -125,7 +125,7 @@ class Checkpoint {
   void initialize(bool load_manifest);
   void create_dirs() const;
   void resolve_object_paths();
-  void PersistManifest();
+  void persist_manifest();
 
   std::string database_dir_;
   std::string manifest_path_;

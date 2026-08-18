@@ -42,7 +42,7 @@ class CheckpointManifest {
   /// Bump only on breaking changes to the JSON layout (renamed/removed
   /// fields, changed value semantics).  Additive changes (new optional
   /// fields) do not require a bump.  Readers must reject unknown versions.
-  static constexpr int kFormatVersion = 2;
+  static constexpr int kFormatVersion = 3;
 
   CheckpointManifest() = default;
 
@@ -110,12 +110,6 @@ class CheckpointManifest {
   /// always carries a schema, even when the graph has no tables.
   bool has_schema() const { return has_schema_; }
 
-  /// ID shared by this manifest and its WAL epoch.
-  uint64_t checkpoint_id() const { return checkpoint_id_; }
-  void set_checkpoint_id(uint64_t checkpoint_id) {
-    checkpoint_id_ = checkpoint_id;
-  }
-
   /// Greatest transaction timestamp represented by this manifest. Recovery
   /// starts WAL replay at the next timestamp.
   uint64_t base_timestamp() const { return base_timestamp_; }
@@ -129,7 +123,6 @@ class CheckpointManifest {
 
   Schema schema_;
   bool has_schema_ = false;
-  uint64_t checkpoint_id_ = 0;
   uint64_t base_timestamp_ = 0;
   std::unordered_map<std::string, ModuleDescriptor> modules_;
   std::unordered_map<std::string, std::string> scalars_;

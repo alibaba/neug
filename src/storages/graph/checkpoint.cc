@@ -84,15 +84,10 @@ void Checkpoint::initialize(bool load_manifest) {
   file_mgr_ =
       std::make_unique<CheckpointFileManager>(object_dir_, runtime_workspace_);
   if (!load_manifest) {
-    manifest_.set_checkpoint_id(id_);
     return;
   }
 
   manifest_.Load(manifest_path());
-  if (manifest_.checkpoint_id() != id_) {
-    THROW_CHECKPOINT_EXCEPTION("Checkpoint manifest id does not match path: " +
-                               manifest_path());
-  }
   resolve_object_paths();
 }
 
@@ -138,14 +133,13 @@ void Checkpoint::resolve_object_paths() {
 }
 
 void Checkpoint::SetManifest(CheckpointManifest&& manifest) {
-  manifest.set_checkpoint_id(id_);
   manifest_ = std::move(manifest);
 }
 
-void Checkpoint::PersistManifest() {
+void Checkpoint::persist_manifest() {
   if (!file_mgr_->SyncObjectDirectory()) {
-    THROW_IO_EXCEPTION("Checkpoint::PersistManifest: failed to fsync objects " +
-                       object_dir_);
+    THROW_IO_EXCEPTION(
+        "Checkpoint::persist_manifest: failed to fsync objects " + object_dir_);
   }
 
   CheckpointManifest persisted = manifest_;
