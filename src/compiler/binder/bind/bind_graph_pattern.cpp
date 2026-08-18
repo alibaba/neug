@@ -823,6 +823,18 @@ static NamespaceLabel parseNamespaceLabel(const std::string& name) {
 static const ProjectedGraphEntry& getProjectedGraph(
     main::ClientContext* context, const std::string& name);
 
+static std::shared_ptr<Expression> copyPredicateForVariable(
+    const std::shared_ptr<Expression>& predicate,
+    const std::string& variableName) {
+  if (!predicate) {
+    return nullptr;
+  }
+  auto result = std::shared_ptr<Expression>(predicate->copy());
+  RenameDependentVar rename(variableName);
+  rename.visit(result);
+  return result;
+}
+
 static void validateNamespaceScope(const std::vector<std::string>& names) {
   std::optional<std::string> graphName;
   bool hasUnqualified = false;
@@ -852,9 +864,7 @@ void Binder::collectNamespaceNodePredicate(
     if (!qualified.qualified) {
       continue;
     }
-    const auto& projected =
-        getProjectedGraph(clientContext, qualified.graphName);
-    auto bound = graph::GDSFunction::bindGraphEntry(*clientContext, projected);
+    const auto& bound = bindProjectedGraph(qualified.graphName);
     std::shared_ptr<Expression> combined;
     for (const auto& info : bound.nodeInfos) {
       if (!qualified.wildcard &&
@@ -865,10 +875,9 @@ void Binder::collectNamespaceNodePredicate(
           compiler_impl::Value(info.entry->get_label()));
       auto branch = expressionBinder.createEqualityComparisonExpression(
           node->getLabelExpression(), label);
-      auto predicate = info.predicate;
+      auto predicate =
+          copyPredicateForVariable(info.predicate, node->getUniqueName());
       if (predicate) {
-        RenameDependentVar rename(node->getUniqueName());
-        rename.visit(predicate);
         branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                             branch, predicate);
       }
@@ -888,9 +897,17 @@ void Binder::collectNamespaceRelPredicate(
     if (!qualified.qualified) {
       continue;
     }
-    const auto& projected =
-        getProjectedGraph(clientContext, qualified.graphName);
-    auto bound = graph::GDSFunction::bindGraphEntry(*clientContext, projected);
+    const auto& bound = bindProjectedGraph(qualified.graphName);
+    // Index the already-bound node predicates once. Relationship endpoint
+    // predicate lookup is then O(1) per endpoint instead of rebinding every
+    // node predicate for every relationship (O(E * V)).
+    std::unordered_map<common::table_id_t, std::shared_ptr<Expression>>
+        nodePredicates;
+    nodePredicates.reserve(bound.nodeInfos.size());
+    for (const auto& nodeInfo : bound.nodeInfos) {
+      nodePredicates.emplace(nodeInfo.entry->get_entry_id(),
+                             nodeInfo.predicate);
+    }
     std::shared_ptr<Expression> combined;
     for (const auto& info : bound.relInfos) {
       if (!qualified.wildcard &&
@@ -901,39 +918,28 @@ void Binder::collectNamespaceRelPredicate(
           compiler_impl::Value(info.entry->get_label()));
       auto branch = expressionBinder.createEqualityComparisonExpression(
           rel->getLabelExpression(), label);
-      auto predicate = info.predicate;
+      auto predicate =
+          copyPredicateForVariable(info.predicate, rel->getUniqueName());
       if (predicate) {
-        RenameDependentVar rename(rel->getUniqueName());
-        rename.visit(predicate);
         branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                             branch, predicate);
       }
       auto* edge = dynamic_cast<EdgeSchema*>(info.entry);
       NEUG_ASSERT(edge != nullptr);
-      for (const auto& parsedNodeInfo : projected.vertexInfos) {
-        auto addEndpointPredicate =
-            [&](const std::shared_ptr<NodeExpression>& endpoint) {
-              auto nodeInfo = graph::GDSFunction::bindNodeEntry(
-                  *clientContext, parsedNodeInfo.labelName,
-                  parsedNodeInfo.predicate);
-              if (!nodeInfo.predicate) {
-                return;
-              }
-              auto endpointPredicate = nodeInfo.predicate;
-              RenameDependentVar rename(endpoint->getUniqueName());
-              rename.visit(endpointPredicate);
+      auto addEndpointPredicate =
+          [&](common::table_id_t tableID,
+              const std::shared_ptr<NodeExpression>& endpoint) {
+            const auto it = nodePredicates.find(tableID);
+            NEUG_ASSERT(it != nodePredicates.end());
+            auto endpointPredicate =
+                copyPredicateForVariable(it->second, endpoint->getUniqueName());
+            if (endpointPredicate) {
               branch = expressionBinder.combineBooleanExpressions(
                   ExpressionType::AND, branch, endpointPredicate);
-            };
-        auto nodeInfo = graph::GDSFunction::bindNodeEntry(
-            *clientContext, parsedNodeInfo.labelName, "");
-        if (nodeInfo.entry->get_entry_id() == edge->getSrcTableID()) {
-          addEndpointPredicate(rel->getSrcNode());
-        }
-        if (nodeInfo.entry->get_entry_id() == edge->getDstTableID()) {
-          addEndpointPredicate(rel->getDstNode());
-        }
-      }
+            }
+          };
+      addEndpointPredicate(edge->getSrcTableID(), rel->getSrcNode());
+      addEndpointPredicate(edge->getDstTableID(), rel->getDstNode());
       combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
                                                             combined, branch);
     }
@@ -956,6 +962,19 @@ static const ProjectedGraphEntry& getProjectedGraph(
   return **entry;
 }
 
+const graph::GraphEntry& Binder::bindProjectedGraph(
+    const std::string& graphName) const {
+  if (const auto it = boundProjectedGraphs.find(graphName);
+      it != boundProjectedGraphs.end()) {
+    return *it->second;
+  }
+  const auto& projected = getProjectedGraph(clientContext, graphName);
+  auto bound = std::make_shared<graph::GraphEntry>(
+      graph::GDSFunction::bindGraphEntry(*clientContext, projected));
+  return *boundProjectedGraphs.emplace(graphName, std::move(bound))
+              .first->second;
+}
+
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     const std::vector<std::string>& tableNames) const {
   auto transaction = clientContext->getTransaction();
@@ -976,15 +995,14 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
               "Namespace-qualified labels are only supported in MATCH "
               "clauses.");
         }
-        const auto& projected =
-            getProjectedGraph(clientContext, qualified.graphName);
+        const auto& bound = bindProjectedGraph(qualified.graphName);
         bool found = false;
-        for (const auto& info : projected.vertexInfos) {
-          if (!qualified.wildcard && info.labelName != qualified.labelName) {
+        for (const auto& info : bound.nodeInfos) {
+          if (!qualified.wildcard &&
+              info.entry->get_label() != qualified.labelName) {
             continue;
           }
-          auto* entry = bindNodeTableEntry(info.labelName);
-          entrySet.insert(entry);
+          entrySet.insert(info.entry);
           found = true;
         }
         if (!found) {
@@ -1035,10 +1053,7 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
               "Namespace-qualified labels are only supported in MATCH "
               "clauses.");
         }
-        const auto& projected =
-            getProjectedGraph(clientContext, qualified.graphName);
-        auto bound =
-            graph::GDSFunction::bindGraphEntry(*clientContext, projected);
+        const auto& bound = bindProjectedGraph(qualified.graphName);
         bool found = false;
         for (const auto& info : bound.relInfos) {
           if (!qualified.wildcard &&

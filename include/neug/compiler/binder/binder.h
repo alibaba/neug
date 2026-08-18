@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <unordered_map>
+
 #include "neug/compiler/binder/binder_scope.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression_binder.h"
@@ -66,6 +68,10 @@ namespace main {
 class ClientContext;
 class MetadataManager;
 }  // namespace main
+
+namespace graph {
+struct GraphEntry;
+}  // namespace graph
 
 namespace function {
 struct TableFunction;
@@ -397,6 +403,8 @@ class Binder {
   SchemaEntry* bindNodeTableEntry(const std::string& name) const;
   std::vector<SchemaEntry*> bindRelTableEntries(
       const std::vector<std::string>& tableNames) const;
+  const graph::GraphEntry& bindProjectedGraph(
+      const std::string& graphName) const;
 
   /*** validations ***/
   static void validateOrderByFollowedBySkipOrLimitInWithClause(
@@ -462,6 +470,10 @@ class Binder {
   main::ClientContext* clientContext;
   NamespaceBindingMode namespaceBindingMode = NamespaceBindingMode::DISALLOW;
   expression_vector namespacePredicates;
+  // Query-local cache. A projected graph is bound at most once per statement,
+  // then reused by node/relationship resolution and predicate collection.
+  mutable std::unordered_map<std::string, std::shared_ptr<graph::GraphEntry>>
+      boundProjectedGraphs;
 };
 
 }  // namespace binder
