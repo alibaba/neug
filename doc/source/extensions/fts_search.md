@@ -15,23 +15,9 @@ The FTS extension supports:
 - Automatic maintenance after inserts, updates, and deletes
 - Index checkpointing and recovery
 
-## Build and Load the Extension
+## Install and Load the Extension
 
-When building NeuG from source with Python bindings, enable the extension with:
-
-```bash
-cd tools/python_bind
-BUILD_EXTENSIONS=fts make build
-```
-
-After the build completes, load the extension before creating or querying an
-FTS index:
-
-```cypher
-LOAD fts;
-```
-
-When using a prebuilt NeuG package, install the extension before loading it:
+Install and load the extension before creating or querying an FTS index:
 
 ```cypher
 INSTALL fts;
