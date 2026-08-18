@@ -37,6 +37,7 @@
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
 
@@ -55,6 +56,7 @@ class IVersionManager;
 class IWalParser;
 class Schema;
 class ExecutionSlot;
+class ExtensionManager;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -111,7 +113,7 @@ class ExecutionSlot;
  *
  * @since v0.1.0
  */
-class NeugDB {
+class NEUG_API NeugDB {
  public:
   NeugDB();
   ~NeugDB();
@@ -325,6 +327,9 @@ class NeugDB {
   inline std::shared_ptr<execution::GlobalQueryCache> GetQueryCache() const {
     return global_query_cache_;
   }
+  inline ExtensionManager& extension_manager() const {
+    return *extension_manager_;
+  }
 
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
@@ -404,6 +409,7 @@ class NeugDB {
   // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
   std::unique_ptr<CheckpointCoordinator> checkpoint_coordinator_;
+  std::unique_ptr<ExtensionManager> extension_manager_;
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;

@@ -21,12 +21,13 @@
 #include <set>
 
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
 
-class VertexTimestamp : public Module {
+class NEUG_API VertexTimestamp : public Module {
  public:
   static constexpr timestamp_t DELETED_TIMESTAMP =
       std::numeric_limits<timestamp_t>::max();

@@ -28,6 +28,7 @@
 #include <vector>
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/graph_entry.h"
+#include "neug/utils/api.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/property_definition.h"
@@ -91,7 +92,7 @@ class SchemaEntry {
 
   virtual std::string get_label() const = 0;
 };
-class LabelIndexer {
+class NEUG_API LabelIndexer {
  public:
   bool add(const std::string& name, label_t& lid);
   bool get_index(const std::string& name, label_t& lid) const;
@@ -481,7 +482,7 @@ struct EdgeSchema : public SchemaEntry {
  *
  * @since v0.1.0
  */
-class Schema {
+class NEUG_API Schema {
  public:
   /// @name Plugin ID Constants
   /// @{

@@ -239,8 +239,11 @@ class DatasetLoader:
             conn.execute(query)
 
         # Load the data into the database
+        # Use POSIX-style paths in Cypher string literals so Windows backslashes
+        # are not interpreted as escape sequences by the parser.
+        fpath_posix = Path(fpath_extracted).as_posix()
         for query in dataset_info.data_import_query:
-            query = query.format(fpath_extracted)
+            query = query.format(fpath_posix)
             conn.execute(query)
         logger.info(f"Dataset '{dataset_info.name}' loaded successfully.")
         return True

@@ -17,17 +17,34 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glog/logging.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <string.h>
+#ifndef _WIN32
+#include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#else
+#include <io.h>
+#include <process.h>
+#include <sys/stat.h>
+#include <windows.h>
+#endif
 #include <fstream>
 #include <map>
 #include <mutex>
 #include <string>
 
 #include "neug/utils/exception/exception.h"
+
+#ifdef _WIN32
+// Windows file locking constants (match POSIX values used in the codebase).
+#define F_RDLCK 0
+#define F_WRLCK 1
+#define F_UNLCK 2
+#ifndef EROFS
+#define EROFS 30
+#endif
+#endif
 
 namespace neug {
 
@@ -72,7 +89,11 @@ class CurrentHoldDbs {
     // state. Create it on demand for legacy databases that predate the file;
     // read-only opens still use a read-only descriptor and a shared lock.
     const int flags = (mode == DBMode::READ_ONLY ? O_RDONLY : O_RDWR) | O_CREAT;
+#ifdef _WIN32
+    const int fd = _open(lock_file_path.c_str(), flags, _S_IREAD | _S_IWRITE);
+#else
     const int fd = ::open(lock_file_path.c_str(), flags, 0600);
+#endif
     if (fd == -1) {
       const int open_error = errno;
       if (mode == DBMode::READ_ONLY &&
@@ -95,7 +116,11 @@ class CurrentHoldDbs {
     }
     if (!setLock(fd, mode == DBMode::READ_ONLY ? F_RDLCK : F_WRLCK, false,
                  error_msg)) {
+#ifdef _WIN32
+      _close(fd);
+#else
       ::close(fd);
+#endif
       return false;
     }
     opened_dbs_.emplace(lock_file_path, Entry{fd, mode, 1});
@@ -116,7 +141,11 @@ class CurrentHoldDbs {
     if (!setLock(existing->second.fd, F_UNLCK, true, error_msg)) {
       LOG(ERROR) << "Failed to unlock file lock: " << error_msg;
     }
+#ifdef _WIN32
+    _close(existing->second.fd);
+#else
     ::close(existing->second.fd);
+#endif
     opened_dbs_.erase(existing);
   }
 
@@ -128,6 +157,7 @@ class CurrentHoldDbs {
  private:
   CurrentHoldDbs() : owner_pid_(::getpid()) {
     instance_ = this;
+#ifndef _WIN32
     const int error =
         ::pthread_atfork(lockBeforeFork, unlockAfterFork, unlockAfterFork);
     if (error != 0) {
@@ -135,6 +165,7 @@ class CurrentHoldDbs {
       THROW_RUNTIME_ERROR("Failed to register file-lock fork handlers: " +
                           std::string(strerror(error)));
     }
+#endif
   }
 
   struct Entry {
@@ -143,6 +174,7 @@ class CurrentHoldDbs {
     size_t references;
   };
 
+#ifndef _WIN32
   static void lockBeforeFork() noexcept {
     if (instance_ != nullptr) {
       (void) ::pthread_mutex_lock(instance_->mutex_.native_handle());
@@ -154,6 +186,7 @@ class CurrentHoldDbs {
       (void) ::pthread_mutex_unlock(instance_->mutex_.native_handle());
     }
   }
+#endif
 
   void resetInheritedLockStateIfForkedLocked() {
     const auto current_pid = ::getpid();
@@ -164,13 +197,60 @@ class CurrentHoldDbs {
     // Drop the copied descriptors and accounting so the child acquires its own
     // lock instead of treating the parent's entry as a local reference.
     for (const auto& [_, entry] : opened_dbs_) {
+#ifdef _WIN32
+      _close(entry.fd);
+#else
       ::close(entry.fd);
+#endif
     }
     opened_dbs_.clear();
     owner_pid_ = current_pid;
   }
 
   static bool setLock(int fd, short type, bool wait, std::string& error_msg) {
+#ifdef _WIN32
+    HANDLE hFile = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
+    if (hFile == INVALID_HANDLE_VALUE) {
+      error_msg = "Failed to get file handle for locking.";
+      return false;
+    }
+    if (type == F_UNLCK) {
+      OVERLAPPED ov = {};
+      if (!UnlockFileEx(hFile, 0, 1, 0, &ov)) {
+        error_msg = "Failed to unlock file: " + std::to_string(GetLastError());
+        return false;
+      }
+      return true;
+    }
+    DWORD flags = 0;
+    if (type == F_WRLCK)
+      flags |= LOCKFILE_EXCLUSIVE_LOCK;
+    // wait=false: non-blocking, fail immediately if locked
+    // wait=true: blocking, retry until acquired
+    if (!wait)
+      flags |= LOCKFILE_FAIL_IMMEDIATELY;
+    OVERLAPPED ov = {};
+    while (true) {
+      if (LockFileEx(hFile, flags, 0, 1, 0, &ov)) {
+        return true;
+      }
+      DWORD err = GetLastError();
+      if (err == ERROR_LOCK_VIOLATION) {
+        if (wait) {
+          // Blocking mode: retry after a short sleep
+          Sleep(10);
+          continue;
+        }
+        error_msg =
+            "Lock file is already locked by another process, please check "
+            "if another instance of the database is running.";
+        return false;
+      } else {
+        error_msg = "Failed to acquire lock: " + std::to_string(err);
+        return false;
+      }
+    }
+#else
     struct flock fl;
     std::memset(&fl, 0, sizeof(fl));
     fl.l_type = type;
@@ -194,6 +274,7 @@ class CurrentHoldDbs {
         return false;
       }
     }
+#endif
   }
 
   std::mutex mutex_;

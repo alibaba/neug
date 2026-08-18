@@ -16,6 +16,10 @@
 #include <filesystem>
 #include <thread>
 #include <vector>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#endif
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"

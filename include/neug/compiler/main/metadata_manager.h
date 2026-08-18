@@ -52,7 +52,6 @@ struct Function;
 
 namespace extension {
 struct ExtensionUtils;
-class ExtensionManager;
 }  // namespace extension
 
 namespace storage {
@@ -95,17 +94,15 @@ class MetadataManager {
   std::shared_ptr<GraphStats> getGraphStats() const;
 
  private:
-  MetadataManager(
-      std::unique_ptr<catalog::Catalog> catalog, GraphStats statsManager,
-      std::shared_ptr<storage::MemoryManager> memoryManager,
-      std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
-      std::shared_ptr<extension::ExtensionManager> extensionManager);
+  MetadataManager(std::unique_ptr<catalog::Catalog> catalog,
+                  GraphStats statsManager,
+                  std::shared_ptr<storage::MemoryManager> memoryManager,
+                  std::shared_ptr<neug::fsys::FileSystemRegistry> vfs);
 
   std::unique_ptr<catalog::Catalog> catalog;
   GraphStats statsManager;
   std::shared_ptr<storage::MemoryManager> memoryManager;
   std::shared_ptr<neug::fsys::FileSystemRegistry> vfs;
-  std::shared_ptr<extension::ExtensionManager> extensionManager;
 };
 
 }  // namespace main

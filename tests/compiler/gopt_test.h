@@ -16,7 +16,9 @@
 
 #pragma once
 
+#ifndef _WIN32
 #include <sched.h>
+#endif
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -68,11 +70,10 @@ class Utils {
     return val ? std::string(val) : defaultVal;
   }
 
-  static std::filesystem::path getTestResourcePath(
-      const std::string& relativePath) {
+  static std::string getTestResourcePath(const std::string& relativePath) {
     auto parentPath =
         getEnvVarOrDefault("TEST_RESOURCE", "/workspaces/neug/tests/compiler");
-    return std::filesystem::path(parentPath) / relativePath;
+    return (std::filesystem::path(parentPath) / relativePath).string();
   }
 
   template <typename T>

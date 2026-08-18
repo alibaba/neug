@@ -20,7 +20,6 @@
 
 #include <errno.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <algorithm>
 #include <cctype>
 #include <cmath>

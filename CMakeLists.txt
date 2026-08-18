@@ -114,6 +114,52 @@ endforeach()
 
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 
+# Windows port: disable features that are not yet supported or unnecessary for the core library.
+if(WIN32)
+    message(STATUS "Windows detected: disabling non-core features for core library build")
+    # BUILD_PYTHON is no longer forced off; pass -DBUILD_PYTHON=ON to enable.
+    set(BUILD_NODEJS OFF CACHE BOOL "Node.js binding is not supported on Windows yet" FORCE)
+    set(BUILD_HTTP_SERVER OFF CACHE BOOL "HTTP server (brpc) is not supported on Windows yet" FORCE)
+    set(BUILD_EXTENSIONS "" CACHE STRING "Extensions are not supported on Windows yet" FORCE)
+    set(BUILD_EXECUTABLES OFF CACHE BOOL "Executables are disabled on Windows core build" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "Examples are disabled on Windows core build" FORCE)
+    set(NEUG_NATIVE_ARCH OFF CACHE BOOL "Native architecture tuning is not supported on Windows" FORCE)
+    set(ENABLE_BACKTRACES OFF CACHE BOOL "Backtraces are not supported on Windows yet" FORCE)
+    # Use dynamic C runtime (/MD) consistently across all targets and third-party
+    # dependencies to match vcpkg's x64-windows-static-md triplet.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "" FORCE)
+    # Windows headers define an ERROR macro which conflicts with glog's ERROR
+    # severity level. Disable abbreviated severity macros on Windows.
+    add_compile_definitions(GLOG_NO_ABBREVIATED_SEVERITIES)
+    # Windows headers also define min/max macros that conflict with std::min/max.
+    add_compile_definitions(NOMINMAX)
+    # Windows headers define GetObject as GetObjectA/GetObjectW (in wingdi.h),
+    # which conflicts with rapidjson::Value::GetObject(). Exclude GDI headers.
+    add_compile_definitions(NOGDI)
+    # yaml-cpp is built as a static third-party library; tell its headers not to
+    # use __declspec(dllimport) on MSVC.
+    add_compile_definitions(YAML_CPP_STATIC_DEFINE)
+    # NEUG_EXPORTS must be visible to all object libraries that feed into the
+    # neug SHARED target, not just the final link step. Without this, NEUG_API
+    # resolves to __declspec(dllimport) in object files, causing C2491 when
+    # defining static data members.
+    add_compile_definitions(NEUG_EXPORTS)
+    # Force-include platform.h so that GCC extensions such as __attribute__ are
+    # neutralized for MSVC without touching every source file. Restrict to CXX
+    # so the resource compiler (RC) does not see the option.
+    #
+    # NOTE: platform.h defines __attribute__(x) as an empty macro on Windows.
+    # This is a global blanket no-op and may silently strip attributes from
+    # third-party headers that rely on __attribute__ (rather than guarding it
+    # with #ifdef __GNUC__). Verified compatible with: abseil-cpp, protobuf,
+    # glog, gflags, yaml-cpp, rapidjson, re2, antlr4_runtime. When adding a new
+    # third-party dependency, check that it does not break under this macro.
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_SOURCE_DIR}/include/neug/utils/platform.h>)
+    # Force-include api.h so NEUG_API is visible everywhere (needed because
+    # protobuf-generated headers use dllexport_decl=NEUG_API).
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_SOURCE_DIR}/include/neug/utils/api.h>)
+endif()
+
 include(CheckCXXCompilerFlag)
 include(cmake/neug_symbol_visibility.cmake)
 include(cmake/NeugNativeArch.cmake)
@@ -130,10 +176,7 @@ endif ()
 
 add_compile_definitions(NEUG_VERSION="${NEUG_VERSION}")
 
-# reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath
-set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# C++ standard is required on all platforms.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 # set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -142,8 +185,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 # set(CMAKE_FIND_PACKAGE_RESOLVE_SYMLINKS TRUE)
 # set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
-# On Linux, symbols in executables are not accessible by loaded shared libraries (e.g. via dlopen(3)). However, we need to export public symbols in executables so that extensions can access public symbols. This enables that behaviour.
-set(CMAKE_ENABLE_EXPORTS TRUE)
+
+# RPATH is a Linux/macOS concept; keep related settings off Windows.
+if (NOT WIN32)
+    # reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    # On Linux, symbols in executables are not accessible by loaded shared libraries (e.g. via dlopen(3)). However, we need to export public symbols in executables so that extensions can access public symbols. This enables that behaviour.
+    set(CMAKE_ENABLE_EXPORTS TRUE)
+endif()
 
 if(ENABLE_WERROR)
     if (CMAKE_VERSION VERSION_GREATER "3.24.0" OR CMAKE_VERSION VERSION_EQUAL "3.24.0")
@@ -157,33 +208,49 @@ endif()
 
 if (APPLE)
     set(CMAKE_MACOSX_RPATH ON)
-else ()
+elseif(NOT WIN32)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lopen-pal")
     else ()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-rpath,$ORIGIN")
     endif ()
 endif ()
-# Only add -fopenmp if not using clang
-if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+# Only add OpenMP if not using clang (MSVC supports /openmp)
+if (MSVC)
+    message(STATUS "Using MSVC compiler, adding /openmp")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
+elseif (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(STATUS "Using non-clang compiler, adding -fopenmp")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fopenmp")
 endif ()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -Wno-psabi")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
-check_cxx_compiler_flag("-std=c++20" COMPILER_SUPPORTS_CXX20)
-if (NOT COMPILER_SUPPORTS_CXX20)
-    check_cxx_compiler_flag("-std=c++2a" COMPILER_SUPPORTS_CXX2A)
-    if (COMPILER_SUPPORTS_CXX2A)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
-    else()
-        message(WARNING "Compiler does not support C++20 or C++2a")
-    endif()
+if (MSVC)
+    # MSVC warning levels and common suppressions for third-party headers
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /wd4996 /wd4267 /wd4244 /wd4305 /wd4800 /wd4251")
+    # Treat source files as UTF-8 to avoid code page issues with non-ASCII characters.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
 else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fPIC -Wno-psabi")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+
+    check_cxx_compiler_flag("-std=c++20" COMPILER_SUPPORTS_CXX20)
+    if (NOT COMPILER_SUPPORTS_CXX20)
+        check_cxx_compiler_flag("-std=c++2a" COMPILER_SUPPORTS_CXX2A)
+        if (COMPILER_SUPPORTS_CXX2A)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+        else()
+            message(WARNING "Compiler does not support C++20 or C++2a")
+        endif()
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+    endif()
+
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 endif()
 
 include(CheckCXXSourceCompiles)
@@ -199,8 +266,6 @@ if (HAVE_CHRONO_YMD)
     add_definitions(-DENABLE_CHRONO_YMD)
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #if compiler is gcc
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess -Wno-maybe-uninitialized -Wno-ignored-attributes")
@@ -248,35 +313,38 @@ if(${ENABLE_LTO})
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
 
-# if os is macos, 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+# Apple Clang ABI compatibility flag (not needed on Windows or non-Apple Clang)
+if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message("macos detected")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-conversion -fclang-abi-compat=14") # need fclang-abi-compat for clang compiler, due to absl problem: https://github.com/protocolbuffers/protobuf/issues/12693
 endif()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
-check_cxx_compiler_flag("-Wno-sign-compare" COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
-check_cxx_compiler_flag("-Wno-deprecated-declarations" COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
-check_cxx_compiler_flag("-Wno-attributes" COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
-check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
-check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
-check_cxx_compiler_flag("-Wno-deprecated-builtins" COMPILER_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
-if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
-endif()
-if (COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
-endif()
-if (COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes")
-endif()
-if (COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-overflow")
-endif()
-if (COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
-endif()
-if (COMPILER_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-builtins")
+
+if (NOT MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
+    check_cxx_compiler_flag("-Wno-sign-compare" COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
+    check_cxx_compiler_flag("-Wno-deprecated-declarations" COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
+    check_cxx_compiler_flag("-Wno-attributes" COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
+    check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
+    check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+    check_cxx_compiler_flag("-Wno-deprecated-builtins" COMPILER_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
+    if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
+    endif()
+    if (COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+    endif()
+    if (COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes")
+    endif()
+    if (COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-overflow")
+    endif()
+    if (COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
+    endif()
+    if (COMPILER_SUPPORTS_DEPRECATED_BUILTINS_FLAG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-builtins")
+    endif()
 endif()
 
 macro(install_neug_target target)
@@ -346,13 +414,26 @@ endif()
 
 if (WITH_MIMALLOC)
     set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
-    set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
-    set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library")
+    if(WIN32)
+        # On Windows, build mimalloc as a static library to avoid DLL
+        # initialization issues (DllMain fails when loaded into Python).
+        # MI_OVERRIDE=OFF ensures static mimalloc does not override malloc.
+        set(MI_BUILD_SHARED OFF CACHE BOOL "Build mimalloc as shared library" FORCE)
+        set(MI_BUILD_STATIC ON CACHE BOOL "Build mimalloc as static library" FORCE)
+    else()
+        set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
+        set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library")
+    endif()
     set(MI_OVERRIDE OFF CACHE BOOL "Override malloc with mimalloc" FORCE)
     set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
     # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
     add_subdirectory(third_party/mimalloc)
-    set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
+    if(TARGET mimalloc)
+        set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
+    endif()
+    if(TARGET mimalloc-static)
+        set_target_properties(mimalloc-static PROPERTIES DEBUG_POSTFIX "")
+    endif()
     include_directories(SYSTEM third_party/mimalloc/include)
     add_compile_definitions(NEUG_WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
@@ -449,9 +530,16 @@ function(add_neug_test TEST_NAME)
     find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
-        ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
-        ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    if(WIN32 AND BUILD_TEST)
+        # neug_static contains the same object files as neug.dll but exposes all
+        # symbols, which is required by tests that exercise internal APIs.
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_static
+            ${ARROW_LIB} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB})
+    else()
+        target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
+            ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES}
+            ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
+    endif()
     # The bundled googletest (v1.13.0, fetched into _deps) must beat any
     # system/Homebrew gtest that leaks in via an -isystem include path; otherwise
     # tests compile against newer gtest headers but link the bundled library,
@@ -469,7 +557,9 @@ function(add_neug_test TEST_NAME)
 endfunction()
 
 
-set(TEST_PROGRAM "
+# copy_file_range is a Linux-specific syscall; skip the probe on Windows.
+if(NOT WIN32)
+    set(TEST_PROGRAM "
 #define _GNU_SOURCE
 #include <unistd.h>
 #include <fcntl.h>
@@ -482,22 +572,29 @@ int main() {
 }
 ")
 
-check_cxx_source_compiles("${TEST_PROGRAM}" HAVE_COPY_FILE_RANGE_COMPILES)
+    check_cxx_source_compiles("${TEST_PROGRAM}" HAVE_COPY_FILE_RANGE_COMPILES)
 
-if(NOT HAVE_COPY_FILE_RANGE_COMPILES)
-    message(WARNING "copy_file_range is not available or failed to compile!")
+    if(NOT HAVE_COPY_FILE_RANGE_COMPILES)
+        message(WARNING "copy_file_range is not available or failed to compile!")
+    else()
+        message(STATUS "copy_file_range compilation succeeded.")
+    endif()
+
+    if(HAVE_COPY_FILE_RANGE_COMPILES)
+        add_definitions(-DUSE_COPY_FILE_RANGE)
+    endif()
 else()
-    message(STATUS "copy_file_range compilation succeeded.")
-endif()
-
-if(HAVE_COPY_FILE_RANGE_COMPILES)
-    add_definitions(-DUSE_COPY_FILE_RANGE)
+    message(STATUS "copy_file_range is not available on Windows; skipping probe.")
 endif()
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL)
 if (NOT OpenSSL_FOUND)
-    message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+    if(WIN32)
+        message(FATAL_ERROR "Fail to find OpenSSL. On Windows, install OpenSSL via vcpkg (openssl:x64-windows-static-md) or set OPENSSL_ROOT_DIR.")
+    else()
+        message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+    endif()
 endif()
 include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 
@@ -539,7 +636,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
 
 # find Threads------------------------------------------------------------------
-set(CMAKE_THREAD_PREFER_PTHREAD ON)
+if(NOT WIN32)
+    set(CMAKE_THREAD_PREFER_PTHREAD ON)
+endif()
 find_package(Threads REQUIRED)
 
 # find gflags-------------------------------------------------------------------
@@ -903,6 +1002,10 @@ endif()
 if (ENABLE_BACKTRACES)
         set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} cpptrace::cpptrace)
 endif()
+# Windows requires additional system libraries for sockets, security, etc.
+if(WIN32)
+    set(COMPILER_LIBRARIES ${COMPILER_LIBRARIES} ws2_32 mswsock advapi32 shell32 bcrypt)
+endif()
 message(STATUS "head: Compiler libraries: ${COMPILER_LIBRARIES}")
 
 set(MACOS_DYLIBS 
@@ -938,6 +1041,8 @@ endif()
 include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)
 neug_apply_native_arch_to_directory("${CMAKE_CURRENT_SOURCE_DIR}/src")
+# tools contains python_bind (gated by BUILD_PYTHON) and utils;
+# allow on Windows so Python bindings can be built when requested.
 add_subdirectory(tools)
 if (BUILD_EXECUTABLES)
     add_subdirectory(bin)
@@ -1054,7 +1159,11 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "neug is a embedded graph database")
 set(CPACK_PACKAGE_VENDOR "GraphScope")
 set(CPACK_PACKAGE_VERSION ${NEUG_VERSION_SEMVER})
 set(CPACK_PACKAGE_RELEASE 1)
-set(CPACK_GENERATOR "DEB")
+if(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+else()
+    set(CPACK_GENERATOR "DEB")
+endif()
 set(CPACK_PACKAGE_CONTACT "graphscope@alibaba-inc.com")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "graphscope")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
@@ -1147,7 +1256,11 @@ if (WITH_MIMALLOC)
         ${PROJECT_SOURCE_DIR}/third_party/mimalloc/include/mimalloc-new-delete.h
         DESTINATION include
     )
-    install_neug_target(mimalloc)
+    if(WIN32)
+        install_neug_target(mimalloc-static)
+    else()
+        install_neug_target(mimalloc)
+    endif()
 endif()
 
 install_neug_target(${GLOG_LIBRARIES})

@@ -13,7 +13,12 @@
  * limitations under the License.
  */
 #include <gtest/gtest.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <process.h>
+#define getpid _getpid
+#endif
 #include <filesystem>
 
 #include "neug/common/types/value.h"

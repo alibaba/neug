@@ -25,6 +25,11 @@
 
 #include <glog/logging.h>
 
+#ifdef _WIN32
+#include <intrin.h>
+#include <malloc.h>
+#endif
+
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
 #define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
 
@@ -39,6 +44,51 @@
   (((i) + (alignment) -1) & (~((alignment) -1)))
 
 namespace neug {
+namespace detail {
+
+inline void* AlignedAlloc(size_t alignment, size_t size) {
+#ifdef _WIN32
+  return _aligned_malloc(size, alignment);
+#else
+  return aligned_alloc(alignment, size);
+#endif
+}
+
+inline void AlignedFree(void* ptr) {
+#ifdef _WIN32
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
+}
+
+inline uint64_t AtomicFetchOr(uint64_t* ptr, uint64_t value) {
+#ifdef _WIN32
+  return static_cast<uint64_t>(_InterlockedOr64(
+      reinterpret_cast<volatile __int64*>(ptr), static_cast<__int64>(value)));
+#else
+  return __sync_fetch_and_or(ptr, value);
+#endif
+}
+
+inline uint64_t AtomicFetchAnd(uint64_t* ptr, uint64_t value) {
+#ifdef _WIN32
+  return static_cast<uint64_t>(_InterlockedAnd64(
+      reinterpret_cast<volatile __int64*>(ptr), static_cast<__int64>(value)));
+#else
+  return __sync_fetch_and_and(ptr, value);
+#endif
+}
+
+inline int PopCountLL(uint64_t value) {
+#ifdef _WIN32
+  return static_cast<int>(__popcnt64(value));
+#else
+  return __builtin_popcountll(value);
+#endif
+}
+
+}  // namespace detail
 
 class Bitset {
   static constexpr size_t kAlignment = 64;  // 64-byte alignment
@@ -62,7 +112,8 @@ class Bitset {
       assert(kAlignment <= capacity_in_words_ * sizeof(uint64_t));
       auto alloc_size = ROUND_UP_TO_ALIGNMENT(
           capacity_in_words_ * sizeof(uint64_t), kAlignment);
-      data_ = static_cast<uint64_t*>(aligned_alloc(kAlignment, alloc_size));
+      data_ =
+          static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
       memcpy(data_, other.data_, capacity_in_words_ * sizeof(uint64_t));
     }
   }
@@ -82,7 +133,7 @@ class Bitset {
 
   ~Bitset() {
     if (data_ != nullptr) {
-      free(data_);
+      detail::AlignedFree(data_);
     }
   }
 
@@ -92,7 +143,7 @@ class Bitset {
     }
 
     if (data_ != nullptr) {
-      free(data_);
+      detail::AlignedFree(data_);
     }
 
     size_ = other.size_;
@@ -106,7 +157,8 @@ class Bitset {
       assert(kAlignment <= capacity_in_words_ * sizeof(uint64_t));
       auto alloc_size = ROUND_UP_TO_ALIGNMENT(
           capacity_in_words_ * sizeof(uint64_t), kAlignment);
-      data_ = static_cast<uint64_t*>(aligned_alloc(kAlignment, alloc_size));
+      data_ =
+          static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
       memcpy(data_, other.data_, capacity_in_words_ * sizeof(uint64_t));
     }
     return *this;
@@ -118,7 +170,7 @@ class Bitset {
     }
 
     if (data_ != nullptr) {
-      free(data_);
+      detail::AlignedFree(data_);
     }
 
     data_ = other.data_;
@@ -148,10 +200,10 @@ class Bitset {
     size_t alloc_size =
         ROUND_UP_TO_ALIGNMENT(new_cap_in_words * sizeof(uint64_t), kAlignment);
     uint64_t* new_data =
-        static_cast<uint64_t*>(aligned_alloc(kAlignment, alloc_size));
+        static_cast<uint64_t*>(detail::AlignedAlloc(kAlignment, alloc_size));
     if (data_ != nullptr) {
       memcpy(new_data, data_, size_in_words_ * sizeof(uint64_t));
-      free(data_);
+      detail::AlignedFree(data_);
     }
     data_ = new_data;
     capacity_ = cap;
@@ -178,7 +230,7 @@ class Bitset {
            (new_size_in_words - size_in_words_) * sizeof(uint64_t));
 
     if (size_in_words_ && BIT_OFFSET(size_) != 0) {
-      uint64_t mask = ((1ul << BIT_OFFSET(size_)) - 1);
+      uint64_t mask = ((1ull << BIT_OFFSET(size_)) - 1);
       data_[size_in_words_ - 1] &= mask;
     }
 
@@ -186,40 +238,40 @@ class Bitset {
     size_in_words_ = new_size_in_words;
   }
 
-  void set(size_t i) { data_[WORD_INDEX(i)] |= (1ul << BIT_OFFSET(i)); }
+  void set(size_t i) { data_[WORD_INDEX(i)] |= (1ull << BIT_OFFSET(i)); }
 
-  void reset(size_t i) { data_[WORD_INDEX(i)] &= (~(1ul << BIT_OFFSET(i))); }
+  void reset(size_t i) { data_[WORD_INDEX(i)] &= (~(1ull << BIT_OFFSET(i))); }
 
   void atomic_set(size_t i) {
-    uint64_t mask = 1ul << BIT_OFFSET(i);
-    __sync_fetch_and_or(data_ + WORD_INDEX(i), mask);
+    uint64_t mask = 1ull << BIT_OFFSET(i);
+    detail::AtomicFetchOr(data_ + WORD_INDEX(i), mask);
   }
 
   void atomic_reset(size_t i) {
-    uint64_t mask = 1ul << BIT_OFFSET(i);
-    __sync_fetch_and_and(data_ + WORD_INDEX(i), ~mask);
+    uint64_t mask = 1ull << BIT_OFFSET(i);
+    detail::AtomicFetchAnd(data_ + WORD_INDEX(i), ~mask);
   }
 
   bool atomic_set_with_ret(size_t i) {
-    uint64_t mask = 1ul << BIT_OFFSET(i);
-    uint64_t ret = __sync_fetch_and_or(data_ + WORD_INDEX(i), mask);
+    uint64_t mask = 1ull << BIT_OFFSET(i);
+    uint64_t ret = detail::AtomicFetchOr(data_ + WORD_INDEX(i), mask);
     return (ret & mask);
   }
 
   bool atomic_reset_with_ret(size_t i) {
-    uint64_t mask = 1ul << BIT_OFFSET(i);
-    uint64_t ret = __sync_fetch_and_and(data_ + WORD_INDEX(i), ~mask);
+    uint64_t mask = 1ull << BIT_OFFSET(i);
+    uint64_t ret = detail::AtomicFetchAnd(data_ + WORD_INDEX(i), ~mask);
     return (ret & mask);
   }
 
   bool get(size_t i) const {
-    return data_[WORD_INDEX(i)] & (1ul << BIT_OFFSET(i));
+    return data_[WORD_INDEX(i)] & (1ull << BIT_OFFSET(i));
   }
 
   size_t count() const {
     size_t ret = 0;
     for (size_t i = 0; i < size_in_words_; ++i) {
-      ret += __builtin_popcountll(data_[i]);
+      ret += detail::PopCountLL(data_[i]);
     }
     return ret;
   }

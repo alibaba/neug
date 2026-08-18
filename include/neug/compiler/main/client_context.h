@@ -53,10 +53,6 @@ class TaskScheduler;
 class ProgressBar;
 }  // namespace common
 
-namespace extension {
-class ExtensionManager;
-}  // namespace extension
-
 namespace processor {
 class ImportDB;
 class TableFunctionCall;
@@ -92,7 +88,6 @@ class NEUG_API ClientContext {
   friend class parser::StandaloneCallRewriter;
   friend struct SpillToDiskSetting;
   friend class main::EmbeddedShell;
-  friend class extension::ExtensionManager;
 
  public:
   explicit ClientContext(MetadataManager* database);
@@ -114,12 +109,10 @@ class NEUG_API ClientContext {
 
   // Extension
   void setExtensionOption(std::string name, compiler_impl::Value value);
-  const main::ExtensionOption* getExtensionOption(std::string optionName) const;
 
   MetadataManager* getMetadataManager() const { return localDatabase; }
   std::shared_ptr<GraphStats> getGraphStats() const;
   storage::MemoryManager* getMemoryManager() const;
-  extension::ExtensionManager* getExtensionManager() const;
   catalog::Catalog* getCatalog() const;
   common::VirtualFileSystem* getVFSUnsafe() const;
 

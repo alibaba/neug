@@ -64,6 +64,68 @@ def test_list_cast_contract(tmp_path):
     db.close()
 
 
+def test_list_preserves_null_elements_during_unwind(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    rows = list(
+        conn.execute(
+            "UNWIND CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]') AS value "
+            "RETURN value;"
+        )
+    )
+    assert rows == [[1], [None], [3]]
+
+    rows = list(
+        conn.execute(
+            "UNWIND CAST([CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]')], "
+            "'INT64[][]') AS values "
+            "UNWIND values AS value RETURN value;"
+        )
+    )
+    assert rows == [[1], [None], [3]]
+
+    conn.close()
+    db.close()
+
+
+def test_list_edge_preserves_null_elements_during_unwind(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person);")
+    conn.execute("CREATE (:Person {id: 1}), (:Person {id: 2});")
+    conn.execute(
+        "MATCH (a:Person {id: 1}), (b:Person {id: 2}) " "CREATE (a)-[:Knows]->(b);"
+    )
+
+    rows = list(
+        conn.execute(
+            "MATCH (person:Person) "
+            "OPTIONAL MATCH (person)-[edge:Knows]->(:Person) "
+            "WITH person.id AS id, [edge] AS values "
+            "UNWIND values AS value "
+            "RETURN id, value ORDER BY id;"
+        )
+    )
+    assert rows == [
+        [
+            1,
+            {
+                "_ID": 1,
+                "_LABEL": "Knows",
+                "_SRC_ID": 0,
+                "_DST_ID": 1,
+            },
+        ],
+        [2, None],
+    ]
+
+    conn.close()
+    db.close()
+
+
 def test_list_point_edge_update_and_reopen(tmp_path):
     db_path = str(tmp_path)
     db = Database(db_path=db_path, mode="w")

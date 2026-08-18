@@ -234,7 +234,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
   if (capacity <= indexer_->capacity()) {
     return indexer_->capacity();
   }
-  capacity = std::max(capacity, 4096UL);
+  capacity = std::max(capacity, static_cast<size_t>(4096));
   if (capacity > indexer_->capacity()) {
     indexer_->reserve(capacity);
   }

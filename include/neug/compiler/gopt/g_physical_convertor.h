@@ -71,7 +71,7 @@ class GPhysicalConvertor {
            op->getOperatorType() == planner::LogicalOperatorType::MERGE ||
            op->getOperatorType() ==
                planner::LogicalOperatorType::SET_PROPERTY ||
-           op->getOperatorType() == planner::LogicalOperatorType::DELETE;
+           op->getOperatorType() == planner::LogicalOperatorType::DELETE_OP;
   }
 
   bool ddlClause(std::shared_ptr<planner::LogicalOperator> op) {

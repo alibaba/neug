@@ -22,6 +22,7 @@ import shutil
 import sys
 from datetime import date
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -69,7 +70,7 @@ class TestLoadSniffer:
         parquet_path = os.path.join(parquet_dir, filename)
         if not os.path.exists(parquet_path):
             pytest.skip(f"Parquet file not found: {parquet_path}")
-        return parquet_path
+        return Path(parquet_path)
 
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path):
@@ -90,7 +91,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true, delim=",")
+            LOAD FROM "{csv_path.as_posix()}" (header=true, delim=",")
             RETURN i_col, f_col, b_col, s_col
             """
         )
@@ -111,7 +112,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true, delim=",")
+            LOAD FROM "{csv_path.as_posix()}" (header=true, delim=",")
             RETURN d_col, ts_col, iv_col
             """
         )
@@ -129,7 +130,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true, delim=",")
+            LOAD FROM "{csv_path.as_posix()}" (header=true, delim=",")
             RETURN list_col
             """
         )
@@ -144,7 +145,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true, delim=",")
+            LOAD FROM "{csv_path.as_posix()}" (header=true, delim=",")
             RETURN map_col
             """
         )
@@ -159,7 +160,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true, delim=",")
+            LOAD FROM "{csv_path.as_posix()}" (header=true, delim=",")
             RETURN CAST(i_col, "INT32"), CAST(d_col, "FLOAT")
             """
         )
@@ -175,7 +176,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{csv_path}" (header=true, delim=",")
+            LOAD FROM "{csv_path.as_posix()}" (header=true, delim=",")
             RETURN CAST(d_col, "TIMESTAMP"), CAST(ts_col, "DATE")
             """
         )
@@ -202,7 +203,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN i_col, f_col, b_col, s_col
             """
         )
@@ -229,7 +230,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN d_col
             """
         )
@@ -243,7 +244,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN ts_col
             """
         )
@@ -257,7 +258,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN iv_col
             """
         )
@@ -272,7 +273,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN list_col
             """
         )
@@ -290,7 +291,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN map_col
             """
         )
@@ -305,7 +306,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN CAST(i_col, "INT32"), CAST(d_col, "FLOAT")
             """
         )
@@ -323,7 +324,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{json_path}"
+            LOAD FROM "{json_path.as_posix()}"
             RETURN CAST(d_col, "TIMESTAMP"), CAST(ts_col, "DATE")
             """
         )
@@ -340,7 +341,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{parquet_path}"
+            LOAD FROM "{parquet_path.as_posix()}"
             RETURN id, i32_property, f64_property, str_property
             LIMIT 1
             """
@@ -361,7 +362,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{parquet_path}"
+            LOAD FROM "{parquet_path.as_posix()}"
             RETURN date_property, datetime_property, CAST(interval_property, "INTERVAL")
             LIMIT 1
             """
@@ -381,7 +382,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{parquet_path}"
+            LOAD FROM "{parquet_path.as_posix()}"
             RETURN list_col
             """
         )
@@ -398,7 +399,7 @@ class TestLoadSniffer:
 
         result = self.conn.execute(
             f"""
-            LOAD FROM "{parquet_path}"
+            LOAD FROM "{parquet_path.as_posix()}"
             RETURN map_col
             """
         )

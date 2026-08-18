@@ -31,10 +31,78 @@
 #ifdef __APPLE__
 #include <sys/clonefile.h>
 #endif
+#ifndef _WIN32
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#else
+#include <direct.h>
+#include <io.h>
+#include <process.h>
+#include <sys/stat.h>
+#include <windows.h>
+
+// POSIX-to-MSVC shims for file_utils.cc
+#define open _open
+#define close _close
+#define read _read
+#define write _write
+#define lseek _lseeki64
+#define fsync _commit
+#define ftruncate _chsize_s
+#define unlink _unlink
+#define chmod _chmod
+#define mkdir _mkdir
+#define rmdir _rmdir
+#define stat _stat64
+#define fstat _fstat64
+#define O_RDONLY _O_RDONLY
+#define O_WRONLY _O_WRONLY
+#define O_CREAT _O_CREAT
+#define O_TRUNC _O_TRUNC
+#define O_DIRECTORY 0
+#define S_IRUSR _S_IREAD
+#define S_IWUSR _S_IWRITE
+#define S_IRGRP 0
+#define S_IWGRP 0
+#define S_IROTH 0
+#define S_IWOTH 0
+#define POSIX_FADV_SEQUENTIAL 0
+#define fdopen _fdopen
+#define getpid _getpid
+#define lstat _stat64
+
+typedef long long ssize_t;
+
+static inline int posix_fadvise(int, off_t, off_t, int) { return 0; }
+
+static ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
+  off_t old = _lseeki64(fd, 0, SEEK_CUR);
+  if (old == -1)
+    return -1;
+  if (_lseeki64(fd, offset, SEEK_SET) == -1)
+    return -1;
+  ssize_t r = _read(fd, buf, count);
+  int err = errno;
+  _lseeki64(fd, old, SEEK_SET);
+  errno = err;
+  return r;
+}
+
+static ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
+  off_t old = _lseeki64(fd, 0, SEEK_CUR);
+  if (old == -1)
+    return -1;
+  if (_lseeki64(fd, offset, SEEK_SET) == -1)
+    return -1;
+  ssize_t w = _write(fd, buf, count);
+  int err = errno;
+  _lseeki64(fd, old, SEEK_SET);
+  errno = err;
+  return w;
+}
+#endif
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -54,6 +122,7 @@ static void copy_metadata(const struct stat& src_stat,
   // Copy permissions
   ::chmod(dst_path.c_str(), src_stat.st_mode);
 
+#ifndef _WIN32
   // Copy access and modification times
   struct timespec times[2];
 #ifdef __linux__
@@ -66,6 +135,10 @@ static void copy_metadata(const struct stat& src_stat,
   times[1].tv_nsec = 0;
 #endif
   ::utimensat(AT_FDCWD, dst_path.c_str(), times, 0);
+#else
+  (void) src_stat;
+  (void) dst_path;
+#endif
 }
 
 /**
@@ -127,7 +200,12 @@ static bool try_reflink(const std::string& src_path,
  * `st_blocks` is always in 512-byte units regardless of FS block size.
  */
 static bool is_sparse(const struct stat& st) {
+#ifdef _WIN32
+  (void) st;
+  return false;
+#else
   return static_cast<off_t>(st.st_blocks) * 512 < st.st_size;
+#endif
 }
 
 /**
@@ -325,7 +403,7 @@ void fallback_copy(const std::string& src_path, const std::string& dst_path,
   try {
     // Anchor dst size up front. Empty / all-hole / trailing-hole cases all
     // fall out naturally: the inner loops simply don't run for hole regions.
-    if (::ftruncate(dst_fd, src_stat.st_size) < 0) {
+    if (::ftruncate(dst_fd, src_stat.st_size) != 0) {
       throw std::runtime_error("ftruncate failed on " + dst_path);
     }
     if (!sparse_copy_seek_hole(src_fd, dst_fd, src_stat.st_size, src_path,
@@ -370,10 +448,11 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
 
     try {
       auto result = copy_file(src_path, copy_path, /*overwrite=*/false);
-      if (::rename(copy_path.c_str(), dst_path.c_str()) != 0) {
-        const int rename_errno = errno;
+      std::error_code rename_ec;
+      std::filesystem::rename(copy_path, dst_path, rename_ec);
+      if (rename_ec) {
         throw std::runtime_error("Failed to atomically replace destination: " +
-                                 dst_path + ": " + std::strerror(rename_errno));
+                                 dst_path + ": " + rename_ec.message());
       }
       return result;
     } catch (...) {
@@ -614,7 +693,7 @@ void create_file(const std::string& path, size_t size) {
     throw std::runtime_error("Failed to create file: " + path);
   }
   int ret = ftruncate(fd, size);
-  if (ret < 0) {
+  if (ret != 0) {
     ::close(fd);
     throw std::runtime_error("Failed to truncate file: " + path);
   }
@@ -622,6 +701,20 @@ void create_file(const std::string& path, size_t size) {
 }
 
 bool fsync_directory(const std::string& dir_path) {
+#ifdef _WIN32
+  // On Windows, open the directory with FILE_FLAG_BACKUP_SEMANTICS (required
+  // to obtain a handle to a directory) and call FlushFileBuffers.
+  HANDLE hDir =
+      CreateFileW(std::filesystem::path(dir_path).wstring().c_str(),
+                  GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                  OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (hDir == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+  bool ok = FlushFileBuffers(hDir) != 0;
+  CloseHandle(hDir);
+  return ok;
+#else
 #ifdef O_DIRECTORY
   int dir_fd = ::open(dir_path.c_str(), O_RDONLY | O_DIRECTORY);
 #else
@@ -633,6 +726,7 @@ bool fsync_directory(const std::string& dir_path) {
   bool ok = (::fsync(dir_fd) == 0);
   ::close(dir_fd);
   return ok;
+#endif
 }
 
 }  // namespace file_utils

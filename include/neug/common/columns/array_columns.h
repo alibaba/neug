@@ -120,6 +120,10 @@ class ContextArrayColumnBuilder : public IContextColumnBuilder {
   }
 
   void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     if (val.type().id() != DataTypeId::kArray) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "ContextArrayColumnBuilder: expected ARRAY value, got " +

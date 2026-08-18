@@ -112,7 +112,8 @@ class ListColumn : public IContextColumn {
     size_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
-        builder->push_back_elem(datas_->get_elem(j));
+        auto elem = datas_->get_elem(j);
+        builder->push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;
@@ -144,14 +145,14 @@ class ListColumnBuilder : public IContextColumnBuilder {
     }
   }
   void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     assert(val.type().id() == DataTypeId::kList);
     const auto& values = ListValue::GetChildren(val);
     for (const auto& v : values) {
-      if (v.IsNull()) {
-        child_builder_->push_back_null();
-      } else {
-        child_builder_->push_back_elem(v);
-      }
+      child_builder_->push_back_elem(v);
     }
     list_item item = {cur_offset_, values.size()};
     items_.push_back(item);

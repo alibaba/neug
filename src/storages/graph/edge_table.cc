@@ -475,6 +475,20 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
   capacity_ = edge_table.capacity_.load();
 }
 
+EdgeTable& EdgeTable::operator=(EdgeTable&& other) noexcept {
+  if (this != &other) {
+    ckp_ = std::move(other.ckp_);
+    meta_ = other.meta_;
+    memory_level_ = other.memory_level_;
+    out_csr_ = std::move(other.out_csr_);
+    in_csr_ = std::move(other.in_csr_);
+    table_ = std::move(other.table_);
+    table_idx_ = other.table_idx_.load();
+    capacity_ = other.capacity_.load();
+  }
+  return *this;
+}
+
 void EdgeTable::Swap(EdgeTable& edge_table) {
   std::swap(ckp_, edge_table.ckp_);
   std::swap(meta_, edge_table.meta_);
@@ -635,7 +649,7 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
     if (capacity <= capacity_.load()) {
       return;
     }
-    capacity = std::max(capacity, 4096UL);
+    capacity = std::max(capacity, static_cast<size_t>(4096));
     table_->resize(capacity, meta_->get_default_property_values());
     capacity_.store(capacity);
   }

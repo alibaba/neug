@@ -23,6 +23,16 @@
 #include <string>
 
 #include <glog/logging.h>
+
+#ifdef _WIN32
+// Windows headers may define GetObject as GetObjectA/GetObjectW, which
+// conflicts with rapidjson::Value::GetObject(). Undefine it before including
+// rapidjson headers.
+#ifdef GetObject
+#undef GetObject
+#endif
+#endif
+
 #include <rapidjson/document.h>
 #include <rapidjson/istreamwrapper.h>
 #include <rapidjson/ostreamwrapper.h>

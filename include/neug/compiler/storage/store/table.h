@@ -44,7 +44,13 @@ class NEUG_API Table {
         tableName{const_cast<SchemaEntry*>(tableEntry)->get_label()} {}
 
   Table(const SchemaEntry* tableEntry, const GraphStats* storageManager,
-        MemoryManager* memoryManager);
+        MemoryManager* memoryManager)
+      : tableType{tableEntry->get_entry_type()},
+        tableID{tableEntry->get_entry_id()},
+        tableName{const_cast<SchemaEntry*>(tableEntry)->get_label()},
+        enableCompression{false},
+        memoryManager{memoryManager},
+        hasChanges{false} {}
   virtual ~Table() = default;
 
   SchemaEntryType getTableType() const { return tableType; }
