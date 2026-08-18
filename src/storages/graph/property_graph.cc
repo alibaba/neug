@@ -51,6 +51,11 @@ PropertyGraph::PropertyGraph()
 
 PropertyGraph::~PropertyGraph() { Clear(); }
 
+// Defaulted here (not in the header) so that StorageIndexManager is a
+// complete type when the compiler generates the unique_ptr member moves.
+PropertyGraph::PropertyGraph(PropertyGraph&&) noexcept = default;
+PropertyGraph& PropertyGraph::operator=(PropertyGraph&&) noexcept = default;
+
 void PropertyGraph::loadSchema(const std::string& schema_path) {
   std::ifstream in(schema_path);
   schema_.Deserialize(in);

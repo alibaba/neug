@@ -22,6 +22,7 @@ import os
 import shutil
 import sys
 import time
+from pathlib import Path
 
 import pytest
 from conftest import wait_for_server_ready
@@ -63,9 +64,9 @@ def test_batch_loading(setup_database):
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
     sess.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
-    sess.execute(f'COPY person from "{person_csv}"')
+    sess.execute(f'COPY person from "{Path(person_csv).as_posix()}"')
     sess.execute(
-        f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+        f'COPY knows from "{Path(person_knows_person_csv).as_posix()}" (from="person", to="person")'
     )
 
     res = sess.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")

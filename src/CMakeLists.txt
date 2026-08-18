@@ -50,7 +50,11 @@ if (APPLE)
 endif()
 if (WITH_MIMALLOC)
     # It must be PUBLIC, otherwise there will be performance differences.
-    target_link_libraries(neug PUBLIC mimalloc)
+    if(WIN32)
+        target_link_libraries(neug PUBLIC mimalloc-static)
+    else()
+        target_link_libraries(neug PUBLIC mimalloc)
+    endif()
 endif()
 target_include_directories(neug PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>
@@ -61,5 +65,38 @@ neug_apply_symbol_visibility(neug)
 install_neug_target(neug)
 if (ENABLE_BACKTRACES)
     target_link_libraries(neug PUBLIC cpptrace::cpptrace)
+endif()
+
+# On Windows, tests need access to many internal symbols that are not exported
+# from the shared neug.dll (NEUG_API only covers public API). Build a static
+# counterpart for tests to link against so they can see all symbols.
+if(WIN32 AND BUILD_TEST)
+    add_library(neug_static STATIC ${ALL_OBJECT_FILES})
+    target_compile_definitions(neug_static PRIVATE NEUG_EXPORTS)
+    if (ENABLE_GCOV)
+        target_link_options(neug_static PRIVATE --coverage)
+    endif()
+    # Dependencies are PUBLIC so test executables inherit them automatically.
+    target_link_libraries(neug_static PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+    target_link_libraries(neug_static PUBLIC ${GFLAGS_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES})
+    target_link_libraries(neug_static PUBLIC ${GLOG_LIBRARIES})
+    target_link_libraries(neug_static PUBLIC ${Protobuf_LIBRARIES})
+    if (BUILD_HTTP_SERVER)
+        target_link_libraries(neug_static PUBLIC ${BRPC_LIB} ${LEVELDB_LIB})
+        target_link_libraries(neug_static PUBLIC ${CRYPTO_LIB})
+    endif()
+    if (WITH_MIMALLOC)
+        if(WIN32)
+            target_link_libraries(neug_static PUBLIC mimalloc-static)
+        else()
+            target_link_libraries(neug_static PUBLIC mimalloc)
+        endif()
+    endif()
+    if (ENABLE_BACKTRACES)
+        target_link_libraries(neug_static PUBLIC cpptrace::cpptrace)
+    endif()
+    target_include_directories(neug_static PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>
+        $<INSTALL_INTERFACE:include/neug/compiler>)
 endif()
 

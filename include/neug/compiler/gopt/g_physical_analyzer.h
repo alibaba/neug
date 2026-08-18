@@ -245,7 +245,7 @@ class GPhysicalAnalyzer {
       break;
     }
     case planner::LogicalOperatorType::SET_PROPERTY:
-    case planner::LogicalOperatorType::DELETE:
+    case planner::LogicalOperatorType::DELETE_OP:
     case planner::LogicalOperatorType::MERGE: {
       flag.update = true;
       break;

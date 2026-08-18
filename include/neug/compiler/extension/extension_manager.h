@@ -22,11 +22,14 @@
 
 #pragma once
 
-#include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/option_config.h"
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+
+#include "neug/utils/result.h"
 
 namespace neug {
-namespace extension {
 
 struct ExtensionEntry {
   const char* name;
@@ -34,12 +37,34 @@ struct ExtensionEntry {
 };
 
 class ExtensionManager {
+ private:
+  struct LoadedExtension;
+
  public:
-  const main::ExtensionOption* getExtensionOption(std::string name) const;
+  using InitFunc = void (*)();
+
+  struct LoadResult {
+    std::string canonical_name;
+    bool newly_loaded;
+  };
+
+  Status InstallExtension(const std::string& name,
+                          const std::string& repository = {});
+  result<LoadResult> LoadExtension(const std::string& name);
+  Status UninstallExtension(const std::string& name);
+  bool IsLoaded(const std::string& name) const;
 
  private:
-  std::unordered_map<std::string, main::ExtensionOption> extensionOptions;
+  struct LoadedExtension {
+    std::string library_path;
+    void* handle = nullptr;
+    InitFunc init = nullptr;
+  };
+
+  static std::string NormalizeExtensionName(std::string name);
+
+  mutable std::mutex mutex_;
+  std::unordered_map<std::string, LoadedExtension> loaded_extensions_;
 };
 
-}  // namespace extension
 }  // namespace neug

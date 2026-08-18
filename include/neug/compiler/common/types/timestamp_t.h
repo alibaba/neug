@@ -24,6 +24,7 @@
 
 #include "date_t.h"
 #include "dtime_t.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace compiler_impl {

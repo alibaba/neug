@@ -97,7 +97,7 @@ class GResultSchema {
         opType == planner::LogicalOperatorType::INSERT ||
         opType == planner::LogicalOperatorType::MERGE ||
         opType == planner::LogicalOperatorType::SET_PROPERTY ||
-        opType == planner::LogicalOperatorType::DELETE ||
+        opType == planner::LogicalOperatorType::DELETE_OP ||
         opType == planner::LogicalOperatorType::COPY_TO ||
         opType == planner::LogicalOperatorType::TRANSACTION ||
         opType == planner::LogicalOperatorType::EXTENSION ||

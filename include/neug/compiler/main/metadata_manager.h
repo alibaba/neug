@@ -52,7 +52,6 @@ struct Function;
 
 namespace extension {
 struct ExtensionUtils;
-class ExtensionManager;
 }  // namespace extension
 
 namespace storage {
@@ -103,14 +102,12 @@ class MetadataManager {
                   GraphStats statsManager,
                   std::shared_ptr<storage::MemoryManager> memoryManager,
                   std::shared_ptr<neug::fsys::FileSystemRegistry> vfs,
-                  std::shared_ptr<extension::ExtensionManager> extensionManager,
                   std::shared_ptr<graph::GraphEntrySet> graphEntrySet);
 
   std::unique_ptr<catalog::Catalog> catalog;
   GraphStats statsManager;
   std::shared_ptr<storage::MemoryManager> memoryManager;
   std::shared_ptr<neug::fsys::FileSystemRegistry> vfs;
-  std::shared_ptr<extension::ExtensionManager> extensionManager;
   std::shared_ptr<graph::GraphEntrySet> graphEntrySet;
 };
 

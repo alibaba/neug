@@ -25,9 +25,18 @@
 #include "neug/utils/exception/exception.h"
 
 #include <fcntl.h>
-#include <sys/resource.h>
 #include <sys/stat.h>
+#ifndef _WIN32
+#include <sys/resource.h>
 #include <unistd.h>
+#else
+#include <io.h>
+#include <process.h>
+#define close _close
+#define getpid _getpid
+#define open _open
+#define write _write
+#endif
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -289,6 +298,7 @@ TEST_F(LocalWalParserTest, OpenAndParseValidWalFile) {
   EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
 }
 
+#ifndef _WIN32
 // Test: LocalWalParser throws IOException when ::open() on a WAL file fails
 // (e.g. permission denied). This covers the fd == -1 check.
 // Note: running as root or on permission-ignoring filesystems bypasses
@@ -329,7 +339,9 @@ TEST_F(LocalWalParserTest, OpenUnreadableWalFileThrowsIOException) {
 
   chmod(file_path.c_str(), 0644);
 }
+#endif
 
+#ifndef _WIN32
 // Test: LocalWalParser throws IOException when mmap() fails.
 // Uses RLIMIT_AS to deterministically exhaust the virtual-address space
 // so mmap() reliably returns MAP_FAILED, avoiding the flakiness of the
@@ -374,6 +386,7 @@ TEST_F(LocalWalParserTest, MmapFailureThrowsIOException) {
   EXPECT_TRUE(msg_ok)
       << "Exception message did not contain 'Failed to mmap wal file'";
 }
+#endif
 
 // Test: Opening an empty WAL directory does not throw and last_ts is 0.
 TEST_F(LocalWalParserTest, OpenEmptyWalDirNoThrow) {

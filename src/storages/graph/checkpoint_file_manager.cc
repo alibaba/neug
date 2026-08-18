@@ -16,7 +16,13 @@
 #include "neug/storages/checkpoint_file_manager.h"
 
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <io.h>
+#define open _open
+#define close _close
+#endif
 
 #include <cerrno>
 #include <filesystem>

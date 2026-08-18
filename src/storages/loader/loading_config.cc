@@ -286,7 +286,7 @@ static Status parse_vertex_files(
                         "vertex file - [" + file_path + "] file not found...");
         }
         std::filesystem::path path(file_path);
-        files[label_id].emplace_back(std::filesystem::canonical(path));
+        files[label_id].emplace_back(std::filesystem::canonical(path).string());
       } else {
         // append file_path to data_location
         if (!data_location.empty()) {
@@ -484,9 +484,10 @@ static Status parse_edge_files(
         }
         std::filesystem::path path(file_path);
         VLOG(10) << "src " << src_label << " dst " << dst_label << " edge "
-                 << edge_label << " path " << std::filesystem::canonical(path);
+                 << edge_label << " path "
+                 << std::filesystem::canonical(path).string();
         files[std::tuple{src_label_id, dst_label_id, edge_label_id}]
-            .emplace_back(std::filesystem::canonical(path));
+            .emplace_back(std::filesystem::canonical(path).string());
       } else {
         // append file_path to data_location
         if (!data_location.empty()) {

@@ -13,19 +13,23 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
-
-#include <errno.h>
-#include <fcntl.h>
+#ifndef _WIN32
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
+#include <poll.h>
+#else
+#include <process.h>
+#endif
+
+#include <errno.h>
+#include <fcntl.h>
 
 #include <filesystem>
 #include <string>
 #include <type_traits>
-
-#include <poll.h>
 
 #include <gtest/gtest.h>
 
@@ -57,6 +61,7 @@ TEST(FileLockTest, ReadOnlyCreatesMissingCoordinationFile) {
   std::filesystem::remove_all(db_dir);
 }
 
+#ifndef _WIN32
 TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -79,7 +84,9 @@ TEST(FileLockTest, ReadOnlyLockDoesNotRequireWritePermission) {
   ASSERT_EQ(::chmod(lock_path.c_str(), S_IRUSR | S_IWUSR), 0);
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
+#ifndef _WIN32
 TEST(FileLockTest, ReadOnlyOpenOnReadOnlyDirectoryReportsWritableHint) {
   if (::geteuid() == 0) {
     GTEST_SKIP() << "chmod-based permission checks do not apply to root";
@@ -118,6 +125,7 @@ TEST(FileLockTest, ReadOnlyOpenOnReadOnlyDirectoryReportsWritableHint) {
   ASSERT_EQ(::chmod(db_dir.c_str(), S_IRWXU), 0);
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 TEST(FileLockTest, RejectsRepeatedLockOnSameObject) {
   const auto db_dir =
@@ -193,6 +201,7 @@ TEST(FileLockTest, RejectsIncompatibleModeInSameProcess) {
   std::filesystem::remove_all(db_dir);
 }
 
+#ifndef _WIN32
 TEST(FileLockTest, ClosingOneReaderKeepsProcessLock) {
   const auto db_dir = std::filesystem::temp_directory_path() /
                       ("neug_file_lock_test_" + std::to_string(::getpid()));
@@ -240,7 +249,9 @@ TEST(FileLockTest, ClosingOneReaderKeepsProcessLock) {
 
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
+#ifndef _WIN32
 TEST(FileLockTest, ForkedChildReacquiresProcessLock) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -322,6 +333,7 @@ TEST(FileLockTest, ForkedChildReacquiresProcessLock) {
   writer.unlock();
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 }  // namespace test
 }  // namespace neug

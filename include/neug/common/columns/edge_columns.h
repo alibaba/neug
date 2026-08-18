@@ -134,6 +134,10 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
 
   void reserve(size_t size) override { edges_.reserve(size); }
   inline void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     const auto& e = val.GetValue<edge_t>();
     push_back_opt(e.src, e.dst, e.prop);
   }
@@ -256,6 +260,10 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override { cur_edges_.reserve(size); }
 
   inline void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     LOG(FATAL) << "not implemented for MSEdgeColumnBuilder";
   }
 
@@ -409,6 +417,10 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override { edges_.reserve(size); }
 
   inline void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     LOG(FATAL) << "not implemented for BDSLEdgeColumnBuilder";
   }
 
@@ -525,6 +537,10 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override { edges_.reserve(size); }
 
   inline void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     LOG(FATAL) << "not implemented for SDMLEdgeColumnBuilder";
   }
 
@@ -648,6 +664,10 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override { edges_.reserve(size); }
 
   inline void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     const auto& edge = val.GetValue<edge_t>();
     insert_label(edge.label);
     push_back_opt(edge.label, edge.src, edge.dst, edge.prop, edge.dir);

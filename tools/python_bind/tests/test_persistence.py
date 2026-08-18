@@ -245,7 +245,7 @@ def test_ap_checkpoint_access_modes_and_explain_profile(tmp_path):
         conn.execute("CHECKPOINT;", access_mode="u")
 
         for mode in ["read", "r", "insert", "i", "schema", "s"]:
-            with pytest.raises(Exception, match="CHECKPOINT only accepts"):
+            with pytest.raises(Exception, match="Admin requests only accept"):
                 conn.execute("CHECKPOINT;", access_mode=mode)
 
         profile = conn.execute("PROFILE CHECKPOINT;")

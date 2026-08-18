@@ -277,12 +277,8 @@ class JsonChunkSupplier : public IDataChunkSupplier {
               "' not found in JSON object in file: " + file_path_);
         }
         const auto& json_value = obj[name.c_str()];
-        if (json_value.IsNull()) {
-          builders[col]->push_back_null();
-        } else {
-          builders[col]->push_back_elem(
-              parse_json_value(json_value, selected_types[col]));
-        }
+        builders[col]->push_back_elem(
+            parse_json_value(json_value, selected_types[col]));
       }
       ++rows_in_chunk;
     }

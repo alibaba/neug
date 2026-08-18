@@ -20,6 +20,7 @@
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
+#include "neug/utils/platform.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -195,7 +196,7 @@ class EdgeExpand {
   // prefetching the head (body) of the upcoming nbr1. The body is the dominant
   // second-hop miss; measurements show prefetching csr2 metadata in addition
   // adds nothing here.
-  __attribute__((always_inline)) static inline void tc_match_second_hop(
+  NEUG_ALWAYS_INLINE static inline void tc_match_second_hop(
       const CsrView& csr2, const NbrList& es1,
       const flat_hash_set<vid_t>& d0_set, MSVertexColumnBuilder& builder1,
       MSVertexColumnBuilder& builder2, sel_vec_t& offsets, sel_t idx) {

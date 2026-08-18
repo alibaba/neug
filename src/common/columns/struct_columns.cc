@@ -80,13 +80,13 @@ StructColumnBuilder::StructColumnBuilder(DataType type) : type_(type) {
 }
 
 void StructColumnBuilder::push_back_elem(const Value& val) {
+  if (val.IsNull()) {
+    push_back_null();
+    return;
+  }
   const auto& struct_values = StructValue::GetChildren(val);
   for (size_t i = 0; i < child_builders_.size(); ++i) {
-    if (struct_values[i].IsNull()) {
-      child_builders_[i]->push_back_null();
-    } else {
-      child_builders_[i]->push_back_elem(struct_values[i]);
-    }
+    child_builders_[i]->push_back_elem(struct_values[i]);
   }
   ++current_size_;
 }

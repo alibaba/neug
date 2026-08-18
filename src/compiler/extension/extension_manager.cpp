@@ -22,18 +22,18 @@
 
 #include "neug/compiler/extension/extension_manager.h"
 
-#include "generated_extension_loader.h"
 #include "neug/compiler/common/string_utils.h"
-#include "neug/compiler/extension/extension.h"
 
 namespace neug {
-namespace extension {
 
-const main::ExtensionOption* ExtensionManager::getExtensionOption(
-    std::string name) const {
+std::string ExtensionManager::NormalizeExtensionName(std::string name) {
   common::StringUtils::toLower(name);
-  return extensionOptions.contains(name) ? &extensionOptions.at(name) : nullptr;
+  return name;
 }
 
-}  // namespace extension
+bool ExtensionManager::IsLoaded(const std::string& name) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return loaded_extensions_.contains(NormalizeExtensionName(name));
+}
+
 }  // namespace neug

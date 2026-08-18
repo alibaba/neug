@@ -37,6 +37,7 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -98,7 +99,7 @@ class StorageIndexManager;
  *
  * @since v0.1.0
  */
-class PropertyGraph {
+class NEUG_API PropertyGraph {
  public:
   /**
    * @brief Construct PropertyGraph with default settings.
@@ -116,6 +117,16 @@ class PropertyGraph {
    * @since v0.1.0
    */
   ~PropertyGraph();
+
+  // Move-only: copy is not meaningful because the underlying storage
+  // (VertexTable, EdgeTable) is move-only.  Use Clone() for explicit copies.
+  // Move operations are defaulted in the .cc where StorageIndexManager is
+  // complete; defaulting them here would require the full type to destroy
+  // index_manager_ in every including TU (MSVC C2027).
+  PropertyGraph(const PropertyGraph&) = delete;
+  PropertyGraph& operator=(const PropertyGraph&) = delete;
+  PropertyGraph(PropertyGraph&&) noexcept;
+  PropertyGraph& operator=(PropertyGraph&&) noexcept;
 
   /**
    * @brief Open the graph from the given Checkpoint using the Module interface.
