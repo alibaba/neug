@@ -214,8 +214,7 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
     db.Close();
   }
 
-  const auto allocator_marker =
-      db_dir / "checkpoint-1" / "allocator" / "read_only_marker";
+  const auto allocator_marker = db_dir / "runtime" / "read_only_marker";
   ASSERT_TRUE(std::filesystem::is_directory(allocator_marker.parent_path()));
   {
     std::ofstream marker(allocator_marker);
@@ -282,10 +281,17 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   EXPECT_EQ(first_ready, '1');
 
   std::vector<std::filesystem::path> first_runtime_files;
-  const auto runtime_dir = db_dir / "checkpoint-1" / "runtime";
-  for (const auto& entry : std::filesystem::directory_iterator(runtime_dir)) {
-    if (entry.is_regular_file()) {
-      first_runtime_files.emplace_back(entry.path());
+  const auto runtime_dir = db_dir / "runtime";
+  for (const auto& epoch : std::filesystem::directory_iterator(runtime_dir)) {
+    if (!epoch.is_directory() ||
+        !epoch.path().filename().string().starts_with("open-")) {
+      continue;
+    }
+    for (const auto& entry :
+         std::filesystem::recursive_directory_iterator(epoch.path())) {
+      if (entry.is_regular_file()) {
+        first_runtime_files.emplace_back(entry.path());
+      }
     }
   }
   EXPECT_FALSE(first_runtime_files.empty());
@@ -664,9 +670,9 @@ TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
     ASSERT_TRUE(result) << result.error().ToString();
     EXPECT_EQ(result.value().response().row_count(), 1);
 
-    // Explicit AP CHECKPOINT dumps/reopens without advancing a durable WAL
-    // timeline. Both vertex and edge mutations must therefore remain visible
-    // from the baseline timestamp restored on process restart.
+    // Explicit AP CHECKPOINT resets the timeline after publishing a full
+    // snapshot. Both vertex and edge mutations must remain visible from the
+    // new baseline after process restart.
     SnapshotGuard snapshot(reopened.graph_snapshot_store());
     StorageReadInterface storage(snapshot.get().view(), 0);
     const auto person_label = storage.schema().get_vertex_label_id("person");

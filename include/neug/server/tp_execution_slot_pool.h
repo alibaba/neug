@@ -178,7 +178,7 @@ class TpExecutionSlotPool {
   }
 
   // Runs while checkpoint maintenance has drained all active transactions.
-  // Rotate every stable per-slot WAL writer to the published generation.
+  // Rotate every stable per-slot WAL writer to the published epoch.
   void RotateWalWriters(const std::string& wal_uri);
 
  private:

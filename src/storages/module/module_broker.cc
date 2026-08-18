@@ -22,13 +22,13 @@
 namespace neug {
 
 void ModuleBroker::Open(Checkpoint& checkpoint, MemoryLevel level) {
-  Open(checkpoint, checkpoint.GetMeta(), level);
+  Open(checkpoint, checkpoint.manifest(), level);
 }
 
 void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
                         MemoryLevel level) {
   auto& factory = ModuleFactory::instance();
-  for (const auto& [name, desc] : meta.modules()) {
+  for (const auto& [name, desc] : meta.Modules()) {
     if (desc.is_referenced_module()) {
       continue;
     }

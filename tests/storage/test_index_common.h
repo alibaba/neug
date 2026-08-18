@@ -105,13 +105,14 @@ class ExampleIndex : public StorageIndex {
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override {
     StorageIndex::Dump(ckp, meta, key);
-    auto descriptor = meta.module(key).value_or(ModuleDescriptor{});
+    auto descriptor = meta.FindModule(key) == nullptr ? ModuleDescriptor{}
+                                                      : *meta.FindModule(key);
     descriptor.module_type = ModuleTypeName();
     descriptor.required = true;
     if (index_id_accessor_) {
       CheckpointManifest accessor_meta;
       index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
-      auto accessor_desc = accessor_meta.module("index_id_accessor");
+      const auto* accessor_desc = accessor_meta.FindModule("index_id_accessor");
       if (auto next_index_id =
               accessor_desc->get(ModuleDescriptor::kNextIndexId)) {
         descriptor.set(ModuleDescriptor::kNextIndexId, *next_index_id);
@@ -125,7 +126,7 @@ class ExampleIndex : public StorageIndex {
     if (index_buffer_) {
       descriptor.set_path(kIndexBufferPath, ckp.Commit(*index_buffer_));
     }
-    meta.set_module(key, std::move(descriptor));
+    meta.SetModule(key, std::move(descriptor));
   }
 
   void Detach(Checkpoint& ckp, MemoryLevel level) override {

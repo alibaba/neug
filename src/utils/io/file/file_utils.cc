@@ -581,7 +581,7 @@ std::ostream& AtomicFileWriter::stream() {
   return *ostream_;
 }
 
-void AtomicFileWriter::Commit() {
+AtomicFileWriter::CommitResult AtomicFileWriter::Commit() {
   if (committed_) {
     THROW_IO_EXCEPTION("AtomicFileWriter::Commit: already committed");
   }
@@ -645,10 +645,12 @@ void AtomicFileWriter::Commit() {
   // Step 5: fsync the parent directory so the directory entry is durable.
   auto parent_dir = std::filesystem::path(target_path_).parent_path().string();
   int dir_fd = ::open(parent_dir.c_str(), O_RDONLY);
-  if (dir_fd >= 0) {
-    ::fsync(dir_fd);
-    ::close(dir_fd);
+  if (dir_fd < 0) {
+    return CommitResult::kCommitUnknown;
   }
+  const bool durable = ::fsync(dir_fd) == 0;
+  ::close(dir_fd);
+  return durable ? CommitResult::kDurable : CommitResult::kCommitUnknown;
 }
 
 void AtomicFileWriter::Abort() noexcept {

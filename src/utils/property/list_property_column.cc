@@ -38,31 +38,30 @@ std::string ChildModuleKey(const std::string& parent, const std::string& role) {
 }
 
 void MarkReferenced(CheckpointManifest& meta, const std::string& key) {
-  auto it = meta.mutable_modules().find(key);
-  if (it == meta.mutable_modules().end()) {
+  auto* desc = meta.FindMutableModule(key);
+  if (desc == nullptr) {
     THROW_RUNTIME_ERROR(
         "ListPropertyColumn::Dump: child column did not write "
         "module '" +
         key + "'");
   }
-  it->second.mark_as_referenced_module();
+  desc->mark_as_referenced_module();
 }
 
 const ModuleDescriptor& ResolveChild(const CheckpointManifest& manifest,
                                      const ModuleDescriptor& parent,
-                                     const char* role,
-                                     std::optional<ModuleDescriptor>& storage) {
+                                     const char* role) {
   auto ref = parent.get_ref(role);
   if (!ref.has_value()) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::Open: missing '" +
                         std::string(role) + "' ref");
   }
-  storage = manifest.module(*ref);
-  if (!storage.has_value()) {
+  const auto* child = manifest.FindModule(*ref);
+  if (child == nullptr) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::Open: missing child module '" +
                         *ref + "'");
   }
-  return *storage;
+  return *child;
 }
 
 }  // namespace
@@ -123,12 +122,9 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   }
   const size_t expected_rows = std::stoull(*row_count);
 
-  const auto& resolver = manifest ? *manifest : ckp.GetMeta();
-  std::optional<ModuleDescriptor> items_desc;
-  std::optional<ModuleDescriptor> elements_desc;
-  items_->Open(ckp, ResolveChild(resolver, desc, kItemsRef, items_desc), level);
-  elements_->Open(ckp, resolver,
-                  ResolveChild(resolver, desc, kElementsRef, elements_desc),
+  const auto& resolver = manifest ? *manifest : ckp.manifest();
+  items_->Open(ckp, ResolveChild(resolver, desc, kItemsRef), level);
+  elements_->Open(ckp, resolver, ResolveChild(resolver, desc, kElementsRef),
                   level);
   // After loading from a checkpoint, elements_tail_ equals elements_->size(),
   // meaning there is zero spare capacity in the elements column.  Any
@@ -246,7 +242,7 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   auto desc = dumpSelfDescriptor();
   desc.set_ref(kItemsRef, std::move(items_key));
   desc.set_ref(kElementsRef, std::move(elements_key));
-  meta.set_module(key, std::move(desc));
+  meta.SetModule(key, std::move(desc));
 }
 
 void ListPropertyColumn::resize(size_t size) {

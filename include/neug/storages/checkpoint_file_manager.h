@@ -25,10 +25,10 @@
 namespace neug {
 
 /**
- * @brief Manages file lifecycle within a single checkpoint directory.
+ * @brief Publishes immutable checkpoint objects and owns one runtime epoch.
  *
  * Extracted from Checkpoint to separate file-management concerns (create,
- * commit, link, cleanup) from meta/directory-structure management.
+ * commit, materialize, cleanup) from manifest/directory-structure management.
  *
  * Thread safety: all public methods are safe to call concurrently.
  */
@@ -52,18 +52,17 @@ class CheckpointFileManager {
     friend class CheckpointFileManager;
 
     RuntimeFileHandle(std::shared_ptr<RuntimeFileCleanupContext> cleanup,
-                      std::string uuid, std::string path);
+                      std::string path);
 
     bool valid() const { return cleanup_ != nullptr; }
     void Release();
 
     std::shared_ptr<RuntimeFileCleanupContext> cleanup_;
-    std::string uuid_;
     std::string path_;
   };
 
-  CheckpointFileManager(const std::string& snapshot_dir,
-                        const std::string& runtime_dir);
+  CheckpointFileManager(const std::string& object_dir,
+                        std::shared_ptr<const std::string> runtime_workspace);
   ~CheckpointFileManager();
 
   CheckpointFileManager(const CheckpointFileManager&) = delete;
@@ -77,7 +76,7 @@ class CheckpointFileManager {
   std::shared_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
                                                          MemoryLevel level);
 
-  /// Commit a data container to a persistent snapshot file.
+  /// Commit a data container to a persistent immutable object.
   ///
   /// This is a consuming operation: the container dumps its current contents
   /// and is closed by the call. The caller must not read from or write to the
@@ -90,39 +89,29 @@ class CheckpointFileManager {
   /// it is destroyed before CommitRuntimeFile() consumes it.
   RuntimeFileHandle CreateRuntimeFile();
 
-  /// Finalize a manually-written runtime file into snapshot_dir.
+  /// Finalize a manually-written runtime file into the object store.
   std::string CommitRuntimeFile(RuntimeFileHandle&& file);
 
-  /// Hardlink (or copy) a caller-guaranteed immutable/retired file into
-  /// snapshot_dir. This fast path is valid for files that no legal writer can
-  /// mutate again, such as clean runtime files from a previous checkpoint.
-  ///
-  /// Active MAP_SHARED runtime containers must use Commit(), which consumes and
-  /// closes the container while publishing its current contents.
-  std::string LinkToSnapshot(const std::string& abs_path);
-
-  /// fsync snapshot_dir after snapshot file entries are ready.
-  bool SyncSnapshotDirectory() const;
-
-  /// Make an absolute path relative to the checkpoint root.
-  std::string MakeRelativePath(const std::string& abs_path,
-                               const std::string& checkpoint_root) const;
-
-  /// Resolve a relative path against the checkpoint root.
-  std::string ResolveAbsolutePath(const std::string& rel_path,
-                                  const std::string& checkpoint_root) const;
+  /// Reuse an existing object-store path, or copy a runtime file into a fresh
+  /// immutable object. Active MAP_SHARED files are never hardlinked.
+  std::string MaterializeObject(const std::string& abs_path);
 
  private:
+  friend class Checkpoint;
+
+  /// fsync the object directory after object entries are ready.
+  bool SyncObjectDirectory() const;
+
   std::shared_ptr<IDataContainer> WrapWithRuntimeCleanup(
       std::unique_ptr<IDataContainer> container) const;
 
   std::string CreateRuntimeContainerPath();
   std::string CreateRuntimeObjectNameLocked() const;
-  std::string copyToSnapshotLocked(const std::string& abs_path);
+  std::string materializeObjectLocked(const std::string& abs_path);
   std::string commitRuntimeFileLocked(const std::string& uuid,
                                       const std::string& abs_path);
 
-  std::string snapshot_dir_;
+  std::string object_dir_;
   std::string runtime_dir_;
   mutable std::mutex mutex_;
   std::shared_ptr<RuntimeFileCleanupContext> runtime_cleanup_;
