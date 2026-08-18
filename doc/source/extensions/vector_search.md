@@ -82,16 +82,7 @@ CREATE NODE TABLE vector_node (
 If no default value is specified, a vector property is implicitly initialized
 to `[0.0, 0.0, 0.0, ...]`, with one FP32 zero for each vector dimension. This
 may cause nodes containing the default vector to appear in vector similarity
-query results. To avoid relying on the implicit zero vector, explicitly specify
-a default value appropriate for your application. For example:
-
-```cypher
-CREATE NODE TABLE vector_node (
-    id INT64,
-    vec FLOAT[4] DEFAULT [0.1, 0.1, 0.2, 0.2],
-    PRIMARY KEY (id)
-);
-```
+query results.
 
 ### Drop Vector Property
 
@@ -368,6 +359,10 @@ ORDER BY vector_distance_l2(
 )
 LIMIT 3;
 ```
+
+> Note: Vector properties that were not explicitly assigned use an implicit
+> all-zero vector and may therefore appear in similarity search results. See
+> [Create Vector Property](#create-vector-property) for details.
 
 ### Graph + Vector Hybrid Search
 
