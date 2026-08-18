@@ -16,7 +16,9 @@
 #include "hnsw_index_scan.h"
 
 #include <algorithm>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -44,6 +46,31 @@
 
 namespace neug::vector_search_ext {
 namespace {
+
+template <typename T>
+T ParseUnsignedOption(const std::string& value, const std::string& name) {
+  size_t parsed_length = 0;
+  unsigned long long parsed_value = 0;
+  if (!value.empty() && value.front() == '-') {
+    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN option '" + name +
+                        "' must be an unsigned integer: " + value);
+  }
+  try {
+    parsed_value = std::stoull(value, &parsed_length);
+  } catch (const std::invalid_argument&) {
+    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN option '" + name +
+                        "' has an invalid value: " + value);
+  } catch (const std::out_of_range&) {
+    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN option '" + name +
+                        "' is out of range: " + value);
+  }
+  if (parsed_length != value.size() ||
+      parsed_value > std::numeric_limits<T>::max()) {
+    THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN option '" + name +
+                        "' is out of range: " + value);
+  }
+  return static_cast<T>(parsed_value);
+}
 
 bool IsVectorDistanceFunction(const function::ScalarFunction& function) {
   return function.name == "VECTOR_DISTANCE_L2" ||
@@ -250,9 +277,9 @@ std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
   if (label.empty() || scan.unique_index_name().empty() || topk.empty()) {
     THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN is missing required options");
   }
-  input->label_id = static_cast<label_t>(std::stoul(label));
+  input->label_id = ParseUnsignedOption<label_t>(label, "label_id");
   input->unique_index_name = scan.unique_index_name();
-  input->topk = static_cast<uint32_t>(std::stoul(topk));
+  input->topk = ParseUnsignedOption<uint32_t>(topk, "topk");
   input->target_value = execution::parse_expression(
       scan.target_value(), context_meta, execution::VarType::kRecord);
   if (op.meta_data_size() != 2) {
@@ -274,7 +301,12 @@ execution::Context ExecuteHNSWIndexScan(
   HNSWIndexQueryParams params;
   params.target_value = input.bound_target_value;
   params.topk = input.topk;
-  params.ef_search = std::max<uint32_t>(input.topk, 100);
+  constexpr uint32_t kMinEfSearch = 100;
+  const auto doubled_topk =
+      input.topk > std::numeric_limits<uint32_t>::max() / 2
+          ? std::numeric_limits<uint32_t>::max()
+          : input.topk * 2;
+  params.ef_search = std::max(doubled_topk, kMinEfSearch);
 
   std::vector<std::shared_ptr<IVertexColumn>> filter_inputs;
   size_t scalar_filter_size = 0;

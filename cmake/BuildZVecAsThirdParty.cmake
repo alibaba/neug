@@ -30,13 +30,44 @@ function(build_zvec_as_third_party)
     set(_zvec_patch "${CMAKE_SOURCE_DIR}/third_party/zvec.patch")
     if(EXISTS "${_zvec_patch}")
         execute_process(
-            COMMAND git apply --check "${_zvec_patch}"
+            COMMAND git rev-parse --show-toplevel
+            WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
+            RESULT_VARIABLE _zvec_git_check
+            OUTPUT_VARIABLE _zvec_git_root
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+        file(REAL_PATH "${ZVEC_SOURCE_DIR}" _zvec_source_real_path)
+        if(_zvec_git_check EQUAL 0)
+            file(REAL_PATH "${_zvec_git_root}" _zvec_git_real_path)
+        endif()
+
+        if(_zvec_git_check EQUAL 0
+           AND _zvec_git_real_path STREQUAL _zvec_source_real_path)
+            set(_zvec_patch_check_command
+                git apply --check "${_zvec_patch}")
+            set(_zvec_patch_apply_command git apply "${_zvec_patch}")
+            set(_zvec_patch_reverse_check_command
+                git apply --reverse --check "${_zvec_patch}")
+        else()
+            find_program(_zvec_patch_executable patch REQUIRED)
+            set(_zvec_patch_check_command
+                "${_zvec_patch_executable}" -p1 -f --dry-run
+                -i "${_zvec_patch}")
+            set(_zvec_patch_apply_command
+                "${_zvec_patch_executable}" -p1 -f -i "${_zvec_patch}")
+            set(_zvec_patch_reverse_check_command
+                "${_zvec_patch_executable}" -p1 -f -R --dry-run
+                -i "${_zvec_patch}")
+        endif()
+
+        execute_process(
+            COMMAND ${_zvec_patch_check_command}
             WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
             RESULT_VARIABLE _zvec_patch_check
             ERROR_VARIABLE _zvec_patch_error)
         if(_zvec_patch_check EQUAL 0)
             execute_process(
-                COMMAND git apply "${_zvec_patch}"
+                COMMAND ${_zvec_patch_apply_command}
                 WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
                 RESULT_VARIABLE _zvec_patch_result
                 ERROR_VARIABLE _zvec_patch_error)
@@ -46,7 +77,7 @@ function(build_zvec_as_third_party)
             endif()
         else()
             execute_process(
-                COMMAND git apply --reverse --check "${_zvec_patch}"
+                COMMAND ${_zvec_patch_reverse_check_command}
                 WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
                 RESULT_VARIABLE _zvec_patch_applied
                 ERROR_VARIABLE _zvec_patch_reverse_error)

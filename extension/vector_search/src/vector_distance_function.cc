@@ -53,14 +53,6 @@ std::unique_ptr<function::FunctionBindData> BindVectorDistance(
 }
 
 const std::vector<Value>& ValidateArguments(const std::vector<Value>& args) {
-  if (args.size() != 2) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Vector distance functions require two arguments");
-  }
-  if (args[0].IsNull() || args[1].IsNull()) {
-    static const std::vector<Value> empty;
-    return empty;
-  }
   if (args[0].type().id() != DataTypeId::kArray ||
       args[1].type().id() != DataTypeId::kArray) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -149,10 +141,14 @@ enum class VectorOperation { kL2, kCosine, kInnerProduct };
 
 template <VectorOperation operation>
 Value Execute(const std::vector<Value>& args) {
-  const auto& lhs = ValidateArguments(args);
+  if (args.size() != 2) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Vector distance functions require two arguments");
+  }
   if (args[0].IsNull() || args[1].IsNull()) {
     return Value(DataType::DOUBLE);
   }
+  const auto& lhs = ValidateArguments(args);
   const auto& rhs = ArrayValue::GetChildren(args[1]);
   auto element_type = ArrayType::GetChildType(args[0].type()).id();
   if (element_type == DataTypeId::kFloat) {
