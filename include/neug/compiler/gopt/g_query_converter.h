@@ -30,6 +30,7 @@
 #include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_expr_converter.h"
 #include "neug/compiler/gopt/g_type_converter.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_aggregate.h"
@@ -79,7 +80,7 @@ struct EdgeLabelId {
 class GQueryConvertor {
  public:
   GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                  neug::catalog::Catalog* catalog);
+                  main::MetadataManager* metadataManager);
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink);
@@ -181,6 +182,8 @@ class GQueryConvertor {
                             ::physical::PhysicalPlan* plan);
   void convertGDSFunction(const planner::LogicalTableFunctionCall& funcCall,
                           ::physical::PhysicalPlan* plan);
+  void convertIndexScan(const planner::LogicalTableFunctionCall& funcCall,
+                        ::physical::PhysicalPlan* plan);
 
   void convertUnwind(const planner::LogicalUnwind& unwind,
                      ::physical::PhysicalPlan* plan);
@@ -258,6 +261,7 @@ class GQueryConvertor {
   std::unique_ptr<GExprConverter> exprConvertor;
   std::unique_ptr<GPhysicalTypeConverter> typeConverter;
   neug::catalog::Catalog* catalog;
+  main::MetadataManager* metadataManager;
   neug::gopt::GDDLConverter ddlConverter;
 };
 
