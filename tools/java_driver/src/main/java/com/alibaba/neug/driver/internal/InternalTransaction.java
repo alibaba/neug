@@ -13,8 +13,8 @@
  */
 package com.alibaba.neug.driver.internal;
 
-import com.alibaba.neug.driver.Transaction;
 import com.alibaba.neug.driver.ResultSet;
+import com.alibaba.neug.driver.Transaction;
 import com.alibaba.neug.driver.utils.Client;
 import com.alibaba.neug.driver.utils.QuerySerializer;
 import com.alibaba.neug.driver.utils.ResponseParser;
@@ -86,8 +86,7 @@ public class InternalTransaction implements Transaction {
         }
         state = State.TERMINAL_UNKNOWN;
         try {
-            Client.HttpResponse response =
-                    client.syncPost(commitEndpoint, EMPTY_BODY);
+            Client.HttpResponse response = client.syncPost(commitEndpoint, EMPTY_BODY);
             if (!response.isSuccessful()) {
                 state = State.ROLLBACK_ONLY;
                 throw httpFailure("commit transaction", response);
@@ -105,8 +104,7 @@ public class InternalTransaction implements Transaction {
         }
         state = State.TERMINAL_UNKNOWN;
         try {
-            Client.HttpResponse response =
-                    client.syncPost(rollbackEndpoint, EMPTY_BODY);
+            Client.HttpResponse response = client.syncPost(rollbackEndpoint, EMPTY_BODY);
             if (!response.isSuccessful()) {
                 state = State.ROLLBACK_ONLY;
                 throw httpFailure("rollback transaction", response);

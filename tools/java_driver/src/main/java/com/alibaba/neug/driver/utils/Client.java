@@ -64,9 +64,8 @@ public class Client {
 
     /**
      * Builds an endpoint relative to the database server's base URL. Each path segment is encoded
-     * independently, so identifiers such as transaction IDs can be passed without manually
-     * escaping them. Callers should cache the returned URL instead of rebuilding it for every
-     * request.
+     * independently, so identifiers such as transaction IDs can be passed without manually escaping
+     * them. Callers should cache the returned URL instead of rebuilding it for every request.
      *
      * @param pathSegments endpoint path segments, for example {@code "transactions", transactionId,
      *     "commit"}

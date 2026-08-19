@@ -13,7 +13,6 @@
  */
 package com.alibaba.neug.driver;
 
-import com.alibaba.neug.driver.ResultSet;
 import java.util.Map;
 
 public interface Transaction extends AutoCloseable {
@@ -67,6 +66,7 @@ public interface Transaction extends AutoCloseable {
 
     /**
      * Checks if the transaction is still open.
+     *
      * @return true if the transaction is open, false otherwise
      */
     boolean isOpen();

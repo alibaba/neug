@@ -53,8 +53,7 @@ public class JavaDriverE2ETest {
 
     private static long countPerson(Transaction transaction, long id) {
         try (ResultSet resultSet =
-                transaction.run(
-                        "MATCH (n:person {id: " + id + "}) RETURN count(n) AS count")) {
+                transaction.run("MATCH (n:person {id: " + id + "}) RETURN count(n) AS count")) {
             assertTrue(resultSet.next());
             long count = resultSet.getLong("count");
             assertFalse(resultSet.next());
