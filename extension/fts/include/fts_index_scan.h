@@ -25,15 +25,15 @@
 #include "neug/compiler/optimizer/logical_rule.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/expression/expr.h"
 
 namespace neug::fts_ext {
 
 struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   label_t label_id;
   std::string unique_index_name;
-  std::optional<std::string> query_literal;
-  std::optional<std::string> query_parameter;
-  std::string query_string;
+  std::unique_ptr<execution::ExprBase> query_string;
+  Value bound_query_string;
   std::optional<uint64_t> limit;
   bool ascending{true};
   int32_t node_alias;
@@ -48,7 +48,10 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
     auto bound = std::make_unique<FTSIndexScanFuncInput>();
     bound->label_id = label_id;
     bound->unique_index_name = unique_index_name;
-    bound->query_string = query_string;
+    // bindParams() has already evaluated query_string. From this stage onward,
+    // the per-Eval input needs only the immutable bound scalar, not a copy of
+    // the expression tree.
+    bound->bound_query_string = bound_query_string;
     bound->limit = limit;
     bound->ascending = ascending;
     bound->node_alias = node_alias;

@@ -51,28 +51,28 @@ namespace neug::fts_ext {
 
 std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
     const execution::ParamsMap& params) const {
+  if (query_string == nullptr) {
+    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN query expression is not initialized");
+  }
+  auto bound_expression = query_string->bind(nullptr, params);
+  if (bound_expression == nullptr) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FTS_INDEX_SCAN query expression contains an unbound parameter");
+  }
+
   auto bound = std::make_unique<FTSIndexScanFuncInput>();
   bound->label_id = label_id;
   bound->unique_index_name = unique_index_name;
-  if (query_literal) {
-    bound->query_string = *query_literal;
-  } else if (query_parameter) {
-    auto parameter = params.find(*query_parameter);
-    if (parameter == params.end()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("FTS_INDEX_SCAN query parameter $" +
-                                       *query_parameter + " is missing");
-    }
-    if (parameter->second.IsNull()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "FTS_INDEX_SCAN query parameter must not be NULL");
-    }
-    if (parameter->second.type().id() != DataTypeId::kVarchar) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "FTS_INDEX_SCAN query parameter must be STRING");
-    }
-    bound->query_string = parameter->second.GetValue<std::string>();
-  } else {
-    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN query is not initialized");
+  bound->bound_query_string =
+      bound_expression->Cast<execution::RecordExprBase>().eval_record(
+          DataChunk(), 0);
+  if (bound->bound_query_string.IsNull()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FTS_INDEX_SCAN query expression must not be NULL");
+  }
+  if (bound->bound_query_string.type().id() != DataTypeId::kVarchar) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FTS_INDEX_SCAN query expression must be STRING");
   }
   bound->limit = limit;
   bound->ascending = ascending;
@@ -227,7 +227,7 @@ std::shared_ptr<binder::Expression> MakeScoreColumn(
 }
 
 std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
-    const Schema&, const execution::ContextMeta&,
+    const Schema&, const execution::ContextMeta& context_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx);
   const auto& scan = op.opr().index_scan();
@@ -255,20 +255,8 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   }
   input->label_id = static_cast<label_t>(std::stoul(label));
   input->unique_index_name = scan.unique_index_name();
-  const auto& target = scan.target_value();
-  if (target.operators_size() != 1) {
-    THROW_RUNTIME_ERROR(
-        "FTS_INDEX_SCAN query must be a STRING literal or parameter");
-  }
-  const auto& query = target.operators(0);
-  if (query.has_const_() && query.const_().has_str()) {
-    input->query_literal = query.const_().str();
-  } else if (query.has_param()) {
-    input->query_parameter = query.param().name();
-  } else {
-    THROW_RUNTIME_ERROR(
-        "FTS_INDEX_SCAN query must be a STRING literal or parameter");
-  }
+  input->query_string = execution::parse_expression(
+      scan.target_value(), context_meta, execution::VarType::kRecord);
   if (limit) {
     input->limit = ParseUint64Option("limit", *limit);
   }
@@ -287,7 +275,7 @@ execution::Context ExecuteFTSIndexScan(
   }
 
   FTSQueryParams params;
-  params.query_string = input.query_string;
+  params.query_string = input.bound_query_string.GetValue<std::string>();
   params.limit = input.limit;
   params.order =
       input.ascending ? FTSScoreOrder::kAscending : FTSScoreOrder::kDescending;

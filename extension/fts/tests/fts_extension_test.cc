@@ -28,6 +28,7 @@
 
 #include "fts_index.h"
 #include "fts_index_scan.h"
+#include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/checkpoint.h"
@@ -105,9 +106,23 @@ TEST(FTSExtensionTest, LoadSucceeds) {
   ASSERT_TRUE(load.has_value()) << load.error().ToString();
 }
 
+TEST(FTSIndexScanInputTest, BindsConstantQueryExpression) {
+  FTSIndexScanFuncInput input;
+  input.query_string =
+      std::make_unique<execution::ConstExpr>(Value::STRING("search terms"));
+
+  auto bound = input.bindParams({});
+  const auto* fts_input =
+      dynamic_cast<const FTSIndexScanFuncInput*>(bound.get());
+  ASSERT_NE(fts_input, nullptr);
+  EXPECT_EQ(fts_input->bound_query_string.GetValue<std::string>(),
+            "search terms");
+}
+
 TEST(FTSIndexScanInputTest, BindsAndValidatesDynamicQueryParameter) {
   FTSIndexScanFuncInput input;
-  input.query_parameter = "query";
+  input.query_string = std::make_unique<execution::ParamExpr>(
+      "query", DataType(DataTypeId::kVarchar));
 
   EXPECT_THROW(input.bindParams({}), exception::InvalidArgumentException);
   EXPECT_THROW(
@@ -116,11 +131,19 @@ TEST(FTSIndexScanInputTest, BindsAndValidatesDynamicQueryParameter) {
   EXPECT_THROW(input.bindParams({{"query", Value::INT64(42)}}),
                exception::InvalidArgumentException);
 
-  auto bound = input.bindParams({{"query", Value::STRING("search terms")}});
-  const auto* fts_input =
-      dynamic_cast<const FTSIndexScanFuncInput*>(bound.get());
-  ASSERT_NE(fts_input, nullptr);
-  EXPECT_EQ(fts_input->query_string, "search terms");
+  auto first = input.bindParams({{"query", Value::STRING("search terms")}});
+  const auto* first_input =
+      dynamic_cast<const FTSIndexScanFuncInput*>(first.get());
+  ASSERT_NE(first_input, nullptr);
+  EXPECT_EQ(first_input->bound_query_string.GetValue<std::string>(),
+            "search terms");
+
+  auto second = input.bindParams({{"query", Value::STRING("other terms")}});
+  const auto* second_input =
+      dynamic_cast<const FTSIndexScanFuncInput*>(second.get());
+  ASSERT_NE(second_input, nullptr);
+  EXPECT_EQ(second_input->bound_query_string.GetValue<std::string>(),
+            "other terms");
 }
 
 std::unique_ptr<FTSIndex> MakeOpenedIndex(Checkpoint& checkpoint) {
