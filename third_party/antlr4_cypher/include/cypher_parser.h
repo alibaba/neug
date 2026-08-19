@@ -2985,6 +2985,7 @@ public:
     antlr4::tree::TerminalNode *MAXVALUE();
     antlr4::tree::TerminalNode *MERGE();
     antlr4::tree::TerminalNode *MINVALUE();
+    antlr4::tree::TerminalNode *NAMESPACE();
     antlr4::tree::TerminalNode *NO();
     antlr4::tree::TerminalNode *NODE();
     antlr4::tree::TerminalNode *PROJECT();

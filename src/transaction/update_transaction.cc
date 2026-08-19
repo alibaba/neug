@@ -1254,6 +1254,9 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
     } else if (op_type == OpType::kAddGraphEntry) {
+      // The WAL directory belongs to the checkpoint being opened and contains
+      // only records from its fresh timestamp timeline. Therefore an existing
+      // entry here is a replay invariant violation, not an idempotent retry.
       auto redo = AddGraphEntryRedo::Deserialize(arc);
       auto status = graph.mutable_schema().AddGraphEntry(redo.name, redo.entry);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to replay projected graph add: ",

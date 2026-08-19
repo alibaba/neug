@@ -429,7 +429,7 @@ void cypherParserInitialize() {
   76,77,2,0,6,6,14,18,1,0,20,21,2,0,22,22,162,162,2,0,23,24,159,159,1,0,
   165,166,2,0,69,69,84,84,1,0,176,177,30,0,49,49,51,51,53,53,56,59,62,62,
   64,65,67,69,71,72,75,75,78,78,80,80,85,88,90,90,94,95,97,98,100,100,102,
-  105,107,110,113,114,125,130,132,133,135,135,138,138,140,140,142,143,146,
+  105,107,110,112,114,125,130,132,133,135,135,138,138,140,140,142,143,146,
   146,148,148,152,152,156,157,160,160,2,0,15,15,28,31,2,0,17,17,32,35,2,
   0,36,46,162,162,3418,0,358,1,0,0,0,2,378,1,0,0,0,4,413,1,0,0,0,6,415,
   1,0,0,0,8,441,1,0,0,0,10,488,1,0,0,0,12,490,1,0,0,0,14,520,1,0,0,0,16,
@@ -2098,7 +2098,7 @@ CypherParser::NEUG_ColumnNamesContext* CypherParser::nEUG_ColumnNames() {
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 5704371878018154496) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2304017996980336197) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2303736522003625541) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10137502326510775) != 0)) {
       setState(447);
       oC_SchemaName();
@@ -3541,7 +3541,7 @@ CypherParser::NEUG_CreateMacroContext* CypherParser::nEUG_CreateMacro() {
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 5704371878018154496) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2304017996980336197) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2303736522003625541) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10137502326510775) != 0)) {
       setState(698);
       nEUG_DefaultArg();
@@ -7838,6 +7838,7 @@ CypherParser::NEUG_LoadExtensionContext* CypherParser::nEUG_LoadExtension() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -8079,6 +8080,7 @@ CypherParser::NEUG_UninstallExtensionContext* CypherParser::nEUG_UninstallExtens
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -10304,6 +10306,7 @@ CypherParser::NEUG_JoinNodeContext* CypherParser::nEUG_JoinNode(int precedence) 
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -11421,6 +11424,7 @@ CypherParser::OC_ProjectionItemsContext* CypherParser::oC_ProjectionItems() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::NOT:
@@ -12100,6 +12104,7 @@ CypherParser::OC_PatternPartContext* CypherParser::oC_PatternPart() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -12380,7 +12385,7 @@ CypherParser::OC_NodePatternContext* CypherParser::oC_NodePattern() {
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 5704371878018154496) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2304017996980336197) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2303736522003625541) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10137502326510775) != 0)) {
       setState(1981);
       oC_Variable();
@@ -12769,7 +12774,7 @@ CypherParser::OC_RelationshipDetailContext* CypherParser::oC_RelationshipDetail(
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 5704371878018154496) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2304017996980336197) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2303736522003625541) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10137502326510775) != 0)) {
       setState(2057);
       oC_Variable();
@@ -12917,7 +12922,7 @@ CypherParser::NEUG_PropertiesContext* CypherParser::nEUG_Properties() {
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 5704371878018154496) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2304017996980336197) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2303736522003625541) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10137502326510775) != 0)) {
       setState(2087);
       oC_PropertyKeyName();
@@ -13913,7 +13918,7 @@ CypherParser::NEUG_RecursiveProjectionItemsContext* CypherParser::nEUG_Recursive
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 9164543766856467076) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2288255398283490885) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2287973923306780229) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10985107814143159) != 0)) {
       setState(2275);
       oC_ProjectionItems();
@@ -15706,7 +15711,7 @@ CypherParser::OC_ListOperatorExpressionContext* CypherParser::oC_ListOperatorExp
       _la = _input->LA(1);
       if ((((_la & ~ 0x3fULL) == 0) &&
         ((1ULL << _la) & 9164543766856467076) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-        ((1ULL << (_la - 64)) & -2288255398283490885) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+        ((1ULL << (_la - 64)) & -2287973923306780229) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
         ((1ULL << (_la - 128)) & 10985105666659511) != 0)) {
         setState(2516);
         oC_Expression();
@@ -15719,7 +15724,7 @@ CypherParser::OC_ListOperatorExpressionContext* CypherParser::oC_ListOperatorExp
       _la = _input->LA(1);
       if ((((_la & ~ 0x3fULL) == 0) &&
         ((1ULL << _la) & 9164543766856467076) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-        ((1ULL << (_la - 64)) & -2288255398283490885) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+        ((1ULL << (_la - 64)) & -2287973923306780229) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
         ((1ULL << (_la - 128)) & 10985105666659511) != 0)) {
         setState(2520);
         oC_Expression();
@@ -16794,7 +16799,7 @@ CypherParser::OC_ListLiteralContext* CypherParser::oC_ListLiteral() {
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 9164543766856467076) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2288255398283490885) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2287973923306780229) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10985105666659511) != 0)) {
       setState(2664);
       oC_Expression();
@@ -16893,7 +16898,7 @@ CypherParser::NEUG_ListEntryContext* CypherParser::nEUG_ListEntry() {
     _la = _input->LA(1);
     if ((((_la & ~ 0x3fULL) == 0) &&
       ((1ULL << _la) & 9164543766856467076) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 64)) & -2288255398283490885) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 64)) & -2287973923306780229) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 128)) & 10985105666659511) != 0)) {
       setState(2685);
       oC_Expression();
@@ -17101,6 +17106,7 @@ CypherParser::NEUG_StructFieldContext* CypherParser::nEUG_StructField() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -17477,7 +17483,7 @@ CypherParser::OC_FunctionInvocationContext* CypherParser::oC_FunctionInvocation(
       _la = _input->LA(1);
       if ((((_la & ~ 0x3fULL) == 0) &&
         ((1ULL << _la) & 9164543766856467076) != 0) || ((((_la - 64) & ~ 0x3fULL) == 0) &&
-        ((1ULL << (_la - 64)) & -2288255398283490885) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
+        ((1ULL << (_la - 64)) & -2287973923306780229) != 0) || ((((_la - 128) & ~ 0x3fULL) == 0) &&
         ((1ULL << (_la - 128)) & 10985105666659511) != 0)) {
         setState(2790);
         nEUG_FunctionParameter();
@@ -17866,6 +17872,7 @@ CypherParser::NEUG_LambdaVarsContext* CypherParser::nEUG_LambdaVars() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -18300,6 +18307,7 @@ CypherParser::OC_PropertyLookupContext* CypherParser::oC_PropertyLookup() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -18817,6 +18825,7 @@ CypherParser::OC_ParameterContext* CypherParser::oC_Parameter() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -19210,6 +19219,7 @@ CypherParser::OC_SymbolicNameContext* CypherParser::oC_SymbolicName() {
       case CypherParser::MAXVALUE:
       case CypherParser::MERGE:
       case CypherParser::MINVALUE:
+      case CypherParser::NAMESPACE:
       case CypherParser::NO:
       case CypherParser::NODE:
       case CypherParser::PROJECT:
@@ -19397,6 +19407,10 @@ tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::MINVALUE() {
   return getToken(CypherParser::MINVALUE, 0);
 }
 
+tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::NAMESPACE() {
+  return getToken(CypherParser::NAMESPACE, 0);
+}
+
 tree::TerminalNode* CypherParser::NEUG_NonReservedKeywordsContext::NO() {
   return getToken(CypherParser::NO, 0);
 }
@@ -19508,7 +19522,7 @@ CypherParser::NEUG_NonReservedKeywordsContext* CypherParser::nEUG_NonReservedKey
     setState(3001);
     _la = _input->LA(1);
     if (!(((((_la - 49) & ~ 0x3fULL) == 0) &&
-      ((1ULL << (_la - 49)) & 4461768641538271125) != 0) || ((((_la - 113) & ~ 0x3fULL) == 0) &&
+      ((1ULL << (_la - 49)) & -4761603395316504683) != 0) || ((((_la - 113) & ~ 0x3fULL) == 0) &&
       ((1ULL << (_la - 113)) & 167720257318915) != 0))) {
     _errHandler->recoverInline(this);
     }

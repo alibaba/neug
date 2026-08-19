@@ -763,6 +763,7 @@ nEUG_NonReservedKeywords
         | MAXVALUE
         | MERGE
         | MINVALUE
+        | NAMESPACE
         | NO
         | NODE
         | PROJECT
