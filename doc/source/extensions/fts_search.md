@@ -144,11 +144,12 @@ direction into the FTS index scan; NeuG does not add a separate sort. When the
 query orders only by the BM25 score, the explicit `ASC` or `DESC` direction is
 also pushed down to the FTS index, together with `LIMIT` when present. `ASC`
 returns the most relevant matches first, while `DESC` reverses that order. If
-the query orders by another property or expression, the FTS index first
-returns all matches in its default ascending BM25 score order, and NeuG then
-applies the requested ordering and `LIMIT` as a separate operation. This
-second sort can be more expensive because the limit cannot be pushed down to
-the FTS index.
+`LIMIT` is omitted, the query returns all matches that satisfy the full-text
+query and any filters. If the query orders by another property or expression,
+the FTS index first returns all matches in its default ascending BM25 score
+order, and NeuG then applies the requested ordering and `LIMIT` as a separate
+operation. This second sort can be more expensive because the limit cannot be
+pushed down to the FTS index.
 
 You can confirm the rewrite with `EXPLAIN`; the physical plan contains
 `IndexScanOpr` rather than separate sort and limit operators:
