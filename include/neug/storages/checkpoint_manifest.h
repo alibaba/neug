@@ -43,11 +43,9 @@ class CheckpointManifest {
   /// fields, changed value semantics).  Additive changes (new optional
   /// fields) do not require a bump.  Readers must reject unknown versions.
   ///
-  /// Version 2 was briefly written by an intermediate, never-released
-  /// revision of this format; version 3 is intentionally the next shipped
-  /// number so that any directory produced by those intermediate builds is
-  /// rejected instead of being misread.
-  static constexpr int kFormatVersion = 3;
+  /// Version 1 belongs to the legacy checkpoint-N meta format. This immutable
+  /// objects + complete manifest layout starts at version 2.
+  static constexpr int kFormatVersion = 2;
 
   CheckpointManifest() = default;
 

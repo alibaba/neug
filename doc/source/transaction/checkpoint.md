@@ -111,9 +111,15 @@ data_dir/
                                 # <id> is an opaque unique suffix (a UUID)
 ```
 
-`CURRENT` is the sole publication selector. Its content is the selected manifest's decimal ID followed by a single trailing newline (for example `3\n`), written via an atomic rename; operators may inspect or rewrite it manually with a plain text editor. A published manifest has the required fields `v`, `id`, `base_ts`, `schema`, and `modules`; it may also contain `scalars`. Module descriptors persist object IDs, not absolute paths. The same ID names the manifest and its WAL epoch. `base_ts` is the highest transaction timestamp already represented by the manifest, so recovery replays the selected epoch from `base_ts + 1`. Full checkpoints use `base_ts=0` and reset the transaction timeline after reopening.
+`CURRENT` is the sole publication selector. Its content is the selected manifest's decimal ID followed by a single trailing newline (for example `3\n`), written via an atomic rename; operators may inspect or rewrite it manually with a plain text editor. A published manifest has the required fields `v`, `base_ts`, `schema`, and `modules`; it may also contain `scalars`. Module descriptors persist object IDs, not absolute paths. The same ID names the manifest and its WAL epoch. `base_ts` is the highest transaction timestamp already represented by the manifest, so recovery replays the selected epoch from `base_ts + 1`. Full checkpoints use `base_ts=0` and reset the transaction timeline after reopening.
 
-Checkpoint objects are immutable and may be referenced by several manifests. Runtime files are not checkpoint data: each database open receives its own `runtime/open-<id>/` directory (the suffix is an opaque unique ID, not a timestamp or manifest ID), and closing that database removes only its own unpinned workspace. Existing `checkpoint-N` directories are unsupported and rejected without modification; this format does not migrate or read them. Recover or rebuild such a database with a version that supports the legacy format first.
+Checkpoint objects are immutable and may be referenced by several manifests. Runtime files are not checkpoint data: each database open receives its own `runtime/open-<id>/` directory (the suffix is an opaque unique ID, not a timestamp or manifest ID), and closing that database removes only its own unpinned workspace.
+
+### Upgrading legacy checkpoint directories
+
+When `CURRENT` is absent, the first read-write open automatically upgrades the newest valid released v1 `checkpoint-N` generation. NeuG imports its immutable snapshot files into `checkpoint/objects/`, preserves its generation as the new manifest and WAL epoch ID, and publishes a v2 manifest with `base_ts=0`; normal recovery then replays every legacy WAL record. Files are hardlinked when safe and copied otherwise.
+
+The old directories are not changed before the new `CURRENT` is durably published. A crash before publication leaves the legacy checkpoint usable and the next read-write open retries. After the database has opened and recovered successfully, normal garbage collection removes the old `checkpoint-N` and `checkpoint-N.next` directories, making the upgrade one-way. A legacy-only database cannot be opened read-only: open it once in read-write mode to perform the upgrade. Legacy `meta` versions other than v1 are rejected rather than guessed.
 
 ## What a checkpoint does
 
@@ -162,7 +168,7 @@ persistence succeeded. If you set `checkpoint_on_close=False`:
 
 ## Failure and recovery
 
-On startup, NeuG opens only the manifest named by `CURRENT`; it does not scan for the newest directory. An incomplete staging manifest or object is unreachable until `CURRENT` changes and is therefore never selected. In Service mode, NeuG validates the selected WAL epoch and replays only records with timestamps greater than that manifest's `base_ts`.
+On startup, NeuG opens only the manifest named by `CURRENT`; it never falls back to a legacy directory when that selector exists. If `CURRENT` is absent, a read-write open may perform the one-time v1 migration described above. An incomplete staging manifest or object is unreachable until `CURRENT` changes and is therefore never selected. In Service mode, NeuG validates the selected WAL epoch and replays only records with timestamps greater than that manifest's `base_ts`.
 
 A **manual** `CHECKPOINT` fails in one of two ways:
 

@@ -16,10 +16,18 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <charconv>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
+
+#include <rapidjson/document.h>
+#include <rapidjson/istreamwrapper.h>
+#include <rapidjson/ostreamwrapper.h>
+#include <rapidjson/writer.h>
 
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
@@ -42,6 +50,191 @@ std::string TestDir(const std::string& name) {
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir);
   return dir.string();
+}
+
+uint64_t ReadCurrentId(const std::string& db_dir) {
+  std::ifstream input(std::filesystem::path(db_dir) / "checkpoint" / "CURRENT");
+  std::string value;
+  std::getline(input, value);
+  if (!input && !input.eof()) {
+    throw std::runtime_error("failed to read CURRENT");
+  }
+  uint64_t id = 0;
+  const auto [ptr, ec] =
+      std::from_chars(value.data(), value.data() + value.size(), id);
+  if (ec != std::errc{} || ptr != value.data() + value.size()) {
+    throw std::runtime_error("invalid CURRENT");
+  }
+  return id;
+}
+
+void LinkOrCopy(const std::filesystem::path& source,
+                const std::filesystem::path& destination) {
+  if (std::filesystem::exists(destination)) {
+    return;
+  }
+  std::error_code ec;
+  std::filesystem::create_hard_link(source, destination, ec);
+  if (ec) {
+    ec.clear();
+    std::filesystem::copy_file(source, destination, ec);
+  }
+  ASSERT_FALSE(ec) << source << " -> " << destination << ": " << ec.message();
+}
+
+void WriteLegacyEmptyCheckpoint(const std::string& db_dir, uint64_t id,
+                                int version = 1) {
+  const auto root =
+      std::filesystem::path(db_dir) / ("checkpoint-" + std::to_string(id));
+  std::filesystem::create_directories(root / "snapshot");
+  std::filesystem::create_directories(root / "wal");
+
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto& alloc = doc.GetAllocator();
+  doc.AddMember("version", version, alloc);
+  auto schema = neug::Schema().ToJson();
+  ASSERT_TRUE(schema) << schema.error().ToString();
+  doc.AddMember("schema", schema.value().Move(), alloc);
+  doc.AddMember("modules", rapidjson::Value(rapidjson::kObjectType), alloc);
+  doc.AddMember("scalars", rapidjson::Value(rapidjson::kObjectType), alloc);
+
+  std::ofstream output(root / "meta");
+  ASSERT_TRUE(output.is_open());
+  rapidjson::OStreamWrapper wrapper(output);
+  rapidjson::Writer<rapidjson::OStreamWrapper> writer(wrapper);
+  ASSERT_TRUE(doc.Accept(writer));
+}
+
+void WriteLegacyObjectCheckpoint(const std::string& db_dir, uint64_t id,
+                                 bool create_symlink) {
+  const auto root =
+      std::filesystem::path(db_dir) / ("checkpoint-" + std::to_string(id));
+  const auto snapshot = root / "snapshot";
+  std::filesystem::create_directories(snapshot);
+  std::filesystem::create_directories(root / "wal");
+  std::ofstream(snapshot / "shared") << "shared payload";
+  std::ofstream(snapshot / "copy-source") << "copied payload";
+  if (create_symlink) {
+    std::error_code ec;
+    std::filesystem::create_symlink("copy-source", snapshot / "copy-link", ec);
+    ASSERT_FALSE(ec) << ec.message();
+  }
+
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto& alloc = doc.GetAllocator();
+  doc.AddMember("version", 1, alloc);
+  auto schema = neug::Schema().ToJson();
+  ASSERT_TRUE(schema) << schema.error().ToString();
+  doc.AddMember("schema", schema.value().Move(), alloc);
+
+  rapidjson::Value modules(rapidjson::kObjectType);
+  const auto add_module = [&](const char* key, const char* path,
+                              const char* extra_value,
+                              const char* referenced_key) {
+    rapidjson::Value descriptor(rapidjson::kObjectType);
+    descriptor.AddMember("module_type", "", alloc);
+    descriptor.AddMember("required", false, alloc);
+    rapidjson::Value paths(rapidjson::kObjectType);
+    paths.AddMember("data", rapidjson::Value(path, alloc), alloc);
+    descriptor.AddMember("paths", paths, alloc);
+    rapidjson::Value extra(rapidjson::kObjectType);
+    extra.AddMember("marker", rapidjson::Value(extra_value, alloc), alloc);
+    descriptor.AddMember("extra", extra, alloc);
+    if (referenced_key != nullptr) {
+      rapidjson::Value refs(rapidjson::kObjectType);
+      refs.AddMember("child", rapidjson::Value(referenced_key, alloc), alloc);
+      descriptor.AddMember("refs", refs, alloc);
+    }
+    modules.AddMember(rapidjson::Value(key, alloc), descriptor, alloc);
+  };
+  add_module("owner", "snapshot/shared", "owner-extra", "child");
+  add_module("child", "snapshot/shared", "child-extra", nullptr);
+  if (create_symlink) {
+    add_module("symlink", "snapshot/copy-link", "symlink-extra", nullptr);
+  }
+  doc.AddMember("modules", modules, alloc);
+  doc.AddMember("scalars", rapidjson::Value(rapidjson::kObjectType), alloc);
+
+  std::ofstream output(root / "meta");
+  ASSERT_TRUE(output.is_open());
+  rapidjson::OStreamWrapper wrapper(output);
+  rapidjson::Writer<rapidjson::OStreamWrapper> writer(wrapper);
+  ASSERT_TRUE(doc.Accept(writer));
+}
+
+uint64_t ConvertCurrentCheckpointToLegacy(const std::string& db_dir) {
+  const uint64_t id = ReadCurrentId(db_dir);
+  const auto database = std::filesystem::path(db_dir);
+  const auto new_root = database / "checkpoint";
+  const auto legacy_root = database / ("checkpoint-" + std::to_string(id));
+  const auto snapshot = legacy_root / "snapshot";
+  const auto legacy_wal = legacy_root / "wal";
+  std::filesystem::create_directories(snapshot);
+  std::filesystem::create_directories(legacy_wal);
+
+  const auto manifest_path =
+      new_root / "manifests" / (std::to_string(id) + ".manifest");
+  std::ifstream input(manifest_path);
+  if (!input.is_open()) {
+    throw std::runtime_error("failed to open current manifest");
+  }
+  rapidjson::IStreamWrapper input_wrapper(input);
+  rapidjson::Document doc;
+  doc.ParseStream(input_wrapper);
+  if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("modules")) {
+    throw std::runtime_error("invalid current manifest");
+  }
+
+  auto& alloc = doc.GetAllocator();
+  for (auto& module : doc["modules"].GetObject()) {
+    if (!module.value.HasMember("objects")) {
+      continue;
+    }
+    auto objects = module.value.FindMember("objects");
+    for (auto& object : objects->value.GetObject()) {
+      if (!object.value.IsString()) {
+        throw std::runtime_error("invalid object ID in current manifest");
+      }
+      const std::string object_id = object.value.GetString();
+      LinkOrCopy(new_root / "objects" / object_id, snapshot / object_id);
+      const std::string legacy_path = "snapshot/" + object_id;
+      object.value.SetString(
+          legacy_path.c_str(),
+          static_cast<rapidjson::SizeType>(legacy_path.size()), alloc);
+    }
+    objects->name.SetString("paths", alloc);
+  }
+  doc.RemoveMember("v");
+  doc.RemoveMember("base_ts");
+  doc.AddMember("version", 1, alloc);
+  {
+    std::ofstream output(legacy_root / "meta");
+    if (!output.is_open()) {
+      throw std::runtime_error("failed to create legacy meta");
+    }
+    rapidjson::OStreamWrapper output_wrapper(output);
+    rapidjson::Writer<rapidjson::OStreamWrapper> writer(output_wrapper);
+    if (!doc.Accept(writer)) {
+      throw std::runtime_error("failed to serialize legacy meta");
+    }
+  }
+
+  const auto new_wal = database / "wal" / std::to_string(id);
+  if (std::filesystem::is_directory(new_wal)) {
+    for (const auto& entry : std::filesystem::directory_iterator(new_wal)) {
+      if (!entry.is_regular_file()) {
+        throw std::runtime_error("current WAL contains a non-file entry");
+      }
+      LinkOrCopy(entry.path(), legacy_wal / entry.path().filename());
+    }
+  }
+
+  std::filesystem::remove_all(new_root);
+  std::filesystem::remove_all(database / "wal");
+  std::filesystem::remove_all(database / "runtime");
+  return id;
 }
 
 void WriteManifest(neug::Checkpoint& checkpoint,
@@ -140,26 +333,178 @@ void CreateExampleAgeIndex(neug::NeugDB& db) {
   ASSERT_TRUE(created) << created.error().ToString();
 }
 
-TEST(CheckpointFormatTest, RejectsLegacyCheckpointDirectoriesWithoutMutation) {
-  const auto db_dir = TestDir("legacy_rejected");
+TEST(CheckpointFormatTest, WriterOpenMigratesHighestValidLegacyCheckpoint) {
+  const auto db_dir = TestDir("legacy_migration_selects_latest_valid");
+  WriteLegacyEmptyCheckpoint(db_dir, 7);
   std::filesystem::create_directories(std::filesystem::path(db_dir) /
-                                      "checkpoint-7");
+                                      "checkpoint-8");
+  std::filesystem::create_directories(std::filesystem::path(db_dir) /
+                                      "checkpoint-9.next");
+
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+  auto current = manager.Current();
+  ASSERT_NE(current, nullptr);
+  EXPECT_EQ(current->id(), 7u);
+  EXPECT_EQ(ReadCurrentId(db_dir), 7u);
+  EXPECT_EQ(current->manifest().base_timestamp(), 0u);
+  EXPECT_TRUE(std::filesystem::is_regular_file(current->manifest_path()));
+  EXPECT_TRUE(std::filesystem::is_directory(std::filesystem::path(db_dir) /
+                                            "checkpoint" / "objects"));
+  EXPECT_TRUE(std::filesystem::is_directory(current->wal_dir()));
+  EXPECT_TRUE(
+      std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint-7"));
+
+  {
+    auto next = manager.CreateStaging();
+    EXPECT_EQ(next.checkpoint()->id(), 8u);
+  }
+
+  manager.CollectGarbage();
+  EXPECT_FALSE(
+      std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint-7"));
+  EXPECT_FALSE(
+      std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint-8"));
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_dir) /
+                                       "checkpoint-9.next"));
+
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, ReadOnlyOpenDoesNotMigrateLegacyCheckpoint) {
+  const auto db_dir = TestDir("legacy_read_only");
+  WriteLegacyEmptyCheckpoint(db_dir, 7);
 
   neug::CheckpointManager manager;
   try {
-    manager.Open(db_dir);
-    FAIL() << "Expected legacy checkpoint directory to be rejected";
+    manager.Open(db_dir, false);
+    FAIL() << "Expected legacy read-only open to require an upgrade";
   } catch (const neug::exception::NotSupportedException& e) {
-    EXPECT_NE(std::string(e.what()).find("does not read or migrate"),
-              std::string::npos);
+    EXPECT_NE(std::string(e.what()).find("read-write"), std::string::npos);
   }
-  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_dir) /
-                                       "checkpoint" / "CURRENT"));
+  EXPECT_FALSE(
+      std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint"));
   EXPECT_TRUE(
       std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint-7"));
 
   std::filesystem::remove_all(db_dir);
 }
+
+TEST(CheckpointFormatTest, LegacyMigrationRetriesUnpublishedOutput) {
+  const auto db_dir = TestDir("legacy_migration_retry");
+  WriteLegacyEmptyCheckpoint(db_dir, 7);
+  const auto checkpoint_root = std::filesystem::path(db_dir) / "checkpoint";
+  std::filesystem::create_directories(checkpoint_root / "manifests");
+  std::filesystem::create_directories(checkpoint_root / "objects");
+  std::filesystem::create_directories(std::filesystem::path(db_dir) / "wal" /
+                                      "7");
+  {
+    std::ofstream(checkpoint_root / "manifests" / "7.manifest") << "partial";
+    std::ofstream(checkpoint_root / "objects" / "orphan") << "partial";
+    std::ofstream(std::filesystem::path(db_dir) / "wal" / "7" / "partial.wal")
+        << "partial";
+  }
+
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+  ASSERT_NE(manager.Current(), nullptr);
+  EXPECT_EQ(manager.Current()->id(), 7u);
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_dir) / "wal" /
+                                       "7" / "partial.wal"));
+
+  manager.CollectGarbage();
+  EXPECT_FALSE(std::filesystem::exists(checkpoint_root / "objects" / "orphan"));
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, UnsupportedLegacyVersionIsNotMigrated) {
+  const auto db_dir = TestDir("legacy_unknown_version");
+  WriteLegacyEmptyCheckpoint(db_dir, 7, 2);
+
+  neug::CheckpointManager manager;
+  EXPECT_THROW(manager.Open(db_dir), std::exception);
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_dir) /
+                                       "checkpoint" / "CURRENT"));
+  EXPECT_TRUE(
+      std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint-7"));
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, RejectsMissingLegacyObjectWithoutPublishing) {
+  const auto db_dir = TestDir("legacy_missing_object");
+  WriteLegacyObjectCheckpoint(db_dir, 7, false);
+  std::filesystem::remove(std::filesystem::path(db_dir) / "checkpoint-7" /
+                          "snapshot" / "shared");
+
+  neug::CheckpointManager manager;
+  EXPECT_THROW(manager.Open(db_dir), std::exception);
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_dir) /
+                                       "checkpoint" / "CURRENT"));
+  EXPECT_TRUE(
+      std::filesystem::exists(std::filesystem::path(db_dir) / "checkpoint-7"));
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST(CheckpointFormatTest, RejectsInvalidLegacyWalWithoutPublishing) {
+  const auto db_dir = TestDir("legacy_invalid_wal");
+  WriteLegacyEmptyCheckpoint(db_dir, 7);
+  std::filesystem::create_directories(std::filesystem::path(db_dir) /
+                                      "checkpoint-7" / "wal" / "not-a-file");
+
+  neug::CheckpointManager manager;
+  EXPECT_THROW(manager.Open(db_dir), std::exception);
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(db_dir) /
+                                       "checkpoint" / "CURRENT"));
+  EXPECT_TRUE(std::filesystem::is_directory(
+      std::filesystem::path(db_dir) / "checkpoint-7" / "wal" / "not-a-file"));
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
+#ifndef _WIN32
+TEST(CheckpointFormatTest, DeduplicatesObjectsAndCopiesSymlinkSources) {
+  const auto db_dir = TestDir("legacy_object_import");
+  WriteLegacyObjectCheckpoint(db_dir, 7, true);
+  const auto legacy_snapshot =
+      std::filesystem::path(db_dir) / "checkpoint-7" / "snapshot";
+
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+  const auto current = manager.Current();
+  ASSERT_NE(current, nullptr);
+  const auto* owner = current->manifest().FindModule("owner");
+  const auto* child = current->manifest().FindModule("child");
+  const auto* symlink = current->manifest().FindModule("symlink");
+  ASSERT_NE(owner, nullptr);
+  ASSERT_NE(child, nullptr);
+  ASSERT_NE(symlink, nullptr);
+  ASSERT_TRUE(owner->get_path("data"));
+  ASSERT_TRUE(child->get_path("data"));
+  ASSERT_TRUE(symlink->get_path("data"));
+  EXPECT_EQ(*owner->get_path("data"), *child->get_path("data"));
+  EXPECT_EQ(owner->get("marker"), "owner-extra");
+  EXPECT_EQ(owner->get_ref("child"), "child");
+  EXPECT_TRUE(std::filesystem::equivalent(legacy_snapshot / "shared",
+                                          *owner->get_path("data")));
+  EXPECT_FALSE(std::filesystem::is_symlink(*symlink->get_path("data")));
+  EXPECT_FALSE(std::filesystem::equivalent(legacy_snapshot / "copy-source",
+                                           *symlink->get_path("data")));
+
+  size_t object_count = 0;
+  for ([[maybe_unused]] const auto& entry : std::filesystem::directory_iterator(
+           std::filesystem::path(db_dir) / "checkpoint" / "objects")) {
+    ++object_count;
+  }
+  EXPECT_EQ(object_count, 2u);
+
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+#endif
 
 TEST(CheckpointFormatTest, RuntimeWorkspaceFollowsLastRuntimeResource) {
   const auto db_dir = TestDir("runtime_workspace_lifetime");
@@ -390,6 +735,31 @@ TEST(CheckpointFormatTest, CurrentIsAuthoritativeAndDoesNotFallback) {
   std::filesystem::remove_all(db_dir);
 }
 
+TEST(CheckpointFormatTest, CurrentIsAuthoritativeOverResidualLegacyData) {
+  const auto db_dir = TestDir("current_over_legacy");
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+  auto current = PublishCheckpoint(manager, "current");
+  const auto current_id = current->id();
+  manager.Close();
+
+  WriteLegacyEmptyCheckpoint(db_dir, current_id + 100);
+  neug::CheckpointManager reopened;
+  reopened.Open(db_dir);
+  ASSERT_NE(reopened.Current(), nullptr);
+  EXPECT_EQ(reopened.Current()->id(), current_id);
+  EXPECT_TRUE(std::filesystem::exists(
+      std::filesystem::path(db_dir) /
+      ("checkpoint-" + std::to_string(current_id + 100))));
+
+  reopened.CollectGarbage();
+  EXPECT_FALSE(std::filesystem::exists(
+      std::filesystem::path(db_dir) /
+      ("checkpoint-" + std::to_string(current_id + 100))));
+  reopened.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
 TEST(CheckpointFormatTest,
      OpenEpochWorkspacesAreDistinctAndIndependentlyOwned) {
   const auto db_dir = TestDir("distinct_open_epoch_workspaces");
@@ -532,6 +902,54 @@ class CheckpointRoundtripTest
 INSTANTIATE_TEST_SUITE_P(AllMemoryLevels, CheckpointRoundtripTest,
                          ::testing::Values(neug::MemoryLevel::kInMemory,
                                            neug::MemoryLevel::kSyncToFile));
+
+TEST_P(CheckpointRoundtripTest, MigratesLegacyGraphAndReplaysItsWalEpoch) {
+  const auto db_dir = TestDir("legacy_graph_and_wal");
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    auto connection = db.Connect();
+    auto result =
+        connection->Query("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));");
+    ASSERT_TRUE(result) << result.error().ToString();
+    result = connection->Query("CREATE (:Item {id: 1});");
+    ASSERT_TRUE(result) << result.error().ToString();
+    connection->Close();
+
+    {
+      neug::NeugDBService service(db);
+      CheckpointThroughService(service);
+      InsertThroughService(service, 2);
+    }
+    db.Close();
+  }
+
+  const uint64_t legacy_id = ConvertCurrentCheckpointToLegacy(db_dir);
+  const auto legacy_root = std::filesystem::path(db_dir) /
+                           ("checkpoint-" + std::to_string(legacy_id));
+  ASSERT_TRUE(std::filesystem::exists(legacy_root));
+
+  for (int reopen = 0; reopen < 2; ++reopen) {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(Config(db_dir)));
+    const auto checkpoint = db.graph().checkpoint_ptr();
+    ASSERT_NE(checkpoint, nullptr);
+    EXPECT_EQ(checkpoint->id(), legacy_id);
+    EXPECT_EQ(checkpoint->manifest().base_timestamp(), 0u);
+
+    auto connection = db.Connect();
+    auto result = connection->Query("MATCH (v:Item) RETURN v.id;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    EXPECT_EQ(result.value().response().row_count(), 2);
+    connection->Close();
+    EXPECT_FALSE(std::filesystem::exists(legacy_root));
+    db.Close();
+
+    EXPECT_FALSE(std::filesystem::exists(legacy_root));
+  }
+
+  std::filesystem::remove_all(db_dir);
+}
 
 TEST_P(CheckpointRoundtripTest, ReopenReclaimsRetiredCheckpointsAndWalEpochs) {
   const auto db_dir = TestDir("reopen_reclaims_retired");

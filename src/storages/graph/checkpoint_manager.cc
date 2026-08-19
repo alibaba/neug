@@ -30,6 +30,8 @@
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/uuid.h"
 
+#include "legacy_checkpoint_migrator.h"
+
 namespace neug {
 
 namespace {
@@ -40,19 +42,6 @@ std::filesystem::path checkpoint_dir(const std::string& db_dir) {
 
 std::filesystem::path current_path(const std::string& db_dir) {
   return checkpoint_dir(db_dir) / "CURRENT";
-}
-
-bool has_legacy_checkpoint(const std::filesystem::path& db_dir) {
-  if (!std::filesystem::is_directory(db_dir)) {
-    return false;
-  }
-  for (const auto& entry : std::filesystem::directory_iterator(db_dir)) {
-    const auto name = entry.path().filename().string();
-    if (entry.is_directory() && name.starts_with("checkpoint-")) {
-      return true;
-    }
-  }
-  return false;
 }
 
 uint64_t read_current(const std::filesystem::path& path) {
@@ -211,49 +200,72 @@ void CheckpointManager::Open(const std::string& database_dir,
     }
     ensure_directory(absolute_db_dir, "CheckpointManager::Open");
   }
-  if (has_legacy_checkpoint(absolute_db_dir)) {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Legacy checkpoint-N directories are unsupported; this release does "
-        "not read or migrate them. Recover or rebuild the database with a "
-        "version that supports the legacy format first");
-  }
 
   const auto root = checkpoint_dir(absolute_db_dir.string());
   const bool has_current = std::filesystem::exists(root / "CURRENT");
+  // CURRENT is authoritative. Do not even inspect residual legacy entries
+  // when it exists; their validity and accessibility must not affect opening
+  // the published v2 checkpoint.
+  if (!has_current && !create_if_missing &&
+      LegacyCheckpointMigrator::HasLegacyDirectories(absolute_db_dir)) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "A legacy checkpoint-N database must be opened once in read-write "
+        "mode before it can be opened read-only");
+  }
+
+  std::optional<LegacyCheckpointCandidate> legacy;
   if (create_if_missing && !has_current) {
     ensure_directory(root / "manifests", "CheckpointManager::Open");
     ensure_directory(root / "objects", "CheckpointManager::Open");
     ensure_directory(absolute_db_dir / "wal", "CheckpointManager::Open");
+    legacy = LegacyCheckpointMigrator::FindLatest(absolute_db_dir);
   }
   const auto runtime =
       absolute_db_dir / "runtime" / ("open-" + UUIDGenerator::Generate());
   ensure_directory(runtime, "CheckpointManager::Open");
 
-  std::lock_guard<std::mutex> lock(mutex_);
-  database_dir_ = absolute_db_dir.string();
-  runtime_workspace_ = create_runtime_workspace(runtime.string());
-  current_checkpoint_.reset();
-  staging_checkpoint_.reset();
-  published_checkpoints_.clear();
+  std::shared_ptr<const std::string> runtime_workspace;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    database_dir_ = absolute_db_dir.string();
+    runtime_workspace_ = create_runtime_workspace(runtime.string());
+    runtime_workspace = runtime_workspace_;
+    current_checkpoint_.reset();
+    staging_checkpoint_.reset();
+    published_checkpoints_.clear();
+  }
 
-  const auto current = current_path(database_dir_);
-  if (!has_current) {
+  if (has_current) {
+    const auto current = current_path(absolute_db_dir.string());
+    const uint64_t id = read_current(current);
+    auto checkpoint = Checkpoint::OpenPublished(absolute_db_dir.string(), id,
+                                                std::move(runtime_workspace));
+    if (!checkpoint->manifest().has_schema()) {
+      THROW_CHECKPOINT_EXCEPTION("CURRENT manifest has no schema: " +
+                                 checkpoint->manifest_path());
+    }
+    if (!std::filesystem::is_directory(checkpoint->wal_dir())) {
+      THROW_CHECKPOINT_EXCEPTION("CURRENT manifest WAL epoch is missing: " +
+                                 checkpoint->wal_dir());
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    current_checkpoint_ = std::move(checkpoint);
+    published_checkpoints_.push_back(current_checkpoint_);
     return;
   }
 
-  const uint64_t id = read_current(current);
-  auto checkpoint =
-      Checkpoint::OpenPublished(database_dir_, id, runtime_workspace_);
-  if (!checkpoint->manifest().has_schema()) {
-    THROW_CHECKPOINT_EXCEPTION("CURRENT manifest has no schema: " +
-                               checkpoint->manifest_path());
+  if (!legacy.has_value()) {
+    return;
   }
-  if (!std::filesystem::is_directory(checkpoint->wal_dir())) {
-    THROW_CHECKPOINT_EXCEPTION("CURRENT manifest WAL epoch is missing: " +
-                               checkpoint->wal_dir());
-  }
-  current_checkpoint_ = std::move(checkpoint);
-  published_checkpoints_.push_back(current_checkpoint_);
+
+  auto staging = [&] {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return CreateStagingLocked(legacy->id);
+  }();
+  LegacyCheckpointMigrator::Import(*legacy, *staging.checkpoint());
+  auto migrated = staging.Publish();
+  LOG(INFO) << "Migrated legacy checkpoint " << legacy->root << " to "
+            << migrated->manifest_path();
 }
 
 void CheckpointManager::Close() {
@@ -272,6 +284,13 @@ std::shared_ptr<Checkpoint> CheckpointManager::Current() const {
 
 CheckpointManager::StagingCheckpoint CheckpointManager::CreateStaging() {
   std::lock_guard<std::mutex> lock(mutex_);
+  const uint64_t id =
+      current_checkpoint_ == nullptr ? 0 : current_checkpoint_->id() + 1;
+  return CreateStagingLocked(id);
+}
+
+CheckpointManager::StagingCheckpoint CheckpointManager::CreateStagingLocked(
+    uint64_t id) {
   if (database_dir_.empty()) {
     THROW_CHECKPOINT_EXCEPTION("CheckpointManager is not open");
   }
@@ -279,8 +298,6 @@ CheckpointManager::StagingCheckpoint CheckpointManager::CreateStaging() {
     THROW_CHECKPOINT_EXCEPTION("A staging checkpoint is already active");
   }
 
-  const uint64_t id =
-      current_checkpoint_ == nullptr ? 0 : current_checkpoint_->id() + 1;
   staging_checkpoint_ =
       Checkpoint::CreateStaging(database_dir_, id, runtime_workspace_);
   return StagingCheckpoint(*this, staging_checkpoint_);
@@ -466,12 +483,16 @@ void CheckpointManager::CollectGarbage() {
       removed_runtime_workspace = true;
     }
   }
+
   if (!file_utils::fsync_directory(manifests.string()) ||
       !file_utils::fsync_directory(wal_root.string()) ||
       !file_utils::fsync_directory(objects.string()) ||
       (removed_runtime_workspace &&
        !file_utils::fsync_directory(runtime_root.string()))) {
     THROW_IO_EXCEPTION("Checkpoint GC: failed to fsync checkpoint directories");
+  }
+  if (current_checkpoint_ != nullptr) {
+    LegacyCheckpointMigrator::RemoveLegacyDirectories(database_dir_);
   }
 }
 

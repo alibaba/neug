@@ -26,6 +26,8 @@
 
 namespace neug {
 
+class LegacyCheckpointMigrator;
+
 /**
  * @brief A manifest-selected checkpoint root.
  *
@@ -111,6 +113,7 @@ class Checkpoint {
 
  private:
   friend class CheckpointManager;
+  friend class LegacyCheckpointMigrator;
 
   static std::shared_ptr<Checkpoint> OpenPublished(
       std::string database_dir, uint64_t id,

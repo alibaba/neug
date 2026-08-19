@@ -58,9 +58,9 @@ class NEUG_API CheckpointManager {
     std::shared_ptr<Checkpoint> checkpoint_;
   };
 
-  /// Open @p database_dir. Existing checkpoint-N directories are unsupported
-  /// and rejected without modification. Recover or rebuild them with a
-  /// version that supports the legacy format first.
+  /// Open @p database_dir. A writer open automatically migrates the newest
+  /// valid legacy checkpoint-N v1 generation when CURRENT is absent. A
+  /// read-only open never migrates legacy data.
   void Open(const std::string& database_dir, bool create_if_missing = true);
   /// Release manager-owned references. The runtime workspace is reclaimed
   /// after its last checkpoint, container, or runtime-file handle is released.
@@ -86,6 +86,7 @@ class NEUG_API CheckpointManager {
   std::shared_ptr<Checkpoint> PublishStagingCheckpoint(
       StagingCheckpoint& staging);
   void DiscardStagingCheckpoint(StagingCheckpoint& staging) noexcept;
+  StagingCheckpoint CreateStagingLocked(uint64_t id);
 
   std::string database_dir_;
   std::shared_ptr<const std::string> runtime_workspace_;
