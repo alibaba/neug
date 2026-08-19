@@ -261,6 +261,34 @@ For `user1_subgraph`, `*` expands to the node and relationship definitions regis
 
 This is useful when a query should operate on the entire logical subgraph rather than on a specific node or relationship type.
 
+### Use Namespace with OPTIONAL MATCH
+
+Namespace-qualified types can also be used with `OPTIONAL MATCH`.
+
+For example:
+
+```cypher
+MATCH (a:user1_subgraph.Entity)
+OPTIONAL MATCH (a)-[r:user1_subgraph.*]->(b:user1_subgraph.*)
+RETURN a, r, b;
+```
+
+The first `MATCH` selects `Entity` nodes from `user1_subgraph`. The `OPTIONAL MATCH` then tries to find outgoing relationships and target nodes that are also included in the same Namespace.
+
+If a matching relationship exists in the original graph but the relationship or target node is outside `user1_subgraph`, it does not satisfy the Namespace-qualified optional pattern. As with a regular `OPTIONAL MATCH`, the row from the preceding `MATCH` is preserved and the unmatched optional elements are returned as `NULL`.
+
+For example:
+
+```text
+Entity A (user1) ──rel_ep──> Product X (user1)
+    → r = rel_ep, b = Product X
+
+Entity B (user1) ──rel_ep──> Product Y (user2)
+    → r = NULL, b = NULL
+```
+
+In the second case, `Entity B` is still returned because it matched the required part of the query, but `Product Y` is outside `user1_subgraph`. Therefore, the Namespace-qualified `OPTIONAL MATCH` does not match that path and returns `NULL` for the optional pattern elements.
+
 ### Query the Original Graph
 
 Namespace definitions do not change the original graph.
@@ -288,6 +316,47 @@ MATCH (n:user1_subgraph.Entity)
 Entity A   domain = "user1"
 Entity B   domain = "user1"
 ```
+
+### Mix Qualified and Unqualified Pattern Elements
+
+Different pattern elements in the same pattern can be independently namespace-qualified or unqualified.
+
+For example, the following query restricts `a` to `Entity` nodes in `user1_subgraph`, while the relationship `r` and node `b` are not restricted by the Namespace:
+
+```cypher
+MATCH (a:user1_subgraph.Entity)-[r]->(b)
+RETURN b;
+```
+
+Here, Namespace qualification applies only to the pattern element on which it is specified. Therefore:
+
+* `a` must be an `Entity` node included in `user1_subgraph`;
+* `r` can be any relationship matching the pattern;
+* `b` can be any node connected by `r`, including nodes outside `user1_subgraph`.
+
+This allows a query to start from or constrain specific parts of a pattern to a Namespace without requiring the entire pattern to operate within that Namespace.
+
+However, **qualified and unqualified types cannot be mixed within the same pattern element**.
+
+For example, the following usage is not supported:
+
+```cypher
+MATCH (n:user1_subgraph.Entity:Product)
+RETURN n;
+```
+
+Here, `user1_subgraph.Entity` is Namespace-qualified while `Product` is unqualified, so the same node pattern mixes qualified and unqualified types.
+
+Similarly, **types from different Namespaces cannot be mixed within the same pattern element**:
+
+```cypher
+MATCH (n:user1_subgraph.Entity:user2_subgraph.Product)
+RETURN n;
+```
+
+A single pattern element must therefore use one consistent scope: either unqualified types or types qualified by the same Namespace.
+
+This restriction applies independently to each node and relationship pattern element. Different elements in the overall pattern can still use different scopes.
 
 ## Inspect Namespaces
 
