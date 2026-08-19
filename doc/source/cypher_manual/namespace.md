@@ -150,22 +150,177 @@ Entity C (user2) ──rel_ep──> Product X (user1)   ← excluded
 
 Therefore, even though no additional filter is defined on `rel_ep`, a relationship is included only when its source and destination nodes belong to the corresponding node sets in the Namespace.
 
-If no node property filters are required, node types can also be specified as a list:
+To apply an additional relationship property filter, specify the relationship definitions as a map. For example:
 
 ```cypher
 CALL project_graph(
-    'social_graph',
-    ['Person'],
-    [
-        '[Person, KNOWS, Person]'
-    ]
+    'user1_subgraph_with_rel_filter',
+    {'Entity': 'n.domain = "user1"'},
+    {'[Entity, rel_ee, Entity]': 'r.year > 2010'}
 );
 ```
 
-In this form, `project_graph` projects the specified node and relationship types without applying additional property filters.
+This Namespace contains `Entity` nodes whose `domain` is `user1`, and `rel_ee` relationships whose `year` is greater than `2010`. A relationship is included only when its relationship predicate and the node predicates on both endpoints are all satisfied.
 
-The Namespace name must be non-empty and unique. All referenced node types, relationship types, and properties must exist, and each property filter must evaluate to a Boolean result.
+Predicate expressions use the following variables:
 
+- Use `n` to refer to the node in a node predicate, for example `n.domain = "user1"`.
+- Use `r` to refer to the relationship in a relationship predicate, for example `r.year > 2010`.
+
+## Query a Namespace
+
+A Namespace can be selected for an entire query using:
+
+```text
+USE NAMESPACE <namespace>
+```
+
+For example:
+
+```cypher
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
+RETURN n.uid, n.name;
+```
+
+Although the physical `Entity` table may contain data from multiple domains, this query only matches `Entity` nodes included in `user1_subgraph`:
+
+```text
+Entity
+├── Entity A   domain = "user1"   ← matched
+├── Entity B   domain = "user1"   ← matched
+└── Entity C   domain = "user2"   ← excluded
+```
+
+### Combine Namespace Filters with Query Filters
+
+A query can add its own `WHERE` conditions on top of the filters defined by the Namespace:
+
+```cypher
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
+WHERE n.status = 'active'
+RETURN n.uid, n.name;
+```
+
+Conceptually, both conditions are applied:
+
+```text
+Namespace filter:
+    domain = "user1"
+
+Query filter:
+    status = "active"
+
+Effective condition:
+    domain = "user1" AND status = "active"
+```
+
+The Namespace defines the graph scope, while the query can further restrict data within that scope.
+
+### Query Relationships
+
+The selected Namespace also constrains relationships and their endpoints:
+
+```cypher
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)-[r:rel_ep]->(p:Product)
+RETURN n.name, p.name, r.rel_type;
+```
+
+The query only returns `rel_ep` relationships whose complete source–relationship–destination triplet belongs to the Namespace.
+
+For example:
+
+```text
+Entity A (user1) ──rel_ep──> Product X (user1)   ← matched
+
+Entity A (user1) ──rel_ep──> Product Y (user2)   ← excluded
+
+Entity C (user2) ──rel_ep──> Product X (user1)   ← excluded
+```
+
+Relationship membership is defined by the complete:
+
+```text
+[source type, relationship type, destination type]
+```
+
+triplet rather than by the relationship type alone. This also prevents an identically named relationship type connecting other node types from being included unintentionally.
+
+### Match All Types in a Namespace
+
+Omit a label or relationship type to match any type included in the selected Namespace:
+
+```cypher
+USE NAMESPACE user1_subgraph
+MATCH (source)-[rel]->(target)
+RETURN source, rel, target;
+```
+
+For `user1_subgraph`, each unlabeled pattern element resolves to the node or relationship definitions registered in that Namespace. Explicit labels are also checked against the Namespace; using a label that is not part of it is an error.
+
+This is useful when a query should operate on the entire logical subgraph rather than on a specific node or relationship type.
+
+### Use Namespace with OPTIONAL MATCH
+
+`USE NAMESPACE` also applies to `OPTIONAL MATCH`.
+
+For example:
+
+```cypher
+USE NAMESPACE user1_subgraph
+MATCH (a:Entity)
+OPTIONAL MATCH (a)-[r]->(b)
+RETURN a, r, b;
+```
+
+The first `MATCH` selects `Entity` nodes from `user1_subgraph`. The `OPTIONAL MATCH` then tries to find outgoing relationships and target nodes that are also included in the same Namespace.
+
+If a matching relationship exists in the original graph but the relationship or target node is outside `user1_subgraph`, it does not satisfy the optional pattern. As with a regular `OPTIONAL MATCH`, the row from the preceding `MATCH` is preserved and the unmatched optional elements are returned as `NULL`.
+
+For example:
+
+```text
+Entity A (user1) ──rel_ep──> Product X (user1)
+    → r = rel_ep, b = Product X
+
+Entity B (user1) ──rel_ep──> Product Y (user2)
+    → r = NULL, b = NULL
+```
+
+In the second case, `Entity B` is still returned because it matched the required part of the query, but `Product Y` is outside `user1_subgraph`. Therefore, the `OPTIONAL MATCH` does not match that path and returns `NULL` for the optional pattern elements.
+
+### Query the Original Graph
+
+Namespace definitions do not change the original graph.
+
+A query without `USE NAMESPACE` continues to refer directly to the original graph:
+
+```cypher
+MATCH (n:Entity)
+RETURN n;
+```
+
+This query can return `Entity` nodes from all domains because it is not restricted by a Namespace.
+
+For example:
+
+```text
+MATCH (n:Entity)
+    ↓
+Entity A   domain = "user1"
+Entity B   domain = "user1"
+Entity C   domain = "user2"
+
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
+    ↓
+Entity A   domain = "user1"
+Entity B   domain = "user1"
+```
+
+The Namespace selection is query-wide. It applies to every `MATCH` and `OPTIONAL MATCH`, including nested pattern expressions and subqueries; individual pattern elements cannot opt out or select a different Namespace.
 
 ## Inspect Namespaces
 
@@ -218,7 +373,8 @@ CALL project_graph(
 `user1_subgraph` remains available after the database is reopened and can be queried directly:
 
 ```cypher
-MATCH (n:user1_subgraph.Entity)
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
 RETURN n;
 ```
 
@@ -233,7 +389,8 @@ A Namespace does not maintain a separate copy of graph data. When the underlying
 For example, if a new `Entity` node with `domain = "user1"` is inserted into the original graph, it automatically becomes visible through:
 
 ```cypher
-MATCH (n:user1_subgraph.Entity)
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
 RETURN n;
 ```
 
@@ -254,7 +411,8 @@ For example, suppose `user1_subgraph` initially contains the following node type
 If the `Entity` node type is later dropped from the original graph, querying it through the Namespace:
 
 ```cypher
-MATCH (n:user1_subgraph.Entity)
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
 RETURN n;
 ```
 
@@ -263,7 +421,8 @@ will automatically detect that `Entity` no longer exists and report the correspo
 Wildcard queries also operate against the latest schema. After `Entity` is removed, the following query:
 
 ```cypher
-MATCH (n:user1_subgraph.*)
+USE NAMESPACE user1_subgraph
+MATCH (n)
 RETURN n;
 ```
 
@@ -277,7 +436,7 @@ No explicit Namespace refresh or recreation is required after data or schema cha
 
 ## Limitations
 
-Namespace-qualified types are currently supported only for read-only graph matching operations:
+`USE NAMESPACE` is currently supported only for read-only graph matching operations:
 
 - `MATCH`
 - `OPTIONAL MATCH`
@@ -285,18 +444,20 @@ Namespace-qualified types are currently supported only for read-only graph match
 For example:
 
 ```cypher
-MATCH (n:user1_subgraph.Entity)
+USE NAMESPACE user1_subgraph
+MATCH (n:Entity)
 RETURN n;
 ```
 
-Namespace-qualified types are currently **not supported in write operations such as `CREATE` or `MERGE`**.
+`USE NAMESPACE` queries currently **do not support write operations such as `CREATE` or `MERGE`**.
 
 For example, the following usage is not supported:
 
 ```cypher
-CREATE (n:user1_subgraph.Entity {...});
+USE NAMESPACE user1_subgraph
+CREATE (n:Entity {...});
 ```
 
-This restriction prevents Namespace-qualified syntax from directly modifying the underlying graph, where the intended write semantics can otherwise be ambiguous.
+This restriction prevents a Namespace query from directly modifying the underlying graph, where the intended write semantics can otherwise be ambiguous.
 
 A Namespace defines a logical query scope over the original graph rather than an independent writable graph.

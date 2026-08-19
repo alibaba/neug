@@ -63,7 +63,8 @@ std::unique_ptr<BoundReadingClause> Binder::bindMatchClause(
     const ReadingClause& readingClause) {
   auto& matchClause = readingClause.constCast<MatchClause>();
   auto boundGraphPattern =
-      bindGraphPattern(matchClause.getPatternElementsRef());
+      bindGraphPattern(matchClause.getPatternElementsRef(),
+                       NamespaceBindingMode::ALLOW_FOR_MATCH);
   if (matchClause.hasWherePredicate()) {
     boundGraphPattern.where =
         bindWhereExpression(*matchClause.getWherePredicate());
@@ -137,6 +138,10 @@ void Binder::rewriteMatchPattern(BoundGraphPattern& boundGraphPattern) {
   }
   auto where = boundGraphPattern.where;
   for (auto& predicate : selfLoopEdgePredicates) {
+    where = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
+                                                       predicate, where);
+  }
+  for (auto& predicate : boundGraphPattern.namespacePredicates) {
     where = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                        predicate, where);
   }

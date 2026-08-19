@@ -42,6 +42,17 @@ class ScalarFunctionExpression final : public Expression {
   const function::ScalarFunction& getFunction() const { return *function; }
   function::FunctionBindData* getBindData() const { return bindData.get(); }
 
+  std::unique_ptr<Expression> copy() const override {
+    expression_vector copiedChildren;
+    copiedChildren.reserve(children.size());
+    for (const auto& child : children) {
+      copiedChildren.emplace_back(child->copy());
+    }
+    return std::make_unique<ScalarFunctionExpression>(
+        expressionType, function->copy(), bindData->copy(),
+        std::move(copiedChildren), uniqueName);
+  }
+
   std::string toStringInternal() const override;
 
   static std::string getUniqueName(const std::string& functionName,

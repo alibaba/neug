@@ -124,8 +124,137 @@ def test_project_graph_with_predicates(tmp_path):
             for rel_lbl in rel_rows
         ), "relationship predicate must be preserved"
 
+        all_edges = list(
+            conn.execute(
+                "MATCH (a:person)-[r:knows]->(b:person) " "RETURN a.id, r.date, b.id;"
+            )
+        )
+        expected_edges = list(
+            conn.execute(
+                "MATCH (a:person)-[r:knows]->(b:person) "
+                'WHERE a.age > 20 AND r.date > Date("2021-01-01") '
+                "AND b.age > 20 RETURN a.id, r.date, b.id;"
+            )
+        )
+        namespace_edges = list(
+            conn.execute(
+                "USE NAMESPACE my_subgraph "
+                "MATCH (a:person)-[r:knows]->(b:person) "
+                "RETURN a.id, r.date, b.id;"
+            )
+        )
+        assert 0 < len(expected_edges) < len(all_edges)
+        assert sorted(namespace_edges) == sorted(expected_edges)
+
         conn.execute("CALL drop_projected_graph('my_subgraph');")
         assert "my_subgraph" not in _shown_projected_graph_names(conn)
+
+
+def test_namespace_match_isolation_and_clause_scope(tmp_path):
+    """USE NAMESPACE filters reads and rejects write queries."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph("
+            "'adult_graph', "
+            "{'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (n:person) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert ages
+        assert all(age > 20 for age in ages)
+
+        explain_result = conn.execute(
+            "EXPLAIN USE NAMESPACE adult_graph MATCH (n:person) RETURN n.age;"
+        )
+        assert list(explain_result) == []
+        assert explain_result.has_profile_result()
+
+        profile_result = conn.execute(
+            "PROFILE USE NAMESPACE adult_graph "
+            "MATCH (n:person) RETURN n.age ORDER BY n.age;"
+        )
+        assert [row[0] for row in profile_result] == ages
+        assert profile_result.has_profile_result()
+
+        wildcard_ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph " "MATCH (n) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert wildcard_ages == ages
+
+        young_ages = [
+            row[0]
+            for row in conn.execute("MATCH (m:person) WHERE m.age <= 20 RETURN m.age;")
+        ]
+        assert young_ages
+        nested_ages = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph MATCH (n:person) "
+                "WHERE EXISTS { MATCH (m:person) WHERE m.age <= 20 } "
+                "RETURN n.age;"
+            )
+        )
+        assert nested_ages == []
+
+        endpoints = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (a)-[r:knows]->(b) RETURN a.age, b.age;"
+            )
+        )
+        assert all(src_age > 20 and dst_age > 20 for src_age, dst_age in endpoints)
+
+        wildcard_endpoints = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph " "MATCH (a)-[r]->(b) RETURN a.age, b.age;"
+            )
+        )
+        assert sorted(wildcard_endpoints) == sorted(endpoints)
+
+        with pytest.raises(Exception, match="does not exist"):
+            conn.execute("USE NAMESPACE missing_graph MATCH (n:person) RETURN n;")
+
+        with pytest.raises(Exception, match="is not part of Namespace"):
+            conn.execute("USE NAMESPACE adult_graph MATCH (n:organisation) RETURN n;")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph CREATE (:person {ID: 999});")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph MERGE (:person {ID: 999});")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph MATCH (n:person) SET n.age = 999;")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph MATCH (n:person) DELETE n;")
+
+        optional_rows = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) "
+                "RETURN a.age, b.age;"
+            )
+        )
+        assert optional_rows
+        assert all(src_age > 20 for src_age, _ in optional_rows)
+        assert all(dst_age is None or dst_age > 20 for _, dst_age in optional_rows)
+
+        conn.execute(
+            "CALL project_graph('z_graph', ['person'], "
+            "{'[person, knows, person]': ''});"
+        )
+        assert _shown_projected_graph_names(conn) == ["adult_graph", "z_graph"]
 
 
 def test_projected_graph_persists_after_reopen(tmp_path):
@@ -144,8 +273,24 @@ def test_projected_graph_persists_after_reopen(tmp_path):
     reopened_conn = reopened.connect()
     try:
         assert _shown_projected_graph_names(reopened_conn) == ["adult_graph"]
-        rows = _projected_graph_info_rows(reopened_conn, "adult_graph")
-        assert ["person", "n.age > 20"] in rows
+        ages = [
+            row[0]
+            for row in reopened_conn.execute(
+                "USE NAMESPACE adult_graph MATCH (n:person) RETURN n.age;"
+            )
+        ]
+        assert ages and all(age > 20 for age in ages)
+
+        reopened_conn.execute("LOAD gds;")
+        page_rank_rows = list(
+            reopened_conn.execute(
+                "CALL page_rank('adult_graph', {max_iterations: 20}) "
+                "YIELD node, rank RETURN node.age, rank;"
+            )
+        )
+        assert len(page_rank_rows) == len(ages)
+        assert all(age > 20 for age, _ in page_rank_rows)
+        assert abs(sum(rank for _, rank in page_rank_rows) - 1.0) < 1e-6
     finally:
         reopened_conn.close()
         reopened.close()
