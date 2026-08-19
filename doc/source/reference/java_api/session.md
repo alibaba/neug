@@ -8,6 +8,7 @@
 - Send query parameters
 - Select access mode when needed
 - Return `ResultSet` objects for row-by-row reading
+- Own one explicit transaction across multiple HTTP requests
 
 ## Basic Query Execution
 
@@ -53,9 +54,35 @@ try (Session session = driver.session();
 }
 ```
 
+## Explicit Transactions
+
+```java
+try (Session session = driver.session();
+        Transaction transaction = session.beginTransaction()) {
+    try {
+        transaction.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
+        try (ResultSet rs = transaction.run(
+                "MATCH (n:Person {id: 1}) RETURN n.name AS name")) {
+            while (rs.next()) {
+                System.out.println(rs.getString("name"));
+            }
+        }
+        transaction.commit();
+    } catch (RuntimeException e) {
+        if (transaction.isOpen()) {
+            transaction.rollback();
+        }
+        throw e;
+    }
+}
+```
+
+A statement failure makes the transaction rollback-only. If a commit response is lost, the session treats the outcome as unknown and does not retry commit or rollback; close that session and create another one. `close()` performs best-effort rollback for an active transaction, while the server-side absolute transaction deadline provides final resource reclamation.
+
 ## Usage Notes
 
 - `Session` is lightweight and intended for short-lived use
+- A session is not thread-safe and owns at most one explicit transaction
 - Use try-with-resources to ensure it is closed cleanly
 - Each `run(...)` call returns a `ResultSet` that should also be closed
 

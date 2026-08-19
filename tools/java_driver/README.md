@@ -100,6 +100,26 @@ try (Session session = driver.session()) {
 }
 ```
 
+### Explicit Transaction
+
+```java
+try (Session session = driver.session();
+        Transaction transaction = session.beginTransaction()) {
+    try {
+        transaction.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
+        transaction.run("MATCH (n:Person {id: 1}) RETURN n.name").close();
+        transaction.commit();
+    } catch (RuntimeException e) {
+        if (transaction.isOpen()) {
+            transaction.rollback();
+        }
+        throw e;
+    }
+}
+```
+
+Each session owns at most one explicit transaction and is not thread-safe. Closing an active session performs best-effort rollback. A lost commit response is not retried because its durable outcome may already be committed.
+
 ## Dependencies
 
 This driver depends on the following libraries:
