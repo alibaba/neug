@@ -22,23 +22,6 @@ on:
       - 'include/**'
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
-  pull_request:
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'bin/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/utils/**'
-      - 'tests/**'
-      - '.github/workflows/Windows.yml'
-      - '.github/workflows/build-and-test-common.yml'
-      - 'scripts/install_deps.ps1'
-      - 'scripts/build_windows.bat'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'doc/source/tutorials/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
