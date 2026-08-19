@@ -86,4 +86,4 @@ A statement failure makes the transaction rollback-only. If a commit response is
 - Use try-with-resources to ensure it is closed cleanly
 - Each `run(...)` call returns a `ResultSet` that should also be closed
 
-See also: [Driver](driver), [ResultSet](result_set)
+See also: [Driver](driver), [Transaction](transaction), [ResultSet](result_set)

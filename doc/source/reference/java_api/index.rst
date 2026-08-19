@@ -8,5 +8,6 @@ Java API Reference
    driver
    config
    session
+   transaction
    result_set
    result_set_metadata
