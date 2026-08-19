@@ -11,6 +11,8 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/neug_extension.cmake'
       - 'extension/**'
+      - 'tools/python_bind/tests/test_hnsw_index.py'
+      - 'tools/python_bind/tests/test_hnsw_index_tp.py'
       - 'tools/python_bind/tests/test_gds.py'
       - 'tools/python_bind/tests/test_gds_path.py'
       - 'tools/python_bind/tests/test_gds_concurrency.py'
@@ -41,7 +43,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: recursive
 
     - name: Mark directory safe
       run: |
@@ -101,7 +103,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;test_out_of_tree"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;vector_search;test_out_of_tree"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -147,6 +149,8 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_copy_temp.py -k "parquet or httpfs"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_gds_temp_graph.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_call_params.py
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index.py
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index_tp.py
 
     - name: Run GDS Tests
       run: |
