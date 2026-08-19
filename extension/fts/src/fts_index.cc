@@ -232,23 +232,35 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
   }
   index_id_accessor_->Open(ckp, accessor_descriptor, level);
 
+  auto index_path = descriptor.get_path(kIndexFilePath);
+  const bool has_persisted_path = index_path && !index_path->empty();
+  if (has_persisted_path) {
+    std::error_code error;
+    const bool exists = std::filesystem::exists(*index_path, error);
+    if (error) {
+      THROW_CHECKPOINT_EXCEPTION("Failed to inspect persisted FTS index file " +
+                                 *index_path + ": " + error.message());
+    }
+    if (!exists) {
+      THROW_CHECKPOINT_EXCEPTION("Persisted FTS index file is missing: " +
+                                 *index_path);
+    }
+  }
+
   runtime_file_ = std::make_shared<CheckpointFileManager::RuntimeFileHandle>(
       ckp.CreateRuntimeFile());
   runtime_path_ = runtime_file_->path();
-  auto index_path = descriptor.get_path(kIndexFilePath);
-  bool has_existing = index_path && !index_path->empty() &&
-                      std::filesystem::exists(*index_path);
   read_connection_ = std::make_shared<SQLiteConnection>();
   write_connection_ = std::make_shared<SQLiteConnection>();
   search_asc_statement_ = std::make_shared<SQLiteStatement>();
   search_desc_statement_ = std::make_shared<SQLiteStatement>();
   append_statements_ = std::make_shared<SQLiteStatement>();
   try {
-    if (has_existing) {
+    if (has_persisted_path) {
       file_utils::copy_file(*index_path, runtime_path_, true);
     }
     write_connection_->Open(runtime_path_);
-    if (has_existing) {
+    if (has_persisted_path) {
       ValidateExistingTable();
     } else {
       CreateTable();

@@ -659,7 +659,7 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
   EXPECT_TRUE(std::filesystem::is_regular_file(*restored_path));
 }
 
-TEST(FTSIndexTest, MissingFileCreatesNewIndex) {
+TEST(FTSIndexTest, MissingPersistedFileFailsOpen) {
   TemporaryDatabaseDirectory directory;
   auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
   auto index = MakeUnopenedIndex();
@@ -674,8 +674,59 @@ TEST(FTSIndexTest, MissingFileCreatesNewIndex) {
   index.reset();
   ASSERT_TRUE(std::filesystem::remove(*path));
   FTSIndex missing;
-  EXPECT_NO_THROW(
-      missing.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory));
+  try {
+    missing.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+    FAIL() << "Expected a missing persisted FTS file to fail";
+  } catch (const exception::CheckpointException& error) {
+    EXPECT_NE(
+        std::string(error.what()).find("Persisted FTS index file is missing"),
+        std::string::npos);
+    EXPECT_NE(std::string(error.what()).find(*path), std::string::npos);
+  }
+}
+
+TEST(FTSIndexTest, CorruptPersistedSQLiteFileFailsOpen) {
+  TemporaryDatabaseDirectory directory;
+  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  auto index = MakeUnopenedIndex();
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  CheckpointManifest manifest;
+  index->Dump(*checkpoint, manifest, "index_item_text_fts");
+  auto descriptor = manifest.module("index_item_text_fts");
+  ASSERT_TRUE(descriptor.has_value());
+  auto path = descriptor->get_path("fts_file");
+  ASSERT_TRUE(path.has_value());
+  index.reset();
+
+  std::ofstream corrupt(*path, std::ios::binary | std::ios::trunc);
+  corrupt << "not a sqlite database";
+  corrupt.close();
+  FTSIndex restored;
+  EXPECT_ANY_THROW(restored.Open(*checkpoint, manifest, *descriptor,
+                                 MemoryLevel::kInMemory));
+}
+
+TEST(FTSIndexTest, PersistedSQLiteWithoutFTSTableFailsOpen) {
+  TemporaryDatabaseDirectory directory;
+  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  auto index = MakeUnopenedIndex();
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  CheckpointManifest manifest;
+  index->Dump(*checkpoint, manifest, "index_item_text_fts");
+  auto descriptor = manifest.module("index_item_text_fts");
+  ASSERT_TRUE(descriptor.has_value());
+  auto path = descriptor->get_path("fts_file");
+  ASSERT_TRUE(path.has_value());
+  index.reset();
+
+  ASSERT_TRUE(std::filesystem::remove(*path));
+  SQLiteConnection sqlite;
+  sqlite.Open(*path);
+  sqlite.Execute("CREATE TABLE unrelated(value INTEGER);");
+  sqlite.Close();
+  FTSIndex restored;
+  EXPECT_ANY_THROW(restored.Open(*checkpoint, manifest, *descriptor,
+                                 MemoryLevel::kInMemory));
 }
 
 TEST(FTSIndexTest, MultipleIndexesUseIsolatedFiles) {
