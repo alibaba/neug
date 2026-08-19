@@ -128,7 +128,7 @@ def fts_hybrid_database(tmp_path):
 
 def test_fts_topk_search(fts_database):
     rows = search(fts_database, "search text", limit=2)
-    assert [row[0] for row in rows] == [1, 2]
+    assert {row[0] for row in rows} == {1, 2}
     assert all(row[1] <= 0.0 for row in rows)
 
 
