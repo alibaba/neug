@@ -360,7 +360,7 @@ TEST(FTSExtensionTest, ReopenPreservesIndexAndAcceptsNewRows) {
   }
 }
 
-TEST(FTSExtensionTest, OrderByAndLimitAreIndependent) {
+TEST(FTSExtensionTest, OrderByAndLimitAreIndependentAndUse64BitLimits) {
   const auto build_root = FindBuildRoot();
   ASSERT_FALSE(build_root.empty());
   ASSERT_EQ(setenv("NEUG_EXTENSION_HOME_PYENV", build_root.c_str(), 1), 0);
@@ -418,6 +418,12 @@ TEST(FTSExtensionTest, OrderByAndLimitAreIndependent) {
   auto zero = connection->Query(prefix + " LIMIT 0;");
   ASSERT_TRUE(zero.has_value()) << zero.error().ToString();
   EXPECT_EQ(zero->length(), 0);
+  for (const auto* limit :
+       {"4294967295", "4294967296", "9223372036854775807"}) {
+    auto huge = connection->Query(prefix + " LIMIT " + limit + ";");
+    ASSERT_TRUE(huge.has_value()) << limit << ": " << huge.error().ToString();
+    EXPECT_EQ(huge->length(), 3) << limit;
+  }
 
   auto wrong_type = connection->Query(
       "MATCH (n:Item) RETURN n.id, bm25(n.text, 42) AS score "
