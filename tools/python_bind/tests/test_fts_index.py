@@ -223,6 +223,32 @@ def test_multiple_fts_indexes_for_same_property_are_ambiguous(fts_database):
         search(fts_database, "search")
 
 
+@pytest.mark.parametrize(
+    ("option", "value", "error_pattern"),
+    [
+        ("tokenizer", "unknown", "tokenizer"),
+        ("prefix", "2 bad", "prefix"),
+        ("detail", "invalid", "detail"),
+    ],
+)
+def test_create_fts_index_rejects_invalid_options(
+    tmp_path, option, value, error_pattern
+):
+    db = Database(db_path=str(tmp_path / f"invalid_{option}_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        with pytest.raises(RuntimeError, match=error_pattern):
+            connection.execute(
+                "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+                f"WITH ({option} = '{value}');"
+            )
+    finally:
+        connection.close()
+        db.close()
+
+
 def test_fts_index_persistence_after_process_restart(tmp_path):
     database_path = str(tmp_path / "fts_process_restart_db")
     create_script = textwrap.dedent(
