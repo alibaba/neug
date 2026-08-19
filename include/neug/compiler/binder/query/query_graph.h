@@ -210,7 +210,6 @@ class QueryGraphCollection {
 struct BoundGraphPattern {
   QueryGraphCollection queryGraphCollection;
   std::shared_ptr<Expression> where;
-  expression_vector namespacePredicates;
 
   BoundGraphPattern() = default;
   DELETE_COPY_DEFAULT_MOVE(BoundGraphPattern);

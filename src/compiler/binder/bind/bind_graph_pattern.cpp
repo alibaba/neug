@@ -21,7 +21,6 @@
  */
 
 #include <memory>
-#include <optional>
 #include <unordered_set>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
@@ -34,13 +33,11 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
-#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/function/gds/rec_joins.h"
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/compiler/main/metadata_manager.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
@@ -53,29 +50,6 @@ namespace binder {
 
 using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 
-namespace {
-
-class NamespaceBindingModeGuard {
- public:
-  NamespaceBindingModeGuard(NamespaceBindingMode& mode,
-                            NamespaceBindingMode temporaryMode)
-      : mode{mode}, previousMode{mode} {
-    mode = temporaryMode;
-  }
-
-  ~NamespaceBindingModeGuard() { mode = previousMode; }
-
-  NamespaceBindingModeGuard(const NamespaceBindingModeGuard&) = delete;
-  NamespaceBindingModeGuard& operator=(const NamespaceBindingModeGuard&) =
-      delete;
-
- private:
-  NamespaceBindingMode& mode;
-  NamespaceBindingMode previousMode;
-};
-
-}  // namespace
-
 // A graph pattern contains node/rel and a set of key-value pairs associated
 // with the variable. We bind node/rel as query graph and key-value pairs as a
 // separate collection. This collection is interpreted in two different ways.
@@ -84,36 +58,32 @@ class NamespaceBindingModeGuard {
 // We do not store key-value pairs in query graph primarily because we will
 // merge key-value std::pairs with other predicates specified in WHERE clause.
 BoundGraphPattern Binder::bindGraphPattern(
-    const std::vector<PatternElement>& graphPattern,
-    NamespaceBindingMode namespaceMode) {
-  auto namespaceModeGuard =
-      NamespaceBindingModeGuard{namespaceBindingMode, namespaceMode};
-  auto boundPattern = BoundGraphPattern();
+    const std::vector<PatternElement>& graphPattern) {
   auto queryGraphCollection = QueryGraphCollection();
   for (auto& patternElement : graphPattern) {
     queryGraphCollection.addAndMergeQueryGraphIfConnected(
-        bindPatternElement(patternElement, boundPattern.namespacePredicates));
+        bindPatternElement(patternElement));
   }
   queryGraphCollection.finalize();
+  auto boundPattern = BoundGraphPattern();
   boundPattern.queryGraphCollection = std::move(queryGraphCollection);
   return boundPattern;
 }
 
 // Grammar ensures pattern element is always connected and thus can be bound as
 // a query graph.
-QueryGraph Binder::bindPatternElement(const PatternElement& patternElement,
-                                      expression_vector& namespacePredicates) {
+QueryGraph Binder::bindPatternElement(const PatternElement& patternElement) {
   auto queryGraph = QueryGraph();
   expression_vector nodeAndRels;
-  auto leftNode = bindQueryNode(*patternElement.getFirstNodePattern(),
-                                queryGraph, namespacePredicates);
+  auto leftNode =
+      bindQueryNode(*patternElement.getFirstNodePattern(), queryGraph);
   nodeAndRels.push_back(leftNode);
   for (auto i = 0u; i < patternElement.getNumPatternElementChains(); ++i) {
     auto patternElementChain = patternElement.getPatternElementChain(i);
-    auto rightNode = bindQueryNode(*patternElementChain->getNodePattern(),
-                                   queryGraph, namespacePredicates);
+    auto rightNode =
+        bindQueryNode(*patternElementChain->getNodePattern(), queryGraph);
     auto rel = bindQueryRel(*patternElementChain->getRelPattern(), leftNode,
-                            rightNode, queryGraph, namespacePredicates);
+                            rightNode, queryGraph);
     nodeAndRels.push_back(rel);
     nodeAndRels.push_back(rightNode);
     leftNode = rightNode;
@@ -285,8 +255,7 @@ static void checkRelDirectionTypeAgainstStorageDirection(
 std::shared_ptr<RelExpression> Binder::bindQueryRel(
     const RelPattern& relPattern,
     const std::shared_ptr<NodeExpression>& leftNode,
-    const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph,
-    expression_vector& namespacePredicates) {
+    const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph) {
   auto parsedName = relPattern.getVariableName();
   if (scope.contains(parsedName)) {
     auto prevVariable = scope.getExpression(parsedName);
@@ -344,7 +313,6 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
   queryRel->setLeftNode(leftNode);
   queryRel->setRightNode(rightNode);
   queryRel->setAlias(parsedName);
-  collectNamespaceRelPredicate(relPattern, queryRel, namespacePredicates);
   if (!parsedName.empty()) {
     addToScope(parsedName, queryRel);
   }
@@ -698,8 +666,7 @@ void Binder::bindQueryRelProperties(RelExpression& rel) {
 }
 
 std::shared_ptr<NodeExpression> Binder::bindQueryNode(
-    const NodePattern& nodePattern, QueryGraph& queryGraph,
-    expression_vector& namespacePredicates) {
+    const NodePattern& nodePattern, QueryGraph& queryGraph) {
   auto parsedName = nodePattern.getVariableName();
   std::shared_ptr<NodeExpression> queryNode;
   if (scope.contains(parsedName)) {  // bind to node in scope
@@ -743,7 +710,6 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
         expressionBinder.implicitCastIfNecessary(boundRhs, boundLhs->dataType);
     queryNode->addPropertyDataExpr(propertyName, std::move(boundRhs));
   }
-  collectNamespaceNodePredicate(nodePattern, queryNode, namespacePredicates);
   queryGraph.addQueryNode(queryNode);
   return queryNode;
 }
@@ -751,9 +717,8 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
     const NodePattern& nodePattern) {
   auto parsedName = nodePattern.getVariableName();
-  auto node = createQueryNode(
-      parsedName, bindNodeTableEntries(nodePattern.getTableNames()));
-  return node;
+  return createQueryNode(parsedName,
+                         bindNodeTableEntries(nodePattern.getTableNames()));
 }
 
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
@@ -817,189 +782,6 @@ static std::vector<SchemaEntry*> sortEntries(const schema_entry_set_t& set) {
   return entries;
 }
 
-struct NamespaceLabel {
-  std::string graphName;
-  std::string labelName;
-  bool qualified = false;
-  bool wildcard = false;
-};
-
-static NamespaceLabel parseNamespaceLabel(const std::string& name) {
-  if (name.size() >= 2 && name.front() == '`' && name.back() == '`') {
-    return {"", name.substr(1, name.size() - 2), false, false};
-  }
-  if (name.find('`') != std::string::npos) {
-    THROW_BINDER_EXCEPTION("Invalid escaped label or relationship type '" +
-                           name + "'.");
-  }
-  auto dot = name.find('.');
-  if (dot == std::string::npos) {
-    return {"", name, false, false};
-  }
-  if (dot == 0 || dot + 1 >= name.size() ||
-      name.find('.', dot + 1) != std::string::npos) {
-    THROW_BINDER_EXCEPTION("Invalid namespace-qualified label '" + name + "'.");
-  }
-  auto label = name.substr(dot + 1);
-  return {name.substr(0, dot), label, true, label == "*"};
-}
-
-static const ProjectedGraphEntry& getProjectedGraph(
-    main::ClientContext* context, const std::string& name);
-
-static std::shared_ptr<Expression> copyPredicateForVariable(
-    const std::shared_ptr<Expression>& predicate,
-    const std::string& variableName) {
-  if (!predicate) {
-    return nullptr;
-  }
-  auto result = std::shared_ptr<Expression>(predicate->copy());
-  RenameDependentVar rename(variableName);
-  rename.visit(result);
-  return result;
-}
-
-static void validateNamespaceScope(const std::vector<std::string>& names) {
-  std::optional<std::string> graphName;
-  bool hasUnqualified = false;
-  for (const auto& name : names) {
-    const auto qualified = parseNamespaceLabel(name);
-    if (!qualified.qualified) {
-      hasUnqualified = true;
-      continue;
-    }
-    if (graphName && *graphName != qualified.graphName) {
-      THROW_BINDER_EXCEPTION(
-          "A pattern element cannot mix labels from different namespaces.");
-    }
-    graphName = qualified.graphName;
-  }
-  if (graphName && hasUnqualified) {
-    THROW_BINDER_EXCEPTION(
-        "A pattern element cannot mix original-graph and namespace labels.");
-  }
-}
-
-void Binder::collectNamespaceNodePredicate(
-    const NodePattern& nodePattern, const std::shared_ptr<NodeExpression>& node,
-    expression_vector& namespacePredicates) {
-  for (const auto& name : nodePattern.getTableNames()) {
-    auto qualified = parseNamespaceLabel(name);
-    if (!qualified.qualified) {
-      continue;
-    }
-    const auto& bound = bindProjectedGraph(qualified.graphName);
-    std::shared_ptr<Expression> combined;
-    for (const auto& info : bound.nodeInfos) {
-      if (!qualified.wildcard &&
-          info.entry->get_label() != qualified.labelName) {
-        continue;
-      }
-      auto label = expressionBinder.createLiteralExpression(
-          compiler_impl::Value(info.entry->get_label()));
-      auto branch = expressionBinder.createEqualityComparisonExpression(
-          node->getLabelExpression(), label);
-      auto predicate =
-          copyPredicateForVariable(info.predicate, node->getUniqueName());
-      if (predicate) {
-        branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
-                                                            branch, predicate);
-      }
-      combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
-                                                            combined, branch);
-    }
-    if (combined) {
-      namespacePredicates.push_back(std::move(combined));
-    }
-  }
-}
-
-void Binder::collectNamespaceRelPredicate(
-    const RelPattern& relPattern, const std::shared_ptr<RelExpression>& rel,
-    expression_vector& namespacePredicates) {
-  for (const auto& name : relPattern.getTableNames()) {
-    auto qualified = parseNamespaceLabel(name);
-    if (!qualified.qualified) {
-      continue;
-    }
-    const auto& bound = bindProjectedGraph(qualified.graphName);
-    // Index the already-bound node predicates once. Relationship endpoint
-    // predicate lookup is then O(1) per endpoint instead of rebinding every
-    // node predicate for every relationship (O(E * V)).
-    std::unordered_map<common::table_id_t, std::shared_ptr<Expression>>
-        nodePredicates;
-    nodePredicates.reserve(bound.nodeInfos.size());
-    for (const auto& nodeInfo : bound.nodeInfos) {
-      nodePredicates.emplace(nodeInfo.entry->get_entry_id(),
-                             nodeInfo.predicate);
-    }
-    std::shared_ptr<Expression> combined;
-    for (const auto& info : bound.relInfos) {
-      if (!qualified.wildcard &&
-          info.entry->get_label() != qualified.labelName) {
-        continue;
-      }
-      auto label = expressionBinder.createLiteralExpression(
-          compiler_impl::Value(info.entry->get_label()));
-      auto branch = expressionBinder.createEqualityComparisonExpression(
-          rel->getLabelExpression(), label);
-      auto predicate =
-          copyPredicateForVariable(info.predicate, rel->getUniqueName());
-      if (predicate) {
-        branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
-                                                            branch, predicate);
-      }
-      auto* edge = dynamic_cast<EdgeSchema*>(info.entry);
-      NEUG_ASSERT(edge != nullptr);
-      auto addEndpointPredicate =
-          [&](common::table_id_t tableID,
-              const std::shared_ptr<NodeExpression>& endpoint) {
-            const auto it = nodePredicates.find(tableID);
-            NEUG_ASSERT(it != nodePredicates.end());
-            auto endpointPredicate =
-                copyPredicateForVariable(it->second, endpoint->getUniqueName());
-            if (endpointPredicate) {
-              branch = expressionBinder.combineBooleanExpressions(
-                  ExpressionType::AND, branch, endpointPredicate);
-            }
-          };
-      addEndpointPredicate(edge->getSrcTableID(), rel->getSrcNode());
-      addEndpointPredicate(edge->getDstTableID(), rel->getDstNode());
-      combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
-                                                            combined, branch);
-    }
-    if (combined) {
-      namespacePredicates.push_back(std::move(combined));
-    }
-  }
-}
-
-static const ProjectedGraphEntry& getProjectedGraph(
-    main::ClientContext* context, const std::string& name) {
-  auto* catalog = context->getCatalog();
-  if (!catalog->hasGraphEntry(name)) {
-    THROW_BINDER_EXCEPTION("Projected graph '" + name + "' does not exist.");
-  }
-  auto entry = catalog->getGraphEntry(name);
-  if (!entry) {
-    THROW_BINDER_EXCEPTION(entry.error().error_message());
-  }
-  return **entry;
-}
-
-const graph::GraphEntry& Binder::bindProjectedGraph(
-    const std::string& graphName) const {
-  if (const auto it = boundProjectedGraphs.find(graphName);
-      it != boundProjectedGraphs.end()) {
-    return *it->second;
-  }
-  const auto& projected = getProjectedGraph(clientContext, graphName);
-  auto bound = std::make_shared<graph::GraphEntry>(
-      graph::GDSFunction::bindGraphEntry(*clientContext, projected));
-  return *boundProjectedGraphs.emplace(graphName, std::move(bound))
-              .first->second;
-}
-
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     const std::vector<std::string>& tableNames) const {
   auto transaction = clientContext->getTransaction();
@@ -1011,38 +793,13 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
       entrySet.insert(entry);
     }
   } else {
-    validateNamespaceScope(tableNames);
     for (auto& name : tableNames) {
-      auto qualified = parseNamespaceLabel(name);
-      if (qualified.qualified) {
-        if (namespaceBindingMode != NamespaceBindingMode::ALLOW_FOR_MATCH) {
-          THROW_BINDER_EXCEPTION(
-              "Namespace-qualified labels are only supported in MATCH "
-              "clauses.");
-        }
-        const auto& bound = bindProjectedGraph(qualified.graphName);
-        bool found = false;
-        for (const auto& info : bound.nodeInfos) {
-          if (!qualified.wildcard &&
-              info.entry->get_label() != qualified.labelName) {
-            continue;
-          }
-          entrySet.insert(info.entry);
-          found = true;
-        }
-        if (!found) {
-          THROW_BINDER_EXCEPTION(
-              stringFormat("Label '{}' is not part of projected graph '{}'.",
-                           qualified.labelName, qualified.graphName));
-        }
-      } else {
-        auto entry = bindNodeTableEntry(qualified.labelName);
-        if (entry->get_entry_type() != SchemaEntryType::NODE) {
-          THROW_BINDER_EXCEPTION(stringFormat(
-              "Cannot bind {} as a node pattern label.", entry->get_label()));
-        }
-        entrySet.insert(entry);
+      auto entry = bindNodeTableEntry(name);
+      if (entry->get_entry_type() != SchemaEntryType::NODE) {
+        THROW_BINDER_EXCEPTION(stringFormat(
+            "Cannot bind {} as a node pattern label.", entry->get_label()));
       }
+      entrySet.insert(entry);
     }
   }
   return sortEntries(entrySet);
@@ -1069,39 +826,15 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
       entrySet.insert(entry);
     }
   } else {
-    validateNamespaceScope(tableNames);
     for (auto& name : tableNames) {
-      auto qualified = parseNamespaceLabel(name);
-      if (qualified.qualified) {
-        if (namespaceBindingMode != NamespaceBindingMode::ALLOW_FOR_MATCH) {
-          THROW_BINDER_EXCEPTION(
-              "Namespace-qualified labels are only supported in MATCH "
-              "clauses.");
-        }
-        const auto& bound = bindProjectedGraph(qualified.graphName);
-        bool found = false;
-        for (const auto& info : bound.relInfos) {
-          if (!qualified.wildcard &&
-              info.entry->get_label() != qualified.labelName) {
-            continue;
-          }
-          entrySet.insert(info.entry);
-          found = true;
-        }
-        if (!found) {
-          THROW_BINDER_EXCEPTION(
-              stringFormat("Label '{}' is not part of projected graph '{}'.",
-                           qualified.labelName, qualified.graphName));
-        }
-      } else if (catalog->containsRelGroup(transaction, qualified.labelName)) {
-        auto groupEntry =
-            catalog->getRelGroupEntry(transaction, qualified.labelName);
+      if (catalog->containsRelGroup(transaction, name)) {
+        auto groupEntry = catalog->getRelGroupEntry(transaction, name);
         for (auto& relEntry : groupEntry) {
           entrySet.insert(relEntry);
         }
-      } else if (catalog->containsTable(transaction, qualified.labelName)) {
-        auto entry = catalog->getTableCatalogEntry(
-            transaction, qualified.labelName, useInternal);
+      } else if (catalog->containsTable(transaction, name)) {
+        auto entry =
+            catalog->getTableCatalogEntry(transaction, name, useInternal);
         if (entry->get_entry_type() != SchemaEntryType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",
@@ -1109,8 +842,7 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
         }
         entrySet.insert(entry);
       } else {
-        THROW_BINDER_EXCEPTION(
-            stringFormat("Table {} does not exist.", qualified.labelName));
+        THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", name));
       }
     }
   }

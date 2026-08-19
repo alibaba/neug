@@ -128,109 +128,6 @@ def test_project_graph_with_predicates(tmp_path):
         assert "my_subgraph" not in _shown_projected_graph_names(conn)
 
 
-def test_namespace_match_isolation_and_clause_scope(tmp_path):
-    """Namespace labels filter MATCH data and are rejected in write patterns."""
-    with tinysnb_connection(tmp_path) as conn:
-        conn.execute(
-            "CALL project_graph("
-            "'adult_graph', "
-            "{'person': 'n.age > 20'}, "
-            "{'[person, knows, person]': ''}"
-            ");"
-        )
-
-        ages = [
-            row[0]
-            for row in conn.execute(
-                "MATCH (n:adult_graph.person) RETURN n.age ORDER BY n.age;"
-            )
-        ]
-        assert ages
-        assert all(age > 20 for age in ages)
-
-        wildcard_ages = [
-            row[0]
-            for row in conn.execute(
-                "MATCH (n:adult_graph.*) RETURN n.age ORDER BY n.age;"
-            )
-        ]
-        assert wildcard_ages == ages
-
-        nested_ages = [
-            row[0]
-            for row in conn.execute(
-                "MATCH (n:adult_graph.person) "
-                "WHERE EXISTS { MATCH (m:person) } "
-                "RETURN n.age ORDER BY n.age;"
-            )
-        ]
-        assert nested_ages == ages
-
-        endpoints = list(
-            conn.execute("MATCH (a)-[r:adult_graph.knows]->(b) " "RETURN a.age, b.age;")
-        )
-        assert all(src_age > 20 and dst_age > 20 for src_age, dst_age in endpoints)
-
-        wildcard_endpoints = list(
-            conn.execute(
-                "MATCH (a:adult_graph.*)-[r:adult_graph.*]->"
-                "(b:adult_graph.*) RETURN a.age, b.age;"
-            )
-        )
-        assert sorted(wildcard_endpoints) == sorted(endpoints)
-
-        with pytest.raises(Exception, match="does not exist"):
-            conn.execute("MATCH (n:missing_graph.person) RETURN n;")
-
-        with pytest.raises(Exception, match="is not part of projected graph"):
-            conn.execute("MATCH (n:adult_graph.organisation) RETURN n;")
-
-        with pytest.raises(Exception, match="only supported in MATCH"):
-            conn.execute("CREATE (:adult_graph.person {ID: 999});")
-
-        with pytest.raises(Exception, match="only supported in MATCH"):
-            conn.execute("MERGE (:adult_graph.person {ID: 999});")
-
-        conn.execute(
-            "CALL project_graph('z_graph', ['person'], "
-            "{'[person, knows, person]': ''});"
-        )
-        assert _shown_projected_graph_names(conn) == ["adult_graph", "z_graph"]
-
-
-def test_dotted_physical_labels_are_not_namespace_qualified(tmp_path):
-    db = Database(db_path=str(tmp_path / "dotted_labels_db"), mode="w")
-    conn = db.connect()
-    try:
-        conn.execute("CREATE NODE TABLE `a.b.name`(id INT64 PRIMARY KEY);")
-        conn.execute("CREATE REL TABLE `r.s.type`(FROM `a.b.name` TO `a.b.name`);")
-        conn.execute("CREATE (a:`a.b.name` {id: 1}), (b:`a.b.name` {id: 2});")
-        conn.execute(
-            "MATCH (a:`a.b.name` {id: 1}), (b:`a.b.name` {id: 2}) "
-            "CREATE (a)-[:`r.s.type`]->(b);"
-        )
-
-        assert list(
-            conn.execute(
-                "MATCH (a:`a.b.name`)-[r:`r.s.type`]->(b:`a.b.name`) "
-                "RETURN a.id, b.id;"
-            )
-        ) == [[1, 2]]
-
-        invalid_qualified_names = [
-            "MATCH (n:`a.b`.name) RETURN n;",
-            "MATCH (n:a.`b.name`) RETURN n;",
-            "MATCH (n:a.b.name) RETURN n;",
-            "MATCH ()-[r:`r.s`.type]->() RETURN r;",
-        ]
-        for query in invalid_qualified_names:
-            with pytest.raises(Exception):
-                conn.execute(query)
-    finally:
-        conn.close()
-        db.close()
-
-
 def test_projected_graph_persists_after_reopen(tmp_path):
     db_dir = tmp_path / "namespace_reopen_db"
     db = Database(db_path=str(db_dir), mode="w")
@@ -247,13 +144,8 @@ def test_projected_graph_persists_after_reopen(tmp_path):
     reopened_conn = reopened.connect()
     try:
         assert _shown_projected_graph_names(reopened_conn) == ["adult_graph"]
-        ages = [
-            row[0]
-            for row in reopened_conn.execute(
-                "MATCH (n:adult_graph.person) RETURN n.age;"
-            )
-        ]
-        assert ages and all(age > 20 for age in ages)
+        rows = _projected_graph_info_rows(reopened_conn, "adult_graph")
+        assert ["person", "n.age > 20"] in rows
     finally:
         reopened_conn.close()
         reopened.close()

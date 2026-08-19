@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include <unordered_map>
-
 #include "neug/compiler/binder/binder_scope.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression_binder.h"
@@ -69,10 +67,6 @@ class ClientContext;
 class MetadataManager;
 }  // namespace main
 
-namespace graph {
-struct GraphEntry;
-}  // namespace graph
-
 namespace function {
 struct TableFunction;
 struct ExportFuncBindInput;
@@ -84,8 +78,6 @@ class Transaction;
 }  // namespace transaction
 
 namespace binder {
-
-enum class NamespaceBindingMode : uint8_t { DISALLOW, ALLOW_FOR_MATCH };
 struct BoundBaseScanSource;
 struct BoundCreateTableInfo;
 struct BoundInsertInfo;
@@ -354,19 +346,16 @@ class Binder {
 
   /*** bind graph pattern ***/
   BoundGraphPattern bindGraphPattern(
-      const std::vector<parser::PatternElement>& graphPattern,
-      NamespaceBindingMode namespaceMode = NamespaceBindingMode::DISALLOW);
+      const std::vector<parser::PatternElement>& graphPattern);
 
-  QueryGraph bindPatternElement(const parser::PatternElement& patternElement,
-                                expression_vector& namespacePredicates);
+  QueryGraph bindPatternElement(const parser::PatternElement& patternElement);
   std::shared_ptr<Expression> createPath(const std::string& pathName,
                                          const expression_vector& children);
 
   std::shared_ptr<RelExpression> bindQueryRel(
       const parser::RelPattern& relPattern,
       const std::shared_ptr<NodeExpression>& leftNode,
-      const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph,
-      expression_vector& namespacePredicates);
+      const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph);
   std::shared_ptr<RelExpression> createNonRecursiveQueryRel(
       const std::string& parsedName, const std::vector<SchemaEntry*>& entries,
       std::shared_ptr<NodeExpression> srcNode,
@@ -387,30 +376,18 @@ class Binder {
   static void bindQueryRelProperties(RelExpression& rel);
 
   std::shared_ptr<NodeExpression> bindQueryNode(
-      const parser::NodePattern& nodePattern, QueryGraph& queryGraph,
-      expression_vector& namespacePredicates);
+      const parser::NodePattern& nodePattern, QueryGraph& queryGraph);
   std::shared_ptr<NodeExpression> createQueryNode(
       const parser::NodePattern& nodePattern);
   NEUG_API std::shared_ptr<NodeExpression> createQueryNode(
       const std::string& parsedName, const std::vector<SchemaEntry*>& entries);
   static void bindQueryNodeProperties(NodeExpression& node);
-  void collectNamespaceNodePredicate(
-      const parser::NodePattern& nodePattern,
-      const std::shared_ptr<NodeExpression>& node,
-      expression_vector& namespacePredicates);
-  void collectNamespaceRelPredicate(const parser::RelPattern& relPattern,
-                                    const std::shared_ptr<RelExpression>& rel,
-                                    expression_vector& namespacePredicates);
-
   /*** bind table entries ***/
   std::vector<SchemaEntry*> bindNodeTableEntries(
       const std::vector<std::string>& tableNames) const;
   SchemaEntry* bindNodeTableEntry(const std::string& name) const;
   std::vector<SchemaEntry*> bindRelTableEntries(
       const std::vector<std::string>& tableNames) const;
-  const graph::GraphEntry& bindProjectedGraph(
-      const std::string& graphName) const;
-
   /*** validations ***/
   static void validateOrderByFollowedBySkipOrLimitInWithClause(
       const BoundProjectionBody& boundProjectionBody);
@@ -473,11 +450,6 @@ class Binder {
   BinderScope scope;
   ExpressionBinder expressionBinder;
   main::ClientContext* clientContext;
-  NamespaceBindingMode namespaceBindingMode = NamespaceBindingMode::DISALLOW;
-  // Query-local cache. A projected graph is bound at most once per statement,
-  // then reused by node/relationship resolution and predicate collection.
-  mutable std::unordered_map<std::string, std::shared_ptr<graph::GraphEntry>>
-      boundProjectedGraphs;
 };
 
 }  // namespace binder
