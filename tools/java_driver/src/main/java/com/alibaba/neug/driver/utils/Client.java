@@ -48,7 +48,7 @@ public class Client {
         this.baseUrl = HttpUrl.get(uri);
         this.closed = false;
 
-        OkHttpClient.Builder builder =
+        httpClient =
                 new OkHttpClient.Builder()
                         .connectionPool(
                                 new ConnectionPool(
@@ -58,8 +58,8 @@ public class Client {
                         .retryOnConnectionFailure(false)
                         .connectTimeout(config.getConnectionTimeoutMillis(), TimeUnit.MILLISECONDS)
                         .readTimeout(config.getReadTimeoutMillis(), TimeUnit.MILLISECONDS)
-                        .writeTimeout(config.getWriteTimeoutMillis(), TimeUnit.MILLISECONDS);
-        httpClient = builder.build();
+                        .writeTimeout(config.getWriteTimeoutMillis(), TimeUnit.MILLISECONDS)
+                        .build();
     }
 
     /**
