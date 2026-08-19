@@ -156,6 +156,16 @@ def test_namespace_match_isolation_and_clause_scope(tmp_path):
         ]
         assert wildcard_ages == ages
 
+        nested_ages = [
+            row[0]
+            for row in conn.execute(
+                "MATCH (n:adult_graph.person) "
+                "WHERE EXISTS { MATCH (m:person) } "
+                "RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert nested_ages == ages
+
         endpoints = list(
             conn.execute("MATCH (a)-[r:adult_graph.knows]->(b) " "RETURN a.age, b.age;")
         )

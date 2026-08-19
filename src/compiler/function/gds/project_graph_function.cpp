@@ -286,8 +286,15 @@ function_set ProjectGraphFunction::getFunctionSet() {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid project_graph physical input");
     }
     auto graphName = args[0].const_().str();
-    auto entry =
-        ProjectedGraphEntry::FromYaml(YAML::Load(args[1].const_().str()));
+    YAML::Node yaml;
+    try {
+      yaml = YAML::Load(args[1].const_().str());
+    } catch (const YAML::Exception& e) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(common::stringFormat(
+          "Invalid project_graph physical input: malformed YAML: {}",
+          e.what()));
+    }
+    auto entry = ProjectedGraphEntry::FromYaml(yaml);
     if (!entry) {
       THROW_INVALID_ARGUMENT_EXCEPTION(entry.error().ToString());
     }

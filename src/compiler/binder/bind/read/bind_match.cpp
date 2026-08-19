@@ -141,7 +141,7 @@ void Binder::rewriteMatchPattern(BoundGraphPattern& boundGraphPattern) {
     where = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                        predicate, where);
   }
-  for (auto& predicate : namespacePredicates) {
+  for (auto& predicate : boundGraphPattern.namespacePredicates) {
     where = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
                                                        predicate, where);
   }

@@ -53,6 +53,29 @@ namespace binder {
 
 using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 
+namespace {
+
+class NamespaceBindingModeGuard {
+ public:
+  NamespaceBindingModeGuard(NamespaceBindingMode& mode,
+                            NamespaceBindingMode temporaryMode)
+      : mode{mode}, previousMode{mode} {
+    mode = temporaryMode;
+  }
+
+  ~NamespaceBindingModeGuard() { mode = previousMode; }
+
+  NamespaceBindingModeGuard(const NamespaceBindingModeGuard&) = delete;
+  NamespaceBindingModeGuard& operator=(const NamespaceBindingModeGuard&) =
+      delete;
+
+ private:
+  NamespaceBindingMode& mode;
+  NamespaceBindingMode previousMode;
+};
+
+}  // namespace
+
 // A graph pattern contains node/rel and a set of key-value pairs associated
 // with the variable. We bind node/rel as query graph and key-value pairs as a
 // separate collection. This collection is interpreted in two different ways.
@@ -63,35 +86,34 @@ using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 BoundGraphPattern Binder::bindGraphPattern(
     const std::vector<PatternElement>& graphPattern,
     NamespaceBindingMode namespaceMode) {
-  auto previousMode = namespaceBindingMode;
-  namespaceBindingMode = namespaceMode;
-  namespacePredicates.clear();
+  auto namespaceModeGuard =
+      NamespaceBindingModeGuard{namespaceBindingMode, namespaceMode};
+  auto boundPattern = BoundGraphPattern();
   auto queryGraphCollection = QueryGraphCollection();
   for (auto& patternElement : graphPattern) {
     queryGraphCollection.addAndMergeQueryGraphIfConnected(
-        bindPatternElement(patternElement));
+        bindPatternElement(patternElement, boundPattern.namespacePredicates));
   }
   queryGraphCollection.finalize();
-  auto boundPattern = BoundGraphPattern();
   boundPattern.queryGraphCollection = std::move(queryGraphCollection);
-  namespaceBindingMode = previousMode;
   return boundPattern;
 }
 
 // Grammar ensures pattern element is always connected and thus can be bound as
 // a query graph.
-QueryGraph Binder::bindPatternElement(const PatternElement& patternElement) {
+QueryGraph Binder::bindPatternElement(const PatternElement& patternElement,
+                                      expression_vector& namespacePredicates) {
   auto queryGraph = QueryGraph();
   expression_vector nodeAndRels;
-  auto leftNode =
-      bindQueryNode(*patternElement.getFirstNodePattern(), queryGraph);
+  auto leftNode = bindQueryNode(*patternElement.getFirstNodePattern(),
+                                queryGraph, namespacePredicates);
   nodeAndRels.push_back(leftNode);
   for (auto i = 0u; i < patternElement.getNumPatternElementChains(); ++i) {
     auto patternElementChain = patternElement.getPatternElementChain(i);
-    auto rightNode =
-        bindQueryNode(*patternElementChain->getNodePattern(), queryGraph);
+    auto rightNode = bindQueryNode(*patternElementChain->getNodePattern(),
+                                   queryGraph, namespacePredicates);
     auto rel = bindQueryRel(*patternElementChain->getRelPattern(), leftNode,
-                            rightNode, queryGraph);
+                            rightNode, queryGraph, namespacePredicates);
     nodeAndRels.push_back(rel);
     nodeAndRels.push_back(rightNode);
     leftNode = rightNode;
@@ -263,7 +285,8 @@ static void checkRelDirectionTypeAgainstStorageDirection(
 std::shared_ptr<RelExpression> Binder::bindQueryRel(
     const RelPattern& relPattern,
     const std::shared_ptr<NodeExpression>& leftNode,
-    const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph) {
+    const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph,
+    expression_vector& namespacePredicates) {
   auto parsedName = relPattern.getVariableName();
   if (scope.contains(parsedName)) {
     auto prevVariable = scope.getExpression(parsedName);
@@ -321,7 +344,7 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
   queryRel->setLeftNode(leftNode);
   queryRel->setRightNode(rightNode);
   queryRel->setAlias(parsedName);
-  collectNamespaceRelPredicate(relPattern, queryRel);
+  collectNamespaceRelPredicate(relPattern, queryRel, namespacePredicates);
   if (!parsedName.empty()) {
     addToScope(parsedName, queryRel);
   }
@@ -675,7 +698,8 @@ void Binder::bindQueryRelProperties(RelExpression& rel) {
 }
 
 std::shared_ptr<NodeExpression> Binder::bindQueryNode(
-    const NodePattern& nodePattern, QueryGraph& queryGraph) {
+    const NodePattern& nodePattern, QueryGraph& queryGraph,
+    expression_vector& namespacePredicates) {
   auto parsedName = nodePattern.getVariableName();
   std::shared_ptr<NodeExpression> queryNode;
   if (scope.contains(parsedName)) {  // bind to node in scope
@@ -719,7 +743,7 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
         expressionBinder.implicitCastIfNecessary(boundRhs, boundLhs->dataType);
     queryNode->addPropertyDataExpr(propertyName, std::move(boundRhs));
   }
-  collectNamespaceNodePredicate(nodePattern, queryNode);
+  collectNamespaceNodePredicate(nodePattern, queryNode, namespacePredicates);
   queryGraph.addQueryNode(queryNode);
   return queryNode;
 }
@@ -857,8 +881,8 @@ static void validateNamespaceScope(const std::vector<std::string>& names) {
 }
 
 void Binder::collectNamespaceNodePredicate(
-    const NodePattern& nodePattern,
-    const std::shared_ptr<NodeExpression>& node) {
+    const NodePattern& nodePattern, const std::shared_ptr<NodeExpression>& node,
+    expression_vector& namespacePredicates) {
   for (const auto& name : nodePattern.getTableNames()) {
     auto qualified = parseNamespaceLabel(name);
     if (!qualified.qualified) {
@@ -891,7 +915,8 @@ void Binder::collectNamespaceNodePredicate(
 }
 
 void Binder::collectNamespaceRelPredicate(
-    const RelPattern& relPattern, const std::shared_ptr<RelExpression>& rel) {
+    const RelPattern& relPattern, const std::shared_ptr<RelExpression>& rel,
+    expression_vector& namespacePredicates) {
   for (const auto& name : relPattern.getTableNames()) {
     auto qualified = parseNamespaceLabel(name);
     if (!qualified.qualified) {
