@@ -56,9 +56,9 @@ TEST_F(MMapContainerTest, IsDirty_AnonymousMMap) {
   EXPECT_TRUE(container.IsDirty());
 
   // Small anonymous mmap (< FileHeader size) should also be dirty
-  neug::FilePrivateMMap small;
-  small.OpenAnonymous(8);
-  EXPECT_TRUE(small.IsDirty());
+  neug::FilePrivateMMap small_container;
+  small_container.OpenAnonymous(8);
+  EXPECT_TRUE(small_container.IsDirty());
 }
 
 TEST_F(MMapContainerTest, IsDirty_Resize) {

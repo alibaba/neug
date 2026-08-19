@@ -18,7 +18,10 @@
 # Apply to every non-test binary that ships alongside libneug.so/dylib.
 macro(neug_apply_symbol_visibility target)
     if(WIN32)
-        message(FATAL_ERROR "neug_apply_symbol_visibility: symbol visibility control is not supported on Windows.")
+        # Windows: rely on the NEUG_API macro (defined in include/neug/utils/api.h)
+        # to export only the public API. Exporting all symbols hits the linker
+        # limit of 65535 exports (LNK1189) for a library of this size.
+        set_target_properties(${target} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS OFF)
     elseif(APPLE)
         target_link_options(${target} PRIVATE
             "LINKER:-unexported_symbols_list,${CMAKE_SOURCE_DIR}/cmake/neug_unexported.sym")

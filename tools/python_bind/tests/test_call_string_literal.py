@@ -193,6 +193,76 @@ def test_varchar_column_with_explicit_max_length_truncates_at_that_length(conn):
     assert rows[0][0] == "z" * 80
 
 
+def test_varchar_max_length_survives_reopen_for_create_and_copy(tmp_path):
+    """Issue #888: the checkpoint schema, not the factory default, sets caps."""
+    db_dir = tmp_path / "varchar_reopen"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE t (id VARCHAR(512), val VARCHAR(512), " "PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE small (id VARCHAR(64), val VARCHAR(100), "
+        "PRIMARY KEY(id));"
+    )
+    conn.close()
+    db.close()
+
+    long_value = "x" * 400
+    long_key = "k" * 400
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE (:t {id:$id, val:$val});",
+        "insert",
+        {"id": "create", "val": long_value},
+    )
+    conn.execute(
+        "CREATE (:t {id:$id, val:$val});",
+        "insert",
+        {"id": long_key, "val": "key"},
+    )
+    csv_path = tmp_path / "varchar.csv"
+    csv_path.write_text(f"id,val\ncopy,{long_value}\n")
+    conn.execute(f'COPY t FROM "{csv_path}" (HEADER TRUE, DELIMITER=",");')
+    conn.execute(
+        "CREATE (:small {id:$id, val:$val});",
+        "insert",
+        {"id": "small", "val": "s" * 150},
+    )
+    assert (
+        list(conn.execute("MATCH (n:t {id:'create'}) RETURN n.val;"))[0][0]
+        == long_value
+    )
+    assert (
+        list(conn.execute("MATCH (n:t {id:'copy'}) RETURN n.val;"))[0][0] == long_value
+    )
+    assert long_key in [row[0] for row in conn.execute("MATCH (n:t) RETURN n.id;")]
+    assert (
+        list(conn.execute("MATCH (n:small {id:'small'}) RETURN n.val;"))[0][0]
+        == "s" * 100
+    )
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    assert (
+        list(conn.execute("MATCH (n:t {id:'create'}) RETURN n.val;"))[0][0]
+        == long_value
+    )
+    assert (
+        list(conn.execute("MATCH (n:t {id:'copy'}) RETURN n.val;"))[0][0] == long_value
+    )
+    assert long_key in [row[0] for row in conn.execute("MATCH (n:t) RETURN n.id;")]
+    assert (
+        list(conn.execute("MATCH (n:small {id:'small'}) RETURN n.val;"))[0][0]
+        == "s" * 100
+    )
+    conn.close()
+    db.close()
+
+
 # ---------------------------------------------------------------------------
 # 3. The capped addString overload is reachable via CAST(<non-STRING> AS
 #    STRING). issue #345 changed this overload from "throw on long string"
@@ -241,6 +311,6 @@ def test_call_table_func_long_string_literal_repro(conn, tmp_path):
     long_path.write_text("a,b\n1,2\n")
     assert len(str(long_path)) > SHORT_STR_LENGTH
     conn.execute("CREATE NODE TABLE long_path_node(a INT64 PRIMARY KEY, b INT64);")
-    conn.execute(f"COPY long_path_node FROM '{long_path}' (delimiter=',');")
+    conn.execute(f"COPY long_path_node FROM '{long_path.as_posix()}' (delimiter=',');")
     rows = list(conn.execute("MATCH (n:long_path_node) RETURN n.a, n.b;"))
     assert len(rows) >= 1

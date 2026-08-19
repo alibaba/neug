@@ -25,7 +25,11 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <process.h>
+#endif
 #include <atomic>
 #include <chrono>
 #include <cstdint>

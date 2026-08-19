@@ -2,7 +2,9 @@
 #
 # CMake helpers for out-of-tree NeuG extensions.
 
-set(NEUG_BUILTIN_EXTENSIONS parquet pattern_matching gds httpfs CACHE INTERNAL "")
+set(NEUG_BUILTIN_EXTENSIONS
+    parquet pattern_matching gds httpfs vector_search
+    CACHE INTERNAL "")
 
 function(neug_extension_load EXT_NAME)
     cmake_parse_arguments(PARSE_ARGV 1 EXT "" "SOURCE_DIR" "")

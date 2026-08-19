@@ -31,10 +31,17 @@ void DefaultIndexIDAccessor::Open(Checkpoint& ckp,
   next_index_id_->store(
       static_cast<index_id_t>(std::stoull(next_index_id.value_or("0"))),
       std::memory_order_relaxed);
+  visible_limit_ = GetNextIndexID();
   auto path =
       descriptor.get_path(ModuleDescriptor::kVidToIndexIdPath).value_or("");
   vid_to_index_id_ = ckp.OpenFile(path, level);
   rebuildIndexIDToVID();
+  deleted_index_ids_->clear();
+  for (index_id_t index_id = 0; index_id < visible_limit_; ++index_id) {
+    if (index_id_to_vid_->find(index_id) == index_id_to_vid_->end()) {
+      deleted_index_ids_->insert(index_id);
+    }
+  }
 }
 
 void DefaultIndexIDAccessor::Dump(Checkpoint& ckp, CheckpointManifest& meta,
@@ -65,12 +72,20 @@ index_id_t DefaultIndexIDAccessor::UpsertVID(vid_t vid) {
   auto old_index_id = GetIndexIDByVID(vid);
   if (old_index_id != INVALID_INDEX_ID) {
     index_id_to_vid_->erase(old_index_id);
+    deleted_index_ids_->insert(old_index_id);
   }
 
   if (vid >= size()) {
     resize(vid < 4096 ? 4096 : vid + vid / 4);
   }
   auto new_index_id = next_index_id_->fetch_add(1, std::memory_order_relaxed);
+  // Interleaved accessors may have consumed IDs since this snapshot's visible
+  // boundary. Preserve those IDs as inaccessible gaps before advancing the
+  // accessible range to [0, new_index_id + 1).
+  for (auto index_id = visible_limit_; index_id < new_index_id; ++index_id) {
+    deleted_index_ids_->insert(index_id);
+  }
+  visible_limit_ = new_index_id + 1;
   static_cast<index_id_t*>(vid_to_index_id_->GetData())[vid] = new_index_id;
   (*index_id_to_vid_)[new_index_id] = vid;
   return new_index_id;
@@ -82,6 +97,7 @@ Status DefaultIndexIDAccessor::DeleteVID(vid_t vid) {
     return Status::OK();
   }
   index_id_to_vid_->erase(index_id);
+  deleted_index_ids_->insert(index_id);
   static_cast<index_id_t*>(vid_to_index_id_->GetData())[vid] = INVALID_INDEX_ID;
   return Status::OK();
 }
@@ -91,6 +107,8 @@ std::unique_ptr<Module> DefaultIndexIDAccessor::Clone() const {
   cloned->vid_to_index_id_ = vid_to_index_id_;
   cloned->index_id_to_vid_ = index_id_to_vid_;
   cloned->next_index_id_ = next_index_id_;
+  cloned->visible_limit_ = visible_limit_;
+  cloned->deleted_index_ids_ = deleted_index_ids_;
   return cloned;
 }
 
@@ -101,6 +119,10 @@ void DefaultIndexIDAccessor::Detach(Checkpoint& ckp, MemoryLevel level) {
   if (index_id_to_vid_) {
     index_id_to_vid_ = std::make_shared<std::unordered_map<index_id_t, vid_t>>(
         *index_id_to_vid_);
+  }
+  if (deleted_index_ids_) {
+    deleted_index_ids_ =
+        std::make_shared<std::set<index_id_t>>(*deleted_index_ids_);
   }
 }
 
@@ -136,6 +158,15 @@ vid_t VecColumnBackedIndexIDAccessor::GetVIDByIndexID(
 
 index_id_t VecColumnBackedIndexIDAccessor::GetNextIndexID() const {
   return offset_accessor_.GetNextIndexID();
+}
+
+index_id_t VecColumnBackedIndexIDAccessor::GetVisibleLimit() const {
+  return offset_accessor_.GetVisibleLimit();
+}
+
+const std::set<index_id_t>& VecColumnBackedIndexIDAccessor::GetDeletedIndexIDs()
+    const {
+  return offset_accessor_.GetDeletedIndexIDs();
 }
 
 index_id_t VecColumnBackedIndexIDAccessor::UpsertVID(vid_t vid) {

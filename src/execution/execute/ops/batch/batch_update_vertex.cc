@@ -102,6 +102,11 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
       assert(col_id >= 0 &&
              col_id < static_cast<int32_t>(property_names.size()));
       if (property_types[col_id] != value.type()) {
+        if (value.IsNull()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION("Property type " +
+                                           property_types[col_id].ToString() +
+                                           " can not be set with null");
+        }
         THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
       }
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);

@@ -19,6 +19,7 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/csr/prefetch_utils.h"
+#include "neug/utils/platform.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -115,7 +116,7 @@ struct NbrIterator {
   inline vid_t operator*() const { return get_vertex(); }
 
   /** @brief Advance to next visible neighbor. */
-  __attribute__((always_inline)) NbrIterator& operator++() {
+  NEUG_ALWAYS_INLINE NbrIterator& operator++() {
     cur = static_cast<const char*>(cur) + cfg.stride;
     while (cur != end && get_timestamp() > timestamp) {
       cur = static_cast<const char*>(cur) + cfg.stride;
@@ -124,18 +125,18 @@ struct NbrIterator {
   }
 
   /** @brief Advance by n positions. */
-  __attribute__((always_inline)) NbrIterator& operator+=(size_t n) {
+  NEUG_ALWAYS_INLINE NbrIterator& operator+=(size_t n) {
     for (size_t i = 0; i < n; ++i) {
       ++(*this);
     }
     return *this;
   }
 
-  __attribute__((always_inline)) bool operator==(const NbrIterator& rhs) const {
+  NEUG_ALWAYS_INLINE bool operator==(const NbrIterator& rhs) const {
     return (cur == rhs.cur);
   }
 
-  __attribute__((always_inline)) bool operator!=(const NbrIterator& rhs) const {
+  NEUG_ALWAYS_INLINE bool operator!=(const NbrIterator& rhs) const {
     return (cur != rhs.cur);
   }
 
@@ -210,14 +211,14 @@ struct NbrList {
   ~NbrList() = default;
 
   /** @brief Get iterator to first visible neighbor. */
-  __attribute__((always_inline)) NbrIterator begin() const {
+  NEUG_ALWAYS_INLINE NbrIterator begin() const {
     NbrIterator it;
     it.init(start_ptr, end_ptr, cfg, timestamp);
     return it;
   }
 
   /** @brief Get iterator to past-the-end position. */
-  __attribute__((always_inline)) NbrIterator end() const {
+  NEUG_ALWAYS_INLINE NbrIterator end() const {
     NbrIterator it;
     it.init(end_ptr, end_ptr, cfg, timestamp);
     return it;
@@ -615,7 +616,7 @@ struct CsrView {
    * @note This is the primary method for graph traversal.
    * @note Empty NbrList is returned if vertex has no edges.
    */
-  __attribute__((always_inline)) NbrList get_edges(vid_t v) const {
+  NEUG_ALWAYS_INLINE NbrList get_edges(vid_t v) const {
     NbrList ret;
     if (degrees_ == nullptr) {
       const char* start_ptr = adjlists_ + v * cfg_.stride;
@@ -663,15 +664,15 @@ struct CsrView {
     }
   }
 
-  __attribute__((always_inline)) size_t prefetch_metadata_dist() const {
+  NEUG_ALWAYS_INLINE size_t prefetch_metadata_dist() const {
     return prefetch_policy_.metadata_distance;
   }
 
-  __attribute__((always_inline)) size_t prefetch_head_dist() const {
+  NEUG_ALWAYS_INLINE size_t prefetch_head_dist() const {
     return prefetch_policy_.head_distance;
   }
 
-  __attribute__((always_inline)) void prefetch_metadata(vid_t v) const {
+  NEUG_ALWAYS_INLINE void prefetch_metadata(vid_t v) const {
     if (degrees_ == nullptr) {
       const char* start_ptr = adjlists_ + v * cfg_.stride;
       prefetch_read(start_ptr, prefetch_policy_.metadata_locality);
@@ -682,7 +683,7 @@ struct CsrView {
     }
   }
 
-  __attribute__((always_inline)) void prefetch_head(vid_t v) const {
+  NEUG_ALWAYS_INLINE void prefetch_head(vid_t v) const {
     if (degrees_ == nullptr) {
       const char* start_ptr = adjlists_ + v * cfg_.stride;
       prefetch_read(start_ptr, prefetch_policy_.head_locality);
@@ -696,8 +697,8 @@ struct CsrView {
   }
 
  private:
-  __attribute__((always_inline)) static void prefetch_read(const void* ptr,
-                                                           uint8_t locality) {
+  NEUG_ALWAYS_INLINE static void prefetch_read(const void* ptr,
+                                               uint8_t locality) {
     switch (locality) {
     case 0:
       __builtin_prefetch(ptr, 0, 0);
@@ -722,7 +723,7 @@ struct CsrView {
 };
 
 template <typename VECTOR_T>
-__attribute__((always_inline)) static inline void prefetch_next_vertex(
+NEUG_ALWAYS_INLINE static inline void prefetch_next_vertex(
     const CsrView& view, const VECTOR_T& vertices, size_t idx) {
   size_t metadata_dist = view.prefetch_metadata_dist();
   if (metadata_dist != 0 && idx + metadata_dist < vertices.size()) {
@@ -735,7 +736,7 @@ __attribute__((always_inline)) static inline void prefetch_next_vertex(
 }
 
 template <typename VERTEX_COLUMN_T>
-__attribute__((always_inline)) static inline void prefetch_next_vertex_column(
+NEUG_ALWAYS_INLINE static inline void prefetch_next_vertex_column(
     const CsrView& view, const VERTEX_COLUMN_T& vertices, size_t idx) {
   size_t metadata_dist = view.prefetch_metadata_dist();
   if (metadata_dist != 0 && idx + metadata_dist < vertices.size()) {

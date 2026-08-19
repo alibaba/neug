@@ -21,7 +21,11 @@
 #include <fcntl.h>
 #include <glog/logging.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <exception>
 #include <filesystem>
 #include <ostream>
@@ -63,14 +67,24 @@ void LocalWalWriter::open(const std::string& wal_uri) {
     if (std::filesystem::exists(path)) {
       continue;
     }
+#ifdef _WIN32
+    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
+#else
     fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+#endif
     break;
   }
   if (fd_ == -1) {
     THROW_IO_EXCEPTION("Failed to open wal file " +
                        std::string(strerror(errno)));
   }
+#ifdef _WIN32
+  const errno_t trunc_err = _chsize_s(fd_, TRUNC_SIZE);
+  if (trunc_err != 0) {
+    errno = static_cast<int>(trunc_err);
+#else
   if (ftruncate(fd_, TRUNC_SIZE) != 0) {
+#endif
     THROW_IO_EXCEPTION("Failed to truncate wal file " +
                        std::string(strerror(errno)));
   }
@@ -87,7 +101,11 @@ void LocalWalWriter::close() {
     fd_ = -1;
     file_size_ = 0;
     file_used_ = 0;
+#ifdef _WIN32
+    if (_close(fd) != 0) {
+#else
     if (::close(fd) != 0) {
+#endif
       THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
     }
   }
@@ -100,7 +118,13 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   size_t expected_size = file_used_ + length;
   if (expected_size > file_size_) {
     size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
+#ifdef _WIN32
+    const errno_t resize_err = _chsize_s(fd_, new_file_size);
+    if (resize_err != 0) {
+      errno = static_cast<int>(resize_err);
+#else
     if (ftruncate(fd_, new_file_size) != 0) {
+#endif
       THROW_IO_EXCEPTION("Failed to truncate wal file " +
                          std::string(strerror(errno)));
     }
@@ -109,20 +133,29 @@ bool LocalWalWriter::append(const char* data, size_t length) {
 
   file_used_ += length;
 
+#ifdef _WIN32
+  if (static_cast<size_t>(_write(fd_, data, length)) != length) {
+#else
   if (static_cast<size_t>(write(fd_, data, length)) != length) {
+#endif
     THROW_IO_EXCEPTION("Failed to write wal file " +
                        std::string(strerror(errno)));
   }
 
 #if 1
-#ifdef F_FULLFSYNC
+#ifdef _WIN32
+  if (_commit(fd_) != 0) {
+    THROW_IO_EXCEPTION("Failed to fsync wal file " +
+                       std::string(strerror(errno)));
+  }
+#elif defined(F_FULLFSYNC)
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
 #ifdef __APPLE__
     THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
                        std::string(strerror(errno)));
 #else
     THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strerrno(errno)));
+                       std::string(strerror(errno)));
 #endif
   }
 #else

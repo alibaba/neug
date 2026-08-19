@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 #include <filesystem>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#endif
 
 #include "neug/common/types/value.h"
 #include "neug/config.h"

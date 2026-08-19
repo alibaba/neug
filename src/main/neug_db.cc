@@ -16,7 +16,11 @@
 #include "neug/main/neug_db.h"
 
 #include <glog/logging.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#endif
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -25,6 +29,7 @@
 #include <exception>
 #include <filesystem>
 #include <limits>
+#include <random>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -50,6 +55,45 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+#ifdef _WIN32
+// MSVC's CRT has no mkdtemp(); emulate it by replacing the trailing
+// "XXXXXX" with random characters and retrying until a fresh directory is
+// created.  Sets errno and returns false on failure, mirroring mkdtemp.
+static bool mkdtemp_win(std::string& path_template) {
+  constexpr char kChars[] =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  constexpr size_t kSuffixLen = 6;
+  if (path_template.size() < kSuffixLen ||
+      path_template.compare(path_template.size() - kSuffixLen, kSuffixLen,
+                            "XXXXXX") != 0) {
+    errno = EINVAL;
+    return false;
+  }
+  std::random_device rd;
+  std::mt19937_64 gen(rd());
+  std::uniform_int_distribution<size_t> dist(0, sizeof(kChars) - 2);
+  for (int attempt = 0; attempt < 100; ++attempt) {
+    for (size_t i = path_template.size() - kSuffixLen; i < path_template.size();
+         ++i) {
+      path_template[i] = kChars[dist(gen)];
+    }
+    std::error_code ec;
+    if (std::filesystem::create_directory(path_template, ec)) {
+      return true;
+    }
+    if (ec && ec != std::errc::file_exists) {
+      // Map the system error to its POSIX equivalent so the errno-based
+      // reporting at the call site stays meaningful.
+      errno = ec.default_error_condition().value();
+      return false;
+    }
+    // Name collision: retry with a new random suffix.
+  }
+  errno = EEXIST;
+  return false;
+}
+#endif
 
 inline std::string allocator_prefix(const std::string& allocator_dir,
                                     int slot_id) {
@@ -361,12 +405,33 @@ void NeugDB::preprocessConfig() {
     if (prefix_env) {
       db_dir_prefix = prefix_env;
     } else {
+#ifdef _WIN32
+      // On Windows, use the system temp directory (e.g.
+      // C:\Users\<user>\AppData\Local\Temp)
+      char tmp_path[MAX_PATH];
+      DWORD len = GetTempPathA(MAX_PATH, tmp_path);
+      if (len > 0) {
+        // Remove trailing backslash
+        if (tmp_path[len - 1] == '\\' || tmp_path[len - 1] == '/') {
+          tmp_path[len - 1] = '\0';
+          len--;
+        }
+        db_dir_prefix = std::string(tmp_path);
+      } else {
+        db_dir_prefix = ".";
+      }
+#else
       db_dir_prefix = "/tmp";
+#endif
     }
     db_dir_prefix = std::filesystem::absolute(db_dir_prefix);
     std::filesystem::create_directories(db_dir_prefix);
     auto path_template = (db_dir_prefix / "neug_db_XXXXXX").string();
+#ifdef _WIN32
+    if (!mkdtemp_win(path_template)) {
+#else
     if (::mkdtemp(path_template.data()) == nullptr) {
+#endif
       const auto error = std::error_code(errno, std::generic_category());
       THROW_IO_EXCEPTION("Failed to create temporary NeugDB under " +
                          db_dir_prefix.string() + ": " + error.message());

@@ -17,6 +17,10 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#endif
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"

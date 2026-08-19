@@ -35,6 +35,7 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/parser/ddl/parsed_property_definition.h"
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 struct VertexSchema;

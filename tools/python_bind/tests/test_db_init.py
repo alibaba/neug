@@ -265,10 +265,13 @@ def test_serve_requires_closed_local_connections(tmp_path):
 
 
 # DB-001-12
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows file permissions differ from Unix"
+)
 def test_open_no_permission(tmp_path):
     db_dir = tmp_path / "no_permission_db"
     if db_dir.exists():
-        os.system("rm -rf %s" % db_dir)
+        shutil.rmtree(str(db_dir), ignore_errors=True)
     db = Database(db_path=str(db_dir), mode="w")
     db.close()
     os.chmod(db_dir, 0o400)

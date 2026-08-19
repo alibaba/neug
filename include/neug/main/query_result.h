@@ -23,6 +23,7 @@
 
 #include "glog/logging.h"
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 /**
@@ -38,7 +39,7 @@ namespace neug {
  * - typed cell access via `GetInt32()`, `GetString()`, etc.
  */
 
-class QueryResult {
+class NEUG_API QueryResult {
  public:
   static QueryResult From(std::string&& serialized_table);
   static QueryResult From(const std::string& serialized_table);

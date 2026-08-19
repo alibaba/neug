@@ -24,6 +24,11 @@
 
 #include <cmath>
 
+// MSVC does not define M_PI by default; define it if missing.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include "neug/compiler/common/types/int128_t.h"
 
 namespace neug {

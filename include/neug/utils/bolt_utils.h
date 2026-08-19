@@ -17,10 +17,11 @@
 #include "glog/logging.h"
 
 #include "neug/generated/proto/response/response.pb.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
-std::string results_to_bolt_response(
+NEUG_API std::string results_to_bolt_response(
     const neug::QueryResponse& table,
     const std::vector<std::string>& column_names);
 

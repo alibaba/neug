@@ -7,5 +7,7 @@ add_neug_test(
 	test_exception.cc
 	test_file_system.cc
 	test_sniffer.cc
-	test_file_utils.cc
 	json_test.cc)
+if(NOT WIN32)
+    target_sources(utils_test PRIVATE test_file_utils.cc)
+endif()

@@ -30,6 +30,7 @@
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -42,12 +43,14 @@ class PropertyGraph;
 
 class IDataChunkSupplier;
 
-class EdgeTable {
+class NEUG_API EdgeTable {
  public:
   EdgeTable(std::shared_ptr<const EdgeSchema> meta) : meta_(meta) {}
   EdgeTable(EdgeTable&& edge_table);
 
   EdgeTable(const EdgeTable&) = delete;
+  EdgeTable& operator=(const EdgeTable&) = delete;
+  EdgeTable& operator=(EdgeTable&& other) noexcept;
   ~EdgeTable() = default;
 
   void Swap(EdgeTable& other);
