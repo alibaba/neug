@@ -496,16 +496,20 @@ void FTSIndexScanOptimizer::RewriteProjection(
   if (!indexes.has_value()) {
     THROW_RUNTIME_ERROR("FTS index not found for the requested label/property");
   }
-  const StorageIndex* fts_index = nullptr;
+  std::vector<const StorageIndex*> fts_indexes;
   for (const auto* index : indexes.value()) {
     if (index && dynamic_cast<const FTSIndex*>(index)) {
-      fts_index = index;
-      break;
+      fts_indexes.push_back(index);
     }
   }
-  if (!fts_index) {
+  if (fts_indexes.empty()) {
     THROW_RUNTIME_ERROR("FTS index not found for the requested label/property");
   }
+  if (fts_indexes.size() > 1) {
+    THROW_RUNTIME_ERROR(
+        "Multiple FTS indexes match the requested label/property");
+  }
+  const auto* fts_index = fts_indexes.front();
 
   const binder::PropertyExpression* vertex_output = nullptr;
   bool attach_input = true;

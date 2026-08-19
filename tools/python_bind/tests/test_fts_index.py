@@ -214,6 +214,15 @@ def test_fts_null_values_are_not_indexed_and_transitions_are_maintained(tmp_path
         reopened.close()
 
 
+def test_multiple_fts_indexes_for_same_property_are_ambiguous(fts_database):
+    fts_database.execute(
+        "CREATE INDEX item_text_porter_fts ON Item USING FTS (text) "
+        "WITH (tokenizer = 'porter unicode61');"
+    )
+    with pytest.raises(RuntimeError, match="Multiple FTS indexes"):
+        search(fts_database, "search")
+
+
 def test_fts_index_persistence_after_process_restart(tmp_path):
     database_path = str(tmp_path / "fts_process_restart_db")
     create_script = textwrap.dedent(
