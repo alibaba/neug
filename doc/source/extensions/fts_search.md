@@ -108,7 +108,7 @@ For the default index created above, the result includes an entry similar to:
 
 | name | type | label | property | options |
 | --- | --- | --- | --- | --- |
-| `article_title_fts` | `FTS` | `Article` | `title` | `{}` |
+| `article_title_fts` | `fts` | `Article` | `title` | `{}` |
 
 Drop the index by its name:
 

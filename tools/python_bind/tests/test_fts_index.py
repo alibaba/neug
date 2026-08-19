@@ -85,6 +85,25 @@ def test_fts_topk_search(fts_database):
     assert all(row[1] <= 0.0 for row in rows)
 
 
+def test_show_and_drop_fts_index(fts_database):
+    assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == [
+        ["item_text_fts", "fts", "Item", "text", "{}", "active"]
+    ]
+
+    fts_database.execute("DROP INDEX item_text_fts IF EXISTS;")
+    assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == []
+    fts_database.execute("DROP INDEX item_text_fts IF EXISTS;")
+
+
+@pytest.mark.parametrize(
+    "drop_statement",
+    ["ALTER TABLE Item DROP text;", "DROP TABLE Item;"],
+)
+def test_dropping_indexed_schema_removes_fts_index(fts_database, drop_statement):
+    fts_database.execute(drop_statement)
+    assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == []
+
+
 def test_fts_tracks_inserts_updates_and_deletes(fts_database):
     fts_database.execute("CREATE (:Item {id: 4, text: 'durable fox'});")
     assert [row[0] for row in search(fts_database, "durable")] == [4]
