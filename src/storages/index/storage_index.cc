@@ -67,6 +67,11 @@ Status StorageIndex::Upsert(vid_t vid, const Value& new_value) {
   if (!index_id_accessor_) {
     return Status::InternalError("Index ID accessor is not initialized");
   }
+  // NULL means that this vertex has no value defined in the index. Avoid
+  // allocating an index ID and invalidate any mapping left by an older value.
+  if (new_value.IsNull()) {
+    return Delete(vid);
+  }
   auto index_id = index_id_accessor_->UpsertVID(vid);
   return AppendImpl(index_id, new_value);
 }

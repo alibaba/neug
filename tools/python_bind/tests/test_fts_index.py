@@ -180,6 +180,40 @@ def test_fts_dynamic_query_parameter_rejects_invalid_values(fts_database):
         list(fts_database.execute(statement, parameters={"query": None}))
 
 
+def test_fts_null_values_are_not_indexed_and_transitions_are_maintained(tmp_path):
+    database_path = str(tmp_path / "fts_null_db")
+    db = Database(db_path=database_path, mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    create_item_table(connection)
+    connection.execute(
+        "CREATE (:Item {id: 1, text: NULL}), (:Item {id: 2}), "
+        "(:Item {id: 3, text: 'visible token'});"
+    )
+    connection.execute("CREATE INDEX item_text_fts ON Item USING FTS (text);")
+    assert [row[0] for row in search(connection, "visible")] == [3]
+
+    connection.execute("CREATE (:Item {id: 4, text: NULL}), (:Item {id: 5});")
+    connection.execute("MATCH (n:Item) WHERE n.id = 3 SET n.text = NULL;")
+    assert search(connection, "visible") == []
+    connection.execute("MATCH (n:Item) WHERE n.id = 1 SET n.text = 'added token';")
+    assert [row[0] for row in search(connection, "added")] == [1]
+    connection.execute("MATCH (n:Item) WHERE n.id = 2 SET n.text = NULL;")
+    connection.execute("CHECKPOINT;")
+    connection.close()
+    db.close()
+
+    reopened = Database(db_path=database_path, mode="w")
+    reopened_connection = reopened.connect()
+    try:
+        load_fts(reopened_connection)
+        assert [row[0] for row in search(reopened_connection, "added")] == [1]
+        assert search(reopened_connection, "visible") == []
+    finally:
+        reopened_connection.close()
+        reopened.close()
+
+
 def test_fts_index_persistence_after_process_restart(tmp_path):
     database_path = str(tmp_path / "fts_process_restart_db")
     create_script = textwrap.dedent(

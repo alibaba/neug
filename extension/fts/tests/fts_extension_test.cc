@@ -469,7 +469,17 @@ TEST(FTSIndexTest, RejectsInvalidMetadataAndParams) {
   ASSERT_TRUE(result.has_value()) << result.error().ToString();
   EXPECT_TRUE(result->empty());
   auto null_value = valid_index->Upsert(1, Value());
-  EXPECT_EQ(null_value.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  EXPECT_TRUE(null_value.ok()) << null_value.error_message();
+  ASSERT_TRUE(valid_index->Upsert(1, Value::STRING("defined token")).ok());
+  auto defined = valid_index->Search(MakeQuery("defined"));
+  ASSERT_TRUE(defined.has_value()) << defined.error().ToString();
+  ASSERT_EQ(defined->size(), 1u);
+  ASSERT_TRUE(valid_index->Upsert(1, Value()).ok());
+  ASSERT_TRUE(valid_index->Upsert(1, Value()).ok());
+  auto deleted_by_null = valid_index->Search(MakeQuery("defined"));
+  ASSERT_TRUE(deleted_by_null.has_value())
+      << deleted_by_null.error().ToString();
+  EXPECT_TRUE(deleted_by_null->empty());
   auto wrong_type = valid_index->Upsert(2, Value::INT64(42));
   EXPECT_EQ(wrong_type.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
