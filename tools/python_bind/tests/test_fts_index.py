@@ -17,6 +17,9 @@
 #
 
 import os
+import subprocess
+import sys
+import textwrap
 
 import pytest
 
@@ -175,6 +178,39 @@ def test_fts_dynamic_query_parameter_rejects_invalid_values(fts_database):
         list(fts_database.execute(statement, parameters={}))
     with pytest.raises(Exception):
         list(fts_database.execute(statement, parameters={"query": None}))
+
+
+def test_fts_index_persistence_after_process_restart(tmp_path):
+    database_path = str(tmp_path / "fts_process_restart_db")
+    create_script = textwrap.dedent(
+        f"""
+        from neug.database import Database
+        db = Database(db_path={database_path!r}, mode="w")
+        connection = db.connect()
+        connection.execute("LOAD fts;")
+        connection.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, text STRING);")
+        connection.execute("CREATE (:Item {{id: 1, text: 'durable fox'}});")
+        connection.execute("CREATE INDEX item_text_fts ON Item USING FTS (text);")
+        connection.close()
+        db.close()
+        """
+    )
+    reopen_script = textwrap.dedent(
+        f"""
+        from neug.database import Database
+        db = Database(db_path={database_path!r}, mode="w")
+        connection = db.connect()
+        connection.execute("LOAD fts;")
+        query = "MATCH (n:Item) RETURN n.id, bm25(n.text, 'durable') AS score ORDER BY score ASC;"
+        assert [row[0] for row in connection.execute(query)] == [1]
+        connection.execute("CREATE (:Item {{id: 2, text: 'durable hare'}});")
+        assert {{row[0] for row in connection.execute(query)}} == {{1, 2}}
+        connection.close()
+        db.close()
+        """
+    )
+    subprocess.run([sys.executable, "-c", create_script], check=True)
+    subprocess.run([sys.executable, "-c", reopen_script], check=True)
 
 
 @pytest.mark.parametrize("query", ["", "   ", 'unterminated"', "quick.brown"])
