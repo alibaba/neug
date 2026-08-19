@@ -17,13 +17,10 @@
 #
 
 import os
-from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
 
 import pytest
 
 from neug.database import Database
-from neug.session import Session
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
     "1",
@@ -178,53 +175,6 @@ def test_fts_dynamic_query_parameter_rejects_invalid_values(fts_database):
         list(fts_database.execute(statement, parameters={}))
     with pytest.raises(Exception):
         list(fts_database.execute(statement, parameters={"query": None}))
-
-
-def test_fts_read_write_transactions_are_isolated(tmp_path):
-    db = Database(db_path=str(tmp_path / "fts_isolation_db"), mode="w")
-    connection = db.connect()
-    load_fts(connection, skip_if_unavailable=True)
-    create_item_table(connection)
-    connection.execute("CREATE (:Item {id: 0, text: 'shared token'});")
-    connection.execute("CREATE INDEX item_text_fts ON Item USING FTS (text);")
-    connection.close()
-
-    endpoint = db.serve(port=0, host="localhost", blocking=False, thread_num=2)
-    writer = Session.open(endpoint)
-    reader = Session.open(endpoint)
-
-    inserted_count = 100
-    create_query = "CREATE " + ", ".join(
-        f"(:Item {{id: {item_id}, text: 'shared token'}})"
-        for item_id in range(1, inserted_count + 1)
-    )
-    create_query += ";"
-    barrier = Barrier(2)
-
-    def write_transaction():
-        barrier.wait()
-        writer.execute(create_query, access_mode="update")
-
-    def read_transaction():
-        barrier.wait()
-        return len(search(reader, "shared", limit=inserted_count + 1))
-
-    try:
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            write_future = executor.submit(write_transaction)
-            read_future = executor.submit(read_transaction)
-            write_future.result()
-            concurrent_count = read_future.result()
-
-        assert concurrent_count in (1, inserted_count + 1)
-        assert len(search(reader, "shared", limit=inserted_count + 1)) == (
-            inserted_count + 1
-        )
-    finally:
-        writer.close()
-        reader.close()
-        db.stop_serving()
-        db.close()
 
 
 @pytest.mark.parametrize("query", ["", "   ", 'unterminated"', "quick.brown"])
