@@ -252,6 +252,10 @@ WHERE article.id = 1
 DELETE article;
 ```
 
+When `SET` assigns `NULL` to an indexed property, the `NULL` value is not
+inserted into the FTS index. If the property previously contained indexed
+text, its existing index entry is removed.
+
 FTS index data participates in NeuG checkpoints. After reopening a database,
 load the `fts` extension before querying the restored index:
 
