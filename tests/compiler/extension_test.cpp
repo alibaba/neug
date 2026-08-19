@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-#include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN32
+#include <execinfo.h>
 #include <unistd.h>
+#endif
 #include <yaml-cpp/emitter.h>
 #include <string>
 

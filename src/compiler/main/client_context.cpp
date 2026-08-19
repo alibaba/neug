@@ -30,7 +30,6 @@
 #include "neug/compiler/common/task_system/progress_bar.h"
 #include "neug/compiler/common/task_system/task.h"
 #include "neug/compiler/extension/extension.h"
-#include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/option_config.h"
@@ -100,10 +99,6 @@ compiler_impl::Value ClientContext::getCurrentSetting(
   if (extensionOptionValues.contains(lowerCaseOptionName)) {
     return extensionOptionValues.at(lowerCaseOptionName);
   }
-  const auto defaultOption = getExtensionOption(lowerCaseOptionName);
-  if (defaultOption != nullptr) {
-    return defaultOption->defaultValue;
-  }
   THROW_RUNTIME_ERROR("Invalid option name: " + lowerCaseOptionName + ".");
 }
 
@@ -129,21 +124,12 @@ void ClientContext::setExtensionOption(std::string name,
   extensionOptionValues.insert_or_assign(name, std::move(value));
 }
 
-const main::ExtensionOption* ClientContext::getExtensionOption(
-    std::string optionName) const {
-  return localDatabase->extensionManager->getExtensionOption(optionName);
-}
-
 std::shared_ptr<GraphStats> ClientContext::getGraphStats() const {
   return localDatabase->getGraphStats();
 }
 
 storage::MemoryManager* ClientContext::getMemoryManager() const {
   return localDatabase->memoryManager.get();
-}
-
-extension::ExtensionManager* ClientContext::getExtensionManager() const {
-  return localDatabase->extensionManager.get();
 }
 
 Catalog* ClientContext::getCatalog() const {

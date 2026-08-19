@@ -67,7 +67,7 @@ class NEUG_API ColumnPredicate {
   virtual common::ZoneMapCheckResult checkZoneMap(
       const MergedColumnChunkStats& stats) const = 0;
 
-  virtual std::string toString();
+  virtual std::string toString() { return columnName; }
 
   virtual std::unique_ptr<ColumnPredicate> copy() const = 0;
 

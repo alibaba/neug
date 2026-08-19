@@ -18,7 +18,9 @@
 #include <glog/logging.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <sys/statvfs.h>
+#endif
 
 #include <fast_float.h>
 #include <algorithm>
@@ -976,11 +978,19 @@ static void put_null_values(const LoadingConfig& loading_config,
 }
 
 void printDiskRemaining(const std::string& path) {
+#ifdef _WIN32
+  ULARGE_INTEGER free_bytes_available;
+  if (GetDiskFreeSpaceExA(path.c_str(), &free_bytes_available, NULL, NULL)) {
+    LOG(INFO) << "Disk remaining: "
+              << free_bytes_available.QuadPart / 1024 / 1024 << "MB";
+  }
+#else
   struct statvfs buf;
   if (statvfs(path.c_str(), &buf) == 0) {
     LOG(INFO) << "Disk remaining: " << buf.f_bsize * buf.f_bavail / 1024 / 1024
               << "MB";
   }
+#endif
 }
 
 void put_delimiter_option(const std::string& delimiter_str,

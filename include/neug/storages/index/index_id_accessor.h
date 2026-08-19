@@ -18,6 +18,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <unordered_map>
 
 #include "neug/config.h"
@@ -35,6 +36,11 @@ class IndexIDAccessor : public Module {
   virtual index_id_t GetIndexIDByVID(vid_t vid) const = 0;
   virtual vid_t GetVIDByIndexID(index_id_t index_id) const = 0;
   virtual index_id_t GetNextIndexID() const = 0;
+  // Exclusive upper bound of index IDs visible to this accessor snapshot.
+  // Accessible index IDs are in [0, GetVisibleLimit()), excluding IDs in
+  // GetDeletedIndexIDs().
+  virtual index_id_t GetVisibleLimit() const = 0;
+  virtual const std::set<index_id_t>& GetDeletedIndexIDs() const = 0;
   virtual index_id_t UpsertVID(vid_t vid) = 0;
   virtual Status DeleteVID(vid_t vid) = 0;
 
@@ -63,6 +69,10 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
   }
   index_id_t GetNextIndexID() const override {
     return next_index_id_->load(std::memory_order_relaxed);
+  }
+  index_id_t GetVisibleLimit() const override { return visible_limit_; }
+  const std::set<index_id_t>& GetDeletedIndexIDs() const override {
+    return *deleted_index_ids_;
   }
   index_id_t GetIndexIDByVID(vid_t vid) const override;
   vid_t GetVIDByIndexID(index_id_t index_id) const override;
@@ -94,6 +104,12 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
   // Allocate index IDs monotonically. Clones share this counter so index IDs
   // allocated by aborted transactions are not reused by later transactions.
   std::shared_ptr<std::atomic<index_id_t>> next_index_id_;
+  // Exclusive upper bound of index IDs accessible from this accessor snapshot:
+  // [0, visible_limit_). Gaps caused by interleaved index ID allocation are
+  // recorded in deleted_index_ids_ and remain inaccessible to this snapshot.
+  index_id_t visible_limit_{0};
+  std::shared_ptr<std::set<index_id_t>> deleted_index_ids_ =
+      std::make_shared<std::set<index_id_t>>();
 };
 
 // Non-owning adapter for indexes backed by a VecColumn. Its purpose is to
@@ -109,6 +125,8 @@ class VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
   index_id_t GetIndexIDByVID(vid_t vid) const override;
   vid_t GetVIDByIndexID(index_id_t index_id) const override;
   index_id_t GetNextIndexID() const override;
+  index_id_t GetVisibleLimit() const override;
+  const std::set<index_id_t>& GetDeletedIndexIDs() const override;
   index_id_t UpsertVID(vid_t vid) override;
   Status DeleteVID(vid_t vid) override;
 

@@ -43,8 +43,18 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   std::unique_ptr<function::CallFuncInputBase> bindParams(
       const execution::ParamsMap& params) const override;
 
-  void bindContext(execution::Context&& input_context) override {
-    context = std::move(input_context);
+  std::unique_ptr<function::CallFuncInputBase> bindContext(
+      execution::Context&& input_context) const override {
+    auto bound = std::make_unique<FTSIndexScanFuncInput>();
+    bound->label_id = label_id;
+    bound->unique_index_name = unique_index_name;
+    bound->query_string = query_string;
+    bound->limit = limit;
+    bound->ascending = ascending;
+    bound->node_alias = node_alias;
+    bound->score_alias = score_alias;
+    bound->context = std::move(input_context);
+    return bound;
   }
 };
 

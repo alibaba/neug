@@ -56,7 +56,8 @@ struct NEUG_API WarningSourceData {
   static constexpr size_t NUM_BLOCK_VALUES = 2;
 
   WarningSourceData() : WarningSourceData(0) {}
-  explicit WarningSourceData(uint64_t numSourceSpecificValues);
+  explicit WarningSourceData(uint64_t numSourceSpecificValues)
+      : numValues(numSourceSpecificValues) {}
 
   template <std::integral... Types>
   void dumpTo(uint64_t& blockIdx, uint32_t& offsetInBlock,

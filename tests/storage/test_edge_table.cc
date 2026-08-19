@@ -15,6 +15,10 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <string_view>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#endif
 
 #include "neug/common/types/value.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
@@ -75,7 +79,9 @@ class EdgeTableTest : public ::testing::Test {
     edge_label_str_ = schema_.get_edge_label_id("create2");
     edge_label_str_int_ = schema_.get_edge_label_id("create3");
     allocator_dir_ =
-        "/tmp/edge_table_test_allocator_" + std::to_string(::getpid()) + "_";
+        (std::filesystem::temp_directory_path() /
+         ("edge_table_test_allocator_" + std::to_string(::getpid()) + "_"))
+            .string();
     ws.Open(temp_dir_.string());
   }
   void TearDown() override {

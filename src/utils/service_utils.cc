@@ -15,6 +15,9 @@
 
 #include "neug/utils/service_utils.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <fcntl.h>
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
@@ -23,6 +26,7 @@
 #endif
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 #include <cstdint>
 #include <unordered_map>
 
@@ -30,6 +34,20 @@ namespace neug {
 
 // get current executable's directory
 std::string get_current_dir() {
+#ifdef _WIN32
+  char buf[MAX_PATH];
+  DWORD len = GetModuleFileNameA(NULL, buf, MAX_PATH);
+  if (len == 0 || len >= MAX_PATH) {
+    LOG(ERROR) << "Failed to get current executable path";
+    return "";
+  }
+  std::string exe_path(buf);
+  size_t pos = exe_path.rfind('\\');
+  if (pos == std::string::npos) {
+    return "";
+  }
+  return exe_path.substr(0, pos);
+#else
   char buf[1024];
   int dirfd = open("/proc/self/", O_RDONLY | O_DIRECTORY);
   if (dirfd == -1) {
@@ -44,6 +62,7 @@ std::string get_current_dir() {
   close(dirfd);
   std::string exe_path(buf);
   return exe_path.substr(0, exe_path.rfind('/'));
+#endif
 }
 
 std::pair<uint64_t, uint64_t> get_total_physical_memory_usage() {
@@ -66,6 +85,17 @@ std::pair<uint64_t, uint64_t> get_total_physical_memory_usage() {
   }
   // Get the used physical memory
   int64_t used_mem = total_mem - free_mem;
+  return std::make_pair(used_mem, total_mem);
+#elif defined(_WIN32)
+  MEMORYSTATUSEX status;
+  status.dwLength = sizeof(status);
+  if (!GlobalMemoryStatusEx(&status)) {
+    LOG(ERROR) << "Failed to get memory status";
+    return std::make_pair(0, 0);
+  }
+  uint64_t total_mem = status.ullTotalPhys;
+  uint64_t free_mem = status.ullAvailPhys;
+  uint64_t used_mem = total_mem - free_mem;
   return std::make_pair(used_mem, total_mem);
 #else
   struct sysinfo memInfo;

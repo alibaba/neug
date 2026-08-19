@@ -15,7 +15,11 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
+#ifdef _WIN32
+#include "glob/glob/glob.hpp"
+#else
 #include <glob.h>
+#endif
 #include <glog/logging.h>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
@@ -343,6 +347,11 @@ std::vector<std::string> match_files_with_pattern(
   std::vector<std::string> result;
   if (file_path.find('*') != std::string::npos ||
       file_path.find('?') != std::string::npos) {
+#ifdef _WIN32
+    for (const auto& p : glob::glob(file_path)) {
+      result.push_back(p.string());
+    }
+#else
     glob_t glob_result;
     int flags = GLOB_TILDE | GLOB_MARK;
     int ret = glob(file_path.c_str(), flags, nullptr, &glob_result);
@@ -352,6 +361,7 @@ std::vector<std::string> match_files_with_pattern(
       }
     }
     globfree(&glob_result);
+#endif
   } else {
     std::filesystem::path p = std::filesystem::absolute(file_path);
     if (!std::filesystem::exists(p)) {

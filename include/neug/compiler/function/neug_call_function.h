@@ -37,9 +37,12 @@ namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
 
-  // Bind the input context immediately before execution. Call functions that
-  // do not consume an input context can use the default no-op implementation.
-  virtual void bindContext(execution::Context&& /*input_context*/) {}
+  // Bind the input context into a per-Eval input immediately before execution.
+  // Call functions that do not support context binding return nullptr.
+  virtual std::unique_ptr<CallFuncInputBase> bindContext(
+      execution::Context&& /*input_context*/) const {
+    return nullptr;
+  }
 
   // Bind deferred $param args into a per-Eval input.
   // Opr stores this object unbound after bindFunc; Eval calls bindParams and

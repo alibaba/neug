@@ -15,9 +15,11 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "neug/compiler/extension/extension_action.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/schema.h"
@@ -34,15 +36,39 @@ enum class ExplainMode {
 
 enum class QueryKind {
   kRegular,
+  kAdmin,
+};
+
+enum class AdminType : uint8_t {
   kCheckpoint,
+  kInstallExtension,
+  kLoadExtension,
+  kUninstallExtension,
+};
+
+struct ExtensionAdminInfo {
+  extension::ExtensionAction action;
+  std::string name;
+  std::string repository;
+};
+
+struct AdminRequest {
+  AdminType type;
+  std::optional<ExtensionAdminInfo> extension;
 };
 
 struct QueryAnalysis {
   AccessMode access_mode = AccessMode::kRead;
   ExplainMode explain_mode = ExplainMode::kNone;
   QueryKind kind = QueryKind::kRegular;
+  std::optional<AdminRequest> admin;
 
-  bool checkpoint() const { return kind == QueryKind::kCheckpoint; }
+  bool isAdmin() const {
+    return kind == QueryKind::kAdmin && admin.has_value();
+  }
+  bool checkpoint() const {
+    return isAdmin() && admin->type == AdminType::kCheckpoint;
+  }
 };
 
 /**

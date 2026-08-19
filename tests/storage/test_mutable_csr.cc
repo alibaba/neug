@@ -15,6 +15,10 @@
 
 #include <gtest/gtest.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#endif
 #include <atomic>
 #include <chrono>
 #include <iostream>

@@ -44,12 +44,17 @@ function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_
                 get_filename_component(SRC_DIR ${SRC} DIRECTORY)
 
                 string(REPLACE ";" " " PROTOC_INCLUDE_ARGS_STR "${PROTOC_INCLUDE_ARGS}")
-                message(STATUS "Generating protobuf C++ files with command: ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS_STR} --cpp_out=${DESTDIR} ${PROTO_DIR}/${REL_PROTO}")
+                if(WIN32)
+                        set(PROTOC_DLLEXPORT "dllexport_decl=NEUG_API:")
+                else()
+                        set(PROTOC_DLLEXPORT "")
+                endif()
+                message(STATUS "Generating protobuf C++ files with command: ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS_STR} --cpp_out=${PROTOC_DLLEXPORT}${DESTDIR} ${PROTO_DIR}/${REL_PROTO}")
 
                 add_custom_command(
                         OUTPUT ${HDR} ${SRC}
                         COMMAND ${CMAKE_COMMAND} -E make_directory ${HDR_DIR} ${SRC_DIR}
-                        COMMAND ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS} --cpp_out=${DESTDIR} ${PROTO_DIR}/${REL_PROTO}
+                        COMMAND ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS} --cpp_out=${PROTOC_DLLEXPORT}${DESTDIR} ${PROTO_DIR}/${REL_PROTO}
                         # When HDR_OUTPUT_DIR differs from DESTDIR, optionally copy headers
                         COMMAND ${CMAKE_COMMAND} -E copy ${HDR} ${HDR_OUTPUT_DIR}/${HDR_RELATIVE}
                         DEPENDS ${PROTO_DIR}/${REL_PROTO}
