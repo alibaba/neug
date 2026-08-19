@@ -17,6 +17,9 @@
 
 #include <gtest/gtest.h>
 
+#include <unistd.h>
+
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -31,21 +34,29 @@ namespace neug {
 namespace test {
 namespace {
 
-constexpr const char* INPUT_STREAM_TEST_DIR = "/tmp/input_stream_test";
+/// Unique per-process directory so parallel test binaries (or leftover
+/// directories from other users) cannot interfere with this suite.
+const std::string& inputStreamTestDir() {
+  static const std::string dir =
+      (std::filesystem::temp_directory_path() /
+       ("neug_input_stream_test_" + std::to_string(::getpid())))
+          .string();
+  return dir;
+}
 
 class InputStreamTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    std::filesystem::remove_all(INPUT_STREAM_TEST_DIR);
-    std::filesystem::create_directories(INPUT_STREAM_TEST_DIR);
+    std::filesystem::remove_all(inputStreamTestDir());
+    std::filesystem::create_directories(inputStreamTestDir());
   }
 
   void TearDown() override {
-    std::filesystem::remove_all(INPUT_STREAM_TEST_DIR);
+    std::filesystem::remove_all(inputStreamTestDir());
   }
 
   std::string writeFile(const std::string& name, const std::string& content) {
-    std::string path = std::string(INPUT_STREAM_TEST_DIR) + "/" + name;
+    std::string path = std::string(inputStreamTestDir()) + "/" + name;
     std::ofstream out(path, std::ios::binary);
     out << content;
     return path;
@@ -112,7 +123,7 @@ TEST_F(InputStreamTest, LocalFileUriPrefix) {
 
 TEST_F(InputStreamTest, LocalMissingFileThrows) {
   EXPECT_THROW(
-      io::openLocalInputStream(std::string(INPUT_STREAM_TEST_DIR) + "/nope"),
+      io::openLocalInputStream(std::string(inputStreamTestDir()) + "/nope"),
       exception::IOException);
 }
 
@@ -256,6 +267,81 @@ TEST_F(InputStreamTest, ReadHeaderStreamingWithEscaping) {
   // Naive delimiter split is the existing semantics on both paths; the
   // escape char is consumed when unescaping each token.
   EXPECT_EQ(streamed, local);
+}
+
+// =============== IoStreamBuf error propagation ===============
+
+/// Serves one valid read, then fails on every subsequent read — the
+/// shape of a remote connection dropping mid-file. IO errors must
+/// surface as exceptions, never be disguised as end of stream.
+class PartialThenFailingInputStream : public io::InputStream {
+ public:
+  explicit PartialThenFailingInputStream(std::string data)
+      : data_(std::move(data)) {}
+
+  result<int64_t> Read(void* out, int64_t nbytes) override {
+    auto r = ReadAt(position_, nbytes, out);
+    if (r) {
+      position_ += *r;
+    }
+    return r;
+  }
+
+  result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override {
+    if (failed_) {
+      return tl::unexpected(neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                                         "simulated remote read failure"));
+    }
+    failed_ = true;  // any subsequent read fails
+    const int64_t avail =
+        std::max<int64_t>(0, static_cast<int64_t>(data_.size()) - position);
+    const int64_t n = std::min(nbytes, avail);
+    if (n > 0) {
+      std::memcpy(out, data_.data() + position, static_cast<size_t>(n));
+    }
+    return n;
+  }
+
+  result<int64_t> GetSize() override {
+    return static_cast<int64_t>(data_.size());
+  }
+
+  void Close() override {}
+
+ private:
+  std::string data_;
+  int64_t position_ = 0;
+  bool failed_ = false;
+};
+
+TEST_F(InputStreamTest, IoStreamReadFailureSurfacesAsException) {
+  // The first read succeeds and lands in the internal buffer; refilling
+  // then fails. getline must throw instead of silently stopping.
+  auto stream = io::makeIoStream(
+      std::make_unique<PartialThenFailingInputStream>("line1\nline2\n"));
+  std::string line;
+  ASSERT_NO_THROW(std::getline(*stream, line));
+  EXPECT_EQ(line, "line1");
+  ASSERT_NO_THROW(std::getline(*stream, line));
+  EXPECT_EQ(line, "line2");
+  // Buffer is exhausted; the next fill hits the simulated failure.
+  EXPECT_THROW(std::getline(*stream, line), exception::IOException);
+}
+
+TEST_F(InputStreamTest, IoStreamLargeReadFailureSurfacesAsException) {
+  // 3 MiB of data with a 2 MiB request exercises the xsgetn direct path
+  // (bypassing the 1 MiB internal buffer); the follow-up read fails.
+  const std::string data(3u << 20, 'x');
+  auto stream =
+      io::makeIoStream(std::make_unique<PartialThenFailingInputStream>(data));
+  std::vector<char> buf(2u << 20);
+  ASSERT_NO_THROW(
+      stream->read(buf.data(), static_cast<std::streamsize>(buf.size())));
+  EXPECT_FALSE(stream->fail());
+  EXPECT_EQ(stream->gcount(), static_cast<std::streamsize>(buf.size()));
+  EXPECT_THROW(
+      stream->read(buf.data(), static_cast<std::streamsize>(buf.size())),
+      exception::IOException);
 }
 
 }  // namespace

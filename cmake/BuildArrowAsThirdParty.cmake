@@ -95,6 +95,16 @@ function(build_arrow_as_third_party)
     # implements the S3 protocol (SigV4, ranged GET, ListObjectsV2, multipart
     # upload) directly on top of libcurl + OpenSSL, so Arrow's bundled AWS SDK
     # (and its aws-lc/BoringSSL + static libcurl baggage) is no longer needed.
+    # The retired ARROW_ENABLE_S3 flag has no effect anymore; warn loudly
+    # instead of silently ignoring it (stale cache entries from older
+    # builds would otherwise suggest Arrow S3 is still enabled).
+    if(ARROW_ENABLE_S3)
+        message(WARNING "ARROW_ENABLE_S3 is no longer supported and will be "
+            "ignored: S3 support now lives in the httpfs extension's "
+            "curl-based client. Remove -DARROW_ENABLE_S3 from your build "
+            "configuration.")
+        unset(ARROW_ENABLE_S3 CACHE)
+    endif()
     set(ARROW_S3 OFF CACHE BOOL "" FORCE)
     # Enable Snappy and Zlib
     set(ARROW_WITH_SNAPPY ON CACHE BOOL "" FORCE)

@@ -624,5 +624,28 @@ TEST_F(ReaderTest, TestJsonStreamingRead) {
   EXPECT_EQ(ctx.row_num(), 3);
 }
 
+// A header-only CSV has no data rows: full_read must return an empty
+// result instead of failing the column-count validation ("Column number
+// mismatch between schema and CSV data").
+TEST_F(ReaderTest, TestCsvHeaderOnlyFileReturnsEmpty) {
+  createCsvFile("header_only.csv", "id|name|score\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  auto sharedState =
+      createSharedState("header_only.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_EQ(ctx.col_num(), 0);
+  EXPECT_EQ(ctx.row_num(), 0);
+}
+
 }  // namespace test
 }  // namespace neug

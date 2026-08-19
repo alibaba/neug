@@ -34,14 +34,20 @@ class RemoteOutputStreamAdapter : public io::OutputStream {
 
   ~RemoteOutputStreamAdapter() override {
     if (inner_ && !closed_) {
-      // Best-effort finalization; errors are reported through Close().
-      (void) inner_->Close();
+      // A write failure means we must not finalize the object (that would
+      // publish partial data); abort instead. Best-effort either way.
+      if (failed_) {
+        (void) inner_->Abort();
+      } else {
+        (void) inner_->Close();
+      }
     }
   }
 
   neug::Status Write(const uint8_t* data, int64_t nbytes) override {
     auto r = inner_->Write(data, nbytes);
     if (!r) {
+      failed_ = true;
       return r.error();
     }
     return neug::Status::OK();
@@ -52,6 +58,11 @@ class RemoteOutputStreamAdapter : public io::OutputStream {
       return neug::Status::OK();
     }
     closed_ = true;
+    if (failed_) {
+      // Never publish a partial object after a write failure.
+      (void) inner_->Abort();
+      return neug::Status::OK();
+    }
     auto r = inner_->Close();
     if (!r) {
       return r.error();
@@ -59,9 +70,18 @@ class RemoteOutputStreamAdapter : public io::OutputStream {
     return neug::Status::OK();
   }
 
+  void Abort() override {
+    if (closed_) {
+      return;
+    }
+    closed_ = true;
+    (void) inner_->Abort();
+  }
+
  private:
   std::shared_ptr<fsys::OutputStream> inner_;
   bool closed_ = false;
+  bool failed_ = false;
 };
 
 }  // namespace

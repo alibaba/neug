@@ -77,6 +77,7 @@ if(BUILD_TEST)
     endif()
     add_extension_test(NAME parquet
         TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/parquet_test.cc
+                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/arrow_fs_adapter_test.cc
         EXTRA_LINK_LIBS ${_parquet_test_dataset_lib} ${ARROW_PARQUET_LIB}
     )
 endif()

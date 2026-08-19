@@ -62,6 +62,12 @@ class OutputStream {
 
   /// Finalize the object (flush buffers / complete multipart upload).
   virtual result<void> Close() = 0;
+
+  /// Discard the object instead of publishing it (e.g. abort a dangling
+  /// multipart upload). Called on write failures so a partial object is
+  /// never visible to readers. Best-effort default for backends without
+  /// staged writes.
+  virtual result<void> Abort() { return {}; }
 };
 
 /// Arrow-agnostic handle to a remote file system (HTTP/HTTPS, S3/OSS, ...).

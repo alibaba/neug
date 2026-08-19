@@ -351,5 +351,39 @@ TEST_F(JsonTest, TestJsonArrayStreaming) {
   EXPECT_DOUBLE_EQ(col2->get_elem(1).GetValue<double>(), 30.0);
 }
 
+// An empty JSON array has no data rows: full_read must return an empty
+// result instead of failing the column-count validation.
+TEST_F(JsonTest, TestEmptyJsonArrayReturnsEmpty) {
+  createJsonFile("test_json_array_empty.json", "[]");
+  auto sharedState = createSharedState(
+      "test_json_array_empty.json", {"id", "name", "age"},
+      {createUInt32Type(), createStringType(), createDoubleType()},
+      {{"batch_read", "false"}});
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_EQ(ctx.col_num(), 0);
+  EXPECT_EQ(ctx.row_num(), 0);
+}
+
+// Same, through the streaming path (InputStream-backed read).
+TEST_F(JsonTest, TestEmptyJsonArrayStreamingReturnsEmpty) {
+  createJsonFile("test_json_array_empty_stream.json", "[]");
+  auto sharedState = createSharedState(
+      "test_json_array_empty_stream.json", {"id", "name", "age"},
+      {createUInt32Type(), createStringType(), createDoubleType()},
+      {{"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createJsonReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_EQ(ctx.col_num(), 0);
+  EXPECT_EQ(ctx.row_num(), 0);
+}
+
 }  // namespace test
 }  // namespace neug

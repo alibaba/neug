@@ -72,6 +72,7 @@ class StreamOutputStream : public arrow::io::OutputStream {
   std::shared_ptr<fsys::OutputStream> stream_;
   int64_t position_ = 0;
   bool closed_ = false;
+  bool failed_ = false;
 };
 
 /**

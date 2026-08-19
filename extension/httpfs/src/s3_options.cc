@@ -408,9 +408,17 @@ void S3OptionsBuilder::configureCredentials(S3ClientConfig& config) const {
     LOG(INFO) << "Configured credentials (access_key: "
               << maskCredential(config.access_key) << ")";
   } else {
-    config.anonymous = true;
-    LOG(INFO) << "No credentials found in options or environment; "
-              << "falling back to anonymous access (public buckets only)";
+    // Fail loudly instead of silently downgrading to anonymous: earlier
+    // versions resolved Default through ~/.aws/credentials and IAM/ECS
+    // roles, which this build does not support. A silent anonymous
+    // fallback would turn those deployments into hard-to-diagnose 403s.
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "CREDENTIALS_KIND=Default found no credentials in options or "
+        "environment. Credentials files (~/.aws/credentials) and IAM/ECS "
+        "role credentials are not supported. Provide "
+        "OSS_ACCESS_KEY_ID/OSS_ACCESS_KEY_SECRET (or AWS_ACCESS_KEY_ID/"
+        "AWS_SECRET_ACCESS_KEY) explicitly, or set "
+        "CREDENTIALS_KIND=Anonymous for public buckets.");
   }
 }
 

@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
+#include <arpa/inet.h>
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <atomic>
 #include <cstdlib>
+#include <string>
 #include <thread>
 #include <vector>
 #include "../include/http_filesystem.h"
@@ -238,6 +243,128 @@ TEST_F(HTTPFileSystemTest, ConcurrentConstruction_ThreadSafety) {
 
   EXPECT_EQ(success_count.load(), kNumThreads)
       << "All threads should construct HTTPFileSystem without error";
+}
+
+// ============================================================================
+// Range-unsupporting server: ReadAt must reject a 200 response instead of
+// serving offset-0 bytes as data at the requested position.
+// ============================================================================
+
+/// Minimal loopback HTTP server that ignores the Range header and always
+/// answers 200 with the full body — the shape of a server without Range
+/// support.
+class NoRangeHTTPServer {
+ public:
+  explicit NoRangeHTTPServer(std::string body) : body_(std::move(body)) {}
+
+  ~NoRangeHTTPServer() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0) {
+      return false;
+    }
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;  // ephemeral port
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0) {
+      return false;
+    }
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false)) {
+      return;
+    }
+    if (listen_fd_ >= 0) {
+      ::shutdown(listen_fd_, SHUT_RDWR);
+      ::close(listen_fd_);
+      listen_fd_ = -1;
+    }
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+  }
+
+  int port() const { return port_; }
+
+ private:
+  void serve() {
+    while (running_) {
+      int fd = ::accept(listen_fd_, nullptr, nullptr);
+      if (fd < 0) {
+        break;
+      }
+      handle(fd);
+      ::close(fd);
+    }
+  }
+
+  void handle(int fd) {
+    // Read until the request headers are complete.
+    std::string request;
+    char buf[1024];
+    while (request.find("\r\n\r\n") == std::string::npos) {
+      ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0) {
+        return;
+      }
+      request.append(buf, static_cast<size_t>(n));
+    }
+    const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+    // Always 200 with the full body; the Range header is ignored.
+    std::string response =
+        "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(body_.size()) +
+        "\r\nConnection: close\r\n\r\n";
+    if (!is_head) {
+      response += body_;
+    }
+    ::send(fd, response.data(), response.size(), 0);
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+};
+
+TEST_F(HTTPFileSystemTest, ReadAtRejectsServerWithoutRangeSupport) {
+  NoRangeHTTPServer server("0123456789");
+  ASSERT_TRUE(server.start());
+
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
+
+  // The server answers 200 with bytes from offset 0; those must not be
+  // served as data at position 2 (silent corruption). The read must fail.
+  char buf[4];
+  auto r = stream->ReadAt(2, 4, buf);
+  ASSERT_FALSE(r.has_value());
+  EXPECT_EQ(r.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
+
+  stream->Close();
+  server.stop();
 }
 
 // ============================================================================

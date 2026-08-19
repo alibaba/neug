@@ -55,7 +55,12 @@ namespace {
 
 size_t WriteToString(void* contents, size_t size, size_t nmemb, void* userp) {
   auto* out = static_cast<std::string*>(userp);
-  out->append(static_cast<char*>(contents), size * nmemb);
+  // Never let an exception (e.g. std::bad_alloc from append) escape into
+  // libcurl's C frames — that is undefined behavior. Return 0 so curl
+  // aborts the transfer with CURLE_WRITE_ERROR.
+  try {
+    out->append(static_cast<char*>(contents), size * nmemb);
+  } catch (...) { return 0; }
   return size * nmemb;
 }
 

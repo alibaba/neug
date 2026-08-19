@@ -64,8 +64,12 @@ execution::Context writeExecFunc(
   auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
       schema, entry_schema);
   // Resolve the output stream through the VFS so remote schemes
-  // (s3/oss/http/https) are written via the httpfs extension.
-  writer->setOutputStream(openExportOutputStream(schema));
+  // (s3/oss/http/https) are written via the httpfs extension. Opening is
+  // deferred to writeTable() (after the query results are sunk) so a failed
+  // export never truncates the target. The schema reference is valid for the
+  // whole synchronous write() call.
+  writer->setStreamOpener(
+      [&schema]() { return openExportOutputStream(schema); });
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     if (status.error_code() == StatusCode::ERR_PERMISSION) {

@@ -364,11 +364,14 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
       return bytes_received;
     }
     if (response_code == 200) {
-      // Server doesn't support Range requests and sent the full file.
-      LOG(WARNING) << "Server returned 200 instead of 206 — Range requests "
-                   << "may not be supported. Received " << bytes_received
-                   << " of " << nbytes << " requested bytes.";
-      return bytes_received;
+      // The server ignored the Range request and returned the file from
+      // offset 0; those bytes would be misinterpreted as starting at
+      // `position`, silently corrupting the data. Fail loudly instead.
+      RETURN_STATUS_ERROR(
+          neug::StatusCode::ERR_IO_ERROR,
+          "Server ignored the Range request (returned 200); Range support "
+          "is required: " +
+              url_);
     }
     RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                         "HTTP Range request failed with status " +

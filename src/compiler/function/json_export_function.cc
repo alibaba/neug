@@ -369,7 +369,9 @@ static Status writeTableWithBuffer(StringFormatBuffer& buffer,
     if ((i + 1) % static_cast<size_t>(batchSize) == 0) {
       auto status = buffer.flush(*stream);
       if (!status.ok()) {
-        (void) stream->Close();
+        // Abort instead of Close: finalizing a remote stream would publish
+        // a partial object.
+        stream->Abort();
         return Status(StatusCode::ERR_IO_ERROR,
                       "Failed to flush JSON buffer: " + status.ToString());
       }
@@ -378,7 +380,7 @@ static Status writeTableWithBuffer(StringFormatBuffer& buffer,
 
   auto status = buffer.flush(*stream);
   if (!status.ok()) {
-    (void) stream->Close();
+    stream->Abort();
     return Status(StatusCode::ERR_IO_ERROR,
                   "Failed to flush JSON buffer: " + status.ToString());
   }

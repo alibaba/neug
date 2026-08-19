@@ -270,16 +270,19 @@ TEST(S3OptionsBuilderTest, AnonymousKind) {
   EXPECT_TRUE(config.anonymous);
 }
 
-TEST(S3OptionsBuilderTest, DefaultFallsBackToAnonymousWithoutCreds) {
+TEST(S3OptionsBuilderTest, DefaultWithoutCredsThrows) {
   // Make sure no credentials leak in from the environment.
   ::unsetenv("OSS_ACCESS_KEY_ID");
   ::unsetenv("OSS_ACCESS_KEY_SECRET");
   ::unsetenv("AWS_ACCESS_KEY_ID");
   ::unsetenv("AWS_SECRET_ACCESS_KEY");
 
-  auto config = S3OptionsBuilder(makeSchema("s3://bucket/key")).build();
-  EXPECT_TRUE(config.anonymous);
-  EXPECT_EQ(config.region, "us-east-1");
+  // Default mode must fail loudly when no credentials are available:
+  // silently downgrading to anonymous would break deployments that rely
+  // on ~/.aws/credentials or IAM/ECS roles (no longer supported) with
+  // hard-to-diagnose 403s.
+  EXPECT_THROW(S3OptionsBuilder(makeSchema("s3://bucket/key")).build(),
+               neug::exception::InvalidArgumentException);
 }
 
 TEST(S3OptionsBuilderTest, DefaultReadsEnvironmentVariables) {
@@ -303,6 +306,9 @@ TEST(S3OptionsBuilderTest, DefaultReadsEnvironmentVariables) {
 TEST(S3OptionsBuilderTest, EndpointSchemeParsing) {
   neug::reader::options_t options;
   options["ENDPOINT_OVERRIDE"] = "http://localhost:9000";
+  // This test targets endpoint parsing; opt out of credential resolution
+  // (Default now fails fast when no credentials are configured).
+  options["CREDENTIALS_KIND"] = "Anonymous";
   auto config =
       S3OptionsBuilder(makeSchema("s3://bucket/key", options)).build();
   EXPECT_EQ(config.endpoint, "localhost:9000");

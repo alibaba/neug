@@ -254,6 +254,25 @@ class S3OutputStream : public fsys::OutputStream {
     return {};
   }
 
+  result<void> Abort() override {
+    if (closed_) {
+      return {};  // idempotent
+    }
+    closed_ = true;
+    buffer_.clear();
+    parts_.clear();
+    if (!started_) {
+      // Nothing has been uploaded yet; nothing to abort.
+      return {};
+    }
+    auto r = client_->abortMultipartUpload(bucket_, key_, upload_id_);
+    if (!r) {
+      return tl::unexpected(r.error());
+    }
+    LOG(INFO) << "Multipart upload aborted: " << describe();
+    return {};
+  }
+
  private:
   // Upload the first `len` bytes of buffer_ as the next part.
   result<void> flushPart(int64_t len) {

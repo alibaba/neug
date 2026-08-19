@@ -67,7 +67,10 @@ arrow::Status StreamRandomAccessFile::Seek(int64_t position) {
 }
 
 arrow::Result<int64_t> StreamRandomAccessFile::Read(int64_t nbytes, void* out) {
-  auto r = stream_->Read(nbytes, out);
+  // Sequential reads go through ReadAt so they respect Seek(): the
+  // underlying stream maintains its own position which Seek() does not
+  // touch.
+  auto r = stream_->ReadAt(position_, nbytes, out);
   if (!r.has_value()) {
     return ToArrowStatus(r.error());
   }
@@ -78,7 +81,7 @@ arrow::Result<int64_t> StreamRandomAccessFile::Read(int64_t nbytes, void* out) {
 arrow::Result<std::shared_ptr<arrow::Buffer>> StreamRandomAccessFile::Read(
     int64_t nbytes) {
   ARROW_ASSIGN_OR_RAISE(auto buffer, arrow::AllocateResizableBuffer(nbytes));
-  auto r = stream_->Read(nbytes, buffer->mutable_data());
+  auto r = stream_->ReadAt(position_, nbytes, buffer->mutable_data());
   if (!r.has_value()) {
     return ToArrowStatus(r.error());
   }
@@ -126,8 +129,14 @@ StreamOutputStream::StreamOutputStream(
 
 StreamOutputStream::~StreamOutputStream() {
   if (!closed_) {
-    // Best-effort finalize; errors are unrecoverable at destruction time.
-    (void) stream_->Close();
+    // Best-effort finalization at destruction time. If any write failed,
+    // abort instead of publishing a partial remote object; otherwise
+    // finalize. Errors are unrecoverable at destruction time.
+    if (failed_) {
+      (void) stream_->Abort();
+    } else {
+      (void) stream_->Close();
+    }
     closed_ = true;
   }
 }
@@ -151,6 +160,7 @@ arrow::Result<int64_t> StreamOutputStream::Tell() const { return position_; }
 arrow::Status StreamOutputStream::Write(const void* data, int64_t nbytes) {
   auto r = stream_->Write(data, nbytes);
   if (!r.has_value()) {
+    failed_ = true;
     return ToArrowStatus(r.error());
   }
   position_ += nbytes;

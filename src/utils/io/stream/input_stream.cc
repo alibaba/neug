@@ -44,8 +44,11 @@ std::string normalizeLocalPath(const std::string& path) {
 /// an explicit logical position so the two never interfere.
 class FileInputStream : public InputStream {
  public:
-  explicit FileInputStream(const std::string& path)
-      : stream_(path, std::ios::binary) {
+  explicit FileInputStream(const std::string& path) {
+    // errno is only meaningful for this open; reset it first because a
+    // stale value from a previous syscall could misclassify the failure.
+    errno = 0;
+    stream_.open(path, std::ios::binary);
     if (!stream_) {
       if (errno == EACCES || errno == EPERM) {
         THROW_PERMISSION_DENIED("Failed to open input file: " + path);
@@ -172,7 +175,14 @@ IoStreamBuf::IoStreamBuf(std::unique_ptr<InputStream> input)
 bool IoStreamBuf::fillBuffer() {
   auto r = input_->ReadAt(position_, static_cast<int64_t>(buffer_.size()),
                           buffer_.data());
-  if (!r || *r <= 0) {
+  if (!r) {
+    // A real IO error (network failure, timeout, ...); never disguise it
+    // as end of stream — callers must not silently accept a truncated
+    // read as a complete source.
+    THROW_IO_EXCEPTION("Failed to read from input stream: " +
+                       r.error().error_message());
+  }
+  if (*r == 0) {
     setg(buffer_.data(), buffer_.data(), buffer_.data());
     return false;
   }
@@ -200,7 +210,12 @@ std::streamsize IoStreamBuf::xsgetn(char* s, std::streamsize n) {
       const auto remaining = static_cast<int64_t>(n - total);
       if (remaining >= static_cast<int64_t>(buffer_.size())) {
         auto r = input_->ReadAt(position_, remaining, s + total);
-        if (!r || *r <= 0) {
+        if (!r) {
+          // IO error: propagate instead of pretending the stream ended.
+          THROW_IO_EXCEPTION("Failed to read from input stream: " +
+                             r.error().error_message());
+        }
+        if (*r == 0) {
           break;
         }
         position_ += *r;
@@ -263,10 +278,15 @@ namespace {
 
 /// Owns the streambuf and the istream together; bases are initialized
 /// in declaration order, so the buffer is ready when istream binds it.
+/// badbit exceptions are enabled so IO errors raised by the streambuf
+/// propagate to callers instead of being swallowed into stream state
+/// (which would make a truncated remote read look like end of stream).
 class IoIStream : private IoStreamBuf, public std::istream {
  public:
   explicit IoIStream(std::unique_ptr<InputStream> input)
-      : IoStreamBuf(std::move(input)), std::istream(this) {}
+      : IoStreamBuf(std::move(input)), std::istream(this) {
+    exceptions(std::ios::badbit);
+  }
 };
 
 }  // namespace

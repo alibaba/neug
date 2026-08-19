@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -143,17 +144,19 @@ class CsvQueryExportWriter : public QueryExportWriter {
       : QueryExportWriter(schema, std::move(entry_schema)) {}
   ~CsvQueryExportWriter() override = default;
 
-  /// Injects a pre-opened output stream (e.g. a remote stream resolved via
-  /// the VFS). When set, writeTable() writes to it instead of opening a
-  /// local file.
-  void setOutputStream(std::unique_ptr<io::OutputStream> stream) {
-    injected_stream_ = std::move(stream);
+  /// Injects an output stream opener (e.g. a remote stream resolved via
+  /// the VFS). writeTable() invokes it after the query results are sunk,
+  /// so a failed export never opens or truncates the target. When unset,
+  /// a local file is opened instead.
+  void setStreamOpener(
+      std::function<std::unique_ptr<io::OutputStream>()> opener) {
+    stream_opener_ = std::move(opener);
   }
 
   neug::Status writeTable(const QueryResponse* table) override;
 
  private:
-  std::unique_ptr<io::OutputStream> injected_stream_;
+  std::function<std::unique_ptr<io::OutputStream>()> stream_opener_;
 };
 
 }  // namespace writer

@@ -90,7 +90,8 @@ class IoStreamBuf : public std::streambuf {
 
  private:
   /// Fill the internal buffer at the current logical position.
-  /// Returns false on error or end of stream.
+  /// Returns false on end of stream; throws an IO exception when the
+  /// underlying read fails (an IO error must never be reported as EOF).
   bool fillBuffer();
 
   std::unique_ptr<InputStream> input_;

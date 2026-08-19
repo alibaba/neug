@@ -99,9 +99,11 @@ rapidjson::Document parse_json_array_file(
                        std::to_string(document.GetErrorOffset()) + ": " +
                        rapidjson::GetParseError_En(document.GetParseError()));
   }
-  if (!document.IsArray() || document.Empty()) {
-    THROW_IO_EXCEPTION("Expected non-empty JSON array in file: " + path);
+  if (!document.IsArray()) {
+    THROW_IO_EXCEPTION("Expected JSON array in file: " + path);
   }
+  // An empty array is a valid source with zero rows; readers emit an
+  // empty result instead of failing.
   for (const auto& obj : document.GetArray()) {
     if (!obj.IsObject()) {
       THROW_IO_EXCEPTION("Expected JSON object in array in file: " + path);
