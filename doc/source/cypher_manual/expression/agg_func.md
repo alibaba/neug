@@ -22,3 +22,9 @@ avg | return the average value | NO | RETURN avg(a.age);
   after ignoring `NULL` are the same as for empty input: `count()` and `sum`
   return `0`, `collect` returns `[]`, and `avg`, `min`, and `max` return
   `NULL`. `count(*)` still returns the total number of input rows.
+
+Input | `count(expr)` | `count(*)` | `collect` | `min` | `max` | `sum` | `avg`
+------|---------------|------------|-----------|-------|-------|-------|------
+`[]` | `0` | `0` | `[]` | `NULL` | `NULL` | `0` | `NULL`
+`[1, NULL, 2]` | `2` | `3` | `[1, 2]` | `1` | `2` | `3` | `1.5`
+`[NULL, NULL]` | `0` | `2` | `[]` | `NULL` | `NULL` | `0` | `NULL`
