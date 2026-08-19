@@ -85,6 +85,27 @@ def test_fts_topk_search(fts_database):
     assert all(row[1] <= 0.0 for row in rows)
 
 
+@pytest.mark.parametrize(
+    ("query", "expected_ids"),
+    [
+        ("database", {4, 5, 6}),
+        ("graph database", {4, 5, 6}),
+        ('"graph database"', {4}),
+        ("data*", {4, 5, 6, 7}),
+    ],
+)
+def test_fts_query_string_forms(fts_database, query, expected_ids):
+    fts_database.execute(
+        "CREATE (:Item {id: 4, text: 'graph database'}), "
+        "(:Item {id: 5, text: 'graph scalable database'}), "
+        "(:Item {id: 6, text: 'database graph'}), "
+        "(:Item {id: 7, text: 'dataset catalog'}), "
+        "(:Item {id: 8, text: 'metadata catalog'});"
+    )
+
+    assert {row[0] for row in search(fts_database, query)} == expected_ids
+
+
 def test_show_and_drop_fts_index(fts_database):
     assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == [
         ["item_text_fts", "fts", "Item", "text", "{}", "active"]
