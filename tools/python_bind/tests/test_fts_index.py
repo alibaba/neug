@@ -155,6 +155,31 @@ def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
         reopened_db.close()
 
 
+def test_fts_dynamic_query_parameter_is_bound_per_execution(fts_database):
+    statement = (
+        "MATCH (n:Item) RETURN n.id, bm25(n.text, $query) AS score "
+        "ORDER BY score ASC;"
+    )
+    assert {
+        row[0]
+        for row in fts_database.execute(statement, parameters={"query": "search"})
+    } == {1, 2}
+    assert [
+        row[0] for row in fts_database.execute(statement, parameters={"query": "gamma"})
+    ] == [3]
+
+
+def test_fts_dynamic_query_parameter_rejects_invalid_values(fts_database):
+    statement = (
+        "MATCH (n:Item) RETURN n.id, bm25(n.text, $query) AS score "
+        "ORDER BY score ASC;"
+    )
+    with pytest.raises(Exception):
+        list(fts_database.execute(statement, parameters={}))
+    with pytest.raises(Exception):
+        list(fts_database.execute(statement, parameters={"query": None}))
+
+
 def test_fts_read_write_transactions_are_isolated(tmp_path):
     db = Database(db_path=str(tmp_path / "fts_isolation_db"), mode="w")
     connection = db.connect()

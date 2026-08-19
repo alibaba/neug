@@ -26,7 +26,6 @@
 #include "fts_index.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
-#include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
@@ -47,6 +46,38 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug::fts_ext {
+
+std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
+    const execution::ParamsMap& params) const {
+  auto bound = std::make_unique<FTSIndexScanFuncInput>();
+  bound->label_id = label_id;
+  bound->unique_index_name = unique_index_name;
+  if (query_literal) {
+    bound->query_string = *query_literal;
+  } else if (query_parameter) {
+    auto parameter = params.find(*query_parameter);
+    if (parameter == params.end()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("FTS_INDEX_SCAN query parameter $" +
+                                       *query_parameter + " is missing");
+    }
+    if (parameter->second.IsNull()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "FTS_INDEX_SCAN query parameter must not be NULL");
+    }
+    if (parameter->second.type().id() != DataTypeId::kVarchar) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "FTS_INDEX_SCAN query parameter must be STRING");
+    }
+    bound->query_string = parameter->second.GetValue<std::string>();
+  } else {
+    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN query is not initialized");
+  }
+  bound->topk = topk;
+  bound->node_alias = node_alias;
+  bound->score_alias = score_alias;
+  return bound;
+}
+
 namespace {
 
 std::shared_ptr<binder::ScalarFunctionExpression> FindBM25Expression(
@@ -83,16 +114,17 @@ std::shared_ptr<binder::ScalarFunctionExpression> FindBM25Expression(
 
 bool ExtractBM25Arguments(const binder::ScalarFunctionExpression& expression,
                           const binder::PropertyExpression*& property,
-                          std::shared_ptr<binder::LiteralExpression>& query) {
+                          std::shared_ptr<binder::Expression>& query) {
   auto children = expression.getChildren();
   if (children.size() != 2 ||
       children[0]->expressionType != common::ExpressionType::PROPERTY ||
-      children[1]->expressionType != common::ExpressionType::LITERAL) {
+      (children[1]->expressionType != common::ExpressionType::LITERAL &&
+       children[1]->expressionType != common::ExpressionType::PARAMETER)) {
     return false;
   }
   property = children[0]->ptrCast<binder::PropertyExpression>();
-  query = std::dynamic_pointer_cast<binder::LiteralExpression>(children[1]);
-  return property != nullptr && query != nullptr && !query->isNull() &&
+  query = children[1];
+  return property != nullptr && query != nullptr &&
          query->getDataType().id() == DataTypeId::kVarchar;
 }
 
@@ -178,17 +210,25 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   if (label.empty() || scan.unique_index_name().empty() || topk.empty()) {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN is missing required options");
   }
-  const auto& target = scan.target_value();
-  if (target.operators_size() != 1 || !target.operators(0).has_const_() ||
-      !target.operators(0).const_().has_str()) {
-    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN query must be a string literal");
-  }
   if (op.meta_data_size() != 2) {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN must produce node and score columns");
   }
   input->label_id = static_cast<label_t>(std::stoul(label));
   input->unique_index_name = scan.unique_index_name();
-  input->query_string = target.operators(0).const_().str();
+  const auto& target = scan.target_value();
+  if (target.operators_size() != 1) {
+    THROW_RUNTIME_ERROR(
+        "FTS_INDEX_SCAN query must be a STRING literal or parameter");
+  }
+  const auto& query = target.operators(0);
+  if (query.has_const_() && query.const_().has_str()) {
+    input->query_literal = query.const_().str();
+  } else if (query.has_param()) {
+    input->query_parameter = query.param().name();
+  } else {
+    THROW_RUNTIME_ERROR(
+        "FTS_INDEX_SCAN query must be a STRING literal or parameter");
+  }
   input->topk = static_cast<uint32_t>(std::stoul(topk));
   input->node_alias = op.meta_data(0).alias();
   input->score_alias = op.meta_data(1).alias();
@@ -342,12 +382,12 @@ FTSIndexScanOptimizer::visitOrderByReplace(
     return op;
   }
   const binder::PropertyExpression* property = nullptr;
-  std::shared_ptr<binder::LiteralExpression> query;
+  std::shared_ptr<binder::Expression> query;
   if (!ExtractBM25Arguments(*bm25, property, query) ||
       !property->isSingleLabel()) {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "BM25 on the current storage index API requires one node STRING "
-        "property and a string literal query");
+        "property and a STRING query");
   }
 
   auto* metadata_manager = context_->getMetadataManager();

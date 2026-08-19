@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 #include "neug/compiler/function/function.h"
@@ -28,6 +29,8 @@ namespace neug::fts_ext {
 struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   label_t label_id;
   std::string unique_index_name;
+  std::optional<std::string> query_literal;
+  std::optional<std::string> query_parameter;
   std::string query_string;
   uint32_t topk;
   int32_t node_alias;
@@ -35,9 +38,7 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   execution::Context context;
 
   std::unique_ptr<function::CallFuncInputBase> bindParams(
-      const execution::ParamsMap&) const override {
-    return std::make_unique<FTSIndexScanFuncInput>(*this);
-  }
+      const execution::ParamsMap& params) const override;
 
   void bindContext(execution::Context&& input_context) override {
     context = std::move(input_context);

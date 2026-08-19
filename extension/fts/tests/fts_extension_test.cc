@@ -26,10 +26,12 @@
 #include <gtest/gtest.h>
 
 #include "fts_index.h"
+#include "fts_index_scan.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/index/index_id_accessor.h"
+#include "neug/utils/exception/exception.h"
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -100,6 +102,24 @@ TEST(FTSExtensionTest, LoadSucceeds) {
 
   auto load = connection->Query("LOAD fts;");
   ASSERT_TRUE(load.has_value()) << load.error().ToString();
+}
+
+TEST(FTSIndexScanInputTest, BindsAndValidatesDynamicQueryParameter) {
+  FTSIndexScanFuncInput input;
+  input.query_parameter = "query";
+
+  EXPECT_THROW(input.bindParams({}), exception::InvalidArgumentException);
+  EXPECT_THROW(
+      input.bindParams({{"query", Value(DataType(DataTypeId::kVarchar))}}),
+      exception::InvalidArgumentException);
+  EXPECT_THROW(input.bindParams({{"query", Value::INT64(42)}}),
+               exception::InvalidArgumentException);
+
+  auto bound = input.bindParams({{"query", Value::STRING("search terms")}});
+  const auto* fts_input =
+      dynamic_cast<const FTSIndexScanFuncInput*>(bound.get());
+  ASSERT_NE(fts_input, nullptr);
+  EXPECT_EQ(fts_input->query_string, "search terms");
 }
 
 std::unique_ptr<FTSIndex> MakeOpenedIndex(Checkpoint& checkpoint) {
