@@ -105,6 +105,11 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
                 src_label, dst_label, label_id);
             if (col_id >= 0 && col_id < static_cast<int>(prop_types.size()) &&
                 prop_types[col_id] != value.type()) {
+              if (value.IsNull()) {
+                THROW_INVALID_ARGUMENT_EXCEPTION("Property type " +
+                                                 prop_types[col_id].ToString() +
+                                                 " can not be set with null");
+              }
               THROW_RUNTIME_ERROR("Property type mismatch for property " +
                                   prop_name);
             }

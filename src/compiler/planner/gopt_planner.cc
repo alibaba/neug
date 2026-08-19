@@ -58,8 +58,7 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
 
     auto aliasManager =
         std::make_shared<neug::gopt::GAliasManager>(*statement->logicalPlan);
-    neug::gopt::GPhysicalConvertor converter(aliasManager,
-                                             queryDatabase->getCatalog());
+    neug::gopt::GPhysicalConvertor converter(aliasManager, queryDatabase.get());
     auto physicalPlan = converter.convert(*statement->logicalPlan, false);
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();

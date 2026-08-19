@@ -17,6 +17,7 @@ The following extensions are currently supported or planned to be supported in N
 | File System     | [HTTP/HTTPS/S3/OSS](load_httpfs.md) | Provide data source based on HTTP/HTTPS/S3/OSS protocol                   | v0.1.2        |
 | Graph Algorithm | [GDS](load_gds.md)               | Graph Data Science algorithms (PageRank, BFS, SSSP, WCC, LCC, K-Core, Label Propagation, Louvain, Leiden) | v0.1.3 |
 | Graph Query     | [Pattern Match](pattern_match.md)   | Subgraph pattern matching with exact DAF matching and sampled FaSTest matching | v0.1.4          |
+| Vector Search   | [Vector Search](vector_search.md)    | Vector distance functions and HNSW-based approximate nearest neighbor search | v0.2.0          |
 
 To author a custom extension outside the NeuG tree (NeuG as submodule), see [Developing Out-of-Tree Extensions](develop_extension.md).
 
