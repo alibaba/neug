@@ -16,7 +16,9 @@
 
 #include "fts_index_scan.h"
 
+#include <charconv>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -72,7 +74,8 @@ std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
   } else {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN query is not initialized");
   }
-  bound->topk = topk;
+  bound->limit = limit;
+  bound->ascending = ascending;
   bound->node_alias = node_alias;
   bound->score_alias = score_alias;
   return bound;
@@ -84,8 +87,7 @@ std::shared_ptr<binder::ScalarFunctionExpression> FindBM25Expression(
     const planner::LogicalOrderBy& order_by,
     const planner::LogicalProjection& projection) {
   const auto order_expressions = order_by.getExpressionsToOrderBy();
-  if (order_expressions.size() != 1 || order_by.getIsAscOrders().size() != 1 ||
-      !order_by.getIsAscOrders()[0]) {
+  if (order_expressions.size() != 1 || order_by.getIsAscOrders().size() != 1) {
     return nullptr;
   }
 
@@ -126,6 +128,38 @@ bool ExtractBM25Arguments(const binder::ScalarFunctionExpression& expression,
   query = children[1];
   return property != nullptr && query != nullptr &&
          query->getDataType().id() == DataTypeId::kVarchar;
+}
+
+std::shared_ptr<binder::ScalarFunctionExpression> FindProjectedBM25Expression(
+    const planner::LogicalProjection& projection) {
+  std::shared_ptr<binder::ScalarFunctionExpression> result;
+  for (const auto& expression : projection.getExpressionsToProject()) {
+    if (expression->expressionType != common::ExpressionType::FUNCTION) {
+      continue;
+    }
+    auto function =
+        std::dynamic_pointer_cast<binder::ScalarFunctionExpression>(expression);
+    if (!function || function->getFunction().name != FTSBM25Function::name) {
+      continue;
+    }
+    if (result) {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "FTS projection currently supports one BM25 expression");
+    }
+    result = std::move(function);
+  }
+  return result;
+}
+
+uint64_t ParseUint64Option(const std::string& name, const std::string& value) {
+  uint64_t parsed = 0;
+  const auto* begin = value.data();
+  const auto* end = begin + value.size();
+  auto [position, error] = std::from_chars(begin, end, parsed);
+  if (error != std::errc{} || position != end) {
+    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN has invalid " + name + ": " + value);
+  }
+  return parsed;
 }
 
 std::shared_ptr<binder::Expression> MakeScanColumn(
@@ -199,16 +233,22 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   const auto& scan = op.opr().index_scan();
   auto input = std::make_unique<FTSIndexScanFuncInput>();
   std::string label;
-  std::string topk;
+  std::optional<std::string> limit;
+  std::string order{"asc"};
   for (const auto& option : scan.options()) {
     if (option.first == "label_id") {
       label = option.second;
-    } else if (option.first == "topk") {
-      topk = option.second;
+    } else if (option.first == "limit") {
+      limit = option.second;
+    } else if (option.first == "order") {
+      order = option.second;
     }
   }
-  if (label.empty() || scan.unique_index_name().empty() || topk.empty()) {
+  if (label.empty() || scan.unique_index_name().empty()) {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN is missing required options");
+  }
+  if (order != "asc" && order != "desc") {
+    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN order must be asc or desc");
   }
   if (op.meta_data_size() != 2) {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN must produce node and score columns");
@@ -229,7 +269,10 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
     THROW_RUNTIME_ERROR(
         "FTS_INDEX_SCAN query must be a STRING literal or parameter");
   }
-  input->topk = static_cast<uint32_t>(std::stoul(topk));
+  if (limit) {
+    input->limit = ParseUint64Option("limit", *limit);
+  }
+  input->ascending = order == "asc";
   input->node_alias = op.meta_data(0).alias();
   input->score_alias = op.meta_data(1).alias();
   return input;
@@ -245,7 +288,9 @@ execution::Context ExecuteFTSIndexScan(
 
   FTSQueryParams params;
   params.query_string = input.query_string;
-  params.topk = input.topk;
+  params.limit = input.limit;
+  params.order =
+      input.ascending ? FTSScoreOrder::kAscending : FTSScoreOrder::kDescending;
   for (const auto& context_chunk : input.context.chunks()) {
     if (!context_chunk.exist(input.node_alias)) {
       THROW_RUNTIME_ERROR("FTS_INDEX_SCAN filter input alias not found");
@@ -298,21 +343,21 @@ execution::Context ExecuteFTSIndexScan(
 
     sel_vec_t offsets;
     ValueColumnBuilder<double> score_builder;
-    offsets.reserve(input.topk);
-    score_builder.reserve(input.topk);
     for (const auto& result : results.value()) {
       auto rows = rows_by_vid.find(result.vid);
       if (rows == rows_by_vid.end()) {
         continue;
       }
       for (auto row : rows->second) {
-        if (offsets.size() == input.topk) {
+        if (input.limit &&
+            static_cast<uint64_t>(offsets.size()) >= *input.limit) {
           break;
         }
         offsets.push_back(row);
         score_builder.push_back_opt(result.score);
       }
-      if (offsets.size() == input.topk) {
+      if (input.limit &&
+          static_cast<uint64_t>(offsets.size()) >= *input.limit) {
         break;
       }
     }
@@ -356,6 +401,26 @@ void FTSIndexScanOptimizer::rewrite(main::ClientContext* context,
   context_ = nullptr;
 }
 
+std::shared_ptr<planner::LogicalOperator> FTSIndexScanOptimizer::visitOperator(
+    const std::shared_ptr<planner::LogicalOperator>& op) {
+  // Handle ORDER BY before its projection child. A bottom-up traversal would
+  // otherwise lose the opportunity to push the requested direction/limit into
+  // the FTS scan when the projection is rewritten first.
+  if (op->getOperatorType() == planner::LogicalOperatorType::ORDER_BY) {
+    auto rewritten = visitOrderByReplace(op);
+    if (rewritten != op) {
+      return rewritten;
+    }
+  }
+  for (auto i = 0u; i < op->getNumChildren(); ++i) {
+    op->setChild(i, visitOperator(op->getChild(i)));
+  }
+  if (op->getOperatorType() == planner::LogicalOperatorType::PROJECTION) {
+    return visitProjectionReplace(op);
+  }
+  return op;
+}
+
 std::shared_ptr<planner::LogicalOperator>
 FTSIndexScanOptimizer::visitOrderByReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
@@ -363,8 +428,7 @@ FTSIndexScanOptimizer::visitOrderByReplace(
     return op;
   }
   auto order_by = op->ptrCast<planner::LogicalOrderBy>();
-  if (!order_by->isTopK() || order_by->getSkipNum() != 0 ||
-      order_by->getLimitNum() == 0 || order_by->getNumChildren() != 1) {
+  if (order_by->getSkipNum() != 0 || order_by->getNumChildren() != 1) {
     return op;
   }
   auto child = order_by->getChild(0);
@@ -375,12 +439,41 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   if (projection->getNumChildren() != 1) {
     return op;
   }
-  auto input_op = projection->getChild(0);
-
   auto bm25 = FindBM25Expression(*order_by, *projection);
   if (!bm25) {
     return op;
   }
+  std::optional<uint64_t> limit;
+  if (order_by->hasLimitNum()) {
+    limit = order_by->getLimitNum();
+  }
+  RewriteProjection(projection, bm25, order_by->getIsAscOrders().front(), limit);
+  return child;
+}
+
+std::shared_ptr<planner::LogicalOperator>
+FTSIndexScanOptimizer::visitProjectionReplace(
+    std::shared_ptr<planner::LogicalOperator> op) {
+  if (!context_) {
+    return op;
+  }
+  auto projection = op->ptrCast<planner::LogicalProjection>();
+  if (projection->getNumChildren() != 1) {
+    return op;
+  }
+  auto bm25 = FindProjectedBM25Expression(*projection);
+  if (!bm25) {
+    return op;
+  }
+  RewriteProjection(projection, bm25, true, std::nullopt);
+  return op;
+}
+
+void FTSIndexScanOptimizer::RewriteProjection(
+    planner::LogicalProjection* projection,
+    const std::shared_ptr<binder::ScalarFunctionExpression>& bm25,
+    bool ascending, std::optional<uint64_t> limit) {
+  auto input_op = projection->getChild(0);
   const binder::PropertyExpression* property = nullptr;
   std::shared_ptr<binder::Expression> query;
   if (!ExtractBM25Arguments(*bm25, property, query) ||
@@ -392,11 +485,11 @@ FTSIndexScanOptimizer::visitOrderByReplace(
 
   auto* metadata_manager = context_->getMetadataManager();
   if (!metadata_manager) {
-    return op;
+    return;
   }
   auto graph_stats = metadata_manager->getGraphStats();
   if (!graph_stats) {
-    return op;
+    return;
   }
   auto indexes = graph_stats->GetIndex(property->getSingleTableID(),
                                        property->getPropertyName());
@@ -422,7 +515,7 @@ FTSIndexScanOptimizer::visitOrderByReplace(
     if (scan->getTableIDs().size() != 1 ||
         property->getVariableName() != scan->getAliasName() ||
         property->getSingleTableID() != scan->getTableIDs()[0]) {
-      return op;
+      return;
     }
     vertex_output = &scan->getNodeID()->constCast<binder::PropertyExpression>();
     attach_input = scan->getScanType() ==
@@ -432,13 +525,13 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   } else {
     vertex_output = FindVertexOutput(*input_op, *property);
     if (!vertex_output) {
-      return op;
+      return;
     }
   }
 
   auto* function = GetIndexScanFunction(*context_->getCatalog());
   if (!function) {
-    return op;
+    return;
   }
   auto node_column =
       MakeScanColumn(*vertex_output,
@@ -448,7 +541,10 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   auto bind_data = std::make_unique<function::IndexScanBindData>(
       columns, fts_index->GetMeta().name, query);
   bind_data->options["label_id"] = std::to_string(property->getSingleTableID());
-  bind_data->options["topk"] = std::to_string(order_by->getLimitNum());
+  bind_data->options["order"] = ascending ? "asc" : "desc";
+  if (limit) {
+    bind_data->options["limit"] = std::to_string(*limit);
+  }
 
   auto table_call = std::make_shared<planner::LogicalTableFunctionCall>(
       *function, std::move(bind_data));
@@ -457,8 +553,6 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   }
   table_call->computeFlatSchema();
   projection->setChild(0, std::move(table_call));
-  // FTSIndex::SearchImpl guarantees ordered results, so remove OrderBy.
-  return child;
 }
 
 function::TableFunction* FTSIndexScanOptimizer::GetIndexScanFunction(

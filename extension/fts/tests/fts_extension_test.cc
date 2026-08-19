@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -152,10 +153,11 @@ std::unique_ptr<FTSIndex> MakeUnopenedIndex(
   return index;
 }
 
-FTSQueryParams MakeQuery(std::string query, uint32_t topk = 10) {
+FTSQueryParams MakeQuery(std::string query,
+                         std::optional<uint64_t> limit = std::nullopt) {
   FTSQueryParams params;
   params.query_string = std::move(query);
-  params.topk = topk;
+  params.limit = limit;
   return params;
 }
 
@@ -358,7 +360,7 @@ TEST(FTSExtensionTest, ReopenPreservesIndexAndAcceptsNewRows) {
   }
 }
 
-TEST(FTSExtensionTest, UnsupportedShapesReturnErrors) {
+TEST(FTSExtensionTest, OrderByAndLimitAreIndependent) {
   const auto build_root = FindBuildRoot();
   ASSERT_FALSE(build_root.empty());
   ASSERT_EQ(setenv("NEUG_EXTENSION_HOME_PYENV", build_root.c_str(), 1), 0);
@@ -373,27 +375,49 @@ TEST(FTSExtensionTest, UnsupportedShapesReturnErrors) {
                   ->Query("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, "
                           "text STRING);")
                   .has_value());
-  ASSERT_TRUE(
-      connection->Query("CREATE (:Item {id: 1, text: 'alpha'});").has_value());
+  ASSERT_TRUE(connection
+                  ->Query("CREATE (:Item {id: 1, text: 'alpha alpha'}), "
+                          "(:Item {id: 2, text: 'alpha beta beta'}), "
+                          "(:Item {id: 3, text: 'alpha gamma gamma gamma'});")
+                  .has_value());
   ASSERT_TRUE(connection
                   ->Query("CREATE INDEX item_text_fts ON Item USING "
                           "FTS (text);")
                   .has_value());
 
-  const std::vector<std::string> unsupported = {
-      "MATCH (n:Item) RETURN bm25(n.text, 'alpha');",
-      "MATCH (n:Item) RETURN n.id, bm25(n.text, 'alpha') AS "
-      "score ORDER BY score DESC LIMIT 1;",
-      "MATCH (n:Item) RETURN n.id, bm25(n.text, 'alpha') AS "
-      "score ORDER BY score ASC;",
-      "MATCH (n:Item) RETURN n.id, bm25(n.text, 'alpha') AS "
-      "score LIMIT 1;",
-      "MATCH (n:Item) RETURN n.id, bm25(n.text, 'alpha') AS "
-      "score ORDER BY score ASC, n.id ASC LIMIT 1;"};
-  for (const auto& query : unsupported) {
-    auto result = connection->Query(query);
-    EXPECT_FALSE(result.has_value()) << query;
-  }
+  const std::string prefix =
+      "MATCH (n:Item) RETURN n.id, bm25(n.text, 'alpha') AS score";
+  auto default_order = connection->Query(prefix + ";");
+  ASSERT_TRUE(default_order.has_value()) << default_order.error().ToString();
+  ASSERT_EQ(default_order->length(), 3);
+  const auto& default_scores =
+      default_order->response().arrays(1).double_array().values();
+  EXPECT_LE(default_scores.Get(0), default_scores.Get(1));
+  EXPECT_LE(default_scores.Get(1), default_scores.Get(2));
+
+  auto asc = connection->Query(prefix + " ORDER BY score ASC;");
+  ASSERT_TRUE(asc.has_value()) << asc.error().ToString();
+  EXPECT_EQ(asc->length(), 3);
+
+  auto desc = connection->Query(prefix + " ORDER BY score DESC;");
+  ASSERT_TRUE(desc.has_value()) << desc.error().ToString();
+  ASSERT_EQ(desc->length(), 3);
+  const auto& desc_scores = desc->response().arrays(1).double_array().values();
+  EXPECT_GE(desc_scores.Get(0), desc_scores.Get(1));
+  EXPECT_GE(desc_scores.Get(1), desc_scores.Get(2));
+
+  auto limit_only = connection->Query(prefix + " LIMIT 2;");
+  ASSERT_TRUE(limit_only.has_value()) << limit_only.error().ToString();
+  EXPECT_EQ(limit_only->length(), 2);
+  auto desc_limit = connection->Query(prefix + " ORDER BY score DESC LIMIT 1;");
+  ASSERT_TRUE(desc_limit.has_value()) << desc_limit.error().ToString();
+  ASSERT_EQ(desc_limit->length(), 1);
+  EXPECT_DOUBLE_EQ(desc_limit->response().arrays(1).double_array().values(0),
+                   desc_scores.Get(0));
+
+  auto zero = connection->Query(prefix + " LIMIT 0;");
+  ASSERT_TRUE(zero.has_value()) << zero.error().ToString();
+  EXPECT_EQ(zero->length(), 0);
 
   auto wrong_type = connection->Query(
       "MATCH (n:Item) RETURN n.id, bm25(n.text, 42) AS score "
@@ -440,10 +464,10 @@ TEST(FTSIndexTest, RejectsInvalidMetadataAndParams) {
   auto valid_index = MakeOpenedIndex(*checkpoint);
   FTSQueryParams params;
   params.query_string = "alpha";
-  params.topk = 0;
+  params.limit = 0;
   auto result = valid_index->Search(params);
-  ASSERT_FALSE(result.has_value());
-  ASSERT_EQ(result.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  EXPECT_TRUE(result->empty());
   auto null_value = valid_index->Upsert(1, Value());
   EXPECT_EQ(null_value.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
   auto wrong_type = valid_index->Upsert(2, Value::INT64(42));

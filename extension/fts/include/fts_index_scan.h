@@ -19,9 +19,11 @@
 #include <optional>
 #include <string>
 
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/optimizer/logical_rule.h"
+#include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/execution/common/context.h"
 
 namespace neug::fts_ext {
@@ -32,7 +34,8 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   std::optional<std::string> query_literal;
   std::optional<std::string> query_parameter;
   std::string query_string;
-  uint32_t topk;
+  std::optional<uint64_t> limit;
+  bool ascending{true};
   int32_t node_alias;
   int32_t score_alias;
   execution::Context context;
@@ -58,12 +61,23 @@ class FTSIndexScanOptimizer final : public optimizer::LogicalRule {
   void rewrite(main::ClientContext* context,
                planner::LogicalPlan* plan) override;
 
+  std::shared_ptr<planner::LogicalOperator> visitOperator(
+      const std::shared_ptr<planner::LogicalOperator>& op) override;
+
   std::shared_ptr<planner::LogicalOperator> visitOrderByReplace(
+      std::shared_ptr<planner::LogicalOperator> op) override;
+
+  std::shared_ptr<planner::LogicalOperator> visitProjectionReplace(
       std::shared_ptr<planner::LogicalOperator> op) override;
 
  private:
   function::TableFunction* GetIndexScanFunction(
       catalog::Catalog& catalog) const;
+
+  void RewriteProjection(
+      planner::LogicalProjection* projection,
+      const std::shared_ptr<binder::ScalarFunctionExpression>& bm25,
+      bool ascending, std::optional<uint64_t> limit);
 
   main::ClientContext* context_{nullptr};
 };

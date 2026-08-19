@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,11 +28,14 @@
 
 namespace neug::fts_ext {
 
+enum class FTSScoreOrder { kAscending, kDescending };
+
 struct FTSQueryParams final : IndexQueryParams {
   std::vector<vid_t> scalar_filter;
   bool use_scalar_filter{false};
   std::string query_string;
-  uint32_t topk{10};
+  std::optional<uint64_t> limit;
+  FTSScoreOrder order{FTSScoreOrder::kAscending};
 };
 
 class FTSDumpContainer final : public IDataContainer {
@@ -97,7 +101,9 @@ class FTSIndex final : public StorageIndex {
       std::make_shared<SQLiteConnection>()};
   std::shared_ptr<SQLiteConnection> write_connection_{
       std::make_shared<SQLiteConnection>()};
-  std::shared_ptr<SQLiteStatement> search_statements_{
+  std::shared_ptr<SQLiteStatement> search_asc_statement_{
+      std::make_shared<SQLiteStatement>()};
+  std::shared_ptr<SQLiteStatement> search_desc_statement_{
       std::make_shared<SQLiteStatement>()};
   std::shared_ptr<SQLiteStatement> append_statements_{
       std::make_shared<SQLiteStatement>()};

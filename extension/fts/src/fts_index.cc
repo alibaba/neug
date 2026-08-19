@@ -183,17 +183,22 @@ void FTSIndex::ValidateExistingTable() {
 void FTSIndex::PrepareStatements() {
   auto append_sql =
       "INSERT INTO " + table_name_ + "(rowid, text) VALUES (?1, ?2);";
-  auto search_sql = "SELECT rowid, bm25(" + table_name_ + ") AS score FROM " +
-                    table_name_ + " WHERE " + table_name_ +
-                    " MATCH ?1 ORDER BY score ASC LIMIT ?2;";
+  auto search_asc_sql = "SELECT rowid, rank AS score FROM " + table_name_ +
+                        " WHERE " + table_name_ +
+                        " MATCH ?1 ORDER BY rank ASC;";
+  auto search_desc_sql = "SELECT rowid, rank AS score FROM " + table_name_ +
+                         " WHERE " + table_name_ +
+                         " MATCH ?1 ORDER BY rank DESC;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
-  *search_statements_ = read_connection_->Prepare(search_sql);
+  *search_asc_statement_ = read_connection_->Prepare(search_asc_sql);
+  *search_desc_statement_ = read_connection_->Prepare(search_desc_sql);
 }
 
 void FTSIndex::FinalizeStatements() {
   *append_statements_ = SQLiteStatement{};
-  *search_statements_ = SQLiteStatement{};
+  *search_asc_statement_ = SQLiteStatement{};
+  *search_desc_statement_ = SQLiteStatement{};
 }
 
 void FTSIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
@@ -235,7 +240,8 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                       std::filesystem::exists(*index_path);
   read_connection_ = std::make_shared<SQLiteConnection>();
   write_connection_ = std::make_shared<SQLiteConnection>();
-  search_statements_ = std::make_shared<SQLiteStatement>();
+  search_asc_statement_ = std::make_shared<SQLiteStatement>();
+  search_desc_statement_ = std::make_shared<SQLiteStatement>();
   append_statements_ = std::make_shared<SQLiteStatement>();
   try {
     if (has_existing) {
@@ -269,7 +275,8 @@ void FTSIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
     THROW_RUNTIME_ERROR("FTSIndex::Dump: index is not open");
   }
 
-  std::scoped_lock lock(search_statements_->mutex(),
+  std::scoped_lock lock(search_asc_statement_->mutex(),
+                        search_desc_statement_->mutex(),
                         append_statements_->mutex());
   FinalizeStatements();
   try {
@@ -309,7 +316,8 @@ std::unique_ptr<Module> FTSIndex::Clone() const {
   }
   cloned->read_connection_ = read_connection_;
   cloned->write_connection_ = write_connection_;
-  cloned->search_statements_ = search_statements_;
+  cloned->search_asc_statement_ = search_asc_statement_;
+  cloned->search_desc_statement_ = search_desc_statement_;
   cloned->append_statements_ = append_statements_;
   cloned->runtime_file_ = runtime_file_;
   cloned->runtime_path_ = runtime_path_;
@@ -363,8 +371,8 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
   if (!fts_params) {
     RETURN_INVALID_ARGUMENT_ERROR("FTSIndex::Search requires FTSQueryParams");
   }
-  if (fts_params->topk == 0) {
-    RETURN_INVALID_ARGUMENT_ERROR("FTS topk must be positive");
+  if (fts_params->limit && *fts_params->limit == 0) {
+    return std::vector<SearchCandidate>{};
   }
   if (!index_id_accessor_) {
     RETURN_ERROR(
@@ -386,17 +394,17 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
       }
     }
 
-    std::lock_guard lock(search_statements_->mutex());
-    search_statements_->Reset();
-    search_statements_->BindText(1, fts_params->query_string);
-    // Set fetch_limit to max to preserve correctness after scalar/MVCC
-    // filtering.
-    search_statements_->BindInt64(2, std::numeric_limits<int64_t>::max());
+    const auto& search_statement =
+        fts_params->order == FTSScoreOrder::kAscending
+            ? search_asc_statement_
+            : search_desc_statement_;
+    std::lock_guard lock(search_statement->mutex());
+    search_statement->Reset();
+    search_statement->BindText(1, fts_params->query_string);
 
     std::vector<SearchCandidate> results;
-    results.reserve(fts_params->topk);
-    while (search_statements_->Step() == SQLITE_ROW) {
-      auto rowid = search_statements_->ColumnInt64(0);
+    while (search_statement->Step() == SQLITE_ROW) {
+      auto rowid = search_statement->ColumnInt64(0);
       if (rowid < 0 || static_cast<uint64_t>(rowid) >
                            std::numeric_limits<index_id_t>::max()) {
         continue;
@@ -411,8 +419,9 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
         continue;
       }
       results.push_back(
-          SearchCandidate{index_id, search_statements_->ColumnDouble(1)});
-      if (results.size() == fts_params->topk) {
+          SearchCandidate{index_id, search_statement->ColumnDouble(1)});
+      if (fts_params->limit &&
+          static_cast<uint64_t>(results.size()) >= *fts_params->limit) {
         break;
       }
     }
