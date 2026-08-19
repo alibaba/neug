@@ -213,6 +213,10 @@ void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
+  // Storage indexes may be supplied by an extension that is loaded after the
+  // database opens. Preserve their descriptors so StorageIndexManager can
+  // defer activation until the module type is registered.
+  desc.required = false;
   desc.set("index_meta", meta_->ToJsonString());
 
   meta.set_module(key, std::move(desc));
