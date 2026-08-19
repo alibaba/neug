@@ -407,9 +407,8 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
     }
 
     const auto& search_statement =
-        fts_params->order == FTSScoreOrder::kAscending
-            ? search_asc_statement_
-            : search_desc_statement_;
+        fts_params->order == FTSScoreOrder::kAscending ? search_asc_statement_
+                                                       : search_desc_statement_;
     std::lock_guard lock(search_statement->mutex());
     search_statement->Reset();
     search_statement->BindText(1, fts_params->query_string);

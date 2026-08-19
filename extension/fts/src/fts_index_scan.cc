@@ -447,7 +447,8 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   if (order_by->hasLimitNum()) {
     limit = order_by->getLimitNum();
   }
-  RewriteProjection(projection, bm25, order_by->getIsAscOrders().front(), limit);
+  RewriteProjection(projection, bm25, order_by->getIsAscOrders().front(),
+                    limit);
   return child;
 }
 
