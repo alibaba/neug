@@ -369,9 +369,10 @@ void LegacyCheckpointMigrator::RemoveLegacyDirectories(
     removed = true;
   }
   if (removed && !file_utils::fsync_directory(database_dir.string())) {
-    THROW_IO_EXCEPTION("Failed to fsync database directory after removing "
-                       "legacy checkpoints: " +
-                       database_dir.string());
+    THROW_IO_EXCEPTION(
+        "Failed to fsync database directory after removing "
+        "legacy checkpoints: " +
+        database_dir.string());
   }
 }
 
