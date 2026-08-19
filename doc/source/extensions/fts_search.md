@@ -121,9 +121,10 @@ index.
 
 ## Full-Text Search
 
-Use `bm25(indexed_property, query)` in a Top-K query. BM25 scores returned by
-SQLite FTS5 are ordered with smaller values representing more relevant
-matches, so the score must be sorted in ascending order:
+Use `bm25(indexed_property, query)` in a Top-K query. SQLite FTS5 BM25 scores
+use smaller values for more relevant matches. The FTS index returns matches in
+ascending BM25 score order by default; a typical Top-K query makes that order
+explicit:
 
 ```cypher
 MATCH (article:Article)
@@ -137,6 +138,14 @@ LIMIT 10;
 When an FTS index exists for `Article.title`, the optimizer rewrites this query
 into an FTS index scan. The index returns both the matched node and its score;
 NeuG does not scan and rank every node with the scalar `bm25` function.
+
+When the query orders only by the BM25 score, both `ASC` and `DESC` are pushed
+down to the FTS index, together with `LIMIT` when present. `ASC` returns the
+most relevant matches first, while `DESC` reverses that order. If the query
+orders by another property or expression, the FTS index first returns all
+matches in its default ascending BM25 score order, and NeuG then applies the
+requested ordering and `LIMIT` as a separate operation. This second sort can
+be more expensive because the limit cannot be pushed down to the FTS index.
 
 You can confirm the rewrite with `EXPLAIN`; the physical plan contains
 `IndexScanOpr` rather than separate sort and limit operators:
