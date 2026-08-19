@@ -183,18 +183,12 @@ struct SumReducer<EXPR, IS_OPTIONAL,
     } else {
       for (auto& group : groups) {
         V sum = 0;
-        bool has_value = false;
         for (size_t i = 0; i < group.size(); ++i) {
           if (expr.has_value(group[i])) {
             sum += expr(group[i]);
-            has_value = true;
           }
         }
-        if (has_value) {
-          builder.push_back_opt(sum);
-        } else {
-          builder.push_back_null();
-        }
+        builder.push_back_opt(sum);
       }
     }
     return builder.finish();
@@ -340,6 +334,10 @@ struct MinReducer : public ReducerBase {
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         V min_val = expr(group[0]);
         for (size_t i = 1; i < group.size(); ++i) {
           min_val = std::min(min_val, expr(group[i]));
@@ -385,6 +383,10 @@ struct MaxReducer : public ReducerBase {
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         V max_val = expr(group[0]);
         for (size_t i = 1; i < group.size(); ++i) {
           max_val = std::max(max_val, expr(group[i]));
@@ -429,6 +431,10 @@ struct FirstReducer : public ReducerBase {
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         V val = expr(group[0]);
         builder.push_back_opt(val);
       }
@@ -560,6 +566,10 @@ struct AvgReducer<EXPR, IS_OPTIONAL,
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         double avg = 0.0;
         for (auto idx : group) {
           avg += expr(idx);
