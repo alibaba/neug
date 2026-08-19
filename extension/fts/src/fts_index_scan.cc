@@ -361,8 +361,8 @@ execution::Context ExecuteFTSIndexScan(
         break;
       }
     }
-    chunk.reshuffle(offsets);
-    chunk.set(input.score_alias, score_builder.finish());
+    chunk.set_with_reshuffle(input.score_alias, score_builder.finish(),
+                             offsets);
     return context;
   }
 

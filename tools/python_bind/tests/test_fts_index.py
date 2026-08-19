@@ -79,6 +79,53 @@ def fts_database(tmp_path):
         db.close()
 
 
+@pytest.fixture()
+def fts_hybrid_database(tmp_path):
+    db = Database(db_path=str(tmp_path / "fts_hybrid_db"), mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    connection.execute("CREATE NODE TABLE Author(name STRING PRIMARY KEY);")
+    connection.execute(
+        "CREATE NODE TABLE Article("
+        "id INT64 PRIMARY KEY, title STRING, category STRING);"
+    )
+    connection.execute("CREATE REL TABLE WROTE(FROM Author TO Article);")
+    connection.execute("CREATE REL TABLE CITES(FROM Article TO Article);")
+    connection.execute("CREATE (:Author {name: 'Ada'}), (:Author {name: 'Bob'});")
+    connection.execute(
+        "CREATE (:Article {id: 1, title: 'database database database', "
+        "category: 'general'}), "
+        "(:Article {id: 2, title: 'database indexing', category: 'database'}), "
+        "(:Article {id: 3, title: 'graph database systems', "
+        "category: 'database'}), "
+        "(:Article {id: 4, title: 'database storage internals', "
+        "category: 'storage'}), "
+        "(:Article {id: 5, title: 'distributed database design', "
+        "category: 'database'}), "
+        "(:Article {id: 6, title: 'reference material', "
+        "category: 'reference'});"
+    )
+    connection.execute(
+        "MATCH (ada:Author {name: 'Ada'}), (article:Article) "
+        "WHERE article.id IN [2, 3, 5] CREATE (ada)-[:WROTE]->(article);"
+    )
+    connection.execute(
+        "MATCH (bob:Author {name: 'Bob'}), (article:Article) "
+        "WHERE article.id IN [1, 4] CREATE (bob)-[:WROTE]->(article);"
+    )
+    connection.execute(
+        "MATCH (article:Article), (cited:Article {id: 6}) "
+        "WHERE article.id IN [1, 2, 3, 4, 5] "
+        "CREATE (article)-[:CITES]->(cited);"
+    )
+    connection.execute("CREATE INDEX article_title_fts ON Article USING FTS (title);")
+    try:
+        yield connection
+    finally:
+        connection.close()
+        db.close()
+
+
 def test_fts_topk_search(fts_database):
     rows = search(fts_database, "search text", limit=2)
     assert [row[0] for row in rows] == [1, 2]
@@ -104,6 +151,79 @@ def test_fts_query_string_forms(fts_database, query, expected_ids):
     )
 
     assert {row[0] for row in search(fts_database, query)} == expected_ids
+
+
+def test_fts_scalar_filter_returns_exact_topk(fts_hybrid_database):
+    exhaustive = list(
+        fts_hybrid_database.execute(
+            "MATCH (article:Article) "
+            "RETURN article.id, bm25(article.title, 'database') AS score "
+            "ORDER BY score ASC LIMIT 100;"
+        )
+    )
+    eligible_ids = {2, 3, 5}
+    expected = [row for row in exhaustive if row[0] in eligible_ids][:2]
+    assert exhaustive[0][0] not in eligible_ids
+
+    actual = list(
+        fts_hybrid_database.execute(
+            "MATCH (article:Article) "
+            "WHERE article.category = 'database' "
+            "RETURN article.id, bm25(article.title, 'database') AS score "
+            "ORDER BY score ASC LIMIT 2;"
+        )
+    )
+    assert [row[0] for row in actual] == [row[0] for row in expected]
+    assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+
+
+def test_fts_topk_can_feed_graph_traversal(fts_hybrid_database):
+    exhaustive_topk = list(
+        fts_hybrid_database.execute(
+            "MATCH (article:Article) "
+            "RETURN article.id, bm25(article.title, 'database') AS score "
+            "ORDER BY score ASC LIMIT 2;"
+        )
+    )
+
+    actual = list(
+        fts_hybrid_database.execute(
+            "MATCH (article:Article) "
+            "WITH article, bm25(article.title, 'database') AS score "
+            "ORDER BY score ASC LIMIT 2 "
+            "MATCH (article)-[:CITES]->(cited:Article) "
+            "RETURN article.id, cited.id, score ORDER BY score ASC;"
+        )
+    )
+    assert [(row[0], row[1]) for row in actual] == [
+        (row[0], 6) for row in exhaustive_topk
+    ]
+    assert [row[2] for row in actual] == pytest.approx(
+        [row[1] for row in exhaustive_topk]
+    )
+
+
+def test_graph_candidates_receive_exact_fts_topk(fts_hybrid_database):
+    exhaustive = list(
+        fts_hybrid_database.execute(
+            "MATCH (article:Article) "
+            "RETURN article.id, bm25(article.title, 'database') AS score "
+            "ORDER BY score ASC LIMIT 100;"
+        )
+    )
+    eligible_ids = {2, 3, 5}
+    expected = [row for row in exhaustive if row[0] in eligible_ids][:2]
+    assert exhaustive[0][0] not in eligible_ids
+
+    actual = list(
+        fts_hybrid_database.execute(
+            "MATCH (:Author {name: 'Ada'})-[:WROTE]->(article:Article) "
+            "RETURN article.id, bm25(article.title, 'database') AS score "
+            "ORDER BY score ASC LIMIT 2;"
+        )
+    )
+    assert [row[0] for row in actual] == [row[0] for row in expected]
+    assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
 
 
 def test_show_and_drop_fts_index(fts_database):
