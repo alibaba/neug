@@ -25,7 +25,6 @@ import pytest
 from neug.database import Database
 from neug.session import Session
 
-
 pytestmark = pytest.mark.skipif(
     os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower()
     not in ("1", "true", "yes", "on"),
