@@ -58,19 +58,19 @@ try (Session session = driver.session();
 
 ```java
 try (Session session = driver.session();
-        Transaction transaction = session.beginTransaction()) {
+        Transaction txn = session.beginTransaction()) {
     try {
-        transaction.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
-        try (ResultSet rs = transaction.run(
+        txn.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
+        try (ResultSet rs = txn.run(
                 "MATCH (n:Person {id: 1}) RETURN n.name AS name")) {
             while (rs.next()) {
                 System.out.println(rs.getString("name"));
             }
         }
-        transaction.commit();
+        txn.commit();
     } catch (RuntimeException e) {
-        if (transaction.isOpen()) {
-            transaction.rollback();
+        if (txn.isOpen()) {
+            txn.rollback();
         }
         throw e;
     }

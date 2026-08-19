@@ -8,9 +8,9 @@
 
 ```java
 try (Session session = driver.session();
-        Transaction transaction = session.beginTransaction()) {
-    transaction.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
-    transaction.commit();
+        Transaction txn = session.beginTransaction()) {
+    txn.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
+    txn.commit();
 }
 ```
 
@@ -18,13 +18,13 @@ Select an access mode when the transaction must be read-only:
 
 ```java
 try (Session session = driver.session();
-        Transaction transaction =
+        Transaction txn =
                 session.beginTransaction(Transaction.Mode.READ_ONLY);
-        ResultSet result = transaction.run("MATCH (n:Person) RETURN count(n) AS count")) {
+        ResultSet result = txn.run("MATCH (n:Person) RETURN count(n) AS count")) {
     if (result.next()) {
         System.out.println(result.getLong("count"));
     }
-    transaction.commit();
+    txn.commit();
 }
 ```
 
@@ -39,13 +39,13 @@ Use `run(String)` for a statement without parameters, or `run(String, Map<String
 
 ```java
 try (Session session = driver.session();
-        Transaction transaction = session.beginTransaction()) {
-    transaction.run(
+        Transaction txn = session.beginTransaction()) {
+    txn.run(
             "CREATE (:Person {id: $id, name: $name})",
             Map.of("id", 1, "name", "Alice"))
         .close();
 
-    try (ResultSet result = transaction.run(
+    try (ResultSet result = txn.run(
             "MATCH (n:Person {id: $id}) RETURN n.name AS name",
             Map.of("id", 1))) {
         while (result.next()) {
@@ -53,7 +53,7 @@ try (Session session = driver.session();
         }
     }
 
-    transaction.commit();
+    txn.commit();
 }
 ```
 
@@ -65,14 +65,14 @@ Call `commit()` to make all changes permanent. If application work fails, call `
 
 ```java
 try (Session session = driver.session();
-        Transaction transaction = session.beginTransaction()) {
+        Transaction txn = session.beginTransaction()) {
     try {
-        transaction.run("CREATE (:Person {id: 1})").close();
-        transaction.run("CREATE (:Person {id: 2})").close();
-        transaction.commit();
+        txn.run("CREATE (:Person {id: 1})").close();
+        txn.run("CREATE (:Person {id: 2})").close();
+        txn.commit();
     } catch (RuntimeException e) {
-        if (transaction.isOpen()) {
-            transaction.rollback();
+        if (txn.isOpen()) {
+            txn.rollback();
         }
         throw e;
     }

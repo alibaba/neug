@@ -104,14 +104,14 @@ try (Session session = driver.session()) {
 
 ```java
 try (Session session = driver.session();
-        Transaction transaction = session.beginTransaction()) {
+        Transaction txn = session.beginTransaction()) {
     try {
-        transaction.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
-        transaction.run("MATCH (n:Person {id: 1}) RETURN n.name").close();
-        transaction.commit();
+        txn.run("CREATE (:Person {id: 1, name: 'Alice'})").close();
+        txn.run("MATCH (n:Person {id: 1}) RETURN n.name").close();
+        txn.commit();
     } catch (RuntimeException e) {
-        if (transaction.isOpen()) {
-            transaction.rollback();
+        if (txn.isOpen()) {
+            txn.rollback();
         }
         throw e;
     }
