@@ -221,6 +221,10 @@ class NEUG_API PropertyGraph {
   bool HasPendingIndexes() const;
   bool HasPendingMutations() const;
 
+  /// Validate all index state required to checkpoint without modifying the
+  /// graph. Call this before entering a destructive checkpoint phase.
+  Status ValidateCheckpointPreconditions() const;
+
   /**
    * @brief Clear all graph data and reset to empty state.
    *
@@ -687,7 +691,7 @@ class NEUG_API PropertyGraph {
   // Modules persisted by an incremental checkpoint are clean for persistence
   // but still retain MVCC timestamps/tombstones. The next full compaction must
   // process them even if no later mutation touches the same table.
-  DirtyTracker pending_compaction_;
+  DirtyTracker uncompacted_modules_;
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;

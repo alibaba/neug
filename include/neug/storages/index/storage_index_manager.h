@@ -148,7 +148,7 @@ class StorageIndexManager {
 
   std::vector<std::string> StageDirtyIndexes(ModuleBroker& store,
                                              CheckpointManifest& meta);
-  void ValidateCheckpointState() const;
+  Status ValidateCheckpointPreconditions() const;
   void InstallCheckpoint(std::shared_ptr<Checkpoint> ckp,
                          ModuleBroker& reopened_modules,
                          const std::vector<std::string>& staged_names);

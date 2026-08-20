@@ -64,20 +64,20 @@ void PropertyGraph::loadSchema(const std::string& schema_path) {
 void PropertyGraph::emplace_edge_table(uint32_t index, EdgeTable&& table) {
   edge_tables_.emplace(index, std::move(table));
   dirty_.AddEdgeSlot(index);
-  pending_compaction_.AddEdgeSlot(index);
+  uncompacted_modules_.AddEdgeSlot(index);
 }
 
 void PropertyGraph::erase_edge_table(uint32_t index) {
   edge_tables_.erase(index);
   dirty_.EraseEdgeSlot(index);
-  pending_compaction_.EraseEdgeSlot(index);
+  uncompacted_modules_.EraseEdgeSlot(index);
 }
 
 void PropertyGraph::Clear() {
   vertex_tables_.clear();
   edge_tables_.clear();
   dirty_.Reset();
-  pending_compaction_.Reset();
+  uncompacted_modules_.Reset();
   vertex_label_total_count_ = 0;
   edge_label_total_count_ = 0;
   schema_.Clear();
@@ -119,6 +119,10 @@ bool PropertyGraph::HasPendingIndexes() const {
 
 bool PropertyGraph::HasPendingMutations() const {
   return index_manager_->HasPendingMutations();
+}
+
+Status PropertyGraph::ValidateCheckpointPreconditions() const {
+  return index_manager_->ValidateCheckpointPreconditions();
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -833,13 +837,13 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   if (meta.base_timestamp() != 0) {
     for (size_t label = 0; label < vertex_label_total_count_; ++label) {
       if (schema_.is_vertex_label_valid(label)) {
-        pending_compaction_.MarkVertex(static_cast<label_t>(label));
+        uncompacted_modules_.MarkVertex(static_cast<label_t>(label));
       }
     }
     for (const auto& [index, _] : edge_tables_) {
-      pending_compaction_.MarkEdge(index);
+      uncompacted_modules_.MarkEdge(index);
     }
-    pending_compaction_.MarkSchema();
+    uncompacted_modules_.MarkSchema();
   }
   ckp_ = std::move(ckp);
   rebind_indexes();
@@ -955,7 +959,7 @@ void PropertyGraph::Compact() {
   // Incremental checkpoints clear persistence dirtiness without compacting.
   // Fold that separate state back into the full-checkpoint work set before
   // schema IDs can be remapped.
-  dirty_.MergeFrom(pending_compaction_);
+  dirty_.MergeFrom(uncompacted_modules_);
 
   compact_schema();
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
@@ -996,15 +1000,18 @@ void PropertyGraph::Compact() {
       }
     }
   }
-  pending_compaction_.Reset();
+  uncompacted_modules_.Reset();
   for (const auto& [index, _] : edge_tables_) {
-    pending_compaction_.AddEdgeSlot(index);
+    uncompacted_modules_.AddEdgeSlot(index);
   }
   LOG(INFO) << "Compaction completed.";
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
-  index_manager_->ValidateCheckpointState();
+  const auto preflight = ValidateCheckpointPreconditions();
+  if (!preflight.ok()) {
+    THROW_RUNTIME_ERROR(preflight.error_message());
+  }
   LOG(INFO) << "Creating checkpoint at " << ckp->manifest_path();
 
   CheckpointManifest meta;
@@ -1104,7 +1111,10 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   CHECK(ckp != nullptr);
   CHECK_GT(ckp->id(), ckp_->id());
   CHECK_GT(base_timestamp, 0);
-  index_manager_->ValidateCheckpointState();
+  const auto preflight = ValidateCheckpointPreconditions();
+  if (!preflight.ok()) {
+    THROW_RUNTIME_ERROR(preflight.error_message());
+  }
   const bool planning_changed =
       dirty_.IsSchemaDirty() || index_manager_->HasCatalogChanges();
   LOG(INFO) << "Creating incremental checkpoint at " << ckp->manifest_path();
@@ -1198,7 +1208,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   }
   index_manager_->InstallCheckpoint(ckp, reopened_modules, staged_indexes);
 
-  pending_compaction_.MergeFrom(dirty_);
+  uncompacted_modules_.MergeFrom(dirty_);
   for (auto& table : vertex_tables_) {
     table.ckp_ = ckp;
   }
@@ -1500,7 +1510,7 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   }
 
   cow_clone->dirty_.SetSchema(dirty_.IsSchemaDirty());
-  cow_clone->pending_compaction_ = pending_compaction_;
+  cow_clone->uncompacted_modules_ = uncompacted_modules_;
   cow_clone->ckp_ = ckp_;
   cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
   cow_clone->edge_label_total_count_ = edge_label_total_count_;

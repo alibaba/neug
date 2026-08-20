@@ -417,26 +417,28 @@ std::vector<std::string> StorageIndexManager::StageDirtyIndexes(
   return dumped_names;
 }
 
-void StorageIndexManager::ValidateCheckpointState() const {
+Status StorageIndexManager::ValidateCheckpointPreconditions() const {
   if (!pending_mutations_.empty()) {
-    THROW_RUNTIME_ERROR(
-        "Cannot create a checkpoint while mutations for pending "
-        "extension-backed indexes have not been applied. Load the required "
-        "extension first.");
+    return Status(StatusCode::ERR_ILLEGAL_OPERATION,
+                  "Cannot create a checkpoint while mutations for pending "
+                  "extension-backed indexes have not been applied. Load the "
+                  "required extension first.");
   }
   if (!pending_indexes_.empty() && !ckp_) {
-    THROW_RUNTIME_ERROR(
-        "Cannot preserve pending indexes without a previous checkpoint");
+    return Status(StatusCode::ERR_INTERNAL_ERROR,
+                  "Cannot preserve pending indexes without a previous "
+                  "checkpoint");
   }
 
   const CheckpointManifest* previous = ckp_ ? &ckp_->manifest() : nullptr;
   for (const auto& [_, pending] : pending_indexes_) {
     if (previous == nullptr || !previous->HasModule(pending.key)) {
-      THROW_RUNTIME_ERROR("Cannot preserve pending index module '" +
-                          pending.key +
-                          "': descriptor is missing from previous checkpoint");
+      return Status(StatusCode::ERR_INTERNAL_ERROR,
+                    "Cannot preserve pending index module '" + pending.key +
+                        "': descriptor is missing from previous checkpoint");
     }
   }
+  return Status::OK();
 }
 
 void StorageIndexManager::InstallCheckpoint(

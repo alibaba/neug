@@ -48,16 +48,6 @@ void cleanup_retired_checkpoints(
   } catch (...) { LOG(WARNING) << "Checkpoint GC failed"; }
 }
 
-Status validate_checkpoint_preconditions(const PropertyGraph& graph) {
-  if (graph.HasPendingMutations()) {
-    return Status(StatusCode::ERR_ILLEGAL_OPERATION,
-                  "Cannot create a checkpoint while mutations for pending "
-                  "extension-backed indexes have not been applied. Load the "
-                  "required extension first.");
-  }
-  return Status::OK();
-}
-
 }  // namespace
 
 const char* CheckpointCoordinator::reasonName(Reason reason) {
@@ -149,7 +139,7 @@ Status CheckpointCoordinator::PublishIncrementalCheckpoint(
           if (!live_graph.IsModified()) {
             return Status::OK();
           }
-          auto preflight = validate_checkpoint_preconditions(live_graph);
+          auto preflight = live_graph.ValidateCheckpointPreconditions();
           if (!preflight.ok()) {
             return preflight;
           }
@@ -214,7 +204,7 @@ Status CheckpointCoordinator::execute(Reason reason) {
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
 
-          auto preflight = validate_checkpoint_preconditions(live_graph);
+          auto preflight = live_graph.ValidateCheckpointPreconditions();
           if (!preflight.ok()) {
             return preflight;
           }
