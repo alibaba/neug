@@ -14,6 +14,68 @@
 
 include_guard(GLOBAL)
 
+function(_neug_apply_patch source_dir patch_file patch_name)
+    execute_process(
+        COMMAND git rev-parse --show-toplevel
+        WORKING_DIRECTORY "${source_dir}"
+        RESULT_VARIABLE _git_check
+        OUTPUT_VARIABLE _git_root
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    file(REAL_PATH "${source_dir}" _source_real_path)
+    if(_git_check EQUAL 0)
+        file(REAL_PATH "${_git_root}" _git_real_path)
+    endif()
+
+    if(_git_check EQUAL 0 AND _git_real_path STREQUAL _source_real_path)
+        set(_patch_check_command git apply --check "${patch_file}")
+        set(_patch_apply_command git apply "${patch_file}")
+        set(_patch_reverse_check_command
+            git apply --reverse --check "${patch_file}")
+    else()
+        find_program(_patch_executable patch REQUIRED)
+        set(_patch_check_command
+            "${_patch_executable}" -p1 -f --dry-run -i "${patch_file}")
+        set(_patch_apply_command
+            "${_patch_executable}" -p1 -f -i "${patch_file}")
+        set(_patch_reverse_check_command
+            "${_patch_executable}" -p1 -f -R --dry-run -i "${patch_file}")
+    endif()
+
+    execute_process(
+        COMMAND ${_patch_check_command}
+        WORKING_DIRECTORY "${source_dir}"
+        RESULT_VARIABLE _patch_check
+        ERROR_VARIABLE _patch_error)
+    if(_patch_check EQUAL 0)
+        execute_process(
+            COMMAND ${_patch_apply_command}
+            WORKING_DIRECTORY "${source_dir}"
+            RESULT_VARIABLE _patch_result
+            ERROR_VARIABLE _patch_error)
+        if(NOT _patch_result EQUAL 0)
+            message(FATAL_ERROR
+                "Failed to apply ${patch_name}: ${_patch_error}")
+        endif()
+        message(STATUS "Applied ${patch_name}.")
+        return()
+    endif()
+
+    execute_process(
+        COMMAND ${_patch_reverse_check_command}
+        WORKING_DIRECTORY "${source_dir}"
+        RESULT_VARIABLE _patch_applied
+        ERROR_VARIABLE _patch_reverse_error)
+    if(_patch_applied EQUAL 0)
+        message(STATUS "${patch_name} is already applied.")
+    else()
+        message(FATAL_ERROR
+            "${patch_name} neither applies nor appears already applied. "
+            "Apply error: ${_patch_error} "
+            "Reverse-check error: ${_patch_reverse_error}")
+    endif()
+endfunction()
+
 function(build_zvec_as_third_party)
     set(ZVEC_SOURCE_DIR
         "${CMAKE_SOURCE_DIR}/third_party/zvec"
@@ -29,67 +91,32 @@ function(build_zvec_as_third_party)
 
     set(_zvec_patch "${CMAKE_SOURCE_DIR}/third_party/zvec.patch")
     if(EXISTS "${_zvec_patch}")
-        execute_process(
-            COMMAND git rev-parse --show-toplevel
-            WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
-            RESULT_VARIABLE _zvec_git_check
-            OUTPUT_VARIABLE _zvec_git_root
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET)
-        file(REAL_PATH "${ZVEC_SOURCE_DIR}" _zvec_source_real_path)
-        if(_zvec_git_check EQUAL 0)
-            file(REAL_PATH "${_zvec_git_root}" _zvec_git_real_path)
-        endif()
-
-        if(_zvec_git_check EQUAL 0
-           AND _zvec_git_real_path STREQUAL _zvec_source_real_path)
-            set(_zvec_patch_check_command
-                git apply --check "${_zvec_patch}")
-            set(_zvec_patch_apply_command git apply "${_zvec_patch}")
-            set(_zvec_patch_reverse_check_command
-                git apply --reverse --check "${_zvec_patch}")
-        else()
-            find_program(_zvec_patch_executable patch REQUIRED)
-            set(_zvec_patch_check_command
-                "${_zvec_patch_executable}" -p1 -f --dry-run
-                -i "${_zvec_patch}")
-            set(_zvec_patch_apply_command
-                "${_zvec_patch_executable}" -p1 -f -i "${_zvec_patch}")
-            set(_zvec_patch_reverse_check_command
-                "${_zvec_patch_executable}" -p1 -f -R --dry-run
-                -i "${_zvec_patch}")
-        endif()
-
-        execute_process(
-            COMMAND ${_zvec_patch_check_command}
-            WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
-            RESULT_VARIABLE _zvec_patch_check
-            ERROR_VARIABLE _zvec_patch_error)
-        if(_zvec_patch_check EQUAL 0)
-            execute_process(
-                COMMAND ${_zvec_patch_apply_command}
-                WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
-                RESULT_VARIABLE _zvec_patch_result
-                ERROR_VARIABLE _zvec_patch_error)
-            if(NOT _zvec_patch_result EQUAL 0)
-                message(FATAL_ERROR
-                    "Failed to apply zvec.patch: ${_zvec_patch_error}")
-            endif()
-        else()
-            execute_process(
-                COMMAND ${_zvec_patch_reverse_check_command}
-                WORKING_DIRECTORY "${ZVEC_SOURCE_DIR}"
-                RESULT_VARIABLE _zvec_patch_applied
-                ERROR_VARIABLE _zvec_patch_reverse_error)
-            if(_zvec_patch_applied EQUAL 0)
-                message(STATUS "zvec.patch is already applied.")
-            else()
-                message(FATAL_ERROR
-                    "zvec.patch neither applies nor appears already applied: "
-                    "${_zvec_patch_error}")
-            endif()
-        endif()
+        _neug_apply_patch("${ZVEC_SOURCE_DIR}" "${_zvec_patch}" "zvec.patch")
     endif()
+
+    set(_zvec_antlr_source_dir
+        "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4")
+    set(_zvec_antlr_patch
+        "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4.patch")
+    if(NOT EXISTS "${_zvec_antlr_source_dir}/runtime/Cpp/CMakeLists.txt")
+        message(FATAL_ERROR
+            "ZVec's ANTLR4 source was not found at ${_zvec_antlr_source_dir}. "
+            "Initialize ZVec recursively with: git submodule update --init "
+            "--recursive third_party/zvec")
+    endif()
+    if(NOT EXISTS "${_zvec_antlr_patch}")
+        message(FATAL_ERROR
+            "ZVec's ANTLR4 patch was not found at ${_zvec_antlr_patch}.")
+    endif()
+
+    # ZVec's apply_patch_once() trusts this marker without checking whether a
+    # later submodule checkout reset the tracked files. Verify the real source
+    # state first, then create the marker only after the patch is present.
+    _neug_apply_patch(
+        "${_zvec_antlr_source_dir}"
+        "${_zvec_antlr_patch}"
+        "ZVec ANTLR4 patch")
+    file(WRITE "${_zvec_antlr_source_dir}/.antlr4_fix_patched" "patched")
 
     include(ExternalProject)
 
