@@ -152,14 +152,6 @@ jobs:
       # ========================================
       # Phase 1: C++ Tests (ctest)
       # Mirrors build-and-test-common.yml Phase 1.
-      # The following suites are skipped on Windows because they depend on
-      # features not yet ported (WAL file parser, pread shim / O_BINARY text
-      # mode issue), contain pre-existing plan-difference failures unrelated
-      # to the Windows port, or are concurrency/race tests that time out on
-      # Windows CI:
-      #   storage_test, csr_test, edge_table_test, utils_test, gopt_test,
-      #   schema_test, test_connection, test_indexer, temporary_graph_test,
-      #   copy_temp_test, graph_snapshot_store_test
       # test_db_svc is skipped (BRPC not available on Windows).
       # ========================================
       - name: Run C++ tests
@@ -174,6 +166,17 @@ jobs:
         run: |
           cd build
           $failed = @()
+          ctest -R storage_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'storage_test' }
+          ctest -R csr_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'csr_test' }
+          ctest -R edge_table_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'edge_table_test' }
+          ctest -R utils_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'utils_test' }
+          ctest -R gopt_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'gopt_test' }
+          ctest -R schema_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'schema_test' }
+          ctest -R test_connection -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_connection' }
+          ctest -R test_indexer -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_indexer' }
+          ctest -R temporary_graph_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'temporary_graph_test' }
+          ctest -R copy_temp_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'copy_temp_test' }
+          ctest -R graph_snapshot_store_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'graph_snapshot_store_test' }
           ctest -R transaction_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'transaction_test' }
           ctest -R graph_view_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'graph_view_test' }
           ctest -R execution_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'execution_test' }
