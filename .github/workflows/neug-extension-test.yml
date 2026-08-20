@@ -72,7 +72,7 @@ jobs:
 
     - name: Setup CCache and build dependencies
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev pkg-config uuid-dev
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev
         ccache --max-size=2G
         ccache --zero-stats
 
