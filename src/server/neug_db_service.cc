@@ -86,14 +86,15 @@ void NeugDBService::init(const ServiceConfig& config) {
 
   execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
       db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
-      *db_.version_manager_, *db_.checkpoint_coordinator_, db_.allocators_,
+      *db_.version_manager_, *db_.checkpoint_coordinator_,
+      db_.extension_manager(), db_.allocators_,
       db_.graph().checkpoint().wal_dir(), db_config_);
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
   hdl_mgr_->Init(effective_config);
   service_config_ = effective_config;
 
-  db_.checkpoint_coordinator_->SetActivationHandler(
+  db_.checkpoint_coordinator_->SetWalEpochActivationHandler(
       [pool = execution_slot_pool_.get()](const std::string& wal_uri) {
         pool->RotateWalWriters(wal_uri);
       });
@@ -106,7 +107,7 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_.reset();
   }
   if (db_.checkpoint_coordinator_) {
-    db_.checkpoint_coordinator_->ClearActivationHandler();
+    db_.checkpoint_coordinator_->ClearWalEpochActivationHandler();
   }
   execution_slot_pool_.reset();
   restoreNativeRuntimeWait();

@@ -87,6 +87,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
 
   auto* raw_ptr = index.get();
   indexes_[name] = std::move(index);
+  catalog_dirty_ = true;
   return raw_ptr;
 }
 
@@ -94,6 +95,7 @@ Status StorageIndexManager::DropIndex(const std::string& name) {
   auto pending_it = pending_indexes_.find(name);
   if (pending_it != pending_indexes_.end()) {
     pending_indexes_.erase(pending_it);
+    catalog_dirty_ = true;
     if (pending_indexes_.empty()) {
       pending_mutations_.clear();
     }
@@ -105,6 +107,7 @@ Status StorageIndexManager::DropIndex(const std::string& name) {
     return Status(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
   }
   indexes_.erase(it);
+  catalog_dirty_ = true;
   return Status::OK();
 }
 
@@ -274,8 +277,8 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
   Clear();
   ckp_ = std::move(ckp);
   memory_level_ = level;
-  const CheckpointManifest& meta = ckp_->GetMeta();
-  for (const auto& [key, desc] : meta.modules()) {
+  const CheckpointManifest& meta = ckp_->manifest();
+  for (const auto& [key, desc] : meta.Modules()) {
     if (!IsIndexModule(key)) {
       continue;
     }
@@ -318,7 +321,7 @@ result<size_t> StorageIndexManager::ActivateIndexes(
           StatusCode::ERR_SCHEMA_MISMATCH,
           "Module is not an index type: " + pending.descriptor.module_type);
     }
-    module->Open(*ckp_, ckp_->GetMeta(), pending.descriptor, memory_level_);
+    module->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
     std::unique_ptr<StorageIndex> index(
         static_cast<StorageIndex*>(module.release()));
     const auto& meta = index->GetMeta();
@@ -347,8 +350,7 @@ result<size_t> StorageIndexManager::ActivateIndexes(
   return candidates.size();
 }
 
-void StorageIndexManager::Dump(ModuleBroker& store, Checkpoint& ckp,
-                               CheckpointManifest& meta) {
+void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
   if (!pending_mutations_.empty()) {
     THROW_RUNTIME_ERROR(
         "Cannot create a checkpoint while mutations for pending "
@@ -360,12 +362,12 @@ void StorageIndexManager::Dump(ModuleBroker& store, Checkpoint& ckp,
         "Cannot preserve pending indexes without a previous checkpoint");
   }
   for (const auto& [_, pending] : pending_indexes_) {
-    if (!ckp_->GetMeta().has_module(pending.key)) {
+    if (!ckp_->manifest().HasModule(pending.key)) {
       THROW_RUNTIME_ERROR("Cannot preserve pending index module '" +
                           pending.key +
                           "': descriptor is missing from previous checkpoint");
     }
-    meta.LinkModuleFrom(ckp_->GetMeta(), pending.key, ckp);
+    meta.ReuseModuleClosureFrom(ckp_->manifest(), pending.key);
   }
   for (auto& [name, index] : indexes_) {
     if (!index)
@@ -398,6 +400,7 @@ std::unique_ptr<StorageIndexManager> StorageIndexManager::Clone() const {
   }
   forked->pending_indexes_ = pending_indexes_;
   forked->pending_mutations_ = pending_mutations_;
+  forked->catalog_dirty_ = catalog_dirty_;
   return forked;
 }
 
@@ -405,6 +408,7 @@ void StorageIndexManager::Clear() {
   indexes_.clear();
   pending_indexes_.clear();
   pending_mutations_.clear();
+  catalog_dirty_ = false;
   ckp_.reset();
   memory_level_ = MemoryLevel::kInMemory;
 }

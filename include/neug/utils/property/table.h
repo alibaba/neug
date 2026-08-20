@@ -26,6 +26,7 @@
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -33,7 +34,7 @@ namespace neug {
 
 class TableView;
 
-class Table {
+class NEUG_API Table {
  public:
   Table();
 
@@ -41,6 +42,12 @@ class Table {
         const std::vector<DataType>& property_types);
 
   ~Table();
+
+  // Table holds unique_ptr<ColumnBase>; it is move-only.
+  Table(const Table&) = delete;
+  Table& operator=(const Table&) = delete;
+  Table(Table&&) = default;
+  Table& operator=(Table&&) = default;
 
   void Init(Checkpoint& ckp, MemoryLevel level);
 

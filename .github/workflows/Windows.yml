@@ -1,0 +1,291 @@
+name: NeuG Test (Windows)
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - created
+  push:
+    paths:
+      - 'cmake/**'
+      - 'src/**'
+      - 'bin/**'
+      - 'proto/**'
+      - 'third_party/**'
+      - 'tools/python_bind/**'
+      - 'tools/utils/**'
+      - 'tests/**'
+      - '.github/workflows/Windows.yml'
+      - '.github/workflows/build-and-test-common.yml'
+      - 'scripts/install_deps.ps1'
+      - 'scripts/build_windows.bat'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'doc/source/tutorials/**'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  format_check:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'release' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))
+    uses: ./.github/workflows/format-check.yml
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
+
+  # ============================================================
+  # Windows x64 Job: Build NeuG + run C++ and Python tests
+  # Uses GitHub-hosted windows-2022 runner with pre-installed
+  # MSVC 2022, vcpkg, Python, CMake, and Ninja.
+  # ============================================================
+  build_and_test_windows:
+    needs: format_check
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'release' || github.event_name == 'pull_request' || (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))) }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tools/python_bind/requirements.txt
+          python -m pip install pytest pytest-cov coverage
+
+      # vcpkg is pre-installed on GitHub-hosted Windows runners at C:\vcpkg
+      # but ships with NO pre-built packages. In classic mode (no vcpkg.json)
+      # the toolchain does not auto-install missing packages, so we must
+      # install OpenSSL explicitly before CMake configure. Without this step
+      # CMake falls back to the system-level dynamic OpenSSL (DLL), which
+      # Python 3.8+ cannot load (PATH is not searched for DLLs).
+      - name: Setup vcpkg
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          echo "Using vcpkg at: $env:VCPKG_INSTALLATION_ROOT"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-x64-windows-static-md-openssl-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-x64-windows-static-md-openssl-
+
+      - name: Install OpenSSL via vcpkg
+        run: |
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+          $triplet = "x64-windows-static-md"
+          $installDir = Join-Path $env:VCPKG_ROOT "installed\$triplet"
+          # Skip if already installed (cache hit)
+          if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
+            Write-Host "OpenSSL already installed in $installDir (cache hit)"
+          } else {
+            Write-Host "Installing openssl:$triplet via vcpkg"
+            & $vcpkgExe install "openssl:$triplet"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "vcpkg failed to install openssl:$triplet"
+              exit 1
+            }
+          }
+
+      - name: Configure CMake
+        run: |
+          $pythonExe = (Get-Command python).Path
+          $vcpkgToolchain = Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+            -DBUILD_PYTHON=ON `
+            -DBUILD_TEST=ON `
+            -DPython_EXECUTABLE="$pythonExe" `
+            -DPYTHON_EXECUTABLE="$pythonExe" `
+            .
+
+      - name: Build
+        run: |
+          $cpuCount = [Environment]::ProcessorCount
+          $jobs = [Math]::Min($cpuCount, 8)
+          Write-Host "Building with $jobs parallel jobs"
+          cmake --build build -j $jobs
+
+      # ========================================
+      # Phase 1: C++ Tests (ctest)
+      # Mirrors build-and-test-common.yml Phase 1.
+      # The following suites are skipped on Windows because they depend on
+      # features not yet ported (WAL file parser, pread shim / O_BINARY text
+      # mode issue), contain pre-existing plan-difference failures unrelated
+      # to the Windows port, or are concurrency/race tests that time out on
+      # Windows CI:
+      #   storage_test, csr_test, edge_table_test, utils_test, gopt_test,
+      #   schema_test, test_connection, test_indexer, temporary_graph_test,
+      #   copy_temp_test, graph_snapshot_store_test
+      # test_db_svc is skipped (BRPC not available on Windows).
+      # ========================================
+      - name: Run C++ tests
+        id: cpp-tests
+        continue-on-error: true
+        env:
+          MODERN_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+          COMPREHENSIVE_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/comprehensive_graph
+          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
+          TEST_PATH: ${{ github.workspace }}/tests
+          TEST_RESOURCE: ${{ github.workspace }}/tests/compiler
+        run: |
+          cd build
+          $failed = @()
+          ctest -R transaction_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'transaction_test' }
+          ctest -R graph_view_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'graph_view_test' }
+          ctest -R execution_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'execution_test' }
+          ctest -R test_vertex_table -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_vertex_table' }
+          ctest -R test_mmap_container -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_mmap_container' }
+          ctest -R logical_delete_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'logical_delete_test' }
+          ctest -R test_request -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_request' }
+          ctest -R sink_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'sink_test' }
+          if ($failed.Count -gt 0) {
+            Write-Error "The following C++ test suites failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "All C++ test suites passed."
+
+      # ========================================
+      # Phase 2: Python Tests
+      # Mirrors build-and-test-common.yml Phase 3.
+      # Tests depending on bulk-loaded /tmp data are skipped
+      # (bulk_loader executable is not built on Windows).
+      # ========================================
+      - name: Install Python dev requirements
+        run: |
+          python -m pip install -r tools/python_bind/requirements_dev.txt
+
+      - name: Run Python schema tests
+        id: python-schema-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_schema.py --exitfirst
+
+      - name: Run Python DML tests
+        id: python-dml-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_dml.py --exitfirst
+
+      - name: Run Python query tests
+        id: python-query-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_query.py --exitfirst
+
+      - name: Run Python path tests
+        id: python-path-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_path.py --exitfirst
+
+      - name: Run Python dataset tests
+        id: python-dataset-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_dataset.py --exitfirst
+
+      - name: Run Python merge tests
+        id: python-merge-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_merge.py --exitfirst
+
+      - name: Run Python LOAD FROM sniffer tests (CSV and JSON)
+        id: python-sniffer-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_sniffer.py -k "csv or json" --exitfirst
+
+      - name: Run Python complex query tests
+        id: python-complex-query-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_cases.py --exitfirst
+
+      - name: Run Python list/array tests
+        id: python-list-array-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_db_list.py --exitfirst
+          python -m pytest -sv tests/test_db_array.py --exitfirst
+
+      - name: Run Python PyArrow related tests
+        id: python-pyarrow-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pip install pyarrow==18.0.0
+          python -m pytest -sv tests/test_to_arrow.py --exitfirst
+          python -m pip uninstall -y pyarrow
+
+      - name: Run Python CLI tool tests
+        id: python-cli-tests
+        continue-on-error: true
+        run: |
+          cd tools/python_bind
+          python -m pytest -sv tests/test_ngcli_commands.py --exitfirst
+          python -m pytest -sv tests/test_ngcli_basics.py --exitfirst
+
+      # ========================================
+      # Summary: fail the job if any test step actually failed.
+      # Individual steps use continue-on-error during initial Windows bring-up
+      # so that we can collect a full picture of failures, but this step
+      # ensures the overall CI is red when tests are not passing.
+      # ========================================
+      - name: Check test results
+        if: always()
+        run: |
+          $failed = @()
+          if ('${{ steps.cpp-tests.outcome }}' -eq 'failure') { $failed += 'cpp-tests' }
+          if ('${{ steps.python-schema-tests.outcome }}' -eq 'failure') { $failed += 'python-schema-tests' }
+          if ('${{ steps.python-dml-tests.outcome }}' -eq 'failure') { $failed += 'python-dml-tests' }
+          if ('${{ steps.python-query-tests.outcome }}' -eq 'failure') { $failed += 'python-query-tests' }
+          if ('${{ steps.python-path-tests.outcome }}' -eq 'failure') { $failed += 'python-path-tests' }
+          if ('${{ steps.python-dataset-tests.outcome }}' -eq 'failure') { $failed += 'python-dataset-tests' }
+          if ('${{ steps.python-merge-tests.outcome }}' -eq 'failure') { $failed += 'python-merge-tests' }
+          if ('${{ steps.python-sniffer-tests.outcome }}' -eq 'failure') { $failed += 'python-sniffer-tests' }
+          if ('${{ steps.python-complex-query-tests.outcome }}' -eq 'failure') { $failed += 'python-complex-query-tests' }
+          if ('${{ steps.python-list-array-tests.outcome }}' -eq 'failure') { $failed += 'python-list-array-tests' }
+          if ('${{ steps.python-pyarrow-tests.outcome }}' -eq 'failure') { $failed += 'python-pyarrow-tests' }
+          if ('${{ steps.python-cli-tests.outcome }}' -eq 'failure') { $failed += 'python-cli-tests' }
+          if ($failed.Count -gt 0) {
+            Write-Error "The following test steps failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "All test steps passed."

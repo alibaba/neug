@@ -30,6 +30,14 @@ namespace planner {
 
 struct LogicalInsertInfo;
 
+// Windows headers may define NONE and OPTIONAL as macros; undefine them.
+#ifdef NONE
+#undef NONE
+#endif
+#ifdef OPTIONAL
+#undef OPTIONAL
+#endif
+
 enum class SubqueryPlanningType : uint8_t {
   NONE = 0,
   UNNEST_CORRELATED = 1,

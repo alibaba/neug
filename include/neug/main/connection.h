@@ -24,6 +24,8 @@
 #include <rapidjson/document.h>
 
 #include "neug/main/query_result.h"
+#include "neug/storages/graph_snapshot_store.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -79,7 +81,7 @@ class ExecutionSlot;
  *
  * @since v0.1.0
  */
-class Connection {
+class NEUG_API Connection {
  public:
   using CloseCallback = std::function<void(Connection*)>;
 

@@ -16,7 +16,11 @@
 #include "neug/main/neug_db.h"
 
 #include <glog/logging.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#endif
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -25,10 +29,12 @@
 #include <exception>
 #include <filesystem>
 #include <limits>
+#include <random>
 #include <system_error>
 #include <utility>
 #include <vector>
 
+#include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
@@ -49,6 +55,45 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+#ifdef _WIN32
+// MSVC's CRT has no mkdtemp(); emulate it by replacing the trailing
+// "XXXXXX" with random characters and retrying until a fresh directory is
+// created.  Sets errno and returns false on failure, mirroring mkdtemp.
+static bool mkdtemp_win(std::string& path_template) {
+  constexpr char kChars[] =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  constexpr size_t kSuffixLen = 6;
+  if (path_template.size() < kSuffixLen ||
+      path_template.compare(path_template.size() - kSuffixLen, kSuffixLen,
+                            "XXXXXX") != 0) {
+    errno = EINVAL;
+    return false;
+  }
+  std::random_device rd;
+  std::mt19937_64 gen(rd());
+  std::uniform_int_distribution<size_t> dist(0, sizeof(kChars) - 2);
+  for (int attempt = 0; attempt < 100; ++attempt) {
+    for (size_t i = path_template.size() - kSuffixLen; i < path_template.size();
+         ++i) {
+      path_template[i] = kChars[dist(gen)];
+    }
+    std::error_code ec;
+    if (std::filesystem::create_directory(path_template, ec)) {
+      return true;
+    }
+    if (ec && ec != std::errc::file_exists) {
+      // Map the system error to its POSIX equivalent so the errno-based
+      // reporting at the call site stays meaningful.
+      errno = ec.default_error_condition().value();
+      return false;
+    }
+    // Name collision: retry with a new random suffix.
+  }
+  errno = EEXIST;
+  return false;
+}
+#endif
 
 inline std::string allocator_prefix(const std::string& allocator_dir,
                                     int slot_id) {
@@ -143,7 +188,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     }
 
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
-    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
+    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.database_dir();
     neug::execution::PlanParser::get().init();
     timestamp_t initial_visibility_ts = openGraphAndIngestWals();
     checkpoint_coordinator_ = std::make_unique<CheckpointCoordinator>(
@@ -160,14 +205,16 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       }
     }
     if (config_.mode == DBMode::READ_WRITE) {
-      checkpoint_mgr_.CleanupRetiredCheckpoints();
+      checkpoint_mgr_.CollectGarbage();
     }
     initVersionManager(initial_visibility_ts);
+    extension_manager_ = std::make_unique<ExtensionManager>();
     initPlanner();
     initQueryRuntime();
   } catch (...) {
     clearQueryRuntime();
     planner_.reset();
+    extension_manager_.reset();
     version_manager_.reset();
     checkpoint_coordinator_.reset();
     snapshot_store_.reset();
@@ -221,6 +268,7 @@ void NeugDB::Close() {
   version_manager_.reset();
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
+  extension_manager_.reset();
   allocators_.clear();
   checkpoint_mgr_.Close();
   cleanupTemporaryWorkspace();
@@ -357,12 +405,33 @@ void NeugDB::preprocessConfig() {
     if (prefix_env) {
       db_dir_prefix = prefix_env;
     } else {
+#ifdef _WIN32
+      // On Windows, use the system temp directory (e.g.
+      // C:\Users\<user>\AppData\Local\Temp)
+      char tmp_path[MAX_PATH];
+      DWORD len = GetTempPathA(MAX_PATH, tmp_path);
+      if (len > 0) {
+        // Remove trailing backslash
+        if (tmp_path[len - 1] == '\\' || tmp_path[len - 1] == '/') {
+          tmp_path[len - 1] = '\0';
+          len--;
+        }
+        db_dir_prefix = std::string(tmp_path);
+      } else {
+        db_dir_prefix = ".";
+      }
+#else
       db_dir_prefix = "/tmp";
+#endif
     }
     db_dir_prefix = std::filesystem::absolute(db_dir_prefix);
     std::filesystem::create_directories(db_dir_prefix);
     auto path_template = (db_dir_prefix / "neug_db_XXXXXX").string();
+#ifdef _WIN32
+    if (!mkdtemp_win(path_template)) {
+#else
     if (::mkdtemp(path_template.data()) == nullptr) {
+#endif
       const auto error = std::error_code(errno, std::generic_category());
       THROW_IO_EXCEPTION("Failed to create temporary NeugDB under " +
                          db_dir_prefix.string() + ": " + error.message());
@@ -430,23 +499,23 @@ void NeugDB::reopenAllocators(const std::string& allocator_dir) {
 timestamp_t NeugDB::openGraphAndIngestWals() {
   max_thread_num_ = config_.max_thread_num;
   try {
-    auto ckp = checkpoint_mgr_.CurrentCheckpoint();
+    auto ckp = checkpoint_mgr_.Current();
     if (ckp == nullptr) {
       if (config_.mode == DBMode::READ_ONLY && !is_pure_memory_) {
         THROW_NO_CHECKPOINT_EXCEPTION(
             "NeugDB::Open: no checkpoint found in read-only database: " +
-            checkpoint_mgr_.db_dir());
+            checkpoint_mgr_.database_dir());
       }
-      auto staging_checkpoint = checkpoint_mgr_.CreateStagingCheckpoint();
+      auto staging_checkpoint = checkpoint_mgr_.CreateStaging();
       ckp = staging_checkpoint.checkpoint();
       CheckpointManifest meta;
       meta.SetSchema(Schema());
-      ckp->UpdateMeta(std::move(meta));
-      ckp = staging_checkpoint.Commit();
+      ckp->SetManifest(std::move(meta));
+      ckp = staging_checkpoint.Publish();
       LOG(INFO) << "No checkpoint found, created initial checkpoint: "
-                << ckp->path();
+                << ckp->manifest_path();
     }
-    LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
+    LOG(INFO) << "Opening graph from checkpoint " << ckp->manifest_path();
     auto graph = std::make_shared<PropertyGraph>();
     graph->Open(ckp, config_.memory_level);
 
@@ -455,9 +524,11 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
 
     neug::WalParserFactory::Init();
     auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
-    const timestamp_t recovered_wal_timestamp = ingestWals(*wal_parser, *graph);
+    const timestamp_t recovered_wal_timestamp =
+        ingestWals(*wal_parser, *graph,
+                   static_cast<timestamp_t>(ckp->manifest().base_timestamp()));
 
-    // Create GraphSnapshotStore with the graph at timestamp 0
+    // VersionManager is initialized by the caller with recovered_wal_timestamp.
     snapshot_store_ =
         std::make_unique<GraphSnapshotStore>(config_.storage_slot_num, graph);
     return recovered_wal_timestamp;
@@ -470,8 +541,9 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
   }
 }
 
-timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
-  uint32_t from_ts = 1;
+timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
+                               timestamp_t base_timestamp) {
+  uint32_t from_ts = base_timestamp + 1;
   LOG(INFO) << "Ingesting update wals size: "
             << parser.get_update_wals().size();
 
@@ -492,7 +564,7 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
     IngestWalRange(graph, allocators_, parser, from_ts, parser.last_ts() + 1);
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
-  return parser.last_ts();
+  return std::max(base_timestamp, parser.last_ts());
 }
 
 void NeugDB::initPlanner() {
@@ -524,8 +596,8 @@ std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
   return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
       *snapshot_store_, planner_, global_query_cache_, *version_manager_,
       *allocators_.at(slot_id), QueryExecutionStrategy::kDirect,
-      /*wal_writer=*/nullptr, *checkpoint_coordinator_, config_,
-      static_cast<int>(slot_id)));
+      /*wal_writer=*/nullptr, *checkpoint_coordinator_, *extension_manager_,
+      config_, static_cast<int>(slot_id)));
 }
 
 void NeugDB::initQueryRuntime() {
@@ -596,7 +668,7 @@ void NeugDB::createCheckpointOnClose() {
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
-  checkpoint_mgr_.CleanupRetiredCheckpoints();
+  checkpoint_mgr_.CollectGarbage();
 }
 
 }  // namespace neug

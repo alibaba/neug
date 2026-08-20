@@ -30,6 +30,7 @@
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -42,12 +43,14 @@ class PropertyGraph;
 
 class IDataChunkSupplier;
 
-class EdgeTable {
+class NEUG_API EdgeTable {
  public:
   EdgeTable(std::shared_ptr<const EdgeSchema> meta) : meta_(meta) {}
   EdgeTable(EdgeTable&& edge_table);
 
   EdgeTable(const EdgeTable&) = delete;
+  EdgeTable& operator=(const EdgeTable&) = delete;
+  EdgeTable& operator=(EdgeTable&& other) noexcept;
   ~EdgeTable() = default;
 
   void Swap(EdgeTable& other);
@@ -84,8 +87,8 @@ class EdgeTable {
 
   /// When this table is clean, re-link prior-snapshot modules/scalars into
   /// @p meta instead of dumping. Links exact keys for this triplet only.
-  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
-                      const CheckpointManifest& prev) const;
+  void ReuseCheckpointModules(Checkpoint& ckp, CheckpointManifest& manifest,
+                              const CheckpointManifest& previous) const;
 
   void SetInCsr(std::unique_ptr<CsrBase> csr);
   void SetOutCsr(std::unique_ptr<CsrBase> csr);

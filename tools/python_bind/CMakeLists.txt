@@ -35,7 +35,15 @@ set_target_properties(neug_py_bind PROPERTIES
 # protobuf is linked privately because pybind sources use protobuf-generated
 # headers whose inline/template code references absl/protobuf symbols;
 # libneug.dylib hides those symbols to avoid conflicts with pyarrow.
-target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
+# On Windows, also link neug_proto OBJECT files directly because protobuf's
+# _default_instance_ variables are at namespace scope and not exported
+# from neug.dll (dllexport_decl only marks class declarations, not these
+# file-scope static variables).
+if(WIN32)
+    target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} $<TARGET_OBJECTS:neug_proto>)
+else()
+    target_link_libraries(neug_py_bind PRIVATE neug ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
+endif()
 
 # Suppress VLA warnings from brpc third-party headers (bvar/detail/percentile.h
 # uses DEFINE_SMALL_ARRAY which is a GCC VLA extension unsupported by Clang).
@@ -46,3 +54,12 @@ endif()
 # Hide protobuf/abseil/arrow symbols from neug_py_bind.so as well, so they
 # don't leak into the Python process and conflict with pyarrow's copies.
 neug_apply_symbol_visibility(neug_py_bind)
+
+# On Windows, copy neug.dll next to neug_py_bind.pyd so the loader finds it.
+# RPATH ($ORIGIN/@loader_path) is a POSIX-only mechanism; Windows relies on
+# DLL search order (same-dir-first).
+if(WIN32)
+    add_custom_command(TARGET neug_py_bind POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:neug> $<TARGET_FILE_DIR:neug_py_bind>)
+endif()

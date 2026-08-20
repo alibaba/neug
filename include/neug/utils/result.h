@@ -21,13 +21,14 @@
 #include <string>
 
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/utils/api.h"
 #include "tl/expected.hpp"
 
 namespace neug {
 
 using StatusCode = neug::interactive::Code;
 
-class Status {
+class NEUG_API Status {
  public:
   Status() noexcept;
   explicit Status(StatusCode error_code) noexcept;
@@ -112,6 +113,15 @@ inline std::string to_string(const neug::interactive::Code& status) {
     std::move(_r);                       \
   }).value()
 
+#ifdef _WIN32
+#define GS_AUTO(var, expr)                                     \
+  auto _gs_r_##var = (expr);                                   \
+  if (!_gs_r_##var) {                                          \
+    LOG(ERROR) << "Error: " << _gs_r_##var.error().ToString(); \
+    return tl::unexpected(_gs_r_##var.error());                \
+  }                                                            \
+  auto var = std::move(_gs_r_##var).value();
+#else
 #define GS_AUTO(var, expr)                                         \
   auto var = ({                                                    \
                auto&& _r = (expr);                                 \
@@ -121,6 +131,7 @@ inline std::string to_string(const neug::interactive::Code& status) {
                }                                                   \
                std::move(_r);                                      \
              }).value();
+#endif
 #define GS_ASSIGN(var, expr)                            \
   do {                                                  \
     auto&& _r = (expr);                                 \

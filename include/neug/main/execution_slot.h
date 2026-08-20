@@ -51,6 +51,7 @@ class IVersionManager;
 class NeugDB;
 class ExecutionSlot;
 class TpExecutionSlotPool;
+class ExtensionManager;
 
 enum class QueryExecutionStrategy : uint8_t {
   kDirect,
@@ -237,6 +238,7 @@ class ExecutionSlot {
                 QueryExecutionStrategy execution_strategy,
                 IWalWriter* wal_writer,
                 CheckpointCoordinator& checkpoint_coordinator,
+                ExtensionManager& extension_manager,
                 const NeugDBConfig& config_, int slot_id)
       : snapshot_store_(snapshot_store),
         planner_(planner),
@@ -246,6 +248,7 @@ class ExecutionSlot {
         execution_strategy_(execution_strategy),
         wal_writer_(wal_writer),
         checkpoint_coordinator_(checkpoint_coordinator),
+        extension_manager_(extension_manager),
         db_config_(config_),
         slot_id_(slot_id),
         eval_duration_(0),
@@ -262,7 +265,10 @@ class ExecutionSlot {
   Status validatePlan(AccessMode mode, const physical::ExecutionFlag& flags,
                       bool is_explain) const;
 
-  Status validateCheckpointRequest(AccessMode access_mode) const;
+  Status validateAdminRequest(const AdminRequest& request,
+                              AccessMode access_mode) const;
+  Status executeAdmin(const AdminRequest& request, ExplainMode explain_mode,
+                      QueryResponse& response);
 
   Status executeCore(const std::string& query, AccessMode requested_mode,
                      const rapidjson::Value& parameters, int32_t num_threads,
@@ -276,6 +282,7 @@ class ExecutionSlot {
   const QueryExecutionStrategy execution_strategy_;
   IWalWriter* const wal_writer_;
   CheckpointCoordinator& checkpoint_coordinator_;
+  ExtensionManager& extension_manager_;
   const NeugDBConfig& db_config_;
   int slot_id_;
 

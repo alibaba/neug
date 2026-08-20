@@ -22,6 +22,7 @@ import os
 import shutil
 import sys
 import time
+from pathlib import Path
 
 import pytest
 from conftest import wait_for_server_ready
@@ -63,9 +64,9 @@ def test_batch_loading(setup_database):
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
     )
     sess.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
-    sess.execute(f'COPY person from "{person_csv}"')
+    sess.execute(f'COPY person from "{Path(person_csv).as_posix()}"')
     sess.execute(
-        f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+        f'COPY knows from "{Path(person_knows_person_csv).as_posix()}" (from="person", to="person")'
     )
 
     res = sess.execute("MATCH (n) WHERE n.id = 1 RETURN n.name;")
@@ -1226,17 +1227,11 @@ def test_checkpoint(tmp_path):
     db.close()
 
 
-def _single_checkpoint_dir(db_dir, expected_generation):
-    checkpoints = sorted(
-        path
-        for path in db_dir.iterdir()
-        if path.is_dir()
-        and path.name.startswith("checkpoint-")
-        and not path.name.endswith(".next")
-    )
-    assert [path.name for path in checkpoints] == [f"checkpoint-{expected_generation}"]
-    assert not any(path.name.endswith(".next") for path in db_dir.iterdir())
-    return checkpoints[0]
+def _current_checkpoint_wal_dir(db_dir, expected_id):
+    checkpoint_dir = db_dir / "checkpoint"
+    assert (checkpoint_dir / "CURRENT").read_text() == f"{expected_id}\n"
+    assert (checkpoint_dir / "manifests" / f"{expected_id}.manifest").is_file()
+    return db_dir / "wal" / str(expected_id)
 
 
 def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port):
@@ -1265,8 +1260,8 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         session.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
         session.execute("CREATE (:Person {id: 1});")
         session.execute("CHECKPOINT;")
-        first_checkpoint = _single_checkpoint_dir(db_dir, 1)
-        first_timeline_wals = sorted((first_checkpoint / "wal").glob("*.wal"))
+        first_timeline_wal_dir = _current_checkpoint_wal_dir(db_dir, 1)
+        first_timeline_wals = sorted(first_timeline_wal_dir.glob("*.wal"))
         assert len(first_timeline_wals) == expected_slots
         for wal_path in first_timeline_wals:
             with wal_path.open("rb") as wal_file:
@@ -1276,11 +1271,10 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         session.execute("MATCH (p:Person {id: 1}) SET p.name = 'one';")
         session.execute("CREATE (:Person {id: 2, name: 'two'});")
 
-        assert sorted((first_checkpoint / "wal").glob("*.wal")) == first_timeline_wals
+        assert sorted(first_timeline_wal_dir.glob("*.wal")) == first_timeline_wals
 
         session.execute("CHECKPOINT;")
-        current_checkpoint = _single_checkpoint_dir(db_dir, 2)
-        current_wals = sorted((current_checkpoint / "wal").glob("*.wal"))
+        current_wals = sorted(_current_checkpoint_wal_dir(db_dir, 2).glob("*.wal"))
         assert len(current_wals) == expected_slots
         for wal_path in current_wals:
             with wal_path.open("rb") as wal_file:
@@ -1350,16 +1344,19 @@ def test_tp_checkpoint_invalidates_cached_plans_after_label_compaction(
 
         session.execute("CREATE NODE TABLE A(id INT64, PRIMARY KEY(id));")
         session.execute("CREATE NODE TABLE B(id INT64, name STRING, PRIMARY KEY(id));")
+        session.execute("CREATE NODE TABLE C(id INT64, name STRING, PRIMARY KEY(id));")
+        session.execute("CREATE REL TABLE E(FROM B TO C);")
         session.execute("CREATE (:B {id: 1, name: 'before'});")
+        session.execute("CREATE (:C {id: 2, name: 'after'});")
+        session.execute("MATCH (b:B {id: 1}), (c:C {id: 2}) CREATE (b)-[:E]->(c);")
         session.execute("DROP TABLE A;")
 
-        query = "MATCH (b:B {id: 1}) RETURN b.name;"
-        assert list(session.execute(query)) == [["before"]]
+        query = "MATCH (b:B {id: 1})-[:E]->(c:C) RETURN b.name, c.name;"
+        assert list(session.execute(query)) == [["before", "after"]]
 
-        # Compacting the schema removes A's tombstone and renumbers B from
-        # label 1 to label 0. The cached plan must be rebuilt for that schema.
+        # Compacting the schema removes A's tombstone and renumbers B/C and E.
         session.execute("CHECKPOINT;")
-        assert list(session.execute(query)) == [["before"]]
+        assert list(session.execute(query)) == [["before", "after"]]
     finally:
         if session is not None:
             session.close()

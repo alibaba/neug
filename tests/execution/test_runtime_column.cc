@@ -42,7 +42,7 @@ class VertexColumnTest : public ::testing::Test {
     col_builder.push_back_elem(Value::VERTEX(VertexRecord(label, kVid0)));
     col_builder.push_back_vertex(VertexRecord(label, kVid1));
     if (is_optional) {
-      col_builder.push_back_null();
+      col_builder.push_back_elem(Value(DataType::VERTEX));
     }
     std::shared_ptr<IContextColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<SLVertexColumn>(col);
@@ -55,7 +55,7 @@ class VertexColumnTest : public ::testing::Test {
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid1));
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid2));
     if (is_optional) {
-      col_builder.push_back_null();
+      col_builder.push_back_elem(Value(DataType::VERTEX));
     }
     std::shared_ptr<IContextColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<MSVertexColumn>(col);
@@ -68,7 +68,7 @@ class VertexColumnTest : public ::testing::Test {
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid1));
     col_builder.push_back_vertex(VertexRecord(kLabel1, kVid2));
     if (is_optional) {
-      col_builder.push_back_null();
+      col_builder.push_back_elem(Value(DataType::VERTEX));
     }
     std::shared_ptr<IContextColumn> col = col_builder.finish();
     return std::dynamic_pointer_cast<MLVertexColumn>(col);
@@ -387,7 +387,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnOptional) {
   EdgeRecord e = EdgeRecord{label, kVid1, kVid2, nullptr, Direction::kOut};
   builder.push_back_elem(Value::EDGE(e));
   builder.push_back_opt(kVid1, kVid2, nullptr);
-  builder.push_back_null();
+  builder.push_back_elem(Value(DataType::EDGE));
   auto col_ptr = builder.finish();
   auto* sl_col = dynamic_cast<SDSLEdgeColumn*>(col_ptr.get());
 
@@ -505,7 +505,7 @@ TEST_F(EdgeColumnTest, BDSLEdgeColumnShuffle) {
 
   BDSLEdgeColumnBuilder optional_builder(label);
   optional_builder.push_back_opt(kVid0, kVid1, nullptr, Direction::kOut);
-  optional_builder.push_back_null();
+  optional_builder.push_back_elem(Value(DataType::EDGE));
   optional_builder.push_back_opt(kVid1, kVid0, nullptr, Direction::kIn);
 
   auto optional_col_ptr = optional_builder.finish();
@@ -605,7 +605,7 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnShuffle) {
 
   SDMLEdgeColumnBuilder optional_builder(Direction::kOut, labels);
   optional_builder.push_back_opt(label0, kVid0, kVid1, nullptr);
-  optional_builder.push_back_null();
+  optional_builder.push_back_elem(Value(DataType::EDGE));
   optional_builder.push_back_opt(label1, kVid1, kVid0, nullptr);
 
   auto optional_col_ptr = optional_builder.finish();
@@ -707,7 +707,7 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnShuffle) {
   BDMLEdgeColumnBuilder optional_builder(labels);
   optional_builder.push_back_opt(label0, kVid0, kVid1, nullptr,
                                  Direction::kOut);
-  optional_builder.push_back_null();
+  optional_builder.push_back_elem(Value(DataType::EDGE));
   optional_builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
 
   auto optional_col_ptr = optional_builder.finish();
@@ -761,7 +761,7 @@ TEST_F(EdgeColumnTest, MSEdgeColumnFromBuilder) {
   builder.push_back_opt(kVid0, kVid1, nullptr);
   builder.start_label_dir(label1, Direction::kIn);
   builder.push_back_opt(kVid1, kVid2, nullptr);
-  builder.push_back_null();
+  builder.push_back_elem(Value(DataType::EDGE));
   auto col_ptr = builder.finish();
   std::shared_ptr<MSEdgeColumn> ms_col =
       std::dynamic_pointer_cast<MSEdgeColumn>(col_ptr);
@@ -1295,7 +1295,7 @@ TEST_F(PathColumnTest, OptionalPathColumnBasic) {
 
   PathColumnBuilder builder(true);
   builder.push_back_opt(p1);
-  builder.push_back_null();
+  builder.push_back_elem(Value(DataType::PATH));
   builder.push_back_elem(Value::PATH(p2));
 
   auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
@@ -1462,6 +1462,65 @@ TEST_F(ArrowColumnTest, DataChunkSupplierBasic) {
     }
   }
   EXPECT_GT(total_rows, 0);
+}
+
+TEST_F(ArrowColumnTest, CsvCollectionNullElements) {
+  const char* var = std::getenv("TEST_PATH");
+  std::string test_path = var ? var : "/workspaces/neug/tests";
+  std::string file_path =
+      test_path + "/execution/resources/collection_null.csv";
+
+  CsvReadConfig config;
+  put_boolean_option(config);
+  config.delimiter = '|';
+  config.quoting = false;
+  config.skip_rows = 1;
+  config.column_names = {"id", "list_values", "array_values",
+                         "nested_list_values"};
+  config.include_columns = config.column_names;
+  config.column_types.emplace("id", DataType(DataTypeId::kInt64));
+  config.column_types.emplace("list_values",
+                              DataType::List(DataType(DataTypeId::kInt64)));
+  config.column_types.emplace("array_values",
+                              DataType::Array(DataType(DataTypeId::kInt64), 3));
+  config.column_types.emplace(
+      "nested_list_values",
+      DataType::List(DataType::List(DataType(DataTypeId::kInt64))));
+  config.null_values = {"NULL"};
+
+  CSVChunkSupplier supplier(file_path, std::move(config));
+  auto chunk = supplier.GetNextChunk();
+  ASSERT_NE(chunk, nullptr);
+  ASSERT_EQ(chunk->row_num(), 1);
+
+  auto list_value = chunk->get(1)->get_elem(0);
+  const auto& list_children = ListValue::GetChildren(list_value);
+  ASSERT_EQ(list_children.size(), 3);
+  EXPECT_EQ(list_children[0].GetValue<int64_t>(), 1);
+  EXPECT_TRUE(list_children[1].IsNull());
+  EXPECT_EQ(list_children[2].GetValue<int64_t>(), 3);
+
+  auto array_value = chunk->get(2)->get_elem(0);
+  const auto& array_children = ArrayValue::GetChildren(array_value);
+  ASSERT_EQ(array_children.size(), 3);
+  EXPECT_EQ(array_children[0].GetValue<int64_t>(), 4);
+  EXPECT_TRUE(array_children[1].IsNull());
+  EXPECT_EQ(array_children[2].GetValue<int64_t>(), 6);
+
+  auto nested_list_value = chunk->get(3)->get_elem(0);
+  const auto& nested_list_children = ListValue::GetChildren(nested_list_value);
+  ASSERT_EQ(nested_list_children.size(), 3);
+  const auto& first_nested_children =
+      ListValue::GetChildren(nested_list_children[0]);
+  ASSERT_EQ(first_nested_children.size(), 2);
+  EXPECT_EQ(first_nested_children[0].GetValue<int64_t>(), 7);
+  EXPECT_TRUE(first_nested_children[1].IsNull());
+  EXPECT_TRUE(nested_list_children[1].IsNull());
+  const auto& last_nested_children =
+      ListValue::GetChildren(nested_list_children[2]);
+  ASSERT_EQ(last_nested_children.size(), 2);
+  EXPECT_EQ(last_nested_children[0].GetValue<int64_t>(), 9);
+  EXPECT_EQ(last_nested_children[1].GetValue<int64_t>(), 10);
 }
 
 }  // namespace test

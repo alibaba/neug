@@ -93,14 +93,14 @@ void ArrayColumn::openInternal(Checkpoint& ckp,
   if (child_ref.has_value()) {
     const auto* resolver = manifest;
     if (!resolver) {
-      resolver = &ckp.GetMeta();
+      resolver = &ckp.manifest();
     }
-    auto child_desc = resolver->module(*child_ref);
-    if (!child_desc.has_value()) {
+    const auto* child_desc = resolver->FindModule(*child_ref);
+    if (child_desc == nullptr) {
       THROW_RUNTIME_ERROR("ArrayColumn::Open: missing element module '" +
                           *child_ref + "'");
     }
-    child_column_->Open(ckp, *resolver, child_desc.value(), level);
+    child_column_->Open(ckp, *resolver, *child_desc, level);
     return;
   }
 
@@ -135,15 +135,15 @@ void ArrayColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   auto desc = dumpSelfDescriptor();
   auto child_key = MakeChildModuleKey(key, kElementRef);
   child_column_->Dump(ckp, meta, child_key);
-  auto child_it = meta.mutable_modules().find(child_key);
-  if (child_it == meta.mutable_modules().end()) {
+  auto* child_desc = meta.FindMutableModule(child_key);
+  if (child_desc == nullptr) {
     THROW_RUNTIME_ERROR(
         "ArrayColumn::Dump: element column did not write module '" + child_key +
         "'");
   }
-  child_it->second.mark_as_referenced_module();
+  child_desc->mark_as_referenced_module();
   desc.set_ref(kElementRef, std::move(child_key));
-  meta.set_module(key, desc);
+  meta.SetModule(key, desc);
 }
 
 void ArrayColumn::resize(size_t size) {

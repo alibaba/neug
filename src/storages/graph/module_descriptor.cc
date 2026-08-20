@@ -18,8 +18,6 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
-#include "neug/storages/checkpoint.h"
-
 namespace neug {
 
 rapidjson::Value ModuleDescriptor::ToJson(
@@ -52,7 +50,7 @@ rapidjson::Value ModuleDescriptor::ToJson(
           v.c_str(), static_cast<rapidjson::SizeType>(v.size()), alloc);
       paths_obj.AddMember(key_val, val_val, alloc);
     }
-    obj.AddMember("paths", paths_obj, alloc);
+    obj.AddMember("objects", paths_obj, alloc);
   }
   if (!refs_.empty()) {
     rapidjson::Value refs_obj(rapidjson::kObjectType);
@@ -86,8 +84,8 @@ ModuleDescriptor ModuleDescriptor::FromJson(const rapidjson::Value& obj) {
       }
     }
   }
-  if (obj.HasMember("paths") && obj["paths"].IsObject()) {
-    for (auto& m : obj["paths"].GetObject()) {
+  if (obj.HasMember("objects") && obj["objects"].IsObject()) {
+    for (auto& m : obj["objects"].GetObject()) {
       if (m.value.IsString()) {
         desc.paths_[m.name.GetString()] = m.value.GetString();
       }
@@ -115,17 +113,6 @@ std::string ModuleDescriptor::ToJsonString() const {
   rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
   doc.Accept(writer);
   return buf.GetString();
-}
-
-ModuleDescriptor ModuleDescriptor::Link(const ModuleDescriptor& prev,
-                                        Checkpoint& ckp) {
-  ModuleDescriptor linked = prev;
-  for (auto& [_, path] : linked.mutable_paths()) {
-    if (!path.empty()) {
-      path = ckp.LinkToSnapshot(path);
-    }
-  }
-  return linked;
 }
 
 }  // namespace neug

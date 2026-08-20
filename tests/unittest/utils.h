@@ -17,7 +17,6 @@
 
 #include <gtest/gtest.h>
 
-#include <atomic>
 #include <cstdlib>
 #include <filesystem>
 #include <random>
@@ -248,22 +247,18 @@ generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
   return edges;
 }
 
-// Allocates a fresh standalone checkpoint for storage module round-trip tests.
-//
-// These tests only need a Checkpoint with snapshot/runtime directories; they
-// are not exercising CheckpointManager's publish/GC state machine. Keeping the
-// helper independent from CreateStagingCheckpoint() avoids consuming the single
-// production staging slot when a test needs multiple temporary checkpoints.
+// Allocates a fresh unpublished checkpoint for storage module round-trip tests.
+// These tests do not exercise publication, but use the same CheckpointManager
+// staging, manifest, and object-store representation as production checkpoints.
 inline std::shared_ptr<neug::Checkpoint> make_checkpoint(
     neug::CheckpointManager& ws) {
-  static std::atomic<uint32_t> next_checkpoint_id{0};
-  auto id = next_checkpoint_id.fetch_add(1, std::memory_order_relaxed);
-  auto checkpoint_path = std::filesystem::path(ws.db_dir()) /
-                         ".test-checkpoints" / std::to_string(id);
-  std::filesystem::create_directories(checkpoint_path);
-  neug::CheckpointManifest::GenerateEmptyMeta(
-      (checkpoint_path / neug::CheckpointManifest::kMetaFileName).string());
-  return neug::Checkpoint::Open(checkpoint_path.string(), id);
+  auto staging = ws.CreateStaging();
+  auto checkpoint = staging.checkpoint();
+  neug::CheckpointManifest meta;
+  meta.SetSchema(neug::Schema());
+  checkpoint->SetManifest(std::move(meta));
+  staging.Discard();
+  return checkpoint;
 }
 
 template <typename ModuleT>
@@ -272,11 +267,11 @@ neug::ModuleDescriptor dump_module_descriptor(ModuleT& module,
                                               const std::string& key) {
   neug::CheckpointManifest meta;
   module.Dump(ckp, meta, key);
-  auto desc = meta.module(key);
-  if (!desc.has_value()) {
+  const auto* desc = meta.FindModule(key);
+  if (desc == nullptr) {
     throw std::runtime_error("Module did not write descriptor for key: " + key);
   }
-  return std::move(desc.value());
+  return *desc;
 }
 
 // Test fixtures used to round-trip storage objects through encoded paths in a
@@ -318,7 +313,7 @@ inline void OpenIndexerLegacy(neug::LFIndexer<INDEX_T>& idx,
     neug::LFIndexer<INDEX_T> fresh(key_type);
     idx.swap(fresh);
   }
-  if (!meta.has_module(kIndexerKeys)) {
+  if (!meta.HasModule(kIndexerKeys)) {
     auto keys = CreateColumn(key_type);
     keys->Open(ckp, neug::ModuleDescriptor{}, level);
     auto indices = std::make_unique<neug::TypedColumn<INDEX_T>>();
@@ -374,7 +369,7 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt,
                                   const neug::CheckpointManifest& meta,
                                   neug::MemoryLevel level) {
   vt.SetMemoryLevel(level);
-  if (!meta.has_module(kVertexIndexerKeys)) {
+  if (!meta.HasModule(kVertexIndexerKeys)) {
     vt.Init(ckp, level);
     return;
   }
@@ -438,7 +433,7 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et,
                                 const neug::CheckpointManifest& meta,
                                 neug::MemoryLevel level) {
   et.SetMemoryLevel(level);
-  if (!meta.has_module(kEdgeOutCsr)) {
+  if (!meta.HasModule(kEdgeOutCsr)) {
     et.Init(ckp, level);
     return;
   }

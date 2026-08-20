@@ -22,6 +22,7 @@ import shutil
 import sys
 import time
 import unittest
+from pathlib import Path
 
 import pytest
 
@@ -75,9 +76,9 @@ class TestBachLoading(unittest.TestCase):
         conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
 
         # Then load data.
-        conn.execute(f'COPY person from "{person_csv}"')
+        conn.execute(f'COPY person from "{Path(person_csv).as_posix()}"')
         conn.execute(
-            f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+            f'COPY knows from "{Path(person_knows_person_csv).as_posix()}" (from="person", to="person")'
         )
 
         # Then run a query
@@ -147,7 +148,7 @@ class TestBachLoading(unittest.TestCase):
             f.write("Bob|25\n")
             f.write("Charlie|35\n")
 
-        conn.execute(f'COPY person from "{person_csv}"')
+        conn.execute(f'COPY person from "{Path(person_csv).as_posix()}"')
         res = conn.execute("MATCH (n) return n.name, n.age;")
         for record in res:
             print(record)
@@ -180,14 +181,14 @@ class TestBachLoading(unittest.TestCase):
             f.write("2|Bob|25\n")
             f.write("3|Charlie|35\n")
             f.write("4|David|40\n")
-        conn.execute(f'COPY person from "{person_csv}"')
+        conn.execute(f'COPY person from "{Path(person_csv).as_posix()}"')
         # write to file software.csv
         software_csv = os.path.join(db_dir, "software.csv")
         with open(software_csv, "w") as f:
             f.write("id|name|lang\n")
             f.write("101|GraphX|Scala\n")
             f.write("102|Neo4j|Java\n")
-        conn.execute(f'COPY software from "{software_csv}"')
+        conn.execute(f'COPY software from "{Path(software_csv).as_posix()}"')
         # write to file person_knows_person.csv
         person_knows_person_csv = os.path.join(db_dir, "person_knows_person.csv")
         with open(person_knows_person_csv, "w") as f:
@@ -203,7 +204,7 @@ class TestBachLoading(unittest.TestCase):
             f.write("3|1|0.1\n")  # valid
             f.write("4|2|0.05\n")  # valid
         conn.execute(
-            f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+            f'COPY knows from "{Path(person_knows_person_csv).as_posix()}" (from="person", to="person")'
         )
         # write to file person_created_software.csv
         person_created_software_csv = os.path.join(
@@ -217,7 +218,7 @@ class TestBachLoading(unittest.TestCase):
             f.write("5|101|0.6\n")  # invalid src
             f.write("4|102|0.5\n")  # valid
         conn.execute(
-            f'COPY created from "{person_created_software_csv}" (from="person", to="software")'
+            f'COPY created from "{Path(person_created_software_csv).as_posix()}" (from="person", to="software")'
         )
         # Then run a query
         res = list(conn.execute("MATCH (n: person) return count(n);"))
@@ -297,7 +298,7 @@ class TestBachLoading(unittest.TestCase):
                 for j in range(num_persons_per_iter):
                     person_id = i * num_persons_per_iter + j + 1
                     f.write(f"{person_id}|Person{person_id}|{20 + (person_id % 30)}\n")
-            conn.execute(f'COPY person from "{person_csv}"')
+            conn.execute(f'COPY person from "{Path(person_csv).as_posix()}"')
             # write to file software.csv
             software_csv = os.path.join(db_dir, f"software_{i}.csv")
             with open(software_csv, "w") as f:
@@ -307,7 +308,7 @@ class TestBachLoading(unittest.TestCase):
                     f.write(
                         f"{software_id}|Software{software_id}|Lang{software_id % 5}\n"
                     )
-            conn.execute(f'COPY software from "{software_csv}"')
+            conn.execute(f'COPY software from "{Path(software_csv).as_posix()}"')
             # write to file person_knows_person.csv
             person_knows_person_csv = os.path.join(
                 db_dir, f"person_knows_person_{i}.csv"
@@ -322,7 +323,7 @@ class TestBachLoading(unittest.TestCase):
                     weight = round((j % 100) / 100.0, 2)
                     f.write(f"{from_id}|{to_id}|{weight}\n")
             conn.execute(
-                f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
+                f'COPY knows from "{Path(person_knows_person_csv).as_posix()}" (from="person", to="person")'
             )
             # write to file person_created_software.csv
             person_created_software_csv = os.path.join(
@@ -338,7 +339,7 @@ class TestBachLoading(unittest.TestCase):
                     weight = round((j % 100) / 100.0, 2)
                     f.write(f"{from_id}|{to_id}|{weight}\n")
             conn.execute(
-                f'COPY created from "{person_created_software_csv}" (from="person", to="software")'
+                f'COPY created from "{Path(person_created_software_csv).as_posix()}" (from="person", to="software")'
             )
             iter_end_time = time.time()
             logger.info(
@@ -412,7 +413,7 @@ class TestBachLoading(unittest.TestCase):
                 [["1", "2", value], ["2", "1", value]],
             )
             conn.execute(
-                f'COPY {rel_name} from "{csv_file}" (from="person", to="person")'
+                f'COPY {rel_name} from "{Path(csv_file).as_posix()}" (from="person", to="person")'
             )
             res = list(conn.execute(f"MATCH ()-[e:{rel_name}]->() RETURN count(e);"))
             assert res[0] == [2]
@@ -465,7 +466,7 @@ class TestBachLoading(unittest.TestCase):
         ]
         mixed_csv = write_edge_csv(mixed_rel, mixed_headers, mixed_rows)
         conn.execute(
-            f'COPY {mixed_rel} from "{mixed_csv}" (from="person", to="person")'
+            f'COPY {mixed_rel} from "{Path(mixed_csv).as_posix()}" (from="person", to="person")'
         )
         mixed_result = list(
             conn.execute(f"MATCH ()-[e:{mixed_rel}]->() RETURN count(e);")

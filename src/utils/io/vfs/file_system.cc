@@ -56,10 +56,10 @@ FileSystemRegistry::FileSystemRegistry() {
   });
 }
 
-void FileSystemRegistry::Register(const std::string& protocol,
+bool FileSystemRegistry::Register(const std::string& protocol,
                                   FileSystemFactory factory) {
   std::unique_lock<std::shared_mutex> lck(mtx);
-  factories_[protocol] = std::move(factory);
+  return factories_.try_emplace(protocol, std::move(factory)).second;
 }
 
 std::unique_ptr<FileSystem> FileSystemRegistry::Provide(
