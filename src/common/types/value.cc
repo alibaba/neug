@@ -855,10 +855,10 @@ rapidjson::Value Value::ToJson(const Value& value,
 void encode_value(const Value& val, Encoder& encoder) {
   const auto& type = val.type();
   if (val.IsNull()) {
-    encoder.put_byte(0);
+    encoder.put_bytes("NULL", 4);
     return;
   }
-  encoder.put_byte(1);
+  encoder.put_bytes("VALUE", 5);
   if (type.id() == DataTypeId::kInt64) {
     encoder.put_long(val.GetValue<int64_t>());
   } else if (type.id() == DataTypeId::kVarchar) {
