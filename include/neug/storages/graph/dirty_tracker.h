@@ -86,16 +86,17 @@ class DirtyTracker {
     return false;
   }
 
-  /// Merge dirty bits from @p other while preserving this tracker's slots.
+  /// Merge dirty bits and edge slots from @p other.
   void MergeFrom(const DirtyTracker& other) {
     for (size_t label = 0; label < vertex_.size(); ++label) {
       if (other.vertex_[label]) {
         vertex_[label] = true;
       }
     }
-    for (auto& [index, dirty] : edge_) {
-      if (other.IsEdgeDirty(index)) {
-        dirty = true;
+    for (const auto& [index, other_dirty] : other.edge_) {
+      auto it = edge_.try_emplace(index, false).first;
+      if (other_dirty) {
+        it->second = true;
       }
     }
     if (other.schema_) {
