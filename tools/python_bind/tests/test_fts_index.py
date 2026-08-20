@@ -133,6 +133,65 @@ def test_fts_topk_search(fts_database):
 
 
 @pytest.mark.parametrize(
+    ("order_by", "direction", "limit"),
+    [
+        pytest.param(None, None, None, id="default-order-without-limit"),
+        pytest.param(None, None, 2, id="default-order-with-limit"),
+        pytest.param("score", "ASC", None, id="score-asc-without-limit"),
+        pytest.param("score", "ASC", 2, id="score-asc-with-limit"),
+        pytest.param("score", "DESC", None, id="score-desc-without-limit"),
+        pytest.param("score", "DESC", 2, id="score-desc-with-limit"),
+        pytest.param("n.id", "ASC", None, id="column-asc-without-limit"),
+        pytest.param("n.id", "ASC", 2, id="column-asc-with-limit"),
+        pytest.param("n.id", "DESC", None, id="column-desc-without-limit"),
+        pytest.param("n.id", "DESC", 2, id="column-desc-with-limit"),
+        pytest.param(None, None, 0, id="zero-limit"),
+        pytest.param(None, None, 4294967295, id="uint32-max-limit"),
+        pytest.param(None, None, 4294967296, id="uint32-overflow-limit"),
+        pytest.param(None, None, 9223372036854775807, id="int64-max-limit"),
+    ],
+)
+def test_fts_order_by_limit(fts_database, order_by, direction, limit):
+    fts_database.execute(
+        "CREATE (:Item {id: 41, text: 'orderlimit orderlimit orderlimit'}), "
+        "(:Item {id: 13, text: 'orderlimit orderlimit filler'}), "
+        "(:Item {id: 37, text: 'orderlimit filler filler'}), "
+        "(:Item {id: 22, text: 'orderlimit filler filler filler filler'});"
+    )
+
+    query_prefix = "MATCH (n:Item) " "RETURN n.id, bm25(n.text, 'orderlimit') AS score"
+    score_ascending = list(fts_database.execute(query_prefix + " ORDER BY score ASC;"))
+    assert len(score_ascending) == 4
+    assert [row[1] for row in score_ascending] == sorted(
+        row[1] for row in score_ascending
+    )
+    assert len({row[1] for row in score_ascending}) == len(score_ascending)
+
+    if order_by is None:
+        expected = score_ascending
+    elif order_by == "score":
+        expected = sorted(
+            score_ascending, key=lambda row: row[1], reverse=direction == "DESC"
+        )
+    else:
+        expected = sorted(
+            score_ascending, key=lambda row: row[0], reverse=direction == "DESC"
+        )
+    if limit is not None:
+        expected = expected[:limit]
+
+    query = query_prefix
+    if order_by is not None:
+        query += f" ORDER BY {order_by} {direction}"
+    if limit is not None:
+        query += f" LIMIT {limit}"
+
+    actual = list(fts_database.execute(query + ";"))
+    assert [row[0] for row in actual] == [row[0] for row in expected]
+    assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+
+
+@pytest.mark.parametrize(
     ("query", "expected_ids"),
     [
         ("database", {4, 5, 6}),
