@@ -72,8 +72,7 @@ int64_t ReadaheadCache::tryServe(int64_t position, int64_t nbytes,
   return nbytes;
 }
 
-void ReadaheadCache::store(int64_t position, const char* data,
-                           int64_t nbytes) {
+void ReadaheadCache::store(int64_t position, const char* data, int64_t nbytes) {
   offset_ = position;
   buffer_.assign(data, data + nbytes);
 }

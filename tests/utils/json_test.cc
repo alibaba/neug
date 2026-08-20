@@ -403,9 +403,9 @@ TEST_F(JsonTest, TestJsonLinesCRLF) {
                  "{\"id\": 1, \"age\": 25}\r\n"
                  "\r\n"
                  "{\"id\": 2, \"age\": 30}\r");
-  auto sharedState = createSharedState(
-      "test_jsonl_crlf.json", {"id", "age"},
-      {createUInt32Type(), createDoubleType()}, {{"batch_read", "false"}});
+  auto sharedState = createSharedState("test_jsonl_crlf.json", {"id", "age"},
+                                       {createUInt32Type(), createDoubleType()},
+                                       {{"batch_read", "false"}});
   auto reader = createJsonLinesReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
@@ -446,9 +446,9 @@ TEST_F(JsonTest, TestJsonLinesCRLFStreaming) {
 TEST_F(JsonTest, TestJsonLinesLFUnchanged) {
   createJsonFile("test_jsonl_lf.json",
                  "{\"id\": 1, \"age\": 25}\n{\"id\": 2, \"age\": 30}\n");
-  auto sharedState = createSharedState(
-      "test_jsonl_lf.json", {"id", "age"},
-      {createUInt32Type(), createDoubleType()}, {{"batch_read", "false"}});
+  auto sharedState = createSharedState("test_jsonl_lf.json", {"id", "age"},
+                                       {createUInt32Type(), createDoubleType()},
+                                       {{"batch_read", "false"}});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createJsonLinesReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();

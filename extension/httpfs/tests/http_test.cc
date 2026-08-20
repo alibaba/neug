@@ -19,8 +19,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <atomic>
 #include <algorithm>
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -383,7 +383,8 @@ TEST_F(HTTPFileSystemTest, ReadAtRejectsServerWithoutRangeSupport) {
 /// readahead hits and connection reuse.
 class RangeKeepAliveHTTPServer {
  public:
-  explicit RangeKeepAliveHTTPServer(std::string body) : body_(std::move(body)) {}
+  explicit RangeKeepAliveHTTPServer(std::string body)
+      : body_(std::move(body)) {}
 
   ~RangeKeepAliveHTTPServer() { stop(); }
 
@@ -487,17 +488,18 @@ class RangeKeepAliveHTTPServer {
 
       std::string response;
       if (is_head) {
-        response = "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n"
-                   "Content-Length: " +
-                   std::to_string(body_.size()) + "\r\n\r\n";
+        response =
+            "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n"
+            "Content-Length: " +
+            std::to_string(body_.size()) + "\r\n\r\n";
       } else if (has_range) {
         const int64_t slice_len = end - start + 1;
-        response = "HTTP/1.1 206 Partial Content\r\nAccept-Ranges: bytes\r\n"
-                   "Content-Range: bytes " +
-                   std::to_string(start) + "-" + std::to_string(end) + "/" +
-                   std::to_string(body_.size()) +
-                   "\r\nContent-Length: " + std::to_string(slice_len) +
-                   "\r\n\r\n";
+        response =
+            "HTTP/1.1 206 Partial Content\r\nAccept-Ranges: bytes\r\n"
+            "Content-Range: bytes " +
+            std::to_string(start) + "-" + std::to_string(end) + "/" +
+            std::to_string(body_.size()) +
+            "\r\nContent-Length: " + std::to_string(slice_len) + "\r\n\r\n";
         if (!sendAll(fd, response)) {
           return;
         }
