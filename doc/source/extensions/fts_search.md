@@ -1,14 +1,13 @@
 # Full-Text Search Extension
 
 Since NeuG **v0.2.0**, the `fts` extension provides full-text indexes and
-BM25-ranked search over node string properties. It uses SQLite FTS5 for
-tokenization, indexing, query parsing, and ranking while integrating index
-maintenance and persistence with NeuG.
+BM25-ranked search over node string properties, with automatic index
+maintenance and persistence.
 
 The FTS extension supports:
 
 - Full-text indexes on node properties of type `STRING`
-- Word, phrase, prefix, and other SQLite FTS5 queries
+- Word, phrase, prefix, Boolean, and exclusion queries
 - Top-K retrieval ordered by BM25 relevance
 - Support scalar filtering and graph filtering
 - Support pre-filtering and post-filtering with exact Top-K results
@@ -73,9 +72,28 @@ The `WITH` clause accepts the following case-sensitive option names:
 
 | Option | Description | Default |
 | --- | --- | --- |
-| `tokenizer` | SQLite FTS5 tokenizer specification | `unicode61` |
+| `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
-| `detail` | Amount of token-position data stored by FTS5: `full`, `column`, or `none` | `full` |
+| `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
+
+Supported tokenizers are:
+
+- `unicode61` splits text according to Unicode 6.1 rules. This is the default.
+- `ascii` applies ASCII tokenization rules. Characters outside the ASCII range
+  (0-127) are treated as token characters.
+- `porter` applies the Porter stemming algorithm so related word forms can
+  match the same stem.
+- `trigram` treats each contiguous sequence of three characters as a token,
+  enabling substring matching.
+
+The `detail` option affects the query forms available to users:
+
+- `none` records only the row ID for each term.
+- `column` records the row ID and column for each term, allowing queries to
+  filter matches by column. (NeuG does not currently support multi-property FTS
+  indexes.)
+- `full` records the row ID, column, and term offset for each term, additionally
+  supporting phrase queries. This is the default.
 
 For example, the Porter tokenizer can be combined with `unicode61`, and prefix
 indexes can be created for two- and three-character prefixes:
@@ -91,10 +109,9 @@ WITH (
 );
 ```
 
-These values are passed to SQLite FTS5 when the index is created. Invalid
-tokenizer, prefix, or detail settings cause index creation to fail. The
-selected settings cannot be changed in place; drop and recreate the index to
-use different settings.
+Invalid tokenizer, prefix, or detail settings cause index creation to fail.
+The selected settings cannot be changed in place; drop and recreate the index
+to use different settings.
 
 ## Inspect and Drop an FTS Index
 
@@ -121,10 +138,9 @@ index.
 
 ## Full-Text Search
 
-Use `bm25(indexed_property, query)` in a Top-K query. SQLite FTS5 BM25 scores
-use smaller values for more relevant matches. The FTS index returns matches in
-ascending BM25 score order by default; a typical Top-K query makes that order
-explicit:
+Use `bm25(indexed_property, query)` in a Top-K query. BM25 scores use smaller
+values for more relevant matches. The FTS index returns matches in ascending
+BM25 score order by default; a typical Top-K query makes that order explicit:
 
 ```cypher
 MATCH (article:Article)
@@ -135,35 +151,22 @@ ORDER BY score ASC
 LIMIT 10;
 ```
 
-When an FTS index exists for `Article.title`, the optimizer rewrites this query
-into an FTS index scan. The index returns both the matched node and its score;
-NeuG does not scan and rank every node with the scalar `bm25` function.
+When an FTS index exists for `Article.title`, the query returns both the
+matching node and its BM25 score.
 
 Note:
 
 1. Without `ORDER BY`, results are sorted by BM25 score in ascending order by
    default. Without `LIMIT`, all matching results are returned.
-2. When ordering by the BM25 score, either `ASC` or `DESC` is pushed down to
-   the FTS index, together with `LIMIT` when specified.
-3. When ordering by another column or expression, the FTS index first returns
-   all matches in the default ascending BM25 score order. NeuG then applies the
-   requested `ORDER BY` and `LIMIT` as separate operations.
-
-You can confirm the rewrite with `EXPLAIN`; the physical plan contains
-`IndexScanOpr` rather than separate sort and limit operators:
-
-```cypher
-EXPLAIN MATCH (article:Article)
-RETURN article.id,
-       bm25(article.title, 'graph database') AS score
-ORDER BY score ASC
-LIMIT 10;
-```
+2. BM25 scores can be ordered with either `ASC` or `DESC`, with an optional
+   `LIMIT`.
+3. `ORDER BY` and `LIMIT` can also be applied to another returned column or
+   expression.
 
 ### Query Syntax
 
-The second argument of `bm25` contains an SQLite FTS5 query. When supplied as
-a string literal, common forms include:
+The second argument of `bm25` contains a full-text query. When supplied as a
+string literal, common forms include:
 
 | Search type | Query string | Meaning |
 | --- | --- | --- |
@@ -174,14 +177,11 @@ a string literal, common forms include:
 | Boolean | `'graph OR database'` | Match either term |
 | Exclusion | `'graph NOT database'` | Match `graph` without `database` |
 
-Punctuation that is not valid in an unquoted FTS5 token must be included in a
+Punctuation that is not valid in an unquoted query term must be included in a
 phrase. For example, use `'"DLF-Legacy"'` instead of `'DLF-Legacy'`.
-Unterminated quotes, empty queries, and invalid FTS5 syntax return a query
-execution error.
-
-See the [SQLite FTS5 query syntax](https://www.sqlite.org/fts5.html#full_text_query_syntax)
-for the complete query grammar. Available tokenization behavior depends on the
-`tokenizer` selected when the index is created.
+Unterminated quotes, empty queries, and invalid query syntax return a query
+execution error. Available tokenization behavior depends on the `tokenizer`
+selected when the index is created.
 
 ### Dynamic Query Parameters
 
@@ -218,9 +218,9 @@ result = connection.execute(
 ```
 
 The parameter is bound separately for every execution. It must be present,
-have type `STRING`, and not be `NULL`. Its value uses the same SQLite FTS5
-query syntax as a string literal; an empty or syntactically invalid query
-returns a query execution error.
+have type `STRING`, and not be `NULL`. Its value uses the same full-text query
+syntax as a string literal; an empty or syntactically invalid query returns a
+query execution error.
 
 ## Filtering and Hybrid Search
 
@@ -315,10 +315,9 @@ LIMIT 10;
   supported.
 - The `bm25` query argument must be a non-null `STRING` literal or dynamic
   parameter. Other computed expressions are not supported currently.
-- `bm25` is an index-search marker, not a general scalar function. It must be
-  used in an eligible query and cannot be evaluated as a scalar function over
-  an arbitrary row set.
-- A projection can contain only one `bm25` expression.
+- `bm25` must be used in a full-text query supported by an FTS index; it is not
+  available as a general-purpose scalar function.
+- A query can contain only one `bm25` expression.
 - A matching FTS index must exist for the property passed to `bm25`.
 - If multiple FTS indexes exist on the same property, the query is ambiguous
   and returns an error.
