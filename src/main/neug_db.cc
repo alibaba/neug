@@ -188,7 +188,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     }
 
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
-    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
+    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.database_dir();
     neug::execution::PlanParser::get().init();
     timestamp_t initial_visibility_ts = openGraphAndIngestWals();
     checkpoint_coordinator_ = std::make_unique<CheckpointCoordinator>(
@@ -205,7 +205,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       }
     }
     if (config_.mode == DBMode::READ_WRITE) {
-      checkpoint_mgr_.CleanupRetiredCheckpoints();
+      checkpoint_mgr_.CollectGarbage();
     }
     initVersionManager(initial_visibility_ts);
     extension_manager_ = std::make_unique<ExtensionManager>();
@@ -499,23 +499,23 @@ void NeugDB::reopenAllocators(const std::string& allocator_dir) {
 timestamp_t NeugDB::openGraphAndIngestWals() {
   max_thread_num_ = config_.max_thread_num;
   try {
-    auto ckp = checkpoint_mgr_.CurrentCheckpoint();
+    auto ckp = checkpoint_mgr_.Current();
     if (ckp == nullptr) {
       if (config_.mode == DBMode::READ_ONLY && !is_pure_memory_) {
         THROW_NO_CHECKPOINT_EXCEPTION(
             "NeugDB::Open: no checkpoint found in read-only database: " +
-            checkpoint_mgr_.db_dir());
+            checkpoint_mgr_.database_dir());
       }
-      auto staging_checkpoint = checkpoint_mgr_.CreateStagingCheckpoint();
+      auto staging_checkpoint = checkpoint_mgr_.CreateStaging();
       ckp = staging_checkpoint.checkpoint();
       CheckpointManifest meta;
       meta.SetSchema(Schema());
-      ckp->UpdateMeta(std::move(meta));
-      ckp = staging_checkpoint.Commit();
+      ckp->SetManifest(std::move(meta));
+      ckp = staging_checkpoint.Publish();
       LOG(INFO) << "No checkpoint found, created initial checkpoint: "
-                << ckp->path();
+                << ckp->manifest_path();
     }
-    LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
+    LOG(INFO) << "Opening graph from checkpoint " << ckp->manifest_path();
     auto graph = std::make_shared<PropertyGraph>();
     graph->Open(ckp, config_.memory_level);
 
@@ -524,9 +524,11 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
 
     neug::WalParserFactory::Init();
     auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
-    const timestamp_t recovered_wal_timestamp = ingestWals(*wal_parser, *graph);
+    const timestamp_t recovered_wal_timestamp =
+        ingestWals(*wal_parser, *graph,
+                   static_cast<timestamp_t>(ckp->manifest().base_timestamp()));
 
-    // Create GraphSnapshotStore with the graph at timestamp 0
+    // VersionManager is initialized by the caller with recovered_wal_timestamp.
     snapshot_store_ =
         std::make_unique<GraphSnapshotStore>(config_.storage_slot_num, graph);
     return recovered_wal_timestamp;
@@ -539,8 +541,9 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
   }
 }
 
-timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
-  uint32_t from_ts = 1;
+timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
+                               timestamp_t base_timestamp) {
+  uint32_t from_ts = base_timestamp + 1;
   LOG(INFO) << "Ingesting update wals size: "
             << parser.get_update_wals().size();
 
@@ -561,7 +564,7 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
     IngestWalRange(graph, allocators_, parser, from_ts, parser.last_ts() + 1);
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
-  return parser.last_ts();
+  return std::max(base_timestamp, parser.last_ts());
 }
 
 void NeugDB::initPlanner() {
@@ -665,7 +668,7 @@ void NeugDB::createCheckpointOnClose() {
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
-  checkpoint_mgr_.CleanupRetiredCheckpoints();
+  checkpoint_mgr_.CollectGarbage();
 }
 
 }  // namespace neug

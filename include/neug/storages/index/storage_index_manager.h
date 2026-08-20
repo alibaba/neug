@@ -119,11 +119,12 @@ class StorageIndexManager {
 
   bool HasPendingIndexes() const { return !pending_indexes_.empty(); }
   bool HasPendingMutations() const { return !pending_mutations_.empty(); }
+  bool HasCatalogChanges() const { return catalog_dirty_; }
 
   /**
-   * @brief Move all indexes into the module broker for persistence.
+   * @brief Move all active indexes into the module broker for persistence.
    */
-  void Dump(ModuleBroker& store, Checkpoint& ckp, CheckpointManifest& meta);
+  void Dump(ModuleBroker& store, CheckpointManifest& meta);
 
   void Clear();
 
@@ -141,6 +142,7 @@ class StorageIndexManager {
   std::unordered_map<std::string, std::unique_ptr<StorageIndex>> indexes_;
   std::unordered_map<std::string, PendingIndex> pending_indexes_;
   std::vector<std::shared_ptr<const PendingIndexMutation>> pending_mutations_;
+  bool catalog_dirty_{false};
 };
 
 }  // namespace neug

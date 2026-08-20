@@ -264,8 +264,8 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
     THROW_RUNTIME_ERROR("HNSWIndex::Dump: index is not open");
 
   StorageIndex::Dump(ckp, manifest, key);
-  auto descriptor = manifest.mutable_modules().find(key);
-  if (descriptor == manifest.mutable_modules().end()) {
+  auto* descriptor = manifest.FindMutableModule(key);
+  if (descriptor == nullptr) {
     THROW_RUNTIME_ERROR(
         "HNSWIndex::Dump: StorageIndex did not write module descriptor for '" +
         key + "'");
@@ -273,7 +273,7 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
   // HNSW is provided by the vector_search extension. Allow the graph to open
   // before that extension is loaded; the pending index is activated after
   // LOAD vector_search registers the hnsw_index module type.
-  descriptor->second.required = false;
+  descriptor->required = false;
   if (zvec_index_->GetDocCount() == 0) {
     return;
   }
@@ -283,7 +283,7 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
   zvec_runtime_file_.reset();
   zvec_runtime_path_ = persisted_path;
 
-  descriptor->second.set_path(kIndexBufferPath, std::move(persisted_path));
+  descriptor->set_path(kIndexBufferPath, std::move(persisted_path));
 }
 
 Status HNSWIndex::Rebind(const IndexBindContext& context) {
