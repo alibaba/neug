@@ -21,6 +21,9 @@
 #include <yaml-cpp/yaml.h>
 #include "neug/common/columns/value_columns.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/parameter_expression.h"
+#include "neug/compiler/binder/expression/property_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/common/types/types.h"
@@ -230,6 +233,48 @@ static std::string serializeProjectedGraph(const ProjectedGraphEntry& entry) {
   return YAML::Dump(yaml.value());
 }
 
+static void validatePredicateExpression(
+    const std::shared_ptr<binder::Expression>& expression) {
+  if (dynamic_cast<const binder::LiteralExpression*>(expression.get()) ||
+      dynamic_cast<const binder::ParameterExpression*>(expression.get()) ||
+      dynamic_cast<const binder::PropertyExpression*>(expression.get())) {
+    return;
+  }
+  if (dynamic_cast<const binder::ScalarFunctionExpression*>(expression.get())) {
+    for (const auto& child : expression->getChildren()) {
+      validatePredicateExpression(child);
+    }
+    return;
+  }
+  THROW_BINDER_EXCEPTION(common::stringFormat(
+      "Unsupported projected graph predicate '{}'. Predicates may only use "
+      "properties, literals, parameters, casts, comparisons, string or list "
+      "predicates, and logical combinations of those expressions.",
+      expression->toString()));
+}
+
+static void validatePredicate(
+    const std::shared_ptr<binder::Expression>& predicate) {
+  if (!predicate) {
+    return;
+  }
+  if (predicate->getDataType().id() != common::DataTypeId::kBoolean) {
+    THROW_BINDER_EXCEPTION(common::stringFormat(
+        "Projected graph predicate '{}' must return BOOL, but returns {}.",
+        predicate->toString(), predicate->getDataType().ToString()));
+  }
+  validatePredicateExpression(predicate);
+}
+
+static void validatePredicates(const graph::GraphEntry& entry) {
+  for (const auto& info : entry.nodeInfos) {
+    validatePredicate(info.predicate);
+  }
+  for (const auto& info : entry.relInfos) {
+    validatePredicate(info.predicate);
+  }
+}
+
 static std::unique_ptr<TableFuncBindData> bindProjectGraph(
     main::ClientContext* clientContext, const TableFuncBindInput* input) {
   auto graphName = input->getLiteralVal<std::string>(0);
@@ -238,7 +283,8 @@ static std::unique_ptr<TableFuncBindData> bindProjectGraph(
   ProjectedGraphEntry entry;
   extractGraphEntryTableInfos(nodeVal, false, entry);
   extractGraphEntryTableInfos(relVal, true, entry);
-  (void) graph::GDSFunction::bindGraphEntry(*clientContext, entry);
+  auto boundEntry = graph::GDSFunction::bindGraphEntry(*clientContext, entry);
+  validatePredicates(boundEntry);
   binder::expression_vector params;
   params.push_back(std::make_shared<binder::LiteralExpression>(
       compiler_impl::Value(graphName), ""));

@@ -830,6 +830,9 @@ static std::shared_ptr<Expression> copyPredicateForVariable(
   if (!predicate) {
     return nullptr;
   }
+  // project_graph validates that persisted predicates contain only expression
+  // types with well-defined copy semantics. This copy is therefore safe for
+  // every predicate accepted when the projected graph is created.
   auto result = std::shared_ptr<Expression>(predicate->copy());
   RenameDependentVar rename(variableName);
   rename.visit(result);

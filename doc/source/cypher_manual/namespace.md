@@ -167,6 +167,22 @@ Predicate expressions use the following variables:
 - Use `n` to refer to the node in a node predicate, for example `n.domain = "user1"`.
 - Use `r` to refer to the relationship in a relationship predicate, for example `r.year > 2010`.
 
+### Supported Predicate Expressions
+
+A Namespace predicate must return `BOOL`. Predicates support property
+expressions, literals, dynamic parameters, and scalar operations composed from
+those values. Supported scalar operations include:
+
+- comparisons such as `=`, `<>`, `<`, `<=`, `>`, and `>=`;
+- membership and string predicates such as `IN`, `CONTAINS`, `STARTS WITH`, and
+  `ENDS WITH`;
+- `CAST` expressions;
+- logical combinations using `AND`, `OR`, and `NOT`.
+
+Complex expression forms such as `CASE`, aggregate expressions, lambda
+expressions, path expressions, and subqueries are not supported in Namespace
+predicates.
+
 ## Query a Namespace
 
 A Namespace can be selected for an entire query using:

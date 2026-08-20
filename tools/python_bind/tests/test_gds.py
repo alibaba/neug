@@ -150,6 +150,43 @@ def test_project_graph_with_predicates(tmp_path):
         assert "my_subgraph" not in _shown_projected_graph_names(conn)
 
 
+def test_project_graph_predicate_with_dynamic_parameter(tmp_path):
+    """Dynamic parameters in predicates remain safe when expressions are copied."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph("
+            "'adult_graph', "
+            "{'person': 'n.age > $minimum_age'}, "
+            "{'[person, knows, person]': ''}"
+            ");",
+            parameters={"minimum_age": 20},
+        )
+
+        ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (n:person) RETURN n.age ORDER BY n.age;",
+                parameters={"minimum_age": 20},
+            )
+        ]
+        assert ages
+        assert all(age > 20 for age in ages)
+
+
+def test_project_graph_rejects_unsupported_predicate_expression(tmp_path):
+    """Predicates whose expression nodes cannot be copied are rejected early."""
+    with tinysnb_connection(tmp_path) as conn:
+        with pytest.raises(Exception, match="Unsupported projected graph predicate"):
+            conn.execute(
+                "CALL project_graph("
+                "'case_graph', "
+                "{'person': 'CASE WHEN n.age > 20 THEN true ELSE false END'}, "
+                "{'[person, knows, person]': ''}"
+                ");"
+            )
+
+
 def test_namespace_match_isolation_and_clause_scope(tmp_path):
     """USE NAMESPACE filters reads and rejects write queries."""
     with tinysnb_connection(tmp_path) as conn:
