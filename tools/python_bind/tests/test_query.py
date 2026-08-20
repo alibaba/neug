@@ -977,6 +977,7 @@ def test_exists_correlated_pattern_order(tmp_path):
 
 logger = logging.getLogger(__name__)
 
+
 def test_leading_optional_false_preserves_following_match(empty_db):
     _, conn = empty_db
     conn.execute("CREATE NODE TABLE node(id INT64, PRIMARY KEY(id));")
