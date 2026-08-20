@@ -38,6 +38,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <thread>
@@ -864,6 +865,81 @@ TEST_F(WalReplayTest, RecoveryWithoutCheckpointContinuesFromWalTimeline) {
     }
     db.Close();
   }
+}
+
+TEST_F(WalReplayTest,
+       RecoverySkipsUpdateWalAlreadyCoveredByCheckpointBaseTimestamp) {
+  const auto stale_wal_dir =
+      (std::filesystem::path(db_dir_) / "stale-wal").string();
+  neug::timestamp_t base_timestamp = 0;
+
+  {
+    auto config = make_config(db_dir_);
+    config.checkpoint_on_close = true;
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    const auto source_wal_dir = db.graph().checkpoint().wal_dir();
+
+    {
+      neug::NeugDBService service(db);
+      auto slot = service.AcquireExecutionSlot();
+      auto txn = slot->GetUpdateTransaction();
+      base_timestamp = txn.timestamp();
+      neug::StorageTPUpdateInterface interface(txn);
+      neug::CreateVertexTypeParamBuilder builder;
+      ASSERT_TRUE(interface.CreateVertexType(
+          builder.VertexLabel("checkpointed_type")
+              .AddProperty("id", neug::Value::INT64(0))
+              .AddPrimaryKeyName("id")
+              .Build()));
+      ASSERT_TRUE(txn.Commit());
+    }
+
+    std::filesystem::create_directories(stale_wal_dir);
+    for (const auto& file :
+         std::filesystem::directory_iterator(source_wal_dir)) {
+      if (file.is_regular_file()) {
+        std::filesystem::copy_file(
+            file.path(),
+            std::filesystem::path(stale_wal_dir) / file.path().filename(),
+            std::filesystem::copy_options::overwrite_existing);
+      }
+    }
+    db.Close();
+  }
+
+  neug::CheckpointManager checkpoint_manager;
+  checkpoint_manager.Open(db_dir_);
+  const auto checkpoint = checkpoint_manager.Current();
+  ASSERT_NE(checkpoint, nullptr);
+  const auto manifest_path = checkpoint->manifest_path();
+  const auto recovery_wal_dir = checkpoint->wal_dir();
+  checkpoint_manager.Close();
+
+  std::ifstream manifest_input(manifest_path);
+  ASSERT_TRUE(manifest_input.is_open());
+  std::string manifest((std::istreambuf_iterator<char>(manifest_input)), {});
+  const auto base_timestamp_pos = manifest.find("\"base_ts\":0");
+  ASSERT_NE(base_timestamp_pos, std::string::npos);
+  manifest.replace(base_timestamp_pos, std::string("\"base_ts\":0").size(),
+                   "\"base_ts\":" + std::to_string(base_timestamp));
+  std::ofstream manifest_output(manifest_path, std::ios::trunc);
+  ASSERT_TRUE(manifest_output.is_open());
+  manifest_output << manifest;
+  manifest_output.close();
+
+  for (const auto& file : std::filesystem::directory_iterator(stale_wal_dir)) {
+    std::filesystem::copy_file(
+        file.path(),
+        std::filesystem::path(recovery_wal_dir) / file.path().filename(),
+        std::filesystem::copy_options::overwrite_existing);
+  }
+
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(make_config(db_dir_)));
+  EXPECT_TRUE(db.schema().is_vertex_label_valid(
+      db.schema().get_vertex_label_id("checkpointed_type")));
+  db.Close();
 }
 
 TEST_F(WalReplayTest, RecoveryCheckpointResetsServiceTimeline) {
