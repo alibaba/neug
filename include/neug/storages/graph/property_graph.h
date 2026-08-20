@@ -84,9 +84,9 @@ class StorageIndexManager;
  * - Level 3: Force hugepages (highest performance, most memory)
  *
  * **Persistence:**
- * - Snapshot-based persistence to work_dir
+ * - Manifest-selected immutable checkpoint objects
  * - Compaction support for removing deleted data
- * - Schema stored in `graph.yaml`
+ * - Schema stored in the checkpoint manifest
  *
  * @note For query execution, use Connection::Query() instead of direct
  * PropertyGraph access.
@@ -142,6 +142,12 @@ class NEUG_API PropertyGraph {
   /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
   /// Callers that need a usable graph after dumping must explicitly Open() a
   /// checkpoint and rebuild any GraphView that pointed into this graph.
+  ///
+  /// Precondition: the graph must already be compacted. DumpAndClear never
+  /// compacts implicitly; the production checkpoint path always calls
+  /// Compact() immediately before this (see CheckpointCoordinator). Custom
+  /// StorageIndex implementations that dump via this path should follow the
+  /// same sequence.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
   DirtyTracker& dirty_tracker() { return dirty_; }
@@ -159,12 +165,8 @@ class NEUG_API PropertyGraph {
   }
   void MarkSchemaDirty() { dirty_.MarkSchema(); }
   bool IsSchemaDirty() const { return dirty_.IsSchemaDirty(); }
-  /// True if schema or any table has been marked dirty since the last
-  /// ClearAllDirty().
-  bool IsModified() const { return dirty_.IsModified(); }
-  /// Clear all table-level and schema dirty bits. Call only after a checkpoint
-  /// has been successfully published.
-  void ClearAllDirty() { dirty_.ClearAll(); }
+  /// True if schema, any table, or any index has changed since publication.
+  bool IsModified() const;
 
   Checkpoint& checkpoint() {
     assert(ckp_);
@@ -634,8 +636,6 @@ class NEUG_API PropertyGraph {
   }
 
   std::string get_statistics_json() const;
-
-  inline std::string work_dir() const { return ckp_->path(); }
 
   std::shared_ptr<PropertyGraph> Clone() const;
 

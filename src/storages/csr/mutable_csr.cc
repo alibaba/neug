@@ -140,7 +140,7 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                              vnum)) {
     // If the neighbor list is unmodified, we can reuse the existing file.
     descriptor.set_path(ModuleDescriptor::kNbrListPath,
-                        ckp.LinkToSnapshot(nbr_list_->GetPath()));
+                        ckp.MaterializeObject(nbr_list_->GetPath()));
   } else {
     std::string nbr_path_committed;
 
@@ -165,7 +165,7 @@ void MutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
   descriptor.set_path(ModuleDescriptor::kCapacityListPath,
                       ckp.Commit(*cap_list_));
-  meta.set_module(key, descriptor);
+  meta.SetModule(key, descriptor);
 }
 
 template <typename EDATA_T>
@@ -552,7 +552,7 @@ void SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   descriptor.module_type = ModuleTypeName();
   descriptor.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_));
   descriptor.set("edge_num", std::to_string(edge_num_.load()));
-  meta.set_module(key, descriptor);
+  meta.SetModule(key, descriptor);
 }
 
 template <typename EDATA_T>

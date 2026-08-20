@@ -85,7 +85,7 @@ class VecIndex final : public StorageIndex {
   void Dump(Checkpoint& ckp, CheckpointManifest& manifest,
             const std::string& key) override {
     StorageIndex::Dump(ckp, manifest, key);
-    manifest.mutable_modules().at(key).required = false;
+    manifest.FindMutableModule(key)->required = false;
   }
 
   void Detach(Checkpoint&, MemoryLevel) override {}

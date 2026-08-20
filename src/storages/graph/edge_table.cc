@@ -1225,8 +1225,9 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                  std::to_string(GetCapacity()));
 }
 
-void EdgeTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
-                               const CheckpointManifest& prev) const {
+void EdgeTable::ReuseCheckpointModules(Checkpoint& ckp,
+                                       CheckpointManifest& meta,
+                                       const CheckpointManifest& prev) const {
   if (!meta_) {
     return;
   }
@@ -1235,11 +1236,11 @@ void EdgeTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
   const auto& dst = meta_->dst_label_name;
   // Exact keys only — prefix matching is ambiguous when label names contain
   // underscores.
-  meta.LinkModuleFrom(prev, KeyOutCsr(src, edge, dst), ckp);
-  meta.LinkModuleFrom(prev, KeyInCsr(src, edge, dst), ckp);
+  meta.ReuseModuleClosureFrom(prev, KeyOutCsr(src, edge, dst));
+  meta.ReuseModuleClosureFrom(prev, KeyInCsr(src, edge, dst));
   if (!meta_->is_bundled()) {
     for (size_t i = 0; i < meta_->properties.size(); ++i) {
-      meta.LinkModuleFrom(prev, KeyProperty(src, edge, dst, i), ckp);
+      meta.ReuseModuleClosureFrom(prev, KeyProperty(src, edge, dst, i));
     }
     meta.CopyScalarFrom(prev, ScalarKey(src, edge, dst, "table_idx"));
   }

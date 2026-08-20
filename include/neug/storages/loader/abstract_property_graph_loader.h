@@ -33,16 +33,18 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
         loading_config_(loading_config),
         thread_num_(loading_config_.GetParallelism()) {
     checkpoint_mgr_.Open(work_dir);
-    if (checkpoint_mgr_.HasCurrentCheckpoint()) {
+    if (checkpoint_mgr_.Current() != nullptr) {
       THROW_INVALID_ARGUMENT_EXCEPTION("CheckpointManager is not empty: " +
                                        work_dir);
     }
-    staging_checkpoint_.emplace(checkpoint_mgr_.CreateStagingCheckpoint());
+    staging_checkpoint_.emplace(checkpoint_mgr_.CreateStaging());
     auto ckp = staging_checkpoint_->checkpoint();
-    ckp->MutableMeta().SetSchema(schema_);
+    CheckpointManifest manifest;
+    manifest.SetSchema(schema_);
+    ckp->SetManifest(std::move(manifest));
     graph_.Open(ckp, MemoryLevel::kSyncToFile);
     // Bulk load bypasses Storage*Interface NVI; mark everything dirty so the
-    // final DumpAndClear / Compact treat this as a full first write.
+    // final compacted dump treats this as a full first write.
     graph_.MarkSchemaDirty();
     for (label_t v = 0; v < schema_.vertex_label_frontier(); ++v) {
       if (schema_.is_vertex_label_valid(v)) {

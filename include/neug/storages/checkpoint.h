@@ -14,11 +14,9 @@
  */
 #pragma once
 
-#include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <utility>
 
@@ -28,88 +26,52 @@
 
 namespace neug {
 
+class LegacyCheckpointMigrator;
+
 /**
- * @brief Represents a single numbered checkpoint directory.
+ * @brief A manifest-selected checkpoint root.
  *
- * A checkpoint lives at `db_dir/checkpoint-NNNNN/` and contains:
+ * `CURRENT` selects one immutable-object manifest. Its ID also names the WAL
+ * epoch; the manifest's base timestamp bounds replay from that epoch. Runtime
+ * working files belong to the current database-open epoch instead:
  *
  * ```
- * checkpoint-NNNNN/
- * ├── meta        ← CheckpointManifest JSON
- * ├── snapshot/   ← immutable data files
- * ├── runtime/    ← mutable working files (allocator, tmp, …)
- * └── wal/        ← write-ahead log files
+ * db/
+ * ├── checkpoint/{CURRENT,manifests,objects}
+ * ├── wal/<checkpoint-id>/
+ * └── runtime/<open-epoch>/
  * ```
  *
- * # Thread safety
+ * # Ownership and synchronization
  *
- * All public methods are individually safe to invoke concurrently *except*
- * the meta accessors `GetMeta()` / `MutableMeta()`, which return references
- * into a meta_ slot that `UpdateMeta()` may replace.
+ * `CheckpointManager` owns checkpoint creation and publication. It serializes
+ * staging, manifest persistence, and replacement of `CURRENT`. A
+ * `Checkpoint` holds the selected manifest and delegates runtime-file and
+ * immutable-object operations to `CheckpointFileManager`.
  *
- * Specifically:
- *   * `OpenFile` / `CreateRuntimeContainer` / `Commit` /
- *     `CreateRuntimeFile` / `CommitRuntimeFile` / `LinkToSnapshot` —
- *     internally lock when allocating or publishing runtime files; otherwise
- *     they only read immutable members (`path_`, `id_`).
- *   * `UpdateMeta` — fully serialized: takes the lock for the entire JSON
- *     write + meta swap + orphan cleanup, so concurrent UpdateMeta calls are
- *     safe and won't tear the on-disk meta file.
- *   * `GetMeta` / `MutableMeta` — *not* internally synchronized; the caller
- *     is responsible for ensuring no concurrent UpdateMeta runs while a
- *     reference is held.
- *
- * The constructor and destructor follow standard C++ object-lifetime rules:
- * the instance must not be in use on another thread while either runs.
+ * `SetManifest()` and `manifest()` are not internally synchronized: callers
+ * must keep manifest construction and inspection within the checkpoint
+ * maintenance/publish lifecycle. File operations are synchronized by
+ * `CheckpointFileManager`; this does not make concurrent mutation of the
+ * same `IDataContainer` safe.
  */
 class Checkpoint {
  public:
-  /**
-   * @brief Create and initialize a checkpoint at @p path.
-   *
-   * Creates directories, loads meta JSON, and absolutizes paths. When
-   * @p cleanup_orphan_runtime_files is true, also removes orphaned runtime
-   * files. Read-only database opens disable that cleanup because another
-   * read-only process may own those temporary files.
-   *
-   * Returns nullptr only on unrecoverable errors (currently throws instead).
-   */
-  static std::shared_ptr<Checkpoint> Open(
-      std::string path, uint32_t id, bool cleanup_orphan_runtime_files = true);
-
-  ~Checkpoint();  // defined in .cc where CheckpointManifest is complete
+  ~Checkpoint();
   Checkpoint(const Checkpoint&) = delete;
   Checkpoint& operator=(const Checkpoint&) = delete;
 
-  /// Root path of this checkpoint: `db_dir/checkpoint-NNNNN`.
-  const std::string& path() const { return path_; }
+  /// Canonical manifest path for this root.
+  const std::string& manifest_path() const { return manifest_path_; }
+  uint64_t id() const { return id_; }
 
-  uint32_t id() const { return id_; }
+  /// Temporary workspace belonging to this database-open epoch.
+  const std::string& runtime_dir() const;
 
-  std::string snapshot_dir() const {
-    assert(!IsEmpty());
-    return path_ + "/snapshot";
-  }
+  /// WAL epoch directory whose name is this manifest ID.
+  const std::string& wal_dir() const { return wal_dir_; }
 
-  std::string runtime_dir() const {
-    assert(!IsEmpty());
-    return path_ + "/runtime";
-  }
-
-  std::string wal_dir() const {
-    assert(!IsEmpty());
-    return path_ + "/wal";
-  }
-
-  std::string meta_path() const {
-    assert(!IsEmpty());
-    return path_ + "/meta";
-  }
-
-  std::string allocator_dir() const {
-    assert(!IsEmpty());
-    return path_ + "/allocator";
-  }
+  std::string allocator_dir() const { return runtime_dir() + "/allocator"; }
 
   std::shared_ptr<IDataContainer> OpenFile(const std::string& file_path,
                                            MemoryLevel level) {
@@ -121,55 +83,60 @@ class Checkpoint {
     return file_mgr_->CreateRuntimeContainer(size, level);
   }
 
-  /// Commit a container to the snapshot directory. This consumes and closes the
-  /// container; callers must not access it after Commit() returns.
+  /// Consume @p buffer and publish it as an immutable object.
   std::string Commit(IDataContainer& buffer) {
     return file_mgr_->Commit(buffer);
   }
 
-  void UpdateMeta(CheckpointManifest&& meta);
+  /// Set the complete in-memory manifest. CheckpointManager persists it before
+  /// advancing CURRENT.
+  void SetManifest(CheckpointManifest&& manifest);
 
-  const CheckpointManifest& GetMeta() const {
-    assert(meta_ != nullptr);
-    return *meta_;
-  }
-
-  CheckpointManifest& MutableMeta() {
-    assert(meta_ != nullptr);
-    return *meta_;
-  }
-
-  bool IsEmpty() const { return path_.empty(); }
+  const CheckpointManifest& manifest() const { return manifest_; }
 
   /// Allocate an anonymous runtime file handle (RAII).
   CheckpointFileManager::RuntimeFileHandle CreateRuntimeFile() {
     return file_mgr_->CreateRuntimeFile();
   }
 
-  /// Move a runtime file into the snapshot directory and return its path.
+  /// Finalize a runtime file as an immutable object and return its path.
   std::string CommitRuntimeFile(
       CheckpointFileManager::RuntimeFileHandle&& file) {
     return file_mgr_->CommitRuntimeFile(std::move(file));
   }
 
-  std::string LinkToSnapshot(const std::string& abs_path) {
-    return file_mgr_->LinkToSnapshot(abs_path);
+  /// Reuse an object already in the object store; runtime files are copied to
+  /// a fresh immutable object.
+  std::string MaterializeObject(const std::string& abs_path) {
+    return file_mgr_->MaterializeObject(abs_path);
   }
 
  private:
-  /// Private constructor — only initializes members. Use Open() to create.
-  Checkpoint(std::string path, uint32_t id);
+  friend class CheckpointManager;
+  friend class LegacyCheckpointMigrator;
 
-  /// Performs all I/O: create dirs, load meta, absolutize paths, and optionally
-  /// clean orphaned runtime files.
-  void initialize(bool cleanup_orphan_runtime_files);
+  static std::shared_ptr<Checkpoint> OpenPublished(
+      std::string database_dir, uint64_t id,
+      std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
+  static std::shared_ptr<Checkpoint> CreateStaging(
+      std::string database_dir, uint64_t id,
+      std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
 
+  Checkpoint(std::string database_dir, uint64_t id,
+             std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
+
+  void initialize(bool load_manifest);
   void create_dirs() const;
+  void resolve_object_paths();
+  void persist_manifest();
 
-  std::string path_;
-  uint32_t id_;
-  mutable std::mutex mutex_;
-  std::unique_ptr<CheckpointManifest> meta_;
+  std::string database_dir_;
+  std::string manifest_path_;
+  std::string object_dir_;
+  std::shared_ptr<const RuntimeWorkspace> runtime_workspace_;
+  std::string wal_dir_;
+  uint64_t id_;
+  CheckpointManifest manifest_;
   std::unique_ptr<CheckpointFileManager> file_mgr_;
 };
 

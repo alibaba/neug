@@ -2463,7 +2463,10 @@ Schema Schema::Compact() const {
       THROW_RUNTIME_ERROR("Failed to add vertex label: " + vlabel_name);
     }
     assert(new_label == new_schema.v_schemas_.size());
-    new_schema.v_schemas_.push_back(v_schemas_[v_label]);
+    auto compacted_vertex =
+        std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+    compacted_vertex->label_id = new_label;
+    new_schema.v_schemas_.push_back(std::move(compacted_vertex));
   }
 
   for (label_t e_label = 0; e_label < elabel_indexer_.num_slots(); ++e_label) {
@@ -2504,7 +2507,12 @@ Schema Schema::Compact() const {
     auto new_index =
         new_schema.generate_edge_label(new_src_v, new_dst_v, new_e_label);
     max_e_triplet_index = std::max(max_e_triplet_index, new_index);
-    new_schema.e_schemas_[new_index] = pair.second;
+    auto compacted_edge = std::make_shared<EdgeSchema>(*pair.second);
+    compacted_edge->entry_id = new_index;
+    compacted_edge->src_label_id = new_src_v;
+    compacted_edge->dst_label_id = new_dst_v;
+    compacted_edge->edge_label_id = new_e_label;
+    new_schema.e_schemas_[new_index] = std::move(compacted_edge);
   }
   new_schema.vlabel_tomb_.resize(new_schema.v_schemas_.size());
   new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.num_slots());
@@ -2697,19 +2705,17 @@ result<rapidjson::Document> Schema::ToJson() const {
 
 void Schema::FromJson(const rapidjson::Value& j) {
   if (!j.IsObject()) {
-    LOG(ERROR) << "Schema JSON must be an object";
-    return;
+    THROW_STORAGE_EXCEPTION("Schema JSON must be an object");
   }
   auto yaml_result = config_parsing::json_to_yaml(j);
   if (!yaml_result) {
-    LOG(ERROR) << "Failed to convert JSON to YAML: " << yaml_result.error();
-    return;
+    THROW_STORAGE_EXCEPTION("Failed to convert JSON to YAML: " +
+                            yaml_result.error().ToString());
   }
   auto load_result = LoadFromYamlNode(yaml_result.value());
   if (!load_result) {
-    LOG(ERROR) << "Failed to load schema from JSON: "
-               << load_result.error().ToString();
-    return;
+    THROW_STORAGE_EXCEPTION("Failed to load schema from JSON: " +
+                            load_result.error().ToString());
   }
   *this = std::move(load_result.value());
 }

@@ -581,7 +581,7 @@ std::ostream& AtomicFileWriter::stream() {
   return *ostream_;
 }
 
-void AtomicFileWriter::Commit() {
+AtomicFileWriter::CommitResult AtomicFileWriter::Commit() {
   if (committed_) {
     THROW_IO_EXCEPTION("AtomicFileWriter::Commit: already committed");
   }
@@ -633,22 +633,42 @@ void AtomicFileWriter::Commit() {
   }
   fd_ = -1;
 
-  // Step 4: Atomic rename — POSIX guarantees this is atomic on the same FS.
+  // Step 4: atomically replace the target. MSVC's filesystem::rename does not
+  // provide the replacement semantics required by the CURRENT selector, so
+  // use the native write-through operation on Windows.
+#ifdef _WIN32
+  const auto tmp_path = std::filesystem::path(tmp_path_).wstring();
+  const auto target_path = std::filesystem::path(target_path_).wstring();
+  if (!MoveFileExW(tmp_path.c_str(), target_path.c_str(),
+                   MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    const auto error = std::error_code(static_cast<int>(GetLastError()),
+                                       std::system_category());
+    std::error_code remove_ec;
+    std::filesystem::remove(tmp_path_, remove_ec);
+    THROW_IO_EXCEPTION("AtomicFileWriter::Commit: replace " + tmp_path_ +
+                       " -> " + target_path_ + " failed: " + error.message());
+  }
+  return CommitResult::kDurable;
+#else
   std::error_code ec;
   std::filesystem::rename(tmp_path_, target_path_, ec);
   if (ec) {
+    const auto message = ec.message();
     std::filesystem::remove(tmp_path_, ec);
     THROW_IO_EXCEPTION("AtomicFileWriter::Commit: rename " + tmp_path_ +
-                       " -> " + target_path_ + " failed: " + ec.message());
+                       " -> " + target_path_ + " failed: " + message);
   }
 
   // Step 5: fsync the parent directory so the directory entry is durable.
   auto parent_dir = std::filesystem::path(target_path_).parent_path().string();
   int dir_fd = ::open(parent_dir.c_str(), O_RDONLY);
-  if (dir_fd >= 0) {
-    ::fsync(dir_fd);
-    ::close(dir_fd);
+  if (dir_fd < 0) {
+    return CommitResult::kCommitUnknown;
   }
+  const bool durable = ::fsync(dir_fd) == 0;
+  ::close(dir_fd);
+  return durable ? CommitResult::kDurable : CommitResult::kCommitUnknown;
+#endif
 }
 
 void AtomicFileWriter::Abort() noexcept {

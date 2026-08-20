@@ -100,6 +100,11 @@ namespace file_utils {
  */
 class AtomicFileWriter {
  public:
+  enum class CommitResult {
+    kDurable,
+    kCommitUnknown,
+  };
+
   explicit AtomicFileWriter(const std::string& target_path);
   ~AtomicFileWriter();
 
@@ -115,8 +120,10 @@ class AtomicFileWriter {
   std::ostream& stream();
 
   /// Flush + fsync(fd) + close + rename(tmp → target) + fsync(parent dir).
-  /// Throws on any I/O failure.  After Commit() the writer is spent.
-  void Commit();
+  /// Failures before rename throw. A parent-directory fsync failure returns
+  /// kCommitUnknown because the target has already been atomically replaced.
+  /// After Commit() the writer is spent.
+  CommitResult Commit();
 
  private:
   void Abort() noexcept;

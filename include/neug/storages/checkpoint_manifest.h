@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module_descriptor.h"
@@ -31,71 +32,48 @@ class Checkpoint;
  * @brief In-memory representation of a checkpoint's module inventory.
  *
  * Maps canonical string keys to ModuleDescriptors for all modules in a
- * checkpoint. Serialized as JSON for persistence inside checkpoint directories.
+ * checkpoint. On disk every descriptor references immutable object IDs; the
+ * Checkpoint root resolves them to local paths after loading.
  */
 class CheckpointManifest {
  public:
-  /// Name of the meta file written inside the checkpoint directory.
-  static constexpr const char* kMetaFileName = "meta";
-
-  /// Current on-disk format version for the meta JSON.
+  /// Current on-disk format version for the manifest JSON.
   ///
   /// Bump only on breaking changes to the JSON layout (renamed/removed
   /// fields, changed value semantics).  Additive changes (new optional
   /// fields) do not require a bump.  Readers must reject unknown versions.
-  static constexpr int kFormatVersion = 1;
+  ///
+  /// Version 1 belongs to the legacy checkpoint-N meta format. This immutable
+  /// objects + complete manifest layout starts at version 2.
+  static constexpr int kFormatVersion = 2;
 
   CheckpointManifest() = default;
 
-  /**
-   * @brief Return the descriptor for @p key, or std::nullopt if absent.
-   */
-  std::optional<ModuleDescriptor> module(const std::string& key) const;
+  /// Return the descriptor for @p key, or nullptr if absent.
+  const ModuleDescriptor* FindModule(const std::string& key) const;
+
+  /// Return the mutable descriptor for @p key, or nullptr if absent.
+  ModuleDescriptor* FindMutableModule(const std::string& key);
 
   /**
    * @brief Insert or replace the descriptor for @p key.
    */
-  void set_module(const std::string& key, ModuleDescriptor desc);
-
-  /**
-   * @brief Remove the descriptor for @p key (no-op if absent).
-   */
-  void remove_module(const std::string& key);
+  void SetModule(const std::string& key, ModuleDescriptor desc);
 
   /**
    * @brief Returns true if @p key is present in the module map.
    */
-  bool has_module(const std::string& key) const;
+  bool HasModule(const std::string& key) const;
 
-  /**
-   * @brief If @p key exists in @p prev, hardlink its paths and the complete
-   * referenced-module dependency closure into @p ckp, then store their
-   * descriptors here.
-   */
-  void LinkModuleFrom(const CheckpointManifest& prev, const std::string& key,
-                      Checkpoint& ckp);
+  /// Copy @p key and its referenced-module dependency closure from @p prev.
+  /// Object references are immutable and therefore reused without file I/O.
+  void ReuseModuleClosureFrom(const CheckpointManifest& prev,
+                              const std::string& key);
 
   /**
    * @brief Read-only access to the full module map.
    */
-  const std::unordered_map<std::string, ModuleDescriptor>& modules() const;
-
-  /**
-   * @brief Mutable access to the module map.  Useful for in-place traversal
-   * (e.g. recursive path rewriting in Checkpoint::UpdateMeta) that would
-   * otherwise require copy-modify-replace cycles.
-   */
-  std::unordered_map<std::string, ModuleDescriptor>& mutable_modules();
-
-  /**
-   * @brief Retrieve a scalar value by key.  Returns std::nullopt if absent.
-   *
-   * Scalars hold shell-owned state that has no Module home of its own —
-   * LFIndexer's num_elements, EdgeTable's row_count, hash policy index, etc.
-   * Convention: namespace the key by owner using `/`, e.g.
-   * "indexer_person/num_elements".
-   */
-  std::optional<std::string> GetScalar(const std::string& key) const;
+  const std::unordered_map<std::string, ModuleDescriptor>& Modules() const;
 
   /// Insert or replace a scalar entry.
   void SetScalar(std::string key, std::string value);
@@ -103,7 +81,7 @@ class CheckpointManifest {
   /**
    * @brief If @p key exists in @p prev, copy its scalar value into this
    * manifest. Scalars have no filesystem payload, so this is a plain copy
-   * (unlike LinkModuleFrom).
+   * (unlike ReuseModuleFrom).
    */
   void CopyScalarFrom(const CheckpointManifest& prev, const std::string& key);
 
@@ -123,29 +101,32 @@ class CheckpointManifest {
     return value;
   }
 
-  /// Read-only access to the full scalar map.
-  const std::unordered_map<std::string, std::string>& scalars() const;
-
   void Load(const std::string& file_path);
 
   void Save(const std::string& file_path) const;
-
-  static void GenerateEmptyMeta(const std::string& file_path);
 
   const Schema& GetSchema() const;
 
   void SetSchema(const Schema& schema);
 
-  /// Returns true if the meta file contained a "schema" field when loaded.
-  /// GenerateEmptyMeta() does not write a schema, so this returns false for
-  /// stub checkpoints created during initial DB creation.  A fully committed
-  /// checkpoint (via Save()) always writes a schema, even if the graph has
-  /// no tables.
+  /// Returns true if the manifest contains a schema. A committed manifest
+  /// always carries a schema, even when the graph has no tables.
   bool has_schema() const { return has_schema_; }
 
+  /// Greatest transaction timestamp represented by this manifest. Recovery
+  /// starts WAL replay at the next timestamp.
+  uint64_t base_timestamp() const { return base_timestamp_; }
+
  private:
+  std::optional<std::string> GetScalar(const std::string& key) const;
+
+  void ReuseModuleClosureFromImpl(const CheckpointManifest& prev,
+                                  const std::string& key,
+                                  std::unordered_set<std::string>& visited);
+
   Schema schema_;
   bool has_schema_ = false;
+  uint64_t base_timestamp_ = 0;
   std::unordered_map<std::string, ModuleDescriptor> modules_;
   std::unordered_map<std::string, std::string> scalars_;
 };

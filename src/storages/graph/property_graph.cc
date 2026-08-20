@@ -783,7 +783,7 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   Clear();
   memory_level_ = memory_level;
 
-  const CheckpointManifest& meta = ckp->GetMeta();
+  const CheckpointManifest& meta = ckp->manifest();
   schema_ = meta.GetSchema();
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
@@ -974,16 +974,16 @@ void PropertyGraph::Compact() {
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
-  LOG(INFO) << "Creating checkpoint at " << ckp->path();
+  LOG(INFO) << "Creating checkpoint at " << ckp->manifest_path();
 
   CheckpointManifest meta;
   ModuleBroker store;
 
-  // Clean tables LinkToSnapshot from prev when entries exist; newly empty
+  // Clean tables reuse previous descriptors when entries exist; newly empty
   // tables write nothing (existence is carried by schema).
   const CheckpointManifest* prev =
-      (ckp_ != nullptr && ckp_->GetMeta().has_schema()) ? &ckp_->GetMeta()
-                                                        : nullptr;
+      (ckp_ != nullptr && ckp_->manifest().has_schema()) ? &ckp_->manifest()
+                                                         : nullptr;
 
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   // Capacity snapshot for every live table (needed when a dirty edge table
@@ -1008,7 +1008,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     if (IsVertexTableDirty(i)) {
       vertex_tables_[i].DisassembleTo(store, meta, *ckp);
     } else if (prev != nullptr) {
-      vertex_tables_[i].LinkToSnapshot(*ckp, meta, *prev);
+      vertex_tables_[i].ReuseCheckpointModules(*ckp, meta, *prev);
     }
   }
 
@@ -1048,24 +1048,27 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
                          vertex_capacity[dst_label_i], new_cap);
           edge_table.DisassembleTo(store, meta, *ckp);
         } else if (prev != nullptr) {
-          edge_table.LinkToSnapshot(*ckp, meta, *prev);
+          edge_table.ReuseCheckpointModules(*ckp, meta, *prev);
         }
       }
     }
   }
 
-  index_manager_->Dump(store, *ckp, meta);
+  index_manager_->Dump(store, meta);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
   // and must not appear in the checkpoint. StripTemporary() creates a clean
   // copy without any temporary vertex/edge labels.
   meta.SetSchema(schema_.StripTemporary());
-  ckp->UpdateMeta(
-      std::move(meta));  // Persist meta and set checkpoint to use this meta.
-  LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
+  ckp->SetManifest(std::move(meta));
+  LOG(INFO) << "Dump graph to checkpoint " << ckp->manifest_path();
 
   Clear();
+}
+
+bool PropertyGraph::IsModified() const {
+  return dirty_.IsModified() || index_manager_->HasCatalogChanges();
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }

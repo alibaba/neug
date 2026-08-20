@@ -126,10 +126,12 @@ class NEUG_API NeugDB {
    * the query processor and planner.
    *
    * **Data Directory Structure:**
-   * The data_dir should contain:
-   * - `graph.yaml`: Schema definition file
-   * - `snapshot/`: Vertex and edge data files
-   * - `wal/`: Write-ahead log files (optional, for recovery)
+   * Checkpointed data is organized as:
+   * - `checkpoint/CURRENT`: atomically published manifest id
+   * - `checkpoint/manifests/`: immutable manifest files
+   * - `checkpoint/objects/`: immutable module objects
+   * - `wal/<id>/`: WAL epoch for each manifest
+   * - `runtime/open-<epoch>/`: mutable allocator workspace for an open process
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -318,7 +320,7 @@ class NEUG_API NeugDB {
     return *snapshot_store_;
   }
 
-  std::string work_dir() const { return checkpoint_mgr_.db_dir(); }
+  std::string work_dir() const { return checkpoint_mgr_.database_dir(); }
 
   inline const NeugDBConfig& config() const { return config_; }
 
@@ -338,7 +340,8 @@ class NEUG_API NeugDB {
   void initAllocators(const std::string& allocator_dir);
   void reopenAllocators(const std::string& allocator_dir);
   timestamp_t openGraphAndIngestWals();
-  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph);
+  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph,
+                         timestamp_t base_timestamp);
   void initPlanner();
   void initQueryRuntime();
   void clearQueryRuntime() noexcept;
