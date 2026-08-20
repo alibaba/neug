@@ -143,6 +143,15 @@ class JsonTest : public ::testing::Test {
                                                 std::move(optionsBuilder));
   }
 
+  // Same, but for JSONL (one JSON object per line) sources.
+  std::shared_ptr<reader::JsonReader> createJsonLinesReader(
+      const std::shared_ptr<reader::ReadSharedState>& sharedState) {
+    auto optionsBuilder =
+        std::make_unique<reader::JsonOptionsBuilder>(sharedState, false);
+    return std::make_shared<reader::JsonReader>(sharedState,
+                                                std::move(optionsBuilder));
+  }
+
   // Stream opener backed by local files; injecting it drives the same
   // streaming read paths used for remote objects.
   static io::InputStreamOpener localStreamOpener() {
@@ -383,6 +392,72 @@ TEST_F(JsonTest, TestEmptyJsonArrayStreamingReturnsEmpty) {
   EXPECT_NO_THROW(reader->read(localState, ctx));
   EXPECT_EQ(ctx.col_num(), 0);
   EXPECT_EQ(ctx.row_num(), 0);
+}
+
+// CRLF line endings in a JSONL source: the trailing '\r' must be stripped
+// so lines parse identically to LF-only input. Includes a CRLF-terminated
+// blank line (which used to be miscounted as a data row) and a final line
+// without a trailing newline.
+TEST_F(JsonTest, TestJsonLinesCRLF) {
+  createJsonFile("test_jsonl_crlf.json",
+                 "{\"id\": 1, \"age\": 25}\r\n"
+                 "\r\n"
+                 "{\"id\": 2, \"age\": 30}\r");
+  auto sharedState = createSharedState(
+      "test_jsonl_crlf.json", {"id", "age"},
+      {createUInt32Type(), createDoubleType()}, {{"batch_read", "false"}});
+  auto reader = createJsonLinesReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  ASSERT_NO_THROW(reader->read(localState, ctx));
+  ASSERT_EQ(ctx.row_num(), 2);
+  auto col0 = ctx.chunk(0).columns()[0];
+  EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
+  EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
+  auto col1 = ctx.chunk(0).columns()[1];
+  EXPECT_DOUBLE_EQ(col1->get_elem(0).GetValue<double>(), 25.0);
+  EXPECT_DOUBLE_EQ(col1->get_elem(1).GetValue<double>(), 30.0);
+}
+
+// Same content through the InputStream-backed path (remote JSONL objects):
+// StreamLineReader must behave like the local getline path.
+TEST_F(JsonTest, TestJsonLinesCRLFStreaming) {
+  createJsonFile("test_jsonl_crlf_stream.json",
+                 "{\"id\": 1, \"age\": 25}\r\n"
+                 "\r\n"
+                 "{\"id\": 2, \"age\": 30}\r");
+  auto sharedState = createSharedState(
+      "test_jsonl_crlf_stream.json", {"id", "age"},
+      {createUInt32Type(), createDoubleType()}, {{"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createJsonLinesReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  ASSERT_NO_THROW(reader->read(localState, ctx));
+  ASSERT_EQ(ctx.row_num(), 2);
+  auto col0 = ctx.chunk(0).columns()[0];
+  EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
+  EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
+}
+
+// LF-only input keeps working on both paths (regression guard).
+TEST_F(JsonTest, TestJsonLinesLFUnchanged) {
+  createJsonFile("test_jsonl_lf.json",
+                 "{\"id\": 1, \"age\": 25}\n{\"id\": 2, \"age\": 30}\n");
+  auto sharedState = createSharedState(
+      "test_jsonl_lf.json", {"id", "age"},
+      {createUInt32Type(), createDoubleType()}, {{"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createJsonLinesReader(sharedState);
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  ASSERT_NO_THROW(reader->read(localState, ctx));
+  ASSERT_EQ(ctx.row_num(), 2);
+  auto col0 = ctx.chunk(0).columns()[0];
+  EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);
 }
 
 }  // namespace test

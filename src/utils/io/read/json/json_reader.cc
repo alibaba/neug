@@ -228,9 +228,17 @@ Value parse_json_value(const rapidjson::Value& value,
   }
 }
 
+/// Strip one trailing '\r' so CRLF line endings behave identically on
+/// stream-backed and local getline paths (mirrors io::readFirstLine).
+static inline void stripTrailingCR(std::string& line) {
+  if (!line.empty() && line.back() == '\r') {
+    line.pop_back();
+  }
+}
+
 /// Line reader over io::InputStream, mirroring std::getline semantics
-/// (split on '\n', terminator stripped). Used for JSONL sources where
-/// no local file exists (remote objects).
+/// (split on '\n', terminator stripped, trailing '\r' removed). Used for
+/// JSONL sources where no local file exists (remote objects).
 class StreamLineReader {
  public:
   explicit StreamLineReader(std::unique_ptr<io::InputStream> stream)
@@ -248,6 +256,7 @@ class StreamLineReader {
                              r.error().error_message());
         }
         if (*r == 0) {
+          stripTrailingCR(line);
           return !line.empty();
         }
         pos_ = 0;
@@ -260,6 +269,7 @@ class StreamLineReader {
       if (nl) {
         line.append(begin, static_cast<size_t>(nl - begin));
         pos_ += static_cast<size_t>(nl - begin) + 1;
+        stripTrailingCR(line);
         return true;
       }
       line.append(begin, avail);
@@ -303,6 +313,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
       }
       std::string line;
       while (std::getline(*input_, line)) {
+        stripTrailingCR(line);
         if (!line.empty()) {
           ++row_num_;
         }
@@ -350,6 +361,7 @@ class JsonChunkSupplier : public IDataChunkSupplier {
         if (!got_line) {
           break;
         }
+        stripTrailingCR(line);
         if (line.empty()) {
           continue;
         }
@@ -538,6 +550,7 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     } else if (stream_factory) {
       StreamLineReader reader(stream_factory());
       while (reader.nextLine(sample_line)) {
+        stripTrailingCR(sample_line);
         if (!sample_line.empty()) {
           break;
         }
@@ -545,6 +558,7 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     } else {
       std::ifstream input(paths[0]);
       while (std::getline(input, sample_line)) {
+        stripTrailingCR(sample_line);
         if (!sample_line.empty()) {
           break;
         }
@@ -579,6 +593,7 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     StreamLineReader reader(stream_factory());
     std::string line;
     while (sample_lines.size() < max_sample_rows && reader.nextLine(line)) {
+      stripTrailingCR(line);
       if (!line.empty()) {
         sample_lines.push_back(std::move(line));
       }
@@ -587,6 +602,7 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
     std::ifstream input(paths[0]);
     std::string line;
     while (std::getline(input, line) && sample_lines.size() < max_sample_rows) {
+      stripTrailingCR(line);
       if (!line.empty()) {
         sample_lines.push_back(std::move(line));
       }

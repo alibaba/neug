@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstring>
 #include "neug/utils/exception/exception.h"
+#include "remote_io_utils.h"
 #include "s3_options.h"
 
 namespace neug {
@@ -134,7 +135,23 @@ class S3RandomAccessStream : public fsys::RandomAccessStream {
       return int64_t{0};
     }
     int64_t to_read = std::min(nbytes, size - position);
-    return client_->getObjectRange(bucket_, key_, position, to_read, out);
+    const int64_t served = readahead_.tryServe(position, to_read, out);
+    if (served >= 0) {
+      return served;
+    }
+    // Fetch at least the readahead window so subsequent sequential small
+    // reads hit the cache instead of issuing one ranged GET per read.
+    int64_t fetch_len = std::max(to_read, kRemoteReadaheadBytes);
+    fetch_len = std::min(fetch_len, size - position);
+    fetch_buf_.resize(static_cast<size_t>(fetch_len));
+    GS_AUTO(got, client_->getObjectRange(bucket_, key_, position, fetch_len,
+                                         fetch_buf_.data()));
+    readahead_.store(position, fetch_buf_.data(), got);
+    const int64_t copy_len = std::min(got, to_read);
+    if (copy_len > 0) {
+      std::memcpy(out, fetch_buf_.data(), static_cast<size_t>(copy_len));
+    }
+    return copy_len;
   }
 
   result<int64_t> GetSize() override {
@@ -164,6 +181,8 @@ class S3RandomAccessStream : public fsys::RandomAccessStream {
   int64_t position_ = 0;
   int64_t size_ = -1;
   bool closed_ = false;
+  ReadaheadCache readahead_;
+  std::vector<char> fetch_buf_;
 };
 
 // ============================================================================

@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include "neug/utils/result.h"
+#include "remote_io_utils.h"
 #include "s3_options.h"
 
 namespace neug {
@@ -43,7 +44,9 @@ void EnsureCurlInitialized();
  *   - POST/DELETE: multipart upload (create / upload part / complete / abort)
  *
  * Thread-safety: every request uses its own CURL handle, so a single
- * S3Client instance may be shared across threads.
+ * S3Client instance may be shared across threads. All handles share one
+ * CURLSH connection cache (DNS / TLS session / TCP connection reuse),
+ * guarded by the share's lock callbacks.
  */
 class S3Client {
  public:
@@ -127,6 +130,9 @@ class S3Client {
       long* out_http_code = nullptr) const;
 
   S3ClientConfig config_;
+  // Shared DNS/TLS/connection cache; lives as long as the client and is
+  // referenced by every request() handle via CURLOPT_SHARE.
+  std::shared_ptr<CurlShare> curl_share_;
 };
 
 }  // namespace s3

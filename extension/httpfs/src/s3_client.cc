@@ -225,7 +225,8 @@ bool isTransientFailure(CURLcode curl_code, long http_code) {
 // S3Client
 // ============================================================================
 
-S3Client::S3Client(S3ClientConfig config) : config_(std::move(config)) {
+S3Client::S3Client(S3ClientConfig config)
+    : config_(std::move(config)), curl_share_(std::make_shared<CurlShare>()) {
   EnsureCurlInitialized();
 }
 
@@ -316,6 +317,11 @@ result<S3Client::HttpResponse> S3Client::request(
     if (!curl) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                           "Failed to initialize CURL handle");
+    }
+    // Reuse DNS/TLS/TCP connections across requests (thread-safe via the
+    // share's lock callbacks).
+    if (curl_share_ && curl_share_->handle()) {
+      curl_easy_setopt(curl, CURLOPT_SHARE, curl_share_->handle());
     }
 
     HttpResponse response;
@@ -580,8 +586,12 @@ result<void> S3Client::putObject(const std::string& bucket,
 
 result<std::string> S3Client::createMultipartUpload(
     const std::string& bucket, const std::string& key) const {
+  // CreateMultipartUpload is POST /{key}?uploads; without the `uploads`
+  // sub-resource the server treats this as a plain POST Object and
+  // rejects it.
+  std::vector<std::pair<std::string, std::string>> query = {{"uploads", ""}};
   auto resp =
-      request("POST", bucket, key, {}, {}, nullptr, 0, true, nullptr, 0);
+      request("POST", bucket, key, query, {}, nullptr, 0, true, nullptr, 0);
   if (!resp) {
     return tl::unexpected(resp.error());
   }

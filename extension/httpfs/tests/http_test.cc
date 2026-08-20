@@ -20,7 +20,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <atomic>
+#include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <thread>
 #include <vector>
@@ -362,6 +364,231 @@ TEST_F(HTTPFileSystemTest, ReadAtRejectsServerWithoutRangeSupport) {
   auto r = stream->ReadAt(2, 4, buf);
   ASSERT_FALSE(r.has_value());
   EXPECT_EQ(r.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
+  EXPECT_NE(r.error().error_message().find("Range support is required"),
+            std::string::npos)
+      << r.error().error_message();
+
+  stream->Close();
+  server.stop();
+}
+
+// ============================================================================
+// Range-supporting keep-alive server: verifies the readahead cache (small
+// sequential reads collapse into few ranged GETs) and CURLSH connection
+// reuse (all requests share one TCP connection).
+// ============================================================================
+
+/// Loopback HTTP server with HEAD + Range support and HTTP/1.1 keep-alive.
+/// Counts accepted connections and served requests so tests can observe
+/// readahead hits and connection reuse.
+class RangeKeepAliveHTTPServer {
+ public:
+  explicit RangeKeepAliveHTTPServer(std::string body) : body_(std::move(body)) {}
+
+  ~RangeKeepAliveHTTPServer() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0) {
+      return false;
+    }
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;  // ephemeral port
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0) {
+      return false;
+    }
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false)) {
+      return;
+    }
+    if (listen_fd_ >= 0) {
+      ::shutdown(listen_fd_, SHUT_RDWR);
+      ::close(listen_fd_);
+      listen_fd_ = -1;
+    }
+    // The keep-alive connection may sit blocked in recv(); shutting down
+    // the listen socket alone would not unblock it.
+    const int fd = active_fd_.load();
+    if (fd >= 0) {
+      ::shutdown(fd, SHUT_RDWR);
+    }
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+  }
+
+  int port() const { return port_; }
+  int connections() const { return connections_.load(); }
+  int requests() const { return requests_.load(); }
+
+ private:
+  void serve() {
+    while (running_) {
+      int fd = ::accept(listen_fd_, nullptr, nullptr);
+      if (fd < 0) {
+        break;
+      }
+      connections_.fetch_add(1);
+      active_fd_.store(fd);
+      handle(fd);
+      active_fd_.store(-1);
+      ::close(fd);
+    }
+  }
+
+  void handle(int fd) {
+    std::string pending;
+    char buf[4096];
+    // Keep-alive: serve requests on this connection until the peer closes.
+    while (running_) {
+      size_t hdr_end;
+      while ((hdr_end = pending.find("\r\n\r\n")) == std::string::npos) {
+        ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+        if (n <= 0) {
+          return;
+        }
+        pending.append(buf, static_cast<size_t>(n));
+      }
+      const std::string request = pending.substr(0, hdr_end + 4);
+      pending.erase(0, hdr_end + 4);
+      requests_.fetch_add(1);
+
+      const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+      // Parse "Range: bytes=start-end" when present.
+      int64_t start = 0;
+      int64_t end = static_cast<int64_t>(body_.size()) - 1;
+      bool has_range = false;
+      size_t range_pos = request.find("Range: bytes=");
+      if (range_pos != std::string::npos) {
+        has_range = true;
+        size_t val_pos = range_pos + strlen("Range: bytes=");
+        size_t dash = request.find('-', val_pos);
+        start = std::stoll(request.substr(val_pos, dash - val_pos));
+        size_t line_end = request.find("\r\n", dash + 1);
+        end = std::stoll(request.substr(dash + 1, line_end - dash - 1));
+        end = std::min(end, static_cast<int64_t>(body_.size()) - 1);
+      }
+
+      std::string response;
+      if (is_head) {
+        response = "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n"
+                   "Content-Length: " +
+                   std::to_string(body_.size()) + "\r\n\r\n";
+      } else if (has_range) {
+        const int64_t slice_len = end - start + 1;
+        response = "HTTP/1.1 206 Partial Content\r\nAccept-Ranges: bytes\r\n"
+                   "Content-Range: bytes " +
+                   std::to_string(start) + "-" + std::to_string(end) + "/" +
+                   std::to_string(body_.size()) +
+                   "\r\nContent-Length: " + std::to_string(slice_len) +
+                   "\r\n\r\n";
+        if (!sendAll(fd, response)) {
+          return;
+        }
+        if (!sendAll(fd, body_.substr(static_cast<size_t>(start),
+                                      static_cast<size_t>(slice_len)))) {
+          return;
+        }
+        continue;
+      } else {
+        response = "HTTP/1.1 200 OK\r\nContent-Length: " +
+                   std::to_string(body_.size()) + "\r\n\r\n" + body_;
+      }
+      if (!sendAll(fd, response)) {
+        return;
+      }
+    }
+  }
+
+  static bool sendAll(int fd, const std::string& data) {
+    size_t sent = 0;
+    while (sent < data.size()) {
+      ssize_t n = ::send(fd, data.data() + sent, data.size() - sent, 0);
+      if (n <= 0) {
+        return false;
+      }
+      sent += static_cast<size_t>(n);
+    }
+    return true;
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+  std::atomic<int> connections_{0};
+  std::atomic<int> requests_{0};
+  std::atomic<int> active_fd_{-1};
+};
+
+TEST_F(HTTPFileSystemTest, ReadaheadAndConnectionReuse) {
+  // 8 MiB body with a verifiable repeating pattern.
+  constexpr int64_t kBodySize = 8 * 1024 * 1024;
+  std::string body(static_cast<size_t>(kBodySize), '\0');
+  for (int64_t i = 0; i < kBodySize; ++i) {
+    body[static_cast<size_t>(i)] = static_cast<char>('A' + (i % 26));
+  }
+  RangeKeepAliveHTTPServer server(std::move(body));
+  ASSERT_TRUE(server.start());
+
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
+
+  // Opening probes the size with a single HEAD request.
+  EXPECT_EQ(server.requests(), 1);
+
+  // First read fetches the readahead window (one ranged GET).
+  char buf[1024];
+  auto r1 = stream->ReadAt(0, sizeof(buf), buf);
+  ASSERT_TRUE(r1.has_value()) << r1.error().ToString();
+  EXPECT_EQ(*r1, static_cast<int64_t>(sizeof(buf)));
+  EXPECT_EQ(buf[0], 'A');
+  EXPECT_EQ(buf[25], 'Z');
+  EXPECT_EQ(buf[26], 'A');
+  EXPECT_EQ(server.requests(), 2);
+
+  // Subsequent reads inside the cached window hit no network at all.
+  auto r2 = stream->ReadAt(1024, sizeof(buf), buf);
+  ASSERT_TRUE(r2.has_value());
+  EXPECT_EQ(*r2, static_cast<int64_t>(sizeof(buf)));
+  EXPECT_EQ(buf[0], static_cast<char>('A' + (1024 % 26)));
+  EXPECT_EQ(server.requests(), 2) << "readahead hit expected no request";
+
+  // A read far outside the window triggers exactly one more ranged GET.
+  constexpr int64_t kFarOffset = 6 * 1024 * 1024;
+  auto r3 = stream->ReadAt(kFarOffset, sizeof(buf), buf);
+  ASSERT_TRUE(r3.has_value());
+  EXPECT_EQ(*r3, static_cast<int64_t>(sizeof(buf)));
+  EXPECT_EQ(buf[0], static_cast<char>('A' + (kFarOffset % 26)));
+  EXPECT_EQ(server.requests(), 3);
+
+  // All requests share one keep-alive TCP connection thanks to the CURLSH
+  // connection cache.
+  EXPECT_EQ(server.connections(), 1);
 
   stream->Close();
   server.stop();

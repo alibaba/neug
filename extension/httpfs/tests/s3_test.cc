@@ -481,3 +481,63 @@ TEST_F(S3IntegrationTest, WriteListReadRoundTrip) {
   ASSERT_EQ(matched.size(), 1u);
   EXPECT_EQ(matched[0], uri);
 }
+
+// A payload above the 2 * part_size threshold (default 16 MiB) forces the
+// real multipart path: CreateMultipartUpload (?uploads), UploadPart per
+// part and CompleteMultipartUpload. The round-trip readback validates every
+// part landed at the right offset.
+TEST_F(S3IntegrationTest, MultipartWriteAboveThresholdRoundTrip) {
+  // Generate a deterministic pseudo-random payload (~20 MiB).
+  constexpr size_t kPayloadSize = 20u << 20;
+  std::string payload;
+  payload.reserve(kPayloadSize);
+  std::mt19937_64 rng(7);
+  while (payload.size() < kPayloadSize) {
+    uint64_t v = rng();
+    payload.append(reinterpret_cast<const char*>(&v), sizeof(v));
+  }
+
+  const std::string key = prefix_ + "multipart_roundtrip.bin";
+  const std::string uri = "oss://" + bucket_ + "/" + key;
+
+  S3FileSystem fs(makeSchema(uri, baseOptions()));
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto out_result = remote->openOutputStream(uri);
+  ASSERT_TRUE(out_result.has_value()) << out_result.error().ToString();
+  auto out = *out_result;
+  // Odd-sized chunks so part boundaries fall mid-write.
+  size_t offset = 0;
+  const size_t chunk = 1048583;  // ~1 MiB, not a divisor of part_size
+  while (offset < payload.size()) {
+    size_t n = std::min(chunk, payload.size() - offset);
+    auto w = out->Write(payload.data() + offset, static_cast<int64_t>(n));
+    ASSERT_TRUE(w.has_value()) << w.error().ToString();
+    offset += n;
+  }
+  auto close_status = out->Close();
+  ASSERT_TRUE(close_status.has_value()) << close_status.error().ToString();
+
+  auto size = remote->getSize(uri);
+  ASSERT_TRUE(size.has_value()) << size.error().ToString();
+  EXPECT_EQ(*size, static_cast<int64_t>(payload.size()));
+
+  // Read back through the readahead-enabled stream and compare.
+  auto in_result = remote->openInputStream(uri);
+  ASSERT_TRUE(in_result.has_value()) << in_result.error().ToString();
+  auto in = *in_result;
+
+  std::string readback(payload.size(), '\0');
+  int64_t pos = 0;
+  const int64_t read_chunk = 1 << 20;
+  while (pos < static_cast<int64_t>(payload.size())) {
+    int64_t n = std::min<int64_t>(read_chunk,
+                                  static_cast<int64_t>(payload.size()) - pos);
+    auto r = in->ReadAt(pos, n, readback.data() + pos);
+    ASSERT_TRUE(r.has_value()) << r.error().ToString();
+    ASSERT_EQ(*r, n) << "short read at offset " << pos;
+    pos += n;
+  }
+  EXPECT_EQ(readback, payload);
+}

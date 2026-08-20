@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "remote_io_utils.h"
 #include "s3_client.h"  // EnsureCurlInitialized
 
 namespace neug {
@@ -273,12 +274,25 @@ void SetupCURLHandle(CURL* curl, const HTTPOptions& opts,
 // HTTPRandomAccessStream — ranged reads over an HTTP(S) URL
 // ============================================================================
 
+/// Random-access read stream over an HTTP(S) URL.
+///
+/// Server requirements: the endpoint MUST support HEAD requests (used to
+/// probe the size at open time) and Range requests (used for ranged
+/// reads). A server that ignores Range and answers 200 would deliver
+/// misaligned bytes, so such responses are rejected with an error rather
+/// than silently misread.
+///
+/// Small reads are served from a readahead block, and TCP/TLS connections
+/// are reused across requests through a shared CURLSH cache.
 class HTTPRandomAccessStream : public fsys::RandomAccessStream {
  public:
   HTTPRandomAccessStream(
       std::string url,
-      const common::case_insensitive_map_t<std::string>& options)
-      : url_(std::move(url)), opts_(HTTPOptions::fromMap(options)) {
+      const common::case_insensitive_map_t<std::string>& options,
+      std::shared_ptr<CurlShare> curl_share)
+      : url_(std::move(url)),
+        opts_(HTTPOptions::fromMap(options)),
+        curl_share_(std::move(curl_share)) {
     // Build the (immutable) header list once.
     for (const auto& header : opts_.custom_headers) {
       header_list_ = curl_slist_append(header_list_, header.c_str());
@@ -324,10 +338,38 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
       return int64_t{0};
     }
 
+    const int64_t served = readahead_.tryServe(position, nbytes, out);
+    if (served >= 0) {
+      return served;
+    }
+    // Fetch at least the readahead window so subsequent sequential small
+    // reads hit the cache instead of issuing one request per read.
+    int64_t fetch_len = std::max(nbytes, kRemoteReadaheadBytes);
+    if (file_size_ >= 0) {
+      fetch_len = std::min(fetch_len, file_size_ - position);
+    }
+    fetch_buf_.resize(static_cast<size_t>(fetch_len));
+    auto got = fetchRange(position, fetch_len, fetch_buf_.data());
+    if (!got) {
+      return tl::unexpected(got.error());
+    }
+    readahead_.store(position, fetch_buf_.data(), *got);
+    const int64_t copy_len = std::min(*got, nbytes);
+    if (copy_len > 0) {
+      std::memcpy(out, fetch_buf_.data(), static_cast<size_t>(copy_len));
+    }
+    return copy_len;
+  }
+
+  /// Issue a single ranged GET into `out` (capacity `nbytes`).
+  result<int64_t> fetchRange(int64_t position, int64_t nbytes, void* out) {
     CURL* curl = curl_easy_init();
     if (!curl) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                           "Failed to initialize CURL handle");
+    }
+    if (curl_share_ && curl_share_->handle()) {
+      curl_easy_setopt(curl, CURLOPT_SHARE, curl_share_->handle());
     }
 
     SetupCURLHandle(curl, opts_, header_list_);
@@ -347,21 +389,13 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
     curl_easy_cleanup(curl);
 
-    if (res != CURLE_OK) {
-      RETURN_STATUS_ERROR(
-          neug::StatusCode::ERR_IO_ERROR,
-          "HTTP Range request failed: " + std::string(curl_easy_strerror(res)) +
-              " (" + url_ + ")");
-    }
-
-    int64_t bytes_received = nbytes - static_cast<int64_t>(write_info.second);
-
+    // Check the status code first: a server that ignores Range answers 200
+    // with the whole file, which overflows the (small) range buffer and
+    // aborts the transfer with CURLE_WRITE_ERROR — that specific failure
+    // must surface as the clearer "no Range support" error.
     if (response_code == 416) {
       // Range Not Satisfiable - position is beyond end of file
       return int64_t{0};
-    }
-    if (response_code == 206) {
-      return bytes_received;
     }
     if (response_code == 200) {
       // The server ignored the Range request and returned the file from
@@ -372,6 +406,18 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
           "Server ignored the Range request (returned 200); Range support "
           "is required: " +
               url_);
+    }
+    if (res != CURLE_OK) {
+      RETURN_STATUS_ERROR(
+          neug::StatusCode::ERR_IO_ERROR,
+          "HTTP Range request failed: " + std::string(curl_easy_strerror(res)) +
+              " (" + url_ + ")");
+    }
+
+    int64_t bytes_received = nbytes - static_cast<int64_t>(write_info.second);
+
+    if (response_code == 206) {
+      return bytes_received;
     }
     RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                         "HTTP Range request failed with status " +
@@ -395,6 +441,9 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
     if (!curl) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                           "Failed to initialize CURL for HEAD request");
+    }
+    if (curl_share_ && curl_share_->handle()) {
+      curl_easy_setopt(curl, CURLOPT_SHARE, curl_share_->handle());
     }
 
     SetupCURLHandle(curl, opts_, header_list_);
@@ -432,10 +481,13 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
 
   std::string url_;
   HTTPOptions opts_;
+  std::shared_ptr<CurlShare> curl_share_;
   struct curl_slist* header_list_ = nullptr;
   int64_t file_size_ = -1;
   int64_t position_ = 0;
   bool closed_ = false;
+  ReadaheadCache readahead_;
+  std::vector<char> fetch_buf_;
 };
 
 // ============================================================================
@@ -453,7 +505,8 @@ class HTTPRemoteFileSystem : public fsys::RemoteFileSystem {
     try {
       HTTPURIComponents::parse(path);
       return std::shared_ptr<fsys::RandomAccessStream>(
-          std::make_shared<HTTPRandomAccessStream>(path, options_));
+          std::make_shared<HTTPRandomAccessStream>(path, options_,
+                                                   curl_share_));
     } catch (const std::exception& e) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                           "Failed to open HTTP file: " + std::string(e.what()));
@@ -462,6 +515,8 @@ class HTTPRemoteFileSystem : public fsys::RemoteFileSystem {
 
   result<std::shared_ptr<fsys::OutputStream>> openOutputStream(
       const std::string& path) override {
+    // HTTP/HTTPS sources are read-only; exports must target local paths or
+    // s3:// / oss:// destinations instead.
     RETURN_STATUS_ERROR(
         neug::StatusCode::ERR_NOT_SUPPORTED,
         "Writing over HTTP is not supported (read-only filesystem): " + path);
@@ -487,6 +542,9 @@ class HTTPRemoteFileSystem : public fsys::RemoteFileSystem {
     if (!curl) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                           "Failed to create CURL handle for HEAD request");
+    }
+    if (curl_share_ && curl_share_->handle()) {
+      curl_easy_setopt(curl, CURLOPT_SHARE, curl_share_->handle());
     }
 
     HTTPOptions opts = HTTPOptions::fromMap(options_);
@@ -524,6 +582,9 @@ class HTTPRemoteFileSystem : public fsys::RemoteFileSystem {
   }
 
   common::case_insensitive_map_t<std::string> options_;
+  // Shared DNS/TLS/TCP connection cache for all streams and probes opened
+  // through this filesystem.
+  std::shared_ptr<CurlShare> curl_share_ = std::make_shared<CurlShare>();
 };
 
 }  // namespace
