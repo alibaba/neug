@@ -222,13 +222,14 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
   }
   ModuleDescriptor accessor_descriptor;
   if (auto accessor_ref = descriptor.get_ref(kAccessorRef)) {
-    const auto& resolver = manifest ? *manifest : ckp.GetMeta();
-    auto resolved = resolver.module(*accessor_ref);
-    if (!resolved) {
+    const auto& resolver = manifest ? *manifest : ckp.manifest();
+    const auto* resolved = resolver.FindModule(*accessor_ref);
+    if (resolved == nullptr) {
       THROW_RUNTIME_ERROR(
-          "FTSIndex::Open: missing index ID accessor descriptor");
+          "FTSIndex::Open: missing index ID accessor descriptor '" +
+          *accessor_ref + "'");
     }
-    accessor_descriptor = std::move(*resolved);
+    accessor_descriptor = *resolved;
   }
   index_id_accessor_->Open(ckp, accessor_descriptor, level);
 
@@ -295,13 +296,26 @@ void FTSIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
     StorageIndex::Dump(ckp, manifest, key);
     const auto accessor_key = "fts_accessor_" + meta_->name;
     index_id_accessor_->Dump(ckp, manifest, accessor_key);
-    manifest.mutable_modules().at(accessor_key).mark_as_referenced_module();
-    manifest.mutable_modules().at(key).set_ref(kAccessorRef, accessor_key);
+    auto* accessor_descriptor = manifest.FindMutableModule(accessor_key);
+    if (accessor_descriptor == nullptr) {
+      THROW_RUNTIME_ERROR(
+          "FTSIndex::Dump: index ID accessor did not write module descriptor "
+          "for '" +
+          accessor_key + "'");
+    }
+    accessor_descriptor->mark_as_referenced_module();
+    auto* descriptor = manifest.FindMutableModule(key);
+    if (descriptor == nullptr) {
+      THROW_RUNTIME_ERROR(
+          "FTSIndex::Dump: StorageIndex did not write module descriptor for '" +
+          key + "'");
+    }
+    descriptor->set_ref(kAccessorRef, accessor_key);
 
     FTSDumpContainer container(read_connection_, write_connection_,
                                runtime_path_);
     auto persisted_path = ckp.Commit(container);
-    manifest.mutable_modules().at(key).set_path(kIndexFilePath, persisted_path);
+    descriptor->set_path(kIndexFilePath, persisted_path);
     runtime_file_.reset();
     runtime_path_.clear();
   } catch (...) {

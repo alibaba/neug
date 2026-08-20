@@ -655,8 +655,8 @@ TEST(FTSIndexTest, EmptyIndexOpenAndDump) {
 
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_item_text_fts");
-  auto descriptor = manifest.module("index_item_text_fts");
-  ASSERT_TRUE(descriptor.has_value());
+  const auto* descriptor = manifest.FindModule("index_item_text_fts");
+  ASSERT_NE(descriptor, nullptr);
   auto path = descriptor->get_path("fts_file");
   ASSERT_TRUE(path.has_value());
   EXPECT_TRUE(std::filesystem::is_regular_file(*path));
@@ -676,8 +676,8 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
 
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_item_text_fts");
-  auto descriptor = manifest.module("index_item_text_fts");
-  ASSERT_TRUE(descriptor.has_value());
+  const auto* descriptor = manifest.FindModule("index_item_text_fts");
+  ASSERT_NE(descriptor, nullptr);
 
   FTSIndex restored;
   restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
@@ -691,8 +691,9 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
   ASSERT_EQ(after_append->size(), 2);
   CheckpointManifest restored_manifest;
   restored.Dump(*checkpoint, restored_manifest, "index_item_text_fts");
-  auto restored_descriptor = restored_manifest.module("index_item_text_fts");
-  ASSERT_TRUE(restored_descriptor.has_value());
+  const auto* restored_descriptor =
+      restored_manifest.FindModule("index_item_text_fts");
+  ASSERT_NE(restored_descriptor, nullptr);
   auto restored_path = restored_descriptor->get_path("fts_file");
   ASSERT_TRUE(restored_path.has_value());
   EXPECT_TRUE(std::filesystem::is_regular_file(*restored_path));
@@ -705,8 +706,8 @@ TEST(FTSIndexTest, MissingPersistedFileFailsOpen) {
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_item_text_fts");
-  auto descriptor = manifest.module("index_item_text_fts");
-  ASSERT_TRUE(descriptor.has_value());
+  const auto* descriptor = manifest.FindModule("index_item_text_fts");
+  ASSERT_NE(descriptor, nullptr);
   auto path = descriptor->get_path("fts_file");
   ASSERT_TRUE(path.has_value());
 
@@ -731,8 +732,8 @@ TEST(FTSIndexTest, CorruptPersistedSQLiteFileFailsOpen) {
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_item_text_fts");
-  auto descriptor = manifest.module("index_item_text_fts");
-  ASSERT_TRUE(descriptor.has_value());
+  const auto* descriptor = manifest.FindModule("index_item_text_fts");
+  ASSERT_NE(descriptor, nullptr);
   auto path = descriptor->get_path("fts_file");
   ASSERT_TRUE(path.has_value());
   index.reset();
@@ -752,8 +753,8 @@ TEST(FTSIndexTest, PersistedSQLiteWithoutFTSTableFailsOpen) {
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_item_text_fts");
-  auto descriptor = manifest.module("index_item_text_fts");
-  ASSERT_TRUE(descriptor.has_value());
+  const auto* descriptor = manifest.FindModule("index_item_text_fts");
+  ASSERT_NE(descriptor, nullptr);
   auto path = descriptor->get_path("fts_file");
   ASSERT_TRUE(path.has_value());
   index.reset();
@@ -779,10 +780,10 @@ TEST(FTSIndexTest, MultipleIndexesUseIsolatedFiles) {
   CheckpointManifest manifest;
   first->Dump(*checkpoint, manifest, "index_first_fts");
   second->Dump(*checkpoint, manifest, "index_second_fts");
-  auto first_descriptor = manifest.module("index_first_fts");
-  auto second_descriptor = manifest.module("index_second_fts");
-  ASSERT_TRUE(first_descriptor.has_value());
-  ASSERT_TRUE(second_descriptor.has_value());
+  const auto* first_descriptor = manifest.FindModule("index_first_fts");
+  const auto* second_descriptor = manifest.FindModule("index_second_fts");
+  ASSERT_NE(first_descriptor, nullptr);
+  ASSERT_NE(second_descriptor, nullptr);
   auto first_path = first_descriptor->get_path("fts_file");
   auto second_path = second_descriptor->get_path("fts_file");
   ASSERT_TRUE(first_path.has_value());
