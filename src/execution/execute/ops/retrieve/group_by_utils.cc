@@ -42,7 +42,12 @@ struct GKey : public KeyBase {
       ::neug::Encoder encoder(buf);
       for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
         auto val = exprs[k_i]->get_elem(i);
-        encode_value(val, encoder);
+        if (val.IsNull()) {
+          encoder.put_byte(0);
+        } else {
+          encoder.put_byte(1);
+          encode_value(val, encoder);
+        }
       }
       std::string_view sv(buf.data(), buf.size());
       auto iter = sig_to_root.find(sv);

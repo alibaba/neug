@@ -37,7 +37,19 @@ struct Key : public KeyBase {
     vector_t<sel_vec_t> groups;
     sel_vec_t offsets;
     phmap::flat_hash_map<typename EXPR::V, size_t> group_map;
+    bool has_null_group = false;
+    size_t null_group_idx = 0;
     for (size_t i = 0; i < row_num; ++i) {
+      if (!expr.has_value(i)) {
+        if (!has_null_group) {
+          has_null_group = true;
+          null_group_idx = groups.size();
+          groups.emplace_back();
+          offsets.push_back(i);
+        }
+        groups[null_group_idx].push_back(i);
+        continue;
+      }
       auto val = expr(i);
       auto iter = group_map.find(val);
       if (iter == group_map.end()) {
