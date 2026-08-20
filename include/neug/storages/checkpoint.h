@@ -66,7 +66,7 @@ class Checkpoint {
   uint64_t id() const { return id_; }
 
   /// Temporary workspace belonging to this database-open epoch.
-  const std::string& runtime_dir() const { return *runtime_workspace_; }
+  const std::string& runtime_dir() const;
 
   /// WAL epoch directory whose name is this manifest ID.
   const std::string& wal_dir() const { return wal_dir_; }
@@ -117,13 +117,13 @@ class Checkpoint {
 
   static std::shared_ptr<Checkpoint> OpenPublished(
       std::string database_dir, uint64_t id,
-      std::shared_ptr<const std::string> runtime_workspace);
+      std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
   static std::shared_ptr<Checkpoint> CreateStaging(
       std::string database_dir, uint64_t id,
-      std::shared_ptr<const std::string> runtime_workspace);
+      std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
 
   Checkpoint(std::string database_dir, uint64_t id,
-             std::shared_ptr<const std::string> runtime_workspace);
+             std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
 
   void initialize(bool load_manifest);
   void create_dirs() const;
@@ -133,7 +133,7 @@ class Checkpoint {
   std::string database_dir_;
   std::string manifest_path_;
   std::string object_dir_;
-  std::shared_ptr<const std::string> runtime_workspace_;
+  std::shared_ptr<const RuntimeWorkspace> runtime_workspace_;
   std::string wal_dir_;
   uint64_t id_;
   CheckpointManifest manifest_;

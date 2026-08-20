@@ -36,6 +36,30 @@
 
 namespace neug {
 
+std::shared_ptr<const RuntimeWorkspace> RuntimeWorkspace::Create(
+    std::string path) {
+  auto workspace =
+      std::shared_ptr<RuntimeWorkspace>(new RuntimeWorkspace(std::move(path)));
+  std::error_code ec;
+  std::filesystem::create_directories(workspace->path_, ec);
+  if (ec) {
+    THROW_IO_EXCEPTION("RuntimeWorkspace: failed to create " +
+                       workspace->path_ + ": " + ec.message());
+  }
+  return workspace;
+}
+
+RuntimeWorkspace::RuntimeWorkspace(std::string path) : path_(std::move(path)) {}
+
+RuntimeWorkspace::~RuntimeWorkspace() {
+  std::error_code ec;
+  std::filesystem::remove_all(path_, ec);
+  if (ec) {
+    LOG(WARNING) << "RuntimeWorkspace: failed to remove " << path_ << ": "
+                 << ec.message();
+  }
+}
+
 namespace {
 
 void sync_file(const std::string& path) {
@@ -65,16 +89,15 @@ void sync_file(const std::string& path) {
 
 struct CheckpointFileManager::RuntimeFileCleanupContext {
   explicit RuntimeFileCleanupContext(
-      std::shared_ptr<const std::string> runtime_workspace)
-      : runtime_workspace(std::move(runtime_workspace)),
-        runtime_dir(*this->runtime_workspace) {}
+      std::shared_ptr<const RuntimeWorkspace> runtime_workspace)
+      : runtime_workspace(std::move(runtime_workspace)) {}
 
   bool IsRuntimeFile(const std::string& path) const {
     if (path.empty()) {
       return false;
     }
     auto parent = std::filesystem::path(path).parent_path().string();
-    return parent == runtime_dir;
+    return parent == runtime_workspace->path();
   }
 
   void RemoveIfRuntimeFile(const std::string& path) {
@@ -89,8 +112,7 @@ struct CheckpointFileManager::RuntimeFileCleanupContext {
     }
   }
 
-  std::shared_ptr<const std::string> runtime_workspace;
-  std::string runtime_dir;
+  std::shared_ptr<const RuntimeWorkspace> runtime_workspace;
 };
 
 CheckpointFileManager::RuntimeFileHandle::RuntimeFileHandle(
@@ -114,9 +136,9 @@ void CheckpointFileManager::RuntimeFileHandle::Release() {
 
 CheckpointFileManager::CheckpointFileManager(
     const std::string& object_dir,
-    std::shared_ptr<const std::string> runtime_workspace)
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace)
     : object_dir_(object_dir),
-      runtime_dir_(*runtime_workspace),
+      runtime_dir_(runtime_workspace->path()),
       runtime_cleanup_(std::make_shared<RuntimeFileCleanupContext>(
           std::move(runtime_workspace))) {}
 

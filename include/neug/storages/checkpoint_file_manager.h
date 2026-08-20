@@ -24,6 +24,31 @@
 
 namespace neug {
 
+class Checkpoint;
+class CheckpointManager;
+
+/** Shared lifetime owner for one database-open runtime directory. */
+class RuntimeWorkspace final {
+ public:
+  ~RuntimeWorkspace();
+
+  RuntimeWorkspace(const RuntimeWorkspace&) = delete;
+  RuntimeWorkspace& operator=(const RuntimeWorkspace&) = delete;
+
+ private:
+  friend class Checkpoint;
+  friend class CheckpointFileManager;
+  friend class CheckpointManager;
+
+  static std::shared_ptr<const RuntimeWorkspace> Create(std::string path);
+
+  explicit RuntimeWorkspace(std::string path);
+
+  const std::string& path() const noexcept { return path_; }
+
+  std::string path_;
+};
+
 /**
  * @brief Publishes immutable checkpoint objects and owns one runtime epoch.
  *
@@ -61,8 +86,6 @@ class CheckpointFileManager {
     std::string path_;
   };
 
-  CheckpointFileManager(const std::string& object_dir,
-                        std::shared_ptr<const std::string> runtime_workspace);
   ~CheckpointFileManager();
 
   CheckpointFileManager(const CheckpointFileManager&) = delete;
@@ -98,6 +121,10 @@ class CheckpointFileManager {
 
  private:
   friend class Checkpoint;
+
+  CheckpointFileManager(
+      const std::string& object_dir,
+      std::shared_ptr<const RuntimeWorkspace> runtime_workspace);
 
   /// fsync the object directory after object entries are ready.
   bool SyncObjectDirectory() const;

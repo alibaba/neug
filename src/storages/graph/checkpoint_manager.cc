@@ -116,20 +116,6 @@ void ensure_directory(const std::filesystem::path& path,
   }
 }
 
-std::shared_ptr<const std::string> create_runtime_workspace(
-    std::string runtime_dir) {
-  return std::shared_ptr<const std::string>(
-      new std::string(std::move(runtime_dir)), [](const std::string* path) {
-        std::error_code ec;
-        std::filesystem::remove_all(*path, ec);
-        if (ec) {
-          LOG(WARNING) << "CheckpointManager: failed to remove runtime "
-                       << "workspace " << *path << ": " << ec.message();
-        }
-        delete path;
-      });
-}
-
 std::optional<uint64_t> checkpoint_id_from_name(
     const std::filesystem::path& path, std::string_view suffix) {
   const auto name = path.filename().string();
@@ -222,14 +208,11 @@ void CheckpointManager::Open(const std::string& database_dir,
   }
   const auto runtime =
       absolute_db_dir / "runtime" / ("open-" + UUIDGenerator::Generate());
-  ensure_directory(runtime, "CheckpointManager::Open");
-
-  std::shared_ptr<const std::string> runtime_workspace;
+  auto runtime_workspace = RuntimeWorkspace::Create(runtime.string());
   {
     std::lock_guard<std::mutex> lock(mutex_);
     database_dir_ = absolute_db_dir.string();
-    runtime_workspace_ = create_runtime_workspace(runtime.string());
-    runtime_workspace = runtime_workspace_;
+    runtime_workspace_ = runtime_workspace;
     current_checkpoint_.reset();
     staging_checkpoint_.reset();
     published_checkpoints_.clear();
@@ -465,7 +448,7 @@ void CheckpointManager::CollectGarbage() {
 
   bool removed_runtime_workspace = false;
   const auto runtime_root = std::filesystem::path(database_dir_) / "runtime";
-  const auto active_runtime = std::filesystem::path(*runtime_workspace_);
+  const auto active_runtime = std::filesystem::path(runtime_workspace_->path());
   if (std::filesystem::is_directory(runtime_root)) {
     for (const auto& entry :
          std::filesystem::directory_iterator(runtime_root)) {

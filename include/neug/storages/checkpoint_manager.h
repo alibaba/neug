@@ -89,7 +89,7 @@ class NEUG_API CheckpointManager {
   StagingCheckpoint CreateStagingLocked(uint64_t id);
 
   std::string database_dir_;
-  std::shared_ptr<const std::string> runtime_workspace_;
+  std::shared_ptr<const RuntimeWorkspace> runtime_workspace_;
   std::shared_ptr<Checkpoint> current_checkpoint_;
   std::shared_ptr<Checkpoint> staging_checkpoint_;
   std::vector<std::weak_ptr<Checkpoint>> published_checkpoints_;

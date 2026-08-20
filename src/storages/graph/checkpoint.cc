@@ -24,8 +24,9 @@ namespace neug {
 
 Checkpoint::~Checkpoint() = default;
 
-Checkpoint::Checkpoint(std::string database_dir, uint64_t id,
-                       std::shared_ptr<const std::string> runtime_workspace)
+Checkpoint::Checkpoint(
+    std::string database_dir, uint64_t id,
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace)
     : database_dir_(
           std::filesystem::absolute(std::move(database_dir)).string()),
       manifest_path_((std::filesystem::path(database_dir_) / "checkpoint" /
@@ -42,7 +43,7 @@ Checkpoint::Checkpoint(std::string database_dir, uint64_t id,
 
 std::shared_ptr<Checkpoint> Checkpoint::OpenPublished(
     std::string database_dir, uint64_t id,
-    std::shared_ptr<const std::string> runtime_workspace) {
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace) {
   auto checkpoint = std::shared_ptr<Checkpoint>(new Checkpoint(
       std::move(database_dir), id, std::move(runtime_workspace)));
   checkpoint->initialize(true);
@@ -51,11 +52,15 @@ std::shared_ptr<Checkpoint> Checkpoint::OpenPublished(
 
 std::shared_ptr<Checkpoint> Checkpoint::CreateStaging(
     std::string database_dir, uint64_t id,
-    std::shared_ptr<const std::string> runtime_workspace) {
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace) {
   auto checkpoint = std::shared_ptr<Checkpoint>(new Checkpoint(
       std::move(database_dir), id, std::move(runtime_workspace)));
   checkpoint->initialize(false);
   return checkpoint;
+}
+
+const std::string& Checkpoint::runtime_dir() const {
+  return runtime_workspace_->path();
 }
 
 void Checkpoint::initialize(bool load_manifest) {
@@ -81,8 +86,7 @@ void Checkpoint::initialize(bool load_manifest) {
   } else {
     create_dirs();
   }
-  file_mgr_ =
-      std::make_unique<CheckpointFileManager>(object_dir_, runtime_workspace_);
+  file_mgr_.reset(new CheckpointFileManager(object_dir_, runtime_workspace_));
   if (!load_manifest) {
     return;
   }
