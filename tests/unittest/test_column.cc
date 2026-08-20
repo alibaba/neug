@@ -466,7 +466,7 @@ TEST(ListPropertyColumnTest, RecursiveLifecycle) {
   CheckpointManifest manifest;
   clone->Dump(*ckp, manifest, "list");
   ListPropertyColumn reopened;
-  reopened.Open(*ckp, manifest, *manifest.module("list"),
+  reopened.Open(*ckp, manifest, *manifest.FindModule("list"),
                 MemoryLevel::kInMemory);
   EXPECT_EQ(reopened.list_type(), outer_type);
   EXPECT_EQ(reopened.get_any(0), final_value);
@@ -507,7 +507,7 @@ TEST(ListPropertyColumnTest, DumpCompactsByPhysicalOffset) {
   column.Dump(*ckp, manifest, "list");
 
   ListPropertyColumn reopened;
-  reopened.Open(*ckp, manifest, *manifest.module("list"),
+  reopened.Open(*ckp, manifest, *manifest.FindModule("list"),
                 MemoryLevel::kInMemory);
   EXPECT_EQ(reopened.get_any(0), list({30, 31, 32}));
   EXPECT_EQ(reopened.get_any(1), list({20, 21}));
@@ -706,7 +706,7 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   CheckpointManifest loaded_manifest;
   loaded_manifest.Load(manifest_path.string());
   VecColumn reopened;
-  reopened.Open(*ckp, loaded_manifest, *loaded_manifest.module("vec"),
+  reopened.Open(*ckp, loaded_manifest, *loaded_manifest.FindModule("vec"),
                 MemoryLevel::kInMemory);
   EXPECT_FLOAT_EQ(
       ArrayValue::GetChildren(reopened.get_any(4096))[1].GetValue<float>(),

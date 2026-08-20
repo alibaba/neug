@@ -95,7 +95,7 @@ class TypedColumn : public ColumnBase {
     ModuleDescriptor desc;
     desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
     desc.module_type = ModuleTypeName();
-    meta.set_module(key, std::move(desc));
+    meta.SetModule(key, std::move(desc));
   }
 
   size_t size() const override { return size_; }
@@ -207,7 +207,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
             const std::string& key) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
-    meta.set_module(key, std::move(desc));
+    meta.SetModule(key, std::move(desc));
   }
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
@@ -305,10 +305,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (is_data_unmodified()) {
       desc.set("pos", std::to_string(pos_.load()));
       desc.set_path(ModuleDescriptor::kItemsPath,
-                    ckp.LinkToSnapshot(items_buffer_->GetPath()));
+                    ckp.MaterializeObject(items_buffer_->GetPath()));
       desc.set_path(ModuleDescriptor::kDataPath,
-                    ckp.LinkToSnapshot(data_buffer_->GetPath()));
-      meta.set_module(key, std::move(desc));
+                    ckp.MaterializeObject(data_buffer_->GetPath()));
+      meta.SetModule(key, std::move(desc));
       return;
     }
     auto data_runtime_file = ckp.CreateRuntimeFile();
@@ -393,7 +393,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
                   ckp.CommitRuntimeFile(std::move(item_runtime_file)));
     desc.set_path(ModuleDescriptor::kDataPath,
                   ckp.CommitRuntimeFile(std::move(data_runtime_file)));
-    meta.set_module(key, std::move(desc));
+    meta.SetModule(key, std::move(desc));
   }
 
   size_t size() const override { return size_; }

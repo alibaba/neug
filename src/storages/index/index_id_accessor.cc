@@ -53,7 +53,7 @@ void DefaultIndexIDAccessor::Dump(Checkpoint& ckp, CheckpointManifest& meta,
       std::to_string(next_index_id_->load(std::memory_order_relaxed)));
   descriptor.set_path(ModuleDescriptor::kVidToIndexIdPath,
                       ckp.Commit(*vid_to_index_id_));
-  meta.set_module(key, std::move(descriptor));
+  meta.SetModule(key, std::move(descriptor));
 }
 
 index_id_t DefaultIndexIDAccessor::GetIndexIDByVID(vid_t vid) const {

@@ -484,7 +484,7 @@ TEST(WalReplayVersionManagerTest,
   EXPECT_EQ(new_reader.get().visibility_ts, 0);
 }
 
-class CheckpointActivationHandlerTest : public ::testing::Test {
+class WalEpochActivationHandlerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     test_dir_ = make_test_dir();
@@ -519,12 +519,12 @@ class CheckpointActivationHandlerTest : public ::testing::Test {
   std::vector<std::string> handler_calls_;
 };
 
-TEST_F(CheckpointActivationHandlerTest,
-       RecoveryAndManualRunOnlyTheirConfiguredHandlers) {
+TEST_F(WalEpochActivationHandlerTest,
+       RecoveryAndManualReopenBeforeWalActivation) {
   size_t activation_calls = 0;
   std::string observed_wal_uri;
-  coordinator_->SetActivationHandler([&](const std::string& wal_uri) {
-    // The mandatory post-reopen handler always runs first.
+  coordinator_->SetWalEpochActivationHandler([&](const std::string& wal_uri) {
+    // The mandatory post-reopen handler runs before service WAL activation.
     EXPECT_EQ(handler_calls_.size(), 2u);
     ++activation_calls;
     observed_wal_uri = wal_uri;
@@ -535,17 +535,21 @@ TEST_F(CheckpointActivationHandlerTest,
   EXPECT_EQ(activation_calls, 0u);
 
   neug::VersionManager version_manager;
-  version_manager.init_ts({0, 0}, 1);
+  version_manager.init_ts({40, 0}, 1);
   neug::UpdateTimestampLease update_lease(version_manager);
   ASSERT_TRUE(
       coordinator_->PublishManualCheckpoint(std::move(update_lease)).ok());
 
   EXPECT_EQ(activation_calls, 1u);
-  const auto current_checkpoint = checkpoint_manager_.CurrentCheckpoint();
+  const auto current_checkpoint = checkpoint_manager_.Current();
   ASSERT_NE(current_checkpoint, nullptr);
   EXPECT_EQ(observed_wal_uri, current_checkpoint->wal_dir());
   ASSERT_EQ(handler_calls_.size(), 2u);
   EXPECT_EQ(handler_calls_[1], current_checkpoint->allocator_dir());
+  {
+    auto read = version_manager.acquire_read_operation();
+    EXPECT_EQ(read.published_view.visibility_ts, 0u);
+  }
 }
 
 TEST(CheckpointCoordinatorTest,
@@ -587,12 +591,12 @@ TEST(CheckpointCoordinatorTest,
   // PublishManualCheckpoint must fail before destructive graph maintenance,
   // release the update lease normally, and leave the existing WAL writer
   // untouched.
-  auto conflicting_staging = checkpoint_manager.CreateStagingCheckpoint();
+  auto conflicting_staging = checkpoint_manager.CreateStaging();
   neug::VersionManager version_manager;
   version_manager.init_ts({40, 0}, 1);
   neug::UpdateTimestampLease update_lease(version_manager);
   const auto update_ts = update_lease.Timestamp();
-  coordinator.SetActivationHandler([&](const std::string& wal_uri) {
+  coordinator.SetWalEpochActivationHandler([&](const std::string& wal_uri) {
     wal_writer->close();
     wal_writer->open(wal_uri);
     cache_invalidated = true;
@@ -615,7 +619,7 @@ TEST(CheckpointCoordinatorTest,
   version_manager.release_insert_timestamp(next_insert_ts);
 
   wal_writer->close();
-  coordinator.ClearActivationHandler();
+  coordinator.ClearWalEpochActivationHandler();
   conflicting_staging.Discard();
   checkpoint_manager.Close();
   std::filesystem::remove_all(test_dir);

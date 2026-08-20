@@ -379,6 +379,7 @@ TEST_F(PropertyGraphTemporaryTest, DumpSkipsTemporaryData) {
 
   // Dump (checkpoint)
   auto ckp2 = make_checkpoint(ws_);
+  graph_->Compact();
   graph_->DumpAndClear(ckp2);
 
   // Open a fresh graph from the checkpoint — temp data should not be there
@@ -403,10 +404,12 @@ TEST_F(PropertyGraphTemporaryTest, DumpManifestFileExcludesTemporary) {
   CreatePersistentPerson();
   CreateTemporaryUser();
 
-  auto ckp2 = make_checkpoint(ws_);
-  graph_->DumpAndClear(ckp2);
+  auto staging = ws_.CreateStaging();
+  graph_->Compact();
+  graph_->DumpAndClear(staging.checkpoint());
+  auto ckp2 = staging.Publish();
 
-  std::string meta_file = ckp2->path() + "/meta";
+  const std::string& meta_file = ckp2->manifest_path();
   ASSERT_TRUE(std::filesystem::exists(meta_file)) << meta_file;
 
   std::ifstream ifs(meta_file);

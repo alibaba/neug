@@ -94,7 +94,7 @@ void NeugDBService::init(const ServiceConfig& config) {
   hdl_mgr_->Init(effective_config);
   service_config_ = effective_config;
 
-  db_.checkpoint_coordinator_->SetActivationHandler(
+  db_.checkpoint_coordinator_->SetWalEpochActivationHandler(
       [pool = execution_slot_pool_.get()](const std::string& wal_uri) {
         pool->RotateWalWriters(wal_uri);
       });
@@ -107,7 +107,7 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_.reset();
   }
   if (db_.checkpoint_coordinator_) {
-    db_.checkpoint_coordinator_->ClearActivationHandler();
+    db_.checkpoint_coordinator_->ClearWalEpochActivationHandler();
   }
   execution_slot_pool_.reset();
   restoreNativeRuntimeWait();

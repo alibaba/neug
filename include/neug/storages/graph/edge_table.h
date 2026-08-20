@@ -87,8 +87,8 @@ class NEUG_API EdgeTable {
 
   /// When this table is clean, re-link prior-snapshot modules/scalars into
   /// @p meta instead of dumping. Links exact keys for this triplet only.
-  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
-                      const CheckpointManifest& prev) const;
+  void ReuseCheckpointModules(Checkpoint& ckp, CheckpointManifest& manifest,
+                              const CheckpointManifest& previous) const;
 
   void SetInCsr(std::unique_ptr<CsrBase> csr);
   void SetOutCsr(std::unique_ptr<CsrBase> csr);

@@ -258,8 +258,8 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
     readonly.Close();
 
     // The dumped meta should advertise the two indexer leaves.
-    EXPECT_TRUE(desc.has_module(kIndexerKeys));
-    EXPECT_TRUE(desc.has_module(kIndexerIndices));
+    EXPECT_TRUE(desc.HasModule(kIndexerKeys));
+    EXPECT_TRUE(desc.HasModule(kIndexerIndices));
   }
 
   {
@@ -290,7 +290,7 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
   EXPECT_EQ(empty_indexer.get_index(neug::Value::INT64(42)),
             std::numeric_limits<uint32_t>::max());
   CheckpointManifest empty_dump = DumpIndexerLegacy(empty_indexer, *ckp);
-  EXPECT_TRUE(empty_dump.has_module(kIndexerIndices));
+  EXPECT_TRUE(empty_dump.HasModule(kIndexerIndices));
   empty_indexer.Close();
 
   DataType varchar_type(DataTypeId::kVarchar);
