@@ -219,7 +219,7 @@ void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.required = false;
   desc.set("index_meta", meta_->ToJsonString());
 
-  meta.set_module(key, std::move(desc));
+  meta.SetModule(key, std::move(desc));
 }
 
 std::string StorageIndex::ModuleTypeName() const {

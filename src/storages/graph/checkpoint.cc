@@ -16,168 +16,155 @@
 #include "neug/storages/checkpoint.h"
 
 #include <filesystem>
-#include <regex>
 #include <string>
 
-#include "neug/storages/checkpoint_manifest.h"
 #include "neug/utils/exception/exception.h"
-
-#include <glog/logging.h>
 
 namespace neug {
 
-bool is_valid_uuid(const std::string& uuid) {
-  static const std::regex uuid_regex(
-      "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]"
-      "{12}$");
-  return std::regex_match(uuid, uuid_regex);
-}
-
-static void CollectReferencedFiles(const ModuleDescriptor& desc,
-                                   const std::string& target_dir,
-                                   std::set<std::string>& referenced_files) {
-  for (const auto& [_, p] : desc.paths()) {
-    if (p.empty()) {
-      continue;
-    }
-    auto parent = std::filesystem::path(p).parent_path().string();
-    if (parent == target_dir) {
-      referenced_files.insert(std::filesystem::path(p).filename().string());
-    }
-  }
-}
-
 Checkpoint::~Checkpoint() = default;
 
-Checkpoint::Checkpoint(std::string path, uint32_t id)
-    : path_(std::move(path)), id_(id) {}
+Checkpoint::Checkpoint(
+    std::string database_dir, uint64_t id,
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace)
+    : database_dir_(
+          std::filesystem::absolute(std::move(database_dir)).string()),
+      manifest_path_((std::filesystem::path(database_dir_) / "checkpoint" /
+                      "manifests" / (std::to_string(id) + ".manifest"))
+                         .string()),
+      object_dir_(
+          (std::filesystem::path(database_dir_) / "checkpoint" / "objects")
+              .string()),
+      runtime_workspace_(std::move(runtime_workspace)),
+      wal_dir_(
+          (std::filesystem::path(database_dir_) / "wal" / std::to_string(id))
+              .string()),
+      id_(id) {}
 
-std::shared_ptr<Checkpoint> Checkpoint::Open(
-    std::string path, uint32_t id, bool cleanup_orphan_runtime_files) {
-  // Can't use make_shared because constructor is private.
-  auto ckp = std::shared_ptr<Checkpoint>(new Checkpoint(std::move(path), id));
-  ckp->initialize(cleanup_orphan_runtime_files);
-  return ckp;
+std::shared_ptr<Checkpoint> Checkpoint::OpenPublished(
+    std::string database_dir, uint64_t id,
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace) {
+  auto checkpoint = std::shared_ptr<Checkpoint>(new Checkpoint(
+      std::move(database_dir), id, std::move(runtime_workspace)));
+  checkpoint->initialize(true);
+  return checkpoint;
 }
 
-void Checkpoint::initialize(bool cleanup_orphan_runtime_files) {
-  create_dirs();
-  file_mgr_ =
-      std::make_unique<CheckpointFileManager>(snapshot_dir(), runtime_dir());
-  meta_ = std::make_unique<CheckpointManifest>();
-  meta_->Load(meta_path());
+std::shared_ptr<Checkpoint> Checkpoint::CreateStaging(
+    std::string database_dir, uint64_t id,
+    std::shared_ptr<const RuntimeWorkspace> runtime_workspace) {
+  auto checkpoint = std::shared_ptr<Checkpoint>(new Checkpoint(
+      std::move(database_dir), id, std::move(runtime_workspace)));
+  checkpoint->initialize(false);
+  return checkpoint;
+}
 
-  for (const auto& [key, desc] : meta_->modules()) {
-    ModuleDescriptor absolute_desc = desc;
-    for (auto& [_, v] : absolute_desc.mutable_paths()) {
-      v = file_mgr_->ResolveAbsolutePath(v, path_);
+const std::string& Checkpoint::runtime_dir() const {
+  return runtime_workspace_->path();
+}
+
+void Checkpoint::initialize(bool load_manifest) {
+  if (load_manifest) {
+    if (!std::filesystem::is_regular_file(manifest_path())) {
+      THROW_CHECKPOINT_EXCEPTION("Checkpoint manifest is missing: " +
+                                 manifest_path());
     }
-    meta_->set_module(key, std::move(absolute_desc));
+    if (!std::filesystem::is_directory(object_dir_)) {
+      THROW_CHECKPOINT_EXCEPTION("Checkpoint object directory is missing: " +
+                                 object_dir_);
+    }
+    const auto create_runtime_dir = [](const std::string& path) {
+      std::error_code ec;
+      std::filesystem::create_directories(path, ec);
+      if (ec) {
+        THROW_IO_EXCEPTION("Checkpoint: failed to create " + path + ": " +
+                           ec.message());
+      }
+    };
+    create_runtime_dir(runtime_dir());
+    create_runtime_dir(allocator_dir());
+  } else {
+    create_dirs();
   }
-
-  if (!cleanup_orphan_runtime_files) {
+  file_mgr_.reset(new CheckpointFileManager(object_dir_, runtime_workspace_));
+  if (!load_manifest) {
     return;
   }
 
-  // Clean orphaned runtime files not referenced by meta. This is only safe for
-  // a writer holding the exclusive database lock: a shared read-only process
-  // may otherwise delete another reader's active temporary backing file.
-  std::set<std::string> referenced_runtime_files;
-  for (auto& [key, desc] : meta_->modules()) {
-    CollectReferencedFiles(desc, runtime_dir(), referenced_runtime_files);
-  }
-
-  try {
-    for (const auto& entry :
-         std::filesystem::directory_iterator(runtime_dir())) {
-      if (entry.is_regular_file()) {
-        std::string name = entry.path().filename().string();
-        // Everything under runtime/ is temporary working state. In addition to
-        // UUID reservations, remove copy staging files left by a process that
-        // exited before its exception/RAII cleanup ran.
-        if (referenced_runtime_files.count(name) == 0) {
-          std::filesystem::remove(entry.path());
-          VLOG(1) << "Checkpoint::initialize: cleaned orphan file " << name;
-        }
-      }
-    }
-  } catch (const std::filesystem::filesystem_error& e) {
-    LOG(WARNING) << "Checkpoint::initialize: error during cleanup: "
-                 << e.what();
-  }
+  manifest_.Load(manifest_path());
+  resolve_object_paths();
 }
 
 void Checkpoint::create_dirs() const {
-  assert(!IsEmpty());
-#define CREATE_DIR(dir)                                                   \
-  do {                                                                    \
-    std::error_code ec;                                                   \
-    std::filesystem::create_directories(dir(), ec);                       \
-    if (ec) {                                                             \
-      LOG(ERROR) << "Checkpoint::create_dirs: failed to create " << dir() \
-                 << ": " << ec.message();                                 \
-    }                                                                     \
-  } while (0)
-  CREATE_DIR(snapshot_dir);
-  CREATE_DIR(runtime_dir);
-  CREATE_DIR(wal_dir);
-  CREATE_DIR(allocator_dir);
-#undef CREATE_DIR
+  const auto create = [](const std::string& path) {
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    if (ec) {
+      THROW_IO_EXCEPTION("Checkpoint: failed to create " + path + ": " +
+                         ec.message());
+    }
+  };
+  create(object_dir_);
+  create(std::filesystem::path(manifest_path()).parent_path().string());
+  create(runtime_dir());
+  create(allocator_dir());
 }
 
-void Checkpoint::UpdateMeta(CheckpointManifest&& meta) {
-  assert(!IsEmpty());
-  std::lock_guard<std::mutex> lock(mutex_);
-  auto old_meta = std::move(meta_);
-  try {
-    // Persist a copy with paths rewritten relative to the checkpoint root, so
-    // the directory remains relocatable on disk.
-    CheckpointManifest meta_with_relative_paths = meta;
-    for (const auto& [key, desc] : meta.modules()) {
-      ModuleDescriptor relative_desc = desc;
-      for (auto& [_, v] : relative_desc.mutable_paths()) {
-        v = file_mgr_->MakeRelativePath(v, path_);
+void Checkpoint::resolve_object_paths() {
+  for (const auto& [key, desc] : manifest_.Modules()) {
+    ModuleDescriptor resolved = desc;
+    for (auto& [_, object_id] : resolved.mutable_paths()) {
+      if (object_id.empty()) {
+        continue;
       }
-      meta_with_relative_paths.set_module(key, std::move(relative_desc));
-    }
-    if (!file_mgr_->SyncSnapshotDirectory()) {
-      THROW_IO_EXCEPTION(
-          "Checkpoint::UpdateMeta: failed to fsync snapshot_dir " +
-          snapshot_dir());
-    }
-    meta_with_relative_paths.Save(meta_path());
-
-    // Keep the in-memory meta_ in absolute-path form so downstream consumers
-    // (CollectReferencedFiles for orphan cleanup, Module::Open, …) can keep
-    // operating on usable paths without knowing the checkpoint root.
-    meta_ = std::make_unique<CheckpointManifest>(std::move(meta));
-
-    std::set<std::string> referenced_snapshot_files;
-    for (const auto& [key, desc] : meta_->modules()) {
-      CollectReferencedFiles(desc, snapshot_dir(), referenced_snapshot_files);
-    }
-    try {
-      for (const auto& entry :
-           std::filesystem::directory_iterator(snapshot_dir())) {
-        if (!entry.is_regular_file()) {
-          continue;
-        }
-        std::string name = entry.path().filename().string();
-        if (is_valid_uuid(name) && referenced_snapshot_files.count(name) == 0) {
-          std::filesystem::remove(entry.path());
-          VLOG(1) << "UpdateMeta: removed orphan from snapshot_dir: " << name;
-        }
+      const std::filesystem::path relative(object_id);
+      if (relative.is_absolute() || relative.has_parent_path()) {
+        THROW_CHECKPOINT_EXCEPTION(
+            "Checkpoint manifest contains invalid "
+            "object id: " +
+            object_id);
       }
-    } catch (const std::filesystem::filesystem_error& e) {
-      LOG(WARNING) << "UpdateMeta: error cleaning snapshot_dir: " << e.what();
+      object_id = (std::filesystem::path(object_dir_) / relative).string();
+      if (!std::filesystem::exists(object_id)) {
+        THROW_CHECKPOINT_EXCEPTION(
+            "Checkpoint manifest references missing "
+            "object: " +
+            object_id);
+      }
     }
-    return;
-  } catch (...) {
-    LOG(ERROR) << "Checkpoint::UpdateMeta: failed to persist meta to "
-               << meta_path();
-    meta_ = std::move(old_meta);
-    throw;
+    manifest_.SetModule(key, std::move(resolved));
   }
+}
+
+void Checkpoint::SetManifest(CheckpointManifest&& manifest) {
+  manifest_ = std::move(manifest);
+}
+
+void Checkpoint::persist_manifest() {
+  if (!file_mgr_->SyncObjectDirectory()) {
+    THROW_IO_EXCEPTION(
+        "Checkpoint::persist_manifest: failed to fsync objects " + object_dir_);
+  }
+
+  CheckpointManifest persisted = manifest_;
+  for (const auto& [key, desc] : manifest_.Modules()) {
+    ModuleDescriptor object_desc = desc;
+    for (auto& [_, path] : object_desc.mutable_paths()) {
+      if (path.empty()) {
+        continue;
+      }
+      if (std::filesystem::path(path).parent_path() !=
+          std::filesystem::path(object_dir_)) {
+        THROW_CHECKPOINT_EXCEPTION(
+            "Checkpoint manifest object is outside "
+            "the object store: " +
+            path);
+      }
+      path = std::filesystem::path(path).filename().string();
+    }
+    persisted.SetModule(key, std::move(object_desc));
+  }
+  persisted.Save(manifest_path());
 }
 
 }  // namespace neug

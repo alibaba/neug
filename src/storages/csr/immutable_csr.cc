@@ -84,7 +84,7 @@ void ImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.set_path(ModuleDescriptor::kDegreeListPath,
                 ckp.Commit(*degree_list_buffer_));
   desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
-  meta.set_module(key, desc);
+  meta.SetModule(key, desc);
 }
 
 template <typename EDATA_T>
@@ -403,7 +403,7 @@ void SingleImmutableCsr<EDATA_T>::Dump(Checkpoint& ckp,
   desc.module_type = ModuleTypeName();
   desc.set_path(ModuleDescriptor::kNbrListPath, ckp.Commit(*nbr_list_buffer_));
   desc.set("edge_num", std::to_string(edge_num_.load()));
-  meta.set_module(key, desc);
+  meta.SetModule(key, desc);
 }
 
 template <typename EDATA_T>

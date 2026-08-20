@@ -226,7 +226,7 @@ VecColumn::VecColumn(std::shared_ptr<IDataContainer> buffer,
 
 void VecColumn::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                      MemoryLevel level) {
-  openInternal(ckp, &ckp.GetMeta(), desc, level);
+  openInternal(ckp, &ckp.manifest(), desc, level);
 }
 
 void VecColumn::Open(Checkpoint& ckp, const CheckpointManifest& manifest,
@@ -262,8 +262,8 @@ void VecColumn::openInternal(Checkpoint& ckp,
   if (!accessor_ref) {
     offset_accessor_->Open(ckp, ModuleDescriptor{}, level);
   } else {
-    const auto* resolver = manifest ? manifest : &ckp.GetMeta();
-    auto accessor_desc = resolver->module(*accessor_ref);
+    const auto* resolver = manifest ? manifest : &ckp.manifest();
+    const auto* accessor_desc = resolver->FindModule(*accessor_ref);
     if (!accessor_desc) {
       THROW_RUNTIME_ERROR("VecColumn::Open: missing offset accessor module");
     }
@@ -287,9 +287,14 @@ void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
   auto accessor_key = key + "/" + kAccessorRef;
   offset_accessor_->Dump(ckp, meta, accessor_key);
-  meta.mutable_modules().at(accessor_key).mark_as_referenced_module();
+  auto* accessor_desc = meta.FindMutableModule(accessor_key);
+  if (accessor_desc == nullptr) {
+    THROW_RUNTIME_ERROR(
+        "VecColumn::Dump: offset accessor did not write module");
+  }
+  accessor_desc->mark_as_referenced_module();
   desc.set_ref(kAccessorRef, accessor_key);
-  meta.set_module(key, std::move(desc));
+  meta.SetModule(key, std::move(desc));
 }
 
 size_t VecColumn::size() const { return size_; }

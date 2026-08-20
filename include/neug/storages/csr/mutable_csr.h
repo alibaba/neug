@@ -424,7 +424,7 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
             const std::string& key) override {
     ModuleDescriptor desc;
     desc.module_type = type_name();
-    meta.set_module(key, desc);
+    meta.SetModule(key, desc);
   }
 
   void compact() override {}

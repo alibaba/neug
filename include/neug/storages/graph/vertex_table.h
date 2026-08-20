@@ -172,8 +172,8 @@ class NEUG_API VertexTable {
 
   /// When this table is clean, re-link prior-snapshot modules into @p meta
   /// instead of dumping. Links exact keys for this label only.
-  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
-                      const CheckpointManifest& prev) const;
+  void ReuseCheckpointModules(Checkpoint& ckp, CheckpointManifest& manifest,
+                              const CheckpointManifest& previous) const;
 
   void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);

@@ -79,7 +79,7 @@ inline std::string TablePropKey(size_t i) {
 static void OpenTableLegacy(Table& t, Checkpoint& ckp,
                             const CheckpointManifest& meta, MemoryLevel level,
                             const std::vector<DataType>& types) {
-  if (!meta.has_module(TablePropKey(0))) {
+  if (!meta.HasModule(TablePropKey(0))) {
     t.Init(ckp, level);
     return;
   }
@@ -145,8 +145,8 @@ TEST_F(TableTest, ModuleBrokerDoesNotSkipUnmarkedReferencedTopLevelModule) {
   owner_desc.set_ref("borrowed", "top_level");
 
   CheckpointManifest meta;
-  meta.set_module("top_level", top_level_desc);
-  meta.set_module("owner", owner_desc);
+  meta.SetModule("top_level", top_level_desc);
+  meta.SetModule("owner", owner_desc);
 
   ModuleBroker store;
   store.Open(*ckp, meta, MemoryLevel::kInMemory);
@@ -163,7 +163,7 @@ TEST_F(TableTest, ModuleBrokerSkipsMarkedReferencedModule) {
   child_desc.mark_as_referenced_module();
 
   CheckpointManifest meta;
-  meta.set_module("child", child_desc);
+  meta.SetModule("child", child_desc);
 
   ModuleBroker store;
   store.Open(*ckp, meta, MemoryLevel::kInMemory);
@@ -458,10 +458,10 @@ TEST_F(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
             "new value new value new value");
   CheckpointManifest meta;
   string_column->Dump(*ckp, meta, TablePropKey(0));
-  auto desc = meta.module(TablePropKey(0));
-  ASSERT_TRUE(desc.has_value());
+  const auto* desc = meta.FindModule(TablePropKey(0));
+  ASSERT_NE(desc, nullptr);
   StringColumn new_string_column;
-  new_string_column.Open(*ckp, desc.value(), MemoryLevel::kInMemory);
+  new_string_column.Open(*ckp, *desc, MemoryLevel::kInMemory);
   EXPECT_EQ(new_string_column.get_any(0).GetValue<std::string>(),
             "default_value");
   EXPECT_EQ(new_string_column.get_any(1).GetValue<std::string>(),

@@ -44,22 +44,21 @@ def _scalar(executor, query):
     return records[0][0]
 
 
-def _published_checkpoint_dirs(db_dir):
-    return sorted(
-        path
-        for path in db_dir.iterdir()
-        if path.is_dir()
-        and path.name.startswith("checkpoint-")
-        and not path.name.endswith(".next")
-    )
+def _published_checkpoint_ids(db_dir):
+    checkpoint_dir = db_dir / "checkpoint"
+    current = checkpoint_dir / "CURRENT"
+    if not current.is_file():
+        return []
+    checkpoint_id = current.read_text().strip()
+    assert (checkpoint_dir / "manifests" / f"{checkpoint_id}.manifest").is_file()
+    return [checkpoint_id]
 
 
 def _assert_single_published_checkpoint(db_dir, expected_generation=None):
-    checkpoints = _published_checkpoint_dirs(db_dir)
+    checkpoints = _published_checkpoint_ids(db_dir)
     assert len(checkpoints) == 1
-    assert not any(path.name.endswith(".next") for path in db_dir.iterdir())
     if expected_generation is not None:
-        assert checkpoints[0].name == f"checkpoint-{expected_generation}"
+        assert checkpoints[0] == str(expected_generation)
 
 
 def _create_issue_651_schema(executor):
@@ -236,10 +235,10 @@ def test_ap_checkpoint_access_modes_and_explain_profile(tmp_path):
     db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
     conn = db.connect()
     try:
-        before_explain = _published_checkpoint_dirs(db_dir)
+        before_explain = _published_checkpoint_ids(db_dir)
         explain = conn.execute("EXPLAIN CHECKPOINT;")
         assert explain.has_profile_result()
-        assert _published_checkpoint_dirs(db_dir) == before_explain
+        assert _published_checkpoint_ids(db_dir) == before_explain
 
         conn.execute("CHECKPOINT;", access_mode="update")
         conn.execute("CHECKPOINT;", access_mode="u")
