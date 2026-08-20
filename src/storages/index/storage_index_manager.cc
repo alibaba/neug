@@ -392,14 +392,13 @@ void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
   indexes_.clear();
 }
 
-std::vector<std::string> StorageIndexManager::StageDirtyIndexes(
-    ModuleBroker& store, CheckpointManifest& meta) {
+void StorageIndexManager::StageIncrementalModules(ModuleBroker& store,
+                                                  CheckpointManifest& meta) {
   const auto& previous = ckp_->manifest();
   for (const auto& [_, pending] : pending_indexes_) {
     meta.ReuseModuleClosureFrom(previous, pending.key);
   }
 
-  std::vector<std::string> dumped_names;
   for (auto& [name, index] : indexes_) {
     if (!index) {
       continue;
@@ -408,13 +407,12 @@ std::vector<std::string> StorageIndexManager::StageDirtyIndexes(
     const bool must_dump =
         dirty_index_names_.count(name) > 0 || !previous.HasModule(key);
     if (must_dump) {
+      dirty_index_names_.insert(name);
       store.SetModule(key, std::move(index));
-      dumped_names.push_back(name);
     } else {
       meta.ReuseModuleClosureFrom(previous, key);
     }
   }
-  return dumped_names;
 }
 
 Status StorageIndexManager::ValidateCheckpointPreconditions() const {
@@ -441,12 +439,20 @@ Status StorageIndexManager::ValidateCheckpointPreconditions() const {
   return Status::OK();
 }
 
-void StorageIndexManager::InstallCheckpoint(
-    std::shared_ptr<Checkpoint> ckp, ModuleBroker& reopened_modules,
-    const std::vector<std::string>& staged_names) {
-  for (const auto& name : staged_names) {
-    auto index = reopened_modules.TakeModule<StorageIndex>(GetKey(name));
-    indexes_[name] = std::move(index);
+void StorageIndexManager::InstallIncrementalCheckpoint(
+    std::shared_ptr<Checkpoint> ckp) {
+  CheckpointManifest reopen_manifest;
+  for (const auto& name : dirty_index_names_) {
+    const auto it = indexes_.find(name);
+    CHECK(it != indexes_.end());
+    CHECK(it->second == nullptr);
+    reopen_manifest.ReuseModuleClosureFrom(ckp->manifest(), GetKey(name));
+  }
+
+  ModuleBroker reopened_modules;
+  reopened_modules.Open(*ckp, reopen_manifest, memory_level_);
+  for (const auto& name : dirty_index_names_) {
+    indexes_[name] = reopened_modules.TakeModule<StorageIndex>(GetKey(name));
   }
   ckp_ = std::move(ckp);
   dirty_index_names_.clear();

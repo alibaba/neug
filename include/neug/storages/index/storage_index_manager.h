@@ -146,12 +146,9 @@ class StorageIndexManager {
  private:
   friend class PropertyGraph;
 
-  std::vector<std::string> StageDirtyIndexes(ModuleBroker& store,
-                                             CheckpointManifest& meta);
+  void StageIncrementalModules(ModuleBroker& store, CheckpointManifest& meta);
   Status ValidateCheckpointPreconditions() const;
-  void InstallCheckpoint(std::shared_ptr<Checkpoint> ckp,
-                         ModuleBroker& reopened_modules,
-                         const std::vector<std::string>& staged_names);
+  void InstallIncrementalCheckpoint(std::shared_ptr<Checkpoint> ckp);
   bool HasCatalogChanges() const { return catalog_dirty_; }
   bool HasCheckpointChanges() const {
     return catalog_dirty_ || !dirty_index_names_.empty();

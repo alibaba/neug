@@ -1179,11 +1179,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
     }
   }
 
-  auto staged_indexes =
-      index_manager_->StageDirtyIndexes(modules_to_dump, meta);
-  for (const auto& name : staged_indexes) {
-    reopen_keys.push_back(StorageIndexManager::GetKey(name));
-  }
+  index_manager_->StageIncrementalModules(modules_to_dump, meta);
 
   modules_to_dump.Dump(*ckp, meta);
   meta.SetSchema(schema_.StripTemporary());
@@ -1206,7 +1202,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
         EdgeTable::OpenFrom(ckp, schema_.get_edge_schema(src, dst, edge),
                             reopened_modules, ckp->manifest(), memory_level_);
   }
-  index_manager_->InstallCheckpoint(ckp, reopened_modules, staged_indexes);
+  index_manager_->InstallIncrementalCheckpoint(ckp);
 
   uncompacted_modules_.MergeFrom(dirty_);
   for (auto& table : vertex_tables_) {
