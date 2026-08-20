@@ -52,3 +52,5 @@ else()
         zvec_turbo_static)
 endif()
 add_dependencies(neug_vector_search_extension zvec_external)
+
+# to trigger extension CI workflow
