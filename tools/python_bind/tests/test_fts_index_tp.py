@@ -101,6 +101,24 @@ def test_fts_tp_tracks_insert_update_delete_and_failed_transaction(fts_service):
             )
         assert search(session, "rolledback") == []
 
+        with pytest.raises(Exception):
+            session.execute(
+                "MATCH (n:Item) WHERE n.id = 1 "
+                "SET n.text = 'aborted update' "
+                "CREATE (:Item {id: 0, text: 'duplicate key'});",
+                access_mode="update",
+            )
+        assert search(session, "aborted") == []
+        assert [row[0] for row in search(session, "updated")] == [1]
+
+        with pytest.raises(Exception):
+            session.execute(
+                "MATCH (n:Item) WHERE n.id = 1 DELETE n "
+                "CREATE (:Item {id: 0, text: 'duplicate key'});",
+                access_mode="update",
+            )
+        assert [row[0] for row in search(session, "updated")] == [1]
+
         session.execute("MATCH (n:Item) WHERE n.id = 1 DELETE n;", access_mode="update")
         assert search(session, "updated") == []
     finally:
