@@ -30,8 +30,8 @@ namespace gopt {
 class GPhysicalConvertor {
  public:
   GPhysicalConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                     neug::catalog::Catalog* catalog)
-      : aliasManager{aliasManager}, catalog{catalog} {}
+                     main::MetadataManager* metadataManager)
+      : aliasManager{aliasManager}, metadataManager{metadataManager} {}
 
   std::unique_ptr<::physical::PhysicalPlan> createEmptyPlan() {
     auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
@@ -42,7 +42,7 @@ class GPhysicalConvertor {
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink = false) {
-    GPhysicalAnalyzer analyzer(catalog);
+    GPhysicalAnalyzer analyzer(metadataManager);
     auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
     skipSink |= updateClause(plan.getLastOperator());
     skipSink |= ddlClause(plan.getLastOperator());
@@ -71,7 +71,7 @@ class GPhysicalConvertor {
            op->getOperatorType() == planner::LogicalOperatorType::MERGE ||
            op->getOperatorType() ==
                planner::LogicalOperatorType::SET_PROPERTY ||
-           op->getOperatorType() == planner::LogicalOperatorType::DELETE;
+           op->getOperatorType() == planner::LogicalOperatorType::DELETE_OP;
   }
 
   bool ddlClause(std::shared_ptr<planner::LogicalOperator> op) {
@@ -84,13 +84,14 @@ class GPhysicalConvertor {
  private:
   std::unique_ptr<::physical::PhysicalPlan> convertQuery(
       const planner::LogicalPlan& plan, bool skipSink) {
-    auto converter = std::make_unique<GQueryConvertor>(aliasManager, catalog);
+    auto converter =
+        std::make_unique<GQueryConvertor>(aliasManager, metadataManager);
     return converter->convert(plan, skipSink);
   }
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;
-  neug::catalog::Catalog* catalog;
+  main::MetadataManager* metadataManager;
 };
 
 }  // namespace gopt

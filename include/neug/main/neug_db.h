@@ -37,6 +37,7 @@
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
 
@@ -55,6 +56,7 @@ class IVersionManager;
 class IWalParser;
 class Schema;
 class ExecutionSlot;
+class ExtensionManager;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -111,7 +113,7 @@ class ExecutionSlot;
  *
  * @since v0.1.0
  */
-class NeugDB {
+class NEUG_API NeugDB {
  public:
   NeugDB();
   ~NeugDB();
@@ -124,10 +126,12 @@ class NeugDB {
    * the query processor and planner.
    *
    * **Data Directory Structure:**
-   * The data_dir should contain:
-   * - `graph.yaml`: Schema definition file
-   * - `snapshot/`: Vertex and edge data files
-   * - `wal/`: Write-ahead log files (optional, for recovery)
+   * Checkpointed data is organized as:
+   * - `checkpoint/CURRENT`: atomically published manifest id
+   * - `checkpoint/manifests/`: immutable manifest files
+   * - `checkpoint/objects/`: immutable module objects
+   * - `wal/<id>/`: WAL epoch for each manifest
+   * - `runtime/open-<epoch>/`: mutable allocator workspace for an open process
    *
    * **Usage Example:**
    * @code{.cpp}
@@ -316,7 +320,7 @@ class NeugDB {
     return *snapshot_store_;
   }
 
-  std::string work_dir() const { return checkpoint_mgr_.db_dir(); }
+  std::string work_dir() const { return checkpoint_mgr_.database_dir(); }
 
   inline const NeugDBConfig& config() const { return config_; }
 
@@ -324,6 +328,9 @@ class NeugDB {
 
   inline std::shared_ptr<execution::GlobalQueryCache> GetQueryCache() const {
     return global_query_cache_;
+  }
+  inline ExtensionManager& extension_manager() const {
+    return *extension_manager_;
   }
 
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
@@ -333,7 +340,8 @@ class NeugDB {
   void initAllocators(const std::string& allocator_dir);
   void reopenAllocators(const std::string& allocator_dir);
   timestamp_t openGraphAndIngestWals();
-  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph);
+  timestamp_t ingestWals(IWalParser& parser, PropertyGraph& graph,
+                         timestamp_t base_timestamp);
   void initPlanner();
   void initQueryRuntime();
   void clearQueryRuntime() noexcept;
@@ -404,6 +412,7 @@ class NeugDB {
   // GraphSnapshotStore - manages multiple versions of PropertyGraph for MVCC
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
   std::unique_ptr<CheckpointCoordinator> checkpoint_coordinator_;
+  std::unique_ptr<ExtensionManager> extension_manager_;
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;

@@ -234,7 +234,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
   if (capacity <= indexer_->capacity()) {
     return indexer_->capacity();
   }
-  capacity = std::max(capacity, 4096UL);
+  capacity = std::max(capacity, static_cast<size_t>(4096));
   if (capacity > indexer_->capacity()) {
     indexer_->reserve(capacity);
   }
@@ -360,10 +360,10 @@ VertexTable VertexTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
 
   // Restore indexer via LFIndexer::Open
   auto& idx = vt.get_indexer();
-  auto indexer_desc = meta.module(KeyIndexer(lbl));
-  CHECK(indexer_desc.has_value())
+  const auto* indexer_desc = meta.FindModule(KeyIndexer(lbl));
+  CHECK(indexer_desc != nullptr)
       << "missing indexer meta entry for vertex " << lbl;
-  idx.Open(*ckp, indexer_desc.value(), level,
+  idx.Open(*ckp, *indexer_desc, level,
            store.TakeModule<ColumnBase>(KeyKeys(lbl)),
            store.TakeModule<TypedColumn<vid_t>>(KeyIndices(lbl)));
 
@@ -389,7 +389,7 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   // does not clobber it.
   std::unique_ptr<ColumnBase> keys_out;
   std::unique_ptr<TypedColumn<vid_t>> indices_out;
-  meta.set_module(KeyIndexer(lbl), idx.Dump(ckp, keys_out, indices_out));
+  meta.SetModule(KeyIndexer(lbl), idx.Dump(ckp, keys_out, indices_out));
   store.SetModule(KeyKeys(lbl), std::move(keys_out));
   store.SetModule(KeyIndices(lbl), std::move(indices_out));
 
@@ -400,20 +400,21 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
 }
 
-void VertexTable::LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
-                                 const CheckpointManifest& prev) const {
+void VertexTable::ReuseCheckpointModules(Checkpoint& ckp,
+                                         CheckpointManifest& meta,
+                                         const CheckpointManifest& prev) const {
   const auto& lbl = vertex_schema_->label_name;
-  if (!prev.has_module(KeyKeys(lbl))) {
+  if (!prev.HasModule(KeyKeys(lbl))) {
     return;
   }
   // Exact keys only — prefix matching is ambiguous when labels contain
   // underscores (e.g. "a" vs "a_b").
-  meta.LinkModuleFrom(prev, KeyKeys(lbl), ckp);
-  meta.LinkModuleFrom(prev, KeyIndices(lbl), ckp);
-  meta.LinkModuleFrom(prev, KeyIndexer(lbl), ckp);
-  meta.LinkModuleFrom(prev, KeyVertexTimestamp(lbl), ckp);
+  meta.ReuseModuleClosureFrom(prev, KeyKeys(lbl));
+  meta.ReuseModuleClosureFrom(prev, KeyIndices(lbl));
+  meta.ReuseModuleClosureFrom(prev, KeyIndexer(lbl));
+  meta.ReuseModuleClosureFrom(prev, KeyVertexTimestamp(lbl));
   for (size_t i = 0; i < vertex_schema_->property_types.size(); ++i) {
-    meta.LinkModuleFrom(prev, KeyProperty(lbl, i), ckp);
+    meta.ReuseModuleClosureFrom(prev, KeyProperty(lbl, i));
   }
 }
 

@@ -41,7 +41,7 @@ namespace {
 void cleanup_retired_checkpoints(
     CheckpointManager& checkpoint_manager) noexcept {
   try {
-    checkpoint_manager.CleanupRetiredCheckpoints();
+    checkpoint_manager.CollectGarbage();
   } catch (const std::exception& e) {
     LOG(WARNING) << "Checkpoint GC failed: " << e.what();
   } catch (...) { LOG(WARNING) << "Checkpoint GC failed"; }
@@ -74,29 +74,29 @@ CheckpointCoordinator::CheckpointCoordinator(
   }
 }
 
-void CheckpointCoordinator::SetActivationHandler(
-    CheckpointActivationHandler handler) {
+void CheckpointCoordinator::SetWalEpochActivationHandler(
+    WalEpochActivationHandler handler) {
   if (!handler) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Checkpoint activation handler must not be empty");
   }
-  std::lock_guard<std::mutex> lock(activation_handler_mutex_);
-  if (activation_handler_) {
+  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
+  if (wal_epoch_activation_handler_) {
     THROW_RUNTIME_ERROR("Checkpoint activation handler is already set");
   }
-  activation_handler_ = std::move(handler);
+  wal_epoch_activation_handler_ = std::move(handler);
 }
 
-void CheckpointCoordinator::ClearActivationHandler() {
-  std::lock_guard<std::mutex> lock(activation_handler_mutex_);
-  activation_handler_ = nullptr;
+void CheckpointCoordinator::ClearWalEpochActivationHandler() {
+  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
+  wal_epoch_activation_handler_ = nullptr;
 }
 
-void CheckpointCoordinator::invokeActivationHandler(
-    const std::string& checkpoint_wal_uri) {
-  std::lock_guard<std::mutex> lock(activation_handler_mutex_);
-  if (activation_handler_) {
-    activation_handler_(checkpoint_wal_uri);
+void CheckpointCoordinator::invokeWalEpochActivationHandler(
+    const std::string& checkpoint_wal_dir) {
+  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
+  if (wal_epoch_activation_handler_) {
+    wal_epoch_activation_handler_(checkpoint_wal_dir);
   }
 }
 
@@ -119,9 +119,8 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
     return status;
   }
 
-  // The post-reopen and activation handlers completed every database- and
-  // service-owned state transition while this lease still prevented new
-  // transactions from starting.
+  // The graph, allocators, and WAL writers now reference the newly published
+  // checkpoint while this lease still prevents new transactions from starting.
   timestamp_lease.FinishAndResetTimeline();
   return status;
 }
@@ -142,11 +141,19 @@ Status CheckpointCoordinator::execute(Reason reason) {
   // runtimes, so their callers may still unwind and destroy the consumed graph.
   bool destructive_phase = false;
   try {
-    auto staging_checkpoint = checkpoint_manager_.CreateStagingCheckpoint();
+    auto staging_checkpoint = checkpoint_manager_.CreateStaging();
     return snapshot_store_.WithCheckpointMaintenance(
         [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
+
+          if (live_graph.HasPendingMutations()) {
+            return Status(
+                StatusCode::ERR_ILLEGAL_OPERATION,
+                "Cannot create a checkpoint while mutations for pending "
+                "extension-backed indexes have not been applied. Load the "
+                "required extension first.");
+          }
 
           LOG(INFO) << "Executing " << reasonName(reason) << " checkpoint"
                     << (reopen_after_checkpoint
@@ -155,8 +162,9 @@ Status CheckpointCoordinator::execute(Reason reason) {
           destructive_phase = true;
           live_graph.Compact();
           live_graph.DumpAndClear(staging_checkpoint.checkpoint());
-          auto published_checkpoint = staging_checkpoint.Commit();
-          VLOG(1) << "Finish checkpoint: " << published_checkpoint->path();
+          auto published_checkpoint = staging_checkpoint.Publish();
+          VLOG(1) << "Finish checkpoint: "
+                  << published_checkpoint->manifest_path();
 
           if (reopen_after_checkpoint) {
             // This is the intentional in-place checkpoint reopen path. It is
@@ -166,13 +174,12 @@ Status CheckpointCoordinator::execute(Reason reason) {
             maintenance.ReopenCurrentGraphFromCheckpoint(published_checkpoint,
                                                          memory_level_);
 
-            // Correctness-critical rotation first. Infallible by contract; a
-            // throwing handler fails the live manual path closed or aborts
-            // recovery.
+            // Correctness-critical runtime rotation. This handler is infallible
+            // by contract because the live graph was consumed.
             post_reopen_handler_(published_checkpoint->allocator_dir());
 
             if (reason == Reason::kManual) {
-              invokeActivationHandler(published_checkpoint->wal_dir());
+              invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
             }
 
             cleanup_retired_checkpoints(checkpoint_manager_);

@@ -42,6 +42,19 @@
 namespace neug {
 namespace {
 
+TEST(ModuleDescriptorTest, RequiredDefaultsTrueAndRoundTripsFalse) {
+  ModuleDescriptor required;
+  EXPECT_TRUE(required.required);
+
+  ModuleDescriptor optional;
+  optional.module_type = "extension_module";
+  optional.required = false;
+  rapidjson::Document document;
+  document.Parse(optional.ToJsonString().c_str());
+  auto restored = ModuleDescriptor::FromJson(document);
+  EXPECT_FALSE(restored.required);
+}
+
 TEST(IndexMetaTest, PreservesDetailedPropertyType) {
   IndexMeta meta;
   meta.name = "array_index";
@@ -167,11 +180,11 @@ class APIndexTest : public ::testing::Test {
 
   void OpenFreshGraph() {
     checkpoint_mgr_.Open(work_dir_);
-    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    auto staging = checkpoint_mgr_.CreateStaging();
     CheckpointManifest meta;
     meta.SetSchema(Schema());
-    staging.checkpoint()->UpdateMeta(std::move(meta));
-    auto ckp = staging.Commit();
+    staging.checkpoint()->SetManifest(std::move(meta));
+    auto ckp = staging.Publish();
     graph_ = std::make_unique<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
@@ -190,9 +203,9 @@ class APIndexTest : public ::testing::Test {
     graph_.reset();
     checkpoint_mgr_.Close();
     checkpoint_mgr_.Open(work_dir_);
-    ASSERT_TRUE(checkpoint_mgr_.HasCurrentCheckpoint());
+    ASSERT_NE(checkpoint_mgr_.Current(), nullptr);
     graph_ = std::make_unique<PropertyGraph>();
-    graph_->Open(checkpoint_mgr_.CurrentCheckpoint(), MemoryLevel::kInMemory);
+    graph_->Open(checkpoint_mgr_.Current(), MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
     ap_ = std::make_unique<StorageAPUpdateInterface>(
         *graph_, *view_, 0, allocator_, [this]() {
@@ -204,9 +217,10 @@ class APIndexTest : public ::testing::Test {
   }
 
   void CheckpointGraph() {
-    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    auto staging = checkpoint_mgr_.CreateStaging();
+    graph_->Compact();
     graph_->DumpAndClear(staging.checkpoint());
-    staging.Commit();
+    staging.Publish();
   }
 
   void CreatePersonTable() {

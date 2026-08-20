@@ -25,6 +25,7 @@
 
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -54,7 +55,7 @@ class Checkpoint;
  * - PublishSnapshot publishes the new slot BEFORE VersionManager advances
  *   read_ts_, so readers never see "new ts + old slot".
  */
-class GraphSnapshotStore {
+class NEUG_API GraphSnapshotStore {
  public:
   /// A slot holding a PropertyGraph, its GraphView, and a pin count.
   class SnapshotSlot {

@@ -63,7 +63,7 @@ void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   descriptor.set_path(ModuleDescriptor::kDataPath,
                       ckp.CommitRuntimeFile(std::move(runtime_file)));
   descriptor.module_type = ModuleTypeName();
-  meta.set_module(key, descriptor);
+  meta.SetModule(key, descriptor);
 }
 
 void VertexTimestamp::Init(vid_t init_vertex_num, vid_t max_vertex_num) {

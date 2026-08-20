@@ -14,336 +14,126 @@
  */
 
 #include "neug/storages/checkpoint_manager.h"
-#include "neug/storages/checkpoint_manifest.h"
-#include "neug/storages/module/module_factory.h"
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/io/file/file_utils.h"
 
-#include <algorithm>
 #include <charconv>
-#include <exception>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <unordered_set>
 #include <utility>
-#include <vector>
 
 #include <glog/logging.h>
+
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/uuid.h"
+
+#include "legacy_checkpoint_migrator.h"
 
 namespace neug {
 
 namespace {
-constexpr std::string_view kCheckpointPrefix = "checkpoint-";
-constexpr std::string_view kNextSuffix = ".next";
-constexpr int32_t kInvalidCheckpointGeneration = -1;
 
-struct ParsedCheckpointDir {
-  int32_t id;
-  std::filesystem::path path;
-};
-
-struct CheckpointOpenResult {
-  std::shared_ptr<Checkpoint> current_checkpoint;
-  int32_t current_generation = kInvalidCheckpointGeneration;
-};
-
-std::string checkpoint_name(int32_t id) {
-  return std::string(kCheckpointPrefix) + std::to_string(id);
+std::filesystem::path checkpoint_dir(const std::string& db_dir) {
+  return std::filesystem::path(db_dir) / "checkpoint";
 }
 
-std::string staging_checkpoint_name(int32_t id) {
-  return checkpoint_name(id) + std::string(kNextSuffix);
+std::filesystem::path current_path(const std::string& db_dir) {
+  return checkpoint_dir(db_dir) / "CURRENT";
 }
 
-void remove_checkpoint_dir_best_effort(const std::filesystem::path& path,
-                                       std::string_view context) {
-  if (path.empty()) {
-    return;
+uint64_t read_current(const std::filesystem::path& path) {
+  std::ifstream input(path);
+  std::string value;
+  std::getline(input, value);
+  if (!input || value.empty()) {
+    THROW_CHECKPOINT_EXCEPTION("Invalid CURRENT selector: " + path.string());
   }
+
+  uint64_t id = 0;
+  const char* first = value.data();
+  const char* last = first + value.size();
+  const auto [ptr, ec] = std::from_chars(first, last, id);
+  if (ec != std::errc{} || ptr != last) {
+    THROW_CHECKPOINT_EXCEPTION("Invalid CURRENT selector: " + path.string());
+  }
+  return id;
+}
+
+std::optional<uint64_t> try_read_current(
+    const std::filesystem::path& path) noexcept {
+  try {
+    if (!std::filesystem::exists(path)) {
+      return std::nullopt;
+    }
+    return read_current(path);
+  } catch (...) { return std::nullopt; }
+}
+
+bool current_matches(const std::filesystem::path& path,
+                     std::optional<uint64_t> expected) noexcept {
   std::error_code ec;
-  std::filesystem::remove_all(path, ec);
+  const bool exists = std::filesystem::exists(path, ec);
   if (ec) {
-    LOG(WARNING) << context << ": failed to remove checkpoint " << path << ": "
-                 << ec.message();
-  }
-}
-
-bool parse_checkpoint_name(const std::string& name, int32_t& id) {
-  if (name.size() <= kCheckpointPrefix.size() ||
-      std::string_view(name).substr(0, kCheckpointPrefix.size()) !=
-          kCheckpointPrefix) {
     return false;
   }
-  const char* first = name.data() + kCheckpointPrefix.size();
-  const char* last = name.data() + name.size();
-  auto [ptr, ec] = std::from_chars(first, last, id);
-  return ec == std::errc{} && ptr == last && id >= 0;
+  if (!expected.has_value()) {
+    return !exists;
+  }
+  return exists && try_read_current(path) == expected;
 }
 
-bool parse_checkpoint_path(const std::filesystem::path& path, int32_t& id) {
-  if (!std::filesystem::is_directory(path)) {
-    return false;
-  }
-  return parse_checkpoint_name(path.filename().string(), id);
-}
-
-bool parse_staging_checkpoint_path(const std::filesystem::path& path,
-                                   int32_t& id) {
-  if (!std::filesystem::is_directory(path)) {
-    return false;
-  }
-  std::string name = path.filename().string();
-  if (name.size() <= kNextSuffix.size() ||
-      std::string_view(name).substr(name.size() - kNextSuffix.size()) !=
-          kNextSuffix) {
-    return false;
-  }
-  name.resize(name.size() - kNextSuffix.size());
-  return parse_checkpoint_name(name, id);
-}
-
-std::vector<ParsedCheckpointDir> discover_published_checkpoints(
-    const std::string& db_dir) {
-  std::vector<ParsedCheckpointDir> dirs;
-  for (const auto& entry : std::filesystem::directory_iterator(db_dir)) {
-    int32_t id;
-    if (entry.is_directory() && parse_checkpoint_path(entry.path(), id)) {
-      dirs.push_back({id, entry.path()});
-    }
-  }
-  std::sort(dirs.begin(), dirs.end(),
-            [](const auto& lhs, const auto& rhs) { return lhs.id > rhs.id; });
-  return dirs;
-}
-
-void cleanup_staging_checkpoints(const std::string& db_dir,
-                                 std::string_view context) {
-  if (db_dir.empty() || !std::filesystem::is_directory(db_dir)) {
-    return;
-  }
-  for (const auto& entry : std::filesystem::directory_iterator(db_dir)) {
-    int32_t id;
-    if (entry.is_directory() &&
-        parse_staging_checkpoint_path(entry.path(), id)) {
-      remove_checkpoint_dir_best_effort(entry.path(), context);
-    }
-  }
-}
-
-std::shared_ptr<Checkpoint> open_checkpoint_checked(
-    const std::filesystem::path& path, int32_t id,
-    bool cleanup_orphan_runtime_files) {
-  auto checkpoint =
-      Checkpoint::Open(path.string(), id, cleanup_orphan_runtime_files);
-  if (!checkpoint->GetMeta().has_schema()) {
-    THROW_CHECKPOINT_EXCEPTION("Checkpoint " + path.string() +
-                               " is incomplete");
-  }
-  for (const auto& [module_name, desc] : checkpoint->GetMeta().modules()) {
-    if (!desc.module_type.empty() &&
-        ModuleFactory::instance().Create(desc.module_type) == nullptr) {
-      THROW_CHECKPOINT_EXCEPTION(
-          "Checkpoint " + path.string() + " references unknown module type " +
-          desc.module_type + " from module " + module_name);
-    }
-    for (const auto& [path_name, file_path] : desc.paths()) {
-      if (file_path.empty()) {
-        continue;
+bool restore_current(const std::filesystem::path& path,
+                     std::optional<uint64_t> previous_id) noexcept {
+  try {
+    if (previous_id.has_value()) {
+      file_utils::AtomicFileWriter writer(path.string());
+      writer.stream() << *previous_id << '\n';
+      if (writer.Commit() !=
+          file_utils::AtomicFileWriter::CommitResult::kDurable) {
+        return false;
       }
+    } else {
       std::error_code ec;
-      if (!std::filesystem::exists(file_path, ec) || ec) {
-        THROW_CHECKPOINT_EXCEPTION(
-            "Checkpoint " + path.string() + " references missing file " +
-            file_path + " from module " + module_name + "/" + path_name);
+      std::filesystem::remove(path, ec);
+      if (ec || !file_utils::fsync_directory(path.parent_path().string())) {
+        return false;
       }
     }
-  }
-  return checkpoint;
+    return current_matches(path, previous_id);
+  } catch (...) { return false; }
 }
 
-void cleanup_non_current_checkpoints(
-    const std::vector<ParsedCheckpointDir>& dirs, int32_t current_generation,
-    std::string_view context) {
-  for (const auto& dir : dirs) {
-    if (dir.id == current_generation) {
-      continue;
-    }
-    remove_checkpoint_dir_best_effort(dir.path, context);
-  }
-}
-
-CheckpointOpenResult open_current_checkpoint(const std::string& db_dir,
-                                             bool recover_workspace) {
-  CheckpointOpenResult result;
-  if (!std::filesystem::is_directory(db_dir)) {
-    if (!recover_workspace) {
-      return result;
-    }
-    std::filesystem::create_directories(db_dir);
-  }
-
-  if (recover_workspace) {
-    cleanup_staging_checkpoints(db_dir, "CheckpointManager::Open");
-  }
-
-  auto dirs = discover_published_checkpoints(db_dir);
-  for (const auto& dir : dirs) {
-    try {
-      result.current_checkpoint =
-          open_checkpoint_checked(dir.path, dir.id, recover_workspace);
-      result.current_generation = dir.id;
-      break;
-    } catch (const std::exception& e) {
-      LOG(WARNING) << "CheckpointManager::Open: "
-                   << (recover_workspace ? "removing" : "skipping")
-                   << " invalid checkpoint " << dir.path << ": " << e.what();
-      if (recover_workspace) {
-        remove_checkpoint_dir_best_effort(dir.path, "CheckpointManager::Open");
-      }
-    } catch (...) {
-      LOG(WARNING) << "CheckpointManager::Open: "
-                   << (recover_workspace ? "removing" : "skipping")
-                   << " invalid checkpoint " << dir.path;
-      if (recover_workspace) {
-        remove_checkpoint_dir_best_effort(dir.path, "CheckpointManager::Open");
-      }
-    }
-  }
-
-  return result;
-}
-
-std::shared_ptr<Checkpoint> create_staging_checkpoint(const std::string& db_dir,
-                                                      int32_t generation) {
-  auto path =
-      std::filesystem::path(db_dir) / staging_checkpoint_name(generation);
-
+void ensure_directory(const std::filesystem::path& path,
+                      std::string_view context) {
   std::error_code ec;
-  std::filesystem::remove_all(path, ec);
+  std::filesystem::create_directories(path, ec);
   if (ec) {
-    THROW_IO_EXCEPTION(
-        "CheckpointManager::CreateStagingCheckpoint: failed to clean " +
-        path.string() + ": " + ec.message());
-  }
-
-  try {
-    std::filesystem::create_directories(path);
-    CheckpointManifest::GenerateEmptyMeta((path / "meta").string());
-    return Checkpoint::Open(path.string(), generation);
-  } catch (...) {
-    remove_checkpoint_dir_best_effort(
-        path, "CheckpointManager::CreateStagingCheckpoint");
-    throw;
+    THROW_IO_EXCEPTION(std::string(context) + ": failed to create " +
+                       path.string() + ": " + ec.message());
   }
 }
 
-std::shared_ptr<Checkpoint> publish_staging_checkpoint(
-    const std::string& db_dir,
-    const std::shared_ptr<Checkpoint>& staging_checkpoint,
-    const std::shared_ptr<Checkpoint>& current_checkpoint,
-    int32_t current_generation, std::string* previous_checkpoint_path) {
-  const int32_t generation = static_cast<int32_t>(staging_checkpoint->id());
-  if (current_generation != kInvalidCheckpointGeneration &&
-      generation <= current_generation) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::CommitStagingCheckpoint: refusing to commit "
-        "non-increasing checkpoint generation " +
-        std::to_string(generation) + " over current generation " +
-        std::to_string(current_generation));
+std::optional<uint64_t> checkpoint_id_from_name(
+    const std::filesystem::path& path, std::string_view suffix) {
+  const auto name = path.filename().string();
+  if (!name.ends_with(suffix)) {
+    return std::nullopt;
   }
-
-  auto staging_path = std::filesystem::path(staging_checkpoint->path());
-  int32_t parsed_generation;
-  if (staging_path.filename().string() != staging_checkpoint_name(generation) ||
-      !parse_staging_checkpoint_path(staging_path, parsed_generation) ||
-      parsed_generation != generation) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::CommitStagingCheckpoint: invalid staging "
-        "checkpoint path: " +
-        staging_path.string());
+  const auto id_text =
+      std::string_view(name).substr(0, name.size() - suffix.size());
+  if (id_text.empty()) {
+    return std::nullopt;
   }
-
-  if (!staging_checkpoint->GetMeta().has_schema()) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::CommitStagingCheckpoint: checkpoint has no "
-        "schema: " +
-        staging_path.string());
+  uint64_t id = 0;
+  const auto [ptr, ec] =
+      std::from_chars(id_text.data(), id_text.data() + id_text.size(), id);
+  if (ec != std::errc{} || ptr != id_text.data() + id_text.size()) {
+    return std::nullopt;
   }
-
-  const auto final_path =
-      std::filesystem::path(db_dir) / checkpoint_name(generation);
-  if (std::filesystem::exists(final_path)) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::CommitStagingCheckpoint: published checkpoint "
-        "already exists: " +
-        final_path.string());
-  }
-
-  std::error_code ec;
-  std::filesystem::rename(staging_path, final_path, ec);
-  if (ec) {
-    THROW_IO_EXCEPTION("CheckpointManager::CommitStagingCheckpoint: rename " +
-                       staging_path.string() + " -> " + final_path.string() +
-                       " failed: " + ec.message());
-  }
-  if (!file_utils::fsync_directory(db_dir)) {
-    LOG(WARNING)
-        << "CheckpointManager::CommitStagingCheckpoint: failed to fsync "
-        << db_dir;
-  }
-
-  std::shared_ptr<Checkpoint> final_checkpoint;
-  try {
-    final_checkpoint = Checkpoint::Open(final_path.string(), generation);
-  } catch (...) {
-    // rename is the durable commit point. Keep the published generation even
-    // if opening its handle fails; the next database Open will validate it.
-    throw;
-  }
-
-  if (previous_checkpoint_path != nullptr && current_checkpoint != nullptr) {
-    *previous_checkpoint_path = current_checkpoint->path();
-  }
-  return final_checkpoint;
-}
-
-void discard_staging_checkpoint(
-    const std::shared_ptr<Checkpoint>& staging_checkpoint) {
-  if (staging_checkpoint == nullptr) {
-    return;
-  }
-
-  const int32_t generation = static_cast<int32_t>(staging_checkpoint->id());
-  const auto path = std::filesystem::path(staging_checkpoint->path());
-  int32_t staging_generation;
-  if (!parse_staging_checkpoint_path(path, staging_generation) ||
-      staging_generation != generation) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::DiscardStagingCheckpoint: checkpoint is not "
-        "staging: " +
-        path.string());
-  }
-
-  remove_checkpoint_dir_best_effort(
-      path, "CheckpointManager::DiscardStagingCheckpoint");
-}
-
-void discard_staging_checkpoint_best_effort(
-    const std::shared_ptr<Checkpoint>& staging_checkpoint,
-    std::string_view context) {
-  if (staging_checkpoint == nullptr) {
-    return;
-  }
-  try {
-    discard_staging_checkpoint(staging_checkpoint);
-  } catch (const std::exception& e) {
-    LOG(WARNING) << context << ": failed to discard staging "
-                 << staging_checkpoint->path() << ": " << e.what();
-  } catch (...) {
-    LOG(WARNING) << context << ": failed to discard staging "
-                 << staging_checkpoint->path();
-  }
+  return id;
 }
 
 }  // namespace
@@ -363,266 +153,335 @@ CheckpointManager::StagingCheckpoint::StagingCheckpoint(
 std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::checkpoint()
     const {
   if (checkpoint_ == nullptr) {
-    THROW_CHECKPOINT_EXCEPTION("Staging checkpoint handle is inactive.");
+    THROW_CHECKPOINT_EXCEPTION("Staging checkpoint handle is inactive");
   }
   return checkpoint_;
 }
 
-std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::Commit(
-    std::string* previous_checkpoint_path) {
+std::shared_ptr<Checkpoint> CheckpointManager::StagingCheckpoint::Publish() {
   if (checkpoint_ == nullptr) {
-    THROW_CHECKPOINT_EXCEPTION("Staging checkpoint handle is inactive.");
+    THROW_CHECKPOINT_EXCEPTION("Staging checkpoint handle is inactive");
   }
-  return manager_.CommitStagingCheckpoint(*this, previous_checkpoint_path);
+  return manager_.PublishStagingCheckpoint(*this);
 }
 
 void CheckpointManager::StagingCheckpoint::Discard() noexcept {
   if (checkpoint_ != nullptr) {
     manager_.DiscardStagingCheckpoint(*this);
-    return;
   }
-  release();
 }
 
 void CheckpointManager::StagingCheckpoint::release() { checkpoint_.reset(); }
 
-void CheckpointManager::Open(const std::string& db_dir,
-                             bool recover_workspace) {
-  if (db_dir.empty()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("db_dir cannot be empty");
+void CheckpointManager::Open(const std::string& database_dir,
+                             bool create_if_missing) {
+  if (database_dir.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("database_dir cannot be empty");
   }
 
-  std::shared_ptr<Checkpoint> stale_staging_checkpoint;
-  try {
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (!db_dir_.empty()) {
-        LOG(WARNING)
-            << "CheckpointManager::Open called on already-open workspace: "
-            << db_dir_ << ", reopening to: " << db_dir;
-      }
-
-      stale_staging_checkpoint = staging_checkpoint_;
-      db_dir_ = std::filesystem::absolute(db_dir).string();
-      current_checkpoint_.reset();
-      staging_checkpoint_.reset();
-      current_generation_ = kInvalidCheckpointGeneration;
-
-      auto result = open_current_checkpoint(db_dir_, recover_workspace);
-      current_checkpoint_ = std::move(result.current_checkpoint);
-      current_generation_ = result.current_generation;
+  const auto absolute_db_dir = std::filesystem::absolute(database_dir);
+  if (!std::filesystem::exists(absolute_db_dir)) {
+    if (!create_if_missing) {
+      return;
     }
-    discard_staging_checkpoint_best_effort(stale_staging_checkpoint,
-                                           "CheckpointManager::Open");
-  } catch (const std::filesystem::filesystem_error& e) {
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      db_dir_.clear();
-      current_checkpoint_.reset();
-      staging_checkpoint_.reset();
-      current_generation_ = kInvalidCheckpointGeneration;
-    }
-    discard_staging_checkpoint_best_effort(stale_staging_checkpoint,
-                                           "CheckpointManager::Open");
-    if (e.code() == std::errc::permission_denied) {
-      THROW_PERMISSION_DENIED("CheckpointManager::Open: cannot access " +
-                              std::string(db_dir) + ": " + e.what());
-    }
-    THROW_IO_EXCEPTION("CheckpointManager::Open: failed to open " +
-                       std::string(db_dir) + ": " + e.what());
+    ensure_directory(absolute_db_dir, "CheckpointManager::Open");
   }
+
+  const auto root = checkpoint_dir(absolute_db_dir.string());
+  const bool has_current = std::filesystem::exists(root / "CURRENT");
+  // CURRENT is authoritative. Do not even inspect residual legacy entries
+  // when it exists; their validity and accessibility must not affect opening
+  // the published v2 checkpoint.
+  if (!has_current && !create_if_missing &&
+      LegacyCheckpointMigrator::HasLegacyDirectories(absolute_db_dir)) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "A legacy checkpoint-N database must be opened once in read-write "
+        "mode before it can be opened read-only");
+  }
+
+  std::optional<LegacyCheckpointCandidate> legacy;
+  if (create_if_missing && !has_current) {
+    ensure_directory(root / "manifests", "CheckpointManager::Open");
+    ensure_directory(root / "objects", "CheckpointManager::Open");
+    ensure_directory(absolute_db_dir / "wal", "CheckpointManager::Open");
+    legacy = LegacyCheckpointMigrator::FindLatest(absolute_db_dir);
+  }
+  const auto runtime =
+      absolute_db_dir / "runtime" / ("open-" + UUIDGenerator::Generate());
+  auto runtime_workspace = RuntimeWorkspace::Create(runtime.string());
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    database_dir_ = absolute_db_dir.string();
+    runtime_workspace_ = runtime_workspace;
+    current_checkpoint_.reset();
+    staging_checkpoint_.reset();
+    published_checkpoints_.clear();
+  }
+
+  if (has_current) {
+    const auto current = current_path(absolute_db_dir.string());
+    const uint64_t id = read_current(current);
+    auto checkpoint = Checkpoint::OpenPublished(absolute_db_dir.string(), id,
+                                                std::move(runtime_workspace));
+    if (!checkpoint->manifest().has_schema()) {
+      THROW_CHECKPOINT_EXCEPTION("CURRENT manifest has no schema: " +
+                                 checkpoint->manifest_path());
+    }
+    if (!std::filesystem::is_directory(checkpoint->wal_dir())) {
+      THROW_CHECKPOINT_EXCEPTION("CURRENT manifest WAL epoch is missing: " +
+                                 checkpoint->wal_dir());
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    current_checkpoint_ = std::move(checkpoint);
+    published_checkpoints_.push_back(current_checkpoint_);
+    return;
+  }
+
+  if (!legacy.has_value()) {
+    return;
+  }
+
+  auto staging = [&] {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return CreateStagingLocked(legacy->id);
+  }();
+  LegacyCheckpointMigrator::Import(*legacy, *staging.checkpoint());
+  auto migrated = staging.Publish();
+  LOG(INFO) << "Migrated legacy checkpoint " << legacy->root << " to "
+            << migrated->manifest_path();
 }
 
 void CheckpointManager::Close() {
-  std::shared_ptr<Checkpoint> staging_checkpoint;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    staging_checkpoint = staging_checkpoint_;
-    db_dir_.clear();
-    current_checkpoint_.reset();
-    staging_checkpoint_.reset();
-    current_generation_ = kInvalidCheckpointGeneration;
-  }
-  discard_staging_checkpoint_best_effort(staging_checkpoint,
-                                         "CheckpointManager::Close");
-}
-
-bool CheckpointManager::HasCurrentCheckpoint() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return current_checkpoint_ != nullptr;
+  current_checkpoint_.reset();
+  staging_checkpoint_.reset();
+  runtime_workspace_.reset();
+  database_dir_.clear();
+  published_checkpoints_.clear();
 }
 
-std::shared_ptr<Checkpoint> CheckpointManager::CurrentCheckpoint() const {
+std::shared_ptr<Checkpoint> CheckpointManager::Current() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return current_checkpoint_;
 }
 
-CheckpointManager::StagingCheckpoint
-CheckpointManager::CreateStagingCheckpoint() {
+CheckpointManager::StagingCheckpoint CheckpointManager::CreateStaging() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (db_dir_.empty()) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::CreateStagingCheckpoint: manager is not open");
+  const uint64_t id =
+      current_checkpoint_ == nullptr ? 0 : current_checkpoint_->id() + 1;
+  return CreateStagingLocked(id);
+}
+
+CheckpointManager::StagingCheckpoint CheckpointManager::CreateStagingLocked(
+    uint64_t id) {
+  if (database_dir_.empty()) {
+    THROW_CHECKPOINT_EXCEPTION("CheckpointManager is not open");
   }
   if (staging_checkpoint_ != nullptr) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::CreateStagingCheckpoint: active staging "
-        "checkpoint already exists: " +
-        std::to_string(staging_checkpoint_->id()));
+    THROW_CHECKPOINT_EXCEPTION("A staging checkpoint is already active");
   }
 
-  const int32_t generation = current_generation_ == kInvalidCheckpointGeneration
-                                 ? 0
-                                 : current_generation_ + 1;
-  staging_checkpoint_ = create_staging_checkpoint(db_dir_, generation);
+  staging_checkpoint_ =
+      Checkpoint::CreateStaging(database_dir_, id, runtime_workspace_);
   return StagingCheckpoint(*this, staging_checkpoint_);
 }
 
-std::shared_ptr<Checkpoint> CheckpointManager::CommitStagingCheckpoint(
-    StagingCheckpoint& staging, std::string* previous_checkpoint_path) {
-  if (previous_checkpoint_path != nullptr) {
-    previous_checkpoint_path->clear();
-  }
-
-  std::shared_ptr<Checkpoint> checkpoint;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (&staging.manager_ != this || staging.checkpoint_ == nullptr) {
-      THROW_CHECKPOINT_EXCEPTION(
-          "CheckpointManager::CommitStagingCheckpoint: inactive or foreign "
-          "staging checkpoint");
-    }
-    if (staging_checkpoint_ == nullptr ||
-        staging_checkpoint_ != staging.checkpoint_) {
-      THROW_CHECKPOINT_EXCEPTION(
-          "CheckpointManager::CommitStagingCheckpoint: staging checkpoint is "
-          "not active");
-    }
-
-    current_checkpoint_ = publish_staging_checkpoint(
-        db_dir_, staging_checkpoint_, current_checkpoint_, current_generation_,
-        previous_checkpoint_path);
-    current_generation_ = static_cast<int32_t>(current_checkpoint_->id());
-    staging_checkpoint_.reset();
-    staging.release();
-    checkpoint = current_checkpoint_;
-  }
-
-  return checkpoint;
-}
-
-void CheckpointManager::RestoreCurrentCheckpoint(
-    std::shared_ptr<Checkpoint> checkpoint) {
-  if (checkpoint == nullptr) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "CheckpointManager::RestoreCurrentCheckpoint: checkpoint is null");
-  }
-
-  const auto checkpoint_path = std::filesystem::path(checkpoint->path());
-  int32_t parsed_generation;
-  if (!parse_checkpoint_path(checkpoint_path, parsed_generation) ||
-      parsed_generation != static_cast<int32_t>(checkpoint->id())) {
-    THROW_CHECKPOINT_EXCEPTION(
-        "CheckpointManager::RestoreCurrentCheckpoint: invalid checkpoint "
-        "path: " +
-        checkpoint->path());
-  }
-
+std::shared_ptr<Checkpoint> CheckpointManager::PublishStagingCheckpoint(
+    StagingCheckpoint& staging) {
   std::lock_guard<std::mutex> lock(mutex_);
-  current_generation_ = static_cast<int32_t>(checkpoint->id());
-  current_checkpoint_ = std::move(checkpoint);
-  staging_checkpoint_.reset();
-}
-
-void CheckpointManager::CleanupPublishedCheckpoint(
-    std::shared_ptr<Checkpoint> checkpoint) {
-  if (checkpoint == nullptr) {
-    return;
+  if (&staging.manager_ != this || staging.checkpoint_ == nullptr ||
+      staging.checkpoint_ != staging_checkpoint_) {
+    THROW_CHECKPOINT_EXCEPTION("Inactive or foreign staging checkpoint");
   }
-
-  const int32_t generation = static_cast<int32_t>(checkpoint->id());
-  auto path = std::filesystem::path(checkpoint->path());
-  if (path.filename().string() != checkpoint_name(generation)) {
-    LOG(WARNING)
-        << "CheckpointManager::CleanupPublishedCheckpoint: refusing to "
-        << "remove non-published checkpoint path " << path;
-    return;
+  if (!staging_checkpoint_->manifest().has_schema()) {
+    THROW_CHECKPOINT_EXCEPTION("Cannot publish a checkpoint without schema");
   }
-
-  std::string db_dir;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    db_dir = db_dir_;
-    if (current_checkpoint_ != nullptr && current_generation_ == generation &&
-        current_checkpoint_->path() == checkpoint->path()) {
-      LOG(WARNING)
-          << "CheckpointManager::CleanupPublishedCheckpoint: refusing to "
-          << "remove current checkpoint " << path;
-      return;
-    }
+  const std::optional<uint64_t> previous_id =
+      current_checkpoint_ == nullptr
+          ? std::nullopt
+          : std::optional<uint64_t>(current_checkpoint_->id());
+  if (previous_id.has_value() && staging_checkpoint_->id() <= *previous_id) {
+    THROW_CHECKPOINT_EXCEPTION("Checkpoint id must increase monotonically");
   }
-  if (db_dir.empty() || path.parent_path() != std::filesystem::path(db_dir)) {
-    LOG(WARNING)
-        << "CheckpointManager::CleanupPublishedCheckpoint: refusing to "
-        << "remove checkpoint outside current workspace " << path;
-    return;
+  const auto wal_dir = std::filesystem::path(staging_checkpoint_->wal_dir());
+  ensure_directory(wal_dir, "CheckpointManager::Publish");
+  if (!file_utils::fsync_directory(wal_dir.string()) ||
+      !file_utils::fsync_directory(wal_dir.parent_path().string())) {
+    THROW_IO_EXCEPTION("CheckpointManager::Publish: failed to fsync WAL epoch");
   }
+  staging_checkpoint_->persist_manifest();
 
-  remove_checkpoint_dir_best_effort(
-      path, "CheckpointManager::CleanupPublishedCheckpoint");
-}
-
-void CheckpointManager::CleanupRetiredCheckpoints() {
-  std::string db_dir;
-  int32_t current_generation;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (db_dir_.empty() ||
-        current_generation_ == kInvalidCheckpointGeneration) {
-      return;
-    }
-    db_dir = db_dir_;
-    current_generation = current_generation_;
-  }
-
+  const auto selector = current_path(database_dir_);
+  file_utils::AtomicFileWriter::CommitResult publish_result;
   try {
-    cleanup_non_current_checkpoints(
-        discover_published_checkpoints(db_dir), current_generation,
-        "CheckpointManager::CleanupRetiredCheckpoints");
+    file_utils::AtomicFileWriter writer(selector.string());
+    writer.stream() << staging_checkpoint_->id() << '\n';
+    publish_result = writer.Commit();
   } catch (const std::exception& e) {
-    LOG(WARNING) << "CheckpointManager::CleanupRetiredCheckpoints failed for "
-                 << db_dir << ": " << e.what();
-  } catch (...) {
-    LOG(WARNING) << "CheckpointManager::CleanupRetiredCheckpoints failed for "
-                 << db_dir;
+    if (current_matches(selector, previous_id)) {
+      throw;
+    }
+    if (restore_current(selector, previous_id)) {
+      THROW_IO_EXCEPTION(
+          "CheckpointManager::Publish: CURRENT replacement failed and was "
+          "rolled back: " +
+          std::string(e.what()));
+    }
+    THROW_IO_EXCEPTION(
+        "CheckpointManager::Publish: CURRENT replacement failed and rollback "
+        "could not be confirmed: " +
+        std::string(e.what()));
   }
+  // Commit-unknown handling: AtomicFileWriter::Commit() returns kCommitUnknown
+  // only when the rename succeeded but the parent-directory fsync failed, so
+  // CURRENT has already been atomically replaced with the new ID. Rolling
+  // back to the previous ID is attempted first because that rename is
+  // verifiable; if the rollback itself cannot be confirmed, the new CURRENT
+  // is deliberately kept: it names a manifest that was fully persisted
+  // above, which is strictly safer than an unverified rollback. This branch
+  // is review-verified rather than test-covered: no unit-test seam can
+  // inject a parent-directory fsync failure after a successful rename
+  // without a fault-injection hook in AtomicFileWriter.
+  if (publish_result != file_utils::AtomicFileWriter::CommitResult::kDurable) {
+    if (restore_current(selector, previous_id)) {
+      THROW_IO_EXCEPTION(
+          "CheckpointManager::Publish: CURRENT replacement durability failed "
+          "and was rolled back");
+    }
+    THROW_IO_EXCEPTION(
+        "CheckpointManager::Publish: CURRENT replacement durability and "
+        "rollback are commit-unknown");
+  }
+
+  current_checkpoint_ = staging_checkpoint_;
+  published_checkpoints_.push_back(current_checkpoint_);
+  staging_checkpoint_.reset();
+  staging.release();
+  return current_checkpoint_;
 }
 
 void CheckpointManager::DiscardStagingCheckpoint(
     StagingCheckpoint& staging) noexcept {
-  std::shared_ptr<Checkpoint> staging_checkpoint;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (&staging.manager_ != this || staging.checkpoint_ == nullptr) {
-      staging.release();
-      return;
-    }
-    if (staging_checkpoint_ != staging.checkpoint_) {
-      staging.release();
-      return;
-    }
-    staging_checkpoint = staging_checkpoint_;
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (&staging.manager_ == this && staging.checkpoint_ == staging_checkpoint_) {
     staging_checkpoint_.reset();
   }
-
-  discard_staging_checkpoint_best_effort(
-      staging_checkpoint, "CheckpointManager::DiscardStagingCheckpoint");
   staging.release();
 }
 
-std::string CheckpointManager::db_dir() const {
+void CheckpointManager::CollectGarbage() {
   std::lock_guard<std::mutex> lock(mutex_);
-  return db_dir_;
+  if (database_dir_.empty()) {
+    return;
+  }
+  // A staging checkpoint may already own immutable objects that are not yet
+  // reachable from a published manifest. Do not race GC with its dump.
+  if (staging_checkpoint_ != nullptr) {
+    return;
+  }
+
+  std::unordered_set<uint64_t> retained_ids;
+  std::vector<std::weak_ptr<Checkpoint>> live_checkpoints;
+  for (const auto& weak_checkpoint : published_checkpoints_) {
+    auto checkpoint = weak_checkpoint.lock();
+    if (checkpoint == nullptr) {
+      continue;
+    }
+    retained_ids.insert(checkpoint->id());
+    live_checkpoints.push_back(checkpoint);
+  }
+  published_checkpoints_ = std::move(live_checkpoints);
+
+  std::unordered_set<std::string> retained_objects;
+  for (const auto& weak_checkpoint : published_checkpoints_) {
+    auto checkpoint = weak_checkpoint.lock();
+    if (checkpoint == nullptr) {
+      continue;
+    }
+    for (const auto& [_, desc] : checkpoint->manifest().Modules()) {
+      for (const auto& [__, object_path] : desc.paths()) {
+        if (!object_path.empty()) {
+          retained_objects.insert(
+              std::filesystem::path(object_path).filename().string());
+        }
+      }
+    }
+  }
+
+  std::error_code ec;
+  const auto root = checkpoint_dir(database_dir_);
+  const auto manifests = root / "manifests";
+  for (const auto& entry : std::filesystem::directory_iterator(manifests)) {
+    auto id = checkpoint_id_from_name(entry.path(), ".manifest");
+    if (id.has_value() && !retained_ids.contains(*id)) {
+      std::filesystem::remove(entry.path(), ec);
+      if (ec) {
+        THROW_IO_EXCEPTION("Checkpoint GC: failed to remove manifest " +
+                           entry.path().string() + ": " + ec.message());
+      }
+    }
+  }
+
+  const auto wal_root = std::filesystem::path(database_dir_) / "wal";
+  for (const auto& entry : std::filesystem::directory_iterator(wal_root)) {
+    auto id = checkpoint_id_from_name(entry.path(), "");
+    if (id.has_value() && !retained_ids.contains(*id)) {
+      std::filesystem::remove_all(entry.path(), ec);
+      if (ec) {
+        THROW_IO_EXCEPTION("Checkpoint GC: failed to remove WAL epoch " +
+                           entry.path().string() + ": " + ec.message());
+      }
+    }
+  }
+
+  const auto objects = root / "objects";
+  for (const auto& entry : std::filesystem::directory_iterator(objects)) {
+    if (entry.is_regular_file() &&
+        !retained_objects.contains(entry.path().filename().string())) {
+      std::filesystem::remove(entry.path(), ec);
+      if (ec) {
+        THROW_IO_EXCEPTION("Checkpoint GC: failed to remove object " +
+                           entry.path().string() + ": " + ec.message());
+      }
+    }
+  }
+
+  bool removed_runtime_workspace = false;
+  const auto runtime_root = std::filesystem::path(database_dir_) / "runtime";
+  const auto active_runtime = std::filesystem::path(runtime_workspace_->path());
+  if (std::filesystem::is_directory(runtime_root)) {
+    for (const auto& entry :
+         std::filesystem::directory_iterator(runtime_root)) {
+      if (!entry.is_directory() ||
+          !entry.path().filename().string().starts_with("open-") ||
+          entry.path() == active_runtime) {
+        continue;
+      }
+      std::filesystem::remove_all(entry.path(), ec);
+      if (ec) {
+        THROW_IO_EXCEPTION(
+            "Checkpoint GC: failed to remove runtime workspace " +
+            entry.path().string() + ": " + ec.message());
+      }
+      removed_runtime_workspace = true;
+    }
+  }
+
+  if (!file_utils::fsync_directory(manifests.string()) ||
+      !file_utils::fsync_directory(wal_root.string()) ||
+      !file_utils::fsync_directory(objects.string()) ||
+      (removed_runtime_workspace &&
+       !file_utils::fsync_directory(runtime_root.string()))) {
+    THROW_IO_EXCEPTION("Checkpoint GC: failed to fsync checkpoint directories");
+  }
+  if (current_checkpoint_ != nullptr) {
+    LegacyCheckpointMigrator::RemoveLegacyDirectories(database_dir_);
+  }
+}
+
+std::string CheckpointManager::database_dir() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return database_dir_;
 }
 
 }  // namespace neug

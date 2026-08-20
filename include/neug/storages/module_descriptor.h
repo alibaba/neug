@@ -55,6 +55,9 @@ struct ModuleDescriptor {
   /// Module type identifier for factory registration.
   std::string module_type;
 
+  /// Whether opening the checkpoint must fail when this module cannot load.
+  bool required = true;
+
   /**
    * @brief Set an extra key-value pair.  Returns *this for chaining.
    */
@@ -87,10 +90,10 @@ struct ModuleDescriptor {
   }
 
   /**
-   * @brief Record a filesystem path under @p name.  Paths live in a separate
-   * map from `extra_` so Checkpoint::UpdateMeta / Checkpoint::Checkpoint can
-   * relativize / absolutize them on persistence without scanning every extras
-   * key by name.  Mirrors set() in chainability.
+   * @brief Record the resolved local path for an immutable checkpoint object.
+   *
+   * In memory this is an absolute path. On disk it is serialized as the
+   * object's stable ID under the `objects` field.
    */
   ModuleDescriptor& set_path(const std::string& name, std::string path) {
     paths_[name] = std::move(path);
@@ -115,8 +118,8 @@ struct ModuleDescriptor {
     return paths_;
   }
 
-  /// Mutable access — useful for in-place rewrites (e.g. absolute ↔ relative
-  /// conversion in Checkpoint).
+  /// Mutable access for Checkpoint's object-ID and resolved-local-path
+  /// conversion.
   std::unordered_map<std::string, std::string>& mutable_paths() {
     return paths_;
   }
@@ -176,22 +179,12 @@ struct ModuleDescriptor {
    */
   std::string ToJsonString() const;
 
-  /**
-   * @brief Copy @p prev and hardlink each non-empty path into @p ckp.
-   *
-   * Used when a clean table reuses the prior snapshot: metadata (type, extras,
-   * refs) is preserved, while filesystem paths are rewritten to hardlinks in
-   * the new checkpoint.
-   */
-  static ModuleDescriptor Link(const ModuleDescriptor& prev, Checkpoint& ckp);
-
  private:
   /// Optional free-form key-value pairs for module-specific metadata.
   std::unordered_map<std::string, std::string> extra_;
 
-  /// Filesystem paths a Module owns, keyed by an arbitrary local name (e.g.
-  /// "nbr_list", "items").  Carved out of `extra_` so checkpoint code can
-  /// rewrite paths without scanning every extras key by suffix.
+  /// Resolved immutable object paths a Module owns, keyed by an arbitrary
+  /// local name (e.g. "nbr_list", "items").
   std::unordered_map<std::string, std::string> paths_;
 
   /// Named references to other flat module entries. For example, ArrayColumn

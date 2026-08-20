@@ -101,11 +101,11 @@ class TPIndexTest : public ::testing::Test {
 
   void OpenFreshGraph() {
     checkpoint_mgr_.Open(work_dir_);
-    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    auto staging = checkpoint_mgr_.CreateStaging();
     CheckpointManifest meta;
     meta.SetSchema(Schema());
-    staging.checkpoint()->UpdateMeta(std::move(meta));
-    auto ckp = staging.Commit();
+    staging.checkpoint()->SetManifest(std::move(meta));
+    auto ckp = staging.Publish();
     graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
@@ -649,9 +649,10 @@ TEST_F(TPIndexTest, IndexPersistsAfterCheckpointReopen) {
   std::shared_ptr<Checkpoint> published_checkpoint;
   {
     SnapshotGuard guard(*snapshot_store_);
-    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    auto staging = checkpoint_mgr_.CreateStaging();
+    guard.get().mutable_graph()->Compact();
     guard.get().mutable_graph()->DumpAndClear(staging.checkpoint());
-    published_checkpoint = staging.Commit();
+    published_checkpoint = staging.Publish();
   }
 
   auto reopened = std::make_shared<PropertyGraph>();
@@ -687,9 +688,10 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   std::shared_ptr<Checkpoint> published_checkpoint;
   {
     SnapshotGuard guard(*snapshot_store_);
-    auto staging = checkpoint_mgr_.CreateStagingCheckpoint();
+    auto staging = checkpoint_mgr_.CreateStaging();
+    guard.get().mutable_graph()->Compact();
     guard.get().mutable_graph()->DumpAndClear(staging.checkpoint());
-    published_checkpoint = staging.Commit();
+    published_checkpoint = staging.Publish();
   }
 
   auto reopened = std::make_shared<PropertyGraph>();

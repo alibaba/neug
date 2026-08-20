@@ -147,16 +147,13 @@ HTTPRandomAccessFile::HTTPRandomAccessFile(
     const common::case_insensitive_map_t<std::string>& options)
     : url_(url),
       options_(options),
-      curl_handle_(nullptr),
       file_size_(-1),
       position_(0),
-      closed_(false),
-      header_list_(nullptr) {
-  // Initialize CURL handle
-  curl_handle_ = curl_easy_init();
-  if (!curl_handle_) {
-    THROW_IO_EXCEPTION("Failed to initialize CURL handle");
-  }
+      closed_(false) {
+  // NOTE: no CURL handle is created here.  Parquet parallel scan may invoke
+  // ReadRange() concurrently from multiple worker threads, and libcurl
+  // handles are NOT thread-safe.  ReadRange() therefore uses a per-thread
+  // handle instead of a shared member handle.
 
   // Extract authentication options
   auto bearer_it = options_.find(HTTPConfigOptionKeys::kBearerToken);
@@ -194,18 +191,12 @@ HTTPRandomAccessFile::HTTPRandomAccessFile(
   // Initialize file size
   auto status = InitializeFileSize();
   if (!status.ok()) {
-    curl_easy_cleanup(curl_handle_);
     THROW_IO_EXCEPTION("Failed to initialize HTTP file: " + status.ToString());
   }
 }
 
 HTTPRandomAccessFile::~HTTPRandomAccessFile() {
-  if (header_list_) {
-    curl_slist_free_all(header_list_);
-  }
-  if (curl_handle_) {
-    curl_easy_cleanup(curl_handle_);
-  }
+  // Per-request/per-thread CURL handles are cleaned up at their use sites.
 }
 
 arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
@@ -215,7 +206,8 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
   }
 
   // Setup for HEAD request
-  SetupCURLHandle(curl);
+  curl_slist* headers = nullptr;
+  SetupCURLHandle(curl, &headers);
   curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
   curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);  // HEAD request
   curl_easy_setopt(curl, CURLOPT_HEADER, 0L);
@@ -224,6 +216,9 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
   CURLcode res = curl_easy_perform(curl);
 
   if (res != CURLE_OK) {
+    if (headers) {
+      curl_slist_free_all(headers);
+    }
     curl_easy_cleanup(curl);
     return arrow::Status::IOError("HEAD request failed: " +
                                   std::string(curl_easy_strerror(res)));
@@ -235,6 +230,9 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
   long http_code = 0;
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
   if (http_code < 200 || http_code >= 300) {
+    if (headers) {
+      curl_slist_free_all(headers);
+    }
     curl_easy_cleanup(curl);
     return arrow::Status::IOError("HEAD request returned HTTP " +
                                   std::to_string(http_code) + " for " + url_);
@@ -247,11 +245,17 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
 
   if (res == CURLE_OK && content_length >= 0) {
     file_size_ = static_cast<int64_t>(content_length);
+    if (headers) {
+      curl_slist_free_all(headers);
+    }
     curl_easy_cleanup(curl);
     return arrow::Status::OK();
   }
 
   // Content-Length not available, try a range request as fallback
+  if (headers) {
+    curl_slist_free_all(headers);
+  }
   curl_easy_cleanup(curl);
 
   curl = curl_easy_init();
@@ -259,13 +263,17 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
     return arrow::Status::IOError(
         "Failed to initialize CURL for RANGE request");
   }
-  SetupCURLHandle(curl);
+  headers = nullptr;
+  SetupCURLHandle(curl, &headers);
   curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
   curl_easy_setopt(curl, CURLOPT_RANGE, "0-0");  // Just read first byte
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HeaderCallback);
 
   res = curl_easy_perform(curl);
   if (res != CURLE_OK) {
+    if (headers) {
+      curl_slist_free_all(headers);
+    }
     curl_easy_cleanup(curl);
     return arrow::Status::IOError("Failed to determine file size: " +
                                   std::string(curl_easy_strerror(res)));
@@ -274,6 +282,9 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
   // Also check HTTP status for the range request
   http_code = 0;
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  if (headers) {
+    curl_slist_free_all(headers);
+  }
   curl_easy_cleanup(curl);
   if (http_code < 200 || http_code >= 300) {
     return arrow::Status::IOError("RANGE request returned HTTP " +
@@ -286,7 +297,8 @@ arrow::Status HTTPRandomAccessFile::InitializeFileSize() {
   return arrow::Status::OK();
 }
 
-void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl) {
+void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl,
+                                           curl_slist** header_list) {
   // Basic options
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
@@ -365,20 +377,16 @@ void HTTPRandomAccessFile::SetupCURLHandle(CURL* curl) {
     }
   }
 
-  // Custom headers
-  if (!custom_headers_.empty()) {
-    // Clear existing header list if it exists
-    if (header_list_) {
-      curl_slist_free_all(header_list_);
-      header_list_ = nullptr;
-    }
-    // Rebuild header list
+  // Custom headers: build a fresh list owned by the caller.  The list must
+  // stay alive until curl_easy_perform() returns, and must never be shared
+  // across threads.
+  if (!custom_headers_.empty() && header_list) {
     for (const auto& header : custom_headers_) {
-      header_list_ = curl_slist_append(header_list_, header.c_str());
+      *header_list = curl_slist_append(*header_list, header.c_str());
     }
   }
-  if (header_list_) {
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list_);
+  if (header_list && *header_list) {
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, *header_list);
   }
 }
 
@@ -394,37 +402,64 @@ arrow::Result<int64_t> HTTPRandomAccessFile::ReadRange(int64_t offset,
     return 0;
   }
 
+  // Parquet parallel scan may call ReadRange() concurrently from multiple
+  // worker threads.  libcurl easy handles are NOT thread-safe, so each
+  // thread keeps its own handle instead of sharing a per-file handle.
+  // Sharing one handle previously caused heap corruption
+  // ("double free or corruption") under concurrent reads.
+  // The handle is intentionally never cleaned up so that subsequent reads
+  // on the same thread reuse the connection.  The number of live handles is
+  // bounded by the scan thread pool size; if the executor ever recycles
+  // worker threads, each recycled thread leaks one handle until process
+  // exit, which is an accepted trade-off for simplicity here.
+  thread_local CURL* thread_curl = nullptr;
+  if (!thread_curl) {
+    thread_curl = curl_easy_init();
+  }
+  CURL* curl = thread_curl;
+  if (!curl) {
+    return arrow::Status::IOError(
+        "Failed to initialize CURL handle for range request");
+  }
+
   // Setup GET request with HTTP Range header (RFC 7233)
-  curl_easy_reset(curl_handle_);
-  SetupCURLHandle(curl_handle_);
-  curl_easy_setopt(curl_handle_, CURLOPT_URL, url_.c_str());
+  curl_easy_reset(curl);
+  curl_slist* headers = nullptr;
+  SetupCURLHandle(curl, &headers);
+  curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
 
   // Set Range header: "bytes=offset-end"
   // IMPORTANT: CURLOPT_RANGE expects "start-end" format without "bytes="
   // CURL will automatically add the "Range: bytes=" prefix
   std::string range_value =
       std::to_string(offset) + "-" + std::to_string(offset + length - 1);
-  curl_easy_setopt(curl_handle_, CURLOPT_RANGE, range_value.c_str());
+  curl_easy_setopt(curl, CURLOPT_RANGE, range_value.c_str());
 
   // Setup direct write to buffer
   std::pair<void*, size_t> write_info{buffer, static_cast<size_t>(length)};
-  curl_easy_setopt(curl_handle_, CURLOPT_WRITEFUNCTION, WriteCallbackDirect);
-  curl_easy_setopt(curl_handle_, CURLOPT_WRITEDATA, &write_info);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallbackDirect);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &write_info);
 
   // Perform request
-  CURLcode res = curl_easy_perform(curl_handle_);
-
-  if (res != CURLE_OK) {
-    return arrow::Status::IOError("HTTP Range request failed: " +
-                                  std::string(curl_easy_strerror(res)));
-  }
+  CURLcode res = curl_easy_perform(curl);
 
   // Verify response code
   // 200 = OK (server doesn't support Range, sent full file)
   // 206 = Partial Content (server supports Range, sent requested range)
   // 416 = Range Not Satisfiable (offset beyond end of file)
   long response_code = 0;
-  curl_easy_getinfo(curl_handle_, CURLINFO_RESPONSE_CODE, &response_code);
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+  // Release the per-request header list; keep the thread-local handle alive
+  // so subsequent reads on this thread reuse the connection.
+  if (headers) {
+    curl_slist_free_all(headers);
+  }
+
+  if (res != CURLE_OK) {
+    return arrow::Status::IOError("HTTP Range request failed: " +
+                                  std::string(curl_easy_strerror(res)));
+  }
 
   // Calculate actual bytes received
   int64_t bytes_received = length - static_cast<int64_t>(write_info.second);

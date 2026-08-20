@@ -58,8 +58,7 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
 
     auto aliasManager =
         std::make_shared<neug::gopt::GAliasManager>(*statement->logicalPlan);
-    neug::gopt::GPhysicalConvertor converter(aliasManager,
-                                             queryDatabase->getCatalog());
+    neug::gopt::GPhysicalConvertor converter(aliasManager, queryDatabase.get());
     auto physicalPlan = converter.convert(*statement->logicalPlan, false);
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();
@@ -138,6 +137,37 @@ bool isStatementEnd(std::string_view query, size_t offset) {
   return offset == query.size();
 }
 
+bool nextAdminValue(std::string_view query, size_t& offset,
+                    std::string& value) {
+  skipQueryWhitespace(query, offset);
+  if (offset >= query.size())
+    return false;
+  const char quote = query[offset];
+  if (quote == '\'' || quote == '"' || quote == '`') {
+    ++offset;
+    while (offset < query.size()) {
+      if (query[offset] == quote) {
+        if (offset + 1 < query.size() && query[offset + 1] == quote) {
+          value.push_back(quote);
+          offset += 2;
+          continue;
+        }
+        ++offset;
+        return true;
+      }
+      value.push_back(query[offset++]);
+    }
+    return false;
+  }
+  const auto begin = offset;
+  while (offset < query.size() &&
+         !common::StringUtils::isSpace(query[offset]) && query[offset] != ';') {
+    ++offset;
+  }
+  value.assign(query.substr(begin, offset - begin));
+  return !value.empty();
+}
+
 void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
   size_t offset = 0;
   auto statement = nextKeyword(query, offset);
@@ -153,7 +183,48 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
   }
 
   if (isKeyword(statement, "CHECKPOINT") && isStatementEnd(query, offset)) {
-    analysis.kind = QueryKind::kCheckpoint;
+    analysis.kind = QueryKind::kAdmin;
+    analysis.admin = AdminRequest{AdminType::kCheckpoint, std::nullopt};
+    return;
+  }
+
+  extension::ExtensionAction action;
+  AdminType type;
+  if (isKeyword(statement, "INSTALL")) {
+    action = extension::ExtensionAction::INSTALL;
+    type = AdminType::kInstallExtension;
+  } else if (isKeyword(statement, "LOAD")) {
+    action = extension::ExtensionAction::LOAD;
+    type = AdminType::kLoadExtension;
+  } else if (isKeyword(statement, "UNINSTALL")) {
+    action = extension::ExtensionAction::UNINSTALL;
+    type = AdminType::kUninstallExtension;
+  } else {
+    return;
+  }
+
+  auto token = nextKeyword(query, offset);
+  if (isKeyword(token, "EXTENSION")) {
+    if (action == extension::ExtensionAction::INSTALL)
+      return;
+  } else {
+    offset -= token.size();
+  }
+  ExtensionAdminInfo info{action, {}, {}};
+  if (!nextAdminValue(query, offset, info.name))
+    return;
+  common::StringUtils::toLower(info.name);
+  if (action == extension::ExtensionAction::INSTALL) {
+    const auto from = nextKeyword(query, offset);
+    if (!from.empty()) {
+      if (!isKeyword(from, "FROM") ||
+          !nextAdminValue(query, offset, info.repository))
+        return;
+    }
+  }
+  if (isStatementEnd(query, offset)) {
+    analysis.kind = QueryKind::kAdmin;
+    analysis.admin = AdminRequest{type, std::move(info)};
   }
 }
 
@@ -162,7 +233,7 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
 QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
   QueryAnalysis analysis;
   analyzeQueryPrefix(query, analysis);
-  if (analysis.checkpoint()) {
+  if (analysis.isAdmin()) {
     analysis.access_mode = AccessMode::kUpdate;
     return analysis;
   }

@@ -19,6 +19,65 @@
 #include <ostream>
 #include <string>
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#include <sys/types.h>
+#include <windows.h>
+#include <cstdint>
+
+// POSIX-compatible shim declarations for Windows.
+// Implementations live in file_utils_win.cc to avoid ODR conflicts with
+// third-party headers that may also define these symbols.
+int truncate(const char* path, int64_t length);
+
+// Minimal POSIX mmap/munmap/msync constants for Windows.
+// Guarded with #ifndef to avoid redefinition conflicts with third-party
+// headers that may also define these macros.
+#ifndef PROT_READ
+#define PROT_READ 1
+#endif
+#ifndef PROT_WRITE
+#define PROT_WRITE 2
+#endif
+#ifndef PROT_EXEC
+#define PROT_EXEC 4
+#endif
+
+#ifndef MAP_SHARED
+#define MAP_SHARED 1
+#endif
+#ifndef MAP_PRIVATE
+#define MAP_PRIVATE 2
+#endif
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS 4
+#endif
+#ifndef MAP_FIXED
+#define MAP_FIXED 0x10
+#endif
+#ifndef MAP_HUGETLB
+#define MAP_HUGETLB 0x40000
+#endif
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void*) -1)
+#endif
+
+#ifndef MS_ASYNC
+#define MS_ASYNC 1
+#endif
+#ifndef MS_SYNC
+#define MS_SYNC 2
+#endif
+#ifndef MS_INVALIDATE
+#define MS_INVALIDATE 4
+#endif
+
+void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t offset);
+int munmap(void* addr, size_t len);
+int msync(void* addr, size_t len, int flags);
+#endif
+
 namespace neug {
 
 namespace file_utils {
@@ -41,6 +100,11 @@ namespace file_utils {
  */
 class AtomicFileWriter {
  public:
+  enum class CommitResult {
+    kDurable,
+    kCommitUnknown,
+  };
+
   explicit AtomicFileWriter(const std::string& target_path);
   ~AtomicFileWriter();
 
@@ -56,8 +120,10 @@ class AtomicFileWriter {
   std::ostream& stream();
 
   /// Flush + fsync(fd) + close + rename(tmp → target) + fsync(parent dir).
-  /// Throws on any I/O failure.  After Commit() the writer is spent.
-  void Commit();
+  /// Failures before rename throw. A parent-directory fsync failure returns
+  /// kCommitUnknown because the target has already been atomically replaced.
+  /// After Commit() the writer is spent.
+  CommitResult Commit();
 
  private:
   void Abort() noexcept;

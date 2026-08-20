@@ -16,7 +16,9 @@
 
 #pragma once
 
+#ifndef _WIN32
 #include <sched.h>
+#endif
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -68,11 +70,10 @@ class Utils {
     return val ? std::string(val) : defaultVal;
   }
 
-  static std::filesystem::path getTestResourcePath(
-      const std::string& relativePath) {
+  static std::string getTestResourcePath(const std::string& relativePath) {
     auto parentPath =
         getEnvVarOrDefault("TEST_RESOURCE", "/workspaces/neug/tests/compiler");
-    return std::filesystem::path(parentPath) / relativePath;
+    return (std::filesystem::path(parentPath) / relativePath).string();
   }
 
   template <typename T>
@@ -199,6 +200,10 @@ class GOptTest : public ::testing::Test {
                                 : database->getCatalog();
   }
 
+  main::MetadataManager* getMetadataManager() {
+    return currentQueryDatabase ? currentQueryDatabase.get() : database.get();
+  }
+
   std::string getGOptResourcePath(const std::string& resourceName) {
     return Utils::getTestResourcePath("resources/" + resourceName);
   }
@@ -246,7 +251,7 @@ class GOptTest : public ::testing::Test {
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
       const planner::LogicalPlan& plan,
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
-    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getMetadataManager());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -255,7 +260,7 @@ class GOptTest : public ::testing::Test {
       const planner::LogicalPlan& plan) {
     // Convert to physical plan
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
-    gopt::GPhysicalConvertor converter(aliasManager, getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, getMetadataManager());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }

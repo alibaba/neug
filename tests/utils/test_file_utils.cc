@@ -15,7 +15,15 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <io.h>
+#include <process.h>
+#define open _open
+#define close _close
+#define getpid _getpid
+#endif
 
 #include <cstring>
 #include <filesystem>

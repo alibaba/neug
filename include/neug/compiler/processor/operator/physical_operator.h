@@ -162,7 +162,7 @@ class NEUG_API PhysicalOperator {
 
   bool getNextTuple(ExecutionContext* context);
 
-  virtual void finalize(ExecutionContext* context);
+  virtual void finalize(ExecutionContext* context) {}
 
   std::unordered_map<std::string, std::string> getProfilerKeyValAttributes(
       common::Profiler& profiler) const;
@@ -173,7 +173,7 @@ class NEUG_API PhysicalOperator {
 
   virtual std::unique_ptr<PhysicalOperator> copy() = 0;
 
-  virtual double getProgress(ExecutionContext* context) const;
+  virtual double getProgress(ExecutionContext* context) const { return 0.0; }
 
   template <class TARGET>
   TARGET* ptrCast() {

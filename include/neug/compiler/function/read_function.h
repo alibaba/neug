@@ -16,7 +16,9 @@
 
 #pragma once
 
+#ifndef _WIN32
 #include <glob.h>
+#endif
 #include <memory>
 #include <string>
 #include <vector>

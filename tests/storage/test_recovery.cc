@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#ifndef _WIN32
+
 #include <gtest/gtest.h>
 #include "httplib.h"
 #include "neug/main/neug_db.h"
@@ -324,3 +326,5 @@ TEST_F(NeugDBWALRecoverySubprocessTest, SimulateCrashAndRecoverFromWAL) {
       << "Failed to find age 42 in response: " + resp;
   StopService();
 }
+
+#endif  // _WIN32

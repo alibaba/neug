@@ -18,36 +18,21 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "neug/storages/checkpoint.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 
-// ---------------------------------------------------------------------------
-
 /**
- * @brief Manages the published checkpoint directories for a database.
+ * @brief Owns the database CURRENT selector and checkpoint publication.
  *
- * Directory layout:
- * ```
- * db_dir/
- * |-- checkpoint-N/       # published checkpoint
- * `-- checkpoint-(N+1).next/  # unpublished staging checkpoint
- * ```
- *
- * `CheckpointManager` does **not** inherit `Module`; it is a directory-level
- * manager, not a data module itself.
- *
- * The current checkpoint is the highest valid published generation. Committing
- * a staging checkpoint publishes the next generation but leaves the retired
- * checkpoint directory on disk until the caller releases graph/container
- * resources that may still reference it.
- *
- * Thread safety: All public methods are individually thread-safe (guarded by
- * an internal mutex). Callers that race CreateStagingCheckpoint() / Close()
- * must coordinate externally.
+ * `checkpoint/CURRENT` is the only normal publication selector. A staging
+ * handle may create unreachable immutable objects, a manifest, and its empty
+ * WAL epoch, but it is not visible until Publish() durably replaces CURRENT.
  */
-class CheckpointManager {
+class NEUG_API CheckpointManager {
  public:
   class StagingCheckpoint {
    public:
@@ -58,12 +43,8 @@ class CheckpointManager {
     StagingCheckpoint& operator=(const StagingCheckpoint&) = delete;
 
     std::shared_ptr<Checkpoint> checkpoint() const;
-    /// Publish this staging checkpoint as the current checkpoint. If
-    /// previous_checkpoint_path is non-null, it receives the retired checkpoint
-    /// directory path. The caller decides when that directory is safe to
-    /// delete.
-    std::shared_ptr<Checkpoint> Commit(
-        std::string* previous_checkpoint_path = nullptr);
+    /// Make this manifest visible by durably replacing CURRENT.
+    std::shared_ptr<Checkpoint> Publish();
     void Discard() noexcept;
 
    private:
@@ -77,69 +58,41 @@ class CheckpointManager {
     std::shared_ptr<Checkpoint> checkpoint_;
   };
 
-  /**
-   * @brief Open a database directory.
-   * @param db_dir Path to the database directory.
-   * @param recover_workspace Whether to remove stale staging directories and
-   * invalid published checkpoints while opening.
-   */
-  void Open(const std::string& db_dir, bool recover_workspace = true);
-
-  /**
-   * @brief Close the workspace and release resources.
-   */
+  /// Open @p database_dir. A writer open automatically migrates the newest
+  /// valid legacy checkpoint-N v1 generation when CURRENT is absent. A
+  /// read-only open never migrates legacy data.
+  void Open(const std::string& database_dir, bool create_if_missing = true);
+  /// Release manager-owned references. The runtime workspace is reclaimed
+  /// after its last checkpoint, container, or runtime-file handle is released.
   void Close();
 
-  /// Return true if a published checkpoint is currently open.
-  bool HasCurrentCheckpoint() const;
+  /// Return the checkpoint selected by CURRENT, or nullptr before first
+  /// publication.
+  std::shared_ptr<Checkpoint> Current() const;
 
-  /**
-   * @brief Get the current published checkpoint, or nullptr if none exists.
-   */
-  std::shared_ptr<Checkpoint> CurrentCheckpoint() const;
+  /// Create an unpublished staging checkpoint. Destroying its move-only handle
+  /// discards it unless Publish() has made its manifest visible.
+  StagingCheckpoint CreateStaging();
 
-  /**
-   * @brief Create a new unpublished staging checkpoint.
-   * @return Move-only handle that discards the staging checkpoint on scope
-   * exit.
-   */
-  StagingCheckpoint CreateStagingCheckpoint();
+  /// Reclaim manifests, WAL epochs, and immutable objects not held by the
+  /// current checkpoint or a live Checkpoint shared_ptr, plus runtime
+  /// workspaces abandoned by earlier processes. The caller must hold exclusive
+  /// database-writer ownership; the current open epoch is always preserved.
+  void CollectGarbage();
 
-  /**
-   * @brief Point the manager at another already-published checkpoint.
-   *
-   * This is an explicit repair primitive. It does not undo a durable
-   * publication and is not used by the live checkpoint execution protocol.
-   */
-  void RestoreCurrentCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
-
-  /**
-   * @brief Best-effort cleanup of one published checkpoint that is not current.
-   *
-   * This is an explicit repair/maintenance primitive and refuses to remove the
-   * current checkpoint.
-   */
-  void CleanupPublishedCheckpoint(std::shared_ptr<Checkpoint> checkpoint);
-
-  /**
-   * @brief Best-effort cleanup of published checkpoints other than current.
-   *
-   * The caller must only invoke this after all graph/container resources that
-   * might reference retired checkpoint directories have been released.
-   */
-  void CleanupRetiredCheckpoints();
-
-  std::string db_dir() const;
+  std::string database_dir() const;
 
  private:
-  std::shared_ptr<Checkpoint> CommitStagingCheckpoint(
-      StagingCheckpoint& staging, std::string* previous_checkpoint_path);
+  std::shared_ptr<Checkpoint> PublishStagingCheckpoint(
+      StagingCheckpoint& staging);
   void DiscardStagingCheckpoint(StagingCheckpoint& staging) noexcept;
+  StagingCheckpoint CreateStagingLocked(uint64_t id);
 
-  std::string db_dir_;
+  std::string database_dir_;
+  std::shared_ptr<const RuntimeWorkspace> runtime_workspace_;
   std::shared_ptr<Checkpoint> current_checkpoint_;
   std::shared_ptr<Checkpoint> staging_checkpoint_;
-  int32_t current_generation_ = -1;
+  std::vector<std::weak_ptr<Checkpoint>> published_checkpoints_;
   mutable std::mutex mutex_;
 };
 

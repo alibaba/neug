@@ -89,15 +89,17 @@ A manual checkpoint receives an active `UpdateTimestampLease` from
 readers, and runs maintenance only after `GraphSnapshotStore` verifies that no
 ordinary or stale snapshot pins remain.
 
-Maintenance compacts and dumps the live graph, publishes the checkpoint, and
-reopens the graph. The database handler then reopens allocators and invalidates
-the query cache; service mode additionally rotates execution-slot WAL writers.
-New transactions remain blocked until these steps finish. Success resets the
-timestamp timeline (`read_ts = 0`, next `write_ts = 1`) and reopens admission.
+Manual maintenance preserves the full-checkpoint lifecycle: compact and
+destructively dump the live graph, atomically publish the new manifest, reopen
+the graph and allocators, rotate execution-slot WAL writers in service mode,
+and reset the timestamp timeline. New transactions remain blocked until all
+activation finishes. Recovery uses the same full path and reopens runtime state;
+shutdown does not reopen the graph or run activation handlers.
+
+Publication makes the new `checkpoint/CURRENT` selector durable only after its `manifests/<id>.manifest`, immutable objects, and `wal/<id>/` epoch are ready. Dirty modules write new objects while clean descriptors may be reused from the previous manifest; the manager reclaims unreferenced manifests, WAL epochs, and objects only after their checkpoint references are released. Each database open owns a separate `runtime/open-<epoch>/` workspace.
 
 Recovery and shutdown checkpoints rely on database lifecycle quiescence rather
-than a transaction lease. Shutdown does not reopen the graph or run activation
-handlers.
+than a transaction lease.
 
 ## Version Management
 

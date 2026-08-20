@@ -101,6 +101,8 @@ class IContextColumnBuilder {
   virtual ~IContextColumnBuilder() = default;
 
   virtual void reserve(size_t size) = 0;
+  // Implementations must forward null values to push_back_null() before
+  // extracting the underlying value.
   virtual void push_back_elem(const Value& val) = 0;
   virtual void push_back_null() {
     LOG(FATAL) << "push_back_null not implemented";

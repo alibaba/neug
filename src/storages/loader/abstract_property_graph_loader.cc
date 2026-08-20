@@ -187,12 +187,12 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
     loadEdges();
     graph_.Compact();
     graph_.DumpAndClear(staging_checkpoint_->checkpoint());
-    staging_checkpoint_->Commit();
+    staging_checkpoint_->Publish();
 
   } catch (const std::exception& e) {
     graph_.Clear();
     staging_checkpoint_.reset();
-    printDiskRemaining(checkpoint_mgr_.db_dir());
+    printDiskRemaining(checkpoint_mgr_.database_dir());
     LOG(ERROR) << "Load fragment failed: " << e.what();
     return result<bool>(false);
   }

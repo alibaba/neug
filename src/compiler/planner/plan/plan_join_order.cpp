@@ -867,7 +867,7 @@ planner::GetVOpt getGetVOpt(common::ExtendDirection direction) {
     return planner::GetVOpt::OTHER;
   default:
     THROW_RUNTIME_ERROR("Unsupported extend direction for GetV: " +
-                        static_cast<u_int8_t>(direction));
+                        std::to_string(static_cast<uint8_t>(direction)));
   }
 }
 

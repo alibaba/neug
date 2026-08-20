@@ -36,6 +36,7 @@
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
@@ -49,6 +50,11 @@ PropertyGraph::PropertyGraph()
 }
 
 PropertyGraph::~PropertyGraph() { Clear(); }
+
+// Defaulted here (not in the header) so that StorageIndexManager is a
+// complete type when the compiler generates the unique_ptr member moves.
+PropertyGraph::PropertyGraph(PropertyGraph&&) noexcept = default;
+PropertyGraph& PropertyGraph::operator=(PropertyGraph&&) noexcept = default;
 
 void PropertyGraph::loadSchema(const std::string& schema_path) {
   std::ifstream in(schema_path);
@@ -82,6 +88,34 @@ const StorageIndexManager& PropertyGraph::index_manager() const {
 
 StorageIndexManager& PropertyGraph::mutable_index_manager() {
   return *index_manager_;
+}
+
+result<size_t> PropertyGraph::ActivateIndexes() {
+  StorageIndexManager::IndexColumns columns;
+  for (label_t label = 0; label < vertex_tables_.size(); ++label) {
+    if (!schema_.is_vertex_label_valid(label)) {
+      continue;
+    }
+    const auto& vertex_schema = schema_.get_vertex_schema(label);
+    auto& label_columns = columns[label];
+    const auto& primary_key = std::get<1>(vertex_schema->primary_keys[0]);
+    label_columns.emplace(
+        primary_key, vertex_tables_[label].GetPropertyColumnBase(primary_key));
+    for (const auto& property_name : vertex_schema->property_names) {
+      label_columns.emplace(
+          property_name,
+          vertex_tables_[label].GetPropertyColumnBase(property_name));
+    }
+  }
+  return index_manager_->ActivateIndexes(columns);
+}
+
+bool PropertyGraph::HasPendingIndexes() const {
+  return index_manager_->HasPendingIndexes();
+}
+
+bool PropertyGraph::HasPendingMutations() const {
+  return index_manager_->HasPendingMutations();
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -749,7 +783,7 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   Clear();
   memory_level_ = memory_level;
 
-  const CheckpointManifest& meta = ckp->GetMeta();
+  const CheckpointManifest& meta = ckp->manifest();
   schema_ = meta.GetSchema();
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
@@ -940,16 +974,16 @@ void PropertyGraph::Compact() {
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
-  LOG(INFO) << "Creating checkpoint at " << ckp->path();
+  LOG(INFO) << "Creating checkpoint at " << ckp->manifest_path();
 
   CheckpointManifest meta;
   ModuleBroker store;
 
-  // Clean tables LinkToSnapshot from prev when entries exist; newly empty
+  // Clean tables reuse previous descriptors when entries exist; newly empty
   // tables write nothing (existence is carried by schema).
   const CheckpointManifest* prev =
-      (ckp_ != nullptr && ckp_->GetMeta().has_schema()) ? &ckp_->GetMeta()
-                                                        : nullptr;
+      (ckp_ != nullptr && ckp_->manifest().has_schema()) ? &ckp_->manifest()
+                                                         : nullptr;
 
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   // Capacity snapshot for every live table (needed when a dirty edge table
@@ -974,7 +1008,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
     if (IsVertexTableDirty(i)) {
       vertex_tables_[i].DisassembleTo(store, meta, *ckp);
     } else if (prev != nullptr) {
-      vertex_tables_[i].LinkToSnapshot(*ckp, meta, *prev);
+      vertex_tables_[i].ReuseCheckpointModules(*ckp, meta, *prev);
     }
   }
 
@@ -1014,24 +1048,27 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
                          vertex_capacity[dst_label_i], new_cap);
           edge_table.DisassembleTo(store, meta, *ckp);
         } else if (prev != nullptr) {
-          edge_table.LinkToSnapshot(*ckp, meta, *prev);
+          edge_table.ReuseCheckpointModules(*ckp, meta, *prev);
         }
       }
     }
   }
 
-  index_manager_->Dump(store);
+  index_manager_->Dump(store, meta);
 
   store.Dump(*ckp, meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
   // and must not appear in the checkpoint. StripTemporary() creates a clean
   // copy without any temporary vertex/edge labels.
   meta.SetSchema(schema_.StripTemporary());
-  ckp->UpdateMeta(
-      std::move(meta));  // Persist meta and set checkpoint to use this meta.
-  LOG(INFO) << "Dump graph to checkpoint " << ckp->path();
+  ckp->SetManifest(std::move(meta));
+  LOG(INFO) << "Dump graph to checkpoint " << ckp->manifest_path();
 
   Clear();
+}
+
+bool PropertyGraph::IsModified() const {
+  return dirty_.IsModified() || index_manager_->HasCatalogChanges();
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }

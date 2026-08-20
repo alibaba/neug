@@ -13,10 +13,13 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
-
+#ifndef _WIN32
 #include <signal.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
+#include <poll.h>
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -24,8 +27,6 @@
 #include <fstream>
 #include <string>
 #include <thread>
-
-#include <poll.h>
 
 #include <gtest/gtest.h>
 
@@ -193,6 +194,7 @@ TEST_F(ConnectionTest, ReadOnlyConnectionsExecuteConcurrently) {
             kConnectionCount * kQueriesPerConnection);
 }
 
+#ifndef _WIN32
 TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -212,8 +214,7 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
     db.Close();
   }
 
-  const auto allocator_marker =
-      db_dir / "checkpoint-1" / "allocator" / "read_only_marker";
+  const auto allocator_marker = db_dir / "runtime" / "read_only_marker";
   ASSERT_TRUE(std::filesystem::is_directory(allocator_marker.parent_path()));
   {
     std::ofstream marker(allocator_marker);
@@ -280,10 +281,17 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   EXPECT_EQ(first_ready, '1');
 
   std::vector<std::filesystem::path> first_runtime_files;
-  const auto runtime_dir = db_dir / "checkpoint-1" / "runtime";
-  for (const auto& entry : std::filesystem::directory_iterator(runtime_dir)) {
-    if (entry.is_regular_file()) {
-      first_runtime_files.emplace_back(entry.path());
+  const auto runtime_dir = db_dir / "runtime";
+  for (const auto& epoch : std::filesystem::directory_iterator(runtime_dir)) {
+    if (!epoch.is_directory() ||
+        !epoch.path().filename().string().starts_with("open-")) {
+      continue;
+    }
+    for (const auto& entry :
+         std::filesystem::recursive_directory_iterator(epoch.path())) {
+      if (entry.is_regular_file()) {
+        first_runtime_files.emplace_back(entry.path());
+      }
     }
   }
   EXPECT_FALSE(first_runtime_files.empty());
@@ -337,9 +345,11 @@ TEST(ConnectionReadOnlyTest, MultipleProcessesShareDatabase) {
   ::close(ready_pipe[0]);
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 // weakly_canonical normalizes the data directory before locking, so opening
 // the same database through a symlink resolves to the same lock-table entry.
+#ifndef _WIN32
 TEST(ConnectionReadOnlyTest, SymlinkedDirectoryResolvesToSameLockEntry) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -407,10 +417,12 @@ TEST(ConnectionReadOnlyTest, SymlinkedDirectoryResolvesToSameLockEntry) {
   std::filesystem::remove_all(link_dir);
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 // Two processes opening the same database read-only at the same time must
 // both succeed: they race on the fcntl lock and on the O_EXCL runtime-file
 // reservation, and the retries must converge instead of failing.
+#ifndef _WIN32
 TEST(ConnectionReadOnlyTest, ConcurrentProcessesOpenDatabaseSimultaneously) {
   const auto db_dir =
       std::filesystem::temp_directory_path() /
@@ -476,6 +488,7 @@ TEST(ConnectionReadOnlyTest, ConcurrentProcessesOpenDatabaseSimultaneously) {
   }
   std::filesystem::remove_all(db_dir);
 }
+#endif
 
 // Explicit access_mode=read: read-only CALL is allowed, mutating CALL is not.
 TEST_F(ConnectionTest, TestExplicitReadAccessModeForCall) {
@@ -657,9 +670,9 @@ TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
     ASSERT_TRUE(result) << result.error().ToString();
     EXPECT_EQ(result.value().response().row_count(), 1);
 
-    // Explicit AP CHECKPOINT dumps/reopens without advancing a durable WAL
-    // timeline. Both vertex and edge mutations must therefore remain visible
-    // from the baseline timestamp restored on process restart.
+    // Explicit AP CHECKPOINT resets the timeline after publishing a full
+    // snapshot. Both vertex and edge mutations must remain visible from the
+    // new baseline after process restart.
     SnapshotGuard snapshot(reopened.graph_snapshot_store());
     StorageReadInterface storage(snapshot.get().view(), 0);
     const auto person_label = storage.schema().get_vertex_label_id("person");

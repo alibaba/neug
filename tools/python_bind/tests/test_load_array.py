@@ -24,6 +24,7 @@ import shutil
 import sys
 from datetime import date
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -69,14 +70,14 @@ class TestLoadArray:
         path = os.path.join(self.csv_dir, filename)
         with open(path, "w", encoding="utf-8", newline="") as f:
             f.write(content)
-        return path
+        return Path(path)
 
     def _write_json(self, filename, data):
         """Write a JSON file to the temp directory and return its path."""
         path = os.path.join(self.json_dir, filename)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        return path
+        return Path(path)
 
     def _write_parquet(self, filename, columns):
         """Write an Arrow table containing fixed-size list columns."""
@@ -84,7 +85,7 @@ class TestLoadArray:
         pq = pytest.importorskip("pyarrow.parquet")
         path = os.path.join(self.parquet_dir, filename)
         pq.write_table(pa.table(columns), path)
-        return path
+        return Path(path)
 
     def test_copy_csv_array_with_explicit_cast(self):
         """COPY an ARRAY property through LOAD FROM with an explicit type."""
@@ -102,7 +103,7 @@ class TestLoadArray:
         self.conn.execute(
             f"""
             COPY Person FROM (
-                LOAD FROM "{csv_path}" (delim=',')
+                LOAD FROM "{csv_path.as_posix()}" (delim=',')
                 RETURN id, name, CAST(address, 'STRING[3]') AS addresses
             )
             """
@@ -135,7 +136,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" '
+                f'LOAD FROM "{parquet_path.as_posix()}" '
                 "RETURN id, CAST(values, 'FLOAT[3]') ORDER BY id"
             )
         )
@@ -163,7 +164,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" '
+                f'LOAD FROM "{parquet_path.as_posix()}" '
                 "RETURN id, CAST(values, 'STRING[2][2]') ORDER BY id"
             )
         )
@@ -191,7 +192,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" '
+                f'LOAD FROM "{parquet_path.as_posix()}" '
                 "RETURN id, CAST(values, 'FLOAT[3]') ORDER BY id"
             )
         )
@@ -225,7 +226,7 @@ class TestLoadArray:
 
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" '
+                f'LOAD FROM "{parquet_path.as_posix()}" '
                 "RETURN seconds, milliseconds, microseconds, nanoseconds, times"
             )
         )
@@ -283,7 +284,7 @@ class TestLoadArray:
         result = list(
             self.conn.execute(
                 f"""
-                LOAD FROM "{parquet_path}"
+                LOAD FROM "{parquet_path.as_posix()}"
                 RETURN id,
                        CAST(floats, 'FLOAT[3]'),
                        CAST(doubles, 'DOUBLE[2]'),
@@ -325,7 +326,7 @@ class TestLoadArray:
             "3|[0.0, 0.0, 0.0]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(values, 'FLOAT[3]')
         """
         result = list(self.conn.execute(query))
@@ -353,7 +354,7 @@ class TestLoadArray:
             "2|[3.333333333, 4.444444444]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(values, 'DOUBLE[2]')
         """
         result = list(self.conn.execute(query))
@@ -373,7 +374,7 @@ class TestLoadArray:
             "id|nums\n" "1|[10, 20, 30]\n" "2|[-1, 0, 1]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(nums, 'INT32[3]')
         """
         result = list(self.conn.execute(query))
@@ -388,7 +389,7 @@ class TestLoadArray:
             "id|nums\n" "1|[100000000000, 200000000000]\n" "2|[0, 1]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(nums, 'INT64[2]')
         """
         result = list(self.conn.execute(query))
@@ -403,7 +404,7 @@ class TestLoadArray:
             "id|tags\n" "1|[hello, world, test]\n" "2|[foo, bar, baz]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(tags, 'STRING[3]')
         """
         result = list(self.conn.execute(query))
@@ -418,7 +419,7 @@ class TestLoadArray:
             "id|matrix\n" "1|[[1, 2], [3, 4]]\n" "2|[[5, 6], [7, 8]]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(matrix, 'INT32[2][2]')
         """
         result = list(self.conn.execute(query))
@@ -433,7 +434,7 @@ class TestLoadArray:
             "id|data\n" "1|[[a, b], [c, d]]\n" "2|[[w, x], [y, z]]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(data, 'STRING[2][2]')
         """
         result = list(self.conn.execute(query))
@@ -448,7 +449,7 @@ class TestLoadArray:
             "id|dates\n" "1|[1970-01-01, 2023-06-15]\n" "2|[2000-01-01, 2001-01-01]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(dates, 'DATE[2]')
         """
         result = list(self.conn.execute(query))
@@ -470,7 +471,7 @@ class TestLoadArray:
             "2|[2000-01-01 00:00:00, 2001-01-01 00:00:00]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(times, 'TIMESTAMP[2]')
         """
         result = list(self.conn.execute(query))
@@ -490,7 +491,7 @@ class TestLoadArray:
             "id|durations\n" "1|[2 days, 3 hours]\n" "2|[1 year 2 months, 4 days]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(durations, 'INTERVAL[2]')
         """
         result = list(self.conn.execute(query))
@@ -506,7 +507,7 @@ class TestLoadArray:
             "id|ints|floats\n" "1|[1, 2, 3]|[1.1, 2.2]\n" "2|[4, 5, 6]|[3.3, 4.4]\n",
         )
         query = f"""
-        LOAD FROM "{csv_path}" (delim='|')
+        LOAD FROM "{csv_path.as_posix()}" (delim='|')
         RETURN id, CAST(ints, 'INT64[3]'), CAST(floats, 'DOUBLE[2]')
         """
         result = list(self.conn.execute(query))
@@ -538,7 +539,7 @@ class TestLoadArray:
             ],
         )
         query = f"""
-        LOAD FROM "{json_path}"
+        LOAD FROM "{json_path.as_posix()}"
         RETURN id,
                CAST(floats, 'FLOAT[3]'),
                CAST(doubles, 'DOUBLE[2]'),
@@ -582,7 +583,7 @@ class TestLoadArray:
             ],
         )
         query = f"""
-        LOAD FROM "{json_path}"
+        LOAD FROM "{json_path.as_posix()}"
         RETURN id,
                CAST(tags, 'STRING[2]'),
                CAST(matrix, 'INT32[2][2]'),
@@ -617,7 +618,7 @@ class TestLoadArray:
             ],
         )
         query = f"""
-        LOAD FROM "{json_path}"
+        LOAD FROM "{json_path.as_posix()}"
         RETURN id,
                CAST(dates, 'DATE[2]'),
                CAST(times, 'TIMESTAMP[2]'),
@@ -639,3 +640,185 @@ class TestLoadArray:
             datetime(2001, 1, 1, 0, 0),
         ]
         assert result[1][3] == ["1 year 2 months", "4 days"]
+
+    @extension_test
+    def test_parquet_variable_length_list_int64(self):
+        """LOAD FROM Parquet with a variable-length LIST<INT64> column."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_int64.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "tags": pa.array(
+                    [[1, 2, 3], [4, 5], [6]],
+                    type=pa.list_(pa.int64()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(f'LOAD FROM "{parquet_path}" RETURN id, tags ORDER BY id')
+        )
+        assert result == [
+            [1, [1, 2, 3]],
+            [2, [4, 5]],
+            [3, [6]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_list_string(self):
+        """LOAD FROM Parquet with a variable-length LIST<STRING> column."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_string.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "names": pa.array(
+                    [["alice", "bob"], ["charlie"]],
+                    type=pa.list_(pa.string()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, names ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, ["alice", "bob"]],
+            [2, ["charlie"]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_list_with_nulls(self):
+        """LOAD FROM Parquet preserves null variable-length lists."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_nulls.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "values": pa.array(
+                    [[1.0, 2.0], None, [3.0, 4.0, 5.0]],
+                    type=pa.list_(pa.float64()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, [1.0, 2.0]],
+            [2, None],
+            [3, [3.0, 4.0, 5.0]],
+        ]
+
+    @extension_test
+    def test_parquet_list_and_array_preserve_null_elements(self):
+        """Parquet LIST/ARRAY reads and LIST UNWIND preserve inner NULLs."""
+        pa = pytest.importorskip("pyarrow")
+        list_path = self._write_parquet(
+            "list_nulls.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "values": pa.array(
+                    [[1, None, 3], [4, 5]],
+                    type=pa.list_(pa.int64()),
+                ),
+            },
+        )
+        array_path = self._write_parquet(
+            "array_nulls.parquet",
+            {
+                "id": pa.array([1, 2], type=pa.int64()),
+                "vec": pa.array(
+                    [[1.0, None, 3.0], [4.0, 5.0, 6.0]],
+                    type=pa.list_(pa.float64(), 3),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+
+        rows = list(
+            self.conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id')
+        )
+        assert rows == [
+            [1, [1, None, 3]],
+            [2, [4, 5]],
+        ]
+
+        rows = list(
+            self.conn.execute(
+                f'LOAD FROM "{list_path}" '
+                "UNWIND values AS value RETURN value ORDER BY value"
+            )
+        )
+        assert rows == [[1], [None], [3], [4], [5]]
+
+        rows = list(
+            self.conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id')
+        )
+        assert rows == [
+            [1, [1.0, None, 3.0]],
+            [2, [4.0, 5.0, 6.0]],
+        ]
+
+    @extension_test
+    def test_parquet_variable_length_empty_list(self):
+        """LOAD FROM Parquet preserves empty variable-length lists."""
+        pa = pytest.importorskip("pyarrow")
+        parquet_path = self._write_parquet(
+            "var_list_empty.parquet",
+            {
+                "id": pa.array([1, 2, 3], type=pa.int64()),
+                "values": pa.array(
+                    [[1, 2, 3], [], [4]],
+                    type=pa.list_(pa.int32()),
+                ),
+            },
+        )
+        self.conn.execute("LOAD PARQUET")
+        result = list(
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+            )
+        )
+        assert result == [
+            [1, [1, 2, 3]],
+            [2, []],
+            [3, [4]],
+        ]
+
+    @extension_test
+    def test_parquet_export_import_roundtrip_list(self):
+        """Round-trip: create graph with LIST property, COPY TO parquet, LOAD FROM."""
+        # Create graph with a LIST property
+        self.conn.execute(
+            "CREATE NODE TABLE Tag(id INT64, tags STRING[], " "PRIMARY KEY(id));"
+        )
+        self.conn.execute("CREATE (t:Tag {id: 1, tags: CAST(['a', 'b'], 'STRING[]')});")
+        self.conn.execute("CREATE (t:Tag {id: 2, tags: CAST(['c'], 'STRING[]')});")
+        self.conn.execute("CREATE (t:Tag {id: 3, tags: CAST([], 'STRING[]')});")
+
+        # Export to parquet
+        out_path = os.path.join(self.parquet_dir, "list_roundtrip.parquet")
+        self.conn.execute("LOAD PARQUET")
+        self.conn.execute(
+            f"COPY (MATCH (t:Tag) RETURN t.id, t.tags "
+            f"ORDER BY t.id) TO '{out_path}'"
+        )
+
+        # Load back from parquet
+        result = list(
+            self.conn.execute(f'LOAD FROM "{out_path}" RETURN * ORDER BY "t.id"')
+        )
+        assert len(result) == 3
+        assert result[0][0] == 1
+        assert result[0][1] == ["a", "b"]
+        assert result[1][0] == 2
+        assert result[1][1] == ["c"]
+        assert result[2][0] == 3
+        assert result[2][1] == []

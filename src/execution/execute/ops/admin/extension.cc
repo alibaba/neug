@@ -20,6 +20,7 @@
 #include "glog/logging.h"
 #include "neug/compiler/extension/extension.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/result.h"
 
 namespace neug {
 namespace execution {
@@ -142,9 +143,12 @@ neug::result<Context> ExtensionLoadOpr::Eval(IStorageInterface& graph,
 
   checkDeprecatedExtension(extension_name_);
 
-  auto status = neug::extension::load_extension(extension_name_);
-  if (!status.ok()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Load failed: " + status.ToString() + "; ");
+  auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+  if (index_ddl) {
+    RETURN_STATUS_ERROR_IF_NOT_OK(index_ddl->ActivateIndexes());
+  } else {
+    LOG(WARNING) << "[Admin Pipeline] Current storage interface does not "
+                    "support index DDL; skipping pending index activation";
   }
   return neug::result<Context>(std::move(ctx));
 }

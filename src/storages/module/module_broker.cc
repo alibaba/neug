@@ -15,18 +15,20 @@
 
 #include "neug/storages/module/module_broker.h"
 
+#include <glog/logging.h>
+
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 
 void ModuleBroker::Open(Checkpoint& checkpoint, MemoryLevel level) {
-  Open(checkpoint, checkpoint.GetMeta(), level);
+  Open(checkpoint, checkpoint.manifest(), level);
 }
 
 void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
                         MemoryLevel level) {
   auto& factory = ModuleFactory::instance();
-  for (const auto& [name, desc] : meta.modules()) {
+  for (const auto& [name, desc] : meta.Modules()) {
     if (desc.is_referenced_module()) {
       continue;
     }
@@ -37,6 +39,12 @@ void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
     }
     auto module = factory.Create(desc.module_type);
     if (!module) {
+      if (!desc.required) {
+        LOG(INFO) << "ModuleBroker::Open: skipping optional unknown module "
+                     "type '"
+                  << desc.module_type << "' for entry '" << name << "'";
+        continue;
+      }
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "ModuleBroker::Open: unknown module_type '" + desc.module_type +
           "' for entry '" + name +
