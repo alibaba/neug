@@ -24,6 +24,9 @@ neug::result<ContextChunk> GroupBy::group_by(ContextChunk&& chunk,
   auto [offsets, groups] = key->group(chunk);
   ContextChunk ret;
   const auto& tag_alias = key->tag_alias();
+  if (groups.empty() && tag_alias.empty()) {
+    groups.emplace_back();
+  }
   for (size_t i = 0; i < tag_alias.size(); ++i) {
     ret.set(tag_alias[i].second, chunk.get(tag_alias[i].first));
   }

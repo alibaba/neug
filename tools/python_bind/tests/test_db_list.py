@@ -68,6 +68,9 @@ def test_list_preserves_null_elements_during_unwind(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
 
+    rows = list(conn.execute("RETURN CAST(NULL, 'INT64[]');"))
+    assert rows == [[None]]
+
     rows = list(
         conn.execute(
             "UNWIND CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]') AS value "
@@ -75,6 +78,14 @@ def test_list_preserves_null_elements_during_unwind(tmp_path):
         )
     )
     assert rows == [[1], [None], [3]]
+
+    rows = list(
+        conn.execute(
+            "UNWIND CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]') AS value "
+            "RETURN collect(value);"
+        )
+    )
+    assert _nested_list(rows[0][0]) == [1, 3]
 
     rows = list(
         conn.execute(
@@ -119,6 +130,35 @@ def test_list_edge_preserves_null_elements_during_unwind(tmp_path):
                 "_DST_ID": 1,
             },
         ],
+        [2, None],
+    ]
+
+    conn.close()
+    db.close()
+
+
+def test_list_vertex_preserves_null_elements_during_unwind(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person);")
+    conn.execute("CREATE (:Person {id: 1}), (:Person {id: 2});")
+    create_edge = "MATCH (a:Person {id: 1}), "
+    create_edge += "(b:Person {id: 2}) CREATE (a)-[:Knows]->(b);"
+    conn.execute(create_edge)
+
+    rows = list(
+        conn.execute(
+            "MATCH (person:Person) "
+            "OPTIONAL MATCH (person)-[:Knows]->(friend:Person) "
+            "WITH person.id AS id, [friend] AS values "
+            "UNWIND values AS value "
+            "RETURN id, value ORDER BY id;"
+        )
+    )
+    assert rows == [
+        [1, {"_ID": 1, "_LABEL": "Person", "id": 2}],
         [2, None],
     ]
 

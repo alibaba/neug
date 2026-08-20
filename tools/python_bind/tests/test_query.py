@@ -79,6 +79,36 @@ def test_empty_ungrouped_count(empty_db):
     assert list(result) == [[0]]
 
 
+def test_aggregate_over_empty_input(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE person(id INT64, score INT64, PRIMARY KEY(id));")
+
+    result = conn.execute(
+        "MATCH (person:person) "
+        "RETURN avg(person.score), min(person.score), max(person.score), "
+        "sum(person.score), collect(person.score);"
+    )
+
+    assert list(result) == [[None, None, None, 0, []]]
+
+
+def test_aggregate_over_all_null_input(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT64, score INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute("CREATE (:source {id: 1}), (:source {id: 2});")
+
+    result = conn.execute(
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN avg(target.score), min(target.score), max(target.score), "
+        "sum(target.score), collect(target.score);"
+    )
+
+    assert list(result) == [[None, None, None, 0, []]]
+
+
 def test_result_getitem(modern_graph):
     conn = modern_graph
     res = conn.execute("MATCH (n) RETURN count(n);")
