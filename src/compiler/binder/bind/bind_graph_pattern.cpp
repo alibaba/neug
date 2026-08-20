@@ -886,7 +886,13 @@ void Binder::collectNamespaceRelPredicate(
       nodePredicates;
   nodePredicates.reserve(bound.nodeInfos.size());
   for (const auto& nodeInfo : bound.nodeInfos) {
-    nodePredicates.emplace(nodeInfo.entry->get_entry_id(), nodeInfo.predicate);
+    const auto insertResult = nodePredicates.emplace(
+        nodeInfo.entry->get_entry_id(), nodeInfo.predicate);
+    if (!insertResult.second) {
+      THROW_BINDER_EXCEPTION(stringFormat(
+          "Namespace '{}' contains duplicate predicates for node label '{}'.",
+          *activeNamespaceName, nodeInfo.entry->get_label()));
+    }
   }
   std::shared_ptr<Expression> combined;
   for (const auto& info : bound.relInfos) {
@@ -910,7 +916,12 @@ void Binder::collectNamespaceRelPredicate(
         [&](common::table_id_t tableID,
             const std::shared_ptr<NodeExpression>& endpoint) {
           const auto it = nodePredicates.find(tableID);
-          NEUG_ASSERT(it != nodePredicates.end());
+          if (it == nodePredicates.end()) {
+            THROW_BINDER_EXCEPTION(stringFormat(
+                "Namespace '{}' relationship '{}' references node table ID "
+                "{}, but the corresponding node predicate is missing.",
+                *activeNamespaceName, info.entry->get_label(), tableID));
+          }
           auto endpointPredicate =
               copyPredicateForVariable(it->second, endpoint->getUniqueName());
           if (endpointPredicate) {
