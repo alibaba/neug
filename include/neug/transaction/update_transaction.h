@@ -171,7 +171,8 @@ class UpdateTransaction {
   WalBuilder wal_builder_;
 };
 
-class StorageTPUpdateInterface : public StorageUpdateInterface {
+class StorageTPUpdateInterface : public StorageUpdateInterface,
+                                 public StorageIndexDDLInterface {
  public:
   explicit StorageTPUpdateInterface(UpdateTransaction& txn)
       : StorageUpdateInterface(txn.view(), txn.timestamp()),
@@ -182,6 +183,10 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         ckp_(txn.ckp_),
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
+
+  result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
+  Status ActivateIndexes() override;
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.

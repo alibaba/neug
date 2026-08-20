@@ -268,6 +268,18 @@ class TPIndexTest : public ::testing::Test {
     return CreateIndexOnGraph(*graph_, name, label_name, property_name);
   }
 
+  std::unique_ptr<IndexMeta> PersonAgeIndexMeta(
+      const StorageReadInterface& storage,
+      const std::string& name = "idx_person_age") {
+    auto meta = std::make_unique<IndexMeta>();
+    meta->name = name;
+    meta->type = "example";
+    meta->schema.label_id = storage.schema().get_vertex_label_id("Person");
+    meta->schema.property_name = "age";
+    meta->schema.property_type = DataType::INT32;
+    return meta;
+  }
+
   result<StorageIndex*> CreateIndexOnCurrentSnapshot(
       const std::string& name, const std::string& label_name,
       const std::string& property_name) {
@@ -374,16 +386,134 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
 }
 
-TEST_F(TPIndexTest, IndexAdminInterfaceIsAPOnly) {
-  // Index management is an AP-only capability: the AP update interface
-  // implements StorageIndexDDLInterface while the TP update interface does
-  // not.
+TEST_F(TPIndexTest, IndexAdminInterfaceIsAvailableInAPAndTP) {
   EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
 
   CreatePersonTableTP();
   auto txn = NewUpdateTransaction();
   StorageTPUpdateInterface tp(txn);
-  EXPECT_EQ(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
+  EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
+  txn.Abort();
+}
+
+TEST_F(TPIndexTest, CreateAndDropIndexCommitThroughUpdateTransaction) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    auto created = tp.CreateIndex(PersonAgeIndexMeta(tp));
+    ASSERT_TRUE(created) << created.error().ToString();
+    EXPECT_NE(created.value(), nullptr);
+    Commit(txn);
+  }
+  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
+  ASSERT_EQ(wal_writer_.records.size(), 1);
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    Commit(txn);
+  }
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+  ASSERT_EQ(wal_writer_.records.size(), 2);
+}
+
+TEST_F(TPIndexTest, AbortedCreateAndDropIndexDoNotAffectSnapshot) {
+  CreatePersonTableTP();
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    txn.Abort();
+  }
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  ASSERT_NE(GetIndexByName("idx_person_age"), nullptr);
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    txn.Abort();
+  }
+  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
+}
+
+TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
+  CreatePersonTableTP();
+  auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.ActivateIndexes().ok());
+    Commit(txn);
+  }
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    Commit(txn);
+  }
+  ASSERT_EQ(wal_writer_.records.size(), 3);
+
+  for (const auto& wal : wal_writer_.records) {
+    ASSERT_GT(wal.size(), sizeof(WalHeader));
+    const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
+    UpdateTransaction::IngestWal(
+        *replay_graph, header->timestamp,
+        const_cast<char*>(wal.data() + sizeof(WalHeader)), header->length,
+        allocator_);
+  }
+  EXPECT_FALSE(replay_graph->index_manager().GetIndexByName("idx_person_age"));
+}
+
+TEST_F(TPIndexTest, IndexConflictPreflightDoesNotWriteWal) {
+  CreatePersonTableTP();
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    auto duplicate = tp.CreateIndex(PersonAgeIndexMeta(tp));
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().error_code(),
+              StatusCode::ERR_ILLEGAL_OPERATION);
+    EXPECT_TRUE(txn.Commit());
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
+
+  {
+    auto txn = NewUpdateTransaction();
+    StorageTPUpdateInterface tp(txn);
+    auto missing = tp.DropIndex("missing_index");
+    EXPECT_EQ(missing.error_code(), StatusCode::ERR_NOT_FOUND);
+    EXPECT_TRUE(txn.Commit());
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {

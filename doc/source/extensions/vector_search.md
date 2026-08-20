@@ -499,3 +499,18 @@ MATCH (n:vector_node)
 WHERE n.id = 1
 SET n.vec = [0.2, 0.2, 0.1, 0.1];
 ```
+
+## Transactional Index Management
+
+Indexes are fully integrated with NeuG's transaction management. Both index lifecycle operations and index data modifications participate in the same transaction as the corresponding graph data changes.
+
+This includes:
+
+* **Index lifecycle operations**: `CREATE INDEX` and `DROP INDEX`
+* **Index data modifications**: index entries added, updated, or removed as the underlying graph data changes
+
+These operations follow NeuG's ACID guarantees. For example, when a vector property is updated, the property change and the corresponding HNSW index update are committed atomically. A transaction will not expose a state where the graph data has been committed but the associated index has not been updated, or vice versa.
+
+Similarly, `CREATE INDEX` and `DROP INDEX` are transactional operations. The index and its metadata become visible consistently with the transaction that creates or removes them.
+
+For details about NeuG's transaction model, ACID guarantees, isolation, and durability, see [Transaction Management](../transaction/transaction.md).

@@ -556,19 +556,21 @@ Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
  * without copying its data. Subsequent incremental vector updates avoid
  * copy-on-write by letting the VecColumn maintain separate buffer versions.
  */
-neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
-    std::unique_ptr<IndexMeta> meta) {
+neug::result<StorageIndex*> CreateStorageIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    std::unique_ptr<IndexMeta> meta,
+    IndexPlanningChangedCallback on_planning_changed) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
   }
   auto label_id = meta->schema.label_id;
-  if (!graph_.schema().is_vertex_label_valid(label_id)) {
+  if (!graph.schema().is_vertex_label_valid(label_id)) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Index label id is out of range");
   }
 
-  auto& vertex_table = graph_.get_vertex_table(label_id);
+  auto& vertex_table = graph.get_vertex_table(label_id);
   const auto schema = vertex_table.get_vertex_schema_ptr();
   const auto& property_name = meta->schema.property_name;
   const bool is_primary_key =
@@ -585,7 +587,8 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
   std::unique_ptr<IndexIDAccessor> index_id_accessor;
 
   if (IsHNSWIndex(*meta)) {
-    GS_AUTO(existing_indexes, index_manager_.GetIndex(label_id, property_name));
+    GS_AUTO(existing_indexes,
+            graph.mutable_index_manager().GetIndex(label_id, property_name));
     const bool has_non_hnsw = std::any_of(
         existing_indexes.begin(), existing_indexes.end(),
         [](StorageIndex* index) { return !IsHNSWIndex(index->GetMeta()); });
@@ -608,7 +611,7 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     if (const auto* array = dynamic_cast<const ArrayColumn*>(column)) {
       const auto& default_value = schema->default_property_values[property_col];
       vec_column = FromArrayColumn(*array, vertex_table.Size(), default_value,
-                                   graph_.checkpoint(), graph_.memory_level());
+                                   graph.checkpoint(), graph.memory_level());
       column = vec_column.get();
     }
 
@@ -631,18 +634,18 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
     index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
   }
 
-  GS_AUTO(index, index_manager_.CreateIndex(
+  GS_AUTO(index, graph.mutable_index_manager().CreateIndex(
                      std::move(meta), std::move(index_id_accessor), column,
-                     graph_.GetVertexSet(label_id, timestamp_)));
+                     graph.GetVertexSet(label_id, timestamp)));
 
-  if (on_planning_changed_) {
-    on_planning_changed_();
+  if (on_planning_changed) {
+    on_planning_changed();
   }
   if (vec_column) {
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(vec_column));
-    MarkVertexTableDirty(label_id);
-    mut_view_.Rebuild(graph_);
+    graph.MarkVertexTableDirty(label_id);
+    view.Rebuild(graph);
   }
   return index;
 }
@@ -655,14 +658,17 @@ neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
  * vectors from the VecColumn by vertex ID. This is equivalent to compaction:
  * obsolete vector versions addressed by previous index IDs are discarded.
  */
-Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
-  auto pending = index_manager_.GetPendingIndexByName(name);
+Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
+                        const std::string& name,
+                        IndexPlanningChangedCallback on_planning_changed) {
+  auto& index_manager = graph.mutable_index_manager();
+  auto pending = index_manager.GetPendingIndexByName(name);
   const bool is_pending = pending.has_value();
   IndexMeta meta;
   if (is_pending) {
     meta = pending.value()->meta;
   } else {
-    auto target = index_manager_.GetIndexByName(name);
+    auto target = index_manager.GetIndexByName(name);
     if (!target) {
       return target.error();
     }
@@ -673,7 +679,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
 
   if (IsHNSWIndex(meta)) {
     bool has_other_hnsw = false;
-    auto pending_indexes = index_manager_.GetPendingIndex(
+    auto pending_indexes = index_manager.GetPendingIndex(
         meta.schema.label_id, meta.schema.property_name);
     if (!pending_indexes) {
       return pending_indexes.error();
@@ -684,7 +690,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
           return index->meta.name != name && IsHNSWIndex(index->meta);
         });
     if (!has_other_hnsw) {
-      auto indexes = index_manager_.GetAllIndexes();
+      auto indexes = index_manager.GetAllIndexes();
       if (!indexes) {
         return indexes.error();
       }
@@ -699,7 +705,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
           });
     }
     if (!has_other_hnsw) {
-      auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
+      auto& vertex_table = graph.get_vertex_table(meta.schema.label_id);
       const auto schema = vertex_table.get_vertex_schema_ptr();
       property_col = schema->get_property_index(meta.schema.property_name);
       if (property_col < 0) {
@@ -711,9 +717,9 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
       const auto& default_value = schema->default_property_values[property_col];
       auto* column = vertex_table.get_table().get_column_by_id(property_col);
       if (auto* vec = dynamic_cast<VecColumn*>(column)) {
-        array_column = FromVecColumn(
-            *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
-            graph_.checkpoint(), graph_.memory_level());
+        array_column = FromVecColumn(*vec, vertex_table.Size(),
+                                     vertex_table.Capacity(), default_value,
+                                     graph.checkpoint(), graph.memory_level());
       } else {
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "DropIndex: HNSW index can only be created on VecColumn");
@@ -721,33 +727,49 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
     }
   }
 
-  RETURN_IF_NOT_OK(index_manager_.DropIndex(name));
-  if (on_planning_changed_) {
-    on_planning_changed_();
+  RETURN_IF_NOT_OK(index_manager.DropIndex(name));
+  if (on_planning_changed) {
+    on_planning_changed();
   }
   if (array_column) {
-    auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
+    auto& vertex_table = graph.get_vertex_table(meta.schema.label_id);
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(array_column));
-    MarkVertexTableDirty(meta.schema.label_id);
-    mut_view_.Rebuild(graph_);
+    graph.MarkVertexTableDirty(meta.schema.label_id);
+    view.Rebuild(graph);
   }
   return Status::OK();
 }
 
-Status StorageAPUpdateInterface::ActivateIndexes() {
-  auto activated = graph_.ActivateIndexes();
+Status ActivateStorageIndexes(
+    PropertyGraph& graph, GraphView& view,
+    IndexPlanningChangedCallback on_planning_changed) {
+  auto activated = graph.ActivateIndexes();
   if (!activated) {
     return activated.error();
   }
   if (activated.value() == 0) {
     return Status::OK();
   }
-  mut_view_.Rebuild(graph_);
-  if (on_planning_changed_) {
-    on_planning_changed_();
+  view.Rebuild(graph);
+  if (on_planning_changed) {
+    on_planning_changed();
   }
   return Status::OK();
+}
+
+neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
+    std::unique_ptr<IndexMeta> meta) {
+  return CreateStorageIndex(graph_, mut_view_, timestamp_, std::move(meta),
+                            on_planning_changed_);
+}
+
+Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
+  return DropStorageIndex(graph_, mut_view_, name, on_planning_changed_);
+}
+
+Status StorageAPUpdateInterface::ActivateIndexes() {
+  return ActivateStorageIndexes(graph_, mut_view_, on_planning_changed_);
 }
 
 }  // namespace neug

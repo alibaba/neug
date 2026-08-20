@@ -33,7 +33,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _search(session, target):
+def _search(session, target, expect_index=True):
     result = session.execute(
         "PROFILE MATCH (n:Item) "
         "RETURN n.id, n.name, vector_distance_l2(n.embedding, $target) AS score "
@@ -46,7 +46,10 @@ def _search(session, target):
         operator["operator_name"]
         for operator in result.get_profile_metrics()["operators"]
     ]
-    assert "IndexScanOpr" in operators
+    if expect_index:
+        assert "IndexScanOpr" in operators
+    else:
+        assert "IndexScanOpr" not in operators
     return rows[0] if rows else None
 
 
@@ -57,7 +60,7 @@ def _check_search(failures, operation, row, expected):
 
 
 def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
-    """Build in AP mode, then maintain and query the HNSW index in TP mode."""
+    """Create, maintain, query, and drop an HNSW index in TP mode."""
     csv_path = tmp_path / "items.csv"
     csv_path.write_text(
         "id|name|embedding\n"
@@ -69,7 +72,6 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
     db = Database(str(tmp_path / "database"), mode="w", checkpoint_on_close=False)
     conn = db.connect()
     try:
-        conn.execute("LOAD vector_search;")
         conn.execute(
             "CREATE NODE TABLE Item("
             "id INT64 PRIMARY KEY, name STRING, embedding FLOAT[4]);"
@@ -79,10 +81,6 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
             f'COPY Item FROM (LOAD FROM "{csv_path}" '
             "RETURN id, name, CAST(embedding, 'FLOAT[4]') AS embedding);"
         )
-        conn.execute(
-            "CREATE INDEX item_embedding_hnsw ON Item USING HNSW (embedding) "
-            "WITH (metric = 'l2', m = 16, ef_construction = 200);"
-        )
     finally:
         conn.close()
 
@@ -91,6 +89,12 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
     try:
         wait_for_server_ready(endpoint)
         session = Session.open(endpoint, timeout="10s")
+
+        session.execute("LOAD vector_search;")
+        session.execute(
+            "CREATE INDEX item_embedding_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric = 'l2', m = 16, ef_construction = 200);"
+        )
 
         failures = []
 
@@ -195,6 +199,79 @@ def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
         )
 
         assert not failures, "\n".join(failures)
+
+        session.execute("DROP INDEX item_embedding_hnsw;")
+        assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == []
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+
+def test_hnsw_index_tp_ddl_recovery_after_reopen(tmp_path, unused_tcp_port):
+    """Recover TP create/drop index commits after closing without a checkpoint."""
+    db_path = tmp_path / "database"
+    db = Database(str(db_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item("
+            "id INT64 PRIMARY KEY, name STRING, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:Item {id: 1, name: 'one', "
+            "embedding: [1.0, 0.0, 0.0, 0.0]}), "
+            "(:Item {id: 2, name: 'two', "
+            "embedding: [0.0, 1.0, 0.0, 0.0]});"
+        )
+    finally:
+        conn.close()
+
+    session = None
+    try:
+        endpoint = db.serve(unused_tcp_port, "localhost", False)
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        session.execute("LOAD vector_search;")
+        session.execute(
+            "CREATE INDEX item_embedding_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric = 'l2');"
+        )
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+    db = Database(str(db_path), mode="w", checkpoint_on_close=False)
+    session = None
+    try:
+        endpoint = db.serve(unused_tcp_port, "localhost", False)
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == [
+            ["item_embedding_hnsw"]
+        ]
+        assert _search(session, [1.0, 0.0, 0.0, 0.0])[:2] == [1, "one"]
+        session.execute("DROP INDEX item_embedding_hnsw;")
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+    db = Database(str(db_path), mode="w", checkpoint_on_close=False)
+    session = None
+    try:
+        endpoint = db.serve(unused_tcp_port, "localhost", False)
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == []
+        assert _search(session, [1.0, 0.0, 0.0, 0.0], expect_index=False)[:2] == [
+            1,
+            "one",
+        ]
     finally:
         if session is not None:
             session.close()
