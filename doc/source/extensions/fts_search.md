@@ -162,8 +162,8 @@ LIMIT 10;
 
 ### Query Syntax
 
-The second argument of `bm25` is a string literal containing an SQLite FTS5
-query. Common forms include:
+The second argument of `bm25` contains an SQLite FTS5 query. When supplied as
+a string literal, common forms include:
 
 | Search type | Query string | Meaning |
 | --- | --- | --- |
@@ -182,6 +182,45 @@ execution error.
 See the [SQLite FTS5 query syntax](https://www.sqlite.org/fts5.html#full_text_query_syntax)
 for the complete query grammar. Available tokenization behavior depends on the
 `tokenizer` selected when the index is created.
+
+### Dynamic Query Parameters
+
+The second argument of `bm25` can also be a dynamic `STRING` parameter. This
+allows an application to reuse the same statement with a different full-text
+query on each execution:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       article.title,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+LIMIT 10;
+```
+
+For example, the Python API accepts the parameter value through
+`Connection.execute`:
+
+```python
+statement = """
+MATCH (article:Article)
+RETURN article.id,
+       article.title,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+LIMIT 10;
+"""
+
+result = connection.execute(
+    statement,
+    parameters={"query": "graph database"},
+)
+```
+
+The parameter is bound separately for every execution. It must be present,
+have type `STRING`, and not be `NULL`. Its value uses the same SQLite FTS5
+query syntax as a string literal; an empty or syntactically invalid query
+returns a query execution error.
 
 ## Filtering and Hybrid Search
 
@@ -274,12 +313,12 @@ LIMIT 10;
 - An FTS index can be created only on a node property of type `STRING`.
 - Each FTS index covers one property; multi-property FTS indexes are not
   supported.
-- The `bm25` query argument must be a non-null string literal. Parameters and
-  computed expressions are not supported currently.
+- The `bm25` query argument must be a non-null `STRING` literal or dynamic
+  parameter. Other computed expressions are not supported currently.
 - `bm25` is an index-search marker, not a general scalar function. It must be
-  used in an eligible query with one ascending score order and a positive
-  `LIMIT`.
-- Descending score order, multiple `ORDER BY` expressions, `SKIP`, and queries
-  without `LIMIT` are not supported for FTS search.
+  used in an eligible query and cannot be evaluated as a scalar function over
+  an arbitrary row set.
+- A projection can contain only one `bm25` expression.
 - A matching FTS index must exist for the property passed to `bm25`.
-- Null and non-string indexed values are not supported.
+- If multiple FTS indexes exist on the same property, the query is ambiguous
+  and returns an error.
