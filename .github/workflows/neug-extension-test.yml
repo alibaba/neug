@@ -52,6 +52,11 @@ jobs:
         git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
         git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
 
+    - name: Clean ZVec state from self-hosted runner
+      run: |
+        git submodule deinit --force third_party/zvec
+        git submodule update --init --force --recursive third_party/zvec
+
     - name: Clean the tool directory for self-hosted runner
       run: |
         rm -rf /__w/_tool/Python
