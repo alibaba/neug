@@ -1,0 +1,2 @@
+id|list_values|array_values|nested_list_values
+1|[1,,3]|[4,NULL,6]|[[7,NULL],NULL,[9,10]]

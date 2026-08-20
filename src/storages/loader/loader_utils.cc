@@ -341,8 +341,14 @@ std::vector<std::string_view> split_array_elements(std::string_view input) {
 }
 
 Value parse_array_element(std::string_view token, const DataType& data_type,
+                          const std::unordered_set<std::string>& null_values,
                           const std::unordered_set<std::string>& true_values,
                           const std::unordered_set<std::string>& false_values) {
+  auto trimmed = trim_array_token(token);
+  if (trimmed.empty() || contains_sv(null_values, trimmed)) {
+    return Value();
+  }
+
   switch (data_type.id()) {
   case DataTypeId::kInt32:
     return Value::INT32(
@@ -374,7 +380,6 @@ Value parse_array_element(std::string_view token, const DataType& data_type,
   case DataTypeId::kVarchar:
     return Value::STRING(unquote_array_string_token(token));
   case DataTypeId::kArray: {
-    auto trimmed = trim_array_token(token);
     if (trimmed.size() < 2 || trimmed.front() != '[' || trimmed.back() != ']') {
       THROW_CONVERSION_EXCEPTION("Expected array value for type " +
                                  data_type.ToString() + ": " +
@@ -392,13 +397,12 @@ Value parse_array_element(std::string_view token, const DataType& data_type,
     std::vector<Value> values;
     values.reserve(elements.size());
     for (const auto& element : elements) {
-      values.push_back(
-          parse_array_element(element, child_type, true_values, false_values));
+      values.push_back(parse_array_element(element, child_type, null_values,
+                                           true_values, false_values));
     }
     return Value::ARRAY(data_type, std::move(values));
   }
   case DataTypeId::kList: {
-    auto trimmed = trim_array_token(token);
     if (trimmed.size() < 2 || trimmed.front() != '[' || trimmed.back() != ']') {
       THROW_CONVERSION_EXCEPTION("Expected list value for type " +
                                  data_type.ToString() + ": " +
@@ -409,8 +413,8 @@ Value parse_array_element(std::string_view token, const DataType& data_type,
     std::vector<Value> values;
     values.reserve(elements.size());
     for (const auto& element : elements) {
-      values.push_back(
-          parse_array_element(element, child_type, true_values, false_values));
+      values.push_back(parse_array_element(element, child_type, null_values,
+                                           true_values, false_values));
     }
     return Value::LIST(child_type, std::move(values));
   }
@@ -505,8 +509,9 @@ void append_array_impl(const FieldAppender& app, csv::CSVField field,
     effective_token = unescaped;
   }
   try {
-    builder->push_back_elem(parse_array_element(
-        effective_token, *app.type, ctx.true_values, ctx.false_values));
+    builder->push_back_elem(
+        parse_array_element(effective_token, *app.type, ctx.null_values,
+                            ctx.true_values, ctx.false_values));
   } catch (const std::exception& error) {
     THROW_CONVERSION_EXCEPTION(
         "Failed to parse CSV field, file=" + ctx.file_path +
