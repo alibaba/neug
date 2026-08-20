@@ -48,16 +48,13 @@ void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
 
 void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                            const std::string& key) {
+  // A zero base timestamp denotes a reset-timeline image. Incremental images
+  // carry a nonzero replay boundary and must preserve their MVCC state.
+  if (meta.base_timestamp() == 0) {
+    Compact();
+  }
   auto runtime_file = ckp.CreateRuntimeFile();
   const auto& ts_filename = runtime_file.path();
-  // Before dump, reset the timestamp of modified vertices
-  vid_t num = max_vertex_num_ - init_vertex_num_;
-  for (vid_t v = 0; v < num; ++v) {
-    if (inserted_vertices_[v].load() != DELETED_TIMESTAMP) {
-      inserted_vertices_[v].store(0);
-    }
-  }
-  Compact();
   dump_ts(ts_filename);
   ModuleDescriptor descriptor;
   descriptor.set_path(ModuleDescriptor::kDataPath,

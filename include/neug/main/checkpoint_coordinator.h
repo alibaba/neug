@@ -49,7 +49,7 @@ class UpdateTimestampLease;
  * the live process; a recovery-path failure aborts database open.
  *
  * - WalEpochActivationHandler (optional): set by the service owner and
- *   invoked on the manual path. It activates
+ *   invoked on manual and incremental publication paths. It activates
  *   service-owned state such as execution-slot WAL rotation for the published
  *   checkpoint.
  *
@@ -62,7 +62,8 @@ class CheckpointCoordinator {
   using PostReopenHandler =
       std::function<void(const std::string& checkpoint_allocator_dir)>;
 
-  /// Optional service-owned state activation for the manual path.
+  /// Optional service-owned state activation after manual or incremental
+  /// checkpoint publication.
   /// Invoked with the published checkpoint's WAL directory.
   using WalEpochActivationHandler =
       std::function<void(const std::string& checkpoint_wal_dir)>;
@@ -90,6 +91,12 @@ class CheckpointCoordinator {
   /// caller transfers an active update lease that has not entered the commit
   /// phase and must not hold an ordinary snapshot pin.
   Status PublishManualCheckpoint(UpdateTimestampLease timestamp_lease);
+
+  /// Publish a non-compacting checkpoint for an already-mutated live graph.
+  /// The caller transfers an active update lease; this method drains readers
+  /// before mutating the live snapshot. Only dirty modules are dumped and
+  /// reopened; the allocator and transaction timeline remain active.
+  Status PublishIncrementalCheckpoint(UpdateTimestampLease timestamp_lease);
 
   /// Publish a recovery checkpoint and reopen the live graph.
   Status PublishRecoveryCheckpoint();

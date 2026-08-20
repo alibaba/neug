@@ -69,20 +69,27 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
   const auto* cap_ptr = reinterpret_cast<const int*>(cap_list_->GetData());
   auto* adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* nbr_list_ptr = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
-  uint64_t edge_count = 0;
+  // Incremental checkpoints preserve tombstones. Degree counts occupied
+  // slots, while edge_num records only live edges.
+  uint64_t live_edge_count = 0;
   for (size_t i = 0; i < v_cap; ++i) {
     adj_lists_ptr[i] = nbr_list_ptr;
-    edge_count += deg_ptr[i];
+    for (int j = 0; j < deg_ptr[i]; ++j) {
+      if (nbr_list_ptr[j].timestamp.load(std::memory_order_relaxed) !=
+          INVALID_TIMESTAMP) {
+        ++live_edge_count;
+      }
+    }
     nbr_list_ptr += cap_ptr[i];
   }
-  if (edge_num_.load() != edge_count) {
+  if (edge_num_.load() != live_edge_count) {
     LOG(WARNING) << "Edge count from meta (" << edge_num_.load()
-                 << ") does not match count computed from degree list ("
-                 << edge_count << "). Using computed count.";
+                 << ") does not match live edges in neighbor list ("
+                 << live_edge_count << ")";
     THROW_STORAGE_EXCEPTION(
         "Edge count mismatch: meta has " + std::to_string(edge_num_.load()) +
-        " but degree list implies " + std::to_string(edge_count) +
-        ", desc: " + descriptor.ToJsonString());
+        " but neighbor list contains " + std::to_string(live_edge_count) +
+        " live edges" + ", desc: " + descriptor.ToJsonString());
   }
   refresh_prefetch_policy();
 }

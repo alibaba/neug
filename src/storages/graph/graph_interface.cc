@@ -124,7 +124,8 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
 static Status renameVertexIndex(PropertyGraph& graph, label_t label,
                                 const std::string& old_name,
                                 const std::string& new_name) {
-  auto indexes = graph.mutable_index_manager().GetIndex(label, old_name);
+  auto indexes =
+      graph.mutable_index_manager().GetIndexForUpdate(label, old_name);
   if (!indexes) {
     return indexes.error();
   }
@@ -144,7 +145,7 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
   // Primary keys are stored separately from property_names, so maintain their
   // indexes explicitly.
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
   if (!pk_indexes) {
     return pk_indexes.error();
   }
@@ -157,8 +158,8 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
     if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }
@@ -179,7 +180,7 @@ static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
   // Primary keys are stored outside property_names in the vertex indexer, so
   // read their column explicitly when maintaining indexes for a batch.
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
   if (!pk_indexes) {
     return pk_indexes.error();
   }
@@ -200,8 +201,8 @@ static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
     if (v_schema->vprop_soft_deleted[prop_idx]) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }
@@ -236,7 +237,7 @@ static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
 
   auto& index_manager = graph.mutable_index_manager();
   auto indexes =
-      index_manager.GetIndex(label, v_schema->property_names[col_id]);
+      index_manager.GetIndexForUpdate(label, v_schema->property_names[col_id]);
   if (!indexes) {
     return indexes.error();
   }
@@ -255,7 +256,7 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
   // Primary keys are excluded from property_names, so delete their index
   // entries explicitly.
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
   if (!pk_indexes) {
     return pk_indexes.error();
   }
@@ -270,8 +271,8 @@ static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
     if (v_schema->vprop_soft_deleted[prop_idx]) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }

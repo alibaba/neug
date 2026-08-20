@@ -38,6 +38,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -550,6 +551,159 @@ TEST_F(WalEpochActivationHandlerTest,
     auto read = version_manager.acquire_read_operation();
     EXPECT_EQ(read.published_view.visibility_ts, 0u);
   }
+}
+
+TEST_F(WalEpochActivationHandlerTest,
+       IncrementalCheckpointReopensOnlyDirtyModulesAndKeepsTimeline) {
+  neug::CreateVertexTypeParamBuilder dirty_builder;
+  ASSERT_TRUE(
+      graph_
+          ->CreateVertexType(dirty_builder.VertexLabel("dirty")
+                                 .AddProperty("id", neug::Value::INT64(0))
+                                 .AddProperty("value", neug::Value::INT32(0))
+                                 .AddPrimaryKeyName("id")
+                                 .Build())
+          .ok());
+  neug::CreateVertexTypeParamBuilder clean_builder;
+  ASSERT_TRUE(
+      graph_
+          ->CreateVertexType(clean_builder.VertexLabel("clean")
+                                 .AddProperty("id", neug::Value::INT64(0))
+                                 .AddProperty("value", neug::Value::INT32(0))
+                                 .AddPrimaryKeyName("id")
+                                 .Build())
+          .ok());
+  const auto dirty_label = graph_->schema().get_vertex_label_id("dirty");
+  const auto clean_label = graph_->schema().get_vertex_label_id("clean");
+  neug::vid_t dirty_vid;
+  neug::vid_t clean_vid;
+  ASSERT_TRUE(graph_
+                  ->AddVertex(dirty_label, neug::Value::INT64(1),
+                              {neug::Value::INT32(10)}, dirty_vid, 0)
+                  .ok());
+  ASSERT_TRUE(graph_
+                  ->AddVertex(clean_label, neug::Value::INT64(1),
+                              {neug::Value::INT32(20)}, clean_vid, 0)
+                  .ok());
+  graph_->MarkSchemaDirty();
+  graph_->MarkVertexTableDirty(dirty_label);
+  graph_->MarkVertexTableDirty(clean_label);
+
+  size_t wal_activation_calls = 0;
+  coordinator_->SetWalEpochActivationHandler(
+      [&](const std::string&) { ++wal_activation_calls; });
+  neug::VersionManager version_manager;
+  version_manager.init_ts({0, 0}, 1);
+  ASSERT_TRUE(
+      coordinator_
+          ->PublishManualCheckpoint(neug::UpdateTimestampLease(version_manager))
+          .ok());
+  ASSERT_EQ(handler_calls_.size(), 1u);
+  ASSERT_EQ(wal_activation_calls, 1u);
+
+  const auto full_checkpoint = checkpoint_manager_.Current();
+  ASSERT_NE(full_checkpoint, nullptr);
+  const auto descriptor_path = [](const neug::Checkpoint& checkpoint,
+                                  const std::string& key) {
+    const auto* descriptor = checkpoint.manifest().FindModule(key);
+    EXPECT_NE(descriptor, nullptr);
+    return descriptor == nullptr
+               ? std::optional<std::string>()
+               : descriptor->get_path(neug::ModuleDescriptor::kDataPath);
+  };
+  const auto dirty_key = neug::VertexTable::KeyKeys("dirty");
+  const auto clean_key = neug::VertexTable::KeyKeys("clean");
+  const auto old_dirty_path = descriptor_path(*full_checkpoint, dirty_key);
+  const auto old_clean_path = descriptor_path(*full_checkpoint, clean_key);
+  ASSERT_TRUE(old_dirty_path.has_value());
+  ASSERT_TRUE(old_clean_path.has_value());
+  const auto* clean_timestamp =
+      &graph_->get_vertex_table(clean_label).get_vertex_timestamp();
+
+  neug::UpdateTimestampLease incremental_lease(version_manager);
+  const auto incremental_ts = incremental_lease.Timestamp();
+  neug::vid_t new_vid;
+  ASSERT_TRUE(graph_
+                  ->AddVertex(dirty_label, neug::Value::INT64(2),
+                              {neug::Value::INT32(11)}, new_vid, incremental_ts)
+                  .ok());
+  graph_->MarkVertexTableDirty(dirty_label);
+  const auto dirty_capacity = graph_->get_vertex_table(dirty_label).Capacity();
+  uint64_t planning_generation = 0;
+  {
+    neug::SnapshotGuard current(*snapshot_store_);
+    planning_generation = current.get().planning_generation();
+  }
+  ASSERT_TRUE(
+      coordinator_->PublishIncrementalCheckpoint(std::move(incremental_lease))
+          .ok());
+
+  const auto incremental_checkpoint = checkpoint_manager_.Current();
+  ASSERT_NE(incremental_checkpoint, nullptr);
+  EXPECT_GT(incremental_checkpoint->id(), full_checkpoint->id());
+  EXPECT_EQ(incremental_checkpoint->manifest().base_timestamp(),
+            incremental_ts);
+  EXPECT_NE(descriptor_path(*incremental_checkpoint, dirty_key),
+            old_dirty_path);
+  EXPECT_EQ(descriptor_path(*incremental_checkpoint, clean_key),
+            old_clean_path);
+  EXPECT_EQ(&graph_->get_vertex_table(clean_label).get_vertex_timestamp(),
+            clean_timestamp);
+  EXPECT_EQ(graph_->get_vertex_table(dirty_label).Capacity(), dirty_capacity);
+  EXPECT_EQ(graph_->VertexNum(dirty_label, incremental_ts - 1), 1u);
+  EXPECT_EQ(graph_->VertexNum(dirty_label, incremental_ts), 2u);
+  EXPECT_EQ(handler_calls_.size(), 1u)
+      << "incremental checkpoint must not reopen allocators";
+  EXPECT_EQ(wal_activation_calls, 2u);
+  {
+    neug::SnapshotGuard current(*snapshot_store_);
+    EXPECT_EQ(current.get().planning_generation(), planning_generation);
+  }
+
+  neug::UpdateTimestampLease next_lease(version_manager);
+  EXPECT_EQ(next_lease.Timestamp(), incremental_ts + 1);
+  const auto checkpoint_id = incremental_checkpoint->id();
+  ASSERT_TRUE(
+      coordinator_->PublishIncrementalCheckpoint(std::move(next_lease)).ok());
+  ASSERT_NE(checkpoint_manager_.Current(), nullptr);
+  EXPECT_EQ(checkpoint_manager_.Current()->id(), checkpoint_id);
+  EXPECT_EQ(wal_activation_calls, 2u)
+      << "a clean graph must not rotate its WAL epoch";
+
+  neug::CreateVertexTypeParamBuilder schema_builder;
+  ASSERT_TRUE(
+      graph_
+          ->CreateVertexType(schema_builder.VertexLabel("temporary_name")
+                                 .AddProperty("id", neug::Value::INT64(0))
+                                 .AddPrimaryKeyName("id")
+                                 .Build())
+          .ok());
+  const auto added_label =
+      graph_->schema().get_vertex_label_id("temporary_name");
+  graph_->MarkSchemaDirty();
+  neug::UpdateTimestampLease schema_lease(version_manager);
+  ASSERT_TRUE(
+      coordinator_->PublishIncrementalCheckpoint(std::move(schema_lease)).ok());
+  {
+    neug::SnapshotGuard current(*snapshot_store_);
+    EXPECT_EQ(current.get().planning_generation(), planning_generation + 1);
+  }
+  EXPECT_TRUE(graph_->schema().is_vertex_label_valid(added_label));
+  EXPECT_EQ(handler_calls_.size(), 1u);
+  EXPECT_EQ(wal_activation_calls, 3u);
+
+  ASSERT_TRUE(graph_->DeleteVertexType(added_label).ok());
+  graph_->MarkSchemaDirty();
+  neug::UpdateTimestampLease drop_lease(version_manager);
+  ASSERT_TRUE(
+      coordinator_->PublishIncrementalCheckpoint(std::move(drop_lease)).ok());
+  {
+    neug::SnapshotGuard current(*snapshot_store_);
+    EXPECT_EQ(current.get().planning_generation(), planning_generation + 2);
+  }
+  EXPECT_FALSE(graph_->schema().is_vertex_label_valid(added_label));
+  EXPECT_EQ(handler_calls_.size(), 1u);
+  EXPECT_EQ(wal_activation_calls, 4u);
 }
 
 TEST(CheckpointCoordinatorTest,

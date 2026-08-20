@@ -86,6 +86,23 @@ class DirtyTracker {
     return false;
   }
 
+  /// Merge dirty bits from @p other while preserving this tracker's slots.
+  void MergeFrom(const DirtyTracker& other) {
+    for (size_t label = 0; label < vertex_.size(); ++label) {
+      if (other.vertex_[label]) {
+        vertex_[label] = true;
+      }
+    }
+    for (auto& [index, dirty] : edge_) {
+      if (other.IsEdgeDirty(index)) {
+        dirty = true;
+      }
+    }
+    if (other.schema_) {
+      schema_ = true;
+    }
+  }
+
   /// Set every bit (table-level and schema) to false; edge slots are kept.
   void ClearAll() {
     for (auto& bit : vertex_) {
