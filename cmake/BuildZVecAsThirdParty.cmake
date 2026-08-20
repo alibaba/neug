@@ -76,6 +76,25 @@ function(_neug_apply_patch source_dir patch_file patch_name)
     endif()
 endfunction()
 
+function(_neug_apply_zvec_patch source_dir patch_file patch_name marker_name)
+    if(NOT EXISTS "${source_dir}")
+        message(FATAL_ERROR
+            "${patch_name} source was not found at ${source_dir}. "
+            "Initialize ZVec recursively with: git submodule update --init "
+            "--recursive third_party/zvec")
+    endif()
+    if(NOT EXISTS "${patch_file}")
+        message(FATAL_ERROR
+            "${patch_name} file was not found at ${patch_file}.")
+    endif()
+
+    # ZVec's apply_patch_once() trusts its marker even if a later submodule
+    # checkout reset the tracked files. Check the source itself, then recreate
+    # the marker only after the patch is known to be present.
+    _neug_apply_patch("${source_dir}" "${patch_file}" "${patch_name}")
+    file(WRITE "${source_dir}/.${marker_name}_patched" "patched")
+endfunction()
+
 function(build_zvec_as_third_party)
     set(ZVEC_SOURCE_DIR
         "${CMAKE_SOURCE_DIR}/third_party/zvec"
@@ -94,29 +113,24 @@ function(build_zvec_as_third_party)
         _neug_apply_patch("${ZVEC_SOURCE_DIR}" "${_zvec_patch}" "zvec.patch")
     endif()
 
-    set(_zvec_antlr_source_dir
-        "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4")
-    set(_zvec_antlr_patch
-        "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4.patch")
-    if(NOT EXISTS "${_zvec_antlr_source_dir}/runtime/Cpp/CMakeLists.txt")
-        message(FATAL_ERROR
-            "ZVec's ANTLR4 source was not found at ${_zvec_antlr_source_dir}. "
-            "Initialize ZVec recursively with: git submodule update --init "
-            "--recursive third_party/zvec")
-    endif()
-    if(NOT EXISTS "${_zvec_antlr_patch}")
-        message(FATAL_ERROR
-            "ZVec's ANTLR4 patch was not found at ${_zvec_antlr_patch}.")
-    endif()
+    _neug_apply_zvec_patch(
+        "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4"
+        "${ZVEC_SOURCE_DIR}/thirdparty/antlr/antlr4.patch"
+        "ZVec ANTLR4 patch"
+        "antlr4_fix")
 
-    # ZVec's apply_patch_once() trusts this marker without checking whether a
-    # later submodule checkout reset the tracked files. Verify the real source
-    # state first, then create the marker only after the patch is present.
-    _neug_apply_patch(
-        "${_zvec_antlr_source_dir}"
-        "${_zvec_antlr_patch}"
-        "ZVec ANTLR4 patch")
-    file(WRITE "${_zvec_antlr_source_dir}/.antlr4_fix_patched" "patched")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        _neug_apply_zvec_patch(
+            "${ZVEC_SOURCE_DIR}/thirdparty/glog/glog-0.5.0"
+            "${ZVEC_SOURCE_DIR}/thirdparty/glog/glog.patch"
+            "ZVec glog patch"
+            "glog_fix")
+        _neug_apply_zvec_patch(
+            "${ZVEC_SOURCE_DIR}/thirdparty/arrow/apache-arrow-21.0.0"
+            "${ZVEC_SOURCE_DIR}/thirdparty/arrow/arrow.patch"
+            "ZVec Arrow patch"
+            "arrow_fix")
+    endif()
 
     include(ExternalProject)
 
