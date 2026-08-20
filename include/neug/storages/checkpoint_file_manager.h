@@ -35,16 +35,14 @@ class RuntimeWorkspace final {
   RuntimeWorkspace(const RuntimeWorkspace&) = delete;
   RuntimeWorkspace& operator=(const RuntimeWorkspace&) = delete;
 
+  const std::string& path() const noexcept { return path_; }
+
  private:
-  friend class Checkpoint;
-  friend class CheckpointFileManager;
   friend class CheckpointManager;
 
   static std::shared_ptr<const RuntimeWorkspace> Create(std::string path);
 
   explicit RuntimeWorkspace(std::string path);
-
-  const std::string& path() const noexcept { return path_; }
 
   std::string path_;
 };
