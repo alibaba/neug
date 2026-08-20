@@ -617,6 +617,9 @@ def test_array_preserves_null_elements(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w")
     conn = db.connect()
 
+    rows = list(conn.execute("RETURN CAST(NULL, 'INT64[3]');"))
+    assert rows == [[None]]
+
     rows = list(conn.execute("RETURN CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[3]');"))
     assert _nested_list(rows[0][0]) == [1, None, 3]
 
@@ -627,6 +630,14 @@ def test_array_preserves_null_elements(tmp_path):
         )
     )
     assert rows == [[1], [None], [3]]
+
+    rows = list(
+        conn.execute(
+            "UNWIND CAST([1, CAST(NULL, 'INT64'), 1, 3], 'INT64[4]') AS value "
+            "RETURN collect(DISTINCT value);"
+        )
+    )
+    assert _nested_list(rows[0][0]) == [1, 3]
 
     conn.close()
     db.close()

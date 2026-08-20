@@ -39,10 +39,10 @@ TEST_F(ValueColumnTest, OptionalArrayShuffleAndUnfold) {
   ContextArrayColumnBuilder builder(array_type);
   builder.push_back_elem(
       Value::ARRAY(array_type, {Value::INT32(1), Value::INT32(2)}));
-  builder.push_back_null();
+  builder.push_back_elem(Value(array_type));
   builder.push_back_elem(
       Value::ARRAY(array_type, {Value::INT32(3), Value::INT32(4)}));
-  builder.push_back_null();
+  builder.push_back_elem(Value(array_type));
   auto col = std::dynamic_pointer_cast<ContextArrayColumn>(builder.finish());
 
   ASSERT_NE(col, nullptr);
@@ -1243,7 +1243,7 @@ class OptionalValueColumnTest : public ::testing::Test {};
 TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
   ValueColumnBuilder<bool> builder(true);
   builder.push_back_opt(true);
-  builder.push_back_null();
+  builder.push_back_elem(Value(DataType::BOOLEAN));
   builder.push_back_elem(Value::BOOLEAN(false));
   auto col = std::dynamic_pointer_cast<ValueColumn<bool>>(builder.finish());
 
@@ -1715,7 +1715,7 @@ TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
   builder.push_back_elem(Value::STRUCT(std::move(values1)));
 
   // Add null
-  builder.push_back_null();
+  builder.push_back_elem(Value(struct_type));
 
   // Add third element
   std::vector<Value> values2;
@@ -1818,6 +1818,37 @@ TEST_F(ListColumnTest, ListColumnBasic) {
     EXPECT_EQ(list1_children[0].GetValue<int32_t>(), 10);
     EXPECT_EQ(list1_children[1].GetValue<int32_t>(), 20);
   }
+}
+
+TEST_F(ListColumnTest, OptionalListShuffle) {
+  auto child_type = DataType(DataTypeId::kInt32);
+  ListColumnBuilder builder(child_type);
+  builder.push_back_elem(Value::LIST(child_type, {Value::INT32(1)}));
+  builder.push_back_elem(Value(DataType::List(child_type)));
+  builder.push_back_elem(Value::LIST(child_type, {Value::INT32(3)}));
+  auto col = std::dynamic_pointer_cast<ListColumn>(builder.finish());
+
+  ASSERT_NE(col, nullptr);
+  ASSERT_EQ(col->size(), 3);
+  EXPECT_TRUE(col->has_value(0));
+  EXPECT_FALSE(col->has_value(1));
+  EXPECT_TRUE(col->has_value(2));
+
+  auto shuffled = col->shuffle({2, 1, 0});
+  ASSERT_EQ(shuffled->size(), 3);
+  EXPECT_TRUE(shuffled->has_value(0));
+  EXPECT_FALSE(shuffled->has_value(1));
+  EXPECT_TRUE(shuffled->has_value(2));
+
+  auto first = shuffled->get_elem(0);
+  const auto& first_children = ListValue::GetChildren(first);
+  ASSERT_EQ(first_children.size(), 1);
+  EXPECT_EQ(first_children[0].GetValue<int32_t>(), 3);
+
+  auto last = shuffled->get_elem(2);
+  const auto& last_children = ListValue::GetChildren(last);
+  ASSERT_EQ(last_children.size(), 1);
+  EXPECT_EQ(last_children[0].GetValue<int32_t>(), 1);
 }
 
 TEST_F(ValueColumnTest, ListColumnUnfold) {
