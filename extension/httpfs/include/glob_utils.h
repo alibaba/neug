@@ -17,6 +17,7 @@
 #pragma once
 
 #include <fnmatch.h>
+#include <algorithm>
 #include <string>
 
 namespace neug {

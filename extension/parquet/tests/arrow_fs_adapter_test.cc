@@ -160,5 +160,24 @@ TEST(ParquetAdapterTest, OutputClosesOnSuccessWhenNotExplicitlyClosed) {
   EXPECT_FALSE(fake->aborted_);
 }
 
+// An explicit Close() after a write failure must also abort instead of
+// finalizing the underlying stream (not just the destructor path).
+TEST(ParquetAdapterTest, ExplicitCloseAfterWriteFailureAborts) {
+  auto fake = std::make_shared<RecordingRemoteOutputStream>();
+  fake->failNextWrite();
+  neug::parquet::StreamOutputStream out(fake);
+  const char payload[] = "data";
+  ASSERT_FALSE(out.Write(payload, 4).ok());
+
+  auto status = out.Close();
+  EXPECT_FALSE(status.ok());
+  EXPECT_TRUE(fake->aborted_);
+  EXPECT_FALSE(fake->closed_);
+
+  // A second Close() is a no-op and must not touch the stream again.
+  EXPECT_TRUE(out.Close().ok());
+  EXPECT_TRUE(out.closed());
+}
+
 }  // namespace test
 }  // namespace neug

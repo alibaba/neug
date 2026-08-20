@@ -146,6 +146,16 @@ arrow::Status StreamOutputStream::Close() {
     return arrow::Status::OK();
   }
   closed_ = true;
+  if (failed_) {
+    // A prior write failed: abort instead of finalizing, otherwise a
+    // partial remote object would be published.
+    auto ar = stream_->Abort();
+    if (!ar.has_value()) {
+      return ToArrowStatus(ar.error());
+    }
+    return arrow::Status::IOError(
+        "Stream aborted due to a prior write failure");
+  }
   auto r = stream_->Close();
   if (!r.has_value()) {
     return ToArrowStatus(r.error());

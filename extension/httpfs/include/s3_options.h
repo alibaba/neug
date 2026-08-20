@@ -71,11 +71,11 @@ struct S3ConfigOptionKeys {
 // Valid values for CREDENTIALS_KIND option (case-insensitive)
 struct S3CredentialsKindValues {
   static constexpr const char* kExplicit =
-      "explicit";  // Use explicit AK/SK from options or environment
+      "explicit";  // Use explicit AK/SK from schema options only
   static constexpr const char* kAnonymous =
       "anonymous";  // No credentials (public buckets)
   static constexpr const char* kDefault =
-      "default";  // options -> environment -> anonymous
+      "default";  // options -> environment -> error if none found
 };
 
 // Logical S3 options schema (NeuG-level knobs)

@@ -156,11 +156,18 @@ SigV4SignedRequest SignSigV4(const SigV4Credentials& creds,
   signed_req.amz_date = Iso8601BasicFormat(sign_time);
   signed_req.date_stamp = signed_req.amz_date.substr(0, 8);
 
+  // Resolve the payload hash once: the x-amz-content-sha256 header and the
+  // canonical request must carry the exact same value, otherwise the
+  // signature is guaranteed to mismatch.
+  const std::string payload_hash = request.payload_hash.empty()
+                                       ? std::string(EmptyPayloadSHA256())
+                                       : request.payload_hash;
+
   // Collect all headers to sign: host + x-amz-date + x-amz-content-sha256
   // + caller supplied extras. Lowercase names, trim/collapse values.
   std::vector<std::pair<std::string, std::string>> canonical_headers;
   canonical_headers.emplace_back("host", request.host);
-  canonical_headers.emplace_back("x-amz-content-sha256", request.payload_hash);
+  canonical_headers.emplace_back("x-amz-content-sha256", payload_hash);
   canonical_headers.emplace_back("x-amz-date", signed_req.amz_date);
   for (const auto& h : request.extra_headers) {
     canonical_headers.emplace_back(toLower(h.first), trimAndCollapse(h.second));
@@ -208,10 +215,6 @@ SigV4SignedRequest SignSigV4(const SigV4Credentials& creds,
   if (canonical_uri.empty() || canonical_uri[0] != '/') {
     canonical_uri = "/" + canonical_uri;
   }
-
-  const std::string payload_hash = request.payload_hash.empty()
-                                       ? std::string(EmptyPayloadSHA256())
-                                       : request.payload_hash;
 
   // Anonymous mode: no credentials -> skip signing entirely.
   if (creds.empty()) {

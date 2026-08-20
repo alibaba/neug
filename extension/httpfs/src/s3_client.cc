@@ -235,7 +235,8 @@ result<S3Client::HttpResponse> S3Client::request(
     const std::vector<std::pair<std::string, std::string>>& query_params,
     const std::vector<std::pair<std::string, std::string>>& extra_headers,
     const void* body, int64_t body_len, bool capture_body, void* range_out,
-    int64_t range_out_capacity, int64_t* received_bytes) const {
+    int64_t range_out_capacity, int64_t* received_bytes,
+    long* out_http_code) const {
   // --- Addressing: host + canonical URI ---
   std::string base_host = config_.endpoint;
   if (base_host.empty()) {
@@ -299,6 +300,7 @@ result<S3Client::HttpResponse> S3Client::request(
   // --- Retry loop ---
   const int max_attempts = std::max(1, config_.max_retries + 1);
   std::string last_error;
+  long last_http_code = 0;
 
   for (int attempt = 0; attempt < max_attempts; ++attempt) {
     if (attempt > 0) {
@@ -404,6 +406,9 @@ result<S3Client::HttpResponse> S3Client::request(
 
     if (!isTransientFailure(res, response.http_code)) {
       // Permanent failure: surface immediately (no retry).
+      if (out_http_code != nullptr) {
+        *out_http_code = response.http_code;
+      }
       std::string detail;
       if (!response.body.empty()) {
         std::string code = extractXmlTagValue(response.body, "Code");
@@ -426,8 +431,12 @@ result<S3Client::HttpResponse> S3Client::request(
     last_error = (res != CURLE_OK)
                      ? std::string(curl_easy_strerror(res))
                      : ("HTTP " + std::to_string(response.http_code));
+    last_http_code = response.http_code;
   }
 
+  if (out_http_code != nullptr) {
+    *out_http_code = last_http_code;
+  }
   RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                       "S3 request failed after " +
                           std::to_string(max_attempts) +
@@ -463,11 +472,12 @@ result<int64_t> S3Client::getObjectSize(const std::string& bucket,
 
 result<bool> S3Client::objectExists(const std::string& bucket,
                                     const std::string& key) const {
-  auto resp =
-      request("HEAD", bucket, key, {}, {}, nullptr, 0, false, nullptr, 0);
+  long http_code = 0;
+  auto resp = request("HEAD", bucket, key, {}, {}, nullptr, 0, false, nullptr,
+                      0, nullptr, &http_code);
   if (!resp) {
     // Treat 404 as "not found"; propagate other errors.
-    if (resp.error().error_message().find("HTTP 404") != std::string::npos) {
+    if (http_code == 404) {
       return false;
     }
     return tl::unexpected(resp.error());

@@ -77,7 +77,10 @@ std::string resolveTlsCaFilePath() {
 }
 
 std::string toLowerStr(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+  // Cast to unsigned char first: passing a negative char (non-ASCII byte
+  // on platforms where char is signed) to ::tolower is undefined behavior.
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
   return s;
 }
 

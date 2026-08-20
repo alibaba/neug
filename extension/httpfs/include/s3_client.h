@@ -114,13 +114,17 @@ class S3Client {
   // `body`/`body_len` describe the request payload (nullptr for none).
   // `received_bytes` (optional) returns how many bytes were written into
   // `range_out` for ranged GET responses.
+  // `out_http_code` (optional) receives the last HTTP status code observed
+  // when the request fails, so callers can branch on the code instead of
+  // parsing the error message (0 if no response was ever received).
   result<HttpResponse> request(
       const std::string& method, const std::string& bucket,
       const std::string& key,
       const std::vector<std::pair<std::string, std::string>>& query_params,
       const std::vector<std::pair<std::string, std::string>>& extra_headers,
       const void* body, int64_t body_len, bool capture_body, void* range_out,
-      int64_t range_out_capacity, int64_t* received_bytes = nullptr) const;
+      int64_t range_out_capacity, int64_t* received_bytes = nullptr,
+      long* out_http_code = nullptr) const;
 
   S3ClientConfig config_;
 };

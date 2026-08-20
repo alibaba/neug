@@ -212,6 +212,43 @@ TEST(SigV4Test, PutObjectGoldenVector) {
             "f0ece108bd");
 }
 
+// An empty payload_hash must be resolved to the empty-payload SHA256 before
+// signing, and the same resolved value must appear in both the
+// x-amz-content-sha256 header and the canonical request; otherwise the
+// signature cannot match. Verify by comparing against the GetObject golden
+// vector above, which signs the identical request with an explicit hash.
+TEST(SigV4Test, EmptyPayloadHashResolvedConsistently) {
+  SigV4Credentials creds{"AKIAIOSFODNN7EXAMPLE",
+                         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"};
+  SigV4Request req;
+  req.method = "GET";
+  req.host = "examplebucket.s3.amazonaws.com";
+  req.canonical_uri = "/test.txt";
+  req.extra_headers = {{"range", "bytes=0-9"}};
+  req.payload_hash = "";  // let the signer resolve the fallback
+
+  std::time_t fixed_time = 1369353600;
+  auto signed_req = SignSigV4(creds, "us-east-1", "s3", req, fixed_time);
+
+  // The outgoing x-amz-content-sha256 header must carry the resolved hash.
+  bool found_hash_header = false;
+  for (const auto& h : signed_req.headers) {
+    if (h.first == "x-amz-content-sha256") {
+      found_hash_header = true;
+      EXPECT_EQ(h.second, neug::extension::s3::EmptyPayloadSHA256());
+    }
+  }
+  EXPECT_TRUE(found_hash_header);
+
+  // Same request as the GET golden vector -> the signature must be identical.
+  EXPECT_EQ(signed_req.authorization,
+            "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/"
+            "us-east-1/s3/aws4_request, "
+            "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, "
+            "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039"
+            "c6036bdb41");
+}
+
 TEST(SigV4Test, AnonymousSkipsSigning) {
   SigV4Credentials creds;  // empty -> anonymous
   SigV4Request req;
