@@ -1512,26 +1512,7 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   cow_clone->edge_label_total_count_ = edge_label_total_count_;
   cow_clone->memory_level_ = memory_level_;
   cow_clone->index_manager_ = index_manager_->Clone();
-
-  auto indexes = cow_clone->index_manager_->GetAllIndexes();
-  if (!indexes) {
-    THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to enumerate indexes: " +
-                        indexes.error().error_message());
-  }
-  for (auto* index : indexes.value()) {
-    const auto& index_meta = index->GetMeta();
-    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size() ||
-        !cow_clone->schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
-      THROW_RUNTIME_ERROR("PropertyGraph::Clone: invalid index label id");
-    }
-    auto* column = cow_clone->vertex_tables_[index_meta.schema.label_id]
-                       .GetPropertyColumnBase(index_meta.schema.property_name);
-    auto status = index->Rebind(IndexBindContext{column});
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to bind index '" +
-                          index_meta.name + "': " + status.error_message());
-    }
-  }
+  cow_clone->rebind_indexes();
 
   return cow_clone;
 }
