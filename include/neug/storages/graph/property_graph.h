@@ -150,6 +150,20 @@ class NEUG_API PropertyGraph {
   /// same sequence.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
 
+  /// Persist and reopen only modules marked dirty.
+  /// The graph remains usable, table capacities and MVCC timestamps are
+  /// preserved, and no compaction is performed. On success the graph adopts
+  /// @p ckp and clears its dirty state; the caller must publish that same
+  /// staging checkpoint before releasing transaction quiescence. Any failure
+  /// after this method starts is fail-stop. @p ckp must be a newer staging
+  /// checkpoint and @p base_timestamp must be the nonzero update timestamp
+  /// covered by that checkpoint; violations are checkpoint-protocol bugs and
+  /// fail fast. The caller must reject pending index mutations before entering
+  /// this destructive operation.
+  /// Returns whether query planning metadata changed.
+  bool DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
+                          timestamp_t base_timestamp);
+
   DirtyTracker& dirty_tracker() { return dirty_; }
   const DirtyTracker& dirty_tracker() const { return dirty_; }
 
@@ -209,6 +223,10 @@ class NEUG_API PropertyGraph {
 
   bool HasPendingIndexes() const;
   bool HasPendingMutations() const;
+
+  /// Validate all index state required to checkpoint without modifying the
+  /// graph. Call this before entering a destructive checkpoint phase.
+  Status ValidateCheckpointPreconditions() const;
 
   /**
    * @brief Clear all graph data and reset to empty state.
@@ -659,6 +677,7 @@ class NEUG_API PropertyGraph {
                             label_t edge_label) const;
 
   void compact_schema();
+  void rebind_indexes();
 
   /// Insert / erase an edge table and keep the dirty tracker's edge slots
   /// in sync.
@@ -672,6 +691,10 @@ class NEUG_API PropertyGraph {
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
   DirtyTracker dirty_;
+  // Modules persisted by an incremental checkpoint are clean for persistence
+  // but still retain MVCC timestamps/tombstones. The next full compaction must
+  // process them even if no later mutation touches the same table.
+  DirtyTracker uncompacted_modules_;
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;

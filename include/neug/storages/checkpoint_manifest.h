@@ -48,6 +48,8 @@ class CheckpointManifest {
   static constexpr int kFormatVersion = 2;
 
   CheckpointManifest() = default;
+  explicit CheckpointManifest(uint64_t base_timestamp)
+      : base_timestamp_(base_timestamp) {}
 
   /// Return the descriptor for @p key, or nullptr if absent.
   const ModuleDescriptor* FindModule(const std::string& key) const;

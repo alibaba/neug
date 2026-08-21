@@ -46,6 +46,10 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
                                const ModuleDescriptor& descriptor,
                                MemoryLevel memory_level) {
   unsorted_since_ = std::stoull(descriptor.get("unsorted_since").value_or("0"));
+  // Incremental checkpoints preserve tombstones, so the sum of degrees counts
+  // occupied slots rather than live edges. Validating the persisted live-edge
+  // count would require scanning every neighbor; trust the counter maintained
+  // by mutation paths to keep Open O(V).
   edge_num_.store(std::stoull(descriptor.get("edge_num").value_or("0")));
   degree_list_ = ckp.OpenFile(
       descriptor.get_path(ModuleDescriptor::kDegreeListPath).value_or(""),
@@ -65,24 +69,12 @@ void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
   }
 
   locks_ = std::make_unique<SpinLock[]>(v_cap);
-  const auto* deg_ptr = reinterpret_cast<const int*>(degree_list_->GetData());
   const auto* cap_ptr = reinterpret_cast<const int*>(cap_list_->GetData());
   auto* adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* nbr_list_ptr = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
-  uint64_t edge_count = 0;
   for (size_t i = 0; i < v_cap; ++i) {
     adj_lists_ptr[i] = nbr_list_ptr;
-    edge_count += deg_ptr[i];
     nbr_list_ptr += cap_ptr[i];
-  }
-  if (edge_num_.load() != edge_count) {
-    LOG(WARNING) << "Edge count from meta (" << edge_num_.load()
-                 << ") does not match count computed from degree list ("
-                 << edge_count << "). Using computed count.";
-    THROW_STORAGE_EXCEPTION(
-        "Edge count mismatch: meta has " + std::to_string(edge_num_.load()) +
-        " but degree list implies " + std::to_string(edge_count) +
-        ", desc: " + descriptor.ToJsonString());
   }
   refresh_prefetch_policy();
 }
