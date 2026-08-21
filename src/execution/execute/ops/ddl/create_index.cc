@@ -67,8 +67,9 @@ class CreateIndexOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
     if (!index_interface) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                          "CREATE INDEX is only supported in AP update mode");
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_NOT_SUPPORTED,
+          "Current storage interface does not support index DDL");
     }
 
     auto index_meta = CreateIndexMeta(graph.schema(), create_index_);

@@ -939,10 +939,10 @@ class StorageUpdateInterface : public StorageReadInterface,
 /**
  * @brief Admin interface for storage index DDL (create/drop).
  *
- * Index management is only implemented by the AP update path
- * (StorageAPUpdateInterface). The execution layer obtains this interface
- * via dynamic_cast from IStorageInterface; a null result means the current
- * storage mode does not support index management.
+ * Index management is implemented by both AP and TP update paths. The
+ * execution layer obtains this interface via dynamic_cast from
+ * IStorageInterface; a null result means the current storage implementation
+ * does not support index management.
  *
  * Existence checks are expressed through the DDL calls themselves:
  * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same
@@ -968,6 +968,19 @@ class StorageIndexDDLInterface {
   /** @brief Drop an index by its unique name. */
   virtual Status DropIndex(const std::string& name) = 0;
 };
+
+using IndexPlanningChangedCallback = std::function<void()>;
+
+result<StorageIndex*> CreateStorageIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    std::unique_ptr<IndexMeta> meta,
+    IndexPlanningChangedCallback on_planning_changed = {});
+Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
+                        const std::string& name,
+                        IndexPlanningChangedCallback on_planning_changed = {});
+Status ActivateStorageIndexes(
+    PropertyGraph& graph, GraphView& view,
+    IndexPlanningChangedCallback on_planning_changed = {});
 
 class StorageAPUpdateInterface : public StorageUpdateInterface,
                                  public StorageIndexDDLInterface {
