@@ -84,10 +84,22 @@ def test_project_graph_and_drop_roundtrip(tmp_path):
             "person" in lbl and "knows" in lbl for lbl in labels
         ), "PROJECTED_GRAPH_INFO must expose relationship triplets"
 
+        with pytest.raises(Exception, match="already exists"):
+            conn.execute(
+                "CALL project_graph("
+                "'my_subgraph', "
+                "['person'], "
+                "{'[person, knows, person]': ''}"
+                ");"
+            )
+
         conn.execute("CALL drop_projected_graph('my_subgraph');")
         assert "my_subgraph" not in _shown_projected_graph_names(
             conn
         ), "SHOW_PROJECTED_GRAPHS must not list a dropped alias"
+
+        with pytest.raises(Exception, match="does not exist"):
+            conn.execute("CALL drop_projected_graph('my_subgraph');")
 
 
 def test_project_graph_with_predicates(tmp_path):
@@ -112,8 +124,386 @@ def test_project_graph_with_predicates(tmp_path):
             for rel_lbl in rel_rows
         ), "relationship predicate must be preserved"
 
+        all_edges = list(
+            conn.execute(
+                "MATCH (a:person)-[r:knows]->(b:person) " "RETURN a.id, r.date, b.id;"
+            )
+        )
+        expected_edges = list(
+            conn.execute(
+                "MATCH (a:person)-[r:knows]->(b:person) "
+                'WHERE a.age > 20 AND r.date > Date("2021-01-01") '
+                "AND b.age > 20 RETURN a.id, r.date, b.id;"
+            )
+        )
+        namespace_edges = list(
+            conn.execute(
+                "USE NAMESPACE my_subgraph "
+                "MATCH (a:person)-[r:knows]->(b:person) "
+                "RETURN a.id, r.date, b.id;"
+            )
+        )
+        assert 0 < len(expected_edges) < len(all_edges)
+        assert sorted(namespace_edges) == sorted(expected_edges)
+
         conn.execute("CALL drop_projected_graph('my_subgraph');")
         assert "my_subgraph" not in _shown_projected_graph_names(conn)
+
+
+def test_project_graph_predicate_with_dynamic_parameter(tmp_path):
+    """Dynamic parameters in predicates remain safe when expressions are copied."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph("
+            "'adult_graph', "
+            "{'person': 'n.age > $minimum_age'}, "
+            "{'[person, knows, person]': ''}"
+            ");",
+            parameters={"minimum_age": 20},
+        )
+
+        ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (n:person) RETURN n.age ORDER BY n.age;",
+                parameters={"minimum_age": 20},
+            )
+        ]
+        assert ages
+        assert all(age > 20 for age in ages)
+
+
+def test_project_graph_rejects_unsupported_predicate_expression(tmp_path):
+    """Predicates whose expression nodes cannot be copied are rejected early."""
+    with tinysnb_connection(tmp_path) as conn:
+        with pytest.raises(Exception, match="Unsupported projected graph predicate"):
+            conn.execute(
+                "CALL project_graph("
+                "'case_graph', "
+                "{'person': 'CASE WHEN n.age > 20 THEN true ELSE false END'}, "
+                "{'[person, knows, person]': ''}"
+                ");"
+            )
+
+
+def test_namespace_match_isolation_and_clause_scope(tmp_path):
+    """USE NAMESPACE filters reads and rejects write queries."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph("
+            "'adult_graph', "
+            "{'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''}"
+            ");"
+        )
+
+        ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (n:person) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert ages
+        assert all(age > 20 for age in ages)
+
+        explain_result = conn.execute(
+            "EXPLAIN USE NAMESPACE adult_graph MATCH (n:person) RETURN n.age;"
+        )
+        assert list(explain_result) == []
+        assert explain_result.has_profile_result()
+
+        profile_result = conn.execute(
+            "PROFILE USE NAMESPACE adult_graph "
+            "MATCH (n:person) RETURN n.age ORDER BY n.age;"
+        )
+        assert [row[0] for row in profile_result] == ages
+        assert profile_result.has_profile_result()
+
+        wildcard_ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph " "MATCH (n) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+        assert wildcard_ages == ages
+
+        young_ages = [
+            row[0]
+            for row in conn.execute("MATCH (m:person) WHERE m.age <= 20 RETURN m.age;")
+        ]
+        assert young_ages
+        nested_ages = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph MATCH (n:person) "
+                "WHERE EXISTS { MATCH (m:person) WHERE m.age <= 20 } "
+                "RETURN n.age;"
+            )
+        )
+        assert nested_ages == []
+
+        endpoints = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (a)-[r:knows]->(b) RETURN a.age, b.age;"
+            )
+        )
+        assert all(src_age > 20 and dst_age > 20 for src_age, dst_age in endpoints)
+
+        wildcard_endpoints = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph " "MATCH (a)-[r]->(b) RETURN a.age, b.age;"
+            )
+        )
+        assert sorted(wildcard_endpoints) == sorted(endpoints)
+
+        with pytest.raises(Exception, match="does not exist"):
+            conn.execute("USE NAMESPACE missing_graph MATCH (n:person) RETURN n;")
+
+        with pytest.raises(Exception, match="is not part of Namespace"):
+            conn.execute("USE NAMESPACE adult_graph MATCH (n:organisation) RETURN n;")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph CREATE (:person {ID: 999});")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph MERGE (:person {ID: 999});")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph MATCH (n:person) SET n.age = 999;")
+
+        with pytest.raises(Exception, match="only support read-only"):
+            conn.execute("USE NAMESPACE adult_graph MATCH (n:person) DELETE n;")
+
+        optional_rows = list(
+            conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) "
+                "RETURN a.age, b.age;"
+            )
+        )
+        assert optional_rows
+        assert all(src_age > 20 for src_age, _ in optional_rows)
+        assert all(dst_age is None or dst_age > 20 for _, dst_age in optional_rows)
+
+        conn.execute(
+            "CALL project_graph('z_graph', ['person'], "
+            "{'[person, knows, person]': ''});"
+        )
+        assert _shown_projected_graph_names(conn) == ["adult_graph", "z_graph"]
+
+
+def test_namespace_query_scope_for_union_subquery_and_gds(tmp_path):
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('adult_graph', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        adult_ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (n:person) RETURN n.age ORDER BY n.age;"
+            )
+        ]
+
+        union_result = conn.execute(
+            "USE NAMESPACE adult_graph "
+            "MATCH (n:person) RETURN count(n) AS count "
+            "UNION ALL MATCH (n:person) RETURN count(n) AS count;"
+        )
+        assert len(union_result) == 2
+        with pytest.raises(Exception, match="is not part of Namespace"):
+            conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (n:person) RETURN n.age AS value "
+                "UNION ALL MATCH (n:organisation) RETURN n.name AS value;"
+            )
+
+        subquery_ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "MATCH (seed:person) WITH seed "
+                "CALL (seed) { "
+                "MATCH (n:person) WHERE n.age < 40 RETURN n.age AS age "
+                "UNION ALL "
+                "MATCH (n:person) WHERE n.age >= 40 RETURN n.age AS age "
+                "} "
+                "RETURN DISTINCT age ORDER BY age;"
+            )
+        ]
+        assert sorted(subquery_ages) == sorted(adult_ages)
+
+        all_ages = [row[0] for row in conn.execute("MATCH (n:person) RETURN n.age;")]
+        assert any(age <= 20 for age in all_ages)
+        conn.execute(
+            "CALL project_graph('all_graph', ['person'], "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        gds_ages = [
+            row[0]
+            for row in conn.execute(
+                "USE NAMESPACE adult_graph "
+                "CALL page_rank('all_graph', {max_iterations: 20}) "
+                "YIELD node, rank RETURN node.age, rank;"
+            )
+        ]
+        assert sorted(gds_ages) == sorted(all_ages)
+
+
+def test_namespace_keyword_remains_a_valid_identifier(tmp_path):
+    db = Database(db_path=str(tmp_path / "namespace_identifier_db"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE namespace(" "namespace INT64, PRIMARY KEY(namespace));"
+        )
+        conn.execute("CREATE (:namespace {namespace: 1});")
+        assert list(
+            conn.execute("MATCH (namespace:namespace) RETURN namespace.namespace;")
+        ) == [[1]]
+        assert list(
+            conn.execute(
+                "MATCH (`namespace`:`namespace`) " "RETURN `namespace`.`namespace`;"
+            )
+        ) == [[1]]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_projected_graph_mutations_are_rejected_in_read_only_mode(tmp_path):
+    db_dir = tmp_path / "namespace_read_only_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    conn.execute(
+        "CALL project_graph('persisted_graph', ['person'], "
+        "{'[person, knows, person]': ''});"
+    )
+    conn.close()
+    db.close()
+
+    read_only_db = Database(db_path=str(db_dir), mode="r")
+    read_only_conn = read_only_db.connect()
+    try:
+        with pytest.raises(Exception):
+            read_only_conn.execute(
+                "CALL project_graph('blocked_graph', ['person'], "
+                "{'[person, knows, person]': ''});"
+            )
+        with pytest.raises(Exception):
+            read_only_conn.execute("CALL drop_projected_graph('persisted_graph');")
+    finally:
+        read_only_conn.close()
+        read_only_db.close()
+
+    reopened_db = Database(db_path=str(db_dir), mode="w")
+    reopened_conn = reopened_db.connect()
+    try:
+        assert _shown_projected_graph_names(reopened_conn) == ["persisted_graph"]
+    finally:
+        reopened_conn.close()
+        reopened_db.close()
+
+
+def test_projected_graph_persists_after_reopen(tmp_path):
+    db_dir = tmp_path / "namespace_reopen_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    conn.execute(
+        "CALL project_graph('adult_graph', {'person': 'n.age > 20'}, "
+        "{'[person, knows, person]': ''});"
+    )
+    conn.close()
+    db.close()
+
+    reopened = Database(db_path=str(db_dir), mode="w")
+    reopened_conn = reopened.connect()
+    try:
+        assert _shown_projected_graph_names(reopened_conn) == ["adult_graph"]
+        ages = [
+            row[0]
+            for row in reopened_conn.execute(
+                "USE NAMESPACE adult_graph MATCH (n:person) RETURN n.age;"
+            )
+        ]
+        assert ages and all(age > 20 for age in ages)
+
+        reopened_conn.execute("LOAD gds;")
+        page_rank_rows = list(
+            reopened_conn.execute(
+                "CALL page_rank('adult_graph', {max_iterations: 20}) "
+                "YIELD node, rank RETURN node.age, rank;"
+            )
+        )
+        assert len(page_rank_rows) == len(ages)
+        assert all(age > 20 for age, _ in page_rank_rows)
+        assert abs(sum(rank for _, rank in page_rank_rows) - 1.0) < 1e-6
+    finally:
+        reopened_conn.close()
+        reopened.close()
+
+
+def test_tp_projected_graph_wal_survives_reopen_without_checkpoint(
+    tmp_path, unused_tcp_port
+):
+    db_dir = tmp_path / "namespace_tp_wal_db"
+    seed_db = Database(db_path=str(db_dir), mode="w")
+    seed_db.load_builtin_dataset("tinysnb")
+    seed_db.close()
+
+    def execute_without_checkpoint(query):
+        db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+        session = None
+        try:
+            endpoint = db.serve(
+                port=unused_tcp_port,
+                host="localhost",
+                blocking=False,
+                auto_compaction=False,
+            )
+            wait_for_server_ready(endpoint)
+            session = Session.open(endpoint, timeout="10s")
+            session.execute(query)
+        finally:
+            if session is not None:
+                session.close()
+            db.stop_serving()
+            db.close()
+
+    execute_without_checkpoint(
+        "CALL project_graph('wal_graph', {'person': 'n.age > 20'}, "
+        "{'[person, knows, person]': ''});"
+    )
+
+    reopened = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    reopened_conn = reopened.connect()
+    try:
+        assert _shown_projected_graph_names(reopened_conn) == ["wal_graph"]
+        assert all(
+            row[0] > 20
+            for row in reopened_conn.execute(
+                "USE NAMESPACE wal_graph MATCH (n:person) RETURN n.age;"
+            )
+        )
+    finally:
+        reopened_conn.close()
+        reopened.close()
+
+    execute_without_checkpoint("CALL drop_projected_graph('wal_graph');")
+
+    reopened = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    reopened_conn = reopened.connect()
+    try:
+        assert _shown_projected_graph_names(reopened_conn) == []
+    finally:
+        reopened_conn.close()
+        reopened.close()
 
 
 def test_run_cdlp(tmp_path):

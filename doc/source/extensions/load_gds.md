@@ -13,7 +13,9 @@ LOAD gds;
 CALL project_graph(
     'social',
     ['person'],
-    {'[person, knows, person]': ''}
+    [
+        '[person, knows, person]'
+    ]
 );
 
 -- 3. Run an algorithm
@@ -26,74 +28,39 @@ CALL drop_projected_graph('social');
 
 ## Graph Projection
 
-Before running any GDS algorithm, you must create a **projected graph** — a named
-subgraph view that defines which node labels, edge triplets, and optional
-predicates the algorithm operates on.
+Before running any GDS algorithm, you must create a **Namespace (projected graph)** — a named subgraph view that defines which node labels, edge triplets, and optional predicates the algorithm operates on.
 
-### `project_graph`
+For example:
 
 ```cypher
 CALL project_graph(
-    '<graph_name>',
-    <vertex_entries>,
-    <edge_entries>
+    'social',
+    ['person'],
+    [
+        '[person, knows, person]'
+    ]
 );
 ```
 
-**Parameters:**
-
-| Parameter | Type | Description |
-|---|---|---|
-| `graph_name` | STRING | A unique alias for the projected subgraph |
-| `node_entries` | LIST or MAP | Node labels, optionally with predicates |
-| `edge_entries` | MAP | Edge triplets `[src, edge, dst]` mapped to predicates |
-
-**Node entries** can be a simple list of labels or a map with predicates:
+The resulting Namespace can then be passed directly to a GDS algorithm:
 
 ```cypher
--- List form (no predicates)
-['person']
-
--- Map form (with predicates)
-{'person': 'n.age > 20', 'organisation': 'n.name = "MIT"'}
+CALL page_rank('social', {max_iterations: 20})
+RETURN node.fName, rank;
 ```
 
-**Edge entries** are always a map from triplet to predicate (use empty string `''`
-for no predicate):
+Namespace creation and management are shared NeuG capabilities and are not specific to the GDS extension.
 
-```cypher
-{'[person, knows, person]': ''}
-{'[person, studyAt, organisation]': 'r.year > 2010'}
-```
+For complete documentation on:
 
-### `drop_projected_graph`
+- creating a Namespace with `project_graph`;
+- filtering nodes and relationships with predicates;
+- querying a Namespace from Cypher;
+- inspecting Namespaces with `show_projected_graphs` and `projected_graph_info`;
+- removing a Namespace with `drop_projected_graph`;
+- Namespace persistence and schema/data updates;
 
-```cypher
-CALL drop_projected_graph('<graph_name>');
-```
-
-Removes a previously projected graph alias.
-
-### `SHOW_PROJECTED_GRAPHS`
-
-```cypher
-CALL SHOW_PROJECTED_GRAPHS() RETURN *;
-```
-
-Lists all currently registered projected graph aliases.
-
-### `PROJECTED_GRAPH_INFO`
-
-```cypher
-CALL PROJECTED_GRAPH_INFO('<graph_name>') RETURN *;
-```
-
-Returns the labels and predicates of a projected graph. Each row contains:
-
-| Column | Description |
-|---|---|
-| label | Node label name or edge triplet (e.g., `[person,knows,person]`) |
-| predicate | The filter predicate string, or empty if none |
+see [Namespace](../cypher_manual/namespace.md).
 
 ## Algorithms
 

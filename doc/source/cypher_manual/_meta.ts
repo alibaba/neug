@@ -2,6 +2,7 @@ export default {
   data_types: "Data Types",
   ddl_clause: "DDL Clause", 
   dml_clause: "DML Clause",
+  namespace: "Namespace",
   expression: "Expression",
   query_clauses: "Query Clauses",
   explain_profile: "Explain Profile",
