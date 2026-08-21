@@ -679,7 +679,8 @@ void Schema::AddEdgeLabel(
     const std::vector<std::string>& prop_names, EdgeStrategy oe,
     EdgeStrategy ie, bool oe_mutable, bool ie_mutable,
     std::optional<std::string> sort_key_for_nbr, const std::string& description,
-    const std::vector<Value>& default_property_values, bool temporary) {
+    const std::vector<Value>& default_property_values, bool temporary,
+    const std::string& relation) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
   label_t edge_label_id = edge_label_to_index(edge_label);
@@ -693,7 +694,7 @@ void Schema::AddEdgeLabel(
       label_id, std::make_shared<EdgeSchema>(
                     src_label, dst_label, edge_label, sort_key_for_nbr,
                     description, ie_mutable, oe_mutable, oe, ie, properties,
-                    prop_names, default_property_values));
+                    prop_names, default_property_values, relation));
   e_schemas_.at(label_id)->entry_id = label_id;
   e_schemas_.at(label_id)->src_label_id = src_label_id;
   e_schemas_.at(label_id)->dst_label_id = dst_label_id;
@@ -1318,6 +1319,14 @@ bool Schema::Equals(const Schema& other) const {
             }
           }
           {
+            const auto lhs = get_edge_schema(src_label, dst_label, edge_label);
+            const auto rhs =
+                other.get_edge_schema(src_label, dst_label, edge_label);
+            if (lhs->relation != rhs->relation) {
+              return false;
+            }
+          }
+          {
             auto lhs = get_sort_key_for_nbr(src_label_name, dst_label_name,
                                             edge_label_name);
             auto rhs = other.get_sort_key_for_nbr(
@@ -1361,27 +1370,55 @@ neug::result<YAML::Node> Schema::to_yaml() const {
 
 namespace config_parsing {
 
-void RelationToEdgeStrategy(const std::string& rel_str,
-                            EdgeStrategy& ie_strategy,
-                            EdgeStrategy& oe_strategy) {
-  if (rel_str == "ONE_TO_MANY") {
-    ie_strategy = EdgeStrategy::kSingle;
+static bool relation_to_edge_strategies(const std::string& relation,
+                                        EdgeStrategy& oe_strategy,
+                                        EdgeStrategy& ie_strategy) {
+  if (relation == "ONE_TO_MANY") {
     oe_strategy = EdgeStrategy::kMultiple;
-  } else if (rel_str == "ONE_TO_ONE") {
     ie_strategy = EdgeStrategy::kSingle;
+  } else if (relation == "ONE_TO_ONE") {
     oe_strategy = EdgeStrategy::kSingle;
-  } else if (rel_str == "MANY_TO_ONE") {
-    ie_strategy = EdgeStrategy::kMultiple;
+    ie_strategy = EdgeStrategy::kSingle;
+  } else if (relation == "MANY_TO_ONE") {
     oe_strategy = EdgeStrategy::kSingle;
-  } else if (rel_str == "MANY_TO_MANY") {
     ie_strategy = EdgeStrategy::kMultiple;
+  } else if (relation == "MANY_TO_MANY") {
     oe_strategy = EdgeStrategy::kMultiple;
+    ie_strategy = EdgeStrategy::kMultiple;
   } else {
-    LOG(WARNING) << "relation " << rel_str
-                 << " is not valid, using default value: kMultiple";
-    ie_strategy = EdgeStrategy::kMultiple;
-    oe_strategy = EdgeStrategy::kMultiple;
+    return false;
   }
+  return true;
+}
+
+static const char* edge_strategy_to_string(EdgeStrategy strategy) {
+  switch (strategy) {
+  case EdgeStrategy::kNone:
+    return "NONE";
+  case EdgeStrategy::kSingle:
+    return "SINGLE";
+  case EdgeStrategy::kMultiple:
+    return "MULTIPLE";
+  }
+  THROW_RUNTIME_ERROR("Unknown edge strategy");
+}
+
+static bool parse_edge_strategy(const std::string& value,
+                                EdgeStrategy& strategy) {
+  const auto normalized = toUpper(value);
+  if (normalized == "NONE") {
+    strategy = EdgeStrategy::kNone;
+    return true;
+  }
+  if (normalized == "SINGLE") {
+    strategy = EdgeStrategy::kSingle;
+    return true;
+  }
+  if (normalized == "MULTIPLE") {
+    strategy = EdgeStrategy::kMultiple;
+    return true;
+  }
+  return false;
 }
 
 static bool parse_property_type(YAML::Node node, DataType& type) {
@@ -1654,9 +1691,6 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
                   "default_value is not supported yet");
   }
 
-  EdgeStrategy default_ie = EdgeStrategy::kMultiple;
-  EdgeStrategy default_oe = EdgeStrategy::kMultiple;
-
   // get vertex type pair relation
   auto vertex_type_pair_node = node["vertex_type_pair_relations"];
   // vertex_type_pair_node can be a list or a map
@@ -1673,8 +1707,8 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
   for (size_t i = 0; i < vertex_type_pair_node.size(); ++i) {
     std::string src_label_name, dst_label_name;
     auto cur_node = vertex_type_pair_node[i];
-    EdgeStrategy cur_ie = default_ie;
-    EdgeStrategy cur_oe = default_oe;
+    EdgeStrategy cur_ie;
+    EdgeStrategy cur_oe;
     std::optional<std::string> sort_key_for_nbr = std::nullopt;
     if (!get_scalar(cur_node, "source_vertex", src_label_name)) {
       LOG(ERROR) << "Expect field source_vertex for edge [" << edge_label_name
@@ -1701,43 +1735,33 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
     }
 
     std::string relation_str;
-    if (get_scalar(cur_node, "relation", relation_str)) {
-      RelationToEdgeStrategy(relation_str, cur_ie, cur_oe);
-    } else {
-      LOG(WARNING) << "relation not defined, using default ie strategy: "
-                   << cur_ie << ", oe strategy: " << cur_oe;
+    if (!get_scalar(cur_node, "relation", relation_str)) {
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
+                    "relation is required for edge: " + src_label_name + "-[" +
+                        edge_label_name + "]->" + dst_label_name);
     }
-    // check if x_csr_params presents
+    if (!relation_to_edge_strategies(relation_str, cur_oe, cur_ie)) {
+      return Status(StatusCode::ERR_INVALID_SCHEMA,
+                    "Invalid relation '" + relation_str +
+                        "' for edge: " + src_label_name + "-[" +
+                        edge_label_name + "]->" + dst_label_name);
+    }
+    // Physical OE/IE strategies are persisted independently from multiplicity.
     bool oe_mutable = true, ie_mutable = true;
     if (cur_node["x_csr_params"]) {
       auto csr_node = cur_node["x_csr_params"];
-      if (csr_node["edge_storage_strategy"]) {
-        std::string edge_storage_strategy_str;
-        if (get_scalar(csr_node, "edge_storage_strategy",
-                       edge_storage_strategy_str)) {
-          if (edge_storage_strategy_str == "ONLY_IN") {
-            cur_oe = EdgeStrategy::kNone;
-            VLOG(10) << "Store only in edges for edge: " << src_label_name
-                     << "-[" << edge_label_name << "]->" << dst_label_name;
-          } else if (edge_storage_strategy_str == "ONLY_OUT") {
-            cur_ie = EdgeStrategy::kNone;
-            VLOG(10) << "Store only out edges for edge: " << src_label_name
-                     << "-[" << edge_label_name << "]->" << dst_label_name;
-          } else if (edge_storage_strategy_str == "BOTH_OUT_IN" ||
-                     edge_storage_strategy_str == "BOTH_IN_OUT") {
-            VLOG(10) << "Store both in and out edges for edge: "
-                     << src_label_name << "-[" << edge_label_name << "]->"
-                     << dst_label_name;
-          } else {
-            LOG(ERROR) << "edge_storage_strategy is not set properly for edge: "
-                       << src_label_name << "-[" << edge_label_name << "]->"
-                       << dst_label_name;
-            return Status(
-                StatusCode::ERR_INVALID_SCHEMA,
-                "edge_storage_strategy is not set properly for edge: " +
-                    src_label_name + "-[" + edge_label_name + "]->" +
-                    dst_label_name);
-          }
+      for (const auto& [key, strategy] : {std::pair{"oe_strategy", &cur_oe},
+                                          std::pair{"ie_strategy", &cur_ie}}) {
+        if (!csr_node[key]) {
+          continue;
+        }
+        std::string value;
+        if (!get_scalar(csr_node, key, value) ||
+            !parse_edge_strategy(value, *strategy)) {
+          return Status(StatusCode::ERR_INVALID_SCHEMA,
+                        "Invalid " + std::string(key) + " '" + value +
+                            "' for edge: " + src_label_name + "-[" +
+                            edge_label_name + "]->" + dst_label_name);
         }
       }
       // try to parse sort on compaction
@@ -1823,7 +1847,8 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
              << " properties";
     schema.AddEdgeLabel(src_label_name, dst_label_name, edge_label_name,
                         property_types, prop_names, cur_oe, cur_ie, oe_mutable,
-                        ie_mutable, sort_key_for_nbr, description);
+                        ie_mutable, sort_key_for_nbr, description, {}, false,
+                        relation_str);
   }
 
   // check the type_id equals to storage's label_id
@@ -2007,27 +2032,36 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
               schema.get_vertex_label_name(dst_v);
           vertex_type_pair_node["relation"] =
               schema.get_edge_strategy(src_v, dst_v, e_label);
-          // Persist the subset of x_csr_params needed after checkpoint
-          // DumpToYaml/ToJson reopen: sort_key_for_nbr and non-default
-          // oe/ie mutability. (edge_storage_strategy is already covered by
-          // "relation"; other LoadFromYaml CSR fields are not dumped here.)
+          // Persist each CSR's physical strategy directly.
           {
             const auto edge_schema =
                 schema.get_edge_schema(src_v, dst_v, e_label);
             const auto& sort_key = edge_schema->sort_key_for_nbr;
             const bool oe_mutable = edge_schema->oe_mutable;
             const bool ie_mutable = edge_schema->ie_mutable;
-            if (sort_key.has_value() || !oe_mutable || !ie_mutable) {
-              YAML::Node csr_node;
-              if (sort_key.has_value()) {
-                csr_node["sort_key_for_nbr"] = sort_key.value();
-              }
-              if (!oe_mutable) {
-                csr_node["oe_mutability"] = "IMMUTABLE";
-              }
-              if (!ie_mutable) {
-                csr_node["ie_mutability"] = "IMMUTABLE";
-              }
+            EdgeStrategy default_oe;
+            EdgeStrategy default_ie;
+            CHECK(relation_to_edge_strategies(edge_schema->relation, default_oe,
+                                              default_ie));
+            YAML::Node csr_node;
+            if (edge_schema->oe_strategy != default_oe) {
+              csr_node["oe_strategy"] =
+                  edge_strategy_to_string(edge_schema->oe_strategy);
+            }
+            if (edge_schema->ie_strategy != default_ie) {
+              csr_node["ie_strategy"] =
+                  edge_strategy_to_string(edge_schema->ie_strategy);
+            }
+            if (sort_key.has_value()) {
+              csr_node["sort_key_for_nbr"] = sort_key.value();
+            }
+            if (!oe_mutable) {
+              csr_node["oe_mutability"] = "IMMUTABLE";
+            }
+            if (!ie_mutable) {
+              csr_node["ie_mutability"] = "IMMUTABLE";
+            }
+            if (csr_node.size() > 0) {
               vertex_type_pair_node["x_csr_params"] = csr_node;
             }
           }
@@ -2434,27 +2468,7 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
   }
   assert(is_edge_triplet_valid(src_label, dst_label, edge_label));
   assert(e_schemas_.count(index) > 0);
-  auto oe_strategy = e_schemas_.at(index)->oe_strategy;
-  auto ie_strategy = e_schemas_.at(index)->ie_strategy;
-  if (oe_strategy == EdgeStrategy::kMultiple) {
-    if (ie_strategy == EdgeStrategy::kMultiple) {
-      return "MANY_TO_MANY";
-    } else if (ie_strategy == EdgeStrategy::kSingle) {
-      return "ONE_TO_MANY";
-    } else {
-      THROW_RUNTIME_ERROR("ie_strategy should not be none");
-    }
-  } else if (oe_strategy == EdgeStrategy::kSingle) {
-    if (ie_strategy == EdgeStrategy::kMultiple) {
-      return "MANY_TO_ONE";
-    } else if (ie_strategy == EdgeStrategy::kSingle) {
-      return "ONE_TO_ONE";
-    } else {
-      THROW_RUNTIME_ERROR("ie_strategy should not be none");
-    }
-  } else {
-    THROW_RUNTIME_ERROR("oe_strategy should not be none");
-  }
+  return e_schemas_.at(index)->relation;
 }
 
 void Schema::ensure_vertex_label_valid(label_t v_label_id) const {
@@ -2735,7 +2749,7 @@ InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
   archive << e_schema.src_label_name << e_schema.dst_label_name
           << e_schema.edge_label_name << e_schema.description
           << e_schema.ie_mutable << e_schema.oe_mutable << e_schema.ie_strategy
-          << e_schema.oe_strategy << e_schema.properties
+          << e_schema.oe_strategy << e_schema.relation << e_schema.properties
           << e_schema.property_names << e_schema.default_property_values
           << e_schema.eprop_soft_deleted;
   if (e_schema.sort_key_for_nbr.has_value()) {
@@ -2750,7 +2764,7 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
   archive >> e_schema.src_label_name >> e_schema.dst_label_name >>
       e_schema.edge_label_name >> e_schema.description >> e_schema.ie_mutable >>
       e_schema.oe_mutable >> e_schema.ie_strategy >> e_schema.oe_strategy >>
-      e_schema.properties >> e_schema.property_names >>
+      e_schema.relation >> e_schema.properties >> e_schema.property_names >>
       e_schema.default_property_values >> e_schema.eprop_soft_deleted;
   uint8_t has_sort_key_for_nbr;
   archive >> has_sort_key_for_nbr;

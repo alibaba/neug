@@ -119,6 +119,38 @@ bool multiplicity_to_storage_strategy(
   return true;
 }
 
+bool apply_storage_direction(const std::string& storage_direction,
+                             EdgeStrategy& oe_strategy,
+                             EdgeStrategy& ie_strategy,
+                             std::string& error_msg) {
+  const auto normalized = toUpper(storage_direction);
+  if (normalized == "FWD") {
+    if (ie_strategy == EdgeStrategy::kSingle) {
+      error_msg =
+          "storage_direction 'fwd' cannot be used when incoming side is "
+          "SINGLE (ONE_TO_MANY / ONE_TO_ONE).";
+      return false;
+    }
+    ie_strategy = EdgeStrategy::kNone;
+    return true;
+  }
+  if (normalized == "BWD") {
+    if (oe_strategy == EdgeStrategy::kSingle) {
+      error_msg =
+          "storage_direction 'bwd' cannot be used when outgoing side is "
+          "SINGLE (MANY_TO_ONE / ONE_TO_ONE).";
+      return false;
+    }
+    oe_strategy = EdgeStrategy::kNone;
+    return true;
+  }
+  if (normalized == "BOTH") {
+    return true;
+  }
+  error_msg = "Cannot parse " + storage_direction + " as storage_direction.";
+  return false;
+}
+
 bool primitive_type_to_property_type(
     const common::PrimitiveType& primitive_type, DataType& out_type) {
   switch (primitive_type) {

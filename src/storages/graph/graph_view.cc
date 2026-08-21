@@ -15,6 +15,8 @@
 
 #include "neug/storages/graph/graph_view.h"
 
+#include <algorithm>
+
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/index/storage_index_manager.h"
@@ -156,13 +158,9 @@ CsrView EdgeTableView::GetIncomingView(timestamp_t ts) const {
 }
 
 size_t EdgeTableView::EdgeNum() const {
-  if (out_csr_) {
-    return out_csr_->edge_num();
-  }
-  if (in_csr_) {
-    return in_csr_->edge_num();
-  }
-  return 0;
+  const auto out_num = out_csr_ ? out_csr_->edge_num() : 0;
+  const auto in_num = in_csr_ ? in_csr_->edge_num() : 0;
+  return std::max(out_num, in_num);
 }
 
 EdgeDataAccessor EdgeTableView::GetDataAccessor(int prop_id) const {

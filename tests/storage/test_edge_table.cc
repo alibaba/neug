@@ -72,12 +72,17 @@ class EdgeTableTest : public ::testing::Test {
                          neug::EdgeStrategy::kMultiple, true, true,
                          std::nullopt,
                          "person creates comment edge with two properties");
+    schema_.AddEdgeLabel(
+        "person", "comment", "create_in_only", {}, {},
+        neug::EdgeStrategy::kNone, neug::EdgeStrategy::kMultiple, false, true,
+        std::nullopt, "person creates comment edge stored incoming only");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
     edge_label_empty_ = schema_.get_edge_label_id("create0");
     edge_label_int_ = schema_.get_edge_label_id("create1");
     edge_label_str_ = schema_.get_edge_label_id("create2");
     edge_label_str_int_ = schema_.get_edge_label_id("create3");
+    edge_label_in_only_ = schema_.get_edge_label_id("create_in_only");
     allocator_dir_ =
         (std::filesystem::temp_directory_path() /
          ("edge_table_test_allocator_" + std::to_string(::getpid()) + "_"))
@@ -243,7 +248,7 @@ class EdgeTableTest : public ::testing::Test {
   neug::LFIndexer<neug::vid_t> dst_indexer;
   neug::Schema schema_;
   neug::label_t src_label_, dst_label_, edge_label_empty_, edge_label_int_,
-      edge_label_str_, edge_label_str_int_;
+      edge_label_str_, edge_label_str_int_, edge_label_in_only_;
   std::string allocator_dir_;
 
  private:
@@ -558,6 +563,36 @@ TEST_F(EdgeTableTest, TestCountEdgeNum) {
 
   EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
   this->ExpectBundledStats(edge_num);
+}
+
+TEST_F(EdgeTableTest, TestCountEdgeNumIncomingOnly) {
+  auto ckp = make_checkpoint(workspace());
+
+  constexpr int64_t src_num = 100;
+  constexpr int64_t dst_num = 100;
+  constexpr size_t edge_num = 1000;
+  auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
+  auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
+  auto src_arrs = split_column_to_chunks(src_list, 10);
+  auto dst_arrs = split_column_to_chunks(dst_list, 10);
+  auto batches = convert_to_data_chunks({src_arrs, dst_arrs});
+
+  InitIndexers(*ckp, src_num, dst_num);
+  ConstructEdgeTable(src_label_, dst_label_, edge_label_in_only_);
+  OpenEdgeTable(ckp, neug::CheckpointManifest(),
+                neug::MemoryLevel::kSyncToFile);
+  BatchInsert(std::move(batches));
+
+  size_t incoming_edge_num = 0;
+  auto incoming_view = edge_table->get_incoming_view(MAX_TIMESTAMP);
+  for (vid_t dst = 0; dst < dst_num; ++dst) {
+    auto edges = incoming_view.get_edges(dst);
+    for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
+      ++incoming_edge_num;
+    }
+  }
+  EXPECT_EQ(incoming_edge_num, edge_num);
+  EXPECT_EQ(edge_table->EdgeNum(), edge_num);
 }
 
 TEST_F(EdgeTableTest, TestDeleteEdge) {

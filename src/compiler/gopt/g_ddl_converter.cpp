@@ -18,8 +18,10 @@
 #include "neug/compiler/binder/ddl/bound_alter_info.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
+#include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/enums/alter_type.h"
 #include "neug/compiler/common/enums/expression_type.h"
+#include "neug/compiler/common/enums/extend_direction_util.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_query_converter.h"
@@ -282,6 +284,10 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
   for (const auto& [k, v] : firstRelInfo->options) {
     (*create_edge->mutable_options())[k] = v.toString();
   }
+  // Typed storageDirection is the source of truth for OE/IE layout.
+  (*create_edge->mutable_options())
+      [common::TableOptionConstants::REL_STORAGE_DIRECTION_OPTION] =
+          common::ExtendDirectionUtil::toString(firstRelInfo->storageDirection);
 
   return physical_opr;
 }
@@ -331,6 +337,10 @@ GDDLConverter::convertToCreateEdgeSchema(
   for (const auto& [k, v] : relInfo->options) {
     (*create_edge->mutable_options())[k] = v.toString();
   }
+  // Typed storageDirection is the source of truth for OE/IE layout.
+  (*create_edge->mutable_options())
+      [common::TableOptionConstants::REL_STORAGE_DIRECTION_OPTION] =
+          common::ExtendDirectionUtil::toString(relInfo->storageDirection);
 
   // Set temporary flag for LOAD AS
   create_edge->set_temporary(info->temporary);

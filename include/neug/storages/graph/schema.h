@@ -324,7 +324,8 @@ struct EdgeSchema : public SchemaEntry {
              EdgeStrategy ie_strategy_,
              const std::vector<DataType>& properties_,
              const std::vector<std::string>& property_names_,
-             const std::vector<Value>& default_property_values_ = {})
+             const std::vector<Value>& default_property_values_ = {},
+             const std::string& relation_ = "MANY_TO_MANY")
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
         edge_label_name(edge_label_name_),
@@ -334,6 +335,7 @@ struct EdgeSchema : public SchemaEntry {
         oe_mutable(oe_mutable_),
         oe_strategy(oe_strategy_),
         ie_strategy(ie_strategy_),
+        relation(relation_),
         properties(properties_),
         property_names(property_names_),
         default_property_values(default_property_values_) {
@@ -407,6 +409,7 @@ struct EdgeSchema : public SchemaEntry {
   bool oe_mutable;
   EdgeStrategy oe_strategy;
   EdgeStrategy ie_strategy;
+  std::string relation;
   std::vector<DataType> properties;
   std::vector<std::string> property_names;
   std::vector<Value> default_property_values;
@@ -570,7 +573,8 @@ class NEUG_API Schema {
                     std::optional<std::string> sort_key_for_nbr = std::nullopt,
                     const std::string& description = "",
                     const std::vector<Value>& default_property_values = {},
-                    bool temporary = false);
+                    bool temporary = false,
+                    const std::string& relation = "MANY_TO_MANY");
 
   bool is_vertex_label_temporary(label_t label) const;
   bool is_edge_label_temporary(uint32_t edge_triplet_key) const;

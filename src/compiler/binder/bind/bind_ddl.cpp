@@ -273,6 +273,23 @@ static ExtendDirection getStorageDirection(
   return DEFAULT_EXTEND_DIRECTION;
 }
 
+static void validateStorageDirectionAgainstMultiplicity(
+    ExtendDirection storageDirection, RelMultiplicity srcMultiplicity,
+    RelMultiplicity dstMultiplicity) {
+  if (storageDirection == ExtendDirection::FWD &&
+      srcMultiplicity == RelMultiplicity::ONE) {
+    THROW_BINDER_EXCEPTION(
+        "storage_direction 'fwd' cannot be used when incoming side is "
+        "SINGLE (ONE_TO_MANY / ONE_TO_ONE).");
+  }
+  if (storageDirection == ExtendDirection::BWD &&
+      dstMultiplicity == RelMultiplicity::ONE) {
+    THROW_BINDER_EXCEPTION(
+        "storage_direction 'bwd' cannot be used when outgoing side is "
+        "SINGLE (MANY_TO_ONE / ONE_TO_ONE).");
+  }
+}
+
 BoundCreateTableInfo Binder::bindCreateRelTableInfo(
     const CreateTableInfo* info) {
   auto& extraInfo = info->extraInfo->constCast<ExtraCreateRelTableInfo>();
@@ -299,6 +316,8 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
   validateNodeTableType(dstEntry);
   auto boundOptions = bindParsingOptions(parsedOptions);
   auto storageDirection = getStorageDirection(boundOptions);
+  validateStorageDirectionAgainstMultiplicity(storageDirection, srcMultiplicity,
+                                              dstMultiplicity);
   auto boundExtraInfo = std::make_unique<BoundExtraCreateRelTableInfo>(
       srcMultiplicity, dstMultiplicity, storageDirection,
       srcEntry->get_entry_id(), dstEntry->get_entry_id(),

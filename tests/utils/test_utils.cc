@@ -922,6 +922,43 @@ TEST_F(PBUtilsTest, MultiplicityToStorageStrategy) {
       static_cast<physical::CreateEdgeSchema::Multiplicity>(999), oe, ie));
 }
 
+TEST_F(PBUtilsTest, ApplyStorageDirection) {
+  EdgeStrategy oe = EdgeStrategy::kSingle;
+  EdgeStrategy ie = EdgeStrategy::kMultiple;
+  std::string err;
+
+  // MANY_TO_ONE: dropping MULTIPLE IE is allowed; dropping SINGLE OE is not.
+  ASSERT_TRUE(apply_storage_direction("fwd", oe, ie, err));
+  EXPECT_EQ(oe, EdgeStrategy::kSingle);
+  EXPECT_EQ(ie, EdgeStrategy::kNone);
+
+  oe = EdgeStrategy::kSingle;
+  ie = EdgeStrategy::kMultiple;
+  EXPECT_FALSE(apply_storage_direction("BWD", oe, ie, err));
+  EXPECT_NE(err.find("bwd"), std::string::npos);
+
+  // ONE_TO_MANY: dropping MULTIPLE OE is allowed; dropping SINGLE IE is not.
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kSingle;
+  ASSERT_TRUE(apply_storage_direction("BWD", oe, ie, err));
+  EXPECT_EQ(oe, EdgeStrategy::kNone);
+  EXPECT_EQ(ie, EdgeStrategy::kSingle);
+
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kSingle;
+  EXPECT_FALSE(apply_storage_direction("fwd", oe, ie, err));
+  EXPECT_NE(err.find("fwd"), std::string::npos);
+
+  oe = EdgeStrategy::kMultiple;
+  ie = EdgeStrategy::kMultiple;
+  ASSERT_TRUE(apply_storage_direction("both", oe, ie, err));
+  EXPECT_EQ(oe, EdgeStrategy::kMultiple);
+  EXPECT_EQ(ie, EdgeStrategy::kMultiple);
+
+  EXPECT_FALSE(apply_storage_direction("invalid", oe, ie, err));
+  EXPECT_FALSE(err.empty());
+}
+
 TEST_F(PBUtilsTest, ConflictActionToBool) {
   EXPECT_TRUE(
       conflict_action_to_bool(::physical::ConflictAction::ON_CONFLICT_THROW));

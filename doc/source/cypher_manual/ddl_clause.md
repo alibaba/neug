@@ -70,15 +70,28 @@ CREATE REL TABLE IF NOT EXISTS KNOWS (
 
 **Table options (`WITH`)**
 
-You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. A common key is `sort_key_for_nbr`, whose value is typically a string literal naming an edge property used for ordering. The clause is optional.
+You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. The clause is optional. Supported keys include:
 
-Example, still with `Person`, `KNOWS`, and `weight` only—here `weight` is used as the sort column name:
+- `sort_key_for_nbr`: a string literal naming an edge property used for neighbor ordering.
+- `storage_direction`: which adjacency CSR sides to materialize. Allowed values are `'fwd'`, `'bwd'`, and `'both'` (default). `'fwd'` keeps only outgoing edges; `'bwd'` keeps only incoming edges; `'both'` keeps both.
+
+`storage_direction` cannot remove a `SINGLE` CSR side because that side enforces the declared multiplicity constraint. Consequently, `'fwd'` is rejected for `ONE_TO_MANY` and `ONE_TO_ONE`, while `'bwd'` is rejected for `MANY_TO_ONE` and `ONE_TO_ONE`. `MANY_TO_MANY` supports all three storage directions.
+
+Directed patterns (`-[]->` / `<-[]-`) are allowed on one-sided tables; the planner extends using the available CSR. Undirected patterns (`-[]-`) still require `'both'`.
+
+Examples:
 
 ```
 CREATE REL TABLE IF NOT EXISTS KNOWS (
     FROM Person TO Person,
     weight DOUBLE
 ) WITH (sort_key_for_nbr = 'weight');
+
+CREATE REL TABLE IF NOT EXISTS WORKS_AT (
+    FROM Person TO Company,
+    year INT64,
+    MANY_TO_ONE
+) WITH (storage_direction = 'fwd');
 ```
 
 **Where multiplicity and options apply**

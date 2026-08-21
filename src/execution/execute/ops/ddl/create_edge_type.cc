@@ -27,7 +27,8 @@ class CreateEdgeTypeOpr : public IOperator {
   using property_def_t = std::vector<std::pair<std::string, Value>>;
   using create_edge_type_t =
       std::tuple<std::string, std::string, std::string, property_def_t,
-                 EdgeStrategy, EdgeStrategy, std::optional<std::string>, bool>;
+                 EdgeStrategy, EdgeStrategy, std::string,
+                 std::optional<std::string>, bool>;
   CreateEdgeTypeOpr(const std::vector<create_edge_type_t>& create_edge_types,
                     bool ignore_conflict)
       : create_edge_types_(create_edge_types),
@@ -56,8 +57,9 @@ class CreateEdgeTypeOpr : public IOperator {
           .EdgeLabel(std::get<2>(create_edge_def))
           .OEEdgeStrategy(std::get<4>(create_edge_def))
           .IEEdgeStrategy(std::get<5>(create_edge_def))
-          .SortKeyForNbr(std::get<6>(create_edge_def))
-          .Temporary(std::get<7>(create_edge_def));
+          .Relation(std::get<6>(create_edge_def))
+          .SortKeyForNbr(std::get<7>(create_edge_def))
+          .Temporary(std::get<8>(create_edge_def));
       status = storage.CreateEdgeType(config_builder.Build());
       if (!status.ok()) {
         if (ignore_conflict_ && IsSchemaConflictError(status)) {
@@ -102,17 +104,18 @@ class CreateEdgeTypeOpr : public IOperator {
   bool ignore_conflict_;
 };
 
-static void parse_options(const physical::CreateEdgeSchema& create_edges,
-                          std::optional<std::string>& sort_key_for_nbr) {
-  if (create_edges.options_size() > 0) {
-    for (const auto& option : create_edges.options()) {
-      if (option.first == "SORT_KEY_FOR_NBR") {
-        sort_key_for_nbr = option.second;
-        break;
-      } else {
-        LOG(WARNING) << "Unknown option: " << option.first
-                     << " in CreateEdgeSchema, it will be ignored";
-      }
+static Status parse_options(const physical::CreateEdgeSchema& create_edges,
+                            std::optional<std::string>& sort_key_for_nbr,
+                            std::string& storage_direction) {
+  for (const auto& option : create_edges.options()) {
+    const auto key = toUpper(option.first);
+    if (key == "SORT_KEY_FOR_NBR") {
+      sort_key_for_nbr = option.second;
+    } else if (key == "STORAGE_DIRECTION") {
+      storage_direction = option.second;
+    } else {
+      LOG(WARNING) << "Unknown option: " << option.first
+                   << " in CreateEdgeSchema, it will be ignored";
     }
   }
   if (sort_key_for_nbr.has_value()) {
@@ -127,12 +130,13 @@ static void parse_options(const physical::CreateEdgeSchema& create_edges,
       LOG(ERROR) << "Invalid sort key: " << sort_key_for_nbr.value()
                  << " for CreateEdgeTypeOpr, it should be one of the "
                     "property names";
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Invalid sort key: " + sort_key_for_nbr.value() +
-          " for CreateEdgeTypeOpr, it should be one of "
-          "the property names");
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Invalid sort key: " + sort_key_for_nbr.value() +
+                        " for CreateEdgeTypeOpr, it should be one of "
+                        "the property names");
     }
   }
+  return Status::OK();
 }
 
 neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
@@ -141,7 +145,12 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
   const auto& create_edges = plan.plan(op_id).opr().create_edge_schema();
   auto tuple_res = property_defs_to_value(create_edges.properties());
   std::optional<std::string> sortkey_for_nbr = std::nullopt;
-  parse_options(create_edges, sortkey_for_nbr);
+  std::string storage_direction = "both";
+  auto options_status =
+      parse_options(create_edges, sortkey_for_nbr, storage_direction);
+  if (!options_status.ok()) {
+    RETURN_ERROR(options_status);
+  }
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
@@ -170,10 +179,18 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
           "Invalid edge multiplicity: " +
               physical::CreateEdgeSchema_Multiplicity_Name(multiplicity)));
     }
+    const auto relation =
+        physical::CreateEdgeSchema_Multiplicity_Name(multiplicity);
+    std::string error_msg;
+    if (!apply_storage_direction(storage_direction, oe_stragety, ie_stragety,
+                                 error_msg)) {
+      LOG(ERROR) << error_msg;
+      RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT, error_msg));
+    }
     create_edge_defs.emplace_back(src_vertex_type_name, dst_vertex_type_name,
                                   edge_type_name, tuple_res.value(),
-                                  oe_stragety, ie_stragety, sortkey_for_nbr,
-                                  is_temporary);
+                                  oe_stragety, ie_stragety, relation,
+                                  sortkey_for_nbr, is_temporary);
   }
 
   return std::make_pair(
