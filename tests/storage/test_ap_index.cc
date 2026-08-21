@@ -763,40 +763,6 @@ TEST_F(APIndexTest, IncrementalCheckpointRewritesOnlyMutatedIndex) {
             (std::vector<SearchResult>{{item_vid}}));
 }
 
-TEST_F(APIndexTest, FailedIndexUpdateAfterAppendPersistsTableAndIndex) {
-  CreateItemTable();
-  const auto label = graph_->schema().get_vertex_label_id("Item");
-  vid_t item_vid = 0;
-  ASSERT_TRUE(
-      ap_->AddVertex(label, Value::INT32(1), {Value::INT32(10)}, item_vid)
-          .ok());
-  ASSERT_TRUE(CreateIndex("idx_item_value", "Item", "value"));
-  CheckpointGraph();
-  ReopenGraph();
-
-  auto* failing_index = dynamic_cast<ExampleIndex*>(GetIndex("idx_item_value"));
-  ASSERT_NE(failing_index, nullptr);
-  failing_index->SetFailAfterAppendForTesting(true);
-  EXPECT_FALSE(
-      ap_->UpdateVertexProperty(label, item_vid, 0, Value::INT32(11)).ok());
-  failing_index->SetFailAfterAppendForTesting(false);
-  EXPECT_TRUE(graph_->IsVertexTableDirty(label));
-
-  auto staging = checkpoint_mgr_.CreateStaging();
-  EXPECT_FALSE(graph_->DumpDirtyAndReopen(staging.checkpoint(), 7));
-  staging.Publish();
-  ReopenGraph();
-
-  const auto value_column = graph_->GetVertexPropertyColumn(label, "value");
-  ASSERT_NE(value_column, nullptr);
-  EXPECT_EQ(value_column->get_any(item_vid).GetValue<int32_t>(), 11);
-  auto* value_index = GetIndex("idx_item_value");
-  ASSERT_NE(value_index, nullptr);
-  ExampleIndexQueryParams new_value(11);
-  EXPECT_EQ(value_index->Search(new_value).value(),
-            (std::vector<SearchResult>{{item_vid}}));
-}
-
 TEST_F(APIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   CreatePersonTable();
   CreateReplacementTable();

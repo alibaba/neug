@@ -57,8 +57,6 @@ struct ExampleIndexQueryParams : public IndexQueryParams {
 
 class ExampleIndex : public StorageIndex {
  public:
-  void SetFailAfterAppendForTesting(bool fail) { fail_after_append_ = fail; }
-
   Status Rebind(const IndexBindContext& context) override {
     if (!context.column) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -200,14 +198,10 @@ class ExampleIndex : public StorageIndex {
     }
     auto* index_data = static_cast<int32_t*>(index_buffer_->GetData());
     index_data[index_id] = value.GetValue<int32_t>();
-    if (fail_after_append_) {
-      return Status::InternalError("ExampleIndex test failure after append");
-    }
     return Status::OK();
   }
 
  private:
-  bool fail_after_append_{false};
   size_t size() const {
     return index_buffer_ ? index_buffer_->GetDataSize() / sizeof(int32_t) : 0;
   }

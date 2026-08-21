@@ -100,18 +100,6 @@ std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn& vec, size_t vid_size,
   return array_column;
 }
 
-void MarkVertexAndIncidentEdgeTablesDirty(PropertyGraph& graph, label_t label) {
-  graph.MarkVertexTableDirty(label);
-  for (const auto& [_, edge_schema] : graph.schema().get_all_edge_schemas()) {
-    if (edge_schema->src_label_id == label ||
-        edge_schema->dst_label_id == label) {
-      graph.MarkEdgeTableDirty(edge_schema->src_label_id,
-                               edge_schema->dst_label_id,
-                               edge_schema->edge_label_id);
-    }
-  }
-}
-
 // Drops every index whose metadata references the given vertex label/property.
 static Status dropVertexIndex(PropertyGraph& graph, label_t label,
                               const std::string& prop_name) {
@@ -311,8 +299,6 @@ Status StorageAPUpdateInterface::UpdateVertexPropertyImpl(label_t label,
                                                           const Value& value) {
   RETURN_IF_NOT_OK(
       graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_));
-  // In-place writes are published even when later index maintenance fails.
-  graph_.MarkVertexTableDirty(label);
   return updateVertexIndexData(graph_, label, lid, col_id, value);
 }
 
@@ -349,8 +335,8 @@ Status StorageAPUpdateInterface::AddVertexImpl(label_t label, const Value& id,
     return status;
   }
 
-  graph_.MarkVertexTableDirty(label);
-  return addVertexIndexData(graph_, label, vid, id, props);
+  RETURN_IF_NOT_OK(addVertexIndexData(graph_, label, vid, id, props));
+  return Status::OK();
 }
 
 Status StorageAPUpdateInterface::AddEdgeImpl(
@@ -383,7 +369,6 @@ Status StorageAPUpdateInterface::AddEdgeImpl(
 
 Status StorageAPUpdateInterface::DeleteVertexImpl(label_t label, vid_t lid) {
   RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, timestamp_));
-  MarkVertexAndIncidentEdgeTablesDirty(graph_, label);
   return deleteVertexIndexData(graph_, label, {lid});
 }
 
@@ -415,7 +400,6 @@ result<std::vector<vid_t>> StorageAPUpdateInterface::BatchAddVerticesImpl(
     return new_vids;
   }
 
-  graph_.MarkVertexTableDirty(v_label_id);
   auto status = batchAddVertexIndexData(graph_, v_label_id, new_vids.value());
   if (!status.ok()) {
     return tl::unexpected(std::move(status));
@@ -433,7 +417,6 @@ Status StorageAPUpdateInterface::BatchAddEdgesImpl(
 Status StorageAPUpdateInterface::BatchDeleteVerticesImpl(
     label_t v_label_id, const std::vector<vid_t>& vids) {
   RETURN_IF_NOT_OK(graph_.BatchDeleteVertices(v_label_id, vids));
-  MarkVertexAndIncidentEdgeTablesDirty(graph_, v_label_id);
   return deleteVertexIndexData(graph_, v_label_id, vids);
 }
 
@@ -498,18 +481,10 @@ Status StorageAPUpdateInterface::AddEdgePropertiesImpl(
 Status StorageAPUpdateInterface::RenameVertexPropertiesImpl(
     label_t label, const RenameVertexPropertiesParam& config) {
   RETURN_IF_NOT_OK(graph_.RenameVertexProperties(label, config));
-  graph_.MarkSchemaDirty();
-  graph_.MarkVertexTableDirty(label);
   for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
     if (old_name == new_name)
       continue;
-    auto status = renameVertexIndex(graph_, label, old_name, new_name);
-    if (!status.ok()) {
-      if (on_planning_changed_) {
-        on_planning_changed_();
-      }
-      return status;
-    }
+    RETURN_IF_NOT_OK(renameVertexIndex(graph_, label, old_name, new_name));
   }
   return Status::OK();
 }
