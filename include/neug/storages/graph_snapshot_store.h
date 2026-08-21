@@ -147,6 +147,10 @@ class NEUG_API GraphSnapshotStore {
     void ReopenCurrentGraphFromCheckpoint(
         std::shared_ptr<Checkpoint> checkpoint, MemoryLevel memory_level);
 
+    /// Rebuild pointer-based views after selective in-place module replacement.
+    /// Returns the unchanged snapshot generation used by transaction publish.
+    uint32_t RefreshCurrentView(bool planning_changed);
+
    private:
     friend class GraphSnapshotStore;
 

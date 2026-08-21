@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -704,6 +705,62 @@ TEST_F(APIndexTest, IndexPersistsAfterCheckpointReopen) {
             (std::vector<std::string>{"Alice", "Charlie"}));
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{"Bob", "Eve"}));
   EXPECT_EQ(SearchPersonNames(40), (std::vector<std::string>{"Diana"}));
+}
+
+TEST_F(APIndexTest, IncrementalCheckpointRewritesOnlyMutatedIndex) {
+  CreateItemTable();
+  const auto label = graph_->schema().get_vertex_label_id("Item");
+  vid_t item_vid = 0;
+  ASSERT_TRUE(
+      ap_->AddVertex(label, Value::INT32(1), {Value::INT32(10)}, item_vid)
+          .ok());
+  ASSERT_TRUE(CreateIndex("idx_item_id", "Item", "id"));
+  ASSERT_TRUE(CreateIndex("idx_item_value", "Item", "value"));
+  CheckpointGraph();
+  ReopenGraph();
+
+  auto base_checkpoint = checkpoint_mgr_.Current();
+  ASSERT_NE(base_checkpoint, nullptr);
+  const auto index_path = [](const Checkpoint& checkpoint,
+                             const std::string& name) {
+    const auto* descriptor =
+        checkpoint.manifest().FindModule(StorageIndexManager::GetKey(name));
+    EXPECT_NE(descriptor, nullptr);
+    return descriptor == nullptr ? std::optional<std::string>()
+                                 : descriptor->get_path(kIndexBufferPath);
+  };
+  const auto old_id_path = index_path(*base_checkpoint, "idx_item_id");
+  const auto old_value_path = index_path(*base_checkpoint, "idx_item_value");
+  ASSERT_TRUE(old_id_path.has_value());
+  ASSERT_TRUE(old_value_path.has_value());
+  auto* clean_index = GetIndex("idx_item_id");
+  auto* dirty_index = GetIndex("idx_item_value");
+  ASSERT_NE(clean_index, nullptr);
+  ASSERT_NE(dirty_index, nullptr);
+
+  ASSERT_TRUE(
+      ap_->UpdateVertexProperty(label, item_vid, 0, Value::INT32(11)).ok());
+  EXPECT_TRUE(graph_->IsModified());
+
+  auto staging = checkpoint_mgr_.CreateStaging();
+  EXPECT_FALSE(graph_->DumpDirtyAndReopen(staging.checkpoint(), 7));
+  auto incremental_checkpoint = staging.Publish();
+  view_->Rebuild(*graph_);
+
+  EXPECT_EQ(index_path(*incremental_checkpoint, "idx_item_id"), old_id_path);
+  EXPECT_NE(index_path(*incremental_checkpoint, "idx_item_value"),
+            old_value_path);
+  EXPECT_EQ(GetIndex("idx_item_id"), clean_index);
+  EXPECT_NE(GetIndex("idx_item_value"), dirty_index);
+  EXPECT_FALSE(graph_->IsModified());
+
+  auto* value_index = GetIndex("idx_item_value");
+  ASSERT_NE(value_index, nullptr);
+  ExampleIndexQueryParams old_value(10);
+  ExampleIndexQueryParams new_value(11);
+  EXPECT_TRUE(value_index->Search(old_value).value().empty());
+  EXPECT_EQ(value_index->Search(new_value).value(),
+            (std::vector<SearchResult>{{item_vid}}));
 }
 
 TEST_F(APIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {

@@ -178,8 +178,9 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     OpenVertexTableLegacy(new_table, ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
-    EXPECT_EQ(new_table.VertexNum(2), 3);
-    EXPECT_EQ(new_table.VertexNum(1), 3);
+    EXPECT_EQ(new_table.VertexNum(1), 1);
+    EXPECT_EQ(new_table.VertexNum(2), 2);
+    EXPECT_EQ(new_table.VertexNum(3), 3);
     new_table.Close();
   }
 }

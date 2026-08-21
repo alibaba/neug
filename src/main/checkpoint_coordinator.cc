@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <exception>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -125,6 +126,62 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
   return status;
 }
 
+Status CheckpointCoordinator::PublishIncrementalCheckpoint(
+    UpdateTimestampLease timestamp_lease) {
+  bool destructive_phase = false;
+  try {
+    timestamp_lease.MakeUpdateExclusive();
+    std::optional<uint32_t> installed_snapshot_generation;
+    auto status = snapshot_store_.WithCheckpointMaintenance(
+        [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
+            -> Status {
+          auto& live_graph = maintenance.MutableCurrentSnapshot();
+          if (!live_graph.IsModified()) {
+            return Status::OK();
+          }
+          auto preflight = live_graph.ValidateCheckpointPreconditions();
+          if (!preflight.ok()) {
+            return preflight;
+          }
+
+          auto staging_checkpoint = checkpoint_manager_.CreateStaging();
+          LOG(INFO) << "Executing incremental checkpoint without compaction";
+          destructive_phase = true;
+          const bool planning_changed = live_graph.DumpDirtyAndReopen(
+              staging_checkpoint.checkpoint(), timestamp_lease.Timestamp());
+          auto published_checkpoint = staging_checkpoint.Publish();
+          installed_snapshot_generation =
+              maintenance.RefreshCurrentView(planning_changed);
+          invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
+          cleanup_retired_checkpoints(checkpoint_manager_);
+          return Status::OK();
+        });
+    if (!status.ok()) {
+      return status;
+    }
+    timestamp_lease.Finish(installed_snapshot_generation);
+    return Status::OK();
+  } catch (const exception::IOException& e) {
+    if (destructive_phase) {
+      fail_stop_live_database(e.what());
+    }
+    return Status(StatusCode::ERR_IO_ERROR, e.what());
+  } catch (const std::exception& e) {
+    if (destructive_phase) {
+      fail_stop_live_database(e.what());
+    }
+    return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
+  } catch (...) {
+    if (destructive_phase) {
+      fail_stop_live_database(
+          "Unknown destructive incremental checkpoint "
+          "failure");
+    }
+    return Status(StatusCode::ERR_INTERNAL_ERROR,
+                  "Unknown incremental checkpoint preparation failure");
+  }
+}
+
 Status CheckpointCoordinator::PublishRecoveryCheckpoint() {
   return execute(Reason::kRecovery);
 }
@@ -147,12 +204,9 @@ Status CheckpointCoordinator::execute(Reason reason) {
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
 
-          if (live_graph.HasPendingMutations()) {
-            return Status(
-                StatusCode::ERR_ILLEGAL_OPERATION,
-                "Cannot create a checkpoint while mutations for pending "
-                "extension-backed indexes have not been applied. Load the "
-                "required extension first.");
+          auto preflight = live_graph.ValidateCheckpointPreconditions();
+          if (!preflight.ok()) {
+            return preflight;
           }
 
           LOG(INFO) << "Executing " << reasonName(reason) << " checkpoint"
