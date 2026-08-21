@@ -22,6 +22,7 @@
 
 struct sqlite3;
 struct sqlite3_stmt;
+struct fts5_api;
 
 namespace neug::fts_ext {
 
@@ -66,6 +67,7 @@ class SQLiteConnection {
 
   bool IsOpen() const { return connection_ != nullptr; }
   bool InTransaction() const;
+  fts5_api* GetFTS5API() const;
 
  private:
   sqlite3* connection_{nullptr};

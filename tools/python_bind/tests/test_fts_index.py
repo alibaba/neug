@@ -442,10 +442,37 @@ def test_multiple_fts_indexes_for_same_property_are_ambiguous(fts_database):
         search(fts_database, "search")
 
 
+@pytest.mark.parametrize("jieba_mode", [None, "mp", "hmm", "mix"])
+def test_jieba_tokenizer_modes_segment_chinese(tmp_path, jieba_mode):
+    mode_name = jieba_mode or "default"
+    db = Database(db_path=str(tmp_path / f"jieba_{mode_name}_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        connection.execute(
+            "CREATE (:Item {id: 1, text: '他来到了网易杭研大厦'}), "
+            "(:Item {id: 2, text: '我来到北京清华大学'});"
+        )
+        options = "tokenizer = 'jieba'"
+        if jieba_mode is not None:
+            options += f", jieba_mode = '{jieba_mode}'"
+        connection.execute(
+            "CREATE INDEX item_text_fts ON Item USING FTS (text) " f"WITH ({options});"
+        )
+
+        assert [row[0] for row in search(connection, "网易")] == [1]
+        assert [row[0] for row in search(connection, "清华大学")] == [2]
+    finally:
+        connection.close()
+        db.close()
+
+
 @pytest.mark.parametrize(
     ("option", "value", "error_pattern"),
     [
         ("tokenizer", "unknown", "tokenizer"),
+        ("jieba_mode", "mix", "jieba_mode"),
         ("prefix", "2 bad", "prefix"),
         ("detail", "invalid", "detail"),
     ],
@@ -462,6 +489,22 @@ def test_create_fts_index_rejects_invalid_options(
             connection.execute(
                 "CREATE INDEX item_text_fts ON Item USING FTS (text) "
                 f"WITH ({option} = '{value}');"
+            )
+    finally:
+        connection.close()
+        db.close()
+
+
+def test_create_jieba_fts_index_rejects_invalid_mode(tmp_path):
+    db = Database(db_path=str(tmp_path / "invalid_jieba_mode_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        with pytest.raises(RuntimeError, match="jieba_mode"):
+            connection.execute(
+                "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+                "WITH (tokenizer = 'jieba', jieba_mode = 'invalid');"
             )
     finally:
         connection.close()

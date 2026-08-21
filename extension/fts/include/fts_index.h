@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "fts_sqlite.h"
+#include "fts_tokenizer.h"
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/index/storage_index.h"
 
@@ -97,6 +98,8 @@ class FTSIndex final : public StorageIndex {
   static constexpr const char* kIndexFilePath = "fts_file";
   static constexpr const char* kAccessorRef = "index_id_accessor";
 
+  // Declared before the connections so it is destroyed after them.
+  std::shared_ptr<const FTSTokenizer> tokenizer_;
   std::shared_ptr<SQLiteConnection> read_connection_{
       std::make_shared<SQLiteConnection>()};
   std::shared_ptr<SQLiteConnection> write_connection_{
@@ -110,7 +113,6 @@ class FTSIndex final : public StorageIndex {
   std::string runtime_path_;
   std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> runtime_file_;
   std::string table_name_;
-  std::string tokenizer_{"unicode61"};
   std::string prefix_;
   std::string detail_{"full"};
   const ColumnBase* bound_column_{nullptr};
