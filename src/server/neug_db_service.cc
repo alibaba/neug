@@ -100,7 +100,6 @@ void NeugDBService::init(const ServiceConfig& config) {
 #ifndef _WIN32
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
   hdl_mgr_->Init(effective_config);
-  service_config_ = effective_config;
 
   db_.checkpoint_coordinator_->SetActivationHandler(
       [pool = execution_slot_pool_.get()](const std::string& wal_uri) {
@@ -109,9 +108,9 @@ void NeugDBService::init(const ServiceConfig& config) {
 #else
   hdl_mgr_ =
       std::make_unique<HttplibServiceManager>(db_, *execution_slot_pool_);
-  hdl_mgr_->Init(config);
+  hdl_mgr_->Init(effective_config);
 #endif
-  service_config_ = config;
+  service_config_ = effective_config;
 }
 
 NeugDBService::~NeugDBService() {
