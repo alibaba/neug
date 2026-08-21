@@ -37,6 +37,7 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_append([1, 2], 3);", [1, 2, 3]),
         ("RETURN list_append([1, 2], 3.5);", [1.0, 2.0, 3.5]),
         ("RETURN list_append([], 1);", [1]),
+        ("RETURN list_append([], NULL);", [None]),
         ("RETURN list_append(CAST([1, 2], 'INT64[]'), 3);", [1, 2, 3]),
         ("RETURN list_concat([1, 2], [3, 4]);", [1, 2, 3, 4]),
         (
@@ -53,6 +54,14 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_concat([], []);", []),
         ("RETURN list_append([1, 2], NULL);", [1, 2, None]),
         (
+            "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",
+            [[1, 2], [3, 4], [5, 6]],
+        ),
+        (
+            "RETURN list_concat([[1, 2]], [[3, 4], [5, 6]]);",
+            [[1, 2], [3, 4], [5, 6]],
+        ),
+        (
             "RETURN list_append(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 4);",
             [1, None, 3, 4],
         ),
@@ -67,6 +76,7 @@ def test_list_append_and_concat(tmp_path):
         value = list(conn.execute(query))[0][0]
         assert _nested_list(value) == expected
 
+    # A typed top-level NULL list propagates to a NULL result.
     assert list(conn.execute("RETURN list_append(CAST(NULL, 'INT64[]'), 3);")) == [
         [None]
     ]
@@ -76,6 +86,8 @@ def test_list_append_and_concat(tmp_path):
 
     with pytest.raises(Exception, match="first argument to be LIST or ARRAY"):
         conn.execute("RETURN list_append(1, 2);")
+    with pytest.raises(Exception, match="cannot find a common element type"):
+        conn.execute("RETURN list_append([1, 2], [3]);")
     with pytest.raises(Exception, match="expects LIST or ARRAY arguments"):
         conn.execute("RETURN list_concat([1], 2);")
 

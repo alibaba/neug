@@ -14,6 +14,8 @@ The accepted argument types, return types, type inference rules, and behavior of
 ## `list_append`
 
 `list_append` appends a single element to the end of a `LIST` or `ARRAY`.
+The input and appended element can also be nested `LIST` or `ARRAY` values,
+provided their nested element types are compatible.
 
 ### Syntax
 
@@ -133,6 +135,16 @@ RETURN list_append([1, 2], 3.5);
 
 Here, the integer values are promoted to the common numeric type used by the result.
 
+#### Append to a nested list
+
+Nested lists are supported. The appended element must itself be a compatible
+list value:
+
+```cypher
+RETURN list_append([[1, 2], [3, 4]], [5, 6]);
+// [[1, 2], [3, 4], [5, 6]]
+```
+
 ### Error Handling
 
 `list_append` reports an error in the following cases:
@@ -151,6 +163,8 @@ RETURN list_append(1, 2);
 ## `list_concat`
 
 `list_concat` concatenates two `LIST` or `ARRAY` values.
+Nested `LIST` and `ARRAY` values are supported when their nested element types
+are compatible.
 
 ### Syntax
 
@@ -249,6 +263,15 @@ RETURN list_concat([1, 2], [3.5, 4.5]);
 // [1.0, 2.0, 3.5, 4.5]
 ```
 
+#### Concatenate nested lists
+
+Nested lists can be concatenated when their child list types are compatible:
+
+```cypher
+RETURN list_concat([[1, 2]], [[3, 4], [5, 6]]);
+// [[1, 2], [3, 4], [5, 6]]
+```
+
 ### Error Handling
 
 `list_concat` reports an error in the following cases:
@@ -306,6 +329,18 @@ RETURN list_append([1, 2], NULL);
 ```
 
 Here, `[1, 2]` provides the element type for the result.
+
+A typed top-level `NULL` list input propagates to a `NULL` result:
+
+```cypher
+RETURN list_append(CAST(NULL, 'INT64[]'), 3);
+// NULL
+```
+
+```cypher
+RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);
+// NULL
+```
 
 If NeuG cannot determine a compatible common element type, or if the required implicit conversion is unsupported, the function reports an error.
 

@@ -74,6 +74,10 @@ def test_list_append_documentation_examples(item_connection):
     assert _scalar(conn, "RETURN list_append([], 1);") == [1]
     assert _scalar(conn, "RETURN list_append([1, 2], NULL);") == [1, 2, None]
     assert _scalar(conn, "RETURN list_append([1, 2], 3.5);") == [1.0, 2.0, 3.5]
+    assert _scalar(
+        conn,
+        "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",
+    ) == [[1, 2], [3, 4], [5, 6]]
 
     with pytest.raises(Exception, match="first argument to be LIST or ARRAY"):
         conn.execute("RETURN list_append(1, 2);")
@@ -105,6 +109,10 @@ def test_list_concat_documentation_examples(item_connection):
         3.5,
         4.5,
     ]
+    assert _scalar(
+        conn,
+        "RETURN list_concat([[1, 2]], [[3, 4], [5, 6]]);",
+    ) == [[1, 2], [3, 4], [5, 6]]
 
     with pytest.raises(Exception, match="expects LIST or ARRAY arguments"):
         conn.execute("RETURN list_concat([1], 2);")

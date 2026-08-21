@@ -16,6 +16,7 @@
 
 #include "neug/compiler/function/list/functions/list_append_function.h"
 
+#include "neug/compiler/function/list/functions/list_function_utils.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/utils/exception/exception.h"
@@ -26,26 +27,6 @@ namespace neug {
 namespace function {
 
 namespace {
-
-const DataType& getElementType(const DataType& type) {
-  return type.id() == DataTypeId::kList ? ListType::GetChildType(type)
-                                        : ArrayType::GetChildType(type);
-}
-
-DataType getCoercedInputType(const DataType& inputType,
-                             const DataType& elementType) {
-  if (inputType.id() == DataTypeId::kArray) {
-    return DataType::Array(elementType.copy(),
-                           ArrayType::GetNumElements(inputType));
-  }
-  return DataType::List(elementType.copy());
-}
-
-const std::vector<Value>& getChildren(const Value& value) {
-  return value.type().id() == DataTypeId::kList
-             ? ListValue::GetChildren(value)
-             : ArrayValue::GetChildren(value);
-}
 
 std::unique_ptr<FunctionBindData> bindAppend(const ScalarBindFuncInput& input) {
   if (input.arguments.size() != 2) {
@@ -58,7 +39,7 @@ std::unique_ptr<FunctionBindData> bindAppend(const ScalarBindFuncInput& input) {
         "LIST_APPEND expects its first argument to be LIST or ARRAY, got " +
         listType.ToString() + ".");
   }
-  const auto& inputElementType = getElementType(listType);
+  const auto& inputElementType = ListFunctionUtils::getElementType(listType);
   const auto& appendType = input.arguments[1]->getDataType();
   DataType elementType;
   if (!LogicalTypeUtils::tryGetMaxLogicalType(inputElementType, appendType,
@@ -69,7 +50,8 @@ std::unique_ptr<FunctionBindData> bindAppend(const ScalarBindFuncInput& input) {
   }
   auto resultType = DataType::List(elementType.copy());
   std::vector<DataType> paramTypes;
-  paramTypes.push_back(getCoercedInputType(listType, elementType));
+  paramTypes.push_back(
+      ListFunctionUtils::getCoercedInputType(listType, elementType));
   paramTypes.push_back(elementType.copy());
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             std::move(resultType));
@@ -84,12 +66,13 @@ Value ListAppend::operation(const std::vector<Value>& args) {
   if (args[0].IsNull()) {
     return Value(DataType::List(args[1].type().copy()));
   }
-  const auto& input = getChildren(args[0]);
+  const auto& input = ListFunctionUtils::getChildren(args[0]);
   std::vector<Value> children;
   children.reserve(input.size() + 1);
   children.insert(children.end(), input.begin(), input.end());
   children.push_back(args[1]);
-  const auto& inputElementType = getElementType(args[0].type());
+  const auto& inputElementType =
+      ListFunctionUtils::getElementType(args[0].type());
   const auto& resultElementType = inputElementType.id() == DataTypeId::kUnknown
                                       ? args[1].type()
                                       : inputElementType;

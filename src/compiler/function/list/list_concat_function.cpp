@@ -23,6 +23,7 @@
 #include "neug/compiler/function/list/functions/list_concat_function.h"
 
 #include "neug/common/types/value.h"
+#include "neug/compiler/function/list/functions/list_function_utils.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/utils/exception/exception.h"
@@ -35,53 +36,33 @@ namespace function {
 
 namespace {
 
-bool isListLike(const DataType& type) {
-  return type.id() == DataTypeId::kList || type.id() == DataTypeId::kArray;
-}
-
-const DataType& getElementType(const DataType& type) {
-  return type.id() == DataTypeId::kList ? ListType::GetChildType(type)
-                                        : ArrayType::GetChildType(type);
-}
-
-DataType getCoercedInputType(const DataType& inputType,
-                             const DataType& elementType) {
-  if (inputType.id() == DataTypeId::kArray) {
-    return DataType::Array(elementType.copy(),
-                           ArrayType::GetNumElements(inputType));
-  }
-  return DataType::List(elementType.copy());
-}
-
-const std::vector<Value>& getChildren(const Value& value) {
-  return value.type().id() == DataTypeId::kList
-             ? ListValue::GetChildren(value)
-             : ArrayValue::GetChildren(value);
-}
-
 std::unique_ptr<FunctionBindData> bindConcat(const ScalarBindFuncInput& input) {
   if (input.arguments.size() != 2) {
     THROW_BINDER_EXCEPTION("LIST_CONCAT expects exactly 2 arguments.");
   }
   const auto& leftType = input.arguments[0]->getDataType();
   const auto& rightType = input.arguments[1]->getDataType();
-  if (!isListLike(leftType) || !isListLike(rightType)) {
+  if (!ListFunctionUtils::isListLike(leftType) ||
+      !ListFunctionUtils::isListLike(rightType)) {
     THROW_BINDER_EXCEPTION("LIST_CONCAT expects LIST or ARRAY arguments, got " +
                            leftType.ToString() + " and " +
                            rightType.ToString() + ".");
   }
   DataType elementType;
   if (!LogicalTypeUtils::tryGetMaxLogicalType(
-          getElementType(leftType), getElementType(rightType), elementType)) {
+          ListFunctionUtils::getElementType(leftType),
+          ListFunctionUtils::getElementType(rightType), elementType)) {
     THROW_BINDER_EXCEPTION(
         "LIST_CONCAT cannot find a common element type for " +
-        getElementType(leftType).ToString() + " and " +
-        getElementType(rightType).ToString() + ".");
+        ListFunctionUtils::getElementType(leftType).ToString() + " and " +
+        ListFunctionUtils::getElementType(rightType).ToString() + ".");
   }
   auto resultType = DataType::List(elementType.copy());
   std::vector<DataType> paramTypes;
-  paramTypes.push_back(getCoercedInputType(leftType, elementType));
-  paramTypes.push_back(getCoercedInputType(rightType, elementType));
+  paramTypes.push_back(
+      ListFunctionUtils::getCoercedInputType(leftType, elementType));
+  paramTypes.push_back(
+      ListFunctionUtils::getCoercedInputType(rightType, elementType));
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             std::move(resultType));
 }
@@ -91,22 +72,26 @@ Value concatValues(const std::vector<Value>& args) {
     THROW_RUNTIME_ERROR("LIST_CONCAT expects exactly 2 arguments.");
   }
   if (args[0].IsNull() || args[1].IsNull()) {
-    if (isListLike(args[0].type())) {
-      return Value(DataType::List(getElementType(args[0].type()).copy()));
+    if (ListFunctionUtils::isListLike(args[0].type())) {
+      return Value(DataType::List(
+          ListFunctionUtils::getElementType(args[0].type()).copy()));
     }
-    if (isListLike(args[1].type())) {
-      return Value(DataType::List(getElementType(args[1].type()).copy()));
+    if (ListFunctionUtils::isListLike(args[1].type())) {
+      return Value(DataType::List(
+          ListFunctionUtils::getElementType(args[1].type()).copy()));
     }
     return Value(DataType::List(DataType(DataTypeId::kUnknown)));
   }
-  const auto& left = getChildren(args[0]);
-  const auto& right = getChildren(args[1]);
+  const auto& left = ListFunctionUtils::getChildren(args[0]);
+  const auto& right = ListFunctionUtils::getChildren(args[1]);
   std::vector<Value> children;
   children.reserve(left.size() + right.size());
   children.insert(children.end(), left.begin(), left.end());
   children.insert(children.end(), right.begin(), right.end());
-  const auto& leftElementType = getElementType(args[0].type());
-  const auto& rightElementType = getElementType(args[1].type());
+  const auto& leftElementType =
+      ListFunctionUtils::getElementType(args[0].type());
+  const auto& rightElementType =
+      ListFunctionUtils::getElementType(args[1].type());
   const auto& resultElementType = leftElementType.id() == DataTypeId::kUnknown
                                       ? rightElementType
                                       : leftElementType;
