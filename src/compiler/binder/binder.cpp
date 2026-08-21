@@ -52,6 +52,7 @@ namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bind(const Statement& statement) {
+  boundProjectedGraphs.clear();
   std::unique_ptr<BoundStatement> boundStatement;
   switch (statement.getStatementType()) {
   case StatementType::CREATE_TABLE: {

@@ -1,11 +1,10 @@
-/**
- * Copyright 2020 Alibaba Group Holding Limited.
+/** Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * 	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +22,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/common/assert.h"
@@ -42,30 +40,6 @@ namespace function {
 struct TableFuncBindInput;
 }
 namespace graph {
-
-struct ParsedGraphEntryTableInfo {
-  std::string srcTableName;
-  std::string tableName;
-  std::string dstTableName;
-  std::string predicate;
-
-  ParsedGraphEntryTableInfo(std::string tableName, std::string predicate)
-      : tableName{std::move(tableName)}, predicate{std::move(predicate)} {}
-
-  ParsedGraphEntryTableInfo(std::string srcTableName, std::string tableName,
-                            std::string dstTableName, std::string predicate)
-      : srcTableName{std::move(srcTableName)},
-        tableName{std::move(tableName)},
-        dstTableName{std::move(dstTableName)},
-        predicate{std::move(predicate)} {}
-
-  std::string toString() const;
-};
-
-struct ParsedGraphEntry {
-  std::vector<ParsedGraphEntryTableInfo> nodeInfos;
-  std::vector<ParsedGraphEntryTableInfo> relInfos;
-};
 
 struct BoundGraphEntryTableInfo {
   SchemaEntry* entry;
@@ -124,52 +98,13 @@ struct NEUG_API GraphEntry {
       : nodeInfos{other.nodeInfos}, relInfos{other.relInfos} {}
 };
 
-class GraphEntrySet {
- public:
-  bool hasGraph(const std::string& name) const {
-    return nameToEntry.contains(name);
-  }
-  const ParsedGraphEntry& getEntry(const std::string& name) const {
-    NEUG_ASSERT(hasGraph(name));
-    return nameToEntry.at(name);
-  }
-  void addGraph(const std::string& name, const ParsedGraphEntry& entry) {
-    nameToEntry.insert({name, entry});
-  }
-  void dropGraph(const std::string& name) { nameToEntry.erase(name); }
-
-  const std::unordered_map<std::string, ParsedGraphEntry>& getNameToEntryMap()
-      const {
-    return nameToEntry;
-  }
-
-  // @throws BinderException if a graph with `name` already exists.
-  void validateGraphNotExist(const std::string& name) const;
-  // @throws BinderException if no graph is registered under `name`.
-  void validateGraphExist(const std::string& name) const;
-
-  using iterator = std::unordered_map<std::string, ParsedGraphEntry>::iterator;
-  using const_iterator =
-      std::unordered_map<std::string, ParsedGraphEntry>::const_iterator;
-
-  iterator begin() { return nameToEntry.begin(); }
-  iterator end() { return nameToEntry.end(); }
-  const_iterator begin() const { return nameToEntry.begin(); }
-  const_iterator end() const { return nameToEntry.end(); }
-  const_iterator cbegin() const { return nameToEntry.cbegin(); }
-  const_iterator cend() const { return nameToEntry.cend(); }
-
- private:
-  std::unordered_map<std::string, ParsedGraphEntry> nameToEntry;
-};
-
-// Validates `ParsedGraphEntry` against the catalog and returns a bound
+// Validates `ProjectedGraphEntry` against the catalog and returns a bound
 // [`GraphEntry`] (predicates are accepted as strings; expression binding is
 // deferred).
 class NEUG_API GDSFunction {
  public:
   static GraphEntry bindGraphEntry(main::ClientContext& clientContext,
-                                   const ParsedGraphEntry& entry);
+                                   const ProjectedGraphEntry& entry);
 
   static BoundGraphEntryTableInfo bindNodeEntry(
       main::ClientContext& clientContext, const std::string& tableName,

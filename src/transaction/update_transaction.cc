@@ -748,6 +748,21 @@ Status StorageTPUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
   return status;
 }
 
+Status StorageTPUpdateInterface::AddGraphEntry(
+    const std::string& name, const ProjectedGraphEntry& entry) {
+  wal_.LogAddGraphEntry(name, entry);
+  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().AddGraphEntry(name, entry));
+  MarkSchemaDirty();
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::DropGraphEntry(const std::string& name) {
+  wal_.LogDropGraphEntry(name);
+  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().DropGraphEntry(name));
+  MarkSchemaDirty();
+  return Status::OK();
+}
+
 Status StorageTPUpdateInterface::AddVertexImpl(label_t label, const Value& oid,
                                                const std::vector<Value>& props,
                                                vid_t& vid) {
@@ -1238,6 +1253,21 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
           graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
+    } else if (op_type == OpType::kAddGraphEntry) {
+      // The WAL directory belongs to the checkpoint being opened and contains
+      // only records from its fresh timestamp timeline. Therefore an existing
+      // entry here is a replay invariant violation, not an idempotent retry.
+      auto redo = AddGraphEntryRedo::Deserialize(arc);
+      auto status = graph.mutable_schema().AddGraphEntry(redo.name, redo.entry);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to replay projected graph add: ",
+                                     status);
+      graph.MarkSchemaDirty();
+    } else if (op_type == OpType::kDropGraphEntry) {
+      auto redo = DropGraphEntryRedo::Deserialize(arc);
+      auto status = graph.mutable_schema().DropGraphEntry(redo.name);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to replay projected graph drop: ",
+                                     status);
+      graph.MarkSchemaDirty();
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
                                     std::to_string(static_cast<int>(op_type)));

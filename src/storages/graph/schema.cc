@@ -644,6 +644,7 @@ void Schema::Clear() {
   vlabel_tomb_.clear();
   elabel_tomb_.clear();
   elabel_triplet_tomb_.clear();
+  graph_entry_set_.Clear();
 }
 
 void Schema::AddVertexLabel(
@@ -1126,6 +1127,20 @@ void Schema::Serialize(std::ostream& os) const {
     arc << (uint32_t) e_pair.first << (*e_pair.second);
   }
   arc << description_ << name_ << id_;
+  std::vector<std::string> graph_names;
+  graph_names.reserve(graph_entry_set_.Entries().size());
+  for (const auto& [name, _] : graph_entry_set_.Entries()) {
+    graph_names.push_back(name);
+  }
+  std::sort(graph_names.begin(), graph_names.end());
+  arc << graph_names.size();
+  for (const auto& name : graph_names) {
+    auto entry = graph_entry_set_.GetEntry(name);
+    if (!entry) {
+      THROW_STORAGE_EXCEPTION(entry.error().error_message());
+    }
+    arc << name << **entry;
+  }
   size_t size = arc.GetSize();
   os.write(reinterpret_cast<char*>(&size), sizeof(size));
   os.write(arc.GetBuffer(), size);
@@ -1159,6 +1174,28 @@ void Schema::Deserialize(std::istream& is) {
   }
 
   arc >> description_ >> name_ >> id_;
+  graph_entry_set_.Clear();
+  // Projected graphs were added as an optional tail to the length-delimited
+  // schema archive. Legacy archives end immediately after id_, so an empty
+  // archive here is a valid pre-projected-graph schema rather than a graph
+  // count. Keeping the legacy path explicit also avoids reading past the
+  // archive and interpreting unrelated bytes as graph_count.
+  if (!arc.Empty()) {
+    if (arc.GetSize() < sizeof(size_t)) {
+      THROW_STORAGE_EXCEPTION(
+          "Invalid schema archive: truncated projected graph count");
+    }
+    size_t graph_count;
+    arc >> graph_count;
+    for (size_t i = 0; i < graph_count; ++i) {
+      std::string name;
+      ProjectedGraphEntry entry;
+      arc >> name >> entry;
+      auto status = graph_entry_set_.AddEntry(name, entry);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to deserialize projected graph: ",
+                                     status);
+    }
+  }
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
   elabel_triplet_tomb_.Deserialize(is);
@@ -1206,7 +1243,8 @@ std::tuple<label_t, label_t, label_t> Schema::parse_edge_label(
 
 bool Schema::Equals(const Schema& other) const {
   // When compare two schemas, we only compare the properties and strategies
-  if (vertex_label_num() != other.vertex_label_num() ||
+  if (graph_entry_set_ != other.graph_entry_set_ ||
+      vertex_label_num() != other.vertex_label_num() ||
       edge_label_num() != other.edge_label_num()) {
     return false;
   }
@@ -1305,6 +1343,16 @@ bool Schema::Equals(const Schema& other) const {
     }
   }
   return true;
+}
+
+std::vector<std::string> Schema::GetGraphEntryNames() const {
+  std::vector<std::string> names;
+  names.reserve(graph_entry_set_.Entries().size());
+  for (const auto& [name, _] : graph_entry_set_.Entries()) {
+    names.push_back(name);
+  }
+  std::sort(names.begin(), names.end());
+  return names;
 }
 
 neug::result<YAML::Node> Schema::to_yaml() const {
@@ -1853,6 +1901,15 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
   if (schema_node["edge_types"]) {
     RETURN_IF_NOT_OK(parse_edges_schema(schema_node["edge_types"], schema));
   }
+  if (graph_node["projected_graphs"]) {
+    auto entries = GraphEntrySet::FromYaml(graph_node["projected_graphs"]);
+    if (!entries) {
+      return entries.error();
+    }
+    for (const auto& [name, entry] : entries.value().Entries()) {
+      RETURN_IF_NOT_OK(schema.AddGraphEntry(name, entry));
+    }
+  }
   return Status::OK();
 }
 
@@ -2199,6 +2256,12 @@ neug::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
   config_parsing::dump_edges_schema(schema, edge_types);
   graph_node["schema"]["edge_types"] = edge_types;
 
+  auto projected_graphs = schema.graph_entry_set_.ToYaml();
+  if (!projected_graphs) {
+    return tl::unexpected(projected_graphs.error());
+  }
+  graph_node["projected_graphs"] = std::move(projected_graphs.value());
+
   return graph_node;
 }
 
@@ -2452,6 +2515,7 @@ Schema Schema::Compact() const {
   new_schema.name_ = name_;
   new_schema.id_ = id_;
   new_schema.description_ = description_;
+  new_schema.graph_entry_set_ = graph_entry_set_;
 
   for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
     if (vlabel_tomb_.get(v_label)) {
@@ -2541,6 +2605,7 @@ Schema Schema::Clone() const {
   cloned.vlabel_tomb_ = vlabel_tomb_;
   cloned.elabel_tomb_ = elabel_tomb_;
   cloned.elabel_triplet_tomb_ = elabel_triplet_tomb_;
+  cloned.graph_entry_set_ = graph_entry_set_;
 
   return cloned;
 }
@@ -2642,6 +2707,10 @@ Schema Schema::StripTemporary() const {
   stripped.elabel_tomb_.resize(stripped.elabel_indexer_.size());
   stripped.elabel_triplet_tomb_.resize(
       stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
+
+  // Projected graph metadata has lower priority than the physical schema.
+  // Keep it intact and defer missing-label validation to query binding.
+  stripped.graph_entry_set_ = graph_entry_set_;
 
   return stripped;
 }

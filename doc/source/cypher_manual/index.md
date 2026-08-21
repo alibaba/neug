@@ -192,3 +192,7 @@ Both commands provide detailed execution plans showing the operator tree structu
 ### Extension
 
 NeuG provides an Extension framework that enables dynamically adding new functionality without modifying the core engine code. Please refer to the [Extensions](../extensions/index) section for more details.
+
+### Namespace
+
+NeuG provides **Namespace** support for creating named, reusable logical views over a graph. A Namespace can restrict graph queries to selected node types, relationship types, and property conditions **without copying or materializing the underlying graph data**. Please refer to [Namespace](./namespace.md) section for more details.
