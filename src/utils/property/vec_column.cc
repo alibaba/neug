@@ -347,7 +347,11 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::set_any: invalid vid");
   }
   validatePodType();
-  validateValue(value);
+  // As with the other property columns, an untyped NULL assignment is stored
+  // as the column default. Secondary indexes still receive the original NULL
+  // value and remove the row instead of indexing this physical placeholder.
+  const Value& normalized = value.IsNull() ? default_value_ : value;
+  validateValue(normalized);
   index_id_t next_offset = offset_accessor_->GetNextIndexID();
   if (next_offset >= size_) {
     if (!insert_safe) {
@@ -360,9 +364,10 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
   assert(next_offset < size_);
   auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
   switch (ArrayType::GetChildType(array_type_).id()) {
-#define TYPE_DISPATCHER(enum_val, type)                                    \
-  case DataTypeId::enum_val:                                               \
-    SetBufferValue<type>(buffer_->GetData(), offset, array_size(), value); \
+#define TYPE_DISPATCHER(enum_val, type)                            \
+  case DataTypeId::enum_val:                                       \
+    SetBufferValue<type>(buffer_->GetData(), offset, array_size(), \
+                         normalized);                              \
     return;
     FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER

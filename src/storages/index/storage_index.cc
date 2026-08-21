@@ -67,6 +67,11 @@ Status StorageIndex::Upsert(vid_t vid, const Value& new_value) {
   if (!index_id_accessor_) {
     return Status::InternalError("Index ID accessor is not initialized");
   }
+  // NULL means that this vertex has no value defined in the index. Avoid
+  // allocating an index ID and invalidate any mapping left by an older value.
+  if (new_value.IsNull()) {
+    return Delete(vid);
+  }
   auto index_id = index_id_accessor_->UpsertVID(vid);
   return AppendImpl(index_id, new_value);
 }
@@ -208,6 +213,10 @@ void StorageIndex::Dump(Checkpoint& ckp, CheckpointManifest& meta,
 
   ModuleDescriptor desc;
   desc.module_type = ModuleTypeName();
+  // Storage indexes may be supplied by an extension that is loaded after the
+  // database opens. Preserve their descriptors so StorageIndexManager can
+  // defer activation until the module type is registered.
+  desc.required = false;
   desc.set("index_meta", meta_->ToJsonString());
 
   meta.SetModule(key, std::move(desc));

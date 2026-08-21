@@ -37,3 +37,7 @@
 [submodule "third_party/zvec"]
 	path = third_party/zvec
 	url = https://github.com/alibaba/zvec.git
+[submodule "third_party/sqlite"]
+	path = third_party/sqlite
+	url = https://github.com/sqlite/sqlite.git
+	shallow = true

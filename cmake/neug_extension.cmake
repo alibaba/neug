@@ -3,7 +3,7 @@
 # CMake helpers for out-of-tree NeuG extensions.
 
 set(NEUG_BUILTIN_EXTENSIONS
-    parquet pattern_matching gds httpfs vector_search
+    parquet pattern_matching gds httpfs vector_search fts
     CACHE INTERNAL "")
 
 function(neug_extension_load EXT_NAME)

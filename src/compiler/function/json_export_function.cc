@@ -23,6 +23,7 @@
 
 #include <string>
 
+#include "neug/compiler/function/export/export_stream.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/generated/proto/response/response.pb.h"
@@ -343,7 +344,15 @@ static Status writeTableWithBuffer(StringFormatBuffer& buffer,
   if (schema.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
   }
-  auto stream = io::openLocalOutputStream(schema.paths[0]);
+  // Resolve the output stream through the VFS so remote schemes
+  // (s3/oss/http/https) are written via the httpfs extension.
+  std::unique_ptr<io::OutputStream> stream;
+  try {
+    stream = neug::function::openExportOutputStream(schema);
+  } catch (const std::exception& e) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Failed to open output file: " + std::string(e.what()));
+  }
   if (!stream) {
     return Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }
@@ -360,7 +369,9 @@ static Status writeTableWithBuffer(StringFormatBuffer& buffer,
     if ((i + 1) % static_cast<size_t>(batchSize) == 0) {
       auto status = buffer.flush(*stream);
       if (!status.ok()) {
-        (void) stream->Close();
+        // Abort instead of Close: finalizing a remote stream would publish
+        // a partial object.
+        stream->Abort();
         return Status(StatusCode::ERR_IO_ERROR,
                       "Failed to flush JSON buffer: " + status.ToString());
       }
@@ -369,7 +380,7 @@ static Status writeTableWithBuffer(StringFormatBuffer& buffer,
 
   auto status = buffer.flush(*stream);
   if (!status.ok()) {
-    (void) stream->Close();
+    stream->Abort();
     return Status(StatusCode::ERR_IO_ERROR,
                   "Failed to flush JSON buffer: " + status.ToString());
   }

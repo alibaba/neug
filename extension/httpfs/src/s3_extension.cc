@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/s3fs.h>
 #include <glog/logging.h>
-#include <cstdio>
-#include <cstdlib>
 #include "http_filesystem.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/vfs/file_system.h"
+#include "s3_client.h"
 #include "s3_filesystem.h"
-#include "s3_options.h"
 
 namespace neug {
 namespace extension {
@@ -67,25 +63,14 @@ extern "C" {
  */
 void Init() {
   try {
-    // Initialize Arrow TLS/CA-bundle options eagerly at extension load time.
-    // This MUST happen before any Arrow filesystem object is created (even
-    // LocalFileSystem), because arrow::fs::Initialize(opts) is a one-shot
-    // global configuration call.  If deferred to the first S3FileSystem ctor,
-    // a prior Arrow init (e.g. triggered by parquet reading a local file)
-    // could race and leave TLS unconfigured, resulting in curlCode 77.
-    neug::extension::s3::InitializeArrowTlsOptions();
+    // Initialize libcurl globally before any HTTP/S3 request is issued.
+    neug::extension::s3::EnsureCurlInitialized();
 
     // Register S3 filesystem provider in the global registry
     neug::extension::httpfs::RegisterS3Provider();
 
     // Register HTTP/HTTPS filesystem provider
     neug::extension::httpfs::RegisterHTTPProvider();
-
-    // Do not register arrow::fs::FinalizeS3() with std::atexit. Arrow's S3
-    // state is initialized lazily, so it may be destroyed before an
-    // earlier-registered atexit handler runs. Calling FinalizeS3() then is
-    // explicitly unsupported by Arrow and can cause a use-after-free during
-    // shutdown. Let Arrow manage its own process-exit lifecycle.
 
     LOG(INFO) << "[httpfs extension] initialized (s3, oss, http, https)";
   } catch (const std::exception& e) {
