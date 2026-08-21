@@ -978,6 +978,20 @@ def test_exists_correlated_pattern_order(tmp_path):
 logger = logging.getLogger(__name__)
 
 
+def test_leading_optional_false_preserves_following_match(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE node(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (:node {id: 1});")
+
+    result = conn.execute(
+        "OPTIONAL MATCH (unused) WHERE false "
+        "MATCH (node:node) RETURN count(*) AS node_count;"
+    )
+
+    assert result.column_names() == ["node_count"]
+    assert list(result) == [[1]]
+
+
 @pytest.mark.skip(
     reason="TODO(zhanglei,lexiao): get prop from invalid vertex: column.h:570]"
     "Check failed: index < basic_size Index out of range: 4294967295 >= 4096"
