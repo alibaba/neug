@@ -219,13 +219,19 @@ def test_hnsw_index_scan_with_dynamic_target(advanced_connection):
 
 
 def test_scalar_function_with_dynamic_target(advanced_connection):
+    node_vector = _constant_vector(500.0)
+    target_vector = _constant_vector(500.1)
     result = advanced_connection.execute(
         "PROFILE MATCH (n:Item) WHERE n.id = 500 RETURN n.id, "
         "vector_distance_l2(n.l2_vec, $target) AS score;",
-        parameters={"target": _constant_vector(500.1)},
+        parameters={"target": target_vector},
     )
     rows = list(result)
-    assert rows[0] == pytest.approx([500, 0.16], abs=3e-5)
+    expected_score = sum(
+        (left - right) ** 2 for left, right in zip(node_vector, target_vector)
+    )
+    assert len(rows) == 1
+    assert rows[0] == pytest.approx([500, expected_score], abs=3e-5)
     assert "IndexScanOpr" not in _profile_operator_names(result)
 
 
