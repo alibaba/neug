@@ -549,6 +549,12 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
 
   for (auto& update_wal : parser.get_update_wals()) {
     uint32_t to_ts = update_wal.timestamp;
+    // A checkpoint already contains every change through base_timestamp.
+    // Normally its WAL epoch is fresh, but ignore stale records defensively
+    // so recovery never re-applies a checkpointed update.
+    if (to_ts <= base_timestamp) {
+      continue;
+    }
     if (from_ts < to_ts) {
       IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
     }

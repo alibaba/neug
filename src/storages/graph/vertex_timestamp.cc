@@ -50,14 +50,6 @@ void VertexTimestamp::Dump(Checkpoint& ckp, CheckpointManifest& meta,
                            const std::string& key) {
   auto runtime_file = ckp.CreateRuntimeFile();
   const auto& ts_filename = runtime_file.path();
-  // Before dump, reset the timestamp of modified vertices
-  vid_t num = max_vertex_num_ - init_vertex_num_;
-  for (vid_t v = 0; v < num; ++v) {
-    if (inserted_vertices_[v].load() != DELETED_TIMESTAMP) {
-      inserted_vertices_[v].store(0);
-    }
-  }
-  Compact();
   dump_ts(ts_filename);
   ModuleDescriptor descriptor;
   descriptor.set_path(ModuleDescriptor::kDataPath,

@@ -46,9 +46,8 @@ class CsrBase : public Module {
   virtual timestamp_t unsorted_since() const { return 0; }
 
   virtual size_t size() const = 0;
-  // Returns the number of edges in the graph. Note that the returned value is
-  // exactly the number of edges in this csr. Even if there may be some reserved
-  // space, the reserved space will count as 0.
+  // Returns the number of live edges. Reserved slots and tombstones are
+  // excluded.
   virtual size_t edge_num() const = 0;
 
   virtual void compact() = 0;
