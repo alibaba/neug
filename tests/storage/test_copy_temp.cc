@@ -19,6 +19,7 @@
 
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
+#include "neug/transaction/wal/local_wal_parser.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -73,7 +74,7 @@ class CopyTempTest : public ::testing::Test {
     db_ = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
+    config.checkpoint_on_close = false;
     db_->Open(config);
   }
 
@@ -288,6 +289,7 @@ TEST_F(CopyTempTest, TempSrcPersistentDst) {
 // ============================================================================
 
 TEST_F(CopyTempTest, CleanupOnClose) {
+  const auto initial_checkpoint_id = db_->graph().checkpoint().id();
   {
     auto conn = db_->Connect();
     std::string csv = std::string(CSV_DIR) + "/people.csv";
@@ -298,13 +300,16 @@ TEST_F(CopyTempTest, CleanupOnClose) {
     EXPECT_TRUE(q) << q.error().ToString();
     conn->Close();
   }
+  EXPECT_EQ(db_->graph().checkpoint().id(), initial_checkpoint_id);
+  LocalWalParser parser(db_->graph().checkpoint().wal_dir());
+  EXPECT_TRUE(parser.get_update_wals().empty());
   {
     db_->Close();
     db_.reset();
     auto db2 = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
+    config.checkpoint_on_close = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
     auto q = conn2->Query("MATCH (n:TempEphemeral) RETURN n.id;");
@@ -367,7 +372,7 @@ TEST_F(CopyTempTest, PersistentSurvivesTempCleanup) {
     auto db2 = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
+    config.checkpoint_on_close = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
     auto q1 = conn2->Query("MATCH (n:Persistent) RETURN count(n);");

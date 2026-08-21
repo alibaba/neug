@@ -28,6 +28,7 @@
 
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/cow_detach_state.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/module/module_broker.h"
@@ -201,6 +202,10 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 result<std::vector<vid_t>> PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_STATUS_ERROR_IF_NOT_OK(vertex_label_check(v_label));
+  // A supplier can fail after one or more chunks have already been applied.
+  // Mark the table before entering the consuming loop so a successful caller
+  // cannot omit those mutations from its checkpoint.
+  MarkVertexTableDirty(v_label);
   return vertex_tables_[v_label].insert_vertices(std::move(supplier));
 }
 
@@ -210,6 +215,9 @@ Status PropertyGraph::BatchAddEdges(
   RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
   assert(edge_tables_.count(index) > 0);
+  // BatchAddEdges may consume several chunks before throwing. The dirty bit
+  // must cover every mutation that reached the live table, including failures.
+  MarkEdgeTableDirty(src_v_label, dst_v_label, e_label);
   edge_tables_.at(index).BatchAddEdges(
       vertex_tables_.at(src_v_label).get_indexer(),
       vertex_tables_.at(dst_v_label).get_indexer(), supplier);
@@ -732,12 +740,12 @@ Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
       if (schema_.has_edge_triplet(i, label, j)) {
         size_t index = schema_.generate_edge_label(i, label, j);
         assert(edge_tables_.count(index) > 0);
-        edge_tables_.at(index).DeleteVertex(true, lid, ts);
+        edge_tables_.at(index).DeleteVertex(/*is_src=*/false, lid, ts);
       }
       if (schema_.has_edge_triplet(label, i, j)) {
         size_t index = schema_.generate_edge_label(label, i, j);
         assert(edge_tables_.count(index) > 0);
-        edge_tables_.at(index).DeleteVertex(false, lid, ts);
+        edge_tables_.at(index).DeleteVertex(/*is_src=*/true, lid, ts);
       }
     }
   }
@@ -1138,6 +1146,13 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
       continue;
     }
 
+    if (previous.HasModule(VertexTable::KeyVertexTimestamp(label))) {
+      LOG(WARNING)
+          << "Incremental checkpoint rewrites vertex table '" << label
+          << "' that already exists in checkpoint " << ckp_->id()
+          << "; repeated bulk writes to the same table pay a full-table "
+             "rewrite on every seal - consider batching COPY statements";
+    }
     dirty_vertices.push_back(static_cast<label_t>(i));
     table.DisassembleTo(modules_to_dump, meta, *ckp);
     reopen_keys.push_back(VertexTable::KeyKeys(label));
@@ -1167,6 +1182,14 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
       continue;
     }
 
+    if (previous.HasModule(EdgeTable::KeyOutCsr(src, edge, dst))) {
+      LOG(WARNING)
+          << "Incremental checkpoint rewrites edge table '" << src << "-"
+          << edge << "->" << dst << "' that already exists in checkpoint "
+          << ckp_->id()
+          << "; repeated bulk writes to the same table pay a full-table "
+             "rewrite on every seal - consider batching COPY statements";
+    }
     dirty_edges.push_back(index);
     table.DisassembleTo(modules_to_dump, meta, *ckp);
     reopen_keys.push_back(EdgeTable::KeyOutCsr(src, edge, dst));
@@ -1215,6 +1238,80 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   rebind_indexes();
   dirty_.ClearAll();
   return planning_changed;
+}
+
+void PropertyGraph::DetachDirtyModulesForCheckpoint(
+    CowDetachState& detach_state) {
+  CHECK(ckp_ != nullptr);
+
+  if (detach_state.vertex_tables.size() < vertex_label_total_count_) {
+    detach_state.vertex_tables.resize(vertex_label_total_count_);
+  }
+  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
+    if (!schema_.is_vertex_label_valid(i) ||
+        schema_.is_vertex_label_temporary(i) || !IsVertexTableDirty(i)) {
+      continue;
+    }
+    auto& table = vertex_tables_[i];
+    auto& state = detach_state.vertex_tables[i];
+    const auto column_count =
+        table.get_vertex_schema_ptr()->property_types.size();
+    state.columns_detached.resize(column_count, false);
+    if (!state.indexer_detached) {
+      table.DetachIndexer();
+      state.indexer_detached = true;
+    }
+    if (!state.vertex_timestamp_detached) {
+      table.DetachVertexTimestamp();
+      state.vertex_timestamp_detached = true;
+    }
+    for (size_t column = 0; column < column_count; ++column) {
+      if (!state.columns_detached[column]) {
+        table.get_table().DetachColumn(column, *ckp_, memory_level_);
+        state.columns_detached[column] = true;
+      }
+    }
+  }
+
+  for (const auto& [index, edge_schema] : schema_.get_all_edge_schemas()) {
+    if (schema_.is_edge_label_temporary(index) || !dirty_.IsEdgeDirty(index)) {
+      continue;
+    }
+    auto table_it = edge_tables_.find(index);
+    if (table_it == edge_tables_.end()) {
+      continue;
+    }
+    auto& table = table_it->second;
+    auto& state = detach_state.edge_tables[index];
+    state.columns_detached.resize(edge_schema->property_names.size(), false);
+    if (!state.out_csr_detached) {
+      table.DetachOutCsr();
+      state.out_csr_detached = true;
+    }
+    if (!state.in_csr_detached) {
+      table.DetachInCsr();
+      state.in_csr_detached = true;
+    }
+    if (table.table()) {
+      for (size_t column = 0; column < state.columns_detached.size();
+           ++column) {
+        if (!state.columns_detached[column]) {
+          table.table()->DetachColumn(column, *ckp_, memory_level_);
+          state.columns_detached[column] = true;
+        }
+      }
+    }
+  }
+
+  for (const auto& name : index_manager_->dirty_index_names_) {
+    auto index_it = index_manager_->indexes_.find(name);
+    if (index_it == index_manager_->indexes_.end() || !index_it->second ||
+        detach_state.index_detached[name]) {
+      continue;
+    }
+    index_it->second->Detach(*ckp_, memory_level_);
+    detach_state.index_detached[name] = true;
+  }
 }
 
 bool PropertyGraph::IsModified() const {
@@ -1512,7 +1609,26 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   cow_clone->edge_label_total_count_ = edge_label_total_count_;
   cow_clone->memory_level_ = memory_level_;
   cow_clone->index_manager_ = index_manager_->Clone();
-  cow_clone->rebind_indexes();
+
+  auto indexes = cow_clone->index_manager_->GetAllIndexes();
+  if (!indexes) {
+    THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to enumerate indexes: " +
+                        indexes.error().error_message());
+  }
+  for (auto* index : indexes.value()) {
+    const auto& index_meta = index->GetMeta();
+    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size() ||
+        !cow_clone->schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Clone: invalid index label id");
+    }
+    auto* column = cow_clone->vertex_tables_[index_meta.schema.label_id]
+                       .GetPropertyColumnBase(index_meta.schema.property_name);
+    auto status = index->Rebind(IndexBindContext{column});
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to bind index '" +
+                          index_meta.name + "': " + status.error_message());
+    }
+  }
 
   return cow_clone;
 }

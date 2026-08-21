@@ -19,13 +19,14 @@
 
 #include <cstdlib>
 #include <exception>
-#include <optional>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/current_cow_write_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/utils/exception/exception.h"
 
@@ -64,38 +65,21 @@ const char* CheckpointCoordinator::reasonName(Reason reason) {
 
 CheckpointCoordinator::CheckpointCoordinator(
     CheckpointManager& checkpoint_manager, GraphSnapshotStore& snapshot_store,
-    MemoryLevel memory_level, PostReopenHandler post_reopen_handler)
+    MemoryLevel memory_level, PostReopenHandler post_reopen_handler,
+    WalEpochActivationHandler wal_epoch_activation_handler)
     : checkpoint_manager_(checkpoint_manager),
       snapshot_store_(snapshot_store),
       memory_level_(memory_level),
-      post_reopen_handler_(std::move(post_reopen_handler)) {
+      post_reopen_handler_(std::move(post_reopen_handler)),
+      wal_epoch_activation_handler_(std::move(wal_epoch_activation_handler)) {
   if (!post_reopen_handler_) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Checkpoint post-reopen handler must not be empty");
   }
 }
 
-void CheckpointCoordinator::SetWalEpochActivationHandler(
-    WalEpochActivationHandler handler) {
-  if (!handler) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Checkpoint activation handler must not be empty");
-  }
-  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
-  if (wal_epoch_activation_handler_) {
-    THROW_RUNTIME_ERROR("Checkpoint activation handler is already set");
-  }
-  wal_epoch_activation_handler_ = std::move(handler);
-}
-
-void CheckpointCoordinator::ClearWalEpochActivationHandler() {
-  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
-  wal_epoch_activation_handler_ = nullptr;
-}
-
 void CheckpointCoordinator::invokeWalEpochActivationHandler(
     const std::string& checkpoint_wal_dir) {
-  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
   if (wal_epoch_activation_handler_) {
     wal_epoch_activation_handler_(checkpoint_wal_dir);
   }
@@ -126,59 +110,87 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
   return status;
 }
 
-Status CheckpointCoordinator::PublishIncrementalCheckpoint(
-    UpdateTimestampLease timestamp_lease) {
-  bool destructive_phase = false;
-  try {
-    timestamp_lease.MakeUpdateExclusive();
-    std::optional<uint32_t> installed_snapshot_generation;
-    auto status = snapshot_store_.WithCheckpointMaintenance(
-        [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
-            -> Status {
-          auto& live_graph = maintenance.MutableCurrentSnapshot();
-          if (!live_graph.IsModified()) {
-            return Status::OK();
-          }
-          auto preflight = live_graph.ValidateCheckpointPreconditions();
-          if (!preflight.ok()) {
-            return preflight;
-          }
+Status CheckpointCoordinator::CommitWithCheckpoint(
+    CurrentCowWriteTransaction& transaction) {
+  if (!transaction.active()) {
+    return Status::OK();
+  }
+  auto& workspace = transaction.workspace_;
+  const auto& logical_redo = workspace.logical_redo();
+  if (logical_redo.op_num() != 0 || logical_redo.content_size() != 0) {
+    transaction.Abort();
+    return Status::InternalError(
+        "Bulk checkpoint commit cannot contain logical WAL redo");
+  }
+  if (workspace.HasTransientMutation()) {
+    transaction.Abort();
+    return Status::InternalError(
+        "Bulk checkpoint commit cannot contain transient graph mutations");
+  }
+  if (!workspace.HasBulkMutation()) {
+    transaction.Abort();
+    return Status::OK();
+  }
 
-          auto staging_checkpoint = checkpoint_manager_.CreateStaging();
-          LOG(INFO) << "Executing incremental checkpoint without compaction";
-          destructive_phase = true;
-          const bool planning_changed = live_graph.DumpDirtyAndReopen(
-              staging_checkpoint.checkpoint(), timestamp_lease.Timestamp());
-          auto published_checkpoint = staging_checkpoint.Publish();
-          installed_snapshot_generation =
-              maintenance.RefreshCurrentView(planning_changed);
-          invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
-          cleanup_retired_checkpoints(checkpoint_manager_);
-          return Status::OK();
-        });
-    if (!status.ok()) {
-      return status;
+  bool manifest_published = false;
+  try {
+    if (workspace.base_planning_generation() ==
+        std::numeric_limits<uint64_t>::max()) {
+      transaction.Abort();
+      return Status::InternalError("Planning generation space exhausted");
     }
-    timestamp_lease.Finish(installed_snapshot_generation);
+    const uint64_t committed_planning_generation =
+        workspace.base_planning_generation() + 1;
+
+    auto& graph = *workspace.graph();
+    auto preflight = graph.ValidateCheckpointPreconditions();
+    if (!preflight.ok()) {
+      transaction.Abort();
+      return preflight;
+    }
+
+    // This is intentionally not the in-place checkpoint path in execute().
+    // `graph` belongs exclusively to this COW transaction, so it can be
+    // reopened before publication without changing the live snapshot. Only
+    // replaceCurrentSnapshot() below makes the bulk statement visible.
+    auto staging_checkpoint = checkpoint_manager_.CreateStaging();
+    LOG(INFO) << "Committing private bulk COW graph with checkpoint";
+    graph.DetachDirtyModulesForCheckpoint(workspace.detach_state());
+    graph.DumpDirtyAndReopen(staging_checkpoint.checkpoint(),
+                             transaction.timestamp());
+    workspace.view().Rebuild(graph);
+
+    auto published_checkpoint = staging_checkpoint.Publish();
+    manifest_published = true;
+
+    transaction.replaceCurrentSnapshot(committed_planning_generation);
+    invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
+
+    const uint32_t snapshot_generation =
+        transaction.guard_.Snapshot().snapshot_generation();
+    workspace.Reset();
+    cleanup_retired_checkpoints(checkpoint_manager_);
+    transaction.guard_.release(snapshot_generation);
     return Status::OK();
   } catch (const exception::IOException& e) {
-    if (destructive_phase) {
+    if (manifest_published) {
       fail_stop_live_database(e.what());
     }
+    transaction.Abort();
     return Status(StatusCode::ERR_IO_ERROR, e.what());
   } catch (const std::exception& e) {
-    if (destructive_phase) {
+    if (manifest_published) {
       fail_stop_live_database(e.what());
     }
+    transaction.Abort();
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
   } catch (...) {
-    if (destructive_phase) {
-      fail_stop_live_database(
-          "Unknown destructive incremental checkpoint "
-          "failure");
+    if (manifest_published) {
+      fail_stop_live_database("Unknown bulk checkpoint commit failure");
     }
+    transaction.Abort();
     return Status(StatusCode::ERR_INTERNAL_ERROR,
-                  "Unknown incremental checkpoint preparation failure");
+                  "Unknown bulk checkpoint preparation failure");
   }
 }
 
@@ -186,11 +198,14 @@ Status CheckpointCoordinator::PublishRecoveryCheckpoint() {
   return execute(Reason::kRecovery);
 }
 
-Status CheckpointCoordinator::PublishShutdownCheckpoint() {
-  return execute(Reason::kShutdown);
+Status CheckpointCoordinator::PublishShutdownCheckpoint(
+    bool& destructive_phase_started) {
+  destructive_phase_started = false;
+  return execute(Reason::kShutdown, &destructive_phase_started);
 }
 
-Status CheckpointCoordinator::execute(Reason reason) {
+Status CheckpointCoordinator::execute(Reason reason,
+                                      bool* destructive_phase_started) {
   const bool reopen_after_checkpoint = reason != Reason::kShutdown;
 
   // Once the destructive phase begins, a running database cannot safely
@@ -199,7 +214,7 @@ Status CheckpointCoordinator::execute(Reason reason) {
   bool destructive_phase = false;
   try {
     auto staging_checkpoint = checkpoint_manager_.CreateStaging();
-    return snapshot_store_.WithCheckpointMaintenance(
+    auto status = snapshot_store_.WithCheckpointMaintenance(
         [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
@@ -214,6 +229,9 @@ Status CheckpointCoordinator::execute(Reason reason) {
                             ? " and reopening the current graph"
                             : " without reopening the graph");
           destructive_phase = true;
+          if (destructive_phase_started != nullptr) {
+            *destructive_phase_started = true;
+          }
           live_graph.Compact();
           live_graph.DumpAndClear(staging_checkpoint.checkpoint());
           auto published_checkpoint = staging_checkpoint.Publish();
@@ -240,6 +258,7 @@ Status CheckpointCoordinator::execute(Reason reason) {
           }
           return Status::OK();
         });
+    return status;
   } catch (const exception::IOException& e) {
     if (destructive_phase && reason == Reason::kManual) {
       fail_stop_live_database(e.what());

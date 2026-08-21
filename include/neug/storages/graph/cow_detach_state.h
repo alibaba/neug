@@ -27,13 +27,13 @@ namespace neug {
 
 class Schema;
 
-struct VertexTableCowState {
+struct VertexTableDetachState {
   bool indexer_detached{false};
   bool vertex_timestamp_detached{false};
   std::vector<bool> columns_detached;
 };
 
-struct EdgeTableCowState {
+struct EdgeTableDetachState {
   bool out_csr_detached{false};
   bool in_csr_detached{false};
   std::vector<bool> columns_detached;
@@ -43,16 +43,16 @@ struct EdgeTableCowState {
   std::unordered_set<vid_t> in_adjlists_detached;
 };
 
-/// A structure isomorphic to PropertyGraph's module organization.
-/// Each bool tracks whether the corresponding module has been detached
-/// in the current transaction's COW copy.
-struct PropertyGraphCowState {
-  std::vector<VertexTableCowState> vertex_tables;
-  std::unordered_map<uint32_t, EdgeTableCowState> edge_tables;
+/// Records storage granules explicitly detached by mutation operations.
+/// The state only deduplicates physical detach work within one workspace; it
+/// does not determine whether the transaction has logical changes to commit.
+struct CowDetachState {
+  std::vector<VertexTableDetachState> vertex_tables;
+  std::unordered_map<uint32_t, EdgeTableDetachState> edge_tables;
   // record index detach state according to unique index name
   std::unordered_map<std::string, bool> index_detached;
 
-  static PropertyGraphCowState FromSchema(const Schema& schema);
+  static CowDetachState FromSchema(const Schema& schema);
 };
 
 }  // namespace neug

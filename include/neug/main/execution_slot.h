@@ -32,8 +32,8 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -131,7 +131,7 @@ class ExecutionSlotLease {
  * **Transaction Types:**
  * - `ReadTransaction`: Read-only snapshot access
  * - `InsertTransaction`: Add new vertices and edges
- * - `UpdateTransaction`: Modify existing graph elements
+ * - `SnapshotCowWriteTransaction`: Versioned private-COW updates
  * - `CompactTransaction`: Background compaction operations
  *
  * **Concurrency:** An execution slot must not be used concurrently. It is not
@@ -156,7 +156,7 @@ class ExecutionSlot {
 
   InsertTransaction GetInsertTransaction();
 
-  UpdateTransaction GetUpdateTransaction();
+  SnapshotCowWriteTransaction BeginSnapshotCowWriteTransaction();
 
   CompactTransaction GetCompactTransaction();
 
@@ -255,8 +255,9 @@ class ExecutionSlot {
         query_num_(0) {
     CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect ||
           execution_strategy_ == QueryExecutionStrategy::kTransactional);
-    CHECK_EQ(execution_strategy_ == QueryExecutionStrategy::kTransactional,
-             wal_writer_ != nullptr);
+    // Both TP and direct AP writes need a WAL endpoint. Read-only AP receives
+    // a dummy writer, so every slot has a non-null borrowed writer.
+    CHECK(wal_writer_ != nullptr);
   }
 
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(

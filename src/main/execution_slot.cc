@@ -22,6 +22,7 @@
 #include <chrono>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -36,6 +37,8 @@
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/transaction/current_cow_write_transaction.h"
+#include "neug/transaction/current_graph_write_guard.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
@@ -84,22 +87,6 @@ void ExecutionSlotLease::reset() noexcept {
 }
 
 namespace {
-
-void markPlanningChangedIfNeeded(InPlaceWriteScope& write_scope,
-                                 ExplainMode explain_mode,
-                                 const execution::CacheValue* prepared_query,
-                                 const Status& execution_status) {
-  if (prepared_query == nullptr) {
-    return;
-  }
-  if (!execution_status.ok() || explain_mode == ExplainMode::kExplain) {
-    return;
-  }
-  const auto& flags = prepared_query->flags;
-  if (flags.batch() || flags.update()) {
-    write_scope.MarkPlanningChanged();
-  }
-}
 
 Status executePreparedQuery(execution::CacheValue& prepared_query,
                             ExplainMode explain_mode,
@@ -195,13 +182,13 @@ InsertTransaction ExecutionSlot::GetInsertTransaction() {
                            version_manager_, ts);
 }
 
-UpdateTransaction ExecutionSlot::GetUpdateTransaction() {
+SnapshotCowWriteTransaction ExecutionSlot::BeginSnapshotCowWriteTransaction() {
   UpdateTimestampLease timestamp_lease(version_manager_);
   auto [cow_graph, planning_generation] =
       snapshot_store_.CloneCurrentForUpdate();
-  return UpdateTransaction(std::move(cow_graph), planning_generation, alloc_,
-                           *wal_writer_, snapshot_store_,
-                           std::move(timestamp_lease));
+  return SnapshotCowWriteTransaction(std::move(cow_graph), planning_generation,
+                                     alloc_, *wal_writer_, snapshot_store_,
+                                     std::move(timestamp_lease));
 }
 
 CompactTransaction ExecutionSlot::GetCompactTransaction() {
@@ -297,12 +284,18 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     return load_result.error();
   }
   if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
-    InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
-    auto& slot = write_scope.Snapshot();
-    StorageAPUpdateInterface storage(
-        *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
-        alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
-    RETURN_IF_NOT_OK(storage.ActivateIndexes());
+    auto transaction = CurrentCowWriteTransaction::Begin(
+        CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_),
+        alloc_, snapshot_store_, *wal_writer_);
+    auto storage = transaction.OpenBulkStorage();
+    auto activation_status = storage.ActivateIndexes();
+    if (activation_status.ok()) {
+      activation_status =
+          checkpoint_coordinator_.CommitWithCheckpoint(transaction);
+    } else {
+      transaction.Abort();
+    }
+    RETURN_IF_NOT_OK(activation_status);
   } else {
     LOG(WARNING) << "[Admin] TP storage does not support extension index "
                     "activation yet; skipping pending index activation for "
@@ -316,11 +309,11 @@ Status ExecutionSlot::validatePlan(AccessMode mode,
                                    const physical::ExecutionFlag& flags,
                                    bool is_explain) const {
   if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
-      (flags.batch() || flags.create_temp_table())) {
-    return Status(
-        StatusCode::ERR_NOT_SUPPORTED,
-        "Temporary table creation and batch operations are not supported "
-        "for TP service.");
+      (flags.batch() || flags.copy_from() || flags.index() ||
+       flags.create_temp_table())) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "COPY, batch, index, and temporary table operations are not "
+                  "supported for TP service.");
   }
   // EXPLAIN never executes the plan; access-mode restrictions don't apply.
   if (is_explain) {
@@ -392,11 +385,13 @@ Status ExecutionSlot::executeCore(const std::string& query,
                              num_threads, &response,
                              &prepared_query](const GraphStats& stats,
                                               auto& storage) -> Status {
-    auto prepared = prepareQuery(stats, query, num_threads);
-    if (NEUG_UNLIKELY(!prepared)) {
-      return prepared.error();
+    if (!prepared_query) {
+      auto prepared = prepareQuery(stats, query, num_threads);
+      if (NEUG_UNLIKELY(!prepared)) {
+        return prepared.error();
+      }
+      prepared_query = std::move(prepared).value();
     }
-    prepared_query = std::move(prepared).value();
 
     RETURN_IF_NOT_OK(validateQueryAnalysis(analysis, *prepared_query));
     RETURN_IF_NOT_OK(
@@ -442,15 +437,46 @@ Status ExecutionSlot::executeCore(const std::string& query,
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
-      InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
-      auto& slot = write_scope.Snapshot();
-      StorageAPUpdateInterface storage(
-          *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
-          alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
-      status = execute_on_storage(
-          GraphStats(slot.view(), slot.planning_generation()), storage);
-      markPlanningChangedIfNeeded(write_scope, analysis.explain_mode,
-                                  prepared_query.get(), status);
+      std::optional<CurrentGraphWriteGuard> guard;
+      guard.emplace(
+          CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
+      // Classify under writer exclusion so the retained guard and prepared plan
+      // both describe the private COW base used for execution.
+      auto classification =
+          prepareQuery(GraphStats(guard->Snapshot().view(),
+                                  guard->Snapshot().planning_generation()),
+                       query, num_threads);
+      if (NEUG_UNLIKELY(!classification)) {
+        return classification.error();
+      }
+      prepared_query = std::move(classification).value();
+      const auto& flags = prepared_query->flags;
+      if (flags.copy_from() || flags.index()) {
+        auto transaction = CurrentCowWriteTransaction::Begin(
+            std::move(*guard), alloc_, snapshot_store_, *wal_writer_);
+        auto storage = transaction.OpenBulkStorage();
+        status = execute_on_storage(transaction.statistic(), storage);
+        if (status.ok()) {
+          status =
+              flags.create_temp_table()
+                  ? transaction.CommitTransient()
+                  : checkpoint_coordinator_.CommitWithCheckpoint(transaction);
+        } else {
+          transaction.Abort();
+        }
+      } else {
+        auto transaction = CurrentCowWriteTransaction::Begin(
+            std::move(*guard), alloc_, snapshot_store_, *wal_writer_);
+        auto storage = transaction.OpenStorage();
+        status = execute_on_storage(transaction.statistic(), storage);
+        if (status.ok()) {
+          status = transaction.workspace_.HasTransientMutation()
+                       ? transaction.CommitTransient()
+                       : transaction.Commit();
+        } else {
+          transaction.Abort();
+        }
+      }
     } else {
       return Status(
           StatusCode::ERR_NOT_SUPPORTED,
@@ -477,8 +503,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
-      auto transaction = GetUpdateTransaction();
-      StorageTPUpdateInterface storage(transaction);
+      auto transaction = BeginSnapshotCowWriteTransaction();
+      auto storage = transaction.OpenStorage();
       status = execute_and_commit(transaction, storage);
     } else {
       return Status(StatusCode::ERR_NOT_SUPPORTED,
@@ -532,44 +558,57 @@ void ExecutionSlot::ClearTemporarySchema() {
     }
   }
 
-  InPlaceWriteScope write_scope(version_manager_, snapshot_store_);
-  auto& slot = write_scope.Snapshot();
-  auto* graph = slot.mutable_graph();
+  auto transaction = CurrentCowWriteTransaction::Begin(
+      CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_),
+      alloc_, snapshot_store_, *wal_writer_);
+  auto storage = transaction.OpenStorage();
   bool schema_changed = false;
 
-  auto temporary_edges = graph->schema().get_temporary_edge_triplet_keys();
+  auto temporary_edges = transaction.schema().get_temporary_edge_triplet_keys();
   for (auto key : temporary_edges) {
-    auto [src, dst, edge] = graph->schema().parse_edge_label(key);
+    auto [src, dst, edge] = transaction.schema().parse_edge_label(key);
     try {
-      const auto status = graph->DeleteEdgeType(src, dst, edge);
+      const auto status = storage.DeleteEdgeType(src, dst, edge);
       if (status.ok()) {
         schema_changed = true;
-        write_scope.MarkPlanningChanged();
       } else {
         LOG(WARNING) << "Failed to cleanup temp edge: " << status.ToString();
+        transaction.Abort();
+        return;
       }
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
+      transaction.Abort();
+      return;
     }
   }
 
-  auto temporary_vertices = graph->schema().get_temporary_vertex_labels();
+  auto temporary_vertices = transaction.schema().get_temporary_vertex_labels();
   for (auto label : temporary_vertices) {
     try {
-      const auto status = graph->DeleteVertexType(label);
+      const auto status = storage.DeleteVertexType(label);
       if (status.ok()) {
         schema_changed = true;
-        write_scope.MarkPlanningChanged();
       } else {
         LOG(WARNING) << "Failed to cleanup temp vertex: " << status.ToString();
+        transaction.Abort();
+        return;
       }
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
+      transaction.Abort();
+      return;
     }
   }
 
-  if (schema_changed) {
-    slot.mutable_view().Rebuild(*graph);
+  if (!schema_changed) {
+    transaction.Abort();
+    return;
+  }
+  const auto status = transaction.CommitTransient();
+  if (!status.ok()) {
+    LOG(WARNING) << "Failed to publish temporary schema cleanup: "
+                 << status.ToString();
   }
 }
 

@@ -61,7 +61,7 @@ Implements both embedded (global lock) and service (MVCC) transaction models.
 - **Core Transaction Types:**
   - `read_transaction.cc` - Read-only transaction implementation
   - `insert_transaction.cc` - Data insertion transaction handling
-  - `update_transaction.cc` - Data modification transaction logic
+  - `snapshot_cow_write_transaction.cc` - Versioned private-COW write transaction logic
   - `compact_transaction.cc` - Background compaction operations
 - **`version_manager.cc`** - MVCC timestamp and version management
 - **`wal/`** - Write-Ahead Logging implementation

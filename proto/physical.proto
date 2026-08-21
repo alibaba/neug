@@ -434,10 +434,12 @@ message ExecutionFlag {
   bool checkpoint = 7;
   bool procedure_call = 8;
   // todo: add a new flag for gds_algo ?
-  // If an index already exists on a specific property of a vertex type,
-  // the index data must be updated accordingly whenever the vertex data is modified (via create, delete, or update operations).
-  // This boolean value indicates whether the index needs to be updated.
+  // True when the plan contains index DDL (CREATE INDEX / DROP INDEX). AP
+  // direct execution prepares these mutations in a private bulk COW graph and
+  // publishes them with a checkpoint.
   bool index = 9;
+  // True only for COPY FROM. `batch` also covers COPY TO and LOAD.
+  bool copy_from = 10;
 }
 
 // A single Cypher query ending with a semicolon (;)

@@ -671,7 +671,7 @@ TEST_F(NeugDBServiceTest, DirectPlanningGenerationTracksActualDdlMutations) {
 }
 
 TEST_F(NeugDBServiceTest,
-       DirectUpdateAndBulkLoadInvalidateCacheWithoutSchemaChange) {
+       DirectPropertyUpdateKeepsCacheAndBulkLoadInvalidatesIt) {
   const auto initial_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
 
@@ -687,7 +687,7 @@ TEST_F(NeugDBServiceTest,
                                   "update");
   ASSERT_TRUE(update) << update.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
-            initial_generation + 1);
+            initial_generation);
 
   const auto copy_path = test_dir_ / "direct-cache-copy.csv";
   {
@@ -699,7 +699,7 @@ TEST_F(NeugDBServiceTest,
       "COPY person FROM \"" + copy_path.string() + "\";", "update");
   ASSERT_TRUE(copy) << copy.error().ToString();
   EXPECT_EQ(ReadPlanningGeneration(db_->graph_snapshot_store()),
-            initial_generation + 2);
+            initial_generation + 1);
   connection->Close();
 }
 
@@ -867,7 +867,7 @@ TEST_F(NeugDBServiceTest, ApUpdateAfterTpUsesCurrentReadTimestamp) {
   EXPECT_EQ(response.arrays(0).int64_array().values(0), 31);
 }
 
-TEST_F(NeugDBServiceTest, PrepareForServingResetsSharedApTpTimeline) {
+TEST_F(NeugDBServiceTest, PrepareForServingPreservesSharedApTpTimeline) {
   timestamp_t timestamp_before_checkpoint = INVALID_TIMESTAMP;
   {
     neug::NeugDBService service(*db_, config_);
@@ -881,7 +881,8 @@ TEST_F(NeugDBServiceTest, PrepareForServingResetsSharedApTpTimeline) {
 
   {
     neug::NeugDBService service(*db_, config_);
-    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1002), 1);
+    EXPECT_EQ(InsertModernPersonAndReturnTimestamp(service, 1002),
+              timestamp_before_checkpoint + 1);
   }
 }
 
@@ -912,6 +913,10 @@ TEST_F(NeugDBServiceTest,
       {"COPY FROM global/local cache", copy_from, "update", 2},
       {"COPY FROM spoofed read mode", copy_from, "read", 1},
       {"COPY TEMP", copy_temp, "update", 1},
+      {"index DDL",
+       "CREATE INDEX rejected_tp_index ON person USING hnsw "
+       "(age);",
+       "schema", 1},
       {"LOAD FROM", load_from, "update", 1},
       {"COPY TO", copy_to, "read", 1},
       {"EXPLAIN COPY FROM", "EXPLAIN " + copy_from, "update", 1},
