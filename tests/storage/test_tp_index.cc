@@ -115,8 +115,8 @@ class TPIndexTest : public ::testing::Test {
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
     workspace_.emplace(*graph_, *view_, 0);
-    ap_ = std::make_unique<CowGraphStorageAdapter>(*workspace_, 0, 0,
-                                                   allocator_);
+    ap_ =
+        std::make_unique<CowGraphStorageAdapter>(*workspace_, 0, 0, allocator_);
     version_manager_.init_ts({0, 0}, 1);
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(

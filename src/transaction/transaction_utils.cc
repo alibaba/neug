@@ -59,7 +59,8 @@ Status dropVertexIndex(PropertyGraph& graph, label_t label,
 Status renameVertexIndex(PropertyGraph& graph, label_t label,
                          const std::string& old_name,
                          const std::string& new_name) {
-  auto indexes = graph.mutable_index_manager().GetIndexForUpdate(label, old_name);
+  auto indexes =
+      graph.mutable_index_manager().GetIndexForUpdate(label, old_name);
   if (!indexes) {
     return indexes.error();
   }
@@ -94,8 +95,8 @@ Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
     if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndexForUpdate(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }
@@ -160,8 +161,8 @@ Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
     if (v_schema->vprop_soft_deleted[prop_idx]) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndexForUpdate(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }

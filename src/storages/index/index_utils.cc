@@ -63,8 +63,8 @@ Status AddBatchVertexIndexData(
     if (v_schema->vprop_soft_deleted[prop_idx]) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndexForUpdate(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }
