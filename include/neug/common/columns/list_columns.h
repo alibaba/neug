@@ -133,7 +133,14 @@ class ListColumn : public IContextColumn {
 class ListColumnBuilder : public IContextColumnBuilder {
  public:
   explicit ListColumnBuilder(DataType type) : type_(type), cur_offset_(0) {
-    child_builder_ = ColumnsUtils::create_builder(type_);
+    // LIST<UNKNOWN> is valid for an empty list literal. It has no materialized
+    // child values, but still needs a concrete empty data column so the result
+    // column can be finalized and returned to clients.
+    if (type_.id() == DataTypeId::kUnknown) {
+      child_builder_ = std::make_shared<ValueColumnBuilder<std::string>>();
+    } else {
+      child_builder_ = ColumnsUtils::create_builder(type_);
+    }
   }
 
   ~ListColumnBuilder() = default;
