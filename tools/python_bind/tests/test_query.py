@@ -79,6 +79,22 @@ def test_empty_ungrouped_count(empty_db):
     assert list(result) == [[0]]
 
 
+def test_group_by_preserves_null_keys(empty_db):
+    _, conn = empty_db
+
+    result = conn.execute(
+        "UNWIND CAST([0, CAST(NULL, 'INT64'), CAST(NULL, 'INT64')], "
+        "'INT64[]') AS x RETURN x, COUNT(*);"
+    )
+    assert list(result) == [[0, 1], [None, 2]]
+
+    result = conn.execute(
+        "UNWIND CAST([CAST(-1, 'INT32'), CAST(NULL, 'INT32')], "
+        "'INT32[]') AS x UNWIND [7] AS y RETURN x, y, COUNT(*);"
+    )
+    assert list(result) == [[-1, 7, 1], [None, 7, 1]]
+
+
 def test_aggregate_over_empty_input(empty_db):
     _, conn = empty_db
     conn.execute("CREATE NODE TABLE person(id INT64, score INT64, PRIMARY KEY(id));")
