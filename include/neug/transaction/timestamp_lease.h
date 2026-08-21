@@ -42,6 +42,7 @@ class UpdateTimestampLease {
   UpdateTimestampLease& operator=(UpdateTimestampLease&&) = delete;
 
   uint32_t Timestamp() const noexcept { return timestamp_; }
+  bool active() const noexcept { return timestamp_ != kInactiveTimestamp; }
 
   void BeginCommit();
   void MakeUpdateExclusive();

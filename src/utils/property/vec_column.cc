@@ -426,6 +426,9 @@ std::unique_ptr<Module> VecColumn::Clone() const {
 void VecColumn::Detach(Checkpoint& ckp, MemoryLevel level) {
   ckp_ = &ckp;
   level_ = level;
+  // Payload storage stays shared intentionally. The detached accessor assigns
+  // transaction-private offsets to writes, while resize() allocates a
+  // replacement buffer before extending beyond the shared capacity.
   if (offset_accessor_) {
     offset_accessor_->Detach(ckp, level);
   }

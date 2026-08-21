@@ -13,34 +13,35 @@
  * limitations under the License.
  */
 
-#include "neug/storages/graph/property_graph_cow_state.h"
+#include "neug/storages/graph/cow_detach_state.h"
 
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
 
-PropertyGraphCowState PropertyGraphCowState::FromSchema(const Schema& schema) {
-  PropertyGraphCowState bitmap;
+CowDetachState CowDetachState::FromSchema(const Schema& schema) {
+  CowDetachState state;
 
   // Build vertex table COW states from schema — one per vertex label slot.
   const auto& vertex_schemas = schema.get_all_vertex_schemas();
-  bitmap.vertex_tables.resize(vertex_schemas.size());
+  state.vertex_tables.resize(vertex_schemas.size());
   for (size_t i = 0; i < vertex_schemas.size(); ++i) {
     if (vertex_schemas[i] && !vertex_schemas[i]->empty()) {
       size_t col_count = vertex_schemas[i]->property_names.size();
-      bitmap.vertex_tables[i].columns_detached.resize(col_count, false);
+      state.vertex_tables[i].columns_detached.resize(col_count, false);
     }
   }
 
   for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
-    EdgeTableCowState state;
+    EdgeTableDetachState edge_state;
     if (edge_schema) {
-      state.columns_detached.resize(edge_schema->property_names.size(), false);
+      edge_state.columns_detached.resize(edge_schema->property_names.size(),
+                                         false);
     }
-    bitmap.edge_tables.emplace(key, std::move(state));
+    state.edge_tables.emplace(key, std::move(edge_state));
   }
 
-  return bitmap;
+  return state;
 }
 
 }  // namespace neug

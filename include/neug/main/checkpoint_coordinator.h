@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -48,12 +49,11 @@ class UpdateTimestampLease;
  * after the old live graph has been consumed. A manual-path failure terminates
  * the live process; a recovery-path failure aborts database open.
  *
- * - WalEpochActivationHandler (optional): set by the service owner and
- *   invoked on manual and incremental publication paths. It activates
- *   service-owned state such as execution-slot WAL rotation for the published
- *   checkpoint. A caller that owns live WAL writers must register it before
- *   publishing an incremental checkpoint; callers without WAL writers may
- *   leave it unset.
+ * - WalEpochActivationHandler (optional, two independent slots): invoked on
+ *   manual and incremental publication paths. The database-owned slot rotates
+ *   state owned by NeugDB itself (the embedded AP WAL writer); the
+ *   service-owned slot activates service state such as execution-slot WAL
+ *   rotation for the published checkpoint.
  *
  * Shutdown checkpoints invoke neither, because they do not reopen the graph.
  */
@@ -65,8 +65,9 @@ class CheckpointCoordinator {
       std::function<void(const std::string& checkpoint_allocator_dir)>;
 
   /// Optional service-owned state activation after manual or incremental
-  /// checkpoint publication. It is required for an incremental publisher that
-  /// owns live WAL writers.
+  /// checkpoint publication. A publisher with live WAL writers must register
+  /// the handler that owns those writers before a non-no-op incremental
+  /// publication.
   /// Invoked with the published checkpoint's WAL directory.
   using WalEpochActivationHandler =
       std::function<void(const std::string& checkpoint_wal_dir)>;
@@ -76,8 +77,17 @@ class CheckpointCoordinator {
                         MemoryLevel memory_level,
                         PostReopenHandler post_reopen_handler);
 
-  /// Set the single activation handler invoked by PublishManualCheckpoint()
-  /// before retired checkpoint roots are reclaimed or the transaction gate is
+  /// Database-owned WAL epoch activation invoked on manual and incremental
+  /// publication paths before the service-owned handler. NeugDB registers it
+  /// to rotate database-owned writers (the embedded AP writer) in place;
+  /// NeugDBService layers pool rotation on top via its own handler. The
+  /// registration and waiting semantics match the service-owned slot below.
+  void SetDatabaseWalEpochActivationHandler(WalEpochActivationHandler handler);
+  void ClearDatabaseWalEpochActivationHandler();
+
+  /// Set the single service-owned activation handler invoked by
+  /// PublishManualCheckpoint() and PublishIncrementalCheckpoint() before
+  /// retired checkpoint roots are reclaimed or the transaction gate is
   /// reopened. Setting a second handler without
   /// first clearing the existing one is an error.
   ///
@@ -98,11 +108,20 @@ class CheckpointCoordinator {
   /// Publish a non-compacting checkpoint for an already-mutated live graph.
   /// The caller transfers an active update lease; this method drains readers
   /// before mutating the live snapshot. Only dirty modules are dumped and
-  /// reopened; the allocator and transaction timeline remain active. If the
-  /// graph is clean, this is a no-op: it returns OK without publishing a
-  /// checkpoint or rotating a WAL epoch. A caller with live WAL writers must
-  /// register WalEpochActivationHandler before a non-no-op publication.
+  /// reopened; the allocator and transaction timeline remain active. A clean
+  /// graph is a no-op and does not rotate a WAL epoch.
   Status PublishIncrementalCheckpoint(UpdateTimestampLease timestamp_lease);
+
+  /// Mark that the live graph may contain in-place mutations not covered by
+  /// WAL. The mark is set before mutation begins and is cleared only after a
+  /// successful incremental or full checkpoint.
+  void MarkIncrementalCheckpointPending() noexcept {
+    incremental_checkpoint_pending_.store(true, std::memory_order_release);
+  }
+
+  bool HasIncrementalCheckpointPending() const noexcept {
+    return incremental_checkpoint_pending_.load(std::memory_order_acquire);
+  }
 
   /// Publish a recovery checkpoint and reopen the live graph.
   Status PublishRecoveryCheckpoint();
@@ -126,7 +145,9 @@ class CheckpointCoordinator {
   MemoryLevel memory_level_;
   PostReopenHandler post_reopen_handler_;
   std::mutex wal_epoch_activation_handler_mutex_;
+  WalEpochActivationHandler database_wal_epoch_handler_;
   WalEpochActivationHandler wal_epoch_activation_handler_;
+  std::atomic<bool> incremental_checkpoint_pending_{false};
 };
 
 }  // namespace neug

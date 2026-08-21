@@ -48,6 +48,8 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/timestamp_lease.h"
+#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -195,6 +197,22 @@ bool NeugDB::Open(const NeugDBConfig& config) {
         checkpoint_mgr_, *snapshot_store_, config_.memory_level,
         [this](const std::string& allocator_dir) {
           reopenAllocators(allocator_dir);
+          // A recovery checkpoint runs before the AP writer is created. A live
+          // manual checkpoint must rotate the existing writer in place because
+          // ExecutionSlot objects retain its address.
+          if (ap_wal_writer_) {
+            ap_wal_writer_->open(graph().checkpoint().wal_dir());
+          }
+        });
+    // Incremental checkpoints rotate the WAL epoch without reopening the
+    // graph or allocators. The embedded AP writer's address is retained by
+    // every ExecutionSlot, so rotate it in place; NeugDBService layers
+    // execution-slot-pool rotation on top via its own service-owned handler.
+    checkpoint_coordinator_->SetDatabaseWalEpochActivationHandler(
+        [this](const std::string& wal_uri) {
+          if (ap_wal_writer_) {
+            ap_wal_writer_->open(wal_uri);
+          }
         });
     if (initial_visibility_ts > 0 && config.checkpoint_on_recovery &&
         config_.mode == DBMode::READ_WRITE) {
@@ -207,12 +225,27 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     if (config_.mode == DBMode::READ_WRITE) {
       checkpoint_mgr_.CollectGarbage();
     }
+    WalWriterFactory::Init();
+    if (config_.mode == DBMode::READ_WRITE) {
+      ap_wal_writer_ = WalWriterFactory::CreateWalWriter(
+          graph().checkpoint().wal_dir(), /*slot_id=*/0);
+      CHECK(ap_wal_writer_ != nullptr);
+      ap_wal_writer_->open(graph().checkpoint().wal_dir());
+    } else {
+      ap_wal_writer_ = WalWriterFactory::CreateDummyWalWriter();
+      CHECK(ap_wal_writer_ != nullptr);
+    }
     initVersionManager(initial_visibility_ts);
     extension_manager_ = std::make_unique<ExtensionManager>();
     initPlanner();
     initQueryRuntime();
   } catch (...) {
     clearQueryRuntime();
+    if (checkpoint_coordinator_) {
+      // Drop the epoch handler before the writer it rotates is destroyed.
+      checkpoint_coordinator_->ClearDatabaseWalEpochActivationHandler();
+    }
+    ap_wal_writer_.reset();
     planner_.reset();
     extension_manager_.reset();
     version_manager_.reset();
@@ -234,35 +267,54 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 }
 
 void NeugDB::Close() {
-  {
-    // Serialized with registerService(): the active-service check and the
-    // closed flag update are atomic with respect to service registration,
-    // so no rollback or re-check is needed and Close() stays idempotent.
-    std::lock_guard<std::mutex> lock(service_mutex_);
-    if (active_service_ != nullptr) {
-      THROW_RUNTIME_ERROR(
-          "Cannot close NeugDB while a NeugDBService is still associated "
-          "with it. Stop and destroy the service first.");
-    }
-    if (closed_.exchange(true)) {
-      return;
-    }
+  // Serialize the complete lifecycle transition. If a mandatory checkpoint
+  // fails, a later Close() retries it; Connect()/registerService() cannot race
+  // with either the failed attempt or the final resource teardown.
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (active_service_ != nullptr) {
+    THROW_RUNTIME_ERROR(
+        "Cannot close NeugDB while a NeugDBService is still associated "
+        "with it. Stop and destroy the service first.");
   }
-  // Once closed_ is set with no active service, registerService() rejects
-  // new registrations and concurrent Close() calls return early, so the
-  // remaining cleanup does not need the lock.
-  clearQueryRuntime();
-  if (planner_) {
-    planner_.reset();
+  if (closed_.exchange(true)) {
+    return;
   }
 
-  if (config_.checkpoint_on_close && config_.mode == DBMode::READ_WRITE) {
-    VLOG(1) << "Creating checkpoint on close...";
-    try {
-      createCheckpointOnClose();
-    } catch (const std::exception& e) {
-      LOG(ERROR) << "Checkpoint on close failed: " << e.what();
+  try {
+    // Release every ExecutionSlot before a shutdown checkpoint consumes the
+    // live graph. The manager itself stays reusable if a mandatory checkpoint
+    // fails and the caller retries Close().
+    closeAllConnections();
+    const bool mandatory_checkpoint =
+        checkpoint_coordinator_ &&
+        checkpoint_coordinator_->HasIncrementalCheckpointPending();
+    if (config_.mode == DBMode::READ_WRITE &&
+        (config_.checkpoint_on_close || mandatory_checkpoint)) {
+      VLOG(1) << "Creating checkpoint on close...";
+      try {
+        createCheckpointOnClose();
+      } catch (const std::exception& e) {
+        if (mandatory_checkpoint) {
+          throw;
+        }
+        LOG(ERROR) << "Checkpoint on close failed: " << e.what();
+      }
     }
+  } catch (...) {
+    closed_.store(false, std::memory_order_release);
+    throw;
+  }
+
+  clearQueryRuntime();
+  if (checkpoint_coordinator_) {
+    // Drop the epoch handler before the writer it rotates is destroyed.
+    // ClearDatabaseWalEpochActivationHandler() waits for an in-flight
+    // invocation, so no invocation can outlive the writer.
+    checkpoint_coordinator_->ClearDatabaseWalEpochActivationHandler();
+  }
+  ap_wal_writer_.reset();
+  if (planner_) {
+    planner_.reset();
   }
 
   version_manager_.reset();
@@ -289,6 +341,11 @@ std::shared_ptr<Connection> NeugDB::Connect() {
     THROW_RUNTIME_ERROR(
         "Cannot create connection while the database is being served by a "
         "NeugDBService.");
+  }
+  if (!ap_wal_writer_) {
+    THROW_RUNTIME_ERROR(
+        "Cannot create connection because the embedded WAL writer is not "
+        "available.");
   }
   return connection_manager_->CreateConnection();
 }
@@ -323,10 +380,16 @@ void NeugDB::registerService(NeugDBService* svc) {
         "Cannot switch NeugDB to TP mode while local connections are open. "
         "Close all Connection objects before starting the service.");
   }
-  active_service_ = svc;
-
   try {
     closeAllConnections();
+    sealPendingIncrementalCheckpoint();
+    active_service_ = svc;
+    // The service's TpExecutionSlotPool creates per-slot WAL writers for
+    // all slots, including slot 0. The embedded AP writer (also slot 0)
+    // would create a duplicate WAL file in every checkpoint directory.
+    // Replace it with a no-op dummy so the TP pool's slot 0 writer is the
+    // sole owner of thread_0_*.wal files.
+    ap_wal_writer_ = WalWriterFactory::CreateDummyWalWriter();
   } catch (...) {
     active_service_ = nullptr;
     throw;
@@ -340,12 +403,47 @@ void NeugDB::unregisterService(NeugDBService* svc) noexcept {
                     "service of this database.";
     return;
   }
+  try {
+    if (config_.mode == DBMode::READ_WRITE) {
+      auto writer = WalWriterFactory::CreateWalWriter(
+          graph().checkpoint().wal_dir(), /*slot_id=*/0);
+      CHECK(writer != nullptr);
+      writer->open(graph().checkpoint().wal_dir());
+      ap_wal_writer_ = std::move(writer);
+    }
+  } catch (const std::exception& e) {
+    // Destruction cannot throw. Keep the database closable, but prevent AP
+    // connections from silently committing through the TP-era dummy writer.
+    ap_wal_writer_.reset();
+    LOG(ERROR) << "Failed to restore embedded WAL writer after stopping TP "
+                  "service: "
+               << e.what();
+  } catch (...) {
+    ap_wal_writer_.reset();
+    LOG(ERROR) << "Failed to restore embedded WAL writer after stopping TP "
+                  "service";
+  }
   active_service_ = nullptr;
 }
 
 void NeugDB::closeAllConnections() {
   if (connection_manager_) {
     connection_manager_->Close();
+  }
+}
+
+void NeugDB::sealPendingIncrementalCheckpoint() {
+  if (config_.mode != DBMode::READ_WRITE || !checkpoint_coordinator_ ||
+      !checkpoint_coordinator_->HasIncrementalCheckpointPending()) {
+    return;
+  }
+  auto status = checkpoint_coordinator_->PublishIncrementalCheckpoint(
+      UpdateTimestampLease(*version_manager_));
+  if (!status.ok()) {
+    if (status.error_code() == StatusCode::ERR_IO_ERROR) {
+      THROW_IO_EXCEPTION(status.error_message());
+    }
+    THROW_INTERNAL_EXCEPTION(status.error_message());
   }
 }
 
@@ -365,18 +463,8 @@ void NeugDB::PrepareForServing() {
         "Close all Connection objects before starting the service.");
   }
   closeAllConnections();
+  sealPendingIncrementalCheckpoint();
   clearQueryRuntime();
-  bool checkpoint_created = false;
-  if (config_.mode == DBMode::READ_WRITE) {
-    checkpoint_created = createCheckpointAfterRecovery();
-  }
-  if (checkpoint_created) {
-    // Replacing the VM is safe only after publishing a new checkpoint whose
-    // WAL directory starts a fresh transaction timeline. A clean graph may
-    // still have WAL records (for example an in-place TP checkpoint), so keep
-    // the current VM in that case.
-    initVersionManager(0);
-  }
   initQueryRuntime();
 }
 
@@ -561,8 +649,8 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
     if (update_wal.size == 0) {
       graph.Compact();
     } else {
-      UpdateTransaction::IngestWal(graph, to_ts, update_wal.ptr,
-                                   update_wal.size, *allocators_[0]);
+      ReplayCowGraphWal(graph, to_ts, update_wal.ptr, update_wal.size,
+                        *allocators_[0]);
     }
     from_ts = to_ts + 1;
   }
@@ -598,11 +686,12 @@ std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
   CHECK(global_query_cache_ != nullptr);
   CHECK(version_manager_ != nullptr);
   CHECK(checkpoint_coordinator_ != nullptr);
+  CHECK(ap_wal_writer_ != nullptr);
   CHECK_LT(slot_id, allocators_.size());
   return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
       *snapshot_store_, planner_, global_query_cache_, *version_manager_,
       *allocators_.at(slot_id), QueryExecutionStrategy::kDirect,
-      /*wal_writer=*/nullptr, *checkpoint_coordinator_, *extension_manager_,
+      ap_wal_writer_.get(), *checkpoint_coordinator_, *extension_manager_,
       config_, static_cast<int>(slot_id)));
 }
 

@@ -155,11 +155,8 @@ class NEUG_API PropertyGraph {
   /// preserved, and no compaction is performed. On success the graph adopts
   /// @p ckp and clears its dirty state; the caller must publish that same
   /// staging checkpoint before releasing transaction quiescence. Any failure
-  /// after this method starts is fail-stop. @p ckp must be a newer staging
-  /// checkpoint and @p base_timestamp must be the nonzero update timestamp
-  /// covered by that checkpoint; violations are checkpoint-protocol bugs and
-  /// fail fast. The caller must reject pending index mutations before entering
-  /// this destructive operation.
+  /// after this method starts is fail-stop. The caller must reject pending
+  /// index mutations before entering this destructive operation.
   /// Returns whether query planning metadata changed.
   bool DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
                           timestamp_t base_timestamp);

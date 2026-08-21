@@ -23,14 +23,18 @@
 #include <string>
 #include <utility>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/current_cow_write_transaction.h"
+#include "neug/transaction/current_graph_write_guard.h"
 #include "neug/transaction/read_snapshot_lease.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/transaction/wal/wal.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -58,6 +62,27 @@ std::atomic<int> runtime_wait_calls{0};
 
 void CountRuntimeWait(RuntimeWaitAction) noexcept {
   runtime_wait_calls.fetch_add(1, std::memory_order_relaxed);
+}
+
+class NoopWalWriter : public IWalWriter {
+ public:
+  std::string type() const override { return "noop"; }
+  void open(const std::string&) override {}
+  void close() override {}
+  bool append(const char*, size_t) override { return true; }
+};
+
+// The in-place transaction never touches its WAL writer (in-place mutations
+// are sealed by incremental checkpoints, not WAL), so shared no-op instances
+// suffice for the publication tests below.
+IWalWriter& TestWalWriter() {
+  static NoopWalWriter writer;
+  return writer;
+}
+
+Allocator& TestAllocator() {
+  static Allocator allocator(MemoryLevel::kInMemory, "");
+  return allocator;
 }
 
 class ScriptedVersionManager : public IVersionManager {
@@ -251,7 +276,7 @@ TEST_F(ReadViewPublicationTest,
 }
 
 TEST_F(ReadViewPublicationTest,
-       InPlaceWriteScopePublishesPlanningGenerationOnCurrentSnapshot) {
+       InPlaceTransactionPublishesPlanningGenerationOnCurrentSnapshot) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
@@ -264,9 +289,14 @@ TEST_F(ReadViewPublicationTest,
 
   uint32_t committed_timestamp = 0;
   {
-    InPlaceWriteScope write_scope(version_manager, *store_);
-    committed_timestamp = write_scope.Timestamp();
-    write_scope.MarkPlanningChanged();
+    auto write_txn = CurrentCowWriteTransaction::BeginInPlace(
+        CurrentGraphWriteGuard::Acquire(version_manager, *store_),
+        TestAllocator(), *store_, TestWalWriter());
+    committed_timestamp = write_txn.timestamp();
+    write_txn.MarkPlanningChanged();
+    auto checkpoint_lease = write_txn.PublishInPlaceAndReleaseForCheckpoint();
+    EXPECT_EQ(checkpoint_lease.Timestamp(), committed_timestamp);
+    checkpoint_lease.Finish(initial_snapshot_generation);
   }
 
   {
@@ -282,15 +312,18 @@ TEST_F(ReadViewPublicationTest,
 }
 
 TEST_F(ReadViewPublicationTest,
-       InPlaceWriteScopeWithoutPlanningChangeKeepsGeneration) {
+       InPlaceTransactionWithoutPlanningChangeKeepsGeneration) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
   const auto initial_planning_generation = ReadPlanningGeneration(*store_);
   uint32_t committed_timestamp = 0;
   {
-    InPlaceWriteScope write_scope(version_manager, *store_);
-    committed_timestamp = write_scope.Timestamp();
+    auto write_txn = CurrentCowWriteTransaction::BeginInPlace(
+        CurrentGraphWriteGuard::Acquire(version_manager, *store_),
+        TestAllocator(), *store_, TestWalWriter());
+    committed_timestamp = write_txn.timestamp();
+    write_txn.Commit();
   }
 
   auto reader = ReadSnapshotLease::Acquire(version_manager, *store_);
@@ -299,7 +332,7 @@ TEST_F(ReadViewPublicationTest,
 }
 
 TEST_F(ReadViewPublicationTest,
-       InPlaceWriteScopePublishesDuringStackUnwinding) {
+       InPlaceTransactionPublishesDuringStackUnwinding) {
   VersionManager version_manager;
   version_manager.init_ts({1, 0}, 2);
 
@@ -307,9 +340,11 @@ TEST_F(ReadViewPublicationTest,
   uint32_t committed_timestamp = 0;
   EXPECT_THROW(
       [&]() {
-        InPlaceWriteScope write_scope(version_manager, *store_);
-        committed_timestamp = write_scope.Timestamp();
-        write_scope.MarkPlanningChanged();
+        auto write_txn = CurrentCowWriteTransaction::BeginInPlace(
+            CurrentGraphWriteGuard::Acquire(version_manager, *store_),
+            TestAllocator(), *store_, TestWalWriter());
+        committed_timestamp = write_txn.timestamp();
+        write_txn.MarkPlanningChanged();
         throw std::runtime_error("in-place write failed after mutation");
       }(),
       std::runtime_error);

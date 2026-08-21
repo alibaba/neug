@@ -201,6 +201,10 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
 result<std::vector<vid_t>> PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_STATUS_ERROR_IF_NOT_OK(vertex_label_check(v_label));
+  // A supplier can fail after one or more chunks have already been applied.
+  // Mark the table before entering the consuming loop so that those partial
+  // in-place mutations cannot be omitted by a later incremental checkpoint.
+  MarkVertexTableDirty(v_label);
   return vertex_tables_[v_label].insert_vertices(std::move(supplier));
 }
 
@@ -210,6 +214,9 @@ Status PropertyGraph::BatchAddEdges(
   RETURN_IF_NOT_OK(edge_triplet_check(src_v_label, dst_v_label, e_label));
   size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
   assert(edge_tables_.count(index) > 0);
+  // BatchAddEdges may consume several chunks before throwing. The dirty bit
+  // must cover every mutation that reached the live table, including failures.
+  MarkEdgeTableDirty(src_v_label, dst_v_label, e_label);
   edge_tables_.at(index).BatchAddEdges(
       vertex_tables_.at(src_v_label).get_indexer(),
       vertex_tables_.at(dst_v_label).get_indexer(), supplier);
@@ -732,12 +739,12 @@ Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
       if (schema_.has_edge_triplet(i, label, j)) {
         size_t index = schema_.generate_edge_label(i, label, j);
         assert(edge_tables_.count(index) > 0);
-        edge_tables_.at(index).DeleteVertex(true, lid, ts);
+        edge_tables_.at(index).DeleteVertex(/*is_src=*/false, lid, ts);
       }
       if (schema_.has_edge_triplet(label, i, j)) {
         size_t index = schema_.generate_edge_label(label, i, j);
         assert(edge_tables_.count(index) > 0);
-        edge_tables_.at(index).DeleteVertex(false, lid, ts);
+        edge_tables_.at(index).DeleteVertex(/*is_src=*/true, lid, ts);
       }
     }
   }
@@ -1138,6 +1145,13 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
       continue;
     }
 
+    if (previous.HasModule(VertexTable::KeyVertexTimestamp(label))) {
+      LOG(WARNING)
+          << "Incremental checkpoint rewrites vertex table '" << label
+          << "' that already exists in checkpoint " << ckp_->id()
+          << "; repeated in-place writes to the same table pay a full-table "
+             "rewrite on every seal - consider batching COPY statements";
+    }
     dirty_vertices.push_back(static_cast<label_t>(i));
     table.DisassembleTo(modules_to_dump, meta, *ckp);
     reopen_keys.push_back(VertexTable::KeyKeys(label));
@@ -1167,6 +1181,14 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
       continue;
     }
 
+    if (previous.HasModule(EdgeTable::KeyOutCsr(src, edge, dst))) {
+      LOG(WARNING)
+          << "Incremental checkpoint rewrites edge table '" << src << "-"
+          << edge << "->" << dst << "' that already exists in checkpoint "
+          << ckp_->id()
+          << "; repeated in-place writes to the same table pay a full-table "
+             "rewrite on every seal - consider batching COPY statements";
+    }
     dirty_edges.push_back(index);
     table.DisassembleTo(modules_to_dump, meta, *ckp);
     reopen_keys.push_back(EdgeTable::KeyOutCsr(src, edge, dst));
@@ -1512,7 +1534,26 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   cow_clone->edge_label_total_count_ = edge_label_total_count_;
   cow_clone->memory_level_ = memory_level_;
   cow_clone->index_manager_ = index_manager_->Clone();
-  cow_clone->rebind_indexes();
+
+  auto indexes = cow_clone->index_manager_->GetAllIndexes();
+  if (!indexes) {
+    THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to enumerate indexes: " +
+                        indexes.error().error_message());
+  }
+  for (auto* index : indexes.value()) {
+    const auto& index_meta = index->GetMeta();
+    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size() ||
+        !cow_clone->schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Clone: invalid index label id");
+    }
+    auto* column = cow_clone->vertex_tables_[index_meta.schema.label_id]
+                       .GetPropertyColumnBase(index_meta.schema.property_name);
+    auto status = index->Rebind(IndexBindContext{column});
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to bind index '" +
+                          index_meta.name + "': " + status.error_message());
+    }
+  }
 
   return cow_clone;
 }

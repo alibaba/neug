@@ -36,7 +36,6 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
@@ -54,6 +53,7 @@ class FileLock;
 class IGraphPlanner;
 class IVersionManager;
 class IWalParser;
+class IWalWriter;
 class Schema;
 class ExecutionSlot;
 class ExtensionManager;
@@ -346,6 +346,7 @@ class NEUG_API NeugDB {
   void initQueryRuntime();
   void clearQueryRuntime() noexcept;
   void closeAllConnections();
+  void sealPendingIncrementalCheckpoint();
   std::unique_ptr<ExecutionSlot> createExecutionSlot(size_t slot_id);
   void initVersionManager(timestamp_t initial_visibility_ts);
   void cleanupTemporaryWorkspace() noexcept;
@@ -416,6 +417,10 @@ class NEUG_API NeugDB {
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;
+  // TODO(zhanglei): Replace this embedded-only AP writer with the final WAL
+  // ownership model when WAL framing is added. It is reopened in place after a
+  // manual checkpoint because ExecutionSlot objects retain its address.
+  std::unique_ptr<IWalWriter> ap_wal_writer_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::unique_ptr<ConnectionManager> connection_manager_;

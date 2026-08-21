@@ -75,6 +75,25 @@ CheckpointCoordinator::CheckpointCoordinator(
   }
 }
 
+void CheckpointCoordinator::SetDatabaseWalEpochActivationHandler(
+    WalEpochActivationHandler handler) {
+  if (!handler) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Database checkpoint activation handler must not be empty");
+  }
+  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
+  if (database_wal_epoch_handler_) {
+    THROW_RUNTIME_ERROR(
+        "Database checkpoint activation handler is already set");
+  }
+  database_wal_epoch_handler_ = std::move(handler);
+}
+
+void CheckpointCoordinator::ClearDatabaseWalEpochActivationHandler() {
+  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
+  database_wal_epoch_handler_ = nullptr;
+}
+
 void CheckpointCoordinator::SetWalEpochActivationHandler(
     WalEpochActivationHandler handler) {
   if (!handler) {
@@ -96,6 +115,11 @@ void CheckpointCoordinator::ClearWalEpochActivationHandler() {
 void CheckpointCoordinator::invokeWalEpochActivationHandler(
     const std::string& checkpoint_wal_dir) {
   std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
+  // The database-owned handler runs first so database writers are already
+  // rotating while the service-owned handler rotates its execution slots.
+  if (database_wal_epoch_handler_) {
+    database_wal_epoch_handler_(checkpoint_wal_dir);
+  }
   if (wal_epoch_activation_handler_) {
     wal_epoch_activation_handler_(checkpoint_wal_dir);
   }
@@ -137,6 +161,8 @@ Status CheckpointCoordinator::PublishIncrementalCheckpoint(
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
           if (!live_graph.IsModified()) {
+            incremental_checkpoint_pending_.store(false,
+                                                  std::memory_order_release);
             return Status::OK();
           }
           auto preflight = live_graph.ValidateCheckpointPreconditions();
@@ -154,6 +180,8 @@ Status CheckpointCoordinator::PublishIncrementalCheckpoint(
               maintenance.RefreshCurrentView(planning_changed);
           invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
           cleanup_retired_checkpoints(checkpoint_manager_);
+          incremental_checkpoint_pending_.store(false,
+                                                std::memory_order_release);
           return Status::OK();
         });
     if (!status.ok()) {
@@ -199,7 +227,7 @@ Status CheckpointCoordinator::execute(Reason reason) {
   bool destructive_phase = false;
   try {
     auto staging_checkpoint = checkpoint_manager_.CreateStaging();
-    return snapshot_store_.WithCheckpointMaintenance(
+    auto status = snapshot_store_.WithCheckpointMaintenance(
         [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
@@ -240,6 +268,10 @@ Status CheckpointCoordinator::execute(Reason reason) {
           }
           return Status::OK();
         });
+    if (status.ok()) {
+      incremental_checkpoint_pending_.store(false, std::memory_order_release);
+    }
+    return status;
   } catch (const exception::IOException& e) {
     if (destructive_phase && reason == Reason::kManual) {
       fail_stop_live_database(e.what());

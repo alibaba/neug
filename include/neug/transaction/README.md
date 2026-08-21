@@ -5,10 +5,14 @@
 > [Transaction Management](../../../doc/source/transaction/transaction.md).
 
 For ordinary queries, the transactional `ExecutionSlot` strategy uses
-`ReadTransaction`, `InsertTransaction`, and `UpdateTransaction`. The direct
-strategy usually owns an `UpdateTimestampLease` or `ReadSnapshotLease` and uses
-`StorageReadInterface` or `StorageAPUpdateInterface`. `CompactTransaction` and
-`CheckpointCoordinator` implement maintenance paths.
+`ReadTransaction`, `InsertTransaction`, and `SnapshotCowWriteTransaction`. The
+direct strategy uses `ReadSnapshotLease` for reads and
+`CurrentCowWriteTransaction` with `CowGraphStorageAdapter` for ordinary writes.
+`CurrentCowWriteTransaction::BeginInPlace` starts the same transaction in
+in-place mode for bulk COPY and index DDL: `CowGraphWorkspace` borrows the live
+published graph and its mutable view instead of cloning, and
+`CowGraphStorageAdapter` dispatches every operation to the borrowed storage.
+`CompactTransaction` and `CheckpointCoordinator` implement maintenance paths.
 
 These objects use RAII: terminal operations disarm their resources, and
 destruction releases any active transaction or lease. Acquisition is ordered
@@ -55,12 +59,12 @@ subsequent edge inserts can resolve them before WAL replay.
 An empty commit only releases the transaction. `Abort()` or destruction
 discards buffered operations and completes the timestamp without applying them.
 
-## Update Transaction
+## Snapshot COW Write Transaction
 
 Acquiring an update timestamp changes admission from `kOpen` to
 `kInsertsBlocked`, blocking new inserts and updates and waiting for active
 inserts to finish. Reads remain allowed. `ExecutionSlot` then clones the
-current `PropertyGraph`, and `StorageTPUpdateInterface` applies DML or DDL to
+current `PropertyGraph`, and `CowGraphStorageAdapter` applies DML or DDL to
 that COW clone.
 
 A non-empty `Commit()` checks snapshot-slot capacity, appends the finalized WAL,
@@ -73,6 +77,25 @@ completed, so a reader cannot observe the new timestamp with the old snapshot.
 Schema changes invalidate the shared query cache before publication. An empty
 commit, `Abort()`, or destruction discards the clone, completes the timestamp,
 and reopens admission without publishing a snapshot.
+
+## In-Place Write Mode
+
+`CurrentCowWriteTransaction::BeginInPlace` acquires the same writer admission
+as the COW path but skips cloning: `CowGraphWorkspace` borrows the live
+published graph and its mutable `GraphView` for the lifetime of the
+guarding write guard. `CowGraphStorageAdapter` keeps one implementation per
+operation and branches on the workspace mode, so the in-place path reuses the
+adapter's index maintenance while writing with the transaction's write
+timestamp. Index DDL (`CreateIndex` / `DropIndex` / `ActivateIndexes`) is only
+supported in in-place mode.
+
+In-place mutations are not WAL-logged and cannot be rolled back: both
+`Commit()` and `Abort()` (including destruction during stack unwinding)
+publish them. Publication bumps the planning generation when the transaction
+marked schema or planning changes, and never publishes a new snapshot
+generation — durability comes from the incremental checkpoint triggered after
+a successful COPY or index operation, which seals the in-place mutations into
+the current snapshot slot.
 
 ## Compact Transaction
 
@@ -137,7 +160,7 @@ backoff cursors. Existing production callers retain infinite-wait behavior and
 do not read the clock; future explicit-transaction integration will pass its
 write-wait deadline through this overload.
 
-When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `UpdateTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
+When `VersionManager::begin_update_commit` is called, the admission state changes from `kInsertsBlocked` to `kAllBlocked`. New reads and new inserts are blocked until the `SnapshotCowWriteTransaction` is committed or aborted. Already-acquired reads continue unaffected on their pinned snapshot.
 
 Timestamp completion uses a fixed ring whose slots contain the exact completed
 timestamp, not a boolean bit. Before assigning a new write timestamp,
@@ -150,4 +173,4 @@ existing inserts.
 
 For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
 
-For each `InsertTransaction` or `UpdateTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.
+For each `InsertTransaction` or `SnapshotCowWriteTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.
