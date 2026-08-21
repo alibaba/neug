@@ -3,7 +3,7 @@
 Since NeuG v0.2.0, NeuG provides vector search capabilities through the dedicated `vector_search` extension.
 
 For syntax and guarantees shared by all index types, including inspection,
-transactions, and recovery, see [Storage Indexes](main.md).
+transactions, and recovery, see [Storage Indexes](index.md).
 
 The vector search extension enables efficient similarity search over graph data by combining vector storage, distance computation, and HNSW-based approximate nearest neighbor (ANN) indexing.
 
@@ -192,7 +192,7 @@ COPY vector_node FROM (
 ## Create HNSW Index
 
 NeuG supports approximate nearest neighbor search through HNSW indexes. The
-following example specializes the common [CREATE INDEX](main.md#create-an-index)
+following example specializes the common [CREATE INDEX](index.md#create-an-index)
 syntax for a vector property.
 
 Example:
@@ -238,7 +238,7 @@ Therefore, users can choose either workflow:
 
 
 To remove or inspect the index, use the common [DROP
-INDEX](main.md#drop-an-index) and [SHOW_INDEXES](main.md#inspect-indexes)
+INDEX](index.md#drop-an-index) and [SHOW_INDEXES](index.md#inspect-indexes)
 operations. Dropping the vector property or its node table also removes its
 HNSW index.
 

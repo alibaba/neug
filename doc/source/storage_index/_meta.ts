@@ -1,4 +1,4 @@
 export default {
-  main: "Overview",
+  index: "Overview",
   vector_search: "Vector Search",
 };

@@ -72,7 +72,7 @@ NeuG documentation
    :maxdepth: 1
    :caption: Storage Indexes
 
-   storage_index/main
+   storage_index/index
    storage_index/vector_search
 
 .. toctree::
