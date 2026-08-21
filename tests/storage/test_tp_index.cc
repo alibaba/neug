@@ -382,16 +382,18 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
 }
 
-TEST_F(TPIndexTest, IndexAdminInterfaceIsAPOnly) {
-  // Index management is an AP-only capability: the AP update interface
-  // implements StorageIndexDDLInterface while the TP update interface does
-  // not.
+TEST_F(TPIndexTest, IndexAdminInterfaceRejectsPrivateCowMode) {
+  // Both workspace modes use CowGraphStorageAdapter, but index DDL mutates
+  // the published graph in place and is therefore rejected by private COW.
   EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
 
   CreatePersonTableTP();
   auto txn = NewSnapshotCowWriteTransaction();
   auto tp = txn.OpenStorage();
-  EXPECT_EQ(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
+  auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&tp);
+  ASSERT_NE(index_ddl, nullptr);
+  EXPECT_EQ(index_ddl->ActivateIndexes().error_code(),
+            StatusCode::ERR_NOT_SUPPORTED);
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
