@@ -31,7 +31,7 @@
 #include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
-#include "neug/storages/checkpoint.h"
+#include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/index/index_id_accessor.h"
 #include "neug/utils/exception/exception.h"
 
@@ -59,6 +59,23 @@ class TemporaryDatabaseDirectory {
 
  private:
   std::filesystem::path path_;
+};
+
+class TestCheckpoint {
+ public:
+  explicit TestCheckpoint(const std::string& database_path) {
+    manager_.Open(database_path);
+    auto staging = manager_.CreateStaging();
+    checkpoint_ = staging.checkpoint();
+    staging.Discard();
+  }
+
+  Checkpoint& operator*() const { return *checkpoint_; }
+  Checkpoint* operator->() const { return checkpoint_.get(); }
+
+ private:
+  CheckpointManager manager_;
+  std::shared_ptr<Checkpoint> checkpoint_;
 };
 
 std::filesystem::path GetExecutablePath() {
@@ -186,7 +203,7 @@ FTSQueryParams MakeQuery(std::string query,
 
 TEST(FTSIndexTest, SearchSupportsWordsPhrasesAndPrefixes) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
   auto first = index->Upsert(7, Value::STRING("quick brown fox"));
   ASSERT_TRUE(first.ok()) << first.error_message();
@@ -480,7 +497,7 @@ TEST(FTSExtensionTest, MissingIndexReturnsError) {
 
 TEST(FTSIndexTest, RejectsInvalidMetadataAndParams) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto meta = std::make_unique<IndexMeta>();
   meta->schema.property_type = DataType::INT64;
   FTSIndex index;
@@ -515,7 +532,7 @@ TEST(FTSIndexTest, RejectsInvalidMetadataAndParams) {
 
 TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
 
   const std::vector<std::pair<std::string, std::pair<std::string, std::string>>>
       invalid_cases = {{"bad-name", {"", ""}},
@@ -546,7 +563,7 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
 
 TEST(FTSIndexTest, FiltersSupersededAndDeletedRowsWithScores) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
   ASSERT_TRUE(index->Upsert(7, Value::STRING("legacy token")).ok());
   ASSERT_TRUE(index->Upsert(8, Value::STRING("legacy token")).ok());
@@ -571,7 +588,7 @@ TEST(FTSIndexTest, FiltersSupersededAndDeletedRowsWithScores) {
 
 TEST(FTSIndexTest, SearchesPastAnyNumberOfSupersededCandidates) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
 
   constexpr vid_t kSupersededCount = 256;
@@ -592,7 +609,7 @@ TEST(FTSIndexTest, SearchesPastAnyNumberOfSupersededCandidates) {
 
 TEST(FTSIndexTest, CloneDetachIsolatesVisibilityAndSharesDatabase) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
   ASSERT_TRUE(index->Upsert(7, Value::STRING("shared original")).ok());
 
@@ -649,7 +666,7 @@ TEST(FTSIndexTest, CloneDetachIsolatesVisibilityAndSharesDatabase) {
 
 TEST(FTSIndexTest, EmptyIndexOpenAndDump) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex();
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
 
@@ -669,7 +686,7 @@ TEST(FTSIndexTest, EmptyIndexOpenAndDump) {
 
 TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex();
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   ASSERT_TRUE(index->Upsert(7, Value::STRING("persisted fox")).ok());
@@ -701,7 +718,7 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
 
 TEST(FTSIndexTest, MissingPersistedFileFailsOpen) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex();
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   CheckpointManifest manifest;
@@ -727,7 +744,7 @@ TEST(FTSIndexTest, MissingPersistedFileFailsOpen) {
 
 TEST(FTSIndexTest, CorruptPersistedSQLiteFileFailsOpen) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex();
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   CheckpointManifest manifest;
@@ -748,7 +765,7 @@ TEST(FTSIndexTest, CorruptPersistedSQLiteFileFailsOpen) {
 
 TEST(FTSIndexTest, PersistedSQLiteWithoutFTSTableFailsOpen) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex();
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   CheckpointManifest manifest;
@@ -771,7 +788,7 @@ TEST(FTSIndexTest, PersistedSQLiteWithoutFTSTableFailsOpen) {
 
 TEST(FTSIndexTest, MultipleIndexesUseIsolatedFiles) {
   TemporaryDatabaseDirectory directory;
-  auto checkpoint = Checkpoint::Open(directory.path().string(), 0);
+  TestCheckpoint checkpoint(directory.path().string());
   auto first = MakeUnopenedIndex("first_fts");
   auto second = MakeUnopenedIndex("second_fts");
   first->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
