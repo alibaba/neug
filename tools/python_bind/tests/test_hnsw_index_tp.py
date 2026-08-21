@@ -59,6 +59,30 @@ def _check_search(failures, operation, row, expected):
         failures.append(f"{operation}: expected {expected}, got {actual}")
 
 
+def _check_no_index_fallback(session):
+    assert list(
+        session.execute(
+            "MATCH (n:Item) RETURN n.id, n.embedding ORDER BY n.id;",
+            access_mode="read",
+        )
+    ) == [
+        [1, [1.0, 0.0, 0.0, 0.0]],
+        [2, [0.0, 1.0, 0.0, 0.0]],
+    ]
+    assert (
+        list(
+            session.execute(
+                "MATCH (n:Item) "
+                "RETURN n.id, vector_distance_l2("
+                "n.embedding, [1.0, 0.0, 0.0, 0.0]) AS score "
+                "ORDER BY score ASC LIMIT 1;",
+                access_mode="read",
+            )
+        )[0][0]
+        == 1
+    )
+
+
 def test_hnsw_index_tp_mutations(tmp_path, unused_tcp_port):
     """Create, maintain, query, and drop an HNSW index in TP mode."""
     csv_path = tmp_path / "items.csv"
@@ -256,6 +280,8 @@ def test_hnsw_index_tp_ddl_recovery_after_reopen(tmp_path, unused_tcp_port):
         ]
         assert _search(session, [1.0, 0.0, 0.0, 0.0])[:2] == [1, "one"]
         session.execute("DROP INDEX item_embedding_hnsw;")
+        assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == []
+        _check_no_index_fallback(session)
     finally:
         if session is not None:
             session.close()
@@ -270,10 +296,7 @@ def test_hnsw_index_tp_ddl_recovery_after_reopen(tmp_path, unused_tcp_port):
         session = Session.open(endpoint, timeout="10s")
         session.execute("LOAD vector_search;")
         assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == []
-        assert _search(session, [1.0, 0.0, 0.0, 0.0], expect_index=False)[:2] == [
-            1,
-            "one",
-        ]
+        _check_no_index_fallback(session)
     finally:
         if session is not None:
             session.close()
