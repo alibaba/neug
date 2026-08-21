@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.alibaba.neug.driver.utils.Client;
 import com.alibaba.neug.driver.utils.Config;
 import java.io.IOException;
+import okhttp3.HttpUrl;
 import org.junit.jupiter.api.Test;
 
 /** Test class for {@link Client}. */
@@ -56,6 +57,15 @@ public class ClientTest {
     }
 
     @Test
+    public void testEndpointEncodesPathSegments() {
+        Client client = new Client("http://localhost:8080/api", Config.builder().build());
+
+        HttpUrl endpoint = client.endpoint("transactions", "tx/123", "commit");
+
+        assertEquals("http://localhost:8080/api/transactions/tx%2F123/commit", endpoint.toString());
+    }
+
+    @Test
     public void testSyncPostThrowsExceptionWhenServerUnreachable() {
         Config config =
                 Config.builder()
@@ -64,7 +74,8 @@ public class ClientTest {
         Client client = new Client("http://localhost:19999", config); // Non-existent server
 
         byte[] request = "test query".getBytes();
-        assertThrows(IOException.class, () -> client.syncPost(request));
+        HttpUrl endpoint = client.endpoint("cypher");
+        assertThrows(IOException.class, () -> client.syncPost(endpoint, request));
     }
 
     @Test

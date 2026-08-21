@@ -65,6 +65,19 @@ public interface Session extends AutoCloseable {
     ResultSet run(String statement, AccessMode mode);
 
     /**
+     * Begins a new transaction within the session.
+     *
+     * @return a {@link Transaction} object representing the new transaction
+     * @throws RuntimeException if starting the transaction fails
+     */
+    default Transaction beginTransaction() {
+        return beginTransaction(Transaction.Mode.READ_WRITE);
+    }
+
+    /** Begins an explicit transaction with the requested access mode. */
+    Transaction beginTransaction(Transaction.Mode mode);
+
+    /**
      * Executes a parameterized Cypher statement with a specific access mode.
      *
      * @param statement the Cypher query to execute
