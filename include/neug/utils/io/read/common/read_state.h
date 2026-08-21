@@ -21,6 +21,7 @@
 
 #include "neug/compiler/common/cast.h"
 #include "neug/utils/io/read/common/schema.h"
+#include "neug/utils/io/stream/input_stream.h"
 
 namespace common {
 class Expression;
@@ -57,6 +58,10 @@ struct ReadSharedState {
   ExternalSchema schema;
   std::vector<std::string> projectColumns;
   std::shared_ptr<::common::Expression> skipRows;
+  /// Opens read streams for objects on a remote file system, keyed by
+  /// (glob-resolved) path. Null for local files, which use plain file
+  /// IO.
+  io::InputStreamOpener stream_opener;
 
   int columnNum() {
     if (!schema.entry) {

@@ -903,6 +903,217 @@ INSTANTIATE_TEST_SUITE_P(AllMemoryLevels, CheckpointRoundtripTest,
                          ::testing::Values(neug::MemoryLevel::kInMemory,
                                            neug::MemoryLevel::kSyncToFile));
 
+TEST(CheckpointTest,
+     IncrementalCheckpointRejectsPendingMutationsBeforeConsumingGraph) {
+  const auto db_dir = TestDir("incremental_pending_index_preflight");
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+
+  neug::IndexMeta pending_meta;
+  pending_meta.name = "pending";
+  pending_meta.type = "unavailable";
+  pending_meta.schema.label_id = 0;
+  pending_meta.schema.property_name = "id";
+  pending_meta.schema.property_type = neug::DataType::INT64;
+
+  neug::ModuleDescriptor pending_descriptor;
+  pending_descriptor.module_type = "unavailable_index";
+  pending_descriptor.required = false;
+  pending_descriptor.set("index_meta", pending_meta.ToJsonString());
+
+  auto initial_staging = manager.CreateStaging();
+  neug::CheckpointManifest initial_manifest;
+  initial_manifest.SetSchema(neug::Schema());
+  initial_manifest.SetModule(
+      neug::StorageIndexManager::GetKey(pending_meta.name),
+      std::move(pending_descriptor));
+  initial_staging.checkpoint()->SetManifest(std::move(initial_manifest));
+  auto initial_checkpoint = initial_staging.Publish();
+
+  neug::PropertyGraph graph;
+  graph.Open(initial_checkpoint, neug::MemoryLevel::kInMemory);
+  neug::CreateVertexTypeParamBuilder builder;
+  ASSERT_TRUE(
+      graph
+          .CreateVertexType(builder.VertexLabel("Item")
+                                .AddProperty("id", neug::Value::INT64(0))
+                                .AddPrimaryKeyName("id")
+                                .Build())
+          .ok());
+  const auto item_label = graph.schema().get_vertex_label_id("Item");
+  neug::vid_t first_vid = 0;
+  ASSERT_TRUE(
+      graph.AddVertex(item_label, neug::Value::INT64(1), {}, first_vid, 1)
+          .ok());
+  graph.MarkVertexTableDirty(item_label);
+  graph.mutable_index_manager().RecordPendingInsert(item_label, first_vid, {});
+
+  auto incremental_staging = manager.CreateStaging();
+  EXPECT_THROW(graph.DumpDirtyAndReopen(incremental_staging.checkpoint(), 1),
+               std::exception);
+
+  EXPECT_EQ(graph.checkpoint_ptr(), initial_checkpoint);
+  EXPECT_EQ(graph.get_vertex_table(item_label).LidNum(), 1u);
+  neug::vid_t second_vid = 0;
+  EXPECT_TRUE(
+      graph.AddVertex(item_label, neug::Value::INT64(2), {}, second_vid, 2)
+          .ok());
+  EXPECT_EQ(second_vid, 1u);
+
+  std::filesystem::remove_all(db_dir);
+}
+
+TEST_P(CheckpointRoundtripTest,
+       IncrementalCheckpointPreservesCapacityTimestampsAndTombstones) {
+  const auto db_dir = TestDir("incremental_preserves_mvcc");
+  neug::CheckpointManager manager;
+  manager.Open(db_dir);
+
+  auto initial_staging = manager.CreateStaging();
+  neug::CheckpointManifest initial_manifest;
+  initial_manifest.SetSchema(neug::Schema());
+  initial_staging.checkpoint()->SetManifest(std::move(initial_manifest));
+  auto initial_checkpoint = initial_staging.Publish();
+
+  neug::PropertyGraph graph;
+  graph.Open(initial_checkpoint, GetParam());
+  neug::CreateVertexTypeParamBuilder builder;
+  ASSERT_TRUE(
+      graph
+          .CreateVertexType(builder.VertexLabel("Item")
+                                .AddProperty("id", neug::Value::INT64(0))
+                                .AddProperty("value", neug::Value::INT32(0))
+                                .AddPrimaryKeyName("id")
+                                .Build())
+          .ok());
+  const auto item_label = graph.schema().get_vertex_label_id("Item");
+  neug::CreateEdgeTypeParamBuilder edge_builder;
+  ASSERT_TRUE(graph
+                  .CreateEdgeType(edge_builder.SrcLabel("Item")
+                                      .DstLabel("Item")
+                                      .EdgeLabel("next")
+                                      .Build())
+                  .ok());
+  const auto next_label = graph.schema().get_edge_label_id("next");
+  neug::vid_t old_vid = 0;
+  ASSERT_TRUE(graph
+                  .AddVertex(item_label, neug::Value::INT64(1),
+                             {neug::Value::INT32(10)}, old_vid, 0)
+                  .ok());
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, "");
+  int32_t old_edge_offset = 0;
+  const void* old_edge_property = nullptr;
+  ASSERT_TRUE(graph
+                  .AddEdge(item_label, old_vid, item_label, old_vid, next_label,
+                           {}, 0, allocator, old_edge_offset, old_edge_property)
+                  .ok());
+  graph.MarkSchemaDirty();
+  graph.MarkVertexTableDirty(item_label);
+  graph.MarkEdgeTableDirty(item_label, item_label, next_label);
+
+  auto full_staging = manager.CreateStaging();
+  graph.Compact();
+  graph.DumpAndClear(full_staging.checkpoint());
+  auto full_checkpoint = full_staging.Publish();
+  graph.Open(full_checkpoint, GetParam());
+  const auto edge_key = neug::EdgeTable::KeyOutCsr("Item", "next", "Item");
+  const auto* old_edge_descriptor =
+      full_checkpoint->manifest().FindModule(edge_key);
+  ASSERT_NE(old_edge_descriptor, nullptr);
+  const auto old_edge_path =
+      old_edge_descriptor->get_path(neug::ModuleDescriptor::kNbrListPath);
+  ASSERT_TRUE(old_edge_path.has_value());
+
+  constexpr neug::timestamp_t incremental_ts = 7;
+  neug::vid_t new_vid = 0;
+  ASSERT_TRUE(graph
+                  .AddVertex(item_label, neug::Value::INT64(2),
+                             {neug::Value::INT32(20)}, new_vid, incremental_ts)
+                  .ok());
+  int32_t new_edge_offset = 0;
+  const void* new_edge_property = nullptr;
+  ASSERT_TRUE(graph
+                  .AddEdge(item_label, old_vid, item_label, new_vid, next_label,
+                           {}, incremental_ts, allocator, new_edge_offset,
+                           new_edge_property)
+                  .ok());
+  ASSERT_TRUE(graph.DeleteVertex(item_label, old_vid, incremental_ts).ok());
+  graph.MarkVertexTableDirty(item_label);
+  graph.MarkEdgeTableDirty(item_label, item_label, next_label);
+  const auto old_capacity = graph.get_vertex_table(item_label).Capacity();
+  const auto old_edge_capacity =
+      graph.get_edge_table(item_label, item_label, next_label).Capacity();
+  const auto old_label_frontier = graph.schema().vertex_label_frontier();
+
+  auto incremental_staging = manager.CreateStaging();
+  auto staging_checkpoint = incremental_staging.checkpoint();
+  EXPECT_FALSE(graph.DumpDirtyAndReopen(staging_checkpoint, incremental_ts));
+  EXPECT_EQ(manager.Current()->id(), full_checkpoint->id());
+  EXPECT_EQ(graph.checkpoint_ptr(), staging_checkpoint)
+      << "the exclusive live graph adopts staging before publication";
+  auto incremental_checkpoint = incremental_staging.Publish();
+  EXPECT_EQ(incremental_checkpoint, staging_checkpoint);
+  EXPECT_EQ(graph.checkpoint().id(), incremental_checkpoint->id());
+
+  EXPECT_EQ(incremental_checkpoint->manifest().base_timestamp(),
+            incremental_ts);
+  EXPECT_EQ(graph.get_vertex_table(item_label).Capacity(), old_capacity);
+  EXPECT_EQ(graph.get_edge_table(item_label, item_label, next_label).Capacity(),
+            old_edge_capacity);
+  const auto* new_edge_descriptor =
+      incremental_checkpoint->manifest().FindModule(edge_key);
+  ASSERT_NE(new_edge_descriptor, nullptr);
+  EXPECT_NE(new_edge_descriptor->get_path(neug::ModuleDescriptor::kNbrListPath),
+            old_edge_path);
+  EXPECT_EQ(graph.schema().get_vertex_label_id("Item"), item_label);
+  EXPECT_EQ(graph.schema().vertex_label_frontier(), old_label_frontier);
+  // Vertex tombstones do not carry a removal timestamp; once removed, the
+  // vertex is invalid for every read timestamp. Incremental persistence must
+  // retain that tombstone rather than reset it.
+  EXPECT_FALSE(graph.IsValidLid(item_label, old_vid, incremental_ts - 1));
+  EXPECT_FALSE(graph.IsValidLid(item_label, old_vid, incremental_ts));
+  EXPECT_FALSE(graph.IsValidLid(item_label, new_vid, incremental_ts - 1));
+  EXPECT_TRUE(graph.IsValidLid(item_label, new_vid, incremental_ts));
+
+  graph.Clear();
+  graph.Open(manager.Current(), GetParam());
+  EXPECT_EQ(manager.Current()->manifest().base_timestamp(), incremental_ts);
+  EXPECT_EQ(graph.get_vertex_table(item_label).Capacity(), old_capacity);
+  EXPECT_EQ(graph.get_edge_table(item_label, item_label, next_label).Capacity(),
+            old_edge_capacity);
+  // Both edges remain as tombstones because deleting old_vid removes all of
+  // its incoming and outgoing edges without compacting the CSR.
+  EXPECT_EQ(graph.EdgeNum(item_label, next_label, item_label), 0u);
+  EXPECT_FALSE(graph.IsValidLid(item_label, old_vid, incremental_ts - 1));
+  EXPECT_FALSE(graph.IsValidLid(item_label, old_vid, incremental_ts));
+  EXPECT_FALSE(graph.IsValidLid(item_label, new_vid, incremental_ts - 1));
+  EXPECT_TRUE(graph.IsValidLid(item_label, new_vid, incremental_ts));
+
+  // A later full checkpoint must still compact an incremental image after a
+  // reopen, even though its modules are clean for persistence.
+  graph.Compact();
+  auto final_staging = manager.CreateStaging();
+  graph.DumpAndClear(final_staging.checkpoint());
+  auto final_checkpoint = final_staging.Publish();
+  graph.Open(final_checkpoint, GetParam());
+  EXPECT_EQ(final_checkpoint->manifest().base_timestamp(), 0u);
+  EXPECT_TRUE(graph.IsValidLid(item_label, new_vid, 0));
+  EXPECT_TRUE(graph.IsValidLid(item_label, new_vid, incremental_ts - 1));
+  EXPECT_FALSE(graph.IsValidLid(item_label, old_vid, 0));
+  EXPECT_EQ(graph.EdgeNum(item_label, next_label, item_label), 0u);
+
+  graph.Clear();
+  graph.Open(manager.Current(), GetParam());
+  EXPECT_EQ(manager.Current()->manifest().base_timestamp(), 0u);
+  EXPECT_EQ(graph.EdgeNum(item_label, next_label, item_label), 0u);
+  EXPECT_FALSE(graph.IsValidLid(item_label, old_vid, 0));
+  EXPECT_TRUE(graph.IsValidLid(item_label, new_vid, 0));
+
+  graph.Clear();
+  manager.Close();
+  std::filesystem::remove_all(db_dir);
+}
+
 TEST_P(CheckpointRoundtripTest, MigratesLegacyGraphAndReplaysItsWalEpoch) {
   const auto db_dir = TestDir("legacy_graph_and_wal");
   {

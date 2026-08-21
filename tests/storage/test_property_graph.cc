@@ -22,6 +22,19 @@
 
 namespace neug {
 
+TEST(DirtyTrackerTest, MergeFromIncludesEdgesOnlyPresentInSource) {
+  DirtyTracker target;
+  target.AddEdgeSlot(1, true);
+
+  DirtyTracker source;
+  source.AddEdgeSlot(2, true);
+
+  target.MergeFrom(source);
+
+  EXPECT_TRUE(target.IsEdgeDirty(1));
+  EXPECT_TRUE(target.IsEdgeDirty(2));
+}
+
 class PropertyGraphTest : public ::testing::Test {
  protected:
   std::string work_dir_;

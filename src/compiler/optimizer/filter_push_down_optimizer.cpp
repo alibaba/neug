@@ -29,7 +29,6 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
-#include "neug/compiler/planner/operator/logical_empty_result.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
@@ -88,7 +87,8 @@ std::shared_ptr<LogicalOperator> FilterPushDownOptimizer::visitFilterReplace(
   if (predicate->expressionType == ExpressionType::LITERAL) {
     auto& literalExpr = predicate->constCast<LiteralExpression>();
     if (literalExpr.isNull() || !literalExpr.getValue().getValue<bool>()) {
-      return std::make_shared<LogicalEmptyResult>(*op->getSchema());
+      // Keep the filter so parent operators still execute on its empty result.
+      return visitChildren(op);
     }
   } else {
     predicateSet.addPredicate(predicate);

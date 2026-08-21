@@ -527,7 +527,9 @@ void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
   suppliers.reserve(paths.size());
   for (const auto& path : paths) {
-    suppliers.push_back(std::make_shared<CSVChunkSupplier>(path, read_config));
+    suppliers.push_back(std::make_shared<CSVChunkSupplier>(
+        path, read_config,
+        io::bindInputStream(sharedState_->stream_opener, path)));
   }
 
   if (use_batch_read && !sharedState_->skipRows) {
@@ -541,6 +543,13 @@ void CsvReader::full_read(
     const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
     execution::Context& output, const CsvReadConfig& output_config) {
   auto merged = read_all_chunks(suppliers);
+
+  if (merged.col_num() == 0) {
+    // No data rows at all (e.g. a header-only file). Emit an empty result;
+    // there is nothing to validate, filter or project.
+    output.clear();
+    return;
+  }
 
   int expected_cols = sharedState_->columnNum();
   if (expected_cols > 0 &&
@@ -595,18 +604,27 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
   const bool autogenerate =
       readOpts.autogenerate_column_names.get(sharedState_->schema.file.options);
 
+  const io::InputStreamFactory stream_factory =
+      io::bindInputStream(sharedState_->stream_opener, paths[0]);
+
   if (config.column_names.empty() && !autogenerate) {
-    config.column_names = read_header(paths[0], config);
+    config.column_names = read_header(paths[0], config, stream_factory);
   } else if (config.column_names.empty() && autogenerate) {
-    std::ifstream input(paths[0]);
-    if (!input) {
-      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                          "Failed to open CSV file for schema inference");
-    }
     std::string line;
-    if (!std::getline(input, line)) {
+    try {
+      if (stream_factory) {
+        line = io::readFirstLine(stream_factory);
+      } else {
+        std::ifstream input(paths[0]);
+        if (!input || !std::getline(input, line)) {
+          RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                              "Failed to read first row for schema inference");
+        }
+      }
+    } catch (const std::exception& e) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                          "Failed to read first row for schema inference");
+                          "Failed to open CSV file for schema inference: " +
+                              std::string(e.what()));
     }
     size_t column_count = 1;
     for (char ch : line) {
@@ -636,7 +654,8 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
     sniff_config.column_types[name] = DataType(DataTypeId::kVarchar);
   }
 
-  auto supplier = std::make_shared<CSVChunkSupplier>(paths[0], sniff_config);
+  auto supplier = std::make_shared<CSVChunkSupplier>(paths[0], sniff_config,
+                                                     stream_factory);
   auto sample_chunk = supplier->GetNextChunk();
   if (!sample_chunk) {
     // No data rows — default all columns to VARCHAR.

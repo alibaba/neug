@@ -745,10 +745,12 @@ if(BUILD_EXTENSIONS AND "parquet" IN_LIST BUILD_EXTENSIONS)
     message(STATUS "Arrow Parquet support enabled for parquet extension")
 endif()
 
-# Configure Arrow S3 support if httpfs extension is enabled
+# S3 support is provided by the httpfs extension via its own curl-based
+# client (SigV4 / ranged GET / multipart upload); Arrow is built WITHOUT
+# ARROW_S3, so no AWS SDK is pulled into the build. See
+# cmake/BuildArrowAsThirdParty.cmake.
 if(BUILD_EXTENSIONS AND "httpfs" IN_LIST BUILD_EXTENSIONS)
-    set(ARROW_ENABLE_S3 ON CACHE BOOL "" FORCE)
-    message(STATUS "Arrow S3 support enabled for httpfs extension")
+    message(STATUS "httpfs extension enabled (curl-based S3, no Arrow S3)")
 endif()
 
 set(NEUG_USE_SYSTEM_ARROW OFF)

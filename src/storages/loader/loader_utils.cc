@@ -630,14 +630,19 @@ class CsvRowCountCounter {
   // separately, and RowNum() is only a pre-allocation hint, so a slight
   // overcount (by at most skip_rows, typically 1 for header) is safe.
   CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
-                     bool double_quote, char delimiter)
+                     bool double_quote, char delimiter,
+                     io::InputStreamFactory stream_factory = nullptr)
       : file_path_(std::move(file_path)),
         quoting_(quoting),
         quote_char_(quote_char),
         double_quote_(double_quote),
-        delimiter_(delimiter) {}
+        delimiter_(delimiter),
+        stream_factory_(std::move(stream_factory)) {}
 
   int64_t count() const {
+    if (stream_factory_) {
+      return count_stream();
+    }
     struct stat st;
     if (stat(file_path_.c_str(), &st) != 0) {
       THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
@@ -747,6 +752,34 @@ class CsvRowCountCounter {
     return res;
   }
 
+  /// Single-threaded scan over a stream source (remote objects). The
+  /// parallel scan path relies on byte-range seeks into local files and
+  /// stays local-only.
+  int64_t count_stream() const {
+    auto stream = stream_factory_();
+    RowCounterState state;
+    state.init(false, quoting_, quote_char_, double_quote_, delimiter_);
+    constexpr size_t kBufSize = 1 << 20;  // 1 MB
+    std::vector<char> buffer(kBufSize);
+    while (true) {
+      auto r = stream->Read(buffer.data(), static_cast<int64_t>(kBufSize));
+      if (!r) {
+        THROW_IO_EXCEPTION("Failed to read remote object for counting: " +
+                           file_path_ + ": " + r.error().error_message());
+      }
+      if (*r == 0) {
+        break;
+      }
+      for (int64_t i = 0; i < *r; ++i) {
+        state.step(buffer[i]);
+      }
+    }
+    int64_t total = state.count;
+    if (state.has_content)
+      ++total;  // last row without trailing newline
+    return total;
+  }
+
   /// Single-threaded scan.
   int64_t count_single(size_t file_size) const {
     RowCounterState state;
@@ -814,13 +847,15 @@ class CsvRowCountCounter {
   char quote_char_;
   bool double_quote_;
   char delimiter_;
+  io::InputStreamFactory stream_factory_;
 };
 
 }  // namespace
 
 struct CsvSupplierRuntime {
   explicit CsvSupplierRuntime(const std::string& file_path,
-                              const CsvReadConfig& config)
+                              const CsvReadConfig& config,
+                              io::InputStreamFactory stream_factory = nullptr)
       : file_path_(file_path),
         csv_format_(build_csv_format(config)),
         selected_column_names_(resolve_selected_column_names(config)),
@@ -834,12 +869,14 @@ struct CsvSupplierRuntime {
         rows_to_skip_(std::max<int64_t>(0, config.skip_rows)),
         chunk_size_(resolve_chunk_size(config)),
         escaping_(config.escaping),
-        escape_char_(config.escape_char) {
+        escape_char_(config.escape_char),
+        stream_factory_(std::move(stream_factory)) {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
     row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
-                                  config.double_quote, config.delimiter)
+                                  config.double_quote, config.delimiter,
+                                  stream_factory_)
                    .count();
     reset_reader();
   }
@@ -908,7 +945,17 @@ struct CsvSupplierRuntime {
  private:
   void reset_reader() {
     try {
-      reader_ = std::make_unique<csv::CSVReader>(file_path_, csv_format_);
+      if (stream_factory_) {
+        // Remote source: single-pass parsing over a stream. Threading is
+        // disabled because the istream-backed parser cannot share its
+        // stream across worker threads.
+        csv::CSVFormat stream_format = csv_format_;
+        stream_format.threading(false);
+        reader_ = std::make_unique<csv::CSVReader>(
+            io::makeIoStream(stream_factory_()), stream_format);
+      } else {
+        reader_ = std::make_unique<csv::CSVReader>(file_path_, csv_format_);
+      }
       skip_rows(*reader_);
       current_row_number_ = rows_to_skip_;
     } catch (const std::exception& error) {
@@ -939,6 +986,7 @@ struct CsvSupplierRuntime {
   size_t chunk_size_ = kDefaultCsvChunkRows;
   bool escaping_ = false;
   char escape_char_ = '\\';
+  io::InputStreamFactory stream_factory_;
   int64_t row_num_ = 0;
   int64_t current_row_number_ = 0;
   std::unique_ptr<csv::CSVReader> reader_;
@@ -1057,45 +1105,43 @@ std::string process_header_row_token(const std::string& token, bool is_quoting,
   return new_token;
 }
 
-std::vector<std::string> read_header_manual(const std::string& file_name,
-                                            char delimiter, bool is_quoting,
-                                            char quote_char, bool is_escaping,
-                                            char escape_char) {
+std::vector<std::string> read_header_manual(
+    const std::string& file_name, char delimiter, bool is_quoting,
+    char quote_char, bool is_escaping, char escape_char,
+    const io::InputStreamFactory& stream_factory) {
   std::vector<std::string> res_vec;
-  std::ifstream file(file_name);
   std::string line;
-  if (file.is_open()) {
-    if (std::getline(file, line)) {
-      std::stringstream ss(line);
-      std::string token;
-      while (std::getline(ss, token, delimiter)) {
-        size_t endpos = token.find_last_not_of(" \n\r\t");
-        if (endpos == std::string::npos) {
-          token.clear();
-        } else {
-          token.erase(endpos + 1);
-        }
-        token = process_header_row_token(token, is_quoting, quote_char,
-                                         is_escaping, escape_char);
-        res_vec.push_back(token);
-      }
-    } else {
-      file.close();
+  if (stream_factory) {
+    line = io::readFirstLine(stream_factory);
+  } else {
+    std::ifstream file(file_name);
+    if (!file.is_open() || !std::getline(file, line)) {
       THROW_IO_EXCEPTION("Fail to read header line of file: " + file_name);
     }
-    file.close();
-  } else {
-    THROW_IO_EXCEPTION("Fail to open file: " + file_name);
+  }
+  std::stringstream ss(line);
+  std::string token;
+  while (std::getline(ss, token, delimiter)) {
+    size_t endpos = token.find_last_not_of(" \n\r\t");
+    if (endpos == std::string::npos) {
+      token.clear();
+    } else {
+      token.erase(endpos + 1);
+    }
+    token = process_header_row_token(token, is_quoting, quote_char, is_escaping,
+                                     escape_char);
+    res_vec.push_back(token);
   }
   return res_vec;
 }
 
-std::vector<std::string> read_header(const std::string& file_name,
-                                     const CsvReadConfig& config) {
+std::vector<std::string> read_header(
+    const std::string& file_name, const CsvReadConfig& config,
+    const io::InputStreamFactory& stream_factory) {
   if (config.escaping) {
     return read_header_manual(file_name, config.delimiter, config.quoting,
                               config.quote_char, config.escaping,
-                              config.escape_char);
+                              config.escape_char, stream_factory);
   }
   try {
     csv::CSVFormat csv_format;
@@ -1106,9 +1152,16 @@ std::vector<std::string> read_header(const std::string& file_name,
       csv_format.quote(false);
     }
     csv_format.no_header();
-    csv::CSVReader reader(file_name, csv_format);
+    std::unique_ptr<csv::CSVReader> reader_ptr;
+    if (stream_factory) {
+      csv_format.threading(false);
+      reader_ptr = std::make_unique<csv::CSVReader>(
+          io::makeIoStream(stream_factory()), csv_format);
+    } else {
+      reader_ptr = std::make_unique<csv::CSVReader>(file_name, csv_format);
+    }
     csv::CSVRow row;
-    if (!reader.read_row(row)) {
+    if (!reader_ptr->read_row(row)) {
       THROW_IO_EXCEPTION("Fail to read header line of file: " + file_name);
     }
     std::vector<std::string> res_vec;
@@ -1252,9 +1305,11 @@ std::vector<std::string> columnMappingsToSelectedCols(
 }
 
 CSVChunkSupplier::CSVChunkSupplier(const std::string& file_path,
-                                   CsvReadConfig config)
+                                   CsvReadConfig config,
+                                   io::InputStreamFactory stream_factory)
     : file_path_(file_path) {
-  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config);
+  runtime_ = std::make_unique<CsvSupplierRuntime>(file_path, config,
+                                                  std::move(stream_factory));
   row_num_ = runtime_->row_num();
   VLOG(10) << "Finish init CSVChunkSupplier for file: " << file_path_;
 }

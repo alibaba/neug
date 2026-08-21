@@ -34,6 +34,14 @@ Inline options are passed inside parentheses after the file path in a `LOAD FROM
 | `OSS_ACCESS_KEY_ID` / `AWS_ACCESS_KEY_ID`         | string | —        | Access key ID. Required when`CREDENTIALS_KIND='Explicit'`.                                              |
 | `OSS_ACCESS_KEY_SECRET` / `AWS_SECRET_ACCESS_KEY` | string | —        | Secret access key. Required when`CREDENTIALS_KIND='Explicit'`.                                          |
 
+### TLS and Addressing Options
+
+| Option         | Type   | Default | Description                                                                                                                                  |
+| -------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VERIFY_SSL`   | bool   | `true`  | Verify the server's TLS certificate. Set to `false` only for trusted test environments (e.g. self-signed MinIO).                             |
+| `CA_CERT_FILE` | string | auto    | Path to a CA bundle used for TLS verification. When unset, the system default locations are probed (also honors the `SSL_CERT_FILE` env var). |
+| `PATH_STYLE`   | bool   | `false` | Use path-style addressing (`endpoint/bucket/key`) instead of virtual hosted style (`bucket.endpoint/key`). Automatically enabled when the endpoint is an IP address or `localhost` (typical for MinIO). |
+
 ### Endpoint and Region Options
 
 | Option                                                    | Type   | Default       | Description                                                                                                                          |
@@ -50,24 +58,31 @@ Inline options are passed inside parentheses after the file path in a `LOAD FROM
 
 ## Credential Modes
 
+S3/OSS requests are signed with AWS Signature Version 4. Credentials are
+resolved from query options and environment variables only — **STS tokens,
+`~/.aws/credentials` files, and IAM/ECS instance roles are not supported**.
+
 ### `Default` (default)
 
-Arrow SDK's default credential provider chain is used in order:
+Credentials are looked up in this order:
 
-1. Environment variables `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
-2. `~/.aws/credentials` and `~/.aws/config` files
-3. EC2 instance metadata (IAM role)
-4. ECS task role
+1. Query options: `OSS_ACCESS_KEY_ID` / `AWS_ACCESS_KEY_ID` and
+   `OSS_ACCESS_KEY_SECRET` / `AWS_SECRET_ACCESS_KEY`
+2. Environment variables with the same names
 
-Use this mode when credentials are provided through the execution environment.
+If neither source provides credentials, the query **fails with an error**
+rather than silently falling back to anonymous access (which would turn
+private buckets into hard-to-diagnose 403s). Use `CREDENTIALS_KIND='Anonymous'`
+explicitly for public buckets.
 
 ### `Anonymous`
 
-No credentials are sent. Use this mode for publicly accessible buckets.
+No credentials are sent (requests are unsigned). Use this mode for publicly accessible buckets.
 
 ### `Explicit`
 
-Access key and secret key are specified directly in the query options.
+Access key and secret key are specified directly in the query options; the
+query fails if they are missing.
 
 ## Query Examples
 
@@ -109,9 +124,25 @@ LOAD FROM "http://example.com/data/person.parquet"
 RETURN *;
 ```
 
+HTTP/HTTPS sources are **read-only** and must support both `HEAD` requests
+(used to determine the file size) and `Range` requests (used for ranged
+reads). A server that ignores `Range` and answers `200` is rejected with an
+error instead of being silently misread.
+
+Additional HTTP options:
+
+| Option          | Type   | Default | Description                                        |
+| --------------- | ------ | ------- | -------------------------------------------------- |
+| `BEARER_TOKEN`  | string | —      | Sent as an `Authorization: Bearer <token>` header. |
+| `HTTP_HEADERS`  | string | —      | Extra request headers.                             |
+| `VERIFY_SSL`    | bool   | `true`  | Verify the server's TLS certificate.               |
+| `CA_CERT_FILE`  | string | auto    | CA bundle used for TLS verification.               |
+| `CONNECT_TIMEOUT` | double | `30.0` | Connection timeout in seconds.                    |
+| `REQUEST_TIMEOUT` | double | `300.0` | Request timeout in seconds.                      |
+
 ## Export (COPY TO)
 
-The HTTPFS Extension also supports writing query results to S3/OSS using `COPY TO`. This requires credentials with write permission (Anonymous mode cannot write).
+The HTTPFS Extension also supports writing query results to S3/OSS using `COPY TO`. This requires credentials with write permission (Anonymous mode cannot write). Objects larger than twice the multipart part size (16 MiB by default) are uploaded with a multipart upload; smaller objects use a single `PutObject`.
 
 ### Export to S3
 

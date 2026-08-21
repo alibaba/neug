@@ -64,17 +64,20 @@ void PropertyGraph::loadSchema(const std::string& schema_path) {
 void PropertyGraph::emplace_edge_table(uint32_t index, EdgeTable&& table) {
   edge_tables_.emplace(index, std::move(table));
   dirty_.AddEdgeSlot(index);
+  uncompacted_modules_.AddEdgeSlot(index);
 }
 
 void PropertyGraph::erase_edge_table(uint32_t index) {
   edge_tables_.erase(index);
   dirty_.EraseEdgeSlot(index);
+  uncompacted_modules_.EraseEdgeSlot(index);
 }
 
 void PropertyGraph::Clear() {
   vertex_tables_.clear();
   edge_tables_.clear();
   dirty_.Reset();
+  uncompacted_modules_.Reset();
   vertex_label_total_count_ = 0;
   edge_label_total_count_ = 0;
   schema_.Clear();
@@ -116,6 +119,10 @@ bool PropertyGraph::HasPendingIndexes() const {
 
 bool PropertyGraph::HasPendingMutations() const {
   return index_manager_->HasPendingMutations();
+}
+
+Status PropertyGraph::ValidateCheckpointPreconditions() const {
+  return index_manager_->ValidateCheckpointPreconditions();
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -824,24 +831,42 @@ void PropertyGraph::Open(std::shared_ptr<Checkpoint> ckp,
   }
 
   index_manager_->Open(ckp, store, memory_level_);
+  // A nonzero base timestamp identifies a graph image that preserved MVCC
+  // state. Keep that fact across process restarts so the next full checkpoint
+  // compacts every inherited table and the schema before resetting timestamps.
+  if (meta.base_timestamp() != 0) {
+    for (size_t label = 0; label < vertex_label_total_count_; ++label) {
+      if (schema_.is_vertex_label_valid(label)) {
+        uncompacted_modules_.MarkVertex(static_cast<label_t>(label));
+      }
+    }
+    for (const auto& [index, _] : edge_tables_) {
+      uncompacted_modules_.MarkEdge(index);
+    }
+    uncompacted_modules_.MarkSchema();
+  }
   ckp_ = std::move(ckp);
+  rebind_indexes();
+}
+
+void PropertyGraph::rebind_indexes() {
   auto indexes = index_manager_->GetAllIndexes();
   if (!indexes) {
-    THROW_RUNTIME_ERROR("PropertyGraph::Open: failed to enumerate indexes: " +
+    THROW_RUNTIME_ERROR("PropertyGraph: failed to enumerate indexes: " +
                         indexes.error().error_message());
   }
   for (auto* index : indexes.value()) {
     const auto& index_meta = index->GetMeta();
     if (index_meta.schema.label_id >= vertex_tables_.size() ||
         !schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
-      THROW_RUNTIME_ERROR("PropertyGraph::Open: invalid index label id");
+      THROW_RUNTIME_ERROR("PropertyGraph: invalid index label id");
     }
     auto* column =
         vertex_tables_[index_meta.schema.label_id].GetPropertyColumnBase(
             index_meta.schema.property_name);
     auto status = index->Rebind(IndexBindContext{column});
     if (!status.ok()) {
-      THROW_RUNTIME_ERROR("PropertyGraph::Open: failed to bind index '" +
+      THROW_RUNTIME_ERROR("PropertyGraph: failed to bind index '" +
                           index_meta.name + "': " + status.error_message());
     }
   }
@@ -931,6 +956,11 @@ void PropertyGraph::Compact() {
    *
    * Assume concurrency is controlled by the caller.
    */
+  // Incremental checkpoints clear persistence dirtiness without compacting.
+  // Fold that separate state back into the full-checkpoint work set before
+  // schema IDs can be remapped.
+  dirty_.MergeFrom(uncompacted_modules_);
+
   compact_schema();
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
        ++src_label_i) {
@@ -970,10 +1000,18 @@ void PropertyGraph::Compact() {
       }
     }
   }
+  uncompacted_modules_.Reset();
+  for (const auto& [index, _] : edge_tables_) {
+    uncompacted_modules_.AddEdgeSlot(index);
+  }
   LOG(INFO) << "Compaction completed.";
 }
 
 void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
+  const auto preflight = ValidateCheckpointPreconditions();
+  if (!preflight.ok()) {
+    THROW_RUNTIME_ERROR(preflight.error_message());
+  }
   LOG(INFO) << "Creating checkpoint at " << ckp->manifest_path();
 
   CheckpointManifest meta;
@@ -1067,8 +1105,120 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   Clear();
 }
 
+bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
+                                       timestamp_t base_timestamp) {
+  CHECK(ckp_ != nullptr);
+  CHECK(ckp != nullptr);
+  CHECK_GT(ckp->id(), ckp_->id());
+  CHECK_GT(base_timestamp, 0);
+  const auto preflight = ValidateCheckpointPreconditions();
+  if (!preflight.ok()) {
+    THROW_RUNTIME_ERROR(preflight.error_message());
+  }
+  const bool planning_changed =
+      dirty_.IsSchemaDirty() || index_manager_->HasCatalogChanges();
+  LOG(INFO) << "Creating incremental checkpoint at " << ckp->manifest_path();
+
+  CheckpointManifest meta(base_timestamp);
+  ModuleBroker modules_to_dump;
+  const auto& previous = ckp_->manifest();
+  std::vector<std::string> reopen_keys;
+  std::vector<label_t> dirty_vertices;
+  std::vector<uint32_t> dirty_edges;
+
+  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
+    if (!schema_.is_vertex_label_valid(i) ||
+        schema_.is_vertex_label_temporary(i)) {
+      continue;
+    }
+    auto& table = vertex_tables_[i];
+    const auto& label = table.get_vertex_schema_ptr()->label_name;
+    if (!IsVertexTableDirty(i)) {
+      table.ReuseCheckpointModules(*ckp, meta, previous);
+      continue;
+    }
+
+    dirty_vertices.push_back(static_cast<label_t>(i));
+    table.DisassembleTo(modules_to_dump, meta, *ckp);
+    reopen_keys.push_back(VertexTable::KeyKeys(label));
+    reopen_keys.push_back(VertexTable::KeyIndices(label));
+    reopen_keys.push_back(VertexTable::KeyVertexTimestamp(label));
+    for (size_t property = 0;
+         property < table.get_vertex_schema_ptr()->property_types.size();
+         ++property) {
+      reopen_keys.push_back(VertexTable::KeyProperty(label, property));
+    }
+  }
+
+  for (const auto& [index, edge_schema] : schema_.get_all_edge_schemas()) {
+    if (schema_.is_edge_label_temporary(index)) {
+      continue;
+    }
+    auto table_it = edge_tables_.find(index);
+    if (table_it == edge_tables_.end()) {
+      continue;
+    }
+    auto& table = table_it->second;
+    const auto& src = edge_schema->src_label_name;
+    const auto& edge = edge_schema->edge_label_name;
+    const auto& dst = edge_schema->dst_label_name;
+    if (!dirty_.IsEdgeDirty(index)) {
+      table.ReuseCheckpointModules(*ckp, meta, previous);
+      continue;
+    }
+
+    dirty_edges.push_back(index);
+    table.DisassembleTo(modules_to_dump, meta, *ckp);
+    reopen_keys.push_back(EdgeTable::KeyOutCsr(src, edge, dst));
+    reopen_keys.push_back(EdgeTable::KeyInCsr(src, edge, dst));
+    if (!edge_schema->is_bundled()) {
+      for (size_t property = 0; property < edge_schema->properties.size();
+           ++property) {
+        reopen_keys.push_back(EdgeTable::KeyProperty(src, edge, dst, property));
+      }
+    }
+  }
+
+  index_manager_->StageIncrementalModules(modules_to_dump, meta);
+
+  modules_to_dump.Dump(*ckp, meta);
+  meta.SetSchema(schema_.StripTemporary());
+  ckp->SetManifest(std::move(meta));
+
+  CheckpointManifest reopen_manifest;
+  for (const auto& key : reopen_keys) {
+    reopen_manifest.ReuseModuleClosureFrom(ckp->manifest(), key);
+  }
+  ModuleBroker reopened_modules;
+  reopened_modules.Open(*ckp, reopen_manifest, memory_level_);
+  for (label_t label : dirty_vertices) {
+    vertex_tables_[label] =
+        VertexTable::OpenFrom(ckp, schema_.get_vertex_schema(label),
+                              reopened_modules, ckp->manifest(), memory_level_);
+  }
+  for (uint32_t index : dirty_edges) {
+    const auto [src, dst, edge] = schema_.parse_edge_label(index);
+    edge_tables_.at(index) =
+        EdgeTable::OpenFrom(ckp, schema_.get_edge_schema(src, dst, edge),
+                            reopened_modules, ckp->manifest(), memory_level_);
+  }
+  index_manager_->InstallIncrementalCheckpoint(ckp);
+
+  uncompacted_modules_.MergeFrom(dirty_);
+  for (auto& table : vertex_tables_) {
+    table.ckp_ = ckp;
+  }
+  for (auto& [_, table] : edge_tables_) {
+    table.ckp_ = ckp;
+  }
+  ckp_ = std::move(ckp);
+  rebind_indexes();
+  dirty_.ClearAll();
+  return planning_changed;
+}
+
 bool PropertyGraph::IsModified() const {
-  return dirty_.IsModified() || index_manager_->HasCatalogChanges();
+  return dirty_.IsModified() || index_manager_->HasCheckpointChanges();
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
@@ -1356,31 +1506,13 @@ std::shared_ptr<PropertyGraph> PropertyGraph::Clone() const {
   }
 
   cow_clone->dirty_.SetSchema(dirty_.IsSchemaDirty());
+  cow_clone->uncompacted_modules_ = uncompacted_modules_;
   cow_clone->ckp_ = ckp_;
   cow_clone->vertex_label_total_count_ = vertex_label_total_count_;
   cow_clone->edge_label_total_count_ = edge_label_total_count_;
   cow_clone->memory_level_ = memory_level_;
   cow_clone->index_manager_ = index_manager_->Clone();
-
-  auto indexes = cow_clone->index_manager_->GetAllIndexes();
-  if (!indexes) {
-    THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to enumerate indexes: " +
-                        indexes.error().error_message());
-  }
-  for (auto* index : indexes.value()) {
-    const auto& index_meta = index->GetMeta();
-    if (index_meta.schema.label_id >= cow_clone->vertex_tables_.size() ||
-        !cow_clone->schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
-      THROW_RUNTIME_ERROR("PropertyGraph::Clone: invalid index label id");
-    }
-    auto* column = cow_clone->vertex_tables_[index_meta.schema.label_id]
-                       .GetPropertyColumnBase(index_meta.schema.property_name);
-    auto status = index->Rebind(IndexBindContext{column});
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("PropertyGraph::Clone: failed to bind index '" +
-                          index_meta.name + "': " + status.error_message());
-    }
-  }
+  cow_clone->rebind_indexes();
 
   return cow_clone;
 }

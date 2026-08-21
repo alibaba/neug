@@ -35,6 +35,7 @@
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/read/common/type_converter.h"
 #include "neug/utils/io/reader.h"
+#include "neug/utils/io/stream/input_stream.h"
 
 namespace neug {
 namespace test {
@@ -301,6 +302,14 @@ class ReaderTest : public ::testing::Test {
       totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
     }
     return totalRows;
+  }
+
+  // Stream opener backed by local files; injecting it drives the same
+  // streaming read paths used for remote objects (row counting over a
+  // stream, istream-based parsing, buffered line reads).
+  static io::InputStreamOpener localStreamOpener() {
+    return
+        [](const std::string& path) { return io::openLocalInputStream(path); };
   }
 };
 

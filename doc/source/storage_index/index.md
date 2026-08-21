@@ -12,6 +12,7 @@ NeuG currently supports:
 | Index type | Use case | Documentation |
 | ---------- | -------- | ------------- |
 | `HNSW` | Approximate nearest-neighbor search over vector properties | [Vector Search](vector_search.md) |
+| `FTS` | BM25-ranked full-text search over string properties | [Full-Text Search](fts_search.md) |
 
 The common index syntax and guarantees below also apply to index types added in
 the future. See an index type's documentation for supported properties,
@@ -80,9 +81,10 @@ index type. When an eligible active index exists, the optimizer rewrites the
 matching scan or top-K operation into an index scan. The query does not need a
 separate index-search procedure.
 
-Eligibility is index-specific. For example, HNSW recognizes supported vector
-distance expressions in `ORDER BY`; see [Vector Similarity
-Search](vector_search.md#vector-similarity-search).
+Eligibility is index-specific. HNSW recognizes supported vector distance
+expressions in `ORDER BY`; see [Vector Similarity
+Search](vector_search.md#vector-similarity-search). FTS recognizes `bm25`
+expressions; see [Full-Text Search](fts_search.md#full-text-search).
 
 ## Transactions
 
@@ -114,4 +116,10 @@ restored index. For HNSW, run:
 
 ```cypher
 LOAD vector_search;
+```
+
+For FTS, run:
+
+```cypher
+LOAD fts;
 ```
