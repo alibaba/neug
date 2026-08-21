@@ -21,6 +21,7 @@
  */
 
 #include <memory>
+#include <optional>
 #include <unordered_set>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
@@ -33,11 +34,13 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/function/gds/rec_joins.h"
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/compiler/main/metadata_manager.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/exception/exception.h"
 
@@ -50,6 +53,29 @@ namespace binder {
 
 using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 
+namespace {
+
+class NamespaceBindingModeGuard {
+ public:
+  NamespaceBindingModeGuard(NamespaceBindingMode& mode,
+                            NamespaceBindingMode temporaryMode)
+      : mode{mode}, previousMode{mode} {
+    mode = temporaryMode;
+  }
+
+  ~NamespaceBindingModeGuard() { mode = previousMode; }
+
+  NamespaceBindingModeGuard(const NamespaceBindingModeGuard&) = delete;
+  NamespaceBindingModeGuard& operator=(const NamespaceBindingModeGuard&) =
+      delete;
+
+ private:
+  NamespaceBindingMode& mode;
+  NamespaceBindingMode previousMode;
+};
+
+}  // namespace
+
 // A graph pattern contains node/rel and a set of key-value pairs associated
 // with the variable. We bind node/rel as query graph and key-value pairs as a
 // separate collection. This collection is interpreted in two different ways.
@@ -58,32 +84,40 @@ using schema_entry_set_t = std::unordered_set<SchemaEntry*>;
 // We do not store key-value pairs in query graph primarily because we will
 // merge key-value std::pairs with other predicates specified in WHERE clause.
 BoundGraphPattern Binder::bindGraphPattern(
-    const std::vector<PatternElement>& graphPattern) {
+    const std::vector<PatternElement>& graphPattern,
+    NamespaceBindingMode namespaceMode) {
+  if (activeNamespaceName && namespaceMode == NamespaceBindingMode::DISALLOW) {
+    THROW_BINDER_EXCEPTION(
+        "USE NAMESPACE queries only support read-only MATCH patterns.");
+  }
+  auto namespaceModeGuard =
+      NamespaceBindingModeGuard{namespaceBindingMode, namespaceMode};
+  auto boundPattern = BoundGraphPattern();
   auto queryGraphCollection = QueryGraphCollection();
   for (auto& patternElement : graphPattern) {
     queryGraphCollection.addAndMergeQueryGraphIfConnected(
-        bindPatternElement(patternElement));
+        bindPatternElement(patternElement, boundPattern.namespacePredicates));
   }
   queryGraphCollection.finalize();
-  auto boundPattern = BoundGraphPattern();
   boundPattern.queryGraphCollection = std::move(queryGraphCollection);
   return boundPattern;
 }
 
 // Grammar ensures pattern element is always connected and thus can be bound as
 // a query graph.
-QueryGraph Binder::bindPatternElement(const PatternElement& patternElement) {
+QueryGraph Binder::bindPatternElement(const PatternElement& patternElement,
+                                      expression_vector& namespacePredicates) {
   auto queryGraph = QueryGraph();
   expression_vector nodeAndRels;
-  auto leftNode =
-      bindQueryNode(*patternElement.getFirstNodePattern(), queryGraph);
+  auto leftNode = bindQueryNode(*patternElement.getFirstNodePattern(),
+                                queryGraph, namespacePredicates);
   nodeAndRels.push_back(leftNode);
   for (auto i = 0u; i < patternElement.getNumPatternElementChains(); ++i) {
     auto patternElementChain = patternElement.getPatternElementChain(i);
-    auto rightNode =
-        bindQueryNode(*patternElementChain->getNodePattern(), queryGraph);
+    auto rightNode = bindQueryNode(*patternElementChain->getNodePattern(),
+                                   queryGraph, namespacePredicates);
     auto rel = bindQueryRel(*patternElementChain->getRelPattern(), leftNode,
-                            rightNode, queryGraph);
+                            rightNode, queryGraph, namespacePredicates);
     nodeAndRels.push_back(rel);
     nodeAndRels.push_back(rightNode);
     leftNode = rightNode;
@@ -255,7 +289,8 @@ static void checkRelDirectionTypeAgainstStorageDirection(
 std::shared_ptr<RelExpression> Binder::bindQueryRel(
     const RelPattern& relPattern,
     const std::shared_ptr<NodeExpression>& leftNode,
-    const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph) {
+    const std::shared_ptr<NodeExpression>& rightNode, QueryGraph& queryGraph,
+    expression_vector& namespacePredicates) {
   auto parsedName = relPattern.getVariableName();
   if (scope.contains(parsedName)) {
     auto prevVariable = scope.getExpression(parsedName);
@@ -313,6 +348,7 @@ std::shared_ptr<RelExpression> Binder::bindQueryRel(
   queryRel->setLeftNode(leftNode);
   queryRel->setRightNode(rightNode);
   queryRel->setAlias(parsedName);
+  collectNamespaceRelPredicate(relPattern, queryRel, namespacePredicates);
   if (!parsedName.empty()) {
     addToScope(parsedName, queryRel);
   }
@@ -666,7 +702,8 @@ void Binder::bindQueryRelProperties(RelExpression& rel) {
 }
 
 std::shared_ptr<NodeExpression> Binder::bindQueryNode(
-    const NodePattern& nodePattern, QueryGraph& queryGraph) {
+    const NodePattern& nodePattern, QueryGraph& queryGraph,
+    expression_vector& namespacePredicates) {
   auto parsedName = nodePattern.getVariableName();
   std::shared_ptr<NodeExpression> queryNode;
   if (scope.contains(parsedName)) {  // bind to node in scope
@@ -710,6 +747,7 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
         expressionBinder.implicitCastIfNecessary(boundRhs, boundLhs->dataType);
     queryNode->addPropertyDataExpr(propertyName, std::move(boundRhs));
   }
+  collectNamespaceNodePredicate(nodePattern, queryNode, namespacePredicates);
   queryGraph.addQueryNode(queryNode);
   return queryNode;
 }
@@ -717,8 +755,9 @@ std::shared_ptr<NodeExpression> Binder::bindQueryNode(
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
     const NodePattern& nodePattern) {
   auto parsedName = nodePattern.getVariableName();
-  return createQueryNode(parsedName,
-                         bindNodeTableEntries(nodePattern.getTableNames()));
+  auto node = createQueryNode(
+      parsedName, bindNodeTableEntries(nodePattern.getTableNames()));
+  return node;
 }
 
 std::shared_ptr<NodeExpression> Binder::createQueryNode(
@@ -782,12 +821,184 @@ static std::vector<SchemaEntry*> sortEntries(const schema_entry_set_t& set) {
   return entries;
 }
 
+static const ProjectedGraphEntry& getProjectedGraph(
+    main::ClientContext* context, const std::string& name);
+
+static std::shared_ptr<Expression> copyPredicateForVariable(
+    const std::shared_ptr<Expression>& predicate,
+    const std::string& variableName) {
+  if (!predicate) {
+    return nullptr;
+  }
+  // project_graph validates that persisted predicates contain only expression
+  // types with well-defined copy semantics. This copy is therefore safe for
+  // every predicate accepted when the projected graph is created.
+  auto result = std::shared_ptr<Expression>(predicate->copy());
+  RenameDependentVar rename(variableName);
+  rename.visit(result);
+  return result;
+}
+
+void Binder::collectNamespaceNodePredicate(
+    const NodePattern& nodePattern, const std::shared_ptr<NodeExpression>& node,
+    expression_vector& namespacePredicates) {
+  if (!activeNamespaceName) {
+    return;
+  }
+  const auto& bound = bindProjectedGraph(*activeNamespaceName);
+  const auto& names = nodePattern.getTableNames();
+  std::shared_ptr<Expression> combined;
+  for (const auto& info : bound.nodeInfos) {
+    if (!names.empty() && std::find(names.begin(), names.end(),
+                                    info.entry->get_label()) == names.end()) {
+      continue;
+    }
+    auto label = expressionBinder.createLiteralExpression(
+        compiler_impl::Value(info.entry->get_label()));
+    auto branch = expressionBinder.createEqualityComparisonExpression(
+        node->getLabelExpression(), label);
+    auto predicate =
+        copyPredicateForVariable(info.predicate, node->getUniqueName());
+    if (predicate) {
+      branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
+                                                          branch, predicate);
+    }
+    combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
+                                                          combined, branch);
+  }
+  if (combined) {
+    namespacePredicates.push_back(std::move(combined));
+  }
+}
+
+void Binder::collectNamespaceRelPredicate(
+    const RelPattern& relPattern, const std::shared_ptr<RelExpression>& rel,
+    expression_vector& namespacePredicates) {
+  if (!activeNamespaceName) {
+    return;
+  }
+  const auto& bound = bindProjectedGraph(*activeNamespaceName);
+  const auto& names = relPattern.getTableNames();
+  // Index the already-bound node predicates once. Relationship endpoint
+  // predicate lookup is then O(1) per endpoint instead of rebinding every
+  // node predicate for every relationship (O(E * V)).
+  std::unordered_map<common::table_id_t, std::shared_ptr<Expression>>
+      nodePredicates;
+  nodePredicates.reserve(bound.nodeInfos.size());
+  for (const auto& nodeInfo : bound.nodeInfos) {
+    const auto insertResult = nodePredicates.emplace(
+        nodeInfo.entry->get_entry_id(), nodeInfo.predicate);
+    if (!insertResult.second) {
+      THROW_BINDER_EXCEPTION(stringFormat(
+          "Namespace '{}' contains duplicate predicates for node label '{}'.",
+          *activeNamespaceName, nodeInfo.entry->get_label()));
+    }
+  }
+  std::shared_ptr<Expression> combined;
+  for (const auto& info : bound.relInfos) {
+    if (!names.empty() && std::find(names.begin(), names.end(),
+                                    info.entry->get_label()) == names.end()) {
+      continue;
+    }
+    auto label = expressionBinder.createLiteralExpression(
+        compiler_impl::Value(info.entry->get_label()));
+    auto branch = expressionBinder.createEqualityComparisonExpression(
+        rel->getLabelExpression(), label);
+    auto predicate =
+        copyPredicateForVariable(info.predicate, rel->getUniqueName());
+    if (predicate) {
+      branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
+                                                          branch, predicate);
+    }
+    auto* edge = dynamic_cast<EdgeSchema*>(info.entry);
+    NEUG_ASSERT(edge != nullptr);
+    auto addEndpointPredicate =
+        [&](common::table_id_t tableID,
+            const std::shared_ptr<NodeExpression>& endpoint) {
+          const auto it = nodePredicates.find(tableID);
+          if (it == nodePredicates.end()) {
+            THROW_BINDER_EXCEPTION(stringFormat(
+                "Namespace '{}' relationship '{}' references node table ID "
+                "{}, but the corresponding node predicate is missing.",
+                *activeNamespaceName, info.entry->get_label(), tableID));
+          }
+          auto endpointPredicate =
+              copyPredicateForVariable(it->second, endpoint->getUniqueName());
+          if (endpointPredicate) {
+            branch = expressionBinder.combineBooleanExpressions(
+                ExpressionType::AND, branch, endpointPredicate);
+          }
+        };
+    addEndpointPredicate(edge->getSrcTableID(), rel->getSrcNode());
+    addEndpointPredicate(edge->getDstTableID(), rel->getDstNode());
+    combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
+                                                          combined, branch);
+  }
+  if (combined) {
+    namespacePredicates.push_back(std::move(combined));
+  }
+}
+
+static const ProjectedGraphEntry& getProjectedGraph(
+    main::ClientContext* context, const std::string& name) {
+  auto* catalog = context->getCatalog();
+  if (!catalog->hasGraphEntry(name)) {
+    THROW_BINDER_EXCEPTION("Projected graph '" + name + "' does not exist.");
+  }
+  auto entry = catalog->getGraphEntry(name);
+  if (!entry) {
+    THROW_BINDER_EXCEPTION(entry.error().error_message());
+  }
+  return **entry;
+}
+
+const graph::GraphEntry& Binder::bindProjectedGraph(
+    const std::string& graphName) const {
+  if (const auto it = boundProjectedGraphs.find(graphName);
+      it != boundProjectedGraphs.end()) {
+    return *it->second;
+  }
+  const auto& projected = getProjectedGraph(clientContext, graphName);
+  auto bound = std::make_shared<graph::GraphEntry>(
+      graph::GDSFunction::bindGraphEntry(*clientContext, projected));
+  return *boundProjectedGraphs.emplace(graphName, std::move(bound))
+              .first->second;
+}
+
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     const std::vector<std::string>& tableNames) const {
   auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
   schema_entry_set_t entrySet;
+  if (activeNamespaceName) {
+    if (namespaceBindingMode != NamespaceBindingMode::ALLOW_FOR_MATCH) {
+      THROW_BINDER_EXCEPTION(
+          "USE NAMESPACE queries only support read-only MATCH patterns.");
+    }
+    const auto& bound = bindProjectedGraph(*activeNamespaceName);
+    if (tableNames.empty()) {
+      for (const auto& info : bound.nodeInfos) {
+        entrySet.insert(info.entry);
+      }
+    } else {
+      for (const auto& name : tableNames) {
+        bool found = false;
+        for (const auto& info : bound.nodeInfos) {
+          if (info.entry->get_label() == name) {
+            entrySet.insert(info.entry);
+            found = true;
+          }
+        }
+        if (!found) {
+          THROW_BINDER_EXCEPTION(
+              stringFormat("Label '{}' is not part of Namespace '{}'.", name,
+                           *activeNamespaceName));
+        }
+      }
+    }
+    return sortEntries(entrySet);
+  }
   if (tableNames.empty()) {
     for (auto entry : catalog->getNodeTableEntries(transaction, useInternal)) {
       entrySet.insert(entry);
@@ -821,6 +1032,34 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
   schema_entry_set_t entrySet;
+  if (activeNamespaceName) {
+    if (namespaceBindingMode != NamespaceBindingMode::ALLOW_FOR_MATCH) {
+      THROW_BINDER_EXCEPTION(
+          "USE NAMESPACE queries only support read-only MATCH patterns.");
+    }
+    const auto& bound = bindProjectedGraph(*activeNamespaceName);
+    if (tableNames.empty()) {
+      for (const auto& info : bound.relInfos) {
+        entrySet.insert(info.entry);
+      }
+    } else {
+      for (const auto& name : tableNames) {
+        bool found = false;
+        for (const auto& info : bound.relInfos) {
+          if (info.entry->get_label() == name) {
+            entrySet.insert(info.entry);
+            found = true;
+          }
+        }
+        if (!found) {
+          THROW_BINDER_EXCEPTION(
+              stringFormat("Label '{}' is not part of Namespace '{}'.", name,
+                           *activeNamespaceName));
+        }
+      }
+    }
+    return sortEntries(entrySet);
+  }
   if (tableNames.empty()) {
     for (auto& entry : catalog->getRelTableEntries(transaction, useInternal)) {
       entrySet.insert(entry);

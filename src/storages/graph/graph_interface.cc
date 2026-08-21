@@ -548,6 +548,19 @@ Status StorageAPUpdateInterface::DeleteEdgeTypeImpl(label_t src, label_t dst,
   return status;
 }
 
+Status StorageAPUpdateInterface::AddGraphEntry(
+    const std::string& name, const ProjectedGraphEntry& entry) {
+  RETURN_IF_NOT_OK(graph_.mutable_schema().AddGraphEntry(name, entry));
+  MarkSchemaDirty();
+  return Status::OK();
+}
+
+Status StorageAPUpdateInterface::DropGraphEntry(const std::string& name) {
+  RETURN_IF_NOT_OK(graph_.mutable_schema().DropGraphEntry(name));
+  MarkSchemaDirty();
+  return Status::OK();
+}
+
 /**
  * Creates an index for a vertex property.
  *

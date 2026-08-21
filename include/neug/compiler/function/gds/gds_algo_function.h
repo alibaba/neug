@@ -21,10 +21,10 @@
 #include <vector>
 
 #include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
-#include "neug/compiler/graph/graph_entry.h"
 
 namespace neug {
 namespace main {

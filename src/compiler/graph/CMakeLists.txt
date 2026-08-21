@@ -1,7 +1,6 @@
 add_library(neug_graph
         OBJECT
         graph.cpp
-        graph_entry.cpp
         on_disk_graph.cpp)
 add_dependencies(neug_graph neug_proto)
 

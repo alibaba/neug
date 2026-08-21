@@ -68,6 +68,9 @@ class WalBuilder {
   void LogCreateIndex(const IndexMeta& meta);
   void LogDropIndex(const std::string& name);
   void LogActivateIndexes();
+  void LogAddGraphEntry(const std::string& name,
+                        const ProjectedGraphEntry& entry);
+  void LogDropGraphEntry(const std::string& name);
   // --- DML logging ---
   void LogInsertVertex(label_t label, const Value& oid,
                        const std::vector<Value>& props);

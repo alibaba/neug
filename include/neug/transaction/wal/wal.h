@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "neug/common/types/value.h"
+#include "neug/storages/graph/graph_entry.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/index/storage_index.h"
 #include "neug/transaction/transaction_utils.h"
@@ -257,6 +258,22 @@ struct DropIndexRedo {
 
 struct ActivateIndexesRedo {
   static void Serialize(InArchive& arc);
+};
+
+struct AddGraphEntryRedo {
+  std::string name;
+  ProjectedGraphEntry entry;
+
+  static void Serialize(InArchive& arc, const std::string& name,
+                        const ProjectedGraphEntry& entry);
+  static AddGraphEntryRedo Deserialize(OutArchive& arc);
+};
+
+struct DropGraphEntryRedo {
+  std::string name;
+
+  static void Serialize(InArchive& arc, const std::string& name);
+  static DropGraphEntryRedo Deserialize(OutArchive& arc);
 };
 
 struct InsertVertexRedo {

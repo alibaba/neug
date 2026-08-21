@@ -6,131 +6,110 @@
 
 #include "antlr4-runtime.h"
 
-// Windows headers define DELETE, NONE, OPTIONAL, IN, OUT as macros which conflict
-// with enum values below. Undefine them before the enum.
-#ifdef DELETE
-#undef DELETE
-#endif
-#ifdef NONE
-#undef NONE
-#endif
-#ifdef OPTIONAL
-#undef OPTIONAL
-#endif
-#ifdef ERROR
-#undef ERROR
-#endif
-#ifdef IN
-#undef IN
-#endif
-#ifdef OUT
-#undef OUT
-#endif
-
 
 
 
 class  CypherParser : public antlr4::Parser {
 public:
   enum {
-    T__0 = 1, T__1 = 2, T__2 = 3, T__3 = 4, T__4 = 5, T__5 = 6, T__6 = 7, 
-    T__7 = 8, T__8 = 9, T__9 = 10, T__10 = 11, T__11 = 12, T__12 = 13, T__13 = 14, 
-    T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20, 
-    T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26, 
-    T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32, 
-    T__32 = 33, T__33 = 34, T__34 = 35, T__35 = 36, T__36 = 37, T__37 = 38, 
-    T__38 = 39, T__39 = 40, T__40 = 41, T__41 = 42, T__42 = 43, T__43 = 44, 
-    T__44 = 45, T__45 = 46, ACYCLIC = 47, ANY = 48, ADD = 49, ALL = 50, 
-    ALTER = 51, AND = 52, AS = 53, ASC = 54, ASCENDING = 55, ATTACH = 56, 
-    BEGIN = 57, BY = 58, CALL = 59, CASE = 60, CAST = 61, CHECKPOINT = 62, 
-    COLUMN = 63, COMMENT = 64, COMMIT = 65, COMMIT_SKIP_CHECKPOINT = 66, 
-    CONTAINS = 67, COPY = 68, COUNT = 69, CREATE = 70, CYCLE = 71, DATABASE = 72, 
-    DBTYPE = 73, DEFAULT = 74, DELETE = 75, DESC = 76, DESCENDING = 77, 
-    DETACH = 78, DISTINCT = 79, DROP = 80, ELSE = 81, END = 82, ENDS = 83, 
-    EXISTS = 84, EXPLAIN = 85, EXPORT = 86, EXTENSION = 87, FROM = 88, GLOB = 89, 
-    GRAPH = 90, GROUP = 91, HEADERS = 92, HINT = 93, IMPORT = 94, IF = 95, 
-    IN = 96, INCREMENT = 97, INDEX = 98, INSTALL = 99, IS = 100, JOIN = 101, 
-    KEY = 102, LIMIT = 103, LOAD = 104, LOGICAL = 105, MACRO = 106, MATCH = 107, 
-    MAXVALUE = 108, MERGE = 109, MINVALUE = 110, MULTI_JOIN = 111, NO = 112, 
-    NODE = 113, NOT = 114, NONE = 115, NULL_ = 116, ON = 117, ONLY = 118, 
-    OPTIONAL = 119, OR = 120, ORDER = 121, PRIMARY = 122, PROFILE = 123, 
-    PROJECT = 124, READ = 125, REL = 126, RENAME = 127, RETURN = 128, ROLLBACK = 129, 
-    ROLLBACK_SKIP_CHECKPOINT = 130, SEQUENCE = 131, SET = 132, SHORTEST = 133, 
-    START = 134, STARTS = 135, TABLE = 136, TEMP = 137, THEN = 138, TO = 139, 
-    TRAIL = 140, TRANSACTION = 141, TYPE = 142, UNINSTALL = 143, UNION = 144, 
-    USING = 145, UNWIND = 146, USE = 147, WHEN = 148, WHERE = 149, WITH = 150, 
-    WRITE = 151, WSHORTEST = 152, XOR = 153, SINGLE = 154, YIELD = 155, 
-    DECIMAL = 156, VARCHAR = 157, STAR = 158, L_SKIP = 159, INVALID_NOT_EQUAL = 160, 
-    MINUS = 161, FACTORIAL = 162, COLON = 163, BTRUE = 164, BFALSE = 165, 
-    StringLiteral = 166, EscapedChar = 167, DecimalInteger = 168, HexLetter = 169, 
-    HexDigit = 170, Digit = 171, NonZeroDigit = 172, NonZeroOctDigit = 173, 
-    ZeroDigit = 174, ExponentDecimalReal = 175, RegularDecimalReal = 176, 
-    UnescapedSymbolicName = 177, IdentifierStart = 178, IdentifierPart = 179, 
-    EscapedSymbolicName = 180, SP = 181, WHITESPACE = 182, CypherComment = 183, 
-    Unknown = 184
+    T__0 = 1, T__1 = 2, T__2 = 3, T__3 = 4, T__4 = 5, T__5 = 6, T__6 = 7,
+    T__7 = 8, T__8 = 9, T__9 = 10, T__10 = 11, T__11 = 12, T__12 = 13, T__13 = 14,
+    T__14 = 15, T__15 = 16, T__16 = 17, T__17 = 18, T__18 = 19, T__19 = 20,
+    T__20 = 21, T__21 = 22, T__22 = 23, T__23 = 24, T__24 = 25, T__25 = 26,
+    T__26 = 27, T__27 = 28, T__28 = 29, T__29 = 30, T__30 = 31, T__31 = 32,
+    T__32 = 33, T__33 = 34, T__34 = 35, T__35 = 36, T__36 = 37, T__37 = 38,
+    T__38 = 39, T__39 = 40, T__40 = 41, T__41 = 42, T__42 = 43, T__43 = 44,
+    T__44 = 45, T__45 = 46, ACYCLIC = 47, ANY = 48, ADD = 49, ALL = 50,
+    ALTER = 51, AND = 52, AS = 53, ASC = 54, ASCENDING = 55, ATTACH = 56,
+    BEGIN = 57, BY = 58, CALL = 59, CASE = 60, CAST = 61, CHECKPOINT = 62,
+    COLUMN = 63, COMMENT = 64, COMMIT = 65, COMMIT_SKIP_CHECKPOINT = 66,
+    CONTAINS = 67, COPY = 68, COUNT = 69, CREATE = 70, CYCLE = 71, DATABASE = 72,
+    DBTYPE = 73, DEFAULT = 74, DELETE = 75, DESC = 76, DESCENDING = 77,
+    DETACH = 78, DISTINCT = 79, DROP = 80, ELSE = 81, END = 82, ENDS = 83,
+    EXISTS = 84, EXPLAIN = 85, EXPORT = 86, EXTENSION = 87, FROM = 88, GLOB = 89,
+    GRAPH = 90, GROUP = 91, HEADERS = 92, HINT = 93, IMPORT = 94, IF = 95,
+    IN = 96, INCREMENT = 97, INDEX = 98, INSTALL = 99, IS = 100, JOIN = 101,
+    KEY = 102, LIMIT = 103, LOAD = 104, LOGICAL = 105, MACRO = 106, MATCH = 107,
+    MAXVALUE = 108, MERGE = 109, MINVALUE = 110, MULTI_JOIN = 111, NAMESPACE = 112,
+    NO = 113, NODE = 114, NOT = 115, NONE = 116, NULL_ = 117, ON = 118,
+    ONLY = 119, OPTIONAL = 120, OR = 121, ORDER = 122, PRIMARY = 123, PROFILE = 124,
+    PROJECT = 125, READ = 126, REL = 127, RENAME = 128, RETURN = 129, ROLLBACK = 130,
+    ROLLBACK_SKIP_CHECKPOINT = 131, SEQUENCE = 132, SET = 133, SHORTEST = 134,
+    START = 135, STARTS = 136, TABLE = 137, TEMP = 138, THEN = 139, TO = 140,
+    TRAIL = 141, TRANSACTION = 142, TYPE = 143, UNINSTALL = 144, UNION = 145,
+    USING = 146, UNWIND = 147, USE = 148, WHEN = 149, WHERE = 150, WITH = 151,
+    WRITE = 152, WSHORTEST = 153, XOR = 154, SINGLE = 155, YIELD = 156,
+    DECIMAL = 157, VARCHAR = 158, STAR = 159, L_SKIP = 160, INVALID_NOT_EQUAL = 161,
+    MINUS = 162, FACTORIAL = 163, COLON = 164, BTRUE = 165, BFALSE = 166,
+    StringLiteral = 167, EscapedChar = 168, DecimalInteger = 169, HexLetter = 170,
+    HexDigit = 171, Digit = 172, NonZeroDigit = 173, NonZeroOctDigit = 174,
+    ZeroDigit = 175, ExponentDecimalReal = 176, RegularDecimalReal = 177,
+    UnescapedSymbolicName = 178, IdentifierStart = 179, IdentifierPart = 180,
+    EscapedSymbolicName = 181, SP = 182, WHITESPACE = 183, CypherComment = 184,
+    Unknown = 185
   };
 
   enum {
-    RuleNeug_Statements = 0, RuleOC_Cypher = 1, RuleOC_Statement = 2, RuleNEUG_CopyFrom = 3, 
-    RuleNEUG_ColumnNames = 4, RuleNEUG_ScanSource = 5, RuleNEUG_CopyFromByColumn = 6, 
-    RuleNEUG_CopyTO = 7, RuleNEUG_ExportDatabase = 8, RuleNEUG_ImportDatabase = 9, 
-    RuleNEUG_AttachDatabase = 10, RuleNEUG_Option = 11, RuleNEUG_Options = 12, 
-    RuleNEUG_DetachDatabase = 13, RuleNEUG_UseDatabase = 14, RuleNEUG_StandaloneCall = 15, 
-    RuleNEUG_CommentOn = 16, RuleNEUG_CreateMacro = 17, RuleNEUG_PositionalArgs = 18, 
-    RuleNEUG_DefaultArg = 19, RuleNEUG_FilePaths = 20, RuleNEUG_IfNotExists = 21, 
-    RuleNEUG_CreateNodeTable = 22, RuleNEUG_CreateRelTable = 23, RuleNEUG_FromToConnections = 24, 
-    RuleNEUG_FromToConnection = 25, RuleNEUG_CreateSequence = 26, RuleNEUG_CreateType = 27, 
-    RuleNEUG_CreateIndex = 28, RuleNEUG_CreateIndexOptions = 29, RuleNEUG_CreateIndexOptionList = 30, 
-    RuleNEUG_CreateIndexOption = 31, RuleNEUG_DropIndex = 32, RuleNEUG_SequenceOptions = 33, 
-    RuleNEUG_IncrementBy = 34, RuleNEUG_MinValue = 35, RuleNEUG_MaxValue = 36, 
-    RuleNEUG_StartWith = 37, RuleNEUG_Cycle = 38, RuleNEUG_IfExists = 39, 
-    RuleNEUG_Drop = 40, RuleNEUG_AlterTable = 41, RuleNEUG_AlterOptions = 42, 
-    RuleNEUG_AddProperty = 43, RuleNEUG_Default = 44, RuleNEUG_DropProperty = 45, 
-    RuleNEUG_RenameTable = 46, RuleNEUG_RenameProperty = 47, RuleNEUG_ColumnDefinitions = 48, 
-    RuleNEUG_ColumnDefinition = 49, RuleNEUG_PropertyDefinitions = 50, RuleNEUG_PropertyDefinition = 51, 
-    RuleNEUG_CreateNodeConstraint = 52, RuleNEUG_DataType = 53, RuleNEUG_ListIdentifiers = 54, 
-    RuleNEUG_ListIdentifier = 55, RuleOC_AnyCypherOption = 56, RuleOC_Explain = 57, 
-    RuleOC_Profile = 58, RuleNEUG_Transaction = 59, RuleNEUG_Extension = 60, 
-    RuleNEUG_LoadExtension = 61, RuleNEUG_InstallExtension = 62, RuleNEUG_UninstallExtension = 63, 
-    RuleOC_Query = 64, RuleOC_RegularQuery = 65, RuleOC_Union = 66, RuleOC_CallUnionQuery = 67, 
-    RuleOC_CallUnion = 68, RuleOC_CallUnionScope = 69, RuleOC_SingleQuery = 70, 
-    RuleOC_SinglePartQuery = 71, RuleOC_MultiPartQuery = 72, RuleNEUG_QueryPart = 73, 
-    RuleOC_UpdatingClause = 74, RuleOC_ReadingClause = 75, RuleNEUG_LoadFrom = 76, 
-    RuleNEUG_CopyTemp = 77, RuleOC_YieldItem = 78, RuleOC_YieldItems = 79, 
-    RuleNEUG_InQueryCall = 80, RuleOC_Match = 81, RuleNEUG_Hint = 82, RuleNEUG_JoinNode = 83, 
-    RuleOC_Unwind = 84, RuleOC_Create = 85, RuleOC_Merge = 86, RuleOC_MergeAction = 87, 
-    RuleOC_Set = 88, RuleOC_SetItem = 89, RuleOC_Delete = 90, RuleOC_With = 91, 
-    RuleOC_Return = 92, RuleOC_ProjectionBody = 93, RuleOC_ProjectionItems = 94, 
-    RuleOC_ProjectionItem = 95, RuleOC_Order = 96, RuleOC_Skip = 97, RuleOC_Limit = 98, 
-    RuleOC_SortItem = 99, RuleOC_Where = 100, RuleOC_Pattern = 101, RuleOC_PatternPart = 102, 
-    RuleOC_AnonymousPatternPart = 103, RuleOC_PatternElement = 104, RuleOC_NodePattern = 105, 
-    RuleOC_PatternElementChain = 106, RuleOC_RelationshipPattern = 107, 
-    RuleOC_RelationshipDetail = 108, RuleNEUG_Properties = 109, RuleOC_RelationshipTypes = 110, 
-    RuleOC_NodeLabels = 111, RuleOC_NodeLabel = 112, RuleNEUG_RecursiveDetail = 113, 
-    RuleNEUG_RecursiveType = 114, RuleOC_RangeLiteral = 115, RuleNEUG_RecursiveComprehension = 116, 
-    RuleNEUG_RecursiveProjectionItems = 117, RuleOC_LowerBound = 118, RuleOC_UpperBound = 119, 
-    RuleOC_LabelName = 120, RuleOC_RelTypeName = 121, RuleOC_Expression = 122, 
-    RuleOC_OrExpression = 123, RuleOC_XorExpression = 124, RuleOC_AndExpression = 125, 
-    RuleOC_NotExpression = 126, RuleOC_ComparisonExpression = 127, RuleNEUG_ComparisonOperator = 128, 
-    RuleNEUG_BitwiseOrOperatorExpression = 129, RuleNEUG_BitwiseAndOperatorExpression = 130, 
-    RuleNEUG_BitShiftOperatorExpression = 131, RuleNEUG_BitShiftOperator = 132, 
-    RuleOC_AddOrSubtractExpression = 133, RuleNEUG_AddOrSubtractOperator = 134, 
-    RuleOC_MultiplyDivideModuloExpression = 135, RuleNEUG_MultiplyDivideModuloOperator = 136, 
-    RuleOC_PowerOfExpression = 137, RuleOC_UnaryAddSubtractOrFactorialExpression = 138, 
-    RuleOC_StringListNullOperatorExpression = 139, RuleOC_ListOperatorExpression = 140, 
-    RuleOC_StringOperatorExpression = 141, RuleOC_RegularExpression = 142, 
-    RuleOC_NullOperatorExpression = 143, RuleOC_PropertyOrLabelsExpression = 144, 
-    RuleOC_Atom = 145, RuleOC_Quantifier = 146, RuleOC_FilterExpression = 147, 
-    RuleOC_IdInColl = 148, RuleOC_Literal = 149, RuleOC_BooleanLiteral = 150, 
-    RuleOC_ListLiteral = 151, RuleNEUG_ListEntry = 152, RuleNEUG_StructLiteral = 153, 
-    RuleNEUG_StructField = 154, RuleOC_ParenthesizedExpression = 155, RuleOC_FunctionInvocation = 156, 
-    RuleOC_FunctionName = 157, RuleNEUG_FunctionParameter = 158, RuleNEUG_LambdaParameter = 159, 
-    RuleNEUG_LambdaVars = 160, RuleOC_PathPatterns = 161, RuleOC_ExistCountSubquery = 162, 
-    RuleOC_PropertyLookup = 163, RuleOC_CaseExpression = 164, RuleOC_CaseAlternative = 165, 
-    RuleOC_Variable = 166, RuleOC_NumberLiteral = 167, RuleOC_Parameter = 168, 
-    RuleOC_PropertyExpression = 169, RuleOC_PropertyKeyName = 170, RuleOC_IntegerLiteral = 171, 
-    RuleOC_DoubleLiteral = 172, RuleOC_SchemaName = 173, RuleOC_SymbolicName = 174, 
-    RuleNEUG_NonReservedKeywords = 175, RuleOC_LeftArrowHead = 176, RuleOC_RightArrowHead = 177, 
+    RuleNeug_Statements = 0, RuleOC_Cypher = 1, RuleOC_Statement = 2, RuleNEUG_CopyFrom = 3,
+    RuleNEUG_ColumnNames = 4, RuleNEUG_ScanSource = 5, RuleNEUG_CopyFromByColumn = 6,
+    RuleNEUG_CopyTO = 7, RuleNEUG_ExportDatabase = 8, RuleNEUG_ImportDatabase = 9,
+    RuleNEUG_AttachDatabase = 10, RuleNEUG_Option = 11, RuleNEUG_Options = 12,
+    RuleNEUG_DetachDatabase = 13, RuleNEUG_UseDatabase = 14, RuleNEUG_StandaloneCall = 15,
+    RuleNEUG_CommentOn = 16, RuleNEUG_CreateMacro = 17, RuleNEUG_PositionalArgs = 18,
+    RuleNEUG_DefaultArg = 19, RuleNEUG_FilePaths = 20, RuleNEUG_IfNotExists = 21,
+    RuleNEUG_CreateNodeTable = 22, RuleNEUG_CreateRelTable = 23, RuleNEUG_FromToConnections = 24,
+    RuleNEUG_FromToConnection = 25, RuleNEUG_CreateSequence = 26, RuleNEUG_CreateType = 27,
+    RuleNEUG_CreateIndex = 28, RuleNEUG_CreateIndexOptions = 29, RuleNEUG_CreateIndexOptionList = 30,
+    RuleNEUG_CreateIndexOption = 31, RuleNEUG_DropIndex = 32, RuleNEUG_SequenceOptions = 33,
+    RuleNEUG_IncrementBy = 34, RuleNEUG_MinValue = 35, RuleNEUG_MaxValue = 36,
+    RuleNEUG_StartWith = 37, RuleNEUG_Cycle = 38, RuleNEUG_IfExists = 39,
+    RuleNEUG_Drop = 40, RuleNEUG_AlterTable = 41, RuleNEUG_AlterOptions = 42,
+    RuleNEUG_AddProperty = 43, RuleNEUG_Default = 44, RuleNEUG_DropProperty = 45,
+    RuleNEUG_RenameTable = 46, RuleNEUG_RenameProperty = 47, RuleNEUG_ColumnDefinitions = 48,
+    RuleNEUG_ColumnDefinition = 49, RuleNEUG_PropertyDefinitions = 50, RuleNEUG_PropertyDefinition = 51,
+    RuleNEUG_CreateNodeConstraint = 52, RuleNEUG_DataType = 53, RuleNEUG_ListIdentifiers = 54,
+    RuleNEUG_ListIdentifier = 55, RuleOC_AnyCypherOption = 56, RuleOC_Explain = 57,
+    RuleOC_Profile = 58, RuleNEUG_Transaction = 59, RuleNEUG_Extension = 60,
+    RuleNEUG_LoadExtension = 61, RuleNEUG_InstallExtension = 62, RuleNEUG_UninstallExtension = 63,
+    RuleOC_Query = 64, RuleOC_RegularQuery = 65, RuleOC_Union = 66, RuleOC_CallUnionQuery = 67,
+    RuleOC_CallUnion = 68, RuleOC_CallUnionScope = 69, RuleOC_SingleQuery = 70,
+    RuleOC_SinglePartQuery = 71, RuleOC_MultiPartQuery = 72, RuleNEUG_QueryPart = 73,
+    RuleOC_UpdatingClause = 74, RuleOC_ReadingClause = 75, RuleNEUG_LoadFrom = 76,
+    RuleNEUG_CopyTemp = 77, RuleOC_YieldItem = 78, RuleOC_YieldItems = 79,
+    RuleNEUG_InQueryCall = 80, RuleOC_Match = 81, RuleNEUG_Hint = 82, RuleNEUG_JoinNode = 83,
+    RuleOC_Unwind = 84, RuleOC_Create = 85, RuleOC_Merge = 86, RuleOC_MergeAction = 87,
+    RuleOC_Set = 88, RuleOC_SetItem = 89, RuleOC_Delete = 90, RuleOC_With = 91,
+    RuleOC_Return = 92, RuleOC_ProjectionBody = 93, RuleOC_ProjectionItems = 94,
+    RuleOC_ProjectionItem = 95, RuleOC_Order = 96, RuleOC_Skip = 97, RuleOC_Limit = 98,
+    RuleOC_SortItem = 99, RuleOC_Where = 100, RuleOC_Pattern = 101, RuleOC_PatternPart = 102,
+    RuleOC_AnonymousPatternPart = 103, RuleOC_PatternElement = 104, RuleOC_NodePattern = 105,
+    RuleOC_PatternElementChain = 106, RuleOC_RelationshipPattern = 107,
+    RuleOC_RelationshipDetail = 108, RuleNEUG_Properties = 109, RuleOC_RelationshipTypes = 110,
+    RuleOC_NodeLabels = 111, RuleOC_NodeLabel = 112, RuleNEUG_RecursiveDetail = 113,
+    RuleNEUG_RecursiveType = 114, RuleOC_RangeLiteral = 115, RuleNEUG_RecursiveComprehension = 116,
+    RuleNEUG_RecursiveProjectionItems = 117, RuleOC_LowerBound = 118, RuleOC_UpperBound = 119,
+    RuleOC_LabelName = 120, RuleOC_RelTypeName = 121, RuleOC_Expression = 122,
+    RuleOC_OrExpression = 123, RuleOC_XorExpression = 124, RuleOC_AndExpression = 125,
+    RuleOC_NotExpression = 126, RuleOC_ComparisonExpression = 127, RuleNEUG_ComparisonOperator = 128,
+    RuleNEUG_BitwiseOrOperatorExpression = 129, RuleNEUG_BitwiseAndOperatorExpression = 130,
+    RuleNEUG_BitShiftOperatorExpression = 131, RuleNEUG_BitShiftOperator = 132,
+    RuleOC_AddOrSubtractExpression = 133, RuleNEUG_AddOrSubtractOperator = 134,
+    RuleOC_MultiplyDivideModuloExpression = 135, RuleNEUG_MultiplyDivideModuloOperator = 136,
+    RuleOC_PowerOfExpression = 137, RuleOC_UnaryAddSubtractOrFactorialExpression = 138,
+    RuleOC_StringListNullOperatorExpression = 139, RuleOC_ListOperatorExpression = 140,
+    RuleOC_StringOperatorExpression = 141, RuleOC_RegularExpression = 142,
+    RuleOC_NullOperatorExpression = 143, RuleOC_PropertyOrLabelsExpression = 144,
+    RuleOC_Atom = 145, RuleOC_Quantifier = 146, RuleOC_FilterExpression = 147,
+    RuleOC_IdInColl = 148, RuleOC_Literal = 149, RuleOC_BooleanLiteral = 150,
+    RuleOC_ListLiteral = 151, RuleNEUG_ListEntry = 152, RuleNEUG_StructLiteral = 153,
+    RuleNEUG_StructField = 154, RuleOC_ParenthesizedExpression = 155, RuleOC_FunctionInvocation = 156,
+    RuleOC_FunctionName = 157, RuleNEUG_FunctionParameter = 158, RuleNEUG_LambdaParameter = 159,
+    RuleNEUG_LambdaVars = 160, RuleOC_PathPatterns = 161, RuleOC_ExistCountSubquery = 162,
+    RuleOC_PropertyLookup = 163, RuleOC_CaseExpression = 164, RuleOC_CaseAlternative = 165,
+    RuleOC_Variable = 166, RuleOC_NumberLiteral = 167, RuleOC_Parameter = 168,
+    RuleOC_PropertyExpression = 169, RuleOC_PropertyKeyName = 170, RuleOC_IntegerLiteral = 171,
+    RuleOC_DoubleLiteral = 172, RuleOC_SchemaName = 173, RuleOC_SymbolicName = 174,
+    RuleNEUG_NonReservedKeywords = 175, RuleOC_LeftArrowHead = 176, RuleOC_RightArrowHead = 177,
     RuleOC_Dash = 178
   };
 
@@ -329,7 +308,7 @@ public:
   class NEUG_NonReservedKeywordsContext;
   class OC_LeftArrowHeadContext;
   class OC_RightArrowHeadContext;
-  class OC_DashContext; 
+  class OC_DashContext;
 
   class  Neug_StatementsContext : public antlr4::ParserRuleContext {
   public:
@@ -341,7 +320,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   Neug_StatementsContext* neug_Statements();
@@ -355,7 +334,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_CypherContext* oC_Cypher();
@@ -388,7 +367,7 @@ public:
     NEUG_DetachDatabaseContext *nEUG_DetachDatabase();
     NEUG_UseDatabaseContext *nEUG_UseDatabase();
 
-   
+
   };
 
   OC_StatementContext* oC_Statement();
@@ -406,7 +385,7 @@ public:
     NEUG_ColumnNamesContext *nEUG_ColumnNames();
     NEUG_OptionsContext *nEUG_Options();
 
-   
+
   };
 
   NEUG_CopyFromContext* nEUG_CopyFrom();
@@ -420,7 +399,7 @@ public:
     std::vector<OC_SchemaNameContext *> oC_SchemaName();
     OC_SchemaNameContext* oC_SchemaName(size_t i);
 
-   
+
   };
 
   NEUG_ColumnNamesContext* nEUG_ColumnNames();
@@ -437,7 +416,7 @@ public:
     OC_SchemaNameContext *oC_SchemaName();
     OC_FunctionInvocationContext *oC_FunctionInvocation();
 
-   
+
   };
 
   NEUG_ScanSourceContext* nEUG_ScanSource();
@@ -456,7 +435,7 @@ public:
     antlr4::tree::TerminalNode *BY();
     antlr4::tree::TerminalNode *COLUMN();
 
-   
+
   };
 
   NEUG_CopyFromByColumnContext* nEUG_CopyFromByColumn();
@@ -473,7 +452,7 @@ public:
     antlr4::tree::TerminalNode *StringLiteral();
     NEUG_OptionsContext *nEUG_Options();
 
-   
+
   };
 
   NEUG_CopyTOContext* nEUG_CopyTO();
@@ -489,7 +468,7 @@ public:
     antlr4::tree::TerminalNode *StringLiteral();
     NEUG_OptionsContext *nEUG_Options();
 
-   
+
   };
 
   NEUG_ExportDatabaseContext* nEUG_ExportDatabase();
@@ -504,7 +483,7 @@ public:
     antlr4::tree::TerminalNode *DATABASE();
     antlr4::tree::TerminalNode *StringLiteral();
 
-   
+
   };
 
   NEUG_ImportDatabaseContext* nEUG_ImportDatabase();
@@ -523,7 +502,7 @@ public:
     OC_SchemaNameContext *oC_SchemaName();
     NEUG_OptionsContext *nEUG_Options();
 
-   
+
   };
 
   NEUG_AttachDatabaseContext* nEUG_AttachDatabase();
@@ -537,7 +516,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_OptionContext* nEUG_Option();
@@ -551,7 +530,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_OptionsContext* nEUG_Options();
@@ -564,7 +543,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   NEUG_DetachDatabaseContext* nEUG_DetachDatabase();
@@ -577,7 +556,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   NEUG_UseDatabaseContext* nEUG_UseDatabase();
@@ -593,7 +572,7 @@ public:
     OC_ExpressionContext *oC_Expression();
     OC_FunctionInvocationContext *oC_FunctionInvocation();
 
-   
+
   };
 
   NEUG_StandaloneCallContext* nEUG_StandaloneCall();
@@ -611,7 +590,7 @@ public:
     antlr4::tree::TerminalNode *IS();
     antlr4::tree::TerminalNode *StringLiteral();
 
-   
+
   };
 
   NEUG_CommentOnContext* nEUG_CommentOn();
@@ -631,7 +610,7 @@ public:
     std::vector<NEUG_DefaultArgContext *> nEUG_DefaultArg();
     NEUG_DefaultArgContext* nEUG_DefaultArg(size_t i);
 
-   
+
   };
 
   NEUG_CreateMacroContext* nEUG_CreateMacro();
@@ -645,7 +624,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_PositionalArgsContext* nEUG_PositionalArgs();
@@ -660,7 +639,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_DefaultArgContext* nEUG_DefaultArg();
@@ -675,7 +654,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *GLOB();
 
-   
+
   };
 
   NEUG_FilePathsContext* nEUG_FilePaths();
@@ -690,7 +669,7 @@ public:
     antlr4::tree::TerminalNode *NOT();
     antlr4::tree::TerminalNode *EXISTS();
 
-   
+
   };
 
   NEUG_IfNotExistsContext* nEUG_IfNotExists();
@@ -709,7 +688,7 @@ public:
     NEUG_IfNotExistsContext *nEUG_IfNotExists();
     NEUG_CreateNodeConstraintContext *nEUG_CreateNodeConstraint();
 
-   
+
   };
 
   NEUG_CreateNodeTableContext* nEUG_CreateNodeTable();
@@ -732,7 +711,7 @@ public:
     antlr4::tree::TerminalNode *WITH();
     NEUG_OptionsContext *nEUG_Options();
 
-   
+
   };
 
   NEUG_CreateRelTableContext* nEUG_CreateRelTable();
@@ -746,7 +725,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_FromToConnectionsContext* nEUG_FromToConnections();
@@ -762,7 +741,7 @@ public:
     OC_SchemaNameContext* oC_SchemaName(size_t i);
     antlr4::tree::TerminalNode *TO();
 
-   
+
   };
 
   NEUG_FromToConnectionContext* nEUG_FromToConnection();
@@ -780,7 +759,7 @@ public:
     std::vector<NEUG_SequenceOptionsContext *> nEUG_SequenceOptions();
     NEUG_SequenceOptionsContext* nEUG_SequenceOptions(size_t i);
 
-   
+
   };
 
   NEUG_CreateSequenceContext* nEUG_CreateSequence();
@@ -797,7 +776,7 @@ public:
     antlr4::tree::TerminalNode *AS();
     NEUG_DataTypeContext *nEUG_DataType();
 
-   
+
   };
 
   NEUG_CreateTypeContext* nEUG_CreateType();
@@ -818,7 +797,7 @@ public:
     NEUG_IfNotExistsContext *nEUG_IfNotExists();
     NEUG_CreateIndexOptionsContext *nEUG_CreateIndexOptions();
 
-   
+
   };
 
   NEUG_CreateIndexContext* nEUG_CreateIndex();
@@ -832,7 +811,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_CreateIndexOptionsContext* nEUG_CreateIndexOptions();
@@ -846,7 +825,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_CreateIndexOptionListContext* nEUG_CreateIndexOptionList();
@@ -860,7 +839,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_CreateIndexOptionContext* nEUG_CreateIndexOption();
@@ -876,7 +855,7 @@ public:
     OC_SchemaNameContext *oC_SchemaName();
     NEUG_IfExistsContext *nEUG_IfExists();
 
-   
+
   };
 
   NEUG_DropIndexContext* nEUG_DropIndex();
@@ -891,7 +870,7 @@ public:
     NEUG_StartWithContext *nEUG_StartWith();
     NEUG_CycleContext *nEUG_Cycle();
 
-   
+
   };
 
   NEUG_SequenceOptionsContext* nEUG_SequenceOptions();
@@ -907,7 +886,7 @@ public:
     antlr4::tree::TerminalNode *BY();
     antlr4::tree::TerminalNode *MINUS();
 
-   
+
   };
 
   NEUG_IncrementByContext* nEUG_IncrementBy();
@@ -922,7 +901,7 @@ public:
     OC_IntegerLiteralContext *oC_IntegerLiteral();
     antlr4::tree::TerminalNode *MINUS();
 
-   
+
   };
 
   NEUG_MinValueContext* nEUG_MinValue();
@@ -937,7 +916,7 @@ public:
     OC_IntegerLiteralContext *oC_IntegerLiteral();
     antlr4::tree::TerminalNode *MINUS();
 
-   
+
   };
 
   NEUG_MaxValueContext* nEUG_MaxValue();
@@ -953,7 +932,7 @@ public:
     antlr4::tree::TerminalNode *WITH();
     antlr4::tree::TerminalNode *MINUS();
 
-   
+
   };
 
   NEUG_StartWithContext* nEUG_StartWith();
@@ -966,7 +945,7 @@ public:
     antlr4::tree::TerminalNode *NO();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   NEUG_CycleContext* nEUG_Cycle();
@@ -979,7 +958,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     antlr4::tree::TerminalNode *EXISTS();
 
-   
+
   };
 
   NEUG_IfExistsContext* nEUG_IfExists();
@@ -996,7 +975,7 @@ public:
     antlr4::tree::TerminalNode *SEQUENCE();
     NEUG_IfExistsContext *nEUG_IfExists();
 
-   
+
   };
 
   NEUG_DropContext* nEUG_Drop();
@@ -1012,7 +991,7 @@ public:
     OC_SchemaNameContext *oC_SchemaName();
     NEUG_AlterOptionsContext *nEUG_AlterOptions();
 
-   
+
   };
 
   NEUG_AlterTableContext* nEUG_AlterTable();
@@ -1026,7 +1005,7 @@ public:
     NEUG_RenameTableContext *nEUG_RenameTable();
     NEUG_RenamePropertyContext *nEUG_RenameProperty();
 
-   
+
   };
 
   NEUG_AlterOptionsContext* nEUG_AlterOptions();
@@ -1043,7 +1022,7 @@ public:
     NEUG_IfNotExistsContext *nEUG_IfNotExists();
     NEUG_DefaultContext *nEUG_Default();
 
-   
+
   };
 
   NEUG_AddPropertyContext* nEUG_AddProperty();
@@ -1056,7 +1035,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_ExpressionContext *oC_Expression();
 
-   
+
   };
 
   NEUG_DefaultContext* nEUG_Default();
@@ -1071,7 +1050,7 @@ public:
     OC_PropertyKeyNameContext *oC_PropertyKeyName();
     NEUG_IfExistsContext *nEUG_IfExists();
 
-   
+
   };
 
   NEUG_DropPropertyContext* nEUG_DropProperty();
@@ -1086,7 +1065,7 @@ public:
     antlr4::tree::TerminalNode *TO();
     OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   NEUG_RenameTableContext* nEUG_RenameTable();
@@ -1102,7 +1081,7 @@ public:
     OC_PropertyKeyNameContext* oC_PropertyKeyName(size_t i);
     antlr4::tree::TerminalNode *TO();
 
-   
+
   };
 
   NEUG_RenamePropertyContext* nEUG_RenameProperty();
@@ -1116,7 +1095,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_ColumnDefinitionsContext* nEUG_ColumnDefinitions();
@@ -1129,7 +1108,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     NEUG_DataTypeContext *nEUG_DataType();
 
-   
+
   };
 
   NEUG_ColumnDefinitionContext* nEUG_ColumnDefinition();
@@ -1143,7 +1122,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_PropertyDefinitionsContext* nEUG_PropertyDefinitions();
@@ -1159,7 +1138,7 @@ public:
     antlr4::tree::TerminalNode *PRIMARY();
     antlr4::tree::TerminalNode *KEY();
 
-   
+
   };
 
   NEUG_PropertyDefinitionContext* nEUG_PropertyDefinition();
@@ -1174,7 +1153,7 @@ public:
     antlr4::tree::TerminalNode *KEY();
     OC_PropertyKeyNameContext *oC_PropertyKeyName();
 
-   
+
   };
 
   NEUG_CreateNodeConstraintContext* nEUG_CreateNodeConstraint();
@@ -1196,7 +1175,7 @@ public:
     antlr4::tree::TerminalNode *VARCHAR();
     NEUG_ListIdentifiersContext *nEUG_ListIdentifiers();
 
-   
+
   };
 
   NEUG_DataTypeContext* nEUG_DataType();
@@ -1208,7 +1187,7 @@ public:
     std::vector<NEUG_ListIdentifierContext *> nEUG_ListIdentifier();
     NEUG_ListIdentifierContext* nEUG_ListIdentifier(size_t i);
 
-   
+
   };
 
   NEUG_ListIdentifiersContext* nEUG_ListIdentifiers();
@@ -1219,7 +1198,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_IntegerLiteralContext *oC_IntegerLiteral();
 
-   
+
   };
 
   NEUG_ListIdentifierContext* nEUG_ListIdentifier();
@@ -1231,7 +1210,7 @@ public:
     OC_ExplainContext *oC_Explain();
     OC_ProfileContext *oC_Profile();
 
-   
+
   };
 
   OC_AnyCypherOptionContext* oC_AnyCypherOption();
@@ -1244,7 +1223,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     antlr4::tree::TerminalNode *LOGICAL();
 
-   
+
   };
 
   OC_ExplainContext* oC_Explain();
@@ -1255,7 +1234,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *PROFILE();
 
-   
+
   };
 
   OC_ProfileContext* oC_Profile();
@@ -1274,7 +1253,7 @@ public:
     antlr4::tree::TerminalNode *ROLLBACK();
     antlr4::tree::TerminalNode *CHECKPOINT();
 
-   
+
   };
 
   NEUG_TransactionContext* nEUG_Transaction();
@@ -1287,7 +1266,7 @@ public:
     NEUG_InstallExtensionContext *nEUG_InstallExtension();
     NEUG_UninstallExtensionContext *nEUG_UninstallExtension();
 
-   
+
   };
 
   NEUG_ExtensionContext* nEUG_Extension();
@@ -1303,7 +1282,7 @@ public:
     OC_VariableContext *oC_Variable();
     antlr4::tree::TerminalNode *EXTENSION();
 
-   
+
   };
 
   NEUG_LoadExtensionContext* nEUG_LoadExtension();
@@ -1319,7 +1298,7 @@ public:
     antlr4::tree::TerminalNode *FROM();
     antlr4::tree::TerminalNode *StringLiteral();
 
-   
+
   };
 
   NEUG_InstallExtensionContext* nEUG_InstallExtension();
@@ -1335,7 +1314,7 @@ public:
     OC_VariableContext *oC_Variable();
     antlr4::tree::TerminalNode *EXTENSION();
 
-   
+
   };
 
   NEUG_UninstallExtensionContext* nEUG_UninstallExtension();
@@ -1345,8 +1324,13 @@ public:
     OC_QueryContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
     OC_RegularQueryContext *oC_RegularQuery();
+    antlr4::tree::TerminalNode *USE();
+    std::vector<antlr4::tree::TerminalNode *> SP();
+    antlr4::tree::TerminalNode* SP(size_t i);
+    antlr4::tree::TerminalNode *NAMESPACE();
+    OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   OC_QueryContext* oC_Query();
@@ -1364,7 +1348,7 @@ public:
     OC_ReturnContext* oC_Return(size_t i);
     OC_CallUnionQueryContext *oC_CallUnionQuery();
 
-   
+
   };
 
   OC_RegularQueryContext* oC_RegularQuery();
@@ -1379,7 +1363,7 @@ public:
     antlr4::tree::TerminalNode *ALL();
     OC_SingleQueryContext *oC_SingleQuery();
 
-   
+
   };
 
   OC_UnionContext* oC_Union();
@@ -1395,7 +1379,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_SingleQueryContext *oC_SingleQuery();
 
-   
+
   };
 
   OC_CallUnionQueryContext* oC_CallUnionQuery();
@@ -1411,7 +1395,7 @@ public:
     std::vector<OC_UnionContext *> oC_Union();
     OC_UnionContext* oC_Union(size_t i);
 
-   
+
   };
 
   OC_CallUnionContext* oC_CallUnion();
@@ -1426,7 +1410,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_CallUnionScopeContext* oC_CallUnionScope();
@@ -1438,7 +1422,7 @@ public:
     OC_SinglePartQueryContext *oC_SinglePartQuery();
     OC_MultiPartQueryContext *oC_MultiPartQuery();
 
-   
+
   };
 
   OC_SingleQueryContext* oC_SingleQuery();
@@ -1455,7 +1439,7 @@ public:
     std::vector<OC_UpdatingClauseContext *> oC_UpdatingClause();
     OC_UpdatingClauseContext* oC_UpdatingClause(size_t i);
 
-   
+
   };
 
   OC_SinglePartQueryContext* oC_SinglePartQuery();
@@ -1470,7 +1454,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_MultiPartQueryContext* oC_MultiPartQuery();
@@ -1487,7 +1471,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_QueryPartContext* nEUG_QueryPart();
@@ -1501,7 +1485,7 @@ public:
     OC_SetContext *oC_Set();
     OC_DeleteContext *oC_Delete();
 
-   
+
   };
 
   OC_UpdatingClauseContext* oC_UpdatingClause();
@@ -1515,7 +1499,7 @@ public:
     NEUG_InQueryCallContext *nEUG_InQueryCall();
     NEUG_LoadFromContext *nEUG_LoadFrom();
 
-   
+
   };
 
   OC_ReadingClauseContext* oC_ReadingClause();
@@ -1535,7 +1519,7 @@ public:
     NEUG_OptionsContext *nEUG_Options();
     OC_WhereContext *oC_Where();
 
-   
+
   };
 
   NEUG_LoadFromContext* nEUG_LoadFrom();
@@ -1553,7 +1537,7 @@ public:
     NEUG_ScanSourceContext *nEUG_ScanSource();
     NEUG_OptionsContext *nEUG_Options();
 
-   
+
   };
 
   NEUG_CopyTempContext* nEUG_CopyTemp();
@@ -1568,7 +1552,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *AS();
 
-   
+
   };
 
   OC_YieldItemContext* oC_YieldItem();
@@ -1582,7 +1566,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_YieldItemsContext* oC_YieldItems();
@@ -1599,7 +1583,7 @@ public:
     antlr4::tree::TerminalNode *YIELD();
     OC_YieldItemsContext *oC_YieldItems();
 
-   
+
   };
 
   NEUG_InQueryCallContext* nEUG_InQueryCall();
@@ -1616,7 +1600,7 @@ public:
     OC_WhereContext *oC_Where();
     NEUG_HintContext *nEUG_Hint();
 
-   
+
   };
 
   OC_MatchContext* oC_Match();
@@ -1629,7 +1613,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     NEUG_JoinNodeContext *nEUG_JoinNode();
 
-   
+
   };
 
   NEUG_HintContext* nEUG_Hint();
@@ -1648,7 +1632,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> MULTI_JOIN();
     antlr4::tree::TerminalNode* MULTI_JOIN(size_t i);
 
-   
+
   };
 
   NEUG_JoinNodeContext* nEUG_JoinNode();
@@ -1664,7 +1648,7 @@ public:
     antlr4::tree::TerminalNode *AS();
     OC_VariableContext *oC_Variable();
 
-   
+
   };
 
   OC_UnwindContext* oC_Unwind();
@@ -1677,7 +1661,7 @@ public:
     OC_PatternContext *oC_Pattern();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_CreateContext* oC_Create();
@@ -1693,7 +1677,7 @@ public:
     std::vector<OC_MergeActionContext *> oC_MergeAction();
     OC_MergeActionContext* oC_MergeAction(size_t i);
 
-   
+
   };
 
   OC_MergeContext* oC_Merge();
@@ -1709,7 +1693,7 @@ public:
     OC_SetContext *oC_Set();
     antlr4::tree::TerminalNode *CREATE();
 
-   
+
   };
 
   OC_MergeActionContext* oC_MergeAction();
@@ -1724,7 +1708,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_SetContext* oC_Set();
@@ -1738,7 +1722,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_SetItemContext* oC_SetItem();
@@ -1754,7 +1738,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_DeleteContext* oC_Delete();
@@ -1768,7 +1752,7 @@ public:
     OC_WhereContext *oC_Where();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_WithContext* oC_With();
@@ -1780,7 +1764,7 @@ public:
     antlr4::tree::TerminalNode *RETURN();
     OC_ProjectionBodyContext *oC_ProjectionBody();
 
-   
+
   };
 
   OC_ReturnContext* oC_Return();
@@ -1797,7 +1781,7 @@ public:
     OC_SkipContext *oC_Skip();
     OC_LimitContext *oC_Limit();
 
-   
+
   };
 
   OC_ProjectionBodyContext* oC_ProjectionBody();
@@ -1812,7 +1796,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_ProjectionItemsContext* oC_ProjectionItems();
@@ -1827,7 +1811,7 @@ public:
     antlr4::tree::TerminalNode *AS();
     OC_VariableContext *oC_Variable();
 
-   
+
   };
 
   OC_ProjectionItemContext* oC_ProjectionItem();
@@ -1843,7 +1827,7 @@ public:
     std::vector<OC_SortItemContext *> oC_SortItem();
     OC_SortItemContext* oC_SortItem(size_t i);
 
-   
+
   };
 
   OC_OrderContext* oC_Order();
@@ -1856,7 +1840,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_ExpressionContext *oC_Expression();
 
-   
+
   };
 
   OC_SkipContext* oC_Skip();
@@ -1869,7 +1853,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_ExpressionContext *oC_Expression();
 
-   
+
   };
 
   OC_LimitContext* oC_Limit();
@@ -1885,7 +1869,7 @@ public:
     antlr4::tree::TerminalNode *DESC();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_SortItemContext* oC_SortItem();
@@ -1898,7 +1882,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_ExpressionContext *oC_Expression();
 
-   
+
   };
 
   OC_WhereContext* oC_Where();
@@ -1912,7 +1896,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_PatternContext* oC_Pattern();
@@ -1926,7 +1910,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_PatternPartContext* oC_PatternPart();
@@ -1937,7 +1921,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_PatternElementContext *oC_PatternElement();
 
-   
+
   };
 
   OC_AnonymousPatternPartContext* oC_AnonymousPatternPart();
@@ -1953,7 +1937,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_PatternElementContext *oC_PatternElement();
 
-   
+
   };
 
   OC_PatternElementContext* oC_PatternElement();
@@ -1968,7 +1952,7 @@ public:
     OC_NodeLabelsContext *oC_NodeLabels();
     NEUG_PropertiesContext *nEUG_Properties();
 
-   
+
   };
 
   OC_NodePatternContext* oC_NodePattern();
@@ -1981,7 +1965,7 @@ public:
     OC_NodePatternContext *oC_NodePattern();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_PatternElementChainContext* oC_PatternElementChain();
@@ -1998,7 +1982,7 @@ public:
     OC_RelationshipDetailContext *oC_RelationshipDetail();
     OC_RightArrowHeadContext *oC_RightArrowHead();
 
-   
+
   };
 
   OC_RelationshipPatternContext* oC_RelationshipPattern();
@@ -2014,7 +1998,7 @@ public:
     NEUG_RecursiveDetailContext *nEUG_RecursiveDetail();
     NEUG_PropertiesContext *nEUG_Properties();
 
-   
+
   };
 
   OC_RelationshipDetailContext* oC_RelationshipDetail();
@@ -2032,7 +2016,7 @@ public:
     std::vector<OC_ExpressionContext *> oC_Expression();
     OC_ExpressionContext* oC_Expression(size_t i);
 
-   
+
   };
 
   NEUG_PropertiesContext* nEUG_Properties();
@@ -2048,7 +2032,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_RelationshipTypesContext* oC_RelationshipTypes();
@@ -2062,7 +2046,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_NodeLabelsContext* oC_NodeLabels();
@@ -2075,7 +2059,7 @@ public:
     OC_LabelNameContext *oC_LabelName();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_NodeLabelContext* oC_NodeLabel();
@@ -2091,7 +2075,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_RecursiveDetailContext* nEUG_RecursiveDetail();
@@ -2109,7 +2093,7 @@ public:
     antlr4::tree::TerminalNode *TRAIL();
     antlr4::tree::TerminalNode *ACYCLIC();
 
-   
+
   };
 
   NEUG_RecursiveTypeContext* nEUG_RecursiveType();
@@ -2124,7 +2108,7 @@ public:
     OC_UpperBoundContext *oC_UpperBound();
     OC_IntegerLiteralContext *oC_IntegerLiteral();
 
-   
+
   };
 
   OC_RangeLiteralContext* oC_RangeLiteral();
@@ -2141,7 +2125,7 @@ public:
     std::vector<NEUG_RecursiveProjectionItemsContext *> nEUG_RecursiveProjectionItems();
     NEUG_RecursiveProjectionItemsContext* nEUG_RecursiveProjectionItems(size_t i);
 
-   
+
   };
 
   NEUG_RecursiveComprehensionContext* nEUG_RecursiveComprehension();
@@ -2154,7 +2138,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     OC_ProjectionItemsContext *oC_ProjectionItems();
 
-   
+
   };
 
   NEUG_RecursiveProjectionItemsContext* nEUG_RecursiveProjectionItems();
@@ -2165,7 +2149,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DecimalInteger();
 
-   
+
   };
 
   OC_LowerBoundContext* oC_LowerBound();
@@ -2176,7 +2160,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DecimalInteger();
 
-   
+
   };
 
   OC_UpperBoundContext* oC_UpperBound();
@@ -2187,7 +2171,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   OC_LabelNameContext* oC_LabelName();
@@ -2198,7 +2182,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   OC_RelTypeNameContext* oC_RelTypeName();
@@ -2209,7 +2193,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_OrExpressionContext *oC_OrExpression();
 
-   
+
   };
 
   OC_ExpressionContext* oC_Expression();
@@ -2225,7 +2209,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> OR();
     antlr4::tree::TerminalNode* OR(size_t i);
 
-   
+
   };
 
   OC_OrExpressionContext* oC_OrExpression();
@@ -2241,7 +2225,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> XOR();
     antlr4::tree::TerminalNode* XOR(size_t i);
 
-   
+
   };
 
   OC_XorExpressionContext* oC_XorExpression();
@@ -2257,7 +2241,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> AND();
     antlr4::tree::TerminalNode* AND(size_t i);
 
-   
+
   };
 
   OC_AndExpressionContext* oC_AndExpression();
@@ -2272,7 +2256,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_NotExpressionContext* oC_NotExpression();
@@ -2290,7 +2274,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     antlr4::tree::TerminalNode *INVALID_NOT_EQUAL();
 
-   
+
   };
 
   OC_ComparisonExpressionContext* oC_ComparisonExpression();
@@ -2300,7 +2284,7 @@ public:
     NEUG_ComparisonOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
 
-   
+
   };
 
   NEUG_ComparisonOperatorContext* nEUG_ComparisonOperator();
@@ -2314,7 +2298,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_BitwiseOrOperatorExpressionContext* nEUG_BitwiseOrOperatorExpression();
@@ -2328,7 +2312,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_BitwiseAndOperatorExpressionContext* nEUG_BitwiseAndOperatorExpression();
@@ -2344,7 +2328,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_BitShiftOperatorExpressionContext* nEUG_BitShiftOperatorExpression();
@@ -2354,7 +2338,7 @@ public:
     NEUG_BitShiftOperatorContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
 
-   
+
   };
 
   NEUG_BitShiftOperatorContext* nEUG_BitShiftOperator();
@@ -2370,7 +2354,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_AddOrSubtractExpressionContext* oC_AddOrSubtractExpression();
@@ -2381,7 +2365,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *MINUS();
 
-   
+
   };
 
   NEUG_AddOrSubtractOperatorContext* nEUG_AddOrSubtractOperator();
@@ -2397,7 +2381,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_MultiplyDivideModuloExpressionContext* oC_MultiplyDivideModuloExpression();
@@ -2408,7 +2392,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *STAR();
 
-   
+
   };
 
   NEUG_MultiplyDivideModuloOperatorContext* nEUG_MultiplyDivideModuloOperator();
@@ -2422,7 +2406,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_PowerOfExpressionContext* oC_PowerOfExpression();
@@ -2438,7 +2422,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_UnaryAddSubtractOrFactorialExpressionContext* oC_UnaryAddSubtractOrFactorialExpression();
@@ -2453,7 +2437,7 @@ public:
     std::vector<OC_ListOperatorExpressionContext *> oC_ListOperatorExpression();
     OC_ListOperatorExpressionContext* oC_ListOperatorExpression(size_t i);
 
-   
+
   };
 
   OC_StringListNullOperatorExpressionContext* oC_StringListNullOperatorExpression();
@@ -2470,7 +2454,7 @@ public:
     OC_ExpressionContext* oC_Expression(size_t i);
     antlr4::tree::TerminalNode *COLON();
 
-   
+
   };
 
   OC_ListOperatorExpressionContext* oC_ListOperatorExpression();
@@ -2488,7 +2472,7 @@ public:
     antlr4::tree::TerminalNode *ENDS();
     antlr4::tree::TerminalNode *CONTAINS();
 
-   
+
   };
 
   OC_StringOperatorExpressionContext* oC_StringOperatorExpression();
@@ -2499,7 +2483,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_RegularExpressionContext* oC_RegularExpression();
@@ -2514,7 +2498,7 @@ public:
     antlr4::tree::TerminalNode *NULL_();
     antlr4::tree::TerminalNode *NOT();
 
-   
+
   };
 
   OC_NullOperatorExpressionContext* oC_NullOperatorExpression();
@@ -2529,7 +2513,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_PropertyOrLabelsExpressionContext* oC_PropertyOrLabelsExpression();
@@ -2548,7 +2532,7 @@ public:
     OC_VariableContext *oC_Variable();
     OC_QuantifierContext *oC_Quantifier();
 
-   
+
   };
 
   OC_AtomContext* oC_Atom();
@@ -2565,7 +2549,7 @@ public:
     antlr4::tree::TerminalNode *NONE();
     antlr4::tree::TerminalNode *SINGLE();
 
-   
+
   };
 
   OC_QuantifierContext* oC_Quantifier();
@@ -2578,7 +2562,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_WhereContext *oC_Where();
 
-   
+
   };
 
   OC_FilterExpressionContext* oC_FilterExpression();
@@ -2593,7 +2577,7 @@ public:
     antlr4::tree::TerminalNode *IN();
     OC_ExpressionContext *oC_Expression();
 
-   
+
   };
 
   OC_IdInCollContext* oC_IdInColl();
@@ -2609,7 +2593,7 @@ public:
     OC_ListLiteralContext *oC_ListLiteral();
     NEUG_StructLiteralContext *nEUG_StructLiteral();
 
-   
+
   };
 
   OC_LiteralContext* oC_Literal();
@@ -2621,7 +2605,7 @@ public:
     antlr4::tree::TerminalNode *BTRUE();
     antlr4::tree::TerminalNode *BFALSE();
 
-   
+
   };
 
   OC_BooleanLiteralContext* oC_BooleanLiteral();
@@ -2636,7 +2620,7 @@ public:
     std::vector<NEUG_ListEntryContext *> nEUG_ListEntry();
     NEUG_ListEntryContext* nEUG_ListEntry(size_t i);
 
-   
+
   };
 
   OC_ListLiteralContext* oC_ListLiteral();
@@ -2648,7 +2632,7 @@ public:
     antlr4::tree::TerminalNode *SP();
     OC_ExpressionContext *oC_Expression();
 
-   
+
   };
 
   NEUG_ListEntryContext* nEUG_ListEntry();
@@ -2662,7 +2646,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_StructLiteralContext* nEUG_StructLiteral();
@@ -2678,7 +2662,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_StructFieldContext* nEUG_StructField();
@@ -2691,7 +2675,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_ParenthesizedExpressionContext* oC_ParenthesizedExpression();
@@ -2712,7 +2696,7 @@ public:
     OC_FunctionNameContext *oC_FunctionName();
     antlr4::tree::TerminalNode *DISTINCT();
 
-   
+
   };
 
   OC_FunctionInvocationContext* oC_FunctionInvocation();
@@ -2723,7 +2707,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_SymbolicNameContext *oC_SymbolicName();
 
-   
+
   };
 
   OC_FunctionNameContext* oC_FunctionName();
@@ -2739,7 +2723,7 @@ public:
     antlr4::tree::TerminalNode* SP(size_t i);
     NEUG_LambdaParameterContext *nEUG_LambdaParameter();
 
-   
+
   };
 
   NEUG_FunctionParameterContext* nEUG_FunctionParameter();
@@ -2754,7 +2738,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_LambdaParameterContext* nEUG_LambdaParameter();
@@ -2768,7 +2752,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   NEUG_LambdaVarsContext* nEUG_LambdaVars();
@@ -2783,7 +2767,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_PathPatternsContext* oC_PathPatterns();
@@ -2801,7 +2785,7 @@ public:
     OC_WhereContext *oC_Where();
     NEUG_HintContext *nEUG_Hint();
 
-   
+
   };
 
   OC_ExistCountSubqueryContext* oC_ExistCountSubquery();
@@ -2814,7 +2798,7 @@ public:
     antlr4::tree::TerminalNode *STAR();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_PropertyLookupContext* oC_PropertyLookup();
@@ -2833,7 +2817,7 @@ public:
     std::vector<OC_CaseAlternativeContext *> oC_CaseAlternative();
     OC_CaseAlternativeContext* oC_CaseAlternative(size_t i);
 
-   
+
   };
 
   OC_CaseExpressionContext* oC_CaseExpression();
@@ -2849,7 +2833,7 @@ public:
     std::vector<antlr4::tree::TerminalNode *> SP();
     antlr4::tree::TerminalNode* SP(size_t i);
 
-   
+
   };
 
   OC_CaseAlternativeContext* oC_CaseAlternative();
@@ -2860,7 +2844,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_SymbolicNameContext *oC_SymbolicName();
 
-   
+
   };
 
   OC_VariableContext* oC_Variable();
@@ -2872,7 +2856,7 @@ public:
     OC_DoubleLiteralContext *oC_DoubleLiteral();
     OC_IntegerLiteralContext *oC_IntegerLiteral();
 
-   
+
   };
 
   OC_NumberLiteralContext* oC_NumberLiteral();
@@ -2884,7 +2868,7 @@ public:
     OC_SymbolicNameContext *oC_SymbolicName();
     antlr4::tree::TerminalNode *DecimalInteger();
 
-   
+
   };
 
   OC_ParameterContext* oC_Parameter();
@@ -2897,7 +2881,7 @@ public:
     OC_PropertyLookupContext *oC_PropertyLookup();
     antlr4::tree::TerminalNode *SP();
 
-   
+
   };
 
   OC_PropertyExpressionContext* oC_PropertyExpression();
@@ -2908,7 +2892,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_SchemaNameContext *oC_SchemaName();
 
-   
+
   };
 
   OC_PropertyKeyNameContext* oC_PropertyKeyName();
@@ -2919,7 +2903,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *DecimalInteger();
 
-   
+
   };
 
   OC_IntegerLiteralContext* oC_IntegerLiteral();
@@ -2931,7 +2915,7 @@ public:
     antlr4::tree::TerminalNode *ExponentDecimalReal();
     antlr4::tree::TerminalNode *RegularDecimalReal();
 
-   
+
   };
 
   OC_DoubleLiteralContext* oC_DoubleLiteral();
@@ -2942,7 +2926,7 @@ public:
     virtual size_t getRuleIndex() const override;
     OC_SymbolicNameContext *oC_SymbolicName();
 
-   
+
   };
 
   OC_SchemaNameContext* oC_SchemaName();
@@ -2957,7 +2941,7 @@ public:
     antlr4::tree::TerminalNode *HexLetter();
     NEUG_NonReservedKeywordsContext *nEUG_NonReservedKeywords();
 
-   
+
   };
 
   OC_SymbolicNameContext* oC_SymbolicName();
@@ -3001,6 +2985,7 @@ public:
     antlr4::tree::TerminalNode *MAXVALUE();
     antlr4::tree::TerminalNode *MERGE();
     antlr4::tree::TerminalNode *MINVALUE();
+    antlr4::tree::TerminalNode *NAMESPACE();
     antlr4::tree::TerminalNode *NO();
     antlr4::tree::TerminalNode *NODE();
     antlr4::tree::TerminalNode *PROJECT();
@@ -3024,7 +3009,7 @@ public:
     antlr4::tree::TerminalNode *TO();
     antlr4::tree::TerminalNode *YIELD();
 
-   
+
   };
 
   NEUG_NonReservedKeywordsContext* nEUG_NonReservedKeywords();
@@ -3034,7 +3019,7 @@ public:
     OC_LeftArrowHeadContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
 
-   
+
   };
 
   OC_LeftArrowHeadContext* oC_LeftArrowHead();
@@ -3044,7 +3029,7 @@ public:
     OC_RightArrowHeadContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
 
-   
+
   };
 
   OC_RightArrowHeadContext* oC_RightArrowHead();
@@ -3055,7 +3040,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *MINUS();
 
-   
+
   };
 
   OC_DashContext* oC_Dash();

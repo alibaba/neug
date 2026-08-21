@@ -1,11 +1,10 @@
-/**
- * Copyright 2020 Alibaba Group Holding Limited.
+/** Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * 	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,9 +19,8 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include "neug/compiler/graph/graph_entry.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "neug/compiler/binder/binder.h"
@@ -44,15 +42,6 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace graph {
-
-std::string ParsedGraphEntryTableInfo::toString() const {
-  auto result = common::stringFormat("{'table': '{}'", tableName);
-  if (predicate != "") {
-    result += common::stringFormat(",'predicate': '{}'", predicate);
-  }
-  result += "}";
-  return result;
-}
 
 GraphEntry::GraphEntry(std::vector<SchemaEntry*> nodeEntries,
                        std::vector<SchemaEntry*> relEntries) {
@@ -113,20 +102,6 @@ void GraphEntry::setRelPredicate(std::shared_ptr<Expression> predicate) {
   for (auto& info : relInfos) {
     NEUG_ASSERT(info.predicate == nullptr);
     info.predicate = predicate;
-  }
-}
-
-void GraphEntrySet::validateGraphNotExist(const std::string& name) const {
-  if (hasGraph(name)) {
-    THROW_BINDER_EXCEPTION(
-        stringFormat("Projected graph '{}' already exists.", name));
-  }
-}
-
-void GraphEntrySet::validateGraphExist(const std::string& name) const {
-  if (!hasGraph(name)) {
-    THROW_BINDER_EXCEPTION(
-        stringFormat("Projected graph '{}' does not exist.", name));
   }
 }
 
@@ -248,63 +223,15 @@ static void validateRelSrcDstNodeAreProjected(
                         catalog, transaction);
 }
 
-// parse edgeTableName in format '[src, edge, dst]' into [src, edge, dst]
-// triplets pay attention to the whitespace in the string, i.e, [ src,  edge,
-// dst  ]
-static std::vector<std::string> parseTriplets(
-    const std::string& edgeTableName) {
-  auto trimmed =
-      common::StringUtils::rtrim(common::StringUtils::ltrim(edgeTableName));
-  if (trimmed.size() < 2u || trimmed.front() != '[' || trimmed.back() != ']') {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "Invalid edge triplet format '{}', expected '[src, edge, dst]'.",
-        edgeTableName));
-  }
-  std::string_view inner(trimmed.data() + 1, trimmed.size() - 2u);
-  inner = common::StringUtils::rtrim(common::StringUtils::ltrim(inner));
-
-  std::vector<std::string> parts;
-  parts.reserve(3);
-  size_t start = 0;
-  while (start <= inner.size()) {
-    const auto comma = inner.find(',', start);
-    const auto segment = comma == std::string_view::npos
-                             ? inner.substr(start)
-                             : inner.substr(start, comma - start);
-    auto piece =
-        common::StringUtils::rtrim(common::StringUtils::ltrim(segment));
-    parts.emplace_back(std::string(piece));
-    if (comma == std::string_view::npos) {
-      break;
-    }
-    start = comma + 1;
-  }
-
-  if (parts.size() != 3u) {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "Invalid edge triplet '{}': expected exactly 3 comma-separated names "
-        "inside [...], got {}.",
-        edgeTableName, parts.size()));
-  }
-  for (const auto& name : parts) {
-    if (name.empty()) {
-      THROW_BINDER_EXCEPTION(stringFormat(
-          "Invalid edge triplet '{}': empty src, edge, or dst name.",
-          edgeTableName));
-    }
-  }
-  return parts;
-}
-
 GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
-                                       const ParsedGraphEntry& entry) {
+                                       const ProjectedGraphEntry& entry) {
   auto* catalog = context.getCatalog();
   auto* transaction = context.getTransaction();
   GraphEntry result;
   table_id_set_t projectedNodeTableIDSet;
-  for (auto& nodeInfo : entry.nodeInfos) {
+  for (auto& nodeInfo : entry.vertexInfos) {
     auto boundInfo =
-        bindNodeEntry(context, nodeInfo.tableName, nodeInfo.predicate);
+        bindNodeEntry(context, nodeInfo.labelName, nodeInfo.predicate);
     if (boundInfo.predicate) {
       binder::RenameDependentVar renameVar(gopt::DEFAULT_ALIAS_NAME);
       renameVar.visit(boundInfo.predicate);
@@ -312,8 +239,9 @@ GraphEntry GDSFunction::bindGraphEntry(main::ClientContext& context,
     projectedNodeTableIDSet.insert(boundInfo.entry->get_entry_id());
     result.nodeInfos.push_back(std::move(boundInfo));
   }
-  for (auto& relInfo : entry.relInfos) {
-    const auto& triplets = parseTriplets(relInfo.tableName);
+  for (auto& relInfo : entry.edgeInfos) {
+    const std::vector<std::string> triplets = {
+        relInfo.srcLabelName, relInfo.edgeLabelName, relInfo.dstLabelName};
     auto boundInfo = bindRelEntry(context, triplets, relInfo.predicate);
     if (boundInfo.predicate) {
       binder::RenameDependentVar renameVar(gopt::DEFAULT_ALIAS_NAME);

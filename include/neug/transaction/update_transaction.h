@@ -187,6 +187,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface,
   result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
   Status ActivateIndexes() override;
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry) override;
+  Status DropGraphEntry(const std::string& name) override;
 
  private:
   // Marks go to the COW clone; abort discards them with the clone.
@@ -253,7 +256,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface,
       const DeleteEdgePropertiesParam& config) override;
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
-
   // --- COW detach helpers ---
   Status detachVertexTableForInsert(label_t label);
   Status detachVertexTableForDelete(label_t label);

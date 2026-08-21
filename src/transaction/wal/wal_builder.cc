@@ -118,6 +118,13 @@ void WalBuilder::LogCreateIndex(const IndexMeta& meta) {
   schema_changed_ = true;
 }
 
+void WalBuilder::LogAddGraphEntry(const std::string& name,
+                                  const ProjectedGraphEntry& entry) {
+  AddGraphEntryRedo::Serialize(arc_, name, entry);
+  ++op_num_;
+  schema_changed_ = true;
+}
+
 void WalBuilder::LogDropIndex(const std::string& name) {
   DropIndexRedo::Serialize(arc_, name);
   ++op_num_;
@@ -126,6 +133,12 @@ void WalBuilder::LogDropIndex(const std::string& name) {
 
 void WalBuilder::LogActivateIndexes() {
   ActivateIndexesRedo::Serialize(arc_);
+  ++op_num_;
+  schema_changed_ = true;
+}
+
+void WalBuilder::LogDropGraphEntry(const std::string& name) {
+  DropGraphEntryRedo::Serialize(arc_, name);
   ++op_num_;
   schema_changed_ = true;
 }
