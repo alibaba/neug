@@ -218,6 +218,17 @@ def test_hnsw_index_scan_with_dynamic_target(advanced_connection):
     assert "IndexScanOpr" in _profile_operator_names(result)
 
 
+def test_scalar_function_with_dynamic_target(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) WHERE n.id = 500 RETURN n.id, "
+        "vector_distance_l2(n.l2_vec, $target) AS score;",
+        parameters={"target": _constant_vector(500.1)},
+    )
+    rows = list(result)
+    assert rows[0] == pytest.approx([500, 0.16], abs=3e-5)
+    assert "IndexScanOpr" not in _profile_operator_names(result)
+
+
 def test_cosine_index_scan(advanced_connection):
     target_id = 181
     rows = list(
