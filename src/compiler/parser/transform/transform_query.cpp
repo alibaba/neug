@@ -20,9 +20,16 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include <cypher_parser.h>
 #include <memory>
 #include <vector>
+// Windows headers define DELETE and OPTIONAL as macros, which conflict with
+// ANTLR-generated token names and method names in cypher_parser.h.
+#ifdef DELETE
+#undef DELETE
+#endif
+#ifdef OPTIONAL
+#undef OPTIONAL
+#endif
 #include "antlr4_cypher/include/cypher_parser.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
