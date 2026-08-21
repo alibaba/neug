@@ -289,7 +289,7 @@ TEST(S3OptionsBuilderTest, ExplicitCredentials) {
   EXPECT_FALSE(config.anonymous);
   EXPECT_EQ(config.endpoint, "oss-cn-beijing.aliyuncs.com");
   EXPECT_EQ(config.region, "oss-cn-beijing");  // auto-detected
-  EXPECT_FALSE(config.path_style);              // OSS uses virtual hosting
+  EXPECT_FALSE(config.path_style);             // OSS uses virtual hosting
 }
 
 TEST(S3OptionsBuilderTest, ExplicitCredentialsMissingThrows) {
@@ -308,6 +308,16 @@ TEST(S3OptionsBuilderTest, AnonymousKind) {
 }
 
 TEST(S3OptionsBuilderTest, DefaultWithoutCredsThrows) {
+  // Save original environment values
+  const char* orig_oss_ak = std::getenv("OSS_ACCESS_KEY_ID");
+  const char* orig_oss_sk = std::getenv("OSS_ACCESS_KEY_SECRET");
+  const char* orig_aws_ak = std::getenv("AWS_ACCESS_KEY_ID");
+  const char* orig_aws_sk = std::getenv("AWS_SECRET_ACCESS_KEY");
+  std::string saved_oss_ak = orig_oss_ak ? orig_oss_ak : "";
+  std::string saved_oss_sk = orig_oss_sk ? orig_oss_sk : "";
+  std::string saved_aws_ak = orig_aws_ak ? orig_aws_ak : "";
+  std::string saved_aws_sk = orig_aws_sk ? orig_aws_sk : "";
+
   // Make sure no credentials leak in from the environment.
   ::unsetenv("OSS_ACCESS_KEY_ID");
   ::unsetenv("OSS_ACCESS_KEY_SECRET");
@@ -320,9 +330,27 @@ TEST(S3OptionsBuilderTest, DefaultWithoutCredsThrows) {
   // hard-to-diagnose 403s.
   EXPECT_THROW(S3OptionsBuilder(makeSchema("s3://bucket/key")).build(),
                neug::exception::InvalidArgumentException);
+
+  // Restore original environment
+  if (!saved_oss_ak.empty())
+    ::setenv("OSS_ACCESS_KEY_ID", saved_oss_ak.c_str(), 1);
+  if (!saved_oss_sk.empty())
+    ::setenv("OSS_ACCESS_KEY_SECRET", saved_oss_sk.c_str(), 1);
+  if (!saved_aws_ak.empty())
+    ::setenv("AWS_ACCESS_KEY_ID", saved_aws_ak.c_str(), 1);
+  if (!saved_aws_sk.empty())
+    ::setenv("AWS_SECRET_ACCESS_KEY", saved_aws_sk.c_str(), 1);
 }
 
 TEST(S3OptionsBuilderTest, DefaultReadsEnvironmentVariables) {
+  // Save and clear OSS_ vars so they don't interfere with AWS_ test
+  const char* orig_oss_ak = std::getenv("OSS_ACCESS_KEY_ID");
+  const char* orig_oss_sk = std::getenv("OSS_ACCESS_KEY_SECRET");
+  std::string saved_oss_ak = orig_oss_ak ? orig_oss_ak : "";
+  std::string saved_oss_sk = orig_oss_sk ? orig_oss_sk : "";
+  ::unsetenv("OSS_ACCESS_KEY_ID");
+  ::unsetenv("OSS_ACCESS_KEY_SECRET");
+
   ::setenv("TEST_S3_AK", "env-access-key", 1);
   ::setenv("TEST_S3_SK", "env-secret-key", 1);
   // Point the builder at env creds via AWS alias keys.
@@ -331,13 +359,20 @@ TEST(S3OptionsBuilderTest, DefaultReadsEnvironmentVariables) {
 
   auto config = S3OptionsBuilder(makeSchema("s3://bucket/key")).build();
   EXPECT_FALSE(config.anonymous);
-  EXPECT_EQ(config.access_key, "env-access-key");
-  EXPECT_EQ(config.secret_key, "env-secret-key");
+  // Use EXPECT_TRUE to avoid printing credentials on test failure
+  EXPECT_TRUE(config.access_key == "env-access-key") << "access_key mismatch";
+  EXPECT_TRUE(config.secret_key == "env-secret-key") << "secret_key mismatch";
 
   ::unsetenv("AWS_ACCESS_KEY_ID");
   ::unsetenv("AWS_SECRET_ACCESS_KEY");
   ::unsetenv("TEST_S3_AK");
   ::unsetenv("TEST_S3_SK");
+
+  // Restore OSS_ vars
+  if (!saved_oss_ak.empty())
+    ::setenv("OSS_ACCESS_KEY_ID", saved_oss_ak.c_str(), 1);
+  if (!saved_oss_sk.empty())
+    ::setenv("OSS_ACCESS_KEY_SECRET", saved_oss_sk.c_str(), 1);
 }
 
 TEST(S3OptionsBuilderTest, EndpointSchemeParsing) {

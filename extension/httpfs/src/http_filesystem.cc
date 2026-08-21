@@ -130,6 +130,40 @@ size_t DiscardCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   return size * nmemb;
 }
 
+// Parse "Content-Range: bytes START-END/TOTAL" or "bytes */TOTAL".
+// Returns TOTAL, or -1 if not found/parseable.
+int64_t ParseContentRangeTotal(const std::string& header_value) {
+  auto slash_pos = header_value.find('/');
+  if (slash_pos == std::string::npos)
+    return -1;
+  auto total_str = header_value.substr(slash_pos + 1);
+  if (total_str == "*")
+    return -1;
+  try {
+    return std::stoll(total_str);
+  } catch (...) { return -1; }
+}
+
+// Captures the Content-Range header value from response headers.
+struct HeaderCollector {
+  std::string content_range;
+};
+
+size_t HeaderCaptureCallback(void* contents, size_t size, size_t nmemb,
+                             void* userp) {
+  size_t real_size = size * nmemb;
+  auto* collector = static_cast<HeaderCollector*>(userp);
+  std::string header(static_cast<char*>(contents), real_size);
+  // Strip trailing \r\n
+  while (!header.empty() && (header.back() == '\r' || header.back() == '\n')) {
+    header.pop_back();
+  }
+  if (header.find("Content-Range: ") == 0) {
+    collector->content_range = header.substr(15);
+  }
+  return real_size;
+}
+
 bool parseBool(const std::string& value, const std::string& key) {
   std::string v = value;
   std::transform(v.begin(), v.end(), v.begin(), ::tolower);
@@ -398,9 +432,14 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
       return int64_t{0};
     }
     if (response_code == 200) {
-      // The server ignored the Range request and returned the file from
-      // offset 0; those bytes would be misinterpreted as starting at
-      // `position`, silently corrupting the data. Fail loudly instead.
+      if (position == 0) {
+        // Server doesn't support Range, but we're reading from offset 0,
+        // so the whole-file response is valid. Accept whatever bytes we got.
+        int64_t bytes_received =
+            nbytes - static_cast<int64_t>(write_info.second);
+        return bytes_received;
+      }
+      // Otherwise, the server ignored Range and returned misaligned data.
       RETURN_STATUS_ERROR(
           neug::StatusCode::ERR_IO_ERROR,
           "Server ignored the Range request (returned 200); Range support "
@@ -436,7 +475,10 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
 
  private:
   // HEAD request to determine the file size (-1 when unavailable).
+  // Falls back to GET with Range: bytes=0-0 if HEAD fails or returns no
+  // Content-Length, parsing Content-Range to extract the total size.
   result<int64_t> probeSize() {
+    // Try HEAD first.
     CURL* curl = curl_easy_init();
     if (!curl) {
       RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
@@ -452,28 +494,65 @@ class HTTPRandomAccessStream : public fsys::RandomAccessStream {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, DiscardCallback);
 
     CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-      std::string err = std::string(curl_easy_strerror(res));
-      curl_easy_cleanup(curl);
-      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                          "HEAD request failed for " + url_ + ": " + err);
-    }
-
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    if (http_code < 200 || http_code >= 300) {
-      curl_easy_cleanup(curl);
-      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
-                          "HEAD request returned HTTP " +
-                              std::to_string(http_code) + " for " + url_);
-    }
-
     double content_length = -1;
-    curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &content_length);
+    if (res == CURLE_OK && http_code >= 200 && http_code < 300) {
+      curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD,
+                        &content_length);
+    }
     curl_easy_cleanup(curl);
 
     if (content_length >= 0) {
       return static_cast<int64_t>(content_length);
+    }
+
+    // HEAD failed or returned no Content-Length; fallback to GET with
+    // Range: bytes=0-0 and parse Content-Range to get total size.
+    return probeSizeViaGetRange();
+  }
+
+  // Fallback: GET with Range: bytes=0-0, parse Content-Range for total size.
+  result<int64_t> probeSizeViaGetRange() {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to initialize CURL for GET range probe");
+    }
+    if (curl_share_ && curl_share_->handle()) {
+      curl_easy_setopt(curl, CURLOPT_SHARE, curl_share_->handle());
+    }
+
+    SetupCURLHandle(curl, opts_, header_list_);
+    curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
+    curl_easy_setopt(curl, CURLOPT_RANGE, "0-0");
+
+    HeaderCollector collector;
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCaptureCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &collector);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, DiscardCallback);
+
+    CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                          "GET range probe failed for " + url_ + ": " +
+                              std::string(curl_easy_strerror(res)));
+    }
+    if (http_code != 200 && http_code != 206) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                          "GET range probe returned HTTP " +
+                              std::to_string(http_code) + " for " + url_);
+    }
+
+    if (!collector.content_range.empty()) {
+      int64_t total = ParseContentRangeTotal(collector.content_range);
+      if (total >= 0) {
+        return total;
+      }
     }
     LOG(WARNING) << "Could not determine file size for " << url_;
     return int64_t{-1};

@@ -373,6 +373,312 @@ TEST_F(HTTPFileSystemTest, ReadAtRejectsServerWithoutRangeSupport) {
 }
 
 // ============================================================================
+// Fallback tests: HEAD failure -> GET+Content-Range; 200 at position 0.
+// ============================================================================
+
+/// Loopback HTTP server that rejects HEAD but supports GET with Range.
+/// Used to test the probeSize() fallback to GET+Content-Range.
+class NoHeadHTTPServer {
+ public:
+  explicit NoHeadHTTPServer(std::string body) : body_(std::move(body)) {}
+
+  ~NoHeadHTTPServer() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0)
+      return false;
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0)
+      return false;
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false))
+      return;
+    // Connect to the listen socket to unblock accept()
+    int connect_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (connect_fd >= 0) {
+      sockaddr_in addr{};
+      addr.sin_family = AF_INET;
+      addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      addr.sin_port = htons(port_);
+      ::connect(connect_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+      ::close(connect_fd);
+    }
+    if (listen_fd_ >= 0)
+      ::close(listen_fd_);
+    if (active_fd_ >= 0)
+      ::shutdown(active_fd_, SHUT_RDWR);
+    if (thread_.joinable())
+      thread_.join();
+  }
+
+  int port() const { return port_; }
+
+ private:
+  void serve() {
+    while (running_) {
+      sockaddr_in client{};
+      socklen_t len = sizeof(client);
+      int fd = ::accept(listen_fd_, reinterpret_cast<sockaddr*>(&client), &len);
+      if (fd < 0)
+        break;
+      active_fd_ = fd;
+      handleConnection(fd);
+      ::close(fd);
+      active_fd_ = -1;
+    }
+  }
+
+  void handleConnection(int fd) {
+    std::string request;
+    char buf[1024];
+    while (request.find("\r\n\r\n") == std::string::npos) {
+      ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0) {
+        return;
+      }
+      request.append(buf, static_cast<size_t>(n));
+    }
+    const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+    if (is_head) {
+      // Reject HEAD with 405 Method Not Allowed.
+      std::string response =
+          "HTTP/1.1 405 Method Not Allowed\r\n"
+          "Content-Length: 0\r\n"
+          "Connection: close\r\n\r\n";
+      ::send(fd, response.data(), response.size(), 0);
+      return;
+    }
+    // For any GET request, return 206 with Content-Range.
+    // Simplified: always return bytes 0-0 for the probe, or the requested
+    // range.
+    auto range_pos = request.find("Range: bytes=");
+    if (range_pos != std::string::npos) {
+      // Parse start-end from "Range: bytes=start-end"
+      auto start_pos = range_pos + 13;
+      auto dash_pos = request.find('-', start_pos);
+      auto end_pos = request.find("\r\n", dash_pos);
+      if (dash_pos != std::string::npos && end_pos != std::string::npos) {
+        int64_t start =
+            std::stoll(request.substr(start_pos, dash_pos - start_pos));
+        int64_t end =
+            std::stoll(request.substr(dash_pos + 1, end_pos - dash_pos - 1));
+        if (start < static_cast<int64_t>(body_.size())) {
+          int64_t actual_end =
+              std::min(end, static_cast<int64_t>(body_.size()) - 1);
+          int64_t len = actual_end - start + 1;
+          std::string response =
+              "HTTP/1.1 206 Partial Content\r\n"
+              "Content-Range: bytes " +
+              std::to_string(start) + "-" + std::to_string(actual_end) + "/" +
+              std::to_string(body_.size()) +
+              "\r\n"
+              "Content-Length: " +
+              std::to_string(len) +
+              "\r\n"
+              "Connection: close\r\n\r\n";
+          response += body_.substr(start, len);
+          ::send(fd, response.data(), response.size(), 0);
+          return;
+        }
+      }
+    }
+    // No Range or invalid: return whole file with 200.
+    fprintf(stderr, "[NoHead] Sending 200 response\n");
+    std::string response =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Length: " +
+        std::to_string(body_.size()) + "\r\nConnection: close\r\n\r\n";
+    response += body_;
+    ::send(fd, response.data(), response.size(), 0);
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+  std::atomic<int> active_fd_{-1};
+};
+
+TEST_F(HTTPFileSystemTest, ProbeSizeFallsBackToGetRangeWhenHeadFails) {
+  // Server rejects HEAD with 405 but supports GET with Range.
+  NoHeadHTTPServer server("0123456789ABCDEF");  // 16 bytes
+  ASSERT_TRUE(server.start());
+
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  // Open should succeed: HEAD fails, falls back to GET Range: bytes=0-0,
+  // parses Content-Range: bytes 0-0/16 to get size = 16.
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
+
+  EXPECT_EQ(stream->GetSize(), 16);
+
+  // Read at position 0 should work.
+  char buf[4];
+  auto r = stream->ReadAt(0, 4, buf);
+  ASSERT_TRUE(r.has_value()) << r.error().ToString();
+  EXPECT_EQ(*r, 4);
+  EXPECT_EQ(std::string(buf, 4), "0123");
+
+  stream->Close();
+  server.stop();
+}
+
+/// Loopback HTTP server that ignores Range (returns 200 with whole file).
+/// Used to test the fetchRange() fallback at position == 0.
+class NoRangeBut200Server {
+ public:
+  explicit NoRangeBut200Server(std::string body) : body_(std::move(body)) {}
+
+  ~NoRangeBut200Server() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0)
+      return false;
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0)
+      return false;
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false))
+      return;
+    // Connect to the listen socket to unblock accept()
+    int connect_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (connect_fd >= 0) {
+      sockaddr_in addr{};
+      addr.sin_family = AF_INET;
+      addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      addr.sin_port = htons(port_);
+      ::connect(connect_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+      ::close(connect_fd);
+    }
+    if (listen_fd_ >= 0)
+      ::close(listen_fd_);
+    if (active_fd_ >= 0)
+      ::shutdown(active_fd_, SHUT_RDWR);
+    if (thread_.joinable())
+      thread_.join();
+  }
+
+  int port() const { return port_; }
+
+ private:
+  void serve() {
+    while (running_) {
+      sockaddr_in client{};
+      socklen_t len = sizeof(client);
+      int fd = ::accept(listen_fd_, reinterpret_cast<sockaddr*>(&client), &len);
+      if (fd < 0)
+        break;
+      active_fd_ = fd;
+      handleConnection(fd);
+      ::close(fd);
+      active_fd_ = -1;
+    }
+  }
+
+  void handleConnection(int fd) {
+    std::string request;
+    char buf[1024];
+    while (request.find("\r\n\r\n") == std::string::npos) {
+      ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0)
+        return;
+      request.append(buf, static_cast<size_t>(n));
+    }
+    const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+    // Always 200 with the full body; Range header is ignored.
+    std::string response =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Length: " +
+        std::to_string(body_.size()) + "\r\nConnection: close\r\n\r\n";
+    if (!is_head) {
+      response += body_;
+    }
+    ::send(fd, response.data(), response.size(), 0);
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+  std::atomic<int> active_fd_{-1};
+};
+
+TEST_F(HTTPFileSystemTest, ReadAtPosition0Accepts200Response) {
+  // Server ignores Range and returns 200 with whole file.
+  NoRangeBut200Server server("0123456789");
+  ASSERT_TRUE(server.start());
+
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
+
+  // Read at position 0 should accept the 200 response.
+  char buf[4];
+  auto r = stream->ReadAt(0, 4, buf);
+  ASSERT_TRUE(r.has_value()) << r.error().ToString();
+  EXPECT_EQ(*r, 4);
+  EXPECT_EQ(std::string(buf, 4), "0123");
+
+  // Note: We don't test position > 0 here because the readahead cache (4 MiB)
+  // will serve the data from the first read, so it won't hit the server and
+  // won't trigger the 200 error. The fetchRange() logic correctly rejects 200
+  // at position > 0, but the cache makes it unreachable in this test.
+
+  stream->Close();
+  server.stop();
+}
+
+// ============================================================================
 // Range-supporting keep-alive server: verifies the readahead cache (small
 // sequential reads collapse into few ranged GETs) and CURLSH connection
 // reuse (all requests share one TCP connection).
@@ -597,19 +903,26 @@ TEST_F(HTTPFileSystemTest, ReadaheadAndConnectionReuse) {
 }
 
 // ============================================================================
-// Integration test — guarded by the HTTP_TEST_URL environment variable.
-// Set HTTP_TEST_URL to an https URL serving a Parquet file to exercise the
-// real read path (HEAD probe, ranged GET). Skipped when unset or offline.
+// Integration test — exercises the real HTTPS read path (HEAD probe, ranged
+// GET) against a public Parquet file.  The URL defaults to a project-hosted
+// file but can be overridden via the HTTP_TEST_URL environment variable.
+// Skipped only when the override is explicitly set to empty.
 // ============================================================================
+
+static constexpr char kDefaultHTTPTestURL[] =
+    "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet";
 
 class HTTPIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    const char* url = std::getenv("HTTP_TEST_URL");
-    if (url == nullptr || url[0] == '\0') {
-      GTEST_SKIP() << "HTTP_TEST_URL not set; skipping HTTP integration test";
+    const char* env_url = std::getenv("HTTP_TEST_URL");
+    // Allow explicit skip by setting HTTP_TEST_URL="".
+    if (env_url != nullptr && env_url[0] == '\0') {
+      GTEST_SKIP() << "HTTP_TEST_URL is empty; skipping HTTP integration test";
     }
-    test_url_ = url;
+    test_url_ = (env_url != nullptr && env_url[0] != '\0')
+                    ? env_url
+                    : kDefaultHTTPTestURL;
   }
 
   std::string test_url_;
