@@ -250,6 +250,7 @@ def test_hnsw_index_tp_ddl_recovery_after_reopen(tmp_path, unused_tcp_port):
         endpoint = db.serve(unused_tcp_port, "localhost", False)
         wait_for_server_ready(endpoint)
         session = Session.open(endpoint, timeout="10s")
+        session.execute("LOAD vector_search;")
         assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == [
             ["item_embedding_hnsw"]
         ]
@@ -267,6 +268,7 @@ def test_hnsw_index_tp_ddl_recovery_after_reopen(tmp_path, unused_tcp_port):
         endpoint = db.serve(unused_tcp_port, "localhost", False)
         wait_for_server_ready(endpoint)
         session = Session.open(endpoint, timeout="10s")
+        session.execute("LOAD vector_search;")
         assert list(session.execute("CALL SHOW_INDEXES() RETURN name;")) == []
         assert _search(session, [1.0, 0.0, 0.0, 0.0], expect_index=False)[:2] == [
             1,
