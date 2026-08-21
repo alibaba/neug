@@ -240,7 +240,7 @@ nEUG_UninstallExtension
     : UNINSTALL SP (EXTENSION SP)? ( StringLiteral | oC_Variable ) ;
 
 oC_Query
-    : oC_RegularQuery ;
+    : (USE SP NAMESPACE SP oC_SchemaName SP)? oC_RegularQuery ;
 
 oC_RegularQuery
     : oC_SingleQuery ( SP? oC_Union )*
@@ -763,6 +763,7 @@ nEUG_NonReservedKeywords
         | MAXVALUE
         | MERGE
         | MINVALUE
+        | NAMESPACE
         | NO
         | NODE
         | PROJECT

@@ -43,8 +43,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindSubqueryExpression(
   auto& subqueryExpr =
       neug_dynamic_cast<const ParsedSubqueryExpression&>(parsedExpr);
   auto prevScope = binder->saveScope();
-  auto boundGraphPattern =
-      binder->bindGraphPattern(subqueryExpr.getPatternElements());
+  auto boundGraphPattern = binder->bindGraphPattern(
+      subqueryExpr.getPatternElements(), NamespaceBindingMode::ALLOW_FOR_MATCH);
   if (subqueryExpr.hasWhereClause()) {
     boundGraphPattern.where =
         binder->bindWhereExpression(*subqueryExpr.getWhereClause());
