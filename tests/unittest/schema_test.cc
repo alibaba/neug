@@ -18,6 +18,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
+#include <cstring>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -922,6 +923,59 @@ TEST(SchemaTest, SerializeDeserializeWithFreeList) {
   neug::label_t c_id = loaded.get_vertex_label_id("C");
   EXPECT_EQ(c_id, 1);  // recycled from B
   EXPECT_EQ(loaded.vertex_label_num(), 2);
+}
+
+TEST(SchemaTest, ReopensLegacyBinarySchemaWithoutProjectedGraphs) {
+  neug::Schema schema;
+  schema.SetGraphName("legacy_graph");
+  schema.SetGraphId("legacy-id");
+  schema.AddVertexLabel("Person", {DataTypeId::kVarchar}, {"name"},
+                        VPk(DataTypeId::kInt64, "id", 0), 1024, "");
+
+  // Produce the pre-projected-graph binary layout. The legacy schema archive
+  // ended after id_; current serialization appends an empty graph_count there.
+  std::ostringstream output;
+  schema.Serialize(output);
+  auto legacy_bytes = output.str();
+
+  std::istringstream layout(legacy_bytes);
+  neug::LabelIndexer vertex_labels;
+  neug::LabelIndexer edge_labels;
+  vertex_labels.Deserialize(layout);
+  edge_labels.Deserialize(layout);
+  const auto archive_size_offset = layout.tellg();
+  ASSERT_NE(archive_size_offset, std::streampos(-1));
+
+  size_t archive_size = 0;
+  layout.read(reinterpret_cast<char*>(&archive_size), sizeof(archive_size));
+  ASSERT_TRUE(layout.good());
+  ASSERT_GE(archive_size, sizeof(size_t));
+  const auto archive_data_offset = layout.tellg();
+  ASSERT_NE(archive_data_offset, std::streampos(-1));
+
+  size_t graph_count = 1;
+  const auto graph_count_offset =
+      static_cast<size_t>(static_cast<std::streamoff>(archive_data_offset)) +
+      archive_size - sizeof(size_t);
+  std::memcpy(&graph_count, legacy_bytes.data() + graph_count_offset,
+              sizeof(graph_count));
+  ASSERT_EQ(graph_count, 0u);
+
+  legacy_bytes.erase(graph_count_offset, sizeof(size_t));
+  archive_size -= sizeof(size_t);
+  std::memcpy(
+      legacy_bytes.data() +
+          static_cast<size_t>(static_cast<std::streamoff>(archive_size_offset)),
+      &archive_size, sizeof(archive_size));
+
+  neug::Schema reopened;
+  std::istringstream legacy_input(legacy_bytes);
+  reopened.Deserialize(legacy_input);
+
+  EXPECT_EQ(reopened.GetGraphName(), "legacy_graph");
+  EXPECT_EQ(reopened.GetGraphId(), "legacy-id");
+  EXPECT_TRUE(reopened.is_vertex_label_valid("Person"));
+  EXPECT_TRUE(reopened.GetGraphEntryNames().empty());
 }
 
 // Test: multiple vacant slots are reassigned correctly

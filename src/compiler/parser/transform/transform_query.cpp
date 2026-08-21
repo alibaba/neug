@@ -35,7 +35,12 @@ namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformQuery(
     CypherParser::OC_QueryContext& ctx) {
-  return transformRegularQuery(*ctx.oC_RegularQuery());
+  auto query = transformRegularQuery(*ctx.oC_RegularQuery());
+  if (ctx.NAMESPACE()) {
+    query->cast<RegularQuery>().setNamespaceName(
+        transformSchemaName(*ctx.oC_SchemaName()));
+  }
+  return query;
 }
 
 std::vector<std::unique_ptr<ParsedExpression>> Transformer::transformCallScope(

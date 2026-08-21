@@ -116,6 +116,13 @@ class NEUG_API Catalog {
       const transaction::Transaction* transaction,
       bool useInternal = true) const;
 
+  // ------------------------- Projected graphs -------------------------
+
+  bool hasGraphEntry(const std::string& name) const;
+  result<const ProjectedGraphEntry*> getGraphEntry(
+      const std::string& name) const;
+  std::vector<std::string> getGraphEntryNames() const;
+
   // ----------------------------- Rel groups ----------------------------
 
   // Check if rel group entry exists.

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "neug/common/types/value.h"
+#include "neug/storages/graph/graph_entry.h"
 #include "neug/storages/graph/operation_params.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
@@ -242,6 +243,22 @@ struct DeleteEdgeTypeRedo {
                         const std::string& dst_type,
                         const std::string& edge_type);
   static void Deserialize(OutArchive& arc, DeleteEdgeTypeRedo& redo);
+};
+
+struct AddGraphEntryRedo {
+  std::string name;
+  ProjectedGraphEntry entry;
+
+  static void Serialize(InArchive& arc, const std::string& name,
+                        const ProjectedGraphEntry& entry);
+  static AddGraphEntryRedo Deserialize(OutArchive& arc);
+};
+
+struct DropGraphEntryRedo {
+  std::string name;
+
+  static void Serialize(InArchive& arc, const std::string& name);
+  static DropGraphEntryRedo Deserialize(OutArchive& arc);
 };
 
 struct InsertVertexRedo {

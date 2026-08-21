@@ -112,6 +112,19 @@ void WalBuilder::LogDeleteEdgeType(const std::string& src_type,
   schema_changed_ = true;
 }
 
+void WalBuilder::LogAddGraphEntry(const std::string& name,
+                                  const ProjectedGraphEntry& entry) {
+  AddGraphEntryRedo::Serialize(arc_, name, entry);
+  ++op_num_;
+  schema_changed_ = true;
+}
+
+void WalBuilder::LogDropGraphEntry(const std::string& name) {
+  DropGraphEntryRedo::Serialize(arc_, name);
+  ++op_num_;
+  schema_changed_ = true;
+}
+
 // =============================================================================
 // DML logging
 // =============================================================================
