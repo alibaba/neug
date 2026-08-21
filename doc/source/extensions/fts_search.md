@@ -34,6 +34,7 @@ ON <node_table>
 USING FTS (<string_property>)
 [WITH (
     tokenizer = '<tokenizer>',
+    jieba_mode = '<jieba_mode>',
     prefix = '<prefix_lengths>',
     detail = '<detail_mode>'
 )];
@@ -73,6 +74,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
+| `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 | `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
 
@@ -85,6 +87,27 @@ Supported tokenizers are:
   match the same stem.
 - `trigram` treats each contiguous sequence of three characters as a token,
   enabling substring matching.
+- `jieba` performs Chinese word segmentation using cppjieba. It loads the
+  bundled main dictionary and HMM model from the FTS extension directory.
+
+The Jieba tokenizer supports three modes:
+
+- `mp` selects the most probable dictionary-based segmentation.
+- `hmm` uses the HMM model to recognize words without dictionary guidance.
+- `mix` combines dictionary segmentation with HMM recognition. This is the
+  default Jieba mode.
+
+For example:
+
+```cypher
+CREATE INDEX article_title_fts
+ON Article
+USING FTS (title)
+WITH (
+    tokenizer = 'jieba',
+    jieba_mode = 'mix'
+);
+```
 
 The `detail` option affects the query forms available to users:
 
@@ -109,7 +132,8 @@ WITH (
 );
 ```
 
-Invalid tokenizer, prefix, or detail settings cause index creation to fail.
+Invalid tokenizer, tokenizer parameters (for example, `jieba_mode`), prefix,
+or detail settings cause index creation to fail.
 The selected settings cannot be changed in place; drop and recreate the index
 to use different settings.
 

@@ -11,10 +11,12 @@ local loading, and tests for the extension.
 
 ## Prerequisites
 
-Initialize the bundled SQLite source before configuring the extension:
+Initialize the bundled SQLite and cppjieba sources before configuring the
+extension:
 
 ```bash
 git submodule update --init third_party/sqlite
+git submodule update --init --recursive third_party/cppjieba
 ```
 
 ## Build
@@ -27,10 +29,13 @@ cd tools/python_bind
 BUILD_EXTENSIONS=fts make build
 ```
 
-The extension library is written to:
+The extension library and bundled Jieba resources are written to:
 
 ```text
-build/extension/fts/libfts.neug_extension
+build/extension/fts/
+├── libfts.neug_extension
+├── jieba.dict.utf8
+└── hmm_model.utf8
 ```
 
 When using the in-repository Python binding, the loader discovers the root
