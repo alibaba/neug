@@ -29,6 +29,121 @@ def _nested_list(value):
         return value
 
 
+def test_list_append_and_concat(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    cases = [
+        ("RETURN list_append([1, 2], 3);", [1, 2, 3]),
+        ("RETURN list_append([1, 2], 3.5);", [1.0, 2.0, 3.5]),
+        ("RETURN list_append([], 1);", [1]),
+        ("RETURN list_append([], NULL);", [None]),
+        ("RETURN list_append(CAST([1, 2], 'INT64[]'), 3);", [1, 2, 3]),
+        ("RETURN list_concat([1, 2], [3, 4]);", [1, 2, 3, 4]),
+        (
+            "RETURN list_concat(CAST([1, 2], 'INT64[]'), [3, 4]);",
+            [1, 2, 3, 4],
+        ),
+        (
+            "RETURN list_concat([1, 2], CAST([3, 4], 'INT64[]'));",
+            [1, 2, 3, 4],
+        ),
+        ("RETURN list_concat([1, 2], [3.5, 4.5]);", [1.0, 2.0, 3.5, 4.5]),
+        ("RETURN list_concat([], [1, 2]);", [1, 2]),
+        ("RETURN list_concat([1, 2], []);", [1, 2]),
+        ("RETURN list_concat([], []);", []),
+        ("RETURN list_append([1, 2], NULL);", [1, 2, None]),
+        (
+            "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",
+            [[1, 2], [3, 4], [5, 6]],
+        ),
+        (
+            "RETURN list_concat([[1, 2]], [[3, 4], [5, 6]]);",
+            [[1, 2], [3, 4], [5, 6]],
+        ),
+        (
+            "RETURN list_append(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 4);",
+            [1, None, 3, 4],
+        ),
+        (
+            "RETURN list_concat("
+            "CAST([1, CAST(NULL, 'INT64')], 'INT64[]'), "
+            "CAST([2, CAST(NULL, 'INT64')], 'INT64[]'));",
+            [1, None, 2, None],
+        ),
+    ]
+    for query, expected in cases:
+        value = list(conn.execute(query))[0][0]
+        assert _nested_list(value) == expected
+
+    # A typed top-level NULL list propagates to a NULL result.
+    assert list(conn.execute("RETURN list_append(CAST(NULL, 'INT64[]'), 3);")) == [
+        [None]
+    ]
+    assert list(conn.execute("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);")) == [
+        [None]
+    ]
+
+    with pytest.raises(Exception, match="first argument to be LIST or ARRAY"):
+        conn.execute("RETURN list_append(1, 2);")
+    with pytest.raises(Exception, match="cannot find a common element type"):
+        conn.execute("RETURN list_append([1, 2], [3]);")
+    with pytest.raises(Exception, match="expects LIST or ARRAY arguments"):
+        conn.execute("RETURN list_concat([1], 2);")
+
+    conn.close()
+    db.close()
+
+
+def test_list_append_and_concat_properties_and_nulls(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    conn.execute(
+        "CREATE NODE TABLE Item("
+        "id INT64, list_values INT64[], array_values INT64[3], PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE (:Item {"
+        "id: 1, "
+        "list_values: CAST([1, 2, 3], 'INT64[]'), "
+        "array_values: CAST([4, 5, 6], 'INT64[3]')"
+        "});"
+    )
+    conn.execute(
+        "CREATE (:Item {"
+        "id: 2, "
+        "list_values: CAST([], 'INT64[]'), "
+        "array_values: CAST([7, 8, 9], 'INT64[3]')"
+        "});"
+    )
+
+    rows = list(
+        conn.execute(
+            "MATCH (item:Item) "
+            "RETURN item.id, "
+            "list_append(item.list_values, 10), "
+            "list_concat(item.list_values, item.array_values), "
+            "list_append(item.array_values, NULL) "
+            "ORDER BY item.id;"
+        )
+    )
+    assert [row[0] for row in rows] == [1, 2]
+    assert [_nested_list(value) for value in rows[0][1:]] == [
+        [1, 2, 3, 10],
+        [1, 2, 3, 4, 5, 6],
+        [4, 5, 6, None],
+    ]
+    assert [_nested_list(value) for value in rows[1][1:]] == [
+        [10],
+        [7, 8, 9],
+        [7, 8, 9, None],
+    ]
+
+    conn.close()
+    db.close()
+
+
 def test_list_cast_contract(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
