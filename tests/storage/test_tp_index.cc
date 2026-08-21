@@ -477,10 +477,9 @@ TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
   for (const auto& wal : wal_writer_.records) {
     ASSERT_GT(wal.size(), sizeof(WalHeader));
     const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
-    UpdateTransaction::IngestWal(
-        *replay_graph, header->timestamp,
-        const_cast<char*>(wal.data() + sizeof(WalHeader)), header->length,
-        allocator_);
+    UpdateTransaction::IngestWal(*replay_graph, header->timestamp,
+                                 wal.data() + sizeof(WalHeader), header->length,
+                                 allocator_);
   }
   EXPECT_FALSE(replay_graph->index_manager().GetIndexByName("idx_person_age"));
 }
@@ -862,10 +861,9 @@ TEST_F(TPIndexTest, WalReplayRestoresIndexData) {
               (std::vector<std::string>{}));
   }
 
-  UpdateTransaction::IngestWal(
-      *replay_graph, header->timestamp,
-      const_cast<char*>(wal.data() + sizeof(WalHeader)), header->length,
-      allocator_);
+  UpdateTransaction::IngestWal(*replay_graph, header->timestamp,
+                               wal.data() + sizeof(WalHeader), header->length,
+                               allocator_);
   GraphView replay_view(*replay_graph);
   StorageReadInterface replay_reader(replay_view, header->timestamp);
 

@@ -1015,8 +1015,14 @@ result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
     RETURN_STATUS_ERROR(StatusCode::ERR_ILLEGAL_OPERATION,
                         "Index already exists: " + meta->name);
   }
-  wal_.LogCreateIndex(*meta);
-  return CreateStorageIndex(*cow_graph_, mut_view_, read_ts_, std::move(meta));
+  const IndexMeta redo_meta = *meta;
+  auto result =
+      CreateStorageIndex(*cow_graph_, mut_view_, read_ts_, std::move(meta));
+  if (!result) {
+    return result;
+  }
+  wal_.LogCreateIndex(redo_meta);
+  return result;
 }
 
 Status StorageTPUpdateInterface::DropIndex(const std::string& name) {
@@ -1025,17 +1031,20 @@ Status StorageTPUpdateInterface::DropIndex(const std::string& name) {
       !index_manager.GetIndexByName(name).has_value()) {
     return Status(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
   }
+  RETURN_IF_NOT_OK(DropStorageIndex(*cow_graph_, mut_view_, name));
   wal_.LogDropIndex(name);
-  return DropStorageIndex(*cow_graph_, mut_view_, name);
+  return Status::OK();
 }
 
 Status StorageTPUpdateInterface::ActivateIndexes() {
+  RETURN_IF_NOT_OK(ActivateStorageIndexes(*cow_graph_, mut_view_));
   wal_.LogActivateIndexes();
-  return ActivateStorageIndexes(*cow_graph_, mut_view_);
+  return Status::OK();
 }
 
 void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
-                                  char* data, size_t length, Allocator& alloc) {
+                                  const char* data, size_t length,
+                                  Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
