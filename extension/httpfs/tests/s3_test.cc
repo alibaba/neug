@@ -280,15 +280,15 @@ TEST(S3OptionsBuilderTest, ExplicitCredentials) {
   options["CREDENTIALS_KIND"] = "Explicit";
   options["OSS_ACCESS_KEY_ID"] = "my-access-key";
   options["OSS_ACCESS_KEY_SECRET"] = "my-secret-key";
-  options["OSS_ENDPOINT"] = "oss-cn-hangzhou.aliyuncs.com";
+  options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
 
   auto config =
       S3OptionsBuilder(makeSchema("oss://bucket/key", options)).build();
   EXPECT_EQ(config.access_key, "my-access-key");
   EXPECT_EQ(config.secret_key, "my-secret-key");
   EXPECT_FALSE(config.anonymous);
-  EXPECT_EQ(config.endpoint, "oss-cn-hangzhou.aliyuncs.com");
-  EXPECT_EQ(config.region, "oss-cn-hangzhou");  // auto-detected
+  EXPECT_EQ(config.endpoint, "oss-cn-beijing.aliyuncs.com");
+  EXPECT_EQ(config.region, "oss-cn-beijing");  // auto-detected
   EXPECT_FALSE(config.path_style);              // OSS uses virtual hosting
 }
 
@@ -399,8 +399,8 @@ class S3IntegrationTest : public ::testing::Test {
       GTEST_SKIP() << "OSS_ACCESS_KEY_ID/OSS_ACCESS_KEY_SECRET not set; "
                       "skipping S3 integration tests";
     }
-    endpoint_ = getEnvOrDefault("OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com");
-    bucket_ = getEnvOrDefault("OSS_TEST_BUCKET", "neug");
+    endpoint_ = getEnvOrDefault("OSS_ENDPOINT", "oss-cn-beijing.aliyuncs.com");
+    bucket_ = getEnvOrDefault("OSS_TEST_BUCKET", "graphscope");
     prefix_ = getEnvOrDefault("OSS_TEST_PREFIX", "httpfs_test/");
   }
 
