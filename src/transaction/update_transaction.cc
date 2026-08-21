@@ -186,7 +186,8 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
 static Status renameVertexIndex(PropertyGraph& graph, label_t label,
                                 const std::string& old_name,
                                 const std::string& new_name) {
-  auto indexes = graph.mutable_index_manager().GetIndex(label, old_name);
+  auto indexes =
+      graph.mutable_index_manager().GetIndexForUpdate(label, old_name);
   if (!indexes) {
     return indexes.error();
   }
@@ -209,7 +210,7 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
   // Primary keys are stored separately from property_names, so maintain their
   // indexes explicitly.
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
   if (!pk_indexes) {
     return pk_indexes.error();
   }
@@ -225,8 +226,8 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
     if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }
@@ -255,7 +256,7 @@ static Status updateVertexIndexData(
     return Status::OK();
   }
 
-  auto indexes = graph.mutable_index_manager().GetIndex(
+  auto indexes = graph.mutable_index_manager().GetIndexForUpdate(
       label, v_schema->property_names[col_id]);
   if (!indexes) {
     return indexes.error();
@@ -281,7 +282,7 @@ static Status deleteVertexIndexData(
   // Primary keys are excluded from property_names, so delete their index
   // entries explicitly.
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndex(label, pk_name);
+  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
   if (!pk_indexes) {
     return pk_indexes.error();
   }
@@ -299,8 +300,8 @@ static Status deleteVertexIndexData(
     if (v_schema->vprop_soft_deleted[prop_idx]) {
       continue;
     }
-    auto indexes =
-        index_manager.GetIndex(label, v_schema->property_names[prop_idx]);
+    auto indexes = index_manager.GetIndexForUpdate(
+        label, v_schema->property_names[prop_idx]);
     if (!indexes) {
       return indexes.error();
     }
@@ -746,6 +747,21 @@ Status StorageTPUpdateInterface::DeleteEdgeTypeImpl(label_t src_label_id,
     mut_view_.Rebuild(*cow_graph_);
   }
   return status;
+}
+
+Status StorageTPUpdateInterface::AddGraphEntry(
+    const std::string& name, const ProjectedGraphEntry& entry) {
+  wal_.LogAddGraphEntry(name, entry);
+  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().AddGraphEntry(name, entry));
+  MarkSchemaDirty();
+  return Status::OK();
+}
+
+Status StorageTPUpdateInterface::DropGraphEntry(const std::string& name) {
+  wal_.LogDropGraphEntry(name);
+  RETURN_IF_NOT_OK(cow_graph_->mutable_schema().DropGraphEntry(name));
+  MarkSchemaDirty();
+  return Status::OK();
 }
 
 Status StorageTPUpdateInterface::AddVertexImpl(label_t label, const Value& oid,
@@ -1238,6 +1254,21 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
           graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
+    } else if (op_type == OpType::kAddGraphEntry) {
+      // The WAL directory belongs to the checkpoint being opened and contains
+      // only records from its fresh timestamp timeline. Therefore an existing
+      // entry here is a replay invariant violation, not an idempotent retry.
+      auto redo = AddGraphEntryRedo::Deserialize(arc);
+      auto status = graph.mutable_schema().AddGraphEntry(redo.name, redo.entry);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to replay projected graph add: ",
+                                     status);
+      graph.MarkSchemaDirty();
+    } else if (op_type == OpType::kDropGraphEntry) {
+      auto redo = DropGraphEntryRedo::Deserialize(arc);
+      auto status = graph.mutable_schema().DropGraphEntry(redo.name);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to replay projected graph drop: ",
+                                     status);
+      graph.MarkSchemaDirty();
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
                                     std::to_string(static_cast<int>(op_type)));

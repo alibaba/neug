@@ -87,6 +87,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
 
   auto* raw_ptr = index.get();
   indexes_[name] = std::move(index);
+  dirty_index_names_.insert(name);
   catalog_dirty_ = true;
   return raw_ptr;
 }
@@ -107,6 +108,7 @@ Status StorageIndexManager::DropIndex(const std::string& name) {
     return Status(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
   }
   indexes_.erase(it);
+  dirty_index_names_.erase(name);
   catalog_dirty_ = true;
   return Status::OK();
 }
@@ -133,6 +135,18 @@ neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndex(
     }
   }
   return target_indexes;
+}
+
+neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndexForUpdate(
+    label_t label_id, const std::string& property_name) {
+  auto indexes = GetIndex(label_id, property_name);
+  if (!indexes) {
+    return indexes;
+  }
+  for (auto* index : indexes.value()) {
+    dirty_index_names_.insert(index->GetMeta().name);
+  }
+  return indexes;
 }
 
 bool StorageIndexManager::HasPendingIndex(label_t label_id) const {
@@ -221,11 +235,12 @@ void StorageIndexManager::RecordPendingDelete(label_t label_id,
           PendingIndexMutation::Type::kDelete, label_id, vertex_id, {}}));
 }
 
-static Status ReplayPendingMutations(
+static result<bool> ReplayPendingMutations(
     StorageIndex& index,
     const std::vector<
         std::shared_ptr<const StorageIndexManager::PendingIndexMutation>>&
         mutations) {
+  bool replayed = false;
   const auto& meta = index.GetMeta();
   for (const auto& mutation_ptr : mutations) {
     const auto& mutation = *mutation_ptr;
@@ -235,16 +250,18 @@ static Status ReplayPendingMutations(
     if (mutation.type ==
         StorageIndexManager::PendingIndexMutation::Type::kDelete) {
       RETURN_IF_NOT_OK(index.Delete(mutation.vid));
+      replayed = true;
       continue;
     }
     for (const auto& [property_name, value] : mutation.properties) {
       if (property_name == meta.schema.property_name) {
         RETURN_IF_NOT_OK(index.Upsert(mutation.vid, value));
+        replayed = true;
         break;
       }
     }
   }
-  return Status::OK();
+  return replayed;
 }
 
 neug::result<StorageIndex*> StorageIndexManager::GetIndexByName(
@@ -309,7 +326,12 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
 
 result<size_t> StorageIndexManager::ActivateIndexes(
     const IndexColumns& columns) {
-  std::vector<std::pair<std::string, std::unique_ptr<StorageIndex>>> candidates;
+  struct Candidate {
+    std::string name;
+    std::unique_ptr<StorageIndex> index;
+    bool replayed_mutations;
+  };
+  std::vector<Candidate> candidates;
   auto& factory = ModuleFactory::instance();
   for (const auto& [name, pending] : pending_indexes_) {
     auto module = factory.Create(pending.descriptor.module_type);
@@ -335,13 +357,19 @@ result<size_t> StorageIndexManager::ActivateIndexes(
                                    name);
     }
     RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
-    RETURN_IF_NOT_OK(ReplayPendingMutations(*index, pending_mutations_));
-    candidates.emplace_back(name, std::move(index));
+    auto replayed = ReplayPendingMutations(*index, pending_mutations_);
+    if (!replayed) {
+      return replayed.error();
+    }
+    candidates.push_back(Candidate{name, std::move(index), replayed.value()});
   }
 
-  for (auto& [name, index] : candidates) {
+  for (auto& [name, index, replayed_mutations] : candidates) {
     indexes_[name] = std::move(index);
     pending_indexes_.erase(name);
+    if (replayed_mutations) {
+      dirty_index_names_.insert(name);
+    }
     LOG(INFO) << "Activated pending index: " << name;
   }
   if (pending_indexes_.empty()) {
@@ -351,22 +379,7 @@ result<size_t> StorageIndexManager::ActivateIndexes(
 }
 
 void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
-  if (!pending_mutations_.empty()) {
-    THROW_RUNTIME_ERROR(
-        "Cannot create a checkpoint while mutations for pending "
-        "extension-backed indexes have not been applied. Load the required "
-        "extension first.");
-  }
-  if (!pending_indexes_.empty() && !ckp_) {
-    THROW_RUNTIME_ERROR(
-        "Cannot preserve pending indexes without a previous checkpoint");
-  }
   for (const auto& [_, pending] : pending_indexes_) {
-    if (!ckp_->manifest().HasModule(pending.key)) {
-      THROW_RUNTIME_ERROR("Cannot preserve pending index module '" +
-                          pending.key +
-                          "': descriptor is missing from previous checkpoint");
-    }
     meta.ReuseModuleClosureFrom(ckp_->manifest(), pending.key);
   }
   for (auto& [name, index] : indexes_) {
@@ -377,6 +390,73 @@ void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
     store.SetModule(key, std::move(index));
   }
   indexes_.clear();
+}
+
+void StorageIndexManager::StageIncrementalModules(ModuleBroker& store,
+                                                  CheckpointManifest& meta) {
+  const auto& previous = ckp_->manifest();
+  for (const auto& [_, pending] : pending_indexes_) {
+    meta.ReuseModuleClosureFrom(previous, pending.key);
+  }
+
+  for (auto& [name, index] : indexes_) {
+    if (!index) {
+      continue;
+    }
+    const auto key = GetKey(name);
+    const bool must_dump =
+        dirty_index_names_.count(name) > 0 || !previous.HasModule(key);
+    if (must_dump) {
+      dirty_index_names_.insert(name);
+      store.SetModule(key, std::move(index));
+    } else {
+      meta.ReuseModuleClosureFrom(previous, key);
+    }
+  }
+}
+
+Status StorageIndexManager::ValidateCheckpointPreconditions() const {
+  if (!pending_mutations_.empty()) {
+    return Status(StatusCode::ERR_ILLEGAL_OPERATION,
+                  "Cannot create a checkpoint while mutations for pending "
+                  "extension-backed indexes have not been applied. Load the "
+                  "required extension first.");
+  }
+  if (!pending_indexes_.empty() && !ckp_) {
+    return Status(StatusCode::ERR_INTERNAL_ERROR,
+                  "Cannot preserve pending indexes without a previous "
+                  "checkpoint");
+  }
+
+  const CheckpointManifest* previous = ckp_ ? &ckp_->manifest() : nullptr;
+  for (const auto& [_, pending] : pending_indexes_) {
+    if (previous == nullptr || !previous->HasModule(pending.key)) {
+      return Status(StatusCode::ERR_INTERNAL_ERROR,
+                    "Cannot preserve pending index module '" + pending.key +
+                        "': descriptor is missing from previous checkpoint");
+    }
+  }
+  return Status::OK();
+}
+
+void StorageIndexManager::InstallIncrementalCheckpoint(
+    std::shared_ptr<Checkpoint> ckp) {
+  CheckpointManifest reopen_manifest;
+  for (const auto& name : dirty_index_names_) {
+    const auto it = indexes_.find(name);
+    CHECK(it != indexes_.end());
+    CHECK(it->second == nullptr);
+    reopen_manifest.ReuseModuleClosureFrom(ckp->manifest(), GetKey(name));
+  }
+
+  ModuleBroker reopened_modules;
+  reopened_modules.Open(*ckp, reopen_manifest, memory_level_);
+  for (const auto& name : dirty_index_names_) {
+    indexes_[name] = reopened_modules.TakeModule<StorageIndex>(GetKey(name));
+  }
+  ckp_ = std::move(ckp);
+  dirty_index_names_.clear();
+  catalog_dirty_ = false;
 }
 
 bool StorageIndexManager::IsIndexModule(const std::string& name) {
@@ -400,6 +480,7 @@ std::unique_ptr<StorageIndexManager> StorageIndexManager::Clone() const {
   }
   forked->pending_indexes_ = pending_indexes_;
   forked->pending_mutations_ = pending_mutations_;
+  forked->dirty_index_names_ = dirty_index_names_;
   forked->catalog_dirty_ = catalog_dirty_;
   return forked;
 }
@@ -408,6 +489,7 @@ void StorageIndexManager::Clear() {
   indexes_.clear();
   pending_indexes_.clear();
   pending_mutations_.clear();
+  dirty_index_names_.clear();
   catalog_dirty_ = false;
   ckp_.reset();
   memory_level_ = MemoryLevel::kInMemory;

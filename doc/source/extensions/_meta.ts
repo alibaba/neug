@@ -5,4 +5,5 @@ export default {
   load_parquet: "Parquet Extension",
   pattern_match: "Pattern Match Extension",
   vector_search: "Vector Search Extension",
+  fts_search: "Full-Text Search Extension",
 };

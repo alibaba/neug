@@ -24,8 +24,11 @@
 #include <string>
 
 #include "gopt_test.h"
+#include "neug/compiler/binder/binder.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
+#include "neug/compiler/function/table/bind_data.h"
+#include "neug/compiler/function/table/bind_input.h"
 
 namespace neug {
 using namespace function;
@@ -46,6 +49,36 @@ struct TestShowExtensionsFunctionSet {
   static function::function_set getFunctionSet() {
     function::function_set funcSet;
     funcSet.emplace_back(std::make_unique<TestShowExtensionsFunction>());
+    return funcSet;
+  }
+};
+
+class TestIndexScanFunction : public function::NeugCallFunction {
+ public:
+  TestIndexScanFunction()
+      : NeugCallFunction(
+            "TEST_INDEX_SCAN", {common::DataType::Varchar()},
+            {{"node_id", common::DataType(common::DataTypeId::kInt64)},
+             {"score", common::DataType(common::DataTypeId::kDouble)}}) {
+    TableFunction::bindFunc = [](main::ClientContext*,
+                                 const TableFuncBindInput* input) {
+      auto columns = input->binder->createVariables(
+          {"node_id", "score"},
+          {common::DataType(common::DataTypeId::kInt64),
+           common::DataType(common::DataTypeId::kDouble)});
+      auto result = std::make_unique<IndexScanBindData>(
+          std::move(columns), "test:index", input->params.at(0));
+      result->options.emplace("limit", "10");
+      return result;
+    };
+  }
+};
+
+struct TestIndexScanFunctionSet {
+  static constexpr const char* name = "TEST_INDEX_SCAN";
+  static function::function_set getFunctionSet() {
+    function::function_set funcSet;
+    funcSet.emplace_back(std::make_unique<TestIndexScanFunction>());
     return funcSet;
   }
 };
@@ -116,6 +149,27 @@ TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS_RETURN) {
   VerifyFactory::verifyResultByYaml(
       resultSchema,
       getExtensionResource("SHOW_LOADED_EXTENSIONS_RETURN_result"));
+}
+
+TEST_F(ExtensionTest, INDEX_SCAN_PHYSICAL_CONVERSION) {
+  extension::ExtensionAPI::registerFunction<TestIndexScanFunctionSet>(
+      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+  auto logical = planLogical("CALL TEST_INDEX_SCAN('needle');");
+  auto physical = planPhysical(*logical);
+
+  ASSERT_GE(physical->plan_size(), 1);
+  const auto& op = physical->plan(0);
+  ASSERT_TRUE(op.opr().has_index_scan());
+  const auto& scan = op.opr().index_scan();
+  EXPECT_EQ(scan.unique_index_name(), "test:index");
+  ASSERT_EQ(scan.options_size(), 1);
+  const auto option = scan.options().begin();
+  EXPECT_EQ(option->first, "limit");
+  EXPECT_EQ(option->second, "10");
+  ASSERT_EQ(scan.target_value().operators_size(), 1);
+  ASSERT_TRUE(scan.target_value().operators(0).has_const_());
+  EXPECT_EQ(scan.target_value().operators(0).const_().str(), "needle");
+  EXPECT_EQ(op.meta_data_size(), 2);
 }
 
 TEST_F(ExtensionTest, COPY_TO_CSV) {

@@ -350,16 +350,31 @@ neug::Status CsvQueryExportWriter::writeTable(
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "entry_schema is null");
   }
-  auto stream = io::openLocalOutputStream(schema_.paths[0]);
-  if (!stream) {
-    return neug::Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
-  }
-
   WriteOptions writeOpts;
   auto batchSize = writeOpts.batch_rows.get(schema_.options);
   if (batchSize <= 0) {
     return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Batch size should be positive");
+  }
+  // Open the output stream only after validation and after the query
+  // results were already sunk by write(), so an export that fails before
+  // producing data never truncates the target. Use the injected opener when
+  // provided (e.g. a remote stream resolved via the VFS); otherwise fall
+  // back to a local file.
+  std::unique_ptr<io::OutputStream> stream_holder;
+  try {
+    if (stream_opener_) {
+      stream_holder = stream_opener_();
+    } else {
+      stream_holder = io::openLocalOutputStream(schema_.paths[0]);
+    }
+  } catch (const std::exception& e) {
+    return neug::Status(StatusCode::ERR_IO_ERROR,
+                        "Failed to open output file: " + std::string(e.what()));
+  }
+  io::OutputStream* stream = stream_holder.get();
+  if (!stream) {
+    return neug::Status(StatusCode::ERR_IO_ERROR, "Failed to open output file");
   }
   auto csvBuffer = CSVStringFormatBuffer(table, schema_, *entry_schema_);
   csvBuffer.addHeader();
@@ -370,7 +385,9 @@ neug::Status CsvQueryExportWriter::writeTable(
     if (i % batchSize == batchSize - 1) {
       auto status = csvBuffer.flush(*stream);
       if (!status.ok()) {
-        (void) stream->Close();
+        // Abort instead of Close: finalizing a remote stream would publish
+        // a partial object.
+        stream->Abort();
         return neug::Status(StatusCode::ERR_IO_ERROR,
                             "Failed to flush CSV buffer: " + status.ToString());
       }
@@ -379,7 +396,7 @@ neug::Status CsvQueryExportWriter::writeTable(
 
   auto status = csvBuffer.flush(*stream);
   if (!status.ok()) {
-    (void) stream->Close();
+    stream->Abort();
     return neug::Status(StatusCode::ERR_IO_ERROR,
                         "Failed to flush CSV buffer: " + status.ToString());
   }

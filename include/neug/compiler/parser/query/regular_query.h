@@ -56,6 +56,12 @@ class RegularQuery : public Statement {
 
   std::vector<bool> getIsUnionAll() const { return isUnionAll; }
 
+  void setNamespaceName(std::string name) { namespaceName = std::move(name); }
+
+  bool hasNamespaceName() const { return namespaceName.has_value(); }
+
+  const std::string& getNamespaceName() const { return *namespaceName; }
+
   void setPreQueryPart(std::vector<QueryPart> preQueryPart) {
     this->preQueryPart = std::move(preQueryPart);
   }
@@ -84,6 +90,7 @@ class RegularQuery : public Statement {
  private:
   std::vector<SingleQuery> singleQueries;
   std::vector<bool> isUnionAll;
+  std::optional<std::string> namespaceName;
 
   std::vector<std::unique_ptr<ParsedExpression>> preQueryExprs;
   std::vector<QueryPart> preQueryPart;

@@ -91,58 +91,21 @@ function(build_arrow_as_third_party)
     else()
         set(ARROW_PARQUET OFF CACHE BOOL "" FORCE)
     endif()
+    # S3 support is intentionally NOT built into Arrow. The httpfs extension
+    # implements the S3 protocol (SigV4, ranged GET, ListObjectsV2, multipart
+    # upload) directly on top of libcurl + OpenSSL, so Arrow's bundled AWS SDK
+    # (and its aws-lc/BoringSSL + static libcurl baggage) is no longer needed.
+    # The retired ARROW_ENABLE_S3 flag has no effect anymore; warn loudly
+    # instead of silently ignoring it (stale cache entries from older
+    # builds would otherwise suggest Arrow S3 is still enabled).
     if(ARROW_ENABLE_S3)
-        set(ARROW_S3 ON CACHE BOOL "" FORCE)
-        # Prefer the static libcurl built by scripts/install_deps.sh under the
-        # install prefix (e.g. /opt/neug).  Linking Arrow against this static
-        # libcurl, which is itself linked against the bundled static OpenSSL
-        # 1.1.1k, lets the resulting extension be free of the system libcurl /
-        # system OpenSSL 3.0 dependency at runtime and avoid TLS symbol
-        # conflicts with Arrow's bundled aws-lc/BoringSSL.
-        foreach(_curl_prefix IN LISTS CMAKE_PREFIX_PATH)
-            if(NOT CURL_LIBRARY AND EXISTS "${_curl_prefix}/lib/libcurl.a")
-                set(CURL_LIBRARY "${_curl_prefix}/lib/libcurl.a" CACHE FILEPATH "" FORCE)
-            endif()
-            if(NOT CURL_LIBRARY AND EXISTS "${_curl_prefix}/lib64/libcurl.a")
-                set(CURL_LIBRARY "${_curl_prefix}/lib64/libcurl.a" CACHE FILEPATH "" FORCE)
-            endif()
-            if(NOT CURL_INCLUDE_DIR AND EXISTS "${_curl_prefix}/include/curl/curl.h")
-                set(CURL_INCLUDE_DIR "${_curl_prefix}/include" CACHE PATH "" FORCE)
-            endif()
-        endforeach()
-        unset(_curl_prefix)
-        # On Debian/Ubuntu multiarch, headers and libraries live under
-        # /usr/include/<triplet>/ and /usr/lib/<triplet>/ which CMake's
-        # FindCURL may not search by default.  Use CMAKE_LIBRARY_ARCHITECTURE
-        # (auto-detected triplet, e.g. x86_64-linux-gnu or aarch64-linux-gnu).
-        if(CMAKE_LIBRARY_ARCHITECTURE)
-            set(_curl_multiarch_inc "/usr/include/${CMAKE_LIBRARY_ARCHITECTURE}")
-            set(_curl_multiarch_lib "/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}")
-            if(NOT CURL_INCLUDE_DIR AND EXISTS "${_curl_multiarch_inc}/curl/curl.h")
-                set(CURL_INCLUDE_DIR "${_curl_multiarch_inc}" CACHE PATH "" FORCE)
-            endif()
-            if(NOT CURL_LIBRARY AND EXISTS "${_curl_multiarch_lib}/libcurl.so")
-                set(CURL_LIBRARY "${_curl_multiarch_lib}/libcurl.so" CACHE FILEPATH "" FORCE)
-            endif()
-            unset(_curl_multiarch_inc)
-            unset(_curl_multiarch_lib)
-        endif()
-        # Fail fast with a clear message before Arrow's bundled S3 toolchain
-        # emits a generic "Could NOT find CURL" that hides the real cause.
-        # See issue 480.
-        if(NOT (CURL_LIBRARY AND CURL_INCLUDE_DIR))
-            find_package(CURL QUIET)
-            if(NOT CURL_FOUND)
-                message(FATAL_ERROR
-                    "The 'httpfs' extension requires libcurl development "
-                    "headers (e.g. libcurl4-openssl-dev on Debian/Ubuntu, "
-                    "libcurl-devel on RHEL). Install it, or drop 'httpfs' "
-                    "from -DBUILD_EXTENSIONS.")
-            endif()
-        endif()
-    else()
-        set(ARROW_S3 OFF CACHE BOOL "" FORCE)
+        message(WARNING "ARROW_ENABLE_S3 is no longer supported and will be "
+            "ignored: S3 support now lives in the httpfs extension's "
+            "curl-based client. Remove -DARROW_ENABLE_S3 from your build "
+            "configuration.")
+        unset(ARROW_ENABLE_S3 CACHE)
     endif()
+    set(ARROW_S3 OFF CACHE BOOL "" FORCE)
     # Enable Snappy and Zlib
     set(ARROW_WITH_SNAPPY ON CACHE BOOL "" FORCE)
     set(ARROW_WITH_ZLIB ON CACHE BOOL "" FORCE)

@@ -8,5 +8,8 @@ file(GLOB_RECURSE EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cc"
 
 add_library(neug_execution OBJECT ${EXECUTION_SRC_FILES})
 add_dependencies(neug_execution neug_proto)
+if(MSVC)
+    target_compile_options(neug_execution PRIVATE /bigobj)
+endif()
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_execution> PARENT_SCOPE)
 target_include_directories(neug_execution PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)

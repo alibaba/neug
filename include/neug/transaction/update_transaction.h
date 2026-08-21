@@ -183,6 +183,10 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry) override;
+  Status DropGraphEntry(const std::string& name) override;
+
  private:
   // Marks go to the COW clone; abort discards them with the clone.
   void MarkVertexTableDirty(label_t label) override {
@@ -248,7 +252,6 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       const DeleteEdgePropertiesParam& config) override;
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
-
   // --- COW detach helpers ---
   Status detachVertexTableForInsert(label_t label);
   Status detachVertexTableForDelete(label_t label);

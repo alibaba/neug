@@ -49,9 +49,11 @@ class UpdateTimestampLease;
  * the live process; a recovery-path failure aborts database open.
  *
  * - WalEpochActivationHandler (optional): set by the service owner and
- *   invoked on the manual path. It activates
+ *   invoked on manual and incremental publication paths. It activates
  *   service-owned state such as execution-slot WAL rotation for the published
- *   checkpoint.
+ *   checkpoint. A caller that owns live WAL writers must register it before
+ *   publishing an incremental checkpoint; callers without WAL writers may
+ *   leave it unset.
  *
  * Shutdown checkpoints invoke neither, because they do not reopen the graph.
  */
@@ -62,7 +64,9 @@ class CheckpointCoordinator {
   using PostReopenHandler =
       std::function<void(const std::string& checkpoint_allocator_dir)>;
 
-  /// Optional service-owned state activation for the manual path.
+  /// Optional service-owned state activation after manual or incremental
+  /// checkpoint publication. It is required for an incremental publisher that
+  /// owns live WAL writers.
   /// Invoked with the published checkpoint's WAL directory.
   using WalEpochActivationHandler =
       std::function<void(const std::string& checkpoint_wal_dir)>;
@@ -90,6 +94,15 @@ class CheckpointCoordinator {
   /// caller transfers an active update lease that has not entered the commit
   /// phase and must not hold an ordinary snapshot pin.
   Status PublishManualCheckpoint(UpdateTimestampLease timestamp_lease);
+
+  /// Publish a non-compacting checkpoint for an already-mutated live graph.
+  /// The caller transfers an active update lease; this method drains readers
+  /// before mutating the live snapshot. Only dirty modules are dumped and
+  /// reopened; the allocator and transaction timeline remain active. If the
+  /// graph is clean, this is a no-op: it returns OK without publishing a
+  /// checkpoint or rotating a WAL epoch. A caller with live WAL writers must
+  /// register WalEpochActivationHandler before a non-no-op publication.
+  Status PublishIncrementalCheckpoint(UpdateTimestampLease timestamp_lease);
 
   /// Publish a recovery checkpoint and reopen the live graph.
   Status PublishRecoveryCheckpoint();

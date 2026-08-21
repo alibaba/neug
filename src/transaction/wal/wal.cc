@@ -283,6 +283,27 @@ void DeleteEdgeTypeRedo::Deserialize(OutArchive& arc,
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
 }
 
+void AddGraphEntryRedo::Serialize(InArchive& arc, const std::string& name,
+                                  const ProjectedGraphEntry& entry) {
+  arc << static_cast<uint8_t>(OpType::kAddGraphEntry) << name << entry;
+}
+
+AddGraphEntryRedo AddGraphEntryRedo::Deserialize(OutArchive& arc) {
+  AddGraphEntryRedo redo;
+  arc >> redo.name >> redo.entry;
+  return redo;
+}
+
+void DropGraphEntryRedo::Serialize(InArchive& arc, const std::string& name) {
+  arc << static_cast<uint8_t>(OpType::kDropGraphEntry) << name;
+}
+
+DropGraphEntryRedo DropGraphEntryRedo::Deserialize(OutArchive& arc) {
+  DropGraphEntryRedo redo;
+  arc >> redo.name;
+  return redo;
+}
+
 void InsertVertexRedo::Serialize(InArchive& arc, label_t label,
                                  const Value& oid,
                                  const std::vector<Value>& props) {

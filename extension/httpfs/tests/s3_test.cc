@@ -1,81 +1,59 @@
 /**
- * OSS Integration tests for S3 extension
+ * Tests for the httpfs S3 extension (curl-based, no Arrow/AWS SDK).
+ *
+ * Unit tests (URI parsing, SigV4 signing, glob helpers, option building) run
+ * offline. Integration tests (list/read/write against a real endpoint) only
+ * run when OSS_ACCESS_KEY_ID + OSS_ACCESS_KEY_SECRET are set in the
+ * environment.
  */
 
-#include <arrow/buffer.h>
-#include <arrow/filesystem/s3fs.h>
 #include <glog/logging.h>
 #include <cstdlib>
-#include <iomanip>
+#include <cstring>
+#include <ctime>
+#include <random>
+#include <string>
+#include <vector>
 #include "glob_utils.h"
 #include "gtest/gtest.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
+#include "s3_client.h"
 #include "s3_filesystem.h"
+#include "s3_options.h"
+#include "s3_sigv4.h"
 
+using neug::extension::s3::HasGlobWildcard;
+using neug::extension::s3::LongestGlobPrefix;
+using neug::extension::s3::MatchGlobPattern;
+using neug::extension::s3::S3Client;
+using neug::extension::s3::S3ClientConfig;
 using neug::extension::s3::S3FileSystem;
+using neug::extension::s3::S3OptionsBuilder;
 using neug::extension::s3::S3URIComponents;
+using neug::extension::s3::SignSigV4;
+using neug::extension::s3::SigV4Credentials;
+using neug::extension::s3::SigV4Request;
 using neug::reader::FileSchema;
 
-// Helper: build resolved paths + arrow FS from a schema via the new interface.
-struct S3FileInfo {
-  std::vector<std::string> resolvedPaths;
-  std::shared_ptr<arrow::fs::FileSystem> fileSystem;
-};
-static S3FileInfo provideS3(const FileSchema& schema) {
-  S3FileSystem fs(schema);
-  S3FileInfo info;
-  for (const auto& path : schema.paths) {
-    auto resolved = fs.glob(path);
-    info.resolvedPaths.insert(info.resolvedPaths.end(), resolved.begin(),
-                              resolved.end());
-  }
-  info.fileSystem =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
-  return info;
+namespace {
+
+std::string getEnvOrDefault(const char* name,
+                            const std::string& default_value) {
+  const char* value = std::getenv(name);
+  return value ? std::string(value) : default_value;
 }
 
-class S3ExtensionTest : public ::testing::Test {
- protected:
-  // Called once before all tests in this test suite
-  static void SetUpTestSuite() {
-    // Initialize Arrow S3 subsystem once for all tests
-    auto status = arrow::fs::EnsureS3Initialized();
-    if (!status.ok()) {
-      FAIL() << "Failed to initialize Arrow S3: " << status.ToString();
-    }
-  }
+FileSchema makeSchema(const std::string& path,
+                      const neug::reader::options_t& options = {}) {
+  FileSchema schema;
+  schema.paths = {path};
+  schema.options = options;
+  return schema;
+}
 
-  // Called once after all tests in this test suite
-  static void TearDownTestSuite() {
-    // Finalize Arrow S3 subsystem to prevent exit crash
-    auto status = arrow::fs::FinalizeS3();
-    if (!status.ok()) {
-      LOG(WARNING) << "Failed to finalize Arrow S3: " << status.ToString();
-    }
-  }
-
-  // Called before each test case
-  void SetUp() override {
-    oss_endpoint_ =
-        getEnvOrDefault("OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com");
-    oss_bucket_ = getEnvOrDefault("OSS_TEST_BUCKET", "neug");
-    oss_access_key_ = getEnvOrDefault("OSS_ACCESS_KEY_ID", "");
-    oss_secret_key_ = getEnvOrDefault("OSS_ACCESS_KEY_SECRET", "");
-  }
-
-  std::string getEnvOrDefault(const char* name,
-                              const std::string& default_value) {
-    const char* value = std::getenv(name);
-    return value ? std::string(value) : default_value;
-  }
-
-  std::string oss_endpoint_;
-  std::string oss_bucket_;
-  std::string oss_access_key_;
-  std::string oss_secret_key_;
-};
+}  // namespace
 
 // ============================================================================
 // 1. URI Parsing Tests
@@ -84,9 +62,18 @@ class S3ExtensionTest : public ::testing::Test {
 TEST(S3URIParserTest, ParseValidURI) {
   auto components =
       S3URIComponents::parse("s3://my-bucket/path/to/file.parquet");
+  EXPECT_EQ(components.scheme, "s3");
   EXPECT_EQ(components.bucket, "my-bucket");
   EXPECT_EQ(components.objectKey, "path/to/file.parquet");
   EXPECT_FALSE(components.hasGlob);
+}
+
+TEST(S3URIParserTest, ParseOSSURI) {
+  auto components =
+      S3URIComponents::parse("oss://my-bucket/path/to/file.parquet");
+  EXPECT_EQ(components.scheme, "oss");
+  EXPECT_EQ(components.bucket, "my-bucket");
+  EXPECT_EQ(components.objectKey, "path/to/file.parquet");
 }
 
 TEST(S3URIParserTest, ParseURIWithoutKey) {
@@ -103,859 +90,489 @@ TEST(S3URIParserTest, ParseURIWithGlobPattern) {
   EXPECT_TRUE(components.hasGlob);
 }
 
-TEST(S3URIParserTest, ParseURIWithMultipleGlobs) {
-  auto components = S3URIComponents::parse("s3://my-bucket/*/data/?.csv");
-  EXPECT_EQ(components.bucket, "my-bucket");
-  EXPECT_EQ(components.objectKey, "*/data/?.csv");
-  EXPECT_TRUE(components.hasGlob);
-}
-
-TEST(S3URIParserTest, ParseNestedPath) {
-  auto components = S3URIComponents::parse(
-      "s3://data-lake/year=2024/month=01/day=01/data.parquet");
-  EXPECT_EQ(components.bucket, "data-lake");
-  EXPECT_EQ(components.objectKey, "year=2024/month=01/day=01/data.parquet");
-  EXPECT_FALSE(components.hasGlob);
-}
-
-// parse() rejects URIs with non-s3/oss schemes (e.g. http://).
-// VFS Provide() also rejects unsupported protocols at the dispatch layer,
-// but parse() validates independently since it is an S3-specific parser.
-TEST(S3URIParserTest, InvalidURIMissingScheme) {
-  EXPECT_THROW({ S3URIComponents::parse("http://my-bucket/file.parquet"); },
-               neug::exception::Exception);
-}
-
-TEST(S3URIParserTest, InvalidURIMissingBucket) {
-  EXPECT_THROW({ S3URIComponents::parse("s3:///path/to/file"); },
-               neug::exception::Exception);
-}
-
-TEST(S3URIParserTest, InvalidURIWrongFormat) {
-  // s3:/bucket/file — single slash, not a valid s3:// URI.
-  // stripS3Scheme does not match (requires "s3://"), and the string does
-  // not contain "://" either, so parse() treats it as a bare path with
-  // bucket = "s3:".
-  // This is an edge case; in practice VFS Provide() would route it to
-  // the "file" protocol (no "://" found) so it would never reach parse().
-  auto components = S3URIComponents::parse("s3:/bucket/file");
-  EXPECT_EQ(components.bucket, "s3:");
-
-  // s3:// with nothing after — empty bucket, parse() rejects this.
-  EXPECT_THROW({ S3URIComponents::parse("s3://"); },
-               neug::exception::Exception);
-}
-
-TEST(S3URIParserTest, BucketNameValidation) {
-  EXPECT_THROW({ S3URIComponents::parse("s3://ab/file"); },
-               neug::exception::Exception);
-
-  std::string long_bucket(64, 'a');
-  EXPECT_THROW({ S3URIComponents::parse("s3://" + long_bucket + "/file"); },
-               neug::exception::Exception);
-}
-
-TEST(S3URIParserTest, SpecialCharactersInKey) {
+TEST(S3URIParserTest, ToURI) {
   auto components =
-      S3URIComponents::parse("s3://my-bucket/path/file%20with%20spaces.txt");
+      S3URIComponents::parse("oss://my-bucket/path/to/file.parquet");
+  EXPECT_EQ(components.toURI(), "oss://my-bucket/path/to/file.parquet");
+}
+
+TEST(S3URIParserTest, ParseFlexibleBarePath) {
+  auto components = S3URIComponents::parseFlexible("my-bucket/key/file.csv");
   EXPECT_EQ(components.bucket, "my-bucket");
-  EXPECT_EQ(components.objectKey, "path/file%20with%20spaces.txt");
+  EXPECT_EQ(components.objectKey, "key/file.csv");
 }
 
-TEST(S3URIParserTest, RecursiveGlobPattern) {
-  auto components = S3URIComponents::parse("s3://my-bucket/**/data.csv");
-  EXPECT_EQ(components.bucket, "my-bucket");
-  EXPECT_EQ(components.objectKey, "**/data.csv");
-  EXPECT_TRUE(components.hasGlob);
-}
-
-// ============================================================================
-// 2. S3Options Configuration Tests
-// ============================================================================
-
-TEST_F(S3ExtensionTest, BuildS3Options_DefaultAWS) {
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  // No endpoint specified - should use AWS defaults
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_TRUE(s3_options.endpoint_override.empty());  // Default AWS
-  EXPECT_EQ(s3_options.region, "us-east-1");          // Default region
-  EXPECT_EQ(s3_options.scheme, "https");
-  EXPECT_FALSE(s3_options.force_virtual_addressing);  // AWS default
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_OSSEndpoint) {
-  FileSchema schema;
-  schema.paths = {"oss://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_EQ(s3_options.endpoint_override, "oss-cn-beijing.aliyuncs.com");
-  EXPECT_EQ(s3_options.region, "oss-cn-beijing");  // Auto-detected
-  EXPECT_EQ(s3_options.scheme, "https");
-  EXPECT_TRUE(s3_options.force_virtual_addressing);  // OSS requires this
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_ExplicitRegion) {
-  FileSchema schema;
-  schema.paths = {"oss://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-  schema.options["OSS_REGION"] = "custom-region";
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_EQ(s3_options.region,
-            "custom-region");  // Explicit region overrides auto-detect
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_HTTPSScheme) {
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["OSS_ENDPOINT"] = "https://oss-cn-shanghai.aliyuncs.com";
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_EQ(s3_options.endpoint_override, "oss-cn-shanghai.aliyuncs.com");
-  EXPECT_EQ(s3_options.scheme, "https");
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_AnonymousCredentials) {
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_EQ(s3_options.credentials_kind,
-            arrow::fs::S3CredentialsKind::Anonymous);
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_ExplicitCredentials) {
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["CREDENTIALS_KIND"] = "Explicit";
-  schema.options["OSS_ACCESS_KEY_ID"] = "test-key";
-  schema.options["OSS_ACCESS_KEY_SECRET"] = "test-secret";
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_EQ(s3_options.credentials_kind,
-            arrow::fs::S3CredentialsKind::Explicit);
-  EXPECT_EQ(s3_options.GetAccessKey(), "test-key");
-  EXPECT_EQ(s3_options.GetSecretKey(), "test-secret");
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_AWSCredentialsAlias) {
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["CREDENTIALS_KIND"] = "Explicit";
-  schema.options["AWS_ACCESS_KEY_ID"] = "aws-key";
-  schema.options["AWS_SECRET_ACCESS_KEY"] = "aws-secret";
-
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-
-  EXPECT_EQ(s3_options.GetAccessKey(), "aws-key");
-  EXPECT_EQ(s3_options.GetSecretKey(), "aws-secret");
-}
-
-// ============================================================================
-// Unsupported CREDENTIALS_KIND values (Role, WebIdentity) are rejected
-// early in resolveCredentialsKind() with a clear error message.
-// ============================================================================
-
-TEST_F(S3ExtensionTest, CredentialsKind_Role_ThrowsUnsupported) {
-  // Rejection must be case-insensitive ("role", "ROLE", "Role" all unsupported)
-  for (const std::string val : {"role", "ROLE", "Role"}) {
-    FileSchema schema;
-    schema.paths = {"s3://test-bucket/file.parquet"};
-    schema.protocol = "s3";
-    schema.options["CREDENTIALS_KIND"] = val;
-
-    EXPECT_THROW(S3FileSystem::buildS3Options(schema),
-                 neug::exception::Exception)
-        << "Expected throw for CREDENTIALS_KIND='" << val << "'";
-  }
-}
-
-TEST_F(S3ExtensionTest, CredentialsKind_WebIdentity_ThrowsUnsupported) {
-  for (const std::string val : {"webidentity", "WEBIDENTITY", "WebIdentity"}) {
-    FileSchema schema;
-    schema.paths = {"s3://test-bucket/file.parquet"};
-    schema.protocol = "s3";
-    schema.options["CREDENTIALS_KIND"] = val;
-
-    EXPECT_THROW(S3FileSystem::buildS3Options(schema),
-                 neug::exception::Exception)
-        << "Expected throw for CREDENTIALS_KIND='" << val << "'";
-  }
-}
-
-TEST_F(S3ExtensionTest, CredentialsKind_InvalidValue_ThrowsWithHint) {
-  // An unrecognized value should also throw, with a hint listing valid values.
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["CREDENTIALS_KIND"] = "NotARealKind";
-
-  EXPECT_THROW(S3FileSystem::buildS3Options(schema),
-               neug::exception::Exception);
-}
-
-TEST_F(S3ExtensionTest, BuildS3Options_MultiRegion) {
-  std::vector<std::pair<std::string, std::string>> regions = {
-      {"oss-cn-hangzhou.aliyuncs.com", "oss-cn-hangzhou"},
-      {"oss-cn-beijing.aliyuncs.com", "oss-cn-beijing"},
-      {"oss-cn-shanghai.aliyuncs.com", "oss-cn-shanghai"},
-      {"oss-cn-shenzhen.aliyuncs.com", "oss-cn-shenzhen"}};
-
-  for (const auto& [endpoint, expected_region] : regions) {
-    FileSchema schema;
-    schema.paths = {"oss://test/file.parquet"};
-    schema.protocol = "s3";
-    schema.options["OSS_ENDPOINT"] = endpoint;
-
-    auto s3_options = S3FileSystem::buildS3Options(schema);
-
-    EXPECT_EQ(s3_options.endpoint_override, endpoint);
-    EXPECT_EQ(s3_options.region, expected_region);
-    EXPECT_EQ(s3_options.scheme, "https");
-    EXPECT_TRUE(s3_options.force_virtual_addressing);
-  }
-}
-
-// ============================================================================
-// 3. Path Resolution Tests (resolveS3Paths)
-// ============================================================================
-
-// Note: These tests require a mock S3FileSystem or real S3/OSS access
-// For now, we focus on testing the parsing logic
-
-TEST_F(S3ExtensionTest, ResolveS3Paths_SingleDirectPath) {
-  // This test validates the URI parsing part of resolveS3Paths
-  auto components = S3URIComponents::parse("s3://bucket/data/file.parquet");
-
-  // Expected Arrow path format: "bucket/data/file.parquet"
-  std::string expected_arrow_path = components.bucket;
-  if (!components.objectKey.empty()) {
-    expected_arrow_path += "/" + components.objectKey;
-  }
-
-  EXPECT_EQ(expected_arrow_path, "bucket/data/file.parquet");
-  EXPECT_FALSE(components.hasGlob);
-}
-
-TEST_F(S3ExtensionTest, ResolveS3Paths_MultipleDirectPaths) {
-  std::vector<std::string> paths = {"s3://bucket/file1.parquet",
-                                    "s3://bucket/file2.parquet",
-                                    "oss://bucket/file3.parquet"};
-
-  std::vector<std::string> expected_arrow_paths;
-  for (const auto& path : paths) {
-    auto components = S3URIComponents::parse(path);
-    std::string arrow_path = components.bucket;
-    if (!components.objectKey.empty()) {
-      arrow_path += "/" + components.objectKey;
-    }
-    expected_arrow_paths.push_back(arrow_path);
-    EXPECT_FALSE(components.hasGlob);
-  }
-
-  EXPECT_EQ(expected_arrow_paths.size(), 3);
-  EXPECT_EQ(expected_arrow_paths[0], "bucket/file1.parquet");
-  EXPECT_EQ(expected_arrow_paths[1], "bucket/file2.parquet");
-  EXPECT_EQ(expected_arrow_paths[2], "bucket/file3.parquet");
-}
-
-TEST_F(S3ExtensionTest, ResolveS3Paths_GlobPattern) {
-  auto components = S3URIComponents::parse("s3://bucket/data/*.parquet");
-
-  EXPECT_EQ(components.bucket, "bucket");
-  EXPECT_EQ(components.objectKey, "data/*.parquet");
-  EXPECT_TRUE(components.hasGlob);
-}
-
-TEST_F(S3ExtensionTest, ResolveS3Paths_NestedGlobPattern) {
+TEST(S3URIParserTest, ParseFlexibleFullURI) {
   auto components =
-      S3URIComponents::parse("oss://bucket/year=2024/month=*/data.parquet");
-
-  EXPECT_EQ(components.bucket, "bucket");
-  EXPECT_EQ(components.objectKey, "year=2024/month=*/data.parquet");
-  EXPECT_TRUE(components.hasGlob);
+      S3URIComponents::parseFlexible("s3://my-bucket/key/file.csv");
+  EXPECT_EQ(components.bucket, "my-bucket");
+  EXPECT_EQ(components.objectKey, "key/file.csv");
 }
 
-TEST_F(S3ExtensionTest, ResolveS3Paths_BucketOnlyPath) {
-  auto components = S3URIComponents::parse("s3://bucket");
-
-  std::string arrow_path = components.bucket;
-  if (!components.objectKey.empty()) {
-    arrow_path += "/" + components.objectKey;
-  }
-
-  EXPECT_EQ(arrow_path, "bucket");
-  EXPECT_FALSE(components.hasGlob);
+TEST(S3URIParserTest, InvalidSchemeThrows) {
+  EXPECT_THROW(S3URIComponents::parse("ftp://bucket/key"),
+               neug::exception::IOException);
+  EXPECT_THROW(S3URIComponents::parse("bucket/key"),
+               neug::exception::IOException);
 }
 
 // ============================================================================
-// 4. End-to-End Integration Tests (Real OSS/S3 Access)
+// 2. Glob Helper Tests
 // ============================================================================
 
-TEST_F(S3ExtensionTest, E2E_InitializeOSSWithAnonymousAccess) {
-  // Test OSS public bucket with explicit anonymous access
-  // Using GraphScope public dataset on OSS
-  FileSchema schema;
-  schema.paths = {"oss://graphscope/neug-dataset/tinysnb/vPerson.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "s3";
-  // Use AWS-compatible option names
-  schema.options["ENDPOINT_OVERRIDE"] = "oss-cn-beijing.aliyuncs.com";
-  schema.options["AWS_DEFAULT_REGION"] = "oss-cn-beijing";
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-
-  auto fileInfo = provideS3(schema);
-  EXPECT_NE(fileInfo.fileSystem, nullptr);
-  EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-
-  auto file_path = fileInfo.resolvedPaths[0];
-  // Note: resolvedPaths already returns Arrow-format paths ("bucket/key"), not
-  // "s3://" or "oss://" So we can use it directly with Arrow's GetFileInfo()
-  auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-  if (file_info_result.ok()) {
-    auto info = *file_info_result;
-    LOG(INFO) << "Test: File info retrieved successfully";
-    LOG(INFO) << "  Type: " << (info.IsFile() ? "file" : "directory");
-    LOG(INFO) << "  Size: " << info.size() << " bytes";
-    EXPECT_TRUE(info.IsFile());
-    EXPECT_GT(info.size(), 0);  // File should have content
-    SUCCEED() << "OSS anonymous access works - file verified: " << info.size()
-              << " bytes";
-  } else {
-    FAIL() << "Failed to get file info: "
-           << file_info_result.status().ToString();
-  }
+TEST(GlobUtilsTest, MatchGlobPattern) {
+  EXPECT_TRUE(MatchGlobPattern("data/2026/a.parquet", "data/2026/*.parquet"));
+  EXPECT_FALSE(MatchGlobPattern("data/2026/b.csv", "data/2026/*.parquet"));
+  EXPECT_TRUE(MatchGlobPattern("a.csv", "?.csv"));
+  EXPECT_TRUE(MatchGlobPattern("data/x/y.parquet", "data/*.parquet"));
 }
 
-TEST_F(S3ExtensionTest, E2E_InitializeAWSS3WithAnonymousAccess) {
-  // Test with AWS S3 public bucket (no OSS, just AWS S3)
-  // Using NOAA's public dataset which supports anonymous access
-  FileSchema schema;
-  schema.paths = {
-      "s3://noaa-ghcn-pds/csv/by_year/1763.csv"};  // NOAA public dataset
-  schema.format = "csv";
-  schema.protocol = "s3";
-  // Use AWS-compatible option names
-  // IMPORTANT: Explicitly set empty endpoint to override any environment
-  // variables This ensures we use default AWS S3 endpoint, not OSS
-  schema.options["ENDPOINT_OVERRIDE"] = "";  // Force default AWS S3 endpoint
-  schema.options["AWS_DEFAULT_REGION"] =
-      "us-east-1";  // NOAA bucket is in us-east-1
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-
-  LOG(INFO) << "Test: Initializing AWS S3 with anonymous credentials...";
-  auto fileInfo = provideS3(schema);
-  LOG(INFO) << "Test: AWS S3 FileSystem initialized successfully";
-  EXPECT_NE(fileInfo.fileSystem, nullptr);
-  EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-
-  // Verify we can actually get file info (proves connectivity)
-  auto file_path = fileInfo.resolvedPaths[0];
-  LOG(INFO) << "Test: Attempting to get file info for: " << file_path;
-
-  // Note: resolvedPaths already returns Arrow-format paths ("bucket/key"), not
-  // "s3://bucket/key" So we can use it directly with Arrow's GetFileInfo()
-  auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-  if (file_info_result.ok()) {
-    auto info = *file_info_result;
-    LOG(INFO) << "Test: File info retrieved successfully";
-    LOG(INFO) << "  Type: " << (info.IsFile() ? "file" : "directory");
-    LOG(INFO) << "  Size: " << info.size() << " bytes";
-    EXPECT_TRUE(info.IsFile());
-    EXPECT_GT(info.size(), 0);  // File should have content
-    SUCCEED() << "AWS S3 anonymous access works - file verified: "
-              << info.size() << " bytes";
-  } else {
-    FAIL() << "Failed to get file info: "
-           << file_info_result.status().ToString();
-  }
+TEST(GlobUtilsTest, LongestGlobPrefix) {
+  EXPECT_EQ(LongestGlobPrefix("data/2026/*.parquet"), "data/2026/");
+  EXPECT_EQ(LongestGlobPrefix("data/*.parquet"), "data/");
+  EXPECT_EQ(LongestGlobPrefix("*.parquet"), "");
+  EXPECT_EQ(LongestGlobPrefix("data/file.parquet"), "data/file.parquet");
 }
 
-TEST_F(S3ExtensionTest, E2E_InitializeOSSWithEnvVariables) {
-  // Check credentials
-  if (oss_access_key_.empty() || oss_secret_key_.empty()) {
-    GTEST_SKIP() << "OSS credentials not configured. "
-                 << "Set OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET "
-                    "environment variables to run this test.";
-  }
-
-  // Test OSS with Default credential mode (Arrow SDK credential chain)
-  FileSchema schema;
-  schema.paths = {"oss://graphscope/neug/vPerson.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "s3";
-  schema.options["ENDPOINT_OVERRIDE"] = "oss-cn-beijing.aliyuncs.com";
-
-  auto fileInfo = provideS3(schema);
-  EXPECT_NE(fileInfo.fileSystem, nullptr);
-  EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-
-  auto file_path = fileInfo.resolvedPaths[0];
-  // Note: resolvedPaths already returns Arrow-format paths ("bucket/key"), not
-  // "s3://" or "oss://" So we can use it directly with Arrow's GetFileInfo()
-  auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-  if (file_info_result.ok()) {
-    auto info = *file_info_result;
-    LOG(INFO) << "Test: File info retrieved successfully";
-    LOG(INFO) << "  Type: " << (info.IsFile() ? "file" : "directory");
-    LOG(INFO) << "  Size: " << info.size() << " bytes";
-    EXPECT_TRUE(info.IsFile());
-    EXPECT_GT(info.size(), 0);  // File should have content
-    SUCCEED() << "OSS anonymous access works - file verified: " << info.size()
-              << " bytes";
-  } else {
-    FAIL() << "Failed to get file info: "
-           << file_info_result.status().ToString();
-  }
+TEST(GlobUtilsTest, HasGlobWildcard) {
+  EXPECT_TRUE(HasGlobWildcard("data/*.parquet"));
+  EXPECT_TRUE(HasGlobWildcard("data/?.parquet"));
+  EXPECT_TRUE(HasGlobWildcard("data/[abc].parquet"));
+  EXPECT_FALSE(HasGlobWildcard("data/file.parquet"));
 }
 
 // ============================================================================
-// 5. OSS Public Parquet File Access Test
+// 3. SigV4 Signing Tests (AWS official golden test vectors)
 // ============================================================================
 
-TEST_F(S3ExtensionTest, E2E_AccessOSSPublicParquetFile) {
-  // Test accessing public Parquet file on OSS (GraphScope dataset)
-  // URL:
-  // https://graphscope.oss-cn-beijing.aliyuncs.com/neug-dataset/GithubGraphTest/nodes_Actor.parquet
-  // Size: 157,466 bytes (154 KB)
+// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-auth.html
+// GET Object example.
+TEST(SigV4Test, GetObjectGoldenVector) {
+  // Note: this documented example uses the secret key variant with '/'
+  // (not the '+B' variant from the general SigV4 docs).
+  SigV4Credentials creds{"AKIAIOSFODNN7EXAMPLE",
+                         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"};
+  SigV4Request req;
+  req.method = "GET";
+  req.host = "examplebucket.s3.amazonaws.com";
+  req.canonical_uri = "/test.txt";
+  req.extra_headers = {{"range", "bytes=0-9"}};
+  req.payload_hash = neug::extension::s3::EmptyPayloadSHA256();
 
-  FileSchema schema;
-  schema.paths = {
-      "oss://graphscope/neug-dataset/GithubGraphTest/nodes_Actor.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "s3";
-  // Use OSS_ENDPOINT (NeuG canonical name) for OSS endpoint configuration
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-  schema.options["OSS_REGION"] = "oss-cn-beijing";
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
+  // 2013-05-24T00:00:00Z
+  std::time_t fixed_time = 1369353600;
+  auto signed_req = SignSigV4(creds, "us-east-1", "s3", req, fixed_time);
 
-  S3FileSystem fs(schema);
-  LOG(INFO) << "Test: OSS FileSystem initialized successfully";
+  EXPECT_EQ(signed_req.amz_date, "20130524T000000Z");
+  EXPECT_EQ(signed_req.date_stamp, "20130524");
+  EXPECT_EQ(signed_req.authorization,
+            "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/"
+            "us-east-1/s3/aws4_request, "
+            "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, "
+            "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039"
+            "c6036bdb41");
 
-  auto resolvedPaths = fs.glob(schema.paths[0]);
-  auto arrowFs =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
-
-  EXPECT_NE(arrowFs, nullptr);
-  EXPECT_FALSE(resolvedPaths.empty());
-
-  // Get file info
-  auto file_path = resolvedPaths[0];
-  LOG(INFO) << "Test: Attempting to access: " << file_path;
-
-  auto file_info_result = arrowFs->GetFileInfo(file_path);
-  ASSERT_TRUE(file_info_result.ok())
-      << "Failed to get file info: " << file_info_result.status().ToString();
-
-  auto info = *file_info_result;
-  LOG(INFO) << "Test: File info retrieved successfully";
-  LOG(INFO) << "  Path: " << info.path();
-  LOG(INFO) << "  Type: " << (info.IsFile() ? "File" : "Directory");
-  LOG(INFO) << "  Size: " << info.size() << " bytes";
-
-  EXPECT_TRUE(info.IsFile());
-  EXPECT_EQ(info.size(), 157466) << "Expected 157466 bytes (154 KB)";
-
-  // Try to open and read the file
-  auto file_result = arrowFs->OpenInputFile(file_path);
-  ASSERT_TRUE(file_result.ok())
-      << "Failed to open file: " << file_result.status().ToString();
-
-  auto file = *file_result;
-  auto size_result = file->GetSize();
-  ASSERT_TRUE(size_result.ok());
-
-  LOG(INFO) << "Test: File opened successfully";
-  LOG(INFO) << "  Confirmed size: " << *size_result << " bytes";
-
-  EXPECT_EQ(*size_result, 157466);
-
-  // Read first 4 bytes to verify Parquet magic number
-  auto buffer_result = file->Read(4);
-  ASSERT_TRUE(buffer_result.ok())
-      << "Failed to read file: " << buffer_result.status().ToString();
-
-  auto buffer = *buffer_result;
-  ASSERT_EQ(buffer->size(), 4);
-
-  // Parquet magic number: "PAR1" (0x50 0x41 0x52 0x31)
-  const uint8_t* data = buffer->data();
-  LOG(INFO) << "Test: Read first 4 bytes successfully";
-  LOG(INFO) << "  Magic bytes: " << std::hex << std::setfill('0')
-            << std::setw(2) << (int) data[0] << " " << std::setw(2)
-            << (int) data[1] << " " << std::setw(2) << (int) data[2] << " "
-            << std::setw(2) << (int) data[3] << std::dec;
-
-  EXPECT_EQ(data[0], 0x50);  // 'P'
-  EXPECT_EQ(data[1], 0x41);  // 'A'
-  EXPECT_EQ(data[2], 0x52);  // 'R'
-  EXPECT_EQ(data[3], 0x31);  // '1'
-
-  LOG(INFO) << "✓ OSS public Parquet file access successful";
-  LOG(INFO) << "  - File size verified: 157466 bytes";
-  LOG(INFO) << "  - Parquet magic number verified: PAR1";
-  LOG(INFO) << "  - S3FileSystem can access OSS public data";
-}
-
-// ============================================================================
-// 6. Negative Test: HTTPS URL Cannot Be Accessed via S3FileSystem
-// ============================================================================
-
-TEST_F(S3ExtensionTest, E2E_HTTPSURLNotSupportedViaS3) {
-  // This test demonstrates that S3FileSystem CANNOT access plain HTTPS URLs
-  // URL:
-  // https://graphscope.oss-cn-beijing.aliyuncs.com/neug-dataset/GithubGraphTest/nodes_Actor.parquet
-  //
-  // Why it fails:
-  // 1. S3FileSystem sends S3 API requests (GetObject, ListBucket, etc.)
-  // 2. Regular HTTPS servers don't implement S3 API
-  // 3. Arrow 18.0.0 doesn't have HttpFileSystem
-  //
-  // Correct approach: Use oss:// URI with OSS endpoint configuration
-
-  FileSchema schema;
-  // Try to use HTTPS URL directly (this should fail)
-  schema.paths = {
-      "https://graphscope.oss-cn-beijing.aliyuncs.com/neug-dataset/"
-      "GithubGraphTest/nodes_Actor.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "s3";  // Using S3 protocol with HTTPS URL
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-
-  LOG(INFO) << "Test: Attempting to access HTTPS URL via S3FileSystem "
-               "(expected to fail)...";
-
-  // This should either:
-  // 1. Throw an exception during S3FileSystem construction due to invalid URI
-  // format
-  // 2. Fail during GetFileInfo() because the path doesn't exist in S3 format
-
-  try {
-    auto fileInfo = provideS3(schema);
-
-    if (fileInfo.fileSystem != nullptr && !fileInfo.resolvedPaths.empty()) {
-      auto file_path = fileInfo.resolvedPaths[0];
-      LOG(INFO) << "Test: Resolved path: " << file_path;
-
-      auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-
-      // If we get here, the request was made but should fail
-      if (!file_info_result.ok()) {
-        LOG(INFO) << "✓ As expected: S3 API request to HTTPS URL failed";
-        LOG(INFO) << "  Error: " << file_info_result.status().ToString();
-        SUCCEED() << "HTTPS URL correctly rejected by S3FileSystem";
-      } else {
-        // This would be very surprising - S3FileSystem somehow accessed a
-        // non-S3 HTTPS URL
-        auto info = *file_info_result;
-        LOG(WARNING) << "Unexpected: File info retrieved successfully?";
-        LOG(WARNING) << "  Type: " << (info.IsFile() ? "File" : "Directory");
-        LOG(WARNING) << "  Size: " << info.size();
-        FAIL() << "Unexpected success: S3FileSystem should not be able to "
-                  "access plain HTTPS URLs";
-      }
-    } else {
-      LOG(INFO)
-          << "✓ FileSystem initialization failed (as expected for HTTPS URL)";
-      SUCCEED();
+  // Regression: the Authorization header must be part of the outgoing header
+  // set — the HTTP client sends signed_req.headers verbatim.
+  bool found_auth = false;
+  for (const auto& h : signed_req.headers) {
+    if (h.first == "authorization") {
+      found_auth = true;
+      EXPECT_EQ(h.second, signed_req.authorization);
     }
-  } catch (const neug::exception::Exception& e) {
-    LOG(INFO) << "✓ As expected: Exception thrown when trying to use HTTPS URL";
-    LOG(INFO) << "  Error: " << e.what();
-    SUCCEED() << "HTTPS URL correctly rejected: " << e.what();
-  } catch (const std::exception& e) {
-    LOG(INFO) << "✓ As expected: Exception thrown";
-    LOG(INFO) << "  Error: " << e.what();
-    SUCCEED();
+  }
+  EXPECT_TRUE(found_auth) << "Authorization header missing from headers";
+}
+
+// PUT Object example (payload "Welcome to Amazon S3.", key "test$file.text",
+// extra Date + x-amz-storage-class headers).
+TEST(SigV4Test, PutObjectGoldenVector) {
+  SigV4Credentials creds{"AKIAIOSFODNN7EXAMPLE",
+                         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"};
+  const std::string payload = "Welcome to Amazon S3.";
+  SigV4Request req;
+  req.method = "PUT";
+  req.host = "examplebucket.s3.amazonaws.com";
+  req.canonical_uri = "/test%24file.text";
+  req.extra_headers = {
+      {"date", "Fri, 24 May 2013 00:00:00 GMT"},
+      {"x-amz-storage-class", "REDUCED_REDUNDANCY"},
+  };
+  req.payload_hash = neug::extension::s3::SHA256Hex(payload);
+
+  std::time_t fixed_time = 1369353600;
+  auto signed_req = SignSigV4(creds, "us-east-1", "s3", req, fixed_time);
+
+  EXPECT_EQ(signed_req.authorization,
+            "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/"
+            "us-east-1/s3/aws4_request, "
+            "SignedHeaders=date;host;x-amz-content-sha256;x-amz-date;"
+            "x-amz-storage-class, "
+            "Signature=98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971a"
+            "f0ece108bd");
+}
+
+// An empty payload_hash must be resolved to the empty-payload SHA256 before
+// signing, and the same resolved value must appear in both the
+// x-amz-content-sha256 header and the canonical request; otherwise the
+// signature cannot match. Verify by comparing against the GetObject golden
+// vector above, which signs the identical request with an explicit hash.
+TEST(SigV4Test, EmptyPayloadHashResolvedConsistently) {
+  SigV4Credentials creds{"AKIAIOSFODNN7EXAMPLE",
+                         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"};
+  SigV4Request req;
+  req.method = "GET";
+  req.host = "examplebucket.s3.amazonaws.com";
+  req.canonical_uri = "/test.txt";
+  req.extra_headers = {{"range", "bytes=0-9"}};
+  req.payload_hash = "";  // let the signer resolve the fallback
+
+  std::time_t fixed_time = 1369353600;
+  auto signed_req = SignSigV4(creds, "us-east-1", "s3", req, fixed_time);
+
+  // The outgoing x-amz-content-sha256 header must carry the resolved hash.
+  bool found_hash_header = false;
+  for (const auto& h : signed_req.headers) {
+    if (h.first == "x-amz-content-sha256") {
+      found_hash_header = true;
+      EXPECT_EQ(h.second, neug::extension::s3::EmptyPayloadSHA256());
+    }
+  }
+  EXPECT_TRUE(found_hash_header);
+
+  // Same request as the GET golden vector -> the signature must be identical.
+  EXPECT_EQ(signed_req.authorization,
+            "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/"
+            "us-east-1/s3/aws4_request, "
+            "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, "
+            "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039"
+            "c6036bdb41");
+}
+
+TEST(SigV4Test, AnonymousSkipsSigning) {
+  SigV4Credentials creds;  // empty -> anonymous
+  SigV4Request req;
+  req.method = "GET";
+  req.host = "examplebucket.s3.amazonaws.com";
+  req.canonical_uri = "/test.txt";
+
+  auto signed_req = SignSigV4(creds, "us-east-1", "s3", req, 1369353600);
+  EXPECT_TRUE(signed_req.authorization.empty());
+  for (const auto& h : signed_req.headers) {
+    EXPECT_NE(h.first, "authorization")
+        << "Anonymous requests must not carry an Authorization header";
+  }
+}
+
+TEST(SigV4Test, UriEncode) {
+  EXPECT_EQ(neug::extension::s3::UriEncode("a/b c.txt", false), "a/b%20c.txt");
+  EXPECT_EQ(neug::extension::s3::UriEncode("a/b c.txt", true), "a%2Fb%20c.txt");
+  EXPECT_EQ(neug::extension::s3::UriEncode("test$file.txt", false),
+            "test%24file.txt");
+}
+
+// ============================================================================
+// 4. Option Building Tests (offline)
+// ============================================================================
+
+TEST(S3OptionsBuilderTest, ExplicitCredentials) {
+  neug::reader::options_t options;
+  options["CREDENTIALS_KIND"] = "Explicit";
+  options["OSS_ACCESS_KEY_ID"] = "my-access-key";
+  options["OSS_ACCESS_KEY_SECRET"] = "my-secret-key";
+  options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
+
+  auto config =
+      S3OptionsBuilder(makeSchema("oss://bucket/key", options)).build();
+  EXPECT_EQ(config.access_key, "my-access-key");
+  EXPECT_EQ(config.secret_key, "my-secret-key");
+  EXPECT_FALSE(config.anonymous);
+  EXPECT_EQ(config.endpoint, "oss-cn-beijing.aliyuncs.com");
+  EXPECT_EQ(config.region, "oss-cn-beijing");  // auto-detected
+  EXPECT_FALSE(config.path_style);             // OSS uses virtual hosting
+}
+
+TEST(S3OptionsBuilderTest, ExplicitCredentialsMissingThrows) {
+  neug::reader::options_t options;
+  options["CREDENTIALS_KIND"] = "Explicit";
+  EXPECT_THROW(S3OptionsBuilder(makeSchema("s3://bucket/key", options)).build(),
+               neug::exception::InvalidArgumentException);
+}
+
+TEST(S3OptionsBuilderTest, AnonymousKind) {
+  neug::reader::options_t options;
+  options["CREDENTIALS_KIND"] = "Anonymous";
+  auto config =
+      S3OptionsBuilder(makeSchema("s3://bucket/key", options)).build();
+  EXPECT_TRUE(config.anonymous);
+}
+
+TEST(S3OptionsBuilderTest, DefaultWithoutCredsThrows) {
+  // Save original environment values
+  const char* orig_oss_ak = std::getenv("OSS_ACCESS_KEY_ID");
+  const char* orig_oss_sk = std::getenv("OSS_ACCESS_KEY_SECRET");
+  const char* orig_aws_ak = std::getenv("AWS_ACCESS_KEY_ID");
+  const char* orig_aws_sk = std::getenv("AWS_SECRET_ACCESS_KEY");
+  std::string saved_oss_ak = orig_oss_ak ? orig_oss_ak : "";
+  std::string saved_oss_sk = orig_oss_sk ? orig_oss_sk : "";
+  std::string saved_aws_ak = orig_aws_ak ? orig_aws_ak : "";
+  std::string saved_aws_sk = orig_aws_sk ? orig_aws_sk : "";
+
+  // Make sure no credentials leak in from the environment.
+  ::unsetenv("OSS_ACCESS_KEY_ID");
+  ::unsetenv("OSS_ACCESS_KEY_SECRET");
+  ::unsetenv("AWS_ACCESS_KEY_ID");
+  ::unsetenv("AWS_SECRET_ACCESS_KEY");
+
+  // Default mode must fail loudly when no credentials are available:
+  // silently downgrading to anonymous would break deployments that rely
+  // on ~/.aws/credentials or IAM/ECS roles (no longer supported) with
+  // hard-to-diagnose 403s.
+  EXPECT_THROW(S3OptionsBuilder(makeSchema("s3://bucket/key")).build(),
+               neug::exception::InvalidArgumentException);
+
+  // Restore original environment
+  if (!saved_oss_ak.empty())
+    ::setenv("OSS_ACCESS_KEY_ID", saved_oss_ak.c_str(), 1);
+  if (!saved_oss_sk.empty())
+    ::setenv("OSS_ACCESS_KEY_SECRET", saved_oss_sk.c_str(), 1);
+  if (!saved_aws_ak.empty())
+    ::setenv("AWS_ACCESS_KEY_ID", saved_aws_ak.c_str(), 1);
+  if (!saved_aws_sk.empty())
+    ::setenv("AWS_SECRET_ACCESS_KEY", saved_aws_sk.c_str(), 1);
+}
+
+TEST(S3OptionsBuilderTest, DefaultReadsEnvironmentVariables) {
+  // Save and clear OSS_ vars so they don't interfere with AWS_ test
+  const char* orig_oss_ak = std::getenv("OSS_ACCESS_KEY_ID");
+  const char* orig_oss_sk = std::getenv("OSS_ACCESS_KEY_SECRET");
+  std::string saved_oss_ak = orig_oss_ak ? orig_oss_ak : "";
+  std::string saved_oss_sk = orig_oss_sk ? orig_oss_sk : "";
+  ::unsetenv("OSS_ACCESS_KEY_ID");
+  ::unsetenv("OSS_ACCESS_KEY_SECRET");
+
+  ::setenv("TEST_S3_AK", "env-access-key", 1);
+  ::setenv("TEST_S3_SK", "env-secret-key", 1);
+  // Point the builder at env creds via AWS alias keys.
+  ::setenv("AWS_ACCESS_KEY_ID", "env-access-key", 1);
+  ::setenv("AWS_SECRET_ACCESS_KEY", "env-secret-key", 1);
+
+  auto config = S3OptionsBuilder(makeSchema("s3://bucket/key")).build();
+  EXPECT_FALSE(config.anonymous);
+  // Use EXPECT_TRUE to avoid printing credentials on test failure
+  EXPECT_TRUE(config.access_key == "env-access-key") << "access_key mismatch";
+  EXPECT_TRUE(config.secret_key == "env-secret-key") << "secret_key mismatch";
+
+  ::unsetenv("AWS_ACCESS_KEY_ID");
+  ::unsetenv("AWS_SECRET_ACCESS_KEY");
+  ::unsetenv("TEST_S3_AK");
+  ::unsetenv("TEST_S3_SK");
+
+  // Restore OSS_ vars
+  if (!saved_oss_ak.empty())
+    ::setenv("OSS_ACCESS_KEY_ID", saved_oss_ak.c_str(), 1);
+  if (!saved_oss_sk.empty())
+    ::setenv("OSS_ACCESS_KEY_SECRET", saved_oss_sk.c_str(), 1);
+}
+
+TEST(S3OptionsBuilderTest, EndpointSchemeParsing) {
+  neug::reader::options_t options;
+  options["ENDPOINT_OVERRIDE"] = "http://localhost:9000";
+  // This test targets endpoint parsing; opt out of credential resolution
+  // (Default now fails fast when no credentials are configured).
+  options["CREDENTIALS_KIND"] = "Anonymous";
+  auto config =
+      S3OptionsBuilder(makeSchema("s3://bucket/key", options)).build();
+  EXPECT_EQ(config.endpoint, "localhost:9000");
+  EXPECT_EQ(config.scheme, "http");
+  EXPECT_TRUE(config.path_style);  // localhost -> path-style
+}
+
+TEST(S3OptionsBuilderTest, UnsupportedCredentialsKindThrows) {
+  neug::reader::options_t options;
+  options["CREDENTIALS_KIND"] = "Role";
+  EXPECT_THROW(S3OptionsBuilder(makeSchema("s3://bucket/key", options)).build(),
+               neug::exception::InvalidArgumentException);
+}
+
+// ============================================================================
+// 5. FileSystem-level Tests (offline)
+// ============================================================================
+
+TEST(S3FileSystemTest, GlobDirectPathNoNetwork) {
+  // A glob without wildcards must not touch the network at all.
+  neug::reader::options_t options;
+  options["CREDENTIALS_KIND"] = "Anonymous";
+  S3FileSystem fs(makeSchema("s3://bucket/data/file.parquet", options));
+  auto resolved = fs.glob("s3://bucket/data/file.parquet");
+  ASSERT_EQ(resolved.size(), 1u);
+  EXPECT_EQ(resolved[0], "s3://bucket/data/file.parquet");
+}
+
+TEST(S3FileSystemTest, RemoteFileSystemNonNull) {
+  neug::reader::options_t options;
+  options["CREDENTIALS_KIND"] = "Anonymous";
+  S3FileSystem fs(makeSchema("s3://bucket/data/file.parquet", options));
+  EXPECT_NE(fs.getRemoteFileSystem(), nullptr);
+}
+
+TEST(S3FileSystemTest, InvalidPathThrows) {
+  EXPECT_THROW(S3FileSystem(makeSchema("ftp://bucket/key")),
+               neug::exception::IOException);
+}
+
+// ============================================================================
+// 6. Integration Tests (require real credentials in the environment)
+// ============================================================================
+
+class S3IntegrationTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    access_key_ = getEnvOrDefault("OSS_ACCESS_KEY_ID", "");
+    secret_key_ = getEnvOrDefault("OSS_ACCESS_KEY_SECRET", "");
+    if (access_key_.empty() || secret_key_.empty()) {
+      GTEST_SKIP() << "OSS_ACCESS_KEY_ID/OSS_ACCESS_KEY_SECRET not set; "
+                      "skipping S3 integration tests";
+    }
+    endpoint_ = getEnvOrDefault("OSS_ENDPOINT", "oss-cn-beijing.aliyuncs.com");
+    bucket_ = getEnvOrDefault("OSS_TEST_BUCKET", "graphscope");
+    prefix_ = getEnvOrDefault("OSS_TEST_PREFIX", "httpfs_test/");
   }
 
-  LOG(INFO) << "";
-  LOG(INFO) << "=== Key Findings ===";
-  LOG(INFO) << "✗ S3FileSystem CANNOT access plain HTTPS URLs";
-  LOG(INFO) << "✓ Reason: S3FileSystem uses S3 API (GetObject, etc.)";
-  LOG(INFO) << "✓ Solution: Use oss:// URI with OSS_ENDPOINT configuration";
-  LOG(INFO) << "✓ Example: oss://bucket/path + "
-               "OSS_ENDPOINT=oss-cn-beijing.aliyuncs.com";
-}
-
-// ============================================================================
-// Fix #4: Glob Pattern Matching (fnmatch-based)
-// Tests for MatchGlobPattern using POSIX fnmatch, including [abc] support.
-// ============================================================================
-
-using neug::extension::s3::MatchGlobPattern;
-
-TEST(GlobPatternTest, BasicStarMatch) {
-  EXPECT_TRUE(MatchGlobPattern("test.parquet", "*.parquet"));
-  EXPECT_TRUE(MatchGlobPattern("abc.parquet", "*.parquet"));
-  EXPECT_FALSE(MatchGlobPattern("test.csv", "*.parquet"));
-}
-
-TEST(GlobPatternTest, StarMatchesSlash) {
-  // '*' should match '/' in S3 paths (no FNM_PATHNAME flag)
-  EXPECT_TRUE(MatchGlobPattern("data/sub/test.parquet", "data*.parquet"));
-  EXPECT_TRUE(MatchGlobPattern("a/b/c.txt", "*c.txt"));
-}
-
-TEST(GlobPatternTest, QuestionMarkMatch) {
-  EXPECT_TRUE(MatchGlobPattern("file1.csv", "file?.csv"));
-  EXPECT_TRUE(MatchGlobPattern("fileX.csv", "file?.csv"));
-  EXPECT_FALSE(MatchGlobPattern("file12.csv", "file?.csv"));
-}
-
-TEST(GlobPatternTest, CharacterClassMatch) {
-  // [abc] character classes are now supported via fnmatch
-  EXPECT_TRUE(MatchGlobPattern("file1.csv", "file[123].csv"));
-  EXPECT_TRUE(MatchGlobPattern("file2.csv", "file[123].csv"));
-  EXPECT_TRUE(MatchGlobPattern("file3.csv", "file[123].csv"));
-  EXPECT_FALSE(MatchGlobPattern("file4.csv", "file[123].csv"));
-}
-
-TEST(GlobPatternTest, NegatedCharacterClass) {
-  // [!abc] negated character class
-  EXPECT_FALSE(MatchGlobPattern("fileA.csv", "file[!ABC].csv"));
-  EXPECT_TRUE(MatchGlobPattern("fileD.csv", "file[!ABC].csv"));
-  EXPECT_TRUE(MatchGlobPattern("file1.csv", "file[!ABC].csv"));
-}
-
-TEST(GlobPatternTest, CharacterRange) {
-  // [a-z] character range
-  EXPECT_TRUE(MatchGlobPattern("data_a.parquet", "data_[a-z].parquet"));
-  EXPECT_TRUE(MatchGlobPattern("data_m.parquet", "data_[a-z].parquet"));
-  EXPECT_FALSE(MatchGlobPattern("data_A.parquet", "data_[a-z].parquet"));
-  EXPECT_FALSE(MatchGlobPattern("data_1.parquet", "data_[a-z].parquet"));
-}
-
-TEST(GlobPatternTest, ExactMatch) {
-  EXPECT_TRUE(MatchGlobPattern("exact.txt", "exact.txt"));
-  EXPECT_FALSE(MatchGlobPattern("exact.txt", "other.txt"));
-}
-
-TEST(GlobPatternTest, EmptyPatternAndText) {
-  EXPECT_TRUE(MatchGlobPattern("", ""));
-  EXPECT_TRUE(MatchGlobPattern("", "*"));
-  EXPECT_FALSE(MatchGlobPattern("nonempty", ""));
-}
-
-TEST(GlobPatternTest, S3PathLikePatterns) {
-  // Typical S3/OSS path patterns
-  EXPECT_TRUE(MatchGlobPattern("year=2024/month=01/data.parquet",
-                               "year=2024/month=*/data.parquet"));
-  EXPECT_TRUE(MatchGlobPattern("prefix/subdir/file_001.parquet",
-                               "prefix/*/file_*.parquet"));
-  EXPECT_FALSE(MatchGlobPattern("prefix/subdir/file_001.csv",
-                                "prefix/*/file_*.parquet"));
-}
-
-// ============================================================================
-// Fix #13: DoubleOption Non-Negative Validation
-// Verify that negative timeout values are rejected.
-// ============================================================================
-
-TEST(DoubleOptionTest, ValidPositiveValue) {
-  auto opt = neug::reader::Option<double>::DoubleOption("TIMEOUT", 5.0);
-  neug::reader::options_t options;
-  options["TIMEOUT"] = "10.5";
-  EXPECT_DOUBLE_EQ(opt.get(options), 10.5);
-}
-
-TEST(DoubleOptionTest, DefaultValue) {
-  auto opt = neug::reader::Option<double>::DoubleOption("TIMEOUT", 5.0);
-  neug::reader::options_t options;  // no key present
-  EXPECT_DOUBLE_EQ(opt.get(options), 5.0);
-}
-
-TEST(DoubleOptionTest, ZeroIsAccepted) {
-  auto opt = neug::reader::Option<double>::DoubleOption("TIMEOUT", 5.0);
-  neug::reader::options_t options;
-  options["TIMEOUT"] = "0";
-  EXPECT_DOUBLE_EQ(opt.get(options), 0.0);
-}
-
-TEST(DoubleOptionTest, NegativeValueThrows) {
-  auto opt = neug::reader::Option<double>::DoubleOption("TIMEOUT", 5.0);
-  neug::reader::options_t options;
-  options["TIMEOUT"] = "-1.0";
-  EXPECT_THROW(opt.get(options), neug::exception::Exception);
-}
-
-TEST(DoubleOptionTest, InvalidStringThrows) {
-  auto opt = neug::reader::Option<double>::DoubleOption("TIMEOUT", 5.0);
-  neug::reader::options_t options;
-  options["TIMEOUT"] = "not_a_number";
-  EXPECT_THROW(opt.get(options), neug::exception::Exception);
-}
-
-// ============================================================================
-// S3 Write Support Tests
-// Verify that the S3 write path (OpenOutputStream) is functional.
-// ============================================================================
-
-// Test: glob() returns bare paths ("bucket/key" format) as expected by Arrow.
-// This is the production code's normalization path for reads.
-TEST_F(S3ExtensionTest, Glob_ReturnsBarePathFormat) {
-  FileSchema schema;
-  schema.paths = {"oss://graphscope/neug-dataset/tinysnb/vPerson.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "s3";
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-
-  S3FileSystem fs(schema);
-
-  // glob() internally parses the URI and returns bare bucket/key paths
-  auto resolved = fs.glob(schema.paths[0]);
-  ASSERT_FALSE(resolved.empty());
-  // Should NOT start with oss:// or s3://
-  EXPECT_FALSE(resolved[0].starts_with("oss://"));
-  EXPECT_FALSE(resolved[0].starts_with("s3://"));
-  EXPECT_EQ(resolved[0], "graphscope/neug-dataset/tinysnb/vPerson.parquet");
-}
-
-// Test: After glob() returns bare paths, GetFileInfo works on real OSS data.
-TEST_F(S3ExtensionTest, GetFileInfo_AfterGlob) {
-  FileSchema schema;
-  schema.paths = {"oss://graphscope/neug-dataset/tinysnb/vPerson.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "s3";
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-
-  S3FileSystem fs(schema);
-  auto arrow_fs =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
-
-  // glob() returns bare paths ready for Arrow FS
-  auto resolved = fs.glob(schema.paths[0]);
-  ASSERT_FALSE(resolved.empty());
-  auto result = arrow_fs->GetFileInfo(resolved[0]);
-  ASSERT_TRUE(result.ok()) << "GetFileInfo failed: "
-                           << result.status().ToString();
-  auto info = *result;
-  EXPECT_TRUE(info.IsFile());
-  EXPECT_GT(info.size(), 0);
-}
-
-// Test: Writing to a public (read-only) bucket should fail with permission
-// error (AccessDenied). This proves the write path
-// is fully connected through S3FileSystemWrapper → Arrow S3.
-TEST_F(S3ExtensionTest, WriteToPublicBucket_ReturnsPermissionError) {
-  FileSchema schema;
-  schema.paths = {"oss://graphscope/neug/write_test_output.csv"};
-  schema.protocol = "s3";
-  schema.options["CREDENTIALS_KIND"] = "Anonymous";
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-
-  S3FileSystem fs(schema);
-  auto arrow_fs =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
-
-  // Use glob to get bare path (same as production read path)
-  // For write, we manually strip since there's no glob step in production
-  // write path — Provide() handles it via scheme stripping.
-  std::string path = "graphscope/neug-dataset/write_test_output.csv";
-
-  // Attempt to open an output stream on a read-only public bucket
-  auto result = arrow_fs->OpenOutputStream(path);
-
-  // Should fail with a permission/access error, NOT NotImplemented
-  ASSERT_FALSE(result.ok());
-  std::string error_msg = result.status().ToString();
-  // Arrow S3 returns IOError with AWS error details for permission denied
-  EXPECT_TRUE(result.status().IsIOError())
-      << "Expected IOError, got: " << error_msg;
-  // Verify it's not a "NotImplemented" error (which would mean write path is
-  // broken)
-  EXPECT_FALSE(result.status().IsNotImplemented())
-      << "OpenOutputStream returned NotImplemented — write path is not "
-         "connected";
-}
-
-// Test: When credentials are available in env vars, perform real write +
-// read-back using Default credential mode (auto-detection from environment).
-// Uses the same bucket/endpoint as other OSS tests (graphscope).
-// Skipped unless OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET are set.
-TEST_F(S3ExtensionTest, WriteAndReadBack_WithDefaultCredentials) {
-  if (oss_access_key_.empty() || oss_secret_key_.empty()) {
-    GTEST_SKIP() << "OSS credentials not configured. "
-                 << "Set OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET "
-                    "environment variables to run this test.";
+  neug::reader::options_t baseOptions() {
+    neug::reader::options_t options;
+    options["OSS_ENDPOINT"] = endpoint_;
+    return options;
   }
 
-  FileSchema schema;
-  schema.paths = {"oss://graphscope/neug/write_test_output.txt"};
-  schema.protocol = "s3";
-  schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
+  std::string access_key_;
+  std::string secret_key_;
+  std::string endpoint_;
+  std::string bucket_;
+  std::string prefix_;
+};
 
-  S3FileSystem fs(schema);
-  auto arrow_fs =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
+TEST_F(S3IntegrationTest, WriteListReadRoundTrip) {
+  // Generate a deterministic pseudo-random payload (~1 MiB).
+  std::string payload;
+  payload.reserve(1 << 20);
+  std::mt19937_64 rng(42);
+  while (payload.size() < (1u << 20)) {
+    uint64_t v = rng();
+    payload.append(reinterpret_cast<const char*>(&v), sizeof(v));
+  }
 
-  // In production, Provide() strips the scheme. Here we use the bare path
-  // directly.
-  std::string test_path = "graphscope/neug/write_test_output.txt";
+  const std::string key = prefix_ + "roundtrip.bin";
+  const std::string uri = "oss://" + bucket_ + "/" + key;
 
-  // Write
-  std::string content = "NeuG S3 write test\n";
-  auto write_result = arrow_fs->OpenOutputStream(test_path);
-  ASSERT_TRUE(write_result.ok()) << write_result.status().ToString();
-  auto stream = *write_result;
-  auto write_status = stream->Write(content.data(), content.size());
-  ASSERT_TRUE(write_status.ok()) << write_status.ToString();
-  auto close_status = stream->Close();
-  ASSERT_TRUE(close_status.ok()) << close_status.ToString();
+  // Write via the RemoteFileSystem output stream (multipart path).
+  S3FileSystem fs(makeSchema(uri, baseOptions()));
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 
-  // Read back
-  auto read_result = arrow_fs->OpenInputStream(test_path);
-  ASSERT_TRUE(read_result.ok()) << read_result.status().ToString();
-  auto input = *read_result;
-  auto buf_result = input->Read(content.size());
-  ASSERT_TRUE(buf_result.ok()) << buf_result.status().ToString();
-  auto buf = *buf_result;
-  std::string read_content(reinterpret_cast<const char*>(buf->data()),
-                           buf->size());
-  EXPECT_EQ(read_content, content);
+  auto out_result = remote->openOutputStream(uri);
+  ASSERT_TRUE(out_result.has_value()) << out_result.error().ToString();
+  auto out = *out_result;
+  // Write in odd-sized chunks to exercise buffering.
+  size_t offset = 0;
+  const size_t chunk = 123457;
+  while (offset < payload.size()) {
+    size_t n = std::min(chunk, payload.size() - offset);
+    auto w = out->Write(payload.data() + offset, static_cast<int64_t>(n));
+    ASSERT_TRUE(w.has_value()) << w.error().ToString();
+    offset += n;
+  }
+  auto close_status = out->Close();
+  ASSERT_TRUE(close_status.has_value()) << close_status.error().ToString();
 
-  // Cleanup: delete the test file
-  auto del_status = arrow_fs->DeleteFile(test_path);
-  EXPECT_TRUE(del_status.ok()) << "Cleanup failed: " << del_status.ToString();
+  // Existence + size.
+  auto exists = remote->exists(uri);
+  ASSERT_TRUE(exists.has_value()) << exists.error().ToString();
+  EXPECT_TRUE(*exists);
+  auto size = remote->getSize(uri);
+  ASSERT_TRUE(size.has_value()) << size.error().ToString();
+  EXPECT_EQ(*size, static_cast<int64_t>(payload.size()));
+
+  // Read back via ranged reads and compare.
+  auto in_result = remote->openInputStream(uri);
+  ASSERT_TRUE(in_result.has_value()) << in_result.error().ToString();
+  auto in = *in_result;
+
+  std::string readback(payload.size(), '\0');
+  int64_t pos = 0;
+  const int64_t read_chunk = 65536;
+  while (pos < static_cast<int64_t>(payload.size())) {
+    int64_t n = std::min<int64_t>(read_chunk,
+                                  static_cast<int64_t>(payload.size()) - pos);
+    auto r = in->ReadAt(pos, n, readback.data() + pos);
+    ASSERT_TRUE(r.has_value()) << r.error().ToString();
+    ASSERT_EQ(*r, n) << "short read at offset " << pos;
+    pos += n;
+  }
+  EXPECT_EQ(readback, payload);
+
+  // Glob expansion should find the object.
+  auto matched = fs.glob("oss://" + bucket_ + "/" + prefix_ + "roundtrip.*");
+  ASSERT_EQ(matched.size(), 1u);
+  EXPECT_EQ(matched[0], uri);
 }
 
-// ============================================================================
-// Fix #3: Credential Masking (no secret key in logs)
-// Verify that buildS3Options doesn't crash when credentials are provided.
-// (Log content verification requires log capture which is beyond unit test
-// scope, but we verify the code path executes without error.)
-// ============================================================================
+// A payload above the 2 * part_size threshold (default 16 MiB) forces the
+// real multipart path: CreateMultipartUpload (?uploads), UploadPart per
+// part and CompleteMultipartUpload. The round-trip readback validates every
+// part landed at the right offset.
+TEST_F(S3IntegrationTest, MultipartWriteAboveThresholdRoundTrip) {
+  // Generate a deterministic pseudo-random payload (~20 MiB).
+  constexpr size_t kPayloadSize = 20u << 20;
+  std::string payload;
+  payload.reserve(kPayloadSize);
+  std::mt19937_64 rng(7);
+  while (payload.size() < kPayloadSize) {
+    uint64_t v = rng();
+    payload.append(reinterpret_cast<const char*>(&v), sizeof(v));
+  }
 
-TEST_F(S3ExtensionTest, BuildS3Options_ExplicitCredentials_NoLogLeak) {
-  FileSchema schema;
-  schema.paths = {"s3://test-bucket/file.parquet"};
-  schema.protocol = "s3";
-  schema.options["CREDENTIALS_KIND"] = "Explicit";
-  schema.options["OSS_ACCESS_KEY_ID"] = "AKID1234567890EXAMPLE";
-  schema.options["OSS_ACCESS_KEY_SECRET"] =
-      "SuperSecretKeyThatMustNotAppearInLogs";
+  const std::string key = prefix_ + "multipart_roundtrip.bin";
+  const std::string uri = "oss://" + bucket_ + "/" + key;
 
-  // This should not crash and the masked log should only show first 4 chars
-  auto s3_options = S3FileSystem::buildS3Options(schema);
-  EXPECT_EQ(s3_options.GetAccessKey(), "AKID1234567890EXAMPLE");
-  EXPECT_EQ(s3_options.GetSecretKey(), "SuperSecretKeyThatMustNotAppearInLogs");
+  S3FileSystem fs(makeSchema(uri, baseOptions()));
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto out_result = remote->openOutputStream(uri);
+  ASSERT_TRUE(out_result.has_value()) << out_result.error().ToString();
+  auto out = *out_result;
+  // Odd-sized chunks so part boundaries fall mid-write.
+  size_t offset = 0;
+  const size_t chunk = 1048583;  // ~1 MiB, not a divisor of part_size
+  while (offset < payload.size()) {
+    size_t n = std::min(chunk, payload.size() - offset);
+    auto w = out->Write(payload.data() + offset, static_cast<int64_t>(n));
+    ASSERT_TRUE(w.has_value()) << w.error().ToString();
+    offset += n;
+  }
+  auto close_status = out->Close();
+  ASSERT_TRUE(close_status.has_value()) << close_status.error().ToString();
+
+  auto size = remote->getSize(uri);
+  ASSERT_TRUE(size.has_value()) << size.error().ToString();
+  EXPECT_EQ(*size, static_cast<int64_t>(payload.size()));
+
+  // Read back through the readahead-enabled stream and compare.
+  auto in_result = remote->openInputStream(uri);
+  ASSERT_TRUE(in_result.has_value()) << in_result.error().ToString();
+  auto in = *in_result;
+
+  std::string readback(payload.size(), '\0');
+  int64_t pos = 0;
+  const int64_t read_chunk = 1 << 20;
+  while (pos < static_cast<int64_t>(payload.size())) {
+    int64_t n = std::min<int64_t>(read_chunk,
+                                  static_cast<int64_t>(payload.size()) - pos);
+    auto r = in->ReadAt(pos, n, readback.data() + pos);
+    ASSERT_TRUE(r.has_value()) << r.error().ToString();
+    ASSERT_EQ(*r, n) << "short read at offset " << pos;
+    pos += n;
+  }
+  EXPECT_EQ(readback, payload);
 }

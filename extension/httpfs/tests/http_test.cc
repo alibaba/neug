@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-#include <arrow/buffer.h>
-#include <glog/logging.h>
+#include <arpa/inet.h>
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <algorithm>
 #include <atomic>
-#include <iomanip>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 #include <thread>
 #include <vector>
 #include "../include/http_filesystem.h"
@@ -112,7 +117,7 @@ TEST_F(HTTPFileSystemTest, ToURL_NonDefaultPort) {
 }
 
 // ============================================================================
-// HTTPFileSystem Tests
+// HTTPFileSystem (neug VFS interface) Tests
 // ============================================================================
 
 TEST_F(HTTPFileSystemTest, CreateFileSystem) {
@@ -120,25 +125,36 @@ TEST_F(HTTPFileSystemTest, CreateFileSystem) {
   EXPECT_NO_THROW({ HTTPFileSystem fs(options); });
 }
 
-TEST_F(HTTPFileSystemTest, TypeName) {
+TEST_F(HTTPFileSystemTest, Glob_ReturnsPathUnchanged) {
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
 
-  EXPECT_EQ(fs.type_name(), "http");
+  auto resolved = fs.glob("https://example.com/data.parquet");
+  ASSERT_EQ(resolved.size(), 1);
+  EXPECT_EQ(resolved[0], "https://example.com/data.parquet");
 }
 
-TEST_F(HTTPFileSystemTest, Equals) {
+TEST_F(HTTPFileSystemTest, RemoteFileSystem_IsNonNull) {
   neug::common::case_insensitive_map_t<std::string> options;
-  HTTPFileSystem fs1(options);
-  HTTPFileSystem fs2(options);
+  HTTPFileSystem fs(options);
 
-  EXPECT_TRUE(fs1.Equals(fs1));  // Same instance
-  EXPECT_TRUE(fs1.Equals(fs2));  // Different instances, same type
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 }
 
-// ============================================================================
-// HTTPFileSystem (neug VFS interface) Tests
-// ============================================================================
+TEST_F(HTTPFileSystemTest, RemoteFileSystem_OpenOutputStream_NotSupported) {
+  // HTTP is read-only: openOutputStream must fail with ERR_NOT_SUPPORTED
+  // without touching the network.
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto result = remote->openOutputStream("https://example.com/data.parquet");
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().error_code(), neug::StatusCode::ERR_NOT_SUPPORTED);
+}
 
 TEST_F(HTTPFileSystemTest, HTTPFileSystem_ExtractOptions) {
   neug::reader::FileSchema schema;
@@ -149,14 +165,10 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_ExtractOptions) {
 
   EXPECT_NO_THROW({
     HTTPFileSystem fs(schema);
-    // glob() returns the path unchanged for HTTP
     auto resolved = fs.glob("https://example.com/data.parquet");
     EXPECT_EQ(resolved.size(), 1);
     EXPECT_EQ(resolved[0], "https://example.com/data.parquet");
-    // toArrowFileSystem() returns a non-null HTTPFileSystem
-    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(
-        fs.getArrowFileSystem());
-    EXPECT_NE(arrowFs, nullptr);
+    EXPECT_NE(fs.getRemoteFileSystem(), nullptr);
   });
 }
 
@@ -174,7 +186,6 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_MultiplePaths) {
 
   EXPECT_NO_THROW({
     HTTPFileSystem fs(schema);
-    // glob() returns each path unchanged
     auto r1 = fs.glob(schema.paths[0]);
     auto r2 = fs.glob(schema.paths[1]);
     EXPECT_EQ(r1.size(), 1);
@@ -183,149 +194,35 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystem_MultiplePaths) {
 }
 
 // ============================================================================
-// VERIFY_SSL Option Parsing Tests
+// VERIFY_SSL option validation (offline — parsing fails before any I/O)
 // ============================================================================
 
 TEST_F(HTTPFileSystemTest, VerifySSL_InvalidValue_ThrowsException) {
   // Unrecognized VERIFY_SSL values must throw an exception rather than
-  // silently disabling TLS verification (which was the old behaviour).
-  // VERIFY_SSL is parsed inside SetupCURLHandle(), which is called during
-  // HTTPRandomAccessFile construction (via InitializeFileSize()). We trigger
-  // that path with a real URL so the constructor reaches SetupCURLHandle.
-  // The test uses a public HTTPS endpoint; if the network is unavailable the
-  // curl transport will fail before VERIFY_SSL is even checked, so the test
-  // is skipped gracefully when offline.
+  // silently disabling TLS verification. The option is parsed during stream
+  // construction, before any network activity, so this test works offline.
   neug::common::case_insensitive_map_t<std::string> options;
   options["VERIFY_SSL"] = "maybe";  // Invalid: not true/false/1/0/yes/no/on/off
 
   HTTPFileSystem fs(options);
-  auto arrowFs =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
-  ASSERT_NE(arrowFs, nullptr);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 
-  // OpenInputFile triggers HTTPRandomAccessFile construction → SetupCURLHandle
-  // → VERIFY_SSL parse → exception.
-  const std::string url =
-      "https://graphscope.oss-cn-beijing.aliyuncs.com"
-      "/neug-dataset/GithubGraphTest/nodes_Actor.parquet";
-  auto result = arrowFs->OpenInputFile(url);
-  // Must fail due to invalid VERIFY_SSL, not a network error (which would also
-  // fail but with a different message). We accept any IOError here because the
-  // exception is converted to arrow::Status::IOError by the catch block.
-  EXPECT_FALSE(result.ok())
-      << "OpenInputFile should fail when VERIFY_SSL has an invalid value";
-  EXPECT_NE(result.status().ToString().find("VERIFY_SSL"), std::string::npos)
+  // openInputStream catches the parse exception and reports it as an error.
+  auto result = remote->openInputStream("https://example.com/f");
+  ASSERT_FALSE(result.has_value());
+  EXPECT_NE(result.error().error_message().find("VERIFY_SSL"),
+            std::string::npos)
       << "Error message should mention VERIFY_SSL. Got: "
-      << result.status().ToString();
+      << result.error().ToString();
 }
 
 // ============================================================================
-// GetFileInfo: non-2xx HTTP response reports FileType::NotFound
-// ============================================================================
-
-TEST_F(HTTPFileSystemTest, E2E_GetFileInfo_NotFoundURL) {
-  // A valid HTTPS host but a path that does not exist should return HTTP 404.
-  // GetFileInfo() must report FileType::NotFound (not FileType::File).
-  neug::common::case_insensitive_map_t<std::string> options;
-  HTTPFileSystem fs(options);
-  auto arrowFs =
-      std::static_pointer_cast<arrow::fs::FileSystem>(fs.getArrowFileSystem());
-  ASSERT_NE(arrowFs, nullptr);
-
-  // This URL returns 404 — the path simply doesn't exist on the public bucket.
-  const std::string nonexistent =
-      "https://graphscope.oss-cn-beijing.aliyuncs.com"
-      "/neug-dataset/this-file-does-not-exist-12345.parquet";
-
-  auto info_result = arrowFs->GetFileInfo(nonexistent);
-  ASSERT_TRUE(info_result.ok()) << "GetFileInfo itself should not error out";
-
-  auto info = *info_result;
-  EXPECT_EQ(info.type(), arrow::fs::FileType::NotFound)
-      << "404 URL must be reported as NotFound, not as a valid File";
-}
-
-// ============================================================================
-// E2E Test: Access Public HTTP Parquet File
-// ============================================================================
-
-TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
-  // This test accesses a real public Parquet file via HTTPS
-  // URL: OSS public bucket via HTTPS (not S3 API)
-
-  neug::reader::FileSchema schema;
-  schema.paths = {
-      "https://graphscope.oss-cn-beijing.aliyuncs.com/neug-dataset/"
-      "GithubGraphTest/nodes_Actor.parquet"};
-  schema.format = "parquet";
-  schema.protocol = "http";
-  schema.options["VERIFY_SSL"] = "true";
-
-  EXPECT_NO_THROW({
-    HTTPFileSystem fs(schema);
-    auto arrowFs = std::static_pointer_cast<arrow::fs::FileSystem>(
-        fs.getArrowFileSystem());
-    ASSERT_NE(arrowFs, nullptr);
-
-    // Verify file access
-    auto file_path = schema.paths[0];
-    auto file_info_result = arrowFs->GetFileInfo(file_path);
-
-    if (file_info_result.ok()) {
-      auto info = *file_info_result;
-      LOG(INFO) << "=== HTTP File Access Successful ===";
-      LOG(INFO) << "URL: " << file_path;
-      LOG(INFO) << "Type: " << (info.IsFile() ? "File" : "Not File");
-      LOG(INFO) << "Size: " << info.size() << " bytes";
-
-      EXPECT_TRUE(info.IsFile());
-      EXPECT_GT(info.size(), 0);
-
-      // Try to open and read file header (first 4 bytes - Parquet magic)
-      auto file_result = arrowFs->OpenInputFile(file_path);
-      if (file_result.ok()) {
-        auto file = *file_result;
-
-        // Read first 4 bytes to verify Parquet magic number
-        auto buffer_result = file->Read(4);
-        if (buffer_result.ok()) {
-          auto buffer = *buffer_result;
-          const uint8_t* data = buffer->data();
-
-          LOG(INFO) << "Magic bytes: " << std::hex << std::setfill('0')
-                    << std::setw(2) << (int) data[0] << " " << std::setw(2)
-                    << (int) data[1] << " " << std::setw(2) << (int) data[2]
-                    << " " << std::setw(2) << (int) data[3];
-
-          // Verify Parquet magic number "PAR1"
-          EXPECT_EQ(data[0], 0x50);  // 'P'
-          EXPECT_EQ(data[1], 0x41);  // 'A'
-          EXPECT_EQ(data[2], 0x52);  // 'R'
-          EXPECT_EQ(data[3], 0x31);  // '1'
-
-          LOG(INFO) << "✓ Successfully read Parquet file via HTTPS";
-        } else {
-          LOG(WARNING) << "Could not read file content: "
-                       << buffer_result.status();
-        }
-      } else {
-        LOG(WARNING) << "Could not open file: " << file_result.status();
-      }
-    } else {
-      LOG(WARNING) << "Could not get file info: " << file_info_result.status();
-      // Don't fail test if network unavailable
-    }
-  });
-}
-
-// ============================================================================
-// Fix #2: CURL Global Initialization Thread Safety (std::call_once)
+// CURL global initialization thread safety (std::call_once)
 // Verify multiple concurrent HTTPFileSystem constructions don't crash.
 // ============================================================================
 
 TEST_F(HTTPFileSystemTest, ConcurrentConstruction_ThreadSafety) {
-  // Create multiple HTTPFileSystem instances from different threads
-  // to verify std::call_once correctly serializes curl_global_init.
   constexpr int kNumThreads = 8;
   std::vector<std::thread> threads;
   std::atomic<int> success_count{0};
@@ -351,124 +248,745 @@ TEST_F(HTTPFileSystemTest, ConcurrentConstruction_ThreadSafety) {
 }
 
 // ============================================================================
-// Fix #5: GetFileInfo uses lightweight HEAD request (no full file handle)
-// Verify GetFileInfo returns correct info for a known public file.
+// Range-unsupporting server: ReadAt must reject a 200 response instead of
+// serving offset-0 bytes as data at the requested position.
 // ============================================================================
 
-TEST_F(HTTPFileSystemTest, GetFileInfo_ReturnsCorrectSize) {
+/// Minimal loopback HTTP server that ignores the Range header and always
+/// answers 200 with the full body — the shape of a server without Range
+/// support.
+class NoRangeHTTPServer {
+ public:
+  explicit NoRangeHTTPServer(std::string body) : body_(std::move(body)) {}
+
+  ~NoRangeHTTPServer() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0) {
+      return false;
+    }
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;  // ephemeral port
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0) {
+      return false;
+    }
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false)) {
+      return;
+    }
+    if (listen_fd_ >= 0) {
+      ::shutdown(listen_fd_, SHUT_RDWR);
+      ::close(listen_fd_);
+      listen_fd_ = -1;
+    }
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+  }
+
+  int port() const { return port_; }
+
+ private:
+  void serve() {
+    while (running_) {
+      int fd = ::accept(listen_fd_, nullptr, nullptr);
+      if (fd < 0) {
+        break;
+      }
+      handle(fd);
+      ::close(fd);
+    }
+  }
+
+  void handle(int fd) {
+    // Read until the request headers are complete.
+    std::string request;
+    char buf[1024];
+    while (request.find("\r\n\r\n") == std::string::npos) {
+      ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0) {
+        return;
+      }
+      request.append(buf, static_cast<size_t>(n));
+    }
+    const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+    // Always 200 with the full body; the Range header is ignored.
+    std::string response =
+        "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(body_.size()) +
+        "\r\nConnection: close\r\n\r\n";
+    if (!is_head) {
+      response += body_;
+    }
+    ::send(fd, response.data(), response.size(), 0);
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+};
+
+TEST_F(HTTPFileSystemTest, ReadAtRejectsServerWithoutRangeSupport) {
+  NoRangeHTTPServer server("0123456789");
+  ASSERT_TRUE(server.start());
+
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 
-  // Use a known public file with a stable size
-  const std::string url =
-      "https://graphscope.oss-cn-beijing.aliyuncs.com"
-      "/neug-dataset/GithubGraphTest/nodes_Actor.parquet";
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
 
-  auto info_result = fs.GetFileInfo(url);
-  ASSERT_TRUE(info_result.ok()) << info_result.status().ToString();
+  // The server answers 200 with bytes from offset 0; those must not be
+  // served as data at position 2 (silent corruption). The read must fail.
+  char buf[4];
+  auto r = stream->ReadAt(2, 4, buf);
+  ASSERT_FALSE(r.has_value());
+  EXPECT_EQ(r.error().error_code(), neug::StatusCode::ERR_IO_ERROR);
+  EXPECT_NE(r.error().error_message().find("Range support is required"),
+            std::string::npos)
+      << r.error().error_message();
 
-  auto info = *info_result;
-  EXPECT_EQ(info.type(), arrow::fs::FileType::File);
-  // File should report a positive size from Content-Length header
-  EXPECT_GT(info.size(), 0) << "HEAD request should retrieve Content-Length";
+  stream->Close();
+  server.stop();
 }
 
 // ============================================================================
-// Fix #1: HTTP Range 200 status code handling (graceful degradation)
-// Verify ReadRange works correctly when server returns 206 (partial content),
-// and that the code path doesn't crash for standard Range responses.
+// Fallback tests: HEAD failure -> GET+Content-Range; 200 at position 0.
 // ============================================================================
 
-TEST_F(HTTPFileSystemTest, ReadRange_Returns206_PartialContent) {
-  // OSS supports Range requests and returns 206.
-  // Verify that reading a small range from a known file works correctly.
+/// Loopback HTTP server that rejects HEAD but supports GET with Range.
+/// Used to test the probeSize() fallback to GET+Content-Range.
+class NoHeadHTTPServer {
+ public:
+  explicit NoHeadHTTPServer(std::string body) : body_(std::move(body)) {}
+
+  ~NoHeadHTTPServer() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0)
+      return false;
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0)
+      return false;
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false))
+      return;
+    // Connect to the listen socket to unblock accept()
+    int connect_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (connect_fd >= 0) {
+      sockaddr_in addr{};
+      addr.sin_family = AF_INET;
+      addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      addr.sin_port = htons(port_);
+      ::connect(connect_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+      ::close(connect_fd);
+    }
+    if (listen_fd_ >= 0)
+      ::close(listen_fd_);
+    if (active_fd_ >= 0)
+      ::shutdown(active_fd_, SHUT_RDWR);
+    if (thread_.joinable())
+      thread_.join();
+  }
+
+  int port() const { return port_; }
+
+ private:
+  void serve() {
+    while (running_) {
+      sockaddr_in client{};
+      socklen_t len = sizeof(client);
+      int fd = ::accept(listen_fd_, reinterpret_cast<sockaddr*>(&client), &len);
+      if (fd < 0)
+        break;
+      active_fd_ = fd;
+      handleConnection(fd);
+      ::close(fd);
+      active_fd_ = -1;
+    }
+  }
+
+  void handleConnection(int fd) {
+    std::string request;
+    char buf[1024];
+    while (request.find("\r\n\r\n") == std::string::npos) {
+      ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0) {
+        return;
+      }
+      request.append(buf, static_cast<size_t>(n));
+    }
+    const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+    if (is_head) {
+      // Reject HEAD with 405 Method Not Allowed.
+      std::string response =
+          "HTTP/1.1 405 Method Not Allowed\r\n"
+          "Content-Length: 0\r\n"
+          "Connection: close\r\n\r\n";
+      ::send(fd, response.data(), response.size(), 0);
+      return;
+    }
+    // For any GET request, return 206 with Content-Range.
+    // Simplified: always return bytes 0-0 for the probe, or the requested
+    // range.
+    auto range_pos = request.find("Range: bytes=");
+    if (range_pos != std::string::npos) {
+      // Parse start-end from "Range: bytes=start-end"
+      auto start_pos = range_pos + 13;
+      auto dash_pos = request.find('-', start_pos);
+      auto end_pos = request.find("\r\n", dash_pos);
+      if (dash_pos != std::string::npos && end_pos != std::string::npos) {
+        int64_t start =
+            std::stoll(request.substr(start_pos, dash_pos - start_pos));
+        int64_t end =
+            std::stoll(request.substr(dash_pos + 1, end_pos - dash_pos - 1));
+        if (start < static_cast<int64_t>(body_.size())) {
+          int64_t actual_end =
+              std::min(end, static_cast<int64_t>(body_.size()) - 1);
+          int64_t len = actual_end - start + 1;
+          std::string response =
+              "HTTP/1.1 206 Partial Content\r\n"
+              "Content-Range: bytes " +
+              std::to_string(start) + "-" + std::to_string(actual_end) + "/" +
+              std::to_string(body_.size()) +
+              "\r\n"
+              "Content-Length: " +
+              std::to_string(len) +
+              "\r\n"
+              "Connection: close\r\n\r\n";
+          response += body_.substr(start, len);
+          ::send(fd, response.data(), response.size(), 0);
+          return;
+        }
+      }
+    }
+    // No Range or invalid: return whole file with 200.
+    fprintf(stderr, "[NoHead] Sending 200 response\n");
+    std::string response =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Length: " +
+        std::to_string(body_.size()) + "\r\nConnection: close\r\n\r\n";
+    response += body_;
+    ::send(fd, response.data(), response.size(), 0);
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+  std::atomic<int> active_fd_{-1};
+};
+
+TEST_F(HTTPFileSystemTest, ProbeSizeFallsBackToGetRangeWhenHeadFails) {
+  // Server rejects HEAD with 405 but supports GET with Range.
+  NoHeadHTTPServer server("0123456789ABCDEF");  // 16 bytes
+  ASSERT_TRUE(server.start());
+
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 
-  const std::string url =
-      "https://graphscope.oss-cn-beijing.aliyuncs.com"
-      "/neug-dataset/GithubGraphTest/nodes_Actor.parquet";
+  // Open should succeed: HEAD fails, falls back to GET Range: bytes=0-0,
+  // parses Content-Range: bytes 0-0/16 to get size = 16.
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
 
-  auto file_result = fs.OpenInputFile(url);
-  ASSERT_TRUE(file_result.ok()) << file_result.status().ToString();
+  EXPECT_EQ(stream->GetSize(), 16);
 
-  auto file = *file_result;
+  // Read at position 0 should work.
+  char buf[4];
+  auto r = stream->ReadAt(0, 4, buf);
+  ASSERT_TRUE(r.has_value()) << r.error().ToString();
+  EXPECT_EQ(*r, 4);
+  EXPECT_EQ(std::string(buf, 4), "0123");
 
-  // Read first 4 bytes (Parquet magic "PAR1") via Range request
-  auto buf_result = file->ReadAt(0, 4);
-  ASSERT_TRUE(buf_result.ok()) << buf_result.status().ToString();
-
-  auto buf = *buf_result;
-  ASSERT_EQ(buf->size(), 4);
-  EXPECT_EQ(buf->data()[0], 'P');
-  EXPECT_EQ(buf->data()[1], 'A');
-  EXPECT_EQ(buf->data()[2], 'R');
-  EXPECT_EQ(buf->data()[3], '1');
+  stream->Close();
+  server.stop();
 }
 
-TEST_F(HTTPFileSystemTest, ReadRange_OffsetBeyondEOF_ReturnsError) {
-  // Reading past the end of file triggers HTTP 416 Range Not Satisfiable.
-  // The server returns an error response body which exceeds the small request
-  // buffer, causing WriteCallbackDirect to abort the transfer (Fix #10).
-  // Key assertion: no crash, no buffer overflow — returns IOError gracefully.
+/// Loopback HTTP server that ignores Range (returns 200 with whole file).
+/// Used to test the fetchRange() fallback at position == 0.
+class NoRangeBut200Server {
+ public:
+  explicit NoRangeBut200Server(std::string body) : body_(std::move(body)) {}
+
+  ~NoRangeBut200Server() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0)
+      return false;
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0)
+      return false;
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false))
+      return;
+    // Connect to the listen socket to unblock accept()
+    int connect_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (connect_fd >= 0) {
+      sockaddr_in addr{};
+      addr.sin_family = AF_INET;
+      addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      addr.sin_port = htons(port_);
+      ::connect(connect_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+      ::close(connect_fd);
+    }
+    if (listen_fd_ >= 0)
+      ::close(listen_fd_);
+    if (active_fd_ >= 0)
+      ::shutdown(active_fd_, SHUT_RDWR);
+    if (thread_.joinable())
+      thread_.join();
+  }
+
+  int port() const { return port_; }
+
+ private:
+  void serve() {
+    while (running_) {
+      sockaddr_in client{};
+      socklen_t len = sizeof(client);
+      int fd = ::accept(listen_fd_, reinterpret_cast<sockaddr*>(&client), &len);
+      if (fd < 0)
+        break;
+      active_fd_ = fd;
+      handleConnection(fd);
+      ::close(fd);
+      active_fd_ = -1;
+    }
+  }
+
+  void handleConnection(int fd) {
+    std::string request;
+    char buf[1024];
+    while (request.find("\r\n\r\n") == std::string::npos) {
+      ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+      if (n <= 0)
+        return;
+      request.append(buf, static_cast<size_t>(n));
+    }
+    const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+    // Always 200 with the full body; Range header is ignored.
+    std::string response =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Length: " +
+        std::to_string(body_.size()) + "\r\nConnection: close\r\n\r\n";
+    if (!is_head) {
+      response += body_;
+    }
+    ::send(fd, response.data(), response.size(), 0);
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+  std::atomic<int> active_fd_{-1};
+};
+
+TEST_F(HTTPFileSystemTest, ReadAtPosition0Accepts200Response) {
+  // Server ignores Range and returns 200 with whole file.
+  NoRangeBut200Server server("0123456789");
+  ASSERT_TRUE(server.start());
+
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 
-  const std::string url =
-      "https://graphscope.oss-cn-beijing.aliyuncs.com"
-      "/neug-dataset/GithubGraphTest/nodes_Actor.parquet";
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
 
-  auto file_result = fs.OpenInputFile(url);
-  ASSERT_TRUE(file_result.ok()) << file_result.status().ToString();
+  // Read at position 0 should accept the 200 response.
+  char buf[4];
+  auto r = stream->ReadAt(0, 4, buf);
+  ASSERT_TRUE(r.has_value()) << r.error().ToString();
+  EXPECT_EQ(*r, 4);
+  EXPECT_EQ(std::string(buf, 4), "0123");
 
-  auto file = *file_result;
-  auto size_result = file->GetSize();
-  ASSERT_TRUE(size_result.ok());
+  // Note: We don't test position > 0 here because the readahead cache (4 MiB)
+  // will serve the data from the first read, so it won't hit the server and
+  // won't trigger the 200 error. The fetchRange() logic correctly rejects 200
+  // at position > 0, but the cache makes it unreachable in this test.
+
+  stream->Close();
+  server.stop();
+}
+
+// ============================================================================
+// Range-supporting keep-alive server: verifies the readahead cache (small
+// sequential reads collapse into few ranged GETs) and CURLSH connection
+// reuse (all requests share one TCP connection).
+// ============================================================================
+
+/// Loopback HTTP server with HEAD + Range support and HTTP/1.1 keep-alive.
+/// Counts accepted connections and served requests so tests can observe
+/// readahead hits and connection reuse.
+class RangeKeepAliveHTTPServer {
+ public:
+  explicit RangeKeepAliveHTTPServer(std::string body)
+      : body_(std::move(body)) {}
+
+  ~RangeKeepAliveHTTPServer() { stop(); }
+
+  bool start() {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0) {
+      return false;
+    }
+    int reuse = 1;
+    ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;  // ephemeral port
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
+        0) {
+      return false;
+    }
+    socklen_t len = sizeof(addr);
+    ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
+    port_ = ntohs(addr.sin_port);
+    if (::listen(listen_fd_, 4) != 0) {
+      return false;
+    }
+    running_ = true;
+    thread_ = std::thread([this] { serve(); });
+    return true;
+  }
+
+  void stop() {
+    if (!running_.exchange(false)) {
+      return;
+    }
+    if (listen_fd_ >= 0) {
+      ::shutdown(listen_fd_, SHUT_RDWR);
+      ::close(listen_fd_);
+      listen_fd_ = -1;
+    }
+    // The keep-alive connection may sit blocked in recv(); shutting down
+    // the listen socket alone would not unblock it.
+    const int fd = active_fd_.load();
+    if (fd >= 0) {
+      ::shutdown(fd, SHUT_RDWR);
+    }
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+  }
+
+  int port() const { return port_; }
+  int connections() const { return connections_.load(); }
+  int requests() const { return requests_.load(); }
+
+ private:
+  void serve() {
+    while (running_) {
+      int fd = ::accept(listen_fd_, nullptr, nullptr);
+      if (fd < 0) {
+        break;
+      }
+      connections_.fetch_add(1);
+      active_fd_.store(fd);
+      handle(fd);
+      active_fd_.store(-1);
+      ::close(fd);
+    }
+  }
+
+  void handle(int fd) {
+    std::string pending;
+    char buf[4096];
+    // Keep-alive: serve requests on this connection until the peer closes.
+    while (running_) {
+      size_t hdr_end;
+      while ((hdr_end = pending.find("\r\n\r\n")) == std::string::npos) {
+        ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+        if (n <= 0) {
+          return;
+        }
+        pending.append(buf, static_cast<size_t>(n));
+      }
+      const std::string request = pending.substr(0, hdr_end + 4);
+      pending.erase(0, hdr_end + 4);
+      requests_.fetch_add(1);
+
+      const bool is_head = request.compare(0, 5, "HEAD ") == 0;
+      // Parse "Range: bytes=start-end" when present.
+      int64_t start = 0;
+      int64_t end = static_cast<int64_t>(body_.size()) - 1;
+      bool has_range = false;
+      size_t range_pos = request.find("Range: bytes=");
+      if (range_pos != std::string::npos) {
+        has_range = true;
+        size_t val_pos = range_pos + strlen("Range: bytes=");
+        size_t dash = request.find('-', val_pos);
+        start = std::stoll(request.substr(val_pos, dash - val_pos));
+        size_t line_end = request.find("\r\n", dash + 1);
+        end = std::stoll(request.substr(dash + 1, line_end - dash - 1));
+        end = std::min(end, static_cast<int64_t>(body_.size()) - 1);
+      }
+
+      std::string response;
+      if (is_head) {
+        response =
+            "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n"
+            "Content-Length: " +
+            std::to_string(body_.size()) + "\r\n\r\n";
+      } else if (has_range) {
+        const int64_t slice_len = end - start + 1;
+        response =
+            "HTTP/1.1 206 Partial Content\r\nAccept-Ranges: bytes\r\n"
+            "Content-Range: bytes " +
+            std::to_string(start) + "-" + std::to_string(end) + "/" +
+            std::to_string(body_.size()) +
+            "\r\nContent-Length: " + std::to_string(slice_len) + "\r\n\r\n";
+        if (!sendAll(fd, response)) {
+          return;
+        }
+        if (!sendAll(fd, body_.substr(static_cast<size_t>(start),
+                                      static_cast<size_t>(slice_len)))) {
+          return;
+        }
+        continue;
+      } else {
+        response = "HTTP/1.1 200 OK\r\nContent-Length: " +
+                   std::to_string(body_.size()) + "\r\n\r\n" + body_;
+      }
+      if (!sendAll(fd, response)) {
+        return;
+      }
+    }
+  }
+
+  static bool sendAll(int fd, const std::string& data) {
+    size_t sent = 0;
+    while (sent < data.size()) {
+      ssize_t n = ::send(fd, data.data() + sent, data.size() - sent, 0);
+      if (n <= 0) {
+        return false;
+      }
+      sent += static_cast<size_t>(n);
+    }
+    return true;
+  }
+
+  std::string body_;
+  std::thread thread_;
+  int listen_fd_ = -1;
+  int port_ = 0;
+  std::atomic<bool> running_{false};
+  std::atomic<int> connections_{0};
+  std::atomic<int> requests_{0};
+  std::atomic<int> active_fd_{-1};
+};
+
+TEST_F(HTTPFileSystemTest, ReadaheadAndConnectionReuse) {
+  // 8 MiB body with a verifiable repeating pattern.
+  constexpr int64_t kBodySize = 8 * 1024 * 1024;
+  std::string body(static_cast<size_t>(kBodySize), '\0');
+  for (int64_t i = 0; i < kBodySize; ++i) {
+    body[static_cast<size_t>(i)] = static_cast<char>('A' + (i % 26));
+  }
+  RangeKeepAliveHTTPServer server(std::move(body));
+  ASSERT_TRUE(server.start());
+
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  auto stream_result = remote->openInputStream(
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/file.bin");
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = std::move(*stream_result);
+
+  // Opening probes the size with a single HEAD request.
+  EXPECT_EQ(server.requests(), 1);
+
+  // First read fetches the readahead window (one ranged GET).
+  char buf[1024];
+  auto r1 = stream->ReadAt(0, sizeof(buf), buf);
+  ASSERT_TRUE(r1.has_value()) << r1.error().ToString();
+  EXPECT_EQ(*r1, static_cast<int64_t>(sizeof(buf)));
+  EXPECT_EQ(buf[0], 'A');
+  EXPECT_EQ(buf[25], 'Z');
+  EXPECT_EQ(buf[26], 'A');
+  EXPECT_EQ(server.requests(), 2);
+
+  // Subsequent reads inside the cached window hit no network at all.
+  auto r2 = stream->ReadAt(1024, sizeof(buf), buf);
+  ASSERT_TRUE(r2.has_value());
+  EXPECT_EQ(*r2, static_cast<int64_t>(sizeof(buf)));
+  EXPECT_EQ(buf[0], static_cast<char>('A' + (1024 % 26)));
+  EXPECT_EQ(server.requests(), 2) << "readahead hit expected no request";
+
+  // A read far outside the window triggers exactly one more ranged GET.
+  constexpr int64_t kFarOffset = 6 * 1024 * 1024;
+  auto r3 = stream->ReadAt(kFarOffset, sizeof(buf), buf);
+  ASSERT_TRUE(r3.has_value());
+  EXPECT_EQ(*r3, static_cast<int64_t>(sizeof(buf)));
+  EXPECT_EQ(buf[0], static_cast<char>('A' + (kFarOffset % 26)));
+  EXPECT_EQ(server.requests(), 3);
+
+  // All requests share one keep-alive TCP connection thanks to the CURLSH
+  // connection cache.
+  EXPECT_EQ(server.connections(), 1);
+
+  stream->Close();
+  server.stop();
+}
+
+// ============================================================================
+// Integration test — exercises the real HTTPS read path (HEAD probe, ranged
+// GET) against a public Parquet file.  The URL defaults to a project-hosted
+// file but can be overridden via the HTTP_TEST_URL environment variable.
+// Skipped only when the override is explicitly set to empty.
+// ============================================================================
+
+static constexpr char kDefaultHTTPTestURL[] =
+    "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet";
+
+class HTTPIntegrationTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    const char* env_url = std::getenv("HTTP_TEST_URL");
+    // Allow explicit skip by setting HTTP_TEST_URL="".
+    if (env_url != nullptr && env_url[0] == '\0') {
+      GTEST_SKIP() << "HTTP_TEST_URL is empty; skipping HTTP integration test";
+    }
+    test_url_ = (env_url != nullptr && env_url[0] != '\0')
+                    ? env_url
+                    : kDefaultHTTPTestURL;
+  }
+
+  std::string test_url_;
+};
+
+TEST_F(HTTPIntegrationTest, ExistsSizeAndRangedRead) {
+  neug::common::case_insensitive_map_t<std::string> options;
+  HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
+
+  // exists() + getSize() via HEAD probe.
+  auto exists_result = remote->exists(test_url_);
+  ASSERT_TRUE(exists_result.has_value()) << exists_result.error().ToString();
+  EXPECT_TRUE(*exists_result);
+
+  auto size_result = remote->getSize(test_url_);
+  ASSERT_TRUE(size_result.has_value()) << size_result.error().ToString();
   int64_t file_size = *size_result;
+  EXPECT_GT(file_size, 0);
 
-  // Request starting well beyond the file size
-  auto buf_result = file->ReadAt(file_size + 1000, 100);
-  // Server returns 416 + error body. WriteCallbackDirect aborts the transfer
-  // because the error body exceeds the 100-byte buffer. This correctly
-  // propagates as an IOError instead of a buffer overflow.
-  EXPECT_FALSE(buf_result.ok());
+  // openInputStream + ReadAt: first 4 bytes must be the Parquet magic "PAR1".
+  auto stream_result = remote->openInputStream(test_url_);
+  ASSERT_TRUE(stream_result.has_value()) << stream_result.error().ToString();
+  auto stream = *stream_result;
+
+  char magic[4] = {0, 0, 0, 0};
+  auto read_result = stream->ReadAt(0, 4, magic);
+  ASSERT_TRUE(read_result.has_value()) << read_result.error().ToString();
+  EXPECT_EQ(*read_result, 4);
+  EXPECT_EQ(magic[0], 'P');
+  EXPECT_EQ(magic[1], 'A');
+  EXPECT_EQ(magic[2], 'R');
+  EXPECT_EQ(magic[3], '1');
+
+  // GetSize from the stream matches the HEAD probe.
+  auto stream_size = stream->GetSize();
+  ASSERT_TRUE(stream_size.has_value());
+  EXPECT_EQ(*stream_size, file_size);
+
+  // Read past EOF returns 0 bytes (clamped against file size).
+  char buf[16];
+  auto eof_result = stream->ReadAt(file_size + 1000, 16, buf);
+  ASSERT_TRUE(eof_result.has_value());
+  EXPECT_EQ(*eof_result, 0);
+
+  stream->Close();
 }
 
-// ============================================================================
-// Fix #10: WriteCallbackDirect buffer overflow — CURL abort on overflow
-// Verify that reading a small buffer from a large range request doesn't crash.
-// The WriteCallbackDirect now returns 0 to abort CURL when buffer is full.
-// ============================================================================
-
-TEST_F(HTTPFileSystemTest, ReadRange_SmallReadNearEOF_Succeeds) {
-  // Read a small amount of data near the end of file.
-  // This exercises the ReadRange path where returned bytes may be less than
-  // requested (partial content at EOF boundary), testing buffer handling.
+TEST_F(HTTPIntegrationTest, NonExistentURL_ReportsNotFound) {
   neug::common::case_insensitive_map_t<std::string> options;
   HTTPFileSystem fs(options);
+  auto remote = fs.getRemoteFileSystem();
+  ASSERT_NE(remote, nullptr);
 
-  const std::string url =
-      "https://graphscope.oss-cn-beijing.aliyuncs.com"
-      "/neug-dataset/GithubGraphTest/nodes_Actor.parquet";
+  // Derive a URL that almost certainly does not exist next to the test file.
+  std::string missing = test_url_ + ".this-does-not-exist-12345";
 
-  auto file_result = fs.OpenInputFile(url);
-  ASSERT_TRUE(file_result.ok()) << file_result.status().ToString();
+  auto exists_result = remote->exists(missing);
+  // exists() never throws; probe failure is reported as false.
+  ASSERT_TRUE(exists_result.has_value());
+  EXPECT_FALSE(*exists_result);
 
-  auto file = *file_result;
-  auto size_result = file->GetSize();
-  ASSERT_TRUE(size_result.ok());
-  int64_t file_size = *size_result;
-  ASSERT_GT(file_size, 100);
-
-  // Read last 4 bytes of file (Parquet footer magic "PAR1")
-  auto buf_result = file->ReadAt(file_size - 4, 4);
-  ASSERT_TRUE(buf_result.ok()) << buf_result.status().ToString();
-
-  auto buf = *buf_result;
-  EXPECT_EQ(buf->size(), 4);
-  // Parquet files end with "PAR1" magic
-  EXPECT_EQ(buf->data()[0], 'P');
-  EXPECT_EQ(buf->data()[1], 'A');
-  EXPECT_EQ(buf->data()[2], 'R');
-  EXPECT_EQ(buf->data()[3], '1');
+  auto size_result = remote->getSize(missing);
+  ASSERT_FALSE(size_result.has_value());
+  EXPECT_EQ(size_result.error().error_code(), neug::StatusCode::ERR_NOT_FOUND);
 }
