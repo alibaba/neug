@@ -232,8 +232,6 @@ class NEUG_API GraphSnapshotStore {
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
   uint32_t reserveSnapshotGeneration();
-  uint32_t publishInPlaceMutation(SnapshotSlot& mutated_slot,
-                                  bool planning_changed) noexcept;
   void replaceCurrentSnapshotInPlace(
       SnapshotSlot& target, std::shared_ptr<PropertyGraph>& prepared_storage,
       GraphView& prepared_view, uint64_t planning_generation) noexcept;

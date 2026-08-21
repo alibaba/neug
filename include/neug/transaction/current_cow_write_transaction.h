@@ -15,27 +15,21 @@
 #pragma once
 
 #include "neug/storages/graph/graph_stats.h"
-#include "neug/transaction/cow_graph_storage_adapter.h"
+#include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
 #include "neug/transaction/current_graph_write_guard.h"
 
 namespace neug {
 
 class IWalWriter;
+class CheckpointCoordinator;
 
 /**
- * @brief Exclusive current-graph write transaction in one of two modes.
+ * @brief Exclusive current-graph private-COW write transaction.
  *
- * In COW mode the transaction holds exclusive operation admission from
- * Begin() through Commit()/Abort(). Mutations are isolated in a private clone
- * (CowGraphWorkspace). Commit prepares a replacement for the already-pinned
- * current slot, makes logical redo durable, and then performs a no-fail
- * in-place slot replacement without allocating a new snapshot generation.
- *
- * In in-place mode (BeginInPlace) the workspace borrows the live published
- * graph for bulk/index operations. Those mutations cannot be rolled back, so
- * both Commit() and Abort() publish them by bumping the current slot's
- * generations; destruction of an active transaction publishes as well.
+ * Mutations are isolated in a private CowGraphWorkspace. Ordinary commit makes
+ * logical redo durable before replacing the already-pinned current slot;
+ * checkpoint-backed bulk commit is coordinated by CheckpointCoordinator.
  */
 class CurrentCowWriteTransaction {
  public:
@@ -52,35 +46,15 @@ class CurrentCowWriteTransaction {
   Status Commit();
   void Abort() noexcept;
 
-  /// Publish an in-place mutation while retaining its exclusive timestamp
-  /// lease for the immediately following incremental checkpoint.
-  UpdateTimestampLease PublishInPlaceAndReleaseForCheckpoint() noexcept;
+  CowGraphStorage OpenStorage() {
+    return CowGraphStorage(workspace_, kReadTimestamp, timestamp(), alloc_);
+  }
 
-  // Entry point for bulk COPY and index DDL: acquires the same exclusive
-  // writer admission but skips cloning, borrowing the live published graph
-  // and its mutable view instead. Callers must keep the returned transaction
-  // alive while referencing graph() / mutable_view() / OpenStorage().
-  static CurrentCowWriteTransaction BeginInPlace(
-      CurrentGraphWriteGuard guard, Allocator& alloc,
-      GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer);
-
-  CowGraphStorageAdapter OpenStorage() {
-    // In-place reads keep the legacy semantics of the guard timestamp; COW
-    // reads see everything committed into the private clone.
-    const timestamp_t read_ts =
-        workspace_.is_in_place() ? timestamp() : kReadTimestamp;
-    return CowGraphStorageAdapter(workspace_, read_ts, timestamp(), alloc_);
+  BulkCowGraphStorage OpenBulkStorage() {
+    return BulkCowGraphStorage(workspace_, kReadTimestamp, timestamp(), alloc_);
   }
 
   timestamp_t timestamp() const noexcept { return guard_.Timestamp(); }
-
-  bool is_in_place() const noexcept { return workspace_.is_in_place(); }
-
-  // In-place mode: the borrowed live graph and its mutable view. The write
-  // guard keeps them valid until Commit()/Abort().
-  PropertyGraph& graph() { return workspace_.storage(); }
-  GraphView& mutable_view() { return workspace_.view(); }
-  void MarkPlanningChanged() noexcept { workspace_.MarkPlanningChanged(); }
 
   GraphStats statistic() const {
     return GraphStats(workspace_.view(), workspace_.base_planning_generation());
@@ -89,6 +63,7 @@ class CurrentCowWriteTransaction {
   const Schema& schema() const { return workspace_.view().schema(); }
 
  private:
+  friend class CheckpointCoordinator;
   friend class ExecutionSlot;
 
   static CurrentCowWriteTransaction Begin(CurrentGraphWriteGuard guard,
@@ -103,7 +78,8 @@ class CurrentCowWriteTransaction {
 
   bool active() const noexcept { return guard_.active(); }
   Status PrepareCommit(uint64_t& committed_planning_generation);
-  void publishInPlace() noexcept;
+  Status CommitTransient();
+  void replaceCurrentSnapshot(uint64_t planning_generation) noexcept;
   void release(bool committed) noexcept;
 
   CurrentGraphWriteGuard guard_;

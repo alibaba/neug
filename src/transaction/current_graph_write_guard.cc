@@ -49,10 +49,4 @@ void CurrentGraphWriteGuard::release(
   timestamp_lease_.Finish(installed_snapshot_generation);
 }
 
-UpdateTimestampLease CurrentGraphWriteGuard::ReleaseForCheckpoint() noexcept {
-  CHECK(timestamp_lease_.active());
-  snapshot_.release();
-  return std::move(timestamp_lease_);
-}
-
 }  // namespace neug

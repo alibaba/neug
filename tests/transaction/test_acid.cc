@@ -154,7 +154,7 @@ bool neug_get_random_vertex(const StorageReadInterface& txn, label_t label_id,
   return false;
 }
 
-auto neug_get_random_vertex(CowGraphStorageAdapter& gi, label_t label_id) {
+auto neug_get_random_vertex(CowGraphStorage& gi, label_t label_id) {
   auto vertex_set = gi.GetVertexSet(label_id);
   int num = 0;
   neug::vid_t vid = 0;
@@ -179,7 +179,7 @@ auto neug_get_random_vertex(CowGraphStorageAdapter& gi, label_t label_id) {
 }
 
 // Helper: append string to field
-void neug_append_string_to_field(CowGraphStorageAdapter& gui, label_t label,
+void neug_append_string_to_field(CowGraphStorage& gui, label_t label,
                                  neug::vid_t vit, int col_id,
                                  const std::string& str) {
   std::string cur_str = std::string(

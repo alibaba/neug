@@ -26,23 +26,17 @@ CowGraphWorkspace::CowGraphWorkspace(std::shared_ptr<PropertyGraph> cow_graph,
       view_(*cow_graph_),
       base_planning_generation_(base_planning_generation) {}
 
-CowGraphWorkspace::CowGraphWorkspace(PropertyGraph& live_graph,
-                                     GraphView& live_view,
-                                     uint64_t base_planning_generation)
-    : live_graph_(&live_graph),
-      live_view_(&live_view),
-      base_planning_generation_(base_planning_generation),
-      in_place_(true) {}
-
 void CowGraphWorkspace::Reset() noexcept {
   logical_redo_.clear();
-  batch_mutation_changed_ = false;
-  planning_changed_ = false;
+  bulk_mutation_changed_ = false;
+  transient_mutation_changed_ = false;
+  // Drop the detach bookkeeping as well: every storage module reachable
+  // through this workspace is released below, so retaining stale detached
+  // markers would skip required detaches (and mutate shared storage) if the
+  // workspace were ever reused.
+  detach_state_ = CowDetachState();
   view_ = GraphView();
   cow_graph_.reset();
-  live_graph_ = nullptr;
-  live_view_ = nullptr;
-  in_place_ = false;
 }
 
 }  // namespace neug

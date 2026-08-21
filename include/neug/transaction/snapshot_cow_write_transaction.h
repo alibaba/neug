@@ -22,7 +22,7 @@
 
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph_snapshot_store.h"
-#include "neug/transaction/cow_graph_storage_adapter.h"
+#include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
 #include "neug/transaction/timestamp_lease.h"
 
@@ -36,7 +36,7 @@ class IWalWriter;
  * Execution holds an update lease that excludes other writers while existing
  * readers continue on pinned snapshots. Commit prepares a new snapshot, makes
  * logical redo durable, briefly blocks new readers, and publishes the prepared
- * snapshot generation. Graph mutation is delegated to CowGraphStorageAdapter.
+ * snapshot generation. Graph mutation is delegated to CowGraphStorage.
  */
 class SnapshotCowWriteTransaction {
  public:
@@ -58,8 +58,8 @@ class SnapshotCowWriteTransaction {
   bool Commit();
   void Abort() noexcept;
 
-  CowGraphStorageAdapter OpenStorage() {
-    return CowGraphStorageAdapter(workspace_, timestamp(), timestamp(), alloc_);
+  CowGraphStorage OpenStorage() {
+    return CowGraphStorage(workspace_, timestamp(), timestamp(), alloc_);
   }
 
   timestamp_t timestamp() const noexcept {

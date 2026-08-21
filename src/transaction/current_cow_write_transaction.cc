@@ -36,17 +36,6 @@ CurrentCowWriteTransaction CurrentCowWriteTransaction::Begin(
       alloc, snapshot_store, wal_writer);
 }
 
-CurrentCowWriteTransaction CurrentCowWriteTransaction::BeginInPlace(
-    CurrentGraphWriteGuard guard, Allocator& alloc,
-    GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer) {
-  auto& slot = guard.Snapshot();
-  return CurrentCowWriteTransaction(
-      std::move(guard),
-      CowGraphWorkspace(*slot.mutable_graph(), slot.mutable_view(),
-                        slot.planning_generation()),
-      alloc, snapshot_store, wal_writer);
-}
-
 CurrentCowWriteTransaction::CurrentCowWriteTransaction(
     CurrentGraphWriteGuard guard, CowGraphWorkspace workspace, Allocator& alloc,
     GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer) noexcept
@@ -70,9 +59,10 @@ Status CurrentCowWriteTransaction::Commit() {
   if (!active()) {
     return Status::OK();
   }
-  if (workspace_.is_in_place()) {
-    publishInPlace();
-    return Status::OK();
+  if (workspace_.HasTransientMutation()) {
+    Abort();
+    return Status::InternalError(
+        "Transient graph mutations require CommitTransient");
   }
   auto& logical_redo = workspace_.logical_redo();
   if (logical_redo.op_num() == 0) {
@@ -106,9 +96,7 @@ Status CurrentCowWriteTransaction::Commit() {
                   "terminating with the current slot unchanged";
   }
 
-  snapshot_store_.replaceCurrentSnapshotInPlace(
-      guard_.Snapshot(), workspace_.graph(), workspace_.view(),
-      committed_planning_generation);
+  replaceCurrentSnapshot(committed_planning_generation);
   release(true);
   return Status::OK();
 }
@@ -138,31 +126,41 @@ Status CurrentCowWriteTransaction::PrepareCommit(
 
 void CurrentCowWriteTransaction::Abort() noexcept {
   if (active()) {
-    // In-place mutations cannot be rolled back; failure paths publish them
-    // as well (mirroring the legacy InPlaceWriteScope unwinding semantics).
-    if (workspace_.is_in_place()) {
-      publishInPlace();
-    } else {
-      release(false);
-    }
+    release(false);
   }
 }
 
-UpdateTimestampLease
-CurrentCowWriteTransaction::PublishInPlaceAndReleaseForCheckpoint() noexcept {
-  CHECK(active());
-  CHECK(workspace_.is_in_place());
-  snapshot_store_.publishInPlaceMutation(guard_.Snapshot(),
-                                         workspace_.PlanningChanged());
-  workspace_.Reset();
-  return guard_.ReleaseForCheckpoint();
+Status CurrentCowWriteTransaction::CommitTransient() {
+  if (!active()) {
+    return Status::OK();
+  }
+  if (!workspace_.HasTransientMutation()) {
+    Abort();
+    return Status::InternalError(
+        "CommitTransient requires a transient graph mutation");
+  }
+  const auto& logical_redo = workspace_.logical_redo();
+  if (logical_redo.op_num() != 0 || logical_redo.content_size() != 0) {
+    Abort();
+    return Status::InternalError(
+        "Transient graph commit cannot contain logical WAL redo");
+  }
+  uint64_t committed_planning_generation = 0;
+  auto status = PrepareCommit(committed_planning_generation);
+  if (!status.ok()) {
+    Abort();
+    return status;
+  }
+  replaceCurrentSnapshot(committed_planning_generation);
+  release(true);
+  return Status::OK();
 }
 
-void CurrentCowWriteTransaction::publishInPlace() noexcept {
-  const uint32_t snapshot_generation = snapshot_store_.publishInPlaceMutation(
-      guard_.Snapshot(), workspace_.PlanningChanged());
-  workspace_.Reset();
-  guard_.release(snapshot_generation);
+void CurrentCowWriteTransaction::replaceCurrentSnapshot(
+    uint64_t planning_generation) noexcept {
+  snapshot_store_.replaceCurrentSnapshotInPlace(
+      guard_.Snapshot(), workspace_.graph(), workspace_.view(),
+      planning_generation);
 }
 
 void CurrentCowWriteTransaction::release(bool committed) noexcept {

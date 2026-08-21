@@ -7,11 +7,14 @@
 For ordinary queries, the transactional `ExecutionSlot` strategy uses
 `ReadTransaction`, `InsertTransaction`, and `SnapshotCowWriteTransaction`. The
 direct strategy uses `ReadSnapshotLease` for reads and
-`CurrentCowWriteTransaction` with `CowGraphStorageAdapter` for ordinary writes.
-`CurrentCowWriteTransaction::BeginInPlace` starts the same transaction in
-in-place mode for bulk COPY and index DDL: `CowGraphWorkspace` borrows the live
-published graph and its mutable view instead of cloning, and
-`CowGraphStorageAdapter` dispatches every operation to the borrowed storage.
+`CurrentCowWriteTransaction` with `CowGraphStorage` for ordinary writes.
+AP-direct COPY and index DDL use `BulkCowGraphStorage` over the same private
+`CowGraphWorkspace`, but commit through a statement-level checkpoint instead
+of logical WAL. The ordinary storage type does not expose index DDL and rejects
+batch insertion, which keeps bulk-only capabilities out of TP and explicit
+transactions. `COPY TEMP` uses the same private bulk storage but commits through
+the `ExecutionSlot`-only transient path: it atomically replaces the in-memory
+current graph without writing WAL or publishing a checkpoint.
 `CompactTransaction` and `CheckpointCoordinator` implement maintenance paths.
 
 These objects use RAII: terminal operations disarm their resources, and
@@ -64,7 +67,7 @@ discards buffered operations and completes the timestamp without applying them.
 Acquiring an update timestamp changes admission from `kOpen` to
 `kInsertsBlocked`, blocking new inserts and updates and waiting for active
 inserts to finish. Reads remain allowed. `ExecutionSlot` then clones the
-current `PropertyGraph`, and `CowGraphStorageAdapter` applies DML or DDL to
+current `PropertyGraph`, and `CowGraphStorage` applies DML or DDL to
 that COW clone.
 
 A non-empty `Commit()` checks snapshot-slot capacity, appends the finalized WAL,
@@ -78,32 +81,35 @@ Schema changes invalidate the shared query cache before publication. An empty
 commit, `Abort()`, or destruction discards the clone, completes the timestamp,
 and reopens admission without publishing a snapshot.
 
-## In-Place Write Mode
+## Bulk COW Write Mode
 
-`CurrentCowWriteTransaction::BeginInPlace` acquires the same writer admission
-as the COW path but skips cloning: `CowGraphWorkspace` borrows the live
-published graph and its mutable `GraphView` for the lifetime of the
-guarding write guard. `CowGraphStorageAdapter` keeps one implementation per
-operation and branches on the workspace mode, so the in-place path reuses the
-adapter's index maintenance while writing with the transaction's write
-timestamp. Index DDL (`CreateIndex` / `DropIndex` / `ActivateIndexes`) is only
-supported in in-place mode.
+`CurrentCowWriteTransaction::OpenBulkStorage()` returns
+`BulkCowGraphStorage`, a thin capability extension of `CowGraphStorage` for
+COPY/batch insert and index create/drop/activation. Both types mutate only a
+private shallow clone. Bulk operations detach their target table, CSR, column,
+and affected indexes once before consuming input; they continue to use the
+native batch loader instead of per-row DML or per-row WAL.
 
-In-place mutations are not WAL-logged and cannot be rolled back: both
-`Commit()` and `Abort()` (including destruction during stack unwinding)
-publish them. Publication bumps the planning generation when the transaction
-marked schema or planning changes, and never publishes a new snapshot
-generation — durability comes from the incremental checkpoint triggered after
-a successful COPY or index operation, which seals the in-place mutations into
-the current snapshot slot.
+A successful persistent bulk statement calls
+`CheckpointCoordinator::CommitWithCheckpoint()`. It consumes and reopens dirty
+modules only in the private clone, publishes the staging manifest as the
+durable decision, replaces the current graph without changing snapshot
+generation, and rotates every active WAL writer. Failures before manifest
+publication discard the private workspace, so no partial mutation becomes
+visible. Failures after publication are fail-stop because rollback is no longer
+possible.
+
+`COPY TEMP` is not a durable bulk statement. It calls `CommitTransient()` after
+the private workspace has been fully prepared; failures discard the workspace,
+and successful temporary objects disappear after database restart.
 
 ## Compact Transaction
 
 Compaction enters `kAllBlocked` directly and drains active inserts and readers
-before pinning the live graph. Commit appends a compact WAL record, compacts the
-graph in place, rebuilds its `GraphView`, completes the timestamp, and reopens
-admission. Abort or destruction closes the timestamp gap and reopens admission
-without modifying the graph.
+before pinning the live graph. Commit appends a compact WAL record, mutates the
+live graph through the compact path, rebuilds its `GraphView`, completes the
+timestamp, and reopens admission. Abort or destruction closes the timestamp gap
+and reopens admission without modifying the graph.
 
 ## Checkpoint Maintenance
 
@@ -133,11 +139,11 @@ active-inserter counters:
 |---|---|---|---|---|
 | `kOpen` | allowed | allowed | one transition may enter | normal execution |
 | `kInsertsBlocked` | allowed | blocked | blocked | update execution; active inserts are drained |
-| `kAllBlocked` | blocked | blocked | blocked | update commit or in-place maintenance |
+| `kAllBlocked` | blocked | blocked | blocked | update commit or exclusive maintenance |
 
 An ordinary update does not drain readers already admitted before
 `kAllBlocked`; compact and manual checkpoint explicitly drain them before
-in-place maintenance. Contended acquisition uses `AdaptiveBackoff` with the
+exclusive maintenance. Contended acquisition uses `AdaptiveBackoff` with the
 runtime wait function configured for the current runtime.
 
 `write_ts_` allocates unique write timestamps. `read_ts_` is the highest

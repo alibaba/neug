@@ -361,20 +361,4 @@ void GraphSnapshotStore::replaceCurrentSnapshotInPlace(
                                      std::memory_order_release);
 }
 
-uint32_t GraphSnapshotStore::publishInPlaceMutation(
-    SnapshotSlot& mutated_slot, bool planning_changed) noexcept {
-  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
-  auto& current_slot = slots_[slot_index];
-  CHECK_EQ(&mutated_slot, &current_slot)
-      << "In-place commit must publish the slot that it mutated";
-  if (planning_changed) {
-    auto& generation = mutated_slot.planning_generation_;
-    const uint64_t current = generation.load(std::memory_order_relaxed);
-    CHECK_NE(current, std::numeric_limits<uint64_t>::max())
-        << "Planning generation space exhausted";
-    generation.store(current + 1, std::memory_order_release);
-  }
-  return mutated_slot.snapshot_generation_;
-}
-
 }  // namespace neug

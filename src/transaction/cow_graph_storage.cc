@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/cow_graph_storage_adapter.h"
+#include "neug/transaction/cow_graph_storage.h"
 
 #include <glog/logging.h>
 #include <cstdint>
@@ -57,20 +57,16 @@
 
 namespace neug {
 
-Status CowGraphStorageAdapter::AddGraphEntry(const std::string& name,
-                                             const ProjectedGraphEntry& entry) {
-  if (!workspace_.is_in_place()) {
-    logical_redo_.LogAddGraphEntry(name, entry);
-  }
+Status CowGraphStorage::AddGraphEntry(const std::string& name,
+                                      const ProjectedGraphEntry& entry) {
+  logical_redo_.LogAddGraphEntry(name, entry);
   RETURN_IF_NOT_OK(graph_.mutable_schema().AddGraphEntry(name, entry));
   MarkSchemaDirty();
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::DropGraphEntry(const std::string& name) {
-  if (!workspace_.is_in_place()) {
-    logical_redo_.LogDropGraphEntry(name);
-  }
+Status CowGraphStorage::DropGraphEntry(const std::string& name) {
+  logical_redo_.LogDropGraphEntry(name);
   RETURN_IF_NOT_OK(graph_.mutable_schema().DropGraphEntry(name));
   MarkSchemaDirty();
   return Status::OK();
@@ -81,7 +77,7 @@ namespace {
 // Converts an ArrayColumn into a VecColumn that reuses the array's underlying
 // vector buffer without copying data. Subsequent incremental vector updates
 // avoid copy-on-write by letting the VecColumn maintain separate buffer
-// versions. Used when creating an HNSW index in-place.
+// versions. Used when creating an HNSW index in a private bulk workspace.
 std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
                                             size_t vid_size,
                                             const Value& default_value,
@@ -115,7 +111,7 @@ std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
 
 // Converts a VecColumn back into an ArrayColumn by copying vectors by vertex
 // ID. Equivalent to compaction: obsolete vector versions addressed by previous
-// index IDs are discarded. Used when dropping the last HNSW index in-place.
+// index IDs are discarded when dropping the last HNSW index.
 std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn& vec, size_t vid_size,
                                            size_t size,
                                            const Value& default_value,
@@ -258,22 +254,19 @@ fetch_edges_related_to_vertex(const StorageReadInterface& graph,
   return related_edges;
 }
 
-Status CowGraphStorageAdapter::CreateVertexTypeImpl(
+Status CowGraphStorage::CreateVertexTypeImpl(
     const CreateVertexTypeParam& config) {
-  if (workspace_.is_in_place()) {
-    auto status = graph_.CreateVertexType(config);
-    if (status.ok()) {
-      mut_view_.Rebuild(graph_);
-    }
-    return status;
-  }
   const auto& name = config.GetVertexLabel();
   if (graph_.schema().is_vertex_label_valid(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
     return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                   "Vertex type " + name + " already exists.");
   }
-  logical_redo_.LogCreateVertexType(config);
+  if (config.IsTemporary()) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogCreateVertexType(config);
+  }
   auto status = graph_.CreateVertexType(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create vertex type " << name << ": "
@@ -296,15 +289,7 @@ Status CowGraphStorageAdapter::CreateVertexTypeImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::CreateEdgeTypeImpl(
-    const CreateEdgeTypeParam& config) {
-  if (workspace_.is_in_place()) {
-    auto status = graph_.CreateEdgeType(config);
-    if (status.ok()) {
-      mut_view_.Rebuild(graph_);
-    }
-    return status;
-  }
+Status CowGraphStorage::CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
@@ -315,7 +300,11 @@ Status CowGraphStorageAdapter::CreateEdgeTypeImpl(
                   "Edge type " + edge_type + " already exists between " +
                       src_type + " and " + dst_type + ".");
   }
-  logical_redo_.LogCreateEdgeType(config);
+  if (config.IsTemporary()) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogCreateEdgeType(config);
+  }
   auto status = graph_.CreateEdgeType(config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create edge type " << edge_type << " between "
@@ -339,17 +328,8 @@ Status CowGraphStorageAdapter::CreateEdgeTypeImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::AddVertexPropertiesImpl(
+Status CowGraphStorage::AddVertexPropertiesImpl(
     label_t v_label, const AddVertexPropertiesParam& config) {
-  if (workspace_.is_in_place()) {
-    auto status = graph_.AddVertexProperties(v_label, config);
-    if (status.ok()) {
-      // Adding columns replaces the table header/column list cached by
-      // GraphView, so refresh the mutable view before subsequent reads.
-      mut_view_.Rebuild(graph_);
-    }
-    return status;
-  }
   logical_redo_.LogAddVertexProperties(
       graph_.schema().get_vertex_label_name(v_label), config);
   auto status = graph_.AddVertexProperties(v_label, config);
@@ -369,21 +349,9 @@ Status CowGraphStorageAdapter::AddVertexPropertiesImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::AddEdgePropertiesImpl(
+Status CowGraphStorage::AddEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const AddEdgePropertiesParam& config) {
-  if (workspace_.is_in_place()) {
-    auto status = graph_.AddEdgeProperties(src_label_id, dst_label_id,
-                                           edge_label_id, config);
-    if (status.ok()) {
-      // Adding edge properties may trigger a bundled↔unbundled CSR rebuild
-      // (dropAndCreateNewUnbundledCSR), which replaces the underlying
-      // CsrBase objects.  The mutable view caches raw pointers to those
-      // objects, so we must rebuild to pick up the new pointers.
-      mut_view_.Rebuild(graph_);
-    }
-    return status;
-  }
   const auto& schema = graph_.schema();
   logical_redo_.LogAddEdgeProperties(schema.get_vertex_label_name(src_label_id),
                                      schema.get_vertex_label_name(dst_label_id),
@@ -411,20 +379,8 @@ Status CowGraphStorageAdapter::AddEdgePropertiesImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::RenameVertexPropertiesImpl(
+Status CowGraphStorage::RenameVertexPropertiesImpl(
     label_t v_label, const RenameVertexPropertiesParam& config) {
-  if (workspace_.is_in_place()) {
-    RETURN_IF_NOT_OK(graph_.RenameVertexProperties(v_label, config));
-    // Schema metadata is already changed even if a bound index rename fails.
-    MarkSchemaDirty();
-    for (const auto& [old_name, new_name] : config.GetRenameProperties()) {
-      if (old_name == new_name) {
-        continue;
-      }
-      RETURN_IF_NOT_OK(renameVertexIndex(graph_, v_label, old_name, new_name));
-    }
-    return Status::OK();
-  }
   const auto vertex_type_name = graph_.schema().get_vertex_label_name(v_label);
   logical_redo_.LogRenameVertexProperties(vertex_type_name, config);
   auto status = graph_.RenameVertexProperties(v_label, config);
@@ -443,13 +399,9 @@ Status CowGraphStorageAdapter::RenameVertexPropertiesImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::RenameEdgePropertiesImpl(
+Status CowGraphStorage::RenameEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const RenameEdgePropertiesParam& config) {
-  if (workspace_.is_in_place()) {
-    return graph_.RenameEdgeProperties(src_label_id, dst_label_id,
-                                       edge_label_id, config);
-  }
   const auto& schema = graph_.schema();
   logical_redo_.LogRenameEdgeProperties(
       schema.get_vertex_label_name(src_label_id),
@@ -468,24 +420,13 @@ Status CowGraphStorageAdapter::RenameEdgePropertiesImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::DeleteVertexPropertiesImpl(
+Status CowGraphStorage::DeleteVertexPropertiesImpl(
     label_t v_label, const DeleteVertexPropertiesParam& config) {
-  if (workspace_.is_in_place()) {
-    RETURN_IF_NOT_OK(graph_.DeleteVertexProperties(v_label, config));
-    // Column removal precedes bound-index cleanup and cannot be rolled back.
-    MarkSchemaDirty();
-    for (const auto& prop_name : config.GetDeleteProperties()) {
-      RETURN_IF_NOT_OK(dropVertexIndex(graph_, v_label, prop_name));
-    }
-    // Deleting columns shifts the table column vector cached by GraphView.
-    mut_view_.Rebuild(graph_);
-    return Status::OK();
-  }
   const auto& properties = config.GetDeleteProperties();
   const auto& vertex_type_name = graph_.schema().get_vertex_label_name(v_label);
   for (const auto& prop_name : properties) {
     if (!graph_.schema().vertex_has_property(v_label, prop_name)) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                     "Property [" + prop_name + "] does not exist in vertex [" +
                         vertex_type_name + "].");
     }
@@ -521,21 +462,9 @@ Status CowGraphStorageAdapter::DeleteVertexPropertiesImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::DeleteEdgePropertiesImpl(
+Status CowGraphStorage::DeleteEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const DeleteEdgePropertiesParam& config) {
-  if (workspace_.is_in_place()) {
-    auto status = graph_.DeleteEdgeProperties(src_label_id, dst_label_id,
-                                              edge_label_id, config);
-    if (status.ok()) {
-      // Deleting edge properties may trigger a CSR rebuild
-      // (unbundled→bundled or unbundled→empty), which replaces the underlying
-      // CsrBase objects.  Rebuild the mutable view so cached pointers stay
-      // valid.
-      mut_view_.Rebuild(graph_);
-    }
-    return status;
-  }
   const auto& schema = graph_.schema();
   const auto& src_type = schema.get_vertex_label_name(src_label_id);
   const auto& dst_type = schema.get_vertex_label_name(dst_label_id);
@@ -543,7 +472,7 @@ Status CowGraphStorageAdapter::DeleteEdgePropertiesImpl(
   for (const auto& prop_name : config.GetDeleteProperties()) {
     if (!schema.edge_has_property(src_label_id, dst_label_id, edge_label_id,
                                   prop_name)) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                     "Property [" + prop_name + "] does not exist in edge [" +
                         edge_type + "] between [" + src_type + "] and [" +
                         dst_type + "].");
@@ -605,28 +534,7 @@ Status CowGraphStorageAdapter::DeleteEdgePropertiesImpl(
   return status;
 }
 
-Status CowGraphStorageAdapter::DeleteVertexTypeImpl(label_t v_label) {
-  if (workspace_.is_in_place()) {
-    const auto& v_schema = graph_.schema().get_vertex_schema(v_label);
-    std::vector<std::string> indexed_properties;
-    indexed_properties.reserve(v_schema->property_names.size() + 1);
-    // The primary key is stored separately from property_names but indexes
-    // bound to it must be removed together with the vertex type.
-    indexed_properties.push_back(std::get<1>(v_schema->primary_keys[0]));
-    for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
-         ++prop_idx) {
-      if (v_schema->vprop_soft_deleted[prop_idx]) {
-        continue;
-      }
-      indexed_properties.push_back(v_schema->property_names[prop_idx]);
-    }
-    RETURN_IF_NOT_OK(graph_.DeleteVertexType(v_label));
-    for (const auto& property_name : indexed_properties) {
-      RETURN_IF_NOT_OK(dropVertexIndex(graph_, v_label, property_name));
-    }
-    mut_view_.Rebuild(graph_);
-    return Status::OK();
-  }
+Status CowGraphStorage::DeleteVertexTypeImpl(label_t v_label) {
   // Collect related edge triplet IDs before deletion.
   // PropertyGraph::DeleteVertexType removes them from edge_tables_, so
   // we must capture them while the schema is still intact.
@@ -650,6 +558,7 @@ Status CowGraphStorageAdapter::DeleteVertexTypeImpl(label_t v_label) {
   }
 
   const auto& v_schema = graph_.schema().get_vertex_schema(v_label);
+  const bool is_temporary = graph_.schema().is_vertex_label_temporary(v_label);
   std::vector<std::string> indexed_properties;
   indexed_properties.reserve(v_schema->property_names.size() + 1);
   // The primary key is stored separately from property_names but indexes bound
@@ -662,7 +571,11 @@ Status CowGraphStorageAdapter::DeleteVertexTypeImpl(label_t v_label) {
     }
     indexed_properties.push_back(v_schema->property_names[prop_idx]);
   }
-  logical_redo_.LogDeleteVertexType(vertex_type_name);
+  if (is_temporary) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogDeleteVertexType(vertex_type_name);
+  }
   auto status = graph_.DeleteVertexType(v_label);
   if (!status.ok()) {
     return status;
@@ -679,25 +592,22 @@ Status CowGraphStorageAdapter::DeleteVertexTypeImpl(label_t v_label) {
   return status;
 }
 
-Status CowGraphStorageAdapter::DeleteEdgeTypeImpl(label_t src_label_id,
-                                                  label_t dst_label_id,
-                                                  label_t edge_label_id) {
-  if (workspace_.is_in_place()) {
-    auto status =
-        graph_.DeleteEdgeType(src_label_id, dst_label_id, edge_label_id);
-    if (status.ok()) {
-      mut_view_.Rebuild(graph_);
-    }
-    return status;
-  }
+Status CowGraphStorage::DeleteEdgeTypeImpl(label_t src_label_id,
+                                           label_t dst_label_id,
+                                           label_t edge_label_id) {
   const auto& schema = graph_.schema();
   const auto& src_type = schema.get_vertex_label_name(src_label_id);
   const auto& dst_type = schema.get_vertex_label_name(dst_label_id);
   const auto& edge_type = schema.get_edge_label_name(edge_label_id);
   uint32_t triplet_id =
       schema.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
+  const bool is_temporary = schema.is_edge_label_temporary(triplet_id);
 
-  logical_redo_.LogDeleteEdgeType(src_type, dst_type, edge_type);
+  if (is_temporary) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogDeleteEdgeType(src_type, dst_type, edge_type);
+  }
   auto status =
       graph_.DeleteEdgeType(src_label_id, dst_label_id, edge_label_id);
   if (status.ok()) {
@@ -707,36 +617,9 @@ Status CowGraphStorageAdapter::DeleteEdgeTypeImpl(label_t src_label_id,
   return status;
 }
 
-Status CowGraphStorageAdapter::AddVertexImpl(label_t label, const Value& oid,
-                                             const std::vector<Value>& props,
-                                             vid_t& vid) {
-  if (workspace_.is_in_place()) {
-    const auto& vertex_table = graph_.get_vertex_table(label);
-    if (vertex_table.Size() >= vertex_table.Capacity()) {
-      auto new_cap = vertex_table.Size() < 4096
-                         ? 4096
-                         : vertex_table.Size() + vertex_table.Size() / 4;
-      auto status = graph_.EnsureCapacity(label, new_cap);
-      if (!status.ok()) {
-        LOG(ERROR) << "Failed to ensure space for vertex of label "
-                   << graph_.schema().get_vertex_label_name(label) << ": "
-                   << status.ToString();
-        return status;
-      }
-    }
-
-    auto status =
-        graph_.AddVertex(label, oid, props, vid, neug::timestamp_t(0), true);
-    if (!status.ok()) {
-      LOG(ERROR) << "AddVertex failed: " << status.ToString();
-      return status;
-    }
-
-    // The graph row is already visible even if index maintenance fails.
-    MarkVertexTableDirty(label);
-    RETURN_IF_NOT_OK(addVertexIndexData(graph_, label, vid, oid, props));
-    return Status::OK();
-  }
+Status CowGraphStorage::AddVertexImpl(label_t label, const Value& oid,
+                                      const std::vector<Value>& props,
+                                      vid_t& vid) {
   std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -782,13 +665,7 @@ Status CowGraphStorageAdapter::AddVertexImpl(label_t label, const Value& oid,
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::DeleteVertexImpl(label_t label, vid_t lid) {
-  if (workspace_.is_in_place()) {
-    RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, write_ts_));
-    MarkVertexTableDirty(label);
-    markIncidentEdgeTablesDirty(label);
-    return deleteVertexIndexData(graph_, label, {lid});
-  }
+Status CowGraphStorage::DeleteVertexImpl(label_t label, vid_t lid) {
   if (!graph_.IsValidLid(label, lid, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex id is out of range or already deleted");
@@ -803,35 +680,11 @@ Status CowGraphStorageAdapter::DeleteVertexImpl(label_t label, vid_t lid) {
       [this](StorageIndex& index) { return detachIndex(index); });
 }
 
-Status CowGraphStorageAdapter::AddEdgeImpl(label_t src_label, vid_t src_lid,
-                                           label_t dst_label, vid_t dst_lid,
-                                           label_t edge_label,
-                                           const std::vector<Value>& properties,
-                                           const void*& prop) {
-  if (workspace_.is_in_place()) {
-    const auto& edge_table =
-        graph_.get_edge_table(src_label, dst_label, edge_label);
-    if (edge_table.PropTableSize() >= edge_table.Capacity()) {
-      size_t cur_size = edge_table.PropTableSize();
-      auto new_cap = cur_size < 4096 ? 4096 : cur_size + cur_size / 4;
-      auto status =
-          graph_.EnsureCapacity(src_label, dst_label, edge_label, new_cap);
-      if (!status.ok()) {
-        LOG(ERROR) << "Failed to ensure space for edge of label "
-                   << graph_.schema().get_edge_label_name(edge_label) << ": "
-                   << status.ToString();
-        return status;
-      }
-    }
-    int32_t oe_offset = 0;
-    auto status = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
-                                 edge_label, properties, neug::timestamp_t(0),
-                                 alloc_, oe_offset, prop, true);
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to add edge: " << status.ToString();
-    }
-    return status;
-  }
+Status CowGraphStorage::AddEdgeImpl(label_t src_label, vid_t src_lid,
+                                    label_t dst_label, vid_t dst_lid,
+                                    label_t edge_label,
+                                    const std::vector<Value>& properties,
+                                    const void*& prop) {
   const auto& edge_table =
       graph_.get_edge_table(src_label, dst_label, edge_label);
   if (edge_table.PropTableSize() >= edge_table.Capacity()) {
@@ -861,14 +714,9 @@ Status CowGraphStorageAdapter::AddEdgeImpl(label_t src_label, vid_t src_lid,
                         properties, write_ts_, alloc_, oe_offset, prop, true);
 }
 
-Status CowGraphStorageAdapter::DeleteEdgesImpl(label_t src_label, vid_t src_lid,
-                                               label_t dst_label, vid_t dst_lid,
-                                               label_t edge_label) {
-  if (workspace_.is_in_place()) {
-    // Bulk mode: delegate to the batch version with a single pair.
-    std::vector<std::tuple<vid_t, vid_t>> edges = {{src_lid, dst_lid}};
-    return graph_.BatchDeleteEdges(src_label, dst_label, edge_label, edges);
-  }
+Status CowGraphStorage::DeleteEdgesImpl(label_t src_label, vid_t src_lid,
+                                        label_t dst_label, vid_t dst_lid,
+                                        label_t edge_label) {
   if (!graph_.IsValidLid(src_label, src_lid, read_ts_) ||
       !graph_.IsValidLid(dst_label, dst_lid, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -923,15 +771,10 @@ Status CowGraphStorageAdapter::DeleteEdgesImpl(label_t src_label, vid_t src_lid,
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::DeleteEdgeImpl(label_t src_label, vid_t src_lid,
-                                              label_t dst_label, vid_t dst_lid,
-                                              label_t edge_label,
-                                              int32_t oe_offset,
-                                              int32_t ie_offset) {
-  if (workspace_.is_in_place()) {
-    return graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                             oe_offset, ie_offset, write_ts_);
-  }
+Status CowGraphStorage::DeleteEdgeImpl(label_t src_label, vid_t src_lid,
+                                       label_t dst_label, vid_t dst_lid,
+                                       label_t edge_label, int32_t oe_offset,
+                                       int32_t ie_offset) {
   if (!graph_.IsValidLid(src_label, src_lid, read_ts_) ||
       !graph_.IsValidLid(dst_label, dst_lid, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -952,15 +795,9 @@ Status CowGraphStorageAdapter::DeleteEdgeImpl(label_t src_label, vid_t src_lid,
                            oe_offset, ie_offset, write_ts_);
 }
 
-Status CowGraphStorageAdapter::UpdateVertexPropertyImpl(label_t label,
-                                                        vid_t lid, int col_id,
-                                                        const Value& value) {
-  if (workspace_.is_in_place()) {
-    RETURN_IF_NOT_OK(
-        graph_.UpdateVertexProperty(label, lid, col_id, value, write_ts_));
-    MarkVertexTableDirty(label);
-    return updateVertexIndexData(graph_, label, lid, col_id, value);
-  }
+Status CowGraphStorage::UpdateVertexPropertyImpl(label_t label, vid_t lid,
+                                                 int col_id,
+                                                 const Value& value) {
   if (!graph_.IsValidLid(label, lid, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex lid " + std::to_string(lid) + " of label " +
@@ -988,15 +825,10 @@ Status CowGraphStorageAdapter::UpdateVertexPropertyImpl(label_t label,
       [this](StorageIndex& index) { return detachIndex(index); });
 }
 
-Status CowGraphStorageAdapter::UpdateEdgePropertyImpl(
+Status CowGraphStorage::UpdateEdgePropertyImpl(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, int32_t oe_offset, int32_t ie_offset, int32_t col_id,
     const Value& value) {
-  if (workspace_.is_in_place()) {
-    return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
-                                     oe_offset, ie_offset, col_id, value,
-                                     neug::timestamp_t(0));
-  }
   if (!graph_.IsValidLid(src_label, src, read_ts_) ||
       !graph_.IsValidLid(dst_label, dst, read_ts_)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1030,7 +862,7 @@ Status CowGraphStorageAdapter::UpdateEdgePropertyImpl(
                                    write_ts_);
 }
 
-Status CowGraphStorageAdapter::detachVertexTableForInsert(label_t label) {
+Status CowGraphStorage::detachVertexTableForInsert(label_t label) {
   auto& state = detach_state_.vertex_tables[label];
   auto& vertex_table = graph_.get_vertex_table(label);
   bool did_detach = false;
@@ -1057,7 +889,7 @@ Status CowGraphStorageAdapter::detachVertexTableForInsert(label_t label) {
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachVertexTableForDelete(label_t label) {
+Status CowGraphStorage::detachVertexTableForDelete(label_t label) {
   auto& state = detach_state_.vertex_tables[label];
   auto& vertex_table = graph_.get_vertex_table(label);
   bool did_detach = false;
@@ -1081,8 +913,7 @@ Status CowGraphStorageAdapter::detachVertexTableForDelete(label_t label) {
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachVertexColumn(label_t label,
-                                                  int32_t col_id) {
+Status CowGraphStorage::detachVertexColumn(label_t label, int32_t col_id) {
   auto& state = detach_state_.vertex_tables[label];
   if (col_id >= 0 &&
       static_cast<size_t>(col_id) < state.columns_detached.size() &&
@@ -1095,8 +926,7 @@ Status CowGraphStorageAdapter::detachVertexColumn(label_t label,
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachEdgeTableForInsert(
-    uint32_t edge_triplet_id) {
+Status CowGraphStorage::detachEdgeTableForInsert(uint32_t edge_triplet_id) {
   if (!graph_.HasEdgeTable(edge_triplet_id)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge table for edge label triplet not found");
@@ -1129,8 +959,7 @@ Status CowGraphStorageAdapter::detachEdgeTableForInsert(
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachEdgeTableForDelete(
-    uint32_t edge_triplet_id) {
+Status CowGraphStorage::detachEdgeTableForDelete(uint32_t edge_triplet_id) {
   if (!graph_.HasEdgeTable(edge_triplet_id)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge table for edge label triplet not found");
@@ -1154,8 +983,8 @@ Status CowGraphStorageAdapter::detachEdgeTableForDelete(
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachEdgeColumn(uint32_t edge_triplet_id,
-                                                int32_t col_id) {
+Status CowGraphStorage::detachEdgeColumn(uint32_t edge_triplet_id,
+                                         int32_t col_id) {
   // Edge property updates never detach CSRs: bundled properties live in the
   // adjlists detached by the caller, and unbundled properties live in the
   // property table column detached here.
@@ -1176,9 +1005,8 @@ Status CowGraphStorageAdapter::detachEdgeColumn(uint32_t edge_triplet_id,
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachAdjlists(uint32_t edge_triplet_id,
-                                              vid_t src_lid, vid_t dst_lid,
-                                              Allocator& alloc) {
+Status CowGraphStorage::detachAdjlists(uint32_t edge_triplet_id, vid_t src_lid,
+                                       vid_t dst_lid, Allocator& alloc) {
   auto& state = detach_state_.edge_tables[edge_triplet_id];
   auto& edge_table = graph_.get_edge_table_by_index(edge_triplet_id);
   if (state.out_adjlists_detached.find(src_lid) ==
@@ -1194,7 +1022,7 @@ Status CowGraphStorageAdapter::detachAdjlists(uint32_t edge_triplet_id,
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachForResize(label_t label, size_t capacity) {
+Status CowGraphStorage::detachForResize(label_t label, size_t capacity) {
   const auto& vertex_table = graph_.get_vertex_table(label);
   if (capacity <= vertex_table.Capacity()) {
     return Status::OK();
@@ -1221,17 +1049,15 @@ Status CowGraphStorageAdapter::detachForResize(label_t label, size_t capacity) {
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachForResize(label_t src_label,
-                                               label_t dst_label,
-                                               label_t edge_label,
-                                               size_t capacity) {
+Status CowGraphStorage::detachForResize(label_t src_label, label_t dst_label,
+                                        label_t edge_label, size_t capacity) {
   uint32_t idx =
       graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
   return detachEdgeTableForInsert(idx);
 }
 
-Status CowGraphStorageAdapter::prepareVertexDelete(
-    label_t label, const std::vector<vid_t>& lids) {
+Status CowGraphStorage::prepareVertexDelete(label_t label,
+                                            const std::vector<vid_t>& lids) {
   // Detach the validity/timestamp module, then only the triplets that actually
   // hold an incident edge of a deleted vertex. Per-triplet detachment covers
   // the CSR directory arrays (required before any adjlist buffer can be
@@ -1257,48 +1083,53 @@ Status CowGraphStorageAdapter::prepareVertexDelete(
   return Status::OK();
 }
 
-result<std::vector<vid_t>> CowGraphStorageAdapter::BatchAddVerticesImpl(
+result<std::vector<vid_t>> CowGraphStorage::BatchAddVerticesImpl(
+    label_t, std::shared_ptr<IDataChunkSupplier>) {
+  RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
+                      "BatchAddVertices requires BulkCowGraphStorage");
+}
+
+Status CowGraphStorage::BatchAddEdgesImpl(label_t, label_t, label_t,
+                                          std::shared_ptr<IDataChunkSupplier>) {
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "BatchAddEdges requires BulkCowGraphStorage");
+}
+
+result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
-  if (workspace_.is_in_place()) {
-    auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
-    if (!new_vids) {
-      return tl::unexpected(new_vids.error());
+  RETURN_STATUS_ERROR_IF_NOT_OK(detachVertexTableForInsert(v_label_id));
+  GS_AUTO(indexes, graph_.mutable_index_manager().GetAllIndexes());
+  for (auto* index : indexes) {
+    if (index->GetMeta().schema.label_id == v_label_id) {
+      RETURN_STATUS_ERROR_IF_NOT_OK(detachIndex(*index));
     }
-    if (new_vids->empty()) {
-      return new_vids;
-    }
-    auto status = AddBatchVertexIndexData(graph_, v_label_id, new_vids.value());
-    if (!status.ok()) {
-      return tl::unexpected(std::move(status));
-    }
+  }
+  auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  if (!new_vids || new_vids->empty()) {
     return new_vids;
   }
-  LOG(ERROR) << "BatchAddVertices is not supported in TP mode currently.";
-  RETURN_STATUS_ERROR(
-      StatusCode::ERR_NOT_SUPPORTED,
-      "BatchAddVertices is not supported in TP mode currently.");
+  auto status = AddBatchVertexIndexData(graph_, v_label_id, new_vids.value());
+  if (!status.ok()) {
+    return tl::unexpected(std::move(status));
+  }
+  workspace_.MarkBulkMutation();
+  return new_vids;
 }
 
-Status CowGraphStorageAdapter::BatchAddEdgesImpl(
+Status BulkCowGraphStorage::BatchAddEdgesImpl(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
-  if (workspace_.is_in_place()) {
-    return graph_.BatchAddEdges(src_label, dst_label, edge_label,
-                                std::move(supplier));
-  }
-  LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "BatchAddEdges is not supported in TP mode currently.");
+  const uint32_t edge_triplet_id =
+      graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_triplet_id));
+  RETURN_IF_NOT_OK(graph_.BatchAddEdges(src_label, dst_label, edge_label,
+                                        std::move(supplier)));
+  workspace_.MarkBulkMutation();
+  return Status::OK();
 }
 
-Status CowGraphStorageAdapter::BatchDeleteVerticesImpl(
+Status CowGraphStorage::BatchDeleteVerticesImpl(
     label_t v_label_id, const std::vector<vid_t>& vids) {
-  if (workspace_.is_in_place()) {
-    RETURN_IF_NOT_OK(graph_.BatchDeleteVertices(v_label_id, vids));
-    MarkVertexTableDirty(v_label_id);
-    markIncidentEdgeTablesDirty(v_label_id);
-    return deleteVertexIndexData(graph_, v_label_id, vids);
-  }
   const auto initial_op_num = logical_redo_.op_num();
   for (vid_t lid : vids) {
     if (!DeleteVertex(v_label_id, lid)) {
@@ -1309,18 +1140,14 @@ Status CowGraphStorageAdapter::BatchDeleteVerticesImpl(
     }
   }
   if (logical_redo_.op_num() != initial_op_num) {
-    workspace_.MarkBatchMutation();
+    workspace_.MarkBulkMutation();
   }
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::BatchDeleteEdgesImpl(
+Status CowGraphStorage::BatchDeleteEdgesImpl(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::tuple<vid_t, vid_t>>& edges) {
-  if (workspace_.is_in_place()) {
-    return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
-                                   edge_label_id, edges);
-  }
   const auto initial_op_num = logical_redo_.op_num();
   for (const auto& edge : edges) {
     vid_t src_lid = std::get<0>(edge);
@@ -1336,19 +1163,15 @@ Status CowGraphStorageAdapter::BatchDeleteEdgesImpl(
     }
   }
   if (logical_redo_.op_num() != initial_op_num) {
-    workspace_.MarkBatchMutation();
+    workspace_.MarkBulkMutation();
   }
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::BatchDeleteEdgesImpl(
+Status CowGraphStorage::BatchDeleteEdgesImpl(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
-  if (workspace_.is_in_place()) {
-    return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
-                                   edge_label_id, oe_edges, ie_edges);
-  }
   assert(oe_edges.size() == ie_edges.size());
   const auto initial_op_num = logical_redo_.op_num();
   for (size_t i = 0; i < oe_edges.size(); ++i) {
@@ -1367,12 +1190,12 @@ Status CowGraphStorageAdapter::BatchDeleteEdgesImpl(
     }
   }
   if (logical_redo_.op_num() != initial_op_num) {
-    workspace_.MarkBatchMutation();
+    workspace_.MarkBulkMutation();
   }
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::detachIndex(StorageIndex& index) {
+Status CowGraphStorage::detachIndex(StorageIndex& index) {
   const auto& name = index.GetMeta().name;
   auto it = detach_state_.index_detached.find(name);
   if (it != detach_state_.index_detached.end() && it->second) {
@@ -1383,8 +1206,8 @@ Status CowGraphStorageAdapter::detachIndex(StorageIndex& index) {
   return Status::OK();
 }
 
-// Index DDL below is only meaningful for in-place (bulk/index) workspaces:
-// private-COW transactions do not manage indexes yet.
+// Index DDL is exposed only by BulkCowGraphStorage. It mutates the private
+// clone and is published only by the checkpoint commit protocol.
 
 /**
  * Creates an index for a vertex property.
@@ -1394,13 +1217,8 @@ Status CowGraphStorageAdapter::detachIndex(StorageIndex& index) {
  * without copying its data. Subsequent incremental vector updates avoid
  * copy-on-write by letting the VecColumn maintain separate buffer versions.
  */
-neug::result<StorageIndex*> CowGraphStorageAdapter::CreateIndex(
+neug::result<StorageIndex*> BulkCowGraphStorage::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
-  if (!workspace_.is_in_place()) {
-    RETURN_STATUS_ERROR(
-        StatusCode::ERR_NOT_SUPPORTED,
-        "Index DDL is not supported by private-COW transactions");
-  }
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
@@ -1479,11 +1297,17 @@ neug::result<StorageIndex*> CowGraphStorageAdapter::CreateIndex(
                      std::move(meta), std::move(index_id_accessor), column,
                      graph_.GetVertexSet(label_id, write_ts_)));
 
-  workspace_.MarkPlanningChanged();
+  // CreateIndex built a new private module; the shared base has no object that
+  // needs protection from the consuming checkpoint.
+  detach_state_.index_detached[index->GetMeta().name] = true;
+  workspace_.MarkBulkMutation();
   if (vec_column) {
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(vec_column));
-    MarkVertexTableDirty(label_id);
+    auto& table_state = detach_state_.vertex_tables[label_id];
+    table_state.columns_detached.resize(schema->property_types.size(), false);
+    table_state.columns_detached[property_col] = true;
+    graph_.MarkVertexTableDirty(label_id);
     mut_view_.Rebuild(graph_);
   }
   return index;
@@ -1497,11 +1321,7 @@ neug::result<StorageIndex*> CowGraphStorageAdapter::CreateIndex(
  * vectors from the VecColumn by vertex ID. This is equivalent to compaction:
  * obsolete vector versions addressed by previous index IDs are discarded.
  */
-Status CowGraphStorageAdapter::DropIndex(const std::string& name) {
-  if (!workspace_.is_in_place()) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Index DDL is not supported by private-COW transactions");
-  }
+Status BulkCowGraphStorage::DropIndex(const std::string& name) {
   auto& index_manager = graph_.mutable_index_manager();
   auto pending = index_manager.GetPendingIndexByName(name);
   const bool is_pending = pending.has_value();
@@ -1562,29 +1382,30 @@ Status CowGraphStorageAdapter::DropIndex(const std::string& name) {
             *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
             graph_.checkpoint(), graph_.memory_level());
       } else {
-        return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                      "DropIndex: HNSW index can only be created on VecColumn");
+        return Status(
+            StatusCode::ERR_INVALID_ARGUMENT,
+            "DropIndex: HNSW-indexed property column is not a VecColumn");
       }
     }
   }
 
   RETURN_IF_NOT_OK(index_manager.DropIndex(name));
-  workspace_.MarkPlanningChanged();
+  workspace_.MarkBulkMutation();
   if (array_column) {
     auto& vertex_table = graph_.get_vertex_table(meta.schema.label_id);
     vertex_table.SetColumn(static_cast<size_t>(property_col),
                            std::move(array_column));
-    MarkVertexTableDirty(meta.schema.label_id);
+    auto& table_state = detach_state_.vertex_tables[meta.schema.label_id];
+    table_state.columns_detached.resize(
+        vertex_table.get_vertex_schema_ptr()->property_types.size(), false);
+    table_state.columns_detached[property_col] = true;
+    graph_.MarkVertexTableDirty(meta.schema.label_id);
     mut_view_.Rebuild(graph_);
   }
   return Status::OK();
 }
 
-Status CowGraphStorageAdapter::ActivateIndexes() {
-  if (!workspace_.is_in_place()) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Index DDL is not supported by private-COW transactions");
-  }
+Status BulkCowGraphStorage::ActivateIndexes() {
   auto activated = graph_.ActivateIndexes();
   if (!activated) {
     return activated.error();
@@ -1593,7 +1414,7 @@ Status CowGraphStorageAdapter::ActivateIndexes() {
     return Status::OK();
   }
   mut_view_.Rebuild(graph_);
-  workspace_.MarkPlanningChanged();
+  workspace_.MarkBulkMutation();
   return Status::OK();
 }
 

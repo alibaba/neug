@@ -28,6 +28,7 @@
 
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/cow_detach_state.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/module/module_broker.h"
@@ -202,8 +203,8 @@ result<std::vector<vid_t>> PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_STATUS_ERROR_IF_NOT_OK(vertex_label_check(v_label));
   // A supplier can fail after one or more chunks have already been applied.
-  // Mark the table before entering the consuming loop so that those partial
-  // in-place mutations cannot be omitted by a later incremental checkpoint.
+  // Mark the table before entering the consuming loop so a successful caller
+  // cannot omit those mutations from its checkpoint.
   MarkVertexTableDirty(v_label);
   return vertex_tables_[v_label].insert_vertices(std::move(supplier));
 }
@@ -1149,7 +1150,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
       LOG(WARNING)
           << "Incremental checkpoint rewrites vertex table '" << label
           << "' that already exists in checkpoint " << ckp_->id()
-          << "; repeated in-place writes to the same table pay a full-table "
+          << "; repeated bulk writes to the same table pay a full-table "
              "rewrite on every seal - consider batching COPY statements";
     }
     dirty_vertices.push_back(static_cast<label_t>(i));
@@ -1186,7 +1187,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
           << "Incremental checkpoint rewrites edge table '" << src << "-"
           << edge << "->" << dst << "' that already exists in checkpoint "
           << ckp_->id()
-          << "; repeated in-place writes to the same table pay a full-table "
+          << "; repeated bulk writes to the same table pay a full-table "
              "rewrite on every seal - consider batching COPY statements";
     }
     dirty_edges.push_back(index);
@@ -1237,6 +1238,80 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   rebind_indexes();
   dirty_.ClearAll();
   return planning_changed;
+}
+
+void PropertyGraph::DetachDirtyModulesForCheckpoint(
+    CowDetachState& detach_state) {
+  CHECK(ckp_ != nullptr);
+
+  if (detach_state.vertex_tables.size() < vertex_label_total_count_) {
+    detach_state.vertex_tables.resize(vertex_label_total_count_);
+  }
+  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
+    if (!schema_.is_vertex_label_valid(i) ||
+        schema_.is_vertex_label_temporary(i) || !IsVertexTableDirty(i)) {
+      continue;
+    }
+    auto& table = vertex_tables_[i];
+    auto& state = detach_state.vertex_tables[i];
+    const auto column_count =
+        table.get_vertex_schema_ptr()->property_types.size();
+    state.columns_detached.resize(column_count, false);
+    if (!state.indexer_detached) {
+      table.DetachIndexer();
+      state.indexer_detached = true;
+    }
+    if (!state.vertex_timestamp_detached) {
+      table.DetachVertexTimestamp();
+      state.vertex_timestamp_detached = true;
+    }
+    for (size_t column = 0; column < column_count; ++column) {
+      if (!state.columns_detached[column]) {
+        table.get_table().DetachColumn(column, *ckp_, memory_level_);
+        state.columns_detached[column] = true;
+      }
+    }
+  }
+
+  for (const auto& [index, edge_schema] : schema_.get_all_edge_schemas()) {
+    if (schema_.is_edge_label_temporary(index) || !dirty_.IsEdgeDirty(index)) {
+      continue;
+    }
+    auto table_it = edge_tables_.find(index);
+    if (table_it == edge_tables_.end()) {
+      continue;
+    }
+    auto& table = table_it->second;
+    auto& state = detach_state.edge_tables[index];
+    state.columns_detached.resize(edge_schema->property_names.size(), false);
+    if (!state.out_csr_detached) {
+      table.DetachOutCsr();
+      state.out_csr_detached = true;
+    }
+    if (!state.in_csr_detached) {
+      table.DetachInCsr();
+      state.in_csr_detached = true;
+    }
+    if (table.table()) {
+      for (size_t column = 0; column < state.columns_detached.size();
+           ++column) {
+        if (!state.columns_detached[column]) {
+          table.table()->DetachColumn(column, *ckp_, memory_level_);
+          state.columns_detached[column] = true;
+        }
+      }
+    }
+  }
+
+  for (const auto& name : index_manager_->dirty_index_names_) {
+    auto index_it = index_manager_->indexes_.find(name);
+    if (index_it == index_manager_->indexes_.end() || !index_it->second ||
+        detach_state.index_detached[name]) {
+      continue;
+    }
+    index_it->second->Detach(*ckp_, memory_level_);
+    detach_state.index_detached[name] = true;
+  }
 }
 
 bool PropertyGraph::IsModified() const {

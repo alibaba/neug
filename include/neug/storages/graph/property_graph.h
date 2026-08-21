@@ -44,6 +44,7 @@
 
 namespace neug {
 
+struct CowDetachState;
 class StorageIndexManager;
 /**
  * @brief Core property graph storage engine for vertices, edges, and schema.
@@ -160,6 +161,12 @@ class NEUG_API PropertyGraph {
   /// Returns whether query planning metadata changed.
   bool DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
                           timestamp_t base_timestamp);
+
+  /// Ensure every dirty module belongs exclusively to this private COW graph
+  /// before DumpDirtyAndReopen() consumes and reopens its module wrappers.
+  /// @p detach_state records prior work, making repeated preparation
+  /// idempotent.
+  void DetachDirtyModulesForCheckpoint(CowDetachState& detach_state);
 
   DirtyTracker& dirty_tracker() { return dirty_; }
   const DirtyTracker& dirty_tracker() const { return dirty_; }

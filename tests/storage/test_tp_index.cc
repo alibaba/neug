@@ -38,7 +38,7 @@
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/transaction/cow_graph_storage_adapter.h"
+#include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/snapshot_cow_write_transaction.h"
@@ -114,9 +114,8 @@ class TPIndexTest : public ::testing::Test {
     graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    workspace_.emplace(*graph_, *view_, 0);
-    ap_ =
-        std::make_unique<CowGraphStorageAdapter>(*workspace_, 0, 0, allocator_);
+    workspace_.emplace(graph_, 0);
+    ap_ = std::make_unique<BulkCowGraphStorage>(*workspace_, 0, 0, allocator_);
     version_manager_.init_ts({0, 0}, 1);
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
@@ -301,8 +300,8 @@ class TPIndexTest : public ::testing::Test {
     return indexes.value();
   }
 
-  void AddPersonTP(CowGraphStorageAdapter& tp, int64_t id,
-                   const std::string& name, int32_t age, vid_t* out = nullptr) {
+  void AddPersonTP(CowGraphStorage& tp, int64_t id, const std::string& name,
+                   int32_t age, vid_t* out = nullptr) {
     auto label = tp.schema().get_vertex_label_id("Person");
     vid_t vid = 0;
     auto status = tp.AddVertex(label, Value::INT64(id),
@@ -362,7 +361,7 @@ class TPIndexTest : public ::testing::Test {
   std::unique_ptr<GraphView> view_;
   Allocator allocator_{MemoryLevel::kInMemory, ""};
   std::optional<CowGraphWorkspace> workspace_;
-  std::unique_ptr<CowGraphStorageAdapter> ap_;
+  std::unique_ptr<BulkCowGraphStorage> ap_;
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
   VersionManager version_manager_;
   CapturingWalWriter wal_writer_;
@@ -383,17 +382,15 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
 }
 
 TEST_F(TPIndexTest, IndexAdminInterfaceRejectsPrivateCowMode) {
-  // Both workspace modes use CowGraphStorageAdapter, but index DDL mutates
-  // the published graph in place and is therefore rejected by private COW.
+  // AP direct bulk storage exposes index DDL; TP/private transactions receive
+  // only CowGraphStorage and cannot reach the capability.
   EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
 
   CreatePersonTableTP();
   auto txn = NewSnapshotCowWriteTransaction();
   auto tp = txn.OpenStorage();
   auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&tp);
-  ASSERT_NE(index_ddl, nullptr);
-  EXPECT_EQ(index_ddl->ActivateIndexes().error_code(),
-            StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_EQ(index_ddl, nullptr);
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {

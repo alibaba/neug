@@ -28,25 +28,16 @@
 namespace neug {
 
 /**
- * @brief Storage mutation adapter over a graph workspace.
+ * @brief Transaction-scoped storage interface over a private COW workspace.
  *
- * The adapter serves both workspace modes: COW transactions mutate a private
- * clone (detaching shared modules and recording WAL redo), while in-place
- * bulk/index operations mutate the live published graph directly. Every
- * mutation method dispatches on the workspace mode. Index DDL
- * (StorageIndexDDLInterface) is only implemented for the in-place mode; COW
- * transactions reject it with ERR_NOT_SUPPORTED.
- *
- * The adapter has no transaction-owner or execution-mode dependency. Its
- * caller supplies the visibility timestamps; the owning transaction supplies
- * admission, durability and publication.
+ * This object does not own the workspace or perform commit/publication. The
+ * caller supplies visibility timestamps and the owning transaction supplies
+ * admission and durability.
  */
-class CowGraphStorageAdapter : public StorageUpdateInterface,
-                               public StorageIndexDDLInterface {
+class CowGraphStorage : public StorageUpdateInterface {
  public:
-  CowGraphStorageAdapter(CowGraphWorkspace& workspace,
-                         timestamp_t read_timestamp,
-                         timestamp_t write_timestamp, Allocator& alloc)
+  CowGraphStorage(CowGraphWorkspace& workspace, timestamp_t read_timestamp,
+                  timestamp_t write_timestamp, Allocator& alloc)
       : StorageUpdateInterface(workspace.view(), read_timestamp),
         workspace_(workspace),
         graph_(workspace.storage()),
@@ -56,12 +47,8 @@ class CowGraphStorageAdapter : public StorageUpdateInterface,
         ckp_(workspace.storage().checkpoint()),
         logical_redo_(workspace.logical_redo()),
         write_ts_(write_timestamp) {}
-  ~CowGraphStorageAdapter() = default;
+  ~CowGraphStorage() override = default;
 
-  neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
-  Status ActivateIndexes() override;
   Status AddGraphEntry(const std::string& name,
                        const ProjectedGraphEntry& entry) override;
   Status DropGraphEntry(const std::string& name) override;
@@ -73,15 +60,7 @@ class CowGraphStorageAdapter : public StorageUpdateInterface,
   void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
     graph_.MarkEdgeTableDirty(src, dst, edge);
   }
-  void MarkSchemaDirty() override {
-    graph_.MarkSchemaDirty();
-    // In COW mode the planning bump is derived from logical redo
-    // (schema_changed()); in in-place mode publication relies on the
-    // transaction marking planning changed.
-    if (workspace_.is_in_place()) {
-      workspace_.MarkPlanningChanged();
-    }
-  }
+  void MarkSchemaDirty() override { graph_.MarkSchemaDirty(); }
 
   Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
                                   const Value& value) override;
@@ -101,12 +80,6 @@ class CowGraphStorageAdapter : public StorageUpdateInterface,
                         vid_t dst, label_t edge_label, int32_t oe_offset,
                         int32_t ie_offset) override;
 
-  result<std::vector<vid_t>> BatchAddVerticesImpl(
-      label_t v_label_id,
-      std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdgesImpl(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IDataChunkSupplier> supplier) override;
   Status BatchDeleteVerticesImpl(label_t v_label_id,
                                  const std::vector<vid_t>& vids) override;
   Status BatchDeleteEdgesImpl(
@@ -136,6 +109,14 @@ class CowGraphStorageAdapter : public StorageUpdateInterface,
   Status DeleteVertexTypeImpl(label_t label) override;
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
+ protected:
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
+      label_t v_label_id,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
+
   Status detachVertexTableForInsert(label_t label);
   Status detachVertexTableForDelete(label_t label);
   Status detachVertexColumn(label_t label, int32_t col_id);
@@ -158,6 +139,31 @@ class CowGraphStorageAdapter : public StorageUpdateInterface,
   Checkpoint& ckp_;
   WalBuilder& logical_redo_;
   timestamp_t write_ts_;
+};
+
+/**
+ * @brief Private-COW storage for COPY and index shadow-build operations.
+ *
+ * Successful mutations exposed by this type must be committed through
+ * CheckpointCoordinator::CommitWithCheckpoint(). This object does not perform
+ * the checkpoint itself.
+ */
+class BulkCowGraphStorage final : public CowGraphStorage,
+                                  public StorageIndexDDLInterface {
+ public:
+  using CowGraphStorage::CowGraphStorage;
+
+  result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
+  Status ActivateIndexes() override;
+
+ private:
+  result<std::vector<vid_t>> BatchAddVerticesImpl(
+      label_t v_label_id,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
+  Status BatchAddEdgesImpl(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IDataChunkSupplier> supplier) override;
 };
 
 }  // namespace neug

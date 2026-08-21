@@ -14,9 +14,7 @@
  */
 #pragma once
 
-#include <atomic>
 #include <functional>
-#include <mutex>
 #include <string>
 
 #include "neug/config.h"
@@ -25,6 +23,7 @@
 namespace neug {
 
 class CheckpointManager;
+class CurrentCowWriteTransaction;
 class GraphSnapshotStore;
 class UpdateTimestampLease;
 
@@ -37,8 +36,7 @@ class UpdateTimestampLease;
  * The coordinator promotes that lease to the exclusive commit phase before
  * starting maintenance.
  *
- * Two extension points run after the graph reopens from a published
- * checkpoint, before retired generations are reclaimed and before new
+ * Two activation hooks run after a checkpoint is published and before new
  * transactions are allowed to start:
  *
  * - PostReopenHandler (mandatory): injected at construction by the database
@@ -49,11 +47,9 @@ class UpdateTimestampLease;
  * after the old live graph has been consumed. A manual-path failure terminates
  * the live process; a recovery-path failure aborts database open.
  *
- * - WalEpochActivationHandler (optional, two independent slots): invoked on
- *   manual and incremental publication paths. The database-owned slot rotates
- *   state owned by NeugDB itself (the embedded AP WAL writer); the
- *   service-owned slot activates service state such as execution-slot WAL
- *   rotation for the published checkpoint.
+ * - WalEpochActivationHandler (optional): injected by the database owner and
+ *   invoked on manual and bulk-checkpoint publication paths. It rotates every
+ *   currently active database-owned WAL writer onto the published epoch.
  *
  * Shutdown checkpoints invoke neither, because they do not reopen the graph.
  */
@@ -64,40 +60,17 @@ class CheckpointCoordinator {
   using PostReopenHandler =
       std::function<void(const std::string& checkpoint_allocator_dir)>;
 
-  /// Optional service-owned state activation after manual or incremental
+  /// Optional database-owned state activation after manual or bulk
   /// checkpoint publication. A publisher with live WAL writers must register
-  /// the handler that owns those writers before a non-no-op incremental
-  /// publication.
+  /// the handler that owns those writers before publishing a checkpoint.
   /// Invoked with the published checkpoint's WAL directory.
   using WalEpochActivationHandler =
       std::function<void(const std::string& checkpoint_wal_dir)>;
 
-  CheckpointCoordinator(CheckpointManager& checkpoint_manager,
-                        GraphSnapshotStore& snapshot_store,
-                        MemoryLevel memory_level,
-                        PostReopenHandler post_reopen_handler);
-
-  /// Database-owned WAL epoch activation invoked on manual and incremental
-  /// publication paths before the service-owned handler. NeugDB registers it
-  /// to rotate database-owned writers (the embedded AP writer) in place;
-  /// NeugDBService layers pool rotation on top via its own handler. The
-  /// registration and waiting semantics match the service-owned slot below.
-  void SetDatabaseWalEpochActivationHandler(WalEpochActivationHandler handler);
-  void ClearDatabaseWalEpochActivationHandler();
-
-  /// Set the single service-owned activation handler invoked by
-  /// PublishManualCheckpoint() and PublishIncrementalCheckpoint() before
-  /// retired checkpoint roots are reclaimed or the transaction gate is
-  /// reopened. Setting a second handler without
-  /// first clearing the existing one is an error.
-  ///
-  /// The service sets the handler at startup and clears it before destroying
-  /// handler-owned state. ClearWalEpochActivationHandler() waits for an
-  /// in-flight invocation to finish, so no invocation can outlive that call.
-  /// The handler must not call SetWalEpochActivationHandler() or
-  /// ClearWalEpochActivationHandler().
-  void SetWalEpochActivationHandler(WalEpochActivationHandler handler);
-  void ClearWalEpochActivationHandler();
+  CheckpointCoordinator(
+      CheckpointManager& checkpoint_manager, GraphSnapshotStore& snapshot_store,
+      MemoryLevel memory_level, PostReopenHandler post_reopen_handler,
+      WalEpochActivationHandler wal_epoch_activation_handler = {});
 
   /// Publish a full manual checkpoint, reopen the live graph and allocators,
   /// rotate the service WAL epoch, and reset the transaction timeline. The
@@ -105,29 +78,21 @@ class CheckpointCoordinator {
   /// phase and must not hold an ordinary snapshot pin.
   Status PublishManualCheckpoint(UpdateTimestampLease timestamp_lease);
 
-  /// Publish a non-compacting checkpoint for an already-mutated live graph.
-  /// The caller transfers an active update lease; this method drains readers
-  /// before mutating the live snapshot. Only dirty modules are dumped and
-  /// reopened; the allocator and transaction timeline remain active. A clean
-  /// graph is a no-op and does not rotate a WAL epoch.
-  Status PublishIncrementalCheckpoint(UpdateTimestampLease timestamp_lease);
-
-  /// Mark that the live graph may contain in-place mutations not covered by
-  /// WAL. The mark is set before mutation begins and is cleared only after a
-  /// successful incremental or full checkpoint.
-  void MarkIncrementalCheckpointPending() noexcept {
-    incremental_checkpoint_pending_.store(true, std::memory_order_release);
-  }
-
-  bool HasIncrementalCheckpointPending() const noexcept {
-    return incremental_checkpoint_pending_.load(std::memory_order_acquire);
-  }
+  /// Commit a private bulk COW transaction through a checkpoint. Unlike a
+  /// manual checkpoint, this does not maintain or reopen the live graph: it
+  /// publishes the transaction's private graph, then installs it as current.
+  /// The manifest publication is the durable decision point; failures before
+  /// it abort the private workspace, while failures after it are fail-stop.
+  Status CommitWithCheckpoint(CurrentCowWriteTransaction& transaction);
 
   /// Publish a recovery checkpoint and reopen the live graph.
   Status PublishRecoveryCheckpoint();
 
   /// Publish the shutdown checkpoint without reopening the live graph.
-  Status PublishShutdownCheckpoint();
+  /// @p destructive_phase_started is reset on entry and set before the live
+  /// graph is compacted or consumed. A failure after that point is not
+  /// retryable on the same open database.
+  Status PublishShutdownCheckpoint(bool& destructive_phase_started);
 
  private:
   enum class Reason {
@@ -136,7 +101,7 @@ class CheckpointCoordinator {
     kShutdown,
   };
 
-  Status execute(Reason reason);
+  Status execute(Reason reason, bool* destructive_phase_started = nullptr);
   void invokeWalEpochActivationHandler(const std::string& checkpoint_wal_dir);
   static const char* reasonName(Reason reason);
 
@@ -144,10 +109,7 @@ class CheckpointCoordinator {
   GraphSnapshotStore& snapshot_store_;
   MemoryLevel memory_level_;
   PostReopenHandler post_reopen_handler_;
-  std::mutex wal_epoch_activation_handler_mutex_;
-  WalEpochActivationHandler database_wal_epoch_handler_;
   WalEpochActivationHandler wal_epoch_activation_handler_;
-  std::atomic<bool> incremental_checkpoint_pending_{false};
 };
 
 }  // namespace neug

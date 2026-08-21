@@ -88,22 +88,6 @@ void ExecutionSlotLease::reset() noexcept {
 
 namespace {
 
-void markPlanningChangedIfNeeded(CurrentCowWriteTransaction& transaction,
-                                 ExplainMode explain_mode,
-                                 const execution::CacheValue* prepared_query,
-                                 const Status& execution_status) {
-  if (prepared_query == nullptr || explain_mode == ExplainMode::kExplain) {
-    return;
-  }
-  const auto& flags = prepared_query->flags;
-  // COPY FROM can partially mutate the live graph before returning an error.
-  // Conservatively invalidate planning state even on that failure path.
-  if ((execution_status.ok() && (flags.batch() || flags.update())) ||
-      flags.copy_from()) {
-    transaction.MarkPlanningChanged();
-  }
-}
-
 Status executePreparedQuery(execution::CacheValue& prepared_query,
                             ExplainMode explain_mode,
                             const execution::ParamsMap& parameters,
@@ -300,19 +284,15 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     return load_result.error();
   }
   if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
-    Status activation_status;
-    checkpoint_coordinator_.MarkIncrementalCheckpointPending();
-    auto transaction = CurrentCowWriteTransaction::BeginInPlace(
+    auto transaction = CurrentCowWriteTransaction::Begin(
         CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_),
         alloc_, snapshot_store_, *wal_writer_);
-    auto storage = transaction.OpenStorage();
-    activation_status = storage.ActivateIndexes();
+    auto storage = transaction.OpenBulkStorage();
+    auto activation_status = storage.ActivateIndexes();
     if (activation_status.ok()) {
-      activation_status = checkpoint_coordinator_.PublishIncrementalCheckpoint(
-          transaction.PublishInPlaceAndReleaseForCheckpoint());
+      activation_status =
+          checkpoint_coordinator_.CommitWithCheckpoint(transaction);
     } else {
-      // In-place mutations cannot be rolled back; abort still publishes and
-      // leaves the checkpoint barrier pending.
       transaction.Abort();
     }
     RETURN_IF_NOT_OK(activation_status);
@@ -329,11 +309,11 @@ Status ExecutionSlot::validatePlan(AccessMode mode,
                                    const physical::ExecutionFlag& flags,
                                    bool is_explain) const {
   if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
-      (flags.batch() || flags.create_temp_table())) {
-    return Status(
-        StatusCode::ERR_NOT_SUPPORTED,
-        "Temporary table creation and batch operations are not supported "
-        "for TP service.");
+      (flags.batch() || flags.copy_from() || flags.index() ||
+       flags.create_temp_table())) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "COPY, batch, index, and temporary table operations are not "
+                  "supported for TP service.");
   }
   // EXPLAIN never executes the plan; access-mode restrictions don't apply.
   if (is_explain) {
@@ -460,8 +440,8 @@ Status ExecutionSlot::executeCore(const std::string& query,
       std::optional<CurrentGraphWriteGuard> guard;
       guard.emplace(
           CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
-      // Classify under writer exclusion. COPY FROM and index operations retain
-      // the legacy in-place AP path; ordinary writes publish private COW state.
+      // Classify under writer exclusion so the retained guard and prepared plan
+      // both describe the private COW base used for execution.
       auto classification =
           prepareQuery(GraphStats(guard->Snapshot().view(),
                                   guard->Snapshot().planning_generation()),
@@ -470,46 +450,18 @@ Status ExecutionSlot::executeCore(const std::string& query,
         return classification.error();
       }
       prepared_query = std::move(classification).value();
-      if (checkpoint_coordinator_.HasIncrementalCheckpointPending() &&
-          !prepared_query->flags.copy_from()) {
-        // Consecutive COPY FROM statements may accumulate into the same pending
-        // state. Every WAL-backed or structural write must seal it first.
-        LOG(INFO) << "WAL write barrier: sealing pending in-place mutations";
-        auto checkpoint_lease = guard->ReleaseForCheckpoint();
-        guard.reset();
-        RETURN_IF_NOT_OK(checkpoint_coordinator_.PublishIncrementalCheckpoint(
-            std::move(checkpoint_lease)));
-        guard.emplace(
-            CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
-        classification =
-            prepareQuery(GraphStats(guard->Snapshot().view(),
-                                    guard->Snapshot().planning_generation()),
-                         query, num_threads);
-        if (NEUG_UNLIKELY(!classification)) {
-          return classification.error();
-        }
-        prepared_query = std::move(classification).value();
-      }
       const auto& flags = prepared_query->flags;
       if (flags.copy_from() || flags.index()) {
-        // TODO(zhanglei): Remove this in-place AP compatibility path after
-        // bulk and index operations adopt their final COW/checkpoint protocols.
-        // Ordinary AP mutations must remain on the COW transaction path.
-        // COPY FROM and index operations mutate the current graph while
-        // retaining the guard and prepared plan used for classification.
-        checkpoint_coordinator_.MarkIncrementalCheckpointPending();
-        auto transaction = CurrentCowWriteTransaction::BeginInPlace(
+        auto transaction = CurrentCowWriteTransaction::Begin(
             std::move(*guard), alloc_, snapshot_store_, *wal_writer_);
-        auto storage = transaction.OpenStorage();
+        auto storage = transaction.OpenBulkStorage();
         status = execute_on_storage(transaction.statistic(), storage);
-        markPlanningChangedIfNeeded(transaction, analysis.explain_mode,
-                                    prepared_query.get(), status);
         if (status.ok()) {
-          status = checkpoint_coordinator_.PublishIncrementalCheckpoint(
-              transaction.PublishInPlaceAndReleaseForCheckpoint());
+          status =
+              flags.create_temp_table()
+                  ? transaction.CommitTransient()
+                  : checkpoint_coordinator_.CommitWithCheckpoint(transaction);
         } else {
-          // Partial in-place mutations stay visible and keep the checkpoint
-          // barrier pending for the next WAL write, mode switch, or Close.
           transaction.Abort();
         }
       } else {
@@ -518,7 +470,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
         auto storage = transaction.OpenStorage();
         status = execute_on_storage(transaction.statistic(), storage);
         if (status.ok()) {
-          status = transaction.Commit();
+          status = transaction.workspace_.HasTransientMutation()
+                       ? transaction.CommitTransient()
+                       : transaction.Commit();
         } else {
           transaction.Abort();
         }
@@ -604,49 +558,58 @@ void ExecutionSlot::ClearTemporarySchema() {
     }
   }
 
-  checkpoint_coordinator_.MarkIncrementalCheckpointPending();
-  auto transaction = CurrentCowWriteTransaction::BeginInPlace(
+  auto transaction = CurrentCowWriteTransaction::Begin(
       CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_),
       alloc_, snapshot_store_, *wal_writer_);
-  auto& graph = transaction.graph();
+  auto storage = transaction.OpenStorage();
   bool schema_changed = false;
 
-  auto temporary_edges = graph.schema().get_temporary_edge_triplet_keys();
+  auto temporary_edges = transaction.schema().get_temporary_edge_triplet_keys();
   for (auto key : temporary_edges) {
-    auto [src, dst, edge] = graph.schema().parse_edge_label(key);
+    auto [src, dst, edge] = transaction.schema().parse_edge_label(key);
     try {
-      const auto status = graph.DeleteEdgeType(src, dst, edge);
+      const auto status = storage.DeleteEdgeType(src, dst, edge);
       if (status.ok()) {
         schema_changed = true;
-        transaction.MarkPlanningChanged();
       } else {
         LOG(WARNING) << "Failed to cleanup temp edge: " << status.ToString();
+        transaction.Abort();
+        return;
       }
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp edge: " << e.what();
+      transaction.Abort();
+      return;
     }
   }
 
-  auto temporary_vertices = graph.schema().get_temporary_vertex_labels();
+  auto temporary_vertices = transaction.schema().get_temporary_vertex_labels();
   for (auto label : temporary_vertices) {
     try {
-      const auto status = graph.DeleteVertexType(label);
+      const auto status = storage.DeleteVertexType(label);
       if (status.ok()) {
         schema_changed = true;
-        transaction.MarkPlanningChanged();
       } else {
         LOG(WARNING) << "Failed to cleanup temp vertex: " << status.ToString();
+        transaction.Abort();
+        return;
       }
     } catch (const std::exception& e) {
       LOG(WARNING) << "Failed to cleanup temp vertex: " << e.what();
+      transaction.Abort();
+      return;
     }
   }
 
-  if (schema_changed) {
-    transaction.mutable_view().Rebuild(graph);
+  if (!schema_changed) {
+    transaction.Abort();
+    return;
   }
-  // In-place mutations cannot be rolled back; commit publishes the cleanup.
-  transaction.Commit();
+  const auto status = transaction.CommitTransient();
+  if (!status.ok()) {
+    LOG(WARNING) << "Failed to publish temporary schema cleanup: "
+                 << status.ToString();
+  }
 }
 
 int ExecutionSlot::SlotId() const { return slot_id_; }

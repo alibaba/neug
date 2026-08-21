@@ -25,14 +25,7 @@
 namespace neug {
 
 /**
- * @brief Graph mutation state in one of two modes.
- *
- * In COW mode the workspace owns a private graph clone plus the sparse set of
- * detached storage modules; commit publishes the clone as a replacement
- * snapshot. In in-place mode the workspace borrows the live published graph
- * and its mutable view for bulk/index operations; mutations are published by
- * bumping the current slot's generations without cloning (they cannot be
- * rolled back, so failure paths publish as well).
+ * @brief Private COW graph mutation state.
  *
  * This is shared mutation state, not a transaction. Admission, visibility,
  * durability, publication and allocation lifetime belong to the transaction
@@ -43,24 +36,12 @@ class CowGraphWorkspace {
   CowGraphWorkspace(std::shared_ptr<PropertyGraph> cow_graph,
                     uint64_t base_planning_generation);
 
-  // In-place mode: borrows the live published graph and its mutable view. The
-  // caller must hold writer admission (the guarding transaction's write
-  // guard) for the lifetime of the workspace.
-  CowGraphWorkspace(PropertyGraph& live_graph, GraphView& live_view,
-                    uint64_t base_planning_generation);
-
   CowGraphWorkspace(CowGraphWorkspace&&) noexcept = default;
   CowGraphWorkspace& operator=(CowGraphWorkspace&&) noexcept = default;
   CowGraphWorkspace(const CowGraphWorkspace&) = delete;
   CowGraphWorkspace& operator=(const CowGraphWorkspace&) = delete;
 
-  bool is_in_place() const noexcept { return in_place_; }
-
-  // The mutation target: the private clone (COW) or the live graph
-  // (in-place). Valid for the lifetime of the owning transaction.
-  PropertyGraph& storage() const noexcept {
-    return in_place_ ? *live_graph_ : *cow_graph_;
-  }
+  PropertyGraph& storage() const noexcept { return *cow_graph_; }
 
   // Owning handle to the private clone; COW mode only (commit hands it to the
   // snapshot store as the replacement snapshot).
@@ -68,33 +49,36 @@ class CowGraphWorkspace {
   const std::shared_ptr<PropertyGraph>& graph() const { return cow_graph_; }
   CowDetachState& detach_state() { return detach_state_; }
   const CowDetachState& detach_state() const { return detach_state_; }
-  GraphView& view() { return in_place_ ? *live_view_ : view_; }
-  const GraphView& view() const { return in_place_ ? *live_view_ : view_; }
+  GraphView& view() { return view_; }
+  const GraphView& view() const { return view_; }
   uint64_t base_planning_generation() const {
     return base_planning_generation_;
   }
   WalBuilder& logical_redo() { return logical_redo_; }
   const WalBuilder& logical_redo() const { return logical_redo_; }
-  void MarkBatchMutation() noexcept { batch_mutation_changed_ = true; }
-  // In-place mode: request a planning-generation bump at publication time.
-  void MarkPlanningChanged() noexcept { planning_changed_ = true; }
-  bool PlanningChanged() const noexcept {
-    return logical_redo_.schema_changed() || batch_mutation_changed_ ||
-           planning_changed_;
+  void MarkBulkMutation() noexcept { bulk_mutation_changed_ = true; }
+  bool HasBulkMutation() const noexcept { return bulk_mutation_changed_; }
+  void MarkTransientMutation() noexcept { transient_mutation_changed_ = true; }
+  bool HasTransientMutation() const noexcept {
+    return transient_mutation_changed_;
   }
+  bool PlanningChanged() const noexcept {
+    return logical_redo_.schema_changed() || bulk_mutation_changed_ ||
+           transient_mutation_changed_;
+  }
+  // Terminal full reset: drops the redo buffer, all detach bookkeeping and
+  // every graph/view reference. The workspace owns nothing afterwards and is
+  // not reusable — the owning transaction is expected to be released next.
   void Reset() noexcept;
 
  private:
   std::shared_ptr<PropertyGraph> cow_graph_;
-  PropertyGraph* live_graph_{nullptr};
   CowDetachState detach_state_;
   GraphView view_;
-  GraphView* live_view_{nullptr};
   uint64_t base_planning_generation_;
   WalBuilder logical_redo_;
-  bool batch_mutation_changed_{false};
-  bool planning_changed_{false};
-  bool in_place_{false};
+  bool bulk_mutation_changed_{false};
+  bool transient_mutation_changed_{false};
 };
 
 }  // namespace neug

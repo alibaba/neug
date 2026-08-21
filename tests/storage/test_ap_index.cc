@@ -35,7 +35,7 @@
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/transaction/cow_graph_storage_adapter.h"
+#include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
 #include "neug/utils/exception/exception.h"
 #include "test_index_common.h"
@@ -43,6 +43,37 @@
 
 namespace neug {
 namespace {
+
+class FailingIndex : public ExampleIndex {
+ public:
+  enum class FailurePoint { kNone, kUpsert, kDelete };
+
+  static void SetFailurePoint(FailurePoint failure_point) {
+    failure_point_ = failure_point;
+  }
+
+  Status Delete(vid_t vid) override {
+    if (failure_point_ == FailurePoint::kDelete) {
+      return Status::InternalError("injected index delete failure");
+    }
+    return ExampleIndex::Delete(vid);
+  }
+
+ protected:
+  std::unique_ptr<ExampleIndex> CreateClone() const override {
+    return std::make_unique<FailingIndex>();
+  }
+
+  Status AppendImpl(index_id_t index_id, const Value& value) override {
+    if (failure_point_ == FailurePoint::kUpsert) {
+      return Status::InternalError("injected index upsert failure");
+    }
+    return ExampleIndex::AppendImpl(index_id, value);
+  }
+
+ private:
+  static inline FailurePoint failure_point_{FailurePoint::kNone};
+};
 
 TEST(ModuleDescriptorTest, RequiredDefaultsTrueAndRoundTripsFalse) {
   ModuleDescriptor required;
@@ -179,6 +210,8 @@ class APIndexTest : public ::testing::Test {
     ModuleFactory::instance().Register(
         kExampleIndexType, [] { return std::make_unique<ExampleIndex>(); });
     ModuleFactory::instance().Register(
+        "failing_index", [] { return std::make_unique<FailingIndex>(); });
+    ModuleFactory::instance().Register(
         kVecIndexType, [] { return std::make_unique<VecIndex>(); });
   }
 
@@ -191,10 +224,12 @@ class APIndexTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    FailingIndex::SetFailurePoint(FailingIndex::FailurePoint::kNone);
     ap_.reset();
     workspace_.reset();
     view_.reset();
     graph_.reset();
+    published_graph_.reset();
     checkpoint_mgr_.Close();
     std::filesystem::remove_all(work_dir_);
   }
@@ -206,8 +241,9 @@ class APIndexTest : public ::testing::Test {
     meta.SetSchema(Schema());
     staging.checkpoint()->SetManifest(std::move(meta));
     auto ckp = staging.Publish();
-    graph_ = std::make_unique<PropertyGraph>();
+    graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
+    published_graph_ = graph_;
     view_ = std::make_unique<GraphView>(*graph_);
     ResetStorageAdapter();
   }
@@ -217,21 +253,33 @@ class APIndexTest : public ::testing::Test {
     workspace_.reset();
     view_.reset();
     graph_.reset();
+    published_graph_.reset();
     checkpoint_mgr_.Close();
     checkpoint_mgr_.Open(work_dir_);
     ASSERT_NE(checkpoint_mgr_.Current(), nullptr);
-    graph_ = std::make_unique<PropertyGraph>();
+    graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(checkpoint_mgr_.Current(), MemoryLevel::kInMemory);
+    published_graph_ = graph_;
     view_ = std::make_unique<GraphView>(*graph_);
     ResetStorageAdapter();
   }
 
   void ResetStorageAdapter() {
+    if (workspace_ && workspace_->graph()) {
+      published_graph_ = workspace_->graph();
+    }
+    StartPrivateWorkspace();
+  }
+
+  void AbortStorageAdapter() { StartPrivateWorkspace(); }
+
+  void StartPrivateWorkspace() {
     ap_.reset();
     workspace_.reset();
-    workspace_.emplace(*graph_, *view_, 0);
-    ap_ =
-        std::make_unique<CowGraphStorageAdapter>(*workspace_, 0, 0, allocator_);
+    graph_ = published_graph_->Clone();
+    view_ = std::make_unique<GraphView>(*graph_);
+    workspace_.emplace(graph_, 0);
+    ap_ = std::make_unique<BulkCowGraphStorage>(*workspace_, 0, 0, allocator_);
   }
 
   void CheckpointGraph() {
@@ -239,6 +287,14 @@ class APIndexTest : public ::testing::Test {
     graph_->Compact();
     graph_->DumpAndClear(staging.checkpoint());
     staging.Publish();
+  }
+
+  void CheckpointDirtyAndReopen() {
+    auto staging = checkpoint_mgr_.CreateStaging();
+    graph_->DumpDirtyAndReopen(staging.checkpoint(), 1);
+    staging.Publish();
+    view_->Rebuild(*graph_);
+    ReopenGraph();
   }
 
   void CreatePersonTable() {
@@ -291,7 +347,8 @@ class APIndexTest : public ::testing::Test {
 
   result<StorageIndex*> CreateIndex(const std::string& name,
                                     const std::string& label_name,
-                                    const std::string& property_name) {
+                                    const std::string& property_name,
+                                    const std::string& type = "example") {
     auto label = graph_->schema().get_vertex_label_id(label_name);
     auto schema = graph_->schema().get_vertex_schema(label);
     DataType property_type;
@@ -310,7 +367,7 @@ class APIndexTest : public ::testing::Test {
     }
     auto meta = std::make_unique<IndexMeta>();
     meta->name = name;
-    meta->type = "example";
+    meta->type = type;
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = property_type;
@@ -397,11 +454,12 @@ class APIndexTest : public ::testing::Test {
 
   std::string work_dir_;
   CheckpointManager checkpoint_mgr_;
-  std::unique_ptr<PropertyGraph> graph_;
+  std::shared_ptr<PropertyGraph> published_graph_;
+  std::shared_ptr<PropertyGraph> graph_;
   std::unique_ptr<GraphView> view_;
   Allocator allocator_{MemoryLevel::kInMemory, ""};
   std::optional<CowGraphWorkspace> workspace_;
-  std::unique_ptr<CowGraphStorageAdapter> ap_;
+  std::unique_ptr<BulkCowGraphStorage> ap_;
 };
 
 TEST_F(APIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
@@ -433,24 +491,25 @@ TEST_F(APIndexTest, DropMissingIndexReturnsNotFound) {
 TEST_F(APIndexTest, IndexMutationMarksWorkspacePlanningChanged) {
   CreateVectorTable();
   const auto label = graph_->schema().get_vertex_label_id("Vector");
-  const auto& vertex_table = graph_->get_vertex_table(label);
   ResetStorageAdapter();
 
   auto created = CreateVecIndex("idx_vector_embedding");
   ASSERT_TRUE(created) << created.error().ToString();
   EXPECT_TRUE(workspace_->PlanningChanged());
   EXPECT_NE(GetIndex("idx_vector_embedding"), nullptr);
-  EXPECT_NE(dynamic_cast<const VecColumn*>(
-                vertex_table.GetPropertyColumnBase("embedding")),
-            nullptr);
+  EXPECT_NE(
+      dynamic_cast<const VecColumn*>(
+          graph_->get_vertex_table(label).GetPropertyColumnBase("embedding")),
+      nullptr);
 
   ResetStorageAdapter();
   ASSERT_TRUE(ap_->DropIndex("idx_vector_embedding").ok());
   EXPECT_TRUE(workspace_->PlanningChanged());
   EXPECT_EQ(GetIndex("idx_vector_embedding"), nullptr);
-  EXPECT_NE(dynamic_cast<const ArrayColumn*>(
-                vertex_table.GetPropertyColumnBase("embedding")),
-            nullptr);
+  EXPECT_NE(
+      dynamic_cast<const ArrayColumn*>(
+          graph_->get_vertex_table(label).GetPropertyColumnBase("embedding")),
+      nullptr);
 }
 
 TEST_F(APIndexTest, BulkBuildIndexesExistingVertices) {
@@ -691,29 +750,79 @@ TEST_F(APIndexTest, BatchAddVerticesMaintainsIndexAndSkipsDuplicatePk) {
   EXPECT_EQ(SearchPersonNames(40), (std::vector<std::string>{"Diana"}));
 }
 
-TEST_F(APIndexTest, PartialBatchFailureRemainsDirtyForIncrementalCheckpoint) {
+TEST_F(APIndexTest, PartialBatchFailureIsDiscardedWithPrivateWorkspace) {
   CreateItemTable();
+  ResetStorageAdapter();
   const auto label = graph_->schema().get_vertex_label_id("Item");
-  graph_->dirty_tracker().ClearAll();
 
   auto chunk = std::make_shared<DataChunk>();
   chunk->set(0, MakeValueColumn(std::vector<int32_t>{7}));
   chunk->set(1, MakeValueColumn(std::vector<int32_t>{70}));
   auto supplier = std::make_shared<FailingAfterFirstChunkSupplier>(chunk);
 
-  EXPECT_THROW(ap_->BatchAddVertices(label, std::move(supplier)),
-               exception::RuntimeError);
-  ASSERT_TRUE(graph_->IsVertexTableDirty(label));
-
-  auto staging = checkpoint_mgr_.CreateStaging();
-  graph_->DumpDirtyAndReopen(staging.checkpoint(), 1);
-  staging.Publish();
-  view_->Rebuild(*graph_);
-  ReopenGraph();
+  EXPECT_THROW(
+      {
+        auto result = ap_->BatchAddVertices(label, std::move(supplier));
+        (void) result;
+      },
+      exception::RuntimeError);
+  AbortStorageAdapter();
 
   vid_t vid = 0;
-  EXPECT_TRUE(ap_->GetVertexIndex(label, Value::INT32(7), vid));
-  EXPECT_EQ(ap_->GetVertexProperty(label, vid, 0).GetValue<int32_t>(), 70);
+  EXPECT_FALSE(ap_->GetVertexIndex(label, Value::INT32(7), vid));
+}
+
+TEST_F(APIndexTest, UpdateIndexFailureAbortsPrivateWorkspace) {
+  CreateItemTable();
+  const auto label = graph_->schema().get_vertex_label_id("Item");
+  vid_t original_vid = 0;
+  ASSERT_TRUE(
+      ap_->AddVertex(label, Value::INT32(1), {Value::INT32(10)}, original_vid)
+          .ok());
+  ASSERT_TRUE(CreateIndex("idx_failing_value", "Item", "value", "failing"));
+  CheckpointGraph();
+  ReopenGraph();
+  const auto checkpoint_id = checkpoint_mgr_.Current()->id();
+
+  ASSERT_TRUE(ap_->GetVertexIndex(label, Value::INT32(1), original_vid));
+  FailingIndex::SetFailurePoint(FailingIndex::FailurePoint::kUpsert);
+  const auto status =
+      ap_->UpdateVertexProperty(label, original_vid, 0, Value::INT32(20));
+  EXPECT_FALSE(status.ok());
+  FailingIndex::SetFailurePoint(FailingIndex::FailurePoint::kNone);
+  AbortStorageAdapter();
+
+  EXPECT_EQ(checkpoint_mgr_.Current()->id(), checkpoint_id);
+  vid_t published_vid = 0;
+  ASSERT_TRUE(ap_->GetVertexIndex(label, Value::INT32(1), published_vid));
+  EXPECT_EQ(ap_->GetVertexProperty(label, published_vid, 0).GetValue<int32_t>(),
+            10);
+}
+
+TEST_F(APIndexTest, DeleteIndexFailureAbortsPrivateWorkspace) {
+  CreateItemTable();
+  const auto label = graph_->schema().get_vertex_label_id("Item");
+  vid_t original_vid = 0;
+  ASSERT_TRUE(
+      ap_->AddVertex(label, Value::INT32(1), {Value::INT32(10)}, original_vid)
+          .ok());
+  ASSERT_TRUE(CreateIndex("idx_failing_value", "Item", "value", "failing"));
+  CheckpointGraph();
+  ReopenGraph();
+  const auto checkpoint_id = checkpoint_mgr_.Current()->id();
+
+  ASSERT_TRUE(ap_->GetVertexIndex(label, Value::INT32(1), original_vid));
+  FailingIndex::SetFailurePoint(FailingIndex::FailurePoint::kDelete);
+  const auto status = ap_->DeleteVertex(label, original_vid);
+  EXPECT_FALSE(status.ok());
+  FailingIndex::SetFailurePoint(FailingIndex::FailurePoint::kNone);
+  AbortStorageAdapter();
+
+  EXPECT_EQ(checkpoint_mgr_.Current()->id(), checkpoint_id);
+  vid_t published_vid = 0;
+  ASSERT_TRUE(ap_->GetVertexIndex(label, Value::INT32(1), published_vid));
+  EXPECT_EQ(ap_->GetVertexProperty(label, published_vid, 0).GetValue<int32_t>(),
+            10);
 }
 
 TEST_F(APIndexTest, IndexPersistsAfterCheckpointReopen) {

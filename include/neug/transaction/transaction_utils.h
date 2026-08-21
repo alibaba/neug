@@ -64,7 +64,7 @@ inline OutArchive& operator>>(OutArchive& out_archive, OpType& value) {
   return out_archive;
 }
 
-// Index mutation helpers shared between the COW storage adapter and WAL
+// Index mutation helpers shared between CowGraphStorage and WAL
 // replay. detach_index is invoked before mutating each index so COW
 // transactions get a private copy.
 using IndexDetachFn = std::function<Status(StorageIndex&)>;

@@ -402,7 +402,7 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
 
   // Phase 2: Clone → Mutate → Publish (simulates a snapshot-COW commit).
   // Explicitly detach shared modules before mutation, mirroring
-  // CowGraphStorageAdapter's vertex-insert path.
+  // CowGraphStorage's vertex-insert path.
   auto cow1 = initial_pg_->Clone();
   auto& vt1 = cow1->get_vertex_table(0);
   vt1.DetachIndexer();

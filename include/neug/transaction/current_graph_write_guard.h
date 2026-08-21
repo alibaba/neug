@@ -48,7 +48,6 @@ class CurrentGraphWriteGuard {
 
   void release(std::optional<uint32_t> installed_snapshot_generation =
                    std::nullopt) noexcept;
-  UpdateTimestampLease ReleaseForCheckpoint() noexcept;
   bool active() const noexcept { return timestamp_lease_.active(); }
 
   GraphSnapshotStore::SnapshotSlot& Snapshot() { return snapshot_.get(); }

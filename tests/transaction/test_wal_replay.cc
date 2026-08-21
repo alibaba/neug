@@ -15,10 +15,12 @@
 
 #include "neug/common/types/value.h"
 #include "neug/main/checkpoint_coordinator.h"
+#include "neug/main/wal_writer_set.h"
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/graph/cow_detach_state.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph_snapshot_store.h"
 #include "neug/transaction/timestamp_lease.h"
@@ -52,10 +54,10 @@ namespace {
 
 using neug::Value;
 
-std::atomic<bool> in_place_mutation_waiting{false};
+std::atomic<bool> exclusive_mutation_waiting{false};
 
-void ObserveInPlaceMutationWait(neug::RuntimeWaitAction) noexcept {
-  in_place_mutation_waiting.store(true, std::memory_order_release);
+void ObserveExclusiveMutationWait(neug::RuntimeWaitAction) noexcept {
+  exclusive_mutation_waiting.store(true, std::memory_order_release);
   std::this_thread::yield();
 }
 
@@ -105,8 +107,41 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
   std::filesystem::remove_all(test_dir);
 }
 
-neug::NeugDBConfig make_config(const std::string& db_dir) {
-  neug::NeugDBConfig config(db_dir, 1);
+TEST(WalWriterSetTest, DirectWriterStaysStableAcrossTpActivation) {
+  const auto test_dir = make_test_dir();
+  const auto ap_wal_dir = (std::filesystem::path(test_dir) / "ap").string();
+  const auto tp_wal_dir = (std::filesystem::path(test_dir) / "tp").string();
+  constexpr uint32_t marker = 37;
+
+  {
+    neug::WalWriterSet writers(/*slot_num=*/3, neug::DBMode::READ_WRITE,
+                               ap_wal_dir);
+    auto* const direct_writer = &writers.DirectWriter();
+    ASSERT_TRUE(direct_writer->append(reinterpret_cast<const char*>(&marker),
+                                      sizeof(marker)));
+
+    writers.ActivateTransactional(ap_wal_dir);
+    auto* const first_tp_writer = &writers.WriterFor(1);
+    auto* const second_tp_writer = &writers.WriterFor(2);
+    EXPECT_EQ(&writers.DirectWriter(), direct_writer);
+
+    writers.RotateActive(tp_wal_dir);
+    EXPECT_EQ(&writers.DirectWriter(), direct_writer);
+    EXPECT_EQ(&writers.WriterFor(1), first_tp_writer);
+    EXPECT_EQ(&writers.WriterFor(2), second_tp_writer);
+    ASSERT_TRUE(direct_writer->append(reinterpret_cast<const char*>(&marker),
+                                      sizeof(marker)));
+
+    writers.DeactivateTransactional();
+    EXPECT_EQ(&writers.DirectWriter(), direct_writer);
+    EXPECT_THROW((void) writers.WriterFor(1), std::exception);
+  }
+  std::filesystem::remove_all(test_dir);
+}
+
+neug::NeugDBConfig make_config(const std::string& db_dir,
+                               int32_t max_thread_num = 1) {
+  neug::NeugDBConfig config(db_dir, max_thread_num);
   config.memory_level = neug::MemoryLevel::kInMemory;
   config.checkpoint_on_close = false;
   config.checkpoint_on_recovery = false;
@@ -180,11 +215,10 @@ bool replayed_graph_matches(neug::NeugDB& db) {
   return matching_edges == 1;
 }
 
-neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
+neug::timestamp_t insert_person_and_return_ts(neug::ExecutionSlot& slot,
                                               int64_t id,
                                               const std::string& name) {
-  auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot.GetInsertTransaction();
   const auto ts = txn.timestamp();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
@@ -193,6 +227,13 @@ neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
                                   {Value::STRING(name)}, vid));
   EXPECT_TRUE(txn.Commit());
   return ts;
+}
+
+neug::timestamp_t insert_person_and_return_ts(neug::NeugDBService& service,
+                                              int64_t id,
+                                              const std::string& name) {
+  auto slot = service.AcquireExecutionSlot();
+  return insert_person_and_return_ts(*slot, id, name);
 }
 
 void insert_person(neug::NeugDBService& service, int64_t id,
@@ -204,6 +245,12 @@ void compact(neug::NeugDBService& service) {
   auto slot = service.AcquireExecutionSlot();
   auto txn = slot->GetCompactTransaction();
   ASSERT_TRUE(txn.Commit());
+}
+
+void checkpoint(neug::ExecutionSlot& slot) {
+  auto result = slot.ExecuteTransactionalRequest(
+      R"({"query":"CHECKPOINT;","access_mode":"update","parameters":{}})");
+  ASSERT_TRUE(result) << result.error().ToString();
 }
 
 void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
@@ -448,24 +495,24 @@ TEST(WalReplayVersionManagerTest,
 }
 
 TEST(WalReplayVersionManagerTest,
-     InPlaceMutationExclusivityWaitsForExistingReaderAndBlocksNewReader) {
+     ExclusiveMutationWaitsForExistingReaderAndBlocksNewReader) {
   using namespace std::chrono_literals;
 
   neug::VersionManager version_manager;
   version_manager.init_ts({40, 0}, 1);
   ASSERT_TRUE(version_manager.try_set_runtime_wait_if_quiescent(
-      &ObserveInPlaceMutationWait));
+      &ObserveExclusiveMutationWait));
   auto existing_reader = version_manager.acquire_read_operation();
 
   neug::UpdateTimestampLease update_lease(version_manager);
 
-  in_place_mutation_waiting.store(false, std::memory_order_relaxed);
+  exclusive_mutation_waiting.store(false, std::memory_order_relaxed);
   std::atomic<bool> exclusivity_finished{false};
   std::thread exclusivity_thread([&]() {
     update_lease.MakeUpdateExclusive();
     exclusivity_finished.store(true, std::memory_order_release);
   });
-  while (!in_place_mutation_waiting.load(std::memory_order_acquire)) {
+  while (!exclusive_mutation_waiting.load(std::memory_order_acquire)) {
     std::this_thread::yield();
   }
 
@@ -493,14 +540,21 @@ class WalEpochActivationHandlerTest : public ::testing::Test {
     std::filesystem::create_directories(test_dir_);
 
     checkpoint_manager_.Open(test_dir_);
+    auto staging = checkpoint_manager_.CreateStaging();
+    neug::CheckpointManifest manifest;
+    manifest.SetSchema(neug::Schema());
+    staging.checkpoint()->SetManifest(std::move(manifest));
     graph_ = std::make_shared<neug::PropertyGraph>();
-    graph_->Open(make_checkpoint(checkpoint_manager_),
-                 neug::MemoryLevel::kInMemory);
+    graph_->Open(staging.Publish(), neug::MemoryLevel::kInMemory);
     snapshot_store_ = std::make_unique<neug::GraphSnapshotStore>(2, graph_);
     coordinator_ = std::make_unique<neug::CheckpointCoordinator>(
         checkpoint_manager_, *snapshot_store_, neug::MemoryLevel::kInMemory,
         [this](const std::string& allocator_dir) {
           handler_calls_.push_back(allocator_dir);
+        },
+        [this](const std::string& wal_uri) {
+          ++wal_activation_calls_;
+          observed_wal_uri_ = wal_uri;
         });
   }
 
@@ -518,22 +572,15 @@ class WalEpochActivationHandlerTest : public ::testing::Test {
   std::unique_ptr<neug::GraphSnapshotStore> snapshot_store_;
   std::unique_ptr<neug::CheckpointCoordinator> coordinator_;
   std::vector<std::string> handler_calls_;
+  size_t wal_activation_calls_{0};
+  std::string observed_wal_uri_;
 };
 
 TEST_F(WalEpochActivationHandlerTest,
        RecoveryAndManualReopenBeforeWalActivation) {
-  size_t activation_calls = 0;
-  std::string observed_wal_uri;
-  coordinator_->SetWalEpochActivationHandler([&](const std::string& wal_uri) {
-    // The mandatory post-reopen handler runs before service WAL activation.
-    EXPECT_EQ(handler_calls_.size(), 2u);
-    ++activation_calls;
-    observed_wal_uri = wal_uri;
-  });
-
   ASSERT_TRUE(coordinator_->PublishRecoveryCheckpoint().ok());
   EXPECT_EQ(handler_calls_.size(), 1u);
-  EXPECT_EQ(activation_calls, 0u);
+  EXPECT_EQ(wal_activation_calls_, 0u);
 
   neug::VersionManager version_manager;
   version_manager.init_ts({40, 0}, 1);
@@ -541,10 +588,10 @@ TEST_F(WalEpochActivationHandlerTest,
   ASSERT_TRUE(
       coordinator_->PublishManualCheckpoint(std::move(update_lease)).ok());
 
-  EXPECT_EQ(activation_calls, 1u);
+  EXPECT_EQ(wal_activation_calls_, 1u);
   const auto current_checkpoint = checkpoint_manager_.Current();
   ASSERT_NE(current_checkpoint, nullptr);
-  EXPECT_EQ(observed_wal_uri, current_checkpoint->wal_dir());
+  EXPECT_EQ(observed_wal_uri_, current_checkpoint->wal_dir());
   ASSERT_EQ(handler_calls_.size(), 2u);
   EXPECT_EQ(handler_calls_[1], current_checkpoint->allocator_dir());
   {
@@ -554,156 +601,40 @@ TEST_F(WalEpochActivationHandlerTest,
 }
 
 TEST_F(WalEpochActivationHandlerTest,
-       IncrementalCheckpointReopensOnlyDirtyModulesAndKeepsTimeline) {
-  neug::CreateVertexTypeParamBuilder dirty_builder;
+       ConsumingCheckpointOnCloneDoesNotConsumeDirtyBase) {
+  neug::CreateVertexTypeParamBuilder builder;
   ASSERT_TRUE(
       graph_
-          ->CreateVertexType(dirty_builder.VertexLabel("dirty")
+          ->CreateVertexType(builder.VertexLabel("dirty")
                                  .AddProperty("id", neug::Value::INT64(0))
                                  .AddProperty("value", neug::Value::INT32(0))
                                  .AddPrimaryKeyName("id")
                                  .Build())
           .ok());
-  neug::CreateVertexTypeParamBuilder clean_builder;
-  ASSERT_TRUE(
-      graph_
-          ->CreateVertexType(clean_builder.VertexLabel("clean")
-                                 .AddProperty("id", neug::Value::INT64(0))
-                                 .AddProperty("value", neug::Value::INT32(0))
-                                 .AddPrimaryKeyName("id")
-                                 .Build())
-          .ok());
-  const auto dirty_label = graph_->schema().get_vertex_label_id("dirty");
-  const auto clean_label = graph_->schema().get_vertex_label_id("clean");
-  neug::vid_t dirty_vid;
-  neug::vid_t clean_vid;
+  const auto label = graph_->schema().get_vertex_label_id("dirty");
+  neug::vid_t vid;
   ASSERT_TRUE(graph_
-                  ->AddVertex(dirty_label, neug::Value::INT64(1),
-                              {neug::Value::INT32(10)}, dirty_vid, 0)
-                  .ok());
-  ASSERT_TRUE(graph_
-                  ->AddVertex(clean_label, neug::Value::INT64(1),
-                              {neug::Value::INT32(20)}, clean_vid, 0)
+                  ->AddVertex(label, neug::Value::INT64(1),
+                              {neug::Value::INT32(10)}, vid, 1)
                   .ok());
   graph_->MarkSchemaDirty();
-  graph_->MarkVertexTableDirty(dirty_label);
-  graph_->MarkVertexTableDirty(clean_label);
+  graph_->MarkVertexTableDirty(label);
 
-  size_t wal_activation_calls = 0;
-  coordinator_->SetWalEpochActivationHandler(
-      [&](const std::string&) { ++wal_activation_calls; });
-  neug::VersionManager version_manager;
-  version_manager.init_ts({0, 0}, 1);
-  ASSERT_TRUE(
-      coordinator_
-          ->PublishManualCheckpoint(neug::UpdateTimestampLease(version_manager))
-          .ok());
-  ASSERT_EQ(handler_calls_.size(), 1u);
-  ASSERT_EQ(wal_activation_calls, 1u);
+  const auto* base_timestamp =
+      &graph_->get_vertex_table(label).get_vertex_timestamp();
+  auto clone = graph_->Clone();
+  auto detach_state = neug::CowDetachState::FromSchema(clone->schema());
+  auto staging = checkpoint_manager_.CreateStaging();
+  clone->DetachDirtyModulesForCheckpoint(detach_state);
+  clone->DumpDirtyAndReopen(staging.checkpoint(), 1);
 
-  const auto full_checkpoint = checkpoint_manager_.Current();
-  ASSERT_NE(full_checkpoint, nullptr);
-  const auto descriptor_path = [](const neug::Checkpoint& checkpoint,
-                                  const std::string& key) {
-    const auto* descriptor = checkpoint.manifest().FindModule(key);
-    EXPECT_NE(descriptor, nullptr);
-    return descriptor == nullptr
-               ? std::optional<std::string>()
-               : descriptor->get_path(neug::ModuleDescriptor::kDataPath);
-  };
-  const auto dirty_key = neug::VertexTable::KeyKeys("dirty");
-  const auto clean_key = neug::VertexTable::KeyKeys("clean");
-  const auto old_dirty_path = descriptor_path(*full_checkpoint, dirty_key);
-  const auto old_clean_path = descriptor_path(*full_checkpoint, clean_key);
-  ASSERT_TRUE(old_dirty_path.has_value());
-  ASSERT_TRUE(old_clean_path.has_value());
-  const auto* clean_timestamp =
-      &graph_->get_vertex_table(clean_label).get_vertex_timestamp();
-
-  neug::UpdateTimestampLease incremental_lease(version_manager);
-  const auto incremental_ts = incremental_lease.Timestamp();
-  neug::vid_t new_vid;
-  ASSERT_TRUE(graph_
-                  ->AddVertex(dirty_label, neug::Value::INT64(2),
-                              {neug::Value::INT32(11)}, new_vid, incremental_ts)
-                  .ok());
-  graph_->MarkVertexTableDirty(dirty_label);
-  const auto dirty_capacity = graph_->get_vertex_table(dirty_label).Capacity();
-  uint64_t planning_generation = 0;
-  {
-    neug::SnapshotGuard current(*snapshot_store_);
-    planning_generation = current.get().planning_generation();
-  }
-  ASSERT_TRUE(
-      coordinator_->PublishIncrementalCheckpoint(std::move(incremental_lease))
-          .ok());
-
-  const auto incremental_checkpoint = checkpoint_manager_.Current();
-  ASSERT_NE(incremental_checkpoint, nullptr);
-  EXPECT_GT(incremental_checkpoint->id(), full_checkpoint->id());
-  EXPECT_EQ(incremental_checkpoint->manifest().base_timestamp(),
-            incremental_ts);
-  EXPECT_NE(descriptor_path(*incremental_checkpoint, dirty_key),
-            old_dirty_path);
-  EXPECT_EQ(descriptor_path(*incremental_checkpoint, clean_key),
-            old_clean_path);
-  EXPECT_EQ(&graph_->get_vertex_table(clean_label).get_vertex_timestamp(),
-            clean_timestamp);
-  EXPECT_EQ(graph_->get_vertex_table(dirty_label).Capacity(), dirty_capacity);
-  EXPECT_EQ(graph_->VertexNum(dirty_label, incremental_ts - 1), 1u);
-  EXPECT_EQ(graph_->VertexNum(dirty_label, incremental_ts), 2u);
-  EXPECT_EQ(handler_calls_.size(), 1u)
-      << "incremental checkpoint must not reopen allocators";
-  EXPECT_EQ(wal_activation_calls, 2u);
-  {
-    neug::SnapshotGuard current(*snapshot_store_);
-    EXPECT_EQ(current.get().planning_generation(), planning_generation);
-  }
-
-  neug::UpdateTimestampLease next_lease(version_manager);
-  EXPECT_EQ(next_lease.Timestamp(), incremental_ts + 1);
-  const auto checkpoint_id = incremental_checkpoint->id();
-  ASSERT_TRUE(
-      coordinator_->PublishIncrementalCheckpoint(std::move(next_lease)).ok());
-  ASSERT_NE(checkpoint_manager_.Current(), nullptr);
-  EXPECT_EQ(checkpoint_manager_.Current()->id(), checkpoint_id);
-  EXPECT_EQ(wal_activation_calls, 2u)
-      << "a clean graph must not rotate its WAL epoch";
-
-  neug::CreateVertexTypeParamBuilder schema_builder;
-  ASSERT_TRUE(
-      graph_
-          ->CreateVertexType(schema_builder.VertexLabel("temporary_name")
-                                 .AddProperty("id", neug::Value::INT64(0))
-                                 .AddPrimaryKeyName("id")
-                                 .Build())
-          .ok());
-  const auto added_label =
-      graph_->schema().get_vertex_label_id("temporary_name");
-  graph_->MarkSchemaDirty();
-  neug::UpdateTimestampLease schema_lease(version_manager);
-  ASSERT_TRUE(
-      coordinator_->PublishIncrementalCheckpoint(std::move(schema_lease)).ok());
-  {
-    neug::SnapshotGuard current(*snapshot_store_);
-    EXPECT_EQ(current.get().planning_generation(), planning_generation + 1);
-  }
-  EXPECT_TRUE(graph_->schema().is_vertex_label_valid(added_label));
-  EXPECT_EQ(handler_calls_.size(), 1u);
-  EXPECT_EQ(wal_activation_calls, 3u);
-
-  ASSERT_TRUE(graph_->DeleteVertexType(added_label).ok());
-  graph_->MarkSchemaDirty();
-  neug::UpdateTimestampLease drop_lease(version_manager);
-  ASSERT_TRUE(
-      coordinator_->PublishIncrementalCheckpoint(std::move(drop_lease)).ok());
-  {
-    neug::SnapshotGuard current(*snapshot_store_);
-    EXPECT_EQ(current.get().planning_generation(), planning_generation + 2);
-  }
-  EXPECT_FALSE(graph_->schema().is_vertex_label_valid(added_label));
-  EXPECT_EQ(handler_calls_.size(), 1u);
-  EXPECT_EQ(wal_activation_calls, 4u);
+  EXPECT_EQ(&graph_->get_vertex_table(label).get_vertex_timestamp(),
+            base_timestamp);
+  EXPECT_EQ(graph_->VertexNum(label, 1), 1u);
+  neug::GraphView base_view(*graph_);
+  neug::StorageReadInterface base_reader(base_view, 1);
+  EXPECT_EQ(base_reader.GetVertexProperty(label, vid, 0).GetValue<int32_t>(),
+            10);
 }
 
 TEST(CheckpointCoordinatorTest,
@@ -725,13 +656,6 @@ TEST(CheckpointCoordinatorTest,
   ASSERT_NE(allocators[0]->allocate(allocator_marker_size), nullptr);
   bool allocator_reopened = false;
   bool cache_invalidated = false;
-  neug::CheckpointCoordinator coordinator(
-      checkpoint_manager, snapshot_store, neug::MemoryLevel::kInMemory,
-      [&](const std::string&) {
-        allocators[0]->Reopen(neug::MemoryLevel::kInMemory, "");
-        allocator_reopened = true;
-      });
-
   const auto old_wal_dir =
       (std::filesystem::path(test_dir) / "old-wal").string();
   auto wal_writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
@@ -740,6 +664,18 @@ TEST(CheckpointCoordinatorTest,
   constexpr uint32_t after_marker = 29;
   ASSERT_TRUE(wal_writer->append(reinterpret_cast<const char*>(&before_marker),
                                  sizeof(before_marker)));
+
+  neug::CheckpointCoordinator coordinator(
+      checkpoint_manager, snapshot_store, neug::MemoryLevel::kInMemory,
+      [&](const std::string&) {
+        allocators[0]->Reopen(neug::MemoryLevel::kInMemory, "");
+        allocator_reopened = true;
+      },
+      [&](const std::string& wal_uri) {
+        wal_writer->close();
+        wal_writer->open(wal_uri);
+        cache_invalidated = true;
+      });
 
   // Keep the checkpoint manager's only staging slot occupied.
   // PublishManualCheckpoint must fail before destructive graph maintenance,
@@ -750,11 +686,6 @@ TEST(CheckpointCoordinatorTest,
   version_manager.init_ts({40, 0}, 1);
   neug::UpdateTimestampLease update_lease(version_manager);
   const auto update_ts = update_lease.Timestamp();
-  coordinator.SetWalEpochActivationHandler([&](const std::string& wal_uri) {
-    wal_writer->close();
-    wal_writer->open(wal_uri);
-    cache_invalidated = true;
-  });
   auto status = coordinator.PublishManualCheckpoint(std::move(update_lease));
 
   EXPECT_FALSE(status.ok());
@@ -773,7 +704,6 @@ TEST(CheckpointCoordinatorTest,
   version_manager.release_insert_timestamp(next_insert_ts);
 
   wal_writer->close();
-  coordinator.ClearWalEpochActivationHandler();
   conflicting_staging.Discard();
   checkpoint_manager.Close();
   std::filesystem::remove_all(test_dir);
@@ -968,16 +898,31 @@ void write_copy_csv(const std::string& path, const std::string& rows) {
   csv << "id|name\n" << rows;
 }
 
-TEST_F(WalReplayTest, ApWalIsRestoredAfterTpServiceStops) {
+TEST_F(WalReplayTest,
+       CheckpointRotationKeepsTpAndApWalWritersUsableAcrossServiceStop) {
   create_checkpointed_base_graph(db_dir_);
 
   {
     neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    ASSERT_TRUE(db.Open(make_config(db_dir_, 2)));
     {
       neug::NeugDBService service(db);
-      EXPECT_EQ(read_person_name(service, 1),
-                std::optional<std::string>("seed"));
+      // The pool returns the two distinct logical slots. Exercising both
+      // before and after CHECKPOINT proves that RotateActive() reopens the
+      // TP-only writer as well as the shared slot-0 writer.
+      auto first_slot = service.AcquireExecutionSlot();
+      auto second_slot = service.AcquireExecutionSlot();
+      EXPECT_EQ(insert_person_and_return_ts(*first_slot, 2, "pre-checkpoint"),
+                1);
+      EXPECT_EQ(insert_person_and_return_ts(*second_slot, 3, "pre-checkpoint"),
+                2);
+
+      checkpoint(*first_slot);
+
+      EXPECT_EQ(insert_person_and_return_ts(*first_slot, 4, "post-checkpoint"),
+                1);
+      EXPECT_EQ(insert_person_and_return_ts(*second_slot, 5, "post-checkpoint"),
+                2);
     }
 
     auto conn = db.Connect();
@@ -988,8 +933,9 @@ TEST_F(WalReplayTest, ApWalIsRestoredAfterTpServiceStops) {
     db.Close();
   }
 
-  // checkpoint_on_close is disabled. Recovery therefore proves that the AP
-  // write used a real WAL writer restored after the TP pool was destroyed.
+  // checkpoint_on_close is disabled. Recovery therefore proves that the
+  // post-checkpoint TP writes used reopened writers in the new WAL epoch and
+  // that the stable direct writer remained usable after the TP pool stopped.
   {
     neug::NeugDB db;
     ASSERT_TRUE(db.Open(make_config(db_dir_)));
@@ -997,105 +943,20 @@ TEST_F(WalReplayTest, ApWalIsRestoredAfterTpServiceStops) {
       neug::NeugDBService service(db);
       EXPECT_EQ(read_person_name(service, 1),
                 std::optional<std::string>("after-tp"));
-    }
-    db.Close();
-  }
-}
-
-TEST_F(WalReplayTest, MandatoryCloseCheckpointCanBeRetried) {
-  const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
-  const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
-  write_copy_csv(csv_a, "2|copy-a\n");
-  write_copy_csv(csv_b, "3|copy-b\n");
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    auto conn = db.Connect();
-    assert_query_ok(
-        *conn,
-        "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
-    ASSERT_TRUE(conn->Query("COPY person FROM \"" + csv_a + "\";", "update"));
-    conn->Close();
-
-    const auto runtime_dir = std::filesystem::path(db_dir_) / "runtime";
-    std::filesystem::remove_all(runtime_dir);
-    {
-      std::ofstream block(runtime_dir);
-      block << "not a directory";
-    }
-
-    auto conn2 = db.Connect();
-    auto failed_copy =
-        conn2->Query("COPY person FROM \"" + csv_b + "\";", "update");
-    ASSERT_FALSE(failed_copy);
-    conn2->Close();
-
-    EXPECT_THROW(db.Close(), neug::exception::IOException);
-    EXPECT_FALSE(db.IsClosed());
-
-    std::filesystem::remove(runtime_dir);
-    std::filesystem::create_directories(runtime_dir);
-    EXPECT_NO_THROW(db.Close());
-    EXPECT_TRUE(db.IsClosed());
-  }
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    {
-      neug::NeugDBService service(db);
-      EXPECT_EQ(read_person_count(service), 2u);
+      EXPECT_EQ(read_person_count(service), 5u);
       EXPECT_TRUE(read_has_person(service, 2));
       EXPECT_TRUE(read_has_person(service, 3));
+      EXPECT_TRUE(read_has_person(service, 4));
+      EXPECT_TRUE(read_has_person(service, 5));
     }
     db.Close();
   }
 }
 
-// Captures everything written to stderr while installed. glog routes its
-// output to stderr before InitGoogleLogging() runs (which holds for this
-// test binary), so advisory WARNINGs emitted by the storage layer can be
-// asserted on. A google::LogSink cannot be used here: the library embeds
-// its own glog copy inside libneug.dylib, so a sink registered from the
-// test executable never observes the library's log calls.
-#ifndef _WIN32
-class ScopedStderrCapture {
- public:
-  ScopedStderrCapture() {
-    ::fflush(stderr);
-    saved_fd_ = ::dup(STDERR_FILENO);
-    capture_fd_ = ::mkstemp(path_);
-    ::dup2(capture_fd_, STDERR_FILENO);
-  }
-
-  ~ScopedStderrCapture() {
-    ::fflush(stderr);
-    ::dup2(saved_fd_, STDERR_FILENO);
-    ::close(saved_fd_);
-    ::close(capture_fd_);
-    ::unlink(path_);
-  }
-
-  bool capturedContains(const std::string& needle) {
-    ::fflush(stderr);
-    std::ifstream in(path_);
-    const std::string content((std::istreambuf_iterator<char>(in)),
-                              std::istreambuf_iterator<char>());
-    return content.find(needle) != std::string::npos;
-  }
-
- private:
-  int saved_fd_{-1};
-  int capture_fd_{-1};
-  char path_[32]{"/tmp/neug_stderr_capture_XXXXXX"};
-};
-#endif  // _WIN32
-
-// A successful COPY FROM must publish an incremental checkpoint before the
+// A successful COPY FROM must publish a bulk checkpoint before the
 // statement returns, so the loaded data survives a crash even though neither
 // checkpoint_on_close nor checkpoint_on_recovery is enabled.
-TEST_F(WalReplayTest, CopyFromSealsIncrementalCheckpointAndSurvivesRecovery) {
+TEST_F(WalReplayTest, CopyFromPublishesCheckpointAndSurvivesRecovery) {
   const auto csv_path =
       (std::filesystem::path(db_dir_) / "people.csv").string();
   write_copy_csv(csv_path, "2|copy-a\n3|copy-b\n");
@@ -1114,10 +975,10 @@ TEST_F(WalReplayTest, CopyFromSealsIncrementalCheckpointAndSurvivesRecovery) {
   }
 
   // checkpoint_on_close is disabled, so the only durable state comes from the
-  // statement-level incremental checkpoint published by the COPY itself.
+  // statement-level bulk checkpoint published by the COPY itself.
   const auto checkpoint_id = read_current_checkpoint_id(db_dir_);
   ASSERT_TRUE(checkpoint_id.has_value())
-      << "a successful COPY must publish an incremental checkpoint";
+      << "a successful COPY must publish a checkpoint";
 
   {
     neug::NeugDB db;
@@ -1157,7 +1018,7 @@ TEST_F(WalReplayTest, CopyFromThenWalUpdateRecoversAfterCrash) {
         "MATCH (n:person {id: 2}) SET n.name = 'updated';", "update");
     ASSERT_TRUE(update) << update.error().ToString();
     EXPECT_EQ(read_current_checkpoint_id(db_dir_), sealed_by_copy)
-        << "an ordinary WAL-backed write must not trigger an incremental "
+        << "an ordinary WAL-backed write must not trigger a bulk "
            "checkpoint";
     conn->Close();
     db.Close();
@@ -1178,11 +1039,8 @@ TEST_F(WalReplayTest, CopyFromThenWalUpdateRecoversAfterCrash) {
   }
 }
 
-// A failed COPY must not publish an incremental checkpoint (decision D1).
-// The malformed row makes the statement fail before any row is applied, so
-// the durable checkpoint id must stay unchanged. (Failures that leave
-// residual in-memory mutations are covered by the write-barrier tests.)
-TEST_F(WalReplayTest, FailedCopyDoesNotPublishIncrementalCheckpoint) {
+// A failed COPY discards its private workspace and publishes no checkpoint.
+TEST_F(WalReplayTest, FailedCopyDoesNotPublishCheckpoint) {
   const auto good_csv = (std::filesystem::path(db_dir_) / "good.csv").string();
   write_copy_csv(good_csv, "2|copy-a\n");
   const auto bad_csv = (std::filesystem::path(db_dir_) / "bad.csv").string();
@@ -1215,7 +1073,7 @@ TEST_F(WalReplayTest, FailedCopyDoesNotPublishIncrementalCheckpoint) {
     // The failed statement published nothing: the durable checkpoint id is
     // unchanged and no residual row was applied.
     EXPECT_EQ(read_current_checkpoint_id(db_dir_), sealed_id)
-        << "a failed COPY must not publish an incremental checkpoint";
+        << "a failed COPY must not publish a checkpoint";
     {
       neug::NeugDBService service(db);
       EXPECT_EQ(read_person_count(service), 1u);
@@ -1224,11 +1082,9 @@ TEST_F(WalReplayTest, FailedCopyDoesNotPublishIncrementalCheckpoint) {
   }
 }
 
-// When incremental-checkpoint preparation fails before dirty modules are
-// consumed (here: staging cannot create its runtime directories), COPY
-// surfaces the error while the in-memory mutations stay queryable. A first
-// successful COPY establishes a sealed baseline.
-TEST_F(WalReplayTest, CopyFromSurfacesIncrementalCheckpointFailure) {
+// A checkpoint preparation failure discards the private bulk workspace. The
+// previously published graph and checkpoint remain current and usable.
+TEST_F(WalReplayTest, CopyFromCheckpointPreparationFailureRollsBack) {
   const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
   const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
   write_copy_csv(csv_a, "2|copy-a\n");
@@ -1244,6 +1100,8 @@ TEST_F(WalReplayTest, CopyFromSurfacesIncrementalCheckpointFailure) {
     auto copy_a = conn->Query("COPY person FROM \"" + csv_a + "\";", "update");
     ASSERT_TRUE(copy_a) << copy_a.error().ToString();
     conn->Close();
+    const auto checkpoint_before_failure = read_current_checkpoint_id(db_dir_);
+    ASSERT_TRUE(checkpoint_before_failure.has_value());
 
     // Block the staging checkpoint from creating its runtime directories by
     // replacing <db>/runtime with a regular file.
@@ -1256,112 +1114,35 @@ TEST_F(WalReplayTest, CopyFromSurfacesIncrementalCheckpointFailure) {
 
     auto conn2 = db.Connect();
     auto copy_b = conn2->Query("COPY person FROM \"" + csv_b + "\";", "update");
-    ASSERT_FALSE(copy_b)
-        << "a failing incremental checkpoint must fail the COPY statement";
+    ASSERT_FALSE(copy_b) << "a checkpoint failure must fail the COPY statement";
     if (!copy_b) {
       EXPECT_NE(copy_b.error().error_code(), neug::StatusCode::OK);
     }
     conn2->Close();
 
-    // The published in-memory mutations remain queryable in AP mode. TP mode
-    // is not opened until the pending barrier can be sealed.
+    EXPECT_EQ(read_current_checkpoint_id(db_dir_), checkpoint_before_failure);
+
+    // The failed private workspace was discarded; AP readers still see only
+    // the previously published COPY.
     auto read_conn = db.Connect();
     auto count = read_conn->Query("MATCH (n:person) RETURN count(n);", "read");
     ASSERT_TRUE(count) << count.error().ToString();
     ASSERT_EQ(count->response().arrays_size(), 1);
     ASSERT_EQ(count->response().arrays(0).int64_array().values_size(), 1);
-    EXPECT_EQ(count->response().arrays(0).int64_array().values(0), 2);
+    EXPECT_EQ(count->response().arrays(0).int64_array().values(0), 1);
     read_conn->Close();
 
-    // A failed AP-to-TP transition must leave the embedded runtime usable.
-    EXPECT_THROW({ neug::NeugDBService service(db); },
-                 neug::exception::IOException);
-    auto retry_conn = db.Connect();
-    retry_conn->Close();
-
-    // Clear the fault. Entering TP mode seals the pending AP mutations before
-    // transactional slots and their WAL writers are created.
+    // Clearing the fault is sufficient; the failed private workspace left no
+    // residual mutation to seal before TP mode starts.
     std::filesystem::remove(runtime_dir);
     std::filesystem::create_directories(runtime_dir);
     {
       neug::NeugDBService service(db);
-      EXPECT_EQ(read_person_count(service), 2u);
-    }
-    db.Close();
-  }
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    {
-      neug::NeugDBService service(db);
-      EXPECT_EQ(read_person_count(service), 2u);
+      EXPECT_EQ(read_person_count(service), 1u);
       EXPECT_TRUE(read_has_person(service, 2));
-      EXPECT_TRUE(read_has_person(service, 3));
+      EXPECT_FALSE(read_has_person(service, 3));
     }
     db.Close();
-  }
-}
-
-// A failed incremental-checkpoint preparation leaves residual in-memory
-// mutations. The next WAL-logging transaction must seal them first, otherwise
-// replay of its UPDATE record hard-CHECKs on a vertex that only exists in
-// unsealed memory.
-TEST_F(WalReplayTest, WriteBarrierSealsResidualMutationsBeforeWalTransaction) {
-  const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
-  const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
-  write_copy_csv(csv_a, "2|copy-a\n");
-  write_copy_csv(csv_b, "5|copy-b\n");
-  std::optional<uint64_t> sealed_by_copy;
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    auto conn = db.Connect();
-    assert_query_ok(
-        *conn,
-        "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
-    auto copy_a = conn->Query("COPY person FROM \"" + csv_a + "\";", "update");
-    ASSERT_TRUE(copy_a) << copy_a.error().ToString();
-    conn->Close();
-    sealed_by_copy = read_current_checkpoint_id(db_dir_);
-    ASSERT_TRUE(sealed_by_copy.has_value());
-
-    // Leave residual in-memory mutations: the second COPY applies its rows,
-    // but the incremental checkpoint fails, so the statement fails while the
-    // graph stays dirty in memory.
-    const auto runtime_dir = std::filesystem::path(db_dir_) / "runtime";
-    std::filesystem::remove_all(runtime_dir);
-    {
-      std::ofstream block(runtime_dir);
-      block << "not a directory";
-    }
-    auto conn2 = db.Connect();
-    auto copy_b = conn2->Query("COPY person FROM \"" + csv_b + "\";", "update");
-    ASSERT_FALSE(copy_b)
-        << "the blocked incremental checkpoint must fail the COPY statement";
-    conn2->Close();
-    std::filesystem::remove(runtime_dir);
-    std::filesystem::create_directories(runtime_dir);
-
-    // The failed statement published nothing.
-    EXPECT_EQ(read_current_checkpoint_id(db_dir_), sealed_by_copy)
-        << "a failed COPY must not publish an incremental checkpoint";
-
-    // The WAL-logging UPDATE passes the write barrier: residual rows are
-    // sealed first, then the UPDATE records WAL against the sealed graph.
-    auto conn3 = db.Connect();
-    auto update = conn3->Query(
-        "MATCH (n:person {id: 5}) SET n.name = 'updated';", "update");
-    ASSERT_TRUE(update) << update.error().ToString();
-    conn3->Close();
-    db.Close();
-
-    const auto sealed_by_barrier = read_current_checkpoint_id(db_dir_);
-    ASSERT_TRUE(sealed_by_barrier.has_value());
-    EXPECT_GT(*sealed_by_barrier, *sealed_by_copy)
-        << "the write barrier must seal residual mutations before the "
-           "WAL-logging UPDATE";
   }
 
   {
@@ -1369,30 +1150,22 @@ TEST_F(WalReplayTest, WriteBarrierSealsResidualMutationsBeforeWalTransaction) {
     ASSERT_TRUE(db.Open(make_config(db_dir_)));
     {
       neug::NeugDBService service(db);
-      EXPECT_EQ(read_person_count(service), 2u);
-      EXPECT_EQ(read_person_name(service, 2),
-                std::optional<std::string>("copy-a"));
-      EXPECT_EQ(read_person_name(service, 5),
-                std::optional<std::string>("updated"))
-          << "the UPDATE's WAL record must replay against the sealed rows";
+      EXPECT_EQ(read_person_count(service), 1u);
+      EXPECT_TRUE(read_has_person(service, 2));
+      EXPECT_FALSE(read_has_person(service, 3));
     }
     db.Close();
   }
 }
 
-// A second COPY to the same table makes the incremental checkpoint rewrite
-// a table the previous checkpoint already contains; the rewrite is logged as
-// a WARNING advising batching, and the data stays consistent across
-// recovery. The warning is asserted by capturing stderr (see
-// ScopedStderrCapture for why a glog LogSink cannot be used).
-TEST_F(WalReplayTest, RepeatedCopyToSameTableWarnsOnFullRewrite) {
-#ifndef _WIN32
+// A second COPY to the same table rewrites modules already present in the
+// previous checkpoint. Both completed batches must survive recovery.
+TEST_F(WalReplayTest, RepeatedCopyToSameTableRecovers) {
   const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
   const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
   write_copy_csv(csv_a, "2|copy-a\n");
   write_copy_csv(csv_b, "3|copy-b\n");
 
-  ScopedStderrCapture capture;
   {
     neug::NeugDB db;
     ASSERT_TRUE(db.Open(make_config(db_dir_)));
@@ -1402,22 +1175,11 @@ TEST_F(WalReplayTest, RepeatedCopyToSameTableWarnsOnFullRewrite) {
         "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
     auto copy_a = conn->Query("COPY person FROM \"" + csv_a + "\";", "update");
     ASSERT_TRUE(copy_a) << copy_a.error().ToString();
-    // The first COPY seeds a new table absent from the previous checkpoint,
-    // so no rewrite warning is expected yet.
-    EXPECT_FALSE(capture.capturedContains("rewrites vertex table 'person'"))
-        << "seeding a new table must not warn about full-table rewrites";
-
     auto copy_b = conn->Query("COPY person FROM \"" + csv_b + "\";", "update");
     ASSERT_TRUE(copy_b) << copy_b.error().ToString();
     conn->Close();
     db.Close();
   }
-
-  EXPECT_TRUE(capture.capturedContains("rewrites vertex table 'person'"))
-      << "the second COPY rewrites a table the previous checkpoint already "
-         "contains and must warn";
-  EXPECT_TRUE(capture.capturedContains("consider batching"))
-      << "the warning should advise batching repeated bulk writes";
 
   {
     neug::NeugDB db;
@@ -1431,80 +1193,5 @@ TEST_F(WalReplayTest, RepeatedCopyToSameTableWarnsOnFullRewrite) {
                 std::optional<std::string>("copy-b"));
     }
     db.Close();
-  }
-#else
-  GTEST_SKIP() << "stderr capture relies on POSIX dup2";
-#endif  // _WIN32
-}
-
-// Pure-read statements must never reach the write barrier: residual dirty
-// state stays unsealed (the durable checkpoint id does not advance) across
-// read traffic, while readers still observe the residual rows in memory.
-TEST_F(WalReplayTest, PureReadWorkloadBypassesWriteBarrier) {
-  const auto csv_a = (std::filesystem::path(db_dir_) / "people-a.csv").string();
-  const auto csv_b = (std::filesystem::path(db_dir_) / "people-b.csv").string();
-  write_copy_csv(csv_a, "2|copy-a\n");
-  write_copy_csv(csv_b, "5|copy-b\n");
-  std::optional<uint64_t> sealed_by_copy;
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    auto conn = db.Connect();
-    assert_query_ok(
-        *conn,
-        "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));");
-    auto copy_a = conn->Query("COPY person FROM \"" + csv_a + "\";", "update");
-    ASSERT_TRUE(copy_a) << copy_a.error().ToString();
-    conn->Close();
-    sealed_by_copy = read_current_checkpoint_id(db_dir_);
-    ASSERT_TRUE(sealed_by_copy.has_value());
-
-    // Residual in-memory mutation via a failing incremental checkpoint.
-    const auto runtime_dir = std::filesystem::path(db_dir_) / "runtime";
-    std::filesystem::remove_all(runtime_dir);
-    {
-      std::ofstream block(runtime_dir);
-      block << "not a directory";
-    }
-    auto conn2 = db.Connect();
-    auto copy_b = conn2->Query("COPY person FROM \"" + csv_b + "\";", "update");
-    ASSERT_FALSE(copy_b);
-    conn2->Close();
-    std::filesystem::remove(runtime_dir);
-    std::filesystem::create_directories(runtime_dir);
-
-    EXPECT_EQ(read_current_checkpoint_id(db_dir_), sealed_by_copy);
-
-    // Read-only traffic observes the residual rows but must never seal them:
-    // a barrier hit would advance the durable checkpoint id.
-    auto conn3 = db.Connect();
-    for (int i = 0; i < 3; ++i) {
-      auto count = conn3->Query("MATCH (n:person) RETURN count(n);", "read");
-      ASSERT_TRUE(count) << count.error().ToString();
-    }
-    EXPECT_EQ(read_current_checkpoint_id(db_dir_), sealed_by_copy)
-        << "pure-read statements must not trigger the WAL write barrier";
-
-    auto visible = conn3->Query("MATCH (n:person) RETURN count(n);", "read");
-    ASSERT_TRUE(visible) << visible.error().ToString();
-    ASSERT_EQ(visible->response().arrays_size(), 1);
-    ASSERT_EQ(visible->response().arrays(0).int64_array().values_size(), 1);
-    EXPECT_EQ(visible->response().arrays(0).int64_array().values(0), 2);
-    conn3->Close();
-    db.Close();
-  }
-
-  const auto sealed_on_close = read_current_checkpoint_id(db_dir_);
-  ASSERT_TRUE(sealed_on_close.has_value());
-  EXPECT_GT(*sealed_on_close, *sealed_by_copy)
-      << "Close must seal a pending in-place checkpoint even when "
-         "checkpoint_on_close is false";
-
-  {
-    neug::NeugDB db;
-    ASSERT_TRUE(db.Open(make_config(db_dir_)));
-    neug::NeugDBService service(db);
-    EXPECT_EQ(read_person_count(service), 2u);
   }
 }

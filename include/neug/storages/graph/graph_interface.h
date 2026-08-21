@@ -635,8 +635,7 @@ class StorageUpdateInterface : public StorageReadInterface,
   Status DeleteVertex(label_t label, vid_t lid) {
     auto st = DeleteVertexImpl(label, lid);
     if (st.ok()) {
-      MarkVertexTableDirty(label);
-      markIncidentEdgeTablesDirty(label);
+      MarkVertexDeletionDirty(label);
     }
     return st;
   }
@@ -677,8 +676,7 @@ class StorageUpdateInterface : public StorageReadInterface,
                              const std::vector<vid_t>& vids) {
     auto st = BatchDeleteVerticesImpl(v_label_id, vids);
     if (st.ok()) {
-      MarkVertexTableDirty(v_label_id);
-      markIncidentEdgeTablesDirty(v_label_id);
+      MarkVertexDeletionDirty(v_label_id);
     }
     return st;
   }
@@ -881,6 +879,15 @@ class StorageUpdateInterface : public StorageReadInterface,
   }
 
  protected:
+  // Marks every table changed by a vertex deletion. Implementations may call
+  // this after the physical delete and before fallible follow-up work, so the
+  // changed graph remains checkpointable when that follow-up fails.
+  void MarkVertexDeletionDirty(label_t label) {
+    MarkVertexTableDirty(label);
+    markIncidentEdgeTablesDirty(label);
+  }
+
+ private:
   void markIncidentEdgeTablesDirty(label_t label) {
     for (const auto& [_, es] : schema().get_all_edge_schemas()) {
       if (es->src_label_id == label || es->dst_label_id == label) {
@@ -890,7 +897,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     }
   }
 
- private:
   virtual void MarkSchemaDirty() = 0;
 
   virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
@@ -940,10 +946,13 @@ class StorageUpdateInterface : public StorageReadInterface,
 /**
  * @brief Admin interface for storage index DDL (create/drop).
  *
- * Index management is only implemented by the in-place (bulk/index) mode of
- * CowGraphStorageAdapter. The execution layer obtains this interface via
- * dynamic_cast from IStorageInterface; a null result means the current
- * storage mode does not support index management.
+ * Index management is implemented only by BulkCowGraphStorage. It builds and
+ * validates indexes in a private COW graph, which is published through a
+ * checkpoint commit. CowGraphStorage intentionally does not expose this
+ * capability, so TP and explicit transactions reject index DDL before storage
+ * mutation. The execution layer obtains this interface via dynamic_cast from
+ * IStorageInterface; a null result means the current storage mode does not
+ * support index management.
  *
  * Existence checks are expressed through the DDL calls themselves:
  * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same

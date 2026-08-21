@@ -53,7 +53,7 @@ class FileLock;
 class IGraphPlanner;
 class IVersionManager;
 class IWalParser;
-class IWalWriter;
+class WalWriterSet;
 class Schema;
 class ExecutionSlot;
 class ExtensionManager;
@@ -219,7 +219,11 @@ class NEUG_API NeugDB {
    * db.Close();  // Persist data and cleanup
    * @endcode
    *
-   * @note This method is idempotent - calling it multiple times is safe.
+   * @note This method is idempotent after a successful close. If the optional
+   *       shutdown checkpoint fails before consuming the live graph, Close()
+   *       throws and leaves the database open so the caller can correct the
+   *       failure and retry. A failure after consumption finishes teardown and
+   *       is then rethrown; that instance cannot be reused.
    * @note After closing, the database cannot be reopened. Create a new
    *       NeugDB instance to open the database again.
    * @warning The caller must ensure no Connection operation is in progress.
@@ -346,7 +350,6 @@ class NEUG_API NeugDB {
   void initQueryRuntime();
   void clearQueryRuntime() noexcept;
   void closeAllConnections();
-  void sealPendingIncrementalCheckpoint();
   std::unique_ptr<ExecutionSlot> createExecutionSlot(size_t slot_id);
   void initVersionManager(timestamp_t initial_visibility_ts);
   void cleanupTemporaryWorkspace() noexcept;
@@ -362,8 +365,11 @@ class NEUG_API NeugDB {
    * A durable checkpoint is a transaction timeline reset boundary: it always
    * compacts storage timestamps before dumping. Must not be called while a
    * NeugDBService is running.
+   *
+   * @param destructive_phase_started Set before the live graph is compacted or
+   * consumed. A failure after that point requires final database teardown.
    */
-  void createCheckpointOnClose();
+  void createCheckpointOnClose(bool& destructive_phase_started);
 
   /**
    * @brief Register a NeugDBService as the active service of this database.
@@ -417,10 +423,9 @@ class NEUG_API NeugDB {
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;
-  // TODO(zhanglei): Replace this embedded-only AP writer with the final WAL
-  // ownership model when WAL framing is added. It is reopened in place after a
-  // manual checkpoint because ExecutionSlot objects retain its address.
-  std::unique_ptr<IWalWriter> ap_wal_writer_;
+  // Slot 0 is the stable direct-AP writer. TP activation adds writers for the
+  // remaining logical slots, which the service pool borrows.
+  std::unique_ptr<WalWriterSet> wal_writers_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::unique_ptr<ConnectionManager> connection_manager_;

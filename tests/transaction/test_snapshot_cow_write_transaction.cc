@@ -127,7 +127,7 @@ class SnapshotCowWriteTransactionTest : public ::testing::Test {
   }
 
   void create_new_edge_type(neug::SnapshotCowWriteTransaction& txn,
-                            neug::CowGraphStorageAdapter& interface,
+                            neug::CowGraphStorage& interface,
                             neug::label_t& cmp_label, neug::label_t& dev_label,
                             neug::label_t& employ_label) {
     auto person_label = interface.schema().get_vertex_label_id("person");
@@ -194,7 +194,7 @@ class SnapshotCowWriteTransactionTest : public ::testing::Test {
   }
 
   std::vector<std::string> create_string_prop_relation(
-      neug::CowGraphStorageAdapter& graph, int num_edges) {
+      neug::CowGraphStorage& graph, int num_edges) {
     auto person_label = graph.schema().get_vertex_label_id("person");
     auto software_label = graph.schema().get_vertex_label_id("software");
     std::vector<std::pair<std::string, neug::Value>> edge_props = {
