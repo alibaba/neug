@@ -57,8 +57,8 @@
 
 namespace neug {
 
-Status CowGraphStorageAdapter::AddGraphEntry(
-    const std::string& name, const ProjectedGraphEntry& entry) {
+Status CowGraphStorageAdapter::AddGraphEntry(const std::string& name,
+                                             const ProjectedGraphEntry& entry) {
   if (!workspace_.is_in_place()) {
     logical_redo_.LogAddGraphEntry(name, entry);
   }
