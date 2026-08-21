@@ -18,6 +18,8 @@ on:
       - 'tools/python_bind/tests/test_gds_concurrency.py'
       - 'tools/python_bind/tests/test_gds_yield.py'
       - 'tools/python_bind/tests/test_graphalytics.py'
+      - 'tools/python_bind/tests/test_fts_index.py'
+      - 'tools/python_bind/tests/test_fts_index_tp.py'
       - 'tools/python_bind/tests/resources/graphalytics/**'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
@@ -111,7 +113,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;vector_search;test_out_of_tree"
+        export BUILD_EXTENSIONS="parquet;httpfs;gds;pattern_matching;vector_search;fts;test_out_of_tree"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -136,6 +138,7 @@ jobs:
         ctest -R parquet_extension_test -V
         ctest -R httpfs_extension_test -V
         ctest -R pattern_matching_extension_test -V
+        ctest -R fts_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ctest -R test_extension -V
 
@@ -159,6 +162,7 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_call_params.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_hnsw_index_tp.py
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_fts_index.py tests/test_fts_index_tp.py
 
     - name: Run GDS Tests
       run: |
@@ -211,7 +215,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="parquet;httpfs;pattern_matching" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs;pattern_matching;vector_search;fts" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -290,7 +294,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="parquet;httpfs;pattern_matching" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="parquet;httpfs;pattern_matching;vector_search;fts" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |

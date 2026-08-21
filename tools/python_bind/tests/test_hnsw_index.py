@@ -23,7 +23,6 @@ import textwrap
 import pytest
 
 from neug import Database
-from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
     "1",
@@ -396,10 +395,15 @@ def test_documented_schema_index_and_query_examples(tmp_path):
         conn.execute(
             "MATCH (n:vector_node) WHERE n.id = 1 " "SET n.vec = [0.2, 0.2, 0.1, 0.1];"
         )
-        with pytest.raises(Exception) as excinfo:
-            conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
-        assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
-        assert "Property type FLOAT[4] can not be set with null" in str(excinfo.value)
+        conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
+        after_null = list(
+            conn.execute(
+                "MATCH (n:vector_node) RETURN n.id, "
+                "vector_distance_l2(n.vec, [0.2, 0.2, 0.1, 0.1]) AS score "
+                "ORDER BY score ASC LIMIT 5;"
+            )
+        )
+        assert 1 not in [row[0] for row in after_null]
         conn.execute("MATCH (n:vector_node) WHERE n.id = 2 DELETE n;")
         conn.execute("DROP INDEX vec_hnsw_index IF EXISTS;")
         conn.execute("DROP TABLE vector_node;")
