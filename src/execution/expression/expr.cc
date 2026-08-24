@@ -222,7 +222,7 @@ static std::unique_ptr<ExprBase> build_expr(
         children.emplace_back(
             parse_expression(op.parameters(i), ctx_meta, var_type));
       }
-      return std::make_unique<ScalarFunctionExpr>(fn, ret_type,
+      return std::make_unique<ScalarFunctionExpr>(fn, signature, ret_type,
                                                   std::move(children));
     }
 
