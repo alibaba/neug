@@ -442,10 +442,26 @@ def test_multiple_fts_indexes_for_same_property_are_ambiguous(fts_database):
         search(fts_database, "search")
 
 
-@pytest.mark.parametrize("jieba_mode", [None, "mp", "hmm", "mix"])
-def test_jieba_tokenizer_modes_segment_chinese(tmp_path, jieba_mode):
+@pytest.mark.parametrize(
+    ("tokenizer", "jieba_mode", "expected_ids"),
+    [
+        pytest.param("unicode61", None, ([], []), id="unicode61"),
+        pytest.param("ascii", None, ([], []), id="ascii"),
+        pytest.param("porter", None, ([], []), id="porter"),
+        pytest.param("trigram", None, ([], [2]), id="trigram"),
+        pytest.param("jieba", None, ([1], [2]), id="jieba-default"),
+        pytest.param("jieba", "mp", ([1], [2]), id="jieba-mp"),
+        pytest.param("jieba", "hmm", ([1], [2]), id="jieba-hmm"),
+        pytest.param("jieba", "mix", ([1], [2]), id="jieba-mix"),
+    ],
+)
+def test_jieba_tokenizer_modes_segment_chinese(
+    tmp_path, tokenizer, jieba_mode, expected_ids
+):
+    tokenizer_name = tokenizer
     mode_name = jieba_mode or "default"
-    db = Database(db_path=str(tmp_path / f"jieba_{mode_name}_fts_db"), mode="w")
+    database_name = f"{tokenizer_name}_{mode_name}_fts_db"
+    db = Database(db_path=str(tmp_path / database_name), mode="w")
     connection = db.connect()
     try:
         load_fts(connection, skip_if_unavailable=True)
@@ -454,15 +470,15 @@ def test_jieba_tokenizer_modes_segment_chinese(tmp_path, jieba_mode):
             "CREATE (:Item {id: 1, text: '他来到了网易杭研大厦'}), "
             "(:Item {id: 2, text: '我来到北京清华大学'});"
         )
-        options = "tokenizer = 'jieba'"
+        options = f"tokenizer = '{tokenizer}'"
         if jieba_mode is not None:
             options += f", jieba_mode = '{jieba_mode}'"
         connection.execute(
             "CREATE INDEX item_text_fts ON Item USING FTS (text) " f"WITH ({options});"
         )
 
-        assert [row[0] for row in search(connection, "网易")] == [1]
-        assert [row[0] for row in search(connection, "清华大学")] == [2]
+        assert [row[0] for row in search(connection, "网易")] == expected_ids[0]
+        assert [row[0] for row in search(connection, "清华大学")] == expected_ids[1]
     finally:
         connection.close()
         db.close()
