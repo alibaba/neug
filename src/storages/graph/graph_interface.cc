@@ -570,10 +570,10 @@ Status StorageAPUpdateInterface::DropGraphEntry(const std::string& name) {
  * without copying its data. Subsequent incremental vector updates avoid
  * copy-on-write by letting the VecColumn maintain separate buffer versions.
  */
-neug::result<StorageIndex*> CreateStorageIndex(
+neug::result<CreatedIndex> CreateStorageIndex(
     PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
     std::unique_ptr<IndexMeta> meta,
-    IndexPlanningChangedCallback on_planning_changed) {
+    IndexPlanningChangedCallback on_planning_changed, bool required) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
@@ -600,12 +600,27 @@ neug::result<StorageIndex*> CreateStorageIndex(
   std::unique_ptr<ColumnBase> vec_column;
   std::unique_ptr<IndexIDAccessor> index_id_accessor;
 
+  auto& index_manager = graph.mutable_index_manager();
+  GS_AUTO(existing_indexes, index_manager.GetAllIndexes());
+  GS_AUTO(pending_indexes,
+          index_manager.GetPendingIndex(label_id, property_name));
+  const auto active_matches = [&](StorageIndex* index) {
+    const auto& existing_meta = index->GetMeta();
+    return existing_meta.schema.label_id == label_id &&
+           existing_meta.schema.property_name == property_name;
+  };
+
   if (IsHNSWIndex(*meta)) {
-    GS_AUTO(existing_indexes,
-            graph.mutable_index_manager().GetIndex(label_id, property_name));
-    const bool has_non_hnsw = std::any_of(
-        existing_indexes.begin(), existing_indexes.end(),
-        [](StorageIndex* index) { return !IsHNSWIndex(index->GetMeta()); });
+    const bool has_non_hnsw =
+        std::any_of(existing_indexes.begin(), existing_indexes.end(),
+                    [&](StorageIndex* index) {
+                      return active_matches(index) &&
+                             !IsHNSWIndex(index->GetMeta());
+                    }) ||
+        std::any_of(pending_indexes.begin(), pending_indexes.end(),
+                    [](const StorageIndexManager::PendingIndex* index) {
+                      return !IsHNSWIndex(index->meta);
+                    });
     if (has_non_hnsw) {
       RETURN_STATUS_ERROR(
           StatusCode::ERR_INVALID_ARGUMENT,
@@ -641,6 +656,22 @@ neug::result<StorageIndex*> CreateStorageIndex(
           "CreateIndex: HNSW index can only be created on VecColumn");
     }
   } else {
+    const bool has_hnsw =
+        std::any_of(existing_indexes.begin(), existing_indexes.end(),
+                    [&](StorageIndex* index) {
+                      return active_matches(index) &&
+                             IsHNSWIndex(index->GetMeta());
+                    }) ||
+        std::any_of(pending_indexes.begin(), pending_indexes.end(),
+                    [](const StorageIndexManager::PendingIndex* index) {
+                      return IsHNSWIndex(index->meta);
+                    });
+    if (has_hnsw) {
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_INVALID_ARGUMENT,
+          "Non-HNSW index cannot coexist with HNSW indexes on the same "
+          "property");
+    }
     if (dynamic_cast<const VecColumn*>(column)) {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "Non-HNSW index cannot be created on VecColumn");
@@ -648,9 +679,9 @@ neug::result<StorageIndex*> CreateStorageIndex(
     index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
   }
 
-  GS_AUTO(index, graph.mutable_index_manager().CreateIndex(
+  GS_AUTO(index, index_manager.CreateIndex(
                      std::move(meta), std::move(index_id_accessor), column,
-                     graph.GetVertexSet(label_id, timestamp)));
+                     graph.GetVertexSet(label_id, timestamp), required));
 
   if (on_planning_changed) {
     on_planning_changed();
@@ -755,7 +786,7 @@ Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
   return Status::OK();
 }
 
-Status ActivateStorageIndexes(
+result<size_t> ActivateStorageIndexes(
     PropertyGraph& graph, GraphView& view,
     IndexPlanningChangedCallback on_planning_changed) {
   auto activated = graph.ActivateIndexes();
@@ -763,16 +794,16 @@ Status ActivateStorageIndexes(
     return activated.error();
   }
   if (activated.value() == 0) {
-    return Status::OK();
+    return size_t{0};
   }
   view.Rebuild(graph);
   if (on_planning_changed) {
     on_planning_changed();
   }
-  return Status::OK();
+  return activated.value();
 }
 
-neug::result<StorageIndex*> StorageAPUpdateInterface::CreateIndex(
+neug::result<CreatedIndex> StorageAPUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
   return CreateStorageIndex(graph_, mut_view_, timestamp_, std::move(meta),
                             on_planning_changed_);
@@ -782,7 +813,7 @@ Status StorageAPUpdateInterface::DropIndex(const std::string& name) {
   return DropStorageIndex(graph_, mut_view_, name, on_planning_changed_);
 }
 
-Status StorageAPUpdateInterface::ActivateIndexes() {
+result<size_t> StorageAPUpdateInterface::ActivateIndexes() {
   return ActivateStorageIndexes(graph_, mut_view_, on_planning_changed_);
 }
 

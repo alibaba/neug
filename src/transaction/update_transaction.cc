@@ -1004,7 +1004,7 @@ Status StorageTPUpdateInterface::UpdateEdgePropertyImpl(
                                         col_id, value, read_ts_);
 }
 
-result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
+result<CreatedIndex> StorageTPUpdateInterface::CreateIndex(
     std::unique_ptr<IndexMeta> meta) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1020,7 +1020,7 @@ result<StorageIndex*> StorageTPUpdateInterface::CreateIndex(
   auto result =
       CreateStorageIndex(*cow_graph_, mut_view_, read_ts_, std::move(meta));
   if (!result) {
-    return result;
+    return tl::unexpected(result.error());
   }
   wal_.LogCreateIndex(redo_meta);
   return result;
@@ -1037,10 +1037,15 @@ Status StorageTPUpdateInterface::DropIndex(const std::string& name) {
   return Status::OK();
 }
 
-Status StorageTPUpdateInterface::ActivateIndexes() {
-  RETURN_IF_NOT_OK(ActivateStorageIndexes(*cow_graph_, mut_view_));
-  wal_.LogActivateIndexes();
-  return Status::OK();
+result<size_t> StorageTPUpdateInterface::ActivateIndexes() {
+  auto activated = ActivateStorageIndexes(*cow_graph_, mut_view_);
+  if (!activated) {
+    return tl::unexpected(activated.error());
+  }
+  if (activated.value() > 0) {
+    wal_.LogActivateIndexes();
+  }
+  return activated.value();
 }
 
 void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
@@ -1298,7 +1303,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       auto meta =
           std::make_unique<IndexMeta>(CreateIndexRedo::Deserialize(arc));
       GraphView view(graph);
-      auto ret = CreateStorageIndex(graph, view, timestamp, std::move(meta));
+      auto ret = CreateStorageIndex(graph, view, timestamp, std::move(meta), {},
+                                    false);
       if (!ret) {
         THROW_STORAGE_EXCEPTION("Failed to create index in redo: " +
                                 ret.error().ToString());
@@ -1311,8 +1317,10 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     } else if (op_type == OpType::kActivateIndexes) {
       GraphView view(graph);
       auto ret = ActivateStorageIndexes(graph, view);
-      THROW_STORAGE_EXCEPTION_STATUS("Failed to activate indexes in redo: ",
-                                     ret);
+      if (!ret) {
+        THROW_STORAGE_EXCEPTION("Failed to activate indexes in redo: " +
+                                ret.error().ToString());
+      }
     } else if (op_type == OpType::kAddGraphEntry) {
       // The WAL directory belongs to the checkpoint being opened and contains
       // only records from its fresh timestamp timeline. Therefore an existing

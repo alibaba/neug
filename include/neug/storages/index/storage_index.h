@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include <rapidjson/document.h>
@@ -35,6 +36,10 @@ namespace neug {
 
 class ColumnBase;
 class VertexSet;
+class StorageIndex;
+struct PendingIndex;
+
+using CreatedIndex = std::variant<StorageIndex*, PendingIndex*>;
 
 // --- Index metadata types ---
 

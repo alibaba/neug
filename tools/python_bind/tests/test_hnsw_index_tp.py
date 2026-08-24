@@ -14,6 +14,9 @@
 # limitations under the License.
 
 import os
+import subprocess
+import sys
+import textwrap
 
 import pytest
 from conftest import wait_for_server_ready
@@ -31,6 +34,78 @@ pytestmark = pytest.mark.skipif(
     not EXTENSION_TESTS_ENABLED,
     reason="Set NEUG_RUN_EXTENSION_TESTS=1 to run vector-search tests.",
 )
+
+
+def _run_cold_process(script, *args):
+    subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(script), *map(str, args)],
+        check=True,
+        env=os.environ.copy(),
+    )
+
+
+def test_hnsw_create_index_wal_cold_restart(tmp_path, unused_tcp_port):
+    """Replay CREATE INDEX before the extension is registered in the process."""
+    db_path = tmp_path / "cold-restart-db"
+    prepare = r"""
+        import sys
+        from neug.database import Database
+        from neug.session import Session
+        from conftest import wait_for_server_ready
+
+        db = Database(sys.argv[1], mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, embedding FLOAT[4]);")
+        conn.execute("CREATE (:Item {id: 1, embedding: [1.0, 0.0, 0.0, 0.0]});")
+        conn.close()
+        endpoint = db.serve(int(sys.argv[2]), "localhost", False)
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        session.execute("LOAD vector_search;")
+        session.execute(
+            "CREATE INDEX item_embedding_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric = 'l2');"
+        )
+        # This mutation is replayed after CREATE INDEX while the recovered
+        # index is still pending in the cold process.
+        session.execute(
+            "CREATE (:Item {id: 2, embedding: [0.0, 1.0, 0.0, 0.0]});"
+        )
+        session.close()
+        db.stop_serving()
+        db.close()
+    """
+    recover = r"""
+        import sys
+        from neug.database import Database
+        from neug.session import Session
+        from conftest import wait_for_server_ready
+
+        # Database construction replays WAL before this fresh process has
+        # loaded vector_search.
+        db = Database(sys.argv[1], mode="w", checkpoint_on_close=False)
+        endpoint = db.serve(int(sys.argv[2]), "localhost", False)
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        session.execute("LOAD vector_search;")
+        rows = list(session.execute("CALL SHOW_INDEXES() RETURN name;"))
+        assert rows == [["item_embedding_hnsw"]], rows
+        result = session.execute(
+            "PROFILE MATCH (n:Item) "
+            "RETURN n.id, vector_distance_l2(n.embedding, [0.0, 1.0, 0.0, 0.0]) "
+            "AS score ORDER BY score LIMIT 1;",
+            access_mode="read",
+        )
+        assert list(result)[0][0] == 2
+        operators = [op["operator_name"] for op in result.get_profile_metrics()["operators"]]
+        assert "IndexScanOpr" in operators, operators
+        session.close()
+        db.stop_serving()
+        db.close()
+    """
+
+    _run_cold_process(prepare, db_path, unused_tcp_port)
+    _run_cold_process(recover, db_path, unused_tcp_port)
 
 
 def _search(session, target, expect_index=True):

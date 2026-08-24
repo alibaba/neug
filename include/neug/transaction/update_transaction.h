@@ -184,9 +184,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface,
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
-  result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
+  result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
-  Status ActivateIndexes() override;
+  result<size_t> ActivateIndexes() override;
   Status AddGraphEntry(const std::string& name,
                        const ProjectedGraphEntry& entry) override;
   Status DropGraphEntry(const std::string& name) override;

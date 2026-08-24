@@ -95,11 +95,13 @@ StorageIndexManager& PropertyGraph::mutable_index_manager() {
 
 result<size_t> PropertyGraph::ActivateIndexes() {
   StorageIndexManager::IndexColumns columns;
+  StorageIndexManager::IndexVertexSets vertex_sets;
   for (label_t label = 0; label < vertex_tables_.size(); ++label) {
     if (!schema_.is_vertex_label_valid(label)) {
       continue;
     }
     const auto& vertex_schema = schema_.get_vertex_schema(label);
+    vertex_sets.emplace(label, GetVertexSet(label));
     auto& label_columns = columns[label];
     const auto& primary_key = std::get<1>(vertex_schema->primary_keys[0]);
     label_columns.emplace(
@@ -110,7 +112,7 @@ result<size_t> PropertyGraph::ActivateIndexes() {
           vertex_tables_[label].GetPropertyColumnBase(property_name));
     }
   }
-  return index_manager_->ActivateIndexes(columns);
+  return index_manager_->ActivateIndexes(columns, vertex_sets);
 }
 
 bool PropertyGraph::HasPendingIndexes() const {

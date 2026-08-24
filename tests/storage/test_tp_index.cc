@@ -206,7 +206,8 @@ class TPIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = "embedding";
     meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
-    return ap_->CreateIndex(std::move(meta));
+    GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
+    return std::get<StorageIndex*>(created);
   }
 
   void CreatePersonTableTP() {
@@ -257,9 +258,13 @@ class TPIndexTest : public ::testing::Test {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "Property column does not exist: " + property_name);
     }
-    return graph.mutable_index_manager().CreateIndex(
+    auto created = graph.mutable_index_manager().CreateIndex(
         std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
         graph.GetVertexSet(label));
+    if (!created) {
+      return tl::unexpected(created.error());
+    }
+    return std::get<StorageIndex*>(created.value());
   }
 
   result<StorageIndex*> CreateIndex(const std::string& name,
@@ -463,7 +468,7 @@ TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
   {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
-    ASSERT_TRUE(tp.ActivateIndexes().ok());
+    ASSERT_TRUE(tp.ActivateIndexes().has_value());
     Commit(txn);
   }
   {
@@ -472,7 +477,9 @@ TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
     ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
     Commit(txn);
   }
-  ASSERT_EQ(wal_writer_.records.size(), 3);
+  // No pending indexes exist here, so LOAD-style activation is a no-op and
+  // must not create a schema WAL record.
+  ASSERT_EQ(wal_writer_.records.size(), 2);
 
   for (const auto& wal : wal_writer_.records) {
     ASSERT_GT(wal.size(), sizeof(WalHeader));
