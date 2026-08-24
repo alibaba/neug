@@ -29,9 +29,21 @@
 #include "neug/compiler/parser/query/query_part.h"
 #include "neug/compiler/parser/query/regular_query.h"
 #include "neug/compiler/parser/transformer.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace parser {
+
+namespace {
+
+void validateUnionAll(CypherParser::OC_UnionContext& unionClause) {
+  if (!unionClause.ALL()) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "UNION without ALL is not supported. Use UNION ALL instead.");
+  }
+}
+
+}  // namespace
 
 std::unique_ptr<Statement> Transformer::transformQuery(
     CypherParser::OC_QueryContext& ctx) {
@@ -59,6 +71,7 @@ std::unique_ptr<Statement> Transformer::transformCallUnionQuery(
   auto regularQuery = std::make_unique<RegularQuery>(
       transformSingleQuery(*oC_CallUnion->oC_SingleQuery()));
   for (auto unionClause : oC_CallUnion->oC_Union()) {
+    validateUnionAll(*unionClause);
     regularQuery->addSingleQuery(
         transformSingleQuery(*unionClause->oC_SingleQuery()),
         unionClause->ALL());
@@ -92,6 +105,7 @@ std::unique_ptr<Statement> Transformer::transformRegularQuery(
   auto regularQuery = std::make_unique<RegularQuery>(
       transformSingleQuery(*ctx.oC_SingleQuery()));
   for (auto unionClause : ctx.oC_Union()) {
+    validateUnionAll(*unionClause);
     regularQuery->addSingleQuery(
         transformSingleQuery(*unionClause->oC_SingleQuery()),
         unionClause->ALL());
