@@ -46,8 +46,6 @@ class LocalFileSystem : public FileSystem {
     }
     return neug::execution::ops::match_files_with_pattern(path);
   }
-
-  std::shared_ptr<void> getArrowFileSystem() const override { return nullptr; }
 };
 
 FileSystemRegistry::FileSystemRegistry() {

@@ -512,5 +512,140 @@ TEST_F(ReaderTest, TestJsonBatchReadWithFilterAndProjection) {
   EXPECT_EQ(ctx.row_num(), 2);  // Alice and Charlie
 }
 
+// =============== Streaming (stream_opener) reads ===============
+
+// Same setup as TestBasicCsvRead, but with a stream opener injected so
+// the read goes through InputStream/IoStreamBuf instead of the local
+// mmap path.
+TEST_F(ReaderTest, TestCsvStreamingRead) {
+  createCsvFile("stream1.csv",
+                "id|name|score\n1|Alice|95.5\n2|Bob|87.0\n3|Charlie|92.5\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  auto sharedState =
+      createSharedState("stream1.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 3);
+}
+
+// Streaming batch read: drives the supplier's streamed row counting and
+// the istream-based CSV parser over multiple rows.
+TEST_F(ReaderTest, TestCsvStreamingBatchRead) {
+  std::string content = "id|name|score\n";
+  for (int i = 0; i < 100; ++i) {
+    content += std::to_string(i) + "|name" + std::to_string(i) + "|" +
+               std::to_string(i) + ".5\n";
+  }
+  createCsvFile("stream_batch.csv", content);
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  auto sharedState = createSharedState(
+      "stream_batch.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "true"}, {"batch_size", "32"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(count_batch_row_num(ctx), 100);
+}
+
+// Quoted fields through the streaming parser must parse identically to
+// the local path.
+TEST_F(ReaderTest, TestCsvStreamingReadWithQuoting) {
+  createCsvFile("stream_quote.csv",
+                "id,name,score\n1,'Alice,Smith',95.5\n2,\"Bob\",87.0\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  auto sharedState =
+      createSharedState("stream_quote.csv", columnNames, columnTypes,
+                        {{"quote", "'"},
+                         {"delim", ","},
+                         {"skip_rows", "1"},
+                         {"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 2);
+}
+
+// JSONL through the streaming path: counting pass and buffered line
+// reads over an InputStream.
+TEST_F(ReaderTest, TestJsonStreamingRead) {
+  createJsonFile("test_json_stream.json",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n"
+                 "{\"id\":2,\"name\":\"Bob\",\"score\":87.0}\n"
+                 "{\"id\":3,\"name\":\"Charlie\",\"score\":92.5}\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  auto sharedState =
+      createJsonSharedState("test_json_stream.json", columnNames, columnTypes,
+                            {{"batch_read", "false"}});
+  sharedState->stream_opener = localStreamOpener();
+  auto reader = createJsonReader(sharedState, false);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.col_num(), 3);
+  EXPECT_EQ(ctx.row_num(), 3);
+}
+
+// A header-only CSV has no data rows: full_read must return an empty
+// result instead of failing the column-count validation ("Column number
+// mismatch between schema and CSV data").
+TEST_F(ReaderTest, TestCsvHeaderOnlyFileReturnsEmpty) {
+  createCsvFile("header_only.csv", "id|name|score\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  auto sharedState =
+      createSharedState("header_only.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_EQ(ctx.col_num(), 0);
+  EXPECT_EQ(ctx.row_num(), 0);
+}
+
 }  // namespace test
 }  // namespace neug

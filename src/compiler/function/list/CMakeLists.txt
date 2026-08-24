@@ -1,5 +1,6 @@
 add_library(neug_list_function
         OBJECT
+        list_append_function.cpp
         list_concat_function.cpp
         list_contains_function.cpp
         list_creation.cpp

@@ -15,174 +15,41 @@
  */
 
 #include "s3_filesystem.h"
-#include <arrow/io/api.h>
 #include <glog/logging.h>
 #include <algorithm>
+#include <cstring>
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/io/vfs/file_system.h"
+#include "remote_io_utils.h"
 #include "s3_options.h"
-
-namespace {
-
-// Strip s3:// or oss:// scheme prefix from a path, returning the
-// "bucket/key" format that Arrow S3FileSystem expects.
-// If the path has no recognized scheme, it is returned unchanged.
-static std::string stripS3Scheme(const std::string& path) {
-  if (path.size() > 5 && path.substr(0, 5) == "s3://")
-    return path.substr(5);
-  if (path.size() > 6 && path.substr(0, 6) == "oss://")
-    return path.substr(6);
-  return path;
-}
-
-// Thin wrapper that adapts a shared_ptr<arrow::fs::S3FileSystem> to the
-// unique_ptr<arrow::fs::FileSystem> ownership model required by
-// fsys::FileSystem::toArrowFileSystem().  All calls are delegated to the
-// underlying shared instance.
-//
-// Arrow S3FileSystem requires bare "bucket/key" paths and rejects URIs
-// (S3Path::FromString calls IsLikelyUri check).  For the read path, glob()
-// already returns bare paths.  For the write path, callers may still pass
-// URI-prefixed paths (e.g. "oss://bucket/key"), so this wrapper strips the
-// scheme on every string-path method as a safety net.
-//
-// TODO: once Provide() is migrated to non-const FileSchema& (requires
-// coordinated NeuG release), scheme stripping will move to the VFS factory
-// layer (aligned with Arrow's FileSystemFromUri(&out_path) pattern), and
-// this wrapper can become pure delegation.
-class S3FileSystemWrapper : public arrow::fs::FileSystem {
- public:
-  explicit S3FileSystemWrapper(std::shared_ptr<arrow::fs::S3FileSystem> inner)
-      : arrow::fs::FileSystem(), inner_(std::move(inner)) {}
-
-  std::string type_name() const override { return inner_->type_name(); }
-
-  bool Equals(const arrow::fs::FileSystem& other) const override {
-    return inner_->Equals(other);
-  }
-
-  arrow::Result<std::string> NormalizePath(std::string path) override {
-    return inner_->NormalizePath(std::move(path));
-  }
-
-  arrow::Result<std::string> PathFromUri(
-      const std::string& uri_string) const override {
-    return inner_->PathFromUri(uri_string);
-  }
-
-  arrow::Result<std::string> MakeUri(std::string path) const override {
-    return inner_->MakeUri(std::move(path));
-  }
-
-  // Pure-virtual overrides — strip URI scheme before delegating to Arrow.
-  arrow::Result<arrow::fs::FileInfo> GetFileInfo(
-      const std::string& path) override {
-    return inner_->GetFileInfo(stripS3Scheme(path));
-  }
-  arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
-      const arrow::fs::FileSelector& selector) override {
-    return inner_->GetFileInfo(selector);
-  }
-  arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
-      const std::vector<std::string>& paths) override {
-    std::vector<std::string> stripped;
-    stripped.reserve(paths.size());
-    for (const auto& p : paths)
-      stripped.push_back(stripS3Scheme(p));
-    return inner_->GetFileInfo(stripped);
-  }
-
-  arrow::Status CreateDir(const std::string& path, bool recursive) override {
-    return inner_->CreateDir(stripS3Scheme(path), recursive);
-  }
-  arrow::Status DeleteDir(const std::string& path) override {
-    return inner_->DeleteDir(stripS3Scheme(path));
-  }
-  arrow::Status DeleteDirContents(const std::string& path,
-                                  bool missing_dir_ok) override {
-    return inner_->DeleteDirContents(stripS3Scheme(path), missing_dir_ok);
-  }
-  arrow::Status DeleteRootDirContents() override {
-    return inner_->DeleteRootDirContents();
-  }
-  arrow::Status DeleteFile(const std::string& path) override {
-    return inner_->DeleteFile(stripS3Scheme(path));
-  }
-  arrow::Status DeleteFiles(const std::vector<std::string>& paths) override {
-    std::vector<std::string> stripped;
-    stripped.reserve(paths.size());
-    for (const auto& p : paths)
-      stripped.push_back(stripS3Scheme(p));
-    return inner_->DeleteFiles(stripped);
-  }
-  arrow::Status Move(const std::string& src, const std::string& dest) override {
-    return inner_->Move(stripS3Scheme(src), stripS3Scheme(dest));
-  }
-  arrow::Status CopyFile(const std::string& src,
-                         const std::string& dest) override {
-    return inner_->CopyFile(stripS3Scheme(src), stripS3Scheme(dest));
-  }
-
-  // OpenInputStream: both string-path and FileInfo overloads
-  arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
-      const std::string& path) override {
-    return inner_->OpenInputStream(stripS3Scheme(path));
-  }
-  arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
-      const arrow::fs::FileInfo& info) override {
-    return inner_->OpenInputStream(info);
-  }
-
-  // OpenInputFile: both string-path and FileInfo overloads
-  arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
-      const std::string& path) override {
-    return inner_->OpenInputFile(stripS3Scheme(path));
-  }
-  arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
-      const arrow::fs::FileInfo& info) override {
-    return inner_->OpenInputFile(info);
-  }
-
-  arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenOutputStream(
-      const std::string& path,
-      const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
-    return inner_->OpenOutputStream(stripS3Scheme(path), metadata);
-  }
-  arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenAppendStream(
-      const std::string& path,
-      const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
-    return inner_->OpenAppendStream(stripS3Scheme(path), metadata);
-  }
-
- private:
-  std::shared_ptr<arrow::fs::S3FileSystem> inner_;
-};
-}  // anonymous namespace
 
 namespace neug {
 namespace extension {
 namespace s3 {
 
-// S3/OSS URI Parser Implementation
+// ============================================================================
+// S3URIComponents
+// ============================================================================
+
 S3URIComponents S3URIComponents::parse(const std::string& uri) {
   S3URIComponents components;
 
-  // Strip URI scheme prefix (s3:// or oss://) if present
-  std::string path = stripS3Scheme(uri);
-
-  // If the URI contains a scheme ("://") but it was NOT s3:// or oss://,
-  // reject it.  Bare paths (no scheme) are accepted for callers that have
-  // already stripped the scheme.
-  if (path == uri && uri.find("://") != std::string::npos) {
-    THROW_IO_EXCEPTION(
-        "Invalid S3 URI: expected s3:// or oss:// scheme, got: " + uri);
+  // Find scheme
+  size_t scheme_end = uri.find("://");
+  if (scheme_end == std::string::npos) {
+    THROW_IO_EXCEPTION("Invalid S3 URI (missing scheme): " + uri);
   }
 
-  // Find first '/' to separate bucket and key
+  components.scheme = uri.substr(0, scheme_end);
+  if (components.scheme != "s3" && components.scheme != "oss") {
+    THROW_IO_EXCEPTION("Invalid S3 URI scheme (expected s3 or oss): " +
+                       components.scheme);
+  }
+
+  // Parse bucket and object key
+  std::string path = uri.substr(scheme_end + 3);
   size_t slash_pos = path.find('/');
 
   if (slash_pos == std::string::npos) {
-    // No slash found - just bucket name
     components.bucket = path;
     components.objectKey = "";
   } else {
@@ -190,59 +57,365 @@ S3URIComponents S3URIComponents::parse(const std::string& uri) {
     components.objectKey = path.substr(slash_pos + 1);
   }
 
-  // Validate bucket name is not empty
   if (components.bucket.empty()) {
     THROW_IO_EXCEPTION("Invalid S3 URI: missing bucket name in " + uri);
   }
 
-  // Basic bucket name validation (AWS S3 naming rules)
-  // Bucket names must be 3-63 characters, lowercase letters, numbers, hyphens
-  if (components.bucket.length() < 3 || components.bucket.length() > 63) {
-    THROW_IO_EXCEPTION(
-        "Invalid S3 bucket name: length must be 3-63 characters, got: " +
-        components.bucket);
-  }
-
-  // Check for glob patterns in object key
-  components.hasGlob = (components.objectKey.find('*') != std::string::npos ||
-                        components.objectKey.find('?') != std::string::npos ||
-                        components.objectKey.find('[') != std::string::npos);
-
+  components.hasGlob = HasGlobWildcard(components.objectKey);
   return components;
 }
 
-// S3 FileSystem Implementation
+S3URIComponents S3URIComponents::parseFlexible(const std::string& path) {
+  if (path.find("://") != std::string::npos) {
+    return parse(path);
+  }
+  // Bare "bucket/key" form (e.g. produced by older glob() outputs).
+  S3URIComponents components;
+  components.scheme = "s3";
+  size_t slash_pos = path.find('/');
+  if (slash_pos == std::string::npos) {
+    components.bucket = path;
+    components.objectKey = "";
+  } else {
+    components.bucket = path.substr(0, slash_pos);
+    components.objectKey = path.substr(slash_pos + 1);
+  }
+  if (components.bucket.empty()) {
+    THROW_IO_EXCEPTION("Invalid S3 path: missing bucket name in " + path);
+  }
+  components.hasGlob = HasGlobWildcard(components.objectKey);
+  return components;
+}
+
+std::string S3URIComponents::toURI() const {
+  std::string uri = scheme + "://" + bucket;
+  if (!objectKey.empty()) {
+    uri += "/" + objectKey;
+  }
+  return uri;
+}
+
+// ============================================================================
+// S3RandomAccessStream — ranged reads over an S3 object
+// ============================================================================
+
+namespace {
+
+class S3RandomAccessStream : public fsys::RandomAccessStream {
+ public:
+  S3RandomAccessStream(std::shared_ptr<S3Client> client, std::string bucket,
+                       std::string key)
+      : client_(std::move(client)),
+        bucket_(std::move(bucket)),
+        key_(std::move(key)) {}
+
+  result<int64_t> Read(int64_t nbytes, void* out) override {
+    auto n = ReadAt(position_, nbytes, out);
+    if (n) {
+      position_ += *n;
+    }
+    return n;
+  }
+
+  result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override {
+    if (closed_) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                          "S3 stream is closed: " + describe());
+    }
+    if (position < 0 || nbytes < 0) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Invalid read: position=" + std::to_string(position) +
+                              ", nbytes=" + std::to_string(nbytes));
+    }
+    if (nbytes == 0) {
+      return int64_t{0};
+    }
+    GS_AUTO(size, ensureSize());
+    if (position >= size) {
+      return int64_t{0};
+    }
+    int64_t to_read = std::min(nbytes, size - position);
+    const int64_t served = readahead_.tryServe(position, to_read, out);
+    if (served >= 0) {
+      return served;
+    }
+    // Fetch at least the readahead window so subsequent sequential small
+    // reads hit the cache instead of issuing one ranged GET per read.
+    int64_t fetch_len = std::max(to_read, kRemoteReadaheadBytes);
+    fetch_len = std::min(fetch_len, size - position);
+    fetch_buf_.resize(static_cast<size_t>(fetch_len));
+    GS_AUTO(got, client_->getObjectRange(bucket_, key_, position, fetch_len,
+                                         fetch_buf_.data()));
+    readahead_.store(position, fetch_buf_.data(), got);
+    const int64_t copy_len = std::min(got, to_read);
+    if (copy_len > 0) {
+      std::memcpy(out, fetch_buf_.data(), static_cast<size_t>(copy_len));
+    }
+    return copy_len;
+  }
+
+  result<int64_t> GetSize() override {
+    if (closed_) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                          "S3 stream is closed: " + describe());
+    }
+    return ensureSize();
+  }
+
+  void Close() override { closed_ = true; }
+
+ private:
+  result<int64_t> ensureSize() {
+    if (size_ >= 0) {
+      return size_;
+    }
+    GS_ASSIGN(size_, client_->getObjectSize(bucket_, key_));
+    return size_;
+  }
+
+  std::string describe() const { return bucket_ + "/" + key_; }
+
+  std::shared_ptr<S3Client> client_;
+  std::string bucket_;
+  std::string key_;
+  int64_t position_ = 0;
+  int64_t size_ = -1;
+  bool closed_ = false;
+  ReadaheadCache readahead_;
+  std::vector<char> fetch_buf_;
+};
+
+// ============================================================================
+// S3OutputStream — buffered writes via PutObject / Multipart Upload
+// ============================================================================
+
+class S3OutputStream : public fsys::OutputStream {
+ public:
+  S3OutputStream(std::shared_ptr<S3Client> client, std::string bucket,
+                 std::string key)
+      : client_(std::move(client)),
+        bucket_(std::move(bucket)),
+        key_(std::move(key)),
+        part_size_(client_->config().multipart_part_size) {}
+
+  ~S3OutputStream() override {
+    // Abort a dangling multipart upload if Close() was never called
+    // successfully. Best-effort: ignore failures in the destructor.
+    if (started_ && !completed_) {
+      auto r = client_->abortMultipartUpload(bucket_, key_, upload_id_);
+      if (!r) {
+        LOG(WARNING) << "Failed to abort dangling multipart upload for "
+                     << describe() << ": " << r.error().ToString();
+      }
+    }
+  }
+
+  result<void> Write(const void* data, int64_t nbytes) override {
+    if (closed_) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
+                          "S3 output stream is closed: " + describe());
+    }
+    if (nbytes < 0) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Negative write length");
+    }
+    if (nbytes == 0) {
+      return {};
+    }
+    const char* bytes = static_cast<const char*>(data);
+    buffer_.append(bytes, static_cast<size_t>(nbytes));
+
+    // Flush complete parts, but always keep at most one part buffered so a
+    // chunk smaller than 5 MiB is only ever uploaded as the legal last part.
+    while (buffer_.size() >= 2 * part_size_) {
+      auto r = flushPart(part_size_);
+      if (!r) {
+        return tl::unexpected(r.error());
+      }
+    }
+    return {};
+  }
+
+  result<void> Close() override {
+    if (closed_) {
+      return {};  // idempotent
+    }
+    closed_ = true;
+
+    if (!started_ && parts_.empty()) {
+      // Small object: single PutObject.
+      return client_->putObject(bucket_, key_, buffer_.data(),
+                                static_cast<int64_t>(buffer_.size()));
+    }
+
+    // Flush the tail (possibly smaller than part_size — legal last part).
+    if (!buffer_.empty()) {
+      auto r = flushPart(static_cast<int64_t>(buffer_.size()));
+      if (!r) {
+        return tl::unexpected(r.error());
+      }
+    }
+
+    auto r =
+        client_->completeMultipartUpload(bucket_, key_, upload_id_, parts_);
+    if (!r) {
+      // Best-effort abort so we don't leak an unfinished upload.
+      auto abort_r = client_->abortMultipartUpload(bucket_, key_, upload_id_);
+      if (!abort_r) {
+        LOG(WARNING) << "Failed to abort multipart upload for " << describe()
+                     << ": " << abort_r.error().ToString();
+      }
+      return tl::unexpected(r.error());
+    }
+    completed_ = true;
+    LOG(INFO) << "Multipart upload completed: " << describe() << " ("
+              << parts_.size() << " parts)";
+    return {};
+  }
+
+  result<void> Abort() override {
+    if (closed_) {
+      return {};  // idempotent
+    }
+    closed_ = true;
+    buffer_.clear();
+    parts_.clear();
+    if (!started_) {
+      // Nothing has been uploaded yet; nothing to abort.
+      return {};
+    }
+    auto r = client_->abortMultipartUpload(bucket_, key_, upload_id_);
+    if (!r) {
+      return tl::unexpected(r.error());
+    }
+    LOG(INFO) << "Multipart upload aborted: " << describe();
+    return {};
+  }
+
+ private:
+  // Upload the first `len` bytes of buffer_ as the next part.
+  result<void> flushPart(int64_t len) {
+    if (!started_) {
+      GS_ASSIGN(upload_id_, client_->createMultipartUpload(bucket_, key_));
+      started_ = true;
+      LOG(INFO) << "Multipart upload started: " << describe()
+                << ", upload_id=" << upload_id_;
+    }
+    int part_number = static_cast<int>(parts_.size()) + 1;
+    GS_AUTO(etag, client_->uploadPart(bucket_, key_, upload_id_, part_number,
+                                      buffer_.data(), len));
+    parts_.emplace_back(part_number, etag);
+    buffer_.erase(0, static_cast<size_t>(len));
+    return {};
+  }
+
+  std::string describe() const { return bucket_ + "/" + key_; }
+
+  std::shared_ptr<S3Client> client_;
+  std::string bucket_;
+  std::string key_;
+  size_t part_size_;
+  std::string buffer_;
+  std::string upload_id_;
+  std::vector<std::pair<int, std::string>> parts_;
+  bool started_ = false;
+  bool completed_ = false;
+  bool closed_ = false;
+};
+
+// ============================================================================
+// S3RemoteFileSystem — fsys::RemoteFileSystem over S3Client
+// ============================================================================
+
+class S3RemoteFileSystem : public fsys::RemoteFileSystem {
+ public:
+  explicit S3RemoteFileSystem(std::shared_ptr<S3Client> client)
+      : client_(std::move(client)) {}
+
+  result<std::shared_ptr<fsys::RandomAccessStream>> openInputStream(
+      const std::string& path) override {
+    try {
+      auto comps = S3URIComponents::parseFlexible(path);
+      if (comps.objectKey.empty()) {
+        RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Cannot open S3 bucket as input stream: " + path);
+      }
+      return std::shared_ptr<fsys::RandomAccessStream>(
+          std::make_shared<S3RandomAccessStream>(client_, comps.bucket,
+                                                 comps.objectKey));
+    } catch (const std::exception& e) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    }
+  }
+
+  result<std::shared_ptr<fsys::OutputStream>> openOutputStream(
+      const std::string& path) override {
+    try {
+      auto comps = S3URIComponents::parseFlexible(path);
+      if (comps.objectKey.empty()) {
+        RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Cannot open S3 bucket as output stream: " + path);
+      }
+      return std::shared_ptr<fsys::OutputStream>(
+          std::make_shared<S3OutputStream>(client_, comps.bucket,
+                                           comps.objectKey));
+    } catch (const std::exception& e) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    }
+  }
+
+  result<bool> exists(const std::string& path) override {
+    try {
+      auto comps = S3URIComponents::parseFlexible(path);
+      if (comps.objectKey.empty()) {
+        return false;
+      }
+      return client_->objectExists(comps.bucket, comps.objectKey);
+    } catch (const std::exception& e) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    }
+  }
+
+  result<int64_t> getSize(const std::string& path) override {
+    try {
+      auto comps = S3URIComponents::parseFlexible(path);
+      if (comps.objectKey.empty()) {
+        RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                            "Cannot get size of S3 bucket: " + path);
+      }
+      return client_->getObjectSize(comps.bucket, comps.objectKey);
+    } catch (const std::exception& e) {
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    }
+  }
+
+ private:
+  std::shared_ptr<S3Client> client_;
+};
+
+}  // namespace
+
+// ============================================================================
+// S3FileSystem Implementation
+// ============================================================================
 
 S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
   if (schema.paths.empty()) {
     THROW_IO_EXCEPTION("S3FileSystem: no paths provided");
   }
 
-  // NOTE: TLS CA bundle is configured in InitializeArrowTlsOptions(), which is
-  // called eagerly at extension load time (s3_extension.cpp Init()).  No need
-  // to call it here — by the time a S3FileSystem is constructed, Arrow's global
-  // filesystem options are already set.
-
-  // Initialize Arrow S3 subsystem (idempotent, safe to call multiple times)
-  auto init_result = arrow::fs::EnsureS3Initialized();
-  if (!init_result.ok()) {
-    THROW_IO_EXCEPTION("Failed to initialize Arrow S3 subsystem: " +
-                       init_result.ToString());
+  // Validate all paths are S3/OSS URIs
+  for (const auto& path : schema.paths) {
+    try {
+      S3URIComponents::parse(path);
+    } catch (const exception::Exception& e) {
+      THROW_IO_EXCEPTION("Invalid S3 path: " + path + " - " + e.what());
+    }
   }
 
-  // Build S3 options and create the Arrow S3FileSystem
-  auto s3_options = buildS3Options(schema);
-  auto fs_result = arrow::fs::S3FileSystem::Make(s3_options);
-  if (!fs_result.ok()) {
-    LOG(ERROR) << "S3FileSystem::Make failed with status: "
-               << fs_result.status().ToString();
-    LOG(ERROR) << "  Endpoint: " << s3_options.endpoint_override;
-    LOG(ERROR) << "  Region: " << s3_options.region;
-    LOG(ERROR) << "  Scheme: " << s3_options.scheme;
-    THROW_IO_EXCEPTION("Failed to initialize S3FileSystem: " +
-                       fs_result.status().ToString());
-  }
-  arrow_fs_ = *fs_result;
+  auto config = buildS3Config(schema);
+  client_ = std::make_shared<S3Client>(std::move(config));
+  remote_fs_ = std::make_shared<S3RemoteFileSystem>(client_);
 
   LOG(INFO) << "S3FileSystem initialized successfully";
 }
@@ -250,73 +423,48 @@ S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
 std::vector<std::string> S3FileSystem::glob(const std::string& path) {
   auto components = S3URIComponents::parse(path);
 
-  // Arrow FileSystem expects paths in "bucket/key" format, not
-  // "s3://bucket/key"
-  std::string arrow_path = components.bucket;
-  if (!components.objectKey.empty()) {
-    arrow_path += "/" + components.objectKey;
-  }
-
   if (!components.hasGlob) {
     // Direct path - no expansion needed
-    LOG(INFO) << "Direct S3 path: " << arrow_path;
-    return {arrow_path};
+    LOG(INFO) << "Direct S3 path: " << path;
+    return {path};
   }
 
-  // Glob pattern - expand using Arrow FileSystem API
+  // Glob pattern - expand via ListObjectsV2
   LOG(INFO) << "Expanding S3 glob pattern: " << path;
-  std::vector<std::string> out_paths;
-  ResolvePathsWithGlobOnFs(arrow_fs_, components.bucket, components.objectKey,
-                           out_paths, path);
-  return out_paths;
+  std::string prefix = LongestGlobPrefix(components.objectKey);
+
+  auto keys_result = client_->listObjects(components.bucket, prefix);
+  if (!keys_result) {
+    THROW_IO_EXCEPTION("Failed to list S3 objects under " + components.bucket +
+                       "/" + prefix + ": " + keys_result.error().ToString());
+  }
+
+  std::vector<std::string> matched;
+  for (const auto& key : *keys_result) {
+    if (MatchGlobPattern(key, components.objectKey)) {
+      S3URIComponents obj = components;
+      obj.objectKey = key;
+      obj.hasGlob = false;
+      matched.push_back(obj.toURI());
+    }
+  }
+  std::sort(matched.begin(), matched.end());
+
+  if (matched.empty()) {
+    THROW_IO_EXCEPTION("No files matched glob pattern: " + path);
+  }
+  LOG(INFO) << "Glob expansion matched " << matched.size() << " object(s)";
+  return matched;
 }
 
-std::shared_ptr<void> S3FileSystem::getArrowFileSystem() const {
-  return std::static_pointer_cast<void>(
-      std::shared_ptr<arrow::fs::FileSystem>(arrow_fs_));
+std::shared_ptr<fsys::RemoteFileSystem> S3FileSystem::getRemoteFileSystem()
+    const {
+  return remote_fs_;
 }
 
-arrow::fs::S3Options S3FileSystem::buildS3Options(
-    const reader::FileSchema& schema) {
+S3ClientConfig S3FileSystem::buildS3Config(const reader::FileSchema& schema) {
   S3OptionsBuilder builder(schema);
   return builder.build();
-}
-
-// Glob pattern expansion for S3 paths
-std::vector<std::string> S3FileSystem::resolveS3Paths(
-    std::shared_ptr<arrow::fs::S3FileSystem> fs,
-    const std::vector<std::string>& paths) {
-  std::vector<std::string> resolved_paths;
-
-  for (const auto& path : paths) {
-    auto components = S3URIComponents::parse(path);
-
-    // Arrow FileSystem expects paths in "bucket/key" format, not
-    // "s3://bucket/key"
-    std::string arrow_path = components.bucket;
-    if (!components.objectKey.empty()) {
-      arrow_path += "/" + components.objectKey;
-    }
-
-    if (!components.hasGlob) {
-      // Direct path - just add to results
-      resolved_paths.push_back(arrow_path);
-      LOG(INFO) << "Direct S3 path: " << arrow_path;
-    } else {
-      // Glob pattern - expand using Arrow FileSystem API
-      LOG(INFO) << "Expanding S3 glob pattern: " << path;
-
-      // S3-specific: bucket is root, objectKey is pattern
-      // Delegate to helper in s3_filesystem.h
-      ResolvePathsWithGlobOnFs(fs, components.bucket, components.objectKey,
-                               resolved_paths, path);
-    }
-  }
-
-  // Sort paths for deterministic ordering
-  std::sort(resolved_paths.begin(), resolved_paths.end());
-
-  return resolved_paths;
 }
 
 std::unique_ptr<fsys::FileSystem> CreateS3FileSystem(

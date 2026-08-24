@@ -16,16 +16,16 @@
 
 #pragma once
 
-#include <arrow/filesystem/api.h>
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/s3fs.h>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 #include "glob_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/vfs/file_system.h"
+#include "s3_client.h"
 
 namespace neug {
 namespace extension {
@@ -39,6 +39,7 @@ namespace s3 {
  * - oss://bucket-name/path/to/object  (Alibaba Cloud OSS)
  */
 struct S3URIComponents {
+  std::string scheme;     // "s3" or "oss"
   std::string bucket;     // Bucket name
   std::string objectKey;  // Object key (path within bucket)
   bool hasGlob;           // Whether key contains glob pattern (* or ?)
@@ -48,49 +49,48 @@ struct S3URIComponents {
    * Throws exception if URI format is invalid
    */
   static S3URIComponents parse(const std::string& uri);
+
+  /**
+   * Parse an S3 path that may be a full URI ("s3://bucket/key") or a bare
+   * "bucket/key" path (as produced by glob()). Throws on invalid input.
+   */
+  static S3URIComponents parseFlexible(const std::string& path);
+
+  /// Rebuild a full URI: "<scheme>://<bucket>/<key>"
+  std::string toURI() const;
 };
 
 /**
  * S3FileSystem implements the neug::fsys::FileSystem interface for accessing
- * S3-compatible storage (AWS S3, Alibaba Cloud OSS, MinIO, etc.).
- *
- * Supports:
- * - AWS S3
- * - Alibaba Cloud OSS
- * - MinIO
- * - Other S3-compatible storage
+ * S3-compatible storage (AWS S3, Alibaba Cloud OSS, MinIO, etc.) WITHOUT any
+ * Arrow/AWS-SDK dependency: the S3 protocol is implemented on libcurl
+ * (see S3Client) with SigV4 signing.
  *
  * Features:
- * - Automatic OSS/MinIO detection and optimization
- * - Multiple credential sources (explicit, environment, IAM/RAM roles)
- * - Glob pattern expansion
- * - Internal/VPC endpoint support
+ * - Automatic OSS/MinIO detection and addressing optimization
+ * - Credential sources: explicit options, environment variables, anonymous
+ * - Glob pattern expansion via ListObjectsV2
+ * - Read (ranged GET) and write (PutObject / Multipart Upload) paths
  */
 class S3FileSystem : public fsys::FileSystem {
  public:
   explicit S3FileSystem(const reader::FileSchema& schema);
 
   // fsys::FileSystem interface
+  // Returns full URIs ("<scheme>://<bucket>/<key>") for each matched object.
   std::vector<std::string> glob(const std::string& path) override;
-  std::shared_ptr<void> getArrowFileSystem() const override;
+  std::shared_ptr<fsys::RemoteFileSystem> getRemoteFileSystem() const override;
 
   /**
-   * Build Arrow S3Options from schema configuration.
+   * Build S3ClientConfig from schema configuration.
    * Static so it can be called without initializing a full S3FileSystem
    * (useful for testing option building without a real S3 connection).
    */
-  static arrow::fs::S3Options buildS3Options(const reader::FileSchema& schema);
-
-  /**
-   * Resolve S3 paths with glob pattern expansion.
-   * Exposed as public primarily for testing.
-   */
-  std::vector<std::string> resolveS3Paths(
-      std::shared_ptr<arrow::fs::S3FileSystem> fs,
-      const std::vector<std::string>& paths);
+  static S3ClientConfig buildS3Config(const reader::FileSchema& schema);
 
  private:
-  std::shared_ptr<arrow::fs::S3FileSystem> arrow_fs_;
+  std::shared_ptr<S3Client> client_;
+  std::shared_ptr<fsys::RemoteFileSystem> remote_fs_;
 };
 
 /**
