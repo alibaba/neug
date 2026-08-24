@@ -34,16 +34,12 @@
 namespace neug {
 namespace parser {
 
-namespace {
-
-void validateUnionAll(CypherParser::OC_UnionContext& unionClause) {
+static void validateUnionAll(CypherParser::OC_UnionContext& unionClause) {
   if (!unionClause.ALL()) {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "UNION without ALL is not supported. Use UNION ALL instead.");
   }
 }
-
-}  // namespace
 
 std::unique_ptr<Statement> Transformer::transformQuery(
     CypherParser::OC_QueryContext& ctx) {
