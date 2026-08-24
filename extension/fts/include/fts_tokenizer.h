@@ -66,7 +66,7 @@ class JiebaFTSTokenizer final : public FTSTokenizer {
  public:
   static constexpr std::string_view kName{"jieba"};
 
-  explicit JiebaFTSTokenizer(JiebaMode mode);
+  explicit JiebaFTSTokenizer(JiebaMode mode, std::string jieba_dict = "");
 
   JiebaFTSTokenizer(const JiebaFTSTokenizer&) = delete;
   JiebaFTSTokenizer& operator=(const JiebaFTSTokenizer&) = delete;
@@ -82,7 +82,7 @@ class JiebaFTSTokenizer final : public FTSTokenizer {
  private:
   JiebaMode mode_;
 
-  // Keep resources before segmenters so that they are destroyed last.
+  // Keep dictionaries before segmenters so that they are destroyed last.
   cppjieba::DictTrie dict_trie_;
   cppjieba::HMMModel hmm_model_;
   cppjieba::MPSegment mp_segment_;

@@ -17,7 +17,9 @@
 #include "fts_tokenizer.h"
 
 #include <sqlite3.h>
+#include <zlib.h>
 
+#include <atomic>
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
@@ -36,10 +38,28 @@
 
 #if defined(__APPLE__) || defined(__linux__)
 #include <dlfcn.h>
+#include <unistd.h>
 #endif
 
 namespace neug::fts_ext {
 namespace {
+
+#include "../dict/hmm_model_zlib.inc"
+#include "../dict/jieba_dict_small_zlib.inc"
+
+struct JiebaDictFile {
+  std::string_view filename;
+  const unsigned char* compressed_data;
+  size_t compressed_size;
+  size_t original_size;
+};
+
+constexpr JiebaDictFile kJiebaDict{
+    "jieba.dict.utf8", kJiebaDictCompressed, sizeof(kJiebaDictCompressed),
+    kJiebaDictCompressedOriginalSize};
+constexpr JiebaDictFile kJiebaHmmModel{
+    "hmm_model.utf8", kHmmModelCompressed, sizeof(kHmmModelCompressed),
+    kHmmModelCompressedOriginalSize};
 
 bool IsPunctuationRune(cppjieba::Rune rune) {
   if (rune < 0x80) {
@@ -75,31 +95,57 @@ void LowercaseASCII(std::string& token) {
   }
 }
 
-std::filesystem::path ResolveJiebaResourceDirectory() {
+std::filesystem::path ResolveJiebaDictDirectory() {
 #if defined(__APPLE__) || defined(__linux__)
-  static const int resource_anchor = 0;
+  static const int dict_anchor = 0;
   Dl_info info{};
-  if (dladdr(static_cast<const void*>(&resource_anchor), &info) == 0 ||
+  if (dladdr(static_cast<const void*>(&dict_anchor), &info) == 0 ||
       info.dli_fname == nullptr) {
     throw std::runtime_error(
-        "Failed to locate libfts.neug_extension for Jieba resources");
+        "Failed to locate libfts.neug_extension for Jieba dictionaries");
   }
   return std::filesystem::path(info.dli_fname).parent_path();
 #else
   throw std::runtime_error(
-      "Locating bundled Jieba resources is unsupported on this platform");
+      "Locating bundled Jieba dictionaries is unsupported on this platform");
 #endif
 }
 
-std::string ResolveJiebaResourcePath(std::string_view filename) {
-  const auto path = ResolveJiebaResourceDirectory() / filename;
+void ExtractJiebaDict(const std::filesystem::path& path,
+                      const JiebaDictFile& dict) {
+  try {
+    std::vector<unsigned char> contents(dict.original_size);
+    uLongf contents_size = contents.size();
+    uncompress(contents.data(), &contents_size, dict.compressed_data,
+               dict.compressed_size);
+    static std::atomic<uint64_t> temporary_file_id{0};
+    auto temporary_path = path;
+#if defined(__APPLE__) || defined(__linux__)
+    temporary_path += ".tmp." + std::to_string(getpid()) + "." +
+                      std::to_string(temporary_file_id.fetch_add(1));
+#endif
+    std::ofstream output;
+    output.exceptions(std::ios::failbit | std::ios::badbit);
+    output.open(temporary_path, std::ios::binary | std::ios::trunc);
+    output.write(reinterpret_cast<const char*>(contents.data()),
+                 contents.size());
+    output.close();
+    std::filesystem::rename(temporary_path, path);
+  } catch (const std::exception& error) {
+    throw std::runtime_error("Failed to extract Jieba dictionary " +
+                             path.string() + ": " + error.what());
+  }
+}
+
+std::string ResolveJiebaDictPath(const JiebaDictFile& dict) {
+  const auto path = ResolveJiebaDictDirectory() / dict.filename;
   std::error_code error;
   if (!std::filesystem::is_regular_file(path, error) || error) {
-    throw std::runtime_error("Jieba resource is missing: " + path.string());
+    ExtractJiebaDict(path, dict);
   }
   std::ifstream input(path, std::ios::binary);
   if (!input.is_open()) {
-    throw std::runtime_error("Jieba resource is not readable: " +
+    throw std::runtime_error("Jieba dictionary is not readable: " +
                              path.string());
   }
   return path.string();
@@ -158,10 +204,11 @@ int BuiltinFTSTokenizer::Tokenize(void*, const char*, int, int,
   return SQLITE_ERROR;
 }
 
-JiebaFTSTokenizer::JiebaFTSTokenizer(JiebaMode mode)
+JiebaFTSTokenizer::JiebaFTSTokenizer(JiebaMode mode, std::string jieba_dict)
     : mode_(mode),
-      dict_trie_(ResolveJiebaResourcePath("jieba.dict.utf8")),
-      hmm_model_(ResolveJiebaResourcePath("hmm_model.utf8")),
+      dict_trie_(jieba_dict.empty() ? ResolveJiebaDictPath(kJiebaDict)
+                                    : std::move(jieba_dict)),
+      hmm_model_(ResolveJiebaDictPath(kJiebaHmmModel)),
       mp_segment_(&dict_trie_),
       hmm_segment_(&hmm_model_),
       mix_segment_(&dict_trie_, &hmm_model_) {}
@@ -252,7 +299,13 @@ std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
       mode = std::move(option->second);
       config.erase(option);
     }
-    tokenizer = std::make_shared<JiebaFTSTokenizer>(ParseJiebaMode(mode));
+    std::string jieba_dict;
+    if (auto option = config.find("jieba_dict"); option != config.end()) {
+      jieba_dict = std::move(option->second);
+      config.erase(option);
+    }
+    tokenizer = std::make_shared<JiebaFTSTokenizer>(ParseJiebaMode(mode),
+                                                    std::move(jieba_dict));
   } else {
     throw std::invalid_argument("Unsupported FTS tokenizer: " + name);
   }

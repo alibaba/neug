@@ -112,6 +112,19 @@ std::string FindBuildRoot() {
   return "";
 }
 
+TEST(JiebaFTSTokenizerTest, ExtractsBuiltInDictsOnFirstUse) {
+  const auto directory = GetExecutablePath().parent_path();
+  const auto jieba_dict = directory / "jieba.dict.utf8";
+  const auto hmm_model = directory / "hmm_model.utf8";
+  std::filesystem::remove(jieba_dict);
+  std::filesystem::remove(hmm_model);
+
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+
+  EXPECT_TRUE(std::filesystem::is_regular_file(jieba_dict));
+  EXPECT_TRUE(std::filesystem::is_regular_file(hmm_model));
+}
+
 TEST(FTSExtensionTest, LoadSucceeds) {
   const auto build_root = FindBuildRoot();
   ASSERT_FALSE(build_root.empty());
@@ -284,6 +297,25 @@ TEST(JiebaFTSTokenizerTest, SupportsMpHmmAndMixModes) {
     }
     EXPECT_EQ(actual, test_case.expected);
   }
+}
+
+TEST(JiebaFTSTokenizerTest, LoadsCustomDict) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+  const auto dict_path = directory.path() / "user.dict.utf8";
+  std::ofstream(dict_path) << "棉花糖星球 100 n\n占位词 1 n\n";
+
+  auto tokenizer = FTSTokenizer::Create(
+      {{"tokenizer", "jieba"},
+       {"jieba_mode", "mp"},
+       {"jieba_dict", dict_path.string()}});
+  const std::string input = "棉花糖星球";
+  std::vector<CollectedToken> tokens;
+  ASSERT_EQ(tokenizer->Tokenize(&tokens, input.data(), input.size(),
+                                FTS5_TOKENIZE_DOCUMENT, CollectToken),
+            SQLITE_OK);
+  ASSERT_EQ(tokens.size(), 1u);
+  EXPECT_EQ(tokens.front().text, input);
 }
 
 TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
@@ -682,6 +714,7 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
                        {"valid_name", {"prefix", "2 bad"}},
                        {"valid_name", {"detail", "invalid"}},
                        {"valid_name", {"jieba_mode", "mix"}},
+                       {"valid_name", {"jieba_dict", "user.dict.utf8"}},
                        {"valid_name", {"rank", "bm25"}}};
   for (const auto& [name, option] : invalid_cases) {
     auto index = MakeUnopenedIndex(name);

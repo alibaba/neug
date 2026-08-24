@@ -29,7 +29,17 @@ cd tools/python_bind
 BUILD_EXTENSIONS=fts make build
 ```
 
-The extension library and bundled Jieba resources are written to:
+The extension library embeds cppjieba's small default dictionary and HMM
+model as compressed dictionaries. A fresh build therefore produces a single
+extension file:
+
+```text
+build/extension/fts/
+└── libfts.neug_extension
+```
+
+On the first use of the Jieba tokenizer, the dictionaries are extracted beside
+the extension library and reused by later processes:
 
 ```text
 build/extension/fts/

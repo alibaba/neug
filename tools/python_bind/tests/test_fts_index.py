@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -479,6 +480,46 @@ def test_jieba_tokenizer_modes_segment_chinese(
 
         assert [row[0] for row in search(connection, "网易")] == expected_ids[0]
         assert [row[0] for row in search(connection, "清华大学")] == expected_ids[1]
+    finally:
+        connection.close()
+        db.close()
+
+
+def test_jieba_dict_compares_builtin_and_full_dictionary(tmp_path):
+    full_dict = (
+        Path(__file__).resolve().parents[3]
+        / "third_party/cppjieba/dict/jieba.dict.utf8"
+    )
+
+    db = Database(db_path=str(tmp_path / "jieba_builtin_dict_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        connection.execute("CREATE (:Item {id: 1, text: '万圣节后举行派对'});")
+        connection.execute(
+            "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+            "WITH (tokenizer = 'jieba', jieba_mode = 'mp');"
+        )
+        # Text: 万圣 / 节后 / 举行 / 派对; query: 万圣 / 节.
+        assert [row[0] for row in search(connection, "万圣节")] == []
+    finally:
+        connection.close()
+        db.close()
+
+    db = Database(db_path=str(tmp_path / "jieba_full_dict_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        connection.execute("CREATE (:Item {id: 1, text: '万圣节后举行派对'});")
+        connection.execute(
+            "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+            "WITH (tokenizer = 'jieba', jieba_mode = 'mp', "
+            f"jieba_dict = '{full_dict}');"
+        )
+        # Text: 万圣节 / 后 / 举行 / 派对; query: 万圣节.
+        assert [row[0] for row in search(connection, "万圣节")] == [1]
     finally:
         connection.close()
         db.close()

@@ -35,6 +35,7 @@ USING FTS (<string_property>)
 [WITH (
     tokenizer = '<tokenizer>',
     jieba_mode = '<jieba_mode>',
+    jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>',
     detail = '<detail_mode>'
 )];
@@ -75,6 +76,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
+| `jieba_dict` | Path to a Jieba dictionary; valid only when `tokenizer = 'jieba'` | Built-in small dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 | `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
 
@@ -87,8 +89,8 @@ Supported tokenizers are:
   match the same stem.
 - `trigram` treats each contiguous sequence of three characters as a token,
   enabling substring matching.
-- `jieba` performs Chinese word segmentation using cppjieba. It loads the
-  bundled main dictionary and HMM model from the FTS extension directory.
+- `jieba` performs Chinese word segmentation using cppjieba and loads the
+  built-in small dictionary and HMM model.
 
 The Jieba tokenizer supports three modes:
 
@@ -105,9 +107,13 @@ ON Article
 USING FTS (title)
 WITH (
     tokenizer = 'jieba',
-    jieba_mode = 'mix'
+    jieba_mode = 'mix',
+    jieba_dict = '/path/to/user.dict.utf8'
 );
 ```
+
+The custom dictionary replaces the built-in small dictionary. Its path must
+remain available when the index is reopened.
 
 The `detail` option affects the query forms available to users:
 

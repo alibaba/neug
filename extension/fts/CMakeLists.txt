@@ -7,6 +7,7 @@ set(FTS_EXTENSION_OBJECT_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/fts_extension.cc")
 
 include(${CMAKE_SOURCE_DIR}/cmake/BuildSQLiteAsThirdParty.cmake)
+find_package(ZLIB REQUIRED)
 
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/cppjieba/include/cppjieba/Jieba.hpp" OR
    NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include/limonp/StringUtil.hpp")
@@ -31,32 +32,14 @@ target_link_libraries(neug_fts_extension PRIVATE
     neug
     neug_sqlite3
     neug_cppjieba
+    ZLIB::ZLIB
     ${Protobuf_LIBRARIES})
 add_dependencies(neug_fts_extension neug_sqlite3_amalgamation)
-
-add_custom_command(
-    TARGET neug_fts_extension POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/third_party/cppjieba/dict/jieba.dict.utf8"
-        "$<TARGET_FILE_DIR:neug_fts_extension>/jieba.dict.utf8"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/third_party/cppjieba/dict/hmm_model.utf8"
-        "$<TARGET_FILE_DIR:neug_fts_extension>/hmm_model.utf8"
-    VERBATIM)
 
 if(BUILD_TEST)
     add_extension_test(
         NAME fts
         TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/tests/fts_extension_test.cc"
-        EXTRA_LINK_LIBS neug_sqlite3 neug_cppjieba)
+        EXTRA_LINK_LIBS neug_sqlite3 neug_cppjieba ZLIB::ZLIB)
     add_dependencies(fts_extension_test neug_fts_extension)
-    add_custom_command(
-        TARGET fts_extension_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/third_party/cppjieba/dict/jieba.dict.utf8"
-            "$<TARGET_FILE_DIR:fts_extension_test>/jieba.dict.utf8"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/third_party/cppjieba/dict/hmm_model.utf8"
-            "$<TARGET_FILE_DIR:fts_extension_test>/hmm_model.utf8"
-        VERBATIM)
 endif()
