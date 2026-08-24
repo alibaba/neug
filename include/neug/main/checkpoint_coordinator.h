@@ -81,8 +81,10 @@ class CheckpointCoordinator {
   /// Commit a private bulk COW transaction through a checkpoint. Unlike a
   /// manual checkpoint, this does not maintain or reopen the live graph: it
   /// publishes the transaction's private graph, then installs it as current.
-  /// The manifest publication is the durable decision point; failures before
-  /// it abort the private workspace, while failures after it are fail-stop.
+  /// Validation and staging failures abort the private workspace. Once the
+  /// consuming dirty-module dump starts, failures are fail-stop because some
+  /// payload containers may still be shared with the published base graph.
+  /// Manifest publication remains the durable decision point.
   Status CommitWithCheckpoint(CurrentCowWriteTransaction& transaction);
 
   /// Publish a recovery checkpoint and reopen the live graph.

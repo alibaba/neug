@@ -94,10 +94,12 @@ A successful persistent bulk statement calls
 `CheckpointCoordinator::CommitWithCheckpoint()`. It consumes and reopens dirty
 modules only in the private clone, publishes the staging manifest as the
 durable decision, replaces the current graph without changing snapshot
-generation, and rotates every active WAL writer. Failures before manifest
-publication discard the private workspace, so no partial mutation becomes
-visible. Failures after publication are fail-stop because rollback is no longer
-possible.
+generation, and rotates every active WAL writer. Validation and staging failures
+discard the private workspace, so no partial mutation becomes visible. Once the
+consuming dump starts, failures are fail-stop: `VecColumn` payload buffers are
+currently shared between the clone and its published base, so consumption may
+invalidate the base even before manifest publication. Manifest publication is
+still the durable decision point.
 
 `COPY TEMP` is not a durable bulk statement. It calls `CommitTransient()` after
 the private workspace has been fully prepared; failures discard the workspace,

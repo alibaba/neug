@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "glog/logging.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"

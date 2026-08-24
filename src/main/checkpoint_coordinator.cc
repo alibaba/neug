@@ -132,7 +132,7 @@ Status CheckpointCoordinator::CommitWithCheckpoint(
     return Status::OK();
   }
 
-  bool manifest_published = false;
+  bool consuming_checkpoint_started = false;
   try {
     if (workspace.base_planning_generation() ==
         std::numeric_limits<uint64_t>::max()) {
@@ -156,12 +156,18 @@ Status CheckpointCoordinator::CommitWithCheckpoint(
     auto staging_checkpoint = checkpoint_manager_.CreateStaging();
     LOG(INFO) << "Committing private bulk COW graph with checkpoint";
     graph.DetachDirtyModulesForCheckpoint(workspace.detach_state());
+    // DumpDirtyAndReopen() consumes dirty containers. Most modules have been
+    // detached into this private graph, but VecColumn payload buffers are still
+    // shared intentionally by VecColumn::Detach(). Once consumption starts, a
+    // later failure may therefore leave the published base graph unusable. Do
+    // not report rollback from this point until checkpoint-specific payload
+    // detachment exists.
+    consuming_checkpoint_started = true;
     graph.DumpDirtyAndReopen(staging_checkpoint.checkpoint(),
                              transaction.timestamp());
     workspace.view().Rebuild(graph);
 
     auto published_checkpoint = staging_checkpoint.Publish();
-    manifest_published = true;
 
     transaction.replaceCurrentSnapshot(committed_planning_generation);
     invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
@@ -173,19 +179,19 @@ Status CheckpointCoordinator::CommitWithCheckpoint(
     transaction.guard_.release(snapshot_generation);
     return Status::OK();
   } catch (const exception::IOException& e) {
-    if (manifest_published) {
+    if (consuming_checkpoint_started) {
       fail_stop_live_database(e.what());
     }
     transaction.Abort();
     return Status(StatusCode::ERR_IO_ERROR, e.what());
   } catch (const std::exception& e) {
-    if (manifest_published) {
+    if (consuming_checkpoint_started) {
       fail_stop_live_database(e.what());
     }
     transaction.Abort();
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
   } catch (...) {
-    if (manifest_published) {
+    if (consuming_checkpoint_started) {
       fail_stop_live_database("Unknown bulk checkpoint commit failure");
     }
     transaction.Abort();
