@@ -72,6 +72,9 @@ def test_list_append_documentation_examples(item_connection):
         conn, "MATCH (item:Item) RETURN list_append(item.coordinates, 10);"
     ) == [1, 2, 3, 10]
     assert _scalar(conn, "RETURN list_append([], 1);") == [1]
+    # The property argument prevents constant folding, so the empty list is
+    # executed as a zero-child ToList expression at runtime.
+    assert _scalar(conn, "MATCH (item:Item) RETURN list_append([], item.id);") == [1]
     assert _scalar(conn, "RETURN list_append([1, 2], NULL);") == [1, 2, None]
     assert _scalar(conn, "RETURN list_append([1, 2], 3.5);") == [1.0, 2.0, 3.5]
     assert _scalar(
@@ -101,6 +104,12 @@ def test_list_concat_documentation_examples(item_connection):
     ) == [1, 2, 3, 1, 2, 3]
     assert _scalar(conn, "RETURN list_concat([1], [2, 3, 4]);") == [1, 2, 3, 4]
     assert _scalar(conn, "RETURN list_concat([], [1, 2]);") == [1, 2]
+    # The property argument prevents constant folding, so the empty list is
+    # executed as a zero-child ToList expression at runtime.
+    assert _scalar(conn, "MATCH (item:Item) RETURN list_concat([], item.tags);") == [
+        1,
+        2,
+    ]
     assert _scalar(conn, "RETURN list_concat([1, 2], []);") == [1, 2]
     assert _scalar(conn, "RETURN list_concat([], []);") == []
     assert _scalar(conn, "RETURN list_concat([1, 2], [3.5, 4.5]);") == [
