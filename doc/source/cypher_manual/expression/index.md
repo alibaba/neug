@@ -45,6 +45,7 @@ Functions in NeuG are predefined operations that take input parameters and retur
 |----------|-------------|
 | [Aggregate](agg_func) | Functions that operate on collections of values and return a single result (e.g., `COUNT`, `SUM`, `AVG`, `MAX`, `MIN`) |
 | [Cast](cast_func) | Functions for converting data types between different formats |
+| [List](list_func) | Functions for appending and concatenating list-like values |
 | [Temporal](temporal_func) | Functions for working with date and time data |
 | [Graph Pattern](graph_func) | Functions specifically designed for nodes, edges or path |
 <!-- | Text | String manipulation and text processing functions |

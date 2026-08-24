@@ -57,6 +57,18 @@ struct ListContainsFunction {
   static function_set getFunctionSet();
 };
 
+struct ListAppendFunction {
+  static constexpr const char* name = "LIST_APPEND";
+
+  static function_set getFunctionSet();
+};
+
+struct ListConcatFunction {
+  static constexpr const char* name = "LIST_CONCAT";
+
+  static function_set getFunctionSet();
+};
+
 struct ListHasFunction {
   using alias = ListContainsFunction;
 
