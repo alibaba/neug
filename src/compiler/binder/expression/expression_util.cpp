@@ -27,7 +27,9 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/parameter_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/common/types/value/nested.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -210,6 +212,13 @@ bool ExpressionUtil::isFalseLiteral(const Expression& expression) {
 }
 
 bool ExpressionUtil::isEmptyList(const Expression& expression) {
+  if (expression.expressionType == ExpressionType::FUNCTION) {
+    const auto& functionExpression =
+        expression.constCast<ScalarFunctionExpression>();
+    return functionExpression.getFunction().name ==
+               function::ListCreationFunction::name &&
+           functionExpression.getNumChildren() == 0;
+  }
   auto val = compiler_impl::Value::createNullValue();
   switch (expression.expressionType) {
   case ExpressionType::LITERAL: {
