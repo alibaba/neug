@@ -366,10 +366,11 @@ class NEUG_API NeugDB {
    * compacts storage timestamps before dumping. Must not be called while a
    * NeugDBService is running.
    *
-   * @param destructive_phase_started Set before the live graph is compacted or
-   * consumed. A failure after that point requires final database teardown.
+   * @param live_graph_consumption_started Set before the live graph is
+   * compacted or consumed. A failure after that point requires final database
+   * teardown.
    */
-  void createCheckpointOnClose(bool& destructive_phase_started);
+  void createCheckpointOnClose(bool& live_graph_consumption_started);
 
   /**
    * @brief Register a NeugDBService as the active service of this database.

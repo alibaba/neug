@@ -2983,6 +2983,46 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVertices) {
   db.Close();
 }
 
+TEST_F(SnapshotCowWriteTransactionTest,
+       DeleteVertexMarksOnlyTouchedEdgeTablesDirty) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = neug::MemoryLevel::kInMemory;
+  db.Open(config);
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query("CREATE REL TABLE unused(FROM person TO software);"));
+  conn->Close();
+
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->BeginSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    const auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t alice_vid;
+    ASSERT_TRUE(
+        txn.GetVertexIndex(person_label, neug::Value::INT64(1), alice_vid));
+    ASSERT_TRUE(storage.DeleteVertex(person_label, alice_vid));
+    ASSERT_TRUE(txn.Commit());
+  }
+
+  const auto person_label = db.schema().get_vertex_label_id("person");
+  const auto software_label = db.schema().get_vertex_label_id("software");
+  const auto created_label = db.schema().get_edge_label_id("created");
+  const auto knows_label = db.schema().get_edge_label_id("knows");
+  const auto unused_label = db.schema().get_edge_label_id("unused");
+  EXPECT_TRUE(db.graph().IsVertexTableDirty(person_label));
+  EXPECT_TRUE(
+      db.graph().IsEdgeTableDirty(person_label, software_label, created_label));
+  EXPECT_TRUE(
+      db.graph().IsEdgeTableDirty(person_label, person_label, knows_label));
+  EXPECT_FALSE(
+      db.graph().IsEdgeTableDirty(person_label, software_label, unused_label));
+
+  svc.reset();
+  db.Close();
+}
+
 TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);

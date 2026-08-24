@@ -259,7 +259,7 @@ void NeugDB::Close() {
     return;
   }
 
-  bool shutdown_checkpoint_destructive_phase_started = false;
+  bool shutdown_live_graph_consumption_started = false;
   std::exception_ptr deferred_close_error;
   try {
     // Release every ExecutionSlot before a shutdown checkpoint consumes the
@@ -268,10 +268,10 @@ void NeugDB::Close() {
     closeAllConnections();
     if (config_.mode == DBMode::READ_WRITE && config_.checkpoint_on_close) {
       VLOG(1) << "Creating checkpoint on close...";
-      createCheckpointOnClose(shutdown_checkpoint_destructive_phase_started);
+      createCheckpointOnClose(shutdown_live_graph_consumption_started);
     }
   } catch (...) {
-    if (!shutdown_checkpoint_destructive_phase_started) {
+    if (!shutdown_live_graph_consumption_started) {
       closed_.store(false, std::memory_order_release);
       throw;
     }
@@ -284,9 +284,7 @@ void NeugDB::Close() {
   clearQueryRuntime();
   checkpoint_coordinator_.reset();
   wal_writers_.reset();
-  if (planner_) {
-    planner_.reset();
-  }
+  planner_.reset();
 
   version_manager_.reset();
   snapshot_store_.reset();
@@ -680,7 +678,7 @@ bool NeugDB::createCheckpointAfterRecovery() {
   return true;
 }
 
-void NeugDB::createCheckpointOnClose(bool& destructive_phase_started) {
+void NeugDB::createCheckpointOnClose(bool& live_graph_consumption_started) {
   std::lock_guard<std::mutex> lock(mutex_);
   {
     SnapshotGuard guard(*snapshot_store_);
@@ -690,7 +688,7 @@ void NeugDB::createCheckpointOnClose(bool& destructive_phase_started) {
     }
   }
   auto outcome = checkpoint_coordinator_->PublishShutdownCheckpoint(
-      destructive_phase_started);
+      live_graph_consumption_started);
   if (!outcome.ok()) {
     if (outcome.error_code() == StatusCode::ERR_IO_ERROR) {
       THROW_IO_EXCEPTION(outcome.error_message());
@@ -703,6 +701,10 @@ void NeugDB::createCheckpointOnClose(bool& destructive_phase_started) {
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
+  // Retired checkpoints can contain the WAL file that was active before the
+  // shutdown checkpoint. Close every writer before garbage collection so the
+  // directory is removable on platforms that forbid deleting open files.
+  wal_writers_.reset();
   checkpoint_mgr_.CollectGarbage();
 }
 

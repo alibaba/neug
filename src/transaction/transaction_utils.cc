@@ -200,45 +200,44 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
     } else if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
+      const auto label = graph.schema().get_vertex_label_id(redo.vertex_type);
+      const auto& oid = redo.oid;
+      const auto& props = redo.props;
       vid_t vid;
       bool inserted = false;
-      auto& v_table = graph.get_vertex_table(redo.label);
-      if (!graph.get_lid(redo.label, redo.oid, vid, timestamp) ||
-          !graph.IsValidLid(redo.label, vid, timestamp)) {
+      auto& v_table = graph.get_vertex_table(label);
+      if (!graph.get_lid(label, oid, vid, timestamp) ||
+          !graph.IsValidLid(label, vid, timestamp)) {
         if (v_table.Size() >= v_table.Capacity()) {
           auto new_capacity = v_table.Size() < 4096
                                   ? 4096
                                   : v_table.Size() + v_table.Size() / 4;
-          graph.EnsureCapacity(redo.label, new_capacity);
+          graph.EnsureCapacity(label, new_capacity);
         }
-        graph.MarkVertexTableDirty(redo.label);
-        auto ret = graph.AddVertex(redo.label, redo.oid, redo.props, vid,
-                                   timestamp, true);
+        graph.MarkVertexTableDirty(label);
+        auto ret = graph.AddVertex(label, oid, props, vid, timestamp, true);
         THROW_STORAGE_EXCEPTION_STATUS("Failed to add vertex in redo: ", ret);
         inserted = true;
       }
       if (inserted) {
         auto& index_manager = graph.mutable_index_manager();
         Status ret;
-        if (index_manager.HasPendingIndex(redo.label)) {
-          const auto& v_schema = graph.schema().get_vertex_schema(redo.label);
+        if (index_manager.HasPendingIndex(label)) {
+          const auto& v_schema = graph.schema().get_vertex_schema(label);
           std::vector<std::pair<std::string, Value>> properties;
-          properties.emplace_back(std::get<1>(v_schema->primary_keys[0]),
-                                  redo.oid);
+          properties.emplace_back(std::get<1>(v_schema->primary_keys[0]), oid);
           for (size_t prop_idx = 0;
                prop_idx < v_schema->property_names.size() &&
-               prop_idx < redo.props.size();
+               prop_idx < props.size();
                ++prop_idx) {
             if (!v_schema->vprop_soft_deleted[prop_idx]) {
               properties.emplace_back(v_schema->property_names[prop_idx],
-                                      redo.props[prop_idx]);
+                                      props[prop_idx]);
             }
           }
-          index_manager.RecordPendingInsert(redo.label, vid,
-                                            std::move(properties));
+          index_manager.RecordPendingInsert(label, vid, std::move(properties));
         } else {
-          ret =
-              addVertexIndexData(graph, redo.label, vid, redo.oid, redo.props);
+          ret = addVertexIndexData(graph, label, vid, oid, props);
         }
         THROW_STORAGE_EXCEPTION_STATUS(
             "Failed to append vertex indexes in redo: ", ret);
@@ -246,85 +245,104 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
+      const auto& schema = graph.schema();
+      const auto src_label = schema.get_vertex_label_id(redo.src_type);
+      const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      const auto edge_label = schema.get_edge_label_id(redo.edge_type);
       vid_t src_vid, dst_vid;
-      CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
-      CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
+      CHECK(graph.get_lid(src_label, redo.src, src_vid, timestamp));
+      CHECK(graph.get_lid(dst_label, redo.dst, dst_vid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
-      graph.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
-      auto ret = graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                               redo.edge_label, redo.properties, timestamp,
-                               alloc, oe_offset_unused, prop_unused, true);
+      graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
+      auto ret = graph.AddEdge(src_label, src_vid, dst_label, dst_vid,
+                               edge_label, redo.properties, timestamp, alloc,
+                               oe_offset_unused, prop_unused, true);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge in redo: ", ret);
     } else if (op_type == OpType::kUpdateVertexProp) {
       UpdateVertexPropRedo redo;
       arc >> redo;
+      const auto label = graph.schema().get_vertex_label_id(redo.vertex_type);
+      const auto& oid = redo.oid;
+      const auto prop_id = redo.prop_id;
+      const auto& value = redo.value;
       vid_t vid;
-      CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
-      graph.MarkVertexTableDirty(redo.label);
-      auto ret = graph.UpdateVertexProperty(redo.label, vid, redo.prop_id,
-                                            redo.value, timestamp);
+      CHECK(graph.get_lid(label, oid, vid, timestamp));
+      graph.MarkVertexTableDirty(label);
+      auto ret =
+          graph.UpdateVertexProperty(label, vid, prop_id, value, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to update vertex property in redo: ", ret);
-      const auto& v_schema = graph.schema().get_vertex_schema(redo.label);
-      if (redo.prop_id >= 0 &&
-          static_cast<size_t>(redo.prop_id) < v_schema->property_names.size() &&
-          !v_schema->vprop_soft_deleted[redo.prop_id] &&
+      const auto& v_schema = graph.schema().get_vertex_schema(label);
+      if (prop_id >= 0 &&
+          static_cast<size_t>(prop_id) < v_schema->property_names.size() &&
+          !v_schema->vprop_soft_deleted[prop_id] &&
           graph.mutable_index_manager().HasPendingIndex(
-              redo.label, v_schema->property_names[redo.prop_id])) {
+              label, v_schema->property_names[prop_id])) {
         graph.mutable_index_manager().RecordPendingUpdate(
-            redo.label, vid, v_schema->property_names[redo.prop_id],
-            redo.value);
+            label, vid, v_schema->property_names[prop_id], value);
       } else {
-        ret = updateVertexIndexData(graph, redo.label, vid, redo.prop_id,
-                                    redo.value);
+        ret = updateVertexIndexData(graph, label, vid, prop_id, value);
       }
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to update vertex property indexes in redo: ", ret);
     } else if (op_type == OpType::kUpdateEdgeProp) {
       UpdateEdgePropRedo redo;
       arc >> redo;
+      const auto& schema = graph.schema();
+      const auto src_label = schema.get_vertex_label_id(redo.src_type);
+      const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      const auto edge_label = schema.get_edge_label_id(redo.edge_type);
       vid_t src_vid, dst_vid;
-      CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
-      CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      CHECK(graph.get_lid(src_label, redo.src, src_vid, timestamp));
+      CHECK(graph.get_lid(dst_label, redo.dst, dst_vid, timestamp));
+      graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
       auto ret = graph.UpdateEdgeProperty(
-          redo.src_label, src_vid, redo.dst_label, dst_vid, redo.edge_label,
-          redo.oe_offset, redo.ie_offset, redo.prop_id, redo.value, timestamp);
+          src_label, src_vid, dst_label, dst_vid, edge_label, redo.oe_offset,
+          redo.ie_offset, redo.prop_id, redo.value, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to update edge property in redo: ",
                                      ret);
     } else if (op_type == OpType::kRemoveVertex) {
       RemoveVertexRedo redo;
       arc >> redo;
+      const auto label = graph.schema().get_vertex_label_id(redo.vertex_type);
+      const auto& oid = redo.oid;
       vid_t vid;
-      CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
-      graph.MarkVertexTableDirty(redo.label);
+      CHECK(graph.get_lid(label, oid, vid, timestamp));
+      graph.MarkVertexTableDirty(label);
       // Cascade: DeleteVertex physically writes incident edge tables.
       for (const auto& [_, es] : graph.schema().get_all_edge_schemas()) {
-        if (es->src_label_id == redo.label || es->dst_label_id == redo.label) {
+        if (es->src_label_id == label || es->dst_label_id == label) {
           graph.MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
                                    es->edge_label_id);
         }
       }
-      auto ret = graph.DeleteVertex(redo.label, vid, timestamp);
+      auto ret = graph.DeleteVertex(label, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete vertex in redo: ", ret);
-      if (graph.mutable_index_manager().HasPendingIndex(redo.label)) {
-        graph.mutable_index_manager().RecordPendingDelete(redo.label, vid);
+      if (graph.mutable_index_manager().HasPendingIndex(label)) {
+        graph.mutable_index_manager().RecordPendingDelete(label, vid);
       } else {
-        ret = deleteVertexIndexData(graph, redo.label, {vid});
+        ret = deleteVertexIndexData(graph, label, {vid});
       }
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to delete vertex indexes in redo: ", ret);
     } else if (op_type == OpType::kRemoveEdge) {
       RemoveEdgeRedo redo;
       arc >> redo;
+      const auto& schema = graph.schema();
+      const auto src_label = schema.get_vertex_label_id(redo.src_type);
+      const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      const auto edge_label = schema.get_edge_label_id(redo.edge_type);
+      const auto& src = redo.src;
+      const auto& dst = redo.dst;
+      const auto oe_offset = redo.oe_offset;
+      const auto ie_offset = redo.ie_offset;
       vid_t src_vid, dst_vid;
-      CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
-      CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
-      auto ret = graph.DeleteEdge(redo.src_label, src_vid, redo.dst_label,
-                                  dst_vid, redo.edge_label, redo.oe_offset,
-                                  redo.ie_offset, timestamp);
+      CHECK(graph.get_lid(src_label, src, src_vid, timestamp));
+      CHECK(graph.get_lid(dst_label, dst, dst_vid, timestamp));
+      graph.MarkEdgeTableDirty(src_label, dst_label, edge_label);
+      auto ret = graph.DeleteEdge(src_label, src_vid, dst_label, dst_vid,
+                                  edge_label, oe_offset, ie_offset, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge in redo: ", ret);
     } else if (op_type == OpType::kAddVertexProp) {
       auto redo = AddVertexPropertiesRedo::Deserialize(arc);

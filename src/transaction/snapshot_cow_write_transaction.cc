@@ -17,6 +17,7 @@
 
 #include <glog/logging.h>
 
+#include <exception>
 #include <limits>
 #include <utility>
 
@@ -79,10 +80,20 @@ bool SnapshotCowWriteTransaction::Commit() {
   auto prepared = std::move(prepared_result).value();
 
   logical_redo.finalize(timestamp());
-  if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
-    LOG(ERROR) << "Failed to append wal log";
-    Abort();
-    return false;
+  // append() does not distinguish a pre-write failure from a partial append.
+  // Until W1 framing makes recovery able to discard incomplete records, do not
+  // report a normal rollback after starting the durability boundary.
+  try {
+    if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
+      LOG(FATAL) << "TP WAL append failed after commit append began; "
+                    "terminating before snapshot publication";
+    }
+  } catch (const std::exception& e) {
+    LOG(FATAL) << "TP WAL append failed after commit append began: " << e.what()
+               << "; terminating before snapshot publication";
+  } catch (...) {
+    LOG(FATAL) << "TP WAL append failed after commit append began; "
+                  "terminating before snapshot publication";
   }
 
   timestamp_lease_.BeginCommit();

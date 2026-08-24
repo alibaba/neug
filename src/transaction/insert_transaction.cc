@@ -110,7 +110,8 @@ Status InsertTransaction::AddVertex(label_t label, const Value& id,
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
-    InsertVertexRedo::Serialize(arc_, label, id, props);
+    InsertVertexRedo::Serialize(
+        arc_, view_->schema().get_vertex_label_name(label), id, props);
   }
   return Status::OK();
 }
@@ -146,8 +147,10 @@ Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
                         ", got " + properties[i].type().ToString());
     }
   }
-  InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
-                            properties);
+  const auto& schema = view_->schema();
+  InsertEdgeRedo::Serialize(arc_, schema.get_vertex_label_name(src_label), src,
+                            schema.get_vertex_label_name(dst_label), dst,
+                            schema.get_edge_label_name(edge_label), properties);
   prop = nullptr;
   return Status::OK();
 }
@@ -207,26 +210,35 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
     if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
+      const auto label = view.schema().get_vertex_label_id(redo.vertex_type);
+      const auto& oid = redo.oid;
+      const auto& props = redo.props;
       vid_t vid;
-      auto ret =
-          view.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+      auto ret = view.AddVertex(label, oid, props, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to add vertex during WAL ingestion", ret);
-      view.MarkVertexTableDirty(redo.label);
+      view.MarkVertexTableDirty(label);
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
+      const auto& schema = view.schema();
+      const auto src_label = schema.get_vertex_label_id(redo.src_type);
+      const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      const auto edge_label = schema.get_edge_label_id(redo.edge_type);
+      const auto& src = redo.src;
+      const auto& dst = redo.dst;
+      const auto& properties = redo.properties;
       vid_t src_lid, dst_lid;
-      CHECK(view.get_lid(redo.src_label, redo.src, src_lid, timestamp));
-      CHECK(view.get_lid(redo.dst_label, redo.dst, dst_lid, timestamp));
+      CHECK(view.get_lid(src_label, src, src_lid, timestamp));
+      CHECK(view.get_lid(dst_label, dst, dst_lid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
-      auto ret = view.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
-                              redo.edge_label, redo.properties, timestamp,
-                              alloc, oe_offset_unused, prop_unused);
+      auto ret = view.AddEdge(src_label, src_lid, dst_label, dst_lid,
+                              edge_label, properties, timestamp, alloc,
+                              oe_offset_unused, prop_unused);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge during WAL ingestion",
                                      ret);
-      view.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      view.MarkEdgeTableDirty(src_label, dst_label, edge_label);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected op-" +
                                std::to_string(static_cast<int>(op_type)));

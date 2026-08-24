@@ -993,6 +993,38 @@ TEST_F(WalReplayTest, CopyFromPublishesCheckpointAndSurvivesRecovery) {
   }
 }
 
+TEST_F(WalReplayTest, CopyFromWithInferredSchemaCommitsCheckpoint) {
+  const auto csv_path =
+      (std::filesystem::path(db_dir_) / "inferred.csv").string();
+  write_copy_csv(csv_path, "7|inferred\n");
+
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    auto conn = db.Connect();
+    auto copy = conn->Query("COPY inferred_person FROM \"" + csv_path + "\";",
+                            "update");
+    ASSERT_TRUE(copy) << copy.error().ToString();
+    conn->Close();
+    db.Close();
+  }
+
+  ASSERT_TRUE(read_current_checkpoint_id(db_dir_).has_value());
+  {
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(make_config(db_dir_)));
+    auto conn = db.Connect();
+    auto result = conn->Query("MATCH (n:inferred_person) RETURN n.id, n.name;");
+    ASSERT_TRUE(result) << result.error().ToString();
+    ASSERT_EQ(result.value().response().row_count(), 1);
+    EXPECT_EQ(result.value().response().arrays(0).int64_array().values(0), 7);
+    EXPECT_EQ(result.value().response().arrays(1).string_array().values(0),
+              "inferred");
+    conn->Close();
+    db.Close();
+  }
+}
+
 // Regression for the WAL replay chain: an UPDATE records a WAL record that
 // hard-CHECKs its target vertex during replay. Without the COPY-seal the
 // replayed record would reference a vertex that only exists in unsealed

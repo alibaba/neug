@@ -22,7 +22,6 @@
 #include <chrono>
 #include <exception>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -290,8 +289,7 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     auto storage = transaction.OpenBulkStorage();
     auto activation_status = storage.ActivateIndexes();
     if (activation_status.ok()) {
-      activation_status =
-          checkpoint_coordinator_.CommitWithCheckpoint(transaction);
+      activation_status = checkpoint_coordinator_.CommitCowWrite(transaction);
     } else {
       transaction.Abort();
     }
@@ -437,14 +435,13 @@ Status ExecutionSlot::executeCore(const std::string& query,
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
-      std::optional<CurrentGraphWriteGuard> guard;
-      guard.emplace(
-          CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_));
+      auto guard =
+          CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_);
       // Classify under writer exclusion so the retained guard and prepared plan
       // both describe the private COW base used for execution.
       auto classification =
-          prepareQuery(GraphStats(guard->Snapshot().view(),
-                                  guard->Snapshot().planning_generation()),
+          prepareQuery(GraphStats(guard.Snapshot().view(),
+                                  guard.Snapshot().planning_generation()),
                        query, num_threads);
       if (NEUG_UNLIKELY(!classification)) {
         return classification.error();
@@ -453,20 +450,22 @@ Status ExecutionSlot::executeCore(const std::string& query,
       const auto& flags = prepared_query->flags;
       if (flags.copy_from() || flags.index()) {
         auto transaction = CurrentCowWriteTransaction::Begin(
-            std::move(*guard), alloc_, snapshot_store_, *wal_writer_);
+            std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenBulkStorage();
         status = execute_on_storage(transaction.statistic(), storage);
         if (status.ok()) {
-          status =
-              flags.create_temp_table()
-                  ? transaction.CommitTransient()
-                  : checkpoint_coordinator_.CommitWithCheckpoint(transaction);
+          // A normal COPY can target a table that is already temporary, so
+          // planner syntax alone cannot select the commit protocol. Storage
+          // marks the resolved target in the workspace.
+          status = transaction.workspace_.HasTransientMutation()
+                       ? transaction.CommitTransient()
+                       : checkpoint_coordinator_.CommitCowWrite(transaction);
         } else {
           transaction.Abort();
         }
       } else {
         auto transaction = CurrentCowWriteTransaction::Begin(
-            std::move(*guard), alloc_, snapshot_store_, *wal_writer_);
+            std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenStorage();
         status = execute_on_storage(transaction.statistic(), storage);
         if (status.ok()) {

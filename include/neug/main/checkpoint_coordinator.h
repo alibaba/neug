@@ -85,16 +85,16 @@ class CheckpointCoordinator {
   /// consuming dirty-module dump starts, failures are fail-stop because some
   /// payload containers may still be shared with the published base graph.
   /// Manifest publication remains the durable decision point.
-  Status CommitWithCheckpoint(CurrentCowWriteTransaction& transaction);
+  Status CommitCowWrite(CurrentCowWriteTransaction& transaction);
 
   /// Publish a recovery checkpoint and reopen the live graph.
   Status PublishRecoveryCheckpoint();
 
   /// Publish the shutdown checkpoint without reopening the live graph.
-  /// @p destructive_phase_started is reset on entry and set before the live
-  /// graph is compacted or consumed. A failure after that point is not
+  /// @p live_graph_consumption_started is reset on entry and set before the
+  /// live graph is compacted or consumed. A failure after that point is not
   /// retryable on the same open database.
-  Status PublishShutdownCheckpoint(bool& destructive_phase_started);
+  Status PublishShutdownCheckpoint(bool& live_graph_consumption_started);
 
  private:
   enum class Reason {
@@ -103,7 +103,8 @@ class CheckpointCoordinator {
     kShutdown,
   };
 
-  Status execute(Reason reason, bool* destructive_phase_started = nullptr);
+  Status execute(Reason reason,
+                 bool* live_graph_consumption_started_out = nullptr);
   void invokeWalEpochActivationHandler(const std::string& checkpoint_wal_dir);
   static const char* reasonName(Reason reason);
 

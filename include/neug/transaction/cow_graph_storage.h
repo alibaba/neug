@@ -110,6 +110,11 @@ class CowGraphStorage : public StorageUpdateInterface {
   Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
 
  protected:
+  enum class PersistentSchemaCommitMode : uint8_t {
+    kWal,
+    kCheckpoint,
+  };
+
   result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
@@ -128,8 +133,13 @@ class CowGraphStorage : public StorageUpdateInterface {
   Status detachForResize(label_t label, size_t capacity);
   Status detachForResize(label_t src_label, label_t dst_label,
                          label_t edge_label, size_t capacity);
-  Status prepareVertexDelete(label_t label, const std::vector<vid_t>& lids);
+  Status prepareVertexDelete(label_t label, vid_t lid,
+                             std::vector<uint32_t>& touched_edge_triplets);
   Status detachIndex(StorageIndex& index);
+  Status applyCreateVertexType(const CreateVertexTypeParam& config,
+                               PersistentSchemaCommitMode commit_mode);
+  Status applyCreateEdgeType(const CreateEdgeTypeParam& config,
+                             PersistentSchemaCommitMode commit_mode);
 
   CowGraphWorkspace& workspace_;
   PropertyGraph& graph_;
@@ -145,7 +155,7 @@ class CowGraphStorage : public StorageUpdateInterface {
  * @brief Private-COW storage for COPY and index shadow-build operations.
  *
  * Successful mutations exposed by this type must be committed through
- * CheckpointCoordinator::CommitWithCheckpoint(). This object does not perform
+ * CheckpointCoordinator::CommitCowWrite(). This object does not perform
  * the checkpoint itself.
  */
 class BulkCowGraphStorage final : public CowGraphStorage,
@@ -158,6 +168,8 @@ class BulkCowGraphStorage final : public CowGraphStorage,
   Status ActivateIndexes() override;
 
  private:
+  Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;
+  Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) override;
   result<std::vector<vid_t>> BatchAddVerticesImpl(
       label_t v_label_id,
       std::shared_ptr<IDataChunkSupplier> supplier) override;

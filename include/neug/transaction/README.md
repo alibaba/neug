@@ -81,6 +81,13 @@ Schema changes invalidate the shared query cache before publication. An empty
 commit, `Abort()`, or destruction discards the clone, completes the timestamp,
 and reopens admission without publishing a snapshot.
 
+DML WAL records identify vertex and edge types by schema name rather than by
+process-local numeric label ID. This keeps replay stable when temporary labels
+occupied ID slots that are intentionally absent from the persisted schema.
+Mutations whose target schema is temporary use `CommitTransient()` and produce
+no WAL; a statement that mixes durable and transient mutations is rejected by
+the commit validation instead of partially persisting either side.
+
 ## Bulk COW Write Mode
 
 `CurrentCowWriteTransaction::OpenBulkStorage()` returns
@@ -89,9 +96,12 @@ COPY/batch insert and index create/drop/activation. Both types mutate only a
 private shallow clone. Bulk operations detach their target table, CSR, column,
 and affected indexes once before consuming input; they continue to use the
 native batch loader instead of per-row DML or per-row WAL.
+When COPY infers a persistent schema, that schema creation belongs to the same
+checkpoint-only bulk workspace and therefore does not conflict with the
+empty-logical-redo requirement of `CommitCowWrite()`.
 
 A successful persistent bulk statement calls
-`CheckpointCoordinator::CommitWithCheckpoint()`. It consumes and reopens dirty
+`CheckpointCoordinator::CommitCowWrite()`. It consumes and reopens dirty
 modules only in the private clone, publishes the staging manifest as the
 durable decision, replaces the current graph without changing snapshot
 generation, and rotates every active WAL writer. Validation and staging failures

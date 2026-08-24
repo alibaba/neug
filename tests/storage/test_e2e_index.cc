@@ -243,8 +243,7 @@ TEST(E2EIndexReopenSubprocess, PreparePendingMutationWal) {
   ASSERT_TRUE(checkpoint) << checkpoint.error().ToString();
 
   WalBuilder wal;
-  wal.LogInsertVertex(db.graph().schema().get_vertex_label_id("Entity"),
-                      Value::INT64(2),
+  wal.LogInsertVertex("Entity", Value::INT64(2),
                       {Value::ARRAY(DataType::Array(DataType::FLOAT, 2),
                                     {Value::FLOAT(3.0f), Value::FLOAT(4.0f)})});
   wal.finalize(1);

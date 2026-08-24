@@ -574,6 +574,11 @@ class NEUG_API Schema {
 
   bool is_vertex_label_temporary(label_t label) const;
   bool is_edge_label_temporary(uint32_t edge_triplet_key) const;
+  /// True when either endpoint or the edge triplet is session-scoped.
+  bool is_edge_triplet_temporary(label_t src_label, label_t dst_label,
+                                 label_t edge_label) const;
+  /// True when a projected graph cannot survive temporary-schema stripping.
+  bool references_temporary_schema(const ProjectedGraphEntry& entry) const;
   std::vector<label_t> get_temporary_vertex_labels() const;
   std::vector<uint32_t> get_temporary_edge_triplet_keys() const;
 

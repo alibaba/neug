@@ -633,11 +633,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @brief Delete a single vertex and its associated edges.
    */
   Status DeleteVertex(label_t label, vid_t lid) {
-    auto st = DeleteVertexImpl(label, lid);
-    if (st.ok()) {
-      MarkVertexDeletionDirty(label);
-    }
-    return st;
+    return DeleteVertexImpl(label, lid);
   }
 
   /**
@@ -674,11 +670,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) {
-    auto st = BatchDeleteVerticesImpl(v_label_id, vids);
-    if (st.ok()) {
-      MarkVertexDeletionDirty(v_label_id);
-    }
-    return st;
+    return BatchDeleteVerticesImpl(v_label_id, vids);
   }
 
   /**
@@ -878,25 +870,7 @@ class StorageUpdateInterface : public StorageReadInterface,
     return st;
   }
 
- protected:
-  // Marks every table changed by a vertex deletion. Implementations may call
-  // this after the physical delete and before fallible follow-up work, so the
-  // changed graph remains checkpointable when that follow-up fails.
-  void MarkVertexDeletionDirty(label_t label) {
-    MarkVertexTableDirty(label);
-    markIncidentEdgeTablesDirty(label);
-  }
-
  private:
-  void markIncidentEdgeTablesDirty(label_t label) {
-    for (const auto& [_, es] : schema().get_all_edge_schemas()) {
-      if (es->src_label_id == label || es->dst_label_id == label) {
-        MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
-                           es->edge_label_id);
-      }
-    }
-  }
-
   virtual void MarkSchemaDirty() = 0;
 
   virtual Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,

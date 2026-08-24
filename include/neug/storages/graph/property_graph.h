@@ -229,7 +229,7 @@ class NEUG_API PropertyGraph {
   bool HasPendingMutations() const;
 
   /// Validate all index state required to checkpoint without modifying the
-  /// graph. Call this before entering a destructive checkpoint phase.
+  /// graph. Call this before live graph consumption begins during checkpoint.
   Status ValidateCheckpointPreconditions() const;
 
   /**

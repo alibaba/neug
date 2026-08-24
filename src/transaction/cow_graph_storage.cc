@@ -59,14 +59,26 @@ namespace neug {
 
 Status CowGraphStorage::AddGraphEntry(const std::string& name,
                                       const ProjectedGraphEntry& entry) {
-  logical_redo_.LogAddGraphEntry(name, entry);
+  if (graph_.schema().references_temporary_schema(entry)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogAddGraphEntry(name, entry);
+  }
   RETURN_IF_NOT_OK(graph_.mutable_schema().AddGraphEntry(name, entry));
   MarkSchemaDirty();
   return Status::OK();
 }
 
 Status CowGraphStorage::DropGraphEntry(const std::string& name) {
-  logical_redo_.LogDropGraphEntry(name);
+  auto entry = graph_.schema().GetGraphEntry(name);
+  if (!entry) {
+    return entry.error();
+  }
+  if (graph_.schema().references_temporary_schema(*entry.value())) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogDropGraphEntry(name);
+  }
   RETURN_IF_NOT_OK(graph_.mutable_schema().DropGraphEntry(name));
   MarkSchemaDirty();
   return Status::OK();
@@ -221,6 +233,9 @@ fetch_edges_related_to_vertex(const StorageReadInterface& graph,
         graph.GetGenericIncomingGraphView(dst_label, src_label, e_label);
     auto edges = fetch_edges_related_to_vertex_from_view(
         props, oe_view, ie_view, lid, is_src, ts);
+    if (edges.empty()) {
+      return;
+    }
     auto& bucket = related_edges[triplet_id];
     bucket.insert(bucket.end(), edges.begin(), edges.end());
   };
@@ -256,6 +271,12 @@ fetch_edges_related_to_vertex(const StorageReadInterface& graph,
 
 Status CowGraphStorage::CreateVertexTypeImpl(
     const CreateVertexTypeParam& config) {
+  return applyCreateVertexType(config, PersistentSchemaCommitMode::kWal);
+}
+
+Status CowGraphStorage::applyCreateVertexType(
+    const CreateVertexTypeParam& config,
+    PersistentSchemaCommitMode commit_mode) {
   const auto& name = config.GetVertexLabel();
   if (graph_.schema().is_vertex_label_valid(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
@@ -265,7 +286,14 @@ Status CowGraphStorage::CreateVertexTypeImpl(
   if (config.IsTemporary()) {
     workspace_.MarkTransientMutation();
   } else {
-    logical_redo_.LogCreateVertexType(config);
+    switch (commit_mode) {
+    case PersistentSchemaCommitMode::kWal:
+      logical_redo_.LogCreateVertexType(config);
+      break;
+    case PersistentSchemaCommitMode::kCheckpoint:
+      workspace_.MarkBulkMutation();
+      break;
+    }
   }
   auto status = graph_.CreateVertexType(config);
   if (!status.ok()) {
@@ -290,6 +318,11 @@ Status CowGraphStorage::CreateVertexTypeImpl(
 }
 
 Status CowGraphStorage::CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) {
+  return applyCreateEdgeType(config, PersistentSchemaCommitMode::kWal);
+}
+
+Status CowGraphStorage::applyCreateEdgeType(
+    const CreateEdgeTypeParam& config, PersistentSchemaCommitMode commit_mode) {
   const auto& src_type = config.GetSrcLabel();
   const auto& dst_type = config.GetDstLabel();
   const auto& edge_type = config.GetEdgeLabel();
@@ -300,10 +333,25 @@ Status CowGraphStorage::CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) {
                   "Edge type " + edge_type + " already exists between " +
                       src_type + " and " + dst_type + ".");
   }
-  if (config.IsTemporary()) {
+  const auto& current_schema = graph_.schema();
+  const bool references_temporary_vertex =
+      (current_schema.is_vertex_label_valid(src_type) &&
+       current_schema.is_vertex_label_temporary(
+           current_schema.get_vertex_label_id(src_type))) ||
+      (current_schema.is_vertex_label_valid(dst_type) &&
+       current_schema.is_vertex_label_temporary(
+           current_schema.get_vertex_label_id(dst_type)));
+  if (config.IsTemporary() || references_temporary_vertex) {
     workspace_.MarkTransientMutation();
   } else {
-    logical_redo_.LogCreateEdgeType(config);
+    switch (commit_mode) {
+    case PersistentSchemaCommitMode::kWal:
+      logical_redo_.LogCreateEdgeType(config);
+      break;
+    case PersistentSchemaCommitMode::kCheckpoint:
+      workspace_.MarkBulkMutation();
+      break;
+    }
   }
   auto status = graph_.CreateEdgeType(config);
   if (!status.ok()) {
@@ -330,8 +378,13 @@ Status CowGraphStorage::CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) {
 
 Status CowGraphStorage::AddVertexPropertiesImpl(
     label_t v_label, const AddVertexPropertiesParam& config) {
-  logical_redo_.LogAddVertexProperties(
-      graph_.schema().get_vertex_label_name(v_label), config);
+  const auto& schema = graph_.schema();
+  if (schema.is_vertex_label_temporary(v_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogAddVertexProperties(schema.get_vertex_label_name(v_label),
+                                         config);
+  }
   auto status = graph_.AddVertexProperties(v_label, config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to vertex type "
@@ -353,10 +406,15 @@ Status CowGraphStorage::AddEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const AddEdgePropertiesParam& config) {
   const auto& schema = graph_.schema();
-  logical_redo_.LogAddEdgeProperties(schema.get_vertex_label_name(src_label_id),
-                                     schema.get_vertex_label_name(dst_label_id),
-                                     schema.get_edge_label_name(edge_label_id),
-                                     config);
+  if (schema.is_edge_triplet_temporary(src_label_id, dst_label_id,
+                                       edge_label_id)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogAddEdgeProperties(
+        schema.get_vertex_label_name(src_label_id),
+        schema.get_vertex_label_name(dst_label_id),
+        schema.get_edge_label_name(edge_label_id), config);
+  }
   auto status = graph_.AddEdgeProperties(src_label_id, dst_label_id,
                                          edge_label_id, config);
   if (!status.ok()) {
@@ -381,8 +439,13 @@ Status CowGraphStorage::AddEdgePropertiesImpl(
 
 Status CowGraphStorage::RenameVertexPropertiesImpl(
     label_t v_label, const RenameVertexPropertiesParam& config) {
-  const auto vertex_type_name = graph_.schema().get_vertex_label_name(v_label);
-  logical_redo_.LogRenameVertexProperties(vertex_type_name, config);
+  const auto& schema = graph_.schema();
+  const auto vertex_type_name = schema.get_vertex_label_name(v_label);
+  if (schema.is_vertex_label_temporary(v_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogRenameVertexProperties(vertex_type_name, config);
+  }
   auto status = graph_.RenameVertexProperties(v_label, config);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
@@ -403,10 +466,15 @@ Status CowGraphStorage::RenameEdgePropertiesImpl(
     label_t src_label_id, label_t dst_label_id, label_t edge_label_id,
     const RenameEdgePropertiesParam& config) {
   const auto& schema = graph_.schema();
-  logical_redo_.LogRenameEdgeProperties(
-      schema.get_vertex_label_name(src_label_id),
-      schema.get_vertex_label_name(dst_label_id),
-      schema.get_edge_label_name(edge_label_id), config);
+  if (schema.is_edge_triplet_temporary(src_label_id, dst_label_id,
+                                       edge_label_id)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogRenameEdgeProperties(
+        schema.get_vertex_label_name(src_label_id),
+        schema.get_vertex_label_name(dst_label_id),
+        schema.get_edge_label_name(edge_label_id), config);
+  }
   auto status = graph_.RenameEdgeProperties(src_label_id, dst_label_id,
                                             edge_label_id, config);
   if (!status.ok()) {
@@ -441,7 +509,11 @@ Status CowGraphStorage::DeleteVertexPropertiesImpl(
     }
   }
 
-  logical_redo_.LogDeleteVertexProperties(vertex_type_name, config);
+  if (graph_.schema().is_vertex_label_temporary(v_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogDeleteVertexProperties(vertex_type_name, config);
+  }
   auto status = graph_.DeleteVertexProperties(v_label, config);
   if (!status.ok()) {
     return status;
@@ -504,7 +576,13 @@ Status CowGraphStorage::DeleteEdgePropertiesImpl(
     }
   }
 
-  logical_redo_.LogDeleteEdgeProperties(src_type, dst_type, edge_type, config);
+  if (schema.is_edge_triplet_temporary(src_label_id, dst_label_id,
+                                       edge_label_id)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogDeleteEdgeProperties(src_type, dst_type, edge_type,
+                                          config);
+  }
   auto status = graph_.DeleteEdgeProperties(src_label_id, dst_label_id,
                                             edge_label_id, config);
   if (status.ok()) {
@@ -601,7 +679,8 @@ Status CowGraphStorage::DeleteEdgeTypeImpl(label_t src_label_id,
   const auto& edge_type = schema.get_edge_label_name(edge_label_id);
   uint32_t triplet_id =
       schema.generate_edge_label(src_label_id, dst_label_id, edge_label_id);
-  const bool is_temporary = schema.is_edge_label_temporary(triplet_id);
+  const bool is_temporary = schema.is_edge_triplet_temporary(
+      src_label_id, dst_label_id, edge_label_id);
 
   if (is_temporary) {
     workspace_.MarkTransientMutation();
@@ -651,7 +730,13 @@ Status CowGraphStorage::AddVertexImpl(label_t label, const Value& oid,
   }
 
   RETURN_IF_NOT_OK(detachVertexTableForInsert(label));
-  logical_redo_.LogInsertVertex(label, oid, props);
+  const auto& schema = graph_.schema();
+  const auto& vertex_type = schema.get_vertex_label_name(label);
+  if (schema.is_vertex_label_temporary(label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogInsertVertex(vertex_type, oid, props);
+  }
   auto status = graph_.AddVertex(label, oid, props, vid, write_ts_, true);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add vertex of label "
@@ -672,9 +757,24 @@ Status CowGraphStorage::DeleteVertexImpl(label_t label, vid_t lid) {
   }
   auto oid = graph_.GetOid(label, lid, read_ts_);
 
-  RETURN_IF_NOT_OK(prepareVertexDelete(label, {lid}));
-  logical_redo_.LogRemoveVertex(label, oid);
+  std::vector<uint32_t> touched_edge_triplets;
+  RETURN_IF_NOT_OK(prepareVertexDelete(label, lid, touched_edge_triplets));
+  const auto& schema = graph_.schema();
+  if (schema.is_vertex_label_temporary(label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogRemoveVertex(schema.get_vertex_label_name(label), oid);
+  }
   RETURN_IF_NOT_OK(graph_.DeleteVertex(label, lid, write_ts_));
+  // Exact edge-table dirtiness is only known while preparing this deletion;
+  // mark it here instead of conservatively marking every incident triplet in
+  // StorageUpdateInterface.
+  graph_.MarkVertexTableDirty(label);
+  for (uint32_t edge_triplet_id : touched_edge_triplets) {
+    auto [src_label, dst_label, edge_label] =
+        schema.parse_edge_label(edge_triplet_id);
+    graph_.MarkEdgeTableDirty(src_label, dst_label, edge_label);
+  }
   return deleteVertexIndexData(
       graph_, label, {lid},
       [this](StorageIndex& index) { return detachIndex(index); });
@@ -706,9 +806,17 @@ Status CowGraphStorage::AddEdgeImpl(label_t src_label, vid_t src_lid,
       graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
   RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_idx));
   RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src_lid, dst_lid, alloc_));
-  logical_redo_.LogInsertEdge(src_label, GetVertexId(src_label, src_lid),
-                              dst_label, GetVertexId(dst_label, dst_lid),
-                              edge_label, properties);
+  const auto& schema = graph_.schema();
+  if (schema.is_edge_triplet_temporary(src_label, dst_label, edge_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogInsertEdge(schema.get_vertex_label_name(src_label),
+                                GetVertexId(src_label, src_lid),
+                                schema.get_vertex_label_name(dst_label),
+                                GetVertexId(dst_label, dst_lid),
+                                schema.get_edge_label_name(edge_label),
+                                properties);
+  }
   int32_t oe_offset = 0;
   return graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                         properties, write_ts_, alloc_, oe_offset, prop, true);
@@ -756,9 +864,19 @@ Status CowGraphStorage::DeleteEdgesImpl(label_t src_label, vid_t src_lid,
   RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_idx));
   RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src_lid, dst_lid, alloc_));
 
+  const auto& schema = graph_.schema();
+  const bool is_temporary =
+      schema.is_edge_triplet_temporary(src_label, dst_label, edge_label);
+  if (is_temporary) {
+    workspace_.MarkTransientMutation();
+  }
   for (const auto& [oe_offset, ie_offset] : matched_offsets) {
-    logical_redo_.LogRemoveEdge(src_label, src_id, dst_label, dst_id,
-                                edge_label, oe_offset, ie_offset);
+    if (!is_temporary) {
+      logical_redo_.LogRemoveEdge(
+          schema.get_vertex_label_name(src_label), src_id,
+          schema.get_vertex_label_name(dst_label), dst_id,
+          schema.get_edge_label_name(edge_label), oe_offset, ie_offset);
+    }
     auto status =
         graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                           oe_offset, ie_offset, write_ts_);
@@ -787,9 +905,17 @@ Status CowGraphStorage::DeleteEdgeImpl(label_t src_label, vid_t src_lid,
   RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_idx));
   RETURN_IF_NOT_OK(detachAdjlists(edge_idx, src_lid, dst_lid, alloc_));
 
-  logical_redo_.LogRemoveEdge(src_label, GetVertexId(src_label, src_lid),
-                              dst_label, GetVertexId(dst_label, dst_lid),
-                              edge_label, oe_offset, ie_offset);
+  const auto& schema = graph_.schema();
+  if (schema.is_edge_triplet_temporary(src_label, dst_label, edge_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogRemoveEdge(schema.get_vertex_label_name(src_label),
+                                GetVertexId(src_label, src_lid),
+                                schema.get_vertex_label_name(dst_label),
+                                GetVertexId(dst_label, dst_lid),
+                                schema.get_edge_label_name(edge_label),
+                                oe_offset, ie_offset);
+  }
 
   return graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                            oe_offset, ie_offset, write_ts_);
@@ -814,8 +940,13 @@ Status CowGraphStorage::UpdateVertexPropertyImpl(label_t label, vid_t lid,
                   "Type mismatch for column " + std::to_string(col_id) + ".");
   }
   RETURN_IF_NOT_OK(detachVertexColumn(label, col_id));
-  logical_redo_.LogUpdateVertexProp(label, GetVertexId(label, lid), col_id,
-                                    value);
+  const auto& schema = graph_.schema();
+  if (schema.is_vertex_label_temporary(label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogUpdateVertexProp(schema.get_vertex_label_name(label),
+                                      GetVertexId(label, lid), col_id, value);
+  }
 
   RETURN_IF_NOT_OK(
       graph_.UpdateVertexProperty(label, lid, col_id, value, write_ts_));
@@ -853,10 +984,16 @@ Status CowGraphStorage::UpdateEdgePropertyImpl(
     // touch any CSR structure.
     RETURN_IF_NOT_OK(detachEdgeColumn(edge_idx, col_id));
   }
-  logical_redo_.LogUpdateEdgeProp(src_label, GetVertexId(src_label, src),
-                                  dst_label, GetVertexId(dst_label, dst),
-                                  edge_label, oe_offset, ie_offset, col_id,
-                                  value);
+  const auto& schema = graph_.schema();
+  if (schema.is_edge_triplet_temporary(src_label, dst_label, edge_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    logical_redo_.LogUpdateEdgeProp(
+        schema.get_vertex_label_name(src_label), GetVertexId(src_label, src),
+        schema.get_vertex_label_name(dst_label), GetVertexId(dst_label, dst),
+        schema.get_edge_label_name(edge_label), oe_offset, ie_offset, col_id,
+        value);
+  }
   return graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                                    oe_offset, ie_offset, col_id, value,
                                    write_ts_);
@@ -1056,8 +1193,8 @@ Status CowGraphStorage::detachForResize(label_t src_label, label_t dst_label,
   return detachEdgeTableForInsert(idx);
 }
 
-Status CowGraphStorage::prepareVertexDelete(label_t label,
-                                            const std::vector<vid_t>& lids) {
+Status CowGraphStorage::prepareVertexDelete(
+    label_t label, vid_t lid, std::vector<uint32_t>& touched_edge_triplets) {
   // Detach the validity/timestamp module, then only the triplets that actually
   // hold an incident edge of a deleted vertex. Per-triplet detachment covers
   // the CSR directory arrays (required before any adjlist buffer can be
@@ -1065,19 +1202,19 @@ Status CowGraphStorage::prepareVertexDelete(label_t label,
   // footprint stays proportional to the real delete set instead of the schema
   // breadth.
   RETURN_IF_NOT_OK(detachVertexTableForDelete(label));
+  touched_edge_triplets.clear();
 
   const auto& schema = graph_.schema();
-  for (vid_t lid : lids) {
-    if (!graph_.IsValidLid(label, lid, read_ts_)) {
-      continue;
-    }
-    auto related_edges =
-        fetch_edges_related_to_vertex(*this, schema, label, lid, read_ts_);
-    for (auto& [edge_triplet_id, edges] : related_edges) {
-      RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_triplet_id));
-      for (auto& [src, dst, oe_off, ie_off] : edges) {
-        RETURN_IF_NOT_OK(detachAdjlists(edge_triplet_id, src, dst, alloc_));
-      }
+  if (!graph_.IsValidLid(label, lid, read_ts_)) {
+    return Status::OK();
+  }
+  auto related_edges =
+      fetch_edges_related_to_vertex(*this, schema, label, lid, read_ts_);
+  for (auto& [edge_triplet_id, edges] : related_edges) {
+    touched_edge_triplets.push_back(edge_triplet_id);
+    RETURN_IF_NOT_OK(detachEdgeTableForDelete(edge_triplet_id));
+    for (auto& [src, dst, oe_off, ie_off] : edges) {
+      RETURN_IF_NOT_OK(detachAdjlists(edge_triplet_id, src, dst, alloc_));
     }
   }
   return Status::OK();
@@ -1093,6 +1230,16 @@ Status CowGraphStorage::BatchAddEdgesImpl(label_t, label_t, label_t,
                                           std::shared_ptr<IDataChunkSupplier>) {
   return Status(StatusCode::ERR_NOT_SUPPORTED,
                 "BatchAddEdges requires BulkCowGraphStorage");
+}
+
+Status BulkCowGraphStorage::CreateVertexTypeImpl(
+    const CreateVertexTypeParam& config) {
+  return applyCreateVertexType(config, PersistentSchemaCommitMode::kCheckpoint);
+}
+
+Status BulkCowGraphStorage::CreateEdgeTypeImpl(
+    const CreateEdgeTypeParam& config) {
+  return applyCreateEdgeType(config, PersistentSchemaCommitMode::kCheckpoint);
 }
 
 result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
@@ -1112,7 +1259,11 @@ result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
   if (!status.ok()) {
     return tl::unexpected(std::move(status));
   }
-  workspace_.MarkBulkMutation();
+  if (graph_.schema().is_vertex_label_temporary(v_label_id)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    workspace_.MarkBulkMutation();
+  }
   return new_vids;
 }
 
@@ -1124,7 +1275,12 @@ Status BulkCowGraphStorage::BatchAddEdgesImpl(
   RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_triplet_id));
   RETURN_IF_NOT_OK(graph_.BatchAddEdges(src_label, dst_label, edge_label,
                                         std::move(supplier)));
-  workspace_.MarkBulkMutation();
+  if (graph_.schema().is_edge_triplet_temporary(src_label, dst_label,
+                                                edge_label)) {
+    workspace_.MarkTransientMutation();
+  } else {
+    workspace_.MarkBulkMutation();
+  }
   return Status::OK();
 }
 
@@ -1227,6 +1383,10 @@ neug::result<StorageIndex*> BulkCowGraphStorage::CreateIndex(
   if (!graph_.schema().is_vertex_label_valid(label_id)) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Index label id is out of range");
+  }
+  if (graph_.schema().is_vertex_label_temporary(label_id)) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
+                        "Indexes on temporary vertex types are not supported");
   }
 
   auto& vertex_table = graph_.get_vertex_table(label_id);
@@ -1334,6 +1494,10 @@ Status BulkCowGraphStorage::DropIndex(const std::string& name) {
       return target.error();
     }
     meta = target.value()->GetMeta();
+  }
+  if (graph_.schema().is_vertex_label_temporary(meta.schema.label_id)) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Indexes on temporary vertex types are not supported");
   }
   std::unique_ptr<ArrayColumn> array_column;
   int32_t property_col = -1;

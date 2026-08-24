@@ -98,8 +98,8 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
 
   Status status = execute(Reason::kManual);
   if (!status.ok()) {
-    // Preparation failures happen before execute() enters its destructive
-    // phase. execute() itself fail-stops after that boundary. The lease
+    // Preparation failures happen before execute() starts consuming the live
+    // graph. execute() itself fail-stops after that boundary. The lease
     // destructor releases the timestamp through the ordinary failure path.
     return status;
   }
@@ -110,7 +110,7 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
   return status;
 }
 
-Status CheckpointCoordinator::CommitWithCheckpoint(
+Status CheckpointCoordinator::CommitCowWrite(
     CurrentCowWriteTransaction& transaction) {
   if (!transaction.active()) {
     return Status::OK();
@@ -205,19 +205,19 @@ Status CheckpointCoordinator::PublishRecoveryCheckpoint() {
 }
 
 Status CheckpointCoordinator::PublishShutdownCheckpoint(
-    bool& destructive_phase_started) {
-  destructive_phase_started = false;
-  return execute(Reason::kShutdown, &destructive_phase_started);
+    bool& live_graph_consumption_started) {
+  live_graph_consumption_started = false;
+  return execute(Reason::kShutdown, &live_graph_consumption_started);
 }
 
-Status CheckpointCoordinator::execute(Reason reason,
-                                      bool* destructive_phase_started) {
+Status CheckpointCoordinator::execute(
+    Reason reason, bool* live_graph_consumption_started_out) {
   const bool reopen_after_checkpoint = reason != Reason::kShutdown;
 
-  // Once the destructive phase begins, a running database cannot safely
+  // Once live graph consumption begins, a running database cannot safely
   // continue after failure. Recovery and shutdown are not externally visible
   // runtimes, so their callers may still unwind and destroy the consumed graph.
-  bool destructive_phase = false;
+  bool live_graph_consumption_started = false;
   try {
     auto staging_checkpoint = checkpoint_manager_.CreateStaging();
     auto status = snapshot_store_.WithCheckpointMaintenance(
@@ -234,9 +234,9 @@ Status CheckpointCoordinator::execute(Reason reason,
                     << (reopen_after_checkpoint
                             ? " and reopening the current graph"
                             : " without reopening the graph");
-          destructive_phase = true;
-          if (destructive_phase_started != nullptr) {
-            *destructive_phase_started = true;
+          live_graph_consumption_started = true;
+          if (live_graph_consumption_started_out != nullptr) {
+            *live_graph_consumption_started_out = true;
           }
           live_graph.Compact();
           live_graph.DumpAndClear(staging_checkpoint.checkpoint());
@@ -266,22 +266,25 @@ Status CheckpointCoordinator::execute(Reason reason,
         });
     return status;
   } catch (const exception::IOException& e) {
-    if (destructive_phase && reason == Reason::kManual) {
+    if (live_graph_consumption_started && reason == Reason::kManual) {
       fail_stop_live_database(e.what());
     }
     return Status(StatusCode::ERR_IO_ERROR, e.what());
   } catch (const std::exception& e) {
-    if (destructive_phase && reason == Reason::kManual) {
+    if (live_graph_consumption_started && reason == Reason::kManual) {
       fail_stop_live_database(e.what());
     }
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
   } catch (...) {
-    if (destructive_phase && reason == Reason::kManual) {
-      fail_stop_live_database("Unknown destructive checkpoint failure");
+    if (live_graph_consumption_started && reason == Reason::kManual) {
+      fail_stop_live_database(
+          "Unknown checkpoint failure after live graph consumption started");
     }
     return Status(StatusCode::ERR_INTERNAL_ERROR,
-                  destructive_phase ? "Unknown destructive checkpoint failure"
-                                    : "Unknown checkpoint preparation failure");
+                  live_graph_consumption_started
+                      ? "Unknown checkpoint failure after live graph "
+                        "consumption started"
+                      : "Unknown checkpoint preparation failure");
   }
 }
 

@@ -726,6 +726,41 @@ bool Schema::is_edge_label_temporary(uint32_t edge_triplet_key) const {
   return it->second->temporary;
 }
 
+bool Schema::is_edge_triplet_temporary(label_t src_label, label_t dst_label,
+                                       label_t edge_label) const {
+  return is_vertex_label_temporary(src_label) ||
+         is_vertex_label_temporary(dst_label) ||
+         is_edge_label_temporary(
+             generate_edge_label(src_label, dst_label, edge_label));
+}
+
+bool Schema::references_temporary_schema(
+    const ProjectedGraphEntry& entry) const {
+  const auto is_temporary_vertex = [this](const std::string& label) {
+    return is_vertex_label_valid(label) &&
+           is_vertex_label_temporary(get_vertex_label_id(label));
+  };
+  for (const auto& vertex : entry.vertexInfos) {
+    if (is_temporary_vertex(vertex.labelName)) {
+      return true;
+    }
+  }
+  for (const auto& edge : entry.edgeInfos) {
+    if (is_temporary_vertex(edge.srcLabelName) ||
+        is_temporary_vertex(edge.dstLabelName)) {
+      return true;
+    }
+    if (is_edge_triplet_valid(edge.srcLabelName, edge.dstLabelName,
+                              edge.edgeLabelName) &&
+        is_edge_triplet_temporary(get_vertex_label_id(edge.srcLabelName),
+                                  get_vertex_label_id(edge.dstLabelName),
+                                  get_edge_label_id(edge.edgeLabelName))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::vector<label_t> Schema::get_temporary_vertex_labels() const {
   std::vector<label_t> result;
   auto v_labels = get_vertex_label_ids();
@@ -2708,9 +2743,18 @@ Schema Schema::StripTemporary() const {
   stripped.elabel_triplet_tomb_.resize(
       stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
 
-  // Projected graph metadata has lower priority than the physical schema.
-  // Keep it intact and defer missing-label validation to query binding.
-  stripped.graph_entry_set_ = graph_entry_set_;
+  // A projection that references session-scoped schema is session-scoped too.
+  // Persisting it would leave dangling label references after stripping.
+  for (const auto& [name, entry] : graph_entry_set_.Entries()) {
+    if (references_temporary_schema(entry)) {
+      continue;
+    }
+    auto status = stripped.graph_entry_set_.AddEntry(name, entry);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("StripTemporary: failed to add graph entry: " + name +
+                          ": " + status.ToString());
+    }
+  }
 
   return stripped;
 }
