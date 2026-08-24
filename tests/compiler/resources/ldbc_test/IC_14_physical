@@ -704,7 +704,8 @@
                             "create_temp_table": false,
                             "checkpoint": false,
                             "procedure_call": false,
-                            "index": false
+                            "index": false,
+                            "copy_from": false
                         }
                     },
                     "right_plan": {
@@ -897,7 +898,8 @@
                             "create_temp_table": false,
                             "checkpoint": false,
                             "procedure_call": false,
-                            "index": false
+                            "index": false,
+                            "copy_from": false
                         }
                     }
                 }
