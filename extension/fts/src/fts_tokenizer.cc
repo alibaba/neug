@@ -54,12 +54,12 @@ struct JiebaDictFile {
   size_t original_size;
 };
 
-constexpr JiebaDictFile kJiebaDict{
-    "jieba.dict.utf8", kJiebaDictCompressed, sizeof(kJiebaDictCompressed),
-    kJiebaDictCompressedOriginalSize};
-constexpr JiebaDictFile kJiebaHmmModel{
-    "hmm_model.utf8", kHmmModelCompressed, sizeof(kHmmModelCompressed),
-    kHmmModelCompressedOriginalSize};
+constexpr JiebaDictFile kJiebaDict{"jieba.dict.utf8", kJiebaDictCompressed,
+                                   sizeof(kJiebaDictCompressed),
+                                   kJiebaDictCompressedOriginalSize};
+constexpr JiebaDictFile kJiebaHmmModel{"hmm_model.utf8", kHmmModelCompressed,
+                                       sizeof(kHmmModelCompressed),
+                                       kHmmModelCompressedOriginalSize};
 
 bool IsPunctuationRune(cppjieba::Rune rune) {
   if (rune < 0x80) {

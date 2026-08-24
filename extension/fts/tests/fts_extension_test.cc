@@ -305,10 +305,9 @@ TEST(JiebaFTSTokenizerTest, LoadsCustomDict) {
   const auto dict_path = directory.path() / "user.dict.utf8";
   std::ofstream(dict_path) << "棉花糖星球 100 n\n占位词 1 n\n";
 
-  auto tokenizer = FTSTokenizer::Create(
-      {{"tokenizer", "jieba"},
-       {"jieba_mode", "mp"},
-       {"jieba_dict", dict_path.string()}});
+  auto tokenizer = FTSTokenizer::Create({{"tokenizer", "jieba"},
+                                         {"jieba_mode", "mp"},
+                                         {"jieba_dict", dict_path.string()}});
   const std::string input = "棉花糖星球";
   std::vector<CollectedToken> tokens;
   ASSERT_EQ(tokenizer->Tokenize(&tokens, input.data(), input.size(),
