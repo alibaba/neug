@@ -426,7 +426,7 @@ Status CowGraphStorage::DeleteVertexPropertiesImpl(
   const auto& vertex_type_name = graph_.schema().get_vertex_label_name(v_label);
   for (const auto& prop_name : properties) {
     if (!graph_.schema().vertex_has_property(v_label, prop_name)) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                     "Property [" + prop_name + "] does not exist in vertex [" +
                         vertex_type_name + "].");
     }
@@ -472,7 +472,7 @@ Status CowGraphStorage::DeleteEdgePropertiesImpl(
   for (const auto& prop_name : config.GetDeleteProperties()) {
     if (!schema.edge_has_property(src_label_id, dst_label_id, edge_label_id,
                                   prop_name)) {
-      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+      return Status(StatusCode::ERR_SCHEMA_MISMATCH,
                     "Property [" + prop_name + "] does not exist in edge [" +
                         edge_type + "] between [" + src_type + "] and [" +
                         dst_type + "].");
