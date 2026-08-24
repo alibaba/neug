@@ -25,6 +25,17 @@
 // ANTLR4 generates code with unused parameters.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+// Windows headers define DELETE, OPTIONAL and IN as macros, which conflict
+// with ANTLR-generated token names and method names in cypher_parser.h.
+#ifdef DELETE
+#undef DELETE
+#endif
+#ifdef OPTIONAL
+#undef OPTIONAL
+#endif
+#ifdef IN
+#undef IN
+#endif
 #include "antlr4_cypher/include/cypher_parser.h"
 #pragma GCC diagnostic pop
 
