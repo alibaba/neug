@@ -297,21 +297,14 @@ def test_union_without_all_is_not_supported(empty_db, query):
 def test_union_all_remains_supported(empty_db):
     _, conn = empty_db
     conn.execute(
-        "CREATE NODE TABLE Person("
-        "id STRING, name STRING, PRIMARY KEY(id));",
+        "CREATE NODE TABLE Person(" "id STRING, name STRING, PRIMARY KEY(id));",
         access_mode="schema",
     )
-    conn.execute(
-        "CREATE (p:Person {id:'p1', name:'Alice'});", access_mode="update"
-    )
-    conn.execute(
-        "CREATE (p:Person {id:'p2', name:'Bob'});", access_mode="update"
-    )
+    conn.execute("CREATE (p:Person {id:'p1', name:'Alice'});", access_mode="update")
+    conn.execute("CREATE (p:Person {id:'p2', name:'Bob'});", access_mode="update")
 
     result = conn.execute(
-        "MATCH (a:Person) RETURN a.name "
-        "UNION ALL "
-        "MATCH (b:Person) RETURN b.name",
+        "MATCH (a:Person) RETURN a.name " "UNION ALL " "MATCH (b:Person) RETURN b.name",
         access_mode="read",
     )
 
