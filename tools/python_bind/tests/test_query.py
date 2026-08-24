@@ -195,6 +195,15 @@ def test_return_literal(tinysnb):
     assert res[1] == [2, "person"]  # Assuming there are at
 
 
+def test_builtin_scalar_function_with_dynamic_parameter(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN lower($value);", parameters={"value": "NeuG"}, access_mode="read"
+    )
+
+    assert list(result) == [["neug"]]
+
+
 @pytest.mark.parametrize(
     "expression, expected",
     [
