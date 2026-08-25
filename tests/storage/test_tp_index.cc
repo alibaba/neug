@@ -453,6 +453,99 @@ TEST_F(TPIndexTest, AbortedIndexDDLDoesNotAffectCurrentSnapshot) {
   EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
 }
 
+TEST_F(TPIndexTest, ActivateIndexesWithoutPendingIndexIsNoOp) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+
+  SnapshotGuard before(*snapshot_store_);
+  const auto* before_slot = &before.get();
+  const auto snapshot_generation = before.get().snapshot_generation();
+  const auto planning_generation = before.get().planning_generation();
+
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
+  auto activated = tp.ActivateIndexes();
+  ASSERT_TRUE(activated) << activated.error().ToString();
+  EXPECT_EQ(activated.value(), 0u);
+  Commit(txn);
+
+  EXPECT_TRUE(wal_writer_.records.empty());
+  SnapshotGuard after(*snapshot_store_);
+  EXPECT_EQ(&after.get(), before_slot);
+  EXPECT_EQ(after.get().snapshot_generation(), snapshot_generation);
+  EXPECT_EQ(after.get().planning_generation(), planning_generation);
+}
+
+TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
+  CreatePersonTableTP();
+  auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto activated = tp.ActivateIndexes();
+    ASSERT_TRUE(activated);
+    EXPECT_EQ(activated.value(), 0u);
+    Commit(txn);
+  }
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    Commit(txn);
+  }
+  // No pending indexes exist here, so LOAD-style activation is a no-op and
+  // must not create a schema WAL record.
+  ASSERT_EQ(wal_writer_.records.size(), 2);
+
+  for (const auto& wal : wal_writer_.records) {
+    ASSERT_GT(wal.size(), sizeof(WalHeader));
+    const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
+    ReplayCowGraphWal(*replay_graph, header->timestamp,
+                      const_cast<char*>(wal.data() + sizeof(WalHeader)),
+                      header->length, allocator_);
+  }
+  EXPECT_FALSE(replay_graph->index_manager().GetIndexByName("idx_person_age"));
+}
+
+TEST_F(TPIndexTest, IndexConflictPreflightDoesNotWriteWal) {
+  CreatePersonTableTP();
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto duplicate = tp.CreateIndex(PersonAgeIndexMeta(tp));
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().error_code(),
+              StatusCode::ERR_ILLEGAL_OPERATION);
+    EXPECT_TRUE(txn.Commit());
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto missing = tp.DropIndex("missing_index");
+    EXPECT_EQ(missing.error_code(), StatusCode::ERR_NOT_FOUND);
+    EXPECT_TRUE(txn.Commit());
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
+}
+
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
   CreatePersonTableAP();
   CreateReplacementTableAP();
