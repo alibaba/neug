@@ -37,6 +37,7 @@ enum class ExplainMode {
 enum class QueryKind {
   kRegular,
   kAdmin,
+  kTransactionControl,
 };
 
 enum class AdminType : uint8_t {
@@ -62,12 +63,17 @@ struct QueryAnalysis {
   ExplainMode explain_mode = ExplainMode::kNone;
   QueryKind kind = QueryKind::kRegular;
   std::optional<AdminRequest> admin;
+  bool is_copy_statement{false};
+  bool is_index_statement{false};
 
   bool isAdmin() const {
     return kind == QueryKind::kAdmin && admin.has_value();
   }
   bool checkpoint() const {
     return isAdmin() && admin->type == AdminType::kCheckpoint;
+  }
+  bool isTransactionControl() const {
+    return kind == QueryKind::kTransactionControl;
   }
 };
 

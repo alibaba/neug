@@ -25,6 +25,24 @@ destruction releases any active transaction or lease. Acquisition is ordered
 before graph access: read and insert timestamps are acquired before pinning a
 snapshot, while an update lease is acquired before cloning the current graph.
 
+## Embedded Explicit Connection Transactions
+
+`Connection::BeginTransaction()` owns one `TransactionContext` across multiple
+`Connection::Query()` calls. The context holds either a `ReadTransaction` for
+`TransactionMode::kReadOnly` or a `CurrentCowWriteTransaction` for
+`TransactionMode::kReadWrite`; it does not introduce a public transaction
+interface or a second execution pipeline. The read-only owner pins one view.
+The read-write owner uses `OpenStorage()` for every supported statement, and
+its private view supplies read-your-writes until one `Commit()` appends and
+publishes the combined redo.
+
+After the first successful mutation, queries compile against the private view
+without consulting the local or global query cache. A regular statement failure
+aborts the concrete owner and leaves the connection rollback-only; `Rollback()`,
+`Close()`, and destruction clear it. Cypher transaction-control text, bulk,
+index, checkpoint/maintenance, mutating procedure, and temporary-schema operations are
+rejected in this first embedded API before their side effects.
+
 ## Snapshot Read Strategy
 
 With a `SnapshotReadTransaction`, a specific version of the graph can be read. Its

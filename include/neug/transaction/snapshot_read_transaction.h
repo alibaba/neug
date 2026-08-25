@@ -86,6 +86,12 @@ class SnapshotReadTransaction {
    */
   ~SnapshotReadTransaction();
 
+  SnapshotReadTransaction(SnapshotReadTransaction&&) noexcept = default;
+  SnapshotReadTransaction& operator=(SnapshotReadTransaction&&) noexcept =
+      default;
+  SnapshotReadTransaction(const SnapshotReadTransaction&) = delete;
+  SnapshotReadTransaction& operator=(const SnapshotReadTransaction&) = delete;
+
   timestamp_t timestamp() const;
 
   bool Commit();

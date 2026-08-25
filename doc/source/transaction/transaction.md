@@ -14,18 +14,54 @@ Rather than implementing a one-size-fits-all transaction system with high comple
 
 ## Transaction Model
 
-NeuG implements an **implicit transaction model** with auto-commit semantics:
-
-- **No explicit transaction primitives**: NeuG does not currently expose `BEGIN`, `COMMIT`, or `ABORT` commands
-- **Auto-commit semantics**: Each `execute()` call automatically forms its own transaction — one statement per call
+NeuG keeps auto-commit semantics as the default in every currently supported
+interface: each `execute()` or `Query()` call is one statement-level
+transaction.
 
 ```python
-# Each execute() is an independent, auto-committed transaction
+# Each execute() is an independent, auto-committed transaction.
 conn.execute("CREATE (p:Person {name: 'Alice'})")  # Transaction 1
 conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 ```
 
-> **Coming in v0.2:** Multi-statement execution (multiple statements separated by `;` in a single `execute()` call) and explicit transaction control (`BEGIN`/`COMMIT`/`ABORT`) will be supported in NeuG v0.2.
+### Explicit Transactions in Embedded C++ AP Mode
+
+The embedded C++ `Connection` API additionally supports programmatic explicit
+transactions for AP mode. A transaction is owned by its `Connection` and spans
+multiple `Query()` calls:
+
+```cpp
+auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
+if (!status.ok()) {
+  // Handle the begin error.
+}
+
+auto created = conn->Query("CREATE (:Person {name: 'Alice'})", "insert");
+auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
+
+status = conn->Commit();  // Publishes all successful writes as one commit.
+```
+
+`TransactionMode::kReadOnly` pins one read view for the entire transaction and
+rejects writes. `TransactionMode::kReadWrite` holds one private COW write view:
+its successful statements can read their own writes, while other connections do
+not observe them until `Commit()` succeeds. AP read-write transactions hold the
+existing exclusive AP admission for their full lifetime, so a long-running
+transaction blocks new AP reads and writes.
+
+An ordinary statement failure, a read-only write, or a rejected bulk or
+maintenance operation aborts the owner and leaves the connection
+rollback-only. In that state, call `Rollback()` (or `Close()`) before issuing
+another query or beginning another transaction. `HasActiveTransaction()` stays
+true while the connection is rollback-only. Nested begin and invalid control
+calls report a transaction-state error without changing an otherwise active
+transaction.
+
+This first API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`;
+use the C++ methods above. It also does not yet include TP service sessions,
+remote clients, Python or Java bindings, savepoints, transaction timeouts, or
+explicit-transaction `COPY`, batch, index, checkpoint, mutating procedure, or temporary
+schema operations.
 
 ## Deployment Modes Overview
 
@@ -44,13 +80,17 @@ Embedded mode is designed for analytical workloads where simplicity and single-q
 
 #### Atomicity
 
-**Current Limitation:** Statement-level atomicity is **not fully guaranteed** for large write operations.
+Ordinary AP writes use a private COW graph and publish it only after their WAL
+commit succeeds. Persistent direct bulk operations use the same private graph
+and publish a checkpoint on success; temporary bulk objects are in-memory only.
+An explicit read-write transaction accumulates its supported ordinary writes in
+one private graph and publishes them only at `Commit()`.
 
-For statements involving substantial data writes (such as `COPY` for bulk loading), a failure mid-execution may result in partial data being written to memory. This is a known trade-off for AP workloads where the overhead of full rollback mechanisms is typically unnecessary.
-
-In Embedded mode, checkpoints can be used as recovery points around large
-write operations. See [Checkpoints](checkpoint.md) for a safe recovery example
-and the interaction with `checkpoint_on_close`.
+The current WAL format is sufficient for normal replay, but its final framing,
+corruption handling, and commit-unknown recovery rules are still being
+hardened. Applications requiring a durable materialized checkpoint after bulk
+loading should use the checkpoint lifecycle described in
+[Checkpoints](checkpoint.md).
 
 #### Consistency
 
@@ -69,9 +109,11 @@ This simple locking model is sufficient for single-user analytical workloads and
 
 #### Durability
 
-Changes are persisted to disk **only** after:
-- An explicit `CHECKPOINT` statement, or
-- Database closure with `checkpoint_on_close=True` (default)
+Ordinary AP writes, including one successful explicit read-write commit, append
+logical redo to the WAL and are replayed on a normal restart. Persistent direct
+bulk operations become durable by publishing their checkpoint. An explicit
+`CHECKPOINT` statement or database closure with `checkpoint_on_close=True`
+creates a materialized checkpoint and manages WAL rotation.
 
 For in-memory databases, durability is not applicable as data exists only in volatile memory.
 For usage and failure behavior, see [Checkpoints](checkpoint.md).

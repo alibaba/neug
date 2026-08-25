@@ -23,10 +23,12 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -38,6 +40,7 @@
 #include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
 
@@ -129,6 +132,330 @@ TEST_F(ConnectionTest, TestReadWriteConnection) {
 
   EXPECT_THROW({ auto conn2 = db.Connect(); },
                neug::exception::TxStateConflictException);
+}
+
+TEST_F(ConnectionTest, ExplicitReadWriteTransactionCommitsAcrossQueries) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  EXPECT_FALSE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100001, name: 'explicit-commit', age: 42});"));
+  ASSERT_TRUE(
+      conn->Query("MATCH (n:person {id: 100001}) SET n.age = 43;", "update"));
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100003, name: 'explicit-delete', age: 44});"));
+  ASSERT_TRUE(conn->Query("MATCH (n:person {id: 100003}) DELETE n;", "update"));
+
+  auto in_transaction = conn->Query(
+      "MATCH (n:person {id: 100001, age: 43}) RETURN n.name;", "read");
+  ASSERT_TRUE(in_transaction) << in_transaction.error().ToString();
+  EXPECT_EQ(in_transaction.value().response().row_count(), 1);
+  auto deleted_in_transaction =
+      conn->Query("MATCH (n:person {id: 100003}) RETURN n.name;", "read");
+  ASSERT_TRUE(deleted_in_transaction)
+      << deleted_in_transaction.error().ToString();
+  EXPECT_EQ(deleted_in_transaction.value().response().row_count(), 0);
+
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_FALSE(conn->HasActiveTransaction());
+  EXPECT_FALSE(conn->Commit().ok());
+  auto committed = conn->Query(
+      "MATCH (n:person {id: 100001, age: 43}) RETURN n.name;", "read");
+  ASSERT_TRUE(committed) << committed.error().ToString();
+  EXPECT_EQ(committed.value().response().row_count(), 1);
+  auto deleted_after_commit =
+      conn->Query("MATCH (n:person {id: 100003}) RETURN n.name;", "read");
+  ASSERT_TRUE(deleted_after_commit) << deleted_after_commit.error().ToString();
+  EXPECT_EQ(deleted_after_commit.value().response().row_count(), 0);
+  EXPECT_EQ(in_transaction.value().response().row_count(), 1)
+      << "QueryResult must remain usable after Commit().";
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100005, name: 'close-rollback', age: 46});"));
+  conn->Close();
+  auto reopened_connection = db.Connect();
+  auto closed_rollback = reopened_connection->Query(
+      "MATCH (n:person {id: 100005}) RETURN n.name;", "read");
+  ASSERT_TRUE(closed_rollback) << closed_rollback.error().ToString();
+  EXPECT_EQ(closed_rollback.value().response().row_count(), 0);
+}
+
+TEST_F(ConnectionTest, ExplicitReadWriteTransactionReplaysSingleWalCommit) {
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+
+  std::string wal_dir;
+  size_t update_wal_count_before = 0;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    wal_dir = db.graph().checkpoint().wal_dir();
+    {
+      LocalWalParser parser_before(wal_dir);
+      update_wal_count_before = parser_before.get_update_wals().size();
+    }
+
+    auto conn = db.Connect();
+    ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+    ASSERT_TRUE(conn->Query(
+        "CREATE (:person {id: 100006, name: 'wal-replay', age: 47});"));
+    ASSERT_TRUE(
+        conn->Query("MATCH (n:person {id: 1}) SET n.age = 501;", "update"));
+    ASSERT_TRUE(conn->Commit().ok());
+    db.Close();
+  }
+
+  LocalWalParser parser_after(wal_dir);
+  EXPECT_EQ(parser_after.get_update_wals().size(), update_wal_count_before + 1)
+      << "One explicit transaction must append exactly one update WAL unit.";
+
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    auto conn = db.Connect();
+    auto replayed =
+        conn->Query("MATCH (n:person {id: 100006}) RETURN n.name;", "read");
+    ASSERT_TRUE(replayed) << replayed.error().ToString();
+    EXPECT_EQ(replayed.value().response().row_count(), 1);
+
+    auto updated = conn->Query(
+        "MATCH (n:person {id: 1, age: 501}) RETURN n.name;", "read");
+    ASSERT_TRUE(updated) << updated.error().ToString();
+    EXPECT_EQ(updated.value().response().row_count(), 1);
+  }
+}
+
+TEST_F(ConnectionTest,
+       ExplicitTransactionFailureRollsBackAndRejectsCypherControlStatements) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE (:person {id: 100002, name: 'explicit-abort', age: 43});"));
+
+  auto failed = conn->Query("MATCH (n:missing) RETURN n;", "read");
+  ASSERT_FALSE(failed);
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  EXPECT_FALSE(conn->Query("MATCH (n:person) RETURN count(n);", "read"));
+  EXPECT_FALSE(conn->Commit());
+
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_FALSE(conn->HasActiveTransaction());
+  auto rolled_back =
+      conn->Query("MATCH (n:person {id: 100002}) RETURN n.name;", "read");
+  ASSERT_TRUE(rolled_back) << rolled_back.error().ToString();
+  EXPECT_EQ(rolled_back.value().response().row_count(), 0);
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  EXPECT_THROW(
+      {
+        static_cast<void>(
+            conn->Query("MATCH (n:person) RETURN count(n);", "invalid"));
+      },
+      neug::exception::InvalidArgumentException);
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  for (const auto* statement :
+       {"BEGIN TRANSACTION;", "BEGIN TRANSACTION READ ONLY;", "COMMIT;",
+        "ROLLBACK;", "/* comment */ BEGIN TRANSACTION;",
+        "COMMIT; /* comment */", "// comment\nROLLBACK;"}) {
+    auto control = conn->Query(statement);
+    ASSERT_FALSE(control);
+    EXPECT_EQ(control.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+    EXPECT_TRUE(conn->HasActiveTransaction());
+  }
+  ASSERT_TRUE(conn->Rollback().ok());
+}
+
+TEST_F(ConnectionTest, ExplicitTransactionCoversTerminalStateTransitions) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  ASSERT_TRUE(db.Open(config));
+
+  auto conn = db.Connect();
+  auto idle_commit = conn->Commit();
+  EXPECT_EQ(idle_commit.error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+  auto idle_rollback = conn->Rollback();
+  EXPECT_EQ(idle_rollback.error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  ASSERT_TRUE(conn->Query("MATCH (n:person) RETURN count(n);", "read"));
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_FALSE(conn->HasActiveTransaction());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Commit().ok()) << "Empty read-write commits release the "
+                                   << "exclusive owner.";
+  EXPECT_FALSE(conn->HasActiveTransaction());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_FALSE(conn->Query("MATCH (n:missing) RETURN n;", "read"));
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  EXPECT_THROW({ static_cast<void>(conn->GetSchema()); },
+               neug::exception::TxStateConflictException);
+  EXPECT_EQ(conn->BeginTransaction(TransactionMode::kReadOnly).error_code(),
+            StatusCode::ERR_TX_STATE_CONFLICT);
+  EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+
+  conn->Close();
+  EXPECT_FALSE(conn->HasActiveTransaction());
+  auto reopened = db.Connect();
+  ASSERT_TRUE(reopened->Query("MATCH (n:person) RETURN count(n);", "read"));
+}
+
+TEST_F(ConnectionTest, ExplicitTransactionRestrictsReadOnlyAndPrivateSchema) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  const auto read_only_schema = conn->GetSchema();
+  ASSERT_FALSE(read_only_schema.empty());
+  ASSERT_TRUE(conn->Query("MATCH (n:person) RETURN count(n);", "read"));
+  auto write_in_read_only =
+      conn->Query("CREATE (:person {id: 100004, name: 'read-only', age: 45});");
+  ASSERT_FALSE(write_in_read_only);
+  EXPECT_EQ(write_in_read_only.error().error_code(),
+            StatusCode::ERR_TX_STATE_CONFLICT);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE W5TxNode (id INT64, PRIMARY KEY(id));", "schema"));
+  EXPECT_NE(conn->GetSchema().find("W5TxNode"), std::string::npos);
+  ASSERT_TRUE(conn->Query("MATCH (n:W5TxNode) RETURN count(n);", "read"));
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_EQ(conn->GetSchema().find("W5TxNode"), std::string::npos);
+  auto cached_private_plan =
+      conn->Query("MATCH (n:W5TxNode) RETURN count(n);", "read");
+  EXPECT_FALSE(cached_private_plan)
+      << "A private-schema plan must not leak into the shared query cache.";
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE W5CommittedNode (id INT64, PRIMARY KEY(id));",
+      "schema"));
+  ASSERT_TRUE(
+      conn->Query("MATCH (n:W5CommittedNode) RETURN count(n);", "read"));
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_NE(conn->GetSchema().find("W5CommittedNode"), std::string::npos);
+  ASSERT_TRUE(
+      conn->Query("MATCH (n:W5CommittedNode) RETURN count(n);", "read"));
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  auto copy = conn->Query("COPY person FROM \"does-not-run.csv\";");
+  ASSERT_FALSE(copy);
+  EXPECT_EQ(copy.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  auto checkpoint = conn->Query("CHECKPOINT;");
+  ASSERT_FALSE(checkpoint);
+  EXPECT_EQ(checkpoint.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  ASSERT_TRUE(conn->Rollback().ok());
+}
+
+TEST_F(ConnectionTest, ExplicitTransactionAllowsExplainWithoutMutation) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  ASSERT_TRUE(db.Open(config));
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  auto explain_schema = conn->Query(
+      "EXPLAIN CREATE NODE TABLE explicit_explain_probe("
+      "id INT64, PRIMARY KEY(id));",
+      "schema");
+  ASSERT_TRUE(explain_schema) << explain_schema.error().ToString();
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  auto explain_checkpoint = conn->Query("EXPLAIN CHECKPOINT;", "update");
+  ASSERT_TRUE(explain_checkpoint) << explain_checkpoint.error().ToString();
+  EXPECT_TRUE(conn->HasActiveTransaction());
+  ASSERT_TRUE(conn->Rollback().ok());
+}
+
+TEST_F(ConnectionTest,
+       ExplicitTransactionRejectsUnsupportedOperationsAndBecomesRollbackOnly) {
+  const char* csv_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
+  ASSERT_NE(csv_dir, nullptr);
+  const auto person_csv =
+      (std::filesystem::path(csv_dir) / "person.csv").string();
+  const auto export_path =
+      (std::filesystem::path(DB_DIR) / "explicit-transaction-copy-to.csv")
+          .string();
+
+  struct UnsupportedCase {
+    const char* name;
+    std::string query;
+    const char* access_mode;
+  };
+  const std::vector<UnsupportedCase> cases{
+      {"COPY FROM", "COPY person FROM \"" + person_csv + "\";", "update"},
+      {"COPY TO",
+       "COPY (MATCH (n:person) RETURN n.*) TO '" + export_path +
+           "' (header=true);",
+       "read"},
+      {"index DDL",
+       "CREATE INDEX explicit_transaction_index ON person USING hnsw (age);",
+       "schema"},
+      {"batch data source", "LOAD FROM \"" + person_csv + "\" RETURN *;",
+       "update"},
+      {"mutating procedure",
+       "CALL project_graph('explicit_txn', ['person'], "
+       "{'[person, knows, person]': ''});",
+       "update"},
+      {"checkpoint", "CHECKPOINT;", "update"},
+  };
+
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+
+  for (const auto& unsupported : cases) {
+    SCOPED_TRACE(unsupported.name);
+    ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+    auto result = conn->Query(unsupported.query, unsupported.access_mode);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().error_code(), StatusCode::ERR_NOT_SUPPORTED)
+        << result.error().ToString();
+    EXPECT_TRUE(conn->HasActiveTransaction());
+    EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+    EXPECT_THROW({ static_cast<void>(conn->GetSchema()); },
+                 neug::exception::TxStateConflictException);
+    ASSERT_TRUE(conn->Rollback().ok());
+  }
+  EXPECT_FALSE(std::filesystem::exists(export_path));
 }
 
 TEST_F(ConnectionTest, TestReadOnlyConnections) {

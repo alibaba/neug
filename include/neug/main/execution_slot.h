@@ -49,8 +49,10 @@ class AppManager;
 class CheckpointCoordinator;
 class IVersionManager;
 class NeugDB;
+class Connection;
 class ExecutionSlot;
 class TpExecutionSlotPool;
+class TransactionContext;
 class ExtensionManager;
 
 enum class QueryExecutionStrategy : uint8_t {
@@ -233,6 +235,7 @@ class ExecutionSlot {
 
  private:
   friend class NeugDB;
+  friend class Connection;
   friend class TpExecutionSlotPool;
 
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
@@ -266,6 +269,14 @@ class ExecutionSlot {
 
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
       const GraphStats& stats, const std::string& query, int32_t num_threads);
+  result<std::shared_ptr<execution::CacheValue>> prepareQueryUncached(
+      const GraphStats& stats, const std::string& query, int32_t num_threads);
+
+  result<CurrentCowWriteTransaction> BeginCurrentCowWriteTransaction();
+  result<QueryResult> ExecuteQueryInTransaction(
+      const std::string& query_string, const std::string& access_mode,
+      const rapidjson::Value& parameters, int32_t num_threads,
+      TransactionContext& transaction_context);
 
   Status validatePlan(AccessMode mode, const physical::ExecutionFlag& flags,
                       bool is_explain) const;
@@ -277,7 +288,8 @@ class ExecutionSlot {
 
   Status executeCore(const std::string& query, AccessMode requested_mode,
                      const rapidjson::Value& parameters, int32_t num_threads,
-                     QueryResponse& response);
+                     QueryResponse& response,
+                     TransactionContext* transaction_context = nullptr);
 
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
