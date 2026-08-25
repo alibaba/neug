@@ -151,6 +151,17 @@ void FTSIndex::ParseOptions() {
       option != meta_->options.end()) {
     detail_ = option->second;
   }
+  if (auto option = meta_->options.find("jieba_dict");
+      option != meta_->options.end() && !option->second.empty()) {
+    std::error_code error;
+    auto path = std::filesystem::absolute(option->second, error);
+    if (error) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Failed to resolve Jieba user dictionary path " + option->second +
+          ": " + error.message());
+    }
+    option->second = path.lexically_normal().string();
+  }
   FTSTokenizerConfig tokenizer_config;
   for (const auto& [name, value] : meta_->options) {
     if (name != "prefix" && name != "detail") {

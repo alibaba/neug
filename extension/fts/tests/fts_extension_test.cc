@@ -320,8 +320,8 @@ TEST(JiebaFTSTokenizerTest, AddsCustomDictToBuiltInDict) {
   const std::string built_in_word = "网易";
   std::vector<CollectedToken> built_in_tokens;
   ASSERT_EQ(tokenizer->Tokenize(&built_in_tokens, built_in_word.data(),
-                                built_in_word.size(),
-                                FTS5_TOKENIZE_DOCUMENT, CollectToken),
+                                built_in_word.size(), FTS5_TOKENIZE_DOCUMENT,
+                                CollectToken),
             SQLITE_OK);
   ASSERT_EQ(built_in_tokens.size(), 1u);
   EXPECT_EQ(built_in_tokens.front().text, built_in_word);
@@ -940,6 +940,38 @@ TEST(FTSIndexTest, JiebaModePersistsAcrossDumpAndReopen) {
   ASSERT_TRUE(result.has_value()) << result.error().ToString();
   ASSERT_EQ(result->size(), 1u);
   EXPECT_EQ(result->front().vid, 7u);
+}
+
+TEST(FTSIndexTest, JiebaDictPathPersistsAsAbsolutePath) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+  const auto dict_path = directory.path() / "user.dict.utf8";
+  std::ofstream(dict_path) << "棉花糖星球\n";
+  const auto relative_dict_path =
+      std::filesystem::relative(dict_path, std::filesystem::current_path());
+
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeUnopenedIndex("jieba_dict_path_fts");
+  auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+  options["tokenizer"] = "jieba";
+  options["jieba_dict"] = relative_dict_path.string();
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+
+  const auto persisted_dict_path =
+      std::filesystem::path(index->GetMeta().options.at("jieba_dict"));
+  EXPECT_TRUE(persisted_dict_path.is_absolute());
+  EXPECT_EQ(std::filesystem::canonical(persisted_dict_path),
+            std::filesystem::canonical(dict_path));
+
+  CheckpointManifest manifest;
+  index->Dump(*checkpoint, manifest, "index_jieba_dict_path_fts");
+  const auto* descriptor = manifest.FindModule("index_jieba_dict_path_fts");
+  ASSERT_NE(descriptor, nullptr);
+
+  FTSIndex restored;
+  restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+  EXPECT_EQ(restored.GetMeta().options.at("jieba_dict"),
+            persisted_dict_path.string());
 }
 
 TEST(FTSIndexTest, MissingPersistedFileFailsOpen) {

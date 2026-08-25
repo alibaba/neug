@@ -121,7 +121,9 @@ WITH (
 
 The user dictionary supplements the built-in small dictionary. It may contain
 one word per line, following cppjieba's user-dictionary format. Its path must
-remain available when the index is reopened.
+remain available when the index is reopened. Relative paths are resolved
+against the process working directory when the index is created and persisted
+as absolute paths.
 
 The `detail` option affects the query forms available to users:
 
