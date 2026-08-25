@@ -137,6 +137,7 @@ FilterPushDownOptimizer::visitCrossProductReplace(
     }
   }
   if (joinConditions.empty()) {
+    predicateSet = std::move(remainingPSet);
     return finishPushDown(op);
   }
   auto hashJoin = std::make_shared<LogicalHashJoin>(
