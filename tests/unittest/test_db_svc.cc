@@ -781,6 +781,29 @@ TEST_F(NeugDBServiceTest, TransactionalRequestBindsBooleanParameters) {
   EXPECT_EQ(response.row_count(), 1u);
 }
 
+TEST_F(NeugDBServiceTest, TransactionalBundledEdgeUpdateReturnsDetachedValue) {
+  neug::NeugDBService service(*db_, config_);
+  auto slot = service.AcquireExecutionSlot();
+  ASSERT_TRUE(slot);
+
+  // knows.weight is bundled in the CSR record. The SET detaches its adjacency
+  // list, so RETURN must read through the refreshed execution-context pointer.
+  auto result =
+      slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
+          "MATCH (a:person {id: 1})-[e:knows]->(b:person {id: 2}) "
+          "SET e.weight = 4.25 RETURN e.weight;",
+          "update", {}));
+  ASSERT_TRUE(result) << result.error().ToString();
+
+  QueryResponse response;
+  ASSERT_TRUE(response.ParseFromString(result.value()));
+  ASSERT_EQ(response.row_count(), 1u);
+  ASSERT_EQ(response.arrays_size(), 1);
+  const auto& values = response.arrays(0).double_array().values();
+  ASSERT_EQ(values.size(), 1);
+  EXPECT_DOUBLE_EQ(values.Get(0), 4.25);
+}
+
 TEST_F(NeugDBServiceTest, TransactionalRequestIgnoresUnexpectedParameters) {
   neug::NeugDBService service(*db_, config_);
   auto slot = service.AcquireExecutionSlot();
