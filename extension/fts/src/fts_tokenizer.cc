@@ -107,12 +107,19 @@ std::string DecompressJiebaDict(const JiebaDictFile& dict) {
   return contents;
 }
 
-void ValidateJiebaDictPath(const std::filesystem::path& path) {
-  const auto path_string = path.string();
+std::string ResolveJiebaUserDictPath(std::string path) {
+  if (path.empty()) {
+    return path;
+  }
+  if (path.find_first_of("|;") != std::string::npos) {
+    throw std::invalid_argument(
+        "Jieba user dictionary path must not contain '|' or ';': " + path);
+  }
+
   std::error_code error;
   const bool is_regular_file = std::filesystem::is_regular_file(path, error);
   if (!is_regular_file) {
-    auto message = "Jieba dictionary is not a regular file: " + path_string;
+    auto message = "Jieba dictionary is not a regular file: " + path;
     if (error) {
       message += ": " + error.message();
     }
@@ -120,18 +127,7 @@ void ValidateJiebaDictPath(const std::filesystem::path& path) {
   }
   std::ifstream input(path, std::ios::binary);
   if (!input.is_open()) {
-    throw std::invalid_argument("Jieba dictionary is not readable: " +
-                                path_string);
-  }
-}
-
-std::string ResolveJiebaUserDictPath(std::string path) {
-  if (!path.empty()) {
-    if (path.find_first_of("|;") != std::string::npos) {
-      throw std::invalid_argument(
-          "Jieba user dictionary path must not contain '|' or ';': " + path);
-    }
-    ValidateJiebaDictPath(path);
+    throw std::invalid_argument("Jieba dictionary is not readable: " + path);
   }
   return path;
 }
