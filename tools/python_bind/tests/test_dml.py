@@ -298,6 +298,14 @@ def test_set_edge_property(tmp_path):
         "RETURN f.since;"
     )
     assert sorted(row[0] for row in result) == [1999, 1999]
+
+    # Later SET mappings observe the values written by earlier mappings even
+    # after bundled CSR COW refreshes the edge column.
+    result = conn.execute(
+        "MATCH (:person {name: 'Alice'})-[f:follows]->(:person {name: 'Josh'}) "
+        "SET f.since = 20, f.since = f.since + 1 RETURN f.since;"
+    )
+    assert list(result) == [[21], [21]]
     conn.close()
     db.close()
 

@@ -215,6 +215,16 @@ def test_merge_edge_on_match_set_date():
             key=lambda row: row[0],
         )
         assert stored == [["Bob", 7000], ["marko", 9000]]
+
+        rows = list(
+            conn.execute(
+                "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
+                "MERGE (u1)-[e:FOLLOWS {date: 9000}]->(u2) "
+                "ON MATCH SET e.date = 20, e.date = e.date + 1 "
+                "RETURN e.date;"
+            )
+        )
+        assert rows == [[21]]
     finally:
         conn.close()
         db.close()

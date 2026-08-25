@@ -91,37 +91,6 @@ struct EdgePropertyMutation {
   Value value;
 };
 
-void collect_on_match_edge_mutations(
-    StorageUpdateInterface& graph, DataChunk& chunk, size_t row,
-    const EdgeRecord& record, const std::pair<int32_t, int32_t>& offsets,
-    const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
-        on_match,
-    std::vector<EdgePropertyMutation>& mutations) {
-  for (const auto& [prop_name, expression] : on_match) {
-    auto value = expression->Cast<RecordExprBase>().eval_record(chunk, row);
-    const auto edge_label = record.label.edge_label;
-    const auto src_label = record.label.src_label;
-    const auto dst_label = record.label.dst_label;
-    const auto edge_schema =
-        graph.schema().get_edge_schema(src_label, dst_label, edge_label);
-    const auto property =
-        std::find(edge_schema->property_names.begin(),
-                  edge_schema->property_names.end(), prop_name);
-    if (property == edge_schema->property_names.end()) {
-      THROW_RUNTIME_ERROR("Property " + prop_name +
-                          " does not exist for edge label " +
-                          std::to_string(static_cast<int>(edge_label)));
-    }
-    const auto property_id = static_cast<int>(
-        std::distance(edge_schema->property_names.begin(), property));
-    if (edge_schema->properties[property_id] != value.type()) {
-      THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
-    }
-    mutations.push_back(
-        EdgePropertyMutation{record, offsets, property_id, std::move(value)});
-  }
-}
-
 struct PreparedEdgeInsert {
   vid_t src;
   vid_t dst;
@@ -246,11 +215,9 @@ class MergeEdgeOpr : public IOperator {
       auto merged_binded = merge_pattern_and_on_create(
           std::move(pattern_binded), std::move(on_create_binded));
 
-      const bool bundled =
-          graph.schema()
-              .get_edge_schema(plan.labels.src_label, plan.labels.dst_label,
-                               plan.labels.edge_label)
-              ->is_bundled();
+      const auto edge_schema = graph.schema().get_edge_schema(
+          plan.labels.src_label, plan.labels.dst_label, plan.labels.edge_label);
+      const bool bundled = edge_schema->is_bundled();
       bool has_unmatched_rows = false;
       if (bundled && on_match_binded.empty()) {
         for (auto& chunk : ctx.chunks()) {
@@ -283,7 +250,6 @@ class MergeEdgeOpr : public IOperator {
 
       struct PendingRow {
         EdgeRecord record;
-        std::pair<int32_t, int32_t> offsets;
         std::optional<PreparedEdgeInsert> insert;
       };
       struct MatchChunk {
@@ -292,7 +258,6 @@ class MergeEdgeOpr : public IOperator {
         std::vector<PendingRow> rows;
       };
       std::vector<MatchChunk> matched_chunks;
-      std::vector<EdgePropertyMutation> mutations;
       for (auto& chunk : ctx.chunks()) {
         const auto nrows = chunk.row_num();
         MatchChunk matched_chunk{&chunk, nullptr,
@@ -334,19 +299,7 @@ class MergeEdgeOpr : public IOperator {
                                  : matched_chunk.alias_snapshot->records[row];
             matched = pending.record.label == plan.labels;
           }
-          if (matched) {
-            if (matched_chunk.alias_snapshot != nullptr ||
-                !on_match_binded.empty()) {
-              pending.offsets =
-                  matched_chunk.alias_snapshot != nullptr &&
-                          matched_chunk.alias_snapshot->refresh_rows[row]
-                      ? matched_chunk.alias_snapshot->offsets[row]
-                      : ResolveEdgeOffsets(graph, pending.record);
-              collect_on_match_edge_mutations(graph, chunk.chunk(), row,
-                                              pending.record, pending.offsets,
-                                              on_match_binded, mutations);
-            }
-          } else {
+          if (!matched) {
             pending.insert = prepare_edge_insert(
                 graph, chunk.chunk(), row, plan.labels.src_label,
                 plan.labels.dst_label, plan.labels.edge_label, src_vertex_col,
@@ -355,14 +308,52 @@ class MergeEdgeOpr : public IOperator {
         }
         matched_chunks.push_back(std::move(matched_chunk));
       }
-      for (const auto& mutation : mutations) {
-        auto status = graph.UpdateEdgeProperty(
-            mutation.record.label.src_label, mutation.record.src,
-            mutation.record.label.dst_label, mutation.record.dst,
-            mutation.record.label.edge_label, mutation.offsets.first,
-            mutation.offsets.second, mutation.property_id, mutation.value);
-        if (!status.ok()) {
-          THROW_RUNTIME_ERROR(status.ToString());
+
+      for (const auto& [prop_name, expression] : on_match_binded) {
+        const auto property_id = edge_schema->get_property_index(prop_name);
+        if (property_id < 0) {
+          THROW_RUNTIME_ERROR(
+              "Property " + prop_name + " does not exist for edge label " +
+              std::to_string(static_cast<int>(plan.labels.edge_label)));
+        }
+        std::vector<EdgePropertyMutation> mutations;
+        for (auto& matched_chunk : matched_chunks) {
+          auto& chunk = *matched_chunk.chunk;
+          for (size_t row = 0; row < matched_chunk.rows.size(); ++row) {
+            auto& pending = matched_chunk.rows[row];
+            if (pending.insert) {
+              continue;
+            }
+            std::pair<int32_t, int32_t> offsets;
+            if (matched_chunk.alias_snapshot != nullptr &&
+                matched_chunk.alias_snapshot->refresh_rows[row]) {
+              pending.record = matched_chunk.alias_snapshot->records[row];
+              offsets = matched_chunk.alias_snapshot->offsets[row];
+            } else {
+              offsets = ResolveEdgeOffsets(graph, pending.record);
+            }
+            auto value = expression->Cast<RecordExprBase>().eval_record(
+                chunk.chunk(), row);
+            if (edge_schema->properties[property_id] != value.type()) {
+              THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                  prop_name);
+            }
+            mutations.push_back(EdgePropertyMutation{
+                pending.record, offsets, property_id, std::move(value)});
+          }
+        }
+        for (const auto& mutation : mutations) {
+          auto status = graph.UpdateEdgeProperty(
+              mutation.record.label.src_label, mutation.record.src,
+              mutation.record.label.dst_label, mutation.record.dst,
+              mutation.record.label.edge_label, mutation.offsets.first,
+              mutation.offsets.second, mutation.property_id, mutation.value);
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR(status.ToString());
+          }
+        }
+        if (bundled && !mutations.empty()) {
+          RefreshEdgeColumns(graph, snapshots);
         }
       }
 
@@ -373,7 +364,6 @@ class MergeEdgeOpr : public IOperator {
           }
           pending.record =
               apply_edge_insert(graph, plan.labels, *pending.insert);
-          pending.offsets = ResolveEdgeOffsets(graph, pending.record);
         }
       }
 
@@ -388,7 +378,8 @@ class MergeEdgeOpr : public IOperator {
               matched_chunk.alias_snapshot->refresh_rows[row]) {
             pending.record = matched_chunk.alias_snapshot->records[row];
           } else if (pending.insert) {
-            RefreshEdgeRecord(graph, pending.record, pending.offsets);
+            RefreshEdgeRecord(graph, pending.record,
+                              ResolveEdgeOffsets(graph, pending.record));
           }
           builder.push_back_opt(pending.record.src, pending.record.dst,
                                 pending.record.prop);
