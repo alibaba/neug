@@ -940,6 +940,86 @@ def test_lcc_with_edge_predicate(tmp_path):
         assert all(value == 0.0 for _, value in rows)
 
 
+def test_louvain_with_vertex_predicate(tmp_path):
+    """Louvain with a vertex predicate restricts the output to subgraph
+    vertices."""
+    with tinysnb_connection(tmp_path) as conn:
+        expected = list(conn.execute("MATCH (p:person) WHERE p.age > 20 RETURN p.id;"))
+        conn.execute(
+            "CALL project_graph('g', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) == len(expected)
+        assert {r[0] for r in rows} == {r[0] for r in expected}
+
+
+def test_leiden_with_vertex_predicate(tmp_path):
+    """Leiden with a vertex predicate restricts the output to subgraph
+    vertices."""
+    with tinysnb_connection(tmp_path) as conn:
+        expected = list(conn.execute("MATCH (p:person) WHERE p.age > 20 RETURN p.id;"))
+        conn.execute(
+            "CALL project_graph('g', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) == len(expected)
+        assert {r[0] for r in rows} == {r[0] for r in expected}
+
+
+def test_louvain_with_edge_predicate(tmp_path):
+    """Louvain honors an edge predicate: excluding every edge leaves each
+    vertex in its own community (no modularity gain is possible)."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) > 0
+        communities = [r[1] for r in rows]
+        assert len(set(communities)) == len(rows)
+
+
+def test_leiden_with_edge_predicate(tmp_path):
+    """Leiden honors an edge predicate: excluding every edge leaves each
+    vertex in its own community (no modularity gain is possible)."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) > 0
+        communities = [r[1] for r in rows]
+        assert len(set(communities)) == len(rows)
+
+
 # ---------------------------------------------------------------------------
 # Boundary condition & stability tests
 # ---------------------------------------------------------------------------

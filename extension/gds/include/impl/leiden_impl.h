@@ -26,6 +26,9 @@
 #include "utils/multi_label_index.h"
 
 namespace neug {
+namespace execution {
+class ExprBase;
+}  // namespace execution
 namespace gds {
 namespace community {
 
@@ -40,7 +43,9 @@ class Leiden {
          double threshold, int concurrency,
          const std::string& initial_community_property = "",
          bool allow_relocation = false,
-         const std::string& weight_property = "");
+         const std::string& weight_property = "",
+         std::vector<execution::ExprBase*> vertex_preds = {},
+         std::vector<execution::ExprBase*> edge_preds = {});
 
   void compute();
 

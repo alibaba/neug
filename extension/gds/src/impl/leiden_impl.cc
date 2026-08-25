@@ -33,10 +33,12 @@ Leiden::Leiden(const StorageReadInterface& graph,
                std::vector<LabelTriplet> edge_triplets, double resolution,
                double threshold, int concurrency,
                const std::string& initial_community_property,
-               bool allow_relocation, const std::string& weight_property)
+               bool allow_relocation, const std::string& weight_property,
+               std::vector<execution::ExprBase*> vertex_preds,
+               std::vector<execution::ExprBase*> edge_preds)
     : graph_(graph),
       index_(graph, std::move(vertex_labels), std::move(edge_triplets),
-             weight_property),
+             weight_property, std::move(vertex_preds), std::move(edge_preds)),
       resolution_(resolution),
       threshold_(threshold),
       concurrency_(concurrency),
@@ -369,6 +371,8 @@ void Leiden::refine() {
               vid_t v = *it;
               if (v == u || sub_com_flat_[v] == kInvalidSubCom)
                 continue;
+              if (!index_.edge_ok(0, u, v, it.get_data_ptr()))
+                continue;
               uint32_t sc = sub_com_flat_[v];
               if (r_gen[sc] != refine_gen) {
                 r_gen[sc] = refine_gen;
@@ -381,6 +385,8 @@ void Leiden::refine() {
             for (auto it = ies.begin(); it != ies.end(); ++it) {
               vid_t v = *it;
               if (v == u || sub_com_flat_[v] == kInvalidSubCom)
+                continue;
+              if (!index_.edge_ok(0, v, u, it.get_data_ptr()))
                 continue;
               uint32_t sc = sub_com_flat_[v];
               if (r_gen[sc] != refine_gen) {
@@ -476,6 +482,8 @@ void Leiden::refine() {
                 uint32_t v_gid = static_cast<uint32_t>(db + (*it));
                 if (v_gid == u_gid || sub_com_flat_[v_gid] == kInvalidSubCom)
                   continue;
+                if (!index_.edge_ok(ti, u_local, *it, it.get_data_ptr()))
+                  continue;
                 uint32_t sc = sub_com_flat_[v_gid];
                 if (r_gen[sc] != refine_gen) {
                   r_gen[sc] = refine_gen;
@@ -497,6 +505,8 @@ void Leiden::refine() {
               for (auto it = ies.begin(); it != ies.end(); ++it) {
                 uint32_t v_gid = static_cast<uint32_t>(sb + (*it));
                 if (v_gid == u_gid || sub_com_flat_[v_gid] == kInvalidSubCom)
+                  continue;
+                if (!index_.edge_ok(ti, *it, u_local, it.get_data_ptr()))
                   continue;
                 uint32_t sc = sub_com_flat_[v_gid];
                 if (r_gen[sc] != refine_gen) {
@@ -635,6 +645,8 @@ void Leiden::sink(execution::Context& ctx, int node_alias, int community_alias,
       prev_builder.reserve(count);
       for (const auto& v : vertex_set) {
         uint32_t gid = static_cast<uint32_t>(base + v);
+        if (!index_.is_valid(gid))
+          continue;
         if (initial_community_ && initial_community_[gid] != UINT32_MAX) {
           prev_builder.push_back_opt(
               static_cast<int64_t>(initial_community_[gid]));
@@ -646,6 +658,8 @@ void Leiden::sink(execution::Context& ctx, int node_alias, int community_alias,
     }
     for (const auto& v : vertex_set) {
       uint32_t gid = static_cast<uint32_t>(base + v);
+      if (!index_.is_valid(gid))
+        continue;
       builder.push_back_opt(v);
       community_builder.push_back_opt(
           static_cast<int64_t>(com_remap[community_[gid]]));

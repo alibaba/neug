@@ -483,7 +483,7 @@ WHERE previous_community IS NULL
 RETURN node.id, community;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -587,7 +587,7 @@ WHERE previous_community IS NULL
 RETURN node.id, community;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 **Leiden vs. Louvain:** Use Leiden when you need higher-quality community partitions
 or better detection of small communities. Use Louvain when you need the fastest
