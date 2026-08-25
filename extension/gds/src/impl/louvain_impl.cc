@@ -70,6 +70,11 @@ Louvain::Louvain(const StorageReadInterface& graph,
       size_t base = index_.label_base_offset(li);
       for (const auto& v : vs) {
         uint32_t gid = static_cast<uint32_t>(base + v);
+        // Vertices excluded by a vertex predicate don't participate; their
+        // slots are never read by compute()/sink() (all loops iterate
+        // valid_vertices only), so leave them untouched.
+        if (!index_.is_valid(gid))
+          continue;
         if (prop_col) {
           auto val = prop_col->get_any(v);
           if (!val.IsNull()) {

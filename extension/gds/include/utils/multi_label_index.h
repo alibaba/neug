@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -71,15 +72,17 @@ class MultiLabelIndex {
         edge_triplets_(std::move(edge_triplets)),
         has_weight_(!weight_property.empty()) {
     // --- Bind predicates (if any) ---
-    if (!vertex_preds.empty()) {
-      CHECK_EQ(vertex_preds.size(), vertex_labels_.size())
-          << "MultiLabelIndex: vertex predicate count must match vertex "
-             "label count.";
+    if (!vertex_preds.empty() && vertex_preds.size() != vertex_labels_.size()) {
+      THROW_RUNTIME_ERROR("MultiLabelIndex: vertex predicate count (" +
+                          std::to_string(vertex_preds.size()) +
+                          ") must match vertex label count (" +
+                          std::to_string(vertex_labels_.size()) + ").");
     }
-    if (!edge_preds.empty()) {
-      CHECK_EQ(edge_preds.size(), edge_triplets_.size())
-          << "MultiLabelIndex: edge predicate count must match edge triplet "
-             "count.";
+    if (!edge_preds.empty() && edge_preds.size() != edge_triplets_.size()) {
+      THROW_RUNTIME_ERROR("MultiLabelIndex: edge predicate count (" +
+                          std::to_string(edge_preds.size()) +
+                          ") must match edge triplet count (" +
+                          std::to_string(edge_triplets_.size()) + ").");
     }
     bool has_vertex_pred = false;
     vertex_preds_.resize(vertex_labels_.size());
@@ -87,8 +90,8 @@ class MultiLabelIndex {
       execution::ExprBase* pred =
           (li < vertex_preds.size()) ? vertex_preds[li] : nullptr;
       if (pred != nullptr) {
-        vertex_preds_[li] = std::make_unique<execution::GeneralPred>(
-            pred->bind(&graph, {}));
+        vertex_preds_[li] =
+            std::make_unique<execution::GeneralPred>(pred->bind(&graph, {}));
         has_vertex_pred = true;
       }
     }
@@ -97,8 +100,8 @@ class MultiLabelIndex {
       execution::ExprBase* pred =
           (ti < edge_preds.size()) ? edge_preds[ti] : nullptr;
       if (pred != nullptr) {
-        edge_preds_[ti] = std::make_unique<execution::GeneralPred>(
-            pred->bind(&graph, {}));
+        edge_preds_[ti] =
+            std::make_unique<execution::GeneralPred>(pred->bind(&graph, {}));
       }
     }
 
@@ -280,8 +283,7 @@ class MultiLabelIndex {
           if (!vertex_ok(nbr) || !edge_ok(ti, lv, *it, it.get_data_ptr()))
             continue;
           fn(nbr, triplet_has_weight_[ti]
-                      ? triplet_weight_accessors_[ti].get_typed_data<double>(
-                            it)
+                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
                       : 1.0);
         }
       }
@@ -295,8 +297,7 @@ class MultiLabelIndex {
           if (!vertex_ok(nbr) || !edge_ok(ti, *it, lv, it.get_data_ptr()))
             continue;
           fn(nbr, triplet_has_weight_[ti]
-                      ? triplet_weight_accessors_[ti].get_typed_data<double>(
-                            it)
+                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
                       : 1.0);
         }
       }
@@ -330,8 +331,7 @@ class MultiLabelIndex {
           if (!vertex_ok(nbr) || !edge_ok(ti, lv, *it, it.get_data_ptr()))
             continue;
           fn(nbr, triplet_has_weight_[ti]
-                      ? triplet_weight_accessors_[ti].get_typed_data<double>(
-                            it)
+                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
                       : 1.0);
         }
       }

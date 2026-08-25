@@ -74,6 +74,11 @@ Leiden::Leiden(const StorageReadInterface& graph,
       size_t base = index_.label_base_offset(li);
       for (const auto& v : vs) {
         uint32_t gid = static_cast<uint32_t>(base + v);
+        // Vertices excluded by a vertex predicate don't participate; their
+        // slots are never read by compute()/sink() (all loops iterate
+        // valid_vertices only), so leave them untouched.
+        if (!index_.is_valid(gid))
+          continue;
         if (prop_col) {
           auto val = prop_col->get_any(v);
           if (!val.IsNull()) {
@@ -298,6 +303,9 @@ bool Leiden::local_moving_phase() {
 void Leiden::refine() {
   const auto& valid_vertices = index_.valid_vertices();
   const size_t array_size = index_.array_size();
+  // Vertices excluded by a vertex predicate never appear in valid_vertices,
+  // so they are absent from com_vertex_pairs and their sub_com_flat_ stays
+  // kInvalidSubCom; the raw-view traversals below skip them via that check.
   std::vector<std::pair<uint32_t, uint32_t>> com_vertex_pairs;
   com_vertex_pairs.reserve(valid_vertices.size());
   for (uint32_t gid : valid_vertices)
