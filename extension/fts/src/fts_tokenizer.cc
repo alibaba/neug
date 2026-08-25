@@ -16,6 +16,7 @@
 
 #include "fts_tokenizer.h"
 
+#include <glog/logging.h>
 #include <sqlite3.h>
 #include <zlib.h>
 
@@ -207,7 +208,13 @@ int JiebaTokenize(Fts5Tokenizer* tokenizer, void* context, int flags,
     const auto* fts_tokenizer =
         reinterpret_cast<const FTSTokenizer*>(tokenizer);
     return fts_tokenizer->Tokenize(context, text, text_size, flags, emit);
-  } catch (const std::bad_alloc&) { return SQLITE_NOMEM; } catch (...) {
+  } catch (const std::bad_alloc&) {
+    return SQLITE_NOMEM;
+  } catch (const std::exception& error) {
+    LOG(ERROR) << "Jieba tokenization failed: " << error.what();
+    return SQLITE_ERROR;
+  } catch (...) {
+    LOG(ERROR) << "Jieba tokenization failed with an unknown exception";
     return SQLITE_ERROR;
   }
 }
