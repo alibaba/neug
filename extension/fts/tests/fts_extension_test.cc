@@ -14,17 +14,23 @@
  * limitations under the License.
  */
 
+#include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <sqlite3.h>
 
 #include "fts_index.h"
 #include "fts_index_scan.h"
@@ -59,6 +65,31 @@ class TemporaryDatabaseDirectory {
 
  private:
   std::filesystem::path path_;
+};
+
+class ScopedEnvironmentVariable {
+ public:
+  ScopedEnvironmentVariable(std::string name, const std::string& value)
+      : name_(std::move(name)) {
+    if (const char* previous = std::getenv(name_.c_str())) {
+      previous_ = previous;
+    }
+    if (setenv(name_.c_str(), value.c_str(), 1) != 0) {
+      throw std::runtime_error("Failed to set environment variable " + name_);
+    }
+  }
+
+  ~ScopedEnvironmentVariable() {
+    if (previous_) {
+      setenv(name_.c_str(), previous_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+ private:
+  std::string name_;
+  std::optional<std::string> previous_;
 };
 
 class TestCheckpoint {
@@ -108,6 +139,16 @@ std::string FindBuildRoot() {
   return "";
 }
 
+TEST(JiebaFTSTokenizerTest, LoadsBuiltInDictsFromMemory) {
+  TemporaryDatabaseDirectory temporary_directory;
+  const ScopedEnvironmentVariable temp_root(
+      "NEUG_DB_TMP_DIR", temporary_directory.path().string());
+
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+
+  EXPECT_FALSE(std::filesystem::exists(temporary_directory.path()));
+}
+
 TEST(FTSExtensionTest, LoadSucceeds) {
   const auto build_root = FindBuildRoot();
   ASSERT_FALSE(build_root.empty());
@@ -121,6 +162,39 @@ TEST(FTSExtensionTest, LoadSucceeds) {
 
   auto load = connection->Query("LOAD fts;");
   ASSERT_TRUE(load.has_value()) << load.error().ToString();
+}
+
+TEST(FTSExtensionTest, JiebaOptionSupportsChineseSearch) {
+  const auto build_root = FindBuildRoot();
+  ASSERT_FALSE(build_root.empty());
+  ASSERT_EQ(setenv("NEUG_EXTENSION_HOME_PYENV", build_root.c_str(), 1), 0);
+
+  TemporaryDatabaseDirectory database_directory;
+  NeugDB database;
+  ASSERT_TRUE(database.Open(database_directory.path()));
+  auto connection = database.Connect();
+  ASSERT_NE(connection, nullptr);
+  ASSERT_TRUE(connection->Query("LOAD fts;").has_value());
+  ASSERT_TRUE(connection
+                  ->Query("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, "
+                          "text STRING);")
+                  .has_value());
+  ASSERT_TRUE(connection
+                  ->Query("CREATE (:Item {id: 1, "
+                          "text: '我来到北京清华大学'}), "
+                          "(:Item {id: 2, text: '上海交通大学'});")
+                  .has_value());
+  auto create = connection->Query(
+      "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+      "WITH (tokenizer = 'jieba', jieba_mode = 'mix');");
+  ASSERT_TRUE(create.has_value()) << create.error().ToString();
+
+  auto result = connection->Query(
+      "MATCH (n:Item) RETURN n.id, bm25(n.text, '清华大学') AS score "
+      "ORDER BY score ASC LIMIT 10;");
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  ASSERT_EQ(result->length(), 1);
+  EXPECT_EQ(result->response().arrays(0).int64_array().values(0), 1);
 }
 
 TEST(FTSIndexScanInputTest, BindsConstantQueryExpression) {
@@ -163,19 +237,40 @@ TEST(FTSIndexScanInputTest, BindsAndValidatesDynamicQueryParameter) {
             "other terms");
 }
 
-std::unique_ptr<FTSIndex> MakeOpenedIndex(Checkpoint& checkpoint) {
+std::unique_ptr<FTSIndex> MakeOpenedIndex(
+    Checkpoint& checkpoint, const std::string& tokenizer = "unicode61",
+    const std::optional<std::string>& jieba_mode = std::nullopt) {
   auto meta = std::make_unique<IndexMeta>();
   meta->name = "item_text_fts";
   meta->type = "FTS";
   meta->schema.label_id = 0;
   meta->schema.property_name = "text";
   meta->schema.property_type = DataType(DataTypeId::kVarchar);
+  if (tokenizer != "unicode61") {
+    meta->options["tokenizer"] = tokenizer;
+  }
+  if (jieba_mode) {
+    meta->options["jieba_mode"] = *jieba_mode;
+  }
   auto index = std::make_unique<FTSIndex>();
   auto status =
       index->Init(std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
   EXPECT_TRUE(status.ok()) << status.error_message();
   index->Open(checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   return index;
+}
+
+struct CollectedToken {
+  std::string text;
+  int start;
+  int end;
+};
+
+int CollectToken(void* context, int, const char* token, int token_size,
+                 int start, int end) {
+  auto* tokens = static_cast<std::vector<CollectedToken>*>(context);
+  tokens->push_back(CollectedToken{std::string(token, token_size), start, end});
+  return SQLITE_OK;
 }
 
 std::unique_ptr<FTSIndex> MakeUnopenedIndex(
@@ -199,6 +294,157 @@ FTSQueryParams MakeQuery(std::string query,
   params.query_string = std::move(query);
   params.limit = limit;
   return params;
+}
+
+TEST(JiebaFTSTokenizerTest, SupportsMpHmmAndMixModes) {
+  struct ModeExpectation {
+    JiebaMode mode;
+    std::vector<std::string> expected;
+  };
+  const std::vector<ModeExpectation> cases = {
+      {JiebaMode::kMp, {"他", "来到", "了", "网易", "杭", "研", "大厦"}},
+      {JiebaMode::kHmm, {"他来", "到", "了", "网易", "杭", "研大厦"}},
+      {JiebaMode::kMix, {"他", "来到", "了", "网易", "杭研", "大厦"}},
+  };
+
+  const std::string input = "他来到了网易杭研大厦";
+  for (const auto& test_case : cases) {
+    JiebaFTSTokenizer tokenizer(test_case.mode);
+    std::vector<CollectedToken> tokens;
+    ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
+                                 FTS5_TOKENIZE_DOCUMENT, CollectToken),
+              SQLITE_OK);
+    std::vector<std::string> actual;
+    for (const auto& token : tokens) {
+      actual.push_back(token.text);
+      EXPECT_EQ(input.substr(token.start, token.end - token.start), token.text);
+    }
+    EXPECT_EQ(actual, test_case.expected);
+  }
+}
+
+TEST(JiebaFTSTokenizerTest, AddsCustomDictToBuiltInDict) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+  const auto dict_path = directory.path() / "user.dict.utf8";
+  std::ofstream(dict_path) << "棉花糖星球\n";
+
+  auto tokenizer = FTSTokenizer::Create({{"tokenizer", "jieba"},
+                                         {"jieba_mode", "mp"},
+                                         {"jieba_dict", dict_path.string()}});
+  const std::string custom_word = "棉花糖星球";
+  std::vector<CollectedToken> custom_tokens;
+  ASSERT_EQ(tokenizer->Tokenize(&custom_tokens, custom_word.data(),
+                                custom_word.size(), FTS5_TOKENIZE_DOCUMENT,
+                                CollectToken),
+            SQLITE_OK);
+  ASSERT_EQ(custom_tokens.size(), 1u);
+  EXPECT_EQ(custom_tokens.front().text, custom_word);
+
+  const std::string built_in_word = "网易";
+  std::vector<CollectedToken> built_in_tokens;
+  ASSERT_EQ(tokenizer->Tokenize(&built_in_tokens, built_in_word.data(),
+                                built_in_word.size(), FTS5_TOKENIZE_DOCUMENT,
+                                CollectToken),
+            SQLITE_OK);
+  ASSERT_EQ(built_in_tokens.size(), 1u);
+  EXPECT_EQ(built_in_tokens.front().text, built_in_word);
+}
+
+TEST(JiebaFTSTokenizerTest, RejectsInvalidCustomDictPath) {
+  TemporaryDatabaseDirectory directory;
+  const auto dict_path = directory.path() / "missing.dict.utf8";
+
+  EXPECT_THROW(FTSTokenizer::Create({{"tokenizer", "jieba"},
+                                     {"jieba_dict", dict_path.string()}}),
+               std::invalid_argument);
+}
+
+TEST(JiebaFTSTokenizerTest, RejectsUserDictPathSeparators) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+
+  for (const char separator : {'|', ';'}) {
+    const auto dict_path =
+        directory.path() / ("user" + std::string(1, separator) + "dict.utf8");
+    std::ofstream(dict_path) << "棉花糖星球\n";
+
+    EXPECT_THROW(FTSTokenizer::Create({{"tokenizer", "jieba"},
+                                       {"jieba_dict", dict_path.string()}}),
+                 std::invalid_argument)
+        << separator;
+  }
+}
+
+TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  const std::string input = "NeuG，是图数据库！";
+  std::vector<CollectedToken> tokens;
+  ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
+                               FTS5_TOKENIZE_DOCUMENT, CollectToken),
+            SQLITE_OK);
+  std::vector<std::string> actual;
+  for (const auto& token : tokens) {
+    actual.push_back(token.text);
+  }
+  EXPECT_EQ(actual, (std::vector<std::string>{"neug", "是", "图", "数据库"}));
+}
+
+TEST(JiebaFTSTokenizerTest, PreservesFullwidthLettersAndDigits) {
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  const std::string input = "ＡＢＣ１２３，。！？";
+  std::vector<CollectedToken> tokens;
+  ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
+                               FTS5_TOKENIZE_DOCUMENT, CollectToken),
+            SQLITE_OK);
+
+  std::string actual;
+  for (const auto& token : tokens) {
+    actual += token.text;
+  }
+  EXPECT_EQ(actual, "ＡＢＣ１２３");
+}
+
+TEST(JiebaFTSTokenizerTest, SupportsConcurrentReadOnlyTokenization) {
+  auto tokenizer = std::make_shared<const JiebaFTSTokenizer>(JiebaMode::kMix);
+  std::atomic<int> failures{0};
+  std::vector<std::thread> threads;
+  for (int thread = 0; thread < 8; ++thread) {
+    threads.emplace_back([&] {
+      const std::string input = "NeuG是一个高性能图数据库";
+      for (int iteration = 0; iteration < 100; ++iteration) {
+        std::vector<CollectedToken> tokens;
+        if (tokenizer->Tokenize(&tokens, input.data(), input.size(),
+                                FTS5_TOKENIZE_DOCUMENT,
+                                CollectToken) != SQLITE_OK ||
+            tokens.empty()) {
+          ++failures;
+        }
+      }
+    });
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+  EXPECT_EQ(failures.load(), 0);
+}
+
+TEST(FTSIndexTest, JiebaIndexesAndSearchesChineseText) {
+  TemporaryDatabaseDirectory directory;
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeOpenedIndex(*checkpoint, "jieba", "mix");
+  ASSERT_TRUE(index->Upsert(7, Value::STRING("我来到北京清华大学")).ok());
+  ASSERT_TRUE(index->Upsert(8, Value::STRING("上海交通大学")).ok());
+
+  for (const auto& query : {"北京", "清华大学"}) {
+    auto result = index->Search(MakeQuery(query));
+    ASSERT_TRUE(result.has_value()) << result.error().ToString();
+    ASSERT_EQ(result->size(), 1u) << query;
+    EXPECT_EQ(result->front().vid, 7u) << query;
+  }
+  auto missing = index->Search(MakeQuery("广州"));
+  ASSERT_TRUE(missing.has_value()) << missing.error().ToString();
+  EXPECT_TRUE(missing->empty());
 }
 
 TEST(FTSIndexTest, SearchSupportsWordsPhrasesAndPrefixes) {
@@ -540,6 +786,8 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
                        {"valid_name", {"Tokenizer", "unicode61"}},
                        {"valid_name", {"prefix", "2 bad"}},
                        {"valid_name", {"detail", "invalid"}},
+                       {"valid_name", {"jieba_mode", "mix"}},
+                       {"valid_name", {"jieba_dict", "user.dict.utf8"}},
                        {"valid_name", {"rank", "bm25"}}};
   for (const auto& [name, option] : invalid_cases) {
     auto index = MakeUnopenedIndex(name);
@@ -552,6 +800,14 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
         << name << " " << option.first;
   }
 
+  auto unsupported_search = MakeUnopenedIndex("jieba_search");
+  auto& search_options =
+      const_cast<IndexMeta&>(unsupported_search->GetMeta()).options;
+  search_options["tokenizer"] = "jieba";
+  search_options["jieba_mode"] = "search";
+  EXPECT_ANY_THROW(unsupported_search->Open(*checkpoint, ModuleDescriptor{},
+                                            MemoryLevel::kInMemory));
+
   auto valid = MakeUnopenedIndex("configured_fts");
   auto& options = const_cast<IndexMeta&>(valid->GetMeta()).options;
   options["tokenizer"] = "porter unicode61";
@@ -559,6 +815,27 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
   options["detail"] = "full";
   EXPECT_NO_THROW(
       valid->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory));
+
+  const std::vector<std::pair<std::string, std::string>>
+      parameterized_tokenizers = {
+          {"unicode61_fts", "unicode61 remove_diacritics 2"},
+          {"trigram_fts", "trigram case_sensitive 1"}};
+  for (const auto& [name, tokenizer] : parameterized_tokenizers) {
+    auto parameterized = MakeUnopenedIndex(name);
+    const_cast<IndexMeta&>(parameterized->GetMeta()).options["tokenizer"] =
+        tokenizer;
+    EXPECT_NO_THROW(parameterized->Open(*checkpoint, ModuleDescriptor{},
+                                        MemoryLevel::kInMemory))
+        << tokenizer;
+  }
+
+  auto invalid_tokenizer_option =
+      MakeUnopenedIndex("invalid_tokenizer_option_fts");
+  auto& invalid_options =
+      const_cast<IndexMeta&>(invalid_tokenizer_option->GetMeta()).options;
+  invalid_options["tokenizer"] = "unicode61 unknown_option 1";
+  EXPECT_ANY_THROW(invalid_tokenizer_option->Open(
+      *checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory));
 }
 
 TEST(FTSIndexTest, FiltersSupersededAndDeletedRowsWithScores) {
@@ -714,6 +991,63 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
   auto restored_path = restored_descriptor->get_path("fts_file");
   ASSERT_TRUE(restored_path.has_value());
   EXPECT_TRUE(std::filesystem::is_regular_file(*restored_path));
+}
+
+TEST(FTSIndexTest, JiebaModePersistsAcrossDumpAndReopen) {
+  TemporaryDatabaseDirectory directory;
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeUnopenedIndex("jieba_persisted_fts");
+  auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+  options["tokenizer"] = "jieba";
+  options["jieba_mode"] = "mp";
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  ASSERT_TRUE(index->Upsert(7, Value::STRING("我来到北京清华大学")).ok());
+
+  CheckpointManifest manifest;
+  index->Dump(*checkpoint, manifest, "index_jieba_persisted_fts");
+  const auto* descriptor = manifest.FindModule("index_jieba_persisted_fts");
+  ASSERT_NE(descriptor, nullptr);
+
+  FTSIndex restored;
+  restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+  EXPECT_EQ(restored.GetMeta().options.at("tokenizer"), "jieba");
+  EXPECT_EQ(restored.GetMeta().options.at("jieba_mode"), "mp");
+  auto result = restored.Search(MakeQuery("清华大学"));
+  ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  ASSERT_EQ(result->size(), 1u);
+  EXPECT_EQ(result->front().vid, 7u);
+}
+
+TEST(FTSIndexTest, JiebaDictPathPersistsAsAbsolutePath) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+  const auto dict_path = directory.path() / "user.dict.utf8";
+  std::ofstream(dict_path) << "棉花糖星球\n";
+  const auto relative_dict_path =
+      std::filesystem::relative(dict_path, std::filesystem::current_path());
+
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeUnopenedIndex("jieba_dict_path_fts");
+  auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+  options["tokenizer"] = "jieba";
+  options["jieba_dict"] = relative_dict_path.string();
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+
+  const auto persisted_dict_path =
+      std::filesystem::path(index->GetMeta().options.at("jieba_dict"));
+  EXPECT_TRUE(persisted_dict_path.is_absolute());
+  EXPECT_EQ(std::filesystem::canonical(persisted_dict_path),
+            std::filesystem::canonical(dict_path));
+
+  CheckpointManifest manifest;
+  index->Dump(*checkpoint, manifest, "index_jieba_dict_path_fts");
+  const auto* descriptor = manifest.FindModule("index_jieba_dict_path_fts");
+  ASSERT_NE(descriptor, nullptr);
+
+  FTSIndex restored;
+  restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+  EXPECT_EQ(restored.GetMeta().options.at("jieba_dict"),
+            persisted_dict_path.string());
 }
 
 TEST(FTSIndexTest, MissingPersistedFileFailsOpen) {

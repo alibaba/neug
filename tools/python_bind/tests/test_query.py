@@ -210,6 +210,44 @@ def test_string_property_cannot_be_compared_with_node(
     assert "LABELS(" not in message
 
 
+def test_cross_match_where_followed_by_unwind(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE L0(id STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE REL TABLE T0(FROM L0 TO L0, id STRING);",
+        access_mode="schema",
+    )
+
+    query = (
+        "MATCH (a:L0)-[r0:T0]->(b:L0) "
+        "MATCH (a0:L0)-[r1:T0]->(b0:L0) "
+        "WHERE b.id STARTS WITH 'a' "
+        "UNWIND [1, 2] AS u "
+        "RETURN 'x' AS value"
+    )
+
+    result = conn.execute(query, access_mode="read")
+    assert result.column_names() == ["value"]
+    assert list(result) == []
+
+    conn.execute(
+        "CREATE (:L0 {id: 'source'}), (:L0 {id: 'alpha'}), " "(:L0 {id: 'beta'});"
+    )
+    conn.execute(
+        "MATCH (source:L0 {id: 'source'}), (target:L0 {id: 'alpha'}) "
+        "CREATE (source)-[:T0 {id: 'to-alpha'}]->(target);"
+    )
+    conn.execute(
+        "MATCH (source:L0 {id: 'source'}), (target:L0 {id: 'beta'}) "
+        "CREATE (source)-[:T0 {id: 'to-beta'}]->(target);"
+    )
+
+    assert list(conn.execute(query, access_mode="read")) == [["x"]] * 4
+
+
 # DB-003-03
 def test_return_expression(modern_graph):
     conn = modern_graph

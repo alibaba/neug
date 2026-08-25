@@ -41,3 +41,6 @@
 	path = third_party/sqlite
 	url = https://github.com/sqlite/sqlite.git
 	shallow = true
+[submodule "third_party/cppjieba"]
+	path = third_party/cppjieba
+	url = https://github.com/yanyiwu/cppjieba.git

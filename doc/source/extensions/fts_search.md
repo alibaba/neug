@@ -37,6 +37,8 @@ ON <node_table>
 USING FTS (<string_property>)
 [WITH (
     tokenizer = '<tokenizer>',
+    jieba_mode = '<jieba_mode>',
+    jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>',
     detail = '<detail_mode>'
 )];
@@ -73,8 +75,12 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
+| `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
+| `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 | `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
+
+### Tokenizers
 
 Supported tokenizers are:
 
@@ -85,6 +91,58 @@ Supported tokenizers are:
   match the same stem.
 - `trigram` treats each contiguous sequence of three characters as a token,
   enabling substring matching.
+- `jieba` performs Chinese word segmentation using cppjieba and loads the
+  built-in small dictionary and HMM model.
+
+The Jieba tokenizer supports three modes:
+
+- `mp` selects the most probable dictionary-based segmentation.
+- `hmm` uses the HMM model to recognize words without dictionary guidance.
+- `mix` combines dictionary segmentation with HMM recognition. This is the
+  default Jieba mode.
+
+Chinese word segmentation uses a dictionary to recognize words and produce
+more accurate semantic boundaries. A dictionary must be a text file whose
+contents are UTF-8 encoded, including when the file is read in binary mode. Its
+entries use the following format:
+
+```text
+word frequency part-of-speech
+```
+
+NeuG includes a small dictionary containing about 110,000 entries, generated
+from cppjieba's `test/testdata/extra_dict/jieba.dict.small.utf8`. The smaller
+dictionary may omit common or domain-specific terms and reduce search recall.
+To improve segmentation, configure `jieba_dict` with additional terms, such as
+those from cppjieba's full dictionary at `dict/jieba.dict.utf8` (about 350,000
+entries) or from another compatible dictionary.
+
+For example:
+
+```cypher
+CREATE INDEX article_title_fts
+ON Article
+USING FTS (title)
+WITH (
+    tokenizer = 'jieba',
+    jieba_mode = 'mix',
+    jieba_dict = '/path/to/user.dict.utf8'
+);
+```
+
+The dictionary specified by `jieba_dict` is added to the built-in small
+dictionary; it supplements rather than replaces the built-in entries. Following
+cppjieba's user-dictionary format, each line may contain only a word or may also
+include its frequency and part of speech. The dictionary path must remain
+available when the index is reopened. Relative paths are resolved against the
+process working directory when the index is created and persisted as absolute
+paths.
+
+For more details about dictionary formats and usage, see the
+[cppjieba README](https://github.com/yanyiwu/cppjieba/blob/master/README.md) and
+the [jieba README](https://github.com/fxsjy/jieba/blob/master/README.md).
+
+### Match Details
 
 The `detail` option affects the query forms available to users:
 
@@ -109,7 +167,8 @@ WITH (
 );
 ```
 
-Invalid tokenizer, prefix, or detail settings cause index creation to fail.
+Invalid tokenizer, tokenizer parameters (for example, `jieba_mode`), prefix,
+or detail settings cause index creation to fail.
 The selected settings cannot be changed in place; drop and recreate the index
 to use different settings.
 

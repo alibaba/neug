@@ -161,4 +161,32 @@ bool SQLiteConnection::InTransaction() const {
   return connection_ && sqlite3_get_autocommit(connection_) == 0;
 }
 
+fts5_api* SQLiteConnection::GetFTS5API() const {
+  sqlite3_stmt* statement = nullptr;
+  auto code = sqlite3_prepare_v2(connection_, "SELECT fts5(?1)", -1, &statement,
+                                 nullptr);
+  if (code != SQLITE_OK) {
+    THROW_RUNTIME_ERROR(
+        SQLiteError(connection_, "Failed to prepare FTS5 API lookup", code));
+  }
+
+  fts5_api* api = nullptr;
+  code = sqlite3_bind_pointer(statement, 1, &api, "fts5_api_ptr", nullptr);
+  if (code == SQLITE_OK) {
+    code = sqlite3_step(statement);
+    if (code == SQLITE_ROW || code == SQLITE_DONE) {
+      code = SQLITE_OK;
+    }
+  }
+  const auto finalize_code = sqlite3_finalize(statement);
+  if (code == SQLITE_OK && finalize_code != SQLITE_OK) {
+    code = finalize_code;
+  }
+  if (code != SQLITE_OK || api == nullptr) {
+    THROW_RUNTIME_ERROR(
+        SQLiteError(connection_, "Failed to obtain FTS5 API", code));
+  }
+  return api;
+}
+
 }  // namespace neug::fts_ext
