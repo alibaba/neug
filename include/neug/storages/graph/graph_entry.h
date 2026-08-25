@@ -52,7 +52,7 @@ struct ProjectedGraphEntry {
   static result<ProjectedGraphEntry> FromYaml(const YAML::Node& node);
 };
 
-class GraphEntrySet {
+class NEUG_API GraphEntrySet {
  public:
   bool HasEntry(const std::string& name) const;
   result<const ProjectedGraphEntry*> GetEntry(const std::string& name) const;

@@ -26,6 +26,7 @@ from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
 
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_NOT_SUPPORTED
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 
 logger = logging.getLogger(__name__)
@@ -271,6 +272,44 @@ def test_query_syntax_error(tmp_path):
     assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "RETURN 1 AS value UNION RETURN 2 AS value",
+        "WITH 1 AS seed "
+        "CALL (seed) { RETURN 1 AS value UNION RETURN 2 AS value } "
+        "RETURN value",
+    ],
+)
+def test_union_without_all_is_not_supported(empty_db, query):
+    _, conn = empty_db
+
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(query, access_mode="read")
+
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "UNION without ALL is not supported" in message
+
+
+def test_union_all_remains_supported(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE Person(" "id STRING, name STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute("CREATE (p:Person {id:'p1', name:'Alice'});", access_mode="update")
+    conn.execute("CREATE (p:Person {id:'p2', name:'Bob'});", access_mode="update")
+
+    result = conn.execute(
+        "MATCH (a:Person) RETURN a.name " "UNION ALL " "MATCH (b:Person) RETURN b.name",
+        access_mode="read",
+    )
+
+    assert len(result) == 4
+    assert len(result.column_names()) == 1
 
 
 def test_result(modern_graph):
