@@ -76,7 +76,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
-| `jieba_dict` | Path to a Jieba dictionary; valid only when `tokenizer = 'jieba'` | Built-in small dictionary |
+| `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 | `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
 
@@ -112,7 +112,8 @@ WITH (
 );
 ```
 
-The custom dictionary replaces the built-in small dictionary. Its path must
+The user dictionary supplements the built-in small dictionary. It may contain
+one word per line, following cppjieba's user-dictionary format. Its path must
 remain available when the index is reopened.
 
 The `detail` option affects the query forms available to users:

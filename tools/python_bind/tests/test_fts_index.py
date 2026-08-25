@@ -20,7 +20,6 @@ import os
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -485,11 +484,9 @@ def test_jieba_tokenizer_modes_segment_chinese(
         db.close()
 
 
-def test_jieba_dict_compares_builtin_and_full_dictionary(tmp_path):
-    full_dict = (
-        Path(__file__).resolve().parents[3]
-        / "third_party/cppjieba/dict/jieba.dict.utf8"
-    )
+def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
+    user_dict = tmp_path / "user.dict.utf8"
+    user_dict.write_text("万圣节\n", encoding="utf-8")
 
     db = Database(db_path=str(tmp_path / "jieba_builtin_dict_fts_db"), mode="w")
     connection = db.connect()
@@ -507,7 +504,7 @@ def test_jieba_dict_compares_builtin_and_full_dictionary(tmp_path):
         connection.close()
         db.close()
 
-    db = Database(db_path=str(tmp_path / "jieba_full_dict_fts_db"), mode="w")
+    db = Database(db_path=str(tmp_path / "jieba_user_dict_fts_db"), mode="w")
     connection = db.connect()
     try:
         load_fts(connection, skip_if_unavailable=True)
@@ -516,7 +513,7 @@ def test_jieba_dict_compares_builtin_and_full_dictionary(tmp_path):
         connection.execute(
             "CREATE INDEX item_text_fts ON Item USING FTS (text) "
             "WITH (tokenizer = 'jieba', jieba_mode = 'mp', "
-            f"jieba_dict = '{full_dict}');"
+            f"jieba_dict = '{user_dict}');"
         )
         # Text: 万圣节 / 后 / 举行 / 派对; query: 万圣节.
         assert [row[0] for row in search(connection, "万圣节")] == [1]

@@ -154,18 +154,21 @@ void ValidateJiebaDictPath(const std::filesystem::path& path) {
   }
 }
 
-std::string ResolveJiebaDictPath(const JiebaDictFile& dict,
-                                 std::string dict_path = "") {
-  if (dict_path.empty()) {
-    const auto path = ResolveJiebaDictDirectory() / dict.filename;
-    std::error_code error;
-    if (!std::filesystem::is_regular_file(path, error) || error) {
-      ExtractJiebaDict(path, dict);
-    }
-    dict_path = path.string();
+std::string ResolveJiebaDictPath(const JiebaDictFile& dict) {
+  const auto path = ResolveJiebaDictDirectory() / dict.filename;
+  std::error_code error;
+  if (!std::filesystem::is_regular_file(path, error) || error) {
+    ExtractJiebaDict(path, dict);
   }
-  ValidateJiebaDictPath(dict_path);
-  return dict_path;
+  ValidateJiebaDictPath(path);
+  return path.string();
+}
+
+std::string ResolveJiebaUserDictPath(std::string path) {
+  if (!path.empty()) {
+    ValidateJiebaDictPath(path);
+  }
+  return path;
 }
 
 JiebaMode ParseJiebaMode(const std::optional<std::string>& mode) {
@@ -223,7 +226,8 @@ int BuiltinFTSTokenizer::Tokenize(void*, const char*, int, int,
 
 JiebaFTSTokenizer::JiebaFTSTokenizer(JiebaMode mode, std::string jieba_dict)
     : mode_(mode),
-      dict_trie_(ResolveJiebaDictPath(kJiebaDict, std::move(jieba_dict))),
+      dict_trie_(ResolveJiebaDictPath(kJiebaDict),
+                 ResolveJiebaUserDictPath(std::move(jieba_dict))),
       hmm_model_(ResolveJiebaDictPath(kJiebaHmmModel)),
       mp_segment_(&dict_trie_),
       hmm_segment_(&hmm_model_),

@@ -299,22 +299,32 @@ TEST(JiebaFTSTokenizerTest, SupportsMpHmmAndMixModes) {
   }
 }
 
-TEST(JiebaFTSTokenizerTest, LoadsCustomDict) {
+TEST(JiebaFTSTokenizerTest, AddsCustomDictToBuiltInDict) {
   TemporaryDatabaseDirectory directory;
   std::filesystem::create_directories(directory.path());
   const auto dict_path = directory.path() / "user.dict.utf8";
-  std::ofstream(dict_path) << "棉花糖星球 100 n\n占位词 1 n\n";
+  std::ofstream(dict_path) << "棉花糖星球\n";
 
   auto tokenizer = FTSTokenizer::Create({{"tokenizer", "jieba"},
                                          {"jieba_mode", "mp"},
                                          {"jieba_dict", dict_path.string()}});
-  const std::string input = "棉花糖星球";
-  std::vector<CollectedToken> tokens;
-  ASSERT_EQ(tokenizer->Tokenize(&tokens, input.data(), input.size(),
+  const std::string custom_word = "棉花糖星球";
+  std::vector<CollectedToken> custom_tokens;
+  ASSERT_EQ(tokenizer->Tokenize(&custom_tokens, custom_word.data(),
+                                custom_word.size(), FTS5_TOKENIZE_DOCUMENT,
+                                CollectToken),
+            SQLITE_OK);
+  ASSERT_EQ(custom_tokens.size(), 1u);
+  EXPECT_EQ(custom_tokens.front().text, custom_word);
+
+  const std::string built_in_word = "网易";
+  std::vector<CollectedToken> built_in_tokens;
+  ASSERT_EQ(tokenizer->Tokenize(&built_in_tokens, built_in_word.data(),
+                                built_in_word.size(),
                                 FTS5_TOKENIZE_DOCUMENT, CollectToken),
             SQLITE_OK);
-  ASSERT_EQ(tokens.size(), 1u);
-  EXPECT_EQ(tokens.front().text, input);
+  ASSERT_EQ(built_in_tokens.size(), 1u);
+  EXPECT_EQ(built_in_tokens.front().text, built_in_word);
 }
 
 TEST(JiebaFTSTokenizerTest, RejectsInvalidCustomDictPath) {
