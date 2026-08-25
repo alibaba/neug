@@ -61,19 +61,24 @@ TEST(IndexMetaTest, PreservesDetailedPropertyType) {
   meta.name = "array_index";
   meta.type = "example";
   meta.schema.label_id = 7;
-  meta.schema.property_name = "embedding";
-  meta.schema.property_type = DataType::Array(DataType::FLOAT, 3);
+  meta.schema.columns.push_back(
+      {"embedding", DataType::Array(DataType::FLOAT, 3)});
 
   auto json = meta.ToJsonString();
   rapidjson::Document document;
   document.Parse(json.c_str());
   ASSERT_TRUE(document.HasMember("schema"));
-  EXPECT_FALSE(document["schema"].HasMember("property_type"));
-  ASSERT_TRUE(document["schema"].HasMember("property_type_detail"));
-  EXPECT_TRUE(document["schema"]["property_type_detail"].IsString());
+  ASSERT_TRUE(document["schema"].HasMember("columns"));
+  ASSERT_EQ(document["schema"]["columns"].Size(), 1);
+  const auto& column = document["schema"]["columns"][0];
+  EXPECT_FALSE(column.HasMember("property_type"));
+  ASSERT_TRUE(column.HasMember("property_type_detail"));
+  EXPECT_TRUE(column["property_type_detail"].IsString());
 
   auto restored = IndexMeta::FromJsonString(json);
-  EXPECT_EQ(restored.schema.property_type, meta.schema.property_type);
+  ASSERT_EQ(restored.schema.columns.size(), 1);
+  EXPECT_EQ(restored.schema.columns[0].property_type,
+            meta.schema.columns[0].property_type);
 }
 
 TEST(IndexMetaTest, RejectsInvalidJson) {
@@ -295,8 +300,7 @@ class APIndexTest : public ::testing::Test {
     meta->name = name;
     meta->type = "example";
     meta->schema.label_id = label;
-    meta->schema.property_name = property_name;
-    meta->schema.property_type = property_type;
+    meta->schema.columns.push_back({property_name, property_type});
     GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
     return std::get<StorageIndex*>(created);
   }
@@ -307,7 +311,7 @@ class APIndexTest : public ::testing::Test {
 
   std::vector<StorageIndex*> GetIndexes(
       label_t label, const std::string& property_name) const {
-    auto indexes = graph_->index_manager().GetIndex(label, property_name);
+    auto indexes = graph_->index_manager().GetIndex(label, {property_name});
     EXPECT_TRUE(indexes) << indexes.error().ToString();
     if (!indexes) {
       return {};
@@ -352,8 +356,8 @@ class APIndexTest : public ::testing::Test {
     meta->name = name;
     meta->type = "hnsw";
     meta->schema.label_id = label;
-    meta->schema.property_name = "embedding";
-    meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
+    meta->schema.columns.push_back(
+        {"embedding", DataType::Array(DataType::FLOAT, 2)});
     GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
     return std::get<StorageIndex*>(created);
   }
@@ -593,7 +597,9 @@ TEST_F(APIndexTest, DropDeletesAndRenamePreservesBoundIndex) {
   auto renamed_indexes = GetIndexes(person_label, "years");
   ASSERT_EQ(renamed_indexes.size(), 1);
   EXPECT_EQ(renamed_indexes.front()->GetMeta().name, "idx_person_score");
-  EXPECT_EQ(renamed_indexes.front()->GetMeta().schema.property_name, "years");
+  ASSERT_EQ(renamed_indexes.front()->GetMeta().schema.columns.size(), 1);
+  EXPECT_EQ(renamed_indexes.front()->GetMeta().schema.columns[0].property_name,
+            "years");
 }
 
 TEST_F(APIndexTest, InsertDeleteAndUpdateMaintainIndex) {
