@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
 #include <rapidjson/document.h>
@@ -28,6 +27,7 @@
 #include "neug/common/types/value.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/storages/index/index_id_accessor.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -36,11 +36,6 @@ namespace neug {
 
 class ColumnBase;
 class VertexSet;
-class StorageIndex;
-struct PendingIndex;
-
-using CreatedIndex = std::variant<StorageIndex*, PendingIndex*>;
-
 // --- Index metadata types ---
 
 struct IndexBindSchema {

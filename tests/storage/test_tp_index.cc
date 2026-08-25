@@ -410,7 +410,8 @@ TEST_F(TPIndexTest, CreateAndDropIndexCommitThroughUpdateTransaction) {
     StorageTPUpdateInterface tp(txn);
     auto created = tp.CreateIndex(PersonAgeIndexMeta(tp));
     ASSERT_TRUE(created) << created.error().ToString();
-    EXPECT_NE(created.value(), nullptr);
+    ASSERT_TRUE(std::holds_alternative<PendingIndex*>(created.value()));
+    EXPECT_NE(std::get<PendingIndex*>(created.value()), nullptr);
     Commit(txn);
   }
   EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
@@ -454,6 +455,29 @@ TEST_F(TPIndexTest, AbortedCreateAndDropIndexDoNotAffectSnapshot) {
   EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
 }
 
+TEST_F(TPIndexTest, ActivateIndexesWithoutPendingIndexIsNoOp) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+
+  SnapshotGuard before(*snapshot_store_);
+  const auto* before_slot = &before.get();
+  const auto snapshot_generation = before.get().snapshot_generation();
+  const auto planning_generation = before.get().planning_generation();
+
+  auto txn = NewUpdateTransaction();
+  StorageTPUpdateInterface tp(txn);
+  auto activated = tp.ActivateIndexes();
+  ASSERT_TRUE(activated) << activated.error().ToString();
+  EXPECT_EQ(activated.value(), 0u);
+  Commit(txn);
+
+  EXPECT_TRUE(wal_writer_.records.empty());
+  SnapshotGuard after(*snapshot_store_);
+  EXPECT_EQ(&after.get(), before_slot);
+  EXPECT_EQ(after.get().snapshot_generation(), snapshot_generation);
+  EXPECT_EQ(after.get().planning_generation(), planning_generation);
+}
+
 TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
   CreatePersonTableTP();
   auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
@@ -468,7 +492,9 @@ TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
   {
     auto txn = NewUpdateTransaction();
     StorageTPUpdateInterface tp(txn);
-    ASSERT_TRUE(tp.ActivateIndexes().has_value());
+    auto activated = tp.ActivateIndexes();
+    ASSERT_TRUE(activated);
+    EXPECT_EQ(activated.value(), 0u);
     Commit(txn);
   }
   {

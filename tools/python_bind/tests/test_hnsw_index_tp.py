@@ -37,10 +37,15 @@ pytestmark = pytest.mark.skipif(
 
 
 def _run_cold_process(script, *args):
+    env = os.environ.copy()
+    tests_dir = os.path.dirname(__file__)
+    env["PYTHONPATH"] = os.pathsep.join(
+        path for path in (tests_dir, env.get("PYTHONPATH")) if path
+    )
     subprocess.run(
         [sys.executable, "-c", textwrap.dedent(script), *map(str, args)],
         check=True,
-        env=os.environ.copy(),
+        env=env,
     )
 
 
@@ -84,10 +89,12 @@ def test_hnsw_create_index_wal_cold_restart(tmp_path, unused_tcp_port):
         # Database construction replays WAL before this fresh process has
         # loaded vector_search.
         db = Database(sys.argv[1], mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("LOAD vector_search;")
+        conn.close()
         endpoint = db.serve(int(sys.argv[2]), "localhost", False)
         wait_for_server_ready(endpoint)
         session = Session.open(endpoint, timeout="10s")
-        session.execute("LOAD vector_search;")
         rows = list(session.execute("CALL SHOW_INDEXES() RETURN name;"))
         assert rows == [["item_embedding_hnsw"]], rows
         result = session.execute(

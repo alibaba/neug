@@ -24,7 +24,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/storages/index/storage_index.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
