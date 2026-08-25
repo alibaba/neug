@@ -106,7 +106,8 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
       if (!value.IsNull() && property_types[col_id] != value.type()) {
         THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
       }
-      graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
+      RETURN_STATUS_ERROR_IF_NOT_OK(
+          graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value));
     }
   }
   return chunk;

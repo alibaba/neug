@@ -708,6 +708,23 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   }
 }
 
+TEST_F(VertexTableTest, BatchInsertExactFitKeepsGrowthHeadroom) {
+  neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
+  auto ckp = make_checkpoint(Workspace());
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
+  table.EnsureCapacity(4096);
+
+  auto data_chunks = generate_data_chunks(4096);
+  auto batch_supplier =
+      std::make_shared<GeneratedChunkSupplier>(std::move(data_chunks));
+  auto new_vids = table.insert_vertices(std::move(batch_supplier));
+
+  EXPECT_EQ(table.LidNum(), 4096);
+  EXPECT_EQ(table.Capacity(), 4096 + 4096 / 4);
+  EXPECT_EQ(new_vids.size(), 4096);
+  EXPECT_GE(new_vids.capacity(), 4096);
+}
+
 TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
   auto ckp = make_checkpoint(Workspace());
   neug::VertexTimestamp vts;
@@ -737,6 +754,37 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
   EXPECT_EQ(vts.ValidVertexNum(0, 100), 96);
   EXPECT_EQ(vts.ValidVertexNum(1, 0), 0);
   EXPECT_EQ(vts.ValidVertexNum(1, 50), 48);
+  EXPECT_FALSE(vts.IsVertexValid(vts.Capacity(), neug::MAX_TIMESTAMP));
+}
+
+TEST_F(VertexTableTest, VertexTimestampReinsertsCompactedVertices) {
+  auto ckp = make_checkpoint(Workspace());
+  neug::VertexTimestamp vts;
+  vts.Open(*ckp, neug::ModuleDescriptor(), memory_level_);
+  vts.Init(0, 6);
+  vts.InsertVertex(0, 0);
+  vts.InsertVertex(1, 0);
+  vts.Compact();
+  ASSERT_EQ(vts.InitVertexNum(), 2);
+
+  // COPY reuses a deleted primary key with timestamp zero after a checkpoint.
+  vts.RemoveVertex(0);
+  vts.InsertVertex(0, 0);
+  EXPECT_TRUE(vts.IsVertexValid(0, 0));
+  EXPECT_FALSE(vts.IsRemoved(0));
+
+  // Ordinary COW writes use a nonzero timestamp. Preserve later timestamp
+  // entries while expanding the compacted prefix to represent this reinsert.
+  vts.RemoveVertex(0);
+  vts.InsertVertex(2, 3);
+  vts.InsertVertex(0, 4);
+  EXPECT_EQ(vts.InitVertexNum(), 0);
+  EXPECT_FALSE(vts.IsVertexValid(0, 3));
+  EXPECT_TRUE(vts.IsVertexValid(0, 4));
+  EXPECT_TRUE(vts.IsVertexValid(1, 0));
+  EXPECT_TRUE(vts.IsVertexValid(2, 3));
+  EXPECT_EQ(vts.ValidVertexNum(3, 3), 2);
+  EXPECT_EQ(vts.ValidVertexNum(4, 3), 3);
 }
 
 TEST_F(VertexTableTest, VertexSetForeachVertex) {

@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "neug/storages/graph/cow_detach_state.h"
 #include "neug/storages/graph/graph_view.h"
@@ -57,6 +58,26 @@ class CowGraphWorkspace {
   WalBuilder& logical_redo() { return logical_redo_; }
   const WalBuilder& logical_redo() const { return logical_redo_; }
   void MarkBulkMutation() noexcept { bulk_mutation_changed_ = true; }
+  // Persistent vertex COPY finalizes timestamp-zero rows immediately before
+  // the private graph is consumed by its checkpoint. Keep the target set
+  // transaction-local so unrelated dirty vertex tables are not compacted.
+  void MarkBulkVertexTableForCheckpoint(label_t vertex_label);
+  const std::vector<label_t>& bulk_vertex_tables_for_checkpoint() const {
+    return bulk_vertex_tables_for_checkpoint_;
+  }
+  // Persistent edge COPY finalizes configured neighbor ordering immediately
+  // before its checkpoint is consumed. Keep the target set transaction-local
+  // so unrelated dirty edge tables are not compacted.
+  void MarkBulkEdgeTableForCheckpoint(uint32_t edge_triplet_id);
+  const std::vector<uint32_t>& bulk_edge_tables_for_checkpoint() const {
+    return bulk_edge_tables_for_checkpoint_;
+  }
+  // Finalize persistent COPY targets recorded in this workspace: compact the
+  // timestamp-zero tail of bulk-loaded vertex tables and restore configured
+  // neighbor ordering on bulk-loaded edge tables. CommitCowWrite invokes this
+  // immediately before the checkpoint consumes the private graph, while
+  // ordinary rollback is still safe.
+  void FinalizeBulkTablesForCheckpoint();
   bool HasBulkMutation() const noexcept { return bulk_mutation_changed_; }
   void MarkTransientMutation() noexcept { transient_mutation_changed_ = true; }
   bool HasTransientMutation() const noexcept {
@@ -79,6 +100,8 @@ class CowGraphWorkspace {
   WalBuilder logical_redo_;
   bool bulk_mutation_changed_{false};
   bool transient_mutation_changed_{false};
+  std::vector<label_t> bulk_vertex_tables_for_checkpoint_;
+  std::vector<uint32_t> bulk_edge_tables_for_checkpoint_;
 };
 
 }  // namespace neug

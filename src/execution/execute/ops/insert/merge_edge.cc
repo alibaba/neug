@@ -85,7 +85,7 @@ merge_pattern_and_on_create(
 
 void apply_on_match_edge_impl(
     StorageUpdateInterface& graph, DataChunk& chunk, size_t row,
-    const IEdgeColumn& edge_col,
+    IEdgeColumn& edge_col,
     const std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>&
         on_match) {
   for (const auto& [prop_name, expression] : on_match) {
@@ -120,9 +120,23 @@ void apply_on_match_edge_impl(
     }
     auto offset_pair =
         record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
-    graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
-                             offset_pair.first, offset_pair.second, col_id,
-                             value);
+    auto update_status = graph.UpdateEdgeProperty(
+        src_label, er.src, dst_label, er.dst, label_id, offset_pair.first,
+        offset_pair.second, col_id, value);
+    if (!update_status.ok()) {
+      THROW_RUNTIME_ERROR(update_status.ToString());
+    }
+    if (graph.schema()
+            .get_edge_schema(src_label, dst_label, label_id)
+            ->is_bundled()) {
+      auto updated_oe_view =
+          graph.GetGenericOutgoingGraphView(src_label, dst_label, label_id);
+      auto updated_ie_view =
+          graph.GetGenericIncomingGraphView(dst_label, src_label, label_id);
+      edge_col.set_edge_data_ptr(
+          row, get_edge_data_ptr_for_record(updated_oe_view, updated_ie_view,
+                                            er, offset_pair));
+    }
   }
 }
 
@@ -290,6 +304,7 @@ class MergeEdgeOpr : public IOperator {
               matched = true;
               apply_on_match_edge_impl(graph, chunk.chunk(), row, *ec,
                                        on_match_binded);
+              er = ec->get_edge(row);
               builder.push_back_opt(er.src, er.dst, er.prop);
             }
           }

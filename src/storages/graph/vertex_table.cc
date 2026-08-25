@@ -59,6 +59,8 @@ std::vector<vid_t> VertexTable::insert_vertices(
   if (row_nums < 0) {
     VLOG(1) << "Row number from supplier is unknown, skip pre-reserve.";
     row_nums = 0;
+  } else if (row_nums > 0) {
+    new_vids.reserve(static_cast<size_t>(row_nums));
   }
   size_t new_size = indexer_->size() + row_nums;
   if (new_size > indexer_->capacity()) {
@@ -116,6 +118,13 @@ std::vector<vid_t> VertexTable::insert_vertices(
     }
     VLOG(10) << "Inserted " << chunk_rows
              << " vertices, current vertex num: " << VertexNum();
+  }
+  // Keep the same post-load headroom as a full checkpoint when the batch
+  // exactly fills the current allocation. The pre-reserve checks above use
+  // `>` so an exact fit can be consumed safely before growing here.
+  if (indexer_->size() == indexer_->capacity()) {
+    const size_t capacity = indexer_->capacity();
+    EnsureCapacity(capacity < 4096 ? 4096 : capacity + capacity / 4);
   }
   return new_vids;
 }

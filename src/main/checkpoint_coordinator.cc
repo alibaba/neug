@@ -149,6 +149,13 @@ Status CheckpointCoordinator::CommitCowWrite(
       return preflight;
     }
 
+    // Finalize only persistent COPY targets before checkpoint consumption,
+    // while ordinary rollback remains safe. Vertex COPY has a timestamp-zero
+    // tail; edge COPY needs compaction only when it has a neighbor sort key.
+    // Keeping the target sets transaction-local avoids compacting unrelated
+    // dirty tables inherited by the private COW graph.
+    workspace.FinalizeBulkTablesForCheckpoint();
+
     // This is intentionally not the in-place checkpoint path in execute().
     // `graph` belongs exclusively to this COW transaction, so it can be
     // reopened before publication without changing the live snapshot. Only
@@ -175,8 +182,11 @@ Status CheckpointCoordinator::CommitCowWrite(
     const uint32_t snapshot_generation =
         transaction.guard_.Snapshot().snapshot_generation();
     workspace.Reset();
-    cleanup_retired_checkpoints(checkpoint_manager_);
     transaction.guard_.release(snapshot_generation);
+    // GC scans and fsyncs checkpoint directories. It is best-effort and does
+    // not participate in the durable decision, so do not keep AP admission
+    // exclusive while it runs.
+    cleanup_retired_checkpoints(checkpoint_manager_);
     return Status::OK();
   } catch (const exception::IOException& e) {
     if (consuming_checkpoint_started) {

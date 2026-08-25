@@ -253,6 +253,11 @@ def test_set_edge_property(tmp_path):
         " WHERE u0.name = 'Alice' AND u1.name = 'Josh' SET f.since = 1999 RETURN f.since;"
     )
     assert result.__next__()[0] == 1999
+    result = conn.execute(
+        "MATCH (u0:person)<-[f:follows]-(u1:person)"
+        " WHERE u0.name = 'Josh' AND u1.name = 'Alice' SET f.since = 2000 RETURN f.since;"
+    )
+    assert result.__next__()[0] == 2000
     # case 2: valid update with multiple label relationship
     result = conn.execute(
         "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.since = 1999 RETURN f.since;"

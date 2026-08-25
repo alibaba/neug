@@ -750,6 +750,102 @@ TEST_F(APIndexTest, BatchAddVerticesMaintainsIndexAndSkipsDuplicatePk) {
   EXPECT_EQ(SearchPersonNames(40), (std::vector<std::string>{"Diana"}));
 }
 
+TEST_F(APIndexTest, BatchLoadFinalizesVertexTimestampAndEdgeOrder) {
+  CreateItemTable();
+  const auto item = graph_->schema().get_vertex_label_id("Item");
+  auto vertices = ap_->BatchAddVertices(
+      item, MakeItemSupplier({{1, 10}, {2, 20}, {3, 30}}));
+  ASSERT_TRUE(vertices) << vertices.error().ToString();
+
+  CreateEdgeTypeParamBuilder edge_builder;
+  auto create_edge =
+      ap_->CreateEdgeType(edge_builder.SrcLabel("Item")
+                              .DstLabel("Item")
+                              .EdgeLabel("weighted")
+                              .AddProperty("weight", Value::INT32(0))
+                              .SortKeyForNbr("weight")
+                              .Build());
+  ASSERT_TRUE(create_edge.ok()) << create_edge.ToString();
+  const auto weighted = graph_->schema().get_edge_label_id("weighted");
+
+  auto edges = std::make_shared<DataChunk>();
+  edges->set(0, MakeValueColumn(std::vector<int32_t>{1, 1}));
+  edges->set(1, MakeValueColumn(std::vector<int32_t>{2, 3}));
+  edges->set(2, MakeValueColumn(std::vector<int32_t>{20, 10}));
+  auto add_edges = ap_->BatchAddEdges(
+      item, item, weighted,
+      std::make_shared<VectorChunkSupplier>(
+          std::vector<std::shared_ptr<DataChunk>>{std::move(edges)}));
+  ASSERT_TRUE(add_edges.ok()) << add_edges.ToString();
+
+  CreateEdgeTypeParamBuilder plain_edge_builder;
+  create_edge = ap_->CreateEdgeType(plain_edge_builder.SrcLabel("Item")
+                                        .DstLabel("Item")
+                                        .EdgeLabel("plain")
+                                        .Build());
+  ASSERT_TRUE(create_edge.ok()) << create_edge.ToString();
+  const auto plain = graph_->schema().get_edge_label_id("plain");
+
+  vid_t source = 0;
+  vid_t second = 0;
+  ASSERT_TRUE(ap_->GetVertexIndex(item, Value::INT32(1), source));
+  ASSERT_TRUE(ap_->GetVertexIndex(item, Value::INT32(2), second));
+
+  CowGraphStorage dml(*workspace_, 0, 7, allocator_);
+  const void* property = nullptr;
+  ASSERT_TRUE(
+      dml.AddEdge(item, source, item, second, plain, {}, property).ok());
+
+  auto plain_edges = std::make_shared<DataChunk>();
+  plain_edges->set(0, MakeValueColumn(std::vector<int32_t>{1}));
+  plain_edges->set(1, MakeValueColumn(std::vector<int32_t>{3}));
+  add_edges = ap_->BatchAddEdges(
+      item, item, plain,
+      std::make_shared<VectorChunkSupplier>(
+          std::vector<std::shared_ptr<DataChunk>>{std::move(plain_edges)}));
+  ASSERT_TRUE(add_edges.ok()) << add_edges.ToString();
+
+  const auto plain_edge_count = [&](timestamp_t timestamp) {
+    const auto& edge_table = graph_->get_edge_table(item, item, plain);
+    auto outgoing = edge_table.get_outgoing_view(timestamp).get_edges(source);
+    size_t count = 0;
+    for (auto it = outgoing.begin(); it != outgoing.end(); ++it) {
+      ++count;
+    }
+    return count;
+  };
+
+  const auto expect_finalized = [&] {
+    const auto& vertex_table = graph_->get_vertex_table(item);
+    EXPECT_EQ(vertex_table.get_vertex_timestamp().InitVertexNum(),
+              vertex_table.LidNum());
+
+    const auto& edge_table = graph_->get_edge_table(item, item, weighted);
+    auto edge_data = edge_table.get_edge_data_accessor("weight");
+    auto outgoing =
+        edge_table.get_outgoing_view(MAX_TIMESTAMP).get_edges(source);
+    std::vector<int32_t> weights;
+    for (auto it = outgoing.begin(); it != outgoing.end(); ++it) {
+      weights.push_back(edge_data.get_typed_data<int32_t>(it));
+    }
+    EXPECT_EQ(weights, (std::vector<int32_t>{10, 20}));
+    EXPECT_EQ(plain_edge_count(0), 2);
+  };
+
+  // Commit-time finalization has not run yet: the batch loader leaves a
+  // timestamp-zero tail on the vertex table.
+  EXPECT_EQ(
+      graph_->get_vertex_table(item).get_vertex_timestamp().InitVertexNum(), 0);
+  EXPECT_EQ(plain_edge_count(0), 1);
+
+  // CommitCowWrite finalizes the recorded COPY targets right before the
+  // checkpoint consumes the private graph; drive the same code path here.
+  workspace_->FinalizeBulkTablesForCheckpoint();
+  expect_finalized();
+  CheckpointDirtyAndReopen();
+  expect_finalized();
+}
+
 TEST_F(APIndexTest, PartialBatchFailureIsDiscardedWithPrivateWorkspace) {
   CreateItemTable();
   ResetStorageAdapter();

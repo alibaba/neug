@@ -1262,7 +1262,9 @@ result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
   if (graph_.schema().is_vertex_label_temporary(v_label_id)) {
     workspace_.MarkTransientMutation();
   } else {
-    workspace_.MarkBulkMutation();
+    // Persistent COPY finalizes this detached target immediately before the
+    // checkpoint consumes the private graph.
+    workspace_.MarkBulkVertexTableForCheckpoint(v_label_id);
   }
   return new_vids;
 }
@@ -1279,7 +1281,7 @@ Status BulkCowGraphStorage::BatchAddEdgesImpl(
                                                 edge_label)) {
     workspace_.MarkTransientMutation();
   } else {
-    workspace_.MarkBulkMutation();
+    workspace_.MarkBulkEdgeTableForCheckpoint(edge_triplet_id);
   }
   return Status::OK();
 }
