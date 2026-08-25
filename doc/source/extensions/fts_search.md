@@ -99,6 +99,13 @@ The Jieba tokenizer supports three modes:
 - `mix` combines dictionary segmentation with HMM recognition. This is the
   default Jieba mode.
 
+The built-in dictionary contains about 110,000 entries and is generated from
+cppjieba's `test/testdata/extra_dict/jieba.dict.small.utf8`, compared with about
+350,000 entries in cppjieba's full dictionary. The smaller dictionary may omit
+common or domain-specific terms and reduce search recall. If the built-in
+segmentation does not recognize terms important to your application, configure
+`jieba_dict` with a user dictionary containing those additional terms.
+
 For example:
 
 ```cypher
