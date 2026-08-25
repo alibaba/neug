@@ -32,83 +32,21 @@ bool ContainsAffectedLabel(const IEdgeColumn& column,
   return false;
 }
 
-template <typename Builder, typename AppendRecord>
-std::shared_ptr<IContextColumn> BuildEdgeColumn(
-    const IEdgeColumn& original, const std::vector<EdgeRecord>& records,
-    Builder& builder, AppendRecord append_record) {
-  builder.reserve(records.size());
-  for (size_t row = 0; row < records.size(); ++row) {
-    if (original.has_value(row)) {
-      append_record(builder, records[row]);
-    } else {
-      builder.push_back_null();
-    }
-  }
-  return builder.finish();
-}
-
 std::shared_ptr<IContextColumn> RebuildEdgeColumn(
     const IEdgeColumn& original, const std::vector<EdgeRecord>& records) {
   assert(original.size() == records.size());
-  switch (original.edge_column_type()) {
-  case EdgeColumnType::kSDSL: {
-    SDSLEdgeColumnBuilder builder(original.dir(),
-                                  original.get_labels().front());
-    return BuildEdgeColumn(
-        original, records, builder, [](auto& output, const auto& record) {
-          output.push_back_opt(record.src, record.dst, record.prop);
-        });
-  }
-  case EdgeColumnType::kMS: {
-    MSEdgeColumnBuilder builder;
-    builder.reserve(records.size());
-    bool started = false;
-    LabelTriplet previous_label;
-    Direction previous_direction = Direction::kOut;
-    for (size_t i = 0; i < records.size(); ++i) {
-      auto source = original.get_edge(i);
-      if (!started || source.label != previous_label ||
-          source.dir != previous_direction) {
-        builder.start_label_dir(source.label, source.dir);
-        previous_label = source.label;
-        previous_direction = source.dir;
-        started = true;
-      }
-      if (original.has_value(i)) {
-        builder.push_back_opt(records[i].src, records[i].dst, records[i].prop);
-      } else {
-        builder.push_back_null();
-      }
+  BDMLEdgeColumnBuilder builder(original.get_labels());
+  builder.reserve(records.size());
+  for (size_t row = 0; row < records.size(); ++row) {
+    if (!original.has_value(row)) {
+      builder.push_back_null();
+      continue;
     }
-    return builder.finish();
+    const auto& record = records[row];
+    builder.push_back_opt(record.label, record.src, record.dst, record.prop,
+                          record.dir);
   }
-  case EdgeColumnType::kBDSL: {
-    BDSLEdgeColumnBuilder builder(original.get_labels().front());
-    return BuildEdgeColumn(
-        original, records, builder, [](auto& output, const auto& record) {
-          output.push_back_opt(record.src, record.dst, record.prop, record.dir);
-        });
-  }
-  case EdgeColumnType::kSDML: {
-    SDMLEdgeColumnBuilder builder(original.dir(), original.get_labels());
-    return BuildEdgeColumn(original, records, builder,
-                           [](auto& output, const auto& record) {
-                             output.push_back_opt(record.label, record.src,
-                                                  record.dst, record.prop);
-                           });
-  }
-  case EdgeColumnType::kBDML: {
-    BDMLEdgeColumnBuilder builder(original.get_labels());
-    return BuildEdgeColumn(
-        original, records, builder, [](auto& output, const auto& record) {
-          output.push_back_opt(record.label, record.src, record.dst,
-                               record.prop, record.dir);
-        });
-  }
-  case EdgeColumnType::kUnKnown:
-    LOG(FATAL) << "Cannot rebuild unknown edge column";
-  }
-  return nullptr;
+  return builder.finish();
 }
 
 }  // namespace
