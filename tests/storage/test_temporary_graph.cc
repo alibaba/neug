@@ -147,22 +147,22 @@ class SchemaSerializationTest : public ::testing::Test {
   Schema schema_;
 
   void SetUp() override {
-    schema_.AddVertexLabel("Person", {DataTypeId::kVarchar}, {"name"},
-                           {std::make_tuple(DataTypeId::kInt64, "id", 0)}, 4096,
-                           "");
-
     schema_.AddVertexLabel("TempUser", {DataTypeId::kVarchar}, {"username"},
                            {std::make_tuple(DataTypeId::kInt64, "uid", 0)},
                            1024, "", {}, true);
 
-    schema_.AddEdgeLabel("Person", "Person", "Knows", {DataTypeId::kDouble},
-                         {"weight"}, EdgeStrategy::kMultiple,
-                         EdgeStrategy::kMultiple, true, true, std::nullopt, "");
+    schema_.AddVertexLabel("Person", {DataTypeId::kVarchar}, {"name"},
+                           {std::make_tuple(DataTypeId::kInt64, "id", 0)}, 4096,
+                           "");
 
     schema_.AddEdgeLabel("TempUser", "Person", "TempFollows",
                          {DataTypeId::kInt64}, {"since"},
                          EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                          true, std::nullopt, "", {}, true);
+
+    schema_.AddEdgeLabel("Person", "Person", "Knows", {DataTypeId::kDouble},
+                         {"weight"}, EdgeStrategy::kMultiple,
+                         EdgeStrategy::kMultiple, true, true, std::nullopt, "");
   }
 
   bool yaml_has_vertex_type(const YAML::Node& yaml, const std::string& name) {
@@ -200,7 +200,8 @@ TEST_F(SchemaSerializationTest, ToYamlIncludesTemporaryLabels) {
 TEST_F(SchemaSerializationTest, DumpToYamlExcludesTemporaryLabels) {
   // DumpToYaml is a raw serializer; caller must StripTemporary() first
   // to exclude temporary labels from the output.
-  auto yaml_res = Schema::DumpToYaml(schema_.StripTemporary());
+  auto stripped = schema_.StripTemporary();
+  auto yaml_res = Schema::DumpToYaml(stripped);
   ASSERT_TRUE(yaml_res);
   auto yaml = yaml_res.value();
 
@@ -208,6 +209,18 @@ TEST_F(SchemaSerializationTest, DumpToYamlExcludesTemporaryLabels) {
   EXPECT_FALSE(yaml_has_vertex_type(yaml, "TempUser"));
   EXPECT_TRUE(yaml_has_edge_type(yaml, "Knows"));
   EXPECT_FALSE(yaml_has_edge_type(yaml, "TempFollows"));
+
+  const auto person = stripped.get_vertex_label_id("Person");
+  const auto knows = stripped.get_edge_label_id("Knows");
+  EXPECT_EQ(person, 0);
+  EXPECT_EQ(knows, 0);
+  EXPECT_EQ(stripped.get_vertex_schema(person)->label_id, person);
+  const auto edge_schema = stripped.get_edge_schema(person, person, knows);
+  EXPECT_EQ(edge_schema->src_label_id, person);
+  EXPECT_EQ(edge_schema->dst_label_id, person);
+  EXPECT_EQ(edge_schema->edge_label_id, knows);
+  EXPECT_EQ(edge_schema->entry_id,
+            stripped.generate_edge_label(person, person, knows));
 }
 
 // Verifies the binary Schema::Serialize path does not propagate the

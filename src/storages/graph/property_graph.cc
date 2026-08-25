@@ -1106,7 +1106,9 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
   // and must not appear in the checkpoint. StripTemporary() creates a clean
   // copy without any temporary vertex/edge labels.
-  meta.SetSchema(schema_.StripTemporary());
+  auto checkpoint_schema = schema_.StripTemporary();
+  index_manager_->RemapCheckpointIndexLabels(meta, schema_, checkpoint_schema);
+  meta.SetSchema(std::move(checkpoint_schema));
   ckp->SetManifest(std::move(meta));
   LOG(INFO) << "Dump graph to checkpoint " << ckp->manifest_path();
 
@@ -1205,7 +1207,11 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   index_manager_->StageIncrementalModules(modules_to_dump, meta);
 
   modules_to_dump.Dump(*ckp, meta);
-  meta.SetSchema(schema_.StripTemporary());
+  auto index_reopen_manifest =
+      index_manager_->BuildIncrementalReopenManifest(meta);
+  auto checkpoint_schema = schema_.StripTemporary();
+  index_manager_->RemapCheckpointIndexLabels(meta, schema_, checkpoint_schema);
+  meta.SetSchema(std::move(checkpoint_schema));
   ckp->SetManifest(std::move(meta));
 
   CheckpointManifest reopen_manifest;
@@ -1225,7 +1231,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
         EdgeTable::OpenFrom(ckp, schema_.get_edge_schema(src, dst, edge),
                             reopened_modules, ckp->manifest(), memory_level_);
   }
-  index_manager_->InstallIncrementalCheckpoint(ckp);
+  index_manager_->InstallIncrementalCheckpoint(ckp, index_reopen_manifest);
 
   uncompacted_modules_.MergeFrom(dirty_);
   for (auto& table : vertex_tables_) {

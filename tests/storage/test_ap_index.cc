@@ -93,6 +93,7 @@ TEST(IndexMetaTest, PreservesDetailedPropertyType) {
   meta.name = "array_index";
   meta.type = "example";
   meta.schema.label_id = 7;
+  meta.schema.label_name = "Array";
   meta.schema.property_name = "embedding";
   meta.schema.property_type = DataType::Array(DataType::FLOAT, 3);
 
@@ -105,6 +106,7 @@ TEST(IndexMetaTest, PreservesDetailedPropertyType) {
   EXPECT_TRUE(document["schema"]["property_type_detail"].IsString());
 
   auto restored = IndexMeta::FromJsonString(json);
+  EXPECT_EQ(restored.schema.label_name, meta.schema.label_name);
   EXPECT_EQ(restored.schema.property_type, meta.schema.property_type);
 }
 
@@ -944,6 +946,34 @@ TEST_F(APIndexTest, IndexPersistsAfterCheckpointReopen) {
             (std::vector<std::string>{"Alice", "Charlie"}));
   EXPECT_EQ(SearchPersonNames(25), (std::vector<std::string>{"Bob", "Eve"}));
   EXPECT_EQ(SearchPersonNames(40), (std::vector<std::string>{"Diana"}));
+}
+
+TEST_F(APIndexTest, CheckpointRemapsIndexAfterTemporaryLabelIsStripped) {
+  CreateVertexTypeParamBuilder builder;
+  const auto status =
+      ap_->CreateVertexType(builder.VertexLabel("Temporary")
+                                .AddProperty("id", Value::INT64(0))
+                                .AddPrimaryKeyName("id")
+                                .Temporary(true)
+                                .Build());
+  ASSERT_TRUE(status.ok()) << status.ToString();
+  CreatePersonTable();
+  AddPerson(1, "Alice", 30);
+  ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
+
+  ASSERT_EQ(graph_->schema().get_vertex_label_id("Person"), 1);
+  auto first_staging = checkpoint_mgr_.CreateStaging();
+  ASSERT_TRUE(graph_->DumpDirtyAndReopen(first_staging.checkpoint(), 1));
+  first_staging.Publish();
+  EXPECT_EQ(SearchPersonNames(30), (std::vector<std::string>{"Alice"}));
+  auto second_staging = checkpoint_mgr_.CreateStaging();
+  EXPECT_FALSE(graph_->DumpDirtyAndReopen(second_staging.checkpoint(), 1));
+  second_staging.Publish();
+  view_->Rebuild(*graph_);
+  ReopenGraph();
+
+  EXPECT_EQ(graph_->schema().get_vertex_label_id("Person"), 0);
+  EXPECT_EQ(SearchPersonNames(30), (std::vector<std::string>{"Alice"}));
 }
 
 TEST_F(APIndexTest, IncrementalCheckpointRewritesOnlyMutatedIndex) {

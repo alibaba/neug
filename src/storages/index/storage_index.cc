@@ -89,6 +89,11 @@ rapidjson::Value IndexBindSchema::ToJson(
     rapidjson::Document::AllocatorType& alloc) const {
   rapidjson::Value obj(rapidjson::kObjectType);
   obj.AddMember("label_id", label_id, alloc);
+  obj.AddMember("label_name",
+                rapidjson::Value(
+                    label_name.c_str(),
+                    static_cast<rapidjson::SizeType>(label_name.size()), alloc),
+                alloc);
 
   obj.AddMember(
       "property_name",
@@ -112,6 +117,9 @@ IndexBindSchema IndexBindSchema::FromJson(const rapidjson::Value& obj) {
   IndexBindSchema schema;
   if (obj.HasMember("label_id") && obj["label_id"].IsUint()) {
     schema.label_id = obj["label_id"].GetUint();
+  }
+  if (obj.HasMember("label_name") && obj["label_name"].IsString()) {
+    schema.label_name = obj["label_name"].GetString();
   }
   if (obj.HasMember("property_name") && obj["property_name"].IsString()) {
     schema.property_name = obj["property_name"].GetString();

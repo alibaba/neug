@@ -2651,7 +2651,8 @@ Schema Schema::StripTemporary() const {
   stripped.id_ = id_;
   stripped.description_ = description_;
 
-  // Copy non-temporary vertex labels, preserving original label IDs.
+  // Compact non-temporary labels and update the IDs embedded in their schema
+  // records to match the new label indexer slots.
   for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
     if (vlabel_tomb_.get(v_label)) {
       continue;
@@ -2668,8 +2669,9 @@ Schema Schema::StripTemporary() const {
     if (stripped.v_schemas_.size() <= new_label) {
       stripped.v_schemas_.resize(new_label + 1);
     }
-    stripped.v_schemas_[new_label] =
-        std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+    auto vertex_schema = std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+    vertex_schema->label_id = new_label;
+    stripped.v_schemas_[new_label] = std::move(vertex_schema);
   }
 
   // Copy non-temporary edge labels in original label ID order.
@@ -2735,7 +2737,12 @@ Schema Schema::StripTemporary() const {
     }
     auto new_index = stripped.generate_edge_label(new_src, new_dst, new_e);
     max_e_triplet_index = std::max(max_e_triplet_index, new_index);
-    stripped.e_schemas_[new_index] = std::make_shared<EdgeSchema>(*es);
+    auto edge_schema = std::make_shared<EdgeSchema>(*es);
+    edge_schema->entry_id = new_index;
+    edge_schema->src_label_id = new_src;
+    edge_schema->dst_label_id = new_dst;
+    edge_schema->edge_label_id = new_e;
+    stripped.e_schemas_[new_index] = std::move(edge_schema);
   }
 
   stripped.vlabel_tomb_.resize(stripped.v_schemas_.size());

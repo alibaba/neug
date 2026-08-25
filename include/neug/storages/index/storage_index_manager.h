@@ -31,6 +31,7 @@
 namespace neug {
 
 class PropertyGraph;
+class Schema;
 
 struct PendingIndex {
   std::string key;
@@ -146,9 +147,15 @@ class StorageIndexManager {
  private:
   friend class PropertyGraph;
 
+  void RemapCheckpointIndexLabels(CheckpointManifest& manifest,
+                                  const Schema& source_schema,
+                                  const Schema& checkpoint_schema) const;
+  CheckpointManifest BuildIncrementalReopenManifest(
+      const CheckpointManifest& runtime_manifest) const;
   void StageIncrementalModules(ModuleBroker& store, CheckpointManifest& meta);
   Status ValidateCheckpointPreconditions() const;
-  void InstallIncrementalCheckpoint(std::shared_ptr<Checkpoint> ckp);
+  void InstallIncrementalCheckpoint(std::shared_ptr<Checkpoint> ckp,
+                                    const CheckpointManifest& reopen_manifest);
   bool HasCatalogChanges() const { return catalog_dirty_; }
   bool HasCheckpointChanges() const {
     return catalog_dirty_ || !dirty_index_names_.empty();

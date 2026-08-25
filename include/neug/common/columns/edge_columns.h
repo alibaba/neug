@@ -35,10 +35,6 @@ class IEdgeColumn : public IContextColumn {
 
   virtual EdgeRecord get_edge(size_t idx) const = 0;
 
-  // COW may relocate bundled edge payloads while preserving the edge column's
-  // topology. Refresh the pointer retained by this execution-context row.
-  virtual void set_edge_data_ptr(size_t idx, const void* data) = 0;
-
   inline Value get_elem(size_t idx) const override {
     if (is_optional() && !has_value(idx)) {
       return Value(DataType(DataTypeId::kEdge));
@@ -74,10 +70,6 @@ class SDSLEdgeColumn : public IEdgeColumn {
     ret.dst = std::get<1>(edges_[idx]);
     ret.prop = std::get<2>(edges_[idx]);
     return ret;
-  }
-
-  void set_edge_data_ptr(size_t idx, const void* data) override {
-    std::get<2>(edges_[idx]) = data;
   }
 
   inline size_t size() const override { return edges_.size(); }
@@ -191,17 +183,6 @@ class MSEdgeColumn : public IEdgeColumn {
       idx -= seg.size();
     }
     return EdgeRecord();
-  }
-
-  void set_edge_data_ptr(size_t idx, const void* data) override {
-    for (auto& segment : edges_) {
-      auto& edges = std::get<2>(segment);
-      if (idx < edges.size()) {
-        std::get<2>(edges[idx]) = data;
-        return;
-      }
-      idx -= edges.size();
-    }
   }
 
   inline size_t size() const override { return total_size_; }
@@ -376,10 +357,6 @@ class BDSLEdgeColumn : public IEdgeColumn {
     return ret;
   }
 
-  void set_edge_data_ptr(size_t idx, const void* data) override {
-    std::get<2>(edges_[idx]) = data;
-  }
-
   inline size_t size() const override { return edges_.size(); }
 
   bool generate_dedup_offset(sel_vec_t& offsets) const override {
@@ -492,10 +469,6 @@ class SDMLEdgeColumn : public IEdgeColumn {
     ret.dst = std::get<2>(e);
     ret.prop = std::get<3>(e);
     return ret;
-  }
-
-  void set_edge_data_ptr(size_t idx, const void* data) override {
-    std::get<3>(edges_[idx]) = data;
   }
 
   inline size_t size() const override { return edges_.size(); }
@@ -626,10 +599,6 @@ class BDMLEdgeColumn : public IEdgeColumn {
     ret.dst = std::get<2>(e);
     ret.prop = std::get<3>(e);
     return ret;
-  }
-
-  void set_edge_data_ptr(size_t idx, const void* data) override {
-    std::get<3>(edges_[idx]) = data;
   }
 
   inline size_t size() const override { return edges_.size(); }

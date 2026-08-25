@@ -119,6 +119,7 @@ def test_create_edge_return_edge_property(tmp_path):
     )
     conn.execute("CREATE (a:person {id: 1});")
     conn.execute("CREATE (b:person {id: 2});")
+    conn.execute("CREATE (c:person {id: 3});")
 
     result = conn.execute(
         "MATCH (a:person {id: 1}), (b:person {id: 2}) "
@@ -128,6 +129,14 @@ def test_create_edge_return_edge_property(tmp_path):
 
     records = list(result)
     assert records == [[2024]], f"Expected [[2024]], got {records}"
+
+    # CREATE can relocate bundled CSR storage. The prior MATCH edge is repeated
+    # across the three b rows and must still read its original property.
+    result = conn.execute(
+        "MATCH (a:person)-[f:knows]->(), (b:person) WHERE a.id = 1 "
+        "CREATE (a)-[:knows {since: 2000}]->(b) RETURN f.since;"
+    )
+    assert list(result) == [[2024]] * 3
 
     conn.close()
     db.close()
@@ -270,6 +279,25 @@ def test_set_edge_property(tmp_path):
             "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.noprop = 1999 RETURN f.noprop;"
         )
     assert "Cannot find property noprop" in str(excinfo.value)
+
+    # A join may repeat the same physical bundled edge in several rows. Two
+    # parallel edges also require stable property bytes to resolve each CSR
+    # offset. Refreshing the whole edge column after SET covers both cases.
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.name = 'Alice' AND "
+        "b.name = 'Josh' CREATE (a)-[:follows {since: 2013}]->(b);"
+    )
+    result = conn.execute(
+        "MATCH (a:person)-[f:follows]->(b:person), (copy:person) "
+        "WHERE a.name = 'Alice' AND b.name = 'Josh' "
+        "SET f.since = 1999 RETURN f.since;"
+    )
+    assert sorted(row[0] for row in result) == [1999] * 6
+    result = conn.execute(
+        "MATCH (:person {name: 'Alice'})-[f:follows]->(:person {name: 'Josh'}) "
+        "RETURN f.since;"
+    )
+    assert sorted(row[0] for row in result) == [1999, 1999]
     conn.close()
     db.close()
 
