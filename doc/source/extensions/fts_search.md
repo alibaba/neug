@@ -80,6 +80,8 @@ The `WITH` clause accepts the following case-sensitive option names:
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 | `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
 
+### Tokenizers
+
 Supported tokenizers are:
 
 - `unicode61` splits text according to Unicode 6.1 rules. This is the default.
@@ -99,12 +101,21 @@ The Jieba tokenizer supports three modes:
 - `mix` combines dictionary segmentation with HMM recognition. This is the
   default Jieba mode.
 
-The built-in dictionary contains about 110,000 entries and is generated from
-cppjieba's `test/testdata/extra_dict/jieba.dict.small.utf8`, compared with about
-350,000 entries in cppjieba's full dictionary. The smaller dictionary may omit
-common or domain-specific terms and reduce search recall. If the built-in
-segmentation does not recognize terms important to your application, configure
-`jieba_dict` with a user dictionary containing those additional terms.
+Chinese word segmentation uses a dictionary to recognize words and produce
+more accurate semantic boundaries. A dictionary must be a text file whose
+contents are UTF-8 encoded, including when the file is read in binary mode. Its
+entries use the following format:
+
+```text
+word frequency part-of-speech
+```
+
+NeuG includes a small dictionary containing about 110,000 entries, generated
+from cppjieba's `test/testdata/extra_dict/jieba.dict.small.utf8`. The smaller
+dictionary may omit common or domain-specific terms and reduce search recall.
+To improve segmentation, configure `jieba_dict` with additional terms, such as
+those from cppjieba's full dictionary at `dict/jieba.dict.utf8` (about 350,000
+entries) or from another compatible dictionary.
 
 For example:
 
@@ -119,11 +130,19 @@ WITH (
 );
 ```
 
-The user dictionary supplements the built-in small dictionary. It may contain
-one word per line, following cppjieba's user-dictionary format. Its path must
-remain available when the index is reopened. Relative paths are resolved
-against the process working directory when the index is created and persisted
-as absolute paths.
+The dictionary specified by `jieba_dict` is added to the built-in small
+dictionary; it supplements rather than replaces the built-in entries. Following
+cppjieba's user-dictionary format, each line may contain only a word or may also
+include its frequency and part of speech. The dictionary path must remain
+available when the index is reopened. Relative paths are resolved against the
+process working directory when the index is created and persisted as absolute
+paths.
+
+For more details about dictionary formats and usage, see the
+[cppjieba README](https://github.com/yanyiwu/cppjieba/blob/master/README.md) and
+the [jieba README](https://github.com/fxsjy/jieba/blob/master/README.md).
+
+### Match Details
 
 The `detail` option affects the query forms available to users:
 
