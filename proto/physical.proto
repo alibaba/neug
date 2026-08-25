@@ -433,13 +433,8 @@ message ExecutionFlag {
   bool create_temp_table = 6; // create temporary table
   bool checkpoint = 7;
   bool procedure_call = 8;
-  // todo: add a new flag for gds_algo ?
-  // True when the plan contains index DDL (CREATE INDEX / DROP INDEX). AP
-  // direct execution prepares these mutations in a private bulk COW graph and
-  // publishes them with a checkpoint.
-  bool index = 9;
   // True only for COPY FROM. `batch` also covers COPY TO and LOAD.
-  bool copy_from = 10;
+  bool copy_from = 9;
 }
 
 // A single Cypher query ending with a semicolon (;)

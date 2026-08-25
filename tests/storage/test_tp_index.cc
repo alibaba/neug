@@ -212,7 +212,8 @@ class TPIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = "embedding";
     meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
-    return ap_->CreateIndex(std::move(meta));
+    GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
+    return std::get<StorageIndex*>(created);
   }
 
   void CreatePersonTableTP() {
@@ -263,15 +264,31 @@ class TPIndexTest : public ::testing::Test {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "Property column does not exist: " + property_name);
     }
-    return graph.mutable_index_manager().CreateIndex(
+    auto created = graph.mutable_index_manager().CreateIndex(
         std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
         graph.GetVertexSet(label));
+    if (!created) {
+      return tl::unexpected(created.error());
+    }
+    return std::get<StorageIndex*>(created.value());
   }
 
   result<StorageIndex*> CreateIndex(const std::string& name,
                                     const std::string& label_name,
                                     const std::string& property_name) {
     return CreateIndexOnGraph(*graph_, name, label_name, property_name);
+  }
+
+  std::unique_ptr<IndexMeta> PersonAgeIndexMeta(
+      const StorageReadInterface& storage,
+      const std::string& name = "idx_person_age") {
+    auto meta = std::make_unique<IndexMeta>();
+    meta->name = name;
+    meta->type = "example";
+    meta->schema.label_id = storage.schema().get_vertex_label_id("Person");
+    meta->schema.property_name = "age";
+    meta->schema.property_type = DataType::INT32;
+    return meta;
   }
 
   result<StorageIndex*> CreateIndexOnCurrentSnapshot(
@@ -381,16 +398,59 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
 }
 
-TEST_F(TPIndexTest, IndexAdminInterfaceRejectsPrivateCowMode) {
-  // AP direct bulk storage exposes index DDL; TP/private transactions receive
-  // only CowGraphStorage and cannot reach the capability.
+TEST_F(TPIndexTest, IndexAdminInterfaceIsAvailableInAPAndTP) {
   EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
 
   CreatePersonTableTP();
   auto txn = NewSnapshotCowWriteTransaction();
   auto tp = txn.OpenStorage();
   auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&tp);
-  EXPECT_EQ(index_ddl, nullptr);
+  EXPECT_NE(index_ddl, nullptr);
+  txn.Abort();
+}
+
+TEST_F(TPIndexTest, CreateAndDropIndexCommitThroughCowTransaction) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+  auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto created = tp.CreateIndex(PersonAgeIndexMeta(tp));
+    ASSERT_TRUE(created) << created.error().ToString();
+    ASSERT_TRUE(std::holds_alternative<StorageIndex*>(created.value()));
+    Commit(txn);
+  }
+  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
+  ASSERT_EQ(wal_writer_.records.size(), 1);
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    Commit(txn);
+  }
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+  ASSERT_EQ(wal_writer_.records.size(), 2);
+
+  for (const auto& wal : wal_writer_.records) {
+    ASSERT_GT(wal.size(), sizeof(WalHeader));
+    const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
+    ReplayCowGraphWal(*replay_graph, header->timestamp,
+                      const_cast<char*>(wal.data() + sizeof(WalHeader)),
+                      header->length, allocator_);
+  }
+  EXPECT_FALSE(replay_graph->index_manager().GetIndexByName("idx_person_age"));
+}
+
+TEST_F(TPIndexTest, AbortedIndexDDLDoesNotAffectCurrentSnapshot) {
+  CreatePersonTableTP();
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
+  ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+  txn.Abort();
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {

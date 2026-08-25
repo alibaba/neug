@@ -8,13 +8,14 @@ For ordinary queries, the transactional `ExecutionSlot` strategy uses
 `ReadTransaction`, `InsertTransaction`, and `SnapshotCowWriteTransaction`. The
 direct strategy uses `ReadSnapshotLease` for reads and
 `CurrentCowWriteTransaction` with `CowGraphStorage` for ordinary writes.
-AP-direct COPY and index DDL use `BulkCowGraphStorage` over the same private
-`CowGraphWorkspace`, but commit through a statement-level checkpoint instead
-of logical WAL. The ordinary storage type does not expose index DDL and rejects
-batch insertion, which keeps bulk-only capabilities out of TP and explicit
-transactions. `COPY TEMP` uses the same private bulk storage but commits through
-the `ExecutionSlot`-only transient path: it atomically replaces the in-memory
-current graph without writing WAL or publishing a checkpoint.
+Index DDL is supported by `CowGraphStorage` in both AP and TP and commits
+through logical WAL. AP-direct COPY uses `BulkCowGraphStorage` over the same
+private `CowGraphWorkspace` and commits through a statement-level checkpoint.
+The ordinary storage type rejects batch insertion, keeping COPY-only
+capabilities out of TP and explicit transactions. `COPY TEMP` uses the same
+private bulk storage but commits through the `ExecutionSlot`-only transient
+path: it atomically replaces the in-memory current graph without writing WAL
+or publishing a checkpoint.
 `CompactTransaction` and `CheckpointCoordinator` implement maintenance paths.
 
 These objects use RAII: terminal operations disarm their resources, and
@@ -92,10 +93,11 @@ the commit validation instead of partially persisting either side.
 
 `CurrentCowWriteTransaction::OpenBulkStorage()` returns
 `BulkCowGraphStorage`, a thin capability extension of `CowGraphStorage` for
-COPY/batch insert and index create/drop/activation. Both types mutate only a
-private shallow clone. Bulk operations detach their target table, CSR, column,
-and affected indexes once before consuming input; they continue to use the
-native batch loader instead of per-row DML or per-row WAL.
+COPY/batch insert. Both types mutate only a private shallow clone. Bulk
+operations detach their target table, CSR, column, and affected indexes once
+before consuming input; they continue to use the native batch loader instead
+of per-row DML or per-row WAL. Index create/drop/activation is handled by
+`CowGraphStorage` and commits through logical WAL in AP and TP.
 When COPY infers a persistent schema, that schema creation belongs to the same
 checkpoint-only bulk workspace and therefore does not conflict with the
 empty-logical-redo requirement of `CommitCowWrite()`.

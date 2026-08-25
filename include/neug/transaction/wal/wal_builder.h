@@ -65,6 +65,9 @@ class WalBuilder {
   void LogDeleteEdgeType(const std::string& src_type,
                          const std::string& dst_type,
                          const std::string& edge_type);
+  void LogCreateIndex(const IndexMeta& meta);
+  void LogDropIndex(const std::string& name);
+  void LogActivateIndexes();
   void LogAddGraphEntry(const std::string& name,
                         const ProjectedGraphEntry& entry);
   void LogDropGraphEntry(const std::string& name);

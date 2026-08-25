@@ -283,21 +283,28 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     return load_result.error();
   }
   if (execution_strategy_ == QueryExecutionStrategy::kDirect) {
-    auto transaction = CurrentCowWriteTransaction::Begin(
+    auto txn = CurrentCowWriteTransaction::Begin(
         CurrentGraphWriteGuard::Acquire(version_manager_, snapshot_store_),
         alloc_, snapshot_store_, *wal_writer_);
-    auto storage = transaction.OpenBulkStorage();
-    auto activation_status = storage.ActivateIndexes();
-    if (activation_status.ok()) {
-      activation_status = checkpoint_coordinator_.CommitCowWrite(transaction);
-    } else {
-      transaction.Abort();
+    auto storage = txn.OpenStorage();
+    auto activated = storage.ActivateIndexes();
+    if (!activated) {
+      txn.Abort();
+      return activated.error();
     }
-    RETURN_IF_NOT_OK(activation_status);
+    RETURN_IF_NOT_OK(txn.Commit());
   } else {
-    LOG(WARNING) << "[Admin] TP storage does not support extension index "
-                    "activation yet; skipping pending index activation for "
-                 << load_result->canonical_name;
+    auto txn = BeginSnapshotCowWriteTransaction();
+    auto storage = txn.OpenStorage();
+    auto activated = storage.ActivateIndexes();
+    if (!activated) {
+      txn.Abort();
+      return activated.error();
+    }
+    if (!txn.Commit()) {
+      return Status(StatusCode::ERR_WAL_WRITE_FAIL,
+                    "Failed to commit extension index activation");
+    }
   }
   response.set_row_count(0);
   return Status::OK();
@@ -307,10 +314,9 @@ Status ExecutionSlot::validatePlan(AccessMode mode,
                                    const physical::ExecutionFlag& flags,
                                    bool is_explain) const {
   if (execution_strategy_ == QueryExecutionStrategy::kTransactional &&
-      (flags.batch() || flags.copy_from() || flags.index() ||
-       flags.create_temp_table())) {
+      (flags.batch() || flags.copy_from() || flags.create_temp_table())) {
     return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "COPY, batch, index, and temporary table operations are not "
+                  "COPY, batch, and temporary table operations are not "
                   "supported for TP service.");
   }
   // EXPLAIN never executes the plan; access-mode restrictions don't apply.
@@ -332,14 +338,6 @@ Status ExecutionSlot::validatePlan(AccessMode mode,
                       ? "Database is in read-only mode; write operations are "
                         "not allowed."
                       : "Write queries are not supported in read-only mode");
-  }
-  // Index operators require the full update storage interface. Both execution
-  // modes provide it only for kSchema and kUpdate statements.
-  if (flags.index() && mode != AccessMode::kUpdate &&
-      mode != AccessMode::kSchema) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Index operations are only supported in update or schema "
-                  "mode.");
   }
   return Status::OK();
 }
@@ -448,7 +446,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
       }
       prepared_query = std::move(classification).value();
       const auto& flags = prepared_query->flags;
-      if (flags.copy_from() || flags.index()) {
+      if (flags.copy_from()) {
         auto transaction = CurrentCowWriteTransaction::Begin(
             std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenBulkStorage();

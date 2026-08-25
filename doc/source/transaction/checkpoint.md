@@ -2,12 +2,13 @@
 
 A checkpoint creates a durable snapshot of the current database state. AP
 direct and TP ordinary writes both append logical WAL; successful persistent
-AP-direct COPY/batch insert and index DDL instead publish a statement-level
-checkpoint without row-level WAL. `COPY TEMP` is an in-memory private-COW
+AP-direct COPY/batch insert instead publish a statement-level checkpoint
+without row-level WAL. Index DDL follows ordinary AP/TP logical-WAL commit.
+`COPY TEMP` is an in-memory private-COW
 commit and produces neither WAL nor a checkpoint. A checkpoint therefore has
 two roles:
 
-| Question | Ordinary DML/DDL | AP-direct bulk/index |
+| Question | Ordinary DML/DDL, including index DDL | AP-direct COPY/batch insert |
 |---|---|---|
 | Is an explicit `CHECKPOINT` required for durability? | No; a committed write is already durable in WAL | No; the statement returns success only after its checkpoint is published |
 | What is it for? | Optional maintenance that bounds WAL replay | Statement commit and atomic publication |
@@ -124,7 +125,7 @@ The old directories are not changed before the new `CURRENT` is durably publishe
 
 A manual `CHECKPOINT` first takes exclusive checkpoint maintenance control and waits for in-flight work to finish (see [Concurrency](#concurrency)). It preserves the existing full-checkpoint behavior: compact the live graph, destructively dump it, publish a complete manifest, and reopen the graph and allocators. Only dirty graph and index modules need new immutable objects; clean module descriptors may continue to reference existing objects. The manifest and its WAL epoch are made durable before `CURRENT` is atomically replaced.
 
-AP-direct COPY/batch insert and index DDL use a narrower private-COW protocol.
+AP-direct COPY/batch insert use a narrower private-COW protocol.
 The statement prepares all changes in a cloned graph, performs the existing
 consuming dirty-module dump/reopen only on that clone, then publishes the
 staging manifest and replaces the current graph atomically. It does not compact
@@ -200,7 +201,7 @@ underlying cause (e.g., disk space, permissions) and retry.
 
 ### AP-direct bulk load failure
 
-COPY/batch insert and index DDL are atomic at statement scope. Their mutations
+COPY/batch insert are atomic at statement scope. Their mutations
 remain in a private COW graph until the staging checkpoint is ready. Supplier,
 index maintenance, preflight, or staging failures discard that graph; the
 published current graph, checkpoint ID, and WAL epoch remain unchanged. There

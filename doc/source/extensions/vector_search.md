@@ -2,6 +2,9 @@
 
 Since NeuG v0.2.0, NeuG provides vector search capabilities through the dedicated `vector_search` extension.
 
+For syntax and guarantees shared by all index types, including inspection,
+transactions, and recovery, see [Storage Indexes](../storage_index/index.md).
+
 The vector search extension enables efficient similarity search over graph data by combining vector storage, distance computation, and HNSW-based approximate nearest neighbor (ANN) indexing.
 
 The major features include:
@@ -32,13 +35,6 @@ The major features include:
     - Bulk index construction
     - Incremental index updates
   - When data is imported or updated, the corresponding HNSW index is automatically updated.
-
-- **Transactional and Recoverable Index Management**
-  - HNSW indexes follow NeuG's ACID consistency model, so committed vector
-    changes and their index updates remain consistent and become visible
-    together.
-  - Index data participates in checkpointing and recovery, allowing NeuG to
-    restore persisted indexes together with graph data after a failure.
 
 ---
 
@@ -195,9 +191,9 @@ COPY vector_node FROM (
 
 ## Create HNSW Index
 
-NeuG supports approximate nearest neighbor search through HNSW indexes. You can
-create an HNSW index on a vector property with the unified `CREATE INDEX`
-syntax.
+NeuG supports approximate nearest neighbor search through HNSW indexes. The
+following example specializes the common [CREATE INDEX](../storage_index/index.md#create-an-index)
+syntax for a vector property.
 
 Example:
 
@@ -241,46 +237,10 @@ Therefore, users can choose either workflow:
 - Workflow 2: Create Index First, Continuously Write Data
 
 
-## Drop HNSW Index
-
-Indexes can be explicitly removed by their unique index names. An HNSW index is
-also removed implicitly when its vector property or the node type containing
-that property is dropped.
-
-Example:
-
-```cypher
-DROP INDEX vec_hnsw_index IF EXISTS;
-```
-
-## Show HNSW Index
-
-Use `SHOW_INDEXES()` to inspect existing indexes.
-
-```cypher
-// Show all indexes
-CALL SHOW_INDEXES() RETURN *;
-```
-
-For the index created above, the result contains the following entry:
-
-| name | type | label | property | options | state |
-| ---- | ---- | ----- | -------- | ------- | ----- |
-| `vec_hnsw_index` | `HNSW` | `vector_node` | `vec` | `{"ef_construction":"200","m":"16","metric":"ip"}` | `active` |
-
-The `state` column describes whether an index is currently available:
-
-- `active`: The index implementation is loaded, the index is bound to its
-  property column, and the index is available for queries and online
-  maintenance.
-- `pending`: NeuG restored the index metadata from a checkpoint, but the
-  extension that provides the index implementation has not been loaded yet.
-  A pending index is not available for querying. For an HNSW index, run
-  `LOAD vector_search;` to load the extension and activate the index.
-
-`pending` does not mean that NeuG is building the index in the background. It
-represents a persisted index waiting for its extension module to become
-available.
+To remove or inspect the index, use the common [DROP
+INDEX](../storage_index/index.md#drop-an-index) and [SHOW_INDEXES](../storage_index/index.md#inspect-indexes)
+operations. Dropping the vector property or its node table also removes its
+HNSW index.
 
 ---
 

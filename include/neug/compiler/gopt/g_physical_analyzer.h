@@ -50,7 +50,6 @@ struct ExecutionFlag {
   bool create_temp_table = false;
   bool checkpoint = false;
   bool procedure_call = false;
-  bool index = false;
   bool copy_from = false;
 };
 
@@ -277,7 +276,6 @@ class GPhysicalAnalyzer {
     case planner::LogicalOperatorType::CREATE_INDEX:
     case planner::LogicalOperatorType::DROP_INDEX: {
       flag.schema = true;
-      flag.index = true;
       break;
     }
     case planner::LogicalOperatorType::TABLE_FUNCTION_CALL: {

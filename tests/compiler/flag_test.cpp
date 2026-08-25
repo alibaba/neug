@@ -213,7 +213,6 @@ TEST_F(FlagTest, CreateIndex) {
   GPhysicalAnalyzer analyzer(getMetadataManager());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.schema);
-  EXPECT_TRUE(flag.index);
   EXPECT_FALSE(flag.copy_from);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);

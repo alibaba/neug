@@ -34,7 +34,8 @@ namespace neug {
  * caller supplies visibility timestamps and the owning transaction supplies
  * admission and durability.
  */
-class CowGraphStorage : public StorageUpdateInterface {
+class CowGraphStorage : public StorageUpdateInterface,
+                        public StorageIndexDDLInterface {
  public:
   CowGraphStorage(CowGraphWorkspace& workspace, timestamp_t read_timestamp,
                   timestamp_t write_timestamp, Allocator& alloc)
@@ -52,6 +53,9 @@ class CowGraphStorage : public StorageUpdateInterface {
   Status AddGraphEntry(const std::string& name,
                        const ProjectedGraphEntry& entry) override;
   Status DropGraphEntry(const std::string& name) override;
+  result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
+  result<size_t> ActivateIndexes() override;
 
  private:
   void MarkVertexTableDirty(label_t label) override {
@@ -152,20 +156,15 @@ class CowGraphStorage : public StorageUpdateInterface {
 };
 
 /**
- * @brief Private-COW storage for COPY and index shadow-build operations.
+ * @brief Private-COW storage for COPY operations.
  *
  * Successful mutations exposed by this type must be committed through
  * CheckpointCoordinator::CommitCowWrite(). This object does not perform
  * the checkpoint itself.
  */
-class BulkCowGraphStorage final : public CowGraphStorage,
-                                  public StorageIndexDDLInterface {
+class BulkCowGraphStorage final : public CowGraphStorage {
  public:
   using CowGraphStorage::CowGraphStorage;
-
-  result<StorageIndex*> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
-  Status ActivateIndexes() override;
 
  private:
   Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;

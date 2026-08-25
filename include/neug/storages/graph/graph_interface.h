@@ -24,6 +24,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -920,11 +921,10 @@ class StorageUpdateInterface : public StorageReadInterface,
 /**
  * @brief Admin interface for storage index DDL (create/drop).
  *
- * Index management is implemented only by BulkCowGraphStorage. It builds and
- * validates indexes in a private COW graph, which is published through a
- * checkpoint commit. CowGraphStorage intentionally does not expose this
- * capability, so TP and explicit transactions reject index DDL before storage
- * mutation. The execution layer obtains this interface via dynamic_cast from
+ * CowGraphStorage implements this capability for AP and TP write
+ * transactions. Index changes are committed through the transaction's
+ * logical WAL; COPY remains a separate bulk/checkpoint-only path. The
+ * execution layer obtains this interface via dynamic_cast from
  * IStorageInterface; a null result means the current storage mode does not
  * support index management.
  *
@@ -943,14 +943,27 @@ class StorageIndexDDLInterface {
   virtual ~StorageIndexDDLInterface() {}
 
   /** Activate index modules deferred until their extension was loaded. */
-  virtual Status ActivateIndexes() = 0;
+  virtual result<size_t> ActivateIndexes() = 0;
 
   /** @brief Create, bind, and populate an index. */
-  virtual result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) = 0;
 
   /** @brief Drop an index by its unique name. */
   virtual Status DropIndex(const std::string& name) = 0;
 };
+
+using IndexPlanningChangedCallback = std::function<void()>;
+
+result<CreatedIndex> CreateStorageIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    std::unique_ptr<IndexMeta> meta,
+    IndexPlanningChangedCallback on_planning_changed = {},
+    bool required = true);
+Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
+                        const std::string& name,
+                        IndexPlanningChangedCallback on_planning_changed = {});
+result<size_t> ActivateStorageIndexes(
+    PropertyGraph& graph, GraphView& view,
+    IndexPlanningChangedCallback on_planning_changed = {});
 
 }  // namespace neug

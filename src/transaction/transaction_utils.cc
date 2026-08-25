@@ -24,6 +24,8 @@
 
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/cow_detach_state.h"
+#include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/index/storage_index.h"
@@ -447,6 +449,28 @@ void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
           graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
+    } else if (op_type == OpType::kCreateIndex) {
+      auto meta =
+          std::make_unique<IndexMeta>(CreateIndexRedo::Deserialize(arc));
+      GraphView view(graph);
+      auto ret = CreateStorageIndex(graph, view, timestamp, std::move(meta), {},
+                                    false);
+      if (!ret) {
+        THROW_STORAGE_EXCEPTION("Failed to create index in redo: " +
+                                ret.error().ToString());
+      }
+    } else if (op_type == OpType::kDropIndex) {
+      auto name = DropIndexRedo::Deserialize(arc);
+      GraphView view(graph);
+      auto ret = DropStorageIndex(graph, view, name);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to drop index in redo: ", ret);
+    } else if (op_type == OpType::kActivateIndexes) {
+      GraphView view(graph);
+      auto ret = ActivateStorageIndexes(graph, view);
+      if (!ret) {
+        THROW_STORAGE_EXCEPTION("Failed to activate indexes in redo: " +
+                                ret.error().ToString());
+      }
     } else if (op_type == OpType::kAddGraphEntry) {
       auto redo = AddGraphEntryRedo::Deserialize(arc);
       auto ret = graph.mutable_schema().AddGraphEntry(redo.name, redo.entry);
