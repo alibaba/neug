@@ -410,8 +410,8 @@ TEST_F(TPIndexTest, CreateAndDropIndexCommitThroughUpdateTransaction) {
     StorageTPUpdateInterface tp(txn);
     auto created = tp.CreateIndex(PersonAgeIndexMeta(tp));
     ASSERT_TRUE(created) << created.error().ToString();
-    ASSERT_TRUE(std::holds_alternative<PendingIndex*>(created.value()));
-    EXPECT_NE(std::get<PendingIndex*>(created.value()), nullptr);
+    ASSERT_TRUE(std::holds_alternative<StorageIndex*>(created.value()));
+    EXPECT_NE(std::get<StorageIndex*>(created.value()), nullptr);
     Commit(txn);
   }
   EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
