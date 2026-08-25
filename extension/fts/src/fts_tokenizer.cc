@@ -71,7 +71,10 @@ bool IsPunctuationRune(cppjieba::Rune rune) {
          (rune >= 0x3000 && rune <= 0x303F) ||
          (rune >= 0xFE10 && rune <= 0xFE1F) ||
          (rune >= 0xFE30 && rune <= 0xFE4F) ||
-         (rune >= 0xFF00 && rune <= 0xFF65);
+         (rune >= 0xFF01 && rune <= 0xFF0F) ||
+         (rune >= 0xFF1A && rune <= 0xFF20) ||
+         (rune >= 0xFF3B && rune <= 0xFF40) ||
+         (rune >= 0xFF5B && rune <= 0xFF65);
 }
 
 bool ShouldIgnore(const std::string& token) {

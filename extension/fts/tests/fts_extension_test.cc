@@ -350,6 +350,21 @@ TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
   EXPECT_EQ(actual, (std::vector<std::string>{"neug", "是", "图", "数据库"}));
 }
 
+TEST(JiebaFTSTokenizerTest, PreservesFullwidthLettersAndDigits) {
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  const std::string input = "ＡＢＣ１２３，。！？";
+  std::vector<CollectedToken> tokens;
+  ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
+                               FTS5_TOKENIZE_DOCUMENT, CollectToken),
+            SQLITE_OK);
+
+  std::string actual;
+  for (const auto& token : tokens) {
+    actual += token.text;
+  }
+  EXPECT_EQ(actual, "ＡＢＣ１２３");
+}
+
 TEST(JiebaFTSTokenizerTest, SupportsConcurrentReadOnlyTokenization) {
   auto tokenizer = std::make_shared<const JiebaFTSTokenizer>(JiebaMode::kMix);
   std::atomic<int> failures{0};
