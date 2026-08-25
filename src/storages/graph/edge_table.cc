@@ -634,9 +634,6 @@ namespace {
 // tombstone so a stale offset can never overwrite another edge's data.
 bool position_iter_at_raw_slot(NbrIterator& iter, const NbrList& edges,
                                int32_t offset) {
-  if (offset < 0 || edges.start_ptr == nullptr || edges.cfg.stride <= 0) {
-    return false;
-  }
   const auto* start = static_cast<const char*>(edges.start_ptr);
   const auto* end = static_cast<const char*>(edges.end_ptr);
   const auto slot_num =
@@ -645,8 +642,8 @@ bool position_iter_at_raw_slot(NbrIterator& iter, const NbrList& edges,
     return false;
   }
   iter.cur = start + static_cast<size_t>(offset) * edges.cfg.stride;
-  // A tombstone slot holds no visible edge; writing through it would corrupt
-  // the storage of the deleted edge.
+  // A tombstone slot holds no visible edge; set_data would rewrite its
+  // timestamp and silently resurrect the deleted edge.
   return iter.cfg.ts_offset == 0 || iter.get_timestamp() <= iter.timestamp;
 }
 
