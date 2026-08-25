@@ -465,9 +465,8 @@ restored index, see [Persistence and Recovery](../storage_index/index.md#persist
 
 ## Current Limitations
 
-- An FTS index can be created only on a node property of type `STRING`.
-- Each FTS index covers one property; multi-property FTS indexes are not
-  supported.
+- An FTS index can be created only on one or more node properties of type
+  `STRING`.
 - The `bm25` query argument must be a non-null `STRING` literal or dynamic
   parameter. Other computed expressions are not supported currently.
 - `bm25` must be used in a full-text query supported by an FTS index; it is not
