@@ -145,7 +145,10 @@ neug::result<Context> ExtensionLoadOpr::Eval(IStorageInterface& graph,
 
   auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&graph);
   if (index_ddl) {
-    RETURN_STATUS_ERROR_IF_NOT_OK(index_ddl->ActivateIndexes());
+    auto activated = index_ddl->ActivateIndexes();
+    if (!activated) {
+      RETURN_ERROR(activated.error());
+    }
   } else {
     LOG(WARNING) << "[Admin Pipeline] Current storage interface does not "
                     "support index DDL; skipping pending index activation";

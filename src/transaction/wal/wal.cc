@@ -161,6 +161,30 @@ CreateEdgeTypeParam CreateEdgeTypeRedo::Deserialize(OutArchive& arc) {
   return CreateEdgeTypeParam::Deserialize(arc);
 }
 
+void CreateIndexRedo::Serialize(InArchive& arc, const IndexMeta& meta) {
+  arc << static_cast<uint8_t>(OpType::kCreateIndex) << meta.ToJsonString();
+}
+
+IndexMeta CreateIndexRedo::Deserialize(OutArchive& arc) {
+  std::string json;
+  arc >> json;
+  return IndexMeta::FromJsonString(json);
+}
+
+void DropIndexRedo::Serialize(InArchive& arc, const std::string& name) {
+  arc << static_cast<uint8_t>(OpType::kDropIndex) << name;
+}
+
+std::string DropIndexRedo::Deserialize(OutArchive& arc) {
+  std::string name;
+  arc >> name;
+  return name;
+}
+
+void ActivateIndexesRedo::Serialize(InArchive& arc) {
+  arc << static_cast<uint8_t>(OpType::kActivateIndexes);
+}
+
 void AddVertexPropertiesRedo::Serialize(
     InArchive& arc, const std::string& vertex_type,
     const AddVertexPropertiesParam& config) {

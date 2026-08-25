@@ -70,6 +70,10 @@ class OutArchive {
     end_ = begin_ + size;
   }
 
+  inline void SetSlice(const char* buffer, size_t size) {
+    SetSlice(const_cast<char*>(buffer), size);
+  }
+
   inline char* GetBuffer() { return begin_; }
 
   inline const char* GetBuffer() const { return begin_; }

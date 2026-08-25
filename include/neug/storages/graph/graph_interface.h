@@ -24,6 +24,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -939,10 +940,10 @@ class StorageUpdateInterface : public StorageReadInterface,
 /**
  * @brief Admin interface for storage index DDL (create/drop).
  *
- * Index management is only implemented by the AP update path
- * (StorageAPUpdateInterface). The execution layer obtains this interface
- * via dynamic_cast from IStorageInterface; a null result means the current
- * storage mode does not support index management.
+ * Index management is implemented by both AP and TP update paths. The
+ * execution layer obtains this interface via dynamic_cast from
+ * IStorageInterface; a null result means the current storage implementation
+ * does not support index management.
  *
  * Existence checks are expressed through the DDL calls themselves:
  * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same
@@ -959,15 +960,28 @@ class StorageIndexDDLInterface {
   virtual ~StorageIndexDDLInterface() {}
 
   /** Activate index modules deferred until their extension was loaded. */
-  virtual Status ActivateIndexes() = 0;
+  virtual result<size_t> ActivateIndexes() = 0;
 
   /** @brief Create, bind, and populate an index. */
-  virtual result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) = 0;
 
   /** @brief Drop an index by its unique name. */
   virtual Status DropIndex(const std::string& name) = 0;
 };
+
+using IndexPlanningChangedCallback = std::function<void()>;
+
+result<CreatedIndex> CreateStorageIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    std::unique_ptr<IndexMeta> meta,
+    IndexPlanningChangedCallback on_planning_changed = {},
+    bool required = true);
+Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
+                        const std::string& name,
+                        IndexPlanningChangedCallback on_planning_changed = {});
+result<size_t> ActivateStorageIndexes(
+    PropertyGraph& graph, GraphView& view,
+    IndexPlanningChangedCallback on_planning_changed = {});
 
 class StorageAPUpdateInterface : public StorageUpdateInterface,
                                  public StorageIndexDDLInterface {
@@ -986,10 +1000,10 @@ class StorageAPUpdateInterface : public StorageUpdateInterface,
         on_planning_changed_(std::move(on_planning_changed)) {}
   ~StorageAPUpdateInterface() {}
 
-  neug::result<StorageIndex*> CreateIndex(
+  neug::result<CreatedIndex> CreateIndex(
       std::unique_ptr<IndexMeta> meta) override;
   Status DropIndex(const std::string& name) override;
-  Status ActivateIndexes() override;
+  result<size_t> ActivateIndexes() override;
   Status AddGraphEntry(const std::string& name,
                        const ProjectedGraphEntry& entry) override;
   Status DropGraphEntry(const std::string& name) override;
