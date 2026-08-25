@@ -317,6 +317,15 @@ TEST(JiebaFTSTokenizerTest, LoadsCustomDict) {
   EXPECT_EQ(tokens.front().text, input);
 }
 
+TEST(JiebaFTSTokenizerTest, RejectsInvalidCustomDictPath) {
+  TemporaryDatabaseDirectory directory;
+  const auto dict_path = directory.path() / "missing.dict.utf8";
+
+  EXPECT_THROW(FTSTokenizer::Create({{"tokenizer", "jieba"},
+                                     {"jieba_dict", dict_path.string()}}),
+               std::invalid_argument);
+}
+
 TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
   JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
   const std::string input = "NeuG，是图数据库！";
