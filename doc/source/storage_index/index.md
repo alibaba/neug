@@ -11,8 +11,14 @@ NeuG currently supports:
 
 | Index type | Use case | Documentation |
 | ---------- | -------- | ------------- |
-| `HNSW` | Approximate nearest-neighbor search over vector properties | [Vector Search](vector_search.md) |
-| `FTS` | BM25-ranked full-text search over string properties | [Full-Text Search](fts_search.md) |
+| `HNSW` | Approximate nearest-neighbor search over vector properties | [Vector Search](../extensions/vector_search.md) |
+| `FTS` | BM25-ranked full-text search over string properties | [Full-Text Search](../extensions/fts_search.md) |
+
+NeuG plans to support the following index type and capabilities in the future:
+
+- `BTree` indexes for equality, range, and ordered queries over scalar properties.
+- Composite indexes that index multiple properties together.
+- Result reranking for reordering index candidates using additional scoring criteria.
 
 The common index syntax and guarantees below also apply to index types added in
 the future. See an index type's documentation for supported properties,
@@ -83,8 +89,8 @@ separate index-search procedure.
 
 Eligibility is index-specific. HNSW recognizes supported vector distance
 expressions in `ORDER BY`; see [Vector Similarity
-Search](vector_search.md#vector-similarity-search). FTS recognizes `bm25`
-expressions; see [Full-Text Search](fts_search.md#full-text-search).
+Search](../extensions/vector_search.md#vector-similarity-search). FTS recognizes `bm25`
+expressions; see [Full-Text Search](../extensions/fts_search.md#full-text-search).
 
 ## Transactions
 
@@ -112,14 +118,4 @@ and replays later WAL records, so committed indexes recover with the graph.
 For an extension-backed index, recovery can initially expose the index as
 `pending` because extensions and functions have the same lifetime as their
 database. Load the provider extension in the reopened database to activate the
-restored index. For HNSW, run:
-
-```cypher
-LOAD vector_search;
-```
-
-For FTS, run:
-
-```cypher
-LOAD fts;
-```
+restored index; see [Extensions](../extensions/index.md).

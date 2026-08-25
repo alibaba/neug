@@ -5,7 +5,7 @@ BM25-ranked search over node string properties, with automatic index
 maintenance and persistence.
 
 For syntax and guarantees shared by all index types, including inspection,
-transactions, and recovery, see [Storage Indexes](index.md).
+transactions, and recovery, see [Storage Indexes](../storage_index/index.md).
 
 The FTS extension supports:
 
@@ -29,7 +29,7 @@ LOAD fts;
 ## Create an FTS Index
 
 An FTS index can be created on one `STRING` property of a node table by
-specializing the common [CREATE INDEX](index.md#create-an-index) syntax:
+specializing the common [CREATE INDEX](../storage_index/index.md#create-an-index) syntax:
 
 ```cypher
 CREATE INDEX <index_name> [IF NOT EXISTS]
@@ -114,8 +114,8 @@ The selected settings cannot be changed in place; drop and recreate the index
 to use different settings.
 
 To inspect or remove an FTS index, use the common
-[SHOW_INDEXES](index.md#inspect-indexes) and [DROP
-INDEX](index.md#drop-an-index) operations.
+[SHOW_INDEXES](../storage_index/index.md#inspect-indexes) and [DROP
+INDEX](../storage_index/index.md#drop-an-index) operations.
 
 ## Full-Text Search
 
@@ -252,7 +252,7 @@ LIMIT 10;
 ## FTS Index Maintenance
 
 Inserts, updates, and deletes participate in the common [transactional index
-maintenance](index.md#transactions). For example:
+maintenance](../storage_index/index.md#transactions). For example:
 
 ```cypher
 // The new article is searchable immediately.
@@ -278,7 +278,7 @@ inserted into the FTS index. If the property previously contained indexed
 text, its existing index entry is removed.
 
 For checkpoint and reopen behavior, including loading `fts` to activate a
-restored index, see [Persistence and Recovery](index.md#persistence-and-recovery).
+restored index, see [Persistence and Recovery](../storage_index/index.md#persistence-and-recovery).
 
 ## Current Limitations
 

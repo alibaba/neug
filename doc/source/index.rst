@@ -63,6 +63,8 @@ NeuG documentation
    :caption: Extensions
 
    extensions/index
+   extensions/vector_search
+   extensions/fts_search
    extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
@@ -73,7 +75,6 @@ NeuG documentation
    :caption: Storage Indexes
 
    storage_index/index
-   storage_index/vector_search
 
 .. toctree::
    :maxdepth: 1
