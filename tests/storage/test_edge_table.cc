@@ -1109,6 +1109,137 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   }
 }
 
+TEST_F(EdgeTableTest, TestUpdateEdgePropertyAfterDeletion) {
+  // Regression test for issue #922: updating a freshly inserted edge whose
+  // source vertex already has a deleted (tombstoned) outgoing edge must
+  // resolve the raw adjacency-list slot offset, not a visible-edge ordinal.
+  auto ckp = make_checkpoint(workspace());
+  int64_t src_num = 2;
+  int64_t dst_num = 2;
+  this->InitIndexers(*ckp, src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
+                              dst_num);
+  this->edge_table->EnsureCapacity(this->src_indexer.size(),
+                                   this->dst_indexer.size());
+  this->ExpectUnbundledStats(0, 0);
+  this->edge_table->EnsureCapacity(8);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
+
+  const neug::vid_t src = 0;
+  const neug::vid_t dst = 1;
+  // Edge e1 occupies raw slot 0; deleting it leaves a tombstone there.
+  auto e1 = this->edge_table->AddEdge(
+      src, dst, {neug::Value::STRING("e1"), neug::Value::INT32(1)}, 1,
+      allocator, false);
+  EXPECT_EQ(e1.first, 0);
+  this->edge_table->DeleteEdge(src, dst, 0, 0, 2);
+
+  // Edge e2 lands at raw slot 1, right after the tombstone.
+  auto e2 = this->edge_table->AddEdge(
+      src, dst, {neug::Value::STRING("e2"), neug::Value::INT32(2)}, 3,
+      allocator, false);
+  EXPECT_EQ(e2.first, 1);
+
+  // Updating through the raw slot offset must succeed. Previously this threw
+  // "invalid oe offset": `iter += 1` skipped the tombstone at slot 0, landed
+  // on slot 2 (past the end) and failed the end() check.
+  this->edge_table->UpdateEdgeProperty(src, dst, e2.first, 0, 0,
+                                       neug::Value::STRING("updated"), 3);
+  this->edge_table->UpdateEdgeProperty(src, dst, e2.first, 0, 1,
+                                       neug::Value::INT32(42), 3);
+
+  // Only e2 remains visible, with the updated properties.
+  std::vector<int64_t> srcs, dsts;
+  this->OutputOutgoingEndpoints(srcs, dsts, 3);
+  ASSERT_EQ(srcs.size(), 1);
+  ASSERT_EQ(dsts.size(), 1);
+
+  auto oe_view = this->edge_table->get_outgoing_view(3);
+  auto es = oe_view.get_edges(src);
+  auto accessor0 = this->edge_table->get_edge_data_accessor(0);
+  auto accessor1 = this->edge_table->get_edge_data_accessor(1);
+  int visible = 0;
+  for (auto it = es.begin(); it != es.end(); ++it) {
+    ++visible;
+    EXPECT_EQ(accessor0.get_data(it).GetValue<std::string>(), "updated");
+    EXPECT_EQ(accessor1.get_data(it).GetValue<int32_t>(), 42);
+  }
+  EXPECT_EQ(visible, 1);
+}
+
+TEST_F(EdgeTableTest, TestUpdateEdgePropertyAfterDeletionBundled) {
+  // Bundled counterpart of the issue #922 regression: the update also
+  // resolves the incoming-side offset, so both CSR sides must be updated.
+  auto ckp = make_checkpoint(workspace());
+  int64_t src_num = 2;
+  int64_t dst_num = 2;
+  this->InitIndexers(*ckp, src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), src_num,
+                              dst_num);
+  this->edge_table->EnsureCapacity(this->src_indexer.size(),
+                                   this->dst_indexer.size());
+  this->ExpectBundledStats(0);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
+
+  const neug::vid_t src = 0;
+  const neug::vid_t dst = 1;
+  auto e1 = this->edge_table->AddEdge(src, dst, {neug::Value::INT32(1)}, 1,
+                                      allocator, false);
+  EXPECT_EQ(e1.first, 0);
+
+  // Resolve both offsets of e1, then delete it.
+  auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
+  auto oes = oe_view.get_edges(src);
+  auto ies = ie_view.get_edges(dst);
+  int32_t e1_oe = -1;
+  int32_t e1_ie = -1;
+  for (auto it = oes.begin(); it != oes.end(); ++it) {
+    if (it.get_timestamp() == 1) {
+      e1_oe = static_cast<int32_t>(
+          (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+           reinterpret_cast<const char*>(oes.start_ptr)) /
+          oes.cfg.stride);
+      e1_ie = neug::fuzzy_search_offset_from_nbr_list(
+          ies, src, it.get_data_ptr(), DataTypeId::kInt32);
+    }
+  }
+  ASSERT_GE(e1_oe, 0);
+  ASSERT_GE(e1_ie, 0);
+  this->edge_table->DeleteEdge(src, dst, e1_oe, e1_ie, 2);
+
+  // e2 lands at raw slot 1 on both sides.
+  auto e2 = this->edge_table->AddEdge(src, dst, {neug::Value::INT32(7)}, 3,
+                                      allocator, false);
+  EXPECT_EQ(e2.first, 1);
+
+  // Resolve e2's incoming offset the same way the execution layer does.
+  auto ies3 = this->edge_table->get_incoming_view(3).get_edges(dst);
+  auto e2_ie = neug::fuzzy_search_offset_from_nbr_list(ies3, src, e2.second,
+                                                       DataTypeId::kInt32);
+  ASSERT_NE(e2_ie, std::numeric_limits<int32_t>::max());
+
+  this->edge_table->UpdateEdgeProperty(src, dst, e2.first, e2_ie, 0,
+                                       neug::Value::INT32(99), 3);
+
+  // Both sides see exactly e2 with the updated data.
+  auto oes3 = this->edge_table->get_outgoing_view(3).get_edges(src);
+  int visible = 0;
+  for (auto it = oes3.begin(); it != oes3.end(); ++it) {
+    ++visible;
+    EXPECT_EQ(*reinterpret_cast<const int32_t*>(it.get_data_ptr()), 99);
+  }
+  EXPECT_EQ(visible, 1);
+  visible = 0;
+  for (auto it = ies3.begin(); it != ies3.end(); ++it) {
+    ++visible;
+    EXPECT_EQ(*reinterpret_cast<const int32_t*>(it.get_data_ptr()), 99);
+  }
+  EXPECT_EQ(visible, 1);
+}
+
 TEST_F(EdgeTableTest, TestAddPropertiesTransitionFromEmptyToBundledUnbundled) {
   auto ckp = make_checkpoint(workspace());
   this->InitIndexers(*ckp, 4, 4);
