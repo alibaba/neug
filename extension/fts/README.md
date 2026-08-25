@@ -48,6 +48,17 @@ build/extension/fts/
 └── hmm_model.utf8
 ```
 
+If the extension directory is not writable, extraction falls back to
+`NEUG_DB_TMP_DIR`, or to the system temporary directory when the environment
+variable is not set. Fallback files include a hash of the embedded compressed
+data so matching dictionaries can be reused safely by later processes:
+
+```text
+<temporary-directory>/neug/fts/
+├── jieba.dict.utf8.<hash>
+└── hmm_model.utf8.<hash>
+```
+
 When using the in-repository Python binding, the loader discovers the root
 build directory automatically, so the locally built extension can be loaded
 with:

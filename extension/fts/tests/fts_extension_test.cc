@@ -16,6 +16,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -25,6 +26,7 @@
 #include <string>
 #include <thread>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -63,6 +65,55 @@ class TemporaryDatabaseDirectory {
 
  private:
   std::filesystem::path path_;
+};
+
+class ScopedEnvironmentVariable {
+ public:
+  ScopedEnvironmentVariable(std::string name, const std::string& value)
+      : name_(std::move(name)) {
+    if (const char* previous = std::getenv(name_.c_str())) {
+      previous_ = previous;
+    }
+    if (setenv(name_.c_str(), value.c_str(), 1) != 0) {
+      throw std::runtime_error("Failed to set environment variable " + name_);
+    }
+  }
+
+  ~ScopedEnvironmentVariable() {
+    if (previous_) {
+      setenv(name_.c_str(), previous_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+  }
+
+ private:
+  std::string name_;
+  std::optional<std::string> previous_;
+};
+
+class ScopedDictionaryPathBlocker {
+ public:
+  explicit ScopedDictionaryPathBlocker(const std::filesystem::path& directory)
+      : paths_{directory / "jieba.dict.utf8", directory / "hmm_model.utf8"} {
+    for (const auto& path : paths_) {
+      std::filesystem::remove_all(path);
+      if (!std::filesystem::create_directory(path)) {
+        throw std::runtime_error("Failed to block dictionary path " +
+                                 path.string());
+      }
+    }
+  }
+
+  ~ScopedDictionaryPathBlocker() {
+    for (const auto& path : paths_) {
+      std::error_code error;
+      std::filesystem::remove_all(path, error);
+    }
+  }
+
+ private:
+  std::vector<std::filesystem::path> paths_;
 };
 
 class TestCheckpoint {
@@ -116,13 +167,40 @@ TEST(JiebaFTSTokenizerTest, ExtractsBuiltInDictsOnFirstUse) {
   const auto directory = GetExecutablePath().parent_path();
   const auto jieba_dict = directory / "jieba.dict.utf8";
   const auto hmm_model = directory / "hmm_model.utf8";
-  std::filesystem::remove(jieba_dict);
-  std::filesystem::remove(hmm_model);
+  std::filesystem::remove_all(jieba_dict);
+  std::filesystem::remove_all(hmm_model);
 
   JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
 
   EXPECT_TRUE(std::filesystem::is_regular_file(jieba_dict));
   EXPECT_TRUE(std::filesystem::is_regular_file(hmm_model));
+}
+
+TEST(JiebaFTSTokenizerTest, FallsBackToTempDirectory) {
+  TemporaryDatabaseDirectory temporary_directory;
+  const ScopedEnvironmentVariable temp_root(
+      "NEUG_DB_TMP_DIR", temporary_directory.path().string());
+  const auto directory = GetExecutablePath().parent_path();
+  const ScopedDictionaryPathBlocker blocker(directory);
+
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+
+  const auto cache_directory = temporary_directory.path() / "neug" / "fts";
+  ASSERT_TRUE(std::filesystem::is_directory(cache_directory));
+  bool found_jieba_dict = false;
+  bool found_hmm_model = false;
+  size_t file_count = 0;
+  for (const auto& entry :
+       std::filesystem::directory_iterator(cache_directory)) {
+    ASSERT_TRUE(entry.is_regular_file());
+    ++file_count;
+    const auto filename = entry.path().filename().string();
+    found_jieba_dict |= filename.starts_with("jieba.dict.utf8.");
+    found_hmm_model |= filename.starts_with("hmm_model.utf8.");
+  }
+  EXPECT_EQ(file_count, 2u);
+  EXPECT_TRUE(found_jieba_dict);
+  EXPECT_TRUE(found_hmm_model);
 }
 
 TEST(FTSExtensionTest, LoadSucceeds) {

@@ -23,6 +23,7 @@
 #include <atomic>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -115,19 +116,36 @@ std::filesystem::path ResolveJiebaDictDirectory() {
 #endif
 }
 
-void ExtractJiebaDict(const std::filesystem::path& path,
-                      const JiebaDictFile& dict) {
-  try {
-    std::vector<unsigned char> contents(dict.original_size);
-    uLongf contents_size = contents.size();
-    uncompress(contents.data(), &contents_size, dict.compressed_data,
-               dict.compressed_size);
-    static std::atomic<uint64_t> temporary_file_id{0};
-    auto temporary_path = path;
+uint64_t HashJiebaDict(const JiebaDictFile& dict) {
+  constexpr uint64_t kFnvOffsetBasis = 14695981039346656037ULL;
+  constexpr uint64_t kFnvPrime = 1099511628211ULL;
+  uint64_t hash = kFnvOffsetBasis;
+  for (size_t i = 0; i < dict.compressed_size; ++i) {
+    hash ^= dict.compressed_data[i];
+    hash *= kFnvPrime;
+  }
+  return hash;
+}
+
+std::filesystem::path ResolveJiebaTempPath(const JiebaDictFile& dict) {
+  const char* temp_dir = std::getenv("NEUG_DB_TMP_DIR");
+  const auto directory = temp_dir != nullptr && *temp_dir
+                             ? std::filesystem::path(temp_dir)
+                             : std::filesystem::temp_directory_path();
+  return directory / "neug" / "fts" /
+         (std::string(dict.filename) + "." +
+          std::to_string(HashJiebaDict(dict)));
+}
+
+void WriteJiebaDict(const std::filesystem::path& path,
+                    const std::vector<unsigned char>& contents) {
+  auto temporary_path = path;
 #if defined(__APPLE__) || defined(__linux__)
-    temporary_path += ".tmp." + std::to_string(getpid()) + "." +
-                      std::to_string(temporary_file_id.fetch_add(1));
+  static std::atomic<uint64_t> temporary_file_id{0};
+  temporary_path += ".tmp." + std::to_string(getpid()) + "." +
+                    std::to_string(temporary_file_id.fetch_add(1));
 #endif
+  try {
     std::ofstream output;
     output.exceptions(std::ios::failbit | std::ios::badbit);
     output.open(temporary_path, std::ios::binary | std::ios::trunc);
@@ -136,9 +154,35 @@ void ExtractJiebaDict(const std::filesystem::path& path,
     output.close();
     std::filesystem::rename(temporary_path, path);
   } catch (const std::exception& error) {
-    throw std::runtime_error("Failed to extract Jieba dictionary " +
+    std::error_code remove_error;
+    std::filesystem::remove(temporary_path, remove_error);
+    throw std::runtime_error("Failed to write Jieba dictionary " +
                              path.string() + ": " + error.what());
   }
+}
+
+std::filesystem::path ExtractJiebaDict(const std::filesystem::path& path,
+                                       const JiebaDictFile& dict) {
+  std::vector<unsigned char> contents(dict.original_size);
+  uLongf contents_size = contents.size();
+  uncompress(contents.data(), &contents_size, dict.compressed_data,
+             dict.compressed_size);
+
+  try {
+    WriteJiebaDict(path, contents);
+    return path;
+  } catch (const std::exception& error) {
+    VLOG(1) << "Failed to extract Jieba dictionary beside the extension; "
+               "falling back to the temporary directory: "
+            << error.what();
+  }
+
+  const auto fallback_path = ResolveJiebaTempPath(dict);
+  std::filesystem::create_directories(fallback_path.parent_path());
+  if (!std::filesystem::is_regular_file(fallback_path)) {
+    WriteJiebaDict(fallback_path, contents);
+  }
+  return fallback_path;
 }
 
 void ValidateJiebaDictPath(const std::filesystem::path& path) {
@@ -160,10 +204,10 @@ void ValidateJiebaDictPath(const std::filesystem::path& path) {
 }
 
 std::string ResolveJiebaDictPath(const JiebaDictFile& dict) {
-  const auto path = ResolveJiebaDictDirectory() / dict.filename;
+  auto path = ResolveJiebaDictDirectory() / dict.filename;
   std::error_code error;
   if (!std::filesystem::is_regular_file(path, error) || error) {
-    ExtractJiebaDict(path, dict);
+    path = ExtractJiebaDict(path, dict);
   }
   ValidateJiebaDictPath(path);
   return path.string();
