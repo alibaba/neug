@@ -92,30 +92,6 @@ class ScopedEnvironmentVariable {
   std::optional<std::string> previous_;
 };
 
-class ScopedDictionaryPathBlocker {
- public:
-  explicit ScopedDictionaryPathBlocker(const std::filesystem::path& directory)
-      : paths_{directory / "jieba.dict.utf8", directory / "hmm_model.utf8"} {
-    for (const auto& path : paths_) {
-      std::filesystem::remove_all(path);
-      if (!std::filesystem::create_directory(path)) {
-        throw std::runtime_error("Failed to block dictionary path " +
-                                 path.string());
-      }
-    }
-  }
-
-  ~ScopedDictionaryPathBlocker() {
-    for (const auto& path : paths_) {
-      std::error_code error;
-      std::filesystem::remove_all(path, error);
-    }
-  }
-
- private:
-  std::vector<std::filesystem::path> paths_;
-};
-
 class TestCheckpoint {
  public:
   explicit TestCheckpoint(const std::string& database_path) {
@@ -163,44 +139,14 @@ std::string FindBuildRoot() {
   return "";
 }
 
-TEST(JiebaFTSTokenizerTest, ExtractsBuiltInDictsOnFirstUse) {
-  const auto directory = GetExecutablePath().parent_path();
-  const auto jieba_dict = directory / "jieba.dict.utf8";
-  const auto hmm_model = directory / "hmm_model.utf8";
-  std::filesystem::remove_all(jieba_dict);
-  std::filesystem::remove_all(hmm_model);
-
-  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
-
-  EXPECT_TRUE(std::filesystem::is_regular_file(jieba_dict));
-  EXPECT_TRUE(std::filesystem::is_regular_file(hmm_model));
-}
-
-TEST(JiebaFTSTokenizerTest, FallsBackToTempDirectory) {
+TEST(JiebaFTSTokenizerTest, LoadsBuiltInDictsFromMemory) {
   TemporaryDatabaseDirectory temporary_directory;
   const ScopedEnvironmentVariable temp_root(
       "NEUG_DB_TMP_DIR", temporary_directory.path().string());
-  const auto directory = GetExecutablePath().parent_path();
-  const ScopedDictionaryPathBlocker blocker(directory);
 
   JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
 
-  const auto cache_directory = temporary_directory.path() / "neug" / "fts";
-  ASSERT_TRUE(std::filesystem::is_directory(cache_directory));
-  bool found_jieba_dict = false;
-  bool found_hmm_model = false;
-  size_t file_count = 0;
-  for (const auto& entry :
-       std::filesystem::directory_iterator(cache_directory)) {
-    ASSERT_TRUE(entry.is_regular_file());
-    ++file_count;
-    const auto filename = entry.path().filename().string();
-    found_jieba_dict |= filename.starts_with("jieba.dict.utf8.");
-    found_hmm_model |= filename.starts_with("hmm_model.utf8.");
-  }
-  EXPECT_EQ(file_count, 2u);
-  EXPECT_TRUE(found_jieba_dict);
-  EXPECT_TRUE(found_hmm_model);
+  EXPECT_FALSE(std::filesystem::exists(temporary_directory.path()));
 }
 
 TEST(FTSExtensionTest, LoadSucceeds) {

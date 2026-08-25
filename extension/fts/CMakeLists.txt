@@ -16,6 +16,31 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/cppjieba/include/cppjieba/Jieba.h
         "--recursive third_party/cppjieba")
 endif()
 
+set(NEUG_CPPJIEBA_PATCH "${CMAKE_SOURCE_DIR}/third_party/cppjieba.patch")
+execute_process(
+    COMMAND git apply --check "${NEUG_CPPJIEBA_PATCH}"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
+    RESULT_VARIABLE NEUG_CPPJIEBA_PATCH_CHECK
+    OUTPUT_QUIET ERROR_QUIET)
+if(NEUG_CPPJIEBA_PATCH_CHECK EQUAL 0)
+    execute_process(
+        COMMAND git apply "${NEUG_CPPJIEBA_PATCH}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
+        RESULT_VARIABLE NEUG_CPPJIEBA_PATCH_RESULT)
+    if(NOT NEUG_CPPJIEBA_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to apply cppjieba.patch")
+    endif()
+else()
+    execute_process(
+        COMMAND git apply --reverse --check "${NEUG_CPPJIEBA_PATCH}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/third_party/cppjieba"
+        RESULT_VARIABLE NEUG_CPPJIEBA_PATCH_APPLIED
+        OUTPUT_QUIET ERROR_QUIET)
+    if(NOT NEUG_CPPJIEBA_PATCH_APPLIED EQUAL 0)
+        message(FATAL_ERROR "cppjieba.patch does not apply cleanly")
+    endif()
+endif()
+
 if(NOT TARGET neug_cppjieba)
     add_library(neug_cppjieba INTERFACE)
     target_include_directories(neug_cppjieba SYSTEM INTERFACE

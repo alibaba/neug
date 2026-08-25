@@ -20,16 +20,15 @@
 #include <sqlite3.h>
 #include <zlib.h>
 
-#include <atomic>
 #include <cctype>
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <new>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -37,11 +36,6 @@
 #include <vector>
 
 #include "fts_sqlite.h"
-
-#if defined(__APPLE__) || defined(__linux__)
-#include <dlfcn.h>
-#include <unistd.h>
-#endif
 
 namespace neug::fts_ext {
 namespace {
@@ -100,89 +94,17 @@ void LowercaseASCII(std::string& token) {
   }
 }
 
-std::filesystem::path ResolveJiebaDictDirectory() {
-#if defined(__APPLE__) || defined(__linux__)
-  static const int dict_anchor = 0;
-  Dl_info info{};
-  if (dladdr(static_cast<const void*>(&dict_anchor), &info) == 0 ||
-      info.dli_fname == nullptr) {
-    throw std::runtime_error(
-        "Failed to locate libfts.neug_extension for Jieba dictionaries");
-  }
-  return std::filesystem::path(info.dli_fname).parent_path();
-#else
-  throw std::runtime_error(
-      "Locating bundled Jieba dictionaries is unsupported on this platform");
-#endif
-}
-
-uint64_t HashJiebaDict(const JiebaDictFile& dict) {
-  constexpr uint64_t kFnvOffsetBasis = 14695981039346656037ULL;
-  constexpr uint64_t kFnvPrime = 1099511628211ULL;
-  uint64_t hash = kFnvOffsetBasis;
-  for (size_t i = 0; i < dict.compressed_size; ++i) {
-    hash ^= dict.compressed_data[i];
-    hash *= kFnvPrime;
-  }
-  return hash;
-}
-
-std::filesystem::path ResolveJiebaTempPath(const JiebaDictFile& dict) {
-  const char* temp_dir = std::getenv("NEUG_DB_TMP_DIR");
-  const auto directory = temp_dir != nullptr && *temp_dir
-                             ? std::filesystem::path(temp_dir)
-                             : std::filesystem::temp_directory_path();
-  return directory / "neug" / "fts" /
-         (std::string(dict.filename) + "." +
-          std::to_string(HashJiebaDict(dict)));
-}
-
-void WriteJiebaDict(const std::filesystem::path& path,
-                    const std::vector<unsigned char>& contents) {
-  auto temporary_path = path;
-#if defined(__APPLE__) || defined(__linux__)
-  static std::atomic<uint64_t> temporary_file_id{0};
-  temporary_path += ".tmp." + std::to_string(getpid()) + "." +
-                    std::to_string(temporary_file_id.fetch_add(1));
-#endif
-  try {
-    std::ofstream output;
-    output.exceptions(std::ios::failbit | std::ios::badbit);
-    output.open(temporary_path, std::ios::binary | std::ios::trunc);
-    output.write(reinterpret_cast<const char*>(contents.data()),
-                 contents.size());
-    output.close();
-    std::filesystem::rename(temporary_path, path);
-  } catch (const std::exception& error) {
-    std::error_code remove_error;
-    std::filesystem::remove(temporary_path, remove_error);
-    throw std::runtime_error("Failed to write Jieba dictionary " +
-                             path.string() + ": " + error.what());
-  }
-}
-
-std::filesystem::path ExtractJiebaDict(const std::filesystem::path& path,
-                                       const JiebaDictFile& dict) {
-  std::vector<unsigned char> contents(dict.original_size);
+std::string DecompressJiebaDict(const JiebaDictFile& dict) {
+  std::string contents(dict.original_size, '\0');
   uLongf contents_size = contents.size();
-  uncompress(contents.data(), &contents_size, dict.compressed_data,
-             dict.compressed_size);
-
-  try {
-    WriteJiebaDict(path, contents);
-    return path;
-  } catch (const std::exception& error) {
-    VLOG(1) << "Failed to extract Jieba dictionary beside the extension; "
-               "falling back to the temporary directory: "
-            << error.what();
+  const auto result =
+      uncompress(reinterpret_cast<Bytef*>(contents.data()), &contents_size,
+                 dict.compressed_data, dict.compressed_size);
+  if (result != Z_OK || contents_size != dict.original_size) {
+    throw std::runtime_error("Failed to decompress embedded Jieba dictionary " +
+                             std::string(dict.filename));
   }
-
-  const auto fallback_path = ResolveJiebaTempPath(dict);
-  std::filesystem::create_directories(fallback_path.parent_path());
-  if (!std::filesystem::is_regular_file(fallback_path)) {
-    WriteJiebaDict(fallback_path, contents);
-  }
-  return fallback_path;
+  return contents;
 }
 
 void ValidateJiebaDictPath(const std::filesystem::path& path) {
@@ -201,16 +123,6 @@ void ValidateJiebaDictPath(const std::filesystem::path& path) {
     throw std::invalid_argument("Jieba dictionary is not readable: " +
                                 path_string);
   }
-}
-
-std::string ResolveJiebaDictPath(const JiebaDictFile& dict) {
-  auto path = ResolveJiebaDictDirectory() / dict.filename;
-  std::error_code error;
-  if (!std::filesystem::is_regular_file(path, error) || error) {
-    path = ExtractJiebaDict(path, dict);
-  }
-  ValidateJiebaDictPath(path);
-  return path.string();
 }
 
 std::string ResolveJiebaUserDictPath(std::string path) {
@@ -285,9 +197,9 @@ int BuiltinFTSTokenizer::Tokenize(void*, const char*, int, int,
 
 JiebaFTSTokenizer::JiebaFTSTokenizer(JiebaMode mode, std::string jieba_dict)
     : mode_(mode),
-      dict_trie_(ResolveJiebaDictPath(kJiebaDict),
+      dict_trie_(std::istringstream(DecompressJiebaDict(kJiebaDict)),
                  ResolveJiebaUserDictPath(std::move(jieba_dict))),
-      hmm_model_(ResolveJiebaDictPath(kJiebaHmmModel)),
+      hmm_model_(std::istringstream(DecompressJiebaDict(kJiebaHmmModel))),
       mp_segment_(&dict_trie_),
       hmm_segment_(&hmm_model_),
       mix_segment_(&dict_trie_, &hmm_model_) {}
