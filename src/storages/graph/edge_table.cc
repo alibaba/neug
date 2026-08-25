@@ -621,6 +621,34 @@ void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {
   }
 }
 
+namespace {
+
+// Offsets consumed by EdgeTable::UpdateEdgeProperty (produced by
+// CsrBase::put_edge, record_to_csr_offset_pair, or WAL records) are raw
+// adjacency-list slot indices, not visible-edge ordinals.
+// NbrIterator::operator+= advances over visible edges only — it skips
+// tombstones of edges deleted before the view timestamp — so once a vertex
+// has a deleted edge the two notions diverge and `iter += offset` lands past
+// the end of the list (issue #922). Position the iterator by raw slot
+// instead, and reject offsets that fall outside the adjacency list or onto a
+// tombstone so a stale offset can never overwrite another edge's data.
+bool position_iter_at_raw_slot(NbrIterator& iter, const NbrList& edges,
+                               int32_t offset) {
+  const auto* start = static_cast<const char*>(edges.start_ptr);
+  const auto* end = static_cast<const char*>(edges.end_ptr);
+  const auto slot_num =
+      static_cast<size_t>(end - start) / static_cast<size_t>(edges.cfg.stride);
+  if (static_cast<size_t>(offset) >= slot_num) {
+    return false;
+  }
+  iter.cur = start + static_cast<size_t>(offset) * edges.cfg.stride;
+  // A tombstone slot holds no visible edge; set_data would rewrite its
+  // timestamp and silently resurrect the deleted edge.
+  return iter.cfg.ts_offset == 0 || iter.get_timestamp() <= iter.timestamp;
+}
+
+}  // namespace
+
 void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
                                    int32_t oe_offset, int32_t ie_offset,
                                    int32_t col_id, const Value& prop,
@@ -628,16 +656,14 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
   auto accessor = get_edge_data_accessor(col_id);
   auto oe_edges = out_csr_->get_generic_view(ts).get_edges(src_lid);
   auto oe_iter = oe_edges.begin();
-  oe_iter += oe_offset;
-  if (oe_iter == oe_edges.end()) {
+  if (!position_iter_at_raw_slot(oe_iter, oe_edges, oe_offset)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("invalid oe offset ");
   }
   accessor.set_data(oe_iter, prop, ts);
   if (meta_->is_bundled()) {
     auto ie_edges = in_csr_->get_generic_view(ts).get_edges(dst_lid);
     auto ie_iter = ie_edges.begin();
-    ie_iter += ie_offset;
-    if (ie_iter == ie_edges.end()) {
+    if (!position_iter_at_raw_slot(ie_iter, ie_edges, ie_offset)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("invalid ie offset ");
     }
     accessor.set_data(ie_iter, prop, ts);
