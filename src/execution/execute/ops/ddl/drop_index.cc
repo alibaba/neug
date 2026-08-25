@@ -34,8 +34,9 @@ class DropIndexOpr : public IOperator {
                              Context&& ctx, OprTimer*) override {
     auto* indexInterface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
     if (!indexInterface) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                          "DROP INDEX is only supported in AP update mode");
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_NOT_SUPPORTED,
+          "Current storage interface does not support index DDL");
     }
 
     auto status = indexInterface->DropIndex(indexName_);

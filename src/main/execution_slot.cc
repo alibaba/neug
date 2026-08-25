@@ -302,11 +302,21 @@ Status ExecutionSlot::executeAdmin(const AdminRequest& request,
     StorageAPUpdateInterface storage(
         *slot.mutable_graph(), slot.mutable_view(), write_scope.Timestamp(),
         alloc_, [&write_scope]() { write_scope.MarkPlanningChanged(); });
-    RETURN_IF_NOT_OK(storage.ActivateIndexes());
+    auto activated = storage.ActivateIndexes();
+    if (!activated) {
+      return activated.error();
+    }
   } else {
-    LOG(WARNING) << "[Admin] TP storage does not support extension index "
-                    "activation yet; skipping pending index activation for "
-                 << load_result->canonical_name;
+    auto txn = GetUpdateTransaction();
+    StorageTPUpdateInterface storage(txn);
+    auto activated = storage.ActivateIndexes();
+    if (!activated) {
+      return activated.error();
+    }
+    if (!txn.Commit()) {
+      return Status(StatusCode::ERR_WAL_WRITE_FAIL,
+                    "Failed to commit extension index activation");
+    }
   }
   response.set_row_count(0);
   return Status::OK();

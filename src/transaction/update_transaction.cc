@@ -1004,8 +1004,53 @@ Status StorageTPUpdateInterface::UpdateEdgePropertyImpl(
                                         col_id, value, read_ts_);
 }
 
+result<CreatedIndex> StorageTPUpdateInterface::CreateIndex(
+    std::unique_ptr<IndexMeta> meta) {
+  if (!meta) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Cannot create index with null metadata");
+  }
+  auto& index_manager = cow_graph_->mutable_index_manager();
+  if (index_manager.GetPendingIndexByName(meta->name).has_value() ||
+      index_manager.GetIndexByName(meta->name).has_value()) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_ILLEGAL_OPERATION,
+                        "Index already exists: " + meta->name);
+  }
+  const IndexMeta redo_meta = *meta;
+  auto result =
+      CreateStorageIndex(*cow_graph_, mut_view_, read_ts_, std::move(meta));
+  if (!result) {
+    return tl::unexpected(result.error());
+  }
+  wal_.LogCreateIndex(redo_meta);
+  return result;
+}
+
+Status StorageTPUpdateInterface::DropIndex(const std::string& name) {
+  auto& index_manager = cow_graph_->mutable_index_manager();
+  if (!index_manager.GetPendingIndexByName(name).has_value() &&
+      !index_manager.GetIndexByName(name).has_value()) {
+    return Status(StatusCode::ERR_NOT_FOUND, "Index not found: " + name);
+  }
+  RETURN_IF_NOT_OK(DropStorageIndex(*cow_graph_, mut_view_, name));
+  wal_.LogDropIndex(name);
+  return Status::OK();
+}
+
+result<size_t> StorageTPUpdateInterface::ActivateIndexes() {
+  auto activated = ActivateStorageIndexes(*cow_graph_, mut_view_);
+  if (!activated) {
+    return tl::unexpected(activated.error());
+  }
+  if (activated.value() > 0) {
+    wal_.LogActivateIndexes();
+  }
+  return activated.value();
+}
+
 void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
-                                  char* data, size_t length, Allocator& alloc) {
+                                  const char* data, size_t length,
+                                  Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
@@ -1254,6 +1299,28 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
           graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to delete edge type in redo: ",
                                      ret);
+    } else if (op_type == OpType::kCreateIndex) {
+      auto meta =
+          std::make_unique<IndexMeta>(CreateIndexRedo::Deserialize(arc));
+      GraphView view(graph);
+      auto ret = CreateStorageIndex(graph, view, timestamp, std::move(meta), {},
+                                    false);
+      if (!ret) {
+        THROW_STORAGE_EXCEPTION("Failed to create index in redo: " +
+                                ret.error().ToString());
+      }
+    } else if (op_type == OpType::kDropIndex) {
+      auto name = DropIndexRedo::Deserialize(arc);
+      GraphView view(graph);
+      auto ret = DropStorageIndex(graph, view, name);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to drop index in redo: ", ret);
+    } else if (op_type == OpType::kActivateIndexes) {
+      GraphView view(graph);
+      auto ret = ActivateStorageIndexes(graph, view);
+      if (!ret) {
+        THROW_STORAGE_EXCEPTION("Failed to activate indexes in redo: " +
+                                ret.error().ToString());
+      }
     } else if (op_type == OpType::kAddGraphEntry) {
       // The WAL directory belongs to the checkpoint being opened and contains
       // only records from its fresh timestamp timeline. Therefore an existing

@@ -79,7 +79,10 @@ enum class OpType : uint8_t {
   kDeleteVertexType = 14,
   kDeleteEdgeType = 15,
   kAddGraphEntry = 16,
-  kDropGraphEntry = 17
+  kDropGraphEntry = 17,
+  kCreateIndex = 18,
+  kDropIndex = 19,
+  kActivateIndexes = 20
 };
 
 inline InArchive& operator<<(InArchive& in_archive, OpType& value) {

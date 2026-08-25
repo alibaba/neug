@@ -4,6 +4,9 @@ Since NeuG **v0.2.0**, the `fts` extension provides full-text indexes and
 BM25-ranked search over node string properties, with automatic index
 maintenance and persistence.
 
+For syntax and guarantees shared by all index types, including inspection,
+transactions, and recovery, see [Storage Indexes](../storage_index/index.md).
+
 The FTS extension supports:
 
 - Full-text indexes on node properties of type `STRING`
@@ -25,8 +28,8 @@ LOAD fts;
 
 ## Create an FTS Index
 
-An FTS index can be created on one `STRING` property of a node table with the
-unified `CREATE INDEX` syntax:
+An FTS index can be created on one `STRING` property of a node table by
+specializing the common [CREATE INDEX](../storage_index/index.md#create-an-index) syntax:
 
 ```cypher
 CREATE INDEX <index_name> [IF NOT EXISTS]
@@ -62,9 +65,6 @@ In this statement:
 - `Article` is the node table containing the indexed property.
 - `FTS` selects the full-text index type.
 - `title` is the `STRING` property to index.
-
-Existing nodes are indexed when the index is created. Subsequent inserts,
-updates, and deletes automatically update its contents.
 
 ### Index Options
 
@@ -113,28 +113,9 @@ Invalid tokenizer, prefix, or detail settings cause index creation to fail.
 The selected settings cannot be changed in place; drop and recreate the index
 to use different settings.
 
-## Inspect and Drop an FTS Index
-
-Use `SHOW_INDEXES()` to inspect indexes:
-
-```cypher
-CALL SHOW_INDEXES() RETURN *;
-```
-
-For the default index created above, the result includes an entry similar to:
-
-| name | type | label | property | options |
-| --- | --- | --- | --- | --- |
-| `article_title_fts` | `fts` | `Article` | `title` | `{}` |
-
-Drop the index by its name:
-
-```cypher
-DROP INDEX article_title_fts IF EXISTS;
-```
-
-Dropping the indexed property or its node table also removes the associated
-index.
+To inspect or remove an FTS index, use the common
+[SHOW_INDEXES](../storage_index/index.md#inspect-indexes) and [DROP
+INDEX](../storage_index/index.md#drop-an-index) operations.
 
 ## Full-Text Search
 
@@ -268,9 +249,10 @@ ORDER BY score ASC
 LIMIT 10;
 ```
 
-## Index Maintenance and Persistence
+## FTS Index Maintenance
 
-The FTS index follows changes to its indexed property:
+Inserts, updates, and deletes participate in the common [transactional index
+maintenance](../storage_index/index.md#transactions). For example:
 
 ```cypher
 // The new article is searchable immediately.
@@ -295,18 +277,8 @@ When `SET` assigns `NULL` to an indexed property, the `NULL` value is not
 inserted into the FTS index. If the property previously contained indexed
 text, its existing index entry is removed.
 
-FTS index data participates in NeuG checkpoints. After reopening a database,
-load the `fts` extension before querying the restored index:
-
-```cypher
-LOAD fts;
-
-MATCH (article:Article)
-RETURN article.id,
-       bm25(article.title, 'retrieval') AS score
-ORDER BY score ASC
-LIMIT 10;
-```
+For checkpoint and reopen behavior, including loading `fts` to activate a
+restored index, see [Persistence and Recovery](../storage_index/index.md#persistence-and-recovery).
 
 ## Current Limitations
 

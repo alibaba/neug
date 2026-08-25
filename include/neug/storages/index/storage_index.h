@@ -27,6 +27,7 @@
 #include "neug/common/types/value.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/storages/index/index_id_accessor.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/storages/module/module.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -35,7 +36,6 @@ namespace neug {
 
 class ColumnBase;
 class VertexSet;
-
 // --- Index metadata types ---
 
 struct IndexBindSchema {

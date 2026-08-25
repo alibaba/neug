@@ -24,6 +24,7 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/graph/graph_entry.h"
 #include "neug/storages/graph/operation_params.h"
+#include "neug/storages/index/storage_index.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -243,6 +244,20 @@ struct DeleteEdgeTypeRedo {
                         const std::string& dst_type,
                         const std::string& edge_type);
   static void Deserialize(OutArchive& arc, DeleteEdgeTypeRedo& redo);
+};
+
+struct CreateIndexRedo {
+  static void Serialize(InArchive& arc, const IndexMeta& meta);
+  static IndexMeta Deserialize(OutArchive& arc);
+};
+
+struct DropIndexRedo {
+  static void Serialize(InArchive& arc, const std::string& name);
+  static std::string Deserialize(OutArchive& arc);
+};
+
+struct ActivateIndexesRedo {
+  static void Serialize(InArchive& arc);
 };
 
 struct AddGraphEntryRedo {
