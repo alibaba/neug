@@ -5,6 +5,7 @@ ROOT_BUILD := $(REPO_ROOT)/build
 
 BUILD_TYPE         ?= Release
 NEUG_NATIVE_ARCH   ?= OFF
+WITH_MIMALLOC      ?= ON
 EXTRA_CMAKE_FLAGS  ?=
 PACK_CMAKE_FLAGS   := -DNEUG_PACKAGE_BUILD=ON
 
@@ -43,11 +44,13 @@ JOBS   ?= $(NPROC)
 # Platform-specific shared library name
 ifeq ($(UNAME_S),Darwin)
   NEUG_SHARED_LIB := libneug.dylib
+  MIMALLOC_SHARED_LIB := libmimalloc.2.dylib
 else
   NEUG_SHARED_LIB := libneug.so
+  MIMALLOC_SHARED_LIB := libmimalloc.so.2
 endif
 
-# Local staging directory for .node + libneug artifacts
+# Local staging directory for the addon and its shared-library dependencies
 PLATFORM_DIR := build/$(BUILD_TYPE)/$(PREBUILD_PLATFORM)
 
 .PHONY: help dev build stage pack proto clean
@@ -58,7 +61,7 @@ PLATFORM_DIR := build/$(BUILD_TYPE)/$(PREBUILD_PLATFORM)
 dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 	npm install
 	cmake -S $(REPO_ROOT) -B $(ROOT_BUILD) -DBUILD_NODEJS=ON -DBUILD_PYTHON=OFF \
-	    -DWITH_MIMALLOC=OFF \
+	    -DWITH_MIMALLOC=$(WITH_MIMALLOC) \
 	    -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	    -DNEUG_NATIVE_ARCH=$(NEUG_NATIVE_ARCH) \
@@ -73,6 +76,9 @@ stage:
 	@mkdir -p $(PLATFORM_DIR)
 	@find $(ROOT_BUILD) -name "neug_node_bind.node" -exec cp {} $(PLATFORM_DIR)/ \;
 	@cp $(ROOT_BUILD)/src/$(NEUG_SHARED_LIB) $(PLATFORM_DIR)/
+ifeq ($(WITH_MIMALLOC),ON)
+	@cp $(ROOT_BUILD)/third_party/mimalloc/$(MIMALLOC_SHARED_LIB) $(PLATFORM_DIR)/
+endif
 	@echo "Artifacts staged in $(PLATFORM_DIR):"
 	@ls -lh $(PLATFORM_DIR)/
 

@@ -100,9 +100,15 @@ if (APPLE)
     INSTALL_RPATH "@loader_path"
     BUILD_WITH_INSTALL_RPATH TRUE
   )
+  if (WITH_MIMALLOC)
+    set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "@loader_path")
+  endif()
 else()
   set_target_properties(neug_node_bind PROPERTIES
     INSTALL_RPATH "$ORIGIN"
     BUILD_WITH_INSTALL_RPATH TRUE
   )
+  if (WITH_MIMALLOC)
+    set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "$ORIGIN")
+  endif()
 endif()
