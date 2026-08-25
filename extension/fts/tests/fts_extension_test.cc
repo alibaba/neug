@@ -760,6 +760,27 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
   options["detail"] = "full";
   EXPECT_NO_THROW(
       valid->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory));
+
+  const std::vector<std::pair<std::string, std::string>>
+      parameterized_tokenizers = {
+          {"unicode61_fts", "unicode61 remove_diacritics 2"},
+          {"trigram_fts", "trigram case_sensitive 1"}};
+  for (const auto& [name, tokenizer] : parameterized_tokenizers) {
+    auto parameterized = MakeUnopenedIndex(name);
+    const_cast<IndexMeta&>(parameterized->GetMeta()).options["tokenizer"] =
+        tokenizer;
+    EXPECT_NO_THROW(parameterized->Open(*checkpoint, ModuleDescriptor{},
+                                        MemoryLevel::kInMemory))
+        << tokenizer;
+  }
+
+  auto invalid_tokenizer_option =
+      MakeUnopenedIndex("invalid_tokenizer_option_fts");
+  auto& invalid_options =
+      const_cast<IndexMeta&>(invalid_tokenizer_option->GetMeta()).options;
+  invalid_options["tokenizer"] = "unicode61 unknown_option 1";
+  EXPECT_ANY_THROW(invalid_tokenizer_option->Open(
+      *checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory));
 }
 
 TEST(FTSIndexTest, FiltersSupersededAndDeletedRowsWithScores) {

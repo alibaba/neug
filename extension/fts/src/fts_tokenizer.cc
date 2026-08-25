@@ -307,11 +307,12 @@ std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
     name = "unicode61";
   }
 
-  static const std::unordered_set<std::string> builtin_name = {
-      "unicode61", "ascii", "porter", "porter unicode61", "trigram"};
+  static const std::unordered_set<std::string> builtin_names = {
+      "unicode61", "ascii", "porter", "trigram"};
+  const auto base_name = name.substr(0, name.find(' '));
 
   std::shared_ptr<const FTSTokenizer> tokenizer;
-  if (builtin_name.find(name) != builtin_name.end()) {
+  if (builtin_names.contains(base_name)) {
     tokenizer = std::make_shared<BuiltinFTSTokenizer>(name);
   } else if (name == "jieba") {
     std::optional<std::string> mode;
