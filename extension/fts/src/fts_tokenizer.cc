@@ -142,10 +142,11 @@ void ExtractJiebaDict(const std::filesystem::path& path,
 }
 
 void ValidateJiebaDictPath(const std::filesystem::path& path) {
+  const auto path_string = path.string();
   std::error_code error;
   const bool is_regular_file = std::filesystem::is_regular_file(path, error);
   if (!is_regular_file) {
-    auto message = "Jieba dictionary is not a regular file: " + path.string();
+    auto message = "Jieba dictionary is not a regular file: " + path_string;
     if (error) {
       message += ": " + error.message();
     }
@@ -154,7 +155,7 @@ void ValidateJiebaDictPath(const std::filesystem::path& path) {
   std::ifstream input(path, std::ios::binary);
   if (!input.is_open()) {
     throw std::invalid_argument("Jieba dictionary is not readable: " +
-                                path.string());
+                                path_string);
   }
 }
 
@@ -170,6 +171,10 @@ std::string ResolveJiebaDictPath(const JiebaDictFile& dict) {
 
 std::string ResolveJiebaUserDictPath(std::string path) {
   if (!path.empty()) {
+    if (path.find_first_of("|;") != std::string::npos) {
+      throw std::invalid_argument(
+          "Jieba user dictionary path must not contain '|' or ';': " + path);
+    }
     ValidateJiebaDictPath(path);
   }
   return path;

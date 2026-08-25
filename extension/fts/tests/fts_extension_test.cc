@@ -336,6 +336,22 @@ TEST(JiebaFTSTokenizerTest, RejectsInvalidCustomDictPath) {
                std::invalid_argument);
 }
 
+TEST(JiebaFTSTokenizerTest, RejectsUserDictPathSeparators) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+
+  for (const char separator : {'|', ';'}) {
+    const auto dict_path =
+        directory.path() / ("user" + std::string(1, separator) + "dict.utf8");
+    std::ofstream(dict_path) << "棉花糖星球\n";
+
+    EXPECT_THROW(FTSTokenizer::Create({{"tokenizer", "jieba"},
+                                       {"jieba_dict", dict_path.string()}}),
+                 std::invalid_argument)
+        << separator;
+  }
+}
+
 TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
   JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
   const std::string input = "NeuG，是图数据库！";
