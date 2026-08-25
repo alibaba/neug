@@ -143,6 +143,13 @@ std::shared_ptr<Expression> ExpressionBinder::implicitCastIfNecessary(
   if (type == targetType || targetType.containsAny()) {
     return expression;
   }
+  // Empty list literals are represented as LIST_CREATION() function
+  // expressions. They cannot be updated through Expression::cast(), so let
+  // the CAST binder specialize the literal to the requested child type.
+  if (ExpressionUtil::isEmptyList(*expression) &&
+      targetType.id() == DataTypeId::kList) {
+    return forceCast(expression, targetType);
+  }
   if (ExpressionUtil::canCastStatically(*expression, targetType)) {
     expression->cast(targetType);
     return expression;

@@ -110,8 +110,8 @@ class UpdateTransaction {
 
   void Abort();
 
-  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
-                        size_t length, Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, uint32_t timestamp,
+                        const char* data, size_t length, Allocator& alloc);
 
   const GraphView& view() const { return view_; }
 
@@ -171,7 +171,8 @@ class UpdateTransaction {
   WalBuilder wal_builder_;
 };
 
-class StorageTPUpdateInterface : public StorageUpdateInterface {
+class StorageTPUpdateInterface : public StorageUpdateInterface,
+                                 public StorageIndexDDLInterface {
  public:
   explicit StorageTPUpdateInterface(UpdateTransaction& txn)
       : StorageUpdateInterface(txn.view(), txn.timestamp()),
@@ -183,6 +184,9 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
         wal_(txn.wal_builder_) {}
   ~StorageTPUpdateInterface() = default;
 
+  result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) override;
+  Status DropIndex(const std::string& name) override;
+  result<size_t> ActivateIndexes() override;
   Status AddGraphEntry(const std::string& name,
                        const ProjectedGraphEntry& entry) override;
   Status DropGraphEntry(const std::string& name) override;

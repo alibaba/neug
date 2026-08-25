@@ -402,6 +402,12 @@ static void expression_parse(const ::common::Expression& expr,
         expression_parse(case_expr.else_result_expression(), params_type);
       }
     }
+    if (opr.has_scalar_func()) {
+      const auto& scalar_func = opr.scalar_func();
+      for (const auto& parameter : scalar_func.parameters()) {
+        expression_parse(parameter, params_type);
+      }
+    }
   }
 }
 

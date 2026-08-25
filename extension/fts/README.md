@@ -11,10 +11,12 @@ local loading, and tests for the extension.
 
 ## Prerequisites
 
-Initialize the bundled SQLite source before configuring the extension:
+Initialize the bundled SQLite and cppjieba sources before configuring the
+extension:
 
 ```bash
 git submodule update --init third_party/sqlite
+git submodule update --init --recursive third_party/cppjieba
 ```
 
 ## Build
@@ -27,11 +29,18 @@ cd tools/python_bind
 BUILD_EXTENSIONS=fts make build
 ```
 
-The extension library is written to:
+The extension library embeds cppjieba's small default dictionary and HMM
+model as compressed dictionaries. A fresh build therefore produces a single
+extension file:
 
 ```text
-build/extension/fts/libfts.neug_extension
+build/extension/fts/
+└── libfts.neug_extension
 ```
+
+The extension includes a compressed Jieba dictionary and HMM model. By default,
+the tokenizer automatically decompresses and loads them from memory during
+initialization.
 
 When using the in-repository Python binding, the loader discovers the root
 build directory automatically, so the locally built extension can be loaded

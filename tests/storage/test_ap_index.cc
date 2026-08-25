@@ -297,7 +297,8 @@ class APIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = property_name;
     meta->schema.property_type = property_type;
-    return ap_->CreateIndex(std::move(meta));
+    GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
+    return std::get<StorageIndex*>(created);
   }
 
   StorageIndex* GetIndex(const std::string& name) const {
@@ -353,7 +354,8 @@ class APIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = "embedding";
     meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
-    return ap_->CreateIndex(std::move(meta));
+    GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
+    return std::get<StorageIndex*>(created);
   }
 
   std::vector<std::string> SearchPersonNames(int32_t age) const {
