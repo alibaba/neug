@@ -6,7 +6,7 @@ maintenance and persistence.
 
 The FTS extension supports:
 
-- Full-text indexes on node properties of type `STRING`
+- Full-text indexes on one or more node properties of type `STRING`
 - Word, phrase, prefix, Boolean, and exclusion queries
 - Top-K retrieval ordered by BM25 relevance
 - Support scalar filtering and graph filtering
@@ -25,13 +25,13 @@ LOAD fts;
 
 ## Create an FTS Index
 
-An FTS index can be created on one `STRING` property of a node table with the
-unified `CREATE INDEX` syntax:
+An FTS index can be created on one or more `STRING` properties of a node table
+with the unified `CREATE INDEX` syntax:
 
 ```cypher
 CREATE INDEX <index_name> [IF NOT EXISTS]
 ON <node_table>
-USING FTS (<string_property>)
+USING FTS (<string_property> [, <string_property> ...])
 [WITH (
     tokenizer = '<tokenizer>',
     prefix = '<prefix_lengths>',
@@ -66,6 +66,34 @@ In this statement:
 Existing nodes are indexed when the index is created. Subsequent inserts,
 updates, and deletes automatically update its contents.
 
+## Create an FTS Index on Multiple Properties
+
+A single FTS index can cover multiple `STRING` properties. This is useful for
+documents whose searchable text is split across fields such as `title` and
+`content`. The index keeps the inverted data for all listed properties in one
+index structure. At query time, you can search any indexed property or a
+selected group of indexed properties, and assign a different BM25 weight to
+each selected property. See [Multi-Property Search](#multi-property-search).
+
+List the properties in the `USING FTS` clause:
+
+```cypher
+CREATE NODE TABLE Article (
+    id INT64 PRIMARY KEY,
+    title STRING,
+    category STRING,
+    content STRING
+);
+
+CREATE INDEX article_text_fts
+ON Article
+USING FTS (title, content);
+```
+
+Here, `(title, content)` specifies the two properties maintained by
+`article_text_fts`. Every indexed property must belong to the same node table
+and have type `STRING`.
+
 ### Index Options
 
 The `WITH` clause accepts the following case-sensitive option names:
@@ -90,8 +118,7 @@ The `detail` option affects the query forms available to users:
 
 - `none` records only the row ID for each term.
 - `column` records the row ID and column for each term, allowing queries to
-  filter matches by column. (NeuG does not currently support multi-property FTS
-  indexes.)
+  filter matches by column.
 - `full` records the row ID, column, and term offset for each term, additionally
   supporting phrase queries. This is the default.
 
@@ -138,6 +165,12 @@ index.
 
 ## Full-Text Search
 
+NeuG provides two forms of `bm25`:
+
+- `bm25(indexed_property, query)` searches one indexed property.
+- `bm25([property1, property2, ...], [weight1, weight2, ...], query)`
+  searches multiple indexed properties with per-property weights.
+
 Use `bm25(indexed_property, query)` in a Top-K query. BM25 scores use smaller
 values for more relevant matches. The FTS index returns matches in ascending
 BM25 score order by default; a typical Top-K query makes that order explicit:
@@ -153,6 +186,57 @@ LIMIT 10;
 
 When an FTS index exists for `Article.title`, the query returns both the
 matching node and its BM25 score.
+
+### Multi-Property Search
+
+For an FTS index containing multiple properties, pass a property list and a
+corresponding weight list to `bm25`:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       article.title,
+       bm25(
+           [article.title, article.content],
+           [5.0, 1.0],
+           'graph database'
+       ) AS score
+ORDER BY score ASC
+LIMIT 10;
+```
+
+Arguments:
+
+- **Properties**: The first list selects the indexed properties to search.
+- **Weights**: The second argument assigns a weight to each property by
+  position. A larger weight gives that property more influence on the BM25
+  ranking. In addition to a list, this argument also accepts an array.
+- **Query**: The final argument is the full-text query described in
+  [Query Syntax](#query-syntax).
+
+In the example, `title` has weight `5.0` and `content` has weight `1.0`.
+
+Search behavior:
+
+- A multi-property index can search one indexed property or any combination of
+  its indexed properties.
+- Only properties passed to `bm25` participate in matching and ranking.
+- Values from indexed properties not passed to `bm25` are ignored.
+- Use `bm25(property, query)` to search one property.
+- Use `bm25([properties], weights, query)` to search a property combination.
+
+Requirements:
+
+- All selected properties must belong to the same node variable and the same
+  FTS index.
+- The property list and weight list must be non-empty and have the same length.
+- Each weight must be numeric, positive, finite, and not `NULL`.
+- Weights can be literals or dynamic parameters; see
+  [Dynamic Query Parameters](#dynamic-query-parameters).
+- For an FTS index created on one property, use
+  `bm25(indexed_property, query)`. The multi-property form
+  `bm25([properties], weights, query)` is only supported for an index created
+  on multiple properties.
 
 Note:
 
@@ -221,6 +305,42 @@ The parameter is bound separately for every execution. It must be present,
 have type `STRING`, and not be `NULL`. Its value uses the same full-text query
 syntax as a string literal; an empty or syntactically invalid query returns a
 query execution error.
+
+For multi-property search, the weight list can also be supplied as a dynamic
+parameter:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25([article.title, article.content], $weights, $query) AS score
+ORDER BY score ASC
+LIMIT 10;
+```
+
+```python
+statement = """
+MATCH (article:Article)
+RETURN article.id,
+       bm25([article.title, article.content], $weights, $query) AS score
+ORDER BY score ASC
+LIMIT 10;
+"""
+
+result = connection.execute(
+    statement,
+    parameters={
+        "weights": [5.0, 1.0],
+        "query": "graph database",
+    },
+)
+```
+
+For `$weights`:
+
+- The value can be supplied as a list. An array is also accepted.
+- It must contain one value for each property, in the same order.
+- Every value must be numeric, positive, finite, and not `NULL`.
+- `$weights` and `$query` can be bound independently or used together.
 
 ## Filtering and Hybrid Search
 

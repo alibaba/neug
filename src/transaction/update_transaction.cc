@@ -163,15 +163,15 @@ static Status dropVertexIndex(PropertyGraph& graph, label_t label,
                               const std::string& prop_name,
                               PropertyGraphCowState* cow_state = nullptr) {
   auto& index_manager = graph.mutable_index_manager();
-  auto indexes = index_manager.GetIndex(label, prop_name);
+  auto indexes = index_manager.GetIndexesContainingProperty(label, prop_name);
   if (!indexes) {
     return indexes.error();
   }
 
   std::vector<std::string> index_names;
   index_names.reserve(indexes->size());
-  for (auto* index : indexes.value()) {
-    index_names.push_back(index->GetMeta().name);
+  for (const auto& binding : indexes.value()) {
+    index_names.push_back(binding.index->GetMeta().name);
   }
   for (const auto& index_name : index_names) {
     RETURN_IF_NOT_OK(index_manager.DropIndex(index_name));
@@ -187,12 +187,13 @@ static Status renameVertexIndex(PropertyGraph& graph, label_t label,
                                 const std::string& old_name,
                                 const std::string& new_name) {
   auto indexes =
-      graph.mutable_index_manager().GetIndexForUpdate(label, old_name);
+      graph.mutable_index_manager().GetIndexesContainingPropertyForUpdate(
+          label, old_name);
   if (!indexes) {
     return indexes.error();
   }
-  for (auto* index : indexes.value()) {
-    index->RenameProperty(new_name);
+  for (const auto& binding : indexes.value()) {
+    binding.index->RenameProperty(old_name, new_name);
   }
   return Status::OK();
 }
@@ -207,36 +208,34 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
   const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
 
-  // Primary keys are stored separately from property_names, so maintain their
-  // indexes explicitly.
+  // Build every indexed tuple in metadata order. Primary keys are stored
+  // separately from regular properties, so read the supplied id explicitly.
   const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
-  if (!pk_indexes) {
-    return pk_indexes.error();
+  auto indexes = index_manager.GetIndexesForUpdate(label);
+  if (!indexes) {
+    return indexes.error();
   }
-  for (auto* index : pk_indexes.value()) {
+  for (auto* index : indexes.value()) {
     if (detach_index) {
       RETURN_IF_NOT_OK(detach_index(*index));
     }
-    RETURN_IF_NOT_OK(index->Upsert(lid, id));
-  }
-
-  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
-       ++prop_idx) {
-    if (v_schema->vprop_soft_deleted[prop_idx] || prop_idx >= props.size()) {
-      continue;
-    }
-    auto indexes = index_manager.GetIndexForUpdate(
-        label, v_schema->property_names[prop_idx]);
-    if (!indexes) {
-      return indexes.error();
-    }
-    for (auto* index : indexes.value()) {
-      if (detach_index) {
-        RETURN_IF_NOT_OK(detach_index(*index));
+    IndexValues values;
+    for (const auto& column : index->GetMeta().schema.columns) {
+      if (column.property_name == pk_name) {
+        values.push_back(id);
+        continue;
       }
-      RETURN_IF_NOT_OK(index->Upsert(lid, props[prop_idx]));
+      auto it = std::find(v_schema->property_names.begin(),
+                          v_schema->property_names.end(), column.property_name);
+      if (it == v_schema->property_names.end()) {
+        return Status::InternalError("Indexed property does not exist");
+      }
+      auto pos = static_cast<size_t>(
+          std::distance(v_schema->property_names.begin(), it));
+      CHECK_LT(pos, props.size());
+      values.push_back(props[pos]);
     }
+    RETURN_IF_NOT_OK(index->Upsert(lid, values));
   }
   return Status::OK();
 }
@@ -256,16 +255,18 @@ static Status updateVertexIndexData(
     return Status::OK();
   }
 
-  auto indexes = graph.mutable_index_manager().GetIndexForUpdate(
-      label, v_schema->property_names[col_id]);
+  auto indexes =
+      graph.mutable_index_manager().GetIndexesContainingPropertyForUpdate(
+          label, v_schema->property_names[col_id]);
   if (!indexes) {
     return indexes.error();
   }
-  for (auto* index : indexes.value()) {
+  for (const auto& binding : indexes.value()) {
     if (detach_index) {
-      RETURN_IF_NOT_OK(detach_index(*index));
+      RETURN_IF_NOT_OK(detach_index(*binding.index));
     }
-    RETURN_IF_NOT_OK(index->Upsert(lid, value));
+    RETURN_IF_NOT_OK(
+        binding.index->Upsert(lid, IndexValue{binding.column_id, value}));
   }
   return Status::OK();
 }
@@ -276,17 +277,12 @@ static Status updateVertexIndexData(
 static Status deleteVertexIndexData(
     PropertyGraph& graph, label_t label, const std::vector<vid_t>& vids,
     const IndexDetachFn& detach_index = nullptr) {
-  const auto& v_schema = graph.schema().get_vertex_schema(label);
   auto& index_manager = graph.mutable_index_manager();
-
-  // Primary keys are excluded from property_names, so delete their index
-  // entries explicitly.
-  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
-  if (!pk_indexes) {
-    return pk_indexes.error();
+  auto indexes = index_manager.GetIndexesForUpdate(label);
+  if (!indexes) {
+    return indexes.error();
   }
-  for (auto* index : pk_indexes.value()) {
+  for (auto* index : indexes.value()) {
     if (detach_index) {
       RETURN_IF_NOT_OK(detach_index(*index));
     }
@@ -295,25 +291,6 @@ static Status deleteVertexIndexData(
     }
   }
 
-  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
-       ++prop_idx) {
-    if (v_schema->vprop_soft_deleted[prop_idx]) {
-      continue;
-    }
-    auto indexes = index_manager.GetIndexForUpdate(
-        label, v_schema->property_names[prop_idx]);
-    if (!indexes) {
-      return indexes.error();
-    }
-    for (auto* index : indexes.value()) {
-      if (detach_index) {
-        RETURN_IF_NOT_OK(detach_index(*index));
-      }
-      for (vid_t vid : vids) {
-        RETURN_IF_NOT_OK(index->Delete(vid));
-      }
-    }
-  }
   return Status::OK();
 }
 
@@ -1096,7 +1073,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
       if (redo.prop_id >= 0 &&
           static_cast<size_t>(redo.prop_id) < v_schema->property_names.size() &&
           !v_schema->vprop_soft_deleted[redo.prop_id] &&
-          graph.mutable_index_manager().HasPendingIndex(
+          graph.mutable_index_manager().HasPendingIndexContainingProperty(
               redo.label, v_schema->property_names[redo.prop_id])) {
         graph.mutable_index_manager().RecordPendingUpdate(
             redo.label, vid, v_schema->property_names[redo.prop_id],

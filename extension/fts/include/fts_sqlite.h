@@ -38,6 +38,7 @@ class SQLiteStatement {
 
   void BindText(int parameter, const std::string& value);
   void BindInt64(int parameter, int64_t value);
+  void BindDouble(int parameter, double value);
   void Reset();
   int Step();
   int64_t ColumnInt64(int column) const;

@@ -119,7 +119,7 @@ nEUG_CreateType
     : CREATE SP TYPE SP oC_SchemaName SP AS SP nEUG_DataType SP? ;
 
 nEUG_CreateIndex
-    : CREATE SP INDEX SP oC_SchemaName (SP nEUG_IfNotExists)? SP ON SP oC_SchemaName SP USING SP oC_SchemaName SP? '(' SP? oC_PropertyKeyName SP? ')' (SP nEUG_CreateIndexOptions)? ;
+    : CREATE SP INDEX SP oC_SchemaName (SP nEUG_IfNotExists)? SP ON SP oC_SchemaName SP USING SP oC_SchemaName SP? '(' SP? oC_PropertyKeyName (SP? ',' SP? oC_PropertyKeyName)* SP? ')' (SP nEUG_CreateIndexOptions)? ;
 
 nEUG_CreateIndexOptions
     : WITH SP? '(' SP? nEUG_CreateIndexOptionList SP? ')' ;

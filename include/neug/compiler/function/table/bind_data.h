@@ -103,6 +103,8 @@ struct NEUG_API TableFuncBindData {
 struct NEUG_API IndexScanBindData final : TableFuncBindData {
   std::string uniqueIndexName;
   std::shared_ptr<binder::Expression> targetValue;
+  std::shared_ptr<binder::Expression> weights;
+  std::vector<std::string> propertyNames;
   common::case_insensitive_map_t<std::string> options;
 
   IndexScanBindData(binder::expression_vector columns,
@@ -117,6 +119,8 @@ struct NEUG_API IndexScanBindData final : TableFuncBindData {
   std::unique_ptr<TableFuncBindData> copy() const override {
     auto result = std::make_unique<IndexScanBindData>(columns, uniqueIndexName,
                                                       targetValue);
+    result->weights = weights;
+    result->propertyNames = propertyNames;
     result->options = options;
     return result;
   }

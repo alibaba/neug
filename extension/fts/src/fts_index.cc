@@ -76,6 +76,36 @@ std::string QuoteSQLiteLiteral(const std::string& value) {
   return quoted;
 }
 
+std::string QuoteSQLiteIdentifier(const std::string& value) {
+  std::string result = "\"";
+  for (char ch : value) {
+    result += ch == '\"' ? "\"\"" : std::string(1, ch);
+  }
+  return result + "\"";
+}
+
+std::string AddFTS5ColumnFilter(const std::vector<std::string>& property_names,
+                                const std::string& query_string) {
+  if (property_names.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "FTS search requires at least one property name");
+  }
+  std::string filter;
+  if (property_names.size() == 1) {
+    filter = QuoteSQLiteIdentifier(property_names.front());
+  } else {
+    filter = "{";
+    for (size_t i = 0; i < property_names.size(); ++i) {
+      if (i != 0) {
+        filter += " ";
+      }
+      filter += QuoteSQLiteIdentifier(property_names[i]);
+    }
+    filter += "}";
+  }
+  return filter + " : (" + query_string + ")";
+}
+
 }  // namespace
 
 FTSDumpContainer::FTSDumpContainer(
@@ -131,8 +161,13 @@ void FTSIndex::ParseOptions() {
         "FTSIndex name must start with a letter or underscore and contain "
         "only letters, digits, or underscores");
   }
-  if (meta_->schema.property_type.id() != DataTypeId::kVarchar) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex property must be STRING");
+  if (meta_->schema.columns.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex requires at least one property");
+  }
+  for (const auto& column : meta_->schema.columns) {
+    if (column.property_type.id() != DataTypeId::kVarchar) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("FTSIndex properties must be STRING");
+    }
   }
 
   static const std::unordered_set<std::string> kKnownOptions = {
@@ -159,9 +194,13 @@ void FTSIndex::ParseOptions() {
 }
 
 void FTSIndex::CreateTable() {
-  std::string sql = "CREATE VIRTUAL TABLE " + table_name_ +
-                    " USING fts5(text, content='', tokenize=" +
-                    QuoteSQLiteLiteral(tokenizer_);
+  std::string sql = "CREATE VIRTUAL TABLE " + table_name_ + " USING fts5(";
+  for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
+    if (i > 0)
+      sql += ", ";
+    sql += QuoteSQLiteIdentifier(meta_->schema.columns[i].property_name);
+  }
+  sql += ", content='', tokenize=" + QuoteSQLiteLiteral(tokenizer_);
   if (!prefix_.empty()) {
     sql += ", prefix=" + QuoteSQLiteLiteral(prefix_);
   }
@@ -181,14 +220,24 @@ void FTSIndex::ValidateExistingTable() {
 }
 
 void FTSIndex::PrepareStatements() {
-  auto append_sql =
-      "INSERT INTO " + table_name_ + "(rowid, text) VALUES (?1, ?2);";
-  auto search_asc_sql = "SELECT rowid, rank AS score FROM " + table_name_ +
-                        " WHERE " + table_name_ +
-                        " MATCH ?1 ORDER BY rank ASC;";
-  auto search_desc_sql = "SELECT rowid, rank AS score FROM " + table_name_ +
-                         " WHERE " + table_name_ +
-                         " MATCH ?1 ORDER BY rank DESC;";
+  std::string column_list;
+  std::string placeholders;
+  std::string weight_placeholders;
+  for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
+    column_list +=
+        ", " + QuoteSQLiteIdentifier(meta_->schema.columns[i].property_name);
+    placeholders += ", ?" + std::to_string(i + 2);
+    weight_placeholders += ", ?" + std::to_string(i + 2);
+  }
+  auto append_sql = "INSERT INTO " + table_name_ + "(rowid" + column_list +
+                    ") VALUES (?1" + placeholders + ");";
+  auto score = "bm25(" + table_name_ + weight_placeholders + ")";
+  auto search_asc_sql = "SELECT rowid, " + score + " AS score FROM " +
+                        table_name_ + " WHERE " + table_name_ +
+                        " MATCH ?1 ORDER BY score ASC;";
+  auto search_desc_sql = "SELECT rowid, " + score + " AS score FROM " +
+                         table_name_ + " WHERE " + table_name_ +
+                         " MATCH ?1 ORDER BY score DESC;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
   *search_asc_statement_ = read_connection_->Prepare(search_asc_sql);
@@ -351,21 +400,26 @@ std::unique_ptr<Module> FTSIndex::Clone() const {
   cloned->tokenizer_ = tokenizer_;
   cloned->prefix_ = prefix_;
   cloned->detail_ = detail_;
-  cloned->bound_column_ = bound_column_;
+  cloned->bound_columns_ = bound_columns_;
   return cloned;
 }
 
 Status FTSIndex::Rebind(const IndexBindContext& context) {
-  if (!context.column) {
+  if (!meta_ || context.columns.size() != meta_->schema.columns.size()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "FTSIndex requires a property column binding");
+                  "FTSIndex binding column count does not match metadata");
   }
-  bound_column_ = context.column;
+  if (std::any_of(context.columns.begin(), context.columns.end(),
+                  [](const ColumnBase* column) { return column == nullptr; })) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "FTSIndex binding contains a null property column");
+  }
+  bound_columns_ = context.columns;
   return Status::OK();
 }
 
 Status FTSIndex::BulkBuild(const VertexSet& vertices) {
-  if (!bound_column_) {
+  if (bound_columns_.empty()) {
     return Status::RuntimeError("FTSIndex is not bound");
   }
   if (!write_connection_->IsOpen()) {
@@ -374,7 +428,12 @@ Status FTSIndex::BulkBuild(const VertexSet& vertices) {
   try {
     write_connection_->Execute("BEGIN TRANSACTION;");
     for (vid_t vid : vertices) {
-      auto status = Upsert(vid, bound_column_->get_any(vid));
+      IndexValues values;
+      values.reserve(bound_columns_.size());
+      for (const auto* column : bound_columns_) {
+        values.emplace_back(column->get_any(vid));
+      }
+      auto status = StorageIndex::Upsert(vid, values);
       if (!status.ok()) {
         write_connection_->Execute("ROLLBACK;");
         return status;
@@ -389,6 +448,32 @@ Status FTSIndex::BulkBuild(const VertexSet& vertices) {
     return Status::RuntimeError("FTSIndex bulk build failed: " +
                                 std::string(error.what()));
   }
+}
+
+Status FTSIndex::Upsert(vid_t vid, const IndexValue& new_value) {
+  if (!index_id_accessor_) {
+    return Status::InternalError("Index ID accessor is not initialized");
+  }
+  if (!meta_ || bound_columns_.size() != meta_->schema.columns.size()) {
+    return Status::InternalError("FTSIndex is not bound");
+  }
+  if (new_value.column_id >= bound_columns_.size()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "FTSIndex column id is out of range");
+  }
+
+  IndexValues values;
+  values.reserve(bound_columns_.size());
+  for (const auto* column : bound_columns_) {
+    values.emplace_back(column->get_any(vid));
+  }
+  values[new_value.column_id] = new_value.value;
+  if (std::all_of(values.begin(), values.end(),
+                  [](const Value& value) { return value.IsNull(); })) {
+    return Delete(vid);
+  }
+  auto index_id = index_id_accessor_->UpsertVID(vid);
+  return AppendImpl(index_id, values);
 }
 
 result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
@@ -425,7 +510,27 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
                                                        : search_desc_statement_;
     std::lock_guard lock(search_statement->mutex());
     search_statement->Reset();
-    search_statement->BindText(1, fts_params->query_string);
+    for (const auto& property_name : fts_params->property_names) {
+      const auto found =
+          std::find_if(meta_->schema.columns.begin(),
+                       meta_->schema.columns.end(), [&](const auto& column) {
+                         return column.property_name == property_name;
+                       });
+      if (found == meta_->schema.columns.end()) {
+        RETURN_INVALID_ARGUMENT_ERROR("FTS property is not indexed: " +
+                                      property_name);
+      }
+    }
+    const auto filtered_query = AddFTS5ColumnFilter(fts_params->property_names,
+                                                    fts_params->query_string);
+    search_statement->BindText(1, filtered_query);
+    for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
+      const auto& property_name = meta_->schema.columns[i].property_name;
+      auto weight = fts_params->weights.find(property_name);
+      search_statement->BindDouble(
+          static_cast<int>(i + 2),
+          weight == fts_params->weights.end() ? 0.0 : weight->second);
+    }
 
     std::vector<SearchCandidate> results;
     while (search_statement->Step() == SQLITE_ROW) {
@@ -458,10 +563,12 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
   }
 }
 
-Status FTSIndex::AppendImpl(index_id_t index_id, const Value& value) {
-  if (value.IsNull() || value.type().id() != DataTypeId::kVarchar) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "FTS value must be a non-null STRING");
+Status FTSIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
+  for (const auto& value : values) {
+    if (value.IsNull() || value.type().id() != DataTypeId::kVarchar) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "FTS values must be non-null STRINGs");
+    }
   }
   if (!write_connection_->IsOpen()) {
     return Status::RuntimeError("FTSIndex must be open before append");
@@ -471,7 +578,10 @@ Status FTSIndex::AppendImpl(index_id_t index_id, const Value& value) {
     auto& statement = *append_statements_;
     statement.Reset();
     statement.BindInt64(1, index_id);
-    statement.BindText(2, value.GetValue<std::string>());
+    for (size_t i = 0; i < values.size(); ++i) {
+      statement.BindText(static_cast<int>(i + 2),
+                         values[i].GetValue<std::string>());
+    }
     statement.Step();
     return Status::OK();
   } catch (const std::exception& error) {

@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "fts_sqlite.h"
@@ -34,6 +35,8 @@ struct FTSQueryParams final : IndexQueryParams {
   std::vector<vid_t> scalar_filter;
   bool use_scalar_filter{false};
   std::string query_string;
+  std::vector<std::string> property_names;
+  std::unordered_map<std::string, double> weights;
   std::optional<uint64_t> limit;
   FTSScoreOrder order{FTSScoreOrder::kAscending};
 };
@@ -77,13 +80,14 @@ class FTSIndex final : public StorageIndex {
 
   Status Rebind(const IndexBindContext& context) override;
   Status BulkBuild(const VertexSet& vertices) override;
+  Status Upsert(vid_t vid, const IndexValue& new_value) override;
 
   static std::string type_name() { return "fts_index"; }
 
  protected:
   result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) override;
-  Status AppendImpl(index_id_t index_id, const Value& value) override;
+  Status AppendImpl(index_id_t index_id, const IndexValues& values) override;
 
  private:
   void ParseOptions();
@@ -113,7 +117,7 @@ class FTSIndex final : public StorageIndex {
   std::string tokenizer_{"unicode61"};
   std::string prefix_;
   std::string detail_{"full"};
-  const ColumnBase* bound_column_{nullptr};
+  std::vector<const ColumnBase*> bound_columns_;
 };
 
 }  // namespace neug::fts_ext

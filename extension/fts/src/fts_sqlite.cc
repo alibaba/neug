@@ -72,6 +72,14 @@ void SQLiteStatement::BindInt64(int parameter, int64_t value) {
   }
 }
 
+void SQLiteStatement::BindDouble(int parameter, double value) {
+  auto code = sqlite3_bind_double(statement_, parameter, value);
+  if (code != SQLITE_OK) {
+    THROW_RUNTIME_ERROR(SQLiteError(sqlite3_db_handle(statement_),
+                                    "SQLite bind double failed", code));
+  }
+}
+
 void SQLiteStatement::Reset() {
   // sqlite3_reset() resets the statement even when it returns the error code
   // from the previous sqlite3_step() call.

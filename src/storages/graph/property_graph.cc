@@ -861,10 +861,13 @@ void PropertyGraph::rebind_indexes() {
         !schema_.is_vertex_label_valid(index_meta.schema.label_id)) {
       THROW_RUNTIME_ERROR("PropertyGraph: invalid index label id");
     }
-    auto* column =
-        vertex_tables_[index_meta.schema.label_id].GetPropertyColumnBase(
-            index_meta.schema.property_name);
-    auto status = index->Rebind(IndexBindContext{column});
+    std::vector<const ColumnBase*> columns;
+    for (const auto& index_column : index_meta.schema.columns) {
+      columns.push_back(
+          vertex_tables_[index_meta.schema.label_id].GetPropertyColumnBase(
+              index_column.property_name));
+    }
+    auto status = index->Rebind(IndexBindContext{std::move(columns)});
     if (!status.ok()) {
       THROW_RUNTIME_ERROR("PropertyGraph: failed to bind index '" +
                           index_meta.name + "': " + status.error_message());
