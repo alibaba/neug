@@ -256,6 +256,19 @@ StorageIndexManager::GetPendingIndex(
   return indexes;
 }
 
+result<std::vector<StorageIndexManager::PendingIndex*>>
+StorageIndexManager::GetPendingIndexContainingProperty(
+    label_t label_id, const std::string& property_name) {
+  std::vector<PendingIndex*> indexes;
+  for (auto& [_, pending] : pending_indexes_) {
+    const auto& schema = pending.meta.schema;
+    if (schema.label_id == label_id && schema.ContainsProperty(property_name)) {
+      indexes.push_back(&pending);
+    }
+  }
+  return indexes;
+}
+
 result<StorageIndexManager::PendingIndex*>
 StorageIndexManager::GetPendingIndexByName(const std::string& name) {
   auto it = pending_indexes_.find(name);

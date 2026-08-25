@@ -585,11 +585,8 @@ neug::result<CreatedIndex> CreateStorageIndex(
         property_name == std::get<1>(schema->primary_keys[0]);
     GS_AUTO(existing_indexes, index_manager.GetIndexesContainingProperty(
                                   label_id, property_name));
-    // 这里有一个小问题，应该访问 GetPendingIndexContainingProperty
-    // 接口找到任何包含该属性的 pending index 在 storage_index_manager
-    // 中增加相关接口
-    GS_AUTO(pending_indexes,
-            index_manager.GetPendingIndex(label_id, {property_name}));
+    GS_AUTO(pending_indexes, index_manager.GetPendingIndexContainingProperty(
+                                 label_id, property_name));
     const bool has_non_hnsw =
         std::any_of(existing_indexes.begin(), existing_indexes.end(),
                     [](const BoundIndexRef& binding) {
@@ -636,16 +633,14 @@ neug::result<CreatedIndex> CreateStorageIndex(
   } else {
     for (size_t i = 0; i < columns.size(); ++i) {
       const auto* column = columns[i];
-      // 这里可以直接使用 GetIndex 接口，因为校验的是 hnsw
-      // index，一定是在单列属性上创建
-      GS_AUTO(existing_indexes, index_manager.GetIndexesContainingProperty(
-                                    label_id, property_names[i]));
+      GS_AUTO(existing_indexes,
+              index_manager.GetIndex(label_id, {property_names[i]}));
       GS_AUTO(pending_indexes,
               index_manager.GetPendingIndex(label_id, {property_names[i]}));
       const bool has_hnsw =
           std::any_of(existing_indexes.begin(), existing_indexes.end(),
-                      [](const BoundIndexRef& binding) {
-                        return IsHNSWIndex(binding.index->GetMeta());
+                      [](const StorageIndex* index) {
+                        return IsHNSWIndex(index->GetMeta());
                       }) ||
           std::any_of(pending_indexes.begin(), pending_indexes.end(),
                       [](const StorageIndexManager::PendingIndex* index) {

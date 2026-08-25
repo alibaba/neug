@@ -120,6 +120,8 @@ class StorageIndexManager {
       label_t label_id, const std::string& property_name) const;
   neug::result<std::vector<PendingIndex*>> GetPendingIndex(
       label_t label_id, const std::vector<std::string>& property_names);
+  neug::result<std::vector<PendingIndex*>> GetPendingIndexContainingProperty(
+      label_t label_id, const std::string& property_name);
   result<PendingIndex*> GetPendingIndexByName(const std::string& name);
   result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;
 
