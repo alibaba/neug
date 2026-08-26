@@ -14,9 +14,11 @@ Rather than implementing a one-size-fits-all transaction system with high comple
 
 ## Transaction Model
 
-NeuG keeps auto-commit semantics as the default in every currently supported
-interface: each `execute()` or `Query()` call is one statement-level
-transaction.
+### Before version v0.2
+
+Before version v0.2, NeuG exposed only an implicit, auto-commit transaction
+model. It had no user-visible explicit transaction primitives: each `execute()`
+or `Query()` call was one statement-level transaction.
 
 ```python
 # Each execute() is an independent, auto-committed transaction.
@@ -24,11 +26,16 @@ conn.execute("CREATE (p:Person {name: 'Alice'})")  # Transaction 1
 conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 ```
 
-### Explicit Transactions in Embedded C++ AP Mode
+### Since version v0.2
 
-The embedded C++ `Connection` API additionally supports programmatic explicit
-transactions for AP mode. A transaction is owned by its `Connection` and spans
-multiple `Query()` calls:
+Since version v0.2, auto-commit remains the default in every supported
+interface. The embedded C++ `Connection` API additionally supports
+programmatic explicit transactions for AP mode, as described below.
+
+#### Explicit Transactions in Embedded C++ AP Mode
+
+An explicit transaction is owned by its `Connection` and spans multiple
+`Query()` calls:
 
 ```cpp
 auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
@@ -69,7 +76,7 @@ schema operations.
 |--------|-------------------|-------------------|
 | **Use Case** | Analytics, ETL, batch processing | Interactive applications, web services |
 | **Concurrency** | Single-user, sequential writes | Multi-user, concurrent access |
-| **Persistence** | Explicit checkpoint-based | Automatic WAL-based |
+| **Persistence** | v0.2+: WAL for ordinary writes; checkpoints for bulk/materialization | Automatic WAL-based |
 | **Optimization Goal** | Maximum single-query performance | Concurrent read/insert throughput |
 
 ## ACID Properties
@@ -80,11 +87,18 @@ Embedded mode is designed for analytical workloads where simplicity and single-q
 
 #### Atomicity
 
-Ordinary AP writes use a private COW graph and publish it only after their WAL
-commit succeeds. Persistent direct bulk operations use the same private graph
-and publish a checkpoint on success; temporary bulk objects are in-memory only.
-An explicit read-write transaction accumulates its supported ordinary writes in
-one private graph and publishes them only at `Commit()`.
+**Before version v0.2:** Statement-level atomicity was not fully guaranteed
+for large AP write operations. A failure during a large write, such as `COPY`,
+could leave partial data in memory. Applications used checkpoints as recovery
+points around those operations; see [Checkpoints](checkpoint.md) for the
+checkpoint lifecycle and `checkpoint_on_close` behavior.
+
+**Since version v0.2:** Ordinary AP writes use a private COW graph and publish
+it only after their WAL commit succeeds. Persistent direct bulk operations use
+the same private graph and publish a checkpoint on success; temporary bulk
+objects are in-memory only. An explicit read-write transaction accumulates its
+supported ordinary writes in one private graph and publishes them only at
+`Commit()`.
 
 The current WAL format is sufficient for normal replay, but its final framing,
 corruption handling, and commit-unknown recovery rules are still being
@@ -109,11 +123,15 @@ This simple locking model is sufficient for single-user analytical workloads and
 
 #### Durability
 
-Ordinary AP writes, including one successful explicit read-write commit, append
-logical redo to the WAL and are replayed on a normal restart. Persistent direct
-bulk operations become durable by publishing their checkpoint. An explicit
-`CHECKPOINT` statement or database closure with `checkpoint_on_close=True`
-creates a materialized checkpoint and manages WAL rotation.
+**Before version v0.2:** AP changes were persisted only by an explicit
+`CHECKPOINT` statement or database closure with `checkpoint_on_close=True`.
+
+**Since version v0.2:** Ordinary AP writes, including one successful explicit
+read-write commit, append logical redo to the WAL and are replayed on a normal
+restart. Persistent direct bulk operations become durable by publishing their
+checkpoint. An explicit `CHECKPOINT` statement or database closure with
+`checkpoint_on_close=True` creates a materialized checkpoint and manages WAL
+rotation.
 
 For in-memory databases, durability is not applicable as data exists only in volatile memory.
 For usage and failure behavior, see [Checkpoints](checkpoint.md).
