@@ -38,10 +38,13 @@ struct GKey : public KeyBase {
     flat_hash_map<std::string_view, sel_t> sig_to_root;
     vector_t<vector_t<char>> root_list;
     for (size_t i = 0; i < row_num; ++i) {
-      vector_t<char> buf;
+      vector_t<char> buf((exprs.size() + 7) / 8, 0);
       ::neug::Encoder encoder(buf);
       for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
         auto val = exprs[k_i]->get_elem(i);
+        if (val.IsNull()) {
+          buf[k_i >> 3] |= static_cast<char>(1U << (k_i & 7));
+        }
         encode_value(val, encoder);
       }
       std::string_view sv(buf.data(), buf.size());
