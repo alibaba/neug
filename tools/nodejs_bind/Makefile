@@ -43,16 +43,14 @@ JOBS   ?= $(NPROC)
 # Platform-specific shared library name
 ifeq ($(UNAME_S),Darwin)
   NEUG_SHARED_LIB := libneug.dylib
-  MIMALLOC_SHARED_LIB := libmimalloc.2.dylib
 else
   NEUG_SHARED_LIB := libneug.so
-  MIMALLOC_SHARED_LIB := libmimalloc.so.2
 endif
 
 # Local staging directory for the addon and its shared-library dependencies
 PLATFORM_DIR := build/$(BUILD_TYPE)/$(PREBUILD_PLATFORM)
 
-.PHONY: help dev build stage pack proto clean
+.PHONY: help dev build stage bundle pack proto clean
 
 .DEFAULT_GOAL := help
 
@@ -69,20 +67,47 @@ dev:  ## Build neug_node_bind (auto-bootstrap if needed)
 
 build: dev  ## Alias for dev
 
-# Stage .node + libneug into PLATFORM_DIR so @loader_path/$ORIGIN resolves.
+# Stage the Node.js addon and core NeuG shared library.
 stage:
+	@rm -rf "$(PLATFORM_DIR)"
 	@mkdir -p $(PLATFORM_DIR)
 	@find $(ROOT_BUILD) -name "neug_node_bind.node" -exec cp {} $(PLATFORM_DIR)/ \;
 	@cp $(ROOT_BUILD)/src/$(NEUG_SHARED_LIB) $(PLATFORM_DIR)/
-	@cp $(ROOT_BUILD)/third_party/mimalloc/$(MIMALLOC_SHARED_LIB) $(PLATFORM_DIR)/
 	@echo "Artifacts staged in $(PLATFORM_DIR):"
 	@ls -lh $(PLATFORM_DIR)/
+
+bundle:  ## Collect linked third-party libraries and replace build-machine RPATHs
+ifeq ($(UNAME_S),Darwin)
+	delocate-path --sanitize-rpaths -v -L .dylibs "$(PLATFORM_DIR)"
+	@find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.dylib' \) \
+		-exec otool -L {} \;
+else
+	@set -e; \
+	lib_dir="$(PLATFORM_DIR)/.libs"; \
+	mkdir -p "$$lib_dir"; \
+	for binary in "$(PLATFORM_DIR)/neug_node_bind.node" "$(PLATFORM_DIR)/libneug.so"; do \
+		ldd "$$binary"; \
+	done | awk '$$2 == "=>" && $$3 ~ /^\// { print $$1 "|" $$3 }' | sort -u | \
+	while IFS='|' read -r soname source; do \
+		case "$$soname" in \
+			linux-vdso.so.*|ld-linux*.so.*|libc.so.*|libm.so.*|libpthread.so.*|libdl.so.*|librt.so.*|libgcc_s.so.*|libstdc++.so.*|libutil.so.*|libresolv.so.*|libnsl.so.*) continue ;; \
+		esac; \
+		echo "Copying $$source -> $$lib_dir/$$soname"; \
+		cp -L "$$source" "$$lib_dir/$$soname"; \
+	done; \
+	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/.libs' "$(PLATFORM_DIR)/neug_node_bind.node"; \
+	patchelf --set-rpath '$$ORIGIN:$$ORIGIN/.libs' "$(PLATFORM_DIR)/libneug.so"; \
+	find "$$lib_dir" -type f -exec patchelf --set-rpath '$$ORIGIN' {} \;; \
+	find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.so' -o -name '*.so.*' \) \
+		-exec sh -c 'echo "$$1:"; patchelf --print-rpath "$$1"; ldd "$$1"' sh {} \;
+endif
 
 proto:  ## Regenerate lib/proto/error_pb.js from proto/error.proto
 	node scripts/generate_proto.js
 
 pack:  ## Create per-platform npm tarball
 	@$(MAKE) dev NEUG_NATIVE_ARCH=OFF EXTRA_CMAKE_FLAGS="$(EXTRA_CMAKE_FLAGS) $(PACK_CMAKE_FLAGS)"
+	@$(MAKE) bundle
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
 	@cp package.json package.json.orig
 	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@graphscope-neug/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'

@@ -93,8 +93,10 @@ if (APPLE)
 endif()
 
 # Set RPATH so neug_node_bind.node can find libneug.so / libneug.dylib
-# in the same directory (build/Release/<platform>/). This is essential for
-# npm-distributed packages where the shared lib is bundled alongside the .node file.
+# in the same directory (build/Release/<platform>/). Package builds retain
+# CMake's build-tree RPATHs until dependencies are bundled. Those paths identify
+# the exact libraries selected by the linker; the platform bundle step copies them
+# into the package and replaces non-portable RPATHs before npm pack runs.
 if(APPLE)
   set(_neug_node_rpath "@loader_path")
 else()
@@ -102,7 +104,8 @@ else()
 endif()
 
 set_target_properties(neug_node_bind PROPERTIES
+  BUILD_RPATH "${_neug_node_rpath}"
   INSTALL_RPATH "${_neug_node_rpath}"
-  BUILD_WITH_INSTALL_RPATH TRUE
+  BUILD_WITH_INSTALL_RPATH FALSE
 )
 set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "${_neug_node_rpath}")

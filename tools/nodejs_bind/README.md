@@ -5,6 +5,21 @@
 Same system dependencies as NeuG (CMake >= 3.16, C++20 compiler), plus:
 
 - Node.js >= 20.0.0
+- macOS package builds only: `delocate==0.13.0`
+- Linux package builds only: `ldd` and `patchelf==0.19.0`
+
+Install the macOS packaging dependency with:
+
+```bash
+python3 -m pip install delocate==0.13.0
+```
+
+On Linux, install `patchelf==0.19.0` from the system package manager or the
+[official releases](https://github.com/NixOS/patchelf/releases):
+
+```bash
+patchelf --version
+```
 
 ### Installing Node.js
 
@@ -52,11 +67,17 @@ make pack
 Create a self-contained, distributable npm package tarball (`.tgz`). This will:
 
 1. Build the native addon (same as `make build`)
-2. Copy prebuilt binaries into `build/Release/<platform>/`:
+2. Copy NeuG's first-party binaries into `build/Release/<platform>/`:
    - `neug_node_bind.node` — the native addon
    - `libneug.so` / `libneug.dylib` — core shared library
-   - `libmimalloc.so.2` / `libmimalloc.2.dylib` — memory allocator
-3. Run `npm pack` to produce `neug-<version>.tgz`
+3. Collect the third-party libraries actually selected at link time:
+   - macOS uses `delocate-path` to copy them into `.dylibs/` and rewrite their
+     install names.
+   - Linux uses `ldd` to resolve the dependency closure, copies non-system
+     libraries into `.libs/`, and uses `patchelf` to set package-relative
+     `$ORIGIN` RPATHs.
+4. Print the bundled native dependencies for inspection.
+5. Run `npm pack` to produce `neug-<version>.tgz`
 
 Npm package builds always force `NEUG_PACKAGE_BUILD=ON` and
 `NEUG_NATIVE_ARCH=OFF`.
