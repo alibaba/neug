@@ -460,7 +460,7 @@ def test_fts_index_survives_database_reopen(tmp_path):
         reopened_db.close()
 
 
-def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
+def test_explicit_checkpoint_recovers_later_committed_fts_data_from_wal(tmp_path):
     database_path = str(tmp_path / "explicit_checkpoint_fts_db")
     db = Database(db_path=database_path, mode="w", checkpoint_on_close=False)
     connection = db.connect()
@@ -482,9 +482,9 @@ def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
         rows = list(
             reopened_connection.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")
         )
-        assert rows == [[1]]
+        assert rows == [[1], [2]]
         assert [row[0] for row in search(reopened_connection, "durable")] == [1]
-        assert search(reopened_connection, "volatile") == []
+        assert [row[0] for row in search(reopened_connection, "volatile")] == [2]
     finally:
         reopened_connection.close()
         reopened_db.close()
