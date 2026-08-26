@@ -404,8 +404,10 @@ class Database(object):
 
         For a read-write database with ``checkpoint_on_close=True``, this method
         creates a checkpoint before releasing database resources.
-        The method is idempotent.
-        Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.
+        The method is idempotent after a successful close. A checkpoint failure
+        before its destructive dump raises an exception and leaves the database
+        open so the caller can correct the problem and retry. A failure after
+        the destructive dump completes teardown and is then raised.
         """
         db_path = getattr(self, "_db_path", None)
         if log and db_path and db_path.strip() != "":

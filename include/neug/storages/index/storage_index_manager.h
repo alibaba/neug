@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "neug/storages/checkpoint.h"
@@ -29,10 +30,21 @@
 
 namespace neug {
 
+class PropertyGraph;
+class Schema;
+
 struct PendingIndex {
+  // A persisted index has checkpoint modules to reopen. A created index was
+  // reconstructed from CREATE INDEX WAL and still needs BulkBuild.
+  enum class State {
+    kPersisted,
+    kCreated,
+  };
+
   std::string key;
   ModuleDescriptor descriptor;
   IndexMeta meta;
+  State state{State::kPersisted};
 };
 
 /**
@@ -48,6 +60,7 @@ class StorageIndexManager {
   using IndexColumns =
       std::unordered_map<label_t,
                          std::unordered_map<std::string, const ColumnBase*>>;
+  using IndexVertexSets = std::unordered_map<label_t, VertexSet>;
 
   struct PendingIndexMutation {
     enum class Type { kInsert, kUpdate, kDelete };
@@ -67,12 +80,13 @@ class StorageIndexManager {
    * @param index_id_accessor Index ID mapping strategy.
    * @param column Property column bound to the index.
    * @param vertex_set Existing vertices used to populate the index.
-   * @return Pointer to the created index, or error.
+   * @return The built index or its pending representation, or an error.
    */
-  neug::result<StorageIndex*> CreateIndex(
+  neug::result<CreatedIndex> CreateIndex(
       std::unique_ptr<IndexMeta> meta,
       std::unique_ptr<IndexIDAccessor> index_id_accessor,
-      const ColumnBase* column, const VertexSet& vertex_set);
+      const ColumnBase* column, const VertexSet& vertex_set,
+      bool required = true);
 
   /**
    * @brief Remove an index by name.
@@ -84,6 +98,11 @@ class StorageIndexManager {
    */
   neug::result<std::vector<StorageIndex*>> GetIndex(
       label_t label_id, const std::string& property_name) const;
+
+  /// Return indexes that are about to be mutated and mark them dirty for
+  /// incremental checkpoint persistence.
+  neug::result<std::vector<StorageIndex*>> GetIndexForUpdate(
+      label_t label_id, const std::string& property_name);
 
   bool HasPendingIndex(label_t label_id) const;
   bool HasPendingIndex(label_t label_id,
@@ -115,11 +134,11 @@ class StorageIndexManager {
   void Open(std::shared_ptr<Checkpoint> ckp, ModuleBroker& store,
             MemoryLevel level);
 
-  result<size_t> ActivateIndexes(const IndexColumns& columns);
+  result<size_t> ActivateIndexes(const IndexColumns& columns,
+                                 const IndexVertexSets& vertex_sets);
 
   bool HasPendingIndexes() const { return !pending_indexes_.empty(); }
   bool HasPendingMutations() const { return !pending_mutations_.empty(); }
-  bool HasCatalogChanges() const { return catalog_dirty_; }
 
   /**
    * @brief Move all active indexes into the module broker for persistence.
@@ -137,11 +156,28 @@ class StorageIndexManager {
   static std::string GetKey(const std::string& index_name);
 
  private:
+  friend class PropertyGraph;
+
+  void RemapCheckpointIndexLabels(CheckpointManifest& manifest,
+                                  const Schema& source_schema,
+                                  const Schema& checkpoint_schema) const;
+  CheckpointManifest BuildIncrementalReopenManifest(
+      const CheckpointManifest& runtime_manifest) const;
+  void StageIncrementalModules(ModuleBroker& store, CheckpointManifest& meta);
+  Status ValidateCheckpointPreconditions() const;
+  void InstallIncrementalCheckpoint(std::shared_ptr<Checkpoint> ckp,
+                                    const CheckpointManifest& reopen_manifest);
+  bool HasCatalogChanges() const { return catalog_dirty_; }
+  bool HasCheckpointChanges() const {
+    return catalog_dirty_ || !dirty_index_names_.empty();
+  }
+
   std::shared_ptr<Checkpoint> ckp_;
   MemoryLevel memory_level_{MemoryLevel::kInMemory};
   std::unordered_map<std::string, std::unique_ptr<StorageIndex>> indexes_;
   std::unordered_map<std::string, PendingIndex> pending_indexes_;
   std::vector<std::shared_ptr<const PendingIndexMutation>> pending_mutations_;
+  std::unordered_set<std::string> dirty_index_names_;
   bool catalog_dirty_{false};
 };
 

@@ -31,7 +31,7 @@
 namespace neug {
 
 class ExecutionSlot;
-class InPlaceWriteScope;
+class CurrentCowWriteTransaction;
 class Checkpoint;
 
 /**
@@ -43,7 +43,7 @@ class Checkpoint;
  *
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
- *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
+ *   MvccInsertTransaction mutates the live slot in-place (timestamp-filtered).
  * - Update: CloneCurrentForUpdate() -> mutate COW copy -> PrepareSnapshot() ->
  *   PreparedSnapshot::Publish().
  *
@@ -74,10 +74,13 @@ class NEUG_API GraphSnapshotStore {
 
     /// Read-only view accessor.
     const GraphView& view() const { return view_; }
-    /// Mutable view accessor (for InsertTransaction / AP write path).
+    /// Mutable view accessor (for MvccInsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
-    /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
+    /// Mutable PropertyGraph accessor (for MvccInsertTransaction / AP write
+    /// path).
     PropertyGraph* mutable_graph() { return storage_.get(); }
+    /// Read-only PropertyGraph accessor.
+    const PropertyGraph& graph() const { return *storage_; }
     /// Snapshot publication generation carried by this slot incarnation.
     uint32_t snapshot_generation() const { return snapshot_generation_; }
     /// Plan-cache invalidation generation carried by this snapshot.
@@ -147,6 +150,10 @@ class NEUG_API GraphSnapshotStore {
     void ReopenCurrentGraphFromCheckpoint(
         std::shared_ptr<Checkpoint> checkpoint, MemoryLevel memory_level);
 
+    /// Rebuild pointer-based views after selective in-place module replacement.
+    /// Returns the unchanged snapshot generation used by transaction publish.
+    uint32_t RefreshCurrentView(bool planning_changed);
+
    private:
     friend class GraphSnapshotStore;
 
@@ -213,7 +220,7 @@ class NEUG_API GraphSnapshotStore {
   Status WithCheckpointMaintenance(CheckpointMaintenanceFn fn);
 
  private:
-  friend class InPlaceWriteScope;
+  friend class CurrentCowWriteTransaction;
 
   int slot_num_;
   std::vector<SnapshotSlot> slots_;
@@ -226,8 +233,9 @@ class NEUG_API GraphSnapshotStore {
   int getFreeSlot();
   void returnFreeSlot(int slot_index);
   uint32_t reserveSnapshotGeneration();
-  uint32_t publishInPlaceMutation(SnapshotSlot& mutated_slot,
-                                  bool planning_changed) noexcept;
+  void replaceCurrentSnapshotInPlace(
+      SnapshotSlot& target, std::shared_ptr<PropertyGraph>& prepared_storage,
+      GraphView& prepared_view, uint64_t planning_generation) noexcept;
   void publishPreparedSnapshot(int slot_index) noexcept;
   void unpinSnapshotByIndex(int slot_index) noexcept;
   void cleanupSlot(int slot_index);

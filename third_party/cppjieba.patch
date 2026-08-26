@@ -1,0 +1,111 @@
+diff --git a/include/cppjieba/DictTrie.hpp b/include/cppjieba/DictTrie.hpp
+index e3e1a7e..3ce753b 100644
+--- a/include/cppjieba/DictTrie.hpp
++++ b/include/cppjieba/DictTrie.hpp
+@@ -38,6 +38,10 @@ class DictTrie {
+     Init(dict_path, user_dict_paths, user_word_weight_opt);
+   }
+
++  DictTrie(std::istream&& dict_stream, const std::string& user_dict_paths = "", UserWordWeightOption user_word_weight_opt = WordWeightMedian) {
++    Init(dict_stream, user_dict_paths, user_word_weight_opt);
++  }
++
+   ~DictTrie() {
+     delete trie_;
+   }
+@@ -177,7 +181,15 @@ class DictTrie {
+   };
+
+   void Init(const std::string& dict_path, const std::string& user_dict_paths, UserWordWeightOption user_word_weight_opt) {
+-    const DictCacheEntry& cache = GetDictCache(dict_path);
++    Init(GetDictCache(dict_path), user_dict_paths, user_word_weight_opt);
++  }
++
++  void Init(std::istream& dict_stream, const std::string& user_dict_paths, UserWordWeightOption user_word_weight_opt) {
++    DictCacheEntry cache = BuildDictCacheEntry(dict_stream, "in-memory dictionary");
++    Init(cache, user_dict_paths, user_word_weight_opt);
++  }
++
++  void Init(const DictCacheEntry& cache, const std::string& user_dict_paths, UserWordWeightOption user_word_weight_opt) {
+     base_static_node_infos_ = cache.node_infos;
+     freq_sum_ = cache.freq_sum;
+     min_weight_ = cache.min_weight;
+@@ -235,12 +247,9 @@ class DictTrie {
+     return true;
+   }
+
+-  static DictCacheEntry BuildDictCacheEntry(const std::string& filePath) {
++  static DictCacheEntry BuildDictCacheEntry(std::istream& ifs, const std::string& source) {
+     DictCacheEntry entry;
+     std::vector<DictUnit> node_infos;
+-    std::ifstream ifs;
+-    OpenInputFile(ifs, filePath);
+-    XCHECK(ifs.is_open()) << "open " << filePath << " failed.";
+     std::string line;
+     std::vector<std::string> buf;
+     while (getline(ifs, line)) {
+@@ -252,7 +261,7 @@ class DictTrie {
+       node_info.tag = buf[2];
+       node_infos.push_back(node_info);
+     }
+-    XCHECK(!node_infos.empty()) << "dict file is empty: " << filePath;
++    XCHECK(!node_infos.empty()) << "dict is empty: " << source;
+
+     entry.freq_sum = CalcFreqSum(node_infos);
+     CalculateWeight(node_infos, entry.freq_sum);
+@@ -266,6 +275,13 @@ class DictTrie {
+     return entry;
+   }
+
++  static DictCacheEntry BuildDictCacheEntry(const std::string& filePath) {
++    std::ifstream ifs;
++    OpenInputFile(ifs, filePath);
++    XCHECK(ifs.is_open()) << "open " << filePath << " failed.";
++    return BuildDictCacheEntry(ifs, filePath);
++  }
++
+   static const DictCacheEntry& GetDictCache(const std::string& filePath) {
+     static std::unordered_map<std::string, DictCacheEntry> cache;
+     static std::mutex cache_mutex;
+diff --git a/include/cppjieba/HMMModel.hpp b/include/cppjieba/HMMModel.hpp
+index 1152495..1b986ad 100644
+--- a/include/cppjieba/HMMModel.hpp
++++ b/include/cppjieba/HMMModel.hpp
+@@ -30,12 +30,28 @@ struct HMMModel {
+     emitProbVec.push_back(&emitProbS);
+     LoadModel(modelPath);
+   }
++  HMMModel(std::istream&& modelStream) {
++    memset(startProb, 0, sizeof(startProb));
++    memset(transProb, 0, sizeof(transProb));
++    statMap[0] = 'B';
++    statMap[1] = 'E';
++    statMap[2] = 'M';
++    statMap[3] = 'S';
++    emitProbVec.push_back(&emitProbB);
++    emitProbVec.push_back(&emitProbE);
++    emitProbVec.push_back(&emitProbM);
++    emitProbVec.push_back(&emitProbS);
++    LoadModel(modelStream);
++  }
+   ~HMMModel() {
+   }
+   void LoadModel(const string& filePath) {
+     ifstream ifile;
+     OpenInputFile(ifile, filePath);
+     XCHECK(ifile.is_open()) << "open " << filePath << " failed";
++    LoadModel(ifile);
++  }
++  void LoadModel(std::istream& ifile) {
+     string line;
+     vector<string> tmp;
+     vector<string> tmp2;
+@@ -81,7 +97,7 @@ struct HMMModel {
+     }
+     return cit->second;
+   }
+-  bool GetLine(ifstream& ifile, string& line) {
++  bool GetLine(std::istream& ifile, string& line) {
+     while (getline(ifile, line)) {
+       Trim(line);
+       if (line.empty()) {

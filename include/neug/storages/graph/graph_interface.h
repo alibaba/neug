@@ -24,6 +24,7 @@
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/index/storage_index_fwd.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -571,7 +572,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    *
    * Reads are inherited from StorageReadInterface, borrowing the caller-owned
    * `view` (which must outlive this object — typically the owning
-   * UpdateTransaction's view).
+   * private COW transaction's view).
    *
    * @param view GraphView owned by the caller
    * @param ts Timestamp for MVCC visibility
@@ -579,6 +580,10 @@ class StorageUpdateInterface : public StorageReadInterface,
   StorageUpdateInterface(const GraphView& view, timestamp_t ts)
       : StorageReadInterface(view, ts), StorageInsertInterface() {}
   virtual ~StorageUpdateInterface() {}
+
+  virtual Status AddGraphEntry(const std::string& name,
+                               const ProjectedGraphEntry& entry) = 0;
+  virtual Status DropGraphEntry(const std::string& name) = 0;
 
   bool readable() const override { return true; }
   bool writable() const override { return true; }
@@ -629,12 +634,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    * @brief Delete a single vertex and its associated edges.
    */
   Status DeleteVertex(label_t label, vid_t lid) {
-    auto st = DeleteVertexImpl(label, lid);
-    if (st.ok()) {
-      MarkVertexTableDirty(label);
-      markIncidentEdgeTablesDirty(label);
-    }
-    return st;
+    return DeleteVertexImpl(label, lid);
   }
 
   /**
@@ -671,12 +671,7 @@ class StorageUpdateInterface : public StorageReadInterface,
    */
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) {
-    auto st = BatchDeleteVerticesImpl(v_label_id, vids);
-    if (st.ok()) {
-      MarkVertexTableDirty(v_label_id);
-      markIncidentEdgeTablesDirty(v_label_id);
-    }
-    return st;
+    return BatchDeleteVerticesImpl(v_label_id, vids);
   }
 
   /**
@@ -921,24 +916,17 @@ class StorageUpdateInterface : public StorageReadInterface,
       const DeleteEdgePropertiesParam& config) = 0;
   virtual Status DeleteVertexTypeImpl(label_t label) = 0;
   virtual Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) = 0;
-
-  void markIncidentEdgeTablesDirty(label_t label) {
-    for (const auto& [_, es] : schema().get_all_edge_schemas()) {
-      if (es->src_label_id == label || es->dst_label_id == label) {
-        MarkEdgeTableDirty(es->src_label_id, es->dst_label_id,
-                           es->edge_label_id);
-      }
-    }
-  }
 };
 
 /**
  * @brief Admin interface for storage index DDL (create/drop).
  *
- * Index management is only implemented by the AP update path
- * (StorageAPUpdateInterface). The execution layer obtains this interface
- * via dynamic_cast from IStorageInterface; a null result means the current
- * storage mode does not support index management.
+ * CowGraphStorage implements this capability for AP and TP write
+ * transactions. Index changes are committed through the transaction's
+ * logical WAL; COPY remains a separate bulk/checkpoint-only path. The
+ * execution layer obtains this interface via dynamic_cast from
+ * IStorageInterface; a null result means the current storage mode does not
+ * support index management.
  *
  * Existence checks are expressed through the DDL calls themselves:
  * CreateIndex fails with ERR_ILLEGAL_OPERATION when an index with the same
@@ -955,109 +943,27 @@ class StorageIndexDDLInterface {
   virtual ~StorageIndexDDLInterface() {}
 
   /** Activate index modules deferred until their extension was loaded. */
-  virtual Status ActivateIndexes() = 0;
+  virtual result<size_t> ActivateIndexes() = 0;
 
   /** @brief Create, bind, and populate an index. */
-  virtual result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) = 0;
+  virtual result<CreatedIndex> CreateIndex(std::unique_ptr<IndexMeta> meta) = 0;
 
   /** @brief Drop an index by its unique name. */
   virtual Status DropIndex(const std::string& name) = 0;
 };
 
-class StorageAPUpdateInterface : public StorageUpdateInterface,
-                                 public StorageIndexDDLInterface {
- public:
-  using PlanningChangedCallback = std::function<void()>;
+using IndexPlanningChangedCallback = std::function<void()>;
 
-  explicit StorageAPUpdateInterface(
-      PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
-      neug::Allocator& alloc, PlanningChangedCallback on_planning_changed = {})
-      : StorageUpdateInterface(view, timestamp),
-        graph_(graph),
-        mut_view_(view),
-        alloc_(alloc),
-        timestamp_(timestamp),
-        index_manager_(graph_.mutable_index_manager()),
-        on_planning_changed_(std::move(on_planning_changed)) {}
-  ~StorageAPUpdateInterface() {}
-
-  neug::result<StorageIndex*> CreateIndex(
-      std::unique_ptr<IndexMeta> meta) override;
-  Status DropIndex(const std::string& name) override;
-  Status ActivateIndexes() override;
-
- private:
-  void MarkVertexTableDirty(label_t label) override {
-    graph_.MarkVertexTableDirty(label);
-  }
-  void MarkEdgeTableDirty(label_t src, label_t dst, label_t edge) override {
-    graph_.MarkEdgeTableDirty(src, dst, edge);
-  }
-  void MarkSchemaDirty() override {
-    graph_.MarkSchemaDirty();
-    if (on_planning_changed_) {
-      on_planning_changed_();
-    }
-  }
-
-  Status UpdateVertexPropertyImpl(label_t label, vid_t lid, int col_id,
-                                  const Value& value) override;
-  Status UpdateEdgePropertyImpl(label_t src_label, vid_t src, label_t dst_label,
-                                vid_t dst, label_t edge_label,
-                                int32_t oe_offset, int32_t ie_offset,
-                                int32_t col_id, const Value& value) override;
-  Status AddVertexImpl(label_t label, const Value& id,
-                       const std::vector<Value>& props, vid_t& vid) override;
-  Status AddEdgeImpl(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
-                     label_t edge_label, const std::vector<Value>& properties,
-                     const void*& prop) override;
-  Status DeleteVertexImpl(label_t label, vid_t lid) override;
-  Status DeleteEdgeImpl(label_t src_label, vid_t src, label_t dst_label,
-                        vid_t dst, label_t edge_label, int32_t oe_offset,
-                        int32_t ie_offset) override;
-  Status DeleteEdgesImpl(label_t src_label, vid_t src, label_t dst_label,
-                         vid_t dst, label_t edge_label) override;
-  result<std::vector<vid_t>> BatchAddVerticesImpl(
-      label_t v_label_id,
-      std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchAddEdgesImpl(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      std::shared_ptr<IDataChunkSupplier> supplier) override;
-  Status BatchDeleteVerticesImpl(label_t v_label_id,
-                                 const std::vector<vid_t>& vids) override;
-  Status BatchDeleteEdgesImpl(
-      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::tuple<vid_t, vid_t>>& edges) override;
-  Status BatchDeleteEdgesImpl(
-      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
-      const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
-  Status CreateVertexTypeImpl(const CreateVertexTypeParam& config) override;
-  Status CreateEdgeTypeImpl(const CreateEdgeTypeParam& config) override;
-  Status AddVertexPropertiesImpl(
-      label_t label, const AddVertexPropertiesParam& config) override;
-  Status AddEdgePropertiesImpl(label_t src, label_t dst, label_t edge,
-                               const AddEdgePropertiesParam& config) override;
-  Status RenameVertexPropertiesImpl(
-      label_t label, const RenameVertexPropertiesParam& config) override;
-  Status RenameEdgePropertiesImpl(
-      label_t src, label_t dst, label_t edge,
-      const RenameEdgePropertiesParam& config) override;
-  Status DeleteVertexPropertiesImpl(
-      label_t label, const DeleteVertexPropertiesParam& config) override;
-  Status DeleteEdgePropertiesImpl(
-      label_t src, label_t dst, label_t edge,
-      const DeleteEdgePropertiesParam& config) override;
-  Status DeleteVertexTypeImpl(label_t label) override;
-  Status DeleteEdgeTypeImpl(label_t src, label_t dst, label_t edge) override;
-
-  PropertyGraph& graph_;
-  GraphView& mut_view_;
-  neug::Allocator& alloc_;
-  timestamp_t timestamp_;
-  StorageIndexManager& index_manager_;
-  PlanningChangedCallback on_planning_changed_;
-};
+result<CreatedIndex> CreateStorageIndex(
+    PropertyGraph& graph, GraphView& view, timestamp_t timestamp,
+    std::unique_ptr<IndexMeta> meta,
+    IndexPlanningChangedCallback on_planning_changed = {},
+    bool required = true);
+Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
+                        const std::string& name,
+                        IndexPlanningChangedCallback on_planning_changed = {});
+result<size_t> ActivateStorageIndexes(
+    PropertyGraph& graph, GraphView& view,
+    IndexPlanningChangedCallback on_planning_changed = {});
 
 }  // namespace neug

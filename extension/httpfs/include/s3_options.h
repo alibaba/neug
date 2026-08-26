@@ -16,39 +16,14 @@
 
 #pragma once
 
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/filesystem/s3fs.h>
+#include <cstddef>
 #include <string>
-#include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
 
 namespace neug {
 namespace extension {
 namespace s3 {
-
-/**
- * @brief Resolve and apply a TLS CA bundle path to Arrow's global FileSystem
- *        options so that Arrow's S3FileSystem propagates it into the AWS SDK
- *        ClientConfiguration::caFile (and caPath).
- *
- * To make the extension portable across distros,
- * we explicitly resolve a CA bundle path at runtime and feed it into AWS SDK's
- * client config via Arrow's FileSystemGlobalOptions.
- *
- * Resolution priority (first existing readable file wins):
- *   1. Env var SSL_CERT_FILE
- *   2. Env var CURL_CA_BUNDLE
- *   3. Env var AWS_CA_BUNDLE
- *   4. Common distro paths:
- *      - /etc/ssl/certs/ca-certificates.crt   (Debian/Ubuntu)
- *      - /etc/pki/tls/certs/ca-bundle.crt     (CentOS/RHEL/Fedora)
- *      - /etc/ssl/cert.pem                    (Alpine/macOS)
- *      - /etc/ssl/ca-bundle.pem               (OpenSUSE)
- *
- * Idempotent and safe to call multiple times.
- */
-void InitializeArrowTlsOptions();
 
 // Centralized definition of all S3-related configuration keys.
 struct S3ConfigOptionKeys {
@@ -65,17 +40,15 @@ struct S3ConfigOptionKeys {
       "OSS_REGION";  // NeuG canonical (OSS-style)
   static constexpr const char* kRegionDefault =
       "AWS_DEFAULT_REGION";  // AWS SDK standard
+  static constexpr const char* kRegionAws = "AWS_REGION";
 
   // Credentials: access key ID and secret access key
-  // When CREDENTIALS_KIND="default", Arrow follows the AWS SDK credential
-  // provider chain:
-  //   1. Environment variables (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
-  //   2. Shared credentials file (~/.aws/credentials)
-  //   3. EC2 instance profile (IAM role)
-  //   4. ECS task role
-  // Note: Environment variables must use the standard AWS names shown above
+  // Supported credential sources (in priority order):
+  //   1. Explicit options (OSS_/AWS_ access key pairs in schema.options)
+  //   2. Environment variables (same key names)
+  //   3. Anonymous (public buckets)
   static constexpr const char* kCredentialsKind =
-      "CREDENTIALS_KIND";  // controls S3CredentialsKind
+      "CREDENTIALS_KIND";  // Explicit / Anonymous / Default
   static constexpr const char* kAccessKeyCanonical =
       "OSS_ACCESS_KEY_ID";  // NeuG canonical (OSS-style)
   static constexpr const char* kAccessKeyAws =
@@ -85,7 +58,12 @@ struct S3ConfigOptionKeys {
   static constexpr const char* kSecretAccessKeyAws =
       "AWS_SECRET_ACCESS_KEY";  // AWS-compatible alias
 
-  // Timeouts
+  // TLS / addressing
+  static constexpr const char* kVerifySSL = "VERIFY_SSL";     // true/false
+  static constexpr const char* kCACertFile = "CA_CERT_FILE";  // CA bundle path
+  static constexpr const char* kPathStyle = "PATH_STYLE";     // true/false
+
+  // Timeouts (seconds)
   static constexpr const char* kConnectTimeout = "CONNECT_TIMEOUT";
   static constexpr const char* kRequestTimeout = "REQUEST_TIMEOUT";
 };
@@ -93,15 +71,11 @@ struct S3ConfigOptionKeys {
 // Valid values for CREDENTIALS_KIND option (case-insensitive)
 struct S3CredentialsKindValues {
   static constexpr const char* kExplicit =
-      "explicit";  // Use explicit AK/SK from options
+      "explicit";  // Use explicit AK/SK from schema options only
   static constexpr const char* kAnonymous =
       "anonymous";  // No credentials (public buckets)
   static constexpr const char* kDefault =
-      "default";  // Arrow's default chain (env/config/role)
-  static constexpr const char* kRole =
-      "role";  // Assume role (not yet supported)
-  static constexpr const char* kWebIdentity =
-      "webidentity";  // Web identity token (not yet supported)
+      "default";  // options -> environment -> error if none found
 };
 
 // Logical S3 options schema (NeuG-level knobs)
@@ -128,46 +102,63 @@ struct S3ParseOptions {
 };
 
 /**
- * @brief S3 Options Builder - Thin wrapper around Arrow's S3Options
- *
- * This builder follows Arrow/AWS SDK's native design with minimal additions:
+ * Configuration of the curl-based S3 client. A plain value object produced
+ * once from FileSchema options + environment variables; immutable after
+ * construction and shared by all opened streams.
+ */
+struct S3ClientConfig {
+  // Endpoint host WITHOUT scheme, e.g. "oss-cn-beijing.aliyuncs.com" or
+  // "localhost:9000". Empty means default AWS S3 ("s3.<region>.amazonaws.com").
+  std::string endpoint;
+  // AWS/OSS region, e.g. "us-east-1" or "oss-cn-beijing".
+  std::string region = "us-east-1";
+  // Credentials (explicit options or environment only; no STS/IAM role).
+  std::string access_key;
+  std::string secret_key;
+  // Public-bucket mode: requests are sent unsigned.
+  bool anonymous = false;
+  // "https" or "http".
+  std::string scheme = "https";
+  // Path-style addressing (endpoint/bucket/key) instead of virtual hosted
+  // style (bucket.endpoint/key). Auto-enabled for IP/localhost endpoints.
+  bool path_style = false;
+  // TLS options.
+  bool verify_ssl = true;
+  std::string ca_cert_file;
+  // Timeouts in seconds.
+  int connect_timeout = 5;
+  int request_timeout = 30;
+  // Retry policy for transient failures (transport errors / 5xx / 429).
+  int max_retries = 3;
+  // Multipart upload part size (bytes); writes smaller than this are sent
+  // with a single PutObject.
+  size_t multipart_part_size = 8 * 1024 * 1024;
+
+  bool hasCredentials() const {
+    return !access_key.empty() && !secret_key.empty();
+  }
+};
+
+/**
+ * @brief S3 Options Builder - builds an S3ClientConfig from a FileSchema.
  *
  * Configuration Names (OSS-style canonical + AWS-compatible aliases):
  * - OSS_ENDPOINT or AWS_ENDPOINT_URL or ENDPOINT_OVERRIDE: Custom S3-compatible
- * endpoint (OSS, MinIO)
+ *   endpoint (OSS, MinIO)
  * - OSS_REGION or AWS_DEFAULT_REGION: AWS/OSS region (e.g., "us-east-1",
- * "oss-cn-beijing")
- * - OSS_ACCESS_KEY_ID or AWS_ACCESS_KEY_ID: Access key (for Explicit
- * credentials mode)
- * - OSS_ACCESS_KEY_SECRET or AWS_SECRET_ACCESS_KEY: Secret key (for Explicit
- * credentials mode)
+ *   "oss-cn-beijing")
+ * - OSS_ACCESS_KEY_ID or AWS_ACCESS_KEY_ID: Access key
+ * - OSS_ACCESS_KEY_SECRET or AWS_SECRET_ACCESS_KEY: Secret key
  *
- * NeuG-specific options:
- * - CREDENTIALS_KIND: Which Arrow S3CredentialsKind to use
- * (Explicit/Anonymous/Default)
+ * Credential resolution (simplified; no STS / IAM role / default chain):
+ *   1. Explicit options: access key pair from schema.options
+ *   2. Environment variables: same key names as env vars
+ *   3. Anonymous: CREDENTIALS_KIND=Anonymous, or no credentials found
  *
- * Credential Resolution (follows Arrow's design):
- *
- * When CREDENTIALS_KIND=Explicit:
- *   - Reads OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET (or AWS_ACCESS_KEY_ID /
- * AWS_SECRET_ACCESS_KEY) from schema.options ONLY
- *
- * When CREDENTIALS_KIND=Default:
- *   - Arrow SDK's default credential provider chain takes over:
- *     1. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY environment variables
- *     2. ~/.aws/credentials and ~/.aws/config files
- *     3. EC2 instance metadata (IAM role)
- *     4. ECS task role
- *   - NeuG does NOT interfere with this chain
- *
- * When CREDENTIALS_KIND=Anonymous:
- *   - No credentials used (for public buckets only)
- *
- * OSS-Specific Handling (automatic when OSS endpoint detected):
- *   - force_virtual_addressing = true (OSS requires virtual hosted-style)
- *   - Auto-detect region from endpoint (e.g., oss-cn-hangzhou.aliyuncs.com ->
- * oss-cn-hangzhou)
- *
+ * OSS-specific handling:
+ *   - Virtual hosted-style addressing is enforced for OSS endpoints
+ *   - Region auto-detected from endpoint (e.g. oss-cn-hangzhou.aliyuncs.com
+ *     -> oss-cn-hangzhou)
  */
 class S3OptionsBuilder {
  public:
@@ -179,80 +170,45 @@ class S3OptionsBuilder {
       : schema_(schema) {}
 
   /**
-   * @brief Build Arrow S3Options from schema configuration
+   * @brief Build S3ClientConfig from schema configuration.
    *
-   * This method:
-   * 1. Starts from arrow::fs::S3Options::Defaults()
-   * 2. Applies endpoint override (AWS_ENDPOINT_URL or ENDPOINT_OVERRIDE)
-   * 3. Applies region (AWS_DEFAULT_REGION, or auto-detect from OSS endpoint)
-   * 4. Configures credentials based on CREDENTIALS_KIND
-   * 5. Applies OSS-specific settings if OSS endpoint detected
+   * Steps:
+   * 1. Resolve endpoint override (options > env)
+   * 2. Resolve region (options > env > auto-detect from OSS endpoint >
+   *    us-east-1)
+   * 3. Resolve credentials (explicit options > environment > anonymous)
+   * 4. Apply OSS-specific addressing settings
    *
-   * @return Configured Arrow S3Options instance
+   * @return Configured S3ClientConfig instance
    */
-  arrow::fs::S3Options build() const;
+  S3ClientConfig build() const;
 
  private:
   const reader::FileSchema& schema_;
   S3ParseOptions parse_options_{};
 
-  // Helper methods for configuration resolution
-  // Note: Endpoint/Region resolution uses getOptionWithEnv() helper (defined in
-  // .cc) to support environment variable fallback for deployment flexibility
-
   /**
    * @brief Resolve endpoint override from options or environment
-   * Checks: AWS_ENDPOINT_URL > ENDPOINT_OVERRIDE > ENDPOINT (legacy)
+   * Checks: OSS_ENDPOINT > AWS_ENDPOINT_URL > ENDPOINT_OVERRIDE
    * @return Endpoint URL (empty if using default AWS S3)
    */
   std::string resolveEndpoint() const;
 
   /**
    * @brief Resolve AWS region from options, environment, or endpoint
-   * Checks: AWS_DEFAULT_REGION > AWS_REGION > REGION (legacy) > auto-detect
-   * from endpoint
-   * @param endpoint The resolved endpoint URL
-   * @return AWS region string
+   * Checks: OSS_REGION > AWS_DEFAULT_REGION > AWS_REGION > auto-detect
+   * from OSS endpoint > us-east-1
    */
   std::string resolveRegion(const std::string& endpoint) const;
 
   /**
-   * @brief Resolve credentials kind from options
-   *
-   * Resolution logic (follows Arrow's design):
-   * 1. If CREDENTIALS_KIND explicitly specified in schema.options -> use that
-   * value
-   * 2. Otherwise -> Default (Arrow's default credential mode)
-   *
-   * Note: CREDENTIALS_KIND is NOT read from environment variables.
-   * Use LOAD FROM query inline options to specify credentials kind:
-   *   LOAD FROM "oss://bucket/file" (CREDENTIALS_KIND='Anonymous')
-   *
-   * @return Arrow S3CredentialsKind enum value
+   * @brief Resolve credentials into the config:
+   * explicit options > environment variables > anonymous.
    */
-  arrow::fs::S3CredentialsKind resolveCredentialsKind() const;
-
-  /**
-   * @brief Configure S3Options credentials using Arrow's official API
-   * @param s3_options The S3Options to configure
-   * @param is_oss Whether the endpoint is OSS (for Default mode OSS env var
-   * support)
-   */
-  void configureCredentials(arrow::fs::S3Options& s3_options,
-                            bool is_oss) const;
-
-  /**
-   * @brief Apply OSS-specific settings if OSS endpoint detected
-   * - Sets force_virtual_addressing = true
-   * @param s3_options The S3Options to configure
-   * @param endpoint The endpoint URL
-   */
-  void applyOSSSettings(arrow::fs::S3Options& s3_options,
-                        const std::string& endpoint) const;
+  void configureCredentials(S3ClientConfig& config) const;
 
   /**
    * @brief Detect if endpoint is Alibaba Cloud OSS
-   * @param endpoint The endpoint URL
    * @return true if endpoint contains "aliyuncs.com"
    */
   static bool isOSSEndpoint(const std::string& endpoint);

@@ -32,6 +32,7 @@
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/parser/query/reading_clause/yield_variable.h"
 #include "neug/compiler/parser/query/regular_query.h"
+#include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -39,6 +40,25 @@ using namespace neug::parser;
 
 namespace neug {
 namespace binder {
+
+namespace {
+
+class ActiveNamespaceGuard {
+ public:
+  ActiveNamespaceGuard(std::optional<std::string>& target,
+                       std::optional<std::string> value)
+      : target{target}, previous{target} {
+    target = std::move(value);
+  }
+
+  ~ActiveNamespaceGuard() { target = std::move(previous); }
+
+ private:
+  std::optional<std::string>& target;
+  std::optional<std::string> previous;
+};
+
+}  // namespace
 
 void validateUnionColumnsOfTheSameType(
     const std::vector<NormalizedSingleQuery>& normalizedSingleQueries) {
@@ -76,6 +96,21 @@ void validateIsAllUnionOrUnionAll(const BoundRegularQuery& regularQuery) {
 std::unique_ptr<BoundRegularQuery> Binder::bindQuery(
     const Statement& statement) {
   auto& regularQuery = statement.constCast<RegularQuery>();
+  std::optional<std::string> namespaceName;
+  if (regularQuery.hasNamespaceName()) {
+    auto analyzer = parser::StatementReadWriteAnalyzer(clientContext);
+    analyzer.visit(statement);
+    if (!analyzer.isReadOnly()) {
+      THROW_BINDER_EXCEPTION(
+          "USE NAMESPACE queries only support read-only operations.");
+    }
+    namespaceName = regularQuery.getNamespaceName();
+    // Resolve eagerly so an unknown Namespace fails even for a query without a
+    // graph pattern.
+    (void) bindProjectedGraph(*namespaceName);
+  }
+  auto namespaceGuard =
+      ActiveNamespaceGuard{activeNamespaceName, std::move(namespaceName)};
 
   // bind pre query before the union
   std::vector<NormalizedQueryPart> preQueryPart;

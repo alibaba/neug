@@ -2,7 +2,8 @@ add_library(gds_function
         STATIC
         rec_joins.cpp
         project_graph_function.cpp
-        gds_algo_function.cpp)
+        gds_algo_function.cpp
+        gds_graph.cpp)
 add_dependencies(gds_function neug_proto)
 
 target_include_directories(gds_function PUBLIC

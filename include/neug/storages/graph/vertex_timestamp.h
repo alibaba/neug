@@ -59,17 +59,21 @@ class NEUG_API VertexTimestamp : public Module {
   void Clear();
 
   inline void InsertVertex(vid_t v, timestamp_t ts) {
+    assert(v < max_vertex_num_);
+    assert(ts != DELETED_TIMESTAMP);
     if (v < init_vertex_num_) {
       if (ts == 0) {
+        // Batch COPY writes timestamp zero. A deleted compacted vertex lives
+        // in removed_vertices_, so revive it instead of treating it as an
+        // existing baseline row.
+        if (removed_vertices_) {
+          removed_vertices_->erase(v);
+        }
         return;
       }
-      assert(ts != DELETED_TIMESTAMP);
-      auto new_cap = max_vertex_num_ - v;
-      resize_inserted_vertices(new_cap, false);
-      init_vertex_num_ = v;
+      materialize_compacted_range_for_reuse(v);
     }
 
-    assert(v >= init_vertex_num_ && v < max_vertex_num_);
     timestamp_t expected = DELETED_TIMESTAMP;
     if (!inserted_vertices_[v - init_vertex_num_].compare_exchange_weak(
             expected, ts)) {
@@ -79,10 +83,11 @@ class NEUG_API VertexTimestamp : public Module {
   }
 
   inline bool IsVertexValid(vid_t v, timestamp_t ts) const {
-    if (NEUG_UNLIKELY(v > max_vertex_num_)) {
+    if (NEUG_UNLIKELY(v >= max_vertex_num_)) {
       return false;
     } else if (v >= init_vertex_num_) {
-      return inserted_vertices_[v - init_vertex_num_].load() <= ts;
+      const auto vertex_ts = inserted_vertices_[v - init_vertex_num_].load();
+      return vertex_ts != DELETED_TIMESTAMP && vertex_ts <= ts;
     } else if (NEUG_UNLIKELY(removed_vertices_)) {
       return removed_vertices_->find(v) == removed_vertices_->end();
     }
@@ -106,7 +111,8 @@ class NEUG_API VertexTimestamp : public Module {
     assert(inserted_vertices_);
     limit -= init_vertex_num_;
     for (size_t i = 0; i < limit; ++i) {
-      if (inserted_vertices_[i].load() <= ts) {
+      const auto vertex_ts = inserted_vertices_[i].load();
+      if (vertex_ts != DELETED_TIMESTAMP && vertex_ts <= ts) {
         valid_num++;
       }
     }
@@ -176,6 +182,7 @@ class NEUG_API VertexTimestamp : public Module {
  private:
   void load_ts(const std::string& ts_filename);
   void dump_ts(const std::string& ts_filename);
+  void materialize_compacted_range_for_reuse(vid_t v);
   void resize_inserted_vertices(size_t new_size, bool keep_front = true);
   vid_t init_vertex_num_;
 

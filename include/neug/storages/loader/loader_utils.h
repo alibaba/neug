@@ -29,6 +29,7 @@
 #include "neug/storages/loader/loading_config.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/csv/csv_read_config.h"
+#include "neug/utils/io/stream/input_stream.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
@@ -48,8 +49,12 @@ std::string process_header_row_token(const std::string& token, bool is_quoting,
                                      char quote_char, bool is_escaping,
                                      char escape_char);
 
-std::vector<std::string> read_header(const std::string& file_name,
-                                     const CsvReadConfig& config);
+/// Reads the header row of a CSV file. When stream_factory is
+/// non-null the data is read through it (remote objects) instead of
+/// the local file.
+std::vector<std::string> read_header(
+    const std::string& file_name, const CsvReadConfig& config,
+    const io::InputStreamFactory& stream_factory = nullptr);
 
 std::vector<std::string> columnMappingsToSelectedCols(
     const std::vector<std::tuple<size_t, std::string, std::string>>&
@@ -78,7 +83,11 @@ class IDataChunkSupplier {
 /// csv-parser based supplier. Reads CSV in chunks and yields ValueColumns.
 class CSVChunkSupplier : public IDataChunkSupplier {
  public:
-  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config);
+  /// When stream_factory is non-null the data is read through it
+  /// (remote objects, e.g. oss/s3/http); otherwise file_path is read
+  /// as a local file.
+  CSVChunkSupplier(const std::string& file_path, CsvReadConfig config,
+                   io::InputStreamFactory stream_factory = nullptr);
 
   ~CSVChunkSupplier() override;
 

@@ -19,6 +19,7 @@
 
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
+#include "neug/transaction/wal/local_wal_parser.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -73,7 +74,7 @@ class CopyTempTest : public ::testing::Test {
     db_ = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
+    config.checkpoint_on_close = false;
     db_->Open(config);
   }
 
@@ -131,6 +132,27 @@ TEST_F(CopyTempTest, NodeDefaultPrimaryKey) {
   auto q = conn->Query("MATCH (n:TempDefault) RETURN n.id ORDER BY n.id;");
   EXPECT_TRUE(q) << q.error().ToString();
   EXPECT_EQ(q.value().response().row_count(), 4);
+  conn->Close();
+}
+
+TEST_F(CopyTempTest, CopyIntoExistingTemporaryTableStaysTransient) {
+  write_csv("empty.csv", "id|name|age\n");
+  auto conn = db_->Connect();
+  const std::string empty_csv = std::string(CSV_DIR) + "/empty.csv";
+  const std::string people_csv = std::string(CSV_DIR) + "/people.csv";
+  auto create = conn->Query("COPY TEMP TempAppend FROM \"" + empty_csv +
+                            "\" (header = true)");
+  ASSERT_TRUE(create) << create.error().ToString();
+  const auto checkpoint_id = db_->graph().checkpoint().id();
+
+  auto copy = conn->Query("COPY TempAppend FROM \"" + people_csv +
+                          "\" (header = true)");
+  ASSERT_TRUE(copy) << copy.error().ToString();
+  EXPECT_EQ(db_->graph().checkpoint().id(), checkpoint_id);
+
+  auto query = conn->Query("MATCH (n:TempAppend) RETURN count(n);");
+  ASSERT_TRUE(query) << query.error().ToString();
+  EXPECT_EQ(query.value().response().arrays(0).int64_array().values(0), 4);
   conn->Close();
 }
 
@@ -288,6 +310,7 @@ TEST_F(CopyTempTest, TempSrcPersistentDst) {
 // ============================================================================
 
 TEST_F(CopyTempTest, CleanupOnClose) {
+  const auto initial_checkpoint_id = db_->graph().checkpoint().id();
   {
     auto conn = db_->Connect();
     std::string csv = std::string(CSV_DIR) + "/people.csv";
@@ -298,13 +321,16 @@ TEST_F(CopyTempTest, CleanupOnClose) {
     EXPECT_TRUE(q) << q.error().ToString();
     conn->Close();
   }
+  EXPECT_EQ(db_->graph().checkpoint().id(), initial_checkpoint_id);
+  LocalWalParser parser(db_->graph().checkpoint().wal_dir());
+  EXPECT_TRUE(parser.get_update_wals().empty());
   {
     db_->Close();
     db_.reset();
     auto db2 = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
+    config.checkpoint_on_close = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
     auto q = conn2->Query("MATCH (n:TempEphemeral) RETURN n.id;");
@@ -367,7 +393,7 @@ TEST_F(CopyTempTest, PersistentSurvivesTempCleanup) {
     auto db2 = std::make_unique<NeugDB>();
     NeugDBConfig config;
     config.data_dir = DB_DIR;
-    config.checkpoint_on_close = true;
+    config.checkpoint_on_close = false;
     db2->Open(config);
     auto conn2 = db2->Connect();
     auto q1 = conn2->Query("MATCH (n:Persistent) RETURN count(n);");
@@ -378,6 +404,50 @@ TEST_F(CopyTempTest, PersistentSurvivesTempCleanup) {
     conn2->Close();
     db2->Close();
   }
+}
+
+TEST_F(CopyTempTest, TempMutationsDoNotDestabilizePersistentWalReplay) {
+  {
+    auto conn = db_->Connect();
+    const std::string csv = std::string(CSV_DIR) + "/people.csv";
+    auto copy =
+        conn->Query("COPY TEMP TempFirst FROM \"" + csv + "\" (header = true)");
+    ASSERT_TRUE(copy) << copy.error().ToString();
+
+    auto insert =
+        conn->Query("CREATE (:TempFirst {id: 5, name: 'Eve', age: 40});");
+    ASSERT_TRUE(insert) << insert.error().ToString();
+    auto update = conn->Query("MATCH (n:TempFirst {id: 1}) SET n.age = 31;");
+    ASSERT_TRUE(update) << update.error().ToString();
+    LocalWalParser parser(db_->graph().checkpoint().wal_dir());
+    EXPECT_TRUE(parser.get_update_wals().empty())
+        << "temporary mutations must not enter durable WAL";
+
+    auto create = conn->Query(
+        "CREATE NODE TABLE PersistentAfterTemp(id INT64, PRIMARY KEY(id));");
+    ASSERT_TRUE(create) << create.error().ToString();
+    auto persistent_insert =
+        conn->Query("CREATE (:PersistentAfterTemp {id: 42});");
+    ASSERT_TRUE(persistent_insert) << persistent_insert.error().ToString();
+    conn->Close();
+    db_->Close();
+    db_.reset();
+  }
+
+  auto reopened = std::make_unique<NeugDB>();
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(reopened->Open(config));
+  auto conn = reopened->Connect();
+  auto persistent = conn->Query("MATCH (n:PersistentAfterTemp) RETURN n.id;");
+  ASSERT_TRUE(persistent) << persistent.error().ToString();
+  ASSERT_EQ(persistent.value().response().row_count(), 1);
+  EXPECT_EQ(persistent.value().response().arrays(0).int64_array().values(0),
+            42);
+  EXPECT_FALSE(conn->Query("MATCH (n:TempFirst) RETURN n.id;"));
+  conn->Close();
+  reopened->Close();
 }
 
 // ============================================================================

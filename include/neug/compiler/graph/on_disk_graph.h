@@ -25,7 +25,6 @@
 #include <cstddef>
 
 #include "graph.h"
-#include "graph_entry.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/copy_constructors.h"
@@ -36,6 +35,7 @@
 #include "neug/compiler/common/mask.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"

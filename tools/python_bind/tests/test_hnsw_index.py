@@ -23,7 +23,6 @@ import textwrap
 import pytest
 
 from neug import Database
-from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 
 EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
     "1",
@@ -219,6 +218,23 @@ def test_hnsw_index_scan_with_dynamic_target(advanced_connection):
     assert "IndexScanOpr" in _profile_operator_names(result)
 
 
+def test_scalar_function_with_dynamic_target(advanced_connection):
+    node_vector = _constant_vector(500.0)
+    target_vector = _constant_vector(500.1)
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) WHERE n.id = 500 RETURN n.id, "
+        "vector_distance_l2(n.l2_vec, $target) AS score;",
+        parameters={"target": target_vector},
+    )
+    rows = list(result)
+    expected_score = sum(
+        (left - right) ** 2 for left, right in zip(node_vector, target_vector)
+    )
+    assert len(rows) == 1
+    assert rows[0] == pytest.approx([500, expected_score], abs=3e-5)
+    assert "IndexScanOpr" not in _profile_operator_names(result)
+
+
 def test_cosine_index_scan(advanced_connection):
     target_id = 181
     rows = list(
@@ -396,10 +412,15 @@ def test_documented_schema_index_and_query_examples(tmp_path):
         conn.execute(
             "MATCH (n:vector_node) WHERE n.id = 1 " "SET n.vec = [0.2, 0.2, 0.1, 0.1];"
         )
-        with pytest.raises(Exception) as excinfo:
-            conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
-        assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
-        assert "Property type FLOAT[4] can not be set with null" in str(excinfo.value)
+        conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
+        after_null = list(
+            conn.execute(
+                "MATCH (n:vector_node) RETURN n.id, "
+                "vector_distance_l2(n.vec, [0.2, 0.2, 0.1, 0.1]) AS score "
+                "ORDER BY score ASC LIMIT 5;"
+            )
+        )
+        assert 1 not in [row[0] for row in after_null]
         conn.execute("MATCH (n:vector_node) WHERE n.id = 2 DELETE n;")
         conn.execute("DROP INDEX vec_hnsw_index IF EXISTS;")
         conn.execute("DROP TABLE vector_node;")

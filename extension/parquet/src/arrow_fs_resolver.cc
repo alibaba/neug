@@ -19,14 +19,18 @@
 #include <memory>
 
 #include "neug/utils/io/vfs/file_system.h"
+#include "parquet/arrow_fs_adapter.h"
 
 namespace neug {
 namespace parquet {
 
 std::shared_ptr<arrow::fs::FileSystem> resolveArrowFileSystem(
     const fsys::FileSystem& fs) {
-  if (auto opaque = fs.getArrowFileSystem()) {
-    return std::static_pointer_cast<arrow::fs::FileSystem>(opaque);
+  // Remote protocols (http, https, s3, oss) expose an Arrow-agnostic
+  // RemoteFileSystem; wrap it so the Arrow-based Parquet machinery can use
+  // it. Local paths have no remote handle and fall back to Arrow's local fs.
+  if (auto remote = fs.getRemoteFileSystem()) {
+    return std::make_shared<RemoteFsArrowAdapter>(std::move(remote));
   }
   return std::make_shared<arrow::fs::LocalFileSystem>();
 }

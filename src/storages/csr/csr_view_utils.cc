@@ -14,6 +14,9 @@
  */
 
 #include "neug/storages/csr/csr_view_utils.h"
+
+#include <cassert>
+
 #include "neug/common/types/graph_types.h"
 #include "neug/utils/property/types.h"
 
@@ -180,6 +183,26 @@ int32_t search_other_offset_with_cur_offset(
   return neug::fuzzy_search_offset_from_nbr_list(
       other_nbr_list, src_lid, cur_nbr_it.get_data_ptr(),
       determine_search_prop_type(props));
+}
+
+const void* get_edge_data_ptr_at_offset(const CsrView& view, vid_t vertex,
+                                        int32_t offset) {
+  auto edges = view.get_edges(vertex);
+  assert(offset >= 0 && "edge offset must be non-negative");
+  auto iter = edges.begin();
+  iter.cur =
+      static_cast<const char*>(edges.start_ptr) + offset * edges.cfg.stride;
+  assert(iter.cur < edges.end_ptr &&
+         "edge offset must address a slot inside the neighbor list");
+  return iter.get_data_ptr();
+}
+
+const void* get_edge_data_ptr_for_record(
+    const CsrView& oe, const CsrView& ie, const EdgeRecord& record,
+    const std::pair<int32_t, int32_t>& offset_pair) {
+  return record.dir == Direction::kOut
+             ? get_edge_data_ptr_at_offset(oe, record.src, offset_pair.first)
+             : get_edge_data_ptr_at_offset(ie, record.dst, offset_pair.second);
 }
 
 }  // namespace neug

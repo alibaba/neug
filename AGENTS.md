@@ -102,7 +102,7 @@ Cypher → ANTLR Parser → Binder → Logical Plan → gopt Converter → Physi
 
 - **List literals require explicit CAST**: In `CREATE`, `SET`, and `MERGE` clauses, list values must be wrapped with `CAST(..., 'TYPE[]')` — bare list literals like `[1, 2, 3]` are rejected. Use `CAST([1, 2, 3], 'INT64[]')` instead.
 - **List types cannot be primary keys**: Declaring a `PRIMARY KEY` on a `T[]` column is rejected.
-- **Insert transactions may fail for non-empty list properties**: After loading a graph from a checkpoint directory, the `elements` column of a `ListPropertyColumn` has zero spare capacity (`elements_tail_ == elements_->size()`). The insert-transaction path always passes `insert_safe=false`, so inserting a **non-empty** list property will throw a `StorageException`. Workaround: use `UpdateTransaction` (which allows resize) after inserting with an empty list, or pre-populate list data during bulk load. See `storages/README.md` §5.4 for details.
+- **Insert transactions may fail for non-empty list properties**: After loading a graph from a checkpoint directory, the `elements` column of a `ListPropertyColumn` has zero spare capacity (`elements_tail_ == elements_->size()`). The insert-transaction path always passes `insert_safe=false`, so inserting a **non-empty** list property will throw a `StorageException`. Workaround: insert with an empty list, then use an update-mode query (executed by `SnapshotCowWriteTransaction`, which allows resize), or pre-populate list data during bulk load. See `storages/README.md` §5.4 for details.
 
 ## Code Style
 
