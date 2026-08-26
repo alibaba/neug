@@ -43,7 +43,6 @@ This will:
 2. Build the native addon via the main NeuG CMake project (`-DBUILD_NODEJS=ON`)
 3. Copy the resulting `neug_node_bind.node` to `build/Release/`
 
-
 ### Pack
 
 ```bash
@@ -53,10 +52,10 @@ make pack
 Create a self-contained, distributable npm package tarball (`.tgz`). This will:
 
 1. Build the native addon (same as `make build`)
-2. Copy prebuilt binaries into `prebuilds/<platform>/`:
+2. Copy prebuilt binaries into `build/Release/<platform>/`:
    - `neug_node_bind.node` — the native addon
-   - `libneug.so` — core shared library
-   - `libmimalloc.so.2` — memory allocator
+   - `libneug.so` / `libneug.dylib` — core shared library
+   - `libmimalloc.so.2` / `libmimalloc.2.dylib` — memory allocator
 3. Run `npm pack` to produce `neug-<version>.tgz`
 
 Npm package builds always force `NEUG_PACKAGE_BUILD=ON` and

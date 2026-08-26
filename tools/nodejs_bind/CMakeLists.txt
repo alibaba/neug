@@ -93,16 +93,16 @@ if (APPLE)
 endif()
 
 # Set RPATH so neug_node_bind.node can find libneug.so / libneug.dylib
-# in the same directory (prebuilds/<platform>/). This is essential for
+# in the same directory (build/Release/<platform>/). This is essential for
 # npm-distributed packages where the shared lib is bundled alongside the .node file.
-if (APPLE)
-  set_target_properties(neug_node_bind PROPERTIES
-    INSTALL_RPATH "@loader_path"
-    BUILD_WITH_INSTALL_RPATH TRUE
-  )
+if(APPLE)
+  set(_neug_node_rpath "@loader_path")
 else()
-  set_target_properties(neug_node_bind PROPERTIES
-    INSTALL_RPATH "$ORIGIN"
-    BUILD_WITH_INSTALL_RPATH TRUE
-  )
+  set(_neug_node_rpath "$ORIGIN")
 endif()
+
+set_target_properties(neug_node_bind PROPERTIES
+  INSTALL_RPATH "${_neug_node_rpath}"
+  BUILD_WITH_INSTALL_RPATH TRUE
+)
+set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "${_neug_node_rpath}")
