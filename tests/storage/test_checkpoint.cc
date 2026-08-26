@@ -324,12 +324,11 @@ void CreateExampleAgeIndex(neug::NeugDB& db) {
   meta->name = "idx_person_age";
   meta->type = "example";
   meta->schema.label_id = label;
-  meta->schema.property_name = "age";
-  meta->schema.property_type = schema->property_types[property_id];
+  meta->schema.columns.push_back({"age", schema->property_types[property_id]});
   auto* column = graph.get_vertex_table(label).GetPropertyColumnBase("age");
   auto created = graph.mutable_index_manager().CreateIndex(
-      std::move(meta), std::make_unique<neug::DefaultIndexIDAccessor>(), column,
-      graph.GetVertexSet(label));
+      std::move(meta), std::make_unique<neug::DefaultIndexIDAccessor>(),
+      {column}, graph.GetVertexSet(label));
   ASSERT_TRUE(created) << created.error().ToString();
 }
 
@@ -913,8 +912,7 @@ TEST(CheckpointTest,
   pending_meta.name = "pending";
   pending_meta.type = "unavailable";
   pending_meta.schema.label_id = 0;
-  pending_meta.schema.property_name = "id";
-  pending_meta.schema.property_type = neug::DataType::INT64;
+  pending_meta.schema.columns.push_back({"id", neug::DataType::INT64});
 
   neug::ModuleDescriptor pending_descriptor;
   pending_descriptor.module_type = "unavailable_index";
