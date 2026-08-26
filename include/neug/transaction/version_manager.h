@@ -114,9 +114,14 @@ class IVersionManager {
   friend class UpdateTimestampLease;
 
   // Timed acquisition is intentionally lease-only: callers must not receive a
-  // raw timestamp without immediately establishing RAII ownership.
+  // raw timestamp without immediately establishing RAII ownership. It has no
+  // production callers yet, but remains for a future explicit update
+  // transaction that waits for admission until its deadline.
   virtual uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point deadline) = 0;
+  // Attempt update admission without waiting. Returns false when no writer can
+  // be admitted immediately.
+  virtual bool try_acquire_update_timestamp(uint32_t&) = 0;
 
   /// Complete an exclusive update after external state has moved to a new
   /// timeline. Preserve the current snapshot generation and publish visibility
@@ -191,6 +196,7 @@ class VersionManager : public IVersionManager {
  private:
   uint32_t acquire_update_timestamp_until(
       std::chrono::steady_clock::time_point deadline) override;
+  bool try_acquire_update_timestamp(uint32_t& timestamp) override;
   void finish_update_and_reset_timeline(uint32_t ts) noexcept override;
 
   int thread_num_;

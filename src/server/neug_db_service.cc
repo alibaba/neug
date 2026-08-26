@@ -24,6 +24,7 @@
 #include "neug/server/brpc_service_mgr.h"
 #include "neug/server/bthread_runtime_wait.h"
 #include "neug/transaction/version_manager.h"
+#include "service_transaction_manager.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -34,6 +35,22 @@ namespace {
 constexpr auto kCompactInterval = std::chrono::seconds(30);
 constexpr size_t kCompactQueryThreshold = 100000;
 }  // namespace
+
+NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
+    : db_(db), db_config_(db_.config()) {
+  db_.registerService(this);
+  try {
+    installBthreadRuntimeWait();
+    init(config);
+  } catch (...) {
+    hdl_mgr_.reset();
+    transaction_manager_.reset();
+    execution_slot_pool_.reset();
+    restoreNativeRuntimeWait();
+    db_.unregisterService(this);
+    throw;
+  }
+}
 
 void NeugDBService::installBthreadRuntimeWait() {
   CHECK(!bthread_runtime_wait_installed_);
@@ -89,17 +106,30 @@ void NeugDBService::init(const ServiceConfig& config) {
       *db_.version_manager_, *db_.checkpoint_coordinator_,
       db_.extension_manager(), db_.allocators_, *db_.wal_writers_, db_config_);
 
-  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_);
+  transaction_manager_ = std::make_unique<ServiceTransactionManager>(
+      *execution_slot_pool_, effective_config.max_explicit_transactions,
+      effective_config.explicit_transaction_timeout_ms);
+  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_,
+                                                  *transaction_manager_);
   hdl_mgr_->Init(effective_config);
   service_config_ = effective_config;
 }
 
 NeugDBService::~NeugDBService() {
-  stopCompactThread();
+  if (transaction_manager_) {
+    transaction_manager_->CloseAdmission();
+  }
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
-    hdl_mgr_.reset();
   }
+  if (transaction_manager_) {
+    transaction_manager_->Close();
+  }
+  // An auto-compaction task can be waiting for an explicit write session's
+  // update lease. Roll back those sessions before joining the compact thread.
+  stopCompactThread();
+  hdl_mgr_.reset();
+  transaction_manager_.reset();
   execution_slot_pool_.reset();
   restoreNativeRuntimeWait();
   db_.unregisterService(this);
@@ -138,9 +168,14 @@ void NeugDBService::run_and_wait_for_exit() {
   startCompactThread();
   running_.store(true, std::memory_order_relaxed);
   try {
+    transaction_manager_->Open();
     hdl_mgr_->RunAndWaitForExit();
+    transaction_manager_->Close();
     running_.store(false, std::memory_order_relaxed);
   } catch (...) {
+    transaction_manager_->CloseAdmission();
+    hdl_mgr_->Stop();
+    transaction_manager_->Close();
     running_.store(false, std::memory_order_relaxed);
     stopCompactThread();
     throw;
@@ -155,7 +190,9 @@ void NeugDBService::Stop() {
     return;
   }
   if (hdl_mgr_) {
+    transaction_manager_->CloseAdmission();
     hdl_mgr_->Stop();
+    transaction_manager_->Close();
     running_.store(false, std::memory_order_relaxed);
     stopCompactThread();
     return;
@@ -172,10 +209,12 @@ std::string NeugDBService::Start() {
   if (hdl_mgr_) {
     startCompactThread();
     try {
+      transaction_manager_->Open();
       auto ret = hdl_mgr_->Start();
       running_.store(true, std::memory_order_relaxed);
       return ret;
     } catch (...) {
+      transaction_manager_->CloseAdmission();
       stopCompactThread();
       throw;
     }

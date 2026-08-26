@@ -216,6 +216,14 @@ bool OperationGate::enter_phase_until(
   }
 }
 
+bool OperationGate::try_enter_phase(AdmissionState desired_phase) noexcept {
+  uint64_t observed = state_.load(std::memory_order_acquire);
+  if (OperationGateWord::phase(observed) != AdmissionState::kOpen) {
+    return false;
+  }
+  return OperationGateWord::try_change_phase(state_, observed, desired_phase);
+}
+
 void OperationGate::transition_phase(AdmissionState expected_phase,
                                      AdmissionState desired_phase) {
   uint64_t observed = state_.load(std::memory_order_relaxed);

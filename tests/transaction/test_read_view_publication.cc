@@ -93,6 +93,7 @@ class ScriptedVersionManager : public IVersionManager {
       std::chrono::steady_clock::time_point) override {
     return 1;
   }
+  bool try_acquire_update_timestamp(uint32_t&) override { return false; }
   void begin_update_commit(uint32_t) override {}
   void drain_readers() override {}
   void finish_update_timestamp(uint32_t,

@@ -55,6 +55,11 @@ struct ServiceConfig {
   static constexpr const uint32_t DEFAULT_THREAD_NUM = 0;
   /// Default HTTP port for query endpoint
   static constexpr const uint32_t DEFAULT_QUERY_PORT = 10000;
+  /// 0 scales the session limit with the TP execution slot count.
+  static constexpr const uint32_t DEFAULT_MAX_EXPLICIT_TRANSACTIONS = 0;
+  /// Default absolute lifetime for an explicit HTTP transaction.
+  static constexpr const uint64_t DEFAULT_EXPLICIT_TRANSACTION_TIMEOUT_MS =
+      60000;
 
   /// HTTP port for the query endpoint (default: 10000)
   uint32_t query_port;
@@ -67,6 +72,10 @@ struct ServiceConfig {
   std::string host_str;
   /// Enable background auto-compaction thread while serving
   bool auto_compaction;
+  /// Maximum active explicit HTTP transactions. 0 follows the slot count.
+  uint32_t max_explicit_transactions;
+  /// Absolute lifetime of an explicit HTTP transaction, in milliseconds.
+  uint64_t explicit_transaction_timeout_ms;
 
   /**
    * @brief Constructs ServiceConfig with default values.
@@ -76,12 +85,17 @@ struct ServiceConfig {
    * - thread_num: 0 (auto-select from database max_thread_num)
    * - host_str: "127.0.0.1" (localhost only)
    * - auto_compaction: true
+   * - max_explicit_transactions: 0 (one session per TP slot)
+   * - explicit_transaction_timeout_ms: 60000
    */
   ServiceConfig()
       : query_port(DEFAULT_QUERY_PORT),
         thread_num(DEFAULT_THREAD_NUM),
         host_str("127.0.0.1"),
-        auto_compaction(true) {}
+        auto_compaction(true),
+        max_explicit_transactions(DEFAULT_MAX_EXPLICIT_TRANSACTIONS),
+        explicit_transaction_timeout_ms(
+            DEFAULT_EXPLICIT_TRANSACTION_TIMEOUT_MS) {}
 };
 
 class IServiceManager {

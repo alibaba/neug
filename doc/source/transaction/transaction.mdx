@@ -118,6 +118,37 @@ service sessions, remote clients, Java bindings, savepoints, transaction
 timeouts, or explicit-transaction `COPY`, batch, index, checkpoint, procedure
 calls, or temporary schema operations.
 
+#### Explicit Transactions in TP Service Mode
+
+The HTTP service exposes transaction sessions without reserving an execution
+slot between requests. Begin a session with `POST /transactions` and a JSON
+body of `{"mode":"read_only"}` or `{"mode":"read_write"}`. The response
+contains an `X-Transaction-Id` header; send that header with subsequent routes:
+
+| Route | Operation |
+|-------|-----------|
+| `POST /transactions/query` | Execute one normal `/cypher` request body in the session. |
+| `POST /transactions/commit` | Commit and end the session. |
+| `POST /transactions/rollback` | Abort and end the session. |
+| `GET /transactions/schema` | Read the session's active schema. |
+
+The service marks transaction responses `Cache-Control: no-store`. A
+read-only session pins one TP read view. A read-write session owns one private
+COW view, reads its own successful writes, and appends and publishes one WAL
+commit only when `POST /transactions/commit` succeeds. While a read-write
+session owns the TP update lease, a competing read-write begin returns HTTP 503
+and ordinary TP inserts and updates wait for that session to finish; TP reads
+remain concurrent.
+
+`ServiceConfig::max_explicit_transactions` limits live sessions (zero uses the
+TP slot count), and `explicit_transaction_timeout_ms` sets an absolute session
+lifetime (default 60 seconds; zero disables expiry). Expired, failed, or
+shutdown sessions are rolled back. A failed ordinary statement leaves the
+session rollback-only; issue `POST /transactions/rollback` before reusing its
+transaction id. A read-write begin is rejected when the database itself is
+read-only. Cypher `BEGIN`, `COMMIT`, and `ROLLBACK` remain unsupported: use the
+HTTP routes instead.
+
 ## Deployment Modes Overview
 
 | Aspect | Embedded Mode | Service Mode |

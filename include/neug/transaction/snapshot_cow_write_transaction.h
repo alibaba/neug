@@ -25,6 +25,7 @@
 #include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
 #include "neug/transaction/timestamp_lease.h"
+#include "neug/utils/result.h"
 
 namespace neug {
 
@@ -70,6 +71,7 @@ class SnapshotCowWriteTransaction {
     return GraphStats(workspace_.view(), workspace_.base_planning_generation());
   }
   const Schema& schema() const { return workspace_.view().schema(); }
+  bool PlanningChanged() const { return workspace_.PlanningChanged(); }
 
   Value GetVertexId(label_t label, vid_t lid) const;
   bool GetVertexIndex(label_t label, const Value& id, vid_t& index) const;
@@ -99,6 +101,13 @@ class SnapshotCowWriteTransaction {
   }
 
  private:
+  friend class TransactionContext;
+
+  // ServiceTransactionManager checks its deadline after this fallible prepare
+  // step and before entering the WAL durability boundary.
+  Status PrepareCommit();
+  bool CommitPrepared();
+
   bool active() const noexcept { return timestamp_lease_.active(); }
   void release(std::optional<uint32_t> installed_snapshot_generation) noexcept;
 
@@ -107,6 +116,7 @@ class SnapshotCowWriteTransaction {
   IWalWriter& wal_writer_;
   GraphSnapshotStore& snapshot_store_;
   UpdateTimestampLease timestamp_lease_;
+  std::optional<GraphSnapshotStore::PreparedSnapshot> prepared_snapshot_;
 };
 
 }  // namespace neug

@@ -42,21 +42,30 @@ SnapshotCowWriteTransaction::SnapshotCowWriteTransaction(
       alloc_(other.alloc_),
       wal_writer_(other.wal_writer_),
       snapshot_store_(other.snapshot_store_),
-      timestamp_lease_(std::move(other.timestamp_lease_)) {}
+      timestamp_lease_(std::move(other.timestamp_lease_)),
+      prepared_snapshot_(std::move(other.prepared_snapshot_)) {}
 
 SnapshotCowWriteTransaction::~SnapshotCowWriteTransaction() noexcept {
   Abort();
 }
 
 bool SnapshotCowWriteTransaction::Commit() {
+  auto status = PrepareCommit();
+  if (!status.ok()) {
+    return false;
+  }
+  return CommitPrepared();
+}
+
+Status SnapshotCowWriteTransaction::PrepareCommit() {
   if (!active()) {
-    return true;
+    return Status::OK();
   }
 
   auto& logical_redo = workspace_.logical_redo();
   if (logical_redo.op_num() == 0 && logical_redo.content_size() == 0) {
     release(std::nullopt);
-    return true;
+    return Status::OK();
   }
 
   const bool planning_changed = workspace_.PlanningChanged();
@@ -64,7 +73,7 @@ bool SnapshotCowWriteTransaction::Commit() {
                               std::numeric_limits<uint64_t>::max()) {
     LOG(ERROR) << "Planning generation space exhausted";
     Abort();
-    return false;
+    return Status::InternalError("Planning generation space exhausted.");
   }
   const uint64_t committed_planning_generation =
       workspace_.base_planning_generation() + (planning_changed ? 1 : 0);
@@ -75,11 +84,24 @@ bool SnapshotCowWriteTransaction::Commit() {
     LOG(ERROR) << "Failed to prepare graph snapshot: "
                << prepared_result.error().ToString();
     Abort();
+    return prepared_result.error();
+  }
+  logical_redo.finalize(timestamp());
+  prepared_snapshot_.emplace(std::move(prepared_result).value());
+  return Status::OK();
+}
+
+bool SnapshotCowWriteTransaction::CommitPrepared() {
+  if (!active()) {
+    return true;
+  }
+  if (!prepared_snapshot_) {
+    LOG(ERROR) << "Snapshot write commit was not prepared";
+    Abort();
     return false;
   }
-  auto prepared = std::move(prepared_result).value();
 
-  logical_redo.finalize(timestamp());
+  auto& logical_redo = workspace_.logical_redo();
   // append() does not distinguish a pre-write failure from a partial append.
   // Until W1 framing makes recovery able to discard incomplete records, do not
   // report a normal rollback after starting the durability boundary.
@@ -97,12 +119,14 @@ bool SnapshotCowWriteTransaction::Commit() {
   }
 
   timestamp_lease_.BeginCommit();
-  const uint32_t snapshot_generation = std::move(prepared).Publish();
+  const uint32_t snapshot_generation = std::move(*prepared_snapshot_).Publish();
+  prepared_snapshot_.reset();
   release(snapshot_generation);
   return true;
 }
 
 void SnapshotCowWriteTransaction::Abort() noexcept {
+  prepared_snapshot_.reset();
   if (active()) {
     release(std::nullopt);
   }
