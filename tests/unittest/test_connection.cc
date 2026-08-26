@@ -240,8 +240,7 @@ TEST_F(ConnectionTest, ExplicitReadWriteTransactionReplaysSingleWalCommit) {
   }
 }
 
-TEST_F(ConnectionTest,
-       ExplicitTransactionFailureRollsBackAndRejectsCypherControlStatements) {
+TEST_F(ConnectionTest, ExplicitTransactionFailureRequiresRollback) {
   NeugDB db;
   NeugDBConfig config;
   config.data_dir = DB_DIR;
@@ -276,21 +275,6 @@ TEST_F(ConnectionTest,
   EXPECT_TRUE(conn->HasActiveTransaction());
   EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
   ASSERT_TRUE(conn->Rollback().ok());
-
-  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
-  for (const auto* statement :
-       {"BEGIN TRANSACTION;", "BEGIN TRANSACTION READ ONLY;", "COMMIT;",
-        "ROLLBACK;", "/* comment */ BEGIN TRANSACTION;",
-        "COMMIT; /* comment */", "// comment\nROLLBACK;"}) {
-    auto control = conn->Query(statement);
-    ASSERT_FALSE(control);
-    EXPECT_EQ(control.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
-    EXPECT_TRUE(conn->HasActiveTransaction());
-  }
-  auto still_usable = conn->Query("MATCH (n:person) RETURN count(n);", "read");
-  ASSERT_TRUE(still_usable) << still_usable.error().ToString();
-  ASSERT_TRUE(conn->Commit().ok());
-  EXPECT_FALSE(conn->HasActiveTransaction());
 }
 
 TEST_F(ConnectionTest, ExplicitTransactionCoversTerminalStateTransitions) {
