@@ -43,11 +43,6 @@ This will:
 2. Build the native addon via the main NeuG CMake project (`-DBUILD_NODEJS=ON`)
 3. Copy the resulting `neug_node_bind.node` to `build/Release/`
 
-Node.js builds enable mimalloc by default, matching the main NeuG build.
-Use `WITH_MIMALLOC=OFF make build` only when building all NeuG components
-with mimalloc disabled.
-
-
 ### Pack
 
 ```bash

@@ -105,6 +105,4 @@ set_target_properties(neug_node_bind PROPERTIES
   INSTALL_RPATH "${_neug_node_rpath}"
   BUILD_WITH_INSTALL_RPATH TRUE
 )
-if (WITH_MIMALLOC)
-  set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "${_neug_node_rpath}")
-endif()
+set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "${_neug_node_rpath}")
