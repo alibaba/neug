@@ -99,7 +99,7 @@ def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path, db_dir):
         f'COPY File FROM "{file_csv}" ' '(header=true, delim=",", escaping=false);'
     )
     executor.execute("CHECKPOINT;")
-    _assert_single_published_checkpoint(db_dir, 1)
+    _assert_single_published_checkpoint(db_dir, 2)
     assert _scalar(executor, "MATCH (n:File) RETURN count(n);") == 1
     assert (
         _scalar(
@@ -114,7 +114,7 @@ def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path, db_dir):
         '(header=true, delim=",", escaping=false);'
     )
     executor.execute("CHECKPOINT;")
-    _assert_single_published_checkpoint(db_dir, 2)
+    _assert_single_published_checkpoint(db_dir, 4)
     _assert_issue_651_pk_lookups(executor)
 
 
@@ -224,7 +224,7 @@ def test_ap_checkpoint_preserves_pk_lookup_after_copy_between_checkpoints(tmp_pa
     reopened_conn = reopened_db.connect()
     try:
         _assert_issue_651_pk_lookups(reopened_conn)
-        _assert_single_published_checkpoint(db_dir, 2)
+        _assert_single_published_checkpoint(db_dir, 4)
     finally:
         reopened_conn.close()
         reopened_db.close()
@@ -438,6 +438,37 @@ def test_sort_csr_compact(tmp_path):
     )
     assert list(res) == [[1, 100]]
     sess.close()
+    db.close()
+
+
+def test_copy_from_edge_finalizes_sort_key_before_checkpoint(tmp_path):
+    db_dir = tmp_path / "copy_edge_sort_key"
+    people_csv = tmp_path / "people.csv"
+    edges_csv = tmp_path / "edges.csv"
+    people_csv.write_text("1\n2\n3\n4\n")
+    edges_csv.write_text("1,4,4\n1,2,2\n1,3,3\n")
+
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_TO_MANY) "
+        "WITH (sort_key_for_nbr='since');"
+    )
+    conn.execute(f'COPY person FROM "{people_csv}" (header=false);')
+    conn.execute(f'COPY follows FROM "{edges_csv}" (header=false, delim=",");')
+    assert list(
+        conn.execute("MATCH (:person {id: 1})-[f:follows]->() RETURN f.since;")
+    ) == [[2], [3], [4]]
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    assert list(
+        conn.execute("MATCH (:person {id: 1})-[f:follows]->() RETURN f.since;")
+    ) == [[2], [3], [4]]
+    conn.close()
     db.close()
 
 

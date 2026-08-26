@@ -244,7 +244,7 @@ TEST(UpdateTimestampLeaseTest, DeadlineFailureDoesNotCreateLeaseOwnership) {
   version_manager.finish_update_timestamp(next_timestamp, std::nullopt);
 }
 
-TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
+TEST(APExclusiveWriteConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
   VersionManager version_manager;
   version_manager.init_ts({0, 0}, 2);
 
@@ -273,7 +273,7 @@ TEST(APInPlaceConcurrencyTest, ExistingReaderBlocksWriterMutationPhase) {
   writer.join();
 }
 
-TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
+TEST(APExclusiveWriteConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
   VersionManager version_manager;
   version_manager.init_ts({0, 0}, 2);
 
@@ -300,7 +300,7 @@ TEST(APInPlaceConcurrencyTest, WriterBlocksNewReadersUntilReleased) {
   reader.join();
 }
 
-TEST(APInPlaceConcurrencyTest, WritersAreSerialized) {
+TEST(APExclusiveWriteConcurrencyTest, WritersAreSerialized) {
   VersionManager version_manager;
   version_manager.init_ts({0, 0}, 2);
 

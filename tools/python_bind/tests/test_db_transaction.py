@@ -406,7 +406,7 @@ def test_manual_enable_checkpoint(tmp_path):
 
 
 # DB-004-17
-def test_manual_disable_checkpoint(tmp_path):
+def test_disable_checkpoint_on_close_recovers_wal(tmp_path):
     db_dir = tmp_path / "test_checkpoint"
     shutil.rmtree(db_dir, ignore_errors=True)
     db_dir.mkdir()
@@ -422,12 +422,12 @@ def test_manual_disable_checkpoint(tmp_path):
     conn.close()
     db.close()
 
-    # 2. reopen database with no checkpoint
+    # 2. reopen database and recover committed writes from WAL
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    result = conn.execute("MATCH (p) RETURN p;")
+    result = conn.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
     rows = list(result)
-    assert rows == []
+    assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
     conn.close()
     db.close()
 

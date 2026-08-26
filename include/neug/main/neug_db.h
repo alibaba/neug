@@ -36,7 +36,6 @@
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/api.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
@@ -54,6 +53,7 @@ class FileLock;
 class IGraphPlanner;
 class IVersionManager;
 class IWalParser;
+class WalWriterSet;
 class Schema;
 class ExecutionSlot;
 class ExtensionManager;
@@ -219,7 +219,11 @@ class NEUG_API NeugDB {
    * db.Close();  // Persist data and cleanup
    * @endcode
    *
-   * @note This method is idempotent - calling it multiple times is safe.
+   * @note This method is idempotent after a successful close. If the optional
+   *       shutdown checkpoint fails before consuming the live graph, Close()
+   *       throws and leaves the database open so the caller can correct the
+   *       failure and retry. A failure after consumption finishes teardown and
+   *       is then rethrown; that instance cannot be reused.
    * @note After closing, the database cannot be reopened. Create a new
    *       NeugDB instance to open the database again.
    * @warning The caller must ensure no Connection operation is in progress.
@@ -361,8 +365,12 @@ class NEUG_API NeugDB {
    * A durable checkpoint is a transaction timeline reset boundary: it always
    * compacts storage timestamps before dumping. Must not be called while a
    * NeugDBService is running.
+   *
+   * @param live_graph_consumption_started Set before the live graph is
+   * compacted or consumed. A failure after that point requires final database
+   * teardown.
    */
-  void createCheckpointOnClose();
+  void createCheckpointOnClose(bool& live_graph_consumption_started);
 
   /**
    * @brief Register a NeugDBService as the active service of this database.
@@ -416,6 +424,9 @@ class NEUG_API NeugDB {
   // One transaction timeline per open database. ExecutionSlot objects borrow
   // this manager; it is not recreated when a service is recreated.
   std::unique_ptr<IVersionManager> version_manager_;
+  // Slot 0 is the stable direct-AP writer. TP activation adds writers for the
+  // remaining logical slots, which the service pool borrows.
+  std::unique_ptr<WalWriterSet> wal_writers_;
 
   std::shared_ptr<IGraphPlanner> planner_;
   std::unique_ptr<ConnectionManager> connection_manager_;

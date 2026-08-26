@@ -329,13 +329,16 @@ struct EdgeDataAccessor {
 
   inline void set_data(const NbrIterator& it, const Value& value,
                        timestamp_t ts) {
-    if (it.cfg.ts_offset != 0) {
-      *const_cast<timestamp_t*>(it.get_timestamp_ptr()) = ts;
-    }
     if (data_column_ != nullptr) {
+      // The CSR stores only a stable property-row id for unbundled edges.
+      // Updating the detached column must not change the edge's visibility
+      // timestamp, which may still be shared with an older COW snapshot.
       size_t idx = get_bundled_data_from_ptr<size_t>(it.get_data_ptr());
       data_column_->set_any(idx, value, true);
     } else {
+      if (it.cfg.ts_offset != 0) {
+        *const_cast<timestamp_t*>(it.get_timestamp_ptr()) = ts;
+      }
       if (data_type_ == DataTypeId::kEmpty) {
         return;
       }

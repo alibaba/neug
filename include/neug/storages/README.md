@@ -159,7 +159,7 @@ pre-allocation strategy, so non-empty list inserts after loading from checkpoint
 expected to fail.
 
 Workarounds:
-- Insert vertices with empty lists, then update the list values via `UpdateTransaction`
+- Insert vertices with empty lists, then update the list values via `SnapshotCowWriteTransaction`
   (which uses `insert_safe=true`).
 - Pre-populate the graph with sufficient list data during the initial bulk load before
   checkpointing, so that insert transactions are not needed for list properties.
@@ -169,5 +169,4 @@ Workarounds:
 
 After loading and constructing a graph from input files for the first time, the graph will be dumped as data files in a directory. The directory will be used as the input directory for the next time the graph is loaded. 
 
-The dumped data files are immutable. All modifications (with InsertTransactions and UpdateTransactions) will be encoded as write ahead log.
-
+The dumped data files are immutable. All modifications (with `InsertTransaction` and `SnapshotCowWriteTransaction`) will be encoded as write ahead log.

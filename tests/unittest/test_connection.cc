@@ -640,7 +640,8 @@ TEST_F(ConnectionTest, TestConnectionQueryResult) {
   EXPECT_EQ(ids, expected_ids);
 }
 
-TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
+TEST_F(ConnectionTest,
+       ApMutationCheckpointRoundTripRotatesWalAndUsesBaselineTimestamp) {
   NeugDBConfig config;
   config.data_dir = DB_DIR;
   config.mode = DBMode::READ_WRITE;
@@ -656,6 +657,8 @@ TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
         connection->Query("MATCH (a:person {id: 10001}), (b:person {id: 1}) "
                           "CREATE (a)-[:knows {weight: 9.0}]->(b);"));
     ASSERT_TRUE(connection->Query("CHECKPOINT;"));
+    ASSERT_TRUE(connection->Query(
+        "CREATE (:person {id: 10002, name: 'ap-after-checkpoint', age: 2});"));
     db.Close();
   }
 
@@ -670,9 +673,15 @@ TEST_F(ConnectionTest, ApMutationCheckpointRoundTripUsesBaselineTimestamp) {
     ASSERT_TRUE(result) << result.error().ToString();
     EXPECT_EQ(result.value().response().row_count(), 1);
 
-    // Explicit AP CHECKPOINT resets the timeline after publishing a full
-    // snapshot. Both vertex and edge mutations must remain visible from the
-    // new baseline after process restart.
+    auto post_checkpoint_result = connection->Query(
+        "MATCH (n:person {id: 10002}) RETURN n.name;", "read");
+    ASSERT_TRUE(post_checkpoint_result)
+        << post_checkpoint_result.error().ToString();
+    EXPECT_EQ(post_checkpoint_result.value().response().row_count(), 1);
+
+    // Explicit AP CHECKPOINT dumps/reopens without advancing a durable WAL
+    // timeline. Both vertex and edge mutations must therefore remain visible
+    // from the baseline timestamp restored on process restart.
     SnapshotGuard snapshot(reopened.graph_snapshot_store());
     StorageReadInterface storage(snapshot.get().view(), 0);
     const auto person_label = storage.schema().get_vertex_label_id("person");

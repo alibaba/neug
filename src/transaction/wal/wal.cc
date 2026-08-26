@@ -328,11 +328,11 @@ DropGraphEntryRedo DropGraphEntryRedo::Deserialize(OutArchive& arc) {
   return redo;
 }
 
-void InsertVertexRedo::Serialize(InArchive& arc, label_t label,
+void InsertVertexRedo::Serialize(InArchive& arc, const std::string& vertex_type,
                                  const Value& oid,
                                  const std::vector<Value>& props) {
   arc << static_cast<uint8_t>(OpType::kInsertVertex);
-  arc << label << oid;
+  arc << vertex_type << oid;
   arc << static_cast<uint32_t>(props.size());
   for (const auto& prop : props) {
     arc << prop;
@@ -340,7 +340,7 @@ void InsertVertexRedo::Serialize(InArchive& arc, label_t label,
 }
 
 void InsertVertexRedo::Deserialize(OutArchive& arc, InsertVertexRedo& redo) {
-  arc >> redo.label >> redo.oid;
+  arc >> redo.vertex_type >> redo.oid;
   uint32_t prop_size;
   arc >> prop_size;
   redo.props.resize(prop_size);
@@ -349,12 +349,12 @@ void InsertVertexRedo::Deserialize(OutArchive& arc, InsertVertexRedo& redo) {
   }
 }
 
-void InsertEdgeRedo::Serialize(InArchive& arc, label_t src_label,
-                               const Value& src, label_t dst_label,
-                               const Value& dst, label_t edge_label,
+void InsertEdgeRedo::Serialize(InArchive& arc, const std::string& src_type,
+                               const Value& src, const std::string& dst_type,
+                               const Value& dst, const std::string& edge_type,
                                const std::vector<Value>& properties) {
   arc << static_cast<uint8_t>(OpType::kInsertEdge);
-  arc << src_label << src << dst_label << dst << edge_label;
+  arc << src_type << src << dst_type << dst << edge_type;
   arc << static_cast<uint32_t>(properties.size());
   for (const auto& prop : properties) {
     arc << prop;
@@ -362,8 +362,8 @@ void InsertEdgeRedo::Serialize(InArchive& arc, label_t src_label,
 }
 
 void InsertEdgeRedo::Deserialize(OutArchive& arc, InsertEdgeRedo& redo) {
-  arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
-      redo.edge_label;
+  arc >> redo.src_type >> redo.src >> redo.dst_type >> redo.dst >>
+      redo.edge_type;
   uint32_t prop_size;
   arc >> prop_size;
   redo.properties.resize(prop_size);
@@ -372,59 +372,59 @@ void InsertEdgeRedo::Deserialize(OutArchive& arc, InsertEdgeRedo& redo) {
   }
 }
 
-void UpdateVertexPropRedo::Serialize(InArchive& arc, label_t label,
+void UpdateVertexPropRedo::Serialize(InArchive& arc,
+                                     const std::string& vertex_type,
                                      const Value& oid, int prop_id,
                                      const Value& value) {
   arc << static_cast<uint8_t>(OpType::kUpdateVertexProp);
-  arc << label << oid << prop_id << value;
+  arc << vertex_type << oid << prop_id << value;
 }
 
 void UpdateVertexPropRedo::Deserialize(OutArchive& arc,
                                        UpdateVertexPropRedo& redo) {
-  arc >> redo.label >> redo.oid >> redo.prop_id >> redo.value;
+  arc >> redo.vertex_type >> redo.oid >> redo.prop_id >> redo.value;
 }
 
-void UpdateEdgePropRedo::Serialize(InArchive& arc, label_t src_label,
-                                   const Value& src, label_t dst_label,
-                                   const Value& dst, label_t edge_label,
-                                   int32_t oe_offset, int32_t ie_offset,
-                                   int prop_id, const Value& value) {
+void UpdateEdgePropRedo::Serialize(
+    InArchive& arc, const std::string& src_type, const Value& src,
+    const std::string& dst_type, const Value& dst, const std::string& edge_type,
+    int32_t oe_offset, int32_t ie_offset, int prop_id, const Value& value) {
   arc << static_cast<uint8_t>(OpType::kUpdateEdgeProp);
-  arc << src_label << src << dst_label << dst << edge_label;
+  arc << src_type << src << dst_type << dst << edge_type;
   arc << oe_offset << ie_offset;
   arc << prop_id << value;
 }
 
 void UpdateEdgePropRedo::Deserialize(OutArchive& arc,
                                      UpdateEdgePropRedo& redo) {
-  arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
-      redo.edge_label;
+  arc >> redo.src_type >> redo.src >> redo.dst_type >> redo.dst >>
+      redo.edge_type;
   arc >> redo.oe_offset >> redo.ie_offset;
   arc >> redo.prop_id >> redo.value;
 }
 
-void RemoveVertexRedo::Serialize(InArchive& arc, label_t label,
+void RemoveVertexRedo::Serialize(InArchive& arc, const std::string& vertex_type,
                                  const Value& oid) {
   arc << static_cast<uint8_t>(OpType::kRemoveVertex);
-  arc << label << oid;
+  arc << vertex_type << oid;
 }
 
 void RemoveVertexRedo::Deserialize(OutArchive& arc, RemoveVertexRedo& redo) {
-  arc >> redo.label >> redo.oid;
+  arc >> redo.vertex_type >> redo.oid;
 }
 
-void RemoveEdgeRedo::Serialize(InArchive& arc, label_t src_label,
-                               const Value& src, label_t dst_label,
-                               const Value& dst, label_t edge_label,
+void RemoveEdgeRedo::Serialize(InArchive& arc, const std::string& src_type,
+                               const Value& src, const std::string& dst_type,
+                               const Value& dst, const std::string& edge_type,
                                int32_t oe_offset, int32_t ie_offset) {
   arc << static_cast<uint8_t>(OpType::kRemoveEdge);
-  arc << src_label << src << dst_label << dst << edge_label;
+  arc << src_type << src << dst_type << dst << edge_type;
   arc << oe_offset << ie_offset;
 }
 
 void RemoveEdgeRedo::Deserialize(OutArchive& arc, RemoveEdgeRedo& redo) {
-  arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
-      redo.edge_label;
+  arc >> redo.src_type >> redo.src >> redo.dst_type >> redo.dst >>
+      redo.edge_type;
   arc >> redo.oe_offset >> redo.ie_offset;
 }
 
@@ -441,40 +441,41 @@ InArchive& operator<<(InArchive& in_archive, const DeleteEdgeTypeRedo& value) {
 }
 
 InArchive& operator<<(InArchive& in_archive, const InsertVertexRedo& value) {
-  InsertVertexRedo::Serialize(in_archive, value.label, value.oid, value.props);
+  InsertVertexRedo::Serialize(in_archive, value.vertex_type, value.oid,
+                              value.props);
   return in_archive;
 }
 
 InArchive& operator<<(InArchive& in_archive, const InsertEdgeRedo& value) {
-  InsertEdgeRedo::Serialize(in_archive, value.src_label, value.src,
-                            value.dst_label, value.dst, value.edge_label,
+  InsertEdgeRedo::Serialize(in_archive, value.src_type, value.src,
+                            value.dst_type, value.dst, value.edge_type,
                             value.properties);
   return in_archive;
 }
 
 InArchive& operator<<(InArchive& in_archive,
                       const UpdateVertexPropRedo& value) {
-  UpdateVertexPropRedo::Serialize(in_archive, value.label, value.oid,
+  UpdateVertexPropRedo::Serialize(in_archive, value.vertex_type, value.oid,
                                   value.prop_id, value.value);
   return in_archive;
 }
 
 InArchive& operator<<(InArchive& in_archive, const UpdateEdgePropRedo& value) {
-  UpdateEdgePropRedo::Serialize(in_archive, value.src_label, value.src,
-                                value.dst_label, value.dst, value.edge_label,
+  UpdateEdgePropRedo::Serialize(in_archive, value.src_type, value.src,
+                                value.dst_type, value.dst, value.edge_type,
                                 value.oe_offset, value.ie_offset, value.prop_id,
                                 value.value);
   return in_archive;
 }
 
 InArchive& operator<<(InArchive& in_archive, const RemoveVertexRedo& value) {
-  RemoveVertexRedo::Serialize(in_archive, value.label, value.oid);
+  RemoveVertexRedo::Serialize(in_archive, value.vertex_type, value.oid);
   return in_archive;
 }
 
 InArchive& operator<<(InArchive& in_archive, const RemoveEdgeRedo& value) {
-  RemoveEdgeRedo::Serialize(in_archive, value.src_label, value.src,
-                            value.dst_label, value.dst, value.edge_label,
+  RemoveEdgeRedo::Serialize(in_archive, value.src_type, value.src,
+                            value.dst_type, value.dst, value.edge_type,
                             value.oe_offset, value.ie_offset);
   return in_archive;
 }

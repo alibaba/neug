@@ -53,7 +53,12 @@ void UpdateTimestampLease::BeginCommit() {
 }
 
 void UpdateTimestampLease::MakeUpdateExclusive() {
-  BeginCommit();
+  // A CurrentGraphWriteGuard may transfer an already-exclusive lease to
+  // checkpoint publication. Keep the transition idempotent so the coordinator
+  // can accept both newly-created and transferred leases without another API.
+  if (!commit_started_) {
+    BeginCommit();
+  }
   version_manager_->drain_readers();
 }
 

@@ -33,7 +33,7 @@ namespace neug {
 /// buffer and increments the operation count. DDL Log methods additionally set
 /// schema_changed_ = true.
 ///
-/// UpdateTransaction::Commit() uses:
+/// SnapshotCowWriteTransaction::Commit() uses:
 ///   - op_num() == 0  → nothing to do, early return
 ///   - op_num() > 0   → must publish snapshot
 class WalBuilder {
@@ -72,20 +72,22 @@ class WalBuilder {
                         const ProjectedGraphEntry& entry);
   void LogDropGraphEntry(const std::string& name);
   // --- DML logging ---
-  void LogInsertVertex(label_t label, const Value& oid,
+  void LogInsertVertex(const std::string& vertex_type, const Value& oid,
                        const std::vector<Value>& props);
-  void LogInsertEdge(label_t src_label, const Value& src, label_t dst_label,
-                     const Value& dst, label_t edge_label,
+  void LogInsertEdge(const std::string& src_type, const Value& src,
+                     const std::string& dst_type, const Value& dst,
+                     const std::string& edge_type,
                      const std::vector<Value>& properties);
-  void LogUpdateVertexProp(label_t label, const Value& oid, int prop_id,
-                           const Value& value);
-  void LogUpdateEdgeProp(label_t src_label, const Value& src, label_t dst_label,
-                         const Value& dst, label_t edge_label,
-                         int32_t oe_offset, int32_t ie_offset, int prop_id,
-                         const Value& value);
-  void LogRemoveVertex(label_t label, const Value& oid);
-  void LogRemoveEdge(label_t src_label, const Value& src, label_t dst_label,
-                     const Value& dst, label_t edge_label, int32_t oe_offset,
+  void LogUpdateVertexProp(const std::string& vertex_type, const Value& oid,
+                           int prop_id, const Value& value);
+  void LogUpdateEdgeProp(const std::string& src_type, const Value& src,
+                         const std::string& dst_type, const Value& dst,
+                         const std::string& edge_type, int32_t oe_offset,
+                         int32_t ie_offset, int prop_id, const Value& value);
+  void LogRemoveVertex(const std::string& vertex_type, const Value& oid);
+  void LogRemoveEdge(const std::string& src_type, const Value& src,
+                     const std::string& dst_type, const Value& dst,
+                     const std::string& edge_type, int32_t oe_offset,
                      int32_t ie_offset);
 
   // --- Query state ---
