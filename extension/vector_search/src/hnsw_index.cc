@@ -230,7 +230,7 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   auto runtime_file = ckp.CreateRuntimeFile();
   zvec_runtime_path_ = runtime_file.path();
   zvec_runtime_file_ =
-      std::make_unique<CheckpointFileManager::RuntimeFileHandle>(
+      std::make_shared<CheckpointFileManager::RuntimeFileHandle>(
           std::move(runtime_file));
   auto index_path = descriptor.get_path(kIndexBufferPath);
   bool has_existing = index_path && !index_path->empty() &&
@@ -378,6 +378,7 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
     cloned->vec_source_ = std::make_unique<HNSWVecSource>(*vec_source_);
   }
   cloned->zvec_runtime_path_ = zvec_runtime_path_;
+  cloned->zvec_runtime_file_ = zvec_runtime_file_;
   cloned->dimension_ = dimension_;
   cloned->m_ = m_;
   cloned->ef_construction_ = ef_construction_;

@@ -109,7 +109,7 @@ class HNSWIndex final : public StorageIndex {
 
   std::shared_ptr<zvec::core_interface::Index> zvec_index_;
   std::unique_ptr<HNSWVecSource> vec_source_;
-  std::unique_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
+  std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
   std::string zvec_runtime_path_;
   int dimension_{0};
   int m_{50};
