@@ -38,6 +38,7 @@ class SQLiteStatement {
   SQLiteStatement& operator=(SQLiteStatement&& other) noexcept;
 
   void BindText(int parameter, const std::string& value);
+  void BindNull(int parameter);
   void BindInt64(int parameter, int64_t value);
   void BindDouble(int parameter, double value);
   void Reset();

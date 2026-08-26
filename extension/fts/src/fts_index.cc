@@ -582,9 +582,9 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
 
 Status FTSIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
   for (const auto& value : values) {
-    if (value.IsNull() || value.type().id() != DataTypeId::kVarchar) {
+    if (!value.IsNull() && value.type().id() != DataTypeId::kVarchar) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "FTS values must be non-null STRINGs");
+                    "FTS values must be NULL or STRINGs");
     }
   }
   if (!write_connection_->IsOpen()) {
@@ -596,8 +596,12 @@ Status FTSIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
     statement.Reset();
     statement.BindInt64(1, index_id);
     for (size_t i = 0; i < values.size(); ++i) {
-      statement.BindText(static_cast<int>(i + 2),
-                         values[i].GetValue<std::string>());
+      if (values[i].IsNull()) {
+        statement.BindNull(static_cast<int>(i + 2));
+      } else {
+        statement.BindText(static_cast<int>(i + 2),
+                           values[i].GetValue<std::string>());
+      }
     }
     statement.Step();
     return Status::OK();

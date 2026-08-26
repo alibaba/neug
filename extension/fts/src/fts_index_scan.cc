@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -110,6 +111,13 @@ std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
   bound->property_names = property_names;
   if (property_names.empty()) {
     THROW_RUNTIME_ERROR("FTS_INDEX_SCAN property names are not initialized");
+  }
+  std::unordered_set<std::string> unique_property_names;
+  for (const auto& property_name : property_names) {
+    if (!unique_property_names.insert(property_name).second) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "BM25 property list must not contain duplicate properties");
+    }
   }
   if (weight_values) {
     auto bound_weights = weight_values->bind(nullptr, params);

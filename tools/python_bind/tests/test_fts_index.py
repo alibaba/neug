@@ -187,6 +187,56 @@ def test_fts_multi_column_index_supports_single_column_bm25(
     assert [row[0] for row in rows] == [1]
 
 
+def test_fts_multi_column_index_supports_partial_null_values(
+    fts_multi_column_database,
+):
+    fts_multi_column_database.execute(
+        "CREATE (:Article {id: 4, title: NULL, description: 'target'}), "
+        "(:Article {id: 5, title: 'target'});"
+    )
+
+    description_rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.description, 'target') AS score "
+            "ORDER BY score ASC;"
+        )
+    )
+    assert {row[0] for row in description_rows} == {2, 4}
+
+    title_rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.title, 'target') AS score "
+            "ORDER BY score ASC;"
+        )
+    )
+    assert {row[0] for row in title_rows} == {1, 5}
+
+    fts_multi_column_database.execute(
+        "MATCH (a:Article) WHERE a.id = 4 SET a.description = NULL;"
+    )
+    description_rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.description, 'target') AS score "
+            "ORDER BY score ASC;"
+        )
+    )
+    assert [row[0] for row in description_rows] == [2]
+
+
+def test_fts_bm25_rejects_duplicate_properties(fts_multi_column_database):
+    with pytest.raises(Exception, match="duplicate properties"):
+        list(
+            fts_multi_column_database.execute(
+                "MATCH (a:Article) "
+                "RETURN bm25([a.title, a.title], [1.0, 2.0], "
+                "'target') AS score;"
+            )
+        )
+
+
 @pytest.mark.parametrize(
     ("weights_expression", "target_expression", "parameters"),
     [

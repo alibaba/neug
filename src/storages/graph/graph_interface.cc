@@ -164,8 +164,7 @@ static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
       }
       auto pos = static_cast<size_t>(
           std::distance(v_schema->property_names.begin(), it));
-      CHECK_LT(pos, props.size());
-      values.push_back(props[pos]);
+      values.push_back(pos < props.size() ? props[pos] : Value());
     }
     RETURN_IF_NOT_OK(index->Upsert(lid, values));
   }

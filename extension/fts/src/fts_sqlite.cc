@@ -64,6 +64,14 @@ void SQLiteStatement::BindText(int parameter, const std::string& value) {
   }
 }
 
+void SQLiteStatement::BindNull(int parameter) {
+  auto code = sqlite3_bind_null(statement_, parameter);
+  if (code != SQLITE_OK) {
+    THROW_RUNTIME_ERROR(SQLiteError(sqlite3_db_handle(statement_),
+                                    "SQLite bind NULL failed", code));
+  }
+}
+
 void SQLiteStatement::BindInt64(int parameter, int64_t value) {
   auto code = sqlite3_bind_int64(statement_, parameter, value);
   if (code != SQLITE_OK) {
