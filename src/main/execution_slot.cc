@@ -216,7 +216,8 @@ ExecutionSlot::BeginInPlaceCompactionTransaction() {
 }
 
 result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
-    const GraphStats& stats, const std::string& query, int32_t num_threads) {
+    const GraphStats& stats, const std::string& query, int32_t num_threads,
+    QueryCacheMode cache_mode) {
   if (num_threads == 0) {
     num_threads = db_config_.max_thread_num;
   }
@@ -226,23 +227,10 @@ result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
                         "Number of threads must be greater than 0"));
   }
 
-  GS_AUTO(cache_value, pipeline_cache_.Get(stats, query));
-  return cache_value;
-}
-
-result<std::shared_ptr<execution::CacheValue>>
-ExecutionSlot::prepareQueryUncached(const GraphStats& stats,
-                                    const std::string& query,
-                                    int32_t num_threads) {
-  if (num_threads == 0) {
-    num_threads = db_config_.max_thread_num;
+  if (cache_mode == QueryCacheMode::kBypassShared) {
+    return pipeline_cache_.CompileUncached(stats, query);
   }
-  num_threads = std::min(num_threads, db_config_.max_thread_num);
-  if (num_threads < 1) {
-    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Number of threads must be greater than 0"));
-  }
-  return pipeline_cache_.CompileUncached(stats, query);
+  return pipeline_cache_.Get(stats, query);
 }
 
 Status ExecutionSlot::validateAdminRequest(const AdminRequest& request,
@@ -471,11 +459,13 @@ Status ExecutionSlot::executeCore(const std::string& query,
                              transaction_context](const GraphStats& stats,
                                                   auto& storage) -> Status {
     if (!prepared_query) {
-      auto prepared = transaction_context != nullptr &&
-                              !transaction_context->IsReadOnly() &&
-                              transaction_context->PrivateViewChanged()
-                          ? prepareQueryUncached(stats, query, num_threads)
-                          : prepareQuery(stats, query, num_threads);
+      const auto cache_mode =
+          transaction_context != nullptr &&
+                  !transaction_context->IsReadOnly() &&
+                  transaction_context->WriteTransactionOwner().PlanningChanged()
+              ? QueryCacheMode::kBypassShared
+              : QueryCacheMode::kShared;
+      auto prepared = prepareQuery(stats, query, num_threads, cache_mode);
       if (NEUG_UNLIKELY(!prepared)) {
         return prepared.error();
       }
@@ -528,11 +518,6 @@ Status ExecutionSlot::executeCore(const std::string& query,
       auto& transaction = transaction_context->WriteTransactionOwner();
       auto storage = transaction.OpenStorage();
       status = execute_on_storage(transaction.statistic(), storage);
-      if (status.ok() && prepared_query != nullptr &&
-          analysis.explain_mode != ExplainMode::kExplain &&
-          !IsReadOnlyExecutionFlag(prepared_query->flags)) {
-        transaction_context->MarkPrivateViewChanged();
-      }
     }
   } else if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
     // EXPLAIN is strategy-independent and must not acquire a write transaction,

@@ -267,10 +267,14 @@ class ExecutionSlot {
     CHECK(wal_writer_ != nullptr);
   }
 
+  enum class QueryCacheMode : uint8_t {
+    kShared,
+    kBypassShared,
+  };
+
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
-      const GraphStats& stats, const std::string& query, int32_t num_threads);
-  result<std::shared_ptr<execution::CacheValue>> prepareQueryUncached(
-      const GraphStats& stats, const std::string& query, int32_t num_threads);
+      const GraphStats& stats, const std::string& query, int32_t num_threads,
+      QueryCacheMode cache_mode = QueryCacheMode::kShared);
 
   result<CurrentCowWriteTransaction> BeginCurrentCowWriteTransaction();
   result<QueryResult> ExecuteQueryInTransaction(

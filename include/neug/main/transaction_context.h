@@ -63,8 +63,6 @@ class TransactionContext {
   bool IsReadOnly() const noexcept {
     return mode_ == TransactionMode::kReadOnly;
   }
-  bool PrivateViewChanged() const noexcept { return private_view_changed_; }
-
   void Begin(SnapshotReadTransaction transaction) {
     transaction_.emplace<SnapshotReadTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadOnly;
@@ -89,8 +87,6 @@ class TransactionContext {
   const CurrentCowWriteTransaction& WriteTransactionOwner() const {
     return std::get<CurrentCowWriteTransaction>(transaction_);
   }
-
-  void MarkPrivateViewChanged() noexcept { private_view_changed_ = true; }
 
   Status Commit() {
     if (IsReadOnly()) {
@@ -131,7 +127,6 @@ class TransactionContext {
       }
     }
     transaction_.emplace<std::monostate>();
-    private_view_changed_ = false;
     state_ = State::kRollbackOnly;
   }
 
@@ -145,13 +140,11 @@ class TransactionContext {
  private:
   void ResetToIdle() noexcept {
     transaction_.emplace<std::monostate>();
-    private_view_changed_ = false;
     state_ = State::kIdle;
   }
 
   State state_{State::kIdle};
   TransactionMode mode_{TransactionMode::kReadOnly};
-  bool private_view_changed_{false};
   std::variant<std::monostate, SnapshotReadTransaction,
                CurrentCowWriteTransaction>
       transaction_;

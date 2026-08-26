@@ -142,6 +142,12 @@ TEST_F(ConnectionTest, ExplicitReadWriteTransactionCommitsAcrossQueries) {
   db.Open(config);
 
   auto conn = db.Connect();
+  const std::string read_your_writes_query =
+      "MATCH (n:person {id: 100001, age: 43}) RETURN n.name;";
+  auto before_transaction = conn->Query(read_your_writes_query, "read");
+  ASSERT_TRUE(before_transaction) << before_transaction.error().ToString();
+  EXPECT_EQ(before_transaction.value().response().row_count(), 0);
+
   ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
   EXPECT_TRUE(conn->HasActiveTransaction());
   EXPECT_FALSE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
@@ -153,8 +159,7 @@ TEST_F(ConnectionTest, ExplicitReadWriteTransactionCommitsAcrossQueries) {
       "CREATE (:person {id: 100003, name: 'explicit-delete', age: 44});"));
   ASSERT_TRUE(conn->Query("MATCH (n:person {id: 100003}) DELETE n;", "update"));
 
-  auto in_transaction = conn->Query(
-      "MATCH (n:person {id: 100001, age: 43}) RETURN n.name;", "read");
+  auto in_transaction = conn->Query(read_your_writes_query, "read");
   ASSERT_TRUE(in_transaction) << in_transaction.error().ToString();
   EXPECT_EQ(in_transaction.value().response().row_count(), 1);
   auto deleted_in_transaction =
@@ -282,7 +287,10 @@ TEST_F(ConnectionTest,
     EXPECT_EQ(control.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
     EXPECT_TRUE(conn->HasActiveTransaction());
   }
-  ASSERT_TRUE(conn->Rollback().ok());
+  auto still_usable = conn->Query("MATCH (n:person) RETURN count(n);", "read");
+  ASSERT_TRUE(still_usable) << still_usable.error().ToString();
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_FALSE(conn->HasActiveTransaction());
 }
 
 TEST_F(ConnectionTest, ExplicitTransactionCoversTerminalStateTransitions) {
