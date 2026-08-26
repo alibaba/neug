@@ -40,6 +40,9 @@ class VertexSet;
 
 struct IndexBindSchema {
   label_t label_id = 0;
+  // Stable identity used to remap label_id when a checkpoint strips temporary
+  // labels and compacts the remaining schema slots.
+  std::string label_name;
   // Only single-property indexes are supported.
   std::string property_name;
   DataType property_type;

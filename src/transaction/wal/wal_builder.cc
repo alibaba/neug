@@ -147,48 +147,49 @@ void WalBuilder::LogDropGraphEntry(const std::string& name) {
 // DML logging
 // =============================================================================
 
-void WalBuilder::LogInsertVertex(label_t label, const Value& oid,
+void WalBuilder::LogInsertVertex(const std::string& vertex_type,
+                                 const Value& oid,
                                  const std::vector<Value>& props) {
-  InsertVertexRedo::Serialize(arc_, label, oid, props);
+  InsertVertexRedo::Serialize(arc_, vertex_type, oid, props);
   ++op_num_;
 }
 
-void WalBuilder::LogInsertEdge(label_t src_label, const Value& src,
-                               label_t dst_label, const Value& dst,
-                               label_t edge_label,
+void WalBuilder::LogInsertEdge(const std::string& src_type, const Value& src,
+                               const std::string& dst_type, const Value& dst,
+                               const std::string& edge_type,
                                const std::vector<Value>& properties) {
-  InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
+  InsertEdgeRedo::Serialize(arc_, src_type, src, dst_type, dst, edge_type,
                             properties);
   ++op_num_;
 }
 
-void WalBuilder::LogUpdateVertexProp(label_t label, const Value& oid,
-                                     int prop_id, const Value& value) {
-  UpdateVertexPropRedo::Serialize(arc_, label, oid, prop_id, value);
+void WalBuilder::LogUpdateVertexProp(const std::string& vertex_type,
+                                     const Value& oid, int prop_id,
+                                     const Value& value) {
+  UpdateVertexPropRedo::Serialize(arc_, vertex_type, oid, prop_id, value);
   ++op_num_;
 }
 
-void WalBuilder::LogUpdateEdgeProp(label_t src_label, const Value& src,
-                                   label_t dst_label, const Value& dst,
-                                   label_t edge_label, int32_t oe_offset,
-                                   int32_t ie_offset, int prop_id,
-                                   const Value& value) {
-  UpdateEdgePropRedo::Serialize(arc_, src_label, src, dst_label, dst,
-                                edge_label, oe_offset, ie_offset, prop_id,
-                                value);
+void WalBuilder::LogUpdateEdgeProp(
+    const std::string& src_type, const Value& src, const std::string& dst_type,
+    const Value& dst, const std::string& edge_type, int32_t oe_offset,
+    int32_t ie_offset, int prop_id, const Value& value) {
+  UpdateEdgePropRedo::Serialize(arc_, src_type, src, dst_type, dst, edge_type,
+                                oe_offset, ie_offset, prop_id, value);
   ++op_num_;
 }
 
-void WalBuilder::LogRemoveVertex(label_t label, const Value& oid) {
-  RemoveVertexRedo::Serialize(arc_, label, oid);
+void WalBuilder::LogRemoveVertex(const std::string& vertex_type,
+                                 const Value& oid) {
+  RemoveVertexRedo::Serialize(arc_, vertex_type, oid);
   ++op_num_;
 }
 
-void WalBuilder::LogRemoveEdge(label_t src_label, const Value& src,
-                               label_t dst_label, const Value& dst,
-                               label_t edge_label, int32_t oe_offset,
+void WalBuilder::LogRemoveEdge(const std::string& src_type, const Value& src,
+                               const std::string& dst_type, const Value& dst,
+                               const std::string& edge_type, int32_t oe_offset,
                                int32_t ie_offset) {
-  RemoveEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
+  RemoveEdgeRedo::Serialize(arc_, src_type, src, dst_type, dst, edge_type,
                             oe_offset, ie_offset);
   ++op_num_;
 }

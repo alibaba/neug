@@ -283,7 +283,7 @@ test('test_manual_enable_checkpoint', () => {
 // DB-004-17
 // ---------------------------------------------------------------------------
 
-test('test_manual_disable_checkpoint', () => {
+test('test_disable_checkpoint_on_close_recovers_wal', () => {
   const dbDir = makeTmpDir('test_checkpoint_disable');
 
   // 1. open database with checkpointOnClose=false
@@ -301,12 +301,17 @@ test('test_manual_disable_checkpoint', () => {
   conn.close();
   db.close();
 
-  // 2. reopen database with no checkpoint
+  // 2. reopen database and recover committed writes from WAL
   const db2 = new Database({ databasePath: dbDir, mode: 'w' });
   const conn2 = db2.connect();
-  const result = conn2.execute('MATCH (p) RETURN p;');
+  const result = conn2.execute(
+    'MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;'
+  );
   const rows = [...result];
-  assert.deepEqual(rows, []);
+  assert.deepEqual(rows, [
+    [1n, 'Alice', 30],
+    [2n, 'Bob', 25],
+  ]);
   conn2.close();
   db2.close();
 });

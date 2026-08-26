@@ -19,25 +19,25 @@
 #include <cstdlib>
 #include <memory>
 #include <new>
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "neug/main/execution_slot.h"
-#include "neug/transaction/wal/wal.h"
+#include "neug/main/wal_writer_set.h"
 
 #include "bthread/bthread.h"
 
 namespace neug {
 class CheckpointCoordinator;
 class NeugDBService;
+class IWalWriter;
 
 /**
  * @brief Pool of database slots for concurrent query execution.
  *
  * TpExecutionSlotPool owns and schedules a fixed set of ExecutionSlot
- * instances for TP query execution. Each aligned entry owns both its slot and
- * per-slot WAL writer.
+ * instances for TP query execution. Each aligned entry borrows a stable
+ * database-owned per-slot WAL writer.
  *
  * TpExecutionSlotPool is used internally by NeugDBService. For most use cases,
  * access slots through NeugDBService::AcquireExecutionSlot() rather than
@@ -46,7 +46,7 @@ class NeugDBService;
  * **Key Features:**
  * - Owns service-local slots for query execution
  * - Thread-safe lease/release with bthread synchronization
- * - Automatic WAL (Write-Ahead Log) management per slot
+ * - Stable WAL (Write-Ahead Log) writer per logical slot
  * - 4096-byte-aligned per-slot Entry storage
  *
  * **Pool Size:** `NeugDBConfig::max_thread_num` determines the pool size. Each
@@ -57,40 +57,35 @@ class NeugDBService;
  * @since v0.1.0
  */
 class TpExecutionSlotPool {
+  static constexpr size_t kEntryAlignment = 4096;
+  static constexpr size_t kSlotOffset = 128;
+
   // TP-only per-slot record. Implementation detail of the pool; external code
   // only ever sees ExecutionSlotLease.
-  struct alignas(4096) Entry {
+  struct alignas(kEntryAlignment) Entry {
     Entry(GraphSnapshotStore& snapshot_store,
           std::shared_ptr<IGraphPlanner> planner,
           std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
           std::shared_ptr<Allocator> alloc, IVersionManager& version_manager,
           CheckpointCoordinator& checkpoint_coordinator, int slot_id,
-          ExtensionManager& extension_manager,
-          std::unique_ptr<IWalWriter> in_logger, const std::string& wal_uri,
+          ExtensionManager& extension_manager, IWalWriter& wal_writer,
           const NeugDBConfig& config)
         : allocator(std::move(alloc)),
-          logger(std::move(in_logger)),
           slot(snapshot_store, std::move(planner),
                std::move(global_query_cache), version_manager, *allocator,
-               QueryExecutionStrategy::kTransactional, logger.get(),
-               checkpoint_coordinator, extension_manager, config, slot_id) {
-      CHECK(logger != nullptr);
-      logger->open(wal_uri);
-    }
+               QueryExecutionStrategy::kTransactional, &wal_writer,
+               checkpoint_coordinator, extension_manager, config, slot_id) {}
 
     std::shared_ptr<Allocator> allocator;
-    char _padding0[128 - sizeof(std::shared_ptr<Allocator>)];
-    // Declaration order is intentional: slot is destroyed before the WAL
-    // writer it references.
-    std::unique_ptr<IWalWriter> logger;
-    char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
-                   sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
+    char _padding0[kSlotOffset - sizeof(std::shared_ptr<Allocator>)];
     ExecutionSlot slot;
-    char _padding2[(4096 - sizeof(ExecutionSlot) % 4096) % 4096];
+    char _padding2[(kEntryAlignment -
+                    (kSlotOffset + sizeof(ExecutionSlot)) % kEntryAlignment) %
+                   kEntryAlignment];
   };
 
-  static_assert(alignof(Entry) == 4096);
-  static_assert(sizeof(Entry) % 4096 == 0);
+  static_assert(alignof(Entry) == kEntryAlignment);
+  static_assert(sizeof(Entry) == kEntryAlignment);
 
  public:
   explicit TpExecutionSlotPool(
@@ -101,12 +96,11 @@ class TpExecutionSlotPool {
       CheckpointCoordinator& checkpoint_coordinator,
       ExtensionManager& extension_manager,
       const std::vector<std::shared_ptr<Allocator>>& allocators,
-      const std::string& wal_uri, const NeugDBConfig& config)
+      WalWriterSet& wal_writers, const NeugDBConfig& config)
       : entries_(nullptr), slot_num_(allocators.size()) {
-    WalWriterFactory::Init();
     available_slot_ids_.reserve(slot_num_);
-    entries_ =
-        static_cast<Entry*>(aligned_alloc(4096, sizeof(Entry) * slot_num_));
+    entries_ = static_cast<Entry*>(
+        aligned_alloc(kEntryAlignment, sizeof(Entry) * slot_num_));
     if (entries_ == nullptr) {
       throw std::bad_alloc();
     }
@@ -115,12 +109,11 @@ class TpExecutionSlotPool {
     try {
       for (; constructed_entries < slot_num_; ++constructed_entries) {
         const auto slot_id = static_cast<int>(constructed_entries);
-        auto logger = WalWriterFactory::CreateWalWriter(wal_uri, slot_id);
         new (&entries_[constructed_entries])
             Entry(snapshot_store, planner, global_query_cache,
                   allocators.at(constructed_entries), version_manager,
                   checkpoint_coordinator, slot_id, extension_manager,
-                  std::move(logger), wal_uri, config);
+                  wal_writers.WriterFor(constructed_entries), config);
       }
     } catch (...) {
       while (constructed_entries > 0) {
@@ -176,10 +169,6 @@ class TpExecutionSlotPool {
     }
     return ret;
   }
-
-  // Runs while checkpoint maintenance has drained all active transactions.
-  // Rotate every stable per-slot WAL writer to the published epoch.
-  void RotateWalWriters(const std::string& wal_uri);
 
  private:
   static void releaseExecutionSlot(void* owner, size_t slot_id) noexcept;

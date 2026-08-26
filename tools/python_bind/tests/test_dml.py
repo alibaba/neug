@@ -253,6 +253,11 @@ def test_set_edge_property(tmp_path):
         " WHERE u0.name = 'Alice' AND u1.name = 'Josh' SET f.since = 1999 RETURN f.since;"
     )
     assert result.__next__()[0] == 1999
+    result = conn.execute(
+        "MATCH (u0:person)<-[f:follows]-(u1:person)"
+        " WHERE u0.name = 'Josh' AND u1.name = 'Alice' SET f.since = 2000 RETURN f.since;"
+    )
+    assert result.__next__()[0] == 2000
     # case 2: valid update with multiple label relationship
     result = conn.execute(
         "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.since = 1999 RETURN f.since;"
@@ -265,6 +270,33 @@ def test_set_edge_property(tmp_path):
             "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.noprop = 1999 RETURN f.noprop;"
         )
     assert "Cannot find property noprop" in str(excinfo.value)
+
+    # A join may repeat the same physical bundled edge in several rows. Two
+    # parallel edges also require stable property bytes to resolve each CSR
+    # offset. Refreshing the whole edge column after SET covers both cases.
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.name = 'Alice' AND "
+        "b.name = 'Josh' CREATE (a)-[:follows {since: 2013}]->(b);"
+    )
+    result = conn.execute(
+        "MATCH (a:person)-[f:follows]->(b:person), (copy:person) "
+        "WHERE a.name = 'Alice' AND b.name = 'Josh' "
+        "SET f.since = 1999 RETURN f.since;"
+    )
+    assert sorted(row[0] for row in result) == [1999] * 6
+    result = conn.execute(
+        "MATCH (:person {name: 'Alice'})-[f:follows]->(:person {name: 'Josh'}) "
+        "RETURN f.since;"
+    )
+    assert sorted(row[0] for row in result) == [1999, 1999]
+
+    # Later SET mappings observe the values written by earlier mappings even
+    # after bundled CSR COW refreshes the edge column.
+    result = conn.execute(
+        "MATCH (:person {name: 'Alice'})-[f:follows]->(:person {name: 'Josh'}) "
+        "SET f.since = 20, f.since = f.since + 1 RETURN f.since;"
+    )
+    assert list(result) == [[21], [21]]
     conn.close()
     db.close()
 

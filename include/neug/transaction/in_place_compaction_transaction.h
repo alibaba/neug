@@ -24,11 +24,12 @@ class PropertyGraph;
 class IVersionManager;
 class IWalWriter;
 
-class CompactTransaction {
+class InPlaceCompactionTransaction {
  public:
-  CompactTransaction(GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer,
-                     IVersionManager& vm, timestamp_t timestamp);
-  ~CompactTransaction();
+  InPlaceCompactionTransaction(GraphSnapshotStore& snapshot_store,
+                               IWalWriter& wal_writer, IVersionManager& vm,
+                               timestamp_t timestamp);
+  ~InPlaceCompactionTransaction();
 
   timestamp_t timestamp() const;
 

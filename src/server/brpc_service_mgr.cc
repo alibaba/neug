@@ -202,7 +202,7 @@ neug::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
     brpc::Controller* cntl) {
   (void) cntl;
   auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
-  auto read_txn = slot_lease->GetReadTransaction();
+  auto read_txn = slot_lease->BeginSnapshotReadTransaction();
   auto yaml = read_txn.schema().to_yaml();
   if (!yaml) {
     read_txn.Abort();

@@ -14,12 +14,15 @@
  */
 #pragma once
 
-#include <optional>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include "glog/logging.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
-#include "neug/storages/graph_snapshot_store.h"
-#include "neug/transaction/timestamp_lease.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -27,39 +30,8 @@
 
 namespace neug {
 
-/**
- * RAII owner of a writer-exclusive in-place write.
- *
- * Construction acquires an update timestamp, blocks and drains readers, then
- * pins the current snapshot for mutation. Destruction publishes its planning
- * generation first, publishes the matching timestamp/snapshot read view,
- * reopens admission, and finally releases the snapshot pin. Publication also
- * happens during stack unwinding because in-place mutations cannot be rolled
- * back.
- */
-class InPlaceWriteScope {
- public:
-  InPlaceWriteScope(IVersionManager& version_manager,
-                    GraphSnapshotStore& snapshot_store);
-  ~InPlaceWriteScope() noexcept;
-
-  InPlaceWriteScope(const InPlaceWriteScope&) = delete;
-  InPlaceWriteScope& operator=(const InPlaceWriteScope&) = delete;
-
-  uint32_t Timestamp() const noexcept { return timestamp_lease_.Timestamp(); }
-  GraphSnapshotStore::SnapshotSlot& Snapshot() noexcept {
-    return snapshot_guard_->get();
-  }
-  void MarkPlanningChanged() noexcept { planning_changed_ = true; }
-
- private:
-  void publish() noexcept;
-
-  UpdateTimestampLease timestamp_lease_;
-  GraphSnapshotStore& snapshot_store_;
-  std::optional<SnapshotGuard> snapshot_guard_;
-  bool planning_changed_{false};
-};
+class StorageIndex;
+struct CowDetachState;
 
 enum class OpType : uint8_t {
   kCreateVertexType = 0,
@@ -95,5 +67,29 @@ inline OutArchive& operator>>(OutArchive& out_archive, OpType& value) {
   value = static_cast<OpType>(op_type);
   return out_archive;
 }
+
+// Index mutation helpers shared between CowGraphStorage and WAL
+// replay. detach_index is invoked before mutating each index so COW
+// transactions get a private copy.
+using IndexDetachFn = std::function<Status(StorageIndex&)>;
+
+Status dropVertexIndex(PropertyGraph& graph, label_t label,
+                       const std::string& prop_name,
+                       CowDetachState* detach_state = nullptr);
+Status renameVertexIndex(PropertyGraph& graph, label_t label,
+                         const std::string& old_name,
+                         const std::string& new_name);
+Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
+                          const Value& id, const std::vector<Value>& props,
+                          const IndexDetachFn& detach_index = nullptr);
+Status updateVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
+                             int32_t col_id, const Value& value,
+                             const IndexDetachFn& detach_index = nullptr);
+Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
+                             const std::vector<vid_t>& vids,
+                             const IndexDetachFn& detach_index = nullptr);
+
+void ReplayCowGraphWal(PropertyGraph& graph, uint32_t timestamp, char* data,
+                       size_t length, Allocator& alloc);
 
 }  // namespace neug

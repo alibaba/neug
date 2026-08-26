@@ -17,6 +17,7 @@
 
 #include <glog/logging.h>
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 #include "neug/generated/proto/plan/error.pb.h"
@@ -339,20 +340,25 @@ void GraphSnapshotStore::publishPreparedSnapshot(int slot_index) noexcept {
   unpinSnapshotByIndex(old_slot_index);
 }
 
-uint32_t GraphSnapshotStore::publishInPlaceMutation(
-    SnapshotSlot& mutated_slot, bool planning_changed) noexcept {
-  const int slot_index = cur_slot_index_.load(std::memory_order_acquire);
-  auto& current_slot = slots_[slot_index];
-  CHECK_EQ(&mutated_slot, &current_slot)
-      << "In-place commit must publish the slot that it mutated";
-  if (planning_changed) {
-    auto& generation = mutated_slot.planning_generation_;
-    const uint64_t current = generation.load(std::memory_order_relaxed);
-    CHECK_NE(current, std::numeric_limits<uint64_t>::max())
-        << "Planning generation space exhausted";
-    generation.store(current + 1, std::memory_order_release);
-  }
-  return mutated_slot.snapshot_generation_;
+void GraphSnapshotStore::replaceCurrentSnapshotInPlace(
+    SnapshotSlot& target, std::shared_ptr<PropertyGraph>& prepared_storage,
+    GraphView& prepared_view, uint64_t planning_generation) noexcept {
+  static_assert(std::is_nothrow_swappable_v<std::shared_ptr<PropertyGraph>>);
+  static_assert(std::is_nothrow_swappable_v<GraphView>);
+
+  const int current_index = cur_slot_index_.load(std::memory_order_acquire);
+  auto& current = slots_[current_index];
+  CHECK_EQ(&target, &current);
+  // The current slot owns one cur-pin and CurrentCowWriteTransaction owns one
+  // writer pin. Any additional pin would retain references into the
+  // storage/view pair that is about to be replaced in place.
+  CHECK_EQ(current.reader_count_.load(std::memory_order_acquire), 2);
+
+  using std::swap;
+  swap(current.storage_, prepared_storage);
+  swap(current.view_, prepared_view);
+  current.planning_generation_.store(planning_generation,
+                                     std::memory_order_release);
 }
 
 }  // namespace neug

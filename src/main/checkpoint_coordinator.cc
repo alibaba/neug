@@ -19,13 +19,14 @@
 
 #include <cstdlib>
 #include <exception>
-#include <optional>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph_snapshot_store.h"
+#include "neug/transaction/current_cow_write_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/utils/exception/exception.h"
 
@@ -64,38 +65,21 @@ const char* CheckpointCoordinator::reasonName(Reason reason) {
 
 CheckpointCoordinator::CheckpointCoordinator(
     CheckpointManager& checkpoint_manager, GraphSnapshotStore& snapshot_store,
-    MemoryLevel memory_level, PostReopenHandler post_reopen_handler)
+    MemoryLevel memory_level, PostReopenHandler post_reopen_handler,
+    WalEpochActivationHandler wal_epoch_activation_handler)
     : checkpoint_manager_(checkpoint_manager),
       snapshot_store_(snapshot_store),
       memory_level_(memory_level),
-      post_reopen_handler_(std::move(post_reopen_handler)) {
+      post_reopen_handler_(std::move(post_reopen_handler)),
+      wal_epoch_activation_handler_(std::move(wal_epoch_activation_handler)) {
   if (!post_reopen_handler_) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Checkpoint post-reopen handler must not be empty");
   }
 }
 
-void CheckpointCoordinator::SetWalEpochActivationHandler(
-    WalEpochActivationHandler handler) {
-  if (!handler) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Checkpoint activation handler must not be empty");
-  }
-  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
-  if (wal_epoch_activation_handler_) {
-    THROW_RUNTIME_ERROR("Checkpoint activation handler is already set");
-  }
-  wal_epoch_activation_handler_ = std::move(handler);
-}
-
-void CheckpointCoordinator::ClearWalEpochActivationHandler() {
-  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
-  wal_epoch_activation_handler_ = nullptr;
-}
-
 void CheckpointCoordinator::invokeWalEpochActivationHandler(
     const std::string& checkpoint_wal_dir) {
-  std::lock_guard<std::mutex> lock(wal_epoch_activation_handler_mutex_);
   if (wal_epoch_activation_handler_) {
     wal_epoch_activation_handler_(checkpoint_wal_dir);
   }
@@ -114,8 +98,8 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
 
   Status status = execute(Reason::kManual);
   if (!status.ok()) {
-    // Preparation failures happen before execute() enters its destructive
-    // phase. execute() itself fail-stops after that boundary. The lease
+    // Preparation failures happen before execute() starts consuming the live
+    // graph. execute() itself fail-stops after that boundary. The lease
     // destructor releases the timestamp through the ordinary failure path.
     return status;
   }
@@ -126,59 +110,103 @@ Status CheckpointCoordinator::PublishManualCheckpoint(
   return status;
 }
 
-Status CheckpointCoordinator::PublishIncrementalCheckpoint(
-    UpdateTimestampLease timestamp_lease) {
-  bool destructive_phase = false;
-  try {
-    timestamp_lease.MakeUpdateExclusive();
-    std::optional<uint32_t> installed_snapshot_generation;
-    auto status = snapshot_store_.WithCheckpointMaintenance(
-        [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
-            -> Status {
-          auto& live_graph = maintenance.MutableCurrentSnapshot();
-          if (!live_graph.IsModified()) {
-            return Status::OK();
-          }
-          auto preflight = live_graph.ValidateCheckpointPreconditions();
-          if (!preflight.ok()) {
-            return preflight;
-          }
+Status CheckpointCoordinator::CommitCowWrite(
+    CurrentCowWriteTransaction& transaction) {
+  if (!transaction.active()) {
+    return Status::OK();
+  }
+  auto& workspace = transaction.workspace_;
+  const auto& logical_redo = workspace.logical_redo();
+  if (logical_redo.op_num() != 0 || logical_redo.content_size() != 0) {
+    transaction.Abort();
+    return Status::InternalError(
+        "Bulk checkpoint commit cannot contain logical WAL redo");
+  }
+  if (workspace.HasTransientMutation()) {
+    transaction.Abort();
+    return Status::InternalError(
+        "Bulk checkpoint commit cannot contain transient graph mutations");
+  }
+  if (!workspace.HasBulkMutation()) {
+    transaction.Abort();
+    return Status::OK();
+  }
 
-          auto staging_checkpoint = checkpoint_manager_.CreateStaging();
-          LOG(INFO) << "Executing incremental checkpoint without compaction";
-          destructive_phase = true;
-          const bool planning_changed = live_graph.DumpDirtyAndReopen(
-              staging_checkpoint.checkpoint(), timestamp_lease.Timestamp());
-          auto published_checkpoint = staging_checkpoint.Publish();
-          installed_snapshot_generation =
-              maintenance.RefreshCurrentView(planning_changed);
-          invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
-          cleanup_retired_checkpoints(checkpoint_manager_);
-          return Status::OK();
-        });
-    if (!status.ok()) {
-      return status;
+  bool consuming_checkpoint_started = false;
+  try {
+    if (workspace.base_planning_generation() ==
+        std::numeric_limits<uint64_t>::max()) {
+      transaction.Abort();
+      return Status::InternalError("Planning generation space exhausted");
     }
-    timestamp_lease.Finish(installed_snapshot_generation);
+    const uint64_t committed_planning_generation =
+        workspace.base_planning_generation() + 1;
+
+    auto& graph = *workspace.graph();
+    auto preflight = graph.ValidateCheckpointPreconditions();
+    if (!preflight.ok()) {
+      transaction.Abort();
+      return preflight;
+    }
+
+    // Finalize only persistent COPY targets before checkpoint consumption,
+    // while ordinary rollback remains safe. Vertex COPY has a timestamp-zero
+    // tail; edge COPY needs compaction only when it has a neighbor sort key.
+    // Keeping the target sets transaction-local avoids compacting unrelated
+    // dirty tables inherited by the private COW graph.
+    workspace.FinalizeBulkTablesForCheckpoint();
+
+    // This is intentionally not the in-place checkpoint path in execute().
+    // `graph` belongs exclusively to this COW transaction, so it can be
+    // reopened before publication without changing the live snapshot. Only
+    // replaceCurrentSnapshot() below makes the bulk statement visible.
+    auto staging_checkpoint = checkpoint_manager_.CreateStaging();
+    LOG(INFO) << "Committing private bulk COW graph with checkpoint";
+    graph.DetachDirtyModulesForCheckpoint(workspace.detach_state());
+    // DumpDirtyAndReopen() consumes dirty containers. Most modules have been
+    // detached into this private graph, but VecColumn payload buffers are still
+    // shared intentionally by VecColumn::Detach(). Once consumption starts, a
+    // later failure may therefore leave the published base graph unusable. Do
+    // not report rollback from this point until checkpoint-specific payload
+    // detachment exists.
+    consuming_checkpoint_started = true;
+    graph.DumpDirtyAndReopen(staging_checkpoint.checkpoint(),
+                             transaction.timestamp());
+    workspace.view().Rebuild(graph);
+
+    auto published_checkpoint = staging_checkpoint.Publish();
+
+    transaction.replaceCurrentSnapshot(committed_planning_generation);
+    invokeWalEpochActivationHandler(published_checkpoint->wal_dir());
+
+    const uint32_t snapshot_generation =
+        transaction.guard_.Snapshot().snapshot_generation();
+    workspace.Reset();
+    transaction.guard_.release(snapshot_generation);
+    // GC scans and fsyncs checkpoint directories. It is best-effort and does
+    // not participate in the durable decision, so do not keep AP admission
+    // exclusive while it runs.
+    cleanup_retired_checkpoints(checkpoint_manager_);
     return Status::OK();
   } catch (const exception::IOException& e) {
-    if (destructive_phase) {
+    if (consuming_checkpoint_started) {
       fail_stop_live_database(e.what());
     }
+    transaction.Abort();
     return Status(StatusCode::ERR_IO_ERROR, e.what());
   } catch (const std::exception& e) {
-    if (destructive_phase) {
+    if (consuming_checkpoint_started) {
       fail_stop_live_database(e.what());
     }
+    transaction.Abort();
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
   } catch (...) {
-    if (destructive_phase) {
-      fail_stop_live_database(
-          "Unknown destructive incremental checkpoint "
-          "failure");
+    if (consuming_checkpoint_started) {
+      fail_stop_live_database("Unknown bulk checkpoint commit failure");
     }
+    transaction.Abort();
     return Status(StatusCode::ERR_INTERNAL_ERROR,
-                  "Unknown incremental checkpoint preparation failure");
+                  "Unknown bulk checkpoint preparation failure");
   }
 }
 
@@ -186,20 +214,23 @@ Status CheckpointCoordinator::PublishRecoveryCheckpoint() {
   return execute(Reason::kRecovery);
 }
 
-Status CheckpointCoordinator::PublishShutdownCheckpoint() {
-  return execute(Reason::kShutdown);
+Status CheckpointCoordinator::PublishShutdownCheckpoint(
+    bool& live_graph_consumption_started) {
+  live_graph_consumption_started = false;
+  return execute(Reason::kShutdown, &live_graph_consumption_started);
 }
 
-Status CheckpointCoordinator::execute(Reason reason) {
+Status CheckpointCoordinator::execute(
+    Reason reason, bool* live_graph_consumption_started_out) {
   const bool reopen_after_checkpoint = reason != Reason::kShutdown;
 
-  // Once the destructive phase begins, a running database cannot safely
+  // Once live graph consumption begins, a running database cannot safely
   // continue after failure. Recovery and shutdown are not externally visible
   // runtimes, so their callers may still unwind and destroy the consumed graph.
-  bool destructive_phase = false;
+  bool live_graph_consumption_started = false;
   try {
     auto staging_checkpoint = checkpoint_manager_.CreateStaging();
-    return snapshot_store_.WithCheckpointMaintenance(
+    auto status = snapshot_store_.WithCheckpointMaintenance(
         [&](GraphSnapshotStore::CheckpointMaintenanceContext& maintenance)
             -> Status {
           auto& live_graph = maintenance.MutableCurrentSnapshot();
@@ -213,7 +244,10 @@ Status CheckpointCoordinator::execute(Reason reason) {
                     << (reopen_after_checkpoint
                             ? " and reopening the current graph"
                             : " without reopening the graph");
-          destructive_phase = true;
+          live_graph_consumption_started = true;
+          if (live_graph_consumption_started_out != nullptr) {
+            *live_graph_consumption_started_out = true;
+          }
           live_graph.Compact();
           live_graph.DumpAndClear(staging_checkpoint.checkpoint());
           auto published_checkpoint = staging_checkpoint.Publish();
@@ -240,23 +274,27 @@ Status CheckpointCoordinator::execute(Reason reason) {
           }
           return Status::OK();
         });
+    return status;
   } catch (const exception::IOException& e) {
-    if (destructive_phase && reason == Reason::kManual) {
+    if (live_graph_consumption_started && reason == Reason::kManual) {
       fail_stop_live_database(e.what());
     }
     return Status(StatusCode::ERR_IO_ERROR, e.what());
   } catch (const std::exception& e) {
-    if (destructive_phase && reason == Reason::kManual) {
+    if (live_graph_consumption_started && reason == Reason::kManual) {
       fail_stop_live_database(e.what());
     }
     return Status(StatusCode::ERR_INTERNAL_ERROR, e.what());
   } catch (...) {
-    if (destructive_phase && reason == Reason::kManual) {
-      fail_stop_live_database("Unknown destructive checkpoint failure");
+    if (live_graph_consumption_started && reason == Reason::kManual) {
+      fail_stop_live_database(
+          "Unknown checkpoint failure after live graph consumption started");
     }
     return Status(StatusCode::ERR_INTERNAL_ERROR,
-                  destructive_phase ? "Unknown destructive checkpoint failure"
-                                    : "Unknown checkpoint preparation failure");
+                  live_graph_consumption_started
+                      ? "Unknown checkpoint failure after live graph "
+                        "consumption started"
+                      : "Unknown checkpoint preparation failure");
   }
 }
 

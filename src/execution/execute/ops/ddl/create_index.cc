@@ -42,6 +42,8 @@ std::unique_ptr<IndexMeta> CreateIndexMeta(
     index_meta->schema.label_id =
         static_cast<label_t>(create_index.vertex_type().id());
   }
+  index_meta->schema.label_name =
+      schema.get_vertex_label_name(index_meta->schema.label_id);
 
   index_meta->type = create_index.create_index_type();
   index_meta->schema.property_name = create_index.property();

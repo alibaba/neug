@@ -19,7 +19,7 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/transaction/insert_transaction.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
 #include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -45,13 +45,13 @@
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
-class InsertTransactionTest : public ::testing::Test {
+class MvccInsertTransactionTest : public ::testing::Test {
  protected:
   std::string db_dir;
   neug::MemoryLevel memory_level;
 
   void SetUp() override {
-    db_dir = "/tmp/test_insert_transaction_db";
+    db_dir = "/tmp/test_mvcc_insert_transaction_db";
     if (std::filesystem::exists(db_dir)) {
       std::filesystem::remove_all(db_dir);
     }
@@ -110,7 +110,7 @@ class InsertTransactionTest : public ::testing::Test {
   }
 };
 
-TEST_F(InsertTransactionTest, InsertTransactionBasic) {
+TEST_F(MvccInsertTransactionTest, MvccInsertTransactionBasic) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -118,13 +118,13 @@ TEST_F(InsertTransactionTest, InsertTransactionBasic) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetInsertTransaction();
+    auto txn = slot->BeginMvccInsertTransaction();
     EXPECT_EQ(txn.timestamp(), 1);
     EXPECT_TRUE(txn.schema().is_vertex_label_valid("person"));
   }
 }
 
-TEST_F(InsertTransactionTest, AddVertex) {
+TEST_F(MvccInsertTransactionTest, AddVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -132,7 +132,7 @@ TEST_F(InsertTransactionTest, AddVertex) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetInsertTransaction();
+    auto txn = slot->BeginMvccInsertTransaction();
     neug::StorageTPInsertInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     neug::vid_t vid;
@@ -144,7 +144,7 @@ TEST_F(InsertTransactionTest, AddVertex) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -153,7 +153,7 @@ TEST_F(InsertTransactionTest, AddVertex) {
   db.Close();
 }
 
-TEST_F(InsertTransactionTest, AddEdge) {
+TEST_F(MvccInsertTransactionTest, AddEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -161,7 +161,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetInsertTransaction();
+    auto txn = slot->BeginMvccInsertTransaction();
     neug::StorageTPInsertInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
@@ -179,7 +179,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -204,7 +204,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
   db.Close();
 }
 
-TEST_F(InsertTransactionTest, TestUnsupportedInterface) {
+TEST_F(MvccInsertTransactionTest, TestUnsupportedInterface) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -213,7 +213,7 @@ TEST_F(InsertTransactionTest, TestUnsupportedInterface) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetInsertTransaction();
+    auto txn = slot->BeginMvccInsertTransaction();
     neug::StorageTPInsertInterface interface(txn);
     std::vector<neug::vid_t> vids;
     std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges;

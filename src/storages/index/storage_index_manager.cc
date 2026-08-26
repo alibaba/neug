@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 
 #include "neug/compiler/common/string_utils.h"
+#include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/storages/index/index_utils.h"
 #include "neug/storages/module/module_factory.h"
@@ -430,6 +431,45 @@ result<size_t> StorageIndexManager::ActivateIndexes(
   return candidates.size();
 }
 
+void StorageIndexManager::RemapCheckpointIndexLabels(
+    CheckpointManifest& manifest, const Schema& source_schema,
+    const Schema& checkpoint_schema) const {
+  for (const auto& [key, descriptor] : manifest.Modules()) {
+    if (!IsIndexModule(key)) {
+      continue;
+    }
+    auto index_meta = descriptor.get("index_meta");
+    if (!index_meta) {
+      continue;
+    }
+
+    auto meta = IndexMeta::FromJsonString(*index_meta);
+    const std::string label_name =
+        meta.schema.label_name.empty()
+            ? source_schema.get_vertex_label_name(meta.schema.label_id)
+            : meta.schema.label_name;
+    if (!checkpoint_schema.is_vertex_label_valid(label_name)) {
+      THROW_RUNTIME_ERROR("Index label was removed from checkpoint schema: " +
+                          label_name);
+    }
+    meta.schema.label_name = label_name;
+    meta.schema.label_id = checkpoint_schema.get_vertex_label_id(label_name);
+    manifest.FindMutableModule(key)->set("index_meta", meta.ToJsonString());
+  }
+}
+
+CheckpointManifest StorageIndexManager::BuildIncrementalReopenManifest(
+    const CheckpointManifest& runtime_manifest) const {
+  CheckpointManifest reopen_manifest;
+  for (const auto& name : dirty_index_names_) {
+    const auto it = indexes_.find(name);
+    CHECK(it != indexes_.end());
+    CHECK(it->second == nullptr);
+    reopen_manifest.ReuseModuleClosureFrom(runtime_manifest, GetKey(name));
+  }
+  return reopen_manifest;
+}
+
 void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
   for (const auto& [_, pending] : pending_indexes_) {
     meta.ReuseModuleClosureFrom(ckp_->manifest(), pending.key);
@@ -492,15 +532,8 @@ Status StorageIndexManager::ValidateCheckpointPreconditions() const {
 }
 
 void StorageIndexManager::InstallIncrementalCheckpoint(
-    std::shared_ptr<Checkpoint> ckp) {
-  CheckpointManifest reopen_manifest;
-  for (const auto& name : dirty_index_names_) {
-    const auto it = indexes_.find(name);
-    CHECK(it != indexes_.end());
-    CHECK(it->second == nullptr);
-    reopen_manifest.ReuseModuleClosureFrom(ckp->manifest(), GetKey(name));
-  }
-
+    std::shared_ptr<Checkpoint> ckp,
+    const CheckpointManifest& reopen_manifest) {
   ModuleBroker reopened_modules;
   reopened_modules.Open(*ckp, reopen_manifest, memory_level_);
   for (const auto& name : dirty_index_names_) {
