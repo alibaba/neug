@@ -199,7 +199,7 @@ ExecutionSlot::BeginCurrentCowWriteTransaction() {
         "Explicit Connection write transactions require embedded execution."));
   }
   if (db_config_.mode == DBMode::READ_ONLY) {
-    RETURN_ERROR(Status(StatusCode::ERR_TX_STATE_CONFLICT,
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
                         "Write transactions are not allowed on a read-only "
                         "database."));
   }
@@ -473,6 +473,13 @@ Status ExecutionSlot::executeCore(const std::string& query,
     }
 
     RETURN_IF_NOT_OK(validateQueryAnalysis(analysis, *prepared_query));
+    if (transaction_context != nullptr &&
+        analysis.explain_mode != ExplainMode::kExplain &&
+        prepared_query->flags.procedure_call()) {
+      return Status(StatusCode::ERR_NOT_SUPPORTED,
+                    "Procedure calls are not supported in an explicit "
+                    "transaction.");
+    }
     RETURN_IF_NOT_OK(
         validatePlan(access_mode, prepared_query->flags,
                      analysis.explain_mode == ExplainMode::kExplain));
@@ -488,9 +495,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
       }
       if (!transaction_context->IsReadOnly() &&
           (flags.batch() || flags.copy_from() || flags.create_temp_table() ||
-           flags.procedure_call() || flags.checkpoint())) {
+           flags.checkpoint())) {
         return Status(StatusCode::ERR_NOT_SUPPORTED,
-                      "Bulk, temporary schema, procedure, and maintenance "
+                      "Bulk, temporary schema, and maintenance "
                       "operations are not supported in an "
                       "explicit transaction.");
       }

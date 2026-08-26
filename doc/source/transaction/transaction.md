@@ -60,7 +60,7 @@ transaction.
 This first API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`;
 use the C++ methods above. It also does not yet include TP service sessions,
 remote clients, Python or Java bindings, savepoints, transaction timeouts, or
-explicit-transaction `COPY`, batch, index, checkpoint, mutating procedure, or temporary
+explicit-transaction `COPY`, batch, index, checkpoint, procedure calls, or temporary
 schema operations.
 
 ## Deployment Modes Overview

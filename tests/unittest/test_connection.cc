@@ -350,6 +350,18 @@ TEST_F(ConnectionTest, ExplicitTransactionRestrictsReadOnlyAndPrivateSchema) {
             StatusCode::ERR_TX_STATE_CONFLICT);
   ASSERT_TRUE(conn->Rollback().ok());
 
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  auto procedure_in_read_only = conn->Query(
+      "CALL project_graph('explicit_txn', ['person'], "
+      "{'[person, knows, person]': ''});",
+      "read");
+  ASSERT_FALSE(procedure_in_read_only);
+  EXPECT_EQ(procedure_in_read_only.error().error_code(),
+            StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_NE(procedure_in_read_only.error().ToString().find("Procedure calls"),
+            std::string::npos);
+  ASSERT_TRUE(conn->Rollback().ok());
+
   ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
   ASSERT_TRUE(conn->Query(
       "CREATE NODE TABLE W5TxNode (id INT64, PRIMARY KEY(id));", "schema"));
@@ -436,7 +448,7 @@ TEST_F(ConnectionTest,
        "schema"},
       {"batch data source", "LOAD FROM \"" + person_csv + "\" RETURN *;",
        "update"},
-      {"mutating procedure",
+      {"procedure call",
        "CALL project_graph('explicit_txn', ['person'], "
        "{'[person, knows, person]': ''});",
        "update"},
@@ -494,6 +506,10 @@ TEST_F(ConnectionTest, TestReadOnlyConnections) {
   auto res3 =
       connections[0]->Query("MATCH(n) where n.id = 1 SET n.name = 'Alice';");
   EXPECT_FALSE(res3);
+
+  auto begin_write =
+      connections[0]->BeginTransaction(TransactionMode::kReadWrite);
+  EXPECT_EQ(begin_write.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
 TEST_F(ConnectionTest, ReadOnlyConnectionsExecuteConcurrently) {
