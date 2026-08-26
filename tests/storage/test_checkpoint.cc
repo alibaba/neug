@@ -270,7 +270,7 @@ std::shared_ptr<neug::Checkpoint> PublishCheckpoint(
 
 void InsertThroughService(neug::NeugDBService& service, int64_t id) {
   auto slot = service.AcquireExecutionSlot();
-  auto transaction = slot->GetInsertTransaction();
+  auto transaction = slot->BeginMvccInsertTransaction();
   neug::StorageTPInsertInterface storage(transaction);
   const auto label = transaction.schema().get_vertex_label_id("Item");
   neug::vid_t vid = 0;

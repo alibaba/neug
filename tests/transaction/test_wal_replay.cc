@@ -218,7 +218,7 @@ bool replayed_graph_matches(neug::NeugDB& db) {
 neug::timestamp_t insert_person_and_return_ts(neug::ExecutionSlot& slot,
                                               int64_t id,
                                               const std::string& name) {
-  auto txn = slot.GetInsertTransaction();
+  auto txn = slot.BeginMvccInsertTransaction();
   const auto ts = txn.timestamp();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
@@ -243,7 +243,7 @@ void insert_person(neug::NeugDBService& service, int64_t id,
 
 void compact(neug::NeugDBService& service) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetCompactTransaction();
+  auto txn = slot->BeginInPlaceCompactionTransaction();
   ASSERT_TRUE(txn.Commit());
 }
 
@@ -256,7 +256,7 @@ void checkpoint(neug::ExecutionSlot& slot) {
 void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
                        int64_t dst_id, int64_t since) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetInsertTransaction();
+  auto txn = slot->BeginMvccInsertTransaction();
   neug::StorageTPInsertInterface interface(txn);
   const auto person_label = txn.schema().get_vertex_label_id("person");
   const auto knows_label = txn.schema().get_edge_label_id("knows");
@@ -274,7 +274,7 @@ void insert_knows_edge(neug::NeugDBService& service, int64_t src_id,
 
 size_t read_person_count(neug::NeugDBService& service) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginSnapshotReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   size_t count = 0;
@@ -287,7 +287,7 @@ size_t read_person_count(neug::NeugDBService& service) {
 
 bool read_has_person(neug::NeugDBService& service, int64_t id) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginSnapshotReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   neug::vid_t vid = 0;
@@ -878,7 +878,7 @@ std::optional<uint64_t> read_current_checkpoint_id(const std::string& db_dir) {
 std::optional<std::string> read_person_name(neug::NeugDBService& service,
                                             int64_t id) {
   auto slot = service.AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginSnapshotReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
   const auto person_label = graph.schema().get_vertex_label_id("person");
   neug::vid_t vid = 0;

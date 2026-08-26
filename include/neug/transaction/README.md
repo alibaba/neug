@@ -5,8 +5,8 @@
 > [Transaction Management](../../../doc/source/transaction/transaction.md).
 
 For ordinary queries, the transactional `ExecutionSlot` strategy uses
-`ReadTransaction`, `InsertTransaction`, and `SnapshotCowWriteTransaction`. The
-direct strategy uses `ReadSnapshotLease` for reads and
+`SnapshotReadTransaction`, `MvccInsertTransaction`, and
+`SnapshotCowWriteTransaction`. The direct strategy uses `ReadSnapshotLease` for reads and
 `CurrentCowWriteTransaction` with `CowGraphStorage` for ordinary writes.
 Index DDL is supported by `CowGraphStorage` in both AP and TP and commits
 through logical WAL. AP-direct COPY uses `BulkCowGraphStorage` over the same
@@ -16,16 +16,18 @@ capabilities out of TP and explicit transactions. `COPY TEMP` uses the same
 private bulk storage but commits through the `ExecutionSlot`-only transient
 path: it atomically replaces the in-memory current graph without writing WAL
 or publishing a checkpoint.
-`CompactTransaction` and `CheckpointCoordinator` implement maintenance paths.
+`InPlaceCompactionTransaction` and `CheckpointCoordinator` implement maintenance paths.
+These names describe internal execution strategies; Connection and Session
+continue to present logical read-only/read-write transaction semantics.
 
 These objects use RAII: terminal operations disarm their resources, and
 destruction releases any active transaction or lease. Acquisition is ordered
 before graph access: read and insert timestamps are acquired before pinning a
 snapshot, while an update lease is acquired before cloning the current graph.
 
-## Read Transaction
+## Snapshot Read Strategy
 
-With a `ReadTransaction`, a specific version of the graph can be read. Its
+With a `SnapshotReadTransaction`, a specific version of the graph can be read. Its
 `ReadSnapshotLease` owns a visibility timestamp and a pinned graph snapshot as
 one coherent read view.
 
@@ -43,9 +45,9 @@ by the pinned graph must not outlive the transaction.
 Commit, abort, and destruction all release the snapshot pin before unregistering
 the reader from `VersionManager`.
 
-## Insert Transaction
+## MVCC Insert Strategy
 
-`InsertTransaction` is an insert-only optimization. It receives a unique write
+`MvccInsertTransaction` is an insert-only optimization. It receives a unique write
 timestamp, pins the current snapshot, and buffers vertex and edge operations in
 a local WAL archive without modifying the graph.
 
@@ -117,7 +119,7 @@ still the durable decision point.
 the private workspace has been fully prepared; failures discard the workspace,
 and successful temporary objects disappear after database restart.
 
-## Compact Transaction
+## In-Place Compaction Strategy
 
 Compaction enters `kAllBlocked` directly and drains active inserts and readers
 before pinning the live graph. Commit appends a compact WAL record, mutates the
@@ -191,6 +193,6 @@ existing inserts.
 
 ## Serializability
 
-For a `ReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
+For a `SnapshotReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.
 
-For each `InsertTransaction` or `SnapshotCowWriteTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.
+For each `MvccInsertTransaction` or `SnapshotCowWriteTransaction`, a unique timestamp will be assigned. When committing, a write-ahead log will be written to the disk and all modifications will be applied to the graph atomically.

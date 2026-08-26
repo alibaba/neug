@@ -40,8 +40,8 @@
 #include "neug/storages/module/module_factory.h"
 #include "neug/transaction/cow_graph_storage.h"
 #include "neug/transaction/cow_graph_workspace.h"
-#include "neug/transaction/read_transaction.h"
 #include "neug/transaction/snapshot_cow_write_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
@@ -138,8 +138,8 @@ class TPIndexTest : public ::testing::Test {
         *snapshot_store_, std::move(timestamp_lease));
   }
 
-  ReadTransaction NewReadTransaction() {
-    return ReadTransaction(
+  SnapshotReadTransaction NewSnapshotReadTransaction() {
+    return SnapshotReadTransaction(
         ReadSnapshotLease::Acquire(version_manager_, *snapshot_store_));
   }
 
@@ -349,7 +349,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   std::vector<std::string> SearchPersonNamesInCurrent(int32_t age) {
-    auto txn = NewReadTransaction();
+    auto txn = NewSnapshotReadTransaction();
     StorageReadInterface reader(txn.view(), txn.timestamp());
     auto names = SearchPersonNames(reader, age);
     txn.Commit();
@@ -365,7 +365,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   std::vector<SearchResult> SearchVectorInCurrent(std::vector<float> query) {
-    auto txn = NewReadTransaction();
+    auto txn = NewSnapshotReadTransaction();
     StorageReadInterface reader(txn.view(), txn.timestamp());
     auto result = SearchVector(reader, std::move(query));
     txn.Commit();
@@ -718,7 +718,7 @@ TEST_F(TPIndexTest, AbortedVectorVertexDeletePreservesReadSnapshot) {
   ASSERT_TRUE(created) << created.error().ToString();
   StartSnapshotStore();
 
-  auto read_txn = NewReadTransaction();
+  auto read_txn = NewSnapshotReadTransaction();
   StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
   auto before_delete = SearchVector(read_reader, {1.0f, 1.0f});
   ASSERT_EQ(before_delete.size(), 1);
@@ -988,7 +988,8 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
             (std::vector<std::string>{"Charlie"}));
 }
 
-TEST_F(TPIndexTest, ReadTransactionIsolationFromSnapshotCowWriteTransaction) {
+TEST_F(TPIndexTest,
+       SnapshotReadTransactionIsolationFromSnapshotCowWriteTransaction) {
   CreatePersonTableAP();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
   StartSnapshotStore();
@@ -1000,7 +1001,7 @@ TEST_F(TPIndexTest, ReadTransactionIsolationFromSnapshotCowWriteTransaction) {
     Commit(txn);
   }
 
-  auto read_txn = NewReadTransaction();
+  auto read_txn = NewSnapshotReadTransaction();
   StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
 
   auto update_txn = NewSnapshotCowWriteTransaction();

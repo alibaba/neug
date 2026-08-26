@@ -43,7 +43,7 @@ class Checkpoint;
  *
  * Transaction usage:
  * - Read/Insert: PinCurrentSnapshot() -> slot.view() -> UnpinSnapshot().
- *   InsertTransaction mutates the live slot in-place (timestamp-filtered).
+ *   MvccInsertTransaction mutates the live slot in-place (timestamp-filtered).
  * - Update: CloneCurrentForUpdate() -> mutate COW copy -> PrepareSnapshot() ->
  *   PreparedSnapshot::Publish().
  *
@@ -74,9 +74,10 @@ class NEUG_API GraphSnapshotStore {
 
     /// Read-only view accessor.
     const GraphView& view() const { return view_; }
-    /// Mutable view accessor (for InsertTransaction / AP write path).
+    /// Mutable view accessor (for MvccInsertTransaction / AP write path).
     GraphView& mutable_view() { return view_; }
-    /// Mutable PropertyGraph accessor (for InsertTransaction / AP write path).
+    /// Mutable PropertyGraph accessor (for MvccInsertTransaction / AP write
+    /// path).
     PropertyGraph* mutable_graph() { return storage_.get(); }
     /// Read-only PropertyGraph accessor.
     const PropertyGraph& graph() const { return *storage_; }

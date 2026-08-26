@@ -226,7 +226,7 @@ void NeugDBService::startCompactThread() {
             VLOG(10) << "Trigger auto compaction";
             last_compaction_at = query_num_after;
             auto slot_lease = AcquireExecutionSlot();
-            auto txn = slot_lease->GetCompactTransaction();
+            auto txn = slot_lease->BeginInPlaceCompactionTransaction();
             txn.Commit();
             VLOG(10) << "Finish compaction";
           }

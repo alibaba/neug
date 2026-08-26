@@ -339,7 +339,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddVertex) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -372,7 +372,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddVertexBatch) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
@@ -407,7 +407,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddEdge) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -471,7 +471,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddVertexEdge) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -530,7 +530,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddVertexEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -573,7 +573,7 @@ TEST_F(SnapshotCowWriteTransactionTest, UpdateVertexProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = std::dynamic_pointer_cast<
@@ -618,7 +618,7 @@ TEST_F(SnapshotCowWriteTransactionTest, UpdateEdgeProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -662,7 +662,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -702,7 +702,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -745,7 +745,7 @@ TEST_F(SnapshotCowWriteTransactionTest, UpdateVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = std::dynamic_pointer_cast<
@@ -804,7 +804,7 @@ TEST_F(SnapshotCowWriteTransactionTest, UpdateEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -859,7 +859,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   // Setup creates: person1 -[:knows]-> person2
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -890,7 +890,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithIntraLabelEdgeAbort) {
   // After abort, all intra-label "knows" edges must be restored.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -956,7 +956,7 @@ TEST_F(SnapshotCowWriteTransactionTest,
   // Verify the new vertex is readable and "name" is gone.
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "name"), nullptr);
@@ -1060,7 +1060,7 @@ TEST_F(SnapshotCowWriteTransactionTest,
   // Verify data correctness
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
 
@@ -1164,7 +1164,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgePropertiesThenInsertEdge) {
   // Verify the new edge data is correct
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1259,7 +1259,7 @@ TEST_F(SnapshotCowWriteTransactionTest,
   // Verify: "software" and "created" are gone; new types work correctly
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     EXPECT_FALSE(gi.schema().is_vertex_label_valid("software"));
     EXPECT_FALSE(gi.schema().is_edge_label_valid("created"));
@@ -1321,7 +1321,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeTypeThenCreateNewEdgeType) {
   // Verify: "knows" is gone; "friend_of" works correctly
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     EXPECT_FALSE(gi.schema().is_edge_label_valid("knows"));
     EXPECT_TRUE(gi.schema().is_edge_label_valid("friend_of"));
@@ -1376,7 +1376,7 @@ TEST_F(SnapshotCowWriteTransactionTest, UpdateEdgeAbort2) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -1451,7 +1451,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddEdgeAndUpdateAndAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1502,7 +1502,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertex) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -1603,7 +1603,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     // Check edge count
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto p_label_id = gi.schema().get_vertex_label_id("person");
@@ -1649,7 +1649,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddDeleteVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -1674,7 +1674,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddDeleteVertexAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -1704,7 +1704,7 @@ TEST_F(SnapshotCowWriteTransactionTest, CreteEdgeTypeAndAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1745,7 +1745,7 @@ TEST_F(SnapshotCowWriteTransactionTest, CreteEdgeTypeAndCommit) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1783,7 +1783,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeTypeAbort) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1842,7 +1842,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddVertexProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn(person_label, "address"), nullptr);
@@ -1900,7 +1900,7 @@ TEST_F(SnapshotCowWriteTransactionTest, AddEdgeProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     auto gi = neug::StorageReadInterface(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1959,7 +1959,7 @@ TEST_F(SnapshotCowWriteTransactionTest, RenameVertexProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2006,7 +2006,7 @@ TEST_F(SnapshotCowWriteTransactionTest, RenameEdgeProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -2075,7 +2075,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteEdgeProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -2153,7 +2153,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexProperties) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2221,7 +2221,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestReplayWal) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -2258,7 +2258,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestReplayWal) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
 
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -2326,7 +2326,7 @@ TEST_F(SnapshotCowWriteTransactionTest, NestedListSnapshotAbortAndWalReplay) {
     }
 
     auto old_slot = svc->AcquireExecutionSlot();
-    auto old_txn = old_slot->GetReadTransaction();
+    auto old_txn = old_slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface old_reader(old_txn.view(), old_txn.timestamp());
     auto label = old_reader.schema().get_vertex_label_id("list_holder");
     neug::vid_t vid;
@@ -2357,7 +2357,7 @@ TEST_F(SnapshotCowWriteTransactionTest, NestedListSnapshotAbortAndWalReplay) {
     }
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetReadTransaction();
+      auto txn = slot->BeginSnapshotReadTransaction();
       neug::StorageReadInterface reader(txn.view(), txn.timestamp());
       auto column = reader.GetVertexPropColumn(label, "nested");
       ASSERT_NE(column, nullptr);
@@ -2371,7 +2371,7 @@ TEST_F(SnapshotCowWriteTransactionTest, NestedListSnapshotAbortAndWalReplay) {
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface reader(txn.view(), txn.timestamp());
     auto label = reader.schema().get_vertex_label_id("list_holder");
     neug::vid_t vid;
@@ -2448,7 +2448,7 @@ TEST_F(SnapshotCowWriteTransactionTest,
     }
 
     auto old_slot = svc->AcquireExecutionSlot();
-    auto old_txn = old_slot->GetReadTransaction();
+    auto old_txn = old_slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface old_reader(old_txn.view(), old_txn.timestamp());
     EXPECT_EQ(read_edge_value(old_reader, label, edge_label, v1), initial);
 
@@ -2487,7 +2487,7 @@ TEST_F(SnapshotCowWriteTransactionTest,
     }
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto txn = slot->GetReadTransaction();
+      auto txn = slot->BeginSnapshotReadTransaction();
       neug::StorageReadInterface reader(txn.view(), txn.timestamp());
       EXPECT_EQ(read_edge_value(reader, label, edge_label, v1), committed);
     }
@@ -2499,7 +2499,7 @@ TEST_F(SnapshotCowWriteTransactionTest,
     db.Open(config);
     auto svc = std::make_shared<neug::NeugDBService>(db);
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface reader(txn.view(), txn.timestamp());
     auto label = reader.schema().get_vertex_label_id("edge_holder");
     auto edge_label = reader.schema().get_edge_label_id("carries");
@@ -2697,7 +2697,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithOutgoingEdges) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2743,7 +2743,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithBidirectionalEdges) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -2764,7 +2764,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithBidirectionalEdges) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -2822,7 +2822,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexAbortRestoresEdges) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2847,7 +2847,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexAbortRestoresEdges) {
   {
     // Verify person 1 and all edges are restored
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2910,7 +2910,7 @@ TEST_F(SnapshotCowWriteTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   {
     // Verify all edge types are deleted
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2974,7 +2974,7 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVertices) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 0);
@@ -3056,7 +3056,7 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteEdges) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3093,7 +3093,7 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVerticesFailure) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -3125,7 +3125,7 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteEdgesFailure) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3173,7 +3173,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestUpdateStringProperty) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     neug::vid_t p1_vid;
@@ -3207,7 +3207,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   // Verify initial reviews
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3266,7 +3266,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   // Verify updated reviews
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3289,7 +3289,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   {
     auto svc2 = std::make_shared<neug::NeugDBService>(db2);
     auto slot = svc2->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -3341,7 +3341,7 @@ TEST_F(SnapshotCowWriteTransactionTest, TestTPServiceStart) {
   }
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");

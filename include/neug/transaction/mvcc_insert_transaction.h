@@ -43,15 +43,15 @@ class IWalWriter;
 /**
  * @brief Transaction for inserting new vertices and edges into the graph.
  *
- * InsertTransaction handles the insertion of new graph elements with WAL
+ * MvccInsertTransaction handles the insertion of new graph elements with WAL
  * durability and per-record-timestamp visibility.
  *
  * **Isolation model — NOT snapshot isolation.**
- * Unlike SnapshotCowWriteTransaction, InsertTransaction does NOT COW-clone the
- * PropertyGraph. It pins the current GraphSnapshotStore slot and, on Commit(),
- * applies the WAL ops directly to the live PropertyGraph behind that slot via
- * `IngestWal(slot_->mutable_view(), ...)`. Concurrent ReadTransactions on the
- * same slot see the in-progress live state.
+ * Unlike SnapshotCowWriteTransaction, MvccInsertTransaction does NOT COW-clone
+ * the PropertyGraph. It pins the current GraphSnapshotStore slot and, on
+ * Commit(), applies the WAL ops directly to the live PropertyGraph behind that
+ * slot via `IngestWal(slot_->mutable_view(), ...)`. Concurrent
+ * SnapshotReadTransactions on the same slot see the in-progress live state.
  *
  * Reader isolation is therefore enforced **entirely** by per-record timestamp
  * filtering: every read path must compare a record's commit timestamp against
@@ -76,10 +76,10 @@ class IWalWriter;
  *
  * @since v0.1.0
  */
-class InsertTransaction {
+class MvccInsertTransaction {
  public:
   /**
-   * @brief Construct an InsertTransaction with a pinned SnapshotSlot.
+   * @brief Construct an MvccInsertTransaction with a pinned SnapshotSlot.
    *
    * @param slot Reference to the pinned SnapshotSlot from PinCurrentSnapshot()
    * @param snapshot_store Reference to GraphSnapshotStore for releasing slot
@@ -90,9 +90,9 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  InsertTransaction(SnapshotGuard guard, Allocator& alloc,
-                    IWalWriter& wal_writer, IVersionManager& vm,
-                    timestamp_t timestamp);
+  MvccInsertTransaction(SnapshotGuard guard, Allocator& alloc,
+                        IWalWriter& wal_writer, IVersionManager& vm,
+                        timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls Abort().
@@ -102,7 +102,7 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  ~InsertTransaction();
+  ~MvccInsertTransaction();
 
   /**
    * @brief Add a new vertex to the transaction.
@@ -178,7 +178,7 @@ class InsertTransaction {
    * @brief Apply an insert-WAL byte stream via a writable GraphView.
    *
    * Used both:
-   *  - by InsertTransaction::Commit() — passing its writable view_; and
+   *  - by MvccInsertTransaction::Commit() — passing its writable view_; and
    *  - by NeugDB recovery — over a GraphView rebuilt on the opened graph.
    *
    * Marks dirty bits through the view's borrowed DirtyTracker after successful
@@ -228,7 +228,7 @@ class InsertTransaction {
 
 class StorageTPInsertInterface : public StorageInsertInterface {
  public:
-  explicit StorageTPInsertInterface(InsertTransaction& txn) : txn_(txn) {}
+  explicit StorageTPInsertInterface(MvccInsertTransaction& txn) : txn_(txn) {}
   ~StorageTPInsertInterface() {}
 
   inline const Schema& schema() const override { return txn_.schema(); }
@@ -264,7 +264,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
       label_t src_label, label_t dst_label, label_t edge_label,
       std::shared_ptr<IDataChunkSupplier> supplier) override;
 
-  InsertTransaction& txn_;
+  MvccInsertTransaction& txn_;
 };
 
 }  // namespace neug

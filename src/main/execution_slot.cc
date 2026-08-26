@@ -169,16 +169,16 @@ Status validateQueryAnalysis(const QueryAnalysis& analysis,
 
 }  // namespace
 
-ReadTransaction ExecutionSlot::GetReadTransaction() const {
-  return ReadTransaction(
+SnapshotReadTransaction ExecutionSlot::BeginSnapshotReadTransaction() const {
+  return SnapshotReadTransaction(
       ReadSnapshotLease::Acquire(version_manager_, snapshot_store_));
 }
 
-InsertTransaction ExecutionSlot::GetInsertTransaction() {
+MvccInsertTransaction ExecutionSlot::BeginMvccInsertTransaction() {
   uint32_t ts = version_manager_.acquire_insert_timestamp();
   SnapshotGuard guard(snapshot_store_);
-  return InsertTransaction(std::move(guard), alloc_, *wal_writer_,
-                           version_manager_, ts);
+  return MvccInsertTransaction(std::move(guard), alloc_, *wal_writer_,
+                               version_manager_, ts);
 }
 
 SnapshotCowWriteTransaction ExecutionSlot::BeginSnapshotCowWriteTransaction() {
@@ -190,10 +190,11 @@ SnapshotCowWriteTransaction ExecutionSlot::BeginSnapshotCowWriteTransaction() {
                                      std::move(timestamp_lease));
 }
 
-CompactTransaction ExecutionSlot::GetCompactTransaction() {
+InPlaceCompactionTransaction
+ExecutionSlot::BeginInPlaceCompactionTransaction() {
   timestamp_t ts = version_manager_.acquire_compact_timestamp();
-  return CompactTransaction(snapshot_store_, *wal_writer_, version_manager_,
-                            ts);
+  return InPlaceCompactionTransaction(snapshot_store_, *wal_writer_,
+                                      version_manager_, ts);
 }
 
 result<std::shared_ptr<execution::CacheValue>> ExecutionSlot::prepareQuery(
@@ -491,11 +492,11 @@ Status ExecutionSlot::executeCore(const std::string& query,
     };
 
     if (access_mode == AccessMode::kRead) {
-      auto transaction = GetReadTransaction();
+      auto transaction = BeginSnapshotReadTransaction();
       StorageReadInterface storage(transaction.view(), transaction.timestamp());
       status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kInsert) {
-      auto transaction = GetInsertTransaction();
+      auto transaction = BeginMvccInsertTransaction();
       StorageTPInsertInterface storage(transaction);
       status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kUpdate ||

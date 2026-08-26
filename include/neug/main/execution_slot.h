@@ -29,10 +29,10 @@
 #include "neug/execution/execute/query_cache.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/allocators.h"
-#include "neug/transaction/compact_transaction.h"
-#include "neug/transaction/insert_transaction.h"
-#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
 #include "neug/transaction/snapshot_cow_write_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
@@ -128,11 +128,15 @@ class ExecutionSlotLease {
  * auto write_result = lease->ExecuteTransactionalRequest(insert_query);
  * @endcode
  *
- * **Transaction Types:**
- * - `ReadTransaction`: Read-only snapshot access
- * - `InsertTransaction`: Add new vertices and edges
+ * **Internal Transaction Strategies:**
+ * - `SnapshotReadTransaction`: Read-only snapshot access
+ * - `MvccInsertTransaction`: Add new vertices and edges
  * - `SnapshotCowWriteTransaction`: Versioned private-COW updates
- * - `CompactTransaction`: Background compaction operations
+ * - `InPlaceCompactionTransaction`: Background compaction operations
+ *
+ * These are execution internals. Connection and Session expose logical
+ * read-only/read-write semantics and must not expose or require callers to
+ * select one of these strategies.
  *
  * **Concurrency:** An execution slot must not be used concurrently. It is not
  * bound to a physical pthread or bthread worker and may resume on another
@@ -152,13 +156,13 @@ class ExecutionSlot {
  public:
   ~ExecutionSlot() {}
 
-  ReadTransaction GetReadTransaction() const;
+  SnapshotReadTransaction BeginSnapshotReadTransaction() const;
 
-  InsertTransaction GetInsertTransaction();
+  MvccInsertTransaction BeginMvccInsertTransaction();
 
   SnapshotCowWriteTransaction BeginSnapshotCowWriteTransaction();
 
-  CompactTransaction GetCompactTransaction();
+  InPlaceCompactionTransaction BeginInPlaceCompactionTransaction();
 
   /**
    * @brief Execute a serialized Cypher request in a transaction.
