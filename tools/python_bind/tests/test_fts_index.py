@@ -665,25 +665,19 @@ def test_fts_dynamic_query_parameter_rejects_invalid_values(fts_database):
         list(fts_database.execute(statement, parameters={"query": None}))
 
 
-def test_fts_null_values_are_not_indexed_and_transitions_are_maintained(tmp_path):
-    database_path = str(tmp_path / "fts_null_db")
+def test_fts_rejects_null_property_updates(tmp_path):
+    database_path = str(tmp_path / "fts_reject_null_db")
     db = Database(db_path=database_path, mode="w")
     connection = db.connect()
     load_fts(connection, skip_if_unavailable=True)
     create_item_table(connection)
-    connection.execute(
-        "CREATE (:Item {id: 1, text: NULL}), (:Item {id: 2}), "
-        "(:Item {id: 3, text: 'visible token'});"
-    )
+    connection.execute("CREATE (:Item {id: 1, text: 'visible token'});")
     connection.execute("CREATE INDEX item_text_fts ON Item USING FTS (text);")
-    assert [row[0] for row in search(connection, "visible")] == [3]
+    assert [row[0] for row in search(connection, "visible")] == [1]
 
-    connection.execute("CREATE (:Item {id: 4, text: NULL}), (:Item {id: 5});")
-    connection.execute("MATCH (n:Item) WHERE n.id = 3 SET n.text = NULL;")
-    assert search(connection, "visible") == []
-    connection.execute("MATCH (n:Item) WHERE n.id = 1 SET n.text = 'added token';")
-    assert [row[0] for row in search(connection, "added")] == [1]
-    connection.execute("MATCH (n:Item) WHERE n.id = 2 SET n.text = NULL;")
+    with pytest.raises(RuntimeError, match="Property type mismatch"):
+        connection.execute("MATCH (n:Item) WHERE n.id = 1 SET n.text = NULL;")
+    assert [row[0] for row in search(connection, "visible")] == [1]
     connection.execute("CHECKPOINT;")
     connection.close()
     db.close()
@@ -692,8 +686,7 @@ def test_fts_null_values_are_not_indexed_and_transitions_are_maintained(tmp_path
     reopened_connection = reopened.connect()
     try:
         load_fts(reopened_connection)
-        assert [row[0] for row in search(reopened_connection, "added")] == [1]
-        assert search(reopened_connection, "visible") == []
+        assert [row[0] for row in search(reopened_connection, "visible")] == [1]
     finally:
         reopened_connection.close()
         reopened.close()

@@ -20,6 +20,7 @@
 #include <rapidjson/writer.h>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
+#include <cassert>
 
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -71,10 +72,8 @@ Status StorageIndex::Upsert(vid_t vid, const IndexValues& new_values) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Index value count does not match metadata");
   }
-  if (std::all_of(new_values.begin(), new_values.end(),
-                  [](const Value& value) { return value.IsNull(); })) {
-    return Delete(vid);
-  }
+  assert(std::none_of(new_values.begin(), new_values.end(),
+                      [](const Value& value) { return value.IsNull(); }));
   auto index_id = index_id_accessor_->UpsertVID(vid);
   return AppendImpl(index_id, new_values);
 }
