@@ -46,8 +46,6 @@ struct CacheValue {
         flags(flags) {}
 };
 
-class LocalQueryCache;
-
 /**
  * @brief A global query cache to store compiled physical plans for queries for
  * a NeugDB instance. It can be shared across multiple ExecutionSlot instances,
@@ -91,9 +89,6 @@ class GlobalQueryCache {
     return cache_.emplace(query, cache_value).first->second;
   }
 
- private:
-  friend class LocalQueryCache;
-
   // Compile against a private graph view without reading or populating the
   // shared cache. Explicit write transactions use this after a successful
   // schema, bulk, or transient mutation changes their planning inputs.
@@ -121,6 +116,7 @@ class GlobalQueryCache {
                                         plan_result.first.flag());
   }
 
+ private:
   std::shared_ptr<IGraphPlanner> planner_;
   uint64_t planning_generation_;
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
