@@ -84,18 +84,34 @@ def test_empty_ungrouped_count(empty_db):
 
 def test_group_by_preserves_null_keys(empty_db):
     _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, bucket INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute(
+        "CREATE (:source {id: 1, bucket: 7}), "
+        "(:source {id: 2, bucket: 7}), "
+        "(:source {id: 3, bucket: 7}), "
+        "(:target {id: -1});"
+    )
+    conn.execute(
+        "MATCH (source:source), (target:target) "
+        "WHERE source.id = 1 AND target.id = -1 "
+        "CREATE (source)-[:links]->(target);"
+    )
 
     result = conn.execute(
-        "UNWIND CAST([0, CAST(NULL, 'INT64'), CAST(NULL, 'INT64')], "
-        "'INT64[]') AS x RETURN x, COUNT(*);"
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN target.id, COUNT(*);"
     )
-    assert list(result) == [[0, 1], [None, 2]]
+    assert list(result) == [[-1, 1], [None, 2]]
 
     result = conn.execute(
-        "UNWIND CAST([CAST(-1, 'INT32'), CAST(NULL, 'INT32')], "
-        "'INT32[]') AS x UNWIND [7] AS y RETURN x, y, COUNT(*);"
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN target.id, source.bucket, COUNT(*);"
     )
-    assert list(result) == [[-1, 7, 1], [None, 7, 1]]
+    assert list(result) == [[-1, 7, 1], [None, 7, 2]]
 
 
 def test_aggregate_over_empty_input(empty_db):
