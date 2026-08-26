@@ -380,12 +380,66 @@ result<QueryResult> ExecutionSlot::ExecuteQuery(
   return QueryResult(std::move(response));
 }
 
+Status ExecutionSlot::prepareAndExecute(
+    const GraphStats& stats, IStorageInterface& storage,
+    const AnalyzedQuery& query, const QueryExecutionPolicy& policy,
+    QueryResponse& response,
+    std::shared_ptr<execution::CacheValue> prepared_query) {
+  if (!prepared_query) {
+    auto prepared =
+        prepareQuery(stats, query.text, query.num_threads, policy.cache_mode);
+    if (NEUG_UNLIKELY(!prepared)) {
+      return prepared.error();
+    }
+    prepared_query = std::move(prepared).value();
+  }
+
+  RETURN_IF_NOT_OK(validateQueryAnalysis(query.analysis, *prepared_query));
+  if (policy.IsExplicit() &&
+      query.analysis.explain_mode != ExplainMode::kExplain &&
+      prepared_query->flags.procedure_call()) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Procedure calls are not supported in an explicit "
+                  "transaction.");
+  }
+  RETURN_IF_NOT_OK(
+      validatePlan(query.access_mode, prepared_query->flags,
+                   query.analysis.explain_mode == ExplainMode::kExplain));
+  if (policy.IsExplicit() &&
+      query.analysis.explain_mode != ExplainMode::kExplain) {
+    const auto& flags = prepared_query->flags;
+    if (policy.transaction_scope == QueryTransactionScope::kExplicitReadOnly &&
+        (query.access_mode != AccessMode::kRead ||
+         !IsReadOnlyExecutionFlag(flags))) {
+      return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                    "Write queries are not allowed in a read-only "
+                    "transaction.");
+    }
+    if (policy.transaction_scope == QueryTransactionScope::kExplicitReadWrite &&
+        (flags.batch() || flags.copy_from() || flags.create_temp_table() ||
+         flags.checkpoint())) {
+      return Status(StatusCode::ERR_NOT_SUPPORTED,
+                    "Bulk, temporary schema, and maintenance operations are "
+                    "not supported in an explicit transaction.");
+    }
+  }
+
+  auto parsed_parameters = execution::parseJsonParameters(
+      prepared_query->params_type, query.parameters);
+  if (NEUG_UNLIKELY(!parsed_parameters)) {
+    return parsed_parameters.error();
+  }
+  return executePreparedQuery(*prepared_query, query.analysis.explain_mode,
+                              parsed_parameters.value(), storage, response);
+}
+
 result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
     const std::string& query_string, const std::string& access_mode,
     const rapidjson::Value& parameters, int32_t num_threads,
     TransactionContext& transaction_context) {
   CHECK(transaction_context.IsActive());
   try {
+    const auto start = std::chrono::high_resolution_clock::now();
     const auto analysis = planner_->analyzeQuery(query_string);
     if (analysis.isTransactionControl()) {
       RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
@@ -410,13 +464,51 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
     const auto requested_mode = access_mode.empty()
                                     ? AccessMode::kUnKnown
                                     : ParseAccessMode(access_mode);
-    neug::QueryResponse response;
-    auto status = executeCore(query_string, requested_mode, parameters,
-                              num_threads, response, &transaction_context);
+    const auto resolved_mode = requested_mode == AccessMode::kUnKnown
+                                   ? analysis.access_mode
+                                   : requested_mode;
+    if (analysis.isAdmin() && analysis.explain_mode != ExplainMode::kExplain) {
+      transaction_context.AbortAndMarkRollbackOnly();
+      RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
+                          "Administrative operations are not supported in an "
+                          "explicit transaction."));
+    }
+
+    const AnalyzedQuery query{query_string, analysis, resolved_mode, parameters,
+                              num_threads};
+    QueryResponse response;
+    Status status;
+    if (transaction_context.IsReadOnly()) {
+      auto& transaction = transaction_context.ReadTransactionOwner();
+      StorageReadInterface storage(transaction.view(), transaction.timestamp());
+      status = prepareAndExecute(
+          transaction.statistic(), storage, query,
+          QueryExecutionPolicy{
+              .cache_mode = QueryCacheMode::kShared,
+              .transaction_scope = QueryTransactionScope::kExplicitReadOnly},
+          response);
+    } else {
+      auto& transaction = transaction_context.WriteTransactionOwner();
+      auto storage = transaction.OpenStorage();
+      const auto cache_mode = transaction.PlanningChanged()
+                                  ? QueryCacheMode::kBypassShared
+                                  : QueryCacheMode::kShared;
+      status = prepareAndExecute(
+          transaction.statistic(), storage, query,
+          QueryExecutionPolicy{
+              .cache_mode = cache_mode,
+              .transaction_scope = QueryTransactionScope::kExplicitReadWrite},
+          response);
+    }
     if (!status.ok()) {
       transaction_context.AbortAndMarkRollbackOnly();
       RETURN_ERROR(status);
     }
+    const auto end = std::chrono::high_resolution_clock::now();
+    eval_duration_.fetch_add(
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+            .count());
+    ++query_num_;
     return QueryResult(std::move(response));
   } catch (...) {
     transaction_context.AbortAndMarkRollbackOnly();
@@ -427,8 +519,8 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
 Status ExecutionSlot::executeCore(const std::string& query,
                                   AccessMode requested_mode,
                                   const rapidjson::Value& parameters,
-                                  int32_t num_threads, QueryResponse& response,
-                                  TransactionContext* transaction_context) {
+                                  int32_t num_threads,
+                                  QueryResponse& response) {
   const auto start = std::chrono::high_resolution_clock::now();
   const auto analysis = planner_->analyzeQuery(query);
   if (NEUG_UNLIKELY(analysis.isTransactionControl())) {
@@ -440,101 +532,27 @@ Status ExecutionSlot::executeCore(const std::string& query,
   const auto access_mode = requested_mode == AccessMode::kUnKnown
                                ? analysis.access_mode
                                : requested_mode;
-  std::shared_ptr<execution::CacheValue> prepared_query;
+  const AnalyzedQuery analyzed_query{query, analysis, access_mode, parameters,
+                                     num_threads};
+  const QueryExecutionPolicy auto_commit_policy{};
 
   // EXPLAIN is non-mutating; skip Admin access-mode validation so it works on
   // read-only databases and with access_mode=read.
   if (NEUG_UNLIKELY(analysis.isAdmin() &&
                     analysis.explain_mode != ExplainMode::kExplain)) {
-    if (transaction_context != nullptr) {
-      return Status(StatusCode::ERR_NOT_SUPPORTED,
-                    "Administrative operations are not supported in an "
-                    "explicit transaction.");
-    }
     RETURN_IF_NOT_OK(validateAdminRequest(*analysis.admin, access_mode));
   }
 
-  auto execute_on_storage = [this, &query, access_mode, &analysis, &parameters,
-                             num_threads, &response, &prepared_query,
-                             transaction_context](const GraphStats& stats,
-                                                  auto& storage) -> Status {
-    if (!prepared_query) {
-      const auto cache_mode =
-          transaction_context != nullptr &&
-                  !transaction_context->IsReadOnly() &&
-                  transaction_context->WriteTransactionOwner().PlanningChanged()
-              ? QueryCacheMode::kBypassShared
-              : QueryCacheMode::kShared;
-      auto prepared = prepareQuery(stats, query, num_threads, cache_mode);
-      if (NEUG_UNLIKELY(!prepared)) {
-        return prepared.error();
-      }
-      prepared_query = std::move(prepared).value();
-    }
-
-    RETURN_IF_NOT_OK(validateQueryAnalysis(analysis, *prepared_query));
-    if (transaction_context != nullptr &&
-        analysis.explain_mode != ExplainMode::kExplain &&
-        prepared_query->flags.procedure_call()) {
-      return Status(StatusCode::ERR_NOT_SUPPORTED,
-                    "Procedure calls are not supported in an explicit "
-                    "transaction.");
-    }
-    RETURN_IF_NOT_OK(
-        validatePlan(access_mode, prepared_query->flags,
-                     analysis.explain_mode == ExplainMode::kExplain));
-    if (transaction_context != nullptr &&
-        analysis.explain_mode != ExplainMode::kExplain) {
-      const auto& flags = prepared_query->flags;
-      if (transaction_context->IsReadOnly() &&
-          (access_mode != AccessMode::kRead ||
-           !IsReadOnlyExecutionFlag(flags))) {
-        return Status(StatusCode::ERR_TX_STATE_CONFLICT,
-                      "Write queries are not allowed in a read-only "
-                      "transaction.");
-      }
-      if (!transaction_context->IsReadOnly() &&
-          (flags.batch() || flags.copy_from() || flags.create_temp_table() ||
-           flags.checkpoint())) {
-        return Status(StatusCode::ERR_NOT_SUPPORTED,
-                      "Bulk, temporary schema, and maintenance "
-                      "operations are not supported in an "
-                      "explicit transaction.");
-      }
-    }
-
-    auto parsed_parameters =
-        execution::parseJsonParameters(prepared_query->params_type, parameters);
-    if (NEUG_UNLIKELY(!parsed_parameters)) {
-      return parsed_parameters.error();
-    }
-
-    RETURN_IF_NOT_OK(
-        executePreparedQuery(*prepared_query, analysis.explain_mode,
-                             parsed_parameters.value(), storage, response));
-    return Status::OK();
-  };
-
   Status status;
-  if (transaction_context != nullptr) {
-    if (transaction_context->IsReadOnly()) {
-      auto& transaction = transaction_context->ReadTransactionOwner();
-      StorageReadInterface storage(transaction.view(), transaction.timestamp());
-      status = execute_on_storage(transaction.statistic(), storage);
-    } else {
-      auto& transaction = transaction_context->WriteTransactionOwner();
-      auto storage = transaction.OpenStorage();
-      status = execute_on_storage(transaction.statistic(), storage);
-    }
-  } else if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
+  if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
     // EXPLAIN is strategy-independent and must not acquire a write transaction,
     // including for EXPLAIN CHECKPOINT.
     auto read_lease =
         ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
     StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
-    status = execute_on_storage(
+    status = prepareAndExecute(
         GraphStats(read_lease.view(), read_lease.planning_generation()),
-        storage);
+        storage, analyzed_query, auto_commit_policy, response);
   } else if (NEUG_UNLIKELY(analysis.isAdmin())) {
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -547,8 +565,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
       auto lease =
           ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
       StorageReadInterface storage(lease.view(), lease.timestamp());
-      status = execute_on_storage(
-          GraphStats(lease.view(), lease.planning_generation()), storage);
+      status = prepareAndExecute(
+          GraphStats(lease.view(), lease.planning_generation()), storage,
+          analyzed_query, auto_commit_policy, response);
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -563,13 +582,15 @@ Status ExecutionSlot::executeCore(const std::string& query,
       if (NEUG_UNLIKELY(!classification)) {
         return classification.error();
       }
-      prepared_query = std::move(classification).value();
+      auto prepared_query = std::move(classification).value();
       const auto& flags = prepared_query->flags;
       if (flags.copy_from()) {
         auto transaction = CurrentCowWriteTransaction::Begin(
             std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenBulkStorage();
-        status = execute_on_storage(transaction.statistic(), storage);
+        status =
+            prepareAndExecute(transaction.statistic(), storage, analyzed_query,
+                              auto_commit_policy, response, prepared_query);
         if (status.ok()) {
           // A normal COPY can target a table that is already temporary, so
           // planner syntax alone cannot select the commit protocol. Storage
@@ -584,7 +605,9 @@ Status ExecutionSlot::executeCore(const std::string& query,
         auto transaction = CurrentCowWriteTransaction::Begin(
             std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenStorage();
-        status = execute_on_storage(transaction.statistic(), storage);
+        status =
+            prepareAndExecute(transaction.statistic(), storage, analyzed_query,
+                              auto_commit_policy, response, prepared_query);
         if (status.ok()) {
           status = transaction.workspace_.HasTransientMutation()
                        ? transaction.CommitTransient()
@@ -600,9 +623,12 @@ Status ExecutionSlot::executeCore(const std::string& query,
               std::to_string(static_cast<int>(access_mode)));
     }
   } else {
-    auto execute_and_commit = [&execute_on_storage](auto& transaction,
-                                                    auto& storage) -> Status {
-      RETURN_IF_NOT_OK(execute_on_storage(transaction.statistic(), storage));
+    auto execute_and_commit = [this, &analyzed_query, auto_commit_policy,
+                               &response](auto& transaction,
+                                          auto& storage) -> Status {
+      RETURN_IF_NOT_OK(prepareAndExecute(transaction.statistic(), storage,
+                                         analyzed_query, auto_commit_policy,
+                                         response));
       if (NEUG_UNLIKELY(!transaction.Commit())) {
         return Status::InternalError("Transaction commit failed.");
       }

@@ -47,6 +47,7 @@ class PropertyGraph;
 class RefColumnBase;
 class AppManager;
 class CheckpointCoordinator;
+class IStorageInterface;
 class IVersionManager;
 class NeugDB;
 class Connection;
@@ -272,6 +273,32 @@ class ExecutionSlot {
     kBypassShared,
   };
 
+  enum class QueryTransactionScope : uint8_t {
+    kAutoCommit,
+    kExplicitReadOnly,
+    kExplicitReadWrite,
+  };
+
+  struct QueryExecutionPolicy {
+    QueryCacheMode cache_mode{QueryCacheMode::kShared};
+    QueryTransactionScope transaction_scope{QueryTransactionScope::kAutoCommit};
+
+    bool IsExplicit() const noexcept {
+      return transaction_scope != QueryTransactionScope::kAutoCommit;
+    }
+  };
+
+  // Analysis remains in the entry points because it determines transaction and
+  // storage routing. The shared pipeline receives the resolved, immutable
+  // input.
+  struct AnalyzedQuery {
+    const std::string& text;
+    const QueryAnalysis& analysis;
+    AccessMode access_mode;
+    const rapidjson::Value& parameters;
+    int32_t num_threads;
+  };
+
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
       const GraphStats& stats, const std::string& query, int32_t num_threads,
       QueryCacheMode cache_mode = QueryCacheMode::kShared);
@@ -290,10 +317,15 @@ class ExecutionSlot {
   Status executeAdmin(const AdminRequest& request, ExplainMode explain_mode,
                       QueryResponse& response);
 
+  Status prepareAndExecute(
+      const GraphStats& stats, IStorageInterface& storage,
+      const AnalyzedQuery& query, const QueryExecutionPolicy& policy,
+      QueryResponse& response,
+      std::shared_ptr<execution::CacheValue> prepared_query = nullptr);
+
   Status executeCore(const std::string& query, AccessMode requested_mode,
                      const rapidjson::Value& parameters, int32_t num_threads,
-                     QueryResponse& response,
-                     TransactionContext* transaction_context = nullptr);
+                     QueryResponse& response);
 
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
