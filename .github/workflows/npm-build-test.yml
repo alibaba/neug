@@ -66,8 +66,9 @@ jobs:
             mkdir -p /home/neug/.local
             curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-x64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
+            curl -fsSL https://github.com/NixOS/patchelf/releases/download/0.19.1/patchelf-0.19.1-x86_64.tar.gz \
+              | tar -xz -C /home/neug/.local
             export PATH=/home/neug/.local/bin:$PATH
-            python3 -m pip install --user patchelf==0.17.2.4
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
             git config --global --add safe.directory /project
             . /home/neug/.neug_env
@@ -159,8 +160,9 @@ jobs:
             mkdir -p /home/neug/.local
             curl -fsSL https://nodejs.org/dist/v20.0.0/node-v20.0.0-linux-arm64.tar.xz \
               | tar -xJ -C /home/neug/.local --strip-components=1
+            curl -fsSL https://github.com/NixOS/patchelf/releases/download/0.19.1/patchelf-0.19.1-aarch64.tar.gz \
+              | tar -xz -C /home/neug/.local
             export PATH=/home/neug/.local/bin:$PATH
-            python3 -m pip install --user patchelf==0.17.2.4
             cp /root/.neug_env /home/neug/.neug_env 2>/dev/null || true
             git config --global --add safe.directory /project
             . /home/neug/.neug_env

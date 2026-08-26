@@ -6,7 +6,7 @@ Same system dependencies as NeuG (CMake >= 3.16, C++20 compiler), plus:
 
 - Node.js >= 20.0.0
 - macOS package builds only: `delocate==0.13.0`
-- Linux package builds only: `ldd` and `patchelf==0.17.2.4`
+- Linux package builds only: `ldd` and `patchelf >= 0.18.0`
 
 Install the macOS packaging dependency with:
 
@@ -14,10 +14,11 @@ Install the macOS packaging dependency with:
 python3 -m pip install delocate==0.13.0
 ```
 
-On Linux, install `patchelf` from the system package manager or with:
+On Linux, install `patchelf >= 0.18.0` from the system package manager or the
+[official releases](https://github.com/NixOS/patchelf/releases):
 
 ```bash
-python3 -m pip install patchelf==0.17.2.4
+patchelf --version
 ```
 
 ### Installing Node.js
