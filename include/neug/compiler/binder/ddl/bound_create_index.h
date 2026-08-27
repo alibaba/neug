@@ -27,8 +27,8 @@ namespace binder {
 struct BoundCreateIndexInfo {
   std::string indexName;
   std::shared_ptr<NodeOrRelExpression> pattern;
-  std::string propertyName;
-  common::DataType propertyType;
+  std::vector<std::string> propertyNames;
+  std::vector<common::DataType> propertyTypes;
   std::string indexType;
   std::unordered_map<std::string, std::string> options;
   bool ifNotExists = false;
@@ -37,8 +37,10 @@ struct BoundCreateIndexInfo {
     BoundCreateIndexInfo result;
     result.indexName = indexName;
     result.pattern = pattern;
-    result.propertyName = propertyName;
-    result.propertyType = propertyType.copy();
+    result.propertyNames = propertyNames;
+    for (const auto& type : propertyTypes) {
+      result.propertyTypes.push_back(type.copy());
+    }
     result.indexType = indexType;
     result.options = options;
     result.ifNotExists = ifNotExists;

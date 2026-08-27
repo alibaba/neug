@@ -17,10 +17,12 @@
 #include "fts_index_scan.h"
 
 #include <charconv>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -34,6 +36,7 @@
 #include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 #include "neug/compiler/function/built_in_function_utils.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/metadata_manager.h"
@@ -48,6 +51,37 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug::fts_ext {
+
+namespace {
+
+double GetBM25Weight(const Value& value) {
+  double weight = 0.0;
+  if (value.IsNull()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("BM25 weights must not be NULL");
+  }
+  switch (value.type().id()) {
+  case DataTypeId::kInt32:
+    weight = value.GetValue<int32_t>();
+    break;
+  case DataTypeId::kInt64:
+    weight = static_cast<double>(value.GetValue<int64_t>());
+    break;
+  case DataTypeId::kFloat:
+    weight = value.GetValue<float>();
+    break;
+  case DataTypeId::kDouble:
+    weight = value.GetValue<double>();
+    break;
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION("BM25 weights must be numeric");
+  }
+  if (!std::isfinite(weight) || weight <= 0.0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("BM25 weights must be positive");
+  }
+  return weight;
+}
+
+}  // namespace
 
 std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
     const execution::ParamsMap& params) const {
@@ -73,6 +107,44 @@ std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
   if (bound->bound_query_string.type().id() != DataTypeId::kVarchar) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "FTS_INDEX_SCAN query expression must be STRING");
+  }
+  bound->property_names = property_names;
+  if (property_names.empty()) {
+    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN property names are not initialized");
+  }
+  std::unordered_set<std::string> unique_property_names;
+  for (const auto& property_name : property_names) {
+    if (!unique_property_names.insert(property_name).second) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "BM25 property list must not contain duplicate properties");
+    }
+  }
+  if (weight_values) {
+    auto bound_weights = weight_values->bind(nullptr, params);
+    if (!bound_weights) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "FTS_INDEX_SCAN weights contain an unbound parameter");
+    }
+    auto value = bound_weights->Cast<execution::RecordExprBase>().eval_record(
+        DataChunk(), 0);
+    if (value.IsNull() || (value.type().id() != DataTypeId::kList &&
+                           value.type().id() != DataTypeId::kArray)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("BM25 weights must be a LIST or ARRAY");
+    }
+    const auto& values = value.type().id() == DataTypeId::kList
+                             ? ListValue::GetChildren(value)
+                             : ArrayValue::GetChildren(value);
+    if (values.size() != property_names.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "BM25 property and weight lists must have the same size");
+    }
+    for (size_t i = 0; i < values.size(); ++i) {
+      bound->weights[property_names[i]] = GetBM25Weight(values[i]);
+    }
+  } else {
+    for (const auto& property_name : property_names) {
+      bound->weights[property_name] = 1.0;
+    }
   }
   bound->limit = limit;
   bound->ascending = ascending;
@@ -114,20 +186,72 @@ std::shared_ptr<binder::ScalarFunctionExpression> FindBM25Expression(
   return nullptr;
 }
 
+struct BM25Arguments {
+  std::vector<const binder::PropertyExpression*> properties;
+  std::vector<std::string> property_names;
+  std::shared_ptr<binder::Expression> weight_values;
+  std::shared_ptr<binder::Expression> query;
+};
+
 bool ExtractBM25Arguments(const binder::ScalarFunctionExpression& expression,
-                          const binder::PropertyExpression*& property,
-                          std::shared_ptr<binder::Expression>& query) {
+                          BM25Arguments& result) {
   auto children = expression.getChildren();
-  if (children.size() != 2 ||
-      children[0]->expressionType != common::ExpressionType::PROPERTY ||
-      (children[1]->expressionType != common::ExpressionType::LITERAL &&
-       children[1]->expressionType != common::ExpressionType::PARAMETER)) {
+  if (children.size() != 2 && children.size() != 3) {
     return false;
   }
-  property = children[0]->ptrCast<binder::PropertyExpression>();
-  query = children[1];
-  return property != nullptr && query != nullptr &&
-         query->getDataType().id() == DataTypeId::kVarchar;
+  result.query = children.back();
+  if ((result.query->expressionType != common::ExpressionType::LITERAL &&
+       result.query->expressionType != common::ExpressionType::PARAMETER) ||
+      result.query->getDataType().id() != DataTypeId::kVarchar) {
+    return false;
+  }
+  if (children.size() == 2) {
+    if (children[0]->expressionType != common::ExpressionType::PROPERTY) {
+      return false;
+    }
+    auto* property = children[0]->ptrCast<binder::PropertyExpression>();
+    result.properties.push_back(property);
+    result.property_names.push_back(property->getPropertyName());
+    return true;
+  }
+
+  if (children[0]->expressionType != common::ExpressionType::FUNCTION) {
+    return false;
+  }
+  const auto* property_list =
+      children[0]->constPtrCast<binder::ScalarFunctionExpression>();
+  const auto is_list_or_array = [](const DataType& type) {
+    return type.id() == DataTypeId::kList || type.id() == DataTypeId::kArray;
+  };
+  const auto dynamic_weights =
+      children[1]->expressionType == common::ExpressionType::PARAMETER;
+  if (!property_list || !is_list_or_array(children[0]->getDataType()) ||
+      (!dynamic_weights && !is_list_or_array(children[1]->getDataType()))) {
+    return false;
+  }
+  if (dynamic_weights) {
+    const auto weight_type = DataType::List(DataType::DOUBLE);
+    if (children[1]->getDataType() != weight_type) {
+      children[1]->cast(weight_type);
+    }
+  }
+  const auto properties = children[0]->getChildren();
+  if (properties.empty()) {
+    return false;
+  }
+  for (const auto& expression : properties) {
+    if (expression->expressionType != common::ExpressionType::PROPERTY) {
+      return false;
+    }
+    auto* property = expression->ptrCast<binder::PropertyExpression>();
+    if (!property) {
+      return false;
+    }
+    result.properties.push_back(property);
+    result.property_names.push_back(property->getPropertyName());
+  }
+  result.weight_values = children[1];
+  return true;
 }
 
 std::shared_ptr<binder::ScalarFunctionExpression> FindProjectedBM25Expression(
@@ -257,6 +381,12 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   input->unique_index_name = scan.unique_index_name();
   input->query_string = execution::parse_expression(
       scan.target_value(), context_meta, execution::VarType::kRecord);
+  if (scan.has_weights()) {
+    input->weight_values = execution::parse_expression(
+        scan.weights(), context_meta, execution::VarType::kRecord);
+  }
+  input->property_names.assign(scan.property_names().begin(),
+                               scan.property_names().end());
   if (limit) {
     input->limit = ParseUint64Option("limit", *limit);
   }
@@ -276,6 +406,8 @@ execution::Context ExecuteFTSIndexScan(
 
   FTSQueryParams params;
   params.query_string = input.bound_query_string.GetValue<std::string>();
+  params.property_names = input.property_names;
+  params.weights = input.weights;
   params.limit = input.limit;
   params.order =
       input.ascending ? FTSScoreOrder::kAscending : FTSScoreOrder::kDescending;
@@ -463,13 +595,25 @@ void FTSIndexScanOptimizer::RewriteProjection(
     const std::shared_ptr<binder::ScalarFunctionExpression>& bm25,
     bool ascending, std::optional<uint64_t> limit) {
   auto input_op = projection->getChild(0);
-  const binder::PropertyExpression* property = nullptr;
-  std::shared_ptr<binder::Expression> query;
-  if (!ExtractBM25Arguments(*bm25, property, query) ||
-      !property->isSingleLabel()) {
+  BM25Arguments arguments;
+  if (!ExtractBM25Arguments(*bm25, arguments) || arguments.properties.empty()) {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "BM25 on the current storage index API requires one node STRING "
-        "property and a STRING query");
+        "BM25 requires a node STRING property or equally-sized property and "
+        "positive numeric weight lists, followed by a STRING query");
+  }
+
+  const auto* property = arguments.properties.front();
+  if (!property->isSingleLabel()) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "BM25 properties must belong to one node label");
+  }
+  for (const auto* candidate : arguments.properties) {
+    if (!candidate->isSingleLabel() ||
+        candidate->getSingleTableID() != property->getSingleTableID() ||
+        candidate->getVariableName() != property->getVariableName()) {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "BM25 properties must belong to one node label");
+    }
   }
 
   auto* metadata_manager = context_->getMetadataManager();
@@ -480,14 +624,19 @@ void FTSIndexScanOptimizer::RewriteProjection(
   if (!graph_stats) {
     return;
   }
-  auto indexes = graph_stats->GetIndex(property->getSingleTableID(),
-                                       property->getPropertyName());
+  auto indexes = graph_stats->GetIndexesContainingProperty(
+      property->getSingleTableID(), arguments.property_names.front());
   if (!indexes.has_value()) {
     THROW_RUNTIME_ERROR("FTS index not found for the requested label/property");
   }
   std::vector<const StorageIndex*> fts_indexes;
   for (const auto* index : indexes.value()) {
-    if (index && dynamic_cast<const FTSIndex*>(index)) {
+    if (index && dynamic_cast<const FTSIndex*>(index) &&
+        std::all_of(
+            arguments.property_names.begin(), arguments.property_names.end(),
+            [&](const std::string& property_name) {
+              return index->GetMeta().schema.ContainsProperty(property_name);
+            })) {
       fts_indexes.push_back(index);
     }
   }
@@ -532,13 +681,16 @@ void FTSIndexScanOptimizer::RewriteProjection(
   auto score_column = MakeScoreColumn(*bm25);
   binder::expression_vector columns{node_column, score_column};
   auto bind_data = std::make_unique<function::IndexScanBindData>(
-      columns, fts_index->GetMeta().name, query);
+      columns, fts_index->GetMeta().name, arguments.query);
+  bind_data->propertyNames = arguments.property_names;
+  if (arguments.weight_values) {
+    bind_data->weights = arguments.weight_values;
+  }
   bind_data->options["label_id"] = std::to_string(property->getSingleTableID());
   bind_data->options["order"] = ascending ? "asc" : "desc";
   if (limit) {
     bind_data->options["limit"] = std::to_string(*limit);
   }
-
   auto table_call = std::make_shared<planner::LogicalTableFunctionCall>(
       *function, std::move(bind_data));
   if (attach_input) {

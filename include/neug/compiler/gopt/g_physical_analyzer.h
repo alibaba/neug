@@ -179,8 +179,8 @@ class GPhysicalAnalyzer {
     auto entry =
         info.pattern->ptrCast<binder::NodeExpression>()->getSingleEntry();
     for (const auto& property : entry->get_properties()) {
-      auto indexes =
-          graphStats->GetIndex(entry->get_entry_id(), property.getName());
+      auto indexes = graphStats->GetIndexesContainingProperty(
+          entry->get_entry_id(), property.getName());
       if (!indexes) {
         THROW_EXCEPTION_WITH_FILE_LINE(indexes.error().ToString());
       }

@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -38,14 +39,22 @@ class ColumnBase;
 class VertexSet;
 // --- Index metadata types ---
 
+struct IndexBindColumn {
+  std::string property_name;
+  DataType property_type;
+
+  bool operator==(const IndexBindColumn&) const = default;
+};
+
 struct IndexBindSchema {
   label_t label_id = 0;
   // Stable identity used to remap label_id when a checkpoint strips temporary
   // labels and compacts the remaining schema slots.
   std::string label_name;
-  // Only single-property indexes are supported.
-  std::string property_name;
-  DataType property_type;
+  std::vector<IndexBindColumn> columns;
+
+  bool ContainsProperty(const std::string& property_name) const;
+  std::optional<size_t> FindProperty(const std::string& property_name) const;
 
   rapidjson::Value ToJson(rapidjson::Document::AllocatorType& alloc) const;
   static IndexBindSchema FromJson(const rapidjson::Value& obj);
@@ -57,9 +66,7 @@ struct IndexMeta {
   IndexBindSchema schema;
   common::case_insensitive_map_t<std::string> options;
 
-  void RenameProperty(const std::string& property_name) {
-    schema.property_name = property_name;
-  }
+  void RenameProperty(const std::string& old_name, const std::string& new_name);
 
   std::string ToJsonString() const;
   static IndexMeta FromJsonString(const std::string& json_str);
@@ -87,8 +94,15 @@ struct SearchCandidate {
 };
 
 struct IndexBindContext {
-  const ColumnBase* column = nullptr;
+  std::vector<const ColumnBase*> columns;
 };
+
+struct IndexValue {
+  size_t column_id;
+  Value value;
+};
+
+using IndexValues = std::vector<Value>;
 
 // --- Index base class ---
 
@@ -164,13 +178,11 @@ class StorageIndex : public Module {
   /**
    * @brief Insert or replace the index record for a vertex id.
    *
-   * Non-virtual: allocates a new internal index id via IndexIDAccessor, then
-   * delegates to AppendImpl.
-   *
    * @param vid The vertex id.
-   * @param new_value The new property value for the indexed column.
+   * @param new_value The changed property value and its position in the index.
    */
-  Status Upsert(vid_t vid, const Value& new_value);
+  virtual Status Upsert(vid_t vid, const IndexValue& new_value) = 0;
+  Status Upsert(vid_t vid, const IndexValues& new_values);
 
   /**
    * @brief Mark a vertex as deleted using tombstone semantics.
@@ -183,14 +195,15 @@ class StorageIndex : public Module {
 
   // --- Metadata ---
   const IndexMeta& GetMeta() const { return *meta_; }
-  void RenameProperty(const std::string& property_name) {
-    meta_->RenameProperty(property_name);
+  void RenameProperty(const std::string& old_name,
+                      const std::string& new_name) {
+    meta_->RenameProperty(old_name, new_name);
   }
 
  protected:
   virtual result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) = 0;
-  virtual Status AppendImpl(index_id_t index_id, const Value& value) = 0;
+  virtual Status AppendImpl(index_id_t index_id, const IndexValues& values) = 0;
 
   std::unique_ptr<IndexMeta> meta_;
   std::unique_ptr<IndexIDAccessor> index_id_accessor_;

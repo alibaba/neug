@@ -63,17 +63,20 @@ result<std::vector<SearchResult>> StorageIndex::Search(
   return results;
 }
 
-Status StorageIndex::Upsert(vid_t vid, const Value& new_value) {
+Status StorageIndex::Upsert(vid_t vid, const IndexValues& new_values) {
   if (!index_id_accessor_) {
     return Status::InternalError("Index ID accessor is not initialized");
   }
-  // NULL means that this vertex has no value defined in the index. Avoid
-  // allocating an index ID and invalidate any mapping left by an older value.
-  if (new_value.IsNull()) {
+  if (!meta_ || new_values.size() != meta_->schema.columns.size()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Index value count does not match metadata");
+  }
+  if (std::all_of(new_values.begin(), new_values.end(),
+                  [](const Value& value) { return value.IsNull(); })) {
     return Delete(vid);
   }
   auto index_id = index_id_accessor_->UpsertVID(vid);
-  return AppendImpl(index_id, new_value);
+  return AppendImpl(index_id, new_values);
 }
 
 Status StorageIndex::Delete(vid_t vid) {
@@ -95,20 +98,26 @@ rapidjson::Value IndexBindSchema::ToJson(
                     static_cast<rapidjson::SizeType>(label_name.size()), alloc),
                 alloc);
 
-  obj.AddMember(
-      "property_name",
-      rapidjson::Value(property_name.c_str(),
-                       static_cast<rapidjson::SizeType>(property_name.size()),
-                       alloc),
-      alloc);
-  auto property_type_yaml =
-      YAML::Dump(YAML::convert<DataType>::encode(property_type));
-  obj.AddMember(
-      "property_type_detail",
-      rapidjson::Value(
-          property_type_yaml.c_str(),
-          static_cast<rapidjson::SizeType>(property_type_yaml.size()), alloc),
-      alloc);
+  rapidjson::Value column_array(rapidjson::kArrayType);
+  for (const auto& column : columns) {
+    rapidjson::Value column_obj(rapidjson::kObjectType);
+    column_obj.AddMember("property_name",
+                         rapidjson::Value(column.property_name.c_str(),
+                                          static_cast<rapidjson::SizeType>(
+                                              column.property_name.size()),
+                                          alloc),
+                         alloc);
+    auto property_type_yaml =
+        YAML::Dump(YAML::convert<DataType>::encode(column.property_type));
+    column_obj.AddMember(
+        "property_type_detail",
+        rapidjson::Value(
+            property_type_yaml.c_str(),
+            static_cast<rapidjson::SizeType>(property_type_yaml.size()), alloc),
+        alloc);
+    column_array.PushBack(std::move(column_obj), alloc);
+  }
+  obj.AddMember("columns", std::move(column_array), alloc);
 
   return obj;
 }
@@ -121,18 +130,55 @@ IndexBindSchema IndexBindSchema::FromJson(const rapidjson::Value& obj) {
   if (obj.HasMember("label_name") && obj["label_name"].IsString()) {
     schema.label_name = obj["label_name"].GetString();
   }
-  if (obj.HasMember("property_name") && obj["property_name"].IsString()) {
-    schema.property_name = obj["property_name"].GetString();
-  }
-  if (obj.HasMember("property_type_detail") &&
-      obj["property_type_detail"].IsString()) {
-    auto node = YAML::Load(obj["property_type_detail"].GetString());
-    if (!YAML::convert<DataType>::decode(node, schema.property_type)) {
-      THROW_RUNTIME_ERROR(
-          "IndexBindSchema::FromJson: invalid property_type_detail");
+  auto parse_column = [](const rapidjson::Value& value) {
+    IndexBindColumn column;
+    if (!value.IsObject() || !value.HasMember("property_name") ||
+        !value["property_name"].IsString() ||
+        !value.HasMember("property_type_detail") ||
+        !value["property_type_detail"].IsString()) {
+      THROW_RUNTIME_ERROR("IndexBindSchema::FromJson: invalid index column");
     }
+    column.property_name = value["property_name"].GetString();
+    auto node = YAML::Load(value["property_type_detail"].GetString());
+    if (!YAML::convert<DataType>::decode(node, column.property_type)) {
+      THROW_RUNTIME_ERROR("IndexBindSchema::FromJson: invalid property type");
+    }
+    return column;
+  };
+  if (obj.HasMember("columns") && obj["columns"].IsArray()) {
+    for (const auto& value : obj["columns"].GetArray()) {
+      schema.columns.emplace_back(parse_column(value));
+    }
+  } else if (obj.HasMember("property_name") &&
+             obj["property_name"].IsString() &&
+             obj.HasMember("property_type_detail") &&
+             obj["property_type_detail"].IsString()) {
+    schema.columns.emplace_back(parse_column(obj));
   }
   return schema;
+}
+
+bool IndexBindSchema::ContainsProperty(const std::string& property_name) const {
+  return FindProperty(property_name).has_value();
+}
+
+std::optional<size_t> IndexBindSchema::FindProperty(
+    const std::string& property_name) const {
+  for (size_t i = 0; i < columns.size(); ++i) {
+    if (columns[i].property_name == property_name) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+void IndexMeta::RenameProperty(const std::string& old_name,
+                               const std::string& new_name) {
+  for (auto& column : schema.columns) {
+    if (column.property_name == old_name) {
+      column.property_name = new_name;
+    }
+  }
 }
 
 // --- IndexMeta serialization ---
