@@ -152,6 +152,11 @@ struct VarPairWrapper {
 static std::unique_ptr<KeyBase> create_sp_key(
     const DataChunk& chunk, const std::vector<std::pair<int, int>>& tag_alias) {
   auto col = chunk.get(tag_alias[0].first);
+  // Keep the typed Key path non-null. Returning nullptr makes create_key_func
+  // fall back to GKey, which owns nullable-key handling.
+  if (col->is_optional()) {
+    return nullptr;
+  }
   if (col->column_type() == ContextColumnType::kVertex) {
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
     VertexWrapper wrapper(*vertex_col);
