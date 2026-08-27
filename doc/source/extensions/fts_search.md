@@ -76,6 +76,11 @@ To inspect or remove an FTS index, use the common
 [SHOW_INDEXES](../storage_index/index.md#inspect-indexes) and [DROP
 INDEX](../storage_index/index.md#drop-an-index) operations.
 
+Dropping a property that belongs to an FTS index removes the entire index. For
+example, dropping `title` from an index on `(title, content)` also removes the
+index on `content`; recreate the index with the remaining properties if it is
+still needed.
+
 ### Create an FTS Index on Multiple Properties
 
 A single FTS index can cover multiple `STRING` properties. This is useful for

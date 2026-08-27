@@ -268,6 +268,43 @@ def test_fts_multi_column_bm25_constant_and_dynamic_arguments(
     assert [row[0] for row in rows] == [1, 2]
 
 
+@pytest.mark.parametrize(
+    ("weights_expression", "parameters"),
+    [
+        ("[0.0, 1.0]", {}),
+        ("[-1.0, 1.0]", {}),
+        ("[NULL, 1.0]", {}),
+        ("['invalid', 'weights']", {}),
+        ("[1.0]", {}),
+        ("[]", {}),
+        ("$weights", {"weights": [float("inf"), 1.0]}),
+    ],
+    ids=[
+        "zero",
+        "negative",
+        "null",
+        "non-numeric",
+        "length-mismatch",
+        "empty",
+        "non-finite",
+    ],
+)
+def test_fts_multi_column_bm25_rejects_invalid_weights(
+    fts_multi_column_database,
+    weights_expression,
+    parameters,
+):
+    with pytest.raises(Exception):
+        list(
+            fts_multi_column_database.execute(
+                "MATCH (a:Article) "
+                "RETURN bm25([a.title, a.description], "
+                f"{weights_expression}, 'target') AS score;",
+                parameters=parameters,
+            )
+        )
+
+
 def test_fts_bm25_rejects_property_not_in_multi_column_index(
     fts_multi_column_database,
 ):
@@ -468,6 +505,16 @@ def test_show_and_drop_fts_index(fts_database):
 def test_dropping_indexed_schema_removes_fts_index(fts_database, drop_statement):
     fts_database.execute(drop_statement)
     assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == []
+
+
+def test_dropping_property_removes_containing_multi_column_fts_index(
+    fts_multi_column_database,
+):
+    fts_multi_column_database.execute("ALTER TABLE Article DROP title;")
+
+    assert (
+        list(fts_multi_column_database.execute("CALL SHOW_INDEXES() RETURN *;")) == []
+    )
 
 
 def test_fts_tracks_inserts_updates_and_deletes(fts_database):
