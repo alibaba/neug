@@ -15,7 +15,6 @@
 
 #include "test_reader.h"
 
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/loader/loader_utils.h"
 
 namespace neug {
@@ -45,14 +44,14 @@ TEST_F(ReaderTest, TestCsvParallelOptionPropagation) {
       DataType(DataTypeId::kInt64)};
   EXPECT_TRUE(
       build_csv_read_config(filePath, {}, nativeColumnTypes).use_threads);
-  EXPECT_FALSE(build_csv_read_config(
-                   filePath, {{execution::ops::CSV_PARALLEL_KEY, "false"}},
-                   nativeColumnTypes)
+  EXPECT_FALSE(build_csv_read_config(filePath,
+                                     {{reader_options::PARALLEL, "false"}},
+                                     nativeColumnTypes)
                    .use_threads);
-  EXPECT_THROW(build_csv_read_config(
-                   filePath, {{execution::ops::CSV_PARALLEL_KEY, "invalid"}},
-                   nativeColumnTypes),
-               exception::InvalidArgumentException);
+  EXPECT_THROW(
+      build_csv_read_config(filePath, {{reader_options::PARALLEL, "invalid"}},
+                            nativeColumnTypes),
+      exception::InvalidArgumentException);
 }
 
 // Test 1: Basic CSV reading with default options
