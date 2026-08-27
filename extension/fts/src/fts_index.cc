@@ -84,22 +84,26 @@ std::string QuoteSQLiteIdentifier(const std::string& value) {
   return result + "\"";
 }
 
-std::string AddFTS5ColumnFilter(const std::vector<std::string>& property_names,
+std::string FTSPhysicalColumnName(size_t column_index) {
+  return "c" + std::to_string(column_index);
+}
+
+std::string AddFTS5ColumnFilter(const std::vector<std::string>& column_names,
                                 const std::string& query_string) {
-  if (property_names.empty()) {
+  if (column_names.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "FTS search requires at least one property name");
   }
   std::string filter;
-  if (property_names.size() == 1) {
-    filter = QuoteSQLiteIdentifier(property_names.front());
+  if (column_names.size() == 1) {
+    filter = QuoteSQLiteIdentifier(column_names.front());
   } else {
     filter = "{";
-    for (size_t i = 0; i < property_names.size(); ++i) {
+    for (size_t i = 0; i < column_names.size(); ++i) {
       if (i != 0) {
         filter += " ";
       }
-      filter += QuoteSQLiteIdentifier(property_names[i]);
+      filter += QuoteSQLiteIdentifier(column_names[i]);
     }
     filter += "}";
   }
@@ -208,7 +212,7 @@ void FTSIndex::CreateTable() {
   for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
     if (i > 0)
       sql += ", ";
-    sql += QuoteSQLiteIdentifier(meta_->schema.columns[i].property_name);
+    sql += QuoteSQLiteIdentifier(FTSPhysicalColumnName(i));
   }
   sql += ", content='', tokenize=" +
          QuoteSQLiteLiteral(std::string(tokenizer_->Name()));
@@ -235,8 +239,7 @@ void FTSIndex::PrepareStatements() {
   std::string placeholders;
   std::string weight_placeholders;
   for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
-    column_list +=
-        ", " + QuoteSQLiteIdentifier(meta_->schema.columns[i].property_name);
+    column_list += ", " + QuoteSQLiteIdentifier(FTSPhysicalColumnName(i));
     placeholders += ", ?" + std::to_string(i + 2);
     weight_placeholders += ", ?" + std::to_string(i + 2);
   }
@@ -522,6 +525,8 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
                                                        : search_desc_statement_;
     std::lock_guard lock(search_statement->mutex());
     search_statement->Reset();
+    std::vector<std::string> physical_column_names;
+    physical_column_names.reserve(fts_params->property_names.size());
     for (const auto& property_name : fts_params->property_names) {
       const auto found =
           std::find_if(meta_->schema.columns.begin(),
@@ -532,9 +537,11 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
         RETURN_INVALID_ARGUMENT_ERROR("FTS property is not indexed: " +
                                       property_name);
       }
+      physical_column_names.push_back(FTSPhysicalColumnName(static_cast<size_t>(
+          std::distance(meta_->schema.columns.begin(), found))));
     }
-    const auto filtered_query = AddFTS5ColumnFilter(fts_params->property_names,
-                                                    fts_params->query_string);
+    const auto filtered_query =
+        AddFTS5ColumnFilter(physical_column_names, fts_params->query_string);
     search_statement->BindText(1, filtered_query);
     for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
       const auto& property_name = meta_->schema.columns[i].property_name;

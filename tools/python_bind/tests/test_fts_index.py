@@ -557,6 +557,59 @@ def test_fts_index_survives_database_reopen(tmp_path):
         reopened_db.close()
 
 
+def test_multi_column_fts_survives_property_rename_and_reopen(tmp_path):
+    database_path = str(tmp_path / "renamed_fts_db")
+    db = Database(db_path=database_path, mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    connection.execute(
+        "CREATE NODE TABLE Article("
+        "id INT64 PRIMARY KEY, title STRING, description STRING);"
+    )
+    connection.execute(
+        "CREATE (:Article {id: 1, title: 'renamed token', "
+        "description: 'original description'});"
+    )
+    connection.execute(
+        "CREATE INDEX article_text_fts ON Article USING FTS (title, description);"
+    )
+    connection.execute("ALTER TABLE Article RENAME title TO headline;")
+    connection.execute(
+        "CREATE (:Article {id: 2, headline: 'post rename token', "
+        "description: 'second description'});"
+    )
+
+    rows = list(
+        connection.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.headline, 'token') AS score ORDER BY a.id;"
+        )
+    )
+    assert [row[0] for row in rows] == [1, 2]
+    connection.execute("CHECKPOINT;")
+    connection.close()
+    db.close()
+
+    reopened_db = Database(db_path=database_path, mode="w")
+    reopened_connection = reopened_db.connect()
+    try:
+        load_fts(reopened_connection)
+        reopened_connection.execute(
+            "CREATE (:Article {id: 3, headline: 'reopened token', "
+            "description: 'third description'});"
+        )
+        rows = list(
+            reopened_connection.execute(
+                "MATCH (a:Article) "
+                "RETURN a.id, bm25(a.headline, 'token') AS score ORDER BY a.id;"
+            )
+        )
+        assert [row[0] for row in rows] == [1, 2, 3]
+    finally:
+        reopened_connection.close()
+        reopened_db.close()
+
+
 def test_explicit_checkpoint_recovers_later_committed_fts_data_from_wal(tmp_path):
     database_path = str(tmp_path / "explicit_checkpoint_fts_db")
     db = Database(db_path=database_path, mode="w", checkpoint_on_close=False)
