@@ -327,11 +327,22 @@ TEST_F(ConnectionTest, ExplicitTransactionRestrictsReadOnlyAndPrivateSchema) {
   const auto read_only_schema = conn->GetSchema();
   ASSERT_FALSE(read_only_schema.empty());
   ASSERT_TRUE(conn->Query("MATCH (n:person) RETURN count(n);", "read"));
+  ASSERT_TRUE(conn->Query("/* SET */ MATCH (n:person) RETURN count(n);"))
+      << "A comment must not make an inferred read query transaction-fatal.";
   auto write_in_read_only =
       conn->Query("CREATE (:person {id: 100004, name: 'read-only', age: 45});");
   ASSERT_FALSE(write_in_read_only);
   EXPECT_EQ(write_in_read_only.error().error_code(),
             StatusCode::ERR_TX_STATE_CONFLICT);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  auto explicit_write_mode =
+      conn->Query("MATCH (n:person) RETURN count(n);", "update");
+  ASSERT_FALSE(explicit_write_mode);
+  EXPECT_EQ(explicit_write_mode.error().error_code(),
+            StatusCode::ERR_TX_STATE_CONFLICT);
+  EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
   ASSERT_TRUE(conn->Rollback().ok());
 
   ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());

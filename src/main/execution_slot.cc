@@ -409,7 +409,7 @@ Status ExecutionSlot::prepareAndExecute(
       query.analysis.explain_mode != ExplainMode::kExplain) {
     const auto& flags = prepared_query->flags;
     if (policy.transaction_scope == QueryTransactionScope::kExplicitReadOnly &&
-        query.access_mode != AccessMode::kRead) {
+        !IsReadOnlyExecutionFlag(flags)) {
       return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                     "Write queries are not allowed in a read-only "
                     "transaction.");
@@ -465,6 +465,15 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
       RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
                           "Administrative operations are not supported in an "
                           "explicit transaction."));
+    }
+    if (transaction_context.IsReadOnly() &&
+        analysis.explain_mode != ExplainMode::kExplain &&
+        requested_mode != AccessMode::kUnKnown &&
+        requested_mode != AccessMode::kRead) {
+      transaction_context.AbortAndMarkRollbackOnly();
+      RETURN_ERROR(Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                          "Write queries are not allowed in a read-only "
+                          "transaction."));
     }
 
     const AnalyzedQuery query{query_string, analysis, resolved_mode, parameters,
