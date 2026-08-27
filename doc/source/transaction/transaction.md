@@ -16,8 +16,8 @@ Rather than implementing a one-size-fits-all transaction system with high comple
 
 ### Before version v0.2
 
-NeuG exposed only an implicit, auto-commit transaction model. It had no
-user-visible explicit transaction primitives: each `execute()`
+Before version v0.2, NeuG exposed only an implicit, auto-commit transaction
+model. It had no user-visible explicit transaction primitives: each `execute()`
 or `Query()` call was one statement-level transaction.
 
 ```python
@@ -28,8 +28,8 @@ conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 
 ### Since version v0.2
 
-Auto-commit remains the default in every supported interface. The embedded C++
-`Connection` API additionally supports
+Since version v0.2, auto-commit remains the default in every supported
+interface. The embedded C++ `Connection` API additionally supports
 programmatic explicit transactions for AP mode, as described below.
 
 #### Explicit Transactions in Embedded C++ AP Mode

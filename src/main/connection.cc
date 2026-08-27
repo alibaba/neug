@@ -20,15 +20,13 @@
 #include "neug/main/execution_slot.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/yaml_utils.h"
-#include "transaction_context.h"
 
 namespace neug {
 
 Connection::Connection(std::unique_ptr<ExecutionSlot> execution_slot,
                        CloseCallback on_close)
     : execution_slot_(std::move(execution_slot)),
-      on_close_(std::move(on_close)),
-      transaction_context_(std::make_unique<TransactionContext>()) {
+      on_close_(std::move(on_close)) {
   CHECK(execution_slot_ != nullptr);
 }
 
@@ -39,13 +37,13 @@ std::string Connection::GetSchema() const {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
-  if (transaction_context_->IsRollbackOnly()) {
+  if (transaction_context_.IsRollbackOnly()) {
     THROW_TX_STATE_CONFLICT(
         "Transaction is rollback-only; Rollback() is required before "
         "GetSchema.");
   }
-  if (transaction_context_->IsActive()) {
-    auto yaml = transaction_context_->schema().to_yaml();
+  if (transaction_context_.IsActive()) {
+    auto yaml = transaction_context_.schema().to_yaml();
     return get_json_string_from_yaml(yaml.value()).value();
   }
   return execution_slot_->GetSchema();
@@ -58,7 +56,7 @@ void Connection::Close() {
   }
   LOG(INFO) << "Closing connection.";
 
-  transaction_context_->Rollback();
+  transaction_context_.Rollback();
 
   // Clean up all temporary schemas created through embedded execution.
   // This is safe to do globally because LOAD AS is only supported in
@@ -79,7 +77,7 @@ Status Connection::BeginTransaction(TransactionMode mode) {
   if (IsClosed()) {
     return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
   }
-  if (transaction_context_->HasActiveTransaction()) {
+  if (transaction_context_.HasActiveTransaction()) {
     return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                   "An explicit transaction is already active.");
   }
@@ -87,7 +85,7 @@ Status Connection::BeginTransaction(TransactionMode mode) {
   try {
     switch (mode) {
     case TransactionMode::kReadOnly:
-      transaction_context_->Begin(
+      transaction_context_.Begin(
           execution_slot_->BeginSnapshotReadTransaction());
       return Status::OK();
     case TransactionMode::kReadWrite: {
@@ -95,7 +93,7 @@ Status Connection::BeginTransaction(TransactionMode mode) {
       if (!transaction) {
         return transaction.error();
       }
-      transaction_context_->Begin(std::move(transaction).value());
+      transaction_context_.Begin(std::move(transaction).value());
       return Status::OK();
     }
     }
@@ -113,31 +111,27 @@ Status Connection::Commit() {
   if (IsClosed()) {
     return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
   }
-  if (transaction_context_->IsRollbackOnly()) {
+  if (transaction_context_.IsRollbackOnly()) {
     return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                   "Transaction is rollback-only; Rollback() is required.");
   }
-  if (!transaction_context_->IsActive()) {
+  if (!transaction_context_.IsActive()) {
     return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                   "No explicit transaction is active.");
   }
-  return transaction_context_->Commit();
+  return transaction_context_.Commit();
 }
 
 Status Connection::Rollback() {
   if (IsClosed()) {
     return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
   }
-  if (!transaction_context_->HasActiveTransaction()) {
+  if (!transaction_context_.HasActiveTransaction()) {
     return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                   "No explicit transaction is active.");
   }
-  transaction_context_->Rollback();
+  transaction_context_.Rollback();
   return Status::OK();
-}
-
-bool Connection::HasActiveTransaction() const noexcept {
-  return transaction_context_->HasActiveTransaction();
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,
@@ -149,15 +143,15 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  if (transaction_context_->IsRollbackOnly()) {
+  if (transaction_context_.IsRollbackOnly()) {
     RETURN_ERROR(
         Status(StatusCode::ERR_TX_STATE_CONFLICT,
                "Transaction is rollback-only; Rollback() is required."));
   }
-  if (transaction_context_->IsActive()) {
+  if (transaction_context_.IsActive()) {
     return execution_slot_->ExecuteQueryInTransaction(
         query_string, access_mode, parameters, /*num_threads=*/0,
-        *transaction_context_);
+        transaction_context_);
   }
   return execution_slot_->ExecuteQuery(query_string, access_mode, parameters);
 }

@@ -24,14 +24,13 @@
 #include <rapidjson/document.h>
 
 #include "neug/main/query_result.h"
-#include "neug/transaction/transaction_mode.h"
+#include "neug/main/transaction_context.h"
 #include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 class ExecutionSlot;
-class TransactionContext;
 
 /**
  * @brief Database connection for executing Cypher queries.
@@ -194,7 +193,9 @@ class NEUG_API Connection {
    * Returns true for both active and rollback-only states. Only a successful
    * Commit() or Rollback() returns the Connection to idle.
    */
-  bool HasActiveTransaction() const noexcept;
+  bool HasActiveTransaction() const noexcept {
+    return transaction_context_.HasActiveTransaction();
+  }
 
   /**
    * @brief Get the database schema as a YAML string.
@@ -257,7 +258,7 @@ class NEUG_API Connection {
  private:
   std::unique_ptr<ExecutionSlot> execution_slot_;
   CloseCallback on_close_;
-  std::unique_ptr<TransactionContext> transaction_context_;
+  TransactionContext transaction_context_;
 
   std::atomic<bool> is_closed_{false};
 };
