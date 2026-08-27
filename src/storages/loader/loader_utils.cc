@@ -45,6 +45,7 @@
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
+#include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/column.h"
@@ -1276,16 +1277,17 @@ CsvReadConfig build_csv_read_config(
     config.double_quote = (value == "true" || value == "1" || value == "TRUE");
   }
 
-  if (csv_options.count("PARALLEL")) {
-    auto value = to_lower_copy(csv_options.at("PARALLEL"));
+  auto parallel_it = csv_options.find(execution::ops::CSV_PARALLEL_KEY);
+  if (parallel_it != csv_options.end()) {
+    const auto& raw_value = parallel_it->second;
+    auto value = to_lower_copy(raw_value);
     if (value == "true" || value == "1" || value == "yes" || value == "on") {
       config.use_threads = true;
     } else if (value == "false" || value == "0" || value == "no" ||
                value == "off") {
       config.use_threads = false;
     } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " +
-                                       csv_options.at("PARALLEL"));
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " + raw_value);
     }
   }
 
