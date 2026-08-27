@@ -273,24 +273,9 @@ class ExecutionSlot {
     kBypassShared,
   };
 
-  enum class QueryTransactionScope : uint8_t {
-    kAutoCommit,
-    kExplicitReadOnly,
-    kExplicitReadWrite,
-  };
-
-  struct QueryExecutionPolicy {
-    QueryCacheMode cache_mode{QueryCacheMode::kShared};
-    QueryTransactionScope transaction_scope{QueryTransactionScope::kAutoCommit};
-
-    bool IsExplicit() const noexcept {
-      return transaction_scope != QueryTransactionScope::kAutoCommit;
-    }
-  };
-
-  // Analysis remains in the entry points because it determines transaction and
-  // storage routing. The shared pipeline receives the resolved, immutable
-  // input.
+  // Analysis and preparation remain in the entry points because they determine
+  // transaction, storage, and cache routing. The shared pipeline receives the
+  // resolved, immutable input and an already-prepared plan.
   struct AnalyzedQuery {
     const std::string& text;
     const QueryAnalysis& analysis;
@@ -317,11 +302,10 @@ class ExecutionSlot {
   Status executeAdmin(const AdminRequest& request, ExplainMode explain_mode,
                       QueryResponse& response);
 
-  Status prepareAndExecute(
-      const GraphStats& stats, IStorageInterface& storage,
-      const AnalyzedQuery& query, const QueryExecutionPolicy& policy,
-      QueryResponse& response,
-      std::shared_ptr<execution::CacheValue> prepared_query = nullptr);
+  Status executePreparedQuery(IStorageInterface& storage,
+                              const AnalyzedQuery& query,
+                              execution::CacheValue& prepared_query,
+                              QueryResponse& response);
 
   Status executeAutoCommitQuery(const std::string& query,
                                 AccessMode requested_mode,
