@@ -16,7 +16,7 @@
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
 #include "neug/transaction/version_manager.h"
 
 #include <atomic>
@@ -26,12 +26,12 @@
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
-class CompactTransactionTest : public ::testing::Test {
+class InPlaceCompactionTransactionTest : public ::testing::Test {
  protected:
   std::string db_dir;
 
   void SetUp() override {
-    db_dir = "/tmp/test_compact_transaction_db";
+    db_dir = "/tmp/test_in_place_compaction_transaction_db";
     if (std::filesystem::exists(db_dir)) {
       std::filesystem::remove_all(db_dir);
     }
@@ -109,7 +109,7 @@ class CompactTransactionTest : public ::testing::Test {
 };
 
 // Commit, Abort, and destructor (auto-abort) should all preserve data.
-TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
+TEST_F(InPlaceCompactionTransactionTest, CommitAbortAndDestructorPreserveData) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -119,25 +119,25 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
   // 1) Compact + Commit
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginInPlaceCompactionTransaction();
     EXPECT_TRUE(compact_txn.Commit());
   }
   // 2) Compact + Abort
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginInPlaceCompactionTransaction();
     compact_txn.Abort();
   }
   // 3) Destructor auto-abort (no Commit/Abort call)
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginInPlaceCompactionTransaction();
   }
 
   // Verify all data intact after all three paths
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -157,7 +157,7 @@ TEST_F(CompactTransactionTest, CommitAbortAndDestructorPreserveData) {
 }
 
 // Delete vertices, compact, verify deletions are permanent.
-TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
+TEST_F(InPlaceCompactionTransactionTest, DeleteThenCompactPurgesData) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -174,7 +174,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   // Verify deletion visible before compact
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 1);
@@ -184,14 +184,14 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
   // Compact
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginInPlaceCompactionTransaction();
     EXPECT_TRUE(compact_txn.Commit());
   }
 
   // Verify data after compact — deletion should be permanent
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -213,7 +213,7 @@ TEST_F(CompactTransactionTest, DeleteThenCompactPurgesData) {
 }
 
 // Compact, checkpoint, reopen — verify data persists across restart.
-TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
+TEST_F(InPlaceCompactionTransactionTest, CompactAndReopenPersistsData) {
   {
     neug::NeugDB db;
     neug::NeugDBConfig config(db_dir);
@@ -232,7 +232,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     // Compact explicitly before close
     {
       auto slot = svc->AcquireExecutionSlot();
-      auto compact_txn = slot->GetCompactTransaction();
+      auto compact_txn = slot->BeginInPlaceCompactionTransaction();
       EXPECT_TRUE(compact_txn.Commit());
     }
 
@@ -249,7 +249,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
     auto svc2 = std::make_shared<neug::NeugDBService>(db2);
 
     auto slot = svc2->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -265,7 +265,7 @@ TEST_F(CompactTransactionTest, CompactAndReopenPersistsData) {
 }
 
 // Repeated Commit and Abort-after-Commit should be safe no-ops.
-TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
+TEST_F(InPlaceCompactionTransactionTest, IdempotentCommitAndAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -274,7 +274,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto compact_txn = slot->GetCompactTransaction();
+    auto compact_txn = slot->BeginInPlaceCompactionTransaction();
     EXPECT_TRUE(compact_txn.Commit());
     EXPECT_TRUE(compact_txn.Commit());  // double commit — no-op
     compact_txn.Abort();                // abort after commit — no-op
@@ -283,7 +283,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
   // Verify data intact
   {
     auto slot = svc->AcquireExecutionSlot();
-    auto txn = slot->GetReadTransaction();
+    auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -294,7 +294,7 @@ TEST_F(CompactTransactionTest, IdempotentCommitAndAbort) {
 }
 
 // ---------------------------------------------------------------------------
-// Concurrency exclusion tests: CompactTransaction blocks all other
+// Concurrency exclusion tests: InPlaceCompactionTransaction blocks all other
 // transaction types (Read, Insert, Update, and another Compact).
 //
 // Tests at VersionManager level to avoid TpExecutionSlotPool size constraints.
@@ -340,7 +340,7 @@ static void AssertCompactBlocksAcquire(
       << "Worker should have acquired after compact released";
 }
 
-TEST_F(CompactTransactionTest, CompactBlocksRead) {
+TEST_F(InPlaceCompactionTransactionTest, CompactBlocksRead) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
 
@@ -353,7 +353,7 @@ TEST_F(CompactTransactionTest, CompactBlocksRead) {
       [](neug::VersionManager&, uint32_t) {});
 }
 
-TEST_F(CompactTransactionTest, CompactBlocksInsert) {
+TEST_F(InPlaceCompactionTransactionTest, CompactBlocksInsert) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
   AssertCompactBlocksAcquire(
@@ -363,7 +363,7 @@ TEST_F(CompactTransactionTest, CompactBlocksInsert) {
       });
 }
 
-TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
+TEST_F(InPlaceCompactionTransactionTest, CompactBlocksUpdate) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
   AssertCompactBlocksAcquire(
@@ -373,7 +373,7 @@ TEST_F(CompactTransactionTest, CompactBlocksUpdate) {
       });
 }
 
-TEST_F(CompactTransactionTest, CompactBlocksCompact) {
+TEST_F(InPlaceCompactionTransactionTest, CompactBlocksCompact) {
   neug::VersionManager vm;
   vm.init_ts({0, 0}, 1);
   AssertCompactBlocksAcquire(

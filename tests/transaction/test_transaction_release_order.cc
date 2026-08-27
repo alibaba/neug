@@ -29,9 +29,9 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph_snapshot_store.h"
-#include "neug/transaction/compact_transaction.h"
-#include "neug/transaction/insert_transaction.h"
-#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/dummy_wal_writer.h"
@@ -166,7 +166,7 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
   const auto& path = GetParam();
   switch (path.transaction_kind) {
   case TransactionKind::kRead: {
-    ReadTransaction transaction(
+    SnapshotReadTransaction transaction(
         ReadSnapshotLease::Acquire(version_manager, *store_));
     publish_replacement_snapshot();
     ASSERT_TRUE(transaction.Commit());
@@ -174,8 +174,8 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
   }
   case TransactionKind::kInsert: {
     SnapshotGuard guard(*store_);
-    InsertTransaction transaction(std::move(guard), allocator_, wal_writer_,
-                                  version_manager, 1);
+    MvccInsertTransaction transaction(std::move(guard), allocator_, wal_writer_,
+                                      version_manager, 1);
     if (path.add_vertex) {
       vid_t vertex_id;
       ASSERT_TRUE(
@@ -190,7 +190,8 @@ TEST_P(TransactionReleaseOrderTest, ReleasesSnapshotBeforeTimestamp) {
     break;
   }
   case TransactionKind::kCompact: {
-    CompactTransaction transaction(*store_, wal_writer_, version_manager, 1);
+    InPlaceCompactionTransaction transaction(*store_, wal_writer_,
+                                             version_manager, 1);
     publish_replacement_snapshot();
     if (path.commit) {
       ASSERT_TRUE(transaction.Commit());

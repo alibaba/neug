@@ -80,7 +80,7 @@ NeuG documentation
    :maxdepth: 1
    :caption: Transaction
 
-   transaction/transaction.md
+   transaction/transaction.mdx
    transaction/checkpoint.md
 
 .. toctree::

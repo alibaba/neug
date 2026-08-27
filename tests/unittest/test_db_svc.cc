@@ -76,7 +76,7 @@ int StartBthread(bthread_t& tid, BthreadTask& task) {
 timestamp_t InsertModernPersonAndReturnTimestamp(NeugDBService& service,
                                                  int64_t id) {
   auto slot = service.AcquireExecutionSlot();
-  auto transaction = slot->GetInsertTransaction();
+  auto transaction = slot->BeginMvccInsertTransaction();
   const auto timestamp = transaction.timestamp();
   StorageTPInsertInterface graph(transaction);
   const auto person_label = transaction.schema().get_vertex_label_id("person");
@@ -225,7 +225,7 @@ TEST_F(NeugDBServiceTest,
 
     BthreadTask first_task = [&]() {
       auto guard = service.AcquireExecutionSlot();
-      auto transaction = guard->GetReadTransaction();
+      auto transaction = guard->BeginSnapshotReadTransaction();
       const auto logical_thread = bthread_self();
       const auto physical_thread = std::this_thread::get_id();
       int stack_marker = 0;
@@ -311,7 +311,7 @@ TEST_F(NeugDBServiceTest, ExecutionSlotsRemainExclusiveUnderBthreadStress) {
           violations.fetch_add(1);
         }
 
-        auto transaction = guard->GetReadTransaction();
+        auto transaction = guard->BeginSnapshotReadTransaction();
         const auto logical_thread = bthread_self();
         (void) bthread_yield();
         (void) bthread_usleep(50);
@@ -709,7 +709,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesPlanningGenerations) {
   ASSERT_TRUE(slot);
 
   // Keep the old snapshot pinned while a DDL publishes a new schema.
-  auto old_txn = slot->GetReadTransaction();
+  auto old_txn = slot->BeginSnapshotReadTransaction();
   ASSERT_FALSE(old_txn.schema().is_vertex_label_valid("cache_gen_probe"));
   const auto old_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
@@ -735,7 +735,7 @@ TEST_F(NeugDBServiceTest, QueryCacheSeparatesPlanningGenerations) {
   ASSERT_TRUE(old_plan_again) << old_plan_again.error().ToString();
   EXPECT_EQ(old_plan.value().get(), old_plan_again.value().get());
 
-  auto new_txn = slot->GetReadTransaction();
+  auto new_txn = slot->BeginSnapshotReadTransaction();
   ASSERT_TRUE(new_txn.schema().is_vertex_label_valid("cache_gen_probe"));
   const auto new_generation =
       ReadPlanningGeneration(db_->graph_snapshot_store());
@@ -849,7 +849,8 @@ TEST_F(NeugDBServiceTest, TransactionalSlotRejectsEmbeddedEntryPoint) {
   EXPECT_EQ(slot->query_num(), query_num_before);
 }
 
-TEST_F(NeugDBServiceTest, TransactionalSlotGetsSchemaThroughReadTransaction) {
+TEST_F(NeugDBServiceTest,
+       TransactionalSlotGetsSchemaThroughSnapshotReadTransaction) {
   neug::NeugDBService service(*db_, config_);
   auto slot = service.AcquireExecutionSlot();
   ASSERT_TRUE(slot);
@@ -980,7 +981,7 @@ TEST_F(NeugDBServiceTest,
 
 // TP counterpart of the embedded insert-mode compatibility (P2 review
 // Major-1, see ConnectionTest.ExplicitInsertAccessModeAllowsMixedPlan): TP
-// selects InsertTransaction for access_mode="insert", so a plan that reads
+// selects MvccInsertTransaction for access_mode="insert", so a plan that reads
 // or updates must be rejected before execution, without WAL or storage side
 // effects; a pure CREATE plan must still be accepted.
 TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
@@ -997,7 +998,7 @@ TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
 
   // A non-primary-key MATCH needs a graph scan, so the plan is genuinely
   // mixed read + CREATE rather than the atomic key lookup supported by
-  // InsertTransaction for relationship insertion.
+  // MvccInsertTransaction for relationship insertion.
   auto rejected =
       slot->ExecuteTransactionalRequest(RequestSerializer::SerializeRequest(
           "MATCH (a:person {name: 'vadas'}), (b:person {name: 'josh'}) "

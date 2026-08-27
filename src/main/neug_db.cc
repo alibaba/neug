@@ -48,7 +48,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
@@ -120,7 +120,8 @@ static void IngestWalRange(PropertyGraph& graph,
   GraphView view(graph);
   for (size_t j = from; j < to; ++j) {
     const auto& unit = parser.get_insert_wal(j);
-    InsertTransaction::IngestWal(view, j, unit.ptr, unit.size, *allocators[0]);
+    MvccInsertTransaction::IngestWal(view, j, unit.ptr, unit.size,
+                                     *allocators[0]);
     if (j % 1000000 == 0) {
       LOG(INFO) << "Ingested " << j << " WALs";
     }

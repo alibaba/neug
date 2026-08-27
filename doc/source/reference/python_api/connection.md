@@ -52,7 +52,60 @@ Check if the connection is open.
 def close()
 ```
 
-Close the connection.
+Close the connection. An active explicit transaction is rolled back.
+
+<a id="neug.connection.Connection.has_active_transaction"></a>
+
+### has\_active\_transaction
+
+```python
+@property
+def has_active_transaction() -> bool
+```
+
+Whether this connection has an active explicit transaction.
+
+The property remains true while a failed transaction is rollback-only. Call
+`rollback()` to return the connection to auto-commit mode.
+
+<a id="neug.connection.Connection.begin_transaction"></a>
+
+### begin\_transaction
+
+```python
+def begin_transaction(read_only: bool = False)
+```
+
+Begin an explicit embedded AP transaction.
+
+- **Parameters:**
+  - `read_only` (bool): Pin one read view and reject writes when true. The
+    default starts a read-write transaction with a private COW view.
+
+- **Raises:**
+  - **RuntimeError:** If the connection is closed or already has an active
+    transaction.
+
+<a id="neug.connection.Connection.commit"></a>
+
+### commit
+
+```python
+def commit()
+```
+
+Commit the active explicit transaction. A rollback-only transaction must be
+rolled back instead.
+
+<a id="neug.connection.Connection.rollback"></a>
+
+### rollback
+
+```python
+def rollback()
+```
+
+Roll back the active explicit transaction and return to auto-commit.
 
 <a id="neug.connection.Connection.execute"></a>
 
@@ -77,6 +130,11 @@ The QueryResult object is like an iterator, providing methods to iterate over th
 such as `__iter__` and `__next__`.
 
 If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
+
+Inside an explicit transaction, a query that reaches the database engine and
+fails leaves the transaction rollback-only. Call `rollback()` before executing
+another query. Client-side validation errors that occur before execution, such
+as an invalid `access_mode`, do not change the transaction state.
 
 Some of the cypher queries could change the state of the database, such as `CREATE NODE TABLE`, `INSERT`,
 `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
@@ -138,4 +196,3 @@ Get the schema of the NeuG database.
 **Returns**:
 
 The schema of the NeuG database.
-

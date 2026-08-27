@@ -60,6 +60,8 @@ class CurrentCowWriteTransaction {
     return GraphStats(workspace_.view(), workspace_.base_planning_generation());
   }
 
+  bool PlanningChanged() const noexcept { return workspace_.PlanningChanged(); }
+
   const Schema& schema() const { return workspace_.view().schema(); }
 
  private:

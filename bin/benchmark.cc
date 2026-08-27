@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
   BenchmarkConfig benchmark_config(benchmark_config_path);
 
   auto slot = svc->AcquireExecutionSlot();
-  auto txn = slot->GetReadTransaction();
+  auto txn = slot->BeginSnapshotReadTransaction();
   neug::StorageReadInterface graph(txn.view(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {
