@@ -15,7 +15,7 @@ two roles:
 | What is recovered after restart? | `CURRENT` plus WAL records after `base_ts` | The checkpoint selected by `CURRENT`; bulk rows are not repeated in WAL |
 
 For transaction boundaries and concurrency outside checkpoint operations, see
-[Transaction Management](transaction.md).
+[Transaction Management](transaction.mdx).
 
 ## Run a checkpoint
 

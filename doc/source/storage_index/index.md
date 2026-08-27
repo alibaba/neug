@@ -106,7 +106,7 @@ transaction as graph changes:
 Readers therefore cannot observe committed graph data with stale index data,
 or an index lifecycle change without its associated transaction. For the
 general ACID and isolation model, see [Transaction
-Management](../transaction/transaction.md).
+Management](../transaction/transaction.mdx).
 
 ## Persistence and Recovery
 
