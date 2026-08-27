@@ -2,6 +2,8 @@
 
 This document describes NeuG's transaction management system, which operates differently depending on the deployment mode. NeuG supports two primary modes: **Embedded mode** suitable for analytical processing (AP) and **Service mode** suitable for transactional processing (TP).
 
+import { Tabs } from 'nextra/components'
+
 ## Design Philosophy
 
 NeuG's transaction model reflects trade-offs based on deep understanding of graph workload characteristics:
@@ -29,13 +31,17 @@ conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 ### Since version v0.2
 
 Since version v0.2, auto-commit remains the default in every supported
-interface. The embedded C++ `Connection` API additionally supports
+interface. The embedded C++ and Node.js `Connection` APIs additionally support
 programmatic explicit transactions for AP mode, as described below.
 
-#### Explicit Transactions in Embedded C++ AP Mode
+#### Explicit Transactions in Embedded AP Mode
 
 An explicit transaction is owned by its `Connection` and spans multiple
-`Query()` calls:
+queries:
+
+<Tabs items={['C++', 'Node.js']}>
+
+<Tab>
 
 ```cpp
 auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
@@ -49,33 +55,53 @@ auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
 status = conn->Commit();  // Publishes all successful writes as one commit.
 ```
 
-`TransactionMode::kReadOnly` pins one read view for the entire transaction and
-rejects writes. `TransactionMode::kReadWrite` holds one private COW write view:
-its successful statements can read their own writes, but the private changes
-are not published until `Commit()` succeeds. An AP read-write transaction holds
-exclusive AP admission for its full lifetime. Any AP operation that contends
-for that admission waits until the transaction calls `Commit()`, `Rollback()`,
-or `Close()`; explicit transactions currently have no timeout. Applications
-should therefore finish them promptly. Embedded READ_WRITE mode currently
-allows only one public `Connection` at a time.
+</Tab>
 
-Any failed `Query()` call aborts the owner and leaves the connection
-rollback-only. This includes query analysis, syntax or compilation errors,
-access-mode or parameter validation errors, execution failures, read-only
-writes, and rejected bulk or maintenance operations. Because Cypher
-transaction-control statements are unsupported, issuing `COMMIT;` through
-`Query()` is also a failed statement and makes the transaction rollback-only.
-In that state, call `Rollback()` (or `Close()`) before issuing another query or
-beginning another transaction. `HasActiveTransaction()` stays true while the
-connection is rollback-only. Nested begin and invalid programmatic control
-calls report a transaction-state error without changing an otherwise active
-transaction.
+<Tab>
+
+```javascript
+conn.beginTransaction();
+
+const created = conn.execute("CREATE (:Person {name: 'Alice'})", 'insert');
+const visible = conn.execute('MATCH (p:Person) RETURN p.name', 'read');
+
+conn.commit(); // Publishes all successful writes as one commit.
+```
+
+</Tab>
+
+</Tabs>
+
+In C++, `TransactionMode::kReadOnly` pins one read view for the entire
+transaction and rejects writes; in Node.js, use
+`beginTransaction({ readOnly: true })`. C++
+`TransactionMode::kReadWrite` and the default Node.js mode hold one private COW
+write view: successful statements can read their own writes, but private
+changes are not published until `Commit()` or `commit()` succeeds. An AP
+read-write transaction holds exclusive AP admission for its full lifetime. Any
+AP operation that contends for that admission waits until the transaction is
+committed, rolled back, or its connection is closed; explicit transactions
+currently have no timeout. Applications should therefore finish them promptly.
+Embedded READ_WRITE mode currently allows only one public `Connection` at a
+time.
+
+Any failed query call aborts the owner and leaves the connection rollback-only.
+This includes query analysis, syntax or compilation errors, access-mode or
+parameter validation errors, execution failures, read-only writes, and rejected
+bulk or maintenance operations. Because Cypher transaction-control statements
+are unsupported, issuing `COMMIT;` through `Query()` or `execute()` is also a
+failed statement and makes the transaction rollback-only. In that state, call
+`Rollback()`/`rollback()` (or close the connection) before issuing another
+query or beginning another transaction. `HasActiveTransaction()` in C++ and
+`hasActiveTransaction` in Node.js stay true while the connection is
+rollback-only. Nested begin and invalid programmatic control calls report a
+transaction-state error without changing an otherwise active transaction.
 
 This first API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`;
-use the C++ methods above. It also does not yet include TP service sessions,
-remote clients, Python or Java bindings, savepoints, transaction timeouts, or
-explicit-transaction `COPY`, batch, checkpoint, procedure calls, or temporary
-schema operations.
+use the programmatic `Connection` methods shown above. It also does not yet
+include TP service sessions, remote clients, Python or Java bindings,
+savepoints, transaction timeouts, or explicit-transaction `COPY`, batch, index,
+checkpoint, procedure calls, or temporary schema operations.
 
 ## Deployment Modes Overview
 
@@ -325,18 +351,20 @@ session = Session("http://localhost:10000/")
 try:
     # Reads and inserts can be concurrent across sessions
     session.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")
-    
+
     # Reads don't block inserts
     result = session.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
-    
+
     # Updates are serialized with inserts and other updates. Reads continue on
     # consistent snapshots, but keep updates short in high-concurrency scenarios.
-    session.execute("MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true", 
-                   access_mode="update")
-    
+    session.execute(
+        "MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true",
+        access_mode="update",
+    )
+
     # Periodic checkpoint to consolidate WAL (optional)
     session.execute("CHECKPOINT")
-    
+
 finally:
     session.close()
 ```

@@ -22,11 +22,11 @@ const os = require('os');
 const path = require('path');
 const {
   Database,
+  ERR_CONNECTION_CLOSED,
   ERR_DATABASE_LOCKED,
   ERR_TX_STATE_CONFLICT,
   ERR_TYPE_CONVERSION,
   ERR_SCHEMA_MISMATCH,
-  ERR_TX_TIMEOUT,
 } = require('neug');
 
 // ---------------------------------------------------------------------------
@@ -165,39 +165,92 @@ test('test_auto_transaction_management', () => {
 // DB-004-08
 // ---------------------------------------------------------------------------
 
-test('test_manual_transaction_management', { skip: 'BEGIN TRANSACTION is not planned yet' }, () => {
-  // Not implemented
-});
+test('test_explicit_transaction_connection_api', () => {
+  const dbDir = makeTmpDir('explicit_tx_connection_api');
+  const db = new Database({ databasePath: dbDir, mode: 'w' });
+  const conn = db.connect();
+  conn.execute('CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));');
 
-// ---------------------------------------------------------------------------
-// DB-004-09
-// ---------------------------------------------------------------------------
+  assert.equal(conn.hasActiveTransaction, false);
+  conn.beginTransaction();
+  assert.equal(conn.hasActiveTransaction, true);
+  conn.execute('CREATE (p:person {id: $id, name: $name});', '', {
+    id: 1,
+    name: 'rolled back',
+  });
+  assert.deepEqual(
+    [...conn.execute('MATCH (p:person) WHERE p.id = $id RETURN p.name;', '', { id: 1 })],
+    [['rolled back']]
+  );
+  conn.rollback();
+  assert.equal(conn.hasActiveTransaction, false);
+  assert.deepEqual([...conn.execute('MATCH (p:person) RETURN p.id;')], []);
 
-test('test_readonly_transaction_write', { skip: 'BEGIN TRANSACTION is not planned yet' }, () => {
-  // Not implemented
-});
+  conn.beginTransaction();
+  conn.execute("CREATE (p:person {id: 2, name: 'committed'});");
+  conn.commit();
+  assert.deepEqual([...conn.execute('MATCH (p:person) RETURN p.id;')], [[2n]]);
+  assert.throws(
+    () => conn.commit(),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
 
-// ---------------------------------------------------------------------------
-// DB-004-11
-// ---------------------------------------------------------------------------
+  conn.beginTransaction();
+  assert.throws(
+    () => conn.beginTransaction(),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
+  conn.rollback();
 
-test('test_nested_transaction', { skip: 'BEGIN TRANSACTION is not planned yet' }, () => {
-  // Not implemented
+  conn.beginTransaction();
+  assert.throws(
+    () => conn.execute("CREATE (p:person {id: 'bad_type'});"),
+    (err) => err.message.includes(String(ERR_TYPE_CONVERSION))
+  );
+  assert.equal(conn.hasActiveTransaction, true);
+  assert.throws(
+    () => conn.execute('MATCH (p:person) RETURN p.id;'),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
+  assert.throws(
+    () => conn.commit(),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
+  assert.throws(
+    () => conn.getSchema(),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
+  conn.rollback();
+
+  conn.beginTransaction({ readOnly: true });
+  assert.throws(
+    () => conn.execute("CREATE (p:person {id: 3, name: 'read only'});"),
+    (err) => err.message.includes('Write queries are not allowed')
+  );
+  assert.equal(conn.hasActiveTransaction, true);
+  conn.rollback();
+
+  conn.close();
+  assert.equal(conn.hasActiveTransaction, false);
+  for (const operation of [
+    () => conn.beginTransaction(),
+    () => conn.commit(),
+    () => conn.rollback(),
+    () => conn.getSchema(),
+  ]) {
+    assert.throws(
+      operation,
+      (err) => err.message.includes(String(ERR_CONNECTION_CLOSED))
+    );
+  }
+  db.close();
 });
 
 // ---------------------------------------------------------------------------
 // DB-004-12
 // ---------------------------------------------------------------------------
 
-test('test_transaction_timeout', { skip: 'BEGIN TRANSACTION is not planned yet' }, () => {
-  // Not implemented
-});
-
-// ---------------------------------------------------------------------------
-// DB-004-13
-// ---------------------------------------------------------------------------
-
-test('test_commit_after_rollback', { skip: 'BEGIN TRANSACTION is not planned yet' }, () => {
+test('test_transaction_timeout', { skip: 'Embedded AP explicit transactions do not expose timeout configuration or enforce transaction lifetime.' }, () => {
   // Not implemented
 });
 
@@ -205,8 +258,35 @@ test('test_commit_after_rollback', { skip: 'BEGIN TRANSACTION is not planned yet
 // DB-004-14
 // ---------------------------------------------------------------------------
 
-test('test_crash_recovery', { skip: 'BEGIN TRANSACTION is not planned yet' }, () => {
-  // Not implemented
+test('test_explicit_transaction_crash_recovery', () => {
+  const dbDir = makeTmpDir('explicit_tx_recovery');
+  const db = new Database({
+    databasePath: dbDir,
+    mode: 'w',
+    checkpointOnClose: false,
+  });
+  const conn = db.connect();
+  conn.execute('CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));');
+  conn.beginTransaction();
+  conn.execute('CREATE (p:person {id: 1});');
+  conn.commit();
+  conn.beginTransaction();
+  conn.execute('CREATE (p:person {id: 2});');
+  conn.close();
+  db.close();
+
+  const reopenedDb = new Database({
+    databasePath: dbDir,
+    mode: 'w',
+    checkpointOnClose: false,
+  });
+  const reopenedConn = reopenedDb.connect();
+  assert.deepEqual(
+    [...reopenedConn.execute('MATCH (p:person) RETURN p.id ORDER BY p.id;')],
+    [[1n]]
+  );
+  reopenedConn.close();
+  reopenedDb.close();
 });
 
 // ---------------------------------------------------------------------------
