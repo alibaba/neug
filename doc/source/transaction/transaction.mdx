@@ -96,12 +96,15 @@ rolled back, or its connection is closed; explicit transactions currently have
 no timeout. Applications should therefore finish them promptly. Embedded
 READ_WRITE mode currently allows only one public `Connection` at a time.
 
-Any failed query call aborts the owner and leaves the connection rollback-only.
-This includes query analysis, syntax or compilation errors, access-mode or
-parameter validation errors, execution failures, read-only writes, and rejected
-bulk or maintenance operations. Because Cypher transaction-control statements
-are unsupported, issuing `COMMIT;` through `Query()` or `execute()` is also a
-failed statement and makes the transaction rollback-only. In that state, call
+Any query that reaches the database engine and fails aborts the owner and
+leaves the connection rollback-only. This includes query analysis, syntax or
+compilation errors, execution failures, read-only writes, and rejected bulk or
+maintenance operations. Errors rejected by a client binding before the query
+reaches the engine do not change the active transaction; for example, Python
+rejects an invalid `access_mode` with `ValueError`. Because Cypher
+transaction-control statements are unsupported, issuing `COMMIT;` through
+`Query()` or `execute()` is also a failed statement and makes the transaction
+rollback-only. In that state, call
 `Rollback()`/`rollback()` (or close the connection) before issuing another
 query or beginning another transaction. `HasActiveTransaction()` in C++,
 `hasActiveTransaction` in Node.js, and `has_active_transaction` in Python stay

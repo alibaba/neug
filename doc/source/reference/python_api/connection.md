@@ -131,8 +131,10 @@ such as `__iter__` and `__next__`.
 
 If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
 
-Inside an explicit transaction, a failed query leaves the transaction
-rollback-only. Call `rollback()` before executing another query.
+Inside an explicit transaction, a query that reaches the database engine and
+fails leaves the transaction rollback-only. Call `rollback()` before executing
+another query. Client-side validation errors that occur before execution, such
+as an invalid `access_mode`, do not change the transaction state.
 
 Some of the cypher queries could change the state of the database, such as `CREATE NODE TABLE`, `INSERT`,
 `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
