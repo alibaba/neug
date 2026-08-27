@@ -32,7 +32,6 @@
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/main/checkpoint_coordinator.h"
 #include "neug/main/query_request.h"
-#include "neug/main/transaction_context.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_stats.h"
 #include "neug/storages/graph/property_graph.h"
@@ -47,6 +46,7 @@
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
+#include "transaction_context.h"
 
 namespace neug {
 

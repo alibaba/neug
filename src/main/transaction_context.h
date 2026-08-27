@@ -26,14 +26,6 @@
 
 namespace neug {
 
-/** Access policy fixed when a Connection begins an explicit transaction. */
-enum class TransactionMode : uint8_t {
-  /** Pin a published read view and reject writes. */
-  kReadOnly,
-  /** Hold a private AP COW view and publish it only at Commit(). */
-  kReadWrite,
-};
-
 /**
  * @brief Connection-owned explicit transaction state and concrete owner.
  *
@@ -61,17 +53,15 @@ class TransactionContext {
     return state_ == State::kRollbackOnly;
   }
   bool IsReadOnly() const noexcept {
-    return mode_ == TransactionMode::kReadOnly;
+    return std::holds_alternative<SnapshotReadTransaction>(transaction_);
   }
   void Begin(SnapshotReadTransaction transaction) {
     transaction_.emplace<SnapshotReadTransaction>(std::move(transaction));
-    mode_ = TransactionMode::kReadOnly;
     state_ = State::kActive;
   }
 
   void Begin(CurrentCowWriteTransaction transaction) {
     transaction_.emplace<CurrentCowWriteTransaction>(std::move(transaction));
-    mode_ = TransactionMode::kReadWrite;
     state_ = State::kActive;
   }
 
@@ -144,7 +134,6 @@ class TransactionContext {
   }
 
   State state_{State::kIdle};
-  TransactionMode mode_{TransactionMode::kReadOnly};
   std::variant<std::monostate, SnapshotReadTransaction,
                CurrentCowWriteTransaction>
       transaction_;
