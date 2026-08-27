@@ -31,7 +31,7 @@ conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 ### Since version v0.2
 
 Since version v0.2, auto-commit remains the default in every supported
-interface. The embedded C++ and Node.js `Connection` APIs additionally support
+interface. The embedded C++, Node.js, and Python `Connection` APIs support
 programmatic explicit transactions for AP mode, as described below.
 
 #### Explicit Transactions in Embedded AP Mode
@@ -39,7 +39,7 @@ programmatic explicit transactions for AP mode, as described below.
 An explicit transaction is owned by its `Connection` and spans multiple
 queries:
 
-<Tabs items={['C++', 'Node.js']}>
+<Tabs items={['C++', 'Node.js', 'Python']}>
 
 <Tab>
 
@@ -70,38 +70,53 @@ conn.commit(); // Publishes all successful writes as one commit.
 
 </Tab>
 
+<Tab>
+
+```python
+conn.begin_transaction()
+created = conn.execute("CREATE (:Person {name: 'Alice'})", "insert")
+visible = conn.execute("MATCH (p:Person) RETURN p.name")
+conn.commit()
+```
+
+</Tab>
+
 </Tabs>
 
 In C++, `TransactionMode::kReadOnly` pins one read view for the entire
 transaction and rejects writes; in Node.js, use
-`beginTransaction({ readOnly: true })`. C++
-`TransactionMode::kReadWrite` and the default Node.js mode hold one private COW
-write view: successful statements can read their own writes, but private
-changes are not published until `Commit()` or `commit()` succeeds. An AP
-read-write transaction holds exclusive AP admission for its full lifetime. Any
-AP operation that contends for that admission waits until the transaction is
-committed, rolled back, or its connection is closed; explicit transactions
-currently have no timeout. Applications should therefore finish them promptly.
-Embedded READ_WRITE mode currently allows only one public `Connection` at a
-time.
+`beginTransaction({ readOnly: true })`; in Python, use
+`begin_transaction(read_only=True)`. C++ `TransactionMode::kReadWrite`, the
+default Node.js mode, and the default Python mode hold one private COW write
+view: successful statements can read their own writes, but private changes are
+not published until `Commit()` or `commit()` succeeds. An AP read-write
+transaction holds exclusive AP admission for its full lifetime. Any AP operation
+that contends for that admission waits until the transaction is committed,
+rolled back, or its connection is closed; explicit transactions currently have
+no timeout. Applications should therefore finish them promptly. Embedded
+READ_WRITE mode currently allows only one public `Connection` at a time.
 
-Any failed query call aborts the owner and leaves the connection rollback-only.
-This includes query analysis, syntax or compilation errors, access-mode or
-parameter validation errors, execution failures, read-only writes, and rejected
-bulk or maintenance operations. Because Cypher transaction-control statements
-are unsupported, issuing `COMMIT;` through `Query()` or `execute()` is also a
-failed statement and makes the transaction rollback-only. In that state, call
+Any query that reaches the database engine and fails aborts the owner and
+leaves the connection rollback-only. This includes query analysis, syntax or
+compilation errors, execution failures, read-only writes, and rejected bulk or
+maintenance operations. Errors rejected by a client binding before the query
+reaches the engine do not change the active transaction; for example, Python
+rejects an invalid `access_mode` with `ValueError`. Because Cypher
+transaction-control statements are unsupported, issuing `COMMIT;` through
+`Query()` or `execute()` is also a failed statement and makes the transaction
+rollback-only. In that state, call
 `Rollback()`/`rollback()` (or close the connection) before issuing another
-query or beginning another transaction. `HasActiveTransaction()` in C++ and
-`hasActiveTransaction` in Node.js stay true while the connection is
-rollback-only. Nested begin and invalid programmatic control calls report a
-transaction-state error without changing an otherwise active transaction.
+query or beginning another transaction. `HasActiveTransaction()` in C++,
+`hasActiveTransaction` in Node.js, and `has_active_transaction` in Python stay
+true while the connection is rollback-only. Nested begin and invalid
+programmatic control calls report a transaction-state error without changing an
+otherwise active transaction.
 
-This first API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`;
-use the programmatic `Connection` methods shown above. It also does not yet
-include TP service sessions, remote clients, Python or Java bindings,
-savepoints, transaction timeouts, or explicit-transaction `COPY`, batch, index,
-checkpoint, procedure calls, or temporary schema operations.
+This API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`; use the
+programmatic `Connection` methods shown above. It does not yet include TP
+service sessions, remote clients, Java bindings, savepoints, transaction
+timeouts, or explicit-transaction `COPY`, batch, index, checkpoint, procedure
+calls, or temporary schema operations.
 
 ## Deployment Modes Overview
 
