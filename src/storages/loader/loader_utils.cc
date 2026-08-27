@@ -67,6 +67,7 @@ size_t resolve_chunk_size(const CsvReadConfig& config) {
 
 csv::CSVFormat build_csv_format(const CsvReadConfig& config) {
   csv::CSVFormat csv_format;
+  csv_format.threading(config.use_threads);
   csv_format.delimiter(config.delimiter);
   if (config.quoting) {
     csv_format.quote(config.quote_char);
@@ -630,13 +631,14 @@ class CsvRowCountCounter {
   // separately, and RowNum() is only a pre-allocation hint, so a slight
   // overcount (by at most skip_rows, typically 1 for header) is safe.
   CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
-                     bool double_quote, char delimiter,
+                     bool double_quote, char delimiter, bool use_threads,
                      io::InputStreamFactory stream_factory = nullptr)
       : file_path_(std::move(file_path)),
         quoting_(quoting),
         quote_char_(quote_char),
         double_quote_(double_quote),
         delimiter_(delimiter),
+        use_threads_(use_threads),
         stream_factory_(std::move(stream_factory)) {}
 
   int64_t count() const {
@@ -650,6 +652,8 @@ class CsvRowCountCounter {
     auto file_size = static_cast<size_t>(st.st_size);
     if (file_size == 0)
       return 0;
+    if (!use_threads_)
+      return count_single(file_size);
 
     constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
     unsigned num_threads = std::thread::hardware_concurrency();
@@ -847,6 +851,7 @@ class CsvRowCountCounter {
   char quote_char_;
   bool double_quote_;
   char delimiter_;
+  bool use_threads_;
   io::InputStreamFactory stream_factory_;
 };
 
@@ -876,7 +881,7 @@ struct CsvSupplierRuntime {
     }
     row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
                                   config.double_quote, config.delimiter,
-                                  stream_factory_)
+                                  config.use_threads, stream_factory_)
                    .count();
     reset_reader();
   }
@@ -1269,6 +1274,19 @@ CsvReadConfig build_csv_read_config(
     }
     auto value = csv_options.at("DOUBLE_QUOTE");
     config.double_quote = (value == "true" || value == "1" || value == "TRUE");
+  }
+
+  if (csv_options.count("PARALLEL")) {
+    auto value = to_lower_copy(csv_options.at("PARALLEL"));
+    if (value == "true" || value == "1" || value == "yes" || value == "on") {
+      config.use_threads = true;
+    } else if (value == "false" || value == "0" || value == "no" ||
+               value == "off") {
+      config.use_threads = false;
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " +
+                                       csv_options.at("PARALLEL"));
+    }
   }
 
   bool header_row = true;
