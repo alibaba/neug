@@ -446,14 +446,6 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
       RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
                           "COPY is not supported in an explicit transaction."));
     }
-    if (analysis.explain_mode != ExplainMode::kExplain &&
-        analysis.is_index_statement) {
-      transaction_context.AbortAndMarkRollbackOnly();
-      RETURN_ERROR(Status(
-          StatusCode::ERR_NOT_SUPPORTED,
-          "Index operations are not supported in an explicit transaction."));
-    }
-
     const auto requested_mode = access_mode.empty()
                                     ? AccessMode::kUnKnown
                                     : ParseAccessMode(access_mode);

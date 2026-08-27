@@ -42,7 +42,7 @@ inputs, queries compile against the private view without consulting the local or
 global query cache. Ordinary DML continues to reuse plans compiled for the
 unchanged schema. A regular statement failure aborts the concrete owner and
 leaves the connection rollback-only; `Rollback()`, `Close()`, and destruction
-clear it. Cypher transaction-control text, bulk, index,
+clear it. Cypher transaction-control text, bulk,
 checkpoint/maintenance, procedure calls, and temporary-schema operations are
 rejected in this first embedded API before their side effects.
 

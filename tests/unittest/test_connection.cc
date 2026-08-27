@@ -32,6 +32,7 @@
 
 #include <gtest/gtest.h>
 
+#include "../storage/test_index_common.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/metadata_registry.h"
@@ -40,6 +41,8 @@
 #include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/index/storage_index_manager.h"
+#include "neug/storages/module/module_factory.h"
 #include "neug/transaction/wal/local_wal_parser.h"
 #include "neug/utils/exception/exception.h"
 #include "unittest/utils.h"
@@ -78,6 +81,12 @@ bool HasPrepareForServingTestFunction() {
 class ConnectionTest : public ::testing::Test {
  protected:
   static constexpr const char* DB_DIR = "/tmp/connection_test";
+
+  static void SetUpTestSuite() {
+    ModuleFactory::instance().Register(
+        kExampleIndexType, [] { return std::make_unique<ExampleIndex>(); });
+  }
+
   void SetUp() override {
     if (std::filesystem::exists(DB_DIR)) {
       std::filesystem::remove_all(DB_DIR);
@@ -417,6 +426,43 @@ TEST_F(ConnectionTest, ExplicitTransactionAllowsExplainWithoutMutation) {
   ASSERT_TRUE(conn->Rollback().ok());
 }
 
+TEST_F(ConnectionTest, ExplicitTransactionCommitsAndRollsBackIndexDDL) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  ASSERT_TRUE(db.Open(config));
+
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE ExplicitIndexNode (id INT64, age INT32, PRIMARY "
+      "KEY(id));",
+      "schema"));
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE INDEX explicit_transaction_index ON ExplicitIndexNode USING "
+      "example (age);",
+      "schema"));
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_TRUE(
+      db.graph().index_manager().GetIndexByName("explicit_transaction_index"));
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query("DROP INDEX explicit_transaction_index;", "schema"));
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_TRUE(
+      db.graph().index_manager().GetIndexByName("explicit_transaction_index"));
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query("DROP INDEX explicit_transaction_index;", "schema"));
+  ASSERT_TRUE(conn->Commit().ok());
+  auto dropped =
+      db.graph().index_manager().GetIndexByName("explicit_transaction_index");
+  EXPECT_FALSE(dropped);
+  EXPECT_EQ(dropped.error().error_code(), StatusCode::ERR_NOT_FOUND);
+}
+
 TEST_F(ConnectionTest,
        ExplicitTransactionRejectsUnsupportedOperationsAndBecomesRollbackOnly) {
   const char* csv_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
@@ -438,9 +484,6 @@ TEST_F(ConnectionTest,
        "COPY (MATCH (n:person) RETURN n.*) TO '" + export_path +
            "' (header=true);",
        "read"},
-      {"index DDL",
-       "CREATE INDEX explicit_transaction_index ON person USING hnsw (age);",
-       "schema"},
       {"batch data source", "LOAD FROM \"" + person_csv + "\" RETURN *;",
        "update"},
       {"procedure call",

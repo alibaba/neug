@@ -210,10 +210,6 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
     return;
   }
   analysis.is_copy_statement = isKeyword(statement, "COPY");
-  if (isKeyword(statement, "CREATE") || isKeyword(statement, "DROP")) {
-    analysis.is_index_statement =
-        isKeyword(nextKeyword(query, offset), "INDEX");
-  }
   if (analysis.explain_mode != ExplainMode::kNone) {
     return;
   }
