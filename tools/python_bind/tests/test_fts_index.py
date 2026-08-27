@@ -213,9 +213,12 @@ def test_fts_multi_column_index_supports_partial_null_values(
     )
     assert {row[0] for row in title_rows} == {1, 5}
 
-    fts_multi_column_database.execute(
-        "MATCH (a:Article) WHERE a.id = 4 SET a.description = NULL;"
-    )
+    with pytest.raises(
+        RuntimeError, match="Setting NULL for property description"
+    ):
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) WHERE a.id = 4 SET a.description = NULL;"
+        )
     description_rows = list(
         fts_multi_column_database.execute(
             "MATCH (a:Article) "
@@ -223,7 +226,7 @@ def test_fts_multi_column_index_supports_partial_null_values(
             "ORDER BY score ASC;"
         )
     )
-    assert [row[0] for row in description_rows] == [2]
+    assert {row[0] for row in description_rows} == {2, 4}
 
 
 def test_fts_bm25_rejects_duplicate_properties(fts_multi_column_database):
@@ -675,7 +678,7 @@ def test_fts_rejects_null_property_updates(tmp_path):
     connection.execute("CREATE INDEX item_text_fts ON Item USING FTS (text);")
     assert [row[0] for row in search(connection, "visible")] == [1]
 
-    with pytest.raises(RuntimeError, match="Property type mismatch"):
+    with pytest.raises(RuntimeError, match="Setting NULL for property text"):
         connection.execute("MATCH (n:Item) WHERE n.id = 1 SET n.text = NULL;")
     assert [row[0] for row in search(connection, "visible")] == [1]
     connection.execute("CHECKPOINT;")

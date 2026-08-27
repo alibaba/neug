@@ -412,7 +412,7 @@ def test_documented_schema_index_and_query_examples(tmp_path):
         conn.execute(
             "MATCH (n:vector_node) WHERE n.id = 1 " "SET n.vec = [0.2, 0.2, 0.1, 0.1];"
         )
-        with pytest.raises(RuntimeError, match="Property type mismatch"):
+        with pytest.raises(RuntimeError, match="Setting NULL for property vec"):
             conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
         after_failed_null = list(
             conn.execute(

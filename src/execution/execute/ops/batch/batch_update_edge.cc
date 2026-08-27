@@ -123,6 +123,10 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
         }
 
         auto value = record_expression.eval_record(chunk.chunk(), row);
+        if (value.IsNull()) {
+          THROW_NOT_SUPPORTED_EXCEPTION("Setting NULL for property " +
+                                        property_name);
+        }
         if (edge_schema->properties[property_id] != value.type()) {
           THROW_RUNTIME_ERROR("Property type mismatch for property " +
                               property_name);

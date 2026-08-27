@@ -101,6 +101,10 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
       int32_t col_id = std::distance(property_names.begin(), pos);
       assert(col_id >= 0 &&
              col_id < static_cast<int32_t>(property_names.size()));
+      if (value.IsNull()) {
+        THROW_NOT_SUPPORTED_EXCEPTION("Setting NULL for property " +
+                                      prop_name);
+      }
       if (property_types[col_id] != value.type()) {
         THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
       }
