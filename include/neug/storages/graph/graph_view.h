@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "neug/storages/allocators.h"
@@ -176,6 +177,21 @@ class GraphView {
                  Allocator& alloc, int32_t& oe_offset, const void*& prop);
 
   void Rebuild(PropertyGraph& pg);
+
+  // MSVC's std::unordered_map has non-noexcept move operations, so the
+  // defaulted GraphView move operations (and std::swap on GraphView) are not
+  // noexcept either. Swap members individually instead: every member's swap
+  // is noexcept, which keeps in-place snapshot replacement nothrow.
+  void swap(GraphView& other) noexcept {
+    using std::swap;
+    swap(dirty_, other.dirty_);
+    swap(schema_, other.schema_);
+    swap(index_manager_, other.index_manager_);
+    vertex_views_.swap(other.vertex_views_);
+    edge_views_.swap(other.edge_views_);
+  }
+
+  friend void swap(GraphView& a, GraphView& b) noexcept { a.swap(b); }
 
   void MarkVertexTableDirty(label_t label) {
     assert(dirty_ != nullptr);

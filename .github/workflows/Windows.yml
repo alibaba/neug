@@ -5,6 +5,14 @@ on:
   release:
     types:
       - created
+  # Opt-in only: Windows CI is slow, so PRs run it solely when a maintainer
+  # adds the `ci:windows` label. `synchronize` keeps it re-running on new
+  # pushes of labeled PRs; unlabeled PRs skip every job.
+  pull_request:
+    types:
+      - labeled
+      - synchronize
+      - reopened
   push:
     paths:
       - 'cmake/**'
@@ -32,7 +40,7 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'release' ||
-      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:windows')) ||
       (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))
     uses: ./.github/workflows/format-check.yml
     with:
@@ -45,7 +53,7 @@ jobs:
   # ============================================================
   build_and_test_windows:
     needs: format_check
-    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'release' || github.event_name == 'pull_request' || (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))) }}
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && (github.event_name == 'workflow_dispatch' || github.event_name == 'release' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:windows')) || (github.event_name == 'push' && (github.repository != 'alibaba/neug' || github.ref == 'refs/heads/main'))) }}
     runs-on: windows-2022
     timeout-minutes: 120
     defaults:
