@@ -97,11 +97,62 @@ class Connection(object):
 
     def close(self):
         """
-        Close the connection.
+        Close the connection. An active explicit transaction is rolled back.
         """
         if self._is_open:
             self._py_connection.close()
             self._is_open = False
+
+    @property
+    def has_active_transaction(self) -> bool:
+        """Whether this connection has an active explicit transaction.
+
+        The property remains true while a failed transaction is rollback-only.
+        Call :meth:`rollback` to return the connection to auto-commit mode.
+        """
+        return self._is_open and self._py_connection.has_active_transaction
+
+    def begin_transaction(self, read_only: bool = False):
+        """Begin an explicit embedded AP transaction.
+
+        Parameters
+        ----------
+        read_only : bool
+            Pin one read view and reject writes when true. The default starts a
+            read-write transaction with a private COW view.
+
+        Raises
+        ------
+        RuntimeError
+            If the connection is closed or already has an active transaction.
+        """
+        if not self._is_open:
+            raise RuntimeError(
+                f"Connection is closed. Please open the connection before beginning a transaction. "
+                f"Error code: {ERR_CONNECTION_CLOSED}"
+            )
+        self._py_connection.begin_transaction(read_only)
+
+    def commit(self):
+        """Commit the active explicit transaction.
+
+        A rollback-only transaction must be rolled back instead.
+        """
+        if not self._is_open:
+            raise RuntimeError(
+                f"Connection is closed. Please open the connection before committing a transaction. "
+                f"Error code: {ERR_CONNECTION_CLOSED}"
+            )
+        self._py_connection.commit()
+
+    def rollback(self):
+        """Roll back the active explicit transaction and return to auto-commit."""
+        if not self._is_open:
+            raise RuntimeError(
+                f"Connection is closed. Please open the connection before rolling back a transaction. "
+                f"Error code: {ERR_CONNECTION_CLOSED}"
+            )
+        self._py_connection.rollback()
 
     def execute(
         self, query: str, access_mode="", parameters: Optional[Dict[str, Any]] = None
@@ -120,6 +171,9 @@ class Connection(object):
         such as `__iter__` and `__next__`.
 
         If the query is a DDL or DML query, the result will be an empty `QueryResult` object.
+
+        Inside an explicit transaction, a failed query leaves the transaction
+        rollback-only. Call :meth:`rollback` before executing another query.
 
         Some of the cypher queries could change the state of the database, such as `CREATE TABLE`, `INSERT`,
         `UPDATE`, `DELETE`, etc. Other queries, such as `MATCH(n) RETURN n.id`, will not change the state of
@@ -212,4 +266,9 @@ class Connection(object):
 
         :return: The schema of the NeuG database.
         """
+        if not self._is_open:
+            raise RuntimeError(
+                f"Connection is closed. Please open the connection before getting the schema. "
+                f"Error code: {ERR_CONNECTION_CLOSED}"
+            )
         return self._py_connection.get_schema()

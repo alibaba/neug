@@ -25,13 +25,41 @@ import pytest
 
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_CONNECTION_CLOSED
 from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
-from neug.proto.error_pb2 import ERR_TX_TIMEOUT
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
+
+
+class ConnectionApiTransactionControl:
+    """Explicit transaction control through the embedded Connection API."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def begin(self, read_only=False):
+        self._conn.begin_transaction(read_only=read_only)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+
+@pytest.fixture(
+    params=[pytest.param(ConnectionApiTransactionControl, id="connection-api")]
+)
+def transaction_control(request):
+    """Create the currently supported explicit-transaction control surface.
+
+    Add a Cypher control implementation here only after query-level BEGIN,
+    COMMIT, and ROLLBACK are supported.
+    """
+    return request.param
 
 
 # DB-004-01
@@ -199,156 +227,159 @@ def test_auto_transaction_management(tmp_path):
 
 
 # DB-004-08
-@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
-def test_manual_transaction_management(tmp_path):
+def test_embedded_explicit_transaction_lifecycle(tmp_path, transaction_control):
     db_dir = tmp_path / "manual_tx_mgmt"
-    db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    # BEGIN/COMMIT
-    conn.execute("BEGIN TRANSACTION;")
+    tx = transaction_control(conn)
+
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
+    tx.begin()
+    assert conn.has_active_transaction
     conn.execute("CREATE (n:T {id: 1});")
-    conn.execute("COMMIT;")
-    r = conn.execute("MATCH (n:T) RETURN n;")
-    assert len(r) == 1
+    assert len(conn.execute("MATCH (n:T) RETURN n;")) == 1
+    tx.commit()
+    assert not conn.has_active_transaction
+    assert len(conn.execute("MATCH (n:T) RETURN n;")) == 1
 
-    # BEGIN/ROLLBACK: DML
-    conn.execute("BEGIN TRANSACTION;")
+    tx.begin()
     conn.execute("CREATE (n:T {id: 2});")
-    conn.execute("ROLLBACK;")
-    r2 = conn.execute("MATCH (n:T) RETURN n;")
-    assert len(r2) == 1
+    tx.rollback()
+    assert not conn.has_active_transaction
+    assert len(conn.execute("MATCH (n:T) RETURN n;")) == 1
 
-    # BEGIN/ROLLBACK: CREATE TABLE
-    conn.execute("BEGIN TRANSACTION;")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")  # 已存在
-    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
-    conn.execute("ROLLBACK;")
-    r3 = conn.execute("MATCH (n:T) RETURN n;")
-    assert len(r3) == 1
+    tx.begin()
+    conn.execute("CREATE (n:T {id: 3});")
+    conn.close()
 
-    # BEGIN/ROLLBACK: ALTER TABLE
-    conn.execute("BEGIN TRANSACTION;")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("ALTER TABLE T DROP COLUMN not_exist;")
-    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
-    conn.execute("ROLLBACK;")
-    r4 = conn.execute("MATCH (n:T) RETURN n;")
-    assert len(r4) == 1
-
-    # BEGIN/ROLLBACK: DROP TABLE
-    conn.execute("BEGIN TRANSACTION;")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("DROP TABLE not_exist;")
-    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
-    conn.execute("ROLLBACK;")
-    r5 = conn.execute("MATCH (n:T) RETURN n;")
-    assert len(r5) == 1
-
-    # BEGIN/ROLLBACK: SET properties
-    conn.execute("BEGIN TRANSACTION;")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("MATCH (n:T) WHERE n.id = 1 SET n.not_exist = 1;")
-    assert str(ERR_SCHEMA_MISMATCH) in str(excinfo.value)
-    conn.execute("ROLLBACK;")
-    r6 = conn.execute("MATCH (n:T) RETURN n;")
-    assert len(r6) == 1
-
+    conn = db.connect()
+    assert len(conn.execute("MATCH (n:T) RETURN n;")) == 1
     conn.close()
     db.close()
 
 
-# DB-004-09
-@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
-def test_readonly_transaction_write(tmp_path):
-    db_dir = tmp_path / "readonly_tx_write"
-    db_dir.mkdir()
+def test_embedded_explicit_transaction_state_and_schema(tmp_path, transaction_control):
+    db_dir = tmp_path / "manual_tx_state"
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("BEGIN TRANSACTION READ ONLY;")
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
+    tx = transaction_control(conn)
+
+    conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
+    tx.begin()
+    conn.execute("CREATE NODE TABLE PrivateT(id INT32, PRIMARY KEY(id));")
+    assert "PrivateT" in conn.get_schema()
+    tx.rollback()
+    assert "PrivateT" not in conn.get_schema()
+
+    tx.begin(read_only=True)
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("CREATE (n:T {id: 1});")
     assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
-    conn.execute("ROLLBACK;")
+    assert conn.has_active_transaction
+    with pytest.raises(RuntimeError) as excinfo:
+        tx.commit()
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
+    tx.rollback()
+
+    tx.begin()
+    with pytest.raises(RuntimeError) as excinfo:
+        tx.begin()
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
+    tx.rollback()
+
+    tx.begin()
+    with pytest.raises(RuntimeError):
+        conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
+    assert conn.has_active_transaction
+    with pytest.raises(RuntimeError) as excinfo:
+        tx.commit()
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
+    tx.rollback()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        tx.commit()
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        tx.rollback()
+    assert str(ERR_TX_STATE_CONFLICT) in str(excinfo.value)
+
     conn.close()
     db.close()
 
 
-# DB-004-11
-@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
-def test_nested_transaction(tmp_path):
-    db_dir = tmp_path / "nested_tx"
-    db_dir.mkdir()
+def test_embedded_explicit_transaction_preserves_python_api_contracts(
+    tmp_path, transaction_control
+):
+    db_dir = tmp_path / "python_tx_api_contracts"
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
-    conn.execute("BEGIN TRANSACTION;")
-    with pytest.raises(Exception):
-        conn.execute("BEGIN TRANSACTION;")
-    conn.execute("ROLLBACK;")
+    tx = transaction_control(conn)
+
+    conn.execute("CREATE NODE TABLE T(id INT32, name STRING, PRIMARY KEY(id));")
+    tx.begin()
+    conn.execute("CREATE (n:T {id: 1, name: 'parameterized'});")
+    result = conn.execute(
+        "MATCH (n:T) WHERE n.id = $id RETURN n.name;", parameters={"id": 1}
+    )
+    tx.commit()
+    assert list(result) == [["parameterized"]]
+
+    tx.begin()
+    with pytest.raises(ValueError, match="Invalid access_mode"):
+        conn.execute("MATCH (n:T) RETURN n;", access_mode="invalid")
+    assert conn.has_active_transaction
+    assert len(conn.execute("MATCH (n:T) RETURN n;")) == 1
+    tx.rollback()
+
     conn.close()
+    assert not conn.has_active_transaction
+    for operation in (
+        conn.begin_transaction,
+        conn.commit,
+        conn.rollback,
+        conn.get_schema,
+    ):
+        with pytest.raises(RuntimeError) as excinfo:
+            operation()
+        assert str(ERR_CONNECTION_CLOSED) in str(excinfo.value)
     db.close()
 
 
 # DB-004-12
-@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
-def test_transaction_timeout(tmp_path):
-    db_dir = tmp_path / "tx_timeout"
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
-    conn = db.connect()
-    conn.execute("BEGIN TRANSACTION;")
-    conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    # sleep to trigger timeout, assuming timeout is set to 5 seconds
-    time.sleep(5)
-    with pytest.raises(Exception) as excinfo:
-        conn.execute("COMMIT;")
-    assert str(ERR_TX_TIMEOUT) in str(excinfo.value)
-    conn.close()
-    db.close()
-
-
-# DB-004-13
-@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
-def test_commit_after_rollback(tmp_path):
-    db_dir = tmp_path / "commit_after_rollback"
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
-    conn = db.connect()
-    conn.execute("BEGIN TRANSACTION;")
-    conn.execute("ROLLBACK;")
-    with pytest.raises(Exception):
-        conn.execute("COMMIT;")
-    conn.close()
-    db.close()
+@pytest.mark.skip(
+    reason=(
+        "Embedded AP explicit transactions do not yet expose timeout "
+        "configuration or enforce transaction lifetime."
+    )
+)
+def test_embedded_explicit_transaction_timeout():
+    """Explicit transaction timeout is outside the current API scope."""
 
 
 # DB-004-14
-@pytest.mark.skip(reason="BEGIN TRANSACTION is not planned yet")
-def test_crash_recovery(tmp_path):
-    db_dir = tmp_path / "crash_recovery"
-    db_dir.mkdir()
-    db = Database(db_path=str(db_dir), mode="w")
+def test_embedded_explicit_transaction_crash_recovery(tmp_path, transaction_control):
+    db_dir = tmp_path / "tx_crash_recovery"
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
     conn = db.connect()
-    conn.execute("BEGIN TRANSACTION;")
+    tx = transaction_control(conn)
+
     conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
+    tx.begin()
     conn.execute("CREATE (n:T {id: 1});")
-    conn.execute("COMMIT;")
-    conn.execute("BEGIN TRANSACTION;")
+    tx.commit()
+
+    tx.begin()
     conn.execute("CREATE (n:T {id: 2});")
     conn.close()
     db.close()
-    db2 = Database(db_path=str(db_dir), mode="w")
-    conn2 = db2.connect()
-    # committed transaction should be visible
-    r = conn2.execute("MATCH (n:T) WHERE n.id = 1 RETURN n;")
-    assert len(r) == 1
-    # uncommitted transaction should not be visible
-    r2 = conn2.execute("MATCH (n:T) WHERE n.id = 2 RETURN n;")
-    assert len(r2) == 0
-    conn2.close()
-    db2.close()
+
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    assert len(conn.execute("MATCH (n:T) WHERE n.id = 1 RETURN n;")) == 1
+    assert len(conn.execute("MATCH (n:T) WHERE n.id = 2 RETURN n;")) == 0
+    conn.close()
+    db.close()
 
 
 # DB-004-15

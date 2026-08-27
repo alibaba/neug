@@ -24,7 +24,7 @@
 #include <rapidjson/document.h>
 
 #include "neug/main/query_result.h"
-#include "neug/storages/graph_snapshot_store.h"
+#include "neug/main/transaction_context.h"
 #include "neug/utils/api.h"
 #include "neug/utils/result.h"
 
@@ -35,9 +35,10 @@ class ExecutionSlot;
 /**
  * @brief Database connection for executing Cypher queries.
  *
- * Connection is the primary interface for interacting with a NeuG database.
- * It provides methods to execute Cypher queries, retrieve schema information,
- * and manage the connection lifecycle.
+ * Connection is the primary embedded-mode interface for interacting with a
+ * NeuG database. It provides methods to execute Cypher queries, retrieve
+ * schema information, manage a programmatic AP explicit transaction, and
+ * manage the connection lifecycle.
  *
  * **Usage Example:**
  * @code{.cpp}
@@ -133,6 +134,10 @@ class NEUG_API Connection {
    *
    * @note Use parameterized queries for dynamic values to prevent injection.
    * @note Specifying correct access_mode ensures proper transaction handling.
+   * @note Within an active explicit transaction, this query uses the
+   * connection-owned pinned read view or private COW write view. Cypher
+   * BEGIN/COMMIT/ROLLBACK statements are not supported; use the programmatic
+   * control methods below.
    *
    * @see QueryResult For iterating over results
    *
@@ -142,6 +147,55 @@ class NEUG_API Connection {
                             const std::string& access_mode = "",
                             const rapidjson::Value& parameters =
                                 rapidjson::Value{rapidjson::kObjectType});
+
+  /**
+   * @brief Begin a Connection-owned embedded AP explicit transaction.
+   *
+   * A read-only transaction pins one published read view across Query() calls.
+   * A read-write transaction owns one private COW view; successful writes are
+   * visible to later queries on this Connection and are published together by
+   * Commit(). Read-write AP transactions hold exclusive AP admission until a
+   * terminal operation.
+   *
+   * @return Status::OK on success. Otherwise:
+   *         - ERR_CONNECTION_CLOSED if this Connection is closed
+   *         - ERR_TX_STATE_CONFLICT if a transaction is already active
+   *         - ERR_INVALID_ARGUMENT if the requested mode is invalid or a
+   *           read-write transaction is requested on a read-only database
+   *         - ERR_NOT_SUPPORTED if the execution mode does not support
+   *           embedded explicit transactions
+   *
+   * @note This API is not a Cypher BEGIN statement and does not support nested
+   * transactions or read-to-write upgrades.
+   */
+  Status BeginTransaction(TransactionMode mode = TransactionMode::kReadWrite);
+  /**
+   * @brief Commit the active explicit transaction.
+   *
+   * A read-write transaction appends and publishes its accumulated logical
+   * redo once. A read-only transaction only releases its pinned read view.
+   *
+   * @return A transaction-state error if no transaction is active or it is
+   * rollback-only. A failed commit leaves the Connection rollback-only; call
+   * Rollback() before reusing it.
+   */
+  Status Commit();
+  /**
+   * @brief Abort the active or rollback-only explicit transaction.
+   *
+   * Discards the private COW view, if any, and returns the Connection to idle.
+   */
+  Status Rollback();
+  /**
+   * @brief Return whether this Connection has an unfinished explicit
+   * transaction.
+   *
+   * Returns true for both active and rollback-only states. Only a successful
+   * Commit() or Rollback() returns the Connection to idle.
+   */
+  bool HasActiveTransaction() const noexcept {
+    return transaction_context_.HasActiveTransaction();
+  }
 
   /**
    * @brief Get the database schema as a YAML string.
@@ -158,6 +212,10 @@ class NEUG_API Connection {
    * @return std::string YAML-formatted schema definition
    *
    * @throws std::runtime_error if the connection is closed
+   * @throws TxStateConflictException if the active transaction is rollback-only
+   *
+   * @note During an active explicit transaction this returns that transaction's
+   * pinned read schema or private COW schema, rather than the published schema.
    *
    * @see Schema For programmatic schema access
    *
@@ -181,6 +239,8 @@ class NEUG_API Connection {
    * safe.
    * @note Closing automatically unregisters this connection from its database.
    * @note The connection is also automatically closed in the destructor.
+   * @note An active or rollback-only explicit transaction is rolled back before
+   * temporary schema cleanup and execution-slot destruction.
    *
    * @since v0.1.0
    */
@@ -198,6 +258,7 @@ class NEUG_API Connection {
  private:
   std::unique_ptr<ExecutionSlot> execution_slot_;
   CloseCallback on_close_;
+  TransactionContext transaction_context_;
 
   std::atomic<bool> is_closed_{false};
 };

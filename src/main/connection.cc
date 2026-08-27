@@ -15,7 +15,11 @@
 
 #include "neug/main/connection.h"
 
+#include <exception>
+
 #include "neug/main/execution_slot.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/yaml_utils.h"
 
 namespace neug {
 
@@ -33,6 +37,15 @@ std::string Connection::GetSchema() const {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
+  if (transaction_context_.IsRollbackOnly()) {
+    THROW_TX_STATE_CONFLICT(
+        "Transaction is rollback-only; Rollback() is required before "
+        "GetSchema.");
+  }
+  if (transaction_context_.IsActive()) {
+    auto yaml = transaction_context_.schema().to_yaml();
+    return get_json_string_from_yaml(yaml.value()).value();
+  }
   return execution_slot_->GetSchema();
 }
 
@@ -42,6 +55,8 @@ void Connection::Close() {
     return;
   }
   LOG(INFO) << "Closing connection.";
+
+  transaction_context_.Rollback();
 
   // Clean up all temporary schemas created through embedded execution.
   // This is safe to do globally because LOAD AS is only supported in
@@ -58,6 +73,67 @@ void Connection::Close() {
   }
 }
 
+Status Connection::BeginTransaction(TransactionMode mode) {
+  if (IsClosed()) {
+    return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+  }
+  if (transaction_context_.HasActiveTransaction()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "An explicit transaction is already active.");
+  }
+
+  try {
+    switch (mode) {
+    case TransactionMode::kReadOnly:
+      transaction_context_.Begin(
+          execution_slot_->BeginSnapshotReadTransaction());
+      return Status::OK();
+    case TransactionMode::kReadWrite: {
+      auto transaction = execution_slot_->BeginCurrentCowWriteTransaction();
+      if (!transaction) {
+        return transaction.error();
+      }
+      transaction_context_.Begin(std::move(transaction).value());
+      return Status::OK();
+    }
+    }
+  } catch (const std::exception& e) {
+    return Status::InternalError(
+        std::string("Failed to begin explicit transaction: ") + e.what());
+  } catch (...) {
+    return Status::InternalError("Failed to begin explicit transaction");
+  }
+  return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                "Unsupported explicit transaction mode.");
+}
+
+Status Connection::Commit() {
+  if (IsClosed()) {
+    return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+  }
+  if (transaction_context_.IsRollbackOnly()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "Transaction is rollback-only; Rollback() is required.");
+  }
+  if (!transaction_context_.IsActive()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "No explicit transaction is active.");
+  }
+  return transaction_context_.Commit();
+}
+
+Status Connection::Rollback() {
+  if (IsClosed()) {
+    return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+  }
+  if (!transaction_context_.HasActiveTransaction()) {
+    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
+                  "No explicit transaction is active.");
+  }
+  transaction_context_.Rollback();
+  return Status::OK();
+}
+
 result<QueryResult> Connection::Query(const std::string& query_string,
                                       const std::string& access_mode,
                                       const rapidjson::Value& parameters) {
@@ -66,6 +142,16 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     LOG(ERROR) << "Connection is closed, cannot execute query.";
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
+  }
+  if (transaction_context_.IsRollbackOnly()) {
+    RETURN_ERROR(
+        Status(StatusCode::ERR_TX_STATE_CONFLICT,
+               "Transaction is rollback-only; Rollback() is required."));
+  }
+  if (transaction_context_.IsActive()) {
+    return execution_slot_->ExecuteQueryInTransaction(
+        query_string, access_mode, parameters, /*num_threads=*/0,
+        transaction_context_);
   }
   return execution_slot_->ExecuteQuery(query_string, access_mode, parameters);
 }
