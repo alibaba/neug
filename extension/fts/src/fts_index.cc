@@ -171,7 +171,7 @@ void FTSIndex::ParseOptions() {
   }
 
   static const std::unordered_set<std::string> kKnownOptions = {
-      "tokenizer", "prefix", "detail", "jieba_mode", "jieba_dict"};
+      "tokenizer", "prefix", "jieba_mode", "jieba_dict"};
   for (const auto& [name, value] : meta_->options) {
     if (!kKnownOptions.contains(name)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported FTSIndex option: " + name);
@@ -181,10 +181,6 @@ void FTSIndex::ParseOptions() {
   if (auto option = meta_->options.find("prefix");
       option != meta_->options.end()) {
     prefix_ = option->second;
-  }
-  if (auto option = meta_->options.find("detail");
-      option != meta_->options.end()) {
-    detail_ = option->second;
   }
   if (auto option = meta_->options.find("jieba_dict");
       option != meta_->options.end() && !option->second.empty()) {
@@ -199,7 +195,7 @@ void FTSIndex::ParseOptions() {
   }
   FTSTokenizerConfig tokenizer_config;
   for (const auto& [name, value] : meta_->options) {
-    if (name != "prefix" && name != "detail") {
+    if (name != "prefix") {
       tokenizer_config.emplace(name, value);
     }
   }
@@ -219,7 +215,7 @@ void FTSIndex::CreateTable() {
   if (!prefix_.empty()) {
     sql += ", prefix=" + QuoteSQLiteLiteral(prefix_);
   }
-  sql += ", detail=" + QuoteSQLiteLiteral(detail_) + ");";
+  sql += ");";
   write_connection_->Execute(sql);
 }
 
@@ -416,7 +412,6 @@ std::unique_ptr<Module> FTSIndex::Clone() const {
   cloned->table_name_ = table_name_;
   cloned->tokenizer_ = tokenizer_;
   cloned->prefix_ = prefix_;
-  cloned->detail_ = detail_;
   cloned->bound_columns_ = bound_columns_;
   return cloned;
 }

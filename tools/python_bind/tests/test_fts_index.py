@@ -741,7 +741,7 @@ def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
         ("tokenizer", "unknown", "tokenizer"),
         ("jieba_mode", "mix", "jieba_mode"),
         ("prefix", "2 bad", "prefix"),
-        ("detail", "invalid", "detail"),
+        ("detail", "full", "detail"),
     ],
 )
 def test_create_fts_index_rejects_invalid_options(

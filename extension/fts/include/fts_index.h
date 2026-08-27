@@ -118,7 +118,6 @@ class FTSIndex final : public StorageIndex {
   std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> runtime_file_;
   std::string table_name_;
   std::string prefix_;
-  std::string detail_{"full"};
   std::vector<const ColumnBase*> bound_columns_;
 };
 

@@ -824,7 +824,7 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
                        {"valid_name", {"tokenizer", "unknown"}},
                        {"valid_name", {"Tokenizer", "unicode61"}},
                        {"valid_name", {"prefix", "2 bad"}},
-                       {"valid_name", {"detail", "invalid"}},
+                       {"valid_name", {"detail", "full"}},
                        {"valid_name", {"jieba_mode", "mix"}},
                        {"valid_name", {"jieba_dict", "user.dict.utf8"}},
                        {"valid_name", {"rank", "bm25"}}};
@@ -851,7 +851,6 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
   auto& options = const_cast<IndexMeta&>(valid->GetMeta()).options;
   options["tokenizer"] = "porter unicode61";
   options["prefix"] = "2 3";
-  options["detail"] = "full";
   EXPECT_NO_THROW(
       valid->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory));
 

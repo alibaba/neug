@@ -40,8 +40,7 @@ USING FTS (<string_property> [, <string_property> ...])
     tokenizer = '<tokenizer>',
     jieba_mode = '<jieba_mode>',
     jieba_dict = '<dictionary_path>',
-    prefix = '<prefix_lengths>',
-    detail = '<detail_mode>'
+    prefix = '<prefix_lengths>'
 )];
 ```
 
@@ -119,7 +118,6 @@ The `WITH` clause accepts the following case-sensitive option names:
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
-| `detail` | Match-detail mode: `full`, `column`, or `none` | `full` |
 
 ### Tokenizers
 
@@ -183,16 +181,6 @@ For more details about dictionary formats and usage, see the
 [cppjieba README](https://github.com/yanyiwu/cppjieba/blob/master/README.md) and
 the [jieba README](https://github.com/fxsjy/jieba/blob/master/README.md).
 
-### Match Details
-
-The `detail` option affects the query forms available to users:
-
-- `none` records only the row ID for each term.
-- `column` records the row ID and column for each term, allowing queries to
-  filter matches by column.
-- `full` records the row ID, column, and term offset for each term, additionally
-  supporting phrase queries. This is the default.
-
 For example, the Porter tokenizer can be combined with `unicode61`, and prefix
 indexes can be created for two- and three-character prefixes:
 
@@ -202,13 +190,12 @@ ON Article
 USING FTS (title)
 WITH (
     tokenizer = 'porter unicode61',
-    prefix = '2 3',
-    detail = 'full'
+    prefix = '2 3'
 );
 ```
 
 Invalid tokenizer, tokenizer parameters (for example, `jieba_mode`), prefix,
-or detail settings cause index creation to fail.
+or unsupported settings cause index creation to fail.
 The selected settings cannot be changed in place; drop and recreate the index
 to use different settings.
 
