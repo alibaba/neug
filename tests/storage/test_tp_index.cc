@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,8 +38,11 @@
 #include "neug/storages/index/storage_index_manager.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module_factory.h"
-#include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/cow_graph_storage.h"
+#include "neug/transaction/cow_graph_workspace.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
+#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "test_index_common.h"
@@ -93,6 +97,7 @@ class TPIndexTest : public ::testing::Test {
   void TearDown() override {
     snapshot_store_.reset();
     ap_.reset();
+    workspace_.reset();
     view_.reset();
     graph_.reset();
     checkpoint_mgr_.Close();
@@ -109,8 +114,8 @@ class TPIndexTest : public ::testing::Test {
     graph_ = std::make_shared<PropertyGraph>();
     graph_->Open(ckp, MemoryLevel::kInMemory);
     view_ = std::make_unique<GraphView>(*graph_);
-    ap_ = std::make_unique<StorageAPUpdateInterface>(*graph_, *view_, 0,
-                                                     allocator_);
+    workspace_.emplace(graph_, 0);
+    ap_ = std::make_unique<BulkCowGraphStorage>(*workspace_, 0, 0, allocator_);
     version_manager_.init_ts({0, 0}, 1);
     wal_writer_.records.clear();
     auto global_cache = std::make_shared<execution::GlobalQueryCache>(
@@ -119,25 +124,26 @@ class TPIndexTest : public ::testing::Test {
 
   void StartSnapshotStore() {
     ap_.reset();
+    workspace_.reset();
     view_.reset();
     snapshot_store_ = std::make_unique<GraphSnapshotStore>(16, graph_);
   }
 
-  UpdateTransaction NewUpdateTransaction() {
+  SnapshotCowWriteTransaction NewSnapshotCowWriteTransaction() {
     UpdateTimestampLease timestamp_lease(version_manager_);
     auto [cow_graph, planning_generation] =
         snapshot_store_->CloneCurrentForUpdate();
-    return UpdateTransaction(std::move(cow_graph), planning_generation,
-                             allocator_, wal_writer_, *snapshot_store_,
-                             std::move(timestamp_lease));
+    return SnapshotCowWriteTransaction(
+        std::move(cow_graph), planning_generation, allocator_, wal_writer_,
+        *snapshot_store_, std::move(timestamp_lease));
   }
 
-  ReadTransaction NewReadTransaction() {
-    return ReadTransaction(
+  SnapshotReadTransaction NewSnapshotReadTransaction() {
+    return SnapshotReadTransaction(
         ReadSnapshotLease::Acquire(version_manager_, *snapshot_store_));
   }
 
-  void Commit(UpdateTransaction& txn) { ASSERT_TRUE(txn.Commit()); }
+  void Commit(SnapshotCowWriteTransaction& txn) { ASSERT_TRUE(txn.Commit()); }
 
   void CreatePersonTableAP() {
     CreateVertexTypeParamBuilder builder;
@@ -206,13 +212,14 @@ class TPIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = "embedding";
     meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
-    return ap_->CreateIndex(std::move(meta));
+    GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
+    return std::get<StorageIndex*>(created);
   }
 
   void CreatePersonTableTP() {
     StartSnapshotStore();
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     CreateVertexTypeParamBuilder builder;
     auto status =
         tp.CreateVertexType(builder.VertexLabel("Person")
@@ -257,15 +264,31 @@ class TPIndexTest : public ::testing::Test {
       RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                           "Property column does not exist: " + property_name);
     }
-    return graph.mutable_index_manager().CreateIndex(
+    auto created = graph.mutable_index_manager().CreateIndex(
         std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
         graph.GetVertexSet(label));
+    if (!created) {
+      return tl::unexpected(created.error());
+    }
+    return std::get<StorageIndex*>(created.value());
   }
 
   result<StorageIndex*> CreateIndex(const std::string& name,
                                     const std::string& label_name,
                                     const std::string& property_name) {
     return CreateIndexOnGraph(*graph_, name, label_name, property_name);
+  }
+
+  std::unique_ptr<IndexMeta> PersonAgeIndexMeta(
+      const StorageReadInterface& storage,
+      const std::string& name = "idx_person_age") {
+    auto meta = std::make_unique<IndexMeta>();
+    meta->name = name;
+    meta->type = "example";
+    meta->schema.label_id = storage.schema().get_vertex_label_id("Person");
+    meta->schema.property_name = "age";
+    meta->schema.property_type = DataType::INT32;
+    return meta;
   }
 
   result<StorageIndex*> CreateIndexOnCurrentSnapshot(
@@ -294,8 +317,8 @@ class TPIndexTest : public ::testing::Test {
     return indexes.value();
   }
 
-  void AddPersonTP(StorageTPUpdateInterface& tp, int64_t id,
-                   const std::string& name, int32_t age, vid_t* out = nullptr) {
+  void AddPersonTP(CowGraphStorage& tp, int64_t id, const std::string& name,
+                   int32_t age, vid_t* out = nullptr) {
     auto label = tp.schema().get_vertex_label_id("Person");
     vid_t vid = 0;
     auto status = tp.AddVertex(label, Value::INT64(id),
@@ -326,7 +349,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   std::vector<std::string> SearchPersonNamesInCurrent(int32_t age) {
-    auto txn = NewReadTransaction();
+    auto txn = NewSnapshotReadTransaction();
     StorageReadInterface reader(txn.view(), txn.timestamp());
     auto names = SearchPersonNames(reader, age);
     txn.Commit();
@@ -342,7 +365,7 @@ class TPIndexTest : public ::testing::Test {
   }
 
   std::vector<SearchResult> SearchVectorInCurrent(std::vector<float> query) {
-    auto txn = NewReadTransaction();
+    auto txn = NewSnapshotReadTransaction();
     StorageReadInterface reader(txn.view(), txn.timestamp());
     auto result = SearchVector(reader, std::move(query));
     txn.Commit();
@@ -354,7 +377,8 @@ class TPIndexTest : public ::testing::Test {
   std::shared_ptr<PropertyGraph> graph_;
   std::unique_ptr<GraphView> view_;
   Allocator allocator_{MemoryLevel::kInMemory, ""};
-  std::unique_ptr<StorageAPUpdateInterface> ap_;
+  std::optional<CowGraphWorkspace> workspace_;
+  std::unique_ptr<BulkCowGraphStorage> ap_;
   std::unique_ptr<GraphSnapshotStore> snapshot_store_;
   VersionManager version_manager_;
   CapturingWalWriter wal_writer_;
@@ -374,16 +398,152 @@ TEST_F(TPIndexTest, CreateIndexEmptyGraphAndDuplicateName) {
   EXPECT_EQ(duplicate.error().error_code(), StatusCode::ERR_ILLEGAL_OPERATION);
 }
 
-TEST_F(TPIndexTest, IndexAdminInterfaceIsAPOnly) {
-  // Index management is an AP-only capability: the AP update interface
-  // implements StorageIndexDDLInterface while the TP update interface does
-  // not.
+TEST_F(TPIndexTest, IndexAdminInterfaceIsAvailableInAPAndTP) {
   EXPECT_NE(dynamic_cast<StorageIndexDDLInterface*>(ap_.get()), nullptr);
 
   CreatePersonTableTP();
-  auto txn = NewUpdateTransaction();
-  StorageTPUpdateInterface tp(txn);
-  EXPECT_EQ(dynamic_cast<StorageIndexDDLInterface*>(&tp), nullptr);
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
+  auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&tp);
+  EXPECT_NE(index_ddl, nullptr);
+  txn.Abort();
+}
+
+TEST_F(TPIndexTest, CreateAndDropIndexCommitThroughCowTransaction) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+  auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto created = tp.CreateIndex(PersonAgeIndexMeta(tp));
+    ASSERT_TRUE(created) << created.error().ToString();
+    ASSERT_TRUE(std::holds_alternative<StorageIndex*>(created.value()));
+    Commit(txn);
+  }
+  EXPECT_NE(GetIndexByName("idx_person_age"), nullptr);
+  ASSERT_EQ(wal_writer_.records.size(), 1);
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    Commit(txn);
+  }
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+  ASSERT_EQ(wal_writer_.records.size(), 2);
+
+  for (const auto& wal : wal_writer_.records) {
+    ASSERT_GT(wal.size(), sizeof(WalHeader));
+    const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
+    ReplayCowGraphWal(*replay_graph, header->timestamp,
+                      const_cast<char*>(wal.data() + sizeof(WalHeader)),
+                      header->length, allocator_);
+  }
+  EXPECT_FALSE(replay_graph->index_manager().GetIndexByName("idx_person_age"));
+}
+
+TEST_F(TPIndexTest, AbortedIndexDDLDoesNotAffectCurrentSnapshot) {
+  CreatePersonTableTP();
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
+  ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+  txn.Abort();
+  EXPECT_EQ(GetIndexByName("idx_person_age"), nullptr);
+}
+
+TEST_F(TPIndexTest, ActivateIndexesWithoutPendingIndexIsNoOp) {
+  CreatePersonTableTP();
+  wal_writer_.records.clear();
+
+  SnapshotGuard before(*snapshot_store_);
+  const auto* before_slot = &before.get();
+  const auto snapshot_generation = before.get().snapshot_generation();
+  const auto planning_generation = before.get().planning_generation();
+
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
+  auto activated = tp.ActivateIndexes();
+  ASSERT_TRUE(activated) << activated.error().ToString();
+  EXPECT_EQ(activated.value(), 0u);
+  Commit(txn);
+
+  EXPECT_TRUE(wal_writer_.records.empty());
+  SnapshotGuard after(*snapshot_store_);
+  EXPECT_EQ(&after.get(), before_slot);
+  EXPECT_EQ(after.get().snapshot_generation(), snapshot_generation);
+  EXPECT_EQ(after.get().planning_generation(), planning_generation);
+}
+
+TEST_F(TPIndexTest, WalReplayRestoresCreateDropAndActivateIndexOperations) {
+  CreatePersonTableTP();
+  auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto activated = tp.ActivateIndexes();
+    ASSERT_TRUE(activated);
+    EXPECT_EQ(activated.value(), 0u);
+    Commit(txn);
+  }
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.DropIndex("idx_person_age").ok());
+    Commit(txn);
+  }
+  // No pending indexes exist here, so LOAD-style activation is a no-op and
+  // must not create a schema WAL record.
+  ASSERT_EQ(wal_writer_.records.size(), 2);
+
+  for (const auto& wal : wal_writer_.records) {
+    ASSERT_GT(wal.size(), sizeof(WalHeader));
+    const auto* header = reinterpret_cast<const WalHeader*>(wal.data());
+    ReplayCowGraphWal(*replay_graph, header->timestamp,
+                      const_cast<char*>(wal.data() + sizeof(WalHeader)),
+                      header->length, allocator_);
+  }
+  EXPECT_FALSE(replay_graph->index_manager().GetIndexByName("idx_person_age"));
+}
+
+TEST_F(TPIndexTest, IndexConflictPreflightDoesNotWriteWal) {
+  CreatePersonTableTP();
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    ASSERT_TRUE(tp.CreateIndex(PersonAgeIndexMeta(tp)));
+    Commit(txn);
+  }
+  wal_writer_.records.clear();
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto duplicate = tp.CreateIndex(PersonAgeIndexMeta(tp));
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().error_code(),
+              StatusCode::ERR_ILLEGAL_OPERATION);
+    EXPECT_TRUE(txn.Commit());
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto missing = tp.DropIndex("missing_index");
+    EXPECT_EQ(missing.error_code(), StatusCode::ERR_NOT_FOUND);
+    EXPECT_TRUE(txn.Commit());
+  }
+  EXPECT_TRUE(wal_writer_.records.empty());
 }
 
 TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
@@ -396,8 +556,8 @@ TEST_F(TPIndexTest, DropVertexTypeDeletesBoundIndex) {
       snapshot_store_->CurrentSnapshot().schema().get_vertex_label_id("Person");
   ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
 
-  auto txn = NewUpdateTransaction();
-  StorageTPUpdateInterface tp(txn);
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
   auto status = tp.DeleteVertexType(person_label);
   ASSERT_TRUE(status.ok()) << status.ToString();
   Commit(txn);
@@ -414,8 +574,8 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     DeleteVertexPropertiesParamBuilder delete_builder;
     auto status = tp.DeleteVertexProperties(
         person_label, delete_builder.AddDeleteProperty("age").Build());
@@ -425,8 +585,8 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   EXPECT_TRUE(GetIndexes(person_label, "age").empty());
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     AddVertexPropertiesParamBuilder add_builder;
     auto status = tp.AddVertexProperties(
         person_label,
@@ -440,8 +600,8 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   ASSERT_EQ(GetIndexes(person_label, "score").size(), 1);
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     RenameVertexPropertiesParamBuilder rename_builder;
     auto status = tp.RenameVertexProperties(
         person_label,
@@ -468,8 +628,8 @@ TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
 
   vid_t alice = 0;
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     AddPersonTP(tp, 1, "Alice", 30, &alice);
     AddPersonTP(tp, 2, "Bob", 25);
     AddPersonTP(tp, 3, "Charlie", 30);
@@ -517,12 +677,24 @@ TEST_F(TPIndexTest, APCreateVecColumnAndTPUpdateMaintainsVecIndexSearch) {
       nullptr);
 
   StartSnapshotStore();
+  auto vector_type = DataType::Array(DataType::FLOAT, 2);
+  auto updated_vector =
+      Value::ARRAY(vector_type, {Value::FLOAT(12.0f), Value::FLOAT(12.0f)});
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
-    auto vector_type = DataType::Array(DataType::FLOAT, 2);
-    auto updated_vector =
-        Value::ARRAY(vector_type, {Value::FLOAT(12.0f), Value::FLOAT(12.0f)});
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
+    auto status = tp.UpdateVertexProperty(label, first_vid, 0, updated_vector);
+    ASSERT_TRUE(status.ok()) << status.ToString();
+    txn.Abort();
+  }
+
+  auto after_abort = SearchVectorInCurrent({1.0f, 1.0f});
+  ASSERT_EQ(after_abort.size(), 1);
+  EXPECT_EQ(after_abort.front().vid, first_vid);
+
+  {
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     auto status = tp.UpdateVertexProperty(label, first_vid, 0, updated_vector);
     ASSERT_TRUE(status.ok()) << status.ToString();
 
@@ -546,14 +718,14 @@ TEST_F(TPIndexTest, AbortedVectorVertexDeletePreservesReadSnapshot) {
   ASSERT_TRUE(created) << created.error().ToString();
   StartSnapshotStore();
 
-  auto read_txn = NewReadTransaction();
+  auto read_txn = NewSnapshotReadTransaction();
   StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
   auto before_delete = SearchVector(read_reader, {1.0f, 1.0f});
   ASSERT_EQ(before_delete.size(), 1);
   EXPECT_EQ(before_delete.front().vid, first_vid);
 
-  auto update_txn = NewUpdateTransaction();
-  StorageTPUpdateInterface tp(update_txn);
+  auto update_txn = NewSnapshotCowWriteTransaction();
+  auto tp = update_txn.OpenStorage();
   auto label = tp.schema().get_vertex_label_id("Vector");
   ASSERT_TRUE(tp.DeleteVertex(label, first_vid));
   auto update_results = SearchVector(tp, {1.0f, 1.0f});
@@ -586,8 +758,8 @@ TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
   auto label =
       snapshot_store_->CurrentSnapshot().schema().get_vertex_label_id("Item");
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     vid_t vid = 0;
     ASSERT_TRUE(
         tp.AddVertex(label, Value::INT32(1), {Value::INT32(10)}, vid).ok());
@@ -608,8 +780,8 @@ TEST_F(TPIndexTest, PrimaryKeyIndexMaintainedAcrossVertexLifecycle) {
   }
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     ASSERT_TRUE(tp.DeleteVertexType(label).ok());
     Commit(txn);
   }
@@ -621,8 +793,8 @@ TEST_F(TPIndexTest, BatchAddVerticesIsNotSupportedInTPMode) {
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
   StartSnapshotStore();
 
-  auto txn = NewUpdateTransaction();
-  StorageTPUpdateInterface tp(txn);
+  auto txn = NewSnapshotCowWriteTransaction();
+  auto tp = txn.OpenStorage();
   auto result =
       tp.BatchAddVertices(tp.schema().get_vertex_label_id("Person"), nullptr);
   EXPECT_FALSE(result);
@@ -636,8 +808,8 @@ TEST_F(TPIndexTest, IndexPersistsAfterCheckpointReopen) {
   StartSnapshotStore();
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     for (const auto& person : kPersons) {
       AddPersonTP(tp, person.id, person.name, person.age);
     }
@@ -677,8 +849,8 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
   ASSERT_EQ(GetIndexes(person_label, "age").size(), 1);
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     auto status = tp.DeleteVertexType(person_label);
     ASSERT_TRUE(status.ok()) << status.ToString();
     Commit(txn);
@@ -708,8 +880,8 @@ TEST_F(TPIndexTest, WalReplayRestoresIndexData) {
   auto replay_graph = snapshot_store_->CurrentSnapshot().Clone();
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     AddPersonTP(tp, 1, "Alice", 30);
     AddPersonTP(tp, 2, "Bob", 25);
     AddPersonTP(tp, 3, "Charlie", 30);
@@ -732,10 +904,9 @@ TEST_F(TPIndexTest, WalReplayRestoresIndexData) {
               (std::vector<std::string>{}));
   }
 
-  UpdateTransaction::IngestWal(
-      *replay_graph, header->timestamp,
-      const_cast<char*>(wal.data() + sizeof(WalHeader)), header->length,
-      allocator_);
+  ReplayCowGraphWal(*replay_graph, header->timestamp,
+                    const_cast<char*>(wal.data() + sizeof(WalHeader)),
+                    header->length, allocator_);
   GraphView replay_view(*replay_graph);
   StorageReadInterface replay_reader(replay_view, header->timestamp);
 
@@ -751,15 +922,15 @@ TEST_F(TPIndexTest, AbortDiscardsIndexMutations) {
   StartSnapshotStore();
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     AddPersonTP(tp, 1, "Alice", 30);
     Commit(txn);
   }
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     auto label = tp.schema().get_vertex_label_id("Person");
     vid_t alice = 0;
     ASSERT_TRUE(tp.GetVertexIndex(label, Value::INT64(1), alice));
@@ -790,8 +961,8 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
 
   index_id_t next_index_id_after_abort = 0;
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     vid_t bob = 0;
     AddPersonTP(tp, 2, "Bob", 25, &bob);
     auto* index = dynamic_cast<ExampleIndex*>(GetIndexByName("idx_person_age"));
@@ -802,8 +973,8 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
   }
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     vid_t charlie = 0;
     AddPersonTP(tp, 3, "Charlie", 30, &charlie);
     auto* index = dynamic_cast<ExampleIndex*>(GetIndexByName("idx_person_age"));
@@ -817,23 +988,24 @@ TEST_F(TPIndexTest, AbortDoesNotReuseAllocatedIndexID) {
             (std::vector<std::string>{"Charlie"}));
 }
 
-TEST_F(TPIndexTest, ReadTransactionIsolationFromUpdateTransaction) {
+TEST_F(TPIndexTest,
+       SnapshotReadTransactionIsolationFromSnapshotCowWriteTransaction) {
   CreatePersonTableAP();
   ASSERT_TRUE(CreateIndex("idx_person_age", "Person", "age"));
   StartSnapshotStore();
 
   {
-    auto txn = NewUpdateTransaction();
-    StorageTPUpdateInterface tp(txn);
+    auto txn = NewSnapshotCowWriteTransaction();
+    auto tp = txn.OpenStorage();
     AddPersonTP(tp, 1, "Alice", 30);
     Commit(txn);
   }
 
-  auto read_txn = NewReadTransaction();
+  auto read_txn = NewSnapshotReadTransaction();
   StorageReadInterface read_reader(read_txn.view(), read_txn.timestamp());
 
-  auto update_txn = NewUpdateTransaction();
-  StorageTPUpdateInterface tp(update_txn);
+  auto update_txn = NewSnapshotCowWriteTransaction();
+  auto tp = update_txn.OpenStorage();
   auto label = tp.schema().get_vertex_label_id("Person");
   vid_t alice = 0;
   ASSERT_TRUE(tp.GetVertexIndex(label, Value::INT64(1), alice));

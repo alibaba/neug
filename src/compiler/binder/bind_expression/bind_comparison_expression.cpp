@@ -36,6 +36,18 @@ using namespace neug::function;
 namespace neug {
 namespace binder {
 
+static std::string getUserFacingComparisonTypeName(const DataType& type) {
+  switch (type.id()) {
+  case DataTypeId::kVarchar:
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return LogicalTypeUtils::toString(type.id());
+  default:
+    return type.ToString();
+  }
+}
+
 std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
     const ParsedExpression& parsedExpression) {
   expression_vector children;
@@ -54,9 +66,10 @@ std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
   auto functionName = ExpressionTypeUtil::toString(expressionType);
   DataType combinedType(DataTypeId::kUnknown);
   if (!ExpressionUtil::tryCombineDataType(children, combinedType)) {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "Type Mismatch: Cannot compare types {} and {}",
-        children[0]->dataType.ToString(), children[1]->dataType.ToString()));
+    THROW_BINDER_EXCEPTION(
+        stringFormat("Type Mismatch: Cannot compare types {} and {}",
+                     getUserFacingComparisonTypeName(children[0]->dataType),
+                     getUserFacingComparisonTypeName(children[1]->dataType)));
   }
   if (combinedType.id() == DataTypeId::kUnknown) {
     combinedType = DataType(DataTypeId::kInt8);

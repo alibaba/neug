@@ -18,7 +18,11 @@
 #include <glog/logging.h>
 
 #include "neug/compiler/common/string_utils.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/index/index_utils.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/utils/property/vec_column.h"
 
 namespace neug {
 
@@ -35,10 +39,10 @@ static Status PendingIndexError(const std::string& name,
           "first.");
 }
 
-neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
+neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
     std::unique_ptr<IndexMeta> meta,
     std::unique_ptr<IndexIDAccessor> index_id_accessor,
-    const ColumnBase* column, const VertexSet& vertex_set) {
+    const ColumnBase* column, const VertexSet& vertex_set, bool required) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
@@ -69,6 +73,20 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
   common::StringUtils::toLower(type_name);
   auto module_type = type_name + "_index";
   auto module = ModuleFactory::instance().Create(module_type);
+  if (!module && !required) {
+    ModuleDescriptor desc;
+    desc.module_type = module_type;
+    desc.required = false;
+    desc.set("index_meta", meta->ToJsonString());
+    auto [it, inserted] = pending_indexes_.emplace(
+        name, PendingIndex{GetKey(name), std::move(desc), std::move(*meta),
+                           PendingIndex::State::kCreated});
+    CHECK(inserted);
+    catalog_dirty_ = true;
+    LOG(INFO) << "Deferred new index: " << name << " (type=" << module_type
+              << ") until its extension is loaded";
+    return CreatedIndex{&it->second};
+  }
   auto* raw_index = dynamic_cast<StorageIndex*>(module.get());
   if (!raw_index) {
     RETURN_STATUS_ERROR(StatusCode::ERR_SCHEMA_MISMATCH,
@@ -89,7 +107,7 @@ neug::result<StorageIndex*> StorageIndexManager::CreateIndex(
   indexes_[name] = std::move(index);
   dirty_index_names_.insert(name);
   catalog_dirty_ = true;
-  return raw_ptr;
+  return CreatedIndex{raw_ptr};
 }
 
 Status StorageIndexManager::DropIndex(const std::string& name) {
@@ -311,7 +329,8 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
       auto parsed_meta = IndexMeta::FromJsonString(*index_meta);
       auto name = parsed_meta.name;
       pending_indexes_.emplace(name,
-                               PendingIndex{key, desc, std::move(parsed_meta)});
+                               PendingIndex{key, desc, std::move(parsed_meta),
+                                            PendingIndex::State::kPersisted});
       LOG(INFO) << "Deferred index: " << name << " (type=" << desc.module_type
                 << ") until its extension is loaded";
       continue;
@@ -325,11 +344,11 @@ void StorageIndexManager::Open(std::shared_ptr<Checkpoint> ckp,
 }
 
 result<size_t> StorageIndexManager::ActivateIndexes(
-    const IndexColumns& columns) {
+    const IndexColumns& columns, const IndexVertexSets& vertex_sets) {
   struct Candidate {
     std::string name;
     std::unique_ptr<StorageIndex> index;
-    bool replayed_mutations;
+    bool dirty;
   };
   std::vector<Candidate> candidates;
   auto& factory = ModuleFactory::instance();
@@ -343,10 +362,9 @@ result<size_t> StorageIndexManager::ActivateIndexes(
           StatusCode::ERR_SCHEMA_MISMATCH,
           "Module is not an index type: " + pending.descriptor.module_type);
     }
-    module->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
     std::unique_ptr<StorageIndex> index(
         static_cast<StorageIndex*>(module.release()));
-    const auto& meta = index->GetMeta();
+    const auto& meta = pending.meta;
     auto label_it = columns.find(meta.schema.label_id);
     if (label_it == columns.end()) {
       return Status::InternalError("Invalid label for pending index: " + name);
@@ -356,18 +374,53 @@ result<size_t> StorageIndexManager::ActivateIndexes(
       return Status::InternalError("Invalid property for pending index: " +
                                    name);
     }
-    RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
-    auto replayed = ReplayPendingMutations(*index, pending_mutations_);
-    if (!replayed) {
-      return replayed.error();
+    bool dirty = false;
+    if (pending.state == PendingIndex::State::kCreated) {
+      std::unique_ptr<IndexIDAccessor> accessor;
+      if (IsHNSWIndex(meta)) {
+        auto* vec = dynamic_cast<const VecColumn*>(property_it->second);
+        if (!vec) {
+          return Status::InternalError("Invalid VecColumn for pending index: " +
+                                       name);
+        }
+        accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(
+            *vec->get_offset_accessor());
+      } else {
+        accessor = std::make_unique<DefaultIndexIDAccessor>();
+      }
+      RETURN_IF_NOT_OK(
+          index->Init(std::make_unique<IndexMeta>(meta), std::move(accessor)));
+      ModuleDescriptor desc;
+      desc.module_type = pending.descriptor.module_type;
+      index->Open(*ckp_, desc, memory_level_);
+      RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
+      auto vertices_it = vertex_sets.find(meta.schema.label_id);
+      if (vertices_it == vertex_sets.end()) {
+        return Status::InternalError("Invalid vertex set for pending index: " +
+                                     name);
+      }
+      RETURN_IF_NOT_OK(index->BulkBuild(vertices_it->second));
+      // BulkBuild reads the current graph after WAL replay, so it already
+      // includes mutations recorded after CREATE INDEX. Replaying them again
+      // would apply the same insert/update/delete twice.
+      dirty = true;
+    } else {
+      static_cast<Module*>(index.get())
+          ->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
+      RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
+      auto replayed = ReplayPendingMutations(*index, pending_mutations_);
+      if (!replayed) {
+        return replayed.error();
+      }
+      dirty = replayed.value();
     }
-    candidates.push_back(Candidate{name, std::move(index), replayed.value()});
+    candidates.push_back(Candidate{name, std::move(index), dirty});
   }
 
-  for (auto& [name, index, replayed_mutations] : candidates) {
+  for (auto& [name, index, dirty] : candidates) {
     indexes_[name] = std::move(index);
     pending_indexes_.erase(name);
-    if (replayed_mutations) {
+    if (dirty) {
       dirty_index_names_.insert(name);
     }
     LOG(INFO) << "Activated pending index: " << name;
@@ -376,6 +429,45 @@ result<size_t> StorageIndexManager::ActivateIndexes(
     pending_mutations_.clear();
   }
   return candidates.size();
+}
+
+void StorageIndexManager::RemapCheckpointIndexLabels(
+    CheckpointManifest& manifest, const Schema& source_schema,
+    const Schema& checkpoint_schema) const {
+  for (const auto& [key, descriptor] : manifest.Modules()) {
+    if (!IsIndexModule(key)) {
+      continue;
+    }
+    auto index_meta = descriptor.get("index_meta");
+    if (!index_meta) {
+      continue;
+    }
+
+    auto meta = IndexMeta::FromJsonString(*index_meta);
+    const std::string label_name =
+        meta.schema.label_name.empty()
+            ? source_schema.get_vertex_label_name(meta.schema.label_id)
+            : meta.schema.label_name;
+    if (!checkpoint_schema.is_vertex_label_valid(label_name)) {
+      THROW_RUNTIME_ERROR("Index label was removed from checkpoint schema: " +
+                          label_name);
+    }
+    meta.schema.label_name = label_name;
+    meta.schema.label_id = checkpoint_schema.get_vertex_label_id(label_name);
+    manifest.FindMutableModule(key)->set("index_meta", meta.ToJsonString());
+  }
+}
+
+CheckpointManifest StorageIndexManager::BuildIncrementalReopenManifest(
+    const CheckpointManifest& runtime_manifest) const {
+  CheckpointManifest reopen_manifest;
+  for (const auto& name : dirty_index_names_) {
+    const auto it = indexes_.find(name);
+    CHECK(it != indexes_.end());
+    CHECK(it->second == nullptr);
+    reopen_manifest.ReuseModuleClosureFrom(runtime_manifest, GetKey(name));
+  }
+  return reopen_manifest;
 }
 
 void StorageIndexManager::Dump(ModuleBroker& store, CheckpointManifest& meta) {
@@ -440,15 +532,8 @@ Status StorageIndexManager::ValidateCheckpointPreconditions() const {
 }
 
 void StorageIndexManager::InstallIncrementalCheckpoint(
-    std::shared_ptr<Checkpoint> ckp) {
-  CheckpointManifest reopen_manifest;
-  for (const auto& name : dirty_index_names_) {
-    const auto it = indexes_.find(name);
-    CHECK(it != indexes_.end());
-    CHECK(it->second == nullptr);
-    reopen_manifest.ReuseModuleClosureFrom(ckp->manifest(), GetKey(name));
-  }
-
+    std::shared_ptr<Checkpoint> ckp,
+    const CheckpointManifest& reopen_manifest) {
   ModuleBroker reopened_modules;
   reopened_modules.Open(*ckp, reopen_manifest, memory_level_);
   for (const auto& name : dirty_index_names_) {

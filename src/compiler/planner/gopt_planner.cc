@@ -109,8 +109,30 @@ bool isTokenEnd(char ch) {
 }
 
 void skipQueryWhitespace(std::string_view query, size_t& offset) {
-  while (offset < query.size() && common::StringUtils::isSpace(query[offset])) {
-    ++offset;
+  while (offset < query.size()) {
+    while (offset < query.size() &&
+           common::StringUtils::isSpace(query[offset])) {
+      ++offset;
+    }
+    if (offset + 1 >= query.size() || query[offset] != '/') {
+      return;
+    }
+    if (query[offset + 1] == '/') {
+      offset += 2;
+      while (offset < query.size() && query[offset] != '\n' &&
+             query[offset] != '\r') {
+        ++offset;
+      }
+      continue;
+    }
+    if (query[offset + 1] != '*') {
+      return;
+    }
+    const auto comment_end = query.find("*/", offset + 2);
+    if (comment_end == std::string_view::npos) {
+      return;
+    }
+    offset = comment_end + 2;
   }
 }
 
@@ -185,6 +207,10 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
   if (isKeyword(statement, "CHECKPOINT") && isStatementEnd(query, offset)) {
     analysis.kind = QueryKind::kAdmin;
     analysis.admin = AdminRequest{AdminType::kCheckpoint, std::nullopt};
+    return;
+  }
+  analysis.is_copy_statement = isKeyword(statement, "COPY");
+  if (analysis.explain_mode != ExplainMode::kNone) {
     return;
   }
 

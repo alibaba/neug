@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
 
 #include <glog/logging.h>
 #include <limits>
@@ -26,10 +26,9 @@
 
 namespace neug {
 
-CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
-                                       IWalWriter& wal_writer,
-                                       IVersionManager& vm,
-                                       timestamp_t timestamp)
+InPlaceCompactionTransaction::InPlaceCompactionTransaction(
+    GraphSnapshotStore& snapshot_store, IWalWriter& wal_writer,
+    IVersionManager& vm, timestamp_t timestamp)
     : guard_(snapshot_store),
       wal_writer_(wal_writer),
       vm_(vm),
@@ -37,11 +36,13 @@ CompactTransaction::CompactTransaction(GraphSnapshotStore& snapshot_store,
   arc_.Resize(sizeof(WalHeader));
 }
 
-CompactTransaction::~CompactTransaction() { Abort(); }
+InPlaceCompactionTransaction::~InPlaceCompactionTransaction() { Abort(); }
 
-timestamp_t CompactTransaction::timestamp() const { return timestamp_; }
+timestamp_t InPlaceCompactionTransaction::timestamp() const {
+  return timestamp_;
+}
 
-bool CompactTransaction::Commit() {
+bool InPlaceCompactionTransaction::Commit() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     auto* header = reinterpret_cast<WalHeader*>(arc_.GetBuffer());
     header->length = 0;
@@ -73,7 +74,7 @@ bool CompactTransaction::Commit() {
   return true;
 }
 
-void CompactTransaction::Abort() {
+void InPlaceCompactionTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     arc_.Clear();
     guard_.release();

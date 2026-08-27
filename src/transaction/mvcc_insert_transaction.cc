@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/insert_transaction.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
 
 #include "neug/utils/exception/exception.h"
 
@@ -33,9 +33,11 @@
 
 namespace neug {
 
-InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
-                                     IWalWriter& wal_writer,
-                                     IVersionManager& vm, timestamp_t timestamp)
+MvccInsertTransaction::MvccInsertTransaction(SnapshotGuard guard,
+                                             Allocator& alloc,
+                                             IWalWriter& wal_writer,
+                                             IVersionManager& vm,
+                                             timestamp_t timestamp)
     : guard_(std::move(guard)),
       view_(&guard_.get().mutable_view()),
       alloc_(alloc),
@@ -45,10 +47,10 @@ InsertTransaction::InsertTransaction(SnapshotGuard guard, Allocator& alloc,
   arc_.Resize(sizeof(WalHeader));
 }
 
-InsertTransaction::~InsertTransaction() { Abort(); }
+MvccInsertTransaction::~MvccInsertTransaction() { Abort(); }
 
-bool InsertTransaction::GetVertexIndex(label_t label, const Value& id,
-                                       vid_t& index) const {
+bool MvccInsertTransaction::GetVertexIndex(label_t label, const Value& id,
+                                           vid_t& index) const {
   if (view_->get_lid(label, id, index, timestamp_)) {
     return true;
   }
@@ -60,7 +62,7 @@ bool InsertTransaction::GetVertexIndex(label_t label, const Value& id,
   return false;
 }
 
-Value InsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
+Value MvccInsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
   if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
     return view_->GetOid(label, lid, timestamp_);
   }
@@ -74,9 +76,9 @@ Value InsertTransaction::get_vertex_id(label_t label, vid_t lid) const {
   }
 }
 
-Status InsertTransaction::AddVertex(label_t label, const Value& id,
-                                    const std::vector<Value>& props,
-                                    vid_t& vid) {
+Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
+                                        const std::vector<Value>& props,
+                                        vid_t& vid) {
   std::vector<DataType> types = view_->schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     std::string label_name = view_->schema().get_vertex_label_name(label);
@@ -110,16 +112,17 @@ Status InsertTransaction::AddVertex(label_t label, const Value& id,
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
-    InsertVertexRedo::Serialize(arc_, label, id, props);
+    InsertVertexRedo::Serialize(
+        arc_, view_->schema().get_vertex_label_name(label), id, props);
   }
   return Status::OK();
 }
 
-Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
-                                  label_t dst_label, vid_t dst_vid,
-                                  label_t edge_label,
-                                  const std::vector<Value>& properties,
-                                  const void*& prop) {
+Status MvccInsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
+                                      label_t dst_label, vid_t dst_vid,
+                                      label_t edge_label,
+                                      const std::vector<Value>& properties,
+                                      const void*& prop) {
   const auto& src = get_vertex_id(src_label, src_vid);
   const auto& dst = get_vertex_id(dst_label, dst_vid);
   const auto& types =
@@ -146,13 +149,15 @@ Status InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
                         ", got " + properties[i].type().ToString());
     }
   }
-  InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
-                            properties);
+  const auto& schema = view_->schema();
+  InsertEdgeRedo::Serialize(arc_, schema.get_vertex_label_name(src_label), src,
+                            schema.get_vertex_label_name(dst_label), dst,
+                            schema.get_edge_label_name(edge_label), properties);
   prop = nullptr;
   return Status::OK();
 }
 
-bool InsertTransaction::Commit() {
+bool MvccInsertTransaction::Commit() {
   if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }
@@ -185,7 +190,7 @@ bool InsertTransaction::Commit() {
   return true;
 }
 
-void InsertTransaction::Abort() {
+void MvccInsertTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     LOG(ERROR) << "aborting " << timestamp_ << "-th transaction (insert)";
     view_ = nullptr;
@@ -195,10 +200,11 @@ void InsertTransaction::Abort() {
   }
 }
 
-timestamp_t InsertTransaction::timestamp() const { return timestamp_; }
+timestamp_t MvccInsertTransaction::timestamp() const { return timestamp_; }
 
-void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
-                                  char* data, size_t length, Allocator& alloc) {
+void MvccInsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
+                                      char* data, size_t length,
+                                      Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
@@ -207,26 +213,35 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
     if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
+      const auto label = view.schema().get_vertex_label_id(redo.vertex_type);
+      const auto& oid = redo.oid;
+      const auto& props = redo.props;
       vid_t vid;
-      auto ret =
-          view.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+      auto ret = view.AddVertex(label, oid, props, vid, timestamp);
       THROW_STORAGE_EXCEPTION_STATUS(
           "Failed to add vertex during WAL ingestion", ret);
-      view.MarkVertexTableDirty(redo.label);
+      view.MarkVertexTableDirty(label);
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
+      const auto& schema = view.schema();
+      const auto src_label = schema.get_vertex_label_id(redo.src_type);
+      const auto dst_label = schema.get_vertex_label_id(redo.dst_type);
+      const auto edge_label = schema.get_edge_label_id(redo.edge_type);
+      const auto& src = redo.src;
+      const auto& dst = redo.dst;
+      const auto& properties = redo.properties;
       vid_t src_lid, dst_lid;
-      CHECK(view.get_lid(redo.src_label, redo.src, src_lid, timestamp));
-      CHECK(view.get_lid(redo.dst_label, redo.dst, dst_lid, timestamp));
+      CHECK(view.get_lid(src_label, src, src_lid, timestamp));
+      CHECK(view.get_lid(dst_label, dst, dst_lid, timestamp));
       int32_t oe_offset_unused = 0;
       const void* prop_unused = nullptr;
-      auto ret = view.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
-                              redo.edge_label, redo.properties, timestamp,
-                              alloc, oe_offset_unused, prop_unused);
+      auto ret = view.AddEdge(src_label, src_lid, dst_label, dst_lid,
+                              edge_label, properties, timestamp, alloc,
+                              oe_offset_unused, prop_unused);
       THROW_STORAGE_EXCEPTION_STATUS("Failed to add edge during WAL ingestion",
                                      ret);
-      view.MarkEdgeTableDirty(redo.src_label, redo.dst_label, redo.edge_label);
+      view.MarkEdgeTableDirty(src_label, dst_label, edge_label);
     } else {
       THROW_INTERNAL_EXCEPTION("Unexpected op-" +
                                std::to_string(static_cast<int>(op_type)));
@@ -234,7 +249,7 @@ void InsertTransaction::IngestWal(GraphView& view, uint32_t timestamp,
   }
 }
 
-void InsertTransaction::clear() {
+void MvccInsertTransaction::clear() {
   arc_.Clear();
   added_vertices_.clear();
   added_vertices_base_.clear();
@@ -242,9 +257,9 @@ void InsertTransaction::clear() {
   timestamp_ = INVALID_TIMESTAMP;
 }
 
-const Schema& InsertTransaction::schema() const { return view_->schema(); }
+const Schema& MvccInsertTransaction::schema() const { return view_->schema(); }
 
-void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
+void MvccInsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   if (label >= added_vertices_.size()) {
     added_vertices_base_.resize(label + 1, 0);
     vertex_nums_.resize(label + 1, 0);

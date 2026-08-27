@@ -56,6 +56,11 @@ class CreateEdgeOpr : public IOperator {
       }
       expr_properties.emplace_back(std::move(expr_props));
     }
+    // TODO(liulx20,zhanglei): CREATE on bundled edges may detach or grow CSR
+    // storage,
+    // leaving edge-property pointers in other chunks stale. Preserve the
+    // chunk-oriented apply_chunks path for now; track a compatible fix at
+    // https://github.com/alibaba/neug/issues/927.
     return ctx.apply_chunks(
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
           return CreateEdge::insert_edge(

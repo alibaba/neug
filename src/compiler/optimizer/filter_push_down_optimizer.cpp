@@ -137,6 +137,10 @@ FilterPushDownOptimizer::visitCrossProductReplace(
     }
   }
   if (joinConditions.empty()) {
+    // `remainingPSet` is the residual predicate set that must stay above this
+    // cross product; child-local predicates have already been pushed down into
+    // the probe/build children and must not be reintroduced here.
+    predicateSet = std::move(remainingPSet);
     return finishPushDown(op);
   }
   auto hashJoin = std::make_shared<LogicalHashJoin>(

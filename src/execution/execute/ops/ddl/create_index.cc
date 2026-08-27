@@ -42,6 +42,8 @@ std::unique_ptr<IndexMeta> CreateIndexMeta(
     index_meta->schema.label_id =
         static_cast<label_t>(create_index.vertex_type().id());
   }
+  index_meta->schema.label_name =
+      schema.get_vertex_label_name(index_meta->schema.label_id);
 
   index_meta->type = create_index.create_index_type();
   index_meta->schema.property_name = create_index.property();
@@ -67,8 +69,9 @@ class CreateIndexOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
     if (!index_interface) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_NOT_SUPPORTED,
-                          "CREATE INDEX is only supported in AP update mode");
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_NOT_SUPPORTED,
+          "Current storage interface does not support index DDL");
     }
 
     auto index_meta = CreateIndexMeta(graph.schema(), create_index_);

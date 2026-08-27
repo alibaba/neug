@@ -100,6 +100,34 @@ void VertexTimestamp::Reserve(size_t new_size) {
   max_vertex_num_ = new_size;
 }
 
+void VertexTimestamp::materialize_compacted_range_for_reuse(vid_t v) {
+  assert(v < init_vertex_num_ && v < max_vertex_num_);
+  const auto old_init_vertex_num = init_vertex_num_;
+  const auto old_inserted_vertex_num = max_vertex_num_ - old_init_vertex_num;
+  const auto compacted_range_size = old_init_vertex_num - v;
+
+  auto expanded = make_timestamp_array(max_vertex_num_ - v);
+  // Materialize compacted rows as checkpoint-baseline entries, then restore
+  // deleted rows from the sparse deletion set.
+  for (vid_t i = 0; i < compacted_range_size; ++i) {
+    expanded[i].store(0);
+  }
+  for (vid_t i = 0; i < old_inserted_vertex_num; ++i) {
+    expanded[compacted_range_size + i].store(inserted_vertices_[i].load());
+  }
+
+  if (removed_vertices_) {
+    auto it = removed_vertices_->lower_bound(v);
+    for (auto removed = it; removed != removed_vertices_->end(); ++removed) {
+      assert(*removed < old_init_vertex_num);
+      expanded[*removed - v].store(DELETED_TIMESTAMP);
+    }
+    removed_vertices_->erase(it, removed_vertices_->end());
+  }
+  inserted_vertices_.swap(expanded);
+  init_vertex_num_ = v;
+}
+
 void VertexTimestamp::Swap(VertexTimestamp& other) {
   std::swap(init_vertex_num_, other.init_vertex_num_);
   std::swap(inserted_vertices_, other.inserted_vertices_);

@@ -136,7 +136,7 @@ class ExampleIndex : public StorageIndex {
   }
 
   std::unique_ptr<Module> Clone() const override {
-    auto cloned = std::make_unique<ExampleIndex>();
+    auto cloned = CreateClone();
     if (meta_) {
       cloned->meta_ = std::make_unique<IndexMeta>(*meta_);
     }
@@ -151,6 +151,10 @@ class ExampleIndex : public StorageIndex {
   }
 
  protected:
+  virtual std::unique_ptr<ExampleIndex> CreateClone() const {
+    return std::make_unique<ExampleIndex>();
+  }
+
   result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) override {
     const auto* example_params =

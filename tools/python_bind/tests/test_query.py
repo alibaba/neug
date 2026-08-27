@@ -26,6 +26,8 @@ from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
 
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_NOT_SUPPORTED
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 
@@ -170,6 +172,80 @@ def test_filtering(tinysnb):
     )
     records = list(result)
     assert records == [["Alice"], ["Bob"], ["Dan"]]
+
+
+@pytest.mark.parametrize(
+    "predicate, expected_types",
+    [
+        ("r0.id = b", "STRING and NODE"),
+        ("b = r0.id", "NODE and STRING"),
+    ],
+)
+def test_string_property_cannot_be_compared_with_node(
+    empty_db, predicate, expected_types
+):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE L2(id STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE REL TABLE T0(FROM L2 TO L2, id STRING);",
+        access_mode="schema",
+    )
+
+    query = (
+        "MATCH (a:L2)-[r0:T0]->(b:L2) "
+        f"WHERE {predicate} "
+        "RETURN toString('x') AS value"
+    )
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(query, access_mode="read")
+
+    message = str(excinfo.value)
+    assert str(ERR_COMPILATION) in message
+    assert f"Type Mismatch: Cannot compare types {expected_types}" in message
+    assert str(ERR_INVALID_SCHEMA) not in message
+    assert "Catalog exception" not in message
+    assert "LABELS(" not in message
+
+
+def test_cross_match_where_followed_by_unwind(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE L0(id STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE REL TABLE T0(FROM L0 TO L0, id STRING);",
+        access_mode="schema",
+    )
+
+    query = (
+        "MATCH (a:L0)-[r0:T0]->(b:L0) "
+        "MATCH (a0:L0)-[r1:T0]->(b0:L0) "
+        "WHERE b.id STARTS WITH 'a' "
+        "UNWIND [1, 2] AS u "
+        "RETURN 'x' AS value"
+    )
+
+    result = conn.execute(query, access_mode="read")
+    assert result.column_names() == ["value"]
+    assert list(result) == []
+
+    conn.execute(
+        "CREATE (:L0 {id: 'source'}), (:L0 {id: 'alpha'}), " "(:L0 {id: 'beta'});"
+    )
+    conn.execute(
+        "MATCH (source:L0 {id: 'source'}), (target:L0 {id: 'alpha'}) "
+        "CREATE (source)-[:T0 {id: 'to-alpha'}]->(target);"
+    )
+    conn.execute(
+        "MATCH (source:L0 {id: 'source'}), (target:L0 {id: 'beta'}) "
+        "CREATE (source)-[:T0 {id: 'to-beta'}]->(target);"
+    )
+
+    assert list(conn.execute(query, access_mode="read")) == [["x"]] * 4
 
 
 # DB-003-03

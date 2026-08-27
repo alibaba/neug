@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
 
 #include <utility>
 
@@ -24,22 +24,26 @@
 
 namespace neug {
 
-ReadTransaction::ReadTransaction(ReadSnapshotLease lease)
+SnapshotReadTransaction::SnapshotReadTransaction(ReadSnapshotLease lease)
     : lease_(std::move(lease)) {}
 
-ReadTransaction::~ReadTransaction() { release(); }
+SnapshotReadTransaction::~SnapshotReadTransaction() { release(); }
 
-timestamp_t ReadTransaction::timestamp() const { return lease_.timestamp(); }
+timestamp_t SnapshotReadTransaction::timestamp() const {
+  return lease_.timestamp();
+}
 
-bool ReadTransaction::Commit() {
+bool SnapshotReadTransaction::Commit() {
   release();
   return true;
 }
 
-void ReadTransaction::Abort() { release(); }
+void SnapshotReadTransaction::Abort() { release(); }
 
-const Schema& ReadTransaction::schema() const { return lease_.view().schema(); }
+const Schema& SnapshotReadTransaction::schema() const {
+  return lease_.view().schema();
+}
 
-void ReadTransaction::release() { lease_.release(); }
+void SnapshotReadTransaction::release() { lease_.release(); }
 
 }  // namespace neug

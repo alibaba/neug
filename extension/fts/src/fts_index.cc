@@ -136,17 +136,13 @@ void FTSIndex::ParseOptions() {
   }
 
   static const std::unordered_set<std::string> kKnownOptions = {
-      "tokenizer", "prefix", "detail"};
+      "tokenizer", "prefix", "detail", "jieba_mode", "jieba_dict"};
   for (const auto& [name, value] : meta_->options) {
     if (!kKnownOptions.contains(name)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported FTSIndex option: " + name);
     }
   }
 
-  if (auto option = meta_->options.find("tokenizer");
-      option != meta_->options.end()) {
-    tokenizer_ = option->second;
-  }
   if (auto option = meta_->options.find("prefix");
       option != meta_->options.end()) {
     prefix_ = option->second;
@@ -155,13 +151,31 @@ void FTSIndex::ParseOptions() {
       option != meta_->options.end()) {
     detail_ = option->second;
   }
+  if (auto option = meta_->options.find("jieba_dict");
+      option != meta_->options.end() && !option->second.empty()) {
+    std::error_code error;
+    auto path = std::filesystem::absolute(option->second, error);
+    if (error) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Failed to resolve Jieba user dictionary path " + option->second +
+          ": " + error.message());
+    }
+    option->second = path.lexically_normal().string();
+  }
+  FTSTokenizerConfig tokenizer_config;
+  for (const auto& [name, value] : meta_->options) {
+    if (name != "prefix" && name != "detail") {
+      tokenizer_config.emplace(name, value);
+    }
+  }
+  tokenizer_ = FTSTokenizer::Create(std::move(tokenizer_config));
   table_name_ = "neug_fts_" + meta_->name;
 }
 
 void FTSIndex::CreateTable() {
   std::string sql = "CREATE VIRTUAL TABLE " + table_name_ +
                     " USING fts5(text, content='', tokenize=" +
-                    QuoteSQLiteLiteral(tokenizer_);
+                    QuoteSQLiteLiteral(std::string(tokenizer_->Name()));
   if (!prefix_.empty()) {
     sql += ", prefix=" + QuoteSQLiteLiteral(prefix_);
   }
@@ -261,12 +275,14 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
       file_utils::copy_file(*index_path, runtime_path_, true);
     }
     write_connection_->Open(runtime_path_);
+    tokenizer_->Register(*write_connection_);
     if (has_persisted_path) {
       ValidateExistingTable();
     } else {
       CreateTable();
     }
     read_connection_->Open(runtime_path_);
+    tokenizer_->Register(*read_connection_);
     PrepareStatements();
   } catch (...) {
     FinalizeStatements();

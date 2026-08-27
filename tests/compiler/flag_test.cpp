@@ -162,6 +162,7 @@ TEST_F(FlagTest, CopyFrom) {
   GPhysicalAnalyzer analyzer(getMetadataManager());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
+  EXPECT_TRUE(flag.copy_from);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -178,6 +179,7 @@ TEST_F(FlagTest, CopyTo) {
   GPhysicalAnalyzer analyzer(getMetadataManager());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
+  EXPECT_FALSE(flag.copy_from);
   EXPECT_TRUE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -195,6 +197,7 @@ TEST_F(FlagTest, LoadFrom) {
   GPhysicalAnalyzer analyzer(getMetadataManager());
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
+  EXPECT_FALSE(flag.copy_from);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -202,6 +205,19 @@ TEST_F(FlagTest, LoadFrom) {
   EXPECT_FALSE(flag.create_temp_table);
   EXPECT_FALSE(flag.checkpoint);
   EXPECT_FALSE(flag.procedure_call);
+}
+
+TEST_F(FlagTest, CreateIndex) {
+  std::string query = "CREATE INDEX person_age ON person USING hnsw (age);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  GPhysicalAnalyzer analyzer(getMetadataManager());
+  auto flag = analyzer.analyze(*logical);
+  EXPECT_TRUE(flag.schema);
+  EXPECT_FALSE(flag.copy_from);
+  EXPECT_FALSE(flag.read);
+  EXPECT_FALSE(flag.insert);
+  EXPECT_FALSE(flag.update);
+  EXPECT_FALSE(flag.batch);
 }
 
 // Test 10: CHECKPOINT (transaction operation)

@@ -31,16 +31,6 @@ ExecutionSlotLease TpExecutionSlotPool::AcquireExecutionSlot() {
                             &TpExecutionSlotPool::releaseExecutionSlot);
 }
 
-void TpExecutionSlotPool::RotateWalWriters(const std::string& wal_uri) {
-  for (size_t i = 0; i < slot_num_; ++i) {
-    CHECK(entries_[i].logger != nullptr);
-    entries_[i].logger->close();
-  }
-  for (size_t i = 0; i < slot_num_; ++i) {
-    entries_[i].logger->open(wal_uri);
-  }
-}
-
 void TpExecutionSlotPool::releaseExecutionSlot(void* owner,
                                                size_t slot_id) noexcept {
   auto* pool = static_cast<TpExecutionSlotPool*>(owner);
