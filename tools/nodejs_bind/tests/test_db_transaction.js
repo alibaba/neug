@@ -216,6 +216,10 @@ test('test_explicit_transaction_connection_api', () => {
     () => conn.commit(),
     (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
   );
+  assert.throws(
+    () => conn.getSchema(),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
   conn.rollback();
 
   conn.beginTransaction({ readOnly: true });

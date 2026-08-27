@@ -152,7 +152,15 @@ Napi::Value NodeConnection::HasActiveTransaction(
 }
 
 Napi::Value NodeConnection::GetSchema(const Napi::CallbackInfo& info) {
-  return Napi::String::New(info.Env(), conn_->GetSchema());
+  Napi::Env env = info.Env();
+  try {
+    return Napi::String::New(env, conn_->GetSchema());
+  } catch (const neug::exception::Exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+  } catch (const std::exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+  }
+  return env.Null();
 }
 
 Napi::Value NodeConnection::Close(const Napi::CallbackInfo& info) {
