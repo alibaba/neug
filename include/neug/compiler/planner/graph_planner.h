@@ -37,7 +37,6 @@ enum class ExplainMode {
 enum class QueryKind {
   kRegular,
   kAdmin,
-  kTransactionControl,
 };
 
 enum class AdminType : uint8_t {
@@ -71,9 +70,6 @@ struct QueryAnalysis {
   }
   bool checkpoint() const {
     return isAdmin() && admin->type == AdminType::kCheckpoint;
-  }
-  bool isTransactionControl() const {
-    return kind == QueryKind::kTransactionControl;
   }
 };
 

@@ -323,9 +323,10 @@ class ExecutionSlot {
       QueryResponse& response,
       std::shared_ptr<execution::CacheValue> prepared_query = nullptr);
 
-  Status executeCore(const std::string& query, AccessMode requested_mode,
-                     const rapidjson::Value& parameters, int32_t num_threads,
-                     QueryResponse& response);
+  Status executeAutoCommitQuery(const std::string& query,
+                                AccessMode requested_mode,
+                                const rapidjson::Value& parameters,
+                                int32_t num_threads, QueryResponse& response);
 
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;

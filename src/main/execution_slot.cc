@@ -375,8 +375,8 @@ result<QueryResult> ExecutionSlot::ExecuteQuery(
   const auto requested_mode =
       access_mode.empty() ? AccessMode::kUnKnown : ParseAccessMode(access_mode);
   neug::QueryResponse response;
-  RETURN_STATUS_ERROR_IF_NOT_OK(executeCore(query_string, requested_mode,
-                                            parameters, num_threads, response));
+  RETURN_STATUS_ERROR_IF_NOT_OK(executeAutoCommitQuery(
+      query_string, requested_mode, parameters, num_threads, response));
   return QueryResult(std::move(response));
 }
 
@@ -409,8 +409,7 @@ Status ExecutionSlot::prepareAndExecute(
       query.analysis.explain_mode != ExplainMode::kExplain) {
     const auto& flags = prepared_query->flags;
     if (policy.transaction_scope == QueryTransactionScope::kExplicitReadOnly &&
-        (query.access_mode != AccessMode::kRead ||
-         !IsReadOnlyExecutionFlag(flags))) {
+        query.access_mode != AccessMode::kRead) {
       return Status(StatusCode::ERR_TX_STATE_CONFLICT,
                     "Write queries are not allowed in a read-only "
                     "transaction.");
@@ -441,12 +440,6 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
   try {
     const auto start = std::chrono::high_resolution_clock::now();
     const auto analysis = planner_->analyzeQuery(query_string);
-    if (analysis.isTransactionControl()) {
-      RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
-                          "Transaction control statements are not supported by "
-                          "Connection::Query(); "
-                          "use BeginTransaction(), Commit(), or Rollback()."));
-    }
     if (analysis.explain_mode != ExplainMode::kExplain &&
         analysis.is_copy_statement) {
       transaction_context.AbortAndMarkRollbackOnly();
@@ -516,19 +509,13 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
   }
 }
 
-Status ExecutionSlot::executeCore(const std::string& query,
-                                  AccessMode requested_mode,
-                                  const rapidjson::Value& parameters,
-                                  int32_t num_threads,
-                                  QueryResponse& response) {
+Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
+                                             AccessMode requested_mode,
+                                             const rapidjson::Value& parameters,
+                                             int32_t num_threads,
+                                             QueryResponse& response) {
   const auto start = std::chrono::high_resolution_clock::now();
   const auto analysis = planner_->analyzeQuery(query);
-  if (NEUG_UNLIKELY(analysis.isTransactionControl())) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Transaction control statements are not supported by "
-                  "Connection::Query(); "
-                  "use BeginTransaction(), Commit(), or Rollback().");
-  }
   const auto access_mode = requested_mode == AccessMode::kUnKnown
                                ? analysis.access_mode
                                : requested_mode;
@@ -543,16 +530,20 @@ Status ExecutionSlot::executeCore(const std::string& query,
     RETURN_IF_NOT_OK(validateAdminRequest(*analysis.admin, access_mode));
   }
 
+  auto execute_on_current_snapshot =
+      [this, &analyzed_query, &auto_commit_policy, &response]() -> Status {
+    auto lease = ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
+    StorageReadInterface storage(lease.view(), lease.timestamp());
+    return prepareAndExecute(
+        GraphStats(lease.view(), lease.planning_generation()), storage,
+        analyzed_query, auto_commit_policy, response);
+  };
+
   Status status;
   if (NEUG_UNLIKELY(analysis.explain_mode == ExplainMode::kExplain)) {
     // EXPLAIN is strategy-independent and must not acquire a write transaction,
     // including for EXPLAIN CHECKPOINT.
-    auto read_lease =
-        ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-    StorageReadInterface storage(read_lease.view(), read_lease.timestamp());
-    status = prepareAndExecute(
-        GraphStats(read_lease.view(), read_lease.planning_generation()),
-        storage, analyzed_query, auto_commit_policy, response);
+    status = execute_on_current_snapshot();
   } else if (NEUG_UNLIKELY(analysis.isAdmin())) {
     if (NEUG_UNLIKELY(!parameters.IsObject())) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -562,12 +553,7 @@ Status ExecutionSlot::executeCore(const std::string& query,
   } else if (NEUG_UNLIKELY(execution_strategy_ ==
                            QueryExecutionStrategy::kDirect)) {
     if (access_mode == AccessMode::kRead) {
-      auto lease =
-          ReadSnapshotLease::Acquire(version_manager_, snapshot_store_);
-      StorageReadInterface storage(lease.view(), lease.timestamp());
-      status = prepareAndExecute(
-          GraphStats(lease.view(), lease.planning_generation()), storage,
-          analyzed_query, auto_commit_policy, response);
+      status = execute_on_current_snapshot();
     } else if (access_mode == AccessMode::kInsert ||
                access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
@@ -678,7 +664,7 @@ result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
   google::protobuf::Arena arena;
   auto* response =
       google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
-  RETURN_STATUS_ERROR_IF_NOT_OK(executeCore(
+  RETURN_STATUS_ERROR_IF_NOT_OK(executeAutoCommitQuery(
       query, requested_mode, parameters_json, /*num_threads=*/0, *response));
   return response->SerializeAsString();
 }
