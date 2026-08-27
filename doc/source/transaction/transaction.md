@@ -29,10 +29,10 @@ conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 ### Since version v0.2
 
 Since version v0.2, auto-commit remains the default in every supported
-interface. The embedded C++ `Connection` API additionally supports
+interface. The embedded C++ and Node.js `Connection` APIs additionally support
 programmatic explicit transactions for AP mode, as described below.
 
-#### Explicit Transactions in Embedded C++ AP Mode
+#### Explicit Transactions in Embedded AP Mode
 
 An explicit transaction is owned by its `Connection` and spans multiple
 `Query()` calls:
@@ -72,10 +72,11 @@ calls report a transaction-state error without changing an otherwise active
 transaction.
 
 This first API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`;
-use the C++ methods above. It also does not yet include TP service sessions,
-remote clients, Python or Java bindings, savepoints, transaction timeouts, or
-explicit-transaction `COPY`, batch, checkpoint, procedure calls, or temporary
-schema operations.
+use the C++ methods above or Node.js `beginTransaction()`, `commit()`, and
+`rollback()`. It also does not yet include TP service sessions, remote clients,
+Python or Java bindings, savepoints, transaction timeouts, or
+explicit-transaction `COPY`, batch, index, checkpoint, procedure calls, or
+temporary schema operations.
 
 ## Deployment Modes Overview
 
