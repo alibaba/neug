@@ -51,16 +51,23 @@ status = conn->Commit();  // Publishes all successful writes as one commit.
 
 `TransactionMode::kReadOnly` pins one read view for the entire transaction and
 rejects writes. `TransactionMode::kReadWrite` holds one private COW write view:
-its successful statements can read their own writes, while other connections do
-not observe them until `Commit()` succeeds. AP read-write transactions hold the
-existing exclusive AP admission for their full lifetime, so a long-running
-transaction blocks new AP reads and writes.
+its successful statements can read their own writes, but the private changes
+are not published until `Commit()` succeeds. An AP read-write transaction holds
+exclusive AP admission for its full lifetime. Any AP operation that contends
+for that admission waits until the transaction calls `Commit()`, `Rollback()`,
+or `Close()`; explicit transactions currently have no timeout. Applications
+should therefore finish them promptly. Embedded READ_WRITE mode currently
+allows only one public `Connection` at a time.
 
-An ordinary statement failure, a read-only write, or a rejected bulk or
-maintenance operation aborts the owner and leaves the connection
-rollback-only. In that state, call `Rollback()` (or `Close()`) before issuing
-another query or beginning another transaction. `HasActiveTransaction()` stays
-true while the connection is rollback-only. Nested begin and invalid control
+Any failed `Query()` call aborts the owner and leaves the connection
+rollback-only. This includes query analysis, syntax or compilation errors,
+access-mode or parameter validation errors, execution failures, read-only
+writes, and rejected bulk or maintenance operations. Because Cypher
+transaction-control statements are unsupported, issuing `COMMIT;` through
+`Query()` is also a failed statement and makes the transaction rollback-only.
+In that state, call `Rollback()` (or `Close()`) before issuing another query or
+beginning another transaction. `HasActiveTransaction()` stays true while the
+connection is rollback-only. Nested begin and invalid programmatic control
 calls report a transaction-state error without changing an otherwise active
 transaction.
 

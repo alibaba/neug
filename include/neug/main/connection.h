@@ -157,8 +157,13 @@ class NEUG_API Connection {
    * Commit(). Read-write AP transactions hold exclusive AP admission until a
    * terminal operation.
    *
-   * @return Status::OK on success; ERR_TX_STATE_CONFLICT if a transaction is
-   * already active or the database cannot accept the requested write mode.
+   * @return Status::OK on success. Otherwise:
+   *         - ERR_CONNECTION_CLOSED if this Connection is closed
+   *         - ERR_TX_STATE_CONFLICT if a transaction is already active
+   *         - ERR_INVALID_ARGUMENT if the requested mode is invalid or a
+   *           read-write transaction is requested on a read-only database
+   *         - ERR_NOT_SUPPORTED if the execution mode does not support
+   *           embedded explicit transactions
    *
    * @note This API is not a Cypher BEGIN statement and does not support nested
    * transactions or read-to-write upgrades.
