@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -121,6 +122,25 @@ TEST_F(GraphViewTest, Construction) {
   GraphView view(*graph_);
 
   EXPECT_EQ(view.schema().vertex_label_num(), 1u);
+}
+
+// In-place snapshot replacement swaps GraphView inside a noexcept function;
+// the member-wise swap must stay nothrow on every standard library (MSVC's
+// unordered_map move operations are not noexcept, hence the custom swap).
+TEST_F(GraphViewTest, SwapIsNothrow) {
+  static_assert(std::is_nothrow_swappable_v<neug::GraphView>,
+                "GraphView swap must be noexcept");
+  static_assert(noexcept(std::declval<neug::GraphView&>().swap(
+                    std::declval<neug::GraphView&>())),
+                "GraphView member swap must be noexcept");
+
+  GraphView a(*graph_);
+  GraphView b(*graph_);
+
+  using std::swap;
+  ASSERT_NO_FATAL_FAILURE(swap(a, b));
+  EXPECT_EQ(a.schema().vertex_label_num(), 1u);
+  EXPECT_EQ(b.schema().vertex_label_num(), 1u);
 }
 
 TEST_F(GraphViewTest, GetLid) {
