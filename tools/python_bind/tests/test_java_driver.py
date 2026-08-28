@@ -34,15 +34,12 @@ def test_java_driver_e2e():
 
     db = Database(db_path=db_path, mode="w")
     try:
-        connection = db.connect()
-        try:
+        with db.connect() as connection:
             connection.execute(
                 "CREATE NODE TABLE person "
                 "(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
             )
             connection.execute("CREATE (:person {id: 1, name: 'marko', age: 29});")
-        finally:
-            connection.close()
         db.serve(host=host, port=port, blocking=False)
         wait_until_ready(host, port)
 
