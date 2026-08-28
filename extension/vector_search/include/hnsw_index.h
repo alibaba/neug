@@ -93,6 +93,7 @@ class HNSWIndex final : public StorageIndex {
             const std::string& key) override;
   Status Rebind(const IndexBindContext& context) override;
   Status BulkBuild(const VertexSet& vertices) override;
+  Status Upsert(vid_t vid, const IndexValue& new_value) override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
   std::unique_ptr<Module> Clone() const override;
   static std::string type_name() { return "hnsw_index"; }
@@ -100,7 +101,7 @@ class HNSWIndex final : public StorageIndex {
  protected:
   result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) override;
-  Status AppendImpl(index_id_t index_id, const Value& value) override;
+  Status AppendImpl(index_id_t index_id, const IndexValues& values) override;
 
  private:
   void ParseOptions();
@@ -108,7 +109,7 @@ class HNSWIndex final : public StorageIndex {
 
   std::shared_ptr<zvec::core_interface::Index> zvec_index_;
   std::unique_ptr<HNSWVecSource> vec_source_;
-  std::unique_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
+  std::shared_ptr<CheckpointFileManager::RuntimeFileHandle> zvec_runtime_file_;
   std::string zvec_runtime_path_;
   int dimension_{0};
   int m_{50};

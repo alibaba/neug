@@ -46,9 +46,10 @@ std::unique_ptr<IndexMeta> CreateIndexMeta(
       schema.get_vertex_label_name(index_meta->schema.label_id);
 
   index_meta->type = create_index.create_index_type();
-  index_meta->schema.property_name = create_index.property();
-  index_meta->schema.property_type =
-      parse_from_data_type(create_index.property_type());
+  for (const auto& column : create_index.columns()) {
+    index_meta->schema.columns.push_back(IndexBindColumn{
+        column.property(), parse_from_data_type(column.property_type())});
+  }
   for (const auto& [key, value] : create_index.options()) {
     index_meta->options[key] = value;
   }

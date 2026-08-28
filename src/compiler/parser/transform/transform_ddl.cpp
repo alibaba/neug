@@ -374,7 +374,9 @@ std::unique_ptr<Statement> Transformer::transformCreateIndex(
   info.indexType = transformSchemaName(*schemaNames[2]);
   info.ifNotExists = ctx.nEUG_IfNotExists() != nullptr;
 
-  info.propertyName = transformPropertyKeyName(*ctx.oC_PropertyKeyName());
+  for (auto* property : ctx.oC_PropertyKeyName()) {
+    info.propertyNames.push_back(transformPropertyKeyName(*property));
+  }
 
   // WITH options
   auto* optionsCtx = ctx.nEUG_CreateIndexOptions();

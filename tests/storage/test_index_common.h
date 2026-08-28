@@ -58,11 +58,11 @@ struct ExampleIndexQueryParams : public IndexQueryParams {
 class ExampleIndex : public StorageIndex {
  public:
   Status Rebind(const IndexBindContext& context) override {
-    if (!context.column) {
+    if (context.columns.size() != 1 || !context.columns[0]) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "ExampleIndex requires a property column binding");
+                    "ExampleIndex requires exactly one property column");
     }
-    bound_column_ = context.column;
+    bound_column_ = context.columns[0];
     return Status::OK();
   }
 
@@ -86,9 +86,24 @@ class ExampleIndex : public StorageIndex {
       return Status::InternalError("ExampleIndex is not open");
     }
     for (vid_t vid : vertices) {
-      RETURN_IF_NOT_OK(Upsert(vid, bound_column_->get_any(vid)));
+      RETURN_IF_NOT_OK(Upsert(vid, IndexValue{0, bound_column_->get_any(vid)}));
     }
     return Status::OK();
+  }
+
+  Status Upsert(vid_t vid, const IndexValue& new_value) override {
+    if (new_value.column_id != 0) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "ExampleIndex column id is out of range");
+    }
+    if (!index_id_accessor_) {
+      return Status::InternalError("ExampleIndex is not open");
+    }
+    if (new_value.value.IsNull()) {
+      return Delete(vid);
+    }
+    auto index_id = index_id_accessor_->UpsertVID(vid);
+    return AppendImpl(index_id, IndexValues{new_value.value});
   }
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
@@ -189,7 +204,12 @@ class ExampleIndex : public StorageIndex {
     return results;
   }
 
-  Status AppendImpl(index_id_t index_id, const Value& value) override {
+  Status AppendImpl(index_id_t index_id, const IndexValues& values) override {
+    if (values.size() != 1) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "ExampleIndex requires exactly one value");
+    }
+    const auto& value = values[0];
     if (value.IsNull() || value.type().id() != DataTypeId::kInt32) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "ExampleIndex requires one non-null INT32 value");

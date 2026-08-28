@@ -18,6 +18,7 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/function/function.h"
@@ -33,7 +34,10 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   label_t label_id;
   std::string unique_index_name;
   std::unique_ptr<execution::ExprBase> query_string;
+  std::unique_ptr<execution::ExprBase> weight_values;
+  std::vector<std::string> property_names;
   Value bound_query_string;
+  std::unordered_map<std::string, double> weights;
   std::optional<uint64_t> limit;
   bool ascending{true};
   int32_t node_alias;
@@ -52,6 +56,8 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
     // the per-Eval input needs only the immutable bound scalar, not a copy of
     // the expression tree.
     bound->bound_query_string = bound_query_string;
+    bound->weights = weights;
+    bound->property_names = property_names;
     bound->limit = limit;
     bound->ascending = ascending;
     bound->node_alias = node_alias;

@@ -193,7 +193,7 @@ static bool parse_column_mappings(
 
 static void set_default_csv_loading_config(
     std::unordered_map<std::string, std::string>& metadata) {
-  metadata[reader_options::DELIMITER] = "|";
+  metadata[reader_options::DELIMITER] = reader_options::DEFAULT_CSV_DELIMITER;
   metadata[reader_options::HEADER_ROW] = "true";
   metadata[reader_options::QUOTING] = "false";
   metadata[reader_options::QUOTE_CHAR] = "\"";

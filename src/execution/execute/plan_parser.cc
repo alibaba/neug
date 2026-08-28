@@ -437,8 +437,11 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       break;
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
-      expression_parse(plan.plan(i).opr().index_scan().target_value(),
-                       params_type);
+      const auto& index_scan = plan.plan(i).opr().index_scan();
+      expression_parse(index_scan.target_value(), params_type);
+      if (index_scan.has_weights()) {
+        expression_parse(index_scan.weights(), params_type);
+      }
       break;
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {

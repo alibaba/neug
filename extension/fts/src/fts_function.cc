@@ -29,6 +29,16 @@ function::function_set FTSBM25Function::getFunctionSet() {
   functions.push_back(std::make_unique<function::NeugScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
       DataTypeId::kDouble, Exec));
+  auto multi_column = std::make_unique<function::NeugScalarFunction>(
+      name,
+      std::vector<DataTypeId>{DataTypeId::kArray, DataTypeId::kArray,
+                              DataTypeId::kVarchar},
+      DataTypeId::kDouble, Exec);
+  multi_column->parameterTypes[0] =
+      DataType::Array(DataType(DataTypeId::kUnknown), 0);
+  multi_column->parameterTypes[1] =
+      DataType::Array(DataType(DataTypeId::kUnknown), 0);
+  functions.push_back(std::move(multi_column));
   return functions;
 }
 

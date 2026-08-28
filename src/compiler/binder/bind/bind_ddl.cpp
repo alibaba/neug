@@ -452,9 +452,18 @@ std::unique_ptr<BoundStatement> Binder::bindCreateIndex(
       DataType(DataTypeId::kVertex), parsedInfo.tableName, parsedInfo.tableName,
       std::vector<SchemaEntry*>{tableEntry});
 
-  // 4. Validate the property exists and resolve its type.
-  validateColumnExistence(tableEntry, parsedInfo.propertyName);
-  const auto propDef = tableEntry->get_property(parsedInfo.propertyName);
+  // 4. Validate the properties and resolve their types.
+  common::case_insensitve_set_t property_names;
+  std::vector<common::DataType> property_types;
+  property_types.reserve(parsedInfo.propertyNames.size());
+  for (const auto& property_name : parsedInfo.propertyNames) {
+    if (!property_names.insert(property_name).second) {
+      THROW_BINDER_EXCEPTION("Duplicate index property: " + property_name);
+    }
+    validateColumnExistence(tableEntry, property_name);
+    property_types.push_back(
+        tableEntry->get_property(property_name).getType().copy());
+  }
 
   // 5. Build BoundCreateIndexInfo with lowercase index type
   std::string indexType = parsedInfo.indexType;
@@ -463,8 +472,8 @@ std::unique_ptr<BoundStatement> Binder::bindCreateIndex(
   BoundCreateIndexInfo boundInfo;
   boundInfo.indexName = parsedInfo.indexName;
   boundInfo.pattern = std::move(pattern);
-  boundInfo.propertyName = parsedInfo.propertyName;
-  boundInfo.propertyType = propDef.getType().copy();
+  boundInfo.propertyNames = parsedInfo.propertyNames;
+  boundInfo.propertyTypes = std::move(property_types);
   boundInfo.indexType = std::move(indexType);
   boundInfo.options = parsedInfo.options;
   boundInfo.ifNotExists = parsedInfo.ifNotExists;
