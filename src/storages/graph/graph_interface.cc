@@ -33,35 +33,6 @@ namespace neug {
 
 namespace {
 
-bool ParseNormalizeOption(IndexMeta& meta) {
-  auto option = meta.options.find("normalize");
-  if (option == meta.options.end()) {
-    return false;
-  }
-  if (option->second == "true" || option->second == "TRUE") {
-    option->second = "true";
-    return true;
-  }
-  if (option->second == "false" || option->second == "FALSE") {
-    option->second = "false";
-    return false;
-  }
-  THROW_INVALID_ARGUMENT_EXCEPTION(
-      "HNSW option 'normalize' must be true or false");
-}
-
-bool IsCosineMetric(const IndexMeta& meta) {
-  const auto metric = meta.options.find("metric");
-  return metric != meta.options.end() &&
-         (metric->second == "cosine" || metric->second == "COSINE");
-}
-
-bool RequiresNormalization(const IndexMeta& meta) {
-  auto option = meta.options.find("normalize");
-  return option != meta.options.end() &&
-         (option->second == "true" || option->second == "TRUE");
-}
-
 std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
                                             size_t vid_size,
                                             const Value& default_value,
@@ -348,7 +319,7 @@ neug::result<CreatedIndex> CreateStorageIndex(
                                   label_id, property_name));
     GS_AUTO(pending_indexes, index_manager.GetPendingIndexContainingProperty(
                                  label_id, property_name));
-    const bool normalize = ParseNormalizeOption(*meta);
+    const bool cosine_normalize = ParseCosineNormalizeOption(*meta);
     const bool has_non_hnsw =
         std::any_of(existing_indexes.begin(), existing_indexes.end(),
                     [](const BoundIndexRef& binding) {
@@ -385,18 +356,18 @@ neug::result<CreatedIndex> CreateStorageIndex(
         vec_column ? vec_column.get()
                    : vertex_table.get_table().get_column_by_id(property_col);
     if (auto* vec = dynamic_cast<VecColumn*>(candidate_column)) {
-      if (normalize && !vec->is_l2_normalized()) {
+      if (cosine_normalize && !vec->is_l2_normalized()) {
         const bool has_raw_hnsw =
             std::any_of(
                 existing_indexes.begin(), existing_indexes.end(),
                 [](const BoundIndexRef& binding) {
                   return IsHNSWIndex(binding.index->GetMeta()) &&
-                         !RequiresNormalization(binding.index->GetMeta());
+                         !UsesCosineNormalization(binding.index->GetMeta());
                 }) ||
             std::any_of(pending_indexes.begin(), pending_indexes.end(),
                         [](const StorageIndexManager::PendingIndex* index) {
                           return IsHNSWIndex(index->meta) &&
-                                 !RequiresNormalization(index->meta);
+                                 !UsesCosineNormalization(index->meta);
                         });
         if (has_raw_hnsw) {
           RETURN_STATUS_ERROR(
@@ -408,12 +379,12 @@ neug::result<CreatedIndex> CreateStorageIndex(
         if (!status.ok()) {
           RETURN_ERROR(status);
         }
-      } else if (!normalize && IsCosineMetric(*meta) &&
+      } else if (!cosine_normalize && IsCosineMetric(*meta) &&
                  !vec->SampleIsL2Normalized()) {
         RETURN_STATUS_ERROR(
             StatusCode::ERR_INVALID_ARGUMENT,
             "Cosine HNSW requires L2-normalized vectors; specify "
-            "normalize = true or normalize the property data before "
+            "cosine_normalize = true or normalize the property data before "
             "creating the index");
       }
       index_id_accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(

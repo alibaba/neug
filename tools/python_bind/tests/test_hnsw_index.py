@@ -495,7 +495,7 @@ def test_cosine_normalize_1024d_regression_and_incremental_writes(tmp_path):
         )
         conn.execute(
             "CREATE INDEX normalized_item_hnsw ON NormalizedItem USING HNSW "
-            "(embedding) WITH (metric = 'cosine', normalize = true);"
+            "(embedding) WITH (metric = 'cosine');"
         )
 
         first = list(
@@ -554,7 +554,7 @@ def test_issue_931_cosine_ann_returns_distance_with_normalize(tmp_path):
         )
         conn.execute(
             "CREATE INDEX issue_931_hnsw ON Issue931Node USING HNSW "
-            "(embedding) WITH (metric = 'cosine', normalize = true);"
+            "(embedding) WITH (metric = 'cosine', cosine_normalize = true);"
         )
         conn.execute(
             "MERGE (n:Issue931Node {uuid: 'a'}) "
@@ -598,7 +598,60 @@ def test_issue_931_cosine_ann_returns_distance_with_normalize(tmp_path):
         _close_database(db, conn)
 
 
-def test_normalize_rejects_property_used_by_raw_hnsw_index(tmp_path):
+@pytest.mark.parametrize("metric", ["l2", "ip"])
+def test_cosine_normalize_is_ignored_for_non_cosine_metrics(tmp_path, metric):
+    db, conn = _open_database(
+        tmp_path / f"cosine-normalize-ignored-{metric}", checkpoint_on_close=False
+    )
+    try:
+        conn.execute(
+            "CREATE NODE TABLE RawVectorItem("
+            "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:RawVectorItem {" "id: 1, embedding: [3.0, 4.0, 0.0, 0.0]});"
+        )
+        conn.execute(
+            "CREATE INDEX raw_vector_hnsw ON RawVectorItem USING HNSW "
+            "(embedding) WITH ("
+            f"metric = '{metric}', cosine_normalize = true);"
+        )
+
+        stored = list(
+            conn.execute("MATCH (n:RawVectorItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert stored == pytest.approx([3.0, 4.0, 0.0, 0.0])
+    finally:
+        _close_database(db, conn)
+
+
+def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
+    db, conn = _open_database(
+        tmp_path / "cosine-normalize-disabled", checkpoint_on_close=False
+    )
+    try:
+        conn.execute(
+            "CREATE NODE TABLE UnitVectorItem("
+            "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:UnitVectorItem {" "id: 1, embedding: [0.6, 0.8, 0.0, 0.0]});"
+        )
+        conn.execute(
+            "CREATE INDEX unit_vector_hnsw ON UnitVectorItem USING HNSW "
+            "(embedding) WITH ("
+            "metric = 'cosine', cosine_normalize = false);"
+        )
+
+        stored = list(
+            conn.execute("MATCH (n:UnitVectorItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert stored == pytest.approx([0.6, 0.8, 0.0, 0.0])
+    finally:
+        _close_database(db, conn)
+
+
+def test_cosine_normalize_rejects_property_used_by_raw_hnsw_index(tmp_path):
     """A normalized representation cannot replace data used by a raw index."""
     db, conn = _open_database(
         tmp_path / "normalize-index-conflict", checkpoint_on_close=False
@@ -624,7 +677,7 @@ def test_normalize_rejects_property_used_by_raw_hnsw_index(tmp_path):
             conn.execute(
                 "CREATE INDEX normalized_embedding_hnsw ON ConflictingIndexItem "
                 "USING HNSW (embedding) "
-                "WITH (metric = 'cosine', normalize = true);"
+                "WITH (metric = 'cosine', cosine_normalize = true);"
             )
 
         stored = list(

@@ -497,9 +497,11 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
                   "HNSW index does not support NULL vector values");
   }
   Value index_value = value;
-  auto normalize = meta_->options.find("normalize");
-  if (normalize != meta_->options.end() &&
-      (normalize->second == "true" || normalize->second == "TRUE")) {
+  auto cosine_normalize = meta_->options.find("cosine_normalize");
+  if (metric_ == zvec::core_interface::MetricType::kCosine &&
+      (cosine_normalize == meta_->options.end() ||
+       cosine_normalize->second == "true" ||
+       cosine_normalize->second == "TRUE")) {
     auto status = VectorNormalizer::ValueNormalize(value, index_value);
     if (!status.ok()) {
       return status;

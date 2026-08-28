@@ -590,7 +590,7 @@ TEST_F(APIndexTest, HnswNormalizeTransformsAndMaintainsVecColumn) {
   CreateVectorTable();
   auto first_vid = AddVector(1, 3.0f, 4.0f);
   auto created =
-      CreateVecIndex("idx_vector_normalized", {{"normalize", "true"}});
+      CreateVecIndex("idx_vector_normalized", {{"metric", "cosine"}});
   ASSERT_TRUE(created) << created.error().ToString();
 
   auto label = graph_->schema().get_vertex_label_id("Vector");
@@ -623,7 +623,7 @@ TEST_F(APIndexTest, HnswNormalizeAcceptsZeroVector) {
   CreateVectorTable();
   auto zero_vid = AddVector(1, 0.0f, 0.0f);
   auto created =
-      CreateVecIndex("idx_vector_normalized", {{"normalize", "true"}});
+      CreateVecIndex("idx_vector_normalized", {{"metric", "cosine"}});
   ASSERT_TRUE(created) << created.error().ToString();
 
   auto label = graph_->schema().get_vertex_label_id("Vector");
@@ -641,17 +641,55 @@ TEST_F(APIndexTest, HnswNormalizeRejectsNonFiniteVectorsAtomically) {
   CreateVectorTable();
   AddVector(1, std::numeric_limits<float>::infinity(), 0.0f);
   auto created =
-      CreateVecIndex("idx_vector_normalized", {{"normalize", "true"}});
+      CreateVecIndex("idx_vector_normalized", {{"metric", "cosine"}});
   ASSERT_FALSE(created);
   EXPECT_EQ(created.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
-TEST_F(APIndexTest, CosineHnswWithoutNormalizeRequiresUnitSamples) {
+TEST_F(APIndexTest, CosineHnswWithNormalizationDisabledRequiresUnitSamples) {
   CreateVectorTable();
   AddVector(1, 3.0f, 4.0f);
-  auto created = CreateVecIndex("idx_vector_cosine", {{"metric", "cosine"}});
+  auto created =
+      CreateVecIndex("idx_vector_cosine",
+                     {{"metric", "cosine"}, {"cosine_normalize", "false"}});
   ASSERT_FALSE(created);
   EXPECT_EQ(created.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+}
+
+TEST_F(APIndexTest, CosineNormalizeIsIgnoredForL2) {
+  CreateVectorTable();
+  auto vid = AddVector(1, 3.0f, 4.0f);
+  auto created = CreateVecIndex(
+      "idx_vector_l2", {{"metric", "l2"}, {"cosine_normalize", "true"}});
+  ASSERT_TRUE(created) << created.error().ToString();
+
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  const auto* vec = dynamic_cast<const VecColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(vec, nullptr);
+  EXPECT_FALSE(vec->is_l2_normalized());
+  auto stored = ArrayValue::GetChildren(vec->get_any(vid));
+  EXPECT_FLOAT_EQ(stored[0].GetValue<float>(), 3.0f);
+  EXPECT_FLOAT_EQ(stored[1].GetValue<float>(), 4.0f);
+}
+
+TEST_F(APIndexTest, CosineNormalizeIsIgnoredForInnerProduct) {
+  CreateVectorTable();
+  auto vid = AddVector(1, 3.0f, 4.0f);
+  auto created = CreateVecIndex(
+      "idx_vector_ip", {{"metric", "ip"}, {"cosine_normalize", "true"}});
+  ASSERT_TRUE(created) << created.error().ToString();
+
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  const auto* vec = dynamic_cast<const VecColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(vec, nullptr);
+  EXPECT_FALSE(vec->is_l2_normalized());
+  auto stored = ArrayValue::GetChildren(vec->get_any(vid));
+  EXPECT_FLOAT_EQ(stored[0].GetValue<float>(), 3.0f);
+  EXPECT_FLOAT_EQ(stored[1].GetValue<float>(), 4.0f);
 }
 
 TEST_F(APIndexTest, HnswIndexRejectsPropertyWithNonHnswIndex) {
