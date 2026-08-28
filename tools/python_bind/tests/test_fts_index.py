@@ -213,9 +213,7 @@ def test_fts_multi_column_index_supports_partial_null_values(
     )
     assert {row[0] for row in title_rows} == {1, 5}
 
-    with pytest.raises(
-        RuntimeError, match="Setting NULL for property description"
-    ):
+    with pytest.raises(RuntimeError, match="Setting NULL for property description"):
         fts_multi_column_database.execute(
             "MATCH (a:Article) WHERE a.id = 4 SET a.description = NULL;"
         )
