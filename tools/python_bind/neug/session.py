@@ -186,7 +186,7 @@ class Session:
             )
         except requests.exceptions.Timeout as e:
             error_message = (
-                f"Query timed out after {self.timeout:g} seconds "
+                f"Query timed out after {self.timeout} seconds "
                 f"(session timeout: {self._timeout}) while requesting "
                 f"{self._query_endpoint}. Consider increasing the Session "
                 "timeout or optimizing the query. "
