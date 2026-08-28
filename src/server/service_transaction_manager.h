@@ -18,7 +18,6 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -84,17 +83,6 @@ class ServiceTransactionManager {
     std::unique_lock<std::mutex> lock;
   };
 
-  struct TransparentStringHash {
-    using is_transparent = void;
-
-    size_t operator()(std::string_view value) const noexcept {
-      return std::hash<std::string_view>{}(value);
-    }
-    size_t operator()(const std::string& value) const noexcept {
-      return operator()(std::string_view(value));
-    }
-  };
-
   result<LockedEntry> LockEntry(std::string_view transaction_id);
   EntryPtr Find(std::string_view transaction_id) const;
   void Remove(std::string_view transaction_id, const EntryPtr& entry);
@@ -108,9 +96,7 @@ class ServiceTransactionManager {
 
   mutable std::mutex mutex_;
   std::condition_variable changed_;
-  std::unordered_map<std::string, EntryPtr, TransparentStringHash,
-                     std::equal_to<>>
-      entries_;
+  std::unordered_map<std::string, EntryPtr> entries_;
   size_t pending_begins_{0};
   bool accepting_{true};
   bool stop_reaper_{false};

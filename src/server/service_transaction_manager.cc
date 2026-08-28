@@ -315,7 +315,7 @@ ServiceTransactionManager::LockEntry(std::string_view transaction_id) {
 ServiceTransactionManager::EntryPtr ServiceTransactionManager::Find(
     std::string_view transaction_id) const {
   std::lock_guard lock(mutex_);
-  const auto found = entries_.find(transaction_id);
+  const auto found = entries_.find(std::string(transaction_id));
   return found == entries_.end() ? nullptr : found->second;
 }
 
@@ -323,7 +323,7 @@ void ServiceTransactionManager::Remove(std::string_view transaction_id,
                                        const EntryPtr& entry) {
   {
     std::lock_guard lock(mutex_);
-    const auto found = entries_.find(transaction_id);
+    const auto found = entries_.find(std::string(transaction_id));
     if (found != entries_.end() && found->second == entry) {
       entries_.erase(found);
     }
