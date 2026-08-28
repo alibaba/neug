@@ -332,7 +332,10 @@ HNSW duplicate statistics for index 'vec_hnsw_index': 83 / 100 (83%) duplicate v
 
 This check is intended as a lightweight diagnostic. Hash collisions are
 possible, so the result is approximate. NeuG does not reject or automatically
-remove duplicate vectors during index creation.
+remove duplicate vectors during index creation. The statistics are computed
+only for existing vectors during the initial ``CREATE INDEX`` bulk build;
+vectors added or changed later through ``CREATE`` or ``SET`` are not included,
+and the statistics are not updated continuously.
 
 
 To remove or inspect the index, use the common [DROP
