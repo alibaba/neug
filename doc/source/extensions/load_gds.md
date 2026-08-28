@@ -483,7 +483,7 @@ WHERE previous_community IS NULL
 RETURN node.id, community;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 ---
 
@@ -587,7 +587,7 @@ WHERE previous_community IS NULL
 RETURN node.id, community;
 ```
 
-**Predicate support:** Neither node nor edge predicates are supported.
+**Predicate support:** Both node and edge predicates are supported.
 
 **Leiden vs. Louvain:** Use Leiden when you need higher-quality community partitions
 or better detection of small communities. Use Louvain when you need the fastest
@@ -681,7 +681,5 @@ threads used for parallel computation. The default depends on the algorithm:
   exception — they support multi-label graphs with multiple vertex labels and
   edge triplets. Support for heterogeneous graphs in other algorithms is planned
   for a future release.
-- Node and edge predicates are supported by all algorithms except Louvain and
-  Leiden. 
 - CDLP does not actually support heterogeneous graphs yet — it only processes
   the first node label and edge triplet. True multi-label support is planned.
