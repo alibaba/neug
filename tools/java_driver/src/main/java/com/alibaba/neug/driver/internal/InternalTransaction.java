@@ -41,7 +41,7 @@ public class InternalTransaction implements Transaction {
 
     public InternalTransaction(Client client, String transactionId) {
         this.client = client;
-        this.queryEndpoint = client.endpoint("transactions", transactionId, "queries");
+        this.queryEndpoint = client.endpoint("transactions", transactionId, "query");
         this.commitEndpoint = client.endpoint("transactions", transactionId, "commit");
         this.rollbackEndpoint = client.endpoint("transactions", transactionId, "rollback");
         this.state = State.ACTIVE;

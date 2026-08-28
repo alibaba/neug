@@ -81,4 +81,21 @@ public class JavaDriverE2ETest {
             assertFalse(resultSet.next());
         }
     }
+
+    @Test
+    public void testDriverCanRunExplicitReadOnlyTransaction() {
+        String uri = requireE2EUri();
+
+        try (Driver driver = GraphDatabase.driver(uri);
+                Session session = driver.session();
+                Transaction transaction = session.beginTransaction(Transaction.Mode.READ_ONLY)) {
+            try (ResultSet resultSet = transaction.run("RETURN 1 AS value")) {
+                assertTrue(resultSet.next());
+                assertEquals(1, resultSet.getInt("value"));
+                assertFalse(resultSet.next());
+            }
+            transaction.commit();
+            assertFalse(transaction.isOpen());
+        }
+    }
 }

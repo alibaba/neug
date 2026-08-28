@@ -32,10 +32,10 @@ public class ResponseParser {
             throw new IllegalArgumentException("Transaction response must not be empty");
         }
         try {
-            JsonNode idNode = JsonUtil.getInstance().readTree(response).get("transactionId");
+            JsonNode idNode = JsonUtil.getInstance().readTree(response).get("transaction_id");
             if (idNode == null || !idNode.isTextual() || idNode.textValue().isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Transaction response does not contain a valid transactionId");
+                        "Transaction response does not contain a valid transaction_id");
             }
             return idNode.textValue();
         } catch (IllegalArgumentException e) {

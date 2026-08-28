@@ -13,6 +13,7 @@
  */
 package com.alibaba.neug.driver;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,8 +79,20 @@ public class TransactionTest {
         assertThrows(IllegalStateException.class, () -> session.run("RETURN 1"));
     }
 
+    @Test
+    public void transactionQueriesUseTpServiceRoute() {
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        transaction.run("RETURN 1");
+
+        assertEquals("/transactions/" + TRANSACTION_ID + "/query", client.lastPath);
+        transaction.rollback();
+    }
+
     private static final class FakeClient extends Client {
         private boolean failCommit;
+        private String lastPath;
 
         private FakeClient() {
             super("http://localhost", Config.builder().build());
@@ -88,10 +101,11 @@ public class TransactionTest {
         @Override
         public HttpResponse syncPost(HttpUrl url, byte[] request) throws IOException {
             String path = url.encodedPath();
+            lastPath = path;
             if ("/transactions".equals(path)) {
                 return new HttpResponse(
                         201,
-                        ("{\"transactionId\":\"" + TRANSACTION_ID + "\"}")
+                        ("{\"transaction_id\":\"" + TRANSACTION_ID + "\"}")
                                 .getBytes(StandardCharsets.UTF_8));
             }
             if (path.endsWith("/commit") && failCommit) {
