@@ -491,8 +491,24 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
                   "HNSWIndex requires exactly one value");
   }
 
+  const auto& value = values[0];
+  if (value.IsNull()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSW index does not support NULL vector values");
+  }
+  Value index_value = value;
+  auto cosine_normalize = meta_->options.find("cosine_normalize");
+  if (metric_ == zvec::core_interface::MetricType::kCosine &&
+      (cosine_normalize == meta_->options.end() ||
+       cosine_normalize->second == "true" ||
+       cosine_normalize->second == "TRUE")) {
+    auto status = VectorNormalizer::ValueNormalize(value, index_value);
+    if (!status.ok()) {
+      return status;
+    }
+  }
   auto dense_result = ConvertDenseValue(meta_->schema.columns[0].property_type,
-                                        values[0], dimension_);
+                                        index_value, dimension_);
   if (!dense_result) {
     return dense_result.error();
   }
@@ -518,7 +534,8 @@ Status HNSWIndex::Upsert(vid_t vid, const IndexValue& new_value) {
     return Status::InternalError("Index ID accessor is not initialized");
   }
   if (new_value.value.IsNull()) {
-    return Delete(vid);
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSW index does not support NULL vector values");
   }
   auto index_id = index_id_accessor_->UpsertVID(vid);
   return AppendImpl(index_id, IndexValues{new_value.value});
