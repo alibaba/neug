@@ -33,6 +33,7 @@ except ImportError as e:
         raise e
 
 from neug.proto.error_pb2 import ERR_NETWORK
+from neug.proto.error_pb2 import ERR_QUERY_TIMEOUT
 from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 from neug.query_result import QueryResult
 from neug.utils import is_access_mode_valid
@@ -183,6 +184,17 @@ class Session:
             response = self._http_session.post(
                 self._query_endpoint, data=payload, timeout=self.timeout
             )
+        except requests.exceptions.Timeout as e:
+            error_message = (
+                f"Query timed out after {self.timeout} seconds "
+                f"(session timeout: {self._timeout}) while requesting "
+                f"{self._query_endpoint}. Consider increasing the Session "
+                "timeout or optimizing the query. "
+                'For example: Session(endpoint, timeout="30s"). '
+                f"Error code: {ERR_QUERY_TIMEOUT}"
+            )
+            logger.error(f"Failed to execute query: {query}. {error_message}")
+            raise TimeoutError(error_message) from e
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to execute query: {query}. Error: {e}")
             raise ConnectionError(
@@ -238,10 +250,10 @@ class Session:
         Get the timeout duration for the session, in seconds.
         """
         if isinstance(self._timeout, str):
-            if self._timeout.endswith("s"):
-                return int(self._timeout[:-1])
-            elif self._timeout.endswith("ms"):
+            if self._timeout.endswith("ms"):
                 return int(self._timeout[:-2]) / 1000
+            elif self._timeout.endswith("s"):
+                return int(self._timeout[:-1])
             else:
                 raise ValueError("Timeout must be a string ending with 's' or 'ms'.")
         elif isinstance(self._timeout, int):
