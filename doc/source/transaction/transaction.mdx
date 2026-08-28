@@ -32,7 +32,8 @@ conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 
 Since version v0.2, auto-commit remains the default in every supported
 interface. The embedded C++, Node.js, and Python `Connection` APIs support
-programmatic explicit transactions for AP mode, as described below.
+programmatic explicit transactions for AP mode. Python `Session` supports
+them for TP service mode, as described below.
 
 #### Explicit Transactions in Embedded AP Mode
 
@@ -131,6 +132,26 @@ one private COW view, reads its own successful writes, and appends and publishes
 one WAL commit only when `commit` succeeds. While a read-write transaction owns
 the TP update lease, another read-write transaction cannot begin; ordinary TP
 inserts and updates wait for it to finish, while TP reads remain concurrent.
+
+Python `Session` manages the transaction id and route selection automatically:
+
+```python
+from neug import Session
+
+session = Session.open("http://localhost:10000", num_threads=1)
+session.begin_transaction()
+session.execute("CREATE (:Person {name: 'Alice'})", "insert")
+assert list(session.execute("MATCH (p:Person) RETURN p.name")) == [["Alice"]]
+session.commit()
+session.close()
+```
+
+Pass `read_only=True` to `begin_transaction()` to pin a TP read view and reject
+writes. One `Session` owns at most one explicit transaction. Do not issue
+concurrent requests through that session; use one `Session` per client worker.
+`execute()` uses that transaction while it is active, and `close()` attempts to
+roll it back. `get_schema()` always reflects the service's committed schema; it
+does not expose a transaction-private schema view.
 
 A failed ordinary statement leaves the transaction rollback-only. `rollback`
 ends that transaction immediately; its handle cannot be reused, so clients
