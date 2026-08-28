@@ -40,6 +40,10 @@ class ServiceTransactionManager {
  public:
   struct BeginResult {
     std::string transaction_id;
+    // Advisory expiry time derived from the system clock for client display;
+    // the authoritative deadline is tracked with the steady clock, so this
+    // value may drift under system clock adjustments. Nullopt when session
+    // expiry is disabled.
     std::optional<std::chrono::system_clock::time_point> expires_at;
   };
 

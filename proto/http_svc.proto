@@ -36,5 +36,4 @@ service HttpService {
   rpc ExecuteTransactionQuery(HttpRequest) returns (HttpResponse);
   rpc CommitTransaction(HttpRequest) returns (HttpResponse);
   rpc RollbackTransaction(HttpRequest) returns (HttpResponse);
-  rpc GetTransactionSchema(google.protobuf.Empty) returns (HttpResponse);
 }
