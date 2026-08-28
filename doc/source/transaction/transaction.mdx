@@ -133,7 +133,8 @@ one WAL commit only when `commit` succeeds. While a read-write transaction owns
 the TP update lease, another read-write transaction cannot begin; ordinary TP
 inserts and updates wait for it to finish, while TP reads remain concurrent.
 
-Python `Session` manages the transaction id and route selection automatically:
+Use the client-specific API below to begin, execute within, commit, or roll
+back an explicit transaction:
 
 <Tabs items={['Python']}>
 
