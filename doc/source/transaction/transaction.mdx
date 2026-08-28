@@ -61,8 +61,7 @@ Both modes reject the same statement classes while a transaction is active:
 
 | Rejected | Concretely |
 |----------|------------|
-| Bulk and file loading | `COPY … FROM`, `COPY … TO`, `COPY TEMP`, `LOAD FROM` |
-| Temporary schema | `CREATE TEMP …`, and the temporary table that `COPY TEMP` creates |
+| Bulk, file, and temporary loading | `COPY … FROM`, `COPY … TO`, `COPY TEMP`, `LOAD FROM` |
 | Administrative statements | `CHECKPOINT`, and `INSTALL` / `LOAD` / `UNINSTALL` of an extension |
 | Mutating procedure calls | `CALL` of a procedure that changes state, such as `project_graph` or `drop_projected_graph`; a read-only `CALL` is allowed |
 
@@ -198,19 +197,15 @@ holds it, no other read-write transaction can begin, and ordinary inserts and
 updates wait for it to finish; reads stay concurrent. A successful commit appends
 and publishes one WAL commit.
 
-**Lifetime.** Unlike AP, the service can end a transaction on its own — through
-an absolute service-configured lifetime, a failure, or shutdown. The session then
-drops its handle and reports no active transaction, and a rollback call fails. So
-guard the rollback instead of issuing it unconditionally:
+**Lifetime.** The service rolls back and removes a transaction when its absolute
+lifetime expires or during shutdown. Expiry is reported lazily: the next
+transaction request returns `410 Gone`, and `Session` then clears its local
+handle. After shutdown or a network failure, local state may be stale; close the
+session. Ordinary statement failures leave the transaction rollback-only.
 
-```python
-if session.has_active_transaction:  # Python example
-    session.rollback()
-session.begin_transaction()  # The session is ready for a new transaction.
-```
-
-**Ending a rollback-only transaction.** Roll it back while the session still
-reports an active transaction, as in the snippet above.
+**Ending a rollback-only transaction.** Call `rollback()`. If the transaction has
+already expired, the call raises `RuntimeError` on `410 Gone` but clears the local
+handle.
 
 **Abandoned transactions.** A read-write transaction that is never finished keeps
 the update lease and delays ordinary TP writes until the service releases it.
