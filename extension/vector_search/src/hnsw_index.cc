@@ -340,7 +340,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
         "HNSWIndex must be open and bound before bulk build");
   }
   flat_hash_set<uint64_t> duplicate_statistics;
-  const auto vector_byte_size = dimension_ * sizeof(float);
+  const auto vector_byte_size = vec_source_->GetVectorByteSize();
   for (auto vid : vertices) {
     auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
     if (index_id == INVALID_INDEX_ID) {

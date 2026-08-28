@@ -49,6 +49,7 @@ class HNSWVecSource final : public zvec::core::VectorSource {
   HNSWVecSource(const VecColumn* column, index_id_t index_id_count);
 
   const void* get_vector(uint32_t node_id) const override;
+  size_t GetVectorByteSize() const { return vector_byte_size_; }
   void UpdateIndexIDCount(index_id_t index_id_count) {
     index_id_count_ = index_id_count;
   }
