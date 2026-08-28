@@ -263,6 +263,11 @@ def test_inner_product_index_scan(advanced_connection):
     )
 
 
+def test_hnsw_limit_above_1024(advanced_connection):
+    rows = _l2_search(advanced_connection, 500.0, 1025)
+    assert len(rows) == NUM_VECTORS
+
+
 def test_graph_filtering_during_index_scan(advanced_connection):
     rows = list(
         advanced_connection.execute(
