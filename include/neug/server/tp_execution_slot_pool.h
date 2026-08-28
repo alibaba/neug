@@ -31,6 +31,7 @@ namespace neug {
 class CheckpointCoordinator;
 class NeugDBService;
 class IWalWriter;
+class ServiceTransactionManager;
 
 /**
  * @brief Pool of database slots for concurrent query execution.
@@ -171,9 +172,12 @@ class TpExecutionSlotPool {
   }
 
  private:
+  /// Returns an empty lease instead of waiting when every TP slot is busy.
+  ExecutionSlotLease TryAcquireExecutionSlot();
   static void releaseExecutionSlot(void* owner, size_t slot_id) noexcept;
 
   friend class NeugDBService;
+  friend class ServiceTransactionManager;
 
   Entry* entries_;
   size_t slot_num_;

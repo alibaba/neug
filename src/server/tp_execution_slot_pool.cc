@@ -31,6 +31,20 @@ ExecutionSlotLease TpExecutionSlotPool::AcquireExecutionSlot() {
                             &TpExecutionSlotPool::releaseExecutionSlot);
 }
 
+ExecutionSlotLease TpExecutionSlotPool::TryAcquireExecutionSlot() {
+  bthread_mutex_lock(&mutex_);
+  if (available_slot_ids_.empty()) {
+    bthread_mutex_unlock(&mutex_);
+    return {};
+  }
+  const auto slot_id = available_slot_ids_.back();
+  available_slot_ids_.pop_back();
+  CHECK_LT(slot_id, slot_num_);
+  bthread_mutex_unlock(&mutex_);
+  return ExecutionSlotLease(&entries_[slot_id].slot, this, slot_id,
+                            &TpExecutionSlotPool::releaseExecutionSlot);
+}
+
 void TpExecutionSlotPool::releaseExecutionSlot(void* owner,
                                                size_t slot_id) noexcept {
   auto* pool = static_cast<TpExecutionSlotPool*>(owner);

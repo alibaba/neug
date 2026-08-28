@@ -82,6 +82,38 @@ def test_empty_ungrouped_count(empty_db):
     assert list(result) == [[0]]
 
 
+def test_group_by_preserves_null_keys(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, bucket INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT32, group_id INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute(
+        "CREATE (:source {id: 1, bucket: 7}), "
+        "(:source {id: 2, bucket: 7}), "
+        "(:source {id: 3, bucket: 7}), "
+        "(:target {id: -1, group_id: 0});"
+    )
+    conn.execute(
+        "MATCH (source:source), (target:target) "
+        "WHERE source.id = 1 AND target.id = -1 "
+        "CREATE (source)-[:links]->(target);"
+    )
+
+    result = conn.execute(
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN target.group_id, COUNT(*);"
+    )
+    assert list(result) == [[0, 1], [None, 2]]
+
+    result = conn.execute(
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN target.id, source.bucket, COUNT(*);"
+    )
+    assert list(result) == [[-1, 7, 1], [None, 7, 2]]
+
+
 def test_aggregate_over_empty_input(empty_db):
     _, conn = empty_db
     conn.execute("CREATE NODE TABLE person(id INT64, score INT64, PRIMARY KEY(id));")

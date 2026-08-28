@@ -39,6 +39,8 @@
 
 namespace neug {
 
+class ServiceTransactionManager;
+
 int32_t status_code_to_http_code(neug::StatusCode code);
 
 /**
@@ -149,8 +151,10 @@ class UnifiedServiceImpl {
 class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
  public:
   explicit HttpServiceImpl(neug::NeugDB& neug_db,
-                           TpExecutionSlotPool& execution_slot_pool)
+                           TpExecutionSlotPool& execution_slot_pool,
+                           ServiceTransactionManager& transaction_manager)
       : UnifiedServiceImpl(neug_db, execution_slot_pool),
+        transaction_manager_(transaction_manager),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
   virtual ~HttpServiceImpl() {}
 
@@ -166,14 +170,30 @@ class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
                         const google::protobuf::Empty*, HttpResponse* response,
                         google::protobuf::Closure* done);
 
+  void BeginTransaction(google::protobuf::RpcController* cntl_base,
+                        const HttpRequest* request, HttpResponse* response,
+                        google::protobuf::Closure* done);
+  void ExecuteTransactionQuery(google::protobuf::RpcController* cntl_base,
+                               const HttpRequest* request,
+                               HttpResponse* response,
+                               google::protobuf::Closure* done);
+  void CommitTransaction(google::protobuf::RpcController* cntl_base,
+                         const HttpRequest* request, HttpResponse* response,
+                         google::protobuf::Closure* done);
+  void RollbackTransaction(google::protobuf::RpcController* cntl_base,
+                           const HttpRequest* request, HttpResponse* response,
+                           google::protobuf::Closure* done);
+
  private:
+  ServiceTransactionManager& transaction_manager_;
   const BrpcServiceProtocol& protocol_;
 };
 
 class BrpcServiceManager : public IServiceManager {
  public:
   explicit BrpcServiceManager(neug::NeugDB& neug_db,
-                              TpExecutionSlotPool& execution_slot_pool);
+                              TpExecutionSlotPool& execution_slot_pool,
+                              ServiceTransactionManager& transaction_manager);
 
   ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
@@ -185,6 +205,7 @@ class BrpcServiceManager : public IServiceManager {
  private:
   neug::NeugDB& neug_db_;
   TpExecutionSlotPool& execution_slot_pool_;
+  ServiceTransactionManager& transaction_manager_;
   uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 
