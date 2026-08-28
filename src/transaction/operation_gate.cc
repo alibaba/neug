@@ -221,7 +221,11 @@ bool OperationGate::try_enter_phase(AdmissionState desired_phase) noexcept {
   if (OperationGateWord::phase(observed) != AdmissionState::kOpen) {
     return false;
   }
-  return OperationGateWord::try_change_phase(state_, observed, desired_phase);
+  // This caller reports failure instead of retrying, so a weak CAS could turn
+  // a spurious failure into a false admission rejection.
+  return state_.compare_exchange_strong(
+      observed, OperationGateWord::with_phase(observed, desired_phase),
+      std::memory_order_acq_rel, std::memory_order_relaxed);
 }
 
 void OperationGate::transition_phase(AdmissionState expected_phase,

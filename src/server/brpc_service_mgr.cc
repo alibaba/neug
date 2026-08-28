@@ -15,7 +15,13 @@
 
 #include "neug/server/brpc_service_mgr.h"
 
+#include <chrono>
+#include <cstdio>
+#include <ctime>
 #include <utility>
+
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include "service_transaction_manager.h"
 
@@ -116,32 +122,62 @@ void SendHttpStringResponse(brpc::Controller* cntl,
   }
 }
 
-result<std::string_view> TransactionIdFromHeader(brpc::Controller* cntl) {
-  const auto* transaction_id =
-      cntl->http_request().GetHeader("X-Transaction-Id");
-  if (transaction_id == nullptr || transaction_id->empty() ||
-      transaction_id->find(',') != std::string::npos) {
+namespace {
+
+result<std::string_view> TransactionIdFromPath(brpc::Controller* cntl) {
+  const auto& transaction_id = cntl->http_request().unresolved_path();
+  if (transaction_id.empty() || transaction_id.find('/') != std::string::npos) {
     RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
-                        "A single X-Transaction-Id header is required."));
+                        "A transaction ID is required in the request path."));
   }
-  return std::string_view(*transaction_id);
+  return std::string_view(transaction_id);
 }
 
-Status RejectTransactionIdHeader(brpc::Controller* cntl) {
-  if (cntl->http_request().GetHeader("X-Transaction-Id") != nullptr) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "X-Transaction-Id is only valid on /transactions routes.");
-  }
-  return Status::OK();
+std::string FormatExpiresAt(std::chrono::system_clock::time_point expires_at) {
+  const auto epoch_milliseconds =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          expires_at.time_since_epoch());
+  const auto epoch_seconds =
+      std::chrono::duration_cast<std::chrono::seconds>(epoch_milliseconds);
+  const auto milliseconds = epoch_milliseconds - epoch_seconds;
+  const auto time = static_cast<std::time_t>(epoch_seconds.count());
+  std::tm utc_time{};
+#ifdef _WIN32
+  gmtime_s(&utc_time, &time);
+#else
+  gmtime_r(&time, &utc_time);
+#endif
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
+                utc_time.tm_year + 1900, utc_time.tm_mon + 1, utc_time.tm_mday,
+                utc_time.tm_hour, utc_time.tm_min, utc_time.tm_sec,
+                static_cast<int>(milliseconds.count()));
+  return buffer;
 }
 
-Status RejectNestedTransactionHeader(brpc::Controller* cntl) {
-  if (cntl->http_request().GetHeader("X-Transaction-Id") != nullptr) {
-    return Status(StatusCode::ERR_TX_STATE_CONFLICT,
-                  "Cannot begin a transaction while another transaction is "
-                  "active.");
+std::string SerializeBeginResponse(
+    const ServiceTransactionManager::BeginResult& transaction,
+    TransactionMode mode) {
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartObject();
+  writer.Key("transaction_id");
+  writer.String(
+      transaction.transaction_id.data(),
+      static_cast<rapidjson::SizeType>(transaction.transaction_id.size()));
+  writer.Key("mode");
+  writer.String(mode == TransactionMode::kReadOnly ? "read_only"
+                                                   : "read_write");
+  writer.Key("expires_at");
+  if (transaction.expires_at) {
+    const auto expires_at = FormatExpiresAt(*transaction.expires_at);
+    writer.String(expires_at.data(),
+                  static_cast<rapidjson::SizeType>(expires_at.size()));
+  } else {
+    writer.Null();
   }
-  return Status::OK();
+  writer.EndObject();
+  return std::string(buffer.GetString(), buffer.GetSize());
 }
 
 result<TransactionMode> ParseTransactionMode(brpc::Controller* cntl) {
@@ -182,7 +218,7 @@ void FinishTransaction(brpc::Controller* cntl,
                        const BrpcServiceProtocol& protocol,
                        Operation&& operation) {
   MarkTransactionResponse(cntl);
-  auto transaction_id = TransactionIdFromHeader(cntl);
+  auto transaction_id = TransactionIdFromPath(cntl);
   Status status =
       transaction_id ? RequireEmptyBody(cntl) : transaction_id.error();
   if (status.ok()) {
@@ -192,6 +228,8 @@ void FinishTransaction(brpc::Controller* cntl,
       status.ok() ? result<std::string>("") : tl::unexpected(status);
   protocol.send_query_response(cntl, response);
 }
+
+}  // namespace
 
 bool BrpcServiceProtocolManager::RegisterProtocol(
     brpc::ProtocolType type, const BrpcServiceProtocol& protocol) {
@@ -314,12 +352,6 @@ void HttpServiceImpl::PostCypherQuery(
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto header_status = RejectTransactionIdHeader(cntl);
-  if (!header_status.ok()) {
-    result<std::string> error = tl::unexpected(header_status);
-    protocol_.send_query_response(cntl, error);
-    return;
-  }
   std::string query_request;
   // 1. Parse query request
   if (!protocol_.parse_query_request(cntl, (void*) request, query_request)) {
@@ -351,12 +383,6 @@ void HttpServiceImpl::GetSchema(google::protobuf::RpcController* cntl_base,
                                 google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto header_status = RejectTransactionIdHeader(cntl);
-  if (!header_status.ok()) {
-    result<std::string> error = tl::unexpected(header_status);
-    protocol_.send_schema_response(cntl, error);
-    return;
-  }
   // No need to parse request for Schema
   auto ret = GetSchemaImpl(cntl);
 
@@ -369,12 +395,6 @@ void HttpServiceImpl::GetServiceStatus(
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  auto header_status = RejectTransactionIdHeader(cntl);
-  if (!header_status.ok()) {
-    result<std::string> error = tl::unexpected(header_status);
-    protocol_.send_service_status_response(cntl, error);
-    return;
-  }
   // No need to parse request for ServiceStatus
   auto ret = GetServiceStatusImpl(cntl);
 
@@ -388,23 +408,25 @@ void HttpServiceImpl::BeginTransaction(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   MarkTransactionResponse(cntl);
-  auto header_status = RejectNestedTransactionHeader(cntl);
-  if (!header_status.ok()) {
-    result<std::string> error = tl::unexpected(header_status);
-    protocol_.send_query_response(cntl, error);
-    return;
-  }
   auto mode = ParseTransactionMode(cntl);
   if (!mode) {
     result<std::string> error = tl::unexpected(mode.error());
     protocol_.send_query_response(cntl, error);
     return;
   }
-  auto transaction_id = transaction_manager_.Begin(mode.value());
-  if (transaction_id) {
-    cntl->http_response().SetHeader("X-Transaction-Id", transaction_id.value());
+  auto transaction = transaction_manager_.Begin(mode.value());
+  if (!transaction) {
+    result<std::string> error = tl::unexpected(transaction.error());
+    protocol_.send_query_response(cntl, error);
+    return;
   }
-  protocol_.send_query_response(cntl, transaction_id);
+  result<std::string> response =
+      SerializeBeginResponse(transaction.value(), mode.value());
+  protocol_.send_query_response(cntl, response);
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_CREATED);
+  cntl->http_response().set_content_type("application/json");
+  cntl->http_response().SetHeader(
+      "Location", "/transactions/" + transaction->transaction_id);
 }
 
 void HttpServiceImpl::ExecuteTransactionQuery(
@@ -413,7 +435,7 @@ void HttpServiceImpl::ExecuteTransactionQuery(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   MarkTransactionResponse(cntl);
-  auto transaction_id = TransactionIdFromHeader(cntl);
+  auto transaction_id = TransactionIdFromPath(cntl);
   if (!transaction_id) {
     result<std::string> error = tl::unexpected(transaction_id.error());
     protocol_.send_query_response(cntl, error);
@@ -450,7 +472,7 @@ void HttpServiceImpl::GetTransactionSchema(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   MarkTransactionResponse(cntl);
-  auto transaction_id = TransactionIdFromHeader(cntl);
+  auto transaction_id = TransactionIdFromPath(cntl);
   if (!transaction_id) {
     result<std::string> error = tl::unexpected(transaction_id.error());
     protocol_.send_schema_response(cntl, error);
@@ -487,10 +509,10 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
       "/service_status => GetServiceStatus,"
       "/schema => GetSchema,"
       "/transactions => BeginTransaction,"
-      "/transactions/query => ExecuteTransactionQuery,"
-      "/transactions/commit => CommitTransaction,"
-      "/transactions/rollback => RollbackTransaction,"
-      "/transactions/schema => GetTransactionSchema";
+      "/transactions/*/query => ExecuteTransactionQuery,"
+      "/transactions/*/commit => CommitTransaction,"
+      "/transactions/*/rollback => RollbackTransaction,"
+      "/transactions/*/schema => GetTransactionSchema";
 
 #ifdef ENABLE_HTTP_PROTOCOL
   auto http_svc = std::make_unique<HttpServiceImpl>(

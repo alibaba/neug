@@ -226,7 +226,7 @@ ExecutionSlot::TryBeginSnapshotCowWriteTransaction() {
   auto timestamp_lease = UpdateTimestampLease::TryAcquire(version_manager_);
   if (!timestamp_lease) {
     RETURN_ERROR(Status(StatusCode::ERR_SERVICE_UNAVAILABLE,
-                        "A TP write transaction is already active."));
+                        "The TP update lease is unavailable."));
   }
   auto [cow_graph, planning_generation] =
       snapshot_store_.CloneCurrentForUpdate();

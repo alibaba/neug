@@ -89,8 +89,8 @@ class ServiceTransactionManager;
  * - `GET /schema` - Retrieve graph schema
  * - `GET /status` - Check service status
  * - `POST /transactions` - Begin an explicit TP transaction session
- * - `POST /transactions/query|commit|rollback` - Operate on a session
- * - `GET /transactions/schema` - Retrieve a session's active schema
+ * - `POST /transactions/{id}/query|commit|rollback` - Operate on a session
+ * - `GET /transactions/{id}/schema` - Retrieve a session's active schema
  *
  * **Thread Safety:** All public methods are thread-safe. The service uses
  * a TpExecutionSlotPool internally to handle concurrent requests efficiently.

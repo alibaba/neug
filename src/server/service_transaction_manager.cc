@@ -86,7 +86,8 @@ ServiceTransactionManager::~ServiceTransactionManager() {
   }
 }
 
-result<std::string> ServiceTransactionManager::Begin(TransactionMode mode) {
+result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
+    TransactionMode mode) {
   {
     std::lock_guard lock(mutex_);
     if (!accepting_) {
@@ -127,7 +128,13 @@ result<std::string> ServiceTransactionManager::Begin(TransactionMode mode) {
       }
     }
 
-    auto entry = std::make_shared<Entry>(std::move(context), NewDeadline());
+    auto deadline = std::chrono::steady_clock::time_point::max();
+    std::optional<std::chrono::system_clock::time_point> expires_at;
+    if (timeout_.count() != 0) {
+      deadline = std::chrono::steady_clock::now() + timeout_;
+      expires_at = std::chrono::system_clock::now() + timeout_;
+    }
+    auto entry = std::make_shared<Entry>(std::move(context), deadline);
     std::string transaction_id;
     bool accepted = false;
     while (!accepted) {
@@ -150,7 +157,7 @@ result<std::string> ServiceTransactionManager::Begin(TransactionMode mode) {
       entry->context.Rollback();
       RETURN_ERROR(ServiceUnavailable("Transaction service is stopping."));
     }
-    return transaction_id;
+    return BeginResult{std::move(transaction_id), expires_at};
   } catch (const std::exception& e) {
     finish_pending_begin();
     RETURN_ERROR(Status::RuntimeError(e.what()));
@@ -273,7 +280,17 @@ result<std::string> ServiceTransactionManager::GetSchema(
   if (!yaml) {
     RETURN_ERROR(yaml.error());
   }
-  return get_json_string_from_yaml(yaml.value());
+  auto schema = get_json_string_from_yaml(yaml.value());
+  if (!schema) {
+    RETURN_ERROR(schema.error());
+  }
+  if (Expired(*entry)) {
+    entry->context.Rollback();
+    locked.lock.unlock();
+    Remove(transaction_id, entry);
+    RETURN_ERROR(TransactionExpired());
+  }
+  return schema;
 }
 
 void ServiceTransactionManager::Close() {
@@ -340,12 +357,6 @@ void ServiceTransactionManager::Remove(std::string_view transaction_id,
 
 bool ServiceTransactionManager::Expired(const Entry& entry) const noexcept {
   return std::chrono::steady_clock::now() >= entry.deadline;
-}
-
-std::chrono::steady_clock::time_point ServiceTransactionManager::NewDeadline()
-    const noexcept {
-  return timeout_.count() == 0 ? std::chrono::steady_clock::time_point::max()
-                               : std::chrono::steady_clock::now() + timeout_;
 }
 
 bool ServiceTransactionManager::ReapExpiredTransactions() {

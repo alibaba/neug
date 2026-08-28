@@ -21,6 +21,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -37,6 +38,11 @@ class TpExecutionSlotPool;
  */
 class ServiceTransactionManager {
  public:
+  struct BeginResult {
+    std::string transaction_id;
+    std::optional<std::chrono::system_clock::time_point> expires_at;
+  };
+
   ServiceTransactionManager(TpExecutionSlotPool& execution_slot_pool,
                             size_t max_transactions, uint64_t timeout_ms);
   ~ServiceTransactionManager();
@@ -45,7 +51,7 @@ class ServiceTransactionManager {
   ServiceTransactionManager& operator=(const ServiceTransactionManager&) =
       delete;
 
-  result<std::string> Begin(TransactionMode mode);
+  result<BeginResult> Begin(TransactionMode mode);
   result<std::string> Execute(std::string_view transaction_id,
                               const std::string& request);
   Status Commit(std::string_view transaction_id);
@@ -90,7 +96,6 @@ class ServiceTransactionManager {
   EntryPtr Find(std::string_view transaction_id) const;
   void Remove(std::string_view transaction_id, const EntryPtr& entry);
   bool Expired(const Entry& entry) const noexcept;
-  std::chrono::steady_clock::time_point NewDeadline() const noexcept;
   bool ReapExpiredTransactions();
   void ReaperMain();
 
