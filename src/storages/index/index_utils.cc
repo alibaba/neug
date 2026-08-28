@@ -22,6 +22,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/index/storage_index.h"
 #include "neug/storages/index/storage_index_manager.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug {
 
@@ -29,6 +30,38 @@ bool IsHNSWIndex(const IndexMeta& meta) {
   auto type = meta.type;
   common::StringUtils::toLower(type);
   return type == "hnsw";
+}
+
+bool IsCosineMetric(const IndexMeta& meta) {
+  const auto metric = meta.options.find("metric");
+  return metric != meta.options.end() &&
+         (metric->second == "cosine" || metric->second == "COSINE");
+}
+
+bool ParseCosineNormalizeOption(IndexMeta& meta) {
+  if (!IsCosineMetric(meta)) {
+    return false;
+  }
+  auto option = meta.options.try_emplace("cosine_normalize", "true").first;
+  if (option->second == "true" || option->second == "TRUE") {
+    option->second = "true";
+    return true;
+  }
+  if (option->second == "false" || option->second == "FALSE") {
+    option->second = "false";
+    return false;
+  }
+  THROW_INVALID_ARGUMENT_EXCEPTION(
+      "HNSW option 'cosine_normalize' must be true or false");
+}
+
+bool UsesCosineNormalization(const IndexMeta& meta) {
+  if (!IsCosineMetric(meta)) {
+    return false;
+  }
+  auto option = meta.options.find("cosine_normalize");
+  return option == meta.options.end() || option->second == "true" ||
+         option->second == "TRUE";
 }
 
 Status AddBatchVertexIndexData(

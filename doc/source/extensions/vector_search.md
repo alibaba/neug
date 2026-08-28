@@ -7,6 +7,24 @@ transactions, and recovery, see [Storage Indexes](../storage_index/index.md).
 
 The vector search extension enables efficient similarity search over graph data by combining vector storage, distance computation, and HNSW-based approximate nearest neighbor (ANN) indexing.
 
+.. warning::
+
+   **COSINE HNSW INDEX CREATION OVERWRITES VECTOR DATA BY DEFAULT**
+
+   Creating a cosine HNSW index uses ``cosine_normalize = true`` by default.
+   NeuG may permanently replace every existing value in the indexed property
+   with its L2-normalized value. The original vectors and their magnitudes are
+   lost and cannot be recovered, including after ``DROP INDEX``.
+
+   To preserve the existing property values, explicitly set
+   ``cosine_normalize = false``. In that mode, you are responsible for ensuring
+   that every existing and future vector is a valid L2-normalized vector.
+
+   ``cosine_normalize`` applies only to cosine HNSW indexes. It has no effect
+   on IP or L2 HNSW indexes, which preserve raw vectors. NeuG does not support
+   or recommend using this option to normalize IP/L2 data because doing so
+   would discard magnitude information and change distance semantics.
+
 The major features include:
 
 - **Optional Vector Search Extension**
@@ -203,7 +221,8 @@ CREATE INDEX vec_hnsw_index IF NOT EXISTS
 ON vector_node
 USING HNSW (vec)
 WITH (
-    metric = 'ip',
+    metric = 'cosine',
+    cosine_normalize = true,
     m = 16,
     ef_construction = 200
 );
@@ -222,6 +241,7 @@ The following parameters control HNSW index construction and search behavior:
 | Parameter         | Description                                                           | Default |
 | ----------------- | --------------------------------------------------------------------- | ------- |
 | `metric`          | Distance metric. Supported values are `l2` (or `l2sq`), `cosine`, and `ip` (or `inner_product`) | `l2` |
+| `cosine_normalize` | Whether a **cosine** HNSW index may permanently L2-normalize the indexed property values | `true` |
 | `m`               | Maximum number of connections created for each node in the HNSW graph | `50` |
 | `ef_construction` | Size of the candidate list used while building the index. Larger values generally improve index quality at the cost of build time and memory | `500` |
 
@@ -230,6 +250,69 @@ When creating an index:
 - Existing nodes are automatically indexed.
 - Nodes inserted after index creation are automatically added to the HNSW
   index.
+
+### Vector normalization
+
+HNSW cosine search requires stored vectors to have unit L2 norm.
+`cosine_normalize` defaults to `true` for cosine HNSW indexes, allowing NeuG to
+normalize the property column when sampled values are not already normalized:
+
+```cypher
+CREATE INDEX vec_cosine_hnsw
+ON vector_node
+USING HNSW (vec)
+WITH (metric = 'cosine', cosine_normalize = true);
+```
+
+To prevent property modification, explicitly set `cosine_normalize = false`.
+NeuG then performs a deterministic sample check and rejects creation when a
+sampled vector is not normalized. A successful sample check is not a
+full-column guarantee: users choosing `cosine_normalize = false` are
+responsible for ensuring that every existing and future vector has unit L2
+norm.
+
+When `cosine_normalize = true`, NeuG first samples the current column. If all sampled
+vectors have unit norm, it skips the conversion. Otherwise it creates a new
+buffer and normalizes the vectors in one pass. An all-zero vector remains
+all-zero. Encountering NULL, a non-zero near-zero vector, NaN, infinity, or
+another value that cannot be normalized
+causes index creation to fail without publishing the partially converted
+buffer.
+
+.. warning::
+
+   Sampling can miss a non-normalized vector. This applies even when
+   ``cosine_normalize = true`` because NeuG skips conversion after a successful sample
+   check. For strict correctness, normalize and validate the complete dataset
+   before importing it.
+
+.. warning::
+
+   Normalization permanently overwrites the stored property values. The
+   original vector magnitudes cannot be recovered. Property reads, exports,
+   checkpoints, and values observed after ``DROP INDEX`` contain normalized
+   vectors. Back up the original embeddings or store normalized vectors in a
+   separate property before creating the index.
+
+After a column adopts the normalized representation, subsequent INSERT and SET
+operations are normalized automatically. Explicit NULL vector values and NULL
+vector elements are unsupported. All-zero vectors are preserved as all-zero;
+``vector_distance_cosine`` returns ``1`` when either argument is all-zero.
+Non-zero near-zero vectors and non-finite values are rejected.
+Omitting the property is accepted when its schema default materializes as a
+valid non-NULL vector, including the implicit all-zero default.
+
+The option has no effect on IP or L2 indexes. Those indexes do not trigger
+normalization and preserve the current property representation. Normalizing IP
+would remove magnitude information and change inner-product scores;
+normalizing L2 would change distances and nearest-neighbor ordering. Therefore
+NeuG neither supports nor recommends using `cosine_normalize` to normalize
+IP/L2 data.
+
+NeuG rejects attempts to normalize a property already used by an HNSW index
+built from raw vectors. Avoid mixing indexes that require raw and normalized
+representations on the same property. Dropping the last index does not restore
+the original vectors or disable the normalized write constraint.
 
 Therefore, users can choose either workflow:
 

@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <memory>
 
@@ -652,19 +653,27 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
 
   column.set_any(0, make_array(1.0f, 2.0f), true);
   column.set_any(1, make_array(3.0f, 4.0f), true);
-  EXPECT_FLOAT_EQ(
-      ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
+  EXPECT_FALSE(column.SampleIsL2Normalized());
   EXPECT_THROW(column.set_any(2, make_array(5.0f, 6.0f), false),
                exception::StorageException);
   EXPECT_EQ(column.get_offset_accessor()->GetIndexIDByVID(2), INVALID_INDEX_ID);
-  EXPECT_FLOAT_EQ(
-      ArrayValue::GetChildren(column.get_any(0))[0].GetValue<float>(), 1.0f);
-  EXPECT_FLOAT_EQ(
-      ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(), 4.0f);
+
+  // Leave an invalidated zero vector in the backing buffer. Normalization must
+  // visit only the current index ID for each active vertex.
+  column.set_any(0, make_array(0.0f, 0.0f), true);
+  column.set_any(0, make_array(1.0f, 2.0f), true);
+  ASSERT_TRUE(column.EnsureL2Normalized().ok());
+  EXPECT_TRUE(column.is_l2_normalized());
+  EXPECT_NEAR(ArrayValue::GetChildren(column.get_any(0))[0].GetValue<float>(),
+              1.0f / std::sqrt(5.0f), 1e-6f);
+  EXPECT_NEAR(ArrayValue::GetChildren(column.get_any(1))[1].GetValue<float>(),
+              0.8f, 1e-6f);
+  EXPECT_TRUE(column.is_l2_normalized());
 
   const void* buffer_before_shrink = column.get_buffer_ptr();
+  const auto size_before_shrink = column.size();
   column.resize(1);
-  EXPECT_EQ(column.size(), 2);
+  EXPECT_EQ(column.size(), size_before_shrink);
   EXPECT_EQ(column.get_buffer_ptr(), buffer_before_shrink);
 
   auto clone_module = column.Clone();
@@ -680,14 +689,16 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   const auto& cloned_second = ArrayValue::GetChildren(cloned_second_value);
   ASSERT_EQ(cloned_first.size(), dimension);
   ASSERT_EQ(cloned_second.size(), dimension);
-  EXPECT_FLOAT_EQ(cloned_first[0].GetValue<float>(), 1.0f);
-  EXPECT_FLOAT_EQ(cloned_first[1].GetValue<float>(), 2.0f);
-  EXPECT_FLOAT_EQ(cloned_second[0].GetValue<float>(), 3.0f);
-  EXPECT_FLOAT_EQ(cloned_second[1].GetValue<float>(), 4.0f);
+  EXPECT_TRUE(clone->is_l2_normalized());
+  EXPECT_NEAR(cloned_first[0].GetValue<float>(), 1.0f / std::sqrt(5.0f), 1e-6f);
+  EXPECT_NEAR(cloned_first[1].GetValue<float>(), 2.0f / std::sqrt(5.0f), 1e-6f);
+  EXPECT_NEAR(cloned_second[0].GetValue<float>(), 0.6f, 1e-6f);
+  EXPECT_NEAR(cloned_second[1].GetValue<float>(), 0.8f, 1e-6f);
 
   column.set_any(4096, make_array(5.0f, 6.0f), true);
-  EXPECT_FLOAT_EQ(
-      ArrayValue::GetChildren(column.get_any(4096))[0].GetValue<float>(), 5.0f);
+  EXPECT_NEAR(
+      ArrayValue::GetChildren(column.get_any(4096))[0].GetValue<float>(),
+      5.0f / std::sqrt(61.0f), 1e-6f);
 
   auto* column_accessor = column.get_offset_accessor();
   auto old_index_id = column_accessor->GetIndexIDByVID(0);
@@ -696,8 +707,8 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   EXPECT_NE(new_index_id, old_index_id);
   EXPECT_EQ(column_accessor->GetVIDByIndexID(old_index_id), INVALID_VID);
   EXPECT_EQ(column_accessor->GetVIDByIndexID(new_index_id), 0);
-  EXPECT_FLOAT_EQ(
-      ArrayValue::GetChildren(column.get_any(0))[1].GetValue<float>(), 8.0f);
+  EXPECT_NEAR(ArrayValue::GetChildren(column.get_any(0))[1].GetValue<float>(),
+              8.0f / std::sqrt(113.0f), 1e-6f);
 
   CheckpointManifest manifest;
   column.Dump(*ckp, manifest, "vec");
@@ -708,9 +719,33 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   VecColumn reopened;
   reopened.Open(*ckp, loaded_manifest, *loaded_manifest.FindModule("vec"),
                 MemoryLevel::kInMemory);
-  EXPECT_FLOAT_EQ(
+  EXPECT_TRUE(reopened.is_l2_normalized());
+  EXPECT_NEAR(
       ArrayValue::GetChildren(reopened.get_any(4096))[1].GetValue<float>(),
-      6.0f);
+      6.0f / std::sqrt(61.0f), 1e-6f);
+  EXPECT_THROW(reopened.set_any(0, Value(DataType::SQLNULL), true),
+               exception::InvalidArgumentException);
+
+  auto int_array_type = DataType::Array(DataType::INT32, dimension);
+  auto int_default =
+      Value::ARRAY(int_array_type, {Value::INT32(0), Value::INT32(0)});
+  auto int_buffer = ckp->CreateRuntimeContainer(dimension * sizeof(int32_t),
+                                                MemoryLevel::kInMemory);
+  auto int_accessor = std::make_unique<DefaultIndexIDAccessor>();
+  int_accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  VecColumn int_column(std::move(int_buffer), std::move(int_accessor),
+                       int_array_type, 1, int_default, *ckp,
+                       MemoryLevel::kInMemory);
+  CheckpointManifest invalid_manifest;
+  int_column.Dump(*ckp, invalid_manifest, "invalid_normalized_vec");
+  auto* invalid_desc =
+      invalid_manifest.FindMutableModule("invalid_normalized_vec");
+  ASSERT_NE(invalid_desc, nullptr);
+  invalid_desc->set("vector_representation", "l2_normalized");
+  VecColumn invalid_reopened;
+  EXPECT_THROW(invalid_reopened.Open(*ckp, invalid_manifest, *invalid_desc,
+                                     MemoryLevel::kInMemory),
+               exception::InvalidArgumentException);
 
   std::filesystem::remove_all(temp_dir);
 }
