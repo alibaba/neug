@@ -598,6 +598,53 @@ def test_issue_931_cosine_ann_returns_distance_with_normalize(tmp_path):
         _close_database(db, conn)
 
 
+def test_normalize_rejects_property_used_by_raw_hnsw_index(tmp_path):
+    """A normalized representation cannot replace data used by a raw index."""
+    db, conn = _open_database(
+        tmp_path / "normalize-index-conflict", checkpoint_on_close=False
+    )
+    try:
+        conn.execute(
+            "CREATE NODE TABLE ConflictingIndexItem("
+            "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:ConflictingIndexItem {"
+            "id: 1, embedding: [3.0, 4.0, 0.0, 0.0]});"
+        )
+        conn.execute(
+            "CREATE INDEX raw_embedding_hnsw ON ConflictingIndexItem "
+            "USING HNSW (embedding) WITH (metric = 'l2');"
+        )
+
+        with pytest.raises(
+            RuntimeError,
+            match="Cannot normalize a vector property used by an existing HNSW index",
+        ):
+            conn.execute(
+                "CREATE INDEX normalized_embedding_hnsw ON ConflictingIndexItem "
+                "USING HNSW (embedding) "
+                "WITH (metric = 'cosine', normalize = true);"
+            )
+
+        stored = list(
+            conn.execute("MATCH (n:ConflictingIndexItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert stored == pytest.approx([3.0, 4.0, 0.0, 0.0])
+
+        raw_result = conn.execute(
+            "PROFILE MATCH (n:ConflictingIndexItem) RETURN n.id, "
+            "vector_distance_l2(n.embedding, [3.0, 4.0, 0.0, 0.0]) "
+            "AS score ORDER BY score ASC LIMIT 1;"
+        )
+        raw_rows = list(raw_result)
+        assert raw_rows[0][0] == 1
+        assert raw_rows[0][1] == pytest.approx(0.0)
+        assert "IndexScanOpr" in _profile_operator_names(raw_result)
+    finally:
+        _close_database(db, conn)
+
+
 def test_index_persistence_after_checkpoint_and_reopen(tmp_path):
     db_path = tmp_path / "database"
     db, conn = _open_database(db_path, checkpoint_on_close=False)
