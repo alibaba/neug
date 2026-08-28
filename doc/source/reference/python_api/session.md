@@ -98,7 +98,7 @@ best-effort basis.
 def has_active_transaction() -> bool
 ```
 
-Whether this session has an active explicit TP transaction.
+Whether this session has an active explicit transaction.
 
 The property remains true while a failed transaction is rollback-only.
 Call `rollback()` to discard that transaction before issuing another
@@ -112,11 +112,11 @@ query or beginning a new transaction.
 def begin_transaction(read_only: bool = False)
 ```
 
-Begin an explicit TP transaction.
+Begin an explicit transaction.
 
 - **Parameters:**
   - `read_only` (bool)
-    Pin one TP read view and reject writes when true. The default starts
+    Pin one read view and reject writes when true. The default starts
     a read-write transaction with a private COW view.
 
 - **Raises:**
@@ -134,7 +134,7 @@ Begin an explicit TP transaction.
 def commit()
 ```
 
-Commit the active explicit TP transaction.
+Commit the active explicit transaction.
 
 A rollback-only transaction must be rolled back instead.
 
@@ -146,7 +146,7 @@ A rollback-only transaction must be rolled back instead.
 def rollback()
 ```
 
-Roll back the active explicit TP transaction and return to auto-commit.
+Roll back the active explicit transaction and return to auto-commit.
 
 <a id="neug.session.Session.execute"></a>
 
@@ -160,7 +160,7 @@ def execute(query: str,
 
 Execute a query on the NeuG server.
 
-While an explicit TP transaction is active, the query runs in that
+While an explicit transaction is active, the query runs in that
 transaction. A failure reported by the service leaves it rollback-only;
 call `rollback()` before issuing another query. Client-side validation
 errors, such as an invalid `access_mode`, do not change the transaction

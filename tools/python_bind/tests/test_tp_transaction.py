@@ -49,6 +49,58 @@ def tp_endpoint(tmp_path, unused_tcp_port, request):
     db.close()
 
 
+@pytest.mark.parametrize(
+    "response_body",
+    [
+        ValueError("invalid JSON"),
+        {"mode": "read_write"},
+        {"transaction_id": "different-transaction-id"},
+    ],
+    ids=["invalid_json", "missing_transaction_id", "mismatched_transaction_id"],
+)
+def test_tp_begin_cleans_up_transaction_when_response_is_unusable(response_body):
+    class BeginResponse:
+        status_code = 201
+        headers = {"Location": "/transactions/transaction-id"}
+
+        def json(self):
+            if isinstance(response_body, ValueError):
+                raise response_body
+            return response_body
+
+    class RollbackResponse:
+        status_code = 200
+
+    class HttpSession:
+        def __init__(self):
+            self.requests = []
+            self.responses = [BeginResponse(), RollbackResponse()]
+
+        def post(self, endpoint, data, timeout):
+            self.requests.append((endpoint, data, timeout))
+            return self.responses.pop(0)
+
+    session = object.__new__(Session)
+    session._closed = False
+    session._transaction_id = None
+    session._transactions_endpoint = "http://example.test/transactions"
+    session._timeout = "10s"
+    session._http_session = HttpSession()
+
+    with pytest.raises(RuntimeError, match="Transaction begin response"):
+        session.begin_transaction()
+
+    assert not session.has_active_transaction
+    assert session._http_session.requests == [
+        ("http://example.test/transactions", '{"mode": "read_write"}', 10),
+        (
+            "http://example.test/transactions/transaction-id/rollback",
+            "",
+            10,
+        ),
+    ]
+
+
 def test_tp_explicit_transaction_lifecycle_schema_and_close(tp_endpoint):
     setup = Session.open(tp_endpoint, num_threads=1)
     transaction = Session.open(tp_endpoint, num_threads=1)

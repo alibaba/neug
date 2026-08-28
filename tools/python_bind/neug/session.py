@@ -153,7 +153,7 @@ class Session:
 
     @property
     def has_active_transaction(self) -> bool:
-        """Whether this session has an active explicit TP transaction.
+        """Whether this session has an active explicit transaction.
 
         The property remains true while a failed transaction is rollback-only.
         Call `rollback()` to discard that transaction before issuing another
@@ -193,6 +193,39 @@ class Session:
         if response.status_code == requests.codes.gone:
             self._transaction_id = None
 
+    def _transaction_id_from_location(self, response):
+        location = response.headers.get("Location")
+        location_prefix = "/transactions/"
+        if not isinstance(location, str) or not location.startswith(location_prefix):
+            return None
+        transaction_id = location[len(location_prefix) :]
+        if not transaction_id or any(char in transaction_id for char in "/?#"):
+            return None
+        return transaction_id
+
+    def _rollback_transaction(self, transaction_id):
+        if transaction_id is None:
+            logger.warning(
+                "Transaction begin response did not include a usable Location."
+            )
+            return
+        try:
+            rollback_response = self._http_session.post(
+                f"{self._transactions_endpoint}/{transaction_id}/rollback",
+                data="",
+                timeout=self.timeout,
+            )
+        except requests.exceptions.RequestException as e:
+            logger.warning("Failed to clean up transaction after begin: %s", e)
+            return
+        if rollback_response.status_code != 200:
+            logger.warning(
+                "Failed to clean up transaction after begin. Http code: %s, "
+                "Response: %s",
+                rollback_response.status_code,
+                rollback_response.text,
+            )
+
     def _require_active_transaction(self, operation: str):
         self._require_open(operation)
         if self._transaction_id is None:
@@ -202,12 +235,12 @@ class Session:
         return f"{self._transactions_endpoint}/{self._transaction_id}/{operation}"
 
     def begin_transaction(self, read_only: bool = False):
-        """Begin an explicit TP transaction.
+        """Begin an explicit transaction.
 
         Parameters
         ----------
         read_only : bool
-            Pin one TP read view and reject writes when true. The default starts
+            Pin one read view and reject writes when true. The default starts
             a read-write transaction with a private COW view.
 
         Raises
@@ -228,9 +261,11 @@ class Session:
             "begin transaction",
             expected_status=201,
         )
+        location_transaction_id = self._transaction_id_from_location(response)
         try:
             response_body = response.json()
         except ValueError as e:
+            self._rollback_transaction(location_transaction_id)
             raise RuntimeError(
                 "Transaction begin response did not contain valid JSON."
             ) from e
@@ -240,11 +275,20 @@ class Session:
             else None
         )
         if not isinstance(transaction_id, str) or not transaction_id:
+            self._rollback_transaction(location_transaction_id)
             raise RuntimeError("Transaction begin response did not include an ID.")
+        if (
+            location_transaction_id is not None
+            and location_transaction_id != transaction_id
+        ):
+            self._rollback_transaction(location_transaction_id)
+            raise RuntimeError(
+                "Transaction begin response ID did not match its Location."
+            )
         self._transaction_id = transaction_id
 
     def commit(self):
-        """Commit the active explicit TP transaction.
+        """Commit the active explicit transaction.
 
         A rollback-only transaction must be rolled back instead.
         """
@@ -257,7 +301,7 @@ class Session:
         self._transaction_id = None
 
     def rollback(self):
-        """Roll back the active explicit TP transaction and return to auto-commit."""
+        """Roll back the active explicit transaction and return to auto-commit."""
         self._require_active_transaction("roll back")
         self._post_transaction_request(
             self._active_transaction_endpoint("rollback"),
@@ -281,7 +325,7 @@ class Session:
         :param parameters: Optional dict of query parameters.
         :return: The result of the query execution.
 
-        While an explicit TP transaction is active, the query runs in that
+        While an explicit transaction is active, the query runs in that
         transaction. A failure reported by the service leaves it rollback-only;
         call `rollback()` before issuing another query. Client-side validation
         errors, such as an invalid `access_mode`, do not change the transaction
