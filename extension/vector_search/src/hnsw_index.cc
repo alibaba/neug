@@ -498,7 +498,8 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
   }
   Value index_value = value;
   auto normalize = meta_->options.find("normalize");
-  if (normalize != meta_->options.end() && normalize->second == "true") {
+  if (normalize != meta_->options.end() &&
+      (normalize->second == "true" || normalize->second == "TRUE")) {
     auto status = VectorNormalizer::ValueNormalize(value, index_value);
     if (!status.ok()) {
       return status;
