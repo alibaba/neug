@@ -265,8 +265,14 @@ def test_inner_product_index_scan(advanced_connection):
 
 
 def test_hnsw_limit_above_1024(advanced_connection):
-    rows = _l2_search(advanced_connection, 500.0, 1025)
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.0))}) "
+        "AS score ORDER BY score ASC LIMIT 1025;"
+    )
+    rows = list(result)
     assert len(rows) == 1025
+    assert "IndexScanOpr" in _profile_operator_names(result)
 
 
 def test_graph_filtering_during_index_scan(advanced_connection):
