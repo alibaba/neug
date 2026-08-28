@@ -135,6 +135,10 @@ inserts and updates wait for it to finish, while TP reads remain concurrent.
 
 Python `Session` manages the transaction id and route selection automatically:
 
+<Tabs items={['Python']}>
+
+<Tab>
+
 ```python
 from neug import Session
 
@@ -145,6 +149,10 @@ assert list(session.execute("MATCH (p:Person) RETURN p.name")) == [["Alice"]]
 session.commit()
 session.close()
 ```
+
+</Tab>
+
+</Tabs>
 
 Pass `read_only=True` to `begin_transaction()` to pin a TP read view and reject
 writes. One `Session` owns at most one explicit transaction. Do not issue
