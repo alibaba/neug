@@ -340,6 +340,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
         "HNSWIndex must be open and bound before bulk build");
   }
   flat_hash_set<uint64_t> duplicate_statistics;
+  size_t indexed_vector_count = 0;
   const auto vector_byte_size = vec_source_->GetVectorByteSize();
   for (auto vid : vertices) {
     auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
@@ -350,6 +351,7 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     const auto fingerprint =
         static_cast<uint64_t>(std::hash<std::string_view>{}(std::string_view(
             static_cast<const char*>(vector_data), vector_byte_size)));
+    ++indexed_vector_count;
     duplicate_statistics.insert(fingerprint);
     zvec::core_interface::VectorData vector;
     vector.vector = zvec::core_interface::DenseVector{vector_data};
@@ -361,9 +363,6 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
           ". See logs for details.");
     }
   }
-  const auto indexed_vector_count =
-      index_id_accessor_->GetNextIndexID() -
-      index_id_accessor_->GetDeletedIndexIDs().size();
   const auto duplicate_vector_count =
       indexed_vector_count - duplicate_statistics.size();
   LOG(WARNING) << "HNSW duplicate statistics for index '" << meta_->name
