@@ -226,6 +226,12 @@ struct StructType {
   static bool HasField(const DataType& type, const std::string& name);
   static size_t GetFieldIdx(const DataType& type, const std::string& name);
   static uint64_t GetNumFields(const DataType& type);
+  // Builds a struct DataType from deserialized components. Positional names
+  // "field_<i>" are generated when `field_names` is empty (legacy proto data
+  // carries no field names); a non-empty `field_names` must match the number
+  // of child types.
+  static DataType FromFields(std::vector<std::string> field_names,
+                             std::vector<DataType> child_types);
 };
 struct MapType {
   static const DataType& GetKeyType(const DataType& type);

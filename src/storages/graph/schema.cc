@@ -470,7 +470,8 @@ bool EdgeSchema::is_bundled() const {
     return false;
   } else if (properties.size() == 1 &&
              (properties[0].id() == DataTypeId::kArray ||
-              properties[0].id() == DataTypeId::kList)) {
+              properties[0].id() == DataTypeId::kList ||
+              properties[0].id() == DataTypeId::kStruct)) {
     return false;
   } else if (properties.size() > 1) {
     return false;

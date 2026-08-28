@@ -258,6 +258,24 @@ bool data_type_to_property_type(const common::DataType& data_type,
     out_type = DataType::List(child_type);
     return true;
   }
+  case common::DataType::kTuple: {
+    const auto& tuple = data_type.tuple();
+    std::vector<std::string> field_names(tuple.field_names().begin(),
+                                         tuple.field_names().end());
+    std::vector<DataType> child_types;
+    child_types.reserve(tuple.component_types_size());
+    for (const auto& component_type : tuple.component_types()) {
+      DataType child_type;
+      if (!data_type_to_property_type(component_type, child_type)) {
+        LOG(ERROR) << "Failed to parse struct field type";
+        return false;
+      }
+      child_types.push_back(std::move(child_type));
+    }
+    out_type = StructType::FromFields(std::move(field_names),
+                                      std::move(child_types));
+    return true;
+  }
   case common::DataType::kMap: {
     LOG(ERROR) << "Map type is not supported";
     return false;

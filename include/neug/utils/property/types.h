@@ -619,6 +619,28 @@ struct convert<neug::DataType> {
         return false;
       }
       property_type = neug::DataType::List(child_type);
+    } else if (config["struct"]) {
+      auto fields_node = config["struct"]["fields"];
+      if (!fields_node || !fields_node.IsSequence()) {
+        LOG(ERROR) << "struct fields should be a sequence";
+        return false;
+      }
+      std::vector<std::string> field_names;
+      std::vector<neug::DataType> child_types;
+      for (const auto& field : fields_node) {
+        if (!field["name"] || !field["type"]) {
+          LOG(ERROR) << "struct field requires both name and type";
+          return false;
+        }
+        neug::DataType child_type;
+        if (!decode(field["type"], child_type)) {
+          return false;
+        }
+        field_names.push_back(field["name"].as<std::string>());
+        child_types.push_back(std::move(child_type));
+      }
+      property_type = neug::StructType::FromFields(std::move(field_names),
+                                                   std::move(child_types));
     } else if (config["date"]) {
       property_type = neug::DataTypeId::kDate;
     } else {
@@ -658,6 +680,15 @@ struct convert<neug::DataType> {
     } else if (id == neug::DataTypeId::kList) {
       node["list"]["component_type"] =
           encode(neug::ListType::GetChildType(type));
+    } else if (id == neug::DataTypeId::kStruct) {
+      const auto& child_types = neug::StructType::GetChildTypes(type);
+      const auto& field_names = neug::StructType::GetFieldNames(type);
+      for (size_t i = 0; i < child_types.size(); ++i) {
+        YAML::Node field;
+        field["name"] = field_names[i];
+        field["type"] = encode(child_types[i]);
+        node["struct"]["fields"].push_back(field);
+      }
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type.ToString();
     }

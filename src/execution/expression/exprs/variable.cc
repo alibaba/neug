@@ -84,14 +84,15 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
     return DataType::List(data_type);
   }
   case ::common::DataType::kTuple: {
-    const auto& component_types = ddt.tuple().component_types();
+    const auto& tuple = ddt.tuple();
     std::vector<DataType> data_types;
-    for (int i = 0; i < component_types.size(); ++i) {
-      data_types.push_back(parse_from_data_type(component_types.Get(i)));
+    for (const auto& component_type : tuple.component_types()) {
+      data_types.push_back(parse_from_data_type(component_type));
     }
-    std::shared_ptr<ExtraTypeInfo> type_info =
-        std::make_shared<StructTypeInfo>(data_types);
-    return DataType(DataTypeId::kStruct, type_info);
+    std::vector<std::string> field_names(tuple.field_names().begin(),
+                                         tuple.field_names().end());
+    return StructType::FromFields(std::move(field_names),
+                                  std::move(data_types));
   }
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +

@@ -607,8 +607,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPatternExtractFunc(
   } else if (extractKey == common::InternalKeyword::RELS) {
     return convertUDFFunc("gs.function.relationships", expr, 1, schemaAlias);
   }
-  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported struct extract key: " +
-                                 extractKey);
+  // A regular struct field access (e.g. `n.address.city`): child(0) is the
+  // struct expression and child(1) the field-name literal, which the execution
+  // side uses to locate the field.
+  return convertUDFFunc("gs.function.structExtract", expr, 2, schemaAlias);
 }
 
 bool isVariable(const binder::Expression& expr) {

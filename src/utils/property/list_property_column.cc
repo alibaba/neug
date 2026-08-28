@@ -24,6 +24,7 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/column_module_utils.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/types.h"
 
@@ -32,38 +33,6 @@ namespace {
 
 constexpr const char* kItemsRef = "items";
 constexpr const char* kElementsRef = "elements";
-
-std::string ChildModuleKey(const std::string& parent, const std::string& role) {
-  return parent + "/" + role;
-}
-
-void MarkReferenced(CheckpointManifest& meta, const std::string& key) {
-  auto it = meta.mutable_modules().find(key);
-  if (it == meta.mutable_modules().end()) {
-    THROW_RUNTIME_ERROR(
-        "ListPropertyColumn::Dump: child column did not write "
-        "module '" +
-        key + "'");
-  }
-  it->second.mark_as_referenced_module();
-}
-
-const ModuleDescriptor& ResolveChild(const CheckpointManifest& manifest,
-                                     const ModuleDescriptor& parent,
-                                     const char* role,
-                                     std::optional<ModuleDescriptor>& storage) {
-  auto ref = parent.get_ref(role);
-  if (!ref.has_value()) {
-    THROW_RUNTIME_ERROR("ListPropertyColumn::Open: missing '" +
-                        std::string(role) + "' ref");
-  }
-  storage = manifest.module(*ref);
-  if (!storage.has_value()) {
-    THROW_RUNTIME_ERROR("ListPropertyColumn::Open: missing child module '" +
-                        *ref + "'");
-  }
-  return *storage;
-}
 
 }  // namespace
 
@@ -126,9 +95,14 @@ void ListPropertyColumn::openInternal(Checkpoint& ckp,
   const auto& resolver = manifest ? *manifest : ckp.GetMeta();
   std::optional<ModuleDescriptor> items_desc;
   std::optional<ModuleDescriptor> elements_desc;
-  items_->Open(ckp, ResolveChild(resolver, desc, kItemsRef, items_desc), level);
+  items_->Open(ckp,
+               column_module::ResolveChild(resolver, desc, kItemsRef,
+                                           items_desc, "ListPropertyColumn::Open"),
+               level);
   elements_->Open(ckp, resolver,
-                  ResolveChild(resolver, desc, kElementsRef, elements_desc),
+                  column_module::ResolveChild(resolver, desc, kElementsRef,
+                                              elements_desc,
+                                              "ListPropertyColumn::Open"),
                   level);
   // After loading from a checkpoint, elements_tail_ equals elements_->size(),
   // meaning there is zero spare capacity in the elements column.  Any
@@ -157,8 +131,8 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
         "ListPropertyColumn::Dump: module key must not be empty");
   }
 
-  auto items_key = ChildModuleKey(key, kItemsRef);
-  auto elements_key = ChildModuleKey(key, kElementsRef);
+  auto items_key = column_module::ChildModuleKey(key, kItemsRef);
+  auto elements_key = column_module::ChildModuleKey(key, kElementsRef);
 
   // Compute live element and range counts in one pass.
   size_t total_elements = 0;
@@ -240,8 +214,9 @@ void ListPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   items_->Dump(ckp, meta, items_key);
   elements_->Dump(ckp, meta, elements_key);
 
-  MarkReferenced(meta, items_key);
-  MarkReferenced(meta, elements_key);
+  column_module::MarkReferenced(meta, items_key, "ListPropertyColumn::Dump");
+  column_module::MarkReferenced(meta, elements_key,
+                                "ListPropertyColumn::Dump");
 
   auto desc = dumpSelfDescriptor();
   desc.set_ref(kItemsRef, std::move(items_key));

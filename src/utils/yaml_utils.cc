@@ -88,6 +88,17 @@ YAML::Node property_type_to_yaml(const DataType& type) {
     node["list"]["component_type"] =
         property_type_to_yaml(ListType::GetChildType(type));
     break;
+  case DataTypeId::kStruct: {
+    const auto& child_types = StructType::GetChildTypes(type);
+    const auto& field_names = StructType::GetFieldNames(type);
+    for (size_t i = 0; i < child_types.size(); ++i) {
+      YAML::Node field;
+      field["name"] = field_names[i];
+      field["type"] = property_type_to_yaml(child_types[i]);
+      node["struct"]["fields"].push_back(field);
+    }
+    break;
+  }
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unrecognized property type for YAML encoding: " + type.ToString());

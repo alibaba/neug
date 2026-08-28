@@ -24,6 +24,7 @@
 #include "neug/utils/property/array_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/list_property_column.h"
+#include "neug/utils/property/struct_property_column.h"
 #include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
 
@@ -615,6 +616,261 @@ TEST(ListPropertyColumnTest, ExceedsMaxListLength) {
   }
 
   std::filesystem::remove_all(temp_dir);
+}
+
+TEST(StructPropertyColumnTest, SetGetNullAndContracts) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("struct_property_column_basic_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto struct_type =
+      DataType::Struct({"name", "age", "score"},
+                       {DataType::Varchar(64), DataType::INT32,
+                        DataType::DOUBLE});
+  auto person = [&](const std::string& name, int32_t age, double score) {
+    std::vector<Value> children;
+    children.push_back(Value::STRING(name));
+    children.push_back(Value::INT32(age));
+    children.push_back(Value::DOUBLE(score));
+    return Value::STRUCT(struct_type, std::move(children));
+  };
+
+  StructPropertyColumn column(struct_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(3);
+
+  // Fresh rows read back as per-field defaults.
+  EXPECT_EQ(column.get_any(0), person("", 0, 0.0));
+
+  column.set_any(0, person("alice", 30, 0.5), false);
+  EXPECT_EQ(column.get_any(0), person("alice", 30, 0.5));
+
+  // A null struct value is normalized to all-field defaults on write.
+  column.set_any(1, Value(struct_type), false);
+  EXPECT_EQ(column.get_any(1), person("", 0, 0.0));
+
+  // A null field is normalized to that field's default by the child column.
+  {
+    std::vector<Value> children;
+    children.push_back(Value::STRING("bob"));
+    children.push_back(Value(DataType::INT32));
+    children.push_back(Value::DOUBLE(1.5));
+    column.set_any(1, Value::STRUCT(struct_type, std::move(children)), false);
+    EXPECT_EQ(column.get_any(1), person("bob", 0, 1.5));
+  }
+
+  // Type contract: values of a non-struct or mismatched struct type are
+  // rejected.
+  EXPECT_THROW(column.set_any(2, Value::INT32(1), true),
+               exception::InvalidArgumentException);
+  auto other_type = DataType::Struct({"name", "age"},
+                                     {DataType::Varchar(64), DataType::INT64});
+  std::vector<Value> bad_children;
+  bad_children.push_back(Value::STRING("x"));
+  bad_children.push_back(Value::INT64(1));
+  EXPECT_THROW(column.set_any(2,
+                              Value::STRUCT(other_type,
+                                            std::move(bad_children)),
+                              true),
+               exception::InvalidArgumentException);
+
+  // insert_safe is forwarded to the field columns: the varchar(64) field
+  // buffer (3 rows * 64 bytes) cannot fit a fourth 60-byte string without
+  // resizing.
+  std::string wide(60, 'w');
+  column.set_any(0, person(wide, 1, 0.0), false);
+  column.set_any(1, person(wide, 2, 0.0), false);
+  column.set_any(2, person(wide, 3, 0.0), false);
+  EXPECT_THROW(column.set_any(2, person(wide, 4, 0.0), false),
+               exception::StorageException);
+  column.set_any(2, person(wide, 4, 0.0), true);
+  EXPECT_EQ(column.get_any(2), person(wide, 4, 0.0));
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(StructPropertyColumnTest, NestedListAndLifecycle) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("struct_property_column_nested_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  // Nested struct, and LIST<STRUCT> field (ListPropertyColumn whose element
+  // column is a StructPropertyColumn).
+  auto address_type = DataType::Struct({"city", "zip"},
+                                       {DataType::VARCHAR, DataType::INT32});
+  auto person_type = DataType::Struct(
+      {"name", "address", "history"},
+      {DataType::VARCHAR, address_type, DataType::List(address_type)});
+  auto address = [&](const char* city, int32_t zip) {
+    std::vector<Value> children;
+    children.push_back(Value::STRING(city));
+    children.push_back(Value::INT32(zip));
+    return Value::STRUCT(address_type, std::move(children));
+  };
+  auto person = [&](const char* name, Value addr, std::vector<Value> history) {
+    std::vector<Value> children;
+    children.push_back(Value::STRING(name));
+    children.push_back(std::move(addr));
+    children.push_back(
+        Value::LIST(address_type, std::move(history)));
+    return Value::STRUCT(person_type, std::move(children));
+  };
+
+  StructPropertyColumn column(person_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(2);
+  auto v0 = person("alice", address("hz", 1000),
+                   {address("sh", 2000), address("bj", 3000)});
+  column.set_any(0, v0, true);
+  column.set_any(1, person("bob", address("gz", 4000), {}), true);
+  EXPECT_EQ(column.get_any(0), v0);
+  EXPECT_EQ(column.get_any(1), person("bob", address("gz", 4000), {}));
+
+  // COW clone shares storage until Detach; mutations stay private.
+  auto clone_module = column.Clone();
+  auto* clone = dynamic_cast<StructPropertyColumn*>(clone_module.get());
+  ASSERT_NE(clone, nullptr);
+  clone->Detach(*ckp, MemoryLevel::kInMemory);
+  auto v1 = person("carol", address("sz", 5000), {address("hz", 1000)});
+  clone->set_any(0, v1, true);
+  EXPECT_EQ(column.get_any(0), v0);
+  EXPECT_EQ(clone->get_any(0), v1);
+
+  // Dump/Open round-trip preserves the type (including field names) and all
+  // nested values.
+  CheckpointManifest manifest;
+  clone->Dump(*ckp, manifest, "struct");
+  StructPropertyColumn reopened;
+  reopened.Open(*ckp, manifest, *manifest.module("struct"),
+                MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.struct_type(), person_type);
+  EXPECT_EQ(reopened.size(), 2);
+  EXPECT_EQ(reopened.get_any(0), v1);
+  EXPECT_EQ(reopened.get_any(1), person("bob", address("gz", 4000), {}));
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(StructPropertyColumnTest, ResizeWithDefault) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("struct_property_column_resize_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto struct_type = DataType::Struct({"name", "age"},
+                                      {DataType::VARCHAR, DataType::INT32});
+  StructPropertyColumn column(struct_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(1);
+
+  std::vector<Value> default_children;
+  default_children.push_back(Value::STRING("d"));
+  default_children.push_back(Value::INT32(9));
+  auto default_value = Value::STRUCT(struct_type, std::move(default_children));
+  column.resize(3, default_value);
+  EXPECT_EQ(column.size(), 3);
+  EXPECT_EQ(column.get_any(1), default_value);
+  EXPECT_EQ(column.get_any(2), default_value);
+
+  // A null default falls back to per-field defaults.
+  column.resize(4, Value(struct_type));
+  std::vector<Value> zero_children;
+  zero_children.push_back(Value::STRING(""));
+  zero_children.push_back(Value::INT32(0));
+  EXPECT_EQ(column.get_any(3),
+            Value::STRUCT(struct_type, std::move(zero_children)));
+
+  // Shrinking keeps existing rows (row 0 still holds fresh defaults, as it
+  // was never written); a mismatched default type is rejected.
+  column.resize(1);
+  EXPECT_EQ(column.size(), 1);
+  std::vector<Value> fresh_children;
+  fresh_children.push_back(Value::STRING(""));
+  fresh_children.push_back(Value::INT32(0));
+  EXPECT_EQ(column.get_any(0),
+            Value::STRUCT(struct_type, std::move(fresh_children)));
+  EXPECT_THROW(column.resize(5, Value::INT32(1)),
+               exception::InvalidArgumentException);
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(StructPropertyColumnTest, RefColumnFieldAccess) {
+  auto temp_dir =
+      std::filesystem::temp_directory_path() /
+      ("struct_property_column_ref_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::remove_all(temp_dir);
+  std::filesystem::create_directories(temp_dir);
+  CheckpointManager checkpoint_mgr;
+  checkpoint_mgr.Open(temp_dir.string());
+  auto ckp = make_checkpoint(checkpoint_mgr);
+
+  auto address_type = DataType::Struct({"city", "zip"},
+                                       {DataType::VARCHAR, DataType::INT32});
+  auto person_type = DataType::Struct(
+      {"name", "address"}, {DataType::VARCHAR, address_type});
+
+  StructPropertyColumn column(person_type);
+  column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  column.resize(1);
+  std::vector<Value> addr_children;
+  addr_children.push_back(Value::STRING("hz"));
+  addr_children.push_back(Value::INT32(1000));
+  std::vector<Value> person_children;
+  person_children.push_back(Value::STRING("alice"));
+  person_children.push_back(
+      Value::STRUCT(address_type, std::move(addr_children)));
+  column.set_any(0, Value::STRUCT(person_type, std::move(person_children)),
+                 false);
+
+  auto ref = CreateRefColumn(column);
+  ASSERT_EQ(ref->type(), DataTypeId::kStruct);
+  auto* struct_ref = dynamic_cast<StructPropertyRefColumn*>(ref.get());
+  ASSERT_NE(struct_ref, nullptr);
+  EXPECT_EQ(struct_ref->get_any(0), column.get_any(0));
+
+  // Field-level access binds the child ref column directly, recursively for
+  // nested structs.
+  const auto& addr_ref = struct_ref->field_ref(struct_ref->field_idx("address"));
+  auto* nested = dynamic_cast<const StructPropertyRefColumn*>(&addr_ref);
+  ASSERT_NE(nested, nullptr);
+  EXPECT_EQ(
+      nested->field_ref(nested->field_idx("zip")).get_any(0).GetValue<int32_t>(),
+      1000);
+  EXPECT_EQ(struct_ref->field_ref(struct_ref->field_idx("name"))
+                .get_any(0)
+                .GetValue<std::string>(),
+            "alice");
+
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(StructPropertyColumnTest, FactoryRejectsEmptyStruct) {
+  auto empty_struct = DataType::Struct(std::vector<std::string>{},
+                                       std::vector<DataType>{});
+  EXPECT_THROW(CreateColumn(empty_struct), exception::NotSupportedException);
 }
 
 TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {

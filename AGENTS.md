@@ -100,10 +100,12 @@ Cypher → ANTLR Parser → Binder → Logical Plan → gopt Converter → Physi
 
 ## Known Limitations
 
-- **List literals require explicit CAST**: In `CREATE`, `SET`, and `MERGE` clauses, list values must be wrapped with `CAST(..., 'TYPE[]')` — bare list literals like `[1, 2, 3]` are rejected. Use `CAST([1, 2, 3], 'INT64[]')` instead.
+- **List literals require explicit CAST**: In `CREATE`, `SET`, and `MERGE` clauses, list values must be wrapped with `CAST(..., 'TYPE[]')` — bare list literals like `[1, 2, 3]` are rejected. Use `CAST([1, 2, 3], 'INT64[]')` instead. The same applies to LIST-typed struct fields: write `CAST({revenue: 1, ages: CAST([1.0, 2.0], 'DOUBLE[]')}, 'STRUCT(revenue INT64, ages DOUBLE[])')` rather than a bare list inside a struct literal.
 - **List types cannot be primary keys**: Declaring a `PRIMARY KEY` on a `T[]` column is rejected.
+- **Struct types cannot be primary keys**: Declaring a `PRIMARY KEY` on a `STRUCT(...)` column is rejected.
+- **No indexes on struct properties**: `CREATE INDEX` only supports HNSW indexes on `FLOAT[]` array properties; creating an index on a `STRUCT(...)` column is rejected with "HNSW index can only be created on VecColumn".
 - **Parquet does not support LIST properties**: `COPY FROM` / `LOAD FROM` on Parquet files only support fixed-size Arrow lists (`ARRAY` types like `FLOAT[3]`); variable-length LIST columns (`T[]`) are rejected by the parquet extension.
-- **Insert transactions may fail for non-empty list properties**: After loading a graph from a checkpoint directory, the `elements` column of a `ListPropertyColumn` has zero spare capacity (`elements_tail_ == elements_->size()`). The insert-transaction path always passes `insert_safe=false`, so inserting a **non-empty** list property will throw a `StorageException`. Workaround: use `UpdateTransaction` (which allows resize) after inserting with an empty list, or pre-populate list data during bulk load. See `storages/README.md` §5.4 for details.
+- **Insert transactions may fail for non-empty list properties**: After loading a graph from a checkpoint directory, the `elements` column of a `ListPropertyColumn` has zero spare capacity (`elements_tail_ == elements_->size()`). The insert-transaction path always passes `insert_safe=false`, so inserting a **non-empty** list property will throw a `StorageException`. This also applies to LIST-typed struct fields and `LIST<STRUCT>` properties, which are backed by `ListPropertyColumn` children. Workaround: use `UpdateTransaction` (which allows resize) after inserting with an empty list, or pre-populate list data during bulk load. See `storages/README.md` §5.4 for details.
 
 ## Code Style
 
