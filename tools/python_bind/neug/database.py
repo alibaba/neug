@@ -263,6 +263,7 @@ class Database(object):
         blocking: bool = True,
         thread_num: int = 0,
         auto_compaction: bool = True,
+        explicit_transaction_timeout_ms: int = 60000,
     ):
         """
         Start the database server for handling remote connections(TP mode).
@@ -287,6 +288,9 @@ class Database(object):
             Service threads run TP queries concurrently, but each query uses one execution context and one thread.
         auto_compaction : bool
             Enable background auto-compaction while serving. Default is True.
+        explicit_transaction_timeout_ms : int
+            Absolute lifetime of an explicit transaction in milliseconds.
+            Default is 60000.
 
         Returns
         -------
@@ -308,6 +312,11 @@ class Database(object):
             raise ValueError(
                 f"Invalid config: thread_num: {thread_num}. Must be a non-negative integer."
                 f"Error code: {ERR_CONFIG_INVALID}."
+            )
+        if explicit_transaction_timeout_ms <= 0:
+            raise ValueError(
+                "Invalid config: explicit_transaction_timeout_ms: "
+                f"{explicit_transaction_timeout_ms}. Must be a positive integer."
             )
         if thread_num > self._max_thread_num:
             logger.warning(
@@ -345,7 +354,12 @@ class Database(object):
         logger.info(f"Starting database server on {host}:{port}.")
         try:
             endpoint = self._database.serve(
-                port, host, thread_num, blocking, auto_compaction
+                port,
+                host,
+                thread_num,
+                blocking,
+                auto_compaction,
+                explicit_transaction_timeout_ms,
             )
         except KeyboardInterrupt:
             self.stop_serving()

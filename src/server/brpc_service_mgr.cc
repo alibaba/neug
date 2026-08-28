@@ -63,8 +63,10 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
   case neug::StatusCode::ERR_SERVICE_UNAVAILABLE:
     return brpc::HTTP_STATUS_SERVICE_UNAVAILABLE;
   case neug::StatusCode::ERR_TX_STATE_CONFLICT:
-  case neug::StatusCode::ERR_TX_TIMEOUT:
     return brpc::HTTP_STATUS_CONFLICT;
+  case neug::StatusCode::ERR_TX_TIMEOUT:
+  case neug::StatusCode::ERR_TX_NOT_FOUND:
+    return brpc::HTTP_STATUS_GONE;
   default:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   }
