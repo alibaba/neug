@@ -138,3 +138,30 @@ for (const row of result) {
 conn.close();
 db.close();
 ```
+
+## Explicit Transactions
+
+Since v0.2, the embedded Node.js `Connection` API supports explicit AP
+transactions. Auto-commit remains the default; begin a transaction only when
+multiple ordinary queries must share one private view and one final commit.
+
+```js
+const conn = db.connect();
+
+conn.beginTransaction();
+conn.execute("CREATE (p:person {id: 3, name: 'Carol'});");
+// Reads on this connection see the new vertex before publication.
+conn.execute('MATCH (p:person) RETURN p.name;');
+conn.commit();
+
+conn.beginTransaction({ readOnly: true });
+// This transaction pins one read view and rejects writes.
+conn.execute('MATCH (p:person) RETURN p.name;');
+conn.rollback();
+```
+
+`hasActiveTransaction` remains true after a failed statement because the
+connection is rollback-only. Call `rollback()` before issuing another query.
+Nested transactions, read-to-write upgrades, Cypher `BEGIN`/`COMMIT`/`ROLLBACK`,
+and explicit-transaction COPY, batch, index, checkpoint, procedure, and
+temporary-schema operations are not supported.

@@ -111,7 +111,10 @@ bool IsCompatibleHNSWIndex(const StorageIndex& index,
       IndexMetric(meta) != DistanceMetric(distance.getFunction())) {
     return false;
   }
-  const auto& property_type = meta.schema.property_type;
+  if (meta.schema.columns.size() != 1) {
+    return false;
+  }
+  const auto& property_type = meta.schema.columns[0].property_type;
   const auto& target_type = target.getDataType();
   if (property_type.id() != DataTypeId::kArray ||
       target_type.id() != DataTypeId::kArray) {
@@ -443,7 +446,7 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
     return op;
   }
   auto indexes = graph_stats->GetIndex(property->getSingleTableID(),
-                                       property->getPropertyName());
+                                       {property->getPropertyName()});
   if (!indexes.has_value()) {
     return op;
   }

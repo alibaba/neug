@@ -126,6 +126,209 @@ def fts_hybrid_database(tmp_path):
         db.close()
 
 
+@pytest.fixture()
+def fts_multi_column_database(tmp_path):
+    db = Database(db_path=str(tmp_path / "fts_multi_column_db"), mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    connection.execute(
+        "CREATE NODE TABLE Article("
+        "id INT64 PRIMARY KEY, title STRING, description STRING, notes STRING);"
+    )
+    connection.execute(
+        "CREATE (:Article {id: 1, title: 'target target', "
+        "description: 'other', notes: 'mismatch'}), "
+        "(:Article {id: 2, title: 'other', "
+        "description: 'target target', notes: 'mismatch'}), "
+        "(:Article {id: 3, title: 'other', "
+        "description: 'other', notes: 'target'});"
+    )
+    connection.execute(
+        "CREATE INDEX article_text_fts ON Article USING FTS (title, description);"
+    )
+    try:
+        yield connection
+    finally:
+        connection.close()
+        db.close()
+
+
+@pytest.fixture()
+def fts_single_column_database(tmp_path):
+    db = Database(db_path=str(tmp_path / "fts_single_column_db"), mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    connection.execute(
+        "CREATE NODE TABLE Article("
+        "id INT64 PRIMARY KEY, title STRING, description STRING);"
+    )
+    connection.execute(
+        "CREATE (:Article {id: 1, title: 'target', description: 'target'});"
+    )
+    connection.execute("CREATE INDEX article_title_fts ON Article USING FTS (title);")
+    try:
+        yield connection
+    finally:
+        connection.close()
+        db.close()
+
+
+def test_fts_multi_column_index_supports_single_column_bm25(
+    fts_multi_column_database,
+):
+    rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.title, $target) AS score "
+            "ORDER BY score ASC;",
+            parameters={"target": "target"},
+        )
+    )
+    assert [row[0] for row in rows] == [1]
+
+
+def test_fts_multi_column_index_supports_partial_null_values(
+    fts_multi_column_database,
+):
+    fts_multi_column_database.execute(
+        "CREATE (:Article {id: 4, title: NULL, description: 'target'}), "
+        "(:Article {id: 5, title: 'target'});"
+    )
+
+    description_rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.description, 'target') AS score "
+            "ORDER BY score ASC;"
+        )
+    )
+    assert {row[0] for row in description_rows} == {2, 4}
+
+    title_rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.title, 'target') AS score "
+            "ORDER BY score ASC;"
+        )
+    )
+    assert {row[0] for row in title_rows} == {1, 5}
+
+    fts_multi_column_database.execute(
+        "MATCH (a:Article) WHERE a.id = 4 SET a.description = NULL;"
+    )
+    description_rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.description, 'target') AS score "
+            "ORDER BY score ASC;"
+        )
+    )
+    assert [row[0] for row in description_rows] == [2]
+
+
+def test_fts_bm25_rejects_duplicate_properties(fts_multi_column_database):
+    with pytest.raises(Exception, match="duplicate properties"):
+        list(
+            fts_multi_column_database.execute(
+                "MATCH (a:Article) "
+                "RETURN bm25([a.title, a.title], [1.0, 2.0], "
+                "'target') AS score;"
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("weights_expression", "target_expression", "parameters"),
+    [
+        ("[10.0, 1.0]", "'target'", {}),
+        ("$weights", "'target'", {"weights": [10.0, 1.0]}),
+        ("[10.0, 1.0]", "$target", {"target": "target"}),
+        (
+            "$weights",
+            "$target",
+            {"weights": [10.0, 1.0], "target": "target"},
+        ),
+    ],
+)
+def test_fts_multi_column_bm25_constant_and_dynamic_arguments(
+    fts_multi_column_database,
+    weights_expression,
+    target_expression,
+    parameters,
+):
+    rows = list(
+        fts_multi_column_database.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, "
+            f"bm25([a.title, a.description], {weights_expression}, "
+            f"{target_expression}) AS score ORDER BY score ASC;",
+            parameters=parameters,
+        )
+    )
+    assert [row[0] for row in rows] == [1, 2]
+
+
+@pytest.mark.parametrize(
+    ("weights_expression", "parameters"),
+    [
+        ("[0.0, 1.0]", {}),
+        ("[-1.0, 1.0]", {}),
+        ("[NULL, 1.0]", {}),
+        ("['invalid', 'weights']", {}),
+        ("[1.0]", {}),
+        ("[]", {}),
+        ("$weights", {"weights": [float("inf"), 1.0]}),
+    ],
+    ids=[
+        "zero",
+        "negative",
+        "null",
+        "non-numeric",
+        "length-mismatch",
+        "empty",
+        "non-finite",
+    ],
+)
+def test_fts_multi_column_bm25_rejects_invalid_weights(
+    fts_multi_column_database,
+    weights_expression,
+    parameters,
+):
+    with pytest.raises(Exception):
+        list(
+            fts_multi_column_database.execute(
+                "MATCH (a:Article) "
+                "RETURN bm25([a.title, a.description], "
+                f"{weights_expression}, 'target') AS score;",
+                parameters=parameters,
+            )
+        )
+
+
+def test_fts_bm25_rejects_property_not_in_multi_column_index(
+    fts_multi_column_database,
+):
+    with pytest.raises(Exception):
+        list(
+            fts_multi_column_database.execute(
+                "MATCH (a:Article) " "RETURN bm25(a.notes, 'target') AS score;"
+            )
+        )
+
+
+def test_fts_multi_column_bm25_rejects_single_column_index(
+    fts_single_column_database,
+):
+    with pytest.raises(Exception):
+        list(
+            fts_single_column_database.execute(
+                "MATCH (a:Article) "
+                "RETURN bm25([a.title, a.description], [1.0, 1.0], "
+                "'target') AS score;"
+            )
+        )
+
+
 def test_fts_topk_search(fts_database):
     rows = search(fts_database, "search text", limit=2)
     assert {row[0] for row in rows} == {1, 2}
@@ -304,6 +507,16 @@ def test_dropping_indexed_schema_removes_fts_index(fts_database, drop_statement)
     assert list(fts_database.execute("CALL SHOW_INDEXES() RETURN *;")) == []
 
 
+def test_dropping_property_removes_containing_multi_column_fts_index(
+    fts_multi_column_database,
+):
+    fts_multi_column_database.execute("ALTER TABLE Article DROP title;")
+
+    assert (
+        list(fts_multi_column_database.execute("CALL SHOW_INDEXES() RETURN *;")) == []
+    )
+
+
 def test_fts_tracks_inserts_updates_and_deletes(fts_database):
     fts_database.execute("CREATE (:Item {id: 4, text: 'durable fox'});")
     assert [row[0] for row in search(fts_database, "durable")] == [4]
@@ -344,7 +557,60 @@ def test_fts_index_survives_database_reopen(tmp_path):
         reopened_db.close()
 
 
-def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
+def test_multi_column_fts_survives_property_rename_and_reopen(tmp_path):
+    database_path = str(tmp_path / "renamed_fts_db")
+    db = Database(db_path=database_path, mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    connection.execute(
+        "CREATE NODE TABLE Article("
+        "id INT64 PRIMARY KEY, title STRING, description STRING);"
+    )
+    connection.execute(
+        "CREATE (:Article {id: 1, title: 'renamed token', "
+        "description: 'original description'});"
+    )
+    connection.execute(
+        "CREATE INDEX article_text_fts ON Article USING FTS (title, description);"
+    )
+    connection.execute("ALTER TABLE Article RENAME title TO headline;")
+    connection.execute(
+        "CREATE (:Article {id: 2, headline: 'post rename token', "
+        "description: 'second description'});"
+    )
+
+    rows = list(
+        connection.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.headline, 'token') AS score ORDER BY a.id;"
+        )
+    )
+    assert [row[0] for row in rows] == [1, 2]
+    connection.execute("CHECKPOINT;")
+    connection.close()
+    db.close()
+
+    reopened_db = Database(db_path=database_path, mode="w")
+    reopened_connection = reopened_db.connect()
+    try:
+        load_fts(reopened_connection)
+        reopened_connection.execute(
+            "CREATE (:Article {id: 3, headline: 'reopened token', "
+            "description: 'third description'});"
+        )
+        rows = list(
+            reopened_connection.execute(
+                "MATCH (a:Article) "
+                "RETURN a.id, bm25(a.headline, 'token') AS score ORDER BY a.id;"
+            )
+        )
+        assert [row[0] for row in rows] == [1, 2, 3]
+    finally:
+        reopened_connection.close()
+        reopened_db.close()
+
+
+def test_explicit_checkpoint_recovers_later_committed_fts_data_from_wal(tmp_path):
     database_path = str(tmp_path / "explicit_checkpoint_fts_db")
     db = Database(db_path=database_path, mode="w", checkpoint_on_close=False)
     connection = db.connect()
@@ -366,9 +632,9 @@ def test_explicit_checkpoint_discards_later_uncheckpointed_fts_data(tmp_path):
         rows = list(
             reopened_connection.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")
         )
-        assert rows == [[1]]
+        assert rows == [[1], [2]]
         assert [row[0] for row in search(reopened_connection, "durable")] == [1]
-        assert search(reopened_connection, "volatile") == []
+        assert [row[0] for row in search(reopened_connection, "volatile")] == [2]
     finally:
         reopened_connection.close()
         reopened_db.close()
@@ -528,7 +794,7 @@ def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
         ("tokenizer", "unknown", "tokenizer"),
         ("jieba_mode", "mix", "jieba_mode"),
         ("prefix", "2 bad", "prefix"),
-        ("detail", "invalid", "detail"),
+        ("detail", "full", "detail"),
     ],
 )
 def test_create_fts_index_rejects_invalid_options(

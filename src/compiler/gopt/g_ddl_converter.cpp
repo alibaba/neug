@@ -785,9 +785,12 @@ void GDDLConverter::convertCreateIndex(const planner::LogicalCreateIndex& op,
   // Index type (lowercase, e.g. "int32")
   create_index->set_create_index_type(info.indexType);
 
-  create_index->set_property(info.propertyName);
-  auto irType = typeConverter.convertLogicalType(info.propertyType);
-  create_index->set_allocated_property_type(irType->release_data_type());
+  for (size_t i = 0; i < info.propertyNames.size(); ++i) {
+    auto* column = create_index->add_columns();
+    column->set_property(info.propertyNames[i]);
+    auto ir_type = typeConverter.convertLogicalType(info.propertyTypes[i]);
+    column->set_allocated_property_type(ir_type->release_data_type());
+  }
 
   // Set options
   for (const auto& [key, value] : info.options) {

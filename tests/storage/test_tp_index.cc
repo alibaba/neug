@@ -210,8 +210,8 @@ class TPIndexTest : public ::testing::Test {
     meta->name = name;
     meta->type = "hnsw";
     meta->schema.label_id = label;
-    meta->schema.property_name = "embedding";
-    meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
+    meta->schema.columns.push_back(
+        {"embedding", DataType::Array(DataType::FLOAT, 2)});
     GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
     return std::get<StorageIndex*>(created);
   }
@@ -256,8 +256,7 @@ class TPIndexTest : public ::testing::Test {
     meta->name = name;
     meta->type = "example";
     meta->schema.label_id = label;
-    meta->schema.property_name = property_name;
-    meta->schema.property_type = property_type;
+    meta->schema.columns.push_back({property_name, property_type});
     const auto& vertex_table = graph.get_vertex_table(label);
     auto* column = vertex_table.GetPropertyColumnBase(property_name);
     if (!column) {
@@ -265,7 +264,7 @@ class TPIndexTest : public ::testing::Test {
                           "Property column does not exist: " + property_name);
     }
     auto created = graph.mutable_index_manager().CreateIndex(
-        std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), column,
+        std::move(meta), std::make_unique<DefaultIndexIDAccessor>(), {column},
         graph.GetVertexSet(label));
     if (!created) {
       return tl::unexpected(created.error());
@@ -286,8 +285,7 @@ class TPIndexTest : public ::testing::Test {
     meta->name = name;
     meta->type = "example";
     meta->schema.label_id = storage.schema().get_vertex_label_id("Person");
-    meta->schema.property_name = "age";
-    meta->schema.property_type = DataType::INT32;
+    meta->schema.columns.push_back({"age", DataType::INT32});
     return meta;
   }
 
@@ -309,7 +307,7 @@ class TPIndexTest : public ::testing::Test {
   std::vector<StorageIndex*> GetIndexes(
       label_t label, const std::string& property_name) const {
     auto indexes = snapshot_store_->CurrentSnapshot().index_manager().GetIndex(
-        label, property_name);
+        label, {property_name});
     EXPECT_TRUE(indexes) << indexes.error().ToString();
     if (!indexes) {
       return {};
@@ -618,7 +616,9 @@ TEST_F(TPIndexTest, DropAndRenameVertexPropertyDeleteBoundIndex) {
   auto renamed_indexes = GetIndexes(person_label, "years");
   ASSERT_EQ(renamed_indexes.size(), 1);
   EXPECT_EQ(renamed_indexes.front()->GetMeta().name, "idx_person_score");
-  EXPECT_EQ(renamed_indexes.front()->GetMeta().schema.property_name, "years");
+  ASSERT_EQ(renamed_indexes.front()->GetMeta().schema.columns.size(), 1);
+  EXPECT_EQ(renamed_indexes.front()->GetMeta().schema.columns[0].property_name,
+            "years");
 }
 
 TEST_F(TPIndexTest, InsertDeleteAndUpdateMaintainIndex) {
@@ -868,7 +868,7 @@ TEST_F(TPIndexTest, AutomaticallyDeletedIndexStaysDeletedAfterReopen) {
 
   auto reopened = std::make_shared<PropertyGraph>();
   reopened->Open(published_checkpoint, MemoryLevel::kInMemory);
-  auto indexes = reopened->index_manager().GetIndex(person_label, "age");
+  auto indexes = reopened->index_manager().GetIndex(person_label, {"age"});
   ASSERT_TRUE(indexes) << indexes.error().ToString();
   EXPECT_TRUE(indexes->empty());
 }

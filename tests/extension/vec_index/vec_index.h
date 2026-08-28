@@ -66,7 +66,11 @@ class VecIndex final : public StorageIndex {
   static constexpr const char* type_name() { return kVecIndexType; }
 
   Status Rebind(const IndexBindContext& context) override {
-    auto* column = dynamic_cast<const VecColumn*>(context.column);
+    if (context.columns.size() != 1) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "VecIndex requires exactly one property column");
+    }
+    auto* column = dynamic_cast<const VecColumn*>(context.columns[0]);
     if (!column || ArrayType::GetChildType(column->array_type()).id() !=
                        DataTypeId::kFloat) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -81,6 +85,18 @@ class VecIndex final : public StorageIndex {
   }
 
   Status BulkBuild(const VertexSet&) override { return Status::OK(); }
+
+  Status Upsert(vid_t vid, const IndexValue& new_value) override {
+    if (new_value.column_id != 0) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "VecIndex column id is out of range");
+    }
+    if (new_value.value.IsNull()) {
+      return Delete(vid);
+    }
+    auto index_id = index_id_accessor_->UpsertVID(vid);
+    return AppendImpl(index_id, IndexValues{new_value.value});
+  }
 
   void Dump(Checkpoint& ckp, CheckpointManifest& manifest,
             const std::string& key) override {
@@ -145,7 +161,11 @@ class VecIndex final : public StorageIndex {
     return std::vector<SearchCandidate>{{best_id, best_distance}};
   }
 
-  Status AppendImpl(index_id_t, const Value&) override {
+  Status AppendImpl(index_id_t, const IndexValues& values) override {
+    if (values.size() != 1) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "VecIndex requires exactly one value");
+    }
     // VecIndex stores no index data. VecSource observes values directly from
     // the bound VecColumn buffer.
     if (source_) {

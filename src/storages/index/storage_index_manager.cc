@@ -42,7 +42,8 @@ static Status PendingIndexError(const std::string& name,
 neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
     std::unique_ptr<IndexMeta> meta,
     std::unique_ptr<IndexIDAccessor> index_id_accessor,
-    const ColumnBase* column, const VertexSet& vertex_set, bool required) {
+    std::vector<const ColumnBase*> columns, const VertexSet& vertex_set,
+    bool required) {
   if (!meta) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null metadata");
@@ -51,9 +52,11 @@ neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
                         "Cannot create index with null IndexIDAccessor");
   }
-  if (!column) {
+  if (columns.empty() ||
+      std::any_of(columns.begin(), columns.end(),
+                  [](const ColumnBase* column) { return column == nullptr; })) {
     RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Cannot create index with null property column");
+                        "Cannot create index without valid property columns");
   }
   const auto name = meta->name;
   if (name.empty()) {
@@ -100,7 +103,8 @@ neug::result<CreatedIndex> StorageIndexManager::CreateIndex(
       index->Init(std::move(meta), std::move(index_id_accessor)));
   index->Open(*ckp_, desc, memory_level_);
 
-  RETURN_STATUS_ERROR_IF_NOT_OK(index->Rebind(IndexBindContext{column}));
+  RETURN_STATUS_ERROR_IF_NOT_OK(
+      index->Rebind(IndexBindContext{std::move(columns)}));
   RETURN_STATUS_ERROR_IF_NOT_OK(index->BulkBuild(vertex_set));
 
   auto* raw_ptr = index.get();
@@ -132,10 +136,19 @@ Status StorageIndexManager::DropIndex(const std::string& name) {
 }
 
 neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndex(
-    label_t label_id, const std::string& property_name) const {
+    label_t label_id, const std::vector<std::string>& property_names) const {
+  auto matches = [&](const IndexBindSchema& schema) {
+    if (schema.label_id != label_id ||
+        schema.columns.size() != property_names.size()) {
+      return false;
+    }
+    return std::all_of(property_names.begin(), property_names.end(),
+                       [&](const std::string& property_name) {
+                         return schema.ContainsProperty(property_name);
+                       });
+  };
   for (const auto& [name, pending] : pending_indexes_) {
-    if (pending.meta.schema.label_id == label_id &&
-        pending.meta.schema.property_name == property_name) {
+    if (matches(pending.meta.schema)) {
       return tl::unexpected(
           PendingIndexError(name, "access", pending.descriptor.module_type));
     }
@@ -145,26 +158,65 @@ neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndex(
     if (!index)
       continue;
     const auto& meta = index->GetMeta();
-    if (meta.schema.label_id != label_id) {
-      continue;
-    }
-    if (meta.schema.property_name == property_name) {
+    if (matches(meta.schema)) {
       target_indexes.push_back(index.get());
     }
   }
   return target_indexes;
 }
 
-neug::result<std::vector<StorageIndex*>> StorageIndexManager::GetIndexForUpdate(
+neug::result<std::vector<BoundIndexRef>>
+StorageIndexManager::GetIndexesContainingProperty(
+    label_t label_id, const std::string& property_name) const {
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (pending.meta.schema.label_id == label_id &&
+        pending.meta.schema.ContainsProperty(property_name)) {
+      return tl::unexpected(
+          PendingIndexError(name, "access", pending.descriptor.module_type));
+    }
+  }
+  std::vector<BoundIndexRef> result;
+  for (const auto& [_, index] : indexes_) {
+    if (!index || index->GetMeta().schema.label_id != label_id) {
+      continue;
+    }
+    auto column_id = index->GetMeta().schema.FindProperty(property_name);
+    if (column_id) {
+      result.push_back(BoundIndexRef{index.get(), *column_id});
+    }
+  }
+  return result;
+}
+
+neug::result<std::vector<BoundIndexRef>>
+StorageIndexManager::GetIndexesContainingPropertyForUpdate(
     label_t label_id, const std::string& property_name) {
-  auto indexes = GetIndex(label_id, property_name);
+  auto indexes = GetIndexesContainingProperty(label_id, property_name);
   if (!indexes) {
     return indexes;
   }
-  for (auto* index : indexes.value()) {
-    dirty_index_names_.insert(index->GetMeta().name);
+  for (const auto& binding : indexes.value()) {
+    dirty_index_names_.insert(binding.index->GetMeta().name);
   }
   return indexes;
+}
+
+neug::result<std::vector<StorageIndex*>>
+StorageIndexManager::GetIndexesForUpdate(label_t label_id) {
+  std::vector<StorageIndex*> result;
+  for (const auto& [name, pending] : pending_indexes_) {
+    if (pending.meta.schema.label_id == label_id) {
+      return tl::unexpected(
+          PendingIndexError(name, "access", pending.descriptor.module_type));
+    }
+  }
+  for (const auto& [name, index] : indexes_) {
+    if (index && index->GetMeta().schema.label_id == label_id) {
+      dirty_index_names_.insert(name);
+      result.push_back(index.get());
+    }
+  }
+  return result;
 }
 
 bool StorageIndexManager::HasPendingIndex(label_t label_id) const {
@@ -176,11 +228,11 @@ bool StorageIndexManager::HasPendingIndex(label_t label_id) const {
   return false;
 }
 
-bool StorageIndexManager::HasPendingIndex(
+bool StorageIndexManager::HasPendingIndexContainingProperty(
     label_t label_id, const std::string& property_name) const {
   for (const auto& [_, pending] : pending_indexes_) {
     if (pending.meta.schema.label_id == label_id &&
-        pending.meta.schema.property_name == property_name) {
+        pending.meta.schema.ContainsProperty(property_name)) {
       return true;
     }
   }
@@ -188,12 +240,30 @@ bool StorageIndexManager::HasPendingIndex(
 }
 
 result<std::vector<StorageIndexManager::PendingIndex*>>
-StorageIndexManager::GetPendingIndex(label_t label_id,
-                                     const std::string& property_name) {
+StorageIndexManager::GetPendingIndex(
+    label_t label_id, const std::vector<std::string>& property_names) {
   std::vector<PendingIndex*> indexes;
   for (auto& [_, pending] : pending_indexes_) {
-    if (pending.meta.schema.label_id == label_id &&
-        pending.meta.schema.property_name == property_name) {
+    const auto& schema = pending.meta.schema;
+    if (schema.label_id == label_id &&
+        schema.columns.size() == property_names.size() &&
+        std::all_of(property_names.begin(), property_names.end(),
+                    [&](const std::string& property_name) {
+                      return schema.ContainsProperty(property_name);
+                    })) {
+      indexes.push_back(&pending);
+    }
+  }
+  return indexes;
+}
+
+result<std::vector<StorageIndexManager::PendingIndex*>>
+StorageIndexManager::GetPendingIndexContainingProperty(
+    label_t label_id, const std::string& property_name) {
+  std::vector<PendingIndex*> indexes;
+  for (auto& [_, pending] : pending_indexes_) {
+    const auto& schema = pending.meta.schema;
+    if (schema.label_id == label_id && schema.ContainsProperty(property_name)) {
       indexes.push_back(&pending);
     }
   }
@@ -271,11 +341,35 @@ static result<bool> ReplayPendingMutations(
       replayed = true;
       continue;
     }
+    if (mutation.type ==
+        StorageIndexManager::PendingIndexMutation::Type::kInsert) {
+      IndexValues values(meta.schema.columns.size());
+      for (size_t i = 0; i < meta.schema.columns.size(); ++i) {
+        bool found = false;
+        for (const auto& [property_name, value] : mutation.properties) {
+          if (property_name == meta.schema.columns[i].property_name) {
+            values[i] = value;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          LOG(WARNING) << "Missing indexed property '"
+                       << meta.schema.columns[i].property_name
+                       << "' while replaying insert for index '" << meta.name
+                       << "'";
+        }
+      }
+      RETURN_IF_NOT_OK(index.Upsert(mutation.vid, values));
+      replayed = true;
+      continue;
+    }
     for (const auto& [property_name, value] : mutation.properties) {
-      if (property_name == meta.schema.property_name) {
-        RETURN_IF_NOT_OK(index.Upsert(mutation.vid, value));
+      auto column_id = meta.schema.FindProperty(property_name);
+      if (column_id) {
+        RETURN_IF_NOT_OK(
+            index.Upsert(mutation.vid, IndexValue{*column_id, value}));
         replayed = true;
-        break;
       }
     }
   }
@@ -369,16 +463,21 @@ result<size_t> StorageIndexManager::ActivateIndexes(
     if (label_it == columns.end()) {
       return Status::InternalError("Invalid label for pending index: " + name);
     }
-    auto property_it = label_it->second.find(meta.schema.property_name);
-    if (property_it == label_it->second.end() || !property_it->second) {
-      return Status::InternalError("Invalid property for pending index: " +
-                                   name);
+    std::vector<const ColumnBase*> bound_columns;
+    bound_columns.reserve(meta.schema.columns.size());
+    for (const auto& column : meta.schema.columns) {
+      auto property_it = label_it->second.find(column.property_name);
+      if (property_it == label_it->second.end() || !property_it->second) {
+        return Status::InternalError("Invalid property for pending index: " +
+                                     name);
+      }
+      bound_columns.push_back(property_it->second);
     }
     bool dirty = false;
     if (pending.state == PendingIndex::State::kCreated) {
       std::unique_ptr<IndexIDAccessor> accessor;
       if (IsHNSWIndex(meta)) {
-        auto* vec = dynamic_cast<const VecColumn*>(property_it->second);
+        auto* vec = dynamic_cast<const VecColumn*>(bound_columns.front());
         if (!vec) {
           return Status::InternalError("Invalid VecColumn for pending index: " +
                                        name);
@@ -393,7 +492,8 @@ result<size_t> StorageIndexManager::ActivateIndexes(
       ModuleDescriptor desc;
       desc.module_type = pending.descriptor.module_type;
       index->Open(*ckp_, desc, memory_level_);
-      RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
+      RETURN_IF_NOT_OK(
+          index->Rebind(IndexBindContext{std::move(bound_columns)}));
       auto vertices_it = vertex_sets.find(meta.schema.label_id);
       if (vertices_it == vertex_sets.end()) {
         return Status::InternalError("Invalid vertex set for pending index: " +
@@ -407,7 +507,8 @@ result<size_t> StorageIndexManager::ActivateIndexes(
     } else {
       static_cast<Module*>(index.get())
           ->Open(*ckp_, ckp_->manifest(), pending.descriptor, memory_level_);
-      RETURN_IF_NOT_OK(index->Rebind(IndexBindContext{property_it->second}));
+      RETURN_IF_NOT_OK(
+          index->Rebind(IndexBindContext{std::move(bound_columns)}));
       auto replayed = ReplayPendingMutations(*index, pending_mutations_);
       if (!replayed) {
         return replayed.error();

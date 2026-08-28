@@ -43,6 +43,10 @@ class NodeConnection : public Napi::ObjectWrap<NodeConnection> {
   static Napi::FunctionReference constructor;
 
   Napi::Value Execute(const Napi::CallbackInfo& info);
+  Napi::Value BeginTransaction(const Napi::CallbackInfo& info);
+  Napi::Value Commit(const Napi::CallbackInfo& info);
+  Napi::Value Rollback(const Napi::CallbackInfo& info);
+  Napi::Value HasActiveTransaction(const Napi::CallbackInfo& info);
   Napi::Value GetSchema(const Napi::CallbackInfo& info);
   Napi::Value Close(const Napi::CallbackInfo& info);
 

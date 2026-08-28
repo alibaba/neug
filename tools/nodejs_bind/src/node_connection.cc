@@ -29,16 +29,36 @@
 
 namespace neug {
 
+namespace {
+
+Napi::Object StatusToJs(Napi::Env env, const Status& status) {
+  auto result = Napi::Object::New(env);
+  result.Set("code", Napi::Number::New(env, status.error_code()));
+  result.Set("message", Napi::String::New(env, status.error_message()));
+  return result;
+}
+
+Status ClosedConnectionStatus() {
+  return Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed.");
+}
+
+}  // namespace
+
 Napi::FunctionReference NodeConnection::constructor;
 
 Napi::Object NodeConnection::Init(Napi::Env env, Napi::Object exports) {
-  Napi::Function func =
-      DefineClass(env, "NodeConnection",
-                  {
-                      InstanceMethod("execute", &NodeConnection::Execute),
-                      InstanceMethod("getSchema", &NodeConnection::GetSchema),
-                      InstanceMethod("close", &NodeConnection::Close),
-                  });
+  Napi::Function func = DefineClass(
+      env, "NodeConnection",
+      {
+          InstanceMethod("execute", &NodeConnection::Execute),
+          InstanceMethod("beginTransaction", &NodeConnection::BeginTransaction),
+          InstanceMethod("commit", &NodeConnection::Commit),
+          InstanceMethod("rollback", &NodeConnection::Rollback),
+          InstanceMethod("hasActiveTransaction",
+                         &NodeConnection::HasActiveTransaction),
+          InstanceMethod("getSchema", &NodeConnection::GetSchema),
+          InstanceMethod("close", &NodeConnection::Close),
+      });
   constructor = Napi::Persistent(func);
   constructor.SuppressDestruct();
   exports.Set("NodeConnection", func);
@@ -99,8 +119,48 @@ Napi::Value NodeConnection::Execute(const Napi::CallbackInfo& info) {
   return NodeQueryResult::NewInstance(env, std::move(query_result.value()));
 }
 
+Napi::Value NodeConnection::BeginTransaction(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() > 1 || (info.Length() == 1 && !info[0].IsBoolean())) {
+    Napi::TypeError::New(env, "readOnly must be a boolean")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  const bool read_only =
+      info.Length() == 1 && info[0].As<Napi::Boolean>().Value();
+  const auto status =
+      conn_ ? conn_->BeginTransaction(read_only ? TransactionMode::kReadOnly
+                                                : TransactionMode::kReadWrite)
+            : ClosedConnectionStatus();
+  return StatusToJs(env, status);
+}
+
+Napi::Value NodeConnection::Commit(const Napi::CallbackInfo& info) {
+  const auto status = conn_ ? conn_->Commit() : ClosedConnectionStatus();
+  return StatusToJs(info.Env(), status);
+}
+
+Napi::Value NodeConnection::Rollback(const Napi::CallbackInfo& info) {
+  const auto status = conn_ ? conn_->Rollback() : ClosedConnectionStatus();
+  return StatusToJs(info.Env(), status);
+}
+
+Napi::Value NodeConnection::HasActiveTransaction(
+    const Napi::CallbackInfo& info) {
+  return Napi::Boolean::New(info.Env(), conn_ && conn_->HasActiveTransaction());
+}
+
 Napi::Value NodeConnection::GetSchema(const Napi::CallbackInfo& info) {
-  return Napi::String::New(info.Env(), conn_->GetSchema());
+  Napi::Env env = info.Env();
+  try {
+    return Napi::String::New(env, conn_->GetSchema());
+  } catch (const neug::exception::Exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+  } catch (const std::exception& e) {
+    Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+  }
+  return env.Null();
 }
 
 Napi::Value NodeConnection::Close(const Napi::CallbackInfo& info) {

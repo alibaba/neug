@@ -1265,6 +1265,13 @@ void GQueryConvertor::convertIndexScan(
   indexScanPB->set_unique_index_name(bindData.uniqueIndexName);
   indexScanPB->set_allocated_target_value(
       exprConvertor->convert(*bindData.targetValue, {}).release());
+  if (bindData.weights) {
+    indexScanPB->set_allocated_weights(
+        exprConvertor->convert(*bindData.weights, {}).release());
+  }
+  for (const auto& property_name : bindData.propertyNames) {
+    indexScanPB->add_property_names(property_name);
+  }
   for (const auto& [key, value] : bindData.options) {
     (*indexScanPB->mutable_options())[key] = value;
   }

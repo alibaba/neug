@@ -38,25 +38,32 @@ namespace neug {
 class LoadingConfig;
 
 namespace reader_options {
-static const int32_t DEFAULT_BLOCK_SIZE = (1 << 20);  // 1MB
-static const bool DEFAULT_BATCH_READER =
+static constexpr int32_t DEFAULT_BLOCK_SIZE = (1 << 20);  // 1MB
+static constexpr bool DEFAULT_BATCH_READER =
     false;  // By default, we read the whole table at once.
+static constexpr char DEFAULT_CSV_DELIMITER[] = "|";
 
-// KEY_WORDS for configurations
-static const char* DELIMITER = "delimiter";
-static const char* HEADER_ROW = "header_row";
-static const char* INCLUDE_COLUMNS = "include_columns";
-static const char* COLUMN_TYPES = "column_types";
-static const char* ESCAPING = "escaping";
-static const char* ESCAPE_CHAR = "escape_char";
-static const char* QUOTING = "quoting";
-static const char* QUOTE_CHAR = "quote_char";
-static const char* DOUBLE_QUOTE = "double_quote";
-static const char* BATCH_SIZE_KEY = "batch_size";
+// CSV option names. DELIM, HEADER, ESCAPE, QUOTE, and PARALLEL are COPY-facing
+// aliases; the remaining names are also used by bulk-load metadata.
+static constexpr char DELIMITER[] = "delimiter";
+static constexpr char DELIM[] = "delim";
+static constexpr char HEADER[] = "header";
+static constexpr char HEADER_ROW[] = "header_row";
+static constexpr char INCLUDE_COLUMNS[] = "include_columns";
+static constexpr char COLUMN_TYPES[] = "column_types";
+static constexpr char ESCAPE[] = "escape";
+static constexpr char ESCAPING[] = "escaping";
+static constexpr char ESCAPE_CHAR[] = "escape_char";
+static constexpr char QUOTE[] = "quote";
+static constexpr char QUOTING[] = "quoting";
+static constexpr char QUOTE_CHAR[] = "quote_char";
+static constexpr char DOUBLE_QUOTE[] = "double_quote";
+static constexpr char PARALLEL[] = "parallel";
+static constexpr char BATCH_SIZE_KEY[] = "batch_size";
 // whether or not to use record batch reader. If true, the reader will read
 // data in batches, otherwise, the reader will read data row by row.
-static const char* BATCH_READER = "batch_reader";
-static const char* NULL_VALUES = "null_values";
+static constexpr char BATCH_READER[] = "batch_reader";
+static constexpr char NULL_VALUES[] = "null_values";
 
 static const std::unordered_set<std::string> CSV_META_KEY_WORDS = {
     DELIMITER,    HEADER_ROW,     INCLUDE_COLUMNS, COLUMN_TYPES,
