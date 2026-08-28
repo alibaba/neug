@@ -264,35 +264,6 @@ Status ServiceTransactionManager::Rollback(std::string_view transaction_id) {
   return Status::OK();
 }
 
-result<std::string> ServiceTransactionManager::GetSchema(
-    std::string_view transaction_id) {
-  auto locked_result = LockEntry(transaction_id);
-  if (!locked_result) {
-    RETURN_ERROR(locked_result.error());
-  }
-  auto locked = std::move(locked_result).value();
-  auto& entry = locked.entry;
-  if (!entry->context.IsActive()) {
-    RETURN_ERROR(Status(StatusCode::ERR_TX_STATE_CONFLICT,
-                        "Transaction must be rolled back before reuse."));
-  }
-  auto yaml = entry->context.schema().to_yaml();
-  if (!yaml) {
-    RETURN_ERROR(yaml.error());
-  }
-  auto schema = get_json_string_from_yaml(yaml.value());
-  if (!schema) {
-    RETURN_ERROR(schema.error());
-  }
-  if (Expired(*entry)) {
-    entry->context.Rollback();
-    locked.lock.unlock();
-    Remove(transaction_id, entry);
-    RETURN_ERROR(TransactionExpired());
-  }
-  return schema;
-}
-
 void ServiceTransactionManager::Close() {
   decltype(entries_) entries;
   {

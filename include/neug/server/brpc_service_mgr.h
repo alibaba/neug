@@ -183,10 +183,6 @@ class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
   void RollbackTransaction(google::protobuf::RpcController* cntl_base,
                            const HttpRequest* request, HttpResponse* response,
                            google::protobuf::Closure* done);
-  void GetTransactionSchema(google::protobuf::RpcController* cntl_base,
-                            const google::protobuf::Empty*,
-                            HttpResponse* response,
-                            google::protobuf::Closure* done);
 
  private:
   ServiceTransactionManager& transaction_manager_;

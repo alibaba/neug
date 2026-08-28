@@ -56,7 +56,6 @@ class ServiceTransactionManager {
                               const std::string& request);
   Status Commit(std::string_view transaction_id);
   Status Rollback(std::string_view transaction_id);
-  result<std::string> GetSchema(std::string_view transaction_id);
 
   void Close();
   void CloseAdmission();

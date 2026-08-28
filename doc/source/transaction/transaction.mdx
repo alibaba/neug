@@ -121,11 +121,10 @@ temporary schema operations.
 #### Explicit Transactions in TP Service Mode
 
 TP service explicit transactions are exposed through supported client APIs.
-Clients begin a read-only or read-write transaction, execute queries or inspect
-the transaction's active schema, then commit or roll it back. This guide
-documents that client-level contract; service URIs, headers, status codes, and
-request or response payloads are transport details rather than public
-transaction semantics.
+Clients begin a read-only or read-write transaction, execute queries, then
+commit or roll it back. This guide documents that client-level contract;
+service URIs, headers, status codes, and request or response payloads are
+transport details rather than public transaction semantics.
 
 A read-only transaction pins one TP read view. A read-write transaction owns
 one private COW view, reads its own successful writes, and appends and publishes

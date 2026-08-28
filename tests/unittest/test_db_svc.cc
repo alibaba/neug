@@ -1137,6 +1137,15 @@ TEST_F(NeugDBServiceTest, ExplicitTransactionUsesDedicatedHttpSession) {
   ASSERT_NE(cache_control, nullptr);
   EXPECT_EQ(*cache_control, "no-store");
 
+  brpc::Controller get_commit;
+  GetHttp(channel, uri, TransactionPath(transaction_id, "commit"), get_commit);
+  EXPECT_TRUE(get_commit.Failed());
+  EXPECT_EQ(get_commit.http_response().status_code(),
+            brpc::HTTP_STATUS_METHOD_NOT_ALLOWED);
+  const auto* allow = get_commit.http_response().GetHeader("Allow");
+  ASSERT_NE(allow, nullptr);
+  EXPECT_EQ(*allow, "POST");
+
   brpc::Controller competing_begin;
   PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})",
            competing_begin);
@@ -1168,11 +1177,14 @@ TEST_F(NeugDBServiceTest, ExplicitTransactionUsesDedicatedHttpSession) {
            ddl);
   ASSERT_FALSE(ddl.Failed()) << ddl.ErrorText();
 
-  brpc::Controller schema;
-  GetHttp(channel, uri, TransactionPath(transaction_id, "schema"), schema);
-  ASSERT_FALSE(schema.Failed()) << schema.ErrorText();
-  EXPECT_NE(schema.response_attachment().to_string().find("transaction_schema"),
-            std::string::npos);
+  const auto read_private_schema = RequestSerializer::SerializeRequest(
+      "MATCH (n:transaction_schema) RETURN n;", "read", {});
+  brpc::Controller private_schema_query;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"),
+           read_private_schema, private_schema_query);
+  ASSERT_FALSE(private_schema_query.Failed())
+      << private_schema_query.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(private_schema_query).row_count(), 0);
 
   brpc::Controller before_commit;
   PostHttp(channel, uri, "/cypher", read, before_commit);
@@ -1323,8 +1335,7 @@ TEST_F(NeugDBServiceTest, ReadOnlyServiceRejectsReadWriteTransactionBegin) {
   service.Stop();
 }
 
-TEST_F(NeugDBServiceTest,
-       ExplicitTransactionCapacityExpiryAndUnknownIdAreHandled) {
+TEST_F(NeugDBServiceTest, ExplicitTransactionCapacityAndExpiryAreHandled) {
   config_.query_port = 19996;
   config_.max_explicit_transactions = 1;
   config_.explicit_transaction_timeout_ms = 20;
@@ -1349,14 +1360,6 @@ TEST_F(NeugDBServiceTest,
   EXPECT_TRUE(capacity_rejected.Failed());
   EXPECT_EQ(capacity_rejected.http_response().status_code(),
             brpc::HTTP_STATUS_SERVICE_UNAVAILABLE);
-
-  const std::string unknown_transaction_id = "unknown-transaction";
-  brpc::Controller unknown_schema;
-  GetHttp(channel, uri, TransactionPath(unknown_transaction_id, "schema"),
-          unknown_schema);
-  EXPECT_TRUE(unknown_schema.Failed());
-  EXPECT_EQ(unknown_schema.http_response().status_code(),
-            brpc::HTTP_STATUS_NOT_FOUND);
 
   // The reaper removes the first expired session, freeing the only slot.
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
