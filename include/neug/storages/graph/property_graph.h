@@ -37,12 +37,14 @@
 #include "neug/storages/graph/operation_params.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
+struct CowDetachState;
 class StorageIndexManager;
 /**
  * @brief Core property graph storage engine for vertices, edges, and schema.
@@ -83,9 +85,9 @@ class StorageIndexManager;
  * - Level 3: Force hugepages (highest performance, most memory)
  *
  * **Persistence:**
- * - Snapshot-based persistence to work_dir
+ * - Manifest-selected immutable checkpoint objects
  * - Compaction support for removing deleted data
- * - Schema stored in `graph.yaml`
+ * - Schema stored in the checkpoint manifest
  *
  * @note For query execution, use Connection::Query() instead of direct
  * PropertyGraph access.
@@ -98,7 +100,7 @@ class StorageIndexManager;
  *
  * @since v0.1.0
  */
-class PropertyGraph {
+class NEUG_API PropertyGraph {
  public:
   /**
    * @brief Construct PropertyGraph with default settings.
@@ -117,6 +119,16 @@ class PropertyGraph {
    */
   ~PropertyGraph();
 
+  // Move-only: copy is not meaningful because the underlying storage
+  // (VertexTable, EdgeTable) is move-only.  Use Clone() for explicit copies.
+  // Move operations are defaulted in the .cc where StorageIndexManager is
+  // complete; defaulting them here would require the full type to destroy
+  // index_manager_ in every including TU (MSVC C2027).
+  PropertyGraph(const PropertyGraph&) = delete;
+  PropertyGraph& operator=(const PropertyGraph&) = delete;
+  PropertyGraph(PropertyGraph&&) noexcept;
+  PropertyGraph& operator=(PropertyGraph&&) noexcept;
+
   /**
    * @brief Open the graph from the given Checkpoint using the Module interface.
    *
@@ -131,7 +143,30 @@ class PropertyGraph {
   /// Dump this graph into @p ckp and clear all in-memory storage afterwards.
   /// Callers that need a usable graph after dumping must explicitly Open() a
   /// checkpoint and rebuild any GraphView that pointed into this graph.
+  ///
+  /// Precondition: the graph must already be compacted. DumpAndClear never
+  /// compacts implicitly; the production checkpoint path always calls
+  /// Compact() immediately before this (see CheckpointCoordinator). Custom
+  /// StorageIndex implementations that dump via this path should follow the
+  /// same sequence.
   void DumpAndClear(std::shared_ptr<Checkpoint> ckp);
+
+  /// Persist and reopen only modules marked dirty.
+  /// The graph remains usable, table capacities and MVCC timestamps are
+  /// preserved, and no compaction is performed. On success the graph adopts
+  /// @p ckp and clears its dirty state; the caller must publish that same
+  /// staging checkpoint before releasing transaction quiescence. Any failure
+  /// after this method starts is fail-stop. The caller must reject pending
+  /// index mutations before entering this destructive operation.
+  /// Returns whether query planning metadata changed.
+  bool DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
+                          timestamp_t base_timestamp);
+
+  /// Ensure every dirty module belongs exclusively to this private COW graph
+  /// before DumpDirtyAndReopen() consumes and reopens its module wrappers.
+  /// @p detach_state records prior work, making repeated preparation
+  /// idempotent.
+  void DetachDirtyModulesForCheckpoint(CowDetachState& detach_state);
 
   DirtyTracker& dirty_tracker() { return dirty_; }
   const DirtyTracker& dirty_tracker() const { return dirty_; }
@@ -148,12 +183,8 @@ class PropertyGraph {
   }
   void MarkSchemaDirty() { dirty_.MarkSchema(); }
   bool IsSchemaDirty() const { return dirty_.IsSchemaDirty(); }
-  /// True if schema or any table has been marked dirty since the last
-  /// ClearAllDirty().
-  bool IsModified() const { return dirty_.IsModified(); }
-  /// Clear all table-level and schema dirty bits. Call only after a checkpoint
-  /// has been successfully published.
-  void ClearAllDirty() { dirty_.ClearAll(); }
+  /// True if schema, any table, or any index has changed since publication.
+  bool IsModified() const;
 
   Checkpoint& checkpoint() {
     assert(ckp_);
@@ -196,6 +227,10 @@ class PropertyGraph {
 
   bool HasPendingIndexes() const;
   bool HasPendingMutations() const;
+
+  /// Validate all index state required to checkpoint without modifying the
+  /// graph. Call this before live graph consumption begins during checkpoint.
+  Status ValidateCheckpointPreconditions() const;
 
   /**
    * @brief Clear all graph data and reset to empty state.
@@ -624,8 +659,6 @@ class PropertyGraph {
 
   std::string get_statistics_json() const;
 
-  inline std::string work_dir() const { return ckp_->path(); }
-
   std::shared_ptr<PropertyGraph> Clone() const;
 
  private:
@@ -648,6 +681,7 @@ class PropertyGraph {
                             label_t edge_label) const;
 
   void compact_schema();
+  void rebind_indexes();
 
   /// Insert / erase an edge table and keep the dirty tracker's edge slots
   /// in sync.
@@ -661,6 +695,10 @@ class PropertyGraph {
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
   DirtyTracker dirty_;
+  // Modules persisted by an incremental checkpoint are clean for persistence
+  // but still retain MVCC timestamps/tombstones. The next full compaction must
+  // process them even if no later mutation touches the same table.
+  DirtyTracker uncompacted_modules_;
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;

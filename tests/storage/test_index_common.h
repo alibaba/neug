@@ -58,11 +58,11 @@ struct ExampleIndexQueryParams : public IndexQueryParams {
 class ExampleIndex : public StorageIndex {
  public:
   Status Rebind(const IndexBindContext& context) override {
-    if (!context.column) {
+    if (context.columns.size() != 1 || !context.columns[0]) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                    "ExampleIndex requires a property column binding");
+                    "ExampleIndex requires exactly one property column");
     }
-    bound_column_ = context.column;
+    bound_column_ = context.columns[0];
     return Status::OK();
   }
 
@@ -86,9 +86,24 @@ class ExampleIndex : public StorageIndex {
       return Status::InternalError("ExampleIndex is not open");
     }
     for (vid_t vid : vertices) {
-      RETURN_IF_NOT_OK(Upsert(vid, bound_column_->get_any(vid)));
+      RETURN_IF_NOT_OK(Upsert(vid, IndexValue{0, bound_column_->get_any(vid)}));
     }
     return Status::OK();
+  }
+
+  Status Upsert(vid_t vid, const IndexValue& new_value) override {
+    if (new_value.column_id != 0) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "ExampleIndex column id is out of range");
+    }
+    if (!index_id_accessor_) {
+      return Status::InternalError("ExampleIndex is not open");
+    }
+    if (new_value.value.IsNull()) {
+      return Delete(vid);
+    }
+    auto index_id = index_id_accessor_->UpsertVID(vid);
+    return AppendImpl(index_id, IndexValues{new_value.value});
   }
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
@@ -105,13 +120,14 @@ class ExampleIndex : public StorageIndex {
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override {
     StorageIndex::Dump(ckp, meta, key);
-    auto descriptor = meta.module(key).value_or(ModuleDescriptor{});
+    auto descriptor = meta.FindModule(key) == nullptr ? ModuleDescriptor{}
+                                                      : *meta.FindModule(key);
     descriptor.module_type = ModuleTypeName();
     descriptor.required = true;
     if (index_id_accessor_) {
       CheckpointManifest accessor_meta;
       index_id_accessor_->Dump(ckp, accessor_meta, "index_id_accessor");
-      auto accessor_desc = accessor_meta.module("index_id_accessor");
+      const auto* accessor_desc = accessor_meta.FindModule("index_id_accessor");
       if (auto next_index_id =
               accessor_desc->get(ModuleDescriptor::kNextIndexId)) {
         descriptor.set(ModuleDescriptor::kNextIndexId, *next_index_id);
@@ -125,7 +141,7 @@ class ExampleIndex : public StorageIndex {
     if (index_buffer_) {
       descriptor.set_path(kIndexBufferPath, ckp.Commit(*index_buffer_));
     }
-    meta.set_module(key, std::move(descriptor));
+    meta.SetModule(key, std::move(descriptor));
   }
 
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
@@ -135,7 +151,7 @@ class ExampleIndex : public StorageIndex {
   }
 
   std::unique_ptr<Module> Clone() const override {
-    auto cloned = std::make_unique<ExampleIndex>();
+    auto cloned = CreateClone();
     if (meta_) {
       cloned->meta_ = std::make_unique<IndexMeta>(*meta_);
     }
@@ -150,6 +166,10 @@ class ExampleIndex : public StorageIndex {
   }
 
  protected:
+  virtual std::unique_ptr<ExampleIndex> CreateClone() const {
+    return std::make_unique<ExampleIndex>();
+  }
+
   result<std::vector<SearchCandidate>> SearchImpl(
       const IndexQueryParams& params) override {
     const auto* example_params =
@@ -184,7 +204,12 @@ class ExampleIndex : public StorageIndex {
     return results;
   }
 
-  Status AppendImpl(index_id_t index_id, const Value& value) override {
+  Status AppendImpl(index_id_t index_id, const IndexValues& values) override {
+    if (values.size() != 1) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "ExampleIndex requires exactly one value");
+    }
+    const auto& value = values[0];
     if (value.IsNull() || value.type().id() != DataTypeId::kInt32) {
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "ExampleIndex requires one non-null INT32 value");

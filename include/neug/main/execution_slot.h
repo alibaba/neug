@@ -29,11 +29,11 @@
 #include "neug/execution/execute/query_cache.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/allocators.h"
-#include "neug/transaction/compact_transaction.h"
-#include "neug/transaction/insert_transaction.h"
-#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
+#include "neug/transaction/snapshot_cow_write_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/transaction/timestamp_lease.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -47,10 +47,15 @@ class PropertyGraph;
 class RefColumnBase;
 class AppManager;
 class CheckpointCoordinator;
+class IStorageInterface;
 class IVersionManager;
 class NeugDB;
+class Connection;
 class ExecutionSlot;
+class ServiceTransactionManager;
 class TpExecutionSlotPool;
+class TransactionContext;
+class ExtensionManager;
 
 enum class QueryExecutionStrategy : uint8_t {
   kDirect,
@@ -127,11 +132,15 @@ class ExecutionSlotLease {
  * auto write_result = lease->ExecuteTransactionalRequest(insert_query);
  * @endcode
  *
- * **Transaction Types:**
- * - `ReadTransaction`: Read-only snapshot access
- * - `InsertTransaction`: Add new vertices and edges
- * - `UpdateTransaction`: Modify existing graph elements
- * - `CompactTransaction`: Background compaction operations
+ * **Internal Transaction Strategies:**
+ * - `SnapshotReadTransaction`: Read-only snapshot access
+ * - `MvccInsertTransaction`: Add new vertices and edges
+ * - `SnapshotCowWriteTransaction`: Versioned private-COW updates
+ * - `InPlaceCompactionTransaction`: Background compaction operations
+ *
+ * These are execution internals. Connection and Session expose logical
+ * read-only/read-write semantics and must not expose or require callers to
+ * select one of these strategies.
  *
  * **Concurrency:** An execution slot must not be used concurrently. It is not
  * bound to a physical pthread or bthread worker and may resume on another
@@ -151,13 +160,13 @@ class ExecutionSlot {
  public:
   ~ExecutionSlot() {}
 
-  ReadTransaction GetReadTransaction() const;
+  SnapshotReadTransaction BeginSnapshotReadTransaction() const;
 
-  InsertTransaction GetInsertTransaction();
+  MvccInsertTransaction BeginMvccInsertTransaction();
 
-  UpdateTransaction GetUpdateTransaction();
+  SnapshotCowWriteTransaction BeginSnapshotCowWriteTransaction();
 
-  CompactTransaction GetCompactTransaction();
+  InPlaceCompactionTransaction BeginInPlaceCompactionTransaction();
 
   /**
    * @brief Execute a serialized Cypher request in a transaction.
@@ -228,6 +237,8 @@ class ExecutionSlot {
 
  private:
   friend class NeugDB;
+  friend class Connection;
+  friend class ServiceTransactionManager;
   friend class TpExecutionSlotPool;
 
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
@@ -237,6 +248,7 @@ class ExecutionSlot {
                 QueryExecutionStrategy execution_strategy,
                 IWalWriter* wal_writer,
                 CheckpointCoordinator& checkpoint_coordinator,
+                ExtensionManager& extension_manager,
                 const NeugDBConfig& config_, int slot_id)
       : snapshot_store_(snapshot_store),
         planner_(planner),
@@ -246,27 +258,62 @@ class ExecutionSlot {
         execution_strategy_(execution_strategy),
         wal_writer_(wal_writer),
         checkpoint_coordinator_(checkpoint_coordinator),
+        extension_manager_(extension_manager),
         db_config_(config_),
         slot_id_(slot_id),
         eval_duration_(0),
         query_num_(0) {
     CHECK(execution_strategy_ == QueryExecutionStrategy::kDirect ||
           execution_strategy_ == QueryExecutionStrategy::kTransactional);
-    CHECK_EQ(execution_strategy_ == QueryExecutionStrategy::kTransactional,
-             wal_writer_ != nullptr);
+    // Both TP and direct AP writes need a WAL endpoint. Read-only AP receives
+    // a dummy writer, so every slot has a non-null borrowed writer.
+    CHECK(wal_writer_ != nullptr);
   }
 
+  enum class QueryCacheMode : uint8_t {
+    kShared,
+    kBypassShared,
+  };
+
+  // Analysis and preparation remain in the entry points because they determine
+  // transaction, storage, and cache routing. The shared pipeline receives the
+  // resolved, immutable input and an already-prepared plan.
+  struct AnalyzedQuery {
+    const std::string& text;
+    const QueryAnalysis& analysis;
+    AccessMode access_mode;
+    const rapidjson::Value& parameters;
+    int32_t num_threads;
+  };
+
   result<std::shared_ptr<execution::CacheValue>> prepareQuery(
-      const GraphStats& stats, const std::string& query, int32_t num_threads);
+      const GraphStats& stats, const std::string& query, int32_t num_threads,
+      QueryCacheMode cache_mode = QueryCacheMode::kShared);
+
+  result<CurrentCowWriteTransaction> BeginCurrentCowWriteTransaction();
+  result<SnapshotCowWriteTransaction> TryBeginSnapshotCowWriteTransaction();
+  result<QueryResult> ExecuteQueryInTransaction(
+      const std::string& query_string, AccessMode requested_mode,
+      const rapidjson::Value& parameters, int32_t num_threads,
+      TransactionContext& transaction_context);
 
   Status validatePlan(AccessMode mode, const physical::ExecutionFlag& flags,
                       bool is_explain) const;
 
-  Status validateCheckpointRequest(AccessMode access_mode) const;
+  Status validateAdminRequest(const AdminRequest& request,
+                              AccessMode access_mode) const;
+  Status executeAdmin(const AdminRequest& request, ExplainMode explain_mode,
+                      QueryResponse& response);
 
-  Status executeCore(const std::string& query, AccessMode requested_mode,
-                     const rapidjson::Value& parameters, int32_t num_threads,
-                     QueryResponse& response);
+  Status executePreparedQuery(IStorageInterface& storage,
+                              const AnalyzedQuery& query,
+                              execution::CacheValue& prepared_query,
+                              QueryResponse& response);
+
+  Status executeAutoCommitQuery(const std::string& query,
+                                AccessMode requested_mode,
+                                const rapidjson::Value& parameters,
+                                int32_t num_threads, QueryResponse& response);
 
   GraphSnapshotStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
@@ -276,6 +323,7 @@ class ExecutionSlot {
   const QueryExecutionStrategy execution_strategy_;
   IWalWriter* const wal_writer_;
   CheckpointCoordinator& checkpoint_coordinator_;
+  ExtensionManager& extension_manager_;
   const NeugDBConfig& db_config_;
   int slot_id_;
 

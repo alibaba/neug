@@ -18,6 +18,7 @@
 
 #include <memory>
 #include "neug/compiler/function/function.h"
+#include "neug/compiler/function/import/import_stream.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
@@ -123,6 +124,7 @@ struct CSVReadFunction {
                            resolved.end());
     }
     state->schema.file.paths = std::move(resolvedPaths);
+    state->stream_opener = makeImportStreamOpener(*fs);
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
     auto reader =
         std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
@@ -152,6 +154,7 @@ struct CSVReadFunction {
                            resolved.end());
     }
     state->schema.file.paths = std::move(resolvedPaths);
+    state->stream_opener = makeImportStreamOpener(*fs);
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
     auto reader =
         std::make_shared<reader::CsvReader>(state, std::move(optionsBuilder));

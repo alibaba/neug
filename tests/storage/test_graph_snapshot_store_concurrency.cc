@@ -340,8 +340,8 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, PinnedSnapshotSurvivesPublish) {
 }
 
 // 7. COW publish → pin sees new snapshot (E2E visibility).
-// Simulates the UpdateTransaction commit path: clone PG, mutate, publish,
-// then verify a new reader observes the mutation.
+// Simulates the SnapshotCowWriteTransaction commit path: clone PG, mutate,
+// publish, then verify a new reader observes the mutation.
 TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
   // Clone and add a new vertex type to the COW copy.
   auto cow_pg = initial_pg_->Clone();
@@ -365,8 +365,8 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowPublishIsVisibleToNewReaders) {
 }
 
 // 8. Abort-style release recycles the slot properly.
-// Simulates an UpdateTransaction that clones, publishes, then the caller
-// releases the old pin (as Abort would). Verifies no slot leak.
+// Simulates a SnapshotCowWriteTransaction that clones, publishes, then the
+// caller releases the old pin (as Abort would). Verifies no slot leak.
 TEST_F(GraphSnapshotStoreConcurrencyTest, AbortReleasesSlotWithoutLeak) {
   // Pin the current slot (simulates PinCurrentSnapshot in txn constructor).
   auto& old_slot = store_->PinCurrentSnapshot();
@@ -400,9 +400,9 @@ TEST_F(GraphSnapshotStoreConcurrencyTest, CowIsolationAfterCloneMutatePublish) {
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(initial_pg_->VertexNum(0, MAX_TIMESTAMP), 1u);
 
-  // Phase 2: Clone → Mutate → Publish (simulates UpdateTxn
-  // commit). Explicitly detach shared modules before mutation, mirroring
-  // UpdateTransaction::detachVertexTableForInsert.
+  // Phase 2: Clone → Mutate → Publish (simulates a snapshot-COW commit).
+  // Explicitly detach shared modules before mutation, mirroring
+  // CowGraphStorage's vertex-insert path.
   auto cow1 = initial_pg_->Clone();
   auto& vt1 = cow1->get_vertex_table(0);
   vt1.DetachIndexer();

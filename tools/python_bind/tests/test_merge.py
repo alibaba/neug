@@ -188,31 +188,43 @@ def test_merge_edge_all_pairs_where_id_less_than():
 
 
 def test_merge_edge_on_match_set_date():
-    """ON MATCH SET runs when the edge exists — updates stored date."""
+    """One MERGE can update an existing edge and create another edge."""
     db_dir = _merge_db_dir()
     db, conn = _open_merge_database(db_dir)
     try:
         _seed_users_adam_marko(conn)
+        conn.execute("CREATE (:User {name: 'Bob', age: 40});")
         _seed_follows_adam_marko_2012(conn)
+        rows = sorted(
+            conn.execute(
+                "MATCH (u1:User {name: 'Adam'}), (u2:User) "
+                "WHERE u2.name = 'marko' OR u2.name = 'Bob' "
+                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
+                "ON MATCH SET e.date = 9000 "
+                "ON CREATE SET e.date = 7000 "
+                "RETURN u2.name, e.date;"
+            ),
+            key=lambda row: row[0],
+        )
+        assert rows == [["Bob", 7000], ["marko", 9000]]
+        stored = sorted(
+            conn.execute(
+                "MATCH (u1:User {name: 'Adam'})-[e:FOLLOWS]->"
+                "(u2:User) RETURN u2.name, e.date;"
+            ),
+            key=lambda row: row[0],
+        )
+        assert stored == [["Bob", 7000], ["marko", 9000]]
+
         rows = list(
             conn.execute(
                 "MATCH (u1:User {name: 'Adam'}), (u2:User {name: 'marko'}) "
-                "MERGE (u1)-[e:FOLLOWS {date: 2012}]->(u2) "
-                "ON MATCH SET e.date = 9000 "
+                "MERGE (u1)-[e:FOLLOWS {date: 9000}]->(u2) "
+                "ON MATCH SET e.date = 20, e.date = e.date + 1 "
                 "RETURN e.date;"
             )
         )
-        assert rows == [[9000]]
-        stored = list(
-            conn.execute(
-                "MATCH (u1:User {name: 'Adam'})-[e:FOLLOWS]->"
-                "(u2:User {name: 'marko'}) RETURN e.date;"
-            )
-        )
-        assert stored == [[9000]]
-        assert (
-            list(conn.execute("MATCH ()-[e:FOLLOWS]->() RETURN count(e);"))[0][0] == 1
-        )
+        assert rows == [[21]]
     finally:
         conn.close()
         db.close()

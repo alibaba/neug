@@ -119,7 +119,7 @@ nEUG_CreateType
     : CREATE SP TYPE SP oC_SchemaName SP AS SP nEUG_DataType SP? ;
 
 nEUG_CreateIndex
-    : CREATE SP INDEX SP oC_SchemaName (SP nEUG_IfNotExists)? SP ON SP oC_SchemaName SP USING SP oC_SchemaName SP? '(' SP? oC_PropertyKeyName SP? ')' (SP nEUG_CreateIndexOptions)? ;
+    : CREATE SP INDEX SP oC_SchemaName (SP nEUG_IfNotExists)? SP ON SP oC_SchemaName SP USING SP oC_SchemaName SP? '(' SP? oC_PropertyKeyName (SP? ',' SP? oC_PropertyKeyName)* SP? ')' (SP nEUG_CreateIndexOptions)? ;
 
 nEUG_CreateIndexOptions
     : WITH SP? '(' SP? nEUG_CreateIndexOptionList SP? ')' ;
@@ -240,7 +240,7 @@ nEUG_UninstallExtension
     : UNINSTALL SP (EXTENSION SP)? ( StringLiteral | oC_Variable ) ;
 
 oC_Query
-    : oC_RegularQuery ;
+    : (USE SP NAMESPACE SP oC_SchemaName SP)? oC_RegularQuery ;
 
 oC_RegularQuery
     : oC_SingleQuery ( SP? oC_Union )*
@@ -763,6 +763,7 @@ nEUG_NonReservedKeywords
         | MAXVALUE
         | MERGE
         | MINVALUE
+        | NAMESPACE
         | NO
         | NODE
         | PROJECT

@@ -26,39 +26,67 @@ namespace ops {
 struct GKey : public KeyBase {
   GKey(const std::vector<std::pair<int, int>>& tag_alias)
       : tag_alias_(tag_alias) {}
+
+  static void add_to_group(size_t row, vector_t<char>&& buf,
+                           flat_hash_map<std::string_view, sel_t>& sig_to_root,
+                           vector_t<vector_t<char>>& root_list,
+                           sel_vec_t& offsets, vector_t<sel_vec_t>& groups) {
+    std::string_view sv(buf.data(), buf.size());
+    auto iter = sig_to_root.find(sv);
+    if (iter != sig_to_root.end()) {
+      groups[iter->second].push_back(row);
+    } else {
+      sig_to_root.emplace(sv, groups.size());
+      root_list.emplace_back(std::move(buf));
+      offsets.push_back(row);
+      sel_vec_t ret_elem;
+      ret_elem.push_back(row);
+      groups.emplace_back(std::move(ret_elem));
+    }
+  }
+
   std::pair<sel_vec_t, vector_t<sel_vec_t>> group(
       const ContextChunk& chunk) override {
     std::vector<std::shared_ptr<IContextColumn>> exprs;
+    bool has_optional = false;
     for (size_t i = 0; i < tag_alias_.size(); ++i) {
-      exprs.push_back(chunk.get(tag_alias_[i].first));
+      auto expr = chunk.get(tag_alias_[i].first);
+      has_optional = has_optional || expr->is_optional();
+      exprs.push_back(std::move(expr));
     }
     size_t row_num = chunk.row_num();
     vector_t<sel_vec_t> groups;
     sel_vec_t offsets;
     flat_hash_map<std::string_view, sel_t> sig_to_root;
     vector_t<vector_t<char>> root_list;
-    for (size_t i = 0; i < row_num; ++i) {
-      vector_t<char> buf;
-      ::neug::Encoder encoder(buf);
-      for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
-        auto val = exprs[k_i]->get_elem(i);
-        encode_value(val, encoder);
+    if (!has_optional) {
+      for (size_t i = 0; i < row_num; ++i) {
+        vector_t<char> buf;
+        ::neug::Encoder encoder(buf);
+        for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
+          encode_value(exprs[k_i]->get_elem(i), encoder);
+        }
+        add_to_group(i, std::move(buf), sig_to_root, root_list, offsets,
+                     groups);
       }
-      std::string_view sv(buf.data(), buf.size());
-      auto iter = sig_to_root.find(sv);
-      if (iter != sig_to_root.end()) {
-        groups[iter->second].push_back(i);
-      } else {
-        sig_to_root.emplace(sv, groups.size());
-        root_list.emplace_back(std::move(buf));
-        offsets.push_back(i);
-        sel_vec_t ret_elem;
-        ret_elem.push_back(i);
-        groups.emplace_back(std::move(ret_elem));
+    } else {
+      for (size_t i = 0; i < row_num; ++i) {
+        vector_t<char> buf((exprs.size() + 7) / 8, 0);
+        ::neug::Encoder encoder(buf);
+        for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
+          auto val = exprs[k_i]->get_elem(i);
+          if (val.IsNull()) {
+            buf[k_i >> 3] |= static_cast<char>(1U << (k_i & 7));
+          }
+          encode_value(val, encoder);
+        }
+        add_to_group(i, std::move(buf), sig_to_root, root_list, offsets,
+                     groups);
       }
     }
     return std::make_pair(std::move(offsets), std::move(groups));
   }
+
   const std::vector<std::pair<int, int>>& tag_alias() const override {
     return tag_alias_;
   }
@@ -124,6 +152,11 @@ struct VarPairWrapper {
 static std::unique_ptr<KeyBase> create_sp_key(
     const DataChunk& chunk, const std::vector<std::pair<int, int>>& tag_alias) {
   auto col = chunk.get(tag_alias[0].first);
+  // Keep the typed Key path non-null. Returning nullptr makes create_key_func
+  // fall back to GKey, which owns nullable-key handling.
+  if (col->is_optional()) {
+    return nullptr;
+  }
   if (col->column_type() == ContextColumnType::kVertex) {
     auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
     VertexWrapper wrapper(*vertex_col);
@@ -183,18 +216,12 @@ struct SumReducer<EXPR, IS_OPTIONAL,
     } else {
       for (auto& group : groups) {
         V sum = 0;
-        bool has_value = false;
         for (size_t i = 0; i < group.size(); ++i) {
           if (expr.has_value(group[i])) {
             sum += expr(group[i]);
-            has_value = true;
           }
         }
-        if (has_value) {
-          builder.push_back_opt(sum);
-        } else {
-          builder.push_back_null();
-        }
+        builder.push_back_opt(sum);
       }
     }
     return builder.finish();
@@ -340,6 +367,10 @@ struct MinReducer : public ReducerBase {
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         V min_val = expr(group[0]);
         for (size_t i = 1; i < group.size(); ++i) {
           min_val = std::min(min_val, expr(group[i]));
@@ -385,6 +416,10 @@ struct MaxReducer : public ReducerBase {
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         V max_val = expr(group[0]);
         for (size_t i = 1; i < group.size(); ++i) {
           max_val = std::max(max_val, expr(group[i]));
@@ -429,6 +464,10 @@ struct FirstReducer : public ReducerBase {
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         V val = expr(group[0]);
         builder.push_back_opt(val);
       }
@@ -560,6 +599,10 @@ struct AvgReducer<EXPR, IS_OPTIONAL,
     builder.reserve(groups.size());
     if constexpr (!IS_OPTIONAL) {
       for (auto& group : groups) {
+        if (group.empty()) {
+          builder.push_back_null();
+          continue;
+        }
         double avg = 0.0;
         for (auto idx : group) {
           avg += expr(idx);

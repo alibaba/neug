@@ -16,13 +16,9 @@
 
 #pragma once
 
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/result.h>
 #include <fnmatch.h>
-#include <memory>
+#include <algorithm>
 #include <string>
-#include <vector>
-#include "neug/utils/exception/exception.h"
 
 namespace neug {
 namespace extension {
@@ -48,86 +44,35 @@ inline bool MatchGlobPattern(const std::string& text,
 }
 
 /**
- * @brief Resolve glob patterns on any Arrow FileSystem
+ * @brief Extract the longest wildcard-free prefix of a glob pattern.
  *
- * This helper function works with any Arrow FileSystem (S3, local, etc.) by
- * providing a root prefix (e.g., bucket name for S3, empty for local)
- * and a pattern relative to that root. The helper lists files via Arrow's
- * FileSelector and filters them using MatchGlobPattern on the relative path.
- *
- * @param fs Arrow FileSystem instance (S3FileSystem, LocalFileSystem, etc.)
- * @param root Root prefix (e.g., "my-bucket" for S3, "" for local paths)
- * @param pattern Glob pattern relative to root (e.g., "data/test*.parquet")
- * @param out_paths Output vector to append matched paths (in "root/relative"
- * format)
- * @param original_path_for_error Original user path for error messages
+ * Used as the `prefix` argument of S3 ListObjectsV2 so the server only
+ * scans the relevant part of the bucket.
+ * e.g. "data/2026/*.parquet" -> "data/2026/"
+ *      "data/*.parquet"      -> "data/"
+ *      "*.parquet"           -> ""
  */
-inline void ResolvePathsWithGlobOnFs(
-    const std::shared_ptr<arrow::fs::FileSystem>& fs, const std::string& root,
-    const std::string& pattern, std::vector<std::string>& out_paths,
-    const std::string& original_path_for_error) {
-  // Extract base directory (part before first wildcard)
-  std::string base_dir = pattern;
+inline std::string LongestGlobPrefix(const std::string& pattern) {
   size_t wildcard_pos =
-      std::min({base_dir.find('*'), base_dir.find('?'), base_dir.find('[')});
-
-  if (wildcard_pos != std::string::npos) {
-    // Find last '/' before wildcard
-    size_t last_slash = base_dir.rfind('/', wildcard_pos);
-    if (last_slash != std::string::npos) {
-      base_dir = base_dir.substr(0, last_slash);
-    } else {
-      base_dir = "";
-    }
+      std::min({pattern.find('*'), pattern.find('?'), pattern.find('[')});
+  if (wildcard_pos == std::string::npos) {
+    return pattern;
   }
-
-  // Use Arrow FileSelector to list objects from root/base_dir
-  arrow::fs::FileSelector selector;
-  selector.base_dir = root + (base_dir.empty() ? "" : "/" + base_dir);
-  selector.recursive = (pattern.find("**") != std::string::npos);
-
-  auto file_infos_result = fs->GetFileInfo(selector);
-  if (!file_infos_result.ok()) {
-    THROW_IO_EXCEPTION("Failed to list objects: " +
-                       file_infos_result.status().ToString());
+  size_t last_slash = pattern.rfind('/', wildcard_pos);
+  if (last_slash == std::string::npos) {
+    return "";
   }
+  // Include the trailing '/' so the prefix is a directory boundary.
+  return pattern.substr(0, last_slash + 1);
+}
 
-  auto file_infos = *file_infos_result;
-
-  int match_count = 0;
-  for (const auto& file_info : file_infos) {
-    if (!file_info.IsFile()) {
-      continue;
-    }
-
-    // Arrow returns paths in backend-specific format, but for S3 and
-    // most filesystems we can treat them as "root/relative" when
-    // root is a non-empty prefix.
-    std::string file_path = file_info.path();
-    std::string relative_path = file_path;
-
-    if (!root.empty()) {
-      std::string prefix = root + "/";
-      if (file_path.rfind(prefix, 0) == 0) {
-        relative_path = file_path.substr(prefix.size());
-      }
-    }
-
-    if (MatchGlobPattern(relative_path, pattern)) {
-      // Store normalized path as "root/relative" if root is present
-      if (!root.empty()) {
-        out_paths.push_back(root + "/" + relative_path);
-      } else {
-        out_paths.push_back(relative_path);
-      }
-      match_count++;
-    }
-  }
-
-  if (match_count == 0) {
-    THROW_IO_EXCEPTION("No files matched glob pattern: " +
-                       original_path_for_error);
-  }
+/**
+ * @brief Whether the path contains any glob wildcard.
+ */
+inline bool HasGlobWildcard(const std::string& path) {
+  return path.find('*') != std::string::npos ||
+         path.find('?') != std::string::npos ||
+         path.find('[') != std::string::npos;
 }
 
 }  // namespace s3

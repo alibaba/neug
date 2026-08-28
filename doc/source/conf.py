@@ -87,7 +87,11 @@ myst_enable_extensions = [
 # Source file suffixes
 # Keep .md before .rst so duplicated docnames (e.g. index.md + index.rst)
 # resolve to Markdown, which is where the Java API landing content lives.
-source_suffix = ['.md', '.mdx', '.rst']
+source_suffix = {
+    '.md': 'myst',
+    '.mdx': 'myst',
+    '.rst': 'restructuredtext',
+}
 
 # API documentation settings
 # Templates for API documentation

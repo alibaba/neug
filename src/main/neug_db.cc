@@ -16,7 +16,11 @@
 #include "neug/main/neug_db.h"
 
 #include <glog/logging.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#endif
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -25,10 +29,12 @@
 #include <exception>
 #include <filesystem>
 #include <limits>
+#include <random>
 #include <system_error>
 #include <utility>
 #include <vector>
 
+#include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
@@ -37,11 +43,14 @@
 #include "neug/main/connection_manager.h"
 #include "neug/main/execution_slot.h"
 #include "neug/main/file_lock.h"
+#include "neug/main/wal_writer_set.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
+#include "neug/transaction/timestamp_lease.h"
+#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
@@ -49,6 +58,45 @@
 #include "neug/utils/result.h"
 
 namespace neug {
+
+#ifdef _WIN32
+// MSVC's CRT has no mkdtemp(); emulate it by replacing the trailing
+// "XXXXXX" with random characters and retrying until a fresh directory is
+// created.  Sets errno and returns false on failure, mirroring mkdtemp.
+static bool mkdtemp_win(std::string& path_template) {
+  constexpr char kChars[] =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  constexpr size_t kSuffixLen = 6;
+  if (path_template.size() < kSuffixLen ||
+      path_template.compare(path_template.size() - kSuffixLen, kSuffixLen,
+                            "XXXXXX") != 0) {
+    errno = EINVAL;
+    return false;
+  }
+  std::random_device rd;
+  std::mt19937_64 gen(rd());
+  std::uniform_int_distribution<size_t> dist(0, sizeof(kChars) - 2);
+  for (int attempt = 0; attempt < 100; ++attempt) {
+    for (size_t i = path_template.size() - kSuffixLen; i < path_template.size();
+         ++i) {
+      path_template[i] = kChars[dist(gen)];
+    }
+    std::error_code ec;
+    if (std::filesystem::create_directory(path_template, ec)) {
+      return true;
+    }
+    if (ec && ec != std::errc::file_exists) {
+      // Map the system error to its POSIX equivalent so the errno-based
+      // reporting at the call site stays meaningful.
+      errno = ec.default_error_condition().value();
+      return false;
+    }
+    // Name collision: retry with a new random suffix.
+  }
+  errno = EEXIST;
+  return false;
+}
+#endif
 
 inline std::string allocator_prefix(const std::string& allocator_dir,
                                     int slot_id) {
@@ -72,7 +120,8 @@ static void IngestWalRange(PropertyGraph& graph,
   GraphView view(graph);
   for (size_t j = from; j < to; ++j) {
     const auto& unit = parser.get_insert_wal(j);
-    InsertTransaction::IngestWal(view, j, unit.ptr, unit.size, *allocators[0]);
+    MvccInsertTransaction::IngestWal(view, j, unit.ptr, unit.size,
+                                     *allocators[0]);
     if (j % 1000000 == 0) {
       LOG(INFO) << "Ingested " << j << " WALs";
     }
@@ -143,13 +192,18 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     }
 
     checkpoint_mgr_.Open(config_.data_dir, recover_workspace);
-    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.db_dir();
+    VLOG(1) << "Opening NeuGDB at " << checkpoint_mgr_.database_dir();
     neug::execution::PlanParser::get().init();
     timestamp_t initial_visibility_ts = openGraphAndIngestWals();
     checkpoint_coordinator_ = std::make_unique<CheckpointCoordinator>(
         checkpoint_mgr_, *snapshot_store_, config_.memory_level,
         [this](const std::string& allocator_dir) {
           reopenAllocators(allocator_dir);
+        },
+        [this](const std::string& wal_uri) {
+          if (wal_writers_) {
+            wal_writers_->RotateActive(wal_uri);
+          }
         });
     if (initial_visibility_ts > 0 && config.checkpoint_on_recovery &&
         config_.mode == DBMode::READ_WRITE) {
@@ -160,16 +214,21 @@ bool NeugDB::Open(const NeugDBConfig& config) {
       }
     }
     if (config_.mode == DBMode::READ_WRITE) {
-      checkpoint_mgr_.CleanupRetiredCheckpoints();
+      checkpoint_mgr_.CollectGarbage();
     }
+    wal_writers_ = std::make_unique<WalWriterSet>(
+        allocators_.size(), config_.mode, graph().checkpoint().wal_dir());
     initVersionManager(initial_visibility_ts);
+    extension_manager_ = std::make_unique<ExtensionManager>();
     initPlanner();
     initQueryRuntime();
   } catch (...) {
     clearQueryRuntime();
     planner_.reset();
+    extension_manager_.reset();
     version_manager_.reset();
     checkpoint_coordinator_.reset();
+    wal_writers_.reset();
     snapshot_store_.reset();
     allocators_.clear();
     checkpoint_mgr_.Close();
@@ -187,40 +246,50 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 }
 
 void NeugDB::Close() {
-  {
-    // Serialized with registerService(): the active-service check and the
-    // closed flag update are atomic with respect to service registration,
-    // so no rollback or re-check is needed and Close() stays idempotent.
-    std::lock_guard<std::mutex> lock(service_mutex_);
-    if (active_service_ != nullptr) {
-      THROW_RUNTIME_ERROR(
-          "Cannot close NeugDB while a NeugDBService is still associated "
-          "with it. Stop and destroy the service first.");
-    }
-    if (closed_.exchange(true)) {
-      return;
-    }
+  // Serialize the complete lifecycle transition. A mandatory checkpoint can be
+  // retried only when it fails before consuming the live graph;
+  // Connect()/registerService() cannot race with either the failed attempt or
+  // the final resource teardown.
+  std::lock_guard<std::mutex> lock(service_mutex_);
+  if (active_service_ != nullptr) {
+    THROW_RUNTIME_ERROR(
+        "Cannot close NeugDB while a NeugDBService is still associated "
+        "with it. Stop and destroy the service first.");
   }
-  // Once closed_ is set with no active service, registerService() rejects
-  // new registrations and concurrent Close() calls return early, so the
-  // remaining cleanup does not need the lock.
-  clearQueryRuntime();
-  if (planner_) {
-    planner_.reset();
+  if (closed_.exchange(true)) {
+    return;
   }
 
-  if (config_.checkpoint_on_close && config_.mode == DBMode::READ_WRITE) {
-    VLOG(1) << "Creating checkpoint on close...";
-    try {
-      createCheckpointOnClose();
-    } catch (const std::exception& e) {
-      LOG(ERROR) << "Checkpoint on close failed: " << e.what();
+  bool shutdown_live_graph_consumption_started = false;
+  std::exception_ptr deferred_close_error;
+  try {
+    // Release every ExecutionSlot before a shutdown checkpoint consumes the
+    // live graph. The manager stays reusable only if preparation fails before
+    // that destructive phase and the caller retries Close().
+    closeAllConnections();
+    if (config_.mode == DBMode::READ_WRITE && config_.checkpoint_on_close) {
+      VLOG(1) << "Creating checkpoint on close...";
+      createCheckpointOnClose(shutdown_live_graph_consumption_started);
     }
+  } catch (...) {
+    if (!shutdown_live_graph_consumption_started) {
+      closed_.store(false, std::memory_order_release);
+      throw;
+    }
+    // The live graph may already have been compacted or consumed. Keep the
+    // database closed and finish teardown before surfacing the checkpoint
+    // error.
+    deferred_close_error = std::current_exception();
   }
+
+  clearQueryRuntime();
+  checkpoint_coordinator_.reset();
+  wal_writers_.reset();
+  planner_.reset();
 
   version_manager_.reset();
-  checkpoint_coordinator_.reset();
   snapshot_store_.reset();
+  extension_manager_.reset();
   allocators_.clear();
   checkpoint_mgr_.Close();
   cleanupTemporaryWorkspace();
@@ -228,6 +297,10 @@ void NeugDB::Close() {
   if (file_lock_) {
     file_lock_->unlock();
     file_lock_.reset();
+  }
+
+  if (deferred_close_error) {
+    std::rethrow_exception(deferred_close_error);
   }
 }
 
@@ -241,6 +314,11 @@ std::shared_ptr<Connection> NeugDB::Connect() {
     THROW_RUNTIME_ERROR(
         "Cannot create connection while the database is being served by a "
         "NeugDBService.");
+  }
+  if (!wal_writers_) {
+    THROW_RUNTIME_ERROR(
+        "Cannot create connection because the direct WAL writer is not "
+        "available.");
   }
   return connection_manager_->CreateConnection();
 }
@@ -275,11 +353,15 @@ void NeugDB::registerService(NeugDBService* svc) {
         "Cannot switch NeugDB to TP mode while local connections are open. "
         "Close all Connection objects before starting the service.");
   }
-  active_service_ = svc;
-
   try {
     closeAllConnections();
+    CHECK(wal_writers_ != nullptr);
+    wal_writers_->ActivateTransactional(graph().checkpoint().wal_dir());
+    active_service_ = svc;
   } catch (...) {
+    if (wal_writers_) {
+      wal_writers_->DeactivateTransactional();
+    }
     active_service_ = nullptr;
     throw;
   }
@@ -291,6 +373,9 @@ void NeugDB::unregisterService(NeugDBService* svc) noexcept {
     LOG(WARNING) << "unregisterService: the given service is not the active "
                     "service of this database.";
     return;
+  }
+  if (wal_writers_) {
+    wal_writers_->DeactivateTransactional();
   }
   active_service_ = nullptr;
 }
@@ -318,17 +403,6 @@ void NeugDB::PrepareForServing() {
   }
   closeAllConnections();
   clearQueryRuntime();
-  bool checkpoint_created = false;
-  if (config_.mode == DBMode::READ_WRITE) {
-    checkpoint_created = createCheckpointAfterRecovery();
-  }
-  if (checkpoint_created) {
-    // Replacing the VM is safe only after publishing a new checkpoint whose
-    // WAL directory starts a fresh transaction timeline. A clean graph may
-    // still have WAL records (for example an in-place TP checkpoint), so keep
-    // the current VM in that case.
-    initVersionManager(0);
-  }
   initQueryRuntime();
 }
 
@@ -357,12 +431,33 @@ void NeugDB::preprocessConfig() {
     if (prefix_env) {
       db_dir_prefix = prefix_env;
     } else {
+#ifdef _WIN32
+      // On Windows, use the system temp directory (e.g.
+      // C:\Users\<user>\AppData\Local\Temp)
+      char tmp_path[MAX_PATH];
+      DWORD len = GetTempPathA(MAX_PATH, tmp_path);
+      if (len > 0) {
+        // Remove trailing backslash
+        if (tmp_path[len - 1] == '\\' || tmp_path[len - 1] == '/') {
+          tmp_path[len - 1] = '\0';
+          len--;
+        }
+        db_dir_prefix = std::string(tmp_path);
+      } else {
+        db_dir_prefix = ".";
+      }
+#else
       db_dir_prefix = "/tmp";
+#endif
     }
     db_dir_prefix = std::filesystem::absolute(db_dir_prefix);
     std::filesystem::create_directories(db_dir_prefix);
     auto path_template = (db_dir_prefix / "neug_db_XXXXXX").string();
+#ifdef _WIN32
+    if (!mkdtemp_win(path_template)) {
+#else
     if (::mkdtemp(path_template.data()) == nullptr) {
+#endif
       const auto error = std::error_code(errno, std::generic_category());
       THROW_IO_EXCEPTION("Failed to create temporary NeugDB under " +
                          db_dir_prefix.string() + ": " + error.message());
@@ -430,23 +525,23 @@ void NeugDB::reopenAllocators(const std::string& allocator_dir) {
 timestamp_t NeugDB::openGraphAndIngestWals() {
   max_thread_num_ = config_.max_thread_num;
   try {
-    auto ckp = checkpoint_mgr_.CurrentCheckpoint();
+    auto ckp = checkpoint_mgr_.Current();
     if (ckp == nullptr) {
       if (config_.mode == DBMode::READ_ONLY && !is_pure_memory_) {
         THROW_NO_CHECKPOINT_EXCEPTION(
             "NeugDB::Open: no checkpoint found in read-only database: " +
-            checkpoint_mgr_.db_dir());
+            checkpoint_mgr_.database_dir());
       }
-      auto staging_checkpoint = checkpoint_mgr_.CreateStagingCheckpoint();
+      auto staging_checkpoint = checkpoint_mgr_.CreateStaging();
       ckp = staging_checkpoint.checkpoint();
       CheckpointManifest meta;
       meta.SetSchema(Schema());
-      ckp->UpdateMeta(std::move(meta));
-      ckp = staging_checkpoint.Commit();
+      ckp->SetManifest(std::move(meta));
+      ckp = staging_checkpoint.Publish();
       LOG(INFO) << "No checkpoint found, created initial checkpoint: "
-                << ckp->path();
+                << ckp->manifest_path();
     }
-    LOG(INFO) << "Opening graph from checkpoint " << ckp->path();
+    LOG(INFO) << "Opening graph from checkpoint " << ckp->manifest_path();
     auto graph = std::make_shared<PropertyGraph>();
     graph->Open(ckp, config_.memory_level);
 
@@ -455,9 +550,11 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
 
     neug::WalParserFactory::Init();
     auto wal_parser = WalParserFactory::CreateWalParser(ckp->wal_dir());
-    const timestamp_t recovered_wal_timestamp = ingestWals(*wal_parser, *graph);
+    const timestamp_t recovered_wal_timestamp =
+        ingestWals(*wal_parser, *graph,
+                   static_cast<timestamp_t>(ckp->manifest().base_timestamp()));
 
-    // Create GraphSnapshotStore with the graph at timestamp 0
+    // VersionManager is initialized by the caller with recovered_wal_timestamp.
     snapshot_store_ =
         std::make_unique<GraphSnapshotStore>(config_.storage_slot_num, graph);
     return recovered_wal_timestamp;
@@ -470,21 +567,28 @@ timestamp_t NeugDB::openGraphAndIngestWals() {
   }
 }
 
-timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
-  uint32_t from_ts = 1;
+timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph,
+                               timestamp_t base_timestamp) {
+  uint32_t from_ts = base_timestamp + 1;
   LOG(INFO) << "Ingesting update wals size: "
             << parser.get_update_wals().size();
 
   for (auto& update_wal : parser.get_update_wals()) {
     uint32_t to_ts = update_wal.timestamp;
+    // A checkpoint already contains every change through base_timestamp.
+    // Normally its WAL epoch is fresh, but ignore stale records defensively
+    // so recovery never re-applies a checkpointed update.
+    if (to_ts <= base_timestamp) {
+      continue;
+    }
     if (from_ts < to_ts) {
       IngestWalRange(graph, allocators_, parser, from_ts, to_ts);
     }
     if (update_wal.size == 0) {
       graph.Compact();
     } else {
-      UpdateTransaction::IngestWal(graph, to_ts, update_wal.ptr,
-                                   update_wal.size, *allocators_[0]);
+      ReplayCowGraphWal(graph, to_ts, update_wal.ptr, update_wal.size,
+                        *allocators_[0]);
     }
     from_ts = to_ts + 1;
   }
@@ -492,7 +596,7 @@ timestamp_t NeugDB::ingestWals(IWalParser& parser, PropertyGraph& graph) {
     IngestWalRange(graph, allocators_, parser, from_ts, parser.last_ts() + 1);
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
-  return parser.last_ts();
+  return std::max(base_timestamp, parser.last_ts());
 }
 
 void NeugDB::initPlanner() {
@@ -520,12 +624,13 @@ std::unique_ptr<ExecutionSlot> NeugDB::createExecutionSlot(size_t slot_id) {
   CHECK(global_query_cache_ != nullptr);
   CHECK(version_manager_ != nullptr);
   CHECK(checkpoint_coordinator_ != nullptr);
+  CHECK(wal_writers_ != nullptr);
   CHECK_LT(slot_id, allocators_.size());
   return std::unique_ptr<ExecutionSlot>(new ExecutionSlot(
       *snapshot_store_, planner_, global_query_cache_, *version_manager_,
       *allocators_.at(slot_id), QueryExecutionStrategy::kDirect,
-      /*wal_writer=*/nullptr, *checkpoint_coordinator_, config_,
-      static_cast<int>(slot_id)));
+      &wal_writers_->DirectWriter(), *checkpoint_coordinator_,
+      *extension_manager_, config_, static_cast<int>(slot_id)));
 }
 
 void NeugDB::initQueryRuntime() {
@@ -574,7 +679,7 @@ bool NeugDB::createCheckpointAfterRecovery() {
   return true;
 }
 
-void NeugDB::createCheckpointOnClose() {
+void NeugDB::createCheckpointOnClose(bool& live_graph_consumption_started) {
   std::lock_guard<std::mutex> lock(mutex_);
   {
     SnapshotGuard guard(*snapshot_store_);
@@ -583,7 +688,8 @@ void NeugDB::createCheckpointOnClose() {
       return;
     }
   }
-  auto outcome = checkpoint_coordinator_->PublishShutdownCheckpoint();
+  auto outcome = checkpoint_coordinator_->PublishShutdownCheckpoint(
+      live_graph_consumption_started);
   if (!outcome.ok()) {
     if (outcome.error_code() == StatusCode::ERR_IO_ERROR) {
       THROW_IO_EXCEPTION(outcome.error_message());
@@ -596,7 +702,11 @@ void NeugDB::createCheckpointOnClose() {
   checkpoint_coordinator_.reset();
   snapshot_store_.reset();
   allocators_.clear();
-  checkpoint_mgr_.CleanupRetiredCheckpoints();
+  // Retired checkpoints can contain the WAL file that was active before the
+  // shutdown checkpoint. Close every writer before garbage collection so the
+  // directory is removable on platforms that forbid deleting open files.
+  wal_writers_.reset();
+  checkpoint_mgr_.CollectGarbage();
 }
 
 }  // namespace neug

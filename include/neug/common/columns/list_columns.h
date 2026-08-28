@@ -112,7 +112,8 @@ class ListColumn : public IContextColumn {
     size_t i = 0;
     for (const auto& list : items_) {
       for (size_t j = list.offset; j < list.offset + list.length; ++j) {
-        builder->push_back_elem(datas_->get_elem(j));
+        auto elem = datas_->get_elem(j);
+        builder->push_back_elem(elem);
         offsets.push_back(i);
       }
       ++i;
@@ -132,7 +133,14 @@ class ListColumn : public IContextColumn {
 class ListColumnBuilder : public IContextColumnBuilder {
  public:
   explicit ListColumnBuilder(DataType type) : type_(type), cur_offset_(0) {
-    child_builder_ = ColumnsUtils::create_builder(type_);
+    // LIST<UNKNOWN> is valid for an empty list literal. It has no materialized
+    // child values, but still needs a concrete empty data column so the result
+    // column can be finalized and returned to clients.
+    if (type_.id() == DataTypeId::kUnknown) {
+      child_builder_ = std::make_shared<ValueColumnBuilder<std::string>>();
+    } else {
+      child_builder_ = ColumnsUtils::create_builder(type_);
+    }
   }
 
   ~ListColumnBuilder() = default;
@@ -144,14 +152,14 @@ class ListColumnBuilder : public IContextColumnBuilder {
     }
   }
   void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
+      push_back_null();
+      return;
+    }
     assert(val.type().id() == DataTypeId::kList);
     const auto& values = ListValue::GetChildren(val);
     for (const auto& v : values) {
-      if (v.IsNull()) {
-        child_builder_->push_back_null();
-      } else {
-        child_builder_->push_back_elem(v);
-      }
+      child_builder_->push_back_elem(v);
     }
     list_item item = {cur_offset_, values.size()};
     items_.push_back(item);

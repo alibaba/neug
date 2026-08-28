@@ -25,6 +25,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/utils/api.h"
 
 namespace neug {
 namespace evaluator {

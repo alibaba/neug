@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <glog/logging.h>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -69,7 +70,10 @@ class ExtensionAPI {
   static void registerFileSystem(const std::string& protocol,
                                  neug::fsys::FileSystemFactory factory) {
     auto vfs = neug::main::MetadataRegistry::getVFS();
-    vfs->Register(protocol, std::move(factory));
+    if (!vfs->Register(protocol, std::move(factory))) {
+      LOG(WARNING) << "File system protocol '" << protocol
+                   << "' is already registered; keeping the existing factory";
+    }
   }
 
   template <typename T>

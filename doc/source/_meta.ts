@@ -5,6 +5,7 @@ export default {
   tutorials: "Tutorials",
   data_io: "Data I/O",
   cypher_manual: "Cypher Manual",
+  storage_index: "Storage Indexes",
   extensions: "Extensions",
   transaction: "Transaction",
   user_clients: "User Clients",

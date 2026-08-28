@@ -18,16 +18,20 @@
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
-#pragma GCC diagnostic push
 #if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
-#endif
 #include <glog/logging.h>
 #include <rapidjson/document.h>
 #include <stdint.h>
 #include <yaml-cpp/yaml.h>
-
 #pragma GCC diagnostic pop
+#else
+#include <glog/logging.h>
+#include <rapidjson/document.h>
+#include <stdint.h>
+#include <yaml-cpp/yaml.h>
+#endif
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -105,7 +109,7 @@ std::vector<std::string> get_yaml_files(const std::string& plugin_dir) {
   for (auto& entry : std::filesystem::directory_iterator(dir_path)) {
     if (entry.is_regular_file() && ((entry.path().extension() == ".yaml") ||
                                     (entry.path().extension() == ".yml"))) {
-      res_yaml_files.emplace_back(entry.path());
+      res_yaml_files.emplace_back(entry.path().string());
     }
   }
   return res_yaml_files;

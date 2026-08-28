@@ -32,15 +32,16 @@
 #include "neug/config.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/tp_execution_slot_pool.h"
-#include "neug/transaction/compact_transaction.h"
-#include "neug/transaction/insert_transaction.h"
-#include "neug/transaction/read_transaction.h"
-#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/in_place_compaction_transaction.h"
+#include "neug/transaction/mvcc_insert_transaction.h"
+#include "neug/transaction/snapshot_read_transaction.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
 
 namespace neug {
+
+class ServiceTransactionManager;
 
 /**
  * @brief NeuG database HTTP service for high-throughput scenarios.
@@ -87,6 +88,8 @@ namespace neug {
  * - `POST /cypher` - Execute Cypher queries
  * - `GET /schema` - Retrieve graph schema
  * - `GET /status` - Check service status
+ * - `POST /transactions` - Begin an explicit TP transaction session
+ * - `POST /transactions/{id}/query|commit|rollback` - Operate on a session
  *
  * **Thread Safety:** All public methods are thread-safe. The service uses
  * a TpExecutionSlotPool internally to handle concurrent requests efficiently.
@@ -112,20 +115,8 @@ class NeugDBService {
    * @throws neug::exception::RuntimeError If local connections are still open
    * or another NeugDBService is already associated with the database
    */
-  NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
-      : db_(db), db_config_(db_.config()) {
-    db_.registerService(this);
-    try {
-      installBthreadRuntimeWait();
-      init(config);
-    } catch (...) {
-      hdl_mgr_.reset();
-      execution_slot_pool_.reset();
-      restoreNativeRuntimeWait();
-      db_.unregisterService(this);
-      throw;
-    }
-  }
+  NeugDBService(neug::NeugDB& db,
+                const ServiceConfig& config = ServiceConfig());
 
   /**
    * @brief Gets direct access to the underlying graph database
@@ -277,6 +268,7 @@ class NeugDBService {
   neug::NeugDB& db_;
   neug::NeugDBConfig db_config_;
   std::unique_ptr<neug::TpExecutionSlotPool> execution_slot_pool_;
+  std::unique_ptr<ServiceTransactionManager> transaction_manager_;
   std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;

@@ -64,20 +64,19 @@ Open the database from persistent storage.
 
 Initializes and opens the NeuG database from the specified data directory. This method loads the graph schema, vertex/edge data, and initializes the query processor and planner.
 
-**Data Directory Structure:** Persistent state is organized into numbered checkpoint generations:
+**Data Directory Structure:** Persistent state is selected by `checkpoint/CURRENT` and stored as immutable checkpoint objects, manifests, WAL epochs, and per-open runtime workspaces:
 
 ```text
 data_dir/
-├── checkpoint-N/
-│   ├── meta
-│   ├── snapshot/
-│   ├── runtime/
-│   ├── allocator/
-│   └── wal/
-└── checkpoint-(N+1).next/  # transient staging generation, when present
+├── checkpoint/
+│   ├── CURRENT
+│   ├── manifests/<id>.manifest
+│   └── objects/<object-id>
+├── wal/<id>/
+└── runtime/open-<epoch>/
 ```
 
-NeuG opens the highest valid published generation. A `.next` directory is not visible as the current checkpoint and is cleaned up during writable recovery if checkpoint creation did not complete.
+`CURRENT` atomically selects the manifest used at open. A manifest stores immutable object IDs and the `base_ts` that bounds replay of its matching WAL epoch. Unreachable staging objects or manifests are not selected. The legacy `checkpoint-N` directory format is unsupported and rejected without modification.
 
 **Usage Example:** 
 ```cpp

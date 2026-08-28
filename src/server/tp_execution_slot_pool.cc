@@ -31,14 +31,18 @@ ExecutionSlotLease TpExecutionSlotPool::AcquireExecutionSlot() {
                             &TpExecutionSlotPool::releaseExecutionSlot);
 }
 
-void TpExecutionSlotPool::RotateWalWriters(const std::string& wal_uri) {
-  for (size_t i = 0; i < slot_num_; ++i) {
-    CHECK(entries_[i].logger != nullptr);
-    entries_[i].logger->close();
+ExecutionSlotLease TpExecutionSlotPool::TryAcquireExecutionSlot() {
+  bthread_mutex_lock(&mutex_);
+  if (available_slot_ids_.empty()) {
+    bthread_mutex_unlock(&mutex_);
+    return {};
   }
-  for (size_t i = 0; i < slot_num_; ++i) {
-    entries_[i].logger->open(wal_uri);
-  }
+  const auto slot_id = available_slot_ids_.back();
+  available_slot_ids_.pop_back();
+  CHECK_LT(slot_id, slot_num_);
+  bthread_mutex_unlock(&mutex_);
+  return ExecutionSlotLease(&entries_[slot_id].slot, this, slot_id,
+                            &TpExecutionSlotPool::releaseExecutionSlot);
 }
 
 void TpExecutionSlotPool::releaseExecutionSlot(void* owner,

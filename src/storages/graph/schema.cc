@@ -644,6 +644,7 @@ void Schema::Clear() {
   vlabel_tomb_.clear();
   elabel_tomb_.clear();
   elabel_triplet_tomb_.clear();
+  graph_entry_set_.Clear();
 }
 
 void Schema::AddVertexLabel(
@@ -723,6 +724,41 @@ bool Schema::is_edge_label_temporary(uint32_t edge_triplet_key) const {
     return false;
   }
   return it->second->temporary;
+}
+
+bool Schema::is_edge_triplet_temporary(label_t src_label, label_t dst_label,
+                                       label_t edge_label) const {
+  return is_vertex_label_temporary(src_label) ||
+         is_vertex_label_temporary(dst_label) ||
+         is_edge_label_temporary(
+             generate_edge_label(src_label, dst_label, edge_label));
+}
+
+bool Schema::references_temporary_schema(
+    const ProjectedGraphEntry& entry) const {
+  const auto is_temporary_vertex = [this](const std::string& label) {
+    return is_vertex_label_valid(label) &&
+           is_vertex_label_temporary(get_vertex_label_id(label));
+  };
+  for (const auto& vertex : entry.vertexInfos) {
+    if (is_temporary_vertex(vertex.labelName)) {
+      return true;
+    }
+  }
+  for (const auto& edge : entry.edgeInfos) {
+    if (is_temporary_vertex(edge.srcLabelName) ||
+        is_temporary_vertex(edge.dstLabelName)) {
+      return true;
+    }
+    if (is_edge_triplet_valid(edge.srcLabelName, edge.dstLabelName,
+                              edge.edgeLabelName) &&
+        is_edge_triplet_temporary(get_vertex_label_id(edge.srcLabelName),
+                                  get_vertex_label_id(edge.dstLabelName),
+                                  get_edge_label_id(edge.edgeLabelName))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 std::vector<label_t> Schema::get_temporary_vertex_labels() const {
@@ -1126,6 +1162,20 @@ void Schema::Serialize(std::ostream& os) const {
     arc << (uint32_t) e_pair.first << (*e_pair.second);
   }
   arc << description_ << name_ << id_;
+  std::vector<std::string> graph_names;
+  graph_names.reserve(graph_entry_set_.Entries().size());
+  for (const auto& [name, _] : graph_entry_set_.Entries()) {
+    graph_names.push_back(name);
+  }
+  std::sort(graph_names.begin(), graph_names.end());
+  arc << graph_names.size();
+  for (const auto& name : graph_names) {
+    auto entry = graph_entry_set_.GetEntry(name);
+    if (!entry) {
+      THROW_STORAGE_EXCEPTION(entry.error().error_message());
+    }
+    arc << name << **entry;
+  }
   size_t size = arc.GetSize();
   os.write(reinterpret_cast<char*>(&size), sizeof(size));
   os.write(arc.GetBuffer(), size);
@@ -1159,6 +1209,28 @@ void Schema::Deserialize(std::istream& is) {
   }
 
   arc >> description_ >> name_ >> id_;
+  graph_entry_set_.Clear();
+  // Projected graphs were added as an optional tail to the length-delimited
+  // schema archive. Legacy archives end immediately after id_, so an empty
+  // archive here is a valid pre-projected-graph schema rather than a graph
+  // count. Keeping the legacy path explicit also avoids reading past the
+  // archive and interpreting unrelated bytes as graph_count.
+  if (!arc.Empty()) {
+    if (arc.GetSize() < sizeof(size_t)) {
+      THROW_STORAGE_EXCEPTION(
+          "Invalid schema archive: truncated projected graph count");
+    }
+    size_t graph_count;
+    arc >> graph_count;
+    for (size_t i = 0; i < graph_count; ++i) {
+      std::string name;
+      ProjectedGraphEntry entry;
+      arc >> name >> entry;
+      auto status = graph_entry_set_.AddEntry(name, entry);
+      THROW_STORAGE_EXCEPTION_STATUS("Failed to deserialize projected graph: ",
+                                     status);
+    }
+  }
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
   elabel_triplet_tomb_.Deserialize(is);
@@ -1206,7 +1278,8 @@ std::tuple<label_t, label_t, label_t> Schema::parse_edge_label(
 
 bool Schema::Equals(const Schema& other) const {
   // When compare two schemas, we only compare the properties and strategies
-  if (vertex_label_num() != other.vertex_label_num() ||
+  if (graph_entry_set_ != other.graph_entry_set_ ||
+      vertex_label_num() != other.vertex_label_num() ||
       edge_label_num() != other.edge_label_num()) {
     return false;
   }
@@ -1305,6 +1378,16 @@ bool Schema::Equals(const Schema& other) const {
     }
   }
   return true;
+}
+
+std::vector<std::string> Schema::GetGraphEntryNames() const {
+  std::vector<std::string> names;
+  names.reserve(graph_entry_set_.Entries().size());
+  for (const auto& [name, _] : graph_entry_set_.Entries()) {
+    names.push_back(name);
+  }
+  std::sort(names.begin(), names.end());
+  return names;
 }
 
 neug::result<YAML::Node> Schema::to_yaml() const {
@@ -1853,6 +1936,15 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
   if (schema_node["edge_types"]) {
     RETURN_IF_NOT_OK(parse_edges_schema(schema_node["edge_types"], schema));
   }
+  if (graph_node["projected_graphs"]) {
+    auto entries = GraphEntrySet::FromYaml(graph_node["projected_graphs"]);
+    if (!entries) {
+      return entries.error();
+    }
+    for (const auto& [name, entry] : entries.value().Entries()) {
+      RETURN_IF_NOT_OK(schema.AddGraphEntry(name, entry));
+    }
+  }
   return Status::OK();
 }
 
@@ -2199,6 +2291,12 @@ neug::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
   config_parsing::dump_edges_schema(schema, edge_types);
   graph_node["schema"]["edge_types"] = edge_types;
 
+  auto projected_graphs = schema.graph_entry_set_.ToYaml();
+  if (!projected_graphs) {
+    return tl::unexpected(projected_graphs.error());
+  }
+  graph_node["projected_graphs"] = std::move(projected_graphs.value());
+
   return graph_node;
 }
 
@@ -2452,6 +2550,7 @@ Schema Schema::Compact() const {
   new_schema.name_ = name_;
   new_schema.id_ = id_;
   new_schema.description_ = description_;
+  new_schema.graph_entry_set_ = graph_entry_set_;
 
   for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
     if (vlabel_tomb_.get(v_label)) {
@@ -2463,7 +2562,10 @@ Schema Schema::Compact() const {
       THROW_RUNTIME_ERROR("Failed to add vertex label: " + vlabel_name);
     }
     assert(new_label == new_schema.v_schemas_.size());
-    new_schema.v_schemas_.push_back(v_schemas_[v_label]);
+    auto compacted_vertex =
+        std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+    compacted_vertex->label_id = new_label;
+    new_schema.v_schemas_.push_back(std::move(compacted_vertex));
   }
 
   for (label_t e_label = 0; e_label < elabel_indexer_.num_slots(); ++e_label) {
@@ -2504,7 +2606,12 @@ Schema Schema::Compact() const {
     auto new_index =
         new_schema.generate_edge_label(new_src_v, new_dst_v, new_e_label);
     max_e_triplet_index = std::max(max_e_triplet_index, new_index);
-    new_schema.e_schemas_[new_index] = pair.second;
+    auto compacted_edge = std::make_shared<EdgeSchema>(*pair.second);
+    compacted_edge->entry_id = new_index;
+    compacted_edge->src_label_id = new_src_v;
+    compacted_edge->dst_label_id = new_dst_v;
+    compacted_edge->edge_label_id = new_e_label;
+    new_schema.e_schemas_[new_index] = std::move(compacted_edge);
   }
   new_schema.vlabel_tomb_.resize(new_schema.v_schemas_.size());
   new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.num_slots());
@@ -2533,6 +2640,7 @@ Schema Schema::Clone() const {
   cloned.vlabel_tomb_ = vlabel_tomb_;
   cloned.elabel_tomb_ = elabel_tomb_;
   cloned.elabel_triplet_tomb_ = elabel_triplet_tomb_;
+  cloned.graph_entry_set_ = graph_entry_set_;
 
   return cloned;
 }
@@ -2543,7 +2651,8 @@ Schema Schema::StripTemporary() const {
   stripped.id_ = id_;
   stripped.description_ = description_;
 
-  // Copy non-temporary vertex labels, preserving original label IDs.
+  // Compact non-temporary labels and update the IDs embedded in their schema
+  // records to match the new label indexer slots.
   for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
     if (vlabel_tomb_.get(v_label)) {
       continue;
@@ -2560,8 +2669,9 @@ Schema Schema::StripTemporary() const {
     if (stripped.v_schemas_.size() <= new_label) {
       stripped.v_schemas_.resize(new_label + 1);
     }
-    stripped.v_schemas_[new_label] =
-        std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+    auto vertex_schema = std::make_shared<VertexSchema>(*v_schemas_[v_label]);
+    vertex_schema->label_id = new_label;
+    stripped.v_schemas_[new_label] = std::move(vertex_schema);
   }
 
   // Copy non-temporary edge labels in original label ID order.
@@ -2627,13 +2737,31 @@ Schema Schema::StripTemporary() const {
     }
     auto new_index = stripped.generate_edge_label(new_src, new_dst, new_e);
     max_e_triplet_index = std::max(max_e_triplet_index, new_index);
-    stripped.e_schemas_[new_index] = std::make_shared<EdgeSchema>(*es);
+    auto edge_schema = std::make_shared<EdgeSchema>(*es);
+    edge_schema->entry_id = new_index;
+    edge_schema->src_label_id = new_src;
+    edge_schema->dst_label_id = new_dst;
+    edge_schema->edge_label_id = new_e;
+    stripped.e_schemas_[new_index] = std::move(edge_schema);
   }
 
   stripped.vlabel_tomb_.resize(stripped.v_schemas_.size());
   stripped.elabel_tomb_.resize(stripped.elabel_indexer_.size());
   stripped.elabel_triplet_tomb_.resize(
       stripped.e_schemas_.empty() ? 0 : max_e_triplet_index + 1);
+
+  // A projection that references session-scoped schema is session-scoped too.
+  // Persisting it would leave dangling label references after stripping.
+  for (const auto& [name, entry] : graph_entry_set_.Entries()) {
+    if (references_temporary_schema(entry)) {
+      continue;
+    }
+    auto status = stripped.graph_entry_set_.AddEntry(name, entry);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("StripTemporary: failed to add graph entry: " + name +
+                          ": " + status.ToString());
+    }
+  }
 
   return stripped;
 }
@@ -2697,19 +2825,17 @@ result<rapidjson::Document> Schema::ToJson() const {
 
 void Schema::FromJson(const rapidjson::Value& j) {
   if (!j.IsObject()) {
-    LOG(ERROR) << "Schema JSON must be an object";
-    return;
+    THROW_STORAGE_EXCEPTION("Schema JSON must be an object");
   }
   auto yaml_result = config_parsing::json_to_yaml(j);
   if (!yaml_result) {
-    LOG(ERROR) << "Failed to convert JSON to YAML: " << yaml_result.error();
-    return;
+    THROW_STORAGE_EXCEPTION("Failed to convert JSON to YAML: " +
+                            yaml_result.error().ToString());
   }
   auto load_result = LoadFromYamlNode(yaml_result.value());
   if (!load_result) {
-    LOG(ERROR) << "Failed to load schema from JSON: "
-               << load_result.error().ToString();
-    return;
+    THROW_STORAGE_EXCEPTION("Failed to load schema from JSON: " +
+                            load_result.error().ToString());
   }
   *this = std::move(load_result.value());
 }

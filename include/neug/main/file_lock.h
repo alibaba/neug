@@ -22,6 +22,10 @@
 
 #include "neug/config.h"
 
+#ifdef _WIN32
+using pid_t = int;
+#endif
+
 namespace neug {
 
 /*

@@ -26,6 +26,8 @@ add_library(neug_function
         vector_date_functions.cpp
         vector_string_functions.cpp
         csv_export_function.cpp
+        export_stream.cc
+        import_stream.cc
         json_export_function.cc)
 add_dependencies(neug_function neug_proto neug_utils)
 

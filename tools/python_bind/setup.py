@@ -138,8 +138,12 @@ class CMakeBuild(build_ext):
 
         self._cmake_build_in_root(build_dir)
 
-        if not list(py_so_dir.glob("neug_py_bind*.so")):
-            raise RuntimeError(f"neug_py_bind*.so not found in {py_so_dir} after build")
+        so_files = list(py_so_dir.glob("neug_py_bind*.so"))
+        pyd_files = list(py_so_dir.glob("neug_py_bind*.pyd"))
+        if not so_files and not pyd_files:
+            raise RuntimeError(
+                f"neug_py_bind binding not found in {py_so_dir} after build"
+            )
 
         if self.inplace:
             return
@@ -147,10 +151,12 @@ class CMakeBuild(build_ext):
         extdir = (Path.cwd() / self.get_ext_fullpath(ext.name)).parent.resolve()
         extdir.mkdir(parents=True, exist_ok=True)
         for src in [
-            *py_so_dir.glob("neug_py_bind*.so"),
+            *so_files,
+            *pyd_files,
             *core_lib_dir.glob("libneug.dylib"),
             *core_lib_dir.glob("libneug.so"),
             *core_lib_dir.glob("libneug.so.*"),
+            *core_lib_dir.glob("neug.dll"),
         ]:
             shutil.copy2(src, extdir, follow_symlinks=True)
             print(f"[CMakeBuild] copied {src.name} -> {extdir}")

@@ -217,11 +217,17 @@ std::string insert_query = R"({
 auto write_result = lease->ExecuteTransactionalRequest(insert_query);
 ```
 
-**Transaction Types:**
-- ``ReadTransaction``: Read-only snapshot access
-- ``InsertTransaction``: Add new vertices and edges
-- ``UpdateTransaction``: Modify existing graph elements
-- ``CompactTransaction``: Background compaction operations
+**Internal Transaction Strategies:**
+- ``SnapshotReadTransaction``: Read-only snapshot access
+- ``MvccInsertTransaction``: Add new vertices and edges
+- ``SnapshotCowWriteTransaction``: Versioned COW updates used by transactional
+  execution
+- ``CurrentCowWriteTransaction``: Private COW updates of the AP current graph
+- ``InPlaceCompactionTransaction``: Background compaction operations
+
+These are `ExecutionSlot` implementation strategies. Connection and Session
+continue to expose logical read-only/read-write transaction semantics; clients
+do not select these internal types.
 
 **Thread Safety:** An execution slot must not be used concurrently. Sequential
 use may resume on a different physical worker because the slot is an execution

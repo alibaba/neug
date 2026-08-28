@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/common/enums/path_semantic.h"
-#include "neug/compiler/graph/graph_entry.h"
+#include "neug/compiler/function/gds/gds_graph.h"
 
 namespace neug {
 namespace function {

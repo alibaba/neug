@@ -915,8 +915,27 @@ static bool canAlwaysCast(DataTypeId typeID) {
   }
 }
 
+static bool isGraphEntityType(DataTypeId typeID) {
+  switch (typeID) {
+  case DataTypeId::kVertex:
+  case DataTypeId::kEdge:
+  case DataTypeId::kPath:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static bool isStringGraphEntityPair(DataTypeId left, DataTypeId right) {
+  return (left == DataTypeId::kVarchar && isGraphEntityType(right)) ||
+         (right == DataTypeId::kVarchar && isGraphEntityType(left));
+}
+
 bool LogicalTypeUtils::tryGetMaxDataTypeId(DataTypeId left, DataTypeId right,
                                            DataTypeId& result) {
+  if (isStringGraphEntityPair(left, right)) {
+    return false;
+  }
   if (canAlwaysCast(left) && canAlwaysCast(right)) {
     if (alwaysCastOrder(left) > alwaysCastOrder(right)) {
       result = left;
@@ -975,6 +994,9 @@ static inline bool isSemanticallyNested(DataTypeId ID) {
 bool LogicalTypeUtils::tryGetMaxLogicalType(const DataType& left,
                                             const DataType& right,
                                             DataType& result) {
+  if (isStringGraphEntityPair(left.id(), right.id())) {
+    return false;
+  }
   if (canAlwaysCast(left.id()) && canAlwaysCast(right.id())) {
     if (alwaysCastOrder(left.id()) > alwaysCastOrder(right.id())) {
       result = left.copy();

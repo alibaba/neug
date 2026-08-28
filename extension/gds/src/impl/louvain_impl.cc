@@ -32,10 +32,12 @@ Louvain::Louvain(const StorageReadInterface& graph,
                  std::vector<LabelTriplet> edge_triplets, double resolution,
                  double threshold, int concurrency,
                  const std::string& initial_community_property,
-                 bool allow_relocation, const std::string& weight_property)
+                 bool allow_relocation, const std::string& weight_property,
+                 std::vector<execution::ExprBase*> vertex_preds,
+                 std::vector<execution::ExprBase*> edge_preds)
     : graph_(graph),
       index_(graph, std::move(vertex_labels), std::move(edge_triplets),
-             weight_property),
+             weight_property, std::move(vertex_preds), std::move(edge_preds)),
       resolution_(resolution),
       threshold_(threshold),
       concurrency_(concurrency),
@@ -68,6 +70,11 @@ Louvain::Louvain(const StorageReadInterface& graph,
       size_t base = index_.label_base_offset(li);
       for (const auto& v : vs) {
         uint32_t gid = static_cast<uint32_t>(base + v);
+        // Vertices excluded by a vertex predicate don't participate; their
+        // slots are never read by compute()/sink() (all loops iterate
+        // valid_vertices only), so leave them untouched.
+        if (!index_.is_valid(gid))
+          continue;
         if (prop_col) {
           auto val = prop_col->get_any(v);
           if (!val.IsNull()) {
@@ -376,6 +383,8 @@ void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias,
       prev_builder.reserve(cnt);
       for (const auto& v : vs) {
         uint32_t gid = static_cast<uint32_t>(base + v);
+        if (!index_.is_valid(gid))
+          continue;
         if (initial_community_ && initial_community_[gid] != UINT32_MAX) {
           prev_builder.push_back_opt(
               static_cast<int64_t>(initial_community_[gid]));
@@ -387,6 +396,8 @@ void Louvain::sink(execution::Context& ctx, int node_alias, int community_alias,
     }
     for (const auto& v : vs) {
       uint32_t gid = static_cast<uint32_t>(base + v);
+      if (!index_.is_valid(gid))
+        continue;
       b.push_back_opt(v);
       cb.push_back_opt(static_cast<int64_t>(cr[community_[gid]]));
     }

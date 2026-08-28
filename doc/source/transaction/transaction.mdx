@@ -1,0 +1,436 @@
+# Transaction Management
+
+This document describes NeuG's transaction management system, which operates differently depending on the deployment mode. NeuG supports two primary modes: **Embedded mode** suitable for analytical processing (AP) and **Service mode** suitable for transactional processing (TP).
+
+import { Tabs } from 'nextra/components'
+
+## Design Philosophy
+
+NeuG's transaction model reflects trade-offs based on deep understanding of graph workload characteristics:
+
+- **Graph-native workloads** are predominantly read-heavy with insert operations, while updates and schema changes are relatively infrequent
+- **Analytical workloads** prioritize single-query throughput over complex consistency guarantees
+- **Transactional workloads** require concurrent read/insert performance with strong isolation
+
+Rather than implementing a one-size-fits-all transaction system with high complexity, NeuG provides workload-appropriate guarantees that balance simplicity, performance, and correctness.
+
+## Transaction Model
+
+### Before version v0.2
+
+Before version v0.2, NeuG exposed only an implicit, auto-commit transaction
+model. It had no user-visible explicit transaction primitives: each `execute()`
+or `Query()` call was one statement-level transaction.
+
+```python
+# Each execute() is an independent, auto-committed transaction.
+conn.execute("CREATE (p:Person {name: 'Alice'})")  # Transaction 1
+conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
+```
+
+### Since version v0.2
+
+Since version v0.2, auto-commit remains the default in every supported
+interface. The embedded C++, Node.js, and Python `Connection` APIs support
+programmatic explicit transactions for AP mode, as described below.
+
+#### Explicit Transactions in Embedded AP Mode
+
+An explicit transaction is owned by its `Connection` and spans multiple
+queries:
+
+<Tabs items={['C++', 'Node.js', 'Python']}>
+
+<Tab>
+
+```cpp
+auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
+if (!status.ok()) {
+  // Handle the begin error.
+}
+
+auto created = conn->Query("CREATE (:Person {name: 'Alice'})", "insert");
+auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
+
+status = conn->Commit();  // Publishes all successful writes as one commit.
+```
+
+</Tab>
+
+<Tab>
+
+```javascript
+conn.beginTransaction();
+
+const created = conn.execute("CREATE (:Person {name: 'Alice'})", 'insert');
+const visible = conn.execute('MATCH (p:Person) RETURN p.name', 'read');
+
+conn.commit(); // Publishes all successful writes as one commit.
+```
+
+</Tab>
+
+<Tab>
+
+```python
+conn.begin_transaction()
+created = conn.execute("CREATE (:Person {name: 'Alice'})", "insert")
+visible = conn.execute("MATCH (p:Person) RETURN p.name")
+conn.commit()
+```
+
+</Tab>
+
+</Tabs>
+
+In C++, `TransactionMode::kReadOnly` pins one read view for the entire
+transaction and rejects writes; in Node.js, use
+`beginTransaction({ readOnly: true })`; in Python, use
+`begin_transaction(read_only=True)`. C++ `TransactionMode::kReadWrite`, the
+default Node.js mode, and the default Python mode hold one private COW write
+view: successful statements can read their own writes, but private changes are
+not published until `Commit()` or `commit()` succeeds. An AP read-write
+transaction holds exclusive AP admission for its full lifetime. Any AP operation
+that contends for that admission waits until the transaction is committed,
+rolled back, or its connection is closed; explicit transactions currently have
+no timeout. Applications should therefore finish them promptly. Embedded
+READ_WRITE mode currently allows only one public `Connection` at a time.
+
+Any query that reaches the database engine and fails aborts the owner and
+leaves the connection rollback-only. This includes query analysis, syntax or
+compilation errors, execution failures, read-only writes, and rejected bulk or
+maintenance operations. Errors rejected by a client binding before the query
+reaches the engine do not change the active transaction; for example, Python
+rejects an invalid `access_mode` with `ValueError`. Because Cypher
+transaction-control statements are unsupported, issuing `COMMIT;` through
+`Query()` or `execute()` is also a failed statement and makes the transaction
+rollback-only. In that state, call
+`Rollback()`/`rollback()` (or close the connection) before issuing another
+query or beginning another transaction. `HasActiveTransaction()` in C++,
+`hasActiveTransaction` in Node.js, and `has_active_transaction` in Python stay
+true while the connection is rollback-only. Nested begin and invalid
+programmatic control calls report a transaction-state error without changing an
+otherwise active transaction.
+
+This API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`; use the
+programmatic `Connection` methods shown above. The embedded API does not
+include remote clients, Java bindings, savepoints, transaction timeouts, or
+explicit-transaction `COPY`, batch, index, checkpoint, procedure calls, or
+temporary schema operations.
+
+#### Explicit Transactions in TP Service Mode
+
+TP service explicit transactions are exposed through supported client APIs.
+Clients begin a read-only or read-write transaction, execute queries, then
+commit or roll it back. This guide documents that client-level contract;
+service URIs, headers, status codes, and request or response payloads are
+transport details rather than public transaction semantics.
+
+A read-only transaction pins one TP read view. A read-write transaction owns
+one private COW view, reads its own successful writes, and appends and publishes
+one WAL commit only when `commit` succeeds. While a read-write transaction owns
+the TP update lease, another read-write transaction cannot begin; ordinary TP
+inserts and updates wait for it to finish, while TP reads remain concurrent.
+
+A failed ordinary statement leaves the transaction rollback-only. `rollback`
+ends that transaction immediately; its handle cannot be reused, so clients
+must begin a new transaction before issuing more queries. Transactions may have
+an absolute service-configured lifetime. Expired, failed, or shutdown
+transactions are rolled back and ended. Clients must reliably finish a
+read-write transaction: an abandoned transaction can keep the TP update lease
+and delay ordinary TP writes until the service releases it.
+
+Cypher `BEGIN`, `COMMIT`, and `ROLLBACK` remain unsupported within transaction
+queries; use the client API's transaction-control methods instead.
+
+## Deployment Modes Overview
+
+| Aspect | Embedded Mode | Service Mode |
+|--------|-------------------|-------------------|
+| **Use Case** | Analytics, ETL, batch processing | Interactive applications, web services |
+| **Concurrency** | Single-user, sequential writes | Multi-user, concurrent access |
+| **Persistence** | v0.2+: WAL for ordinary writes; checkpoints for bulk/materialization | Automatic WAL-based |
+| **Optimization Goal** | Maximum single-query performance | Concurrent read/insert throughput |
+
+## ACID Properties
+
+### Embedded Mode (AP-oriented)
+
+Embedded mode is designed for analytical workloads where simplicity and single-query performance take precedence over complex transaction guarantees.
+
+#### Atomicity
+
+**Before version v0.2:** Statement-level atomicity was not fully guaranteed
+for large AP write operations. A failure during a large write, such as `COPY`,
+could leave partial data in memory. Applications used checkpoints as recovery
+points around those operations; see [Checkpoints](checkpoint.md) for the
+checkpoint lifecycle and `checkpoint_on_close` behavior.
+
+**Since version v0.2:** Ordinary AP writes use a private COW graph and publish
+it only after their WAL commit succeeds. Persistent direct bulk operations use
+the same private graph and publish a checkpoint on success; temporary bulk
+objects are in-memory only. An explicit read-write transaction accumulates its
+supported ordinary writes in one private graph and publishes them only at
+`Commit()`.
+
+The current WAL format is sufficient for normal replay, but its final framing,
+corruption handling, and commit-unknown recovery rules are still being
+hardened. Applications requiring a durable materialized checkpoint after bulk
+loading should use the checkpoint lifecycle described in
+[Checkpoints](checkpoint.md).
+
+#### Consistency
+
+Schema constraints and referential integrity are enforced at the statement level. Invalid operations (such as creating duplicate primary keys or violating edge constraints) are rejected.
+
+#### Isolation
+
+**Pessimistic exclusive locking** is used for all write operations. Any write statement (insert, update, delete, or schema modification) acquires an exclusive lock, blocking all other operations until completion.
+
+| Operation Type | Concurrency Behavior |
+|----------------|---------------------|
+| Read + Read | Concurrent execution allowed |
+| Write + READ/Write | Mutually exclusive |
+
+This simple locking model is sufficient for single-user analytical workloads and avoids the complexity of fine-grained concurrency control.
+
+#### Durability
+
+**Before version v0.2:** AP changes were persisted only by an explicit
+`CHECKPOINT` statement or database closure with `checkpoint_on_close=True`.
+
+**Since version v0.2:** Ordinary AP writes, including one successful explicit
+read-write commit, append logical redo to the WAL and are replayed on a normal
+restart. Persistent direct bulk operations become durable by publishing their
+checkpoint. An explicit `CHECKPOINT` statement or database closure with
+`checkpoint_on_close=True` creates a materialized checkpoint and manages WAL
+rotation.
+
+For in-memory databases, durability is not applicable as data exists only in volatile memory.
+For usage and failure behavior, see [Checkpoints](checkpoint.md).
+
+### Service Mode
+
+Service mode is designed for high-throughput transactional workloads with concurrent client access. The concurrency model is optimized for graph-native access patterns where reads and inserts dominate.
+
+#### Atomicity
+
+Each statement executes as an all-or-nothing operation. Failed statements are automatically rolled back with no partial state changes visible to other transactions.
+
+#### Consistency
+
+Schema constraints and referential integrity are enforced. All concurrent operations observe a consistent view of the database.
+
+#### Isolation
+
+NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable isolation, with operation-specific concurrency rules:
+
+| Operation Type | Concurrency Behavior |
+|----------------|---------------------|
+| Read | Reads a consistent snapshot and continues during active inserts/updates. |
+| Insert | Concurrent with reads and other inserts. Waits if an update is in progress. |
+| Update | One at a time. Reads continue on a consistent snapshot. Inserts and other updates wait until the update finishes. |
+| Schema (DDL) | Same concurrency behavior as update. |
+| Checkpoint | Exclusive maintenance. See [Checkpoints](checkpoint.md). |
+
+> Note: A read that arrives while an update is finishing may wait briefly,
+> typically at millisecond scale.
+
+**Design Rationale:** This hybrid approach reflects the reality of graph workloads:
+
+- **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
+- **Updates and schema changes** are relatively rare and are serialized, while reads continue on a consistent snapshot with only brief waits when they arrive as a write is finishing
+- **Checkpoints** are database-level maintenance operations; their concurrency behavior is described in [Checkpoints](checkpoint.md)
+- Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
+
+```python
+from neug import Session
+
+# Concurrent sessions
+session1 = Session("http://localhost:10000/")
+session2 = Session("http://localhost:10000/")
+
+# These can execute concurrently (read + insert)
+session1.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
+session2.execute("CREATE (p:Person {name: 'Bob'})", access_mode="insert")
+
+# This is serialized with inserts and other updates. Reads continue on a
+# consistent snapshot while the update runs.
+session1.execute("MATCH (p:Person) SET p.updated = true", access_mode="update")
+```
+
+#### Durability
+
+All modifications are immediately persisted through **Write-Ahead Logging (WAL)**:
+
+- Changes are logged to WAL before execution completes
+- Crash recovery automatically replays WAL to restore consistent state
+- No explicit checkpoint is required for durability; checkpoints are available for WAL consolidation. See [Checkpoints](checkpoint.md)
+
+## Access Mode
+
+When executing queries, you can specify an `access_mode` to control transaction behavior and optimize performance:
+
+| Mode | Aliases | Description |
+|------|---------|-------------|
+| `read` | `r` | Read-only operations (MATCH without mutations) |
+| `insert` | `i` | Insert-only operations (CREATE new vertices/edges) |
+| `update` | `u` | Update/delete operations (SET, DELETE, MERGE) |
+| `schema` | `s` | Schema modifications (CREATE/DROP node/edge tables) |
+
+**Default Behavior:** If not specified, NeuG infers the appropriate mode. Explicitly specifying the correct mode enables better concurrency optimization in Service mode.
+
+**Access Mode Capabilities:** Access modes are operation-specific rather than a strict hierarchy. In Service mode, `read` and `insert` are narrow modes, while `update` and `schema` use the general serialized update path. Using a mode that does not support the planned operation returns an error.
+
+The following table applies to **Service mode** only:
+
+| Specified Mode | Actual Operation | Result |
+|----------------|------------------|--------|
+| `read` | read | ✅ OK |
+| `read` | insert/update/schema/checkpoint | ❌ Error |
+| `insert` | insert | ✅ OK |
+| `insert` | read/update/schema/checkpoint | ❌ Error |
+| `update` | read/insert/update/schema/checkpoint | ✅ OK (serialized update path) |
+| `schema` | read/insert/update/schema | ✅ OK (serialized update path) |
+
+In Embedded mode, modes other than `read` primarily select shared versus exclusive query locking rather than distinct transaction implementations. Explicit `read` still rejects write operations, and the special `CHECKPOINT` restriction below applies in both deployment modes.
+
+`CHECKPOINT` is a special administrative statement. See
+[Checkpoints](checkpoint.md) for its accepted access modes and
+`EXPLAIN`/`PROFILE` behavior.
+
+```python
+# Optimal: match access mode to operation for best concurrency
+conn.execute("MATCH (n) RETURN n", access_mode="read")        # read lock only
+conn.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")  # insert lock
+
+# Works but suboptimal: update mode for read query enters the update path
+conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduces write concurrency
+```
+
+## Data Persistence
+
+### Embedded Mode: Checkpoint-Based
+
+All changes are held in memory until a checkpoint persists them. See
+[Checkpoints](checkpoint.md) for usage, examples, and recovery behavior.
+
+### Service Mode: WAL-Based
+
+Changes are automatically persisted through Write-Ahead Logging:
+
+```python
+from neug import Session
+
+session = Session("http://localhost:10000/")
+
+# Each statement is immediately durable
+session.execute("CREATE (p:Person {name: 'Alice'})")  # Persisted via WAL
+session.execute("CREATE (p:Person {name: 'Bob'})")    # Persisted via WAL
+
+session.close()
+```
+
+An optional checkpoint consolidates the WAL but is not required for statement
+durability. See [Checkpoints](checkpoint.md).
+
+## Error Recovery
+
+### Embedded Mode
+
+Recovery relies on the last successful checkpoint. See
+[Recovering from a failed Embedded write](checkpoint.md) for an example.
+
+### Service Mode
+
+Automatic crash recovery using WAL:
+
+- Uncommitted operations are automatically rolled back
+- Database restores to last consistent state on startup
+- No manual intervention required
+
+## Best Practices
+
+### Embedded Mode
+
+```python
+import neug
+
+db = neug.Database("/path/to/database")
+conn = db.connect()
+
+# 1. Create schema and checkpoint
+conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
+conn.execute("CREATE NODE TABLE Company(id INT64, name STRING, PRIMARY KEY(id))")
+conn.execute("CREATE REL TABLE WORKS_AT(FROM Person TO Company)")
+conn.execute("CHECKPOINT")
+
+# 2. Load data in batches with periodic checkpoints
+conn.execute("COPY Person FROM 'employees_batch1.csv'")
+conn.execute("COPY Person FROM 'employees_batch2.csv'")
+conn.execute("CHECKPOINT")
+
+conn.execute("COPY Company FROM 'companies.csv'")
+conn.execute("COPY WORKS_AT FROM 'employment.csv'")
+conn.execute("CHECKPOINT")
+
+# 3. Run analytical queries (read-only, high performance)
+result = conn.execute("MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN c.name, count(p)")
+
+conn.close()
+db.close()
+```
+
+### Service Mode (TP-oriented)
+
+```python
+from neug import Session
+
+session = Session("http://localhost:10000/")
+
+try:
+    # Reads and inserts can be concurrent across sessions
+    session.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")
+
+    # Reads don't block inserts
+    result = session.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
+
+    # Updates are serialized with inserts and other updates. Reads continue on
+    # consistent snapshots, but keep updates short in high-concurrency scenarios.
+    session.execute(
+        "MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true",
+        access_mode="update",
+    )
+
+    # Periodic checkpoint to consolidate WAL (optional)
+    session.execute("CHECKPOINT")
+
+finally:
+    session.close()
+```
+
+## Summary
+
+| Property | Embedded Mode  | Service Mode  |
+|----------|-------------------|-------------------|
+| **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
+| **Consistency** | Schema constraints enforced | Schema constraints enforced |
+| **Isolation** | Exclusive write locks | MVCC for reads/inserts; serialized updates/DDL; exclusive checkpoints |
+| **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
+| **Concurrent Reads** | Yes | Yes, except during exclusive checkpoint maintenance |
+| **Concurrent Inserts** | No | Yes, unless an update is active |
+| **Concurrent Updates** | No | No, updates are serialized while reads continue on consistent snapshots |
+| **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
+
+## Roadmap
+
+**v0.2: Transaction Control**
+- Multi-statement execution: multiple statements separated by `;` in a single `execute()` call, sharing the same transaction boundary
+- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`) for fine-grained transaction control
+- Savepoint support for partial rollback within transactions
+
+**Recovery & Durability**
+- More transparent recovery mechanisms for Embedded mode
+- Delta checkpointing for efficient incremental persistence
+- Reduced checkpoint blocking time for large datasets
+- Automatic checkpoint

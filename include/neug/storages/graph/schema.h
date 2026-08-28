@@ -27,6 +27,8 @@
 #include <utility>
 #include <vector>
 #include "neug/common/types/value.h"
+#include "neug/storages/graph/graph_entry.h"
+#include "neug/utils/api.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/property/default_value.h"
 #include "neug/utils/property/property_definition.h"
@@ -90,7 +92,7 @@ class SchemaEntry {
 
   virtual std::string get_label() const = 0;
 };
-class LabelIndexer {
+class NEUG_API LabelIndexer {
  public:
   bool add(const std::string& name, label_t& lid);
   bool get_index(const std::string& name, label_t& lid) const;
@@ -480,7 +482,7 @@ struct EdgeSchema : public SchemaEntry {
  *
  * @since v0.1.0
  */
-class Schema {
+class NEUG_API Schema {
  public:
   /// @name Plugin ID Constants
   /// @{
@@ -572,6 +574,11 @@ class Schema {
 
   bool is_vertex_label_temporary(label_t label) const;
   bool is_edge_label_temporary(uint32_t edge_triplet_key) const;
+  /// True when either endpoint or the edge triplet is session-scoped.
+  bool is_edge_triplet_temporary(label_t src_label, label_t dst_label,
+                                 label_t edge_label) const;
+  /// True when a projected graph cannot survive temporary-schema stripping.
+  bool references_temporary_schema(const ProjectedGraphEntry& entry) const;
   std::vector<label_t> get_temporary_vertex_labels() const;
   std::vector<uint32_t> get_temporary_edge_triplet_keys() const;
 
@@ -830,6 +837,22 @@ class Schema {
 
   inline std::string GetGraphId() const { return id_; }
 
+  bool HasGraphEntry(const std::string& name) const {
+    return graph_entry_set_.HasEntry(name);
+  }
+  result<const ProjectedGraphEntry*> GetGraphEntry(
+      const std::string& name) const {
+    return graph_entry_set_.GetEntry(name);
+  }
+  std::vector<std::string> GetGraphEntryNames() const;
+  Status AddGraphEntry(const std::string& name,
+                       const ProjectedGraphEntry& entry) {
+    return graph_entry_set_.AddEntry(name, entry);
+  }
+  Status DropGraphEntry(const std::string& name) {
+    return graph_entry_set_.DropEntry(name);
+  }
+
   std::string GetDescription() const;
 
   void SetDescription(const std::string& description);
@@ -882,6 +905,7 @@ class Schema {
   Bitset vlabel_tomb_;
   Bitset elabel_tomb_;          // tombstone for edge label
   Bitset elabel_triplet_tomb_;  // tombstone for edge label triplet
+  GraphEntrySet graph_entry_set_;
 
   friend class PropertyGraph;
 };

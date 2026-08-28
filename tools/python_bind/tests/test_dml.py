@@ -253,6 +253,11 @@ def test_set_edge_property(tmp_path):
         " WHERE u0.name = 'Alice' AND u1.name = 'Josh' SET f.since = 1999 RETURN f.since;"
     )
     assert result.__next__()[0] == 1999
+    result = conn.execute(
+        "MATCH (u0:person)<-[f:follows]-(u1:person)"
+        " WHERE u0.name = 'Josh' AND u1.name = 'Alice' SET f.since = 2000 RETURN f.since;"
+    )
+    assert result.__next__()[0] == 2000
     # case 2: valid update with multiple label relationship
     result = conn.execute(
         "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.since = 1999 RETURN f.since;"
@@ -265,6 +270,33 @@ def test_set_edge_property(tmp_path):
             "MATCH (u0)-[f]->() WHERE u0.name = 'Alice' SET f.noprop = 1999 RETURN f.noprop;"
         )
     assert "Cannot find property noprop" in str(excinfo.value)
+
+    # A join may repeat the same physical bundled edge in several rows. Two
+    # parallel edges also require stable property bytes to resolve each CSR
+    # offset. Refreshing the whole edge column after SET covers both cases.
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.name = 'Alice' AND "
+        "b.name = 'Josh' CREATE (a)-[:follows {since: 2013}]->(b);"
+    )
+    result = conn.execute(
+        "MATCH (a:person)-[f:follows]->(b:person), (copy:person) "
+        "WHERE a.name = 'Alice' AND b.name = 'Josh' "
+        "SET f.since = 1999 RETURN f.since;"
+    )
+    assert sorted(row[0] for row in result) == [1999] * 6
+    result = conn.execute(
+        "MATCH (:person {name: 'Alice'})-[f:follows]->(:person {name: 'Josh'}) "
+        "RETURN f.since;"
+    )
+    assert sorted(row[0] for row in result) == [1999, 1999]
+
+    # Later SET mappings observe the values written by earlier mappings even
+    # after bundled CSR COW refreshes the edge column.
+    result = conn.execute(
+        "MATCH (:person {name: 'Alice'})-[f:follows]->(:person {name: 'Josh'}) "
+        "SET f.since = 20, f.since = f.since + 1 RETURN f.since;"
+    )
+    assert list(result) == [[21], [21]]
     conn.close()
     db.close()
 
@@ -483,7 +515,9 @@ def test_default_value(tmp_path):
         conn.execute(
             "MATCH (p1: Person {id: 222}), (p2: Person {id: 111}) CREATE (p1)-[k:Knows {since: 2022, NOTE: 'updated'}]->(p2);"
         )
-        res = conn.execute("MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE;")
+        res = conn.execute(
+            "MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE ORDER BY e.since;"
+        )
         records = list(res)
         assert records == [
             [2020, "none"],
@@ -564,15 +598,196 @@ def test_insert_many_edges(tmp_path):
     db.close()
 
 
-def test_copy_from(tmp_path):
-    db_dir = str(tmp_path / "test_copy_from")
+# Regression test for issue #922: creating a relationship failed with
+# "invalid oe offset" whenever the source node previously had an outgoing
+# edge deleted. EdgeTable::UpdateEdgeProperty positioned the CSR iterator
+# with `iter += offset`, but `+=` advances over visible edges only (skipping
+# tombstones), while the offsets it consumes are raw adjacency-list slot
+# indices. The two notions diverge once a vertex has a deleted edge.
+def test_merge_edge_after_deletion(tmp_path):
+    db_dir = tmp_path / "test_merge_edge_after_deletion"
     shutil.rmtree(db_dir, ignore_errors=True)
-    db = Database(db_path=db_dir, mode="w")
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(uuid STRING, PRIMARY KEY(uuid));")
+        conn.execute(
+            "CREATE REL TABLE knows(FROM person TO person, uuid STRING, name STRING);"
+        )
+        conn.execute("CREATE (p: person {uuid: 'a'});")
+        conn.execute("CREATE (p: person {uuid: 'b'});")
+
+        def save_edge(uuid, name):
+            # Graphiti-style edge save: MERGE the edge, then SET its properties.
+            conn.execute(
+                """
+                MATCH (source:person {uuid: $source_uuid})
+                MATCH (target:person {uuid: $target_uuid})
+                MERGE (source)-[e:knows {uuid: $uuid}]->(target)
+                SET e.uuid = $uuid, e.name = $name
+                RETURN e.uuid AS uuid
+                """,
+                "",
+                {
+                    "uuid": uuid,
+                    "name": name,
+                    "source_uuid": "a",
+                    "target_uuid": "b",
+                },
+            )
+
+        save_edge("e1", "edge-e1")
+        conn.execute(
+            "MATCH (a:person {uuid: 'a'})-[e:knows]->(b:person {uuid: 'b'}) DELETE e;"
+        )
+        # Previously raised: ERR_INVALID_ARGUMENT: invalid oe offset
+        save_edge("e2", "edge-e2")
+
+        res = conn.execute("MATCH ()-[e:knows]->() RETURN e.uuid, e.name;")
+        assert list(res) == [["e2", "edge-e2"]]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_merge_edge_after_repeated_delete_cycles(tmp_path):
+    db_dir = tmp_path / "test_merge_edge_delete_cycles"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(uuid STRING, PRIMARY KEY(uuid));")
+        conn.execute(
+            "CREATE REL TABLE knows(FROM person TO person, uuid STRING, name STRING);"
+        )
+        conn.execute("CREATE (p: person {uuid: 'a'});")
+        conn.execute("CREATE (p: person {uuid: 'b'});")
+
+        for i in range(5):
+            conn.execute(
+                f"MATCH (a:person {{uuid: 'a'}}), (b:person {{uuid: 'b'}}) "
+                f"MERGE (a)-[e:knows {{uuid: 'e{i}'}}]->(b) "
+                f"SET e.uuid = 'e{i}', e.name = 'edge-e{i}';"
+            )
+            conn.execute(
+                "MATCH (a:person {uuid: 'a'})-[e:knows]->(b:person {uuid: 'b'}) "
+                "DELETE e;"
+            )
+        conn.execute(
+            "MATCH (a:person {uuid: 'a'}), (b:person {uuid: 'b'}) "
+            "MERGE (a)-[e:knows {uuid: 'final'}]->(b) "
+            "SET e.uuid = 'final', e.name = 'edge-final';"
+        )
+
+        res = conn.execute("MATCH ()-[e:knows]->() RETURN e.uuid, e.name;")
+        assert list(res) == [["final", "edge-final"]]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_set_surviving_edge_after_mid_list_deletion(tmp_path):
+    # The deleted edge leaves a tombstone at slot 0; edges e2/e3 live at raw
+    # slots 1/2 while their visible ordinals are 0/1. Property updates must
+    # resolve through raw slot offsets, not visible ordinals.
+    db_dir = tmp_path / "test_set_edge_after_mid_deletion"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(uuid STRING, PRIMARY KEY(uuid));")
+        conn.execute(
+            "CREATE REL TABLE knows(FROM person TO person, uuid STRING, name STRING);"
+        )
+        for v in ("a", "b", "c", "d"):
+            conn.execute(f"CREATE (p: person {{uuid: '{v}'}});")
+
+        for uuid, dst in (("e1", "b"), ("e2", "c"), ("e3", "d")):
+            conn.execute(
+                f"MATCH (a:person {{uuid: 'a'}}), (b:person {{uuid: '{dst}'}}) "
+                f"CREATE (a)-[:knows {{uuid: '{uuid}', name: 'edge-{uuid}'}}]->(b);"
+            )
+
+        # Delete e1, leaving a tombstone at raw slot 0 of a's adjacency list.
+        conn.execute("MATCH (:person {uuid: 'a'})-[e:knows {uuid: 'e1'}]->() DELETE e;")
+        # SET on surviving edges located after the tombstone must hit the
+        # right edge.
+        conn.execute(
+            "MATCH (:person {uuid: 'a'})-[e:knows {uuid: 'e2'}]->() "
+            "SET e.name = 'updated-e2';"
+        )
+        conn.execute(
+            "MATCH (:person {uuid: 'a'})-[e:knows {uuid: 'e3'}]->() "
+            "SET e.name = 'updated-e3';"
+        )
+        res = conn.execute("MATCH ()-[e:knows]->() RETURN e.uuid, e.name;")
+        assert sorted(list(res)) == [
+            ["e2", "updated-e2"],
+            ["e3", "updated-e3"],
+        ]
+
+        # A fresh edge from the same source lands after the tombstones.
+        conn.execute(
+            "MATCH (a:person {uuid: 'a'}), (b:person {uuid: 'b'}) "
+            "CREATE (a)-[:knows {uuid: 'e4', name: 'edge-e4'}]->(b);"
+        )
+        res = conn.execute("MATCH ()-[e:knows]->() RETURN e.uuid;")
+        assert sorted(r[0] for r in res) == ["e2", "e3", "e4"]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_bundled_edge_recreate_and_set_after_deletion(tmp_path):
+    # Bundled edges (single non-varchar property) exercise both the outgoing
+    # and incoming offset paths in EdgeTable::UpdateEdgeProperty.
+    db_dir = tmp_path / "test_bundled_edge_recreate_after_delete"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE person(uuid STRING, PRIMARY KEY(uuid));")
+        conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+        conn.execute("CREATE (p: person {uuid: 'a'});")
+        conn.execute("CREATE (p: person {uuid: 'b'});")
+
+        conn.execute(
+            "MATCH (a:person {uuid: 'a'}), (b:person {uuid: 'b'}) "
+            "CREATE (a)-[:knows {weight: 1.5}]->(b);"
+        )
+        conn.execute(
+            "MATCH (:person {uuid: 'a'})-[e:knows]->(:person {uuid: 'b'}) DELETE e;"
+        )
+        conn.execute(
+            "MATCH (a:person {uuid: 'a'}), (b:person {uuid: 'b'}) "
+            "CREATE (a)-[:knows {weight: 2.5}]->(b);"
+        )
+        # Previously raised: ERR_INVALID_ARGUMENT: invalid oe offset
+        conn.execute(
+            "MATCH (:person {uuid: 'a'})-[e:knows]->(:person {uuid: 'b'}) "
+            "SET e.weight = 9.5;"
+        )
+
+        res = conn.execute("MATCH ()-[e:knows]->() RETURN e.weight;")
+        assert list(res) == [[9.5]]
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_copy_from(tmp_path):
+    db_dir = tmp_path / "test_copy_from"
+    shutil.rmtree(str(db_dir), ignore_errors=True)
+    db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
     try:
         # prepare file
-        file = db_dir + "/test_data.csv"
-        with open(file, "w") as f:
+        file = db_dir / "test_data.csv"
+        with open(file, "w", encoding="utf-8") as f:
             f.write('"id","entity","entity_type"\n')
             f.write('1,"-1-10000","属性"\n')
             f.write('2,"-180°-180°","场景"\n')
@@ -596,7 +811,9 @@ def test_copy_from(tmp_path):
             )
         """
         )
-        conn.execute(f"COPY Entity FROM '{file}' (HEADER TRUE, DELIMITER=',')")
+        conn.execute(
+            f"COPY Entity FROM '{file.as_posix()}' (HEADER TRUE, DELIMITER=',')"
+        )
     finally:
         conn.close()
         db.close()

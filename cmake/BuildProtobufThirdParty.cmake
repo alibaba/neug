@@ -27,6 +27,7 @@ function (build_protobuf_as_third_party)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
 
     set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "Build protobuf shared libraries" FORCE)
+    set(protobuf_MSVC_STATIC_RUNTIME OFF CACHE BOOL "Use dynamic C runtime for protobuf" FORCE)
     set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests" FORCE)
     set(protobuf_BUILD_CONFORMANCE OFF CACHE BOOL "Build protobuf conformance tests")
     set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "Build protobuf examples")
@@ -67,10 +68,12 @@ function (build_protobuf_as_third_party)
     # trigger this warning on GCC 13+.
     foreach(_proto_tgt libprotobuf libprotobuf-lite libprotoc ${protobuf_ABSL_USED_TARGETS})
         if(TARGET ${_proto_tgt})
-            target_compile_options(${_proto_tgt} PRIVATE
-                -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes -Wno-ignored-attributes
-                $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow -Wno-stringop-overread -Wno-missing-requires>
-            )
+            if(NOT MSVC)
+                target_compile_options(${_proto_tgt} PRIVATE
+                    -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes -Wno-ignored-attributes
+                    $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow -Wno-stringop-overread -Wno-missing-requires>
+                )
+            endif()
         endif()
     endforeach()
     # libprotobuf and friends default to hidden visibility when built as
@@ -94,10 +97,12 @@ function (build_protobuf_as_third_party)
     message(STATUS "protobuf uses abseil-cpp targets: ${_absl_targets}")
     foreach(_absl_tgt IN LISTS _absl_targets)
         if(TARGET ${_absl_tgt})
-            target_compile_options(${_absl_tgt} PRIVATE
-                -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes -Wno-ignored-attributes
-                $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow -Wno-stringop-overread -Wno-missing-requires>
-            )
+            if(NOT MSVC)
+                target_compile_options(${_absl_tgt} PRIVATE
+                    -Wno-sign-compare -Wno-deprecated-declarations -Wno-attributes -Wno-ignored-attributes
+                    $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow -Wno-stringop-overread -Wno-missing-requires>
+                )
+            endif()
         else()
             message(STATUS "Requested abseil target ${_absl_tgt} not built in this configuration, skipping warning suppression")
         endif()

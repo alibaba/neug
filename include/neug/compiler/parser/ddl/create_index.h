@@ -17,6 +17,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include "neug/compiler/parser/statement.h"
 
 namespace neug {
@@ -26,7 +27,7 @@ struct ParsedCreateIndexInfo {
   std::string indexName;
   std::string tableName;  // vertex label (ON clause)
   std::string indexType;  // USING clause: "HNSW", "IVF", etc.
-  std::string propertyName;
+  std::vector<std::string> propertyNames;
   std::unordered_map<std::string, std::string> options;  // WITH clause
   bool ifNotExists = false;
 };

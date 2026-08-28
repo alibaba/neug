@@ -26,6 +26,9 @@ from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
 
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
+from neug.proto.error_pb2 import ERR_NOT_SUPPORTED
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 
 logger = logging.getLogger(__name__)
@@ -77,6 +80,68 @@ def test_empty_ungrouped_count(empty_db):
     result = conn.execute("MATCH (person:person) RETURN count(person);")
 
     assert list(result) == [[0]]
+
+
+def test_group_by_preserves_null_keys(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, bucket INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT32, group_id INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute(
+        "CREATE (:source {id: 1, bucket: 7}), "
+        "(:source {id: 2, bucket: 7}), "
+        "(:source {id: 3, bucket: 7}), "
+        "(:target {id: -1, group_id: 0});"
+    )
+    conn.execute(
+        "MATCH (source:source), (target:target) "
+        "WHERE source.id = 1 AND target.id = -1 "
+        "CREATE (source)-[:links]->(target);"
+    )
+
+    result = conn.execute(
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN target.group_id, COUNT(*);"
+    )
+    assert list(result) == [[0, 1], [None, 2]]
+
+    result = conn.execute(
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN target.id, source.bucket, COUNT(*);"
+    )
+    assert list(result) == [[-1, 7, 1], [None, 7, 2]]
+
+
+def test_aggregate_over_empty_input(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE person(id INT64, score INT64, PRIMARY KEY(id));")
+
+    result = conn.execute(
+        "MATCH (person:person) "
+        "RETURN avg(person.score), min(person.score), max(person.score), "
+        "sum(person.score), collect(person.score);"
+    )
+
+    assert list(result) == [[None, None, None, 0, []]]
+
+
+def test_aggregate_over_all_null_input(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT64, score INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute("CREATE (:source {id: 1}), (:source {id: 2});")
+
+    result = conn.execute(
+        "MATCH (source:source) "
+        "OPTIONAL MATCH (source)-[:links]->(target:target) "
+        "RETURN avg(target.score), min(target.score), max(target.score), "
+        "sum(target.score), collect(target.score);"
+    )
+
+    assert list(result) == [[None, None, None, 0, []]]
 
 
 def test_result_getitem(modern_graph):
@@ -141,6 +206,80 @@ def test_filtering(tinysnb):
     assert records == [["Alice"], ["Bob"], ["Dan"]]
 
 
+@pytest.mark.parametrize(
+    "predicate, expected_types",
+    [
+        ("r0.id = b", "STRING and NODE"),
+        ("b = r0.id", "NODE and STRING"),
+    ],
+)
+def test_string_property_cannot_be_compared_with_node(
+    empty_db, predicate, expected_types
+):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE L2(id STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE REL TABLE T0(FROM L2 TO L2, id STRING);",
+        access_mode="schema",
+    )
+
+    query = (
+        "MATCH (a:L2)-[r0:T0]->(b:L2) "
+        f"WHERE {predicate} "
+        "RETURN toString('x') AS value"
+    )
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(query, access_mode="read")
+
+    message = str(excinfo.value)
+    assert str(ERR_COMPILATION) in message
+    assert f"Type Mismatch: Cannot compare types {expected_types}" in message
+    assert str(ERR_INVALID_SCHEMA) not in message
+    assert "Catalog exception" not in message
+    assert "LABELS(" not in message
+
+
+def test_cross_match_where_followed_by_unwind(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE L0(id STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE REL TABLE T0(FROM L0 TO L0, id STRING);",
+        access_mode="schema",
+    )
+
+    query = (
+        "MATCH (a:L0)-[r0:T0]->(b:L0) "
+        "MATCH (a0:L0)-[r1:T0]->(b0:L0) "
+        "WHERE b.id STARTS WITH 'a' "
+        "UNWIND [1, 2] AS u "
+        "RETURN 'x' AS value"
+    )
+
+    result = conn.execute(query, access_mode="read")
+    assert result.column_names() == ["value"]
+    assert list(result) == []
+
+    conn.execute(
+        "CREATE (:L0 {id: 'source'}), (:L0 {id: 'alpha'}), " "(:L0 {id: 'beta'});"
+    )
+    conn.execute(
+        "MATCH (source:L0 {id: 'source'}), (target:L0 {id: 'alpha'}) "
+        "CREATE (source)-[:T0 {id: 'to-alpha'}]->(target);"
+    )
+    conn.execute(
+        "MATCH (source:L0 {id: 'source'}), (target:L0 {id: 'beta'}) "
+        "CREATE (source)-[:T0 {id: 'to-beta'}]->(target);"
+    )
+
+    assert list(conn.execute(query, access_mode="read")) == [["x"]] * 4
+
+
 # DB-003-03
 def test_return_expression(modern_graph):
     conn = modern_graph
@@ -163,6 +302,15 @@ def test_return_literal(tinysnb):
     assert len(res) == 2
     assert res[0] == [2, "person"]
     assert res[1] == [2, "person"]  # Assuming there are at
+
+
+def test_builtin_scalar_function_with_dynamic_parameter(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN lower($value);", parameters={"value": "NeuG"}, access_mode="read"
+    )
+
+    assert list(result) == [["neug"]]
 
 
 @pytest.mark.parametrize(
@@ -232,6 +380,44 @@ def test_query_syntax_error(tmp_path):
     assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "RETURN 1 AS value UNION RETURN 2 AS value",
+        "WITH 1 AS seed "
+        "CALL (seed) { RETURN 1 AS value UNION RETURN 2 AS value } "
+        "RETURN value",
+    ],
+)
+def test_union_without_all_is_not_supported(empty_db, query):
+    _, conn = empty_db
+
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(query, access_mode="read")
+
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "UNION without ALL is not supported" in message
+
+
+def test_union_all_remains_supported(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE Person(" "id STRING, name STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute("CREATE (p:Person {id:'p1', name:'Alice'});", access_mode="update")
+    conn.execute("CREATE (p:Person {id:'p2', name:'Bob'});", access_mode="update")
+
+    result = conn.execute(
+        "MATCH (a:Person) RETURN a.name " "UNION ALL " "MATCH (b:Person) RETURN b.name",
+        access_mode="read",
+    )
+
+    assert len(result) == 4
+    assert len(result.column_names()) == 1
 
 
 def test_result(modern_graph):
@@ -946,6 +1132,20 @@ def test_exists_correlated_pattern_order(tmp_path):
 # ---------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
+
+
+def test_leading_optional_false_preserves_following_match(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE node(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (:node {id: 1});")
+
+    result = conn.execute(
+        "OPTIONAL MATCH (unused) WHERE false "
+        "MATCH (node:node) RETURN count(*) AS node_count;"
+    )
+
+    assert result.column_names() == ["node_count"]
+    assert list(result) == [[1]]
 
 
 @pytest.mark.skip(

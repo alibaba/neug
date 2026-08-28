@@ -36,6 +36,13 @@ int32_t search_other_offset_with_cur_offset(const CsrView& cur_view,
                                             int32_t cur_offset,
                                             const std::vector<DataType>& props);
 
+// Re-resolve an edge record's data pointer from the view matching its
+// direction. Call this after UpdateEdgeProperty, which may relocate bundled
+// edge payloads; offset_pair comes from record_to_csr_offset_pair().
+const void* get_edge_data_ptr_for_record(
+    const CsrView& oe, const CsrView& ie, const EdgeRecord& record,
+    const std::pair<int32_t, int32_t>& offset_pair);
+
 // Determine the property type to be used in searching edge offsets
 // For single property edges with inline scalar type, use that type directly.
 // For multi-property edges or non-inline single properties, use uint64_t as the

@@ -694,10 +694,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
 std::unique_ptr<::common::Expression> GExprConverter::convertToListFunc(
     const binder::Expression& expr,
     const std::vector<std::string>& schemaAlias) {
-  if (expr.getChildren().empty()) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Array function should have at least one child");
-  }
   auto listPB = std::make_unique<::common::ToList>();
   for (auto child : expr.getChildren()) {
     auto exprPB = convert(*child, schemaAlias);

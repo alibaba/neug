@@ -13,7 +13,12 @@
  * limitations under the License.
  */
 
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <process.h>
+#define getpid _getpid
+#endif
 
 #include <atomic>
 #include <filesystem>

@@ -156,11 +156,13 @@ void Planner::planOptionalMatch(
   info.kind = MatchKind::OPTIONAL;
   if (leftPlan.isEmpty()) {
     // Optional match is the first clause, e.g. OPTIONAL MATCH <pattern> RETURN
-    // *
+    // *. Seed the query with one dummy row and preserve that row through an
+    // optional cross product when the pattern produces no matches.
     info.predicates = predicates;
-    auto plan = planQueryGraphCollection(queryGraphCollection, info);
-    leftPlan.setLastOperator(plan->getLastOperator());
-    appendOptionalAccumulate(mark, leftPlan);
+    auto rightPlan = planQueryGraphCollection(queryGraphCollection, info);
+    auto seedPlan = LogicalPlan();
+    appendDummyScan(seedPlan);
+    appendOptionalCrossProduct(mark, seedPlan, *rightPlan, leftPlan);
     return;
   }
   if (correlatedExprs.empty()) {

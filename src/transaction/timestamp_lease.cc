@@ -29,6 +29,15 @@ UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
   CHECK_NE(timestamp_, kInactiveTimestamp);
 }
 
+std::optional<UpdateTimestampLease> UpdateTimestampLease::TryAcquire(
+    IVersionManager& version_manager) {
+  uint32_t timestamp = kInactiveTimestamp;
+  if (!version_manager.try_acquire_update_timestamp(timestamp)) {
+    return std::nullopt;
+  }
+  return UpdateTimestampLease(version_manager, timestamp);
+}
+
 UpdateTimestampLease::UpdateTimestampLease(
     IVersionManager& version_manager,
     std::chrono::steady_clock::time_point deadline)
@@ -53,7 +62,12 @@ void UpdateTimestampLease::BeginCommit() {
 }
 
 void UpdateTimestampLease::MakeUpdateExclusive() {
-  BeginCommit();
+  // A CurrentGraphWriteGuard may transfer an already-exclusive lease to
+  // checkpoint publication. Keep the transition idempotent so the coordinator
+  // can accept both newly-created and transferred leases without another API.
+  if (!commit_started_) {
+    BeginCommit();
+  }
   version_manager_->drain_readers();
 }
 

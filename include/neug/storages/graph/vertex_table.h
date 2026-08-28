@@ -20,6 +20,7 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/storages/module/module.h"
+#include "neug/utils/api.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 
@@ -87,7 +88,7 @@ class VertexSet {
 };
 
 class PropertyGraph;
-class VertexTable {
+class NEUG_API VertexTable {
  public:
   VertexTable()
       : ckp_(nullptr),
@@ -120,6 +121,20 @@ class VertexTable {
         memory_level_(other.memory_level_) {}
 
   VertexTable(const VertexTable&) = delete;
+  VertexTable& operator=(const VertexTable&) = delete;
+
+  VertexTable& operator=(VertexTable&& other) noexcept {
+    if (this != &other) {
+      ckp_ = std::move(other.ckp_);
+      indexer_ = std::move(other.indexer_);
+      table_ = std::move(other.table_);
+      pk_type_ = other.pk_type_;
+      vertex_schema_ = other.vertex_schema_;
+      v_ts_ = std::move(other.v_ts_);
+      memory_level_ = other.memory_level_;
+    }
+    return *this;
+  }
 
   void Swap(VertexTable& other) {
     std::swap(ckp_, other.ckp_);
@@ -157,8 +172,8 @@ class VertexTable {
 
   /// When this table is clean, re-link prior-snapshot modules into @p meta
   /// instead of dumping. Links exact keys for this label only.
-  void LinkToSnapshot(Checkpoint& ckp, CheckpointManifest& meta,
-                      const CheckpointManifest& prev) const;
+  void ReuseCheckpointModules(Checkpoint& ckp, CheckpointManifest& manifest,
+                              const CheckpointManifest& previous) const;
 
   void SetIndexer(std::unique_ptr<IndexerType> indexer) {
     indexer_ = std::move(indexer);

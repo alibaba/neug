@@ -226,7 +226,7 @@ VecColumn::VecColumn(std::shared_ptr<IDataContainer> buffer,
 
 void VecColumn::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
                      MemoryLevel level) {
-  openInternal(ckp, &ckp.GetMeta(), desc, level);
+  openInternal(ckp, &ckp.manifest(), desc, level);
 }
 
 void VecColumn::Open(Checkpoint& ckp, const CheckpointManifest& manifest,
@@ -262,8 +262,8 @@ void VecColumn::openInternal(Checkpoint& ckp,
   if (!accessor_ref) {
     offset_accessor_->Open(ckp, ModuleDescriptor{}, level);
   } else {
-    const auto* resolver = manifest ? manifest : &ckp.GetMeta();
-    auto accessor_desc = resolver->module(*accessor_ref);
+    const auto* resolver = manifest ? manifest : &ckp.manifest();
+    const auto* accessor_desc = resolver->FindModule(*accessor_ref);
     if (!accessor_desc) {
       THROW_RUNTIME_ERROR("VecColumn::Open: missing offset accessor module");
     }
@@ -287,9 +287,14 @@ void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
   auto accessor_key = key + "/" + kAccessorRef;
   offset_accessor_->Dump(ckp, meta, accessor_key);
-  meta.mutable_modules().at(accessor_key).mark_as_referenced_module();
+  auto* accessor_desc = meta.FindMutableModule(accessor_key);
+  if (accessor_desc == nullptr) {
+    THROW_RUNTIME_ERROR(
+        "VecColumn::Dump: offset accessor did not write module");
+  }
+  accessor_desc->mark_as_referenced_module();
   desc.set_ref(kAccessorRef, accessor_key);
-  meta.set_module(key, std::move(desc));
+  meta.SetModule(key, std::move(desc));
 }
 
 size_t VecColumn::size() const { return size_; }
@@ -342,7 +347,11 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::set_any: invalid vid");
   }
   validatePodType();
-  validateValue(value);
+  // As with the other property columns, an untyped NULL assignment is stored
+  // as the column default. Secondary indexes still receive the original NULL
+  // value and remove the row instead of indexing this physical placeholder.
+  const Value& normalized = value.IsNull() ? default_value_ : value;
+  validateValue(normalized);
   index_id_t next_offset = offset_accessor_->GetNextIndexID();
   if (next_offset >= size_) {
     if (!insert_safe) {
@@ -355,9 +364,10 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
   assert(next_offset < size_);
   auto offset = offset_accessor_->UpsertVID(static_cast<vid_t>(vid));
   switch (ArrayType::GetChildType(array_type_).id()) {
-#define TYPE_DISPATCHER(enum_val, type)                                    \
-  case DataTypeId::enum_val:                                               \
-    SetBufferValue<type>(buffer_->GetData(), offset, array_size(), value); \
+#define TYPE_DISPATCHER(enum_val, type)                            \
+  case DataTypeId::enum_val:                                       \
+    SetBufferValue<type>(buffer_->GetData(), offset, array_size(), \
+                         normalized);                              \
     return;
     FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
@@ -421,6 +431,12 @@ std::unique_ptr<Module> VecColumn::Clone() const {
 void VecColumn::Detach(Checkpoint& ckp, MemoryLevel level) {
   ckp_ = &ckp;
   level_ = level;
+  // Payload storage stays shared intentionally. The detached accessor assigns
+  // transaction-private offsets to writes, while resize() allocates a
+  // replacement buffer before extending beyond the shared capacity.
+  // A consuming checkpoint on the clone can therefore close a payload still
+  // owned by the published base graph. Bulk checkpoint commit must fail-stop
+  // after consumption begins until a checkpoint-specific payload fork exists.
   if (offset_accessor_) {
     offset_accessor_->Detach(ckp, level);
   }

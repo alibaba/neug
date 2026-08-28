@@ -126,7 +126,13 @@ class Database(object):
         self._db_path = None
         self._connections = []
         self._async_connections = []
-        self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
+        import sys as _sys
+
+        # On Windows, ':' (drive letter) and '\\' (path separator) are valid.
+        if _sys.platform == "win32":
+            self._illegal_chars = ["?", "*", '"', "<", ">", "|"]
+        else:
+            self._illegal_chars = ["?", "*", '"', "<", ">", "|", ":", "\\"]
         self._pure_memory_path = [":memory", ":memory:"]
         if isinstance(db_path, str):
             if (
@@ -398,8 +404,10 @@ class Database(object):
 
         For a read-write database with ``checkpoint_on_close=True``, this method
         creates a checkpoint before releasing database resources.
-        The method is idempotent.
-        Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.
+        The method is idempotent after a successful close. A checkpoint failure
+        before its destructive dump raises an exception and leaves the database
+        open so the caller can correct the problem and retry. A failure after
+        the destructive dump completes teardown and is then raised.
         """
         db_path = getattr(self, "_db_path", None)
         if log and db_path and db_path.strip() != "":

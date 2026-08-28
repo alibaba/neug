@@ -19,15 +19,18 @@
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
-#pragma GCC diagnostic push
 #if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
-#endif
 #include <rapidjson/rapidjson.h>
-
 #pragma GCC diagnostic pop
+#else
+#include <rapidjson/rapidjson.h>
+#endif
 
+#ifndef _WIN32
 #include <signal.h>
+#endif
 
 #include <glog/logging.h>
 #include <algorithm>
@@ -42,13 +45,14 @@
 
 // Disable class-memaccess warning to facilitate compilation with gcc>7
 // https://github.com/Tencent/rapidjson/issues/1700
-#pragma GCC diagnostic push
 #if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
-#endif
 #include <rapidjson/document.h>
-
 #pragma GCC diagnostic pop
+#else
+#include <rapidjson/document.h>
+#endif
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -59,15 +63,6 @@
 namespace neug {
 
 /// Util functions.
-
-inline void blockSignal(int sig) {
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, sig);
-  if (pthread_sigmask(SIG_BLOCK, &set, NULL) != 0) {
-    perror("pthread_sigmask");
-  }
-}
 
 inline int64_t GetCurrentTimeStamp() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(

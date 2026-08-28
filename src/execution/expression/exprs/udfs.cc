@@ -65,8 +65,14 @@ class BindedScalarFunctionExpr : public VertexExprBase,
 std::unique_ptr<BindedExprBase> ScalarFunctionExpr::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
   std::vector<std::unique_ptr<BindedExprBase>> bound_children;
-  for (const auto& child : children_) {
-    bound_children.push_back(child->bind(storage, params));
+  for (size_t i = 0; i < children_.size(); ++i) {
+    auto bound_child = children_[i]->bind(storage, params);
+    if (bound_child == nullptr) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Failed to bind argument " +
+                                       std::to_string(i) +
+                                       " of scalar function " + signature_);
+    }
+    bound_children.push_back(std::move(bound_child));
   }
   return std::make_unique<BindedScalarFunctionExpr>(func_, ret_type_,
                                                     std::move(bound_children));

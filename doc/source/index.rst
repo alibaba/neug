@@ -63,6 +63,8 @@ NeuG documentation
    :caption: Extensions
 
    extensions/index
+   extensions/vector_search
+   extensions/fts_search
    extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
@@ -70,9 +72,15 @@ NeuG documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Storage Indexes
+
+   storage_index/index
+
+.. toctree::
+   :maxdepth: 1
    :caption: Transaction
 
-   transaction/transaction.md
+   transaction/transaction.mdx
    transaction/checkpoint.md
 
 .. toctree::

@@ -34,6 +34,7 @@ struct CsvReadConfig {
 
   int64_t skip_rows = 0;
   int64_t chunk_size = 4096;
+  bool use_threads = true;
 
   /// All column names in the physical file (in order).
   std::vector<std::string> column_names;

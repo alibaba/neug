@@ -33,7 +33,7 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "CREATE_TABLE";
   case LogicalOperatorType::CROSS_PRODUCT:
     return "CROSS_PRODUCT";
-  case LogicalOperatorType::DELETE:
+  case LogicalOperatorType::DELETE_OP:
     return "DELETE_NODE";
   case LogicalOperatorType::DETACH_DATABASE:
     return "DETACH_DATABASE";
@@ -124,7 +124,7 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
 bool LogicalOperatorUtils::isUpdate(LogicalOperatorType type) {
   switch (type) {
   case LogicalOperatorType::INSERT:
-  case LogicalOperatorType::DELETE:
+  case LogicalOperatorType::DELETE_OP:
   case LogicalOperatorType::SET_PROPERTY:
   case LogicalOperatorType::MERGE:
     return true;

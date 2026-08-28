@@ -40,6 +40,7 @@
 #include "neug/storages/container/mmap_container.h"
 #include "neug/storages/module/module.h"
 #include "neug/storages/module/type_name.h"
+#include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
@@ -51,7 +52,7 @@
 namespace neug {
 class Table;
 
-std::string_view truncate_utf8(std::string_view str, size_t length);
+NEUG_API std::string_view truncate_utf8(std::string_view str, size_t length);
 
 class ColumnBase : public Module {
  public:
@@ -94,7 +95,7 @@ class TypedColumn : public ColumnBase {
     ModuleDescriptor desc;
     desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
     desc.module_type = ModuleTypeName();
-    meta.set_module(key, std::move(desc));
+    meta.SetModule(key, std::move(desc));
   }
 
   size_t size() const override { return size_; }
@@ -206,7 +207,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
             const std::string& key) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
-    meta.set_module(key, std::move(desc));
+    meta.SetModule(key, std::move(desc));
   }
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
@@ -257,6 +258,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
+    if (auto width = desc.get("width")) {
+      width_ = static_cast<uint16_t>(std::stoul(*width));
+    }
     items_buffer_ = ckp.OpenFile(
         desc.get_path(ModuleDescriptor::kItemsPath).value_or(""), level);
     data_buffer_ = ckp.OpenFile(
@@ -292,6 +296,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
             const std::string& key) override {
     ModuleDescriptor desc;
     desc.module_type = ModuleTypeName();
+    desc.set("width", std::to_string(width_));
     if (!items_buffer_ || !data_buffer_) {
       THROW_RUNTIME_ERROR("Buffers not initialized for dumping");
     }
@@ -300,10 +305,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (is_data_unmodified()) {
       desc.set("pos", std::to_string(pos_.load()));
       desc.set_path(ModuleDescriptor::kItemsPath,
-                    ckp.LinkToSnapshot(items_buffer_->GetPath()));
+                    ckp.MaterializeObject(items_buffer_->GetPath()));
       desc.set_path(ModuleDescriptor::kDataPath,
-                    ckp.LinkToSnapshot(data_buffer_->GetPath()));
-      meta.set_module(key, std::move(desc));
+                    ckp.MaterializeObject(data_buffer_->GetPath()));
+      meta.SetModule(key, std::move(desc));
       return;
     }
     auto data_runtime_file = ckp.CreateRuntimeFile();
@@ -372,7 +377,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     item_out.close();
 
     size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
-    size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
+    size_t count = std::max(size_ + (size_ + 3) / 4, static_cast<size_t>(4096));
     size_t truncated_size = avg_size * count + sizeof(FileHeader);
     int rt = truncate(data_file.c_str(), truncated_size);
     if (rt != 0) {
@@ -388,7 +393,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
                   ckp.CommitRuntimeFile(std::move(item_runtime_file)));
     desc.set_path(ModuleDescriptor::kDataPath,
                   ckp.CommitRuntimeFile(std::move(data_runtime_file)));
-    meta.set_module(key, std::move(desc));
+    meta.SetModule(key, std::move(desc));
   }
 
   size_t size() const override { return size_; }
@@ -671,6 +676,7 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
 // Create a reference column from a ColumnBase that contains a const reference
 // to the actual column storage, offering a column-based store interface for
 // vertex properties.
-std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column);
+NEUG_API std::shared_ptr<RefColumnBase> CreateRefColumn(
+    const ColumnBase& column);
 
 }  // namespace neug

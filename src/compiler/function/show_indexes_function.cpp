@@ -122,7 +122,18 @@ function_set ShowIndexesFunction::getFunctionSet() {
       typeBuilder.push_back_opt(meta.type);
       labelBuilder.push_back_opt(
           schema.get_vertex_label_name(meta.schema.label_id));
-      propertyBuilder.push_back_opt(meta.schema.property_name);
+      if (meta.schema.columns.size() == 1) {
+        propertyBuilder.push_back_opt(meta.schema.columns[0].property_name);
+      } else {
+        std::string properties = "[";
+        for (size_t i = 0; i < meta.schema.columns.size(); ++i) {
+          if (i > 0)
+            properties += ",";
+          properties += "\"" + meta.schema.columns[i].property_name + "\"";
+        }
+        properties += "]";
+        propertyBuilder.push_back_opt(properties);
+      }
       optionsBuilder.push_back_opt(OptionsToJson(meta));
       stateBuilder.push_back_opt(state);
     }

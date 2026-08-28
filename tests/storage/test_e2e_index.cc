@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -193,6 +194,18 @@ TEST(E2EIndexReopenSubprocess, RejectsCheckpointWithPendingMutations) {
             std::string::npos);
 
   connection->Close();
+  std::string close_error;
+  try {
+    reopened.Close();
+  } catch (const std::exception& e) { close_error = e.what(); }
+  ASSERT_NE(close_error.find("mutations for pending"), std::string::npos);
+  EXPECT_FALSE(reopened.IsClosed());
+
+  auto retry_connection = reopened.Connect();
+  ASSERT_NE(retry_connection, nullptr);
+  auto load = retry_connection->Query("LOAD vec_index;");
+  ASSERT_TRUE(load) << load.error().ToString();
+  retry_connection->Close();
   reopened.Close();
 }
 
@@ -230,8 +243,7 @@ TEST(E2EIndexReopenSubprocess, PreparePendingMutationWal) {
   ASSERT_TRUE(checkpoint) << checkpoint.error().ToString();
 
   WalBuilder wal;
-  wal.LogInsertVertex(db.graph().schema().get_vertex_label_id("Entity"),
-                      Value::INT64(2),
+  wal.LogInsertVertex("Entity", Value::INT64(2),
                       {Value::ARRAY(DataType::Array(DataType::FLOAT, 2),
                                     {Value::FLOAT(3.0f), Value::FLOAT(4.0f)})});
   wal.finalize(1);
@@ -388,8 +400,6 @@ class E2EIndexTest : public ::testing::Test {
                           std::istreambuf_iterator<char>());
     ASSERT_TRUE(WIFEXITED(status)) << log;
     EXPECT_EQ(WEXITSTATUS(status), 0) << log;
-    EXPECT_NE(log.find("Checkpoint on close failed"), std::string::npos) << log;
-    EXPECT_NE(log.find("mutations for pending"), std::string::npos) << log;
   }
 
   static void AssertNoIndexes(const QueryResult& result) {

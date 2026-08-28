@@ -1,0 +1,49 @@
+/** Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#pragma once
+
+#include "neug/storages/graph_snapshot_store.h"
+#include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
+
+namespace neug {
+
+class PropertyGraph;
+class IVersionManager;
+class IWalWriter;
+
+class InPlaceCompactionTransaction {
+ public:
+  InPlaceCompactionTransaction(GraphSnapshotStore& snapshot_store,
+                               IWalWriter& wal_writer, IVersionManager& vm,
+                               timestamp_t timestamp);
+  ~InPlaceCompactionTransaction();
+
+  timestamp_t timestamp() const;
+
+  bool Commit();
+
+  void Abort();
+
+ private:
+  SnapshotGuard guard_;
+  IWalWriter& wal_writer_;
+  IVersionManager& vm_;
+  timestamp_t timestamp_;
+
+  InArchive arc_;
+};
+
+}  // namespace neug

@@ -40,6 +40,7 @@
 #include "neug/execution/execute/ops/retrieve/edge.h"
 #include "neug/execution/execute/ops/retrieve/gds_algo.h"
 #include "neug/execution/execute/ops/retrieve/group_by.h"
+#include "neug/execution/execute/ops/retrieve/index_scan.h"
 #include "neug/execution/execute/ops/retrieve/intersect.h"
 #include "neug/execution/execute/ops/retrieve/join.h"
 #include "neug/execution/execute/ops/retrieve/limit.h"
@@ -82,6 +83,7 @@ namespace execution {
 
 void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::ScanOprBuilder>());
+  register_operator_builder(std::make_unique<ops::IndexScanOprBuilder>());
 
   register_operator_builder(std::make_unique<ops::DummySourceOprBuilder>());
 
@@ -188,6 +190,9 @@ static std::string get_opr_name(
   switch (op_kind) {
   case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
     return "scan";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+    return "index_scan";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
     return "edge_expand";
@@ -397,6 +402,12 @@ static void expression_parse(const ::common::Expression& expr,
         expression_parse(case_expr.else_result_expression(), params_type);
       }
     }
+    if (opr.has_scalar_func()) {
+      const auto& scalar_func = opr.scalar_func();
+      for (const auto& parameter : scalar_func.parameters()) {
+        expression_parse(parameter, params_type);
+      }
+    }
   }
 }
 
@@ -422,6 +433,14 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
                 parse_from_ir_data_type(param.data_type());
           }
         }
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kIndexScan: {
+      const auto& index_scan = plan.plan(i).opr().index_scan();
+      expression_parse(index_scan.target_value(), params_type);
+      if (index_scan.has_weights()) {
+        expression_parse(index_scan.weights(), params_type);
       }
       break;
     }

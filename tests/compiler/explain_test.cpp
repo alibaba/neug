@@ -50,6 +50,33 @@ TEST_F(ExplainTest, ProfileQueryAnalysis) {
   EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
 }
 
+TEST_F(ExplainTest, NamespaceQueryAnalysis) {
+  auto analysis = planner_.analyzeQuery(
+      "USE NAMESPACE adult_graph MATCH (n:person) RETURN n.name");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kNone);
+
+  analysis = planner_.analyzeQuery(
+      "EXPLAIN USE NAMESPACE adult_graph MATCH (n:person) RETURN n.name");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
+  EXPECT_FALSE(analysis.isAdmin());
+
+  analysis = planner_.analyzeQuery(
+      "PROFILE USE NAMESPACE adult_graph MATCH (n:person) RETURN n.name");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kProfile);
+  EXPECT_FALSE(analysis.isAdmin());
+
+  analysis = planner_.analyzeQuery("EXPLAIN CHECKPOINT");
+  EXPECT_EQ(analysis.explain_mode, neug::ExplainMode::kExplain);
+  EXPECT_TRUE(analysis.checkpoint());
+
+  analysis = planner_.analyzeQuery("LOAD json");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
+  EXPECT_TRUE(analysis.isAdmin());
+}
+
 // Test 4: EXPLAIN with join
 TEST_F(ExplainTest, ExplainWithJoin) {
   auto analysis = planner_.analyzeQuery(

@@ -89,7 +89,9 @@ class GlobalQueryCache {
     return cache_.emplace(query, cache_value).first->second;
   }
 
- private:
+  // Compile against a private graph view without reading or populating the
+  // shared cache. Explicit write transactions use this after a successful
+  // schema, bulk, or transient mutation changes their planning inputs.
   result<std::shared_ptr<CacheValue>> CompileUncached(
       const GraphStats& stats, const std::string& query) {
     const auto& schema = stats.schema();
@@ -114,6 +116,7 @@ class GlobalQueryCache {
                                         plan_result.first.flag());
   }
 
+ private:
   std::shared_ptr<IGraphPlanner> planner_;
   uint64_t planning_generation_;
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
@@ -145,6 +148,11 @@ class LocalQueryCache {
     GS_AUTO(cache_value_res, global_cache_->Get(stats, query));
     cache_.emplace(query, cache_value_res);
     return cache_value_res;
+  }
+
+  result<std::shared_ptr<CacheValue>> CompileUncached(
+      const GraphStats& stats, const std::string& query) {
+    return global_cache_->CompileUncached(stats, query);
   }
 
  private:

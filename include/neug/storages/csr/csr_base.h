@@ -46,9 +46,8 @@ class CsrBase : public Module {
   virtual timestamp_t unsorted_since() const { return 0; }
 
   virtual size_t size() const = 0;
-  // Returns the number of edges in the graph. Note that the returned value is
-  // exactly the number of edges in this csr. Even if there may be some reserved
-  // space, the reserved space will count as 0.
+  // Returns the number of live edges. Reserved slots and tombstones are
+  // excluded.
   virtual size_t edge_num() const = 0;
 
   virtual void compact() = 0;
@@ -90,7 +89,7 @@ class CsrBase : public Module {
   /// Detach the adjacency list of vertex vid so subsequent writes
   /// are isolated from the parent CSR.  Must only be called on a COW CSR
   /// for a vertex whose adjlist has not yet been detached.  The caller
-  /// (e.g. PropertyGraphCowState) is responsible for tracking which
+  /// (e.g. CowDetachState) is responsible for tracking which
   /// adjlists have been detached.
   virtual void DetachVertex(vid_t vid, Allocator& alloc) = 0;
 };

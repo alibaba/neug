@@ -15,8 +15,11 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
+#ifdef _WIN32
+#include "glob/glob/glob.hpp"
+#else
 #include <glob.h>
-#include <glog/logging.h>
+#endif
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -40,27 +43,6 @@ namespace neug {
 namespace execution {
 
 namespace ops {
-
-bool check_csv_import_options(
-    const std::unordered_map<std::string, std::string>& options) {
-  std::unordered_set<std::string> valid_keys = {
-      CSV_DELIMITER_KEY,    CSV_DELIM_KEY,  CSV_HEADER_KEY, CSV_QUOTE_KEY,
-      CSV_DOUBLE_QUOTE_KEY, CSV_ESCAPE_KEY, CSV_SKIP_KEY,   CSV_PARALLEL_KEY};
-  int32_t delim_count = 0;
-  for (const auto& [key, value] : options) {
-    if (valid_keys.find(key) == valid_keys.end()) {
-      LOG(ERROR) << "\"" << key << "\" is not a valid parameter";
-      return false;
-    }
-    if (key == CSV_DELIMITER_KEY || key == CSV_DELIM_KEY) {
-      delim_count++;
-    }
-  }
-  if (delim_count >= 2) {
-    LOG(ERROR) << "Too many \"DELIMITER\" parameters";
-  }
-  return true;
-}
 
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
@@ -343,6 +325,11 @@ std::vector<std::string> match_files_with_pattern(
   std::vector<std::string> result;
   if (file_path.find('*') != std::string::npos ||
       file_path.find('?') != std::string::npos) {
+#ifdef _WIN32
+    for (const auto& p : glob::glob(file_path)) {
+      result.push_back(p.string());
+    }
+#else
     glob_t glob_result;
     int flags = GLOB_TILDE | GLOB_MARK;
     int ret = glob(file_path.c_str(), flags, nullptr, &glob_result);
@@ -352,6 +339,7 @@ std::vector<std::string> match_files_with_pattern(
       }
     }
     globfree(&glob_result);
+#endif
   } else {
     std::filesystem::path p = std::filesystem::absolute(file_path);
     if (!std::filesystem::exists(p)) {

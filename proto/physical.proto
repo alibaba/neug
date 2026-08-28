@@ -325,6 +325,15 @@ message GDSAlgo {
   map<string, string> options = 3;
 }
 
+message IndexScan {
+  string index_scan_function = 1;
+  string unique_index_name = 2;
+  common.Expression target_value = 3;
+  map<string, string> options = 4;
+  common.Expression weights = 5;
+  repeated string property_names = 6;
+}
+
 message ExtensionInstall {
   string extension_name = 1;
 }
@@ -364,6 +373,7 @@ message PhysicalOpr {
       EdgeExpand edge = 31;
       PathExpand path = 32;
       ProcedureCall procedure_call = 33;
+      IndexScan index_scan = 34;
       GDSAlgo gds_algo = 75;
 
       // DML operators
@@ -425,11 +435,8 @@ message ExecutionFlag {
   bool create_temp_table = 6; // create temporary table
   bool checkpoint = 7;
   bool procedure_call = 8;
-  // todo: add a new flag for gds_algo ?
-  // If an index already exists on a specific property of a vertex type,
-  // the index data must be updated accordingly whenever the vertex data is modified (via create, delete, or update operations).
-  // This boolean value indicates whether the index needs to be updated.
-  bool index = 9;
+  // True only for COPY FROM. `batch` also covers COPY TO and LOAD.
+  bool copy_from = 9;
 }
 
 // A single Cypher query ending with a semicolon (;)

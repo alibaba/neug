@@ -35,6 +35,16 @@ void PyConnection::initialize(pybind11::handle& m) {
            "Connection object.\n")
       .def("close", &PyConnection::close,
            "Close the connection to the database.\n")
+      .def("begin_transaction", &PyConnection::begin_transaction,
+           pybind11::arg("read_only") = false,
+           "Begin an explicit embedded transaction.\n")
+      .def("commit", &PyConnection::commit,
+           "Commit the active explicit transaction.\n")
+      .def("rollback", &PyConnection::rollback,
+           "Roll back the active explicit transaction.\n")
+      .def_property_readonly("has_active_transaction",
+                             &PyConnection::has_active_transaction,
+                             "Whether an explicit transaction is active.\n")
       .def("execute", &PyConnection::execute, pybind11::arg("query_string"),
            pybind11::arg("access_mode") = "",
            pybind11::arg("parameters") = pybind11::dict(),
@@ -75,6 +85,32 @@ void PyConnection::close() {
     conn_->Close();
     conn_.reset();
   }
+}
+
+void PyConnection::begin_transaction(bool read_only) {
+  const auto status = conn_->BeginTransaction(
+      read_only ? TransactionMode::kReadOnly : TransactionMode::kReadWrite);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR(status.ToString());
+  }
+}
+
+void PyConnection::commit() {
+  const auto status = conn_->Commit();
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR(status.ToString());
+  }
+}
+
+void PyConnection::rollback() {
+  const auto status = conn_->Rollback();
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR(status.ToString());
+  }
+}
+
+bool PyConnection::has_active_transaction() const {
+  return conn_->HasActiveTransaction();
 }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(

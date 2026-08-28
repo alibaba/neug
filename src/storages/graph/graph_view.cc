@@ -214,8 +214,23 @@ result<StorageIndex*> GraphView::GetIndexByName(const std::string& name) const {
 }
 
 result<std::vector<StorageIndex*>> GraphView::GetIndex(
+    label_t label_id, const std::vector<std::string>& property_names) const {
+  return index_manager_->GetIndex(label_id, property_names);
+}
+
+result<std::vector<StorageIndex*>> GraphView::GetIndexesContainingProperty(
     label_t label_id, const std::string& property_name) const {
-  return index_manager_->GetIndex(label_id, property_name);
+  auto bindings =
+      index_manager_->GetIndexesContainingProperty(label_id, property_name);
+  if (!bindings) {
+    return tl::unexpected(bindings.error());
+  }
+  std::vector<StorageIndex*> indexes;
+  indexes.reserve(bindings->size());
+  for (const auto& binding : bindings.value()) {
+    indexes.push_back(binding.index);
+  }
+  return indexes;
 }
 
 result<std::vector<StorageIndex*>> GraphView::GetAllIndexes() const {

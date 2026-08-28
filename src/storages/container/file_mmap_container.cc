@@ -14,8 +14,39 @@
  */
 
 #include <fcntl.h>
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
+#else
+#include <direct.h>
+#include <io.h>
+#include <sys/stat.h>
+// POSIX-to-MSVC shims
+#define open _open
+#define close _close
+#define unlink _unlink
+// _chsize_s returns 0 on success and an errno value on failure, so
+// error checks must use `!= 0` (POSIX ftruncate returns 0 or -1).
+#define ftruncate _chsize_s
+#ifndef O_RDWR
+#define O_RDWR _O_RDWR
+#endif
+#ifndef O_RDONLY
+#define O_RDONLY _O_RDONLY
+#endif
+#ifndef O_WRONLY
+#define O_WRONLY _O_WRONLY
+#endif
+#ifndef O_CREAT
+#define O_CREAT _O_CREAT
+#endif
+#ifndef O_TRUNC
+#define O_TRUNC _O_TRUNC
+#endif
+#ifndef EXDEV
+#define EXDEV 18
+#endif
+#endif
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -79,7 +110,7 @@ void FileSharedMMap::Resize(size_t size) {
   if (fd == -1) {
     THROW_RUNTIME_ERROR("Failed to open file for resizing: " + path_);
   }
-  if (ftruncate(fd, real_size) == -1) {
+  if (ftruncate(fd, real_size) != 0) {
     close(fd);
     THROW_RUNTIME_ERROR("Failed to resize file: " + path_);
   }
@@ -145,21 +176,27 @@ void FileSharedMMap::Dump(const std::string& path) {
   std::string src_path = std::move(path_);
   Close();  // munmap; all dirty pages already flushed by Sync() above.
 
-  // Try atomic rename first. On the same filesystem this is O(1) and
-  // involves no data copying — only a directory-entry update.
-  if (::rename(src_path.c_str(), path.c_str()) == 0) {
+  // std::filesystem::rename atomically replaces the destination if it
+  // already exists on all platforms (MoveFileEx + MOVEFILE_REPLACE_EXISTING
+  // on Windows, rename(2) on POSIX).  The CRT ::rename on Windows fails
+  // when the destination exists, so we must not use it here.
+  std::error_code ec;
+  std::filesystem::rename(src_path, path, ec);
+  if (!ec) {
     return;
   }
 
-  if (errno != EXDEV) {
-    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " + path);
+  // Cross-filesystem fallback: copy then remove the source.
+  if (ec != std::errc::cross_device_link) {
+    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " + path +
+                       " (" + ec.message() + ")");
   }
 
-  // Cross-filesystem fallback: copy then remove the source.
   // copy_file tries copy_file_range (kernel-side, no userspace buffer) first,
   // then falls back to a 64 KB read/write loop.
   file_utils::copy_file(src_path, path, /*overwrite=*/true);
-  ::unlink(src_path.c_str());
+  std::error_code unlink_ec;
+  std::filesystem::remove(src_path, unlink_ec);
 }
 
 }  // namespace neug
