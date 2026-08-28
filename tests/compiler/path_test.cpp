@@ -18,6 +18,8 @@
 #include <memory>
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
+#include "neug/compiler/optimizer/logical_operator_collector.h"
+#include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "protobuf/src/google/protobuf/parse_context.h"
 
@@ -71,7 +73,7 @@ TEST_F(PathTest, KNOWS_V2_1_2) {
 
 TEST_F(PathTest, KNOWS_3_3) {
   std::string query =
-      "MATCH (a:person)-[e:knows*3..3]->(b:person) RETURN COUNT(b.name);";
+      "MATCH p = (a:person)-[e:knows*3..3]->(b:person) RETURN COUNT(b.name);";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(*physical,
