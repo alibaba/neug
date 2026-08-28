@@ -380,9 +380,7 @@ def test_bulk_build_ignores_index_id_consumed_by_rolled_back_transaction(capfd):
         )
 
         conn.begin_transaction()
-        conn.execute(
-            "CREATE (:Item {id: 3, embedding: [0.0, 0.0, 1.0, 0.0]});"
-        )
+        conn.execute("CREATE (:Item {id: 3, embedding: [0.0, 0.0, 1.0, 0.0]});")
         conn.rollback()
         assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
             [1],
