@@ -42,18 +42,6 @@ struct LeidenInput : public function::CallFuncInputBase {
       LOG(ERROR) << "leiden requires at least one edge label.";
       return false;
     }
-    for (const auto& ve : parsed.vertex_entries) {
-      if (ve.predicate != nullptr) {
-        LOG(ERROR) << "Vertex predicates are not supported in leiden.";
-        return false;
-      }
-    }
-    for (const auto& ee : parsed.edge_entries) {
-      if (ee.predicate != nullptr) {
-        LOG(ERROR) << "Edge predicates are not supported in leiden.";
-        return false;
-      }
-    }
     // Validate: no duplicate vertex labels
     {
       std::unordered_set<label_t> seen_labels;
@@ -68,12 +56,13 @@ struct LeidenInput : public function::CallFuncInputBase {
     }
     // Collect declared vertex labels for triplet validation
     std::unordered_set<label_t> declared_vertex_labels;
-    for (const auto& ve : parsed.vertex_entries) {
+    for (auto& ve : parsed.vertex_entries) {
       declared_vertex_labels.insert(ve.label);
       vertex_labels.push_back(ve.label);
+      vertex_preds.push_back(std::move(ve.predicate));
     }
     // Validate: all edge triplet labels reference declared vertex labels
-    for (const auto& ee : parsed.edge_entries) {
+    for (auto& ee : parsed.edge_entries) {
       if (declared_vertex_labels.find(ee.triplet.src_label) ==
           declared_vertex_labels.end()) {
         LOG(ERROR) << "leiden"
@@ -89,12 +78,17 @@ struct LeidenInput : public function::CallFuncInputBase {
         return false;
       }
       edge_triplets.push_back(ee.triplet);
+      edge_preds.push_back(std::move(ee.predicate));
     }
     return true;
   }
 
   std::vector<label_t> vertex_labels;
   std::vector<LabelTriplet> edge_triplets;
+  // Predicates aligned with vertex_labels / edge_triplets; entries may be
+  // null when the corresponding entry carries no predicate.
+  std::vector<std::unique_ptr<execution::ExprBase>> vertex_preds;
+  std::vector<std::unique_ptr<execution::ExprBase>> edge_preds;
   double resolution = 1.0;
   bool directed = false;
   double threshold = 1e-7;
@@ -160,10 +154,19 @@ execution::Context LeidenFunction::exec(
 
   // directed is accepted for interface compatibility but ignored (same as
   // the original leiden implementation).
+  std::vector<execution::ExprBase*> vertex_preds;
+  vertex_preds.reserve(input.vertex_preds.size());
+  for (const auto& pred : input.vertex_preds)
+    vertex_preds.push_back(pred.get());
+  std::vector<execution::ExprBase*> edge_preds;
+  edge_preds.reserve(input.edge_preds.size());
+  for (const auto& pred : input.edge_preds)
+    edge_preds.push_back(pred.get());
   community::Leiden leiden(graph, input.vertex_labels, input.edge_triplets,
                            input.resolution, input.threshold, input.concurrency,
                            input.initial_community_property,
-                           input.allow_relocation, input.weight);
+                           input.allow_relocation, input.weight,
+                           std::move(vertex_preds), std::move(edge_preds));
   leiden.compute();
 
   execution::Context ctx;

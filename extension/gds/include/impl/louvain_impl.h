@@ -23,6 +23,9 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "utils/multi_label_index.h"
 namespace neug {
+namespace execution {
+class ExprBase;
+}  // namespace execution
 namespace gds {
 namespace community {
 class Louvain {
@@ -32,7 +35,9 @@ class Louvain {
           double threshold, int concurrency,
           const std::string& initial_community_property = "",
           bool allow_relocation = false,
-          const std::string& weight_property = "");
+          const std::string& weight_property = "",
+          std::vector<execution::ExprBase*> vertex_preds = {},
+          std::vector<execution::ExprBase*> edge_preds = {});
   void compute();
   void sink(execution::Context& ctx, int node_alias, int community_alias,
             int previous_community_alias = -1);
