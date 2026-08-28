@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 DIMENSION = 16
-NUM_VECTORS = 1000
+NUM_VECTORS = 2000
 
 
 def _array_literal(values):
@@ -161,11 +161,9 @@ def test_l2_index_scan_and_index_filtering(advanced_connection):
     assert [row[0] for row in rows[:3]] == [3, 4, 2]
     assert [row[1] for row in rows[:3]] == pytest.approx([0.16, 12.96, 19.36], abs=1e-5)
     assert _l2_search(advanced_connection, 0.0)[0][0] == 0
-    assert [row[0] for row in _l2_search(advanced_connection, 500.0)[:3]] == [
-        500,
-        501,
-        499,
-    ]
+    centered = _l2_search(advanced_connection, 500.0)[:3]
+    assert centered[0][0] == 500
+    assert {row[0] for row in centered[1:]} == {499, 501}
     assert _l2_search(advanced_connection, 999.0)[0][0] == 999
     filtered = _l2_search(advanced_connection, 3.1, 2, "n.group_id = 0")
     assert [row[0] for row in filtered] == [4, 2]
@@ -258,10 +256,22 @@ def test_inner_product_index_scan(advanced_connection):
             "AS score ORDER BY score DESC LIMIT 3;"
         )
     )
-    assert [row[0] for row in rows] == [999, 998, 997]
+    expected_ids = [NUM_VECTORS - 1, NUM_VECTORS - 2, NUM_VECTORS - 3]
+    assert [row[0] for row in rows] == expected_ids
     assert [row[1] for row in rows] == pytest.approx(
-        [999 * DIMENSION, 998 * DIMENSION, 997 * DIMENSION]
+        [index * DIMENSION for index in expected_ids]
     )
+
+
+def test_hnsw_limit_above_1024(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.0))}) "
+        "AS score ORDER BY score ASC LIMIT 1025;"
+    )
+    rows = list(result)
+    assert len(rows) == 1025
+    assert "IndexScanOpr" in _profile_operator_names(result)
 
 
 def test_graph_filtering_during_index_scan(advanced_connection):

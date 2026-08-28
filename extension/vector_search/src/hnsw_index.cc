@@ -259,9 +259,9 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   options.copy_on_write = false;
   auto ret = zvec_index_->Open(zvec_runtime_path_, options);
   if (ret != 0) {
-    THROW_RUNTIME_ERROR("[zvec] Failed to open HNSW index at " +
-                        zvec_runtime_path_ +
-                        ", error code: " + std::to_string(ret));
+    THROW_RUNTIME_ERROR(
+        "ZVec internal open failed for HNSW index at " + zvec_runtime_path_ +
+        ", error code: " + std::to_string(ret) + ". See logs for details.");
   }
   LOG(INFO) << "[zvec] Opened HNSW index at " << zvec_runtime_path_;
 }
@@ -355,9 +355,10 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     vector.vector = zvec::core_interface::DenseVector{vector_data};
     auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
     if (ret != 0) {
-      return Status::RuntimeError("ZVec HNSW bulk build failed for vertex " +
-                                  std::to_string(vid) + " with error code " +
-                                  std::to_string(ret));
+      return Status::RuntimeError(
+          "ZVec internal bulk build failed for vertex " + std::to_string(vid) +
+          " with error code " + std::to_string(ret) +
+          ". See logs for details.");
     }
   }
   const auto indexed_vector_count =
@@ -486,8 +487,9 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   auto ret = zvec_index_->SearchWithSource(query, query_param, *vec_source_,
                                            &search_result);
   if (ret != 0) {
-    RETURN_ERROR(Status::RuntimeError(
-        "ZVec HNSW search failed with error code " + std::to_string(ret)));
+    RETURN_ERROR(
+        Status::RuntimeError("ZVec internal search failed with error code " +
+                             std::to_string(ret) + ". See logs for details."));
   }
 
   std::vector<SearchCandidate> result;
@@ -540,8 +542,9 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
   vector.vector = zvec::core_interface::DenseVector{dense.data()};
   auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
   if (ret != 0) {
-    return Status::RuntimeError("ZVec HNSW append failed with error code " +
-                                std::to_string(ret));
+    return Status::RuntimeError("ZVec internal append failed with error code " +
+                                std::to_string(ret) +
+                                ". See logs for details.");
   }
   return Status::OK();
 }
