@@ -263,6 +263,19 @@ uint32_t VersionManager::acquire_update_timestamp_until(
   return reserve_update_timestamp();
 }
 
+bool VersionManager::try_acquire_update_timestamp(uint32_t& timestamp) {
+  if (!gate_.try_enter_phase(AdmissionState::kInsertsBlocked)) {
+    return false;
+  }
+  const uint64_t gate = gate_.load_acquire();
+  if (OperationGateWord::inserters(gate) != 0) {
+    gate_.reopen();
+    return false;
+  }
+  timestamp = reserve_update_timestamp();
+  return true;
+}
+
 void VersionManager::begin_update_commit(uint32_t ts) {
   (void) ts;
 

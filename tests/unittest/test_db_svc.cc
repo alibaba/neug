@@ -21,12 +21,14 @@
 #include <fstream>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
 
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include <rapidjson/document.h>
 #include "bthread/bthread.h"
 #include "neug/common/types/value.h"
 #include "neug/generated/proto/response/response.pb.h"
@@ -69,6 +71,48 @@ void* RunBthreadTask(void* arg) {
 int StartBthread(bthread_t& tid, BthreadTask& task) {
   return bthread_start_background(&tid, &BTHREAD_ATTR_NORMAL, RunBthreadTask,
                                   &task);
+}
+
+void PostHttp(brpc::Channel& channel, const std::string& uri,
+              const std::string& path, const std::string& body,
+              brpc::Controller& controller) {
+  controller.http_request().uri() = (uri + path).c_str();
+  controller.http_request().set_method(brpc::HTTP_METHOD_POST);
+  controller.request_attachment().append(body);
+  channel.CallMethod(nullptr, &controller, nullptr, nullptr, nullptr);
+}
+
+void GetHttp(brpc::Channel& channel, const std::string& uri,
+             const std::string& path, brpc::Controller& controller) {
+  controller.http_request().uri() = (uri + path).c_str();
+  controller.http_request().set_method(brpc::HTTP_METHOD_GET);
+  channel.CallMethod(nullptr, &controller, nullptr, nullptr, nullptr);
+}
+
+std::string TransactionPath(std::string_view transaction_id,
+                            std::string_view operation) {
+  return "/transactions/" + std::string(transaction_id) + "/" +
+         std::string(operation);
+}
+
+std::string ReadTransactionId(const brpc::Controller& controller) {
+  const auto body = controller.response_attachment().to_string();
+  rapidjson::Document document;
+  document.Parse(body.data(), body.size());
+  EXPECT_FALSE(document.HasParseError());
+  EXPECT_TRUE(document.IsObject());
+  if (!document.IsObject() || !document.HasMember("transaction_id") ||
+      !document["transaction_id"].IsString()) {
+    return {};
+  }
+  return document["transaction_id"].GetString();
+}
+
+QueryResponse ReadHttpQueryResponse(const brpc::Controller& controller) {
+  QueryResponse response;
+  EXPECT_TRUE(
+      response.ParseFromString(controller.response_attachment().to_string()));
+  return response;
 }
 
 }  // namespace
@@ -1051,6 +1095,284 @@ TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {
   EXPECT_TRUE(controller.Failed());
   EXPECT_EQ(controller.http_response().status_code(),
             brpc::HTTP_STATUS_NOT_IMPLEMENTED);
+  service.Stop();
+}
+
+TEST_F(NeugDBServiceTest, ExplicitTransactionUsesDedicatedHttpSession) {
+  config_.query_port = 19998;
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  brpc::Controller begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})", begin);
+  ASSERT_FALSE(begin.Failed()) << begin.ErrorText();
+  ASSERT_EQ(begin.http_response().status_code(), brpc::HTTP_STATUS_CREATED);
+  EXPECT_EQ(begin.http_response().content_type(), "application/json");
+  const auto begin_body = begin.response_attachment().to_string();
+  rapidjson::Document begin_document;
+  begin_document.Parse(begin_body.data(), begin_body.size());
+  ASSERT_FALSE(begin_document.HasParseError());
+  ASSERT_TRUE(begin_document.HasMember("transaction_id"));
+  ASSERT_TRUE(begin_document["transaction_id"].IsString());
+  const std::string transaction_id =
+      begin_document["transaction_id"].GetString();
+  ASSERT_FALSE(transaction_id.empty());
+  ASSERT_TRUE(begin_document.HasMember("mode"));
+  ASSERT_TRUE(begin_document["mode"].IsString());
+  EXPECT_STREQ(begin_document["mode"].GetString(), "read_write");
+  ASSERT_TRUE(begin_document.HasMember("expires_at"));
+  EXPECT_TRUE(begin_document["expires_at"].IsString());
+  const auto* location = begin.http_response().GetHeader("Location");
+  ASSERT_NE(location, nullptr);
+  EXPECT_EQ(*location, "/transactions/" + transaction_id);
+  const auto* cache_control = begin.http_response().GetHeader("Cache-Control");
+  ASSERT_NE(cache_control, nullptr);
+  EXPECT_EQ(*cache_control, "no-store");
+
+  brpc::Controller get_commit;
+  GetHttp(channel, uri, TransactionPath(transaction_id, "commit"), get_commit);
+  EXPECT_TRUE(get_commit.Failed());
+  EXPECT_EQ(get_commit.http_response().status_code(),
+            brpc::HTTP_STATUS_METHOD_NOT_ALLOWED);
+  const auto* allow = get_commit.http_response().GetHeader("Allow");
+  ASSERT_NE(allow, nullptr);
+  EXPECT_EQ(*allow, "POST");
+
+  brpc::Controller competing_begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})",
+           competing_begin);
+  EXPECT_TRUE(competing_begin.Failed());
+  EXPECT_EQ(competing_begin.http_response().status_code(),
+            brpc::HTTP_STATUS_SERVICE_UNAVAILABLE);
+
+  const auto create = RequestSerializer::SerializeRequest(
+      "CREATE (:person {id: 90002, name: 'explicit-tx', age: 1});", "update",
+      {});
+  brpc::Controller write;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"), create,
+           write);
+  ASSERT_FALSE(write.Failed()) << write.ErrorText();
+
+  const auto read = RequestSerializer::SerializeRequest(
+      "MATCH (n:person {id: 90002}) RETURN n;", "read", {});
+  brpc::Controller read_your_writes;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"), read,
+           read_your_writes);
+  ASSERT_FALSE(read_your_writes.Failed()) << read_your_writes.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(read_your_writes).row_count(), 1);
+
+  const auto create_table = RequestSerializer::SerializeRequest(
+      "CREATE NODE TABLE transaction_schema(id INT64, PRIMARY KEY(id));",
+      "schema", {});
+  brpc::Controller ddl;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"), create_table,
+           ddl);
+  ASSERT_FALSE(ddl.Failed()) << ddl.ErrorText();
+
+  const auto read_private_schema = RequestSerializer::SerializeRequest(
+      "MATCH (n:transaction_schema) RETURN n;", "read", {});
+  brpc::Controller private_schema_query;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"),
+           read_private_schema, private_schema_query);
+  ASSERT_FALSE(private_schema_query.Failed())
+      << private_schema_query.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(private_schema_query).row_count(), 0);
+
+  brpc::Controller before_commit;
+  PostHttp(channel, uri, "/cypher", read, before_commit);
+  ASSERT_FALSE(before_commit.Failed()) << before_commit.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(before_commit).row_count(), 0);
+
+  brpc::Controller commit;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "commit"), "", commit);
+  ASSERT_FALSE(commit.Failed()) << commit.ErrorText();
+
+  brpc::Controller after_commit;
+  PostHttp(channel, uri, "/cypher", read, after_commit);
+  ASSERT_FALSE(after_commit.Failed()) << after_commit.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(after_commit).row_count(), 1);
+
+  brpc::Controller read_only_begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
+           read_only_begin);
+  ASSERT_FALSE(read_only_begin.Failed()) << read_only_begin.ErrorText();
+  const auto read_only_id = ReadTransactionId(read_only_begin);
+  ASSERT_FALSE(read_only_id.empty());
+
+  brpc::Controller read_only_query;
+  PostHttp(channel, uri, TransactionPath(read_only_id, "query"), read,
+           read_only_query);
+  ASSERT_FALSE(read_only_query.Failed()) << read_only_query.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(read_only_query).row_count(), 1);
+
+  brpc::Controller rejected_write;
+  PostHttp(channel, uri, TransactionPath(read_only_id, "query"), create,
+           rejected_write);
+  EXPECT_TRUE(rejected_write.Failed());
+  EXPECT_EQ(rejected_write.http_response().status_code(),
+            brpc::HTTP_STATUS_CONFLICT);
+
+  brpc::Controller rejected_commit;
+  PostHttp(channel, uri, TransactionPath(read_only_id, "commit"), "",
+           rejected_commit);
+  EXPECT_TRUE(rejected_commit.Failed());
+  EXPECT_EQ(rejected_commit.http_response().status_code(),
+            brpc::HTTP_STATUS_CONFLICT);
+
+  brpc::Controller rollback;
+  PostHttp(channel, uri, TransactionPath(read_only_id, "rollback"), "",
+           rollback);
+  EXPECT_FALSE(rollback.Failed()) << rollback.ErrorText();
+
+  brpc::Controller rollback_begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})",
+           rollback_begin);
+  ASSERT_FALSE(rollback_begin.Failed()) << rollback_begin.ErrorText();
+  const auto rollback_id = ReadTransactionId(rollback_begin);
+  ASSERT_FALSE(rollback_id.empty());
+  const auto rollback_write = RequestSerializer::SerializeRequest(
+      "CREATE (:person {id: 90003, name: 'rollback-tx', age: 1});", "update",
+      {});
+  brpc::Controller rollback_write_response;
+  PostHttp(channel, uri, TransactionPath(rollback_id, "query"), rollback_write,
+           rollback_write_response);
+  ASSERT_FALSE(rollback_write_response.Failed())
+      << rollback_write_response.ErrorText();
+  brpc::Controller rollback_write_transaction;
+  PostHttp(channel, uri, TransactionPath(rollback_id, "rollback"), "",
+           rollback_write_transaction);
+  ASSERT_FALSE(rollback_write_transaction.Failed())
+      << rollback_write_transaction.ErrorText();
+
+  const auto rollback_read = RequestSerializer::SerializeRequest(
+      "MATCH (n:person {id: 90003}) RETURN n;", "read", {});
+  brpc::Controller after_rollback;
+  PostHttp(channel, uri, "/cypher", rollback_read, after_rollback);
+  ASSERT_FALSE(after_rollback.Failed()) << after_rollback.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(after_rollback).row_count(), 0);
+  service.Stop();
+}
+
+TEST_F(NeugDBServiceTest,
+       ExplicitTransactionFailureRequiresRollbackAndInvalidatesSession) {
+  config_.query_port = 19995;
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  brpc::Controller begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})", begin);
+  ASSERT_FALSE(begin.Failed()) << begin.ErrorText();
+  const auto transaction_id = ReadTransactionId(begin);
+  ASSERT_FALSE(transaction_id.empty());
+
+  const auto invalid_query = RequestSerializer::SerializeRequest(
+      "MATCH (n:missing) RETURN n;", "read", {});
+  brpc::Controller failed_query;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"),
+           invalid_query, failed_query);
+  EXPECT_TRUE(failed_query.Failed());
+
+  const auto read = RequestSerializer::SerializeRequest(
+      "MATCH (n:person) RETURN n LIMIT 1;", "read", {});
+  brpc::Controller rejected_reuse;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"), read,
+           rejected_reuse);
+  EXPECT_TRUE(rejected_reuse.Failed());
+  EXPECT_EQ(rejected_reuse.http_response().status_code(),
+            brpc::HTTP_STATUS_CONFLICT);
+
+  brpc::Controller rollback;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "rollback"), "",
+           rollback);
+  ASSERT_FALSE(rollback.Failed()) << rollback.ErrorText();
+
+  brpc::Controller invalidated_id;
+  PostHttp(channel, uri, TransactionPath(transaction_id, "query"), read,
+           invalidated_id);
+  EXPECT_TRUE(invalidated_id.Failed());
+  EXPECT_EQ(invalidated_id.http_response().status_code(),
+            brpc::HTTP_STATUS_NOT_FOUND);
+  service.Stop();
+}
+
+TEST_F(NeugDBServiceTest, ReadOnlyServiceRejectsReadWriteTransactionBegin) {
+  db_->Close();
+  neug::NeugDBConfig read_only_config((test_dir_ / "graph").string(), 4);
+  read_only_config.mode = DBMode::READ_ONLY;
+  db_ = std::make_unique<neug::NeugDB>();
+  db_->Open(read_only_config);
+
+  config_.query_port = 19997;
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  brpc::Controller begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})", begin);
+  EXPECT_TRUE(begin.Failed());
+  EXPECT_EQ(begin.http_response().status_code(), brpc::HTTP_STATUS_BAD_REQUEST);
+  service.Stop();
+}
+
+TEST_F(NeugDBServiceTest, ExplicitTransactionCapacityAndExpiryAreHandled) {
+  config_.query_port = 19996;
+  config_.max_explicit_transactions = 1;
+  config_.explicit_transaction_timeout_ms = 20;
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  brpc::Controller first_begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
+           first_begin);
+  ASSERT_FALSE(first_begin.Failed()) << first_begin.ErrorText();
+
+  brpc::Controller capacity_rejected;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
+           capacity_rejected);
+  EXPECT_TRUE(capacity_rejected.Failed());
+  EXPECT_EQ(capacity_rejected.http_response().status_code(),
+            brpc::HTTP_STATUS_SERVICE_UNAVAILABLE);
+
+  // The reaper removes the first expired session, freeing the only slot.
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  brpc::Controller second_begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
+           second_begin);
+  ASSERT_FALSE(second_begin.Failed()) << second_begin.ErrorText();
+  const auto second_transaction_id = ReadTransactionId(second_begin);
+  ASSERT_FALSE(second_transaction_id.empty());
+
+  brpc::Controller rollback;
+  PostHttp(channel, uri, TransactionPath(second_transaction_id, "rollback"), "",
+           rollback);
+  EXPECT_FALSE(rollback.Failed()) << rollback.ErrorText();
   service.Stop();
 }
 

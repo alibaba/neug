@@ -15,6 +15,16 @@
 
 #include "neug/server/brpc_service_mgr.h"
 
+#include <chrono>
+#include <cstdio>
+#include <ctime>
+#include <utility>
+
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
+#include "service_transaction_manager.h"
+
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/error.pb.h"
 
@@ -43,7 +53,7 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
   case neug::StatusCode::ERR_INTERNAL_ERROR:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   case neug::StatusCode::ERR_NOT_FOUND:
-    return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    return brpc::HTTP_STATUS_NOT_FOUND;
   case neug::StatusCode::ERR_NO_CHECKPOINT:
     return brpc::HTTP_STATUS_NOT_FOUND;
   case neug::StatusCode::ERR_INVALID_ARGUMENT:
@@ -52,6 +62,9 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   case neug::StatusCode::ERR_SERVICE_UNAVAILABLE:
     return brpc::HTTP_STATUS_SERVICE_UNAVAILABLE;
+  case neug::StatusCode::ERR_TX_STATE_CONFLICT:
+  case neug::StatusCode::ERR_TX_TIMEOUT:
+    return brpc::HTTP_STATUS_CONFLICT;
   default:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   }
@@ -108,6 +121,130 @@ void SendHttpStringResponse(brpc::Controller* cntl,
     cntl->http_response().set_status_code(http_code);
   }
 }
+
+namespace {
+
+result<std::string_view> TransactionIdFromPath(brpc::Controller* cntl) {
+  const auto& transaction_id = cntl->http_request().unresolved_path();
+  if (transaction_id.empty() || transaction_id.find('/') != std::string::npos) {
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "A transaction ID is required in the request path."));
+  }
+  return std::string_view(transaction_id);
+}
+
+std::string FormatExpiresAt(std::chrono::system_clock::time_point expires_at) {
+  const auto epoch_milliseconds =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          expires_at.time_since_epoch());
+  const auto epoch_seconds =
+      std::chrono::duration_cast<std::chrono::seconds>(epoch_milliseconds);
+  const auto milliseconds = epoch_milliseconds - epoch_seconds;
+  const auto time = static_cast<std::time_t>(epoch_seconds.count());
+  std::tm utc_time{};
+#ifdef _WIN32
+  gmtime_s(&utc_time, &time);
+#else
+  gmtime_r(&time, &utc_time);
+#endif
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
+                utc_time.tm_year + 1900, utc_time.tm_mon + 1, utc_time.tm_mday,
+                utc_time.tm_hour, utc_time.tm_min, utc_time.tm_sec,
+                static_cast<int>(milliseconds.count()));
+  return buffer;
+}
+
+std::string SerializeBeginResponse(
+    const ServiceTransactionManager::BeginResult& transaction,
+    TransactionMode mode) {
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartObject();
+  writer.Key("transaction_id");
+  writer.String(
+      transaction.transaction_id.data(),
+      static_cast<rapidjson::SizeType>(transaction.transaction_id.size()));
+  writer.Key("mode");
+  writer.String(mode == TransactionMode::kReadOnly ? "read_only"
+                                                   : "read_write");
+  writer.Key("expires_at");
+  if (transaction.expires_at) {
+    const auto expires_at = FormatExpiresAt(*transaction.expires_at);
+    writer.String(expires_at.data(),
+                  static_cast<rapidjson::SizeType>(expires_at.size()));
+  } else {
+    writer.Null();
+  }
+  writer.EndObject();
+  return std::string(buffer.GetString(), buffer.GetSize());
+}
+
+result<TransactionMode> ParseTransactionMode(brpc::Controller* cntl) {
+  const auto body = cntl->request_attachment().to_string();
+  rapidjson::Document document;
+  document.Parse(body.data(), body.size());
+  if (document.HasParseError() || !document.IsObject() ||
+      !document.HasMember("mode") || !document["mode"].IsString()) {
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Transaction begin requires a JSON mode."));
+  }
+  const std::string_view mode(document["mode"].GetString(),
+                              document["mode"].GetStringLength());
+  if (mode == "read_only") {
+    return TransactionMode::kReadOnly;
+  }
+  if (mode == "read_write") {
+    return TransactionMode::kReadWrite;
+  }
+  RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Transaction mode must be read_only or read_write."));
+}
+
+Status RequireEmptyBody(brpc::Controller* cntl) {
+  if (!cntl->request_attachment().empty()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "This transaction operation does not accept a request body.");
+  }
+  return Status::OK();
+}
+
+void MarkTransactionResponse(brpc::Controller* cntl) {
+  cntl->http_response().SetHeader("Cache-Control", "no-store");
+}
+
+bool RequireHttpMethod(brpc::Controller* cntl, brpc::HttpMethod expected,
+                       const char* expected_name) {
+  if (cntl->http_request().method() == expected) {
+    return true;
+  }
+  cntl->SetFailed(brpc::HTTP_STATUS_METHOD_NOT_ALLOWED,
+                  "This transaction endpoint requires %s.", expected_name);
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_METHOD_NOT_ALLOWED);
+  cntl->http_response().SetHeader("Allow", expected_name);
+  return false;
+}
+
+template <typename Operation>
+void FinishTransaction(brpc::Controller* cntl,
+                       const BrpcServiceProtocol& protocol,
+                       Operation&& operation) {
+  MarkTransactionResponse(cntl);
+  if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
+    return;
+  }
+  auto transaction_id = TransactionIdFromPath(cntl);
+  Status status =
+      transaction_id ? RequireEmptyBody(cntl) : transaction_id.error();
+  if (status.ok()) {
+    status = operation(transaction_id.value());
+  }
+  result<std::string> response =
+      status.ok() ? result<std::string>("") : tl::unexpected(status);
+  protocol.send_query_response(cntl, response);
+}
+
+}  // namespace
 
 bool BrpcServiceProtocolManager::RegisterProtocol(
     brpc::ProtocolType type, const BrpcServiceProtocol& protocol) {
@@ -280,9 +417,82 @@ void HttpServiceImpl::GetServiceStatus(
   return;
 }
 
-BrpcServiceManager::BrpcServiceManager(neug::NeugDB& neug_db,
-                                       TpExecutionSlotPool& execution_slot_pool)
-    : neug_db_(neug_db), execution_slot_pool_(execution_slot_pool) {
+void HttpServiceImpl::BeginTransaction(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  MarkTransactionResponse(cntl);
+  if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
+    return;
+  }
+  auto mode = ParseTransactionMode(cntl);
+  if (!mode) {
+    result<std::string> error = tl::unexpected(mode.error());
+    protocol_.send_query_response(cntl, error);
+    return;
+  }
+  auto transaction = transaction_manager_.Begin(mode.value());
+  if (!transaction) {
+    result<std::string> error = tl::unexpected(transaction.error());
+    protocol_.send_query_response(cntl, error);
+    return;
+  }
+  result<std::string> response =
+      SerializeBeginResponse(transaction.value(), mode.value());
+  protocol_.send_query_response(cntl, response);
+  cntl->http_response().set_status_code(brpc::HTTP_STATUS_CREATED);
+  cntl->http_response().set_content_type("application/json");
+  cntl->http_response().SetHeader(
+      "Location", "/transactions/" + transaction->transaction_id);
+}
+
+void HttpServiceImpl::ExecuteTransactionQuery(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  MarkTransactionResponse(cntl);
+  if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
+    return;
+  }
+  auto transaction_id = TransactionIdFromPath(cntl);
+  if (!transaction_id) {
+    result<std::string> error = tl::unexpected(transaction_id.error());
+    protocol_.send_query_response(cntl, error);
+    return;
+  }
+  auto response = transaction_manager_.Execute(
+      transaction_id.value(), cntl->request_attachment().to_string());
+  protocol_.send_query_response(cntl, response);
+}
+
+void HttpServiceImpl::CommitTransaction(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  FinishTransaction(cntl, protocol_, [this](std::string_view transaction_id) {
+    return transaction_manager_.Commit(transaction_id);
+  });
+}
+
+void HttpServiceImpl::RollbackTransaction(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  FinishTransaction(cntl, protocol_, [this](std::string_view transaction_id) {
+    return transaction_manager_.Rollback(transaction_id);
+  });
+}
+
+BrpcServiceManager::BrpcServiceManager(
+    neug::NeugDB& neug_db, TpExecutionSlotPool& execution_slot_pool,
+    ServiceTransactionManager& transaction_manager)
+    : neug_db_(neug_db),
+      execution_slot_pool_(execution_slot_pool),
+      transaction_manager_(transaction_manager) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
@@ -302,11 +512,15 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
   svc_options.restful_mappings =
       "/cypher => PostCypherQuery,"
       "/service_status => GetServiceStatus,"
-      "/schema => GetSchema";
+      "/schema => GetSchema,"
+      "/transactions => BeginTransaction,"
+      "/transactions/*/query => ExecuteTransactionQuery,"
+      "/transactions/*/commit => CommitTransaction,"
+      "/transactions/*/rollback => RollbackTransaction";
 
 #ifdef ENABLE_HTTP_PROTOCOL
-  auto http_svc =
-      std::make_unique<HttpServiceImpl>(neug_db_, execution_slot_pool_);
+  auto http_svc = std::make_unique<HttpServiceImpl>(
+      neug_db_, execution_slot_pool_, transaction_manager_);
   if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
     LOG(ERROR) << "Failed to add http service to brpc server";
   }
@@ -346,7 +560,10 @@ void BrpcServiceManager::RunAndWaitForExit() {
 
 void BrpcServiceManager::Stop() {
   LOG(INFO) << "Stopping brpc server";
-  brpc_server_->Stop(0);
+  if (brpc_server_->IsRunning()) {
+    brpc_server_->Stop(0);
+    brpc_server_->Join();
+  }
   LOG(INFO) << "Brpc server stopped";
 }
 

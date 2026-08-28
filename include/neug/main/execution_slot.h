@@ -52,6 +52,7 @@ class IVersionManager;
 class NeugDB;
 class Connection;
 class ExecutionSlot;
+class ServiceTransactionManager;
 class TpExecutionSlotPool;
 class TransactionContext;
 class ExtensionManager;
@@ -237,6 +238,7 @@ class ExecutionSlot {
  private:
   friend class NeugDB;
   friend class Connection;
+  friend class ServiceTransactionManager;
   friend class TpExecutionSlotPool;
 
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
@@ -289,8 +291,9 @@ class ExecutionSlot {
       QueryCacheMode cache_mode = QueryCacheMode::kShared);
 
   result<CurrentCowWriteTransaction> BeginCurrentCowWriteTransaction();
+  result<SnapshotCowWriteTransaction> TryBeginSnapshotCowWriteTransaction();
   result<QueryResult> ExecuteQueryInTransaction(
-      const std::string& query_string, const std::string& access_mode,
+      const std::string& query_string, AccessMode requested_mode,
       const rapidjson::Value& parameters, int32_t num_threads,
       TransactionContext& transaction_context);
 

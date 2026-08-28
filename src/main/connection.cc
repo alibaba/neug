@@ -18,6 +18,7 @@
 #include <exception>
 
 #include "neug/main/execution_slot.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/yaml_utils.h"
 
@@ -149,8 +150,15 @@ result<QueryResult> Connection::Query(const std::string& query_string,
                "Transaction is rollback-only; Rollback() is required."));
   }
   if (transaction_context_.IsActive()) {
+    AccessMode requested_mode;
+    try {
+      requested_mode = ParseAccessMode(access_mode);
+    } catch (...) {
+      transaction_context_.AbortAndMarkRollbackOnly();
+      throw;
+    }
     return execution_slot_->ExecuteQueryInTransaction(
-        query_string, access_mode, parameters, /*num_threads=*/0,
+        query_string, requested_mode, parameters, /*num_threads=*/0,
         transaction_context_);
   }
   return execution_slot_->ExecuteQuery(query_string, access_mode, parameters);
