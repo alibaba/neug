@@ -322,18 +322,9 @@ Therefore, users can choose either workflow:
 ### Duplicate Vectors
 
 A large number of duplicate vectors can degrade HNSW index construction and
-query performance. Before creating an index, check the vector data and, when
-appropriate, deduplicate it during data preparation. For example, `DISTINCT`
-can be used to inspect the unique vector values:
-
-```cypher
-MATCH (n:vector_node)
-RETURN DISTINCT n.vec;
-```
-
-When `CREATE INDEX` bulk-builds an HNSW index, NeuG estimates the duplicate
-rate from vector hashes and writes a warning containing approximate duplicate
-statistics, for example:
+query performance. When `CREATE INDEX` bulk-builds an HNSW index, NeuG estimates
+the duplicate rate from vector hashes and writes a warning containing approximate
+duplicate statistics, for example:
 
 ```text
 HNSW duplicate statistics for index 'vec_hnsw_index': 83 / 100 (83%) duplicate vectors
