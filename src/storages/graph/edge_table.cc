@@ -295,6 +295,7 @@ TypedColumnInserter make_inserter(const DataType& type,
     return {src, dst, &insert_varchar_impl};
   case DataTypeId::kArray:
   case DataTypeId::kList:
+  case DataTypeId::kStruct:
     return {src, dst, &insert_nested_impl};
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(

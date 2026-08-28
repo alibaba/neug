@@ -987,11 +987,13 @@ InArchive& operator<<(InArchive& in_archive, const Value& value) {
     auto interval = value.GetValue<interval_t>();
     in_archive << type_id << interval.months << interval.days
                << interval.micros;
-  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
+  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray ||
+             type_id == DataTypeId::kStruct) {
     in_archive << type_id << value.type();
-    const auto& children = (type_id == DataTypeId::kList)
-                               ? ListValue::GetChildren(value)
-                               : ArrayValue::GetChildren(value);
+    const auto& children =
+        (type_id == DataTypeId::kList)    ? ListValue::GetChildren(value)
+        : (type_id == DataTypeId::kArray) ? ArrayValue::GetChildren(value)
+                                          : StructValue::GetChildren(value);
     in_archive << static_cast<uint32_t>(children.size());
     for (const auto& child : children) {
       in_archive << child;
@@ -1055,7 +1057,8 @@ OutArchive& operator>>(OutArchive& out_archive, Value& value) {
     Interval interval;
     out_archive >> interval.months >> interval.days >> interval.micros;
     value = Value::INTERVAL(interval);
-  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray) {
+  } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray ||
+             type_id == DataTypeId::kStruct) {
     DataType dt;
     out_archive >> dt;
     uint32_t num_children;
@@ -1069,8 +1072,10 @@ OutArchive& operator>>(OutArchive& out_archive, Value& value) {
     }
     if (type_id == DataTypeId::kList) {
       value = Value::LIST(ListType::GetChildType(dt), std::move(children));
-    } else {
+    } else if (type_id == DataTypeId::kArray) {
       value = Value::ARRAY(dt, std::move(children));
+    } else {
+      value = Value::STRUCT(dt, std::move(children));
     }
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(

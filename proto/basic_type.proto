@@ -115,6 +115,9 @@ message List {
 
 message Tuple {
     repeated DataType component_types = 1;
+    // Field names of the struct; may be empty in legacy data, in which case
+    // positional names "field_<i>" are assumed.
+    repeated string field_names = 2;
 }
 
 message Map {

@@ -15,6 +15,7 @@
 
 #include "neug/execution/expression/accessors/record_accessor.h"
 #include "neug/common/types/i_context_column.h"
+#include "neug/execution/expression/exprs/struct_extract.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -78,6 +79,12 @@ class BindedRecordVertexPropertyExpr : public RecordExprBase {
   }
 
   const DataType& type() const override { return type_; }
+
+  std::unique_ptr<BindedExprBase> bind_struct_field(
+      size_t field_idx, const DataType& field_type) const override {
+    return bind_record_vertex_struct_field(tag_, property_columns_, field_idx,
+                                           field_type);
+  }
 
  private:
   int tag_;

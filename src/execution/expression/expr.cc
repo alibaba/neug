@@ -27,6 +27,7 @@
 #include "neug/execution/expression/exprs/logical_expr.h"
 #include "neug/execution/expression/exprs/path_expr.h"
 #include "neug/execution/expression/exprs/struct_expr.h"
+#include "neug/execution/expression/exprs/struct_extract.h"
 #include "neug/execution/expression/exprs/udfs.h"
 #include "neug/execution/expression/exprs/variable.h"
 #include "neug/utils/exception/exception.h"
@@ -145,8 +146,12 @@ static std::unique_ptr<ExprBase> build_expr(
         exprs_vec.emplace_back(
             parse_expression(compisite_fields[i], ctx_meta, var_type));
       }
-
-      return std::make_unique<TupleExpr>(std::move(exprs_vec));
+      DataType struct_type =
+          opr.has_node_type()
+              ? parse_from_ir_data_type(opr.node_type())
+              : DataType(DataTypeId::kUnknown);
+      return std::make_unique<TupleExpr>(std::move(exprs_vec),
+                                         std::move(struct_type));
     }
 
     case ::common::ExprOpr::kToList: {
@@ -238,6 +243,17 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<StartEndNodeExpr>(std::move(expr), true);
       } else if (name == "gs.function.endNode") {
         return std::make_unique<StartEndNodeExpr>(std::move(expr), false);
+      } else if (name == "gs.function.structExtract") {
+        // parameters: [struct expression, field-name string literal]. The
+        // binder guarantees the field name is a string literal that exists on
+        // the struct type.
+        const std::string& field_name =
+            op.parameters(1).operators(0).const_().str();
+        const auto& struct_type = expr->type();
+        size_t field_idx = StructType::GetFieldIdx(struct_type, field_name);
+        auto field_type = StructType::GetChildType(struct_type, field_idx).copy();
+        return std::make_unique<StructExtractExpr>(std::move(expr), field_idx,
+                                                   std::move(field_type));
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("not support udf" + opr.DebugString());
       }
