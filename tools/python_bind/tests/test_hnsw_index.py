@@ -302,8 +302,7 @@ def test_bulk_build_reports_duplicate_vectors(capfd):
     db, conn = _open_database(":memory:")
     try:
         conn.execute(
-            "CREATE NODE TABLE Item("
-            "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
         )
         for i in range(100):
             vector = [float(i % 17)] * 8
