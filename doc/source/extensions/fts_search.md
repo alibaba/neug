@@ -448,9 +448,8 @@ WHERE article.id = 1
 DELETE article;
 ```
 
-When `SET` assigns `NULL` to an indexed property, the `NULL` value is not
-inserted into the FTS index. If the property previously contained indexed
-text, its existing index entry is removed.
+Persistent properties do not currently support `NULL`. Assigning `NULL` to an
+indexed property fails without changing the property or its index entry.
 
 For checkpoint and reopen behavior, including loading `fts` to activate a
 restored index, see [Persistence and Recovery](../storage_index/index.md#persistence-and-recovery).

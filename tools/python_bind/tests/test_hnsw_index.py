@@ -412,15 +412,16 @@ def test_documented_schema_index_and_query_examples(tmp_path):
         conn.execute(
             "MATCH (n:vector_node) WHERE n.id = 1 " "SET n.vec = [0.2, 0.2, 0.1, 0.1];"
         )
-        conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
-        after_null = list(
+        with pytest.raises(RuntimeError, match="Setting NULL for property vec"):
+            conn.execute("MATCH (n:vector_node {id: 1}) SET n.vec = NULL;")
+        after_failed_null = list(
             conn.execute(
                 "MATCH (n:vector_node) RETURN n.id, "
                 "vector_distance_l2(n.vec, [0.2, 0.2, 0.1, 0.1]) AS score "
-                "ORDER BY score ASC LIMIT 5;"
+                "ORDER BY score ASC LIMIT 2;"
             )
         )
-        assert 1 not in [row[0] for row in after_null]
+        assert {row[0] for row in after_failed_null} == {1, 3}
         conn.execute("MATCH (n:vector_node) WHERE n.id = 2 DELETE n;")
         conn.execute("DROP INDEX vec_hnsw_index IF EXISTS;")
         conn.execute("DROP TABLE vector_node;")
