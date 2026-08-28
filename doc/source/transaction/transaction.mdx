@@ -30,39 +30,74 @@ conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
 
 ### Since version v0.2
 
-Auto-commit remains the default in every supported interface. The embedded
-C++, Node.js, and Python `Connection` APIs support programmatic explicit
-transactions for AP mode. Python `Session` supports them for TP service mode,
-as described below.
+Auto-commit remains the default in every supported interface. In addition, the
+following clients support programmatic explicit transactions:
 
-#### Common Explicit Transaction Semantics
+| Client | AP — embedded `Connection` | TP — service `Session` |
+|--------|----------------------------|------------------------|
+| C++ | ✅ | — |
+| Python | ✅ | ✅ |
+| Node.js | ✅ | — |
+| Java | — | Planned |
+
+✅ available · Planned: a later release · — no client for that mode.
+
+The two mode sections below therefore show different languages.
 
 An explicit transaction spans multiple queries: begin a transaction, execute
-queries within it, then commit or roll it back. A read-only transaction pins
-one read view and rejects writes. A read-write transaction owns a private COW
-view, reads its own successful writes, and publishes its changes only when
-commit succeeds.
+queries within it, then commit or roll it back. A read-only transaction pins one
+read view and rejects writes. A read-write transaction owns a private COW view,
+reads its own successful writes, and publishes its changes only when commit
+succeeds.
 
-An ordinary statement that fails after reaching the database makes the
-transaction rollback-only. This includes analysis, syntax or compilation,
-execution, read-only writes, and rejected bulk or maintenance operations.
-Errors rejected by a client binding before the statement reaches the database
-do not change the transaction; for example, Python rejects an invalid
-`access_mode` with `ValueError`. In the rollback-only state, call the
-client-specific rollback method before issuing another query or beginning
-another transaction. The active-transaction property remains true while the
-transaction is rollback-only. Nested begin and invalid programmatic control
-calls report a transaction-state error without changing an otherwise active
-transaction.
+Savepoints and partial rollback are not supported in either mode. Transaction
+lifetime caps differ: an embedded AP transaction never times out, so the
+application must finish it, while a TP service transaction may have an absolute
+service-configured lifetime and can be ended by the service.
 
-Cypher `BEGIN`, `COMMIT`, and `ROLLBACK` are unsupported. Submitting one as a
-query is a failed ordinary statement and makes the active transaction
-rollback-only; use the client-specific transaction-control methods instead.
+#### Not supported inside an explicit transaction
+
+Both modes reject the same statement classes while a transaction is active:
+
+| Rejected | Concretely |
+|----------|------------|
+| Bulk and file loading | `COPY … FROM`, `COPY … TO`, `COPY TEMP`, `LOAD FROM` |
+| Temporary schema | `CREATE TEMP …`, and the temporary table that `COPY TEMP` creates |
+| Administrative statements | `CHECKPOINT`, and `INSTALL` / `LOAD` / `UNINSTALL` of an extension |
+| Mutating procedure calls | `CALL` of a procedure that changes state, such as `project_graph` or `drop_projected_graph`; a read-only `CALL` is allowed |
+
+Everything else is allowed, including reads, inserts, updates, deletes, and
+ordinary DDL such as `CREATE NODE TABLE`, `ALTER`, `DROP`, and index creation.
+A rejected statement behaves like any other failed statement: it makes the
+transaction rollback-only.
+
+#### Failure and rollback-only state
+
+A statement that fails after reaching the database makes its transaction
+**rollback-only**: it can no longer commit, and it must be ended before the
+client issues another query or begins another transaction. Failures in this class
+include:
+
+- semantic analysis, syntax, or compilation errors
+- execution failures
+- a write attempted inside a read-only transaction
+- any statement rejected by the table above
+- Cypher `BEGIN`, `COMMIT`, or `ROLLBACK` submitted as a query — these statements
+  are unsupported; use the client's transaction-control methods instead
+
+Errors that a client binding rejects *before* the statement reaches the database
+do not change the transaction. For example, Python rejects an invalid
+`access_mode` with `ValueError`, and the transaction stays usable.
+
+Nested begin calls and invalid programmatic control calls report a
+transaction-state error without changing an otherwise active transaction.
+
+How a rollback-only transaction is ended differs by mode; see the two sections
+below.
 
 #### Explicit Transactions in Embedded AP Mode
 
-An explicit transaction is owned by its `Connection` and spans multiple
-queries:
+In embedded mode, an explicit transaction is owned by its `Connection`.
 
 <Tabs items={['C++', 'Node.js', 'Python']}>
 
@@ -108,37 +143,27 @@ conn.commit()
 
 </Tabs>
 
-For a read-only transaction, use `TransactionMode::kReadOnly` in C++,
-`beginTransaction({ readOnly: true })` in Node.js, or
-`begin_transaction(read_only=True)` in Python. C++ uses
-`TransactionMode::kReadWrite` for read-write transactions; that is the default
-mode in Node.js and Python.
+Read-write is the default when a client does not specify a mode; every client
+also exposes a read-only variant of its begin call. For the exact signatures and
+the transaction-control methods of each client, see the
+[API reference](../../reference).
 
-An AP read-write transaction holds exclusive AP admission for its full
-lifetime. Any AP operation that contends for that admission waits until the
-transaction is committed, rolled back, or its connection is closed; explicit
-transactions currently have no timeout. Applications should therefore finish
-them promptly. Embedded READ_WRITE mode currently allows only one public
+**Concurrency.** A read-write transaction holds exclusive AP admission for its
+whole lifetime: every other AP operation waits until it commits, rolls back, or
+its connection closes. Embedded READ_WRITE mode also allows only one public
 `Connection` at a time.
 
-The embedded API does not include remote clients, Java bindings, savepoints,
-transaction timeouts, or explicit-transaction `COPY`, batch, index,
-checkpoint, procedure calls, or temporary schema operations.
+**Lifetime.** There is no timeout. The transaction stays open until the
+application ends it, and while it is open no other AP work proceeds — so end it
+promptly.
+
+**Ending a rollback-only transaction.** Roll it back, or close the connection.
+Until then the connection still reports an active transaction.
 
 #### Explicit Transactions in TP Service Mode
 
-TP service explicit transactions are exposed through supported client APIs.
-This guide documents that client-level contract; service URIs, headers, status
-codes, and request or response payloads are transport details rather than
-public transaction semantics.
-
-While a TP read-write transaction owns the TP update lease, another read-write
-transaction cannot begin; ordinary TP inserts and updates wait for it to finish,
-while TP reads remain concurrent.
-A successful TP read-write commit appends and publishes one WAL commit.
-
-Use the client-specific API below to begin, execute within, commit, or roll
-back an explicit transaction:
+In service mode, an explicit transaction is owned by its `Session`, and one
+`Session` owns at most one transaction at a time.
 
 <Tabs items={['Python']}>
 
@@ -159,19 +184,37 @@ session.close()
 
 </Tabs>
 
-Pass `read_only=True` to `begin_transaction()` to pin a TP read view and reject
-writes. One `Session` owns at most one explicit transaction. Do not issue
-concurrent requests through that session; use one `Session` per client worker.
-`execute()` uses that transaction while it is active, and `close()` attempts to
-roll it back. `get_schema()` always reflects the service's committed schema; it
-does not expose a transaction-private schema view.
+For the transaction-control methods each service-mode client exposes, see the
+[API reference](../../reference).
 
-TP transactions may have an absolute service-configured lifetime. Expired,
-failed, or shutdown transactions are rolled back and ended. When the service
-reports that a transaction has ended, `Session` clears its local handle so it
-can begin a new transaction. Clients must reliably finish a read-write
-transaction: an abandoned transaction can keep the TP update lease and delay
-ordinary TP writes until the service releases it.
+**Using the session.** Every query issued on the session runs inside its active
+transaction, and closing the session tries to roll that transaction back. Never
+issue concurrent requests through one `Session` — use one `Session` per client
+worker. Schema lookups always show the service's committed schema, never a
+transaction-private one.
+
+**Concurrency.** A read-write transaction holds the TP update lease. While it
+holds it, no other read-write transaction can begin, and ordinary inserts and
+updates wait for it to finish; reads stay concurrent. A successful commit appends
+and publishes one WAL commit.
+
+**Lifetime.** Unlike AP, the service can end a transaction on its own — through
+an absolute service-configured lifetime, a failure, or shutdown. The session then
+drops its handle and reports no active transaction, and a rollback call fails. So
+guard the rollback instead of issuing it unconditionally:
+
+```python
+if session.has_active_transaction:  # Python example
+    session.rollback()
+session.begin_transaction()  # The session is ready for a new transaction.
+```
+
+**Ending a rollback-only transaction.** Roll it back while the session still
+reports an active transaction, as in the snippet above.
+
+**Abandoned transactions.** A read-write transaction that is never finished keeps
+the update lease and delays ordinary TP writes until the service releases it.
+Always end one on both the success and the failure path.
 
 ## Deployment Modes Overview
 
@@ -453,11 +496,6 @@ finally:
 | **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
 
 ## Roadmap
-
-**v0.2: Transaction Control**
-- Multi-statement execution: multiple statements separated by `;` in a single `execute()` call, sharing the same transaction boundary
-- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`) for fine-grained transaction control
-- Savepoint support for partial rollback within transactions
 
 **Recovery & Durability**
 - More transparent recovery mechanisms for Embedded mode
