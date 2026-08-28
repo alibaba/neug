@@ -201,7 +201,12 @@ result<std::string> ServiceTransactionManager::Execute(
       if (!query_result) {
         RETURN_ERROR(query_result.error());
       }
-      return query_result.value().Serialize();
+      try {
+        return query_result.value().Serialize();
+      } catch (const std::exception& e) {
+        entry->context.AbortAndMarkRollbackOnly();
+        RETURN_ERROR(Status::RuntimeError(e.what()));
+      }
     } catch (const std::exception& e) {
       RETURN_ERROR(Status::RuntimeError(e.what()));
     }

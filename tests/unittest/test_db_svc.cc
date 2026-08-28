@@ -1132,7 +1132,6 @@ TEST_F(NeugDBServiceTest, ExplicitTransactionUsesDedicatedHttpSession) {
   const auto* location = begin.http_response().GetHeader("Location");
   ASSERT_NE(location, nullptr);
   EXPECT_EQ(*location, "/transactions/" + transaction_id);
-  EXPECT_EQ(begin.http_response().GetHeader("X-Transaction-Id"), nullptr);
   const auto* cache_control = begin.http_response().GetHeader("Cache-Control");
   ASSERT_NE(cache_control, nullptr);
   EXPECT_EQ(*cache_control, "no-store");

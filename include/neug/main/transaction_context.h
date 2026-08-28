@@ -15,7 +15,6 @@
 #pragma once
 
 #include <cstdint>
-#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -32,7 +31,7 @@ namespace neug {
 enum class TransactionMode : uint8_t {
   /** Pin a published read view and reject writes. */
   kReadOnly,
-  /** Hold a private AP COW view and publish it only at Commit(). */
+  /** Hold a private COW view and publish it only at Commit(). */
   kReadWrite,
 };
 
@@ -102,14 +101,15 @@ class TransactionContext {
     state_ = State::kActive;
   }
 
+ private:
+  friend class ExecutionSlot;
+  friend class ServiceTransactionManager;
+
   void Begin(SnapshotCowWriteTransaction transaction) {
     transaction_.emplace<SnapshotCowWriteTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadWrite;
     state_ = State::kActive;
   }
-
- private:
-  friend class ExecutionSlot;
 
   SnapshotReadTransaction& ReadTransactionOwner() {
     return std::get<SnapshotReadTransaction>(transaction_);
@@ -129,16 +129,9 @@ class TransactionContext {
       return Status::OK();
     }
 
-    auto status = VisitCowWriteOwner([](auto& transaction) {
-      if constexpr (std::is_same_v<std::decay_t<decltype(transaction)>,
-                                   CurrentCowWriteTransaction>) {
-        return transaction.Commit();
-      } else {
-        return transaction.Commit()
-                   ? Status::OK()
-                   : Status::InternalError("Write transaction commit failed.");
-      }
-    });
+    CHECK(std::holds_alternative<CurrentCowWriteTransaction>(transaction_))
+        << "TP snapshot writes must use the prepared commit path";
+    auto status = std::get<CurrentCowWriteTransaction>(transaction_).Commit();
     if (status.ok()) {
       ResetToIdle();
     } else {
@@ -182,8 +175,6 @@ class TransactionContext {
   }
 
  private:
-  friend class ServiceTransactionManager;
-
   Status PrepareTpSnapshotCommit() {
     CHECK(IsActive() && !IsReadOnly());
     if (!std::holds_alternative<SnapshotCowWriteTransaction>(transaction_)) {
