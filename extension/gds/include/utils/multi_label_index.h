@@ -18,11 +18,14 @@
 #include <glog/logging.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "neug/common/types/graph_types.h"
+#include "neug/execution/expression/expr.h"
+#include "neug/execution/expression/predicates.h"
 #include "neug/storages/csr/csr_view.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
@@ -50,16 +53,58 @@ namespace gds {
  *     });
  *   }
  * @endcode
+ *
+ * Optional predicates: `vertex_preds` (one per vertex label, entries may be
+ * null) filter which vertices are indexed; `edge_preds` (one per edge
+ * triplet, entries may be null) filter which edges are traversed. Vertices
+ * excluded by a vertex predicate never appear in `valid_vertices()` and no
+ * traversal visits them or their incident edges.
  */
 class MultiLabelIndex {
  public:
   MultiLabelIndex(const StorageReadInterface& graph,
                   std::vector<label_t> vertex_labels,
                   std::vector<LabelTriplet> edge_triplets,
-                  const std::string& weight_property = "")
+                  const std::string& weight_property = "",
+                  std::vector<execution::ExprBase*> vertex_preds = {},
+                  std::vector<execution::ExprBase*> edge_preds = {})
       : vertex_labels_(std::move(vertex_labels)),
         edge_triplets_(std::move(edge_triplets)),
         has_weight_(!weight_property.empty()) {
+    // --- Bind predicates (if any) ---
+    if (!vertex_preds.empty() && vertex_preds.size() != vertex_labels_.size()) {
+      THROW_RUNTIME_ERROR("MultiLabelIndex: vertex predicate count (" +
+                          std::to_string(vertex_preds.size()) +
+                          ") must match vertex label count (" +
+                          std::to_string(vertex_labels_.size()) + ").");
+    }
+    if (!edge_preds.empty() && edge_preds.size() != edge_triplets_.size()) {
+      THROW_RUNTIME_ERROR("MultiLabelIndex: edge predicate count (" +
+                          std::to_string(edge_preds.size()) +
+                          ") must match edge triplet count (" +
+                          std::to_string(edge_triplets_.size()) + ").");
+    }
+    bool has_vertex_pred = false;
+    vertex_preds_.resize(vertex_labels_.size());
+    for (size_t li = 0; li < vertex_labels_.size(); ++li) {
+      execution::ExprBase* pred =
+          (li < vertex_preds.size()) ? vertex_preds[li] : nullptr;
+      if (pred != nullptr) {
+        vertex_preds_[li] =
+            std::make_unique<execution::GeneralPred>(pred->bind(&graph, {}));
+        has_vertex_pred = true;
+      }
+    }
+    edge_preds_.resize(edge_triplets_.size());
+    for (size_t ti = 0; ti < edge_triplets_.size(); ++ti) {
+      execution::ExprBase* pred =
+          (ti < edge_preds.size()) ? edge_preds[ti] : nullptr;
+      if (pred != nullptr) {
+        edge_preds_[ti] =
+            std::make_unique<execution::GeneralPred>(pred->bind(&graph, {}));
+      }
+    }
+
     // --- Label-to-index map ---
     for (size_t i = 0; i < vertex_labels_.size(); ++i)
       label_to_index_[vertex_labels_[i]] = i;
@@ -95,15 +140,22 @@ class MultiLabelIndex {
     global_to_label_.resize(array_size_, 0);
     global_to_vid_.resize(array_size_, 0);
     global_to_label_idx_.resize(array_size_, 0);
+    if (has_vertex_pred) {
+      vertex_valid_.assign(array_size_, 0);
+    }
     for (size_t li = 0; li < vertex_labels_.size(); ++li) {
       const auto& vs = graph.GetVertexSet(vertex_labels_[li]);
       size_t base = label_base_offsets_[li];
       for (const auto& v : vs) {
+        if (vertex_preds_[li] && !(*vertex_preds_[li])(vertex_labels_[li], v))
+          continue;
         uint32_t gid = static_cast<uint32_t>(base + v);
         valid_vertices_.push_back(gid);
         global_to_label_[gid] = vertex_labels_[li];
         global_to_vid_[gid] = v;
         global_to_label_idx_[gid] = li;
+        if (has_vertex_pred)
+          vertex_valid_[gid] = 1;
       }
     }
     vertex_count_ = valid_vertices_.size();
@@ -196,18 +248,28 @@ class MultiLabelIndex {
   // ─── Core traversal ───────────────────────────────────────────────
 
   /// Iterate all neighbors (out + in) of gid, invoking fn(nbr_gid, weight).
+  /// Edges failing the edge predicate and neighbors excluded by a vertex
+  /// predicate are skipped.
   template <typename Fn>
   void for_each_neighbor(uint32_t gid, Fn&& fn) const {
     if (is_simple_graph_) {
       vid_t u = global_to_vid_[gid];
       auto oes = simple_out_view_.get_edges(u);
-      for (auto it = oes.begin(); it != oes.end(); ++it)
-        fn(static_cast<uint32_t>(*it),
+      for (auto it = oes.begin(); it != oes.end(); ++it) {
+        uint32_t nbr = static_cast<uint32_t>(*it);
+        if (!vertex_ok(nbr) || !edge_ok(0, u, *it, it.get_data_ptr()))
+          continue;
+        fn(nbr,
            has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0);
+      }
       auto ies = simple_in_view_.get_edges(u);
-      for (auto it = ies.begin(); it != ies.end(); ++it)
-        fn(static_cast<uint32_t>(*it),
+      for (auto it = ies.begin(); it != ies.end(); ++it) {
+        uint32_t nbr = static_cast<uint32_t>(*it);
+        if (!vertex_ok(nbr) || !edge_ok(0, *it, u, it.get_data_ptr()))
+          continue;
+        fn(nbr,
            has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0);
+      }
     } else {
       size_t li = global_to_label_idx_[gid];
       vid_t lv = global_to_vid_[gid];
@@ -216,22 +278,28 @@ class MultiLabelIndex {
           continue;
         size_t db = triplet_dst_base_[ti];
         auto oes = out_views_[ti].get_edges(lv);
-        for (auto it = oes.begin(); it != oes.end(); ++it)
-          fn(static_cast<uint32_t>(db + (*it)),
-             triplet_has_weight_[ti]
-                 ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
-                 : 1.0);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          uint32_t nbr = static_cast<uint32_t>(db + (*it));
+          if (!vertex_ok(nbr) || !edge_ok(ti, lv, *it, it.get_data_ptr()))
+            continue;
+          fn(nbr, triplet_has_weight_[ti]
+                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                      : 1.0);
+        }
       }
       for (size_t ti : label_in_triplets_[li]) {
         if (triplet_src_base_[ti] == SIZE_MAX)
           continue;
         size_t sb = triplet_src_base_[ti];
         auto ies = in_views_[ti].get_edges(lv);
-        for (auto it = ies.begin(); it != ies.end(); ++it)
-          fn(static_cast<uint32_t>(sb + (*it)),
-             triplet_has_weight_[ti]
-                 ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
-                 : 1.0);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          uint32_t nbr = static_cast<uint32_t>(sb + (*it));
+          if (!vertex_ok(nbr) || !edge_ok(ti, *it, lv, it.get_data_ptr()))
+            continue;
+          fn(nbr, triplet_has_weight_[ti]
+                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                      : 1.0);
+        }
       }
     }
   }
@@ -243,9 +311,13 @@ class MultiLabelIndex {
     if (is_simple_graph_) {
       vid_t u = global_to_vid_[gid];
       auto oes = simple_out_view_.get_edges(u);
-      for (auto it = oes.begin(); it != oes.end(); ++it)
-        fn(static_cast<uint32_t>(*it),
+      for (auto it = oes.begin(); it != oes.end(); ++it) {
+        uint32_t nbr = static_cast<uint32_t>(*it);
+        if (!vertex_ok(nbr) || !edge_ok(0, u, *it, it.get_data_ptr()))
+          continue;
+        fn(nbr,
            has_weight_ ? weight_accessor_.get_typed_data<double>(it) : 1.0);
+      }
     } else {
       size_t li = global_to_label_idx_[gid];
       vid_t lv = global_to_vid_[gid];
@@ -254,11 +326,14 @@ class MultiLabelIndex {
           continue;
         size_t db = triplet_dst_base_[ti];
         auto oes = out_views_[ti].get_edges(lv);
-        for (auto it = oes.begin(); it != oes.end(); ++it)
-          fn(static_cast<uint32_t>(db + (*it)),
-             triplet_has_weight_[ti]
-                 ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
-                 : 1.0);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          uint32_t nbr = static_cast<uint32_t>(db + (*it));
+          if (!vertex_ok(nbr) || !edge_ok(ti, lv, *it, it.get_data_ptr()))
+            continue;
+          fn(nbr, triplet_has_weight_[ti]
+                      ? triplet_weight_accessors_[ti].get_typed_data<double>(it)
+                      : 1.0);
+        }
       }
     }
   }
@@ -270,6 +345,20 @@ class MultiLabelIndex {
     return global_to_label_idx_[gid];
   }
   inline label_t label_of(uint32_t gid) const { return global_to_label_[gid]; }
+
+  // ─── Predicate helpers ────────────────────────────────────────────
+
+  /// True if the vertex with global id `gid` passes the vertex predicate.
+  inline bool is_valid(uint32_t gid) const {
+    return vertex_valid_.empty() || vertex_valid_[gid];
+  }
+  /// True if the edge of triplet `ti` from `src` to `dst` passes the edge
+  /// predicate. Exposed for algorithms that traverse raw CsrViews directly.
+  inline bool edge_ok(size_t ti, vid_t src, vid_t dst,
+                      const void* edge_data) const {
+    return !edge_preds_[ti] ||
+           (*edge_preds_[ti])(edge_triplets_[ti], src, dst, edge_data);
+  }
 
   // ─── Properties ───────────────────────────────────────────────────
 
@@ -320,6 +409,11 @@ class MultiLabelIndex {
   size_t label_base_offset(size_t li) const { return label_base_offsets_[li]; }
 
  private:
+  /// True if the neighbor global id passes the vertex predicate.
+  inline bool vertex_ok(uint32_t nbr_gid) const {
+    return vertex_valid_.empty() || vertex_valid_[nbr_gid];
+  }
+
   std::vector<label_t> vertex_labels_;
   std::vector<LabelTriplet> edge_triplets_;
   bool has_weight_ = false;
@@ -358,6 +452,12 @@ class MultiLabelIndex {
   EdgeDataAccessor weight_accessor_;
   std::vector<EdgeDataAccessor> triplet_weight_accessors_;
   std::vector<bool> triplet_has_weight_;
+
+  // Predicates
+  std::vector<std::unique_ptr<execution::GeneralPred>> vertex_preds_;
+  std::vector<std::unique_ptr<execution::GeneralPred>> edge_preds_;
+  // Empty when no vertex predicate is present (all vertices are valid).
+  std::vector<uint8_t> vertex_valid_;
 };
 
 }  // namespace gds

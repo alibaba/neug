@@ -940,6 +940,86 @@ def test_lcc_with_edge_predicate(tmp_path):
         assert all(value == 0.0 for _, value in rows)
 
 
+def test_louvain_with_vertex_predicate(tmp_path):
+    """Louvain with a vertex predicate restricts the output to subgraph
+    vertices."""
+    with tinysnb_connection(tmp_path) as conn:
+        expected = list(conn.execute("MATCH (p:person) WHERE p.age > 20 RETURN p.id;"))
+        conn.execute(
+            "CALL project_graph('g', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) == len(expected)
+        assert {r[0] for r in rows} == {r[0] for r in expected}
+
+
+def test_leiden_with_vertex_predicate(tmp_path):
+    """Leiden with a vertex predicate restricts the output to subgraph
+    vertices."""
+    with tinysnb_connection(tmp_path) as conn:
+        expected = list(conn.execute("MATCH (p:person) WHERE p.age > 20 RETURN p.id;"))
+        conn.execute(
+            "CALL project_graph('g', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) == len(expected)
+        assert {r[0] for r in rows} == {r[0] for r in expected}
+
+
+def test_louvain_with_edge_predicate(tmp_path):
+    """Louvain honors an edge predicate: excluding every edge leaves each
+    vertex in its own community (no modularity gain is possible)."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) > 0
+        communities = [r[1] for r in rows]
+        assert len(set(communities)) == len(rows)
+
+
+def test_leiden_with_edge_predicate(tmp_path):
+    """Leiden honors an edge predicate: excluding every edge leaves each
+    vertex in its own community (no modularity gain is possible)."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('g', ['person'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")'});"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        assert len(rows) > 0
+        communities = [r[1] for r in rows]
+        assert len(set(communities)) == len(rows)
+
+
 # ---------------------------------------------------------------------------
 # Boundary condition & stability tests
 # ---------------------------------------------------------------------------
@@ -980,6 +1060,184 @@ def custom_graph_connection(
     finally:
         conn.close()
         db.close()
+
+
+# ---- Predicate tests on a controlled topology ----------------------------
+
+
+_BRIDGE_VPRED_EDGES = [(1, 2), (2, 3), (1, 3), (3, 7), (7, 4), (4, 5), (5, 6), (4, 6)]
+
+
+def _bridge_vpred_conn(tmp_path, db_name):
+    """Two dense triangles {1,2,3} and {4,5,6} joined only through vertex 7,
+    which the vertex predicate excludes."""
+    return custom_graph_connection(
+        tmp_path,
+        db_name=db_name,
+        create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY, keep BOOLEAN);",
+        create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+        node_inserts=[
+            "CREATE (:n {id: %d, keep: %s});" % (i, "false" if i == 7 else "true")
+            for i in range(1, 8)
+        ],
+        edge_inserts=[
+            "MATCH (a:n), (b:n) WHERE a.id = %d AND b.id = %d"
+            " CREATE (a)-[:e]->(b);" % (s, t)
+            for (s, t) in _BRIDGE_VPRED_EDGES
+        ],
+        graph_name="g",
+        vertex_entries="{'n': 'n.keep'}",
+        edge_entries="{'[n, e, n]': ''}",
+    )
+
+
+def _assert_bridge_vpred_split(rows):
+    """The two triangles must form two separate communities; if the excluded
+    bridge vertex still took part in the computation they would merge."""
+    comm = {r[0]: r[1] for r in rows}
+    assert set(comm.keys()) == {1, 2, 3, 4, 5, 6}, f"comm={comm}"
+    assert comm[1] == comm[2] == comm[3], f"comm={comm}"
+    assert comm[4] == comm[5] == comm[6], f"comm={comm}"
+    assert comm[1] != comm[4], f"comm={comm}"
+
+
+def test_louvain_vertex_predicate_excludes_bridge_vertex(tmp_path):
+    """Louvain: a vertex excluded by the predicate must not influence the
+    community structure (not merely be filtered from the output)."""
+    with _bridge_vpred_conn(tmp_path, "louvain_bridge_vpred_db") as conn:
+        rows = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        _assert_bridge_vpred_split(rows)
+
+
+def test_leiden_vertex_predicate_excludes_bridge_vertex(tmp_path):
+    """Leiden: a vertex excluded by the predicate must not influence the
+    community structure (not merely be filtered from the output)."""
+    with _bridge_vpred_conn(tmp_path, "leiden_bridge_vpred_db") as conn:
+        rows = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        _assert_bridge_vpred_split(rows)
+
+
+_BRIDGE_EPRED_EDGES = [(1, 2), (2, 3), (1, 3), (3, 4), (4, 3), (4, 5), (5, 6), (4, 6)]
+_BRIDGE_EPRED_DROPPED = {(3, 4), (4, 3)}
+
+
+def _bridge_epred_conn(tmp_path, db_name):
+    """Two dense triangles {1,2,3} and {4,5,6} joined only by bridge edges
+    that the edge predicate removes; the algorithm still runs full
+    iterations over the remaining edges (m_ > 0)."""
+    return custom_graph_connection(
+        tmp_path,
+        db_name=db_name,
+        create_node_ddl="CREATE NODE TABLE n(id INT64 PRIMARY KEY);",
+        create_rel_ddl="CREATE REL TABLE e(FROM n TO n, keep BOOLEAN);",
+        node_inserts=["CREATE (:n {id: %d});" % i for i in range(1, 7)],
+        edge_inserts=[
+            "MATCH (a:n), (b:n) WHERE a.id = %d AND b.id = %d"
+            " CREATE (a)-[:e {keep: %s}]->(b);"
+            % (s, t, "false" if (s, t) in _BRIDGE_EPRED_DROPPED else "true")
+            for (s, t) in _BRIDGE_EPRED_EDGES
+        ],
+        graph_name="g",
+        vertex_entries="['n']",
+        edge_entries="{'[n, e, n]': 'r.keep'}",
+    )
+
+
+def _assert_bridge_epred_split(rows):
+    """With the bridge edges filtered out the two triangles must end up in
+    separate communities."""
+    comm = {r[0]: r[1] for r in rows}
+    assert set(comm.keys()) == {1, 2, 3, 4, 5, 6}, f"comm={comm}"
+    assert comm[1] == comm[2] == comm[3], f"comm={comm}"
+    assert comm[4] == comm[5] == comm[6], f"comm={comm}"
+    assert comm[1] != comm[4], f"comm={comm}"
+
+
+def test_louvain_edge_predicate_partial_filter(tmp_path):
+    """Louvain: a partial edge filter must shape the community structure
+    across full local-moving iterations (not just the m_ == 0 shortcut)."""
+    with _bridge_epred_conn(tmp_path, "louvain_bridge_epred_db") as conn:
+        rows = list(
+            conn.execute(
+                "CALL louvain('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        _assert_bridge_epred_split(rows)
+
+
+def test_leiden_edge_predicate_partial_filter(tmp_path):
+    """Leiden: a partial edge filter must shape the community structure
+    across local moving and refine() (3-vertex communities enter refine)."""
+    with _bridge_epred_conn(tmp_path, "leiden_bridge_epred_db") as conn:
+        rows = list(
+            conn.execute(
+                "CALL leiden('g', {concurrency: 1}) YIELD node, community "
+                "RETURN node.id, community;"
+            )
+        )
+        _assert_bridge_epred_split(rows)
+
+
+def _initial_comm_bridge_conn(tmp_path, db_name):
+    """Same two-triangles-through-bridge-vertex topology, plus an INT64
+    'comm' property seeding the two triangles into two distinct initial
+    communities; vertex 7 is excluded by the vertex predicate."""
+    return custom_graph_connection(
+        tmp_path,
+        db_name=db_name,
+        create_node_ddl=(
+            "CREATE NODE TABLE n(id INT64 PRIMARY KEY, keep BOOLEAN, " "comm INT64);"
+        ),
+        create_rel_ddl="CREATE REL TABLE e(FROM n TO n);",
+        node_inserts=[
+            "CREATE (:n {id: %d, keep: %s, comm: %d});"
+            % (i, "false" if i == 7 else "true", 10 if i < 4 else 20)
+            for i in range(1, 8)
+        ],
+        edge_inserts=[
+            "MATCH (a:n), (b:n) WHERE a.id = %d AND b.id = %d"
+            " CREATE (a)-[:e]->(b);" % (s, t)
+            for (s, t) in _BRIDGE_VPRED_EDGES
+        ],
+        graph_name="g",
+        vertex_entries="{'n': 'n.keep'}",
+        edge_entries="{'[n, e, n]': ''}",
+    )
+
+
+def test_louvain_leiden_initial_community_with_vertex_predicate(tmp_path):
+    """initial_community_property combined with a vertex predicate: seeded
+    communities are honored for kept vertices, and the predicate-excluded
+    bridge vertex neither appears in the output nor breaks the run."""
+    for algo, db_name in (
+        ("louvain", "louvain_init_comm_vpred_db"),
+        ("leiden", "leiden_init_comm_vpred_db"),
+    ):
+        with _initial_comm_bridge_conn(tmp_path, db_name) as conn:
+            rows = list(
+                conn.execute(
+                    "CALL %s('g', {concurrency: 1, "
+                    "initial_community_property: 'comm', "
+                    "allow_relocation: false}) "
+                    "YIELD node, community RETURN node.id, community;" % algo
+                )
+            )
+            comm = {r[0]: r[1] for r in rows}
+            assert set(comm.keys()) == {1, 2, 3, 4, 5, 6}, f"{algo}: comm={comm}"
+            assert comm[1] == comm[2] == comm[3], f"{algo}: comm={comm}"
+            assert comm[4] == comm[5] == comm[6], f"{algo}: comm={comm}"
+            assert comm[1] != comm[4], f"{algo}: comm={comm}"
 
 
 # ---- (a) Small graph: 2 nodes, 1 edge -- all algorithms ------------------
@@ -2004,6 +2262,77 @@ def test_louvain_two_vertex_labels(tmp_path):
         assert len(set(study_comms)) < len(
             study_comms
         ), f"studyAt-connected vertices should share a community: {comm}"
+
+
+def test_leiden_multi_label_vertex_predicate(tmp_path):
+    """Per-label vertex predicate on the generic (multi-label) path: only
+    'person' is filtered by age; 'organisation' keeps all its vertices."""
+    db_dir = tmp_path / "gds_multi_vlabel_vpred_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CALL project_graph("
+            "'person_org', "
+            "{'person': 'n.age > 20', 'organisation': ''}, "
+            "{'[person, knows, person]': '', '[person, studyAt, organisation]': ''}"
+            ");"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL leiden('person_org', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        ids = {r[0] for r in rows}
+        # persons 5 and 7 (age 20) are excluded; all organisations are kept
+        assert ids == {0, 2, 3, 8, 9, 10, 1, 4, 6}, f"ids={ids}"
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_louvain_multi_label_edge_predicate(tmp_path):
+    """Per-triplet edge predicate on the generic (multi-label) path: drop
+    every 'knows' edge while keeping 'studyAt'. Persons that were linked
+    only through knows lose that connectivity; studyAt connectivity is
+    preserved."""
+    db_dir = tmp_path / "gds_multi_vlabel_epred_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    db.load_builtin_dataset("tinysnb")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CALL project_graph("
+            "'person_org', "
+            "['person', 'organisation'], "
+            "{'[person, knows, person]': 'r.date > Date(\"2999-01-01\")', "
+            "'[person, studyAt, organisation]': ''}"
+            ");"
+        )
+        conn.execute("LOAD gds;")
+        rows = list(
+            conn.execute(
+                "CALL louvain('person_org', {concurrency: 1}) "
+                "YIELD node, community RETURN node.id, community;"
+            )
+        )
+        comm = {r[0]: r[1] for r in rows}
+        assert set(comm.keys()) == {0, 2, 3, 5, 7, 8, 9, 10, 1, 4, 6}, f"comm={comm}"
+        # Without knows edges, persons 3/9/10 and organisations 4/6 have no
+        # incident edges at all (studyAt only touches 0/2/8 -> org 1), so
+        # each must sit in its own community, disjoint from org 1's.
+        singletons = [comm[v] for v in (3, 9, 10, 4, 6)]
+        assert len(set(singletons)) == 5, f"comm={comm}"
+        assert all(c != comm[1] for c in singletons), f"comm={comm}"
+        # studyAt connectivity is preserved: org 1 shares a community with
+        # at least one of its studyAt neighbours.
+        assert any(comm[1] == comm[p] for p in (0, 2, 8)), f"comm={comm}"
+    finally:
+        conn.close()
+        db.close()
 
 
 def test_leiden_incremental_data_changed(tmp_path):
