@@ -241,7 +241,7 @@ The following parameters control HNSW index construction and search behavior:
 | Parameter         | Description                                                           | Default |
 | ----------------- | --------------------------------------------------------------------- | ------- |
 | `metric`          | Distance metric. Supported values are `l2` (or `l2sq`), `cosine`, and `ip` (or `inner_product`) | `l2` |
-| `cosine_normalize` | Whether a cosine HNSW index may permanently L2-normalize the indexed property values. Ignored for IP and L2 | `true` for cosine |
+| `cosine_normalize` | Whether a **cosine** HNSW index may permanently L2-normalize the indexed property values | `true` |
 | `m`               | Maximum number of connections created for each node in the HNSW graph | `50` |
 | `ef_construction` | Size of the candidate list used while building the index. Larger values generally improve index quality at the cost of build time and memory | `500` |
 
