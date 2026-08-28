@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <functional>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -40,6 +41,7 @@ namespace neug::vector_search_ext {
 
 namespace {
 constexpr const char* kIndexBufferPath = "index_buffer";
+constexpr double kDuplicateWarningThresholdPercentage = 20.0;
 
 struct DenseValueBuffer {
   using Buffer = std::variant<std::vector<float>>;
@@ -365,13 +367,21 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
   }
   const auto duplicate_vector_count =
       indexed_vector_count - duplicate_statistics.size();
-  LOG(WARNING) << "HNSW duplicate statistics for index '" << meta_->name
-               << "': " << duplicate_vector_count << " / "
-               << indexed_vector_count << " ("
-               << (indexed_vector_count == 0
-                       ? 0.0
-                       : 100.0 * duplicate_vector_count / indexed_vector_count)
-               << "%) duplicate vectors";
+  const auto duplicate_percentage =
+      indexed_vector_count == 0
+          ? 0.0
+          : 100.0 * duplicate_vector_count / indexed_vector_count;
+  std::ostringstream message_stream;
+  message_stream << "HNSW duplicate statistics for index '" << meta_->name
+                 << "': " << duplicate_vector_count << " / "
+                 << indexed_vector_count << " (" << duplicate_percentage
+                 << "%) duplicate vectors";
+  const auto message = message_stream.str();
+  if (duplicate_percentage >= kDuplicateWarningThresholdPercentage) {
+    LOG(WARNING) << message;
+  } else {
+    LOG(INFO) << message;
+  }
   return Status::OK();
 }
 
