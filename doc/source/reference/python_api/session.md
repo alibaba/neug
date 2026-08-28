@@ -86,8 +86,67 @@ An instance of the Session class.
 def close()
 ```
 
-Close the session. This method is a placeholder for any cleanup operations.
-Currently, it does not perform any specific actions.
+Close the session. An active explicit transaction is rolled back on a
+best-effort basis.
+
+<a id="neug.session.Session.has_active_transaction"></a>
+
+### has\_active\_transaction
+
+```python
+@property
+def has_active_transaction() -> bool
+```
+
+Whether this session has an active explicit transaction.
+
+The property remains true while a failed transaction is rollback-only.
+Call `rollback()` to discard that transaction before issuing another
+query or beginning a new transaction.
+
+<a id="neug.session.Session.begin_transaction"></a>
+
+### begin\_transaction
+
+```python
+def begin_transaction(read_only: bool = False)
+```
+
+Begin an explicit transaction.
+
+- **Parameters:**
+  - `read_only` (bool)
+    Pin one read view and reject writes when true. The default starts
+    a read-write transaction with a private COW view.
+
+- **Raises:**
+  - **ConnectionError**
+    If the session is closed or the service cannot be reached.
+  - **RuntimeError**
+    If the session already has an active transaction or the service
+    rejects the begin request.
+
+<a id="neug.session.Session.commit"></a>
+
+### commit
+
+```python
+def commit()
+```
+
+Commit the active explicit transaction.
+
+A rollback-only transaction must be rolled back instead.
+
+<a id="neug.session.Session.rollback"></a>
+
+### rollback
+
+```python
+def rollback()
+```
+
+Roll back the active explicit transaction and return to auto-commit.
 
 <a id="neug.session.Session.execute"></a>
 
@@ -100,6 +159,12 @@ def execute(query: str,
 ```
 
 Execute a query on the NeuG server.
+
+While an explicit transaction is active, the query runs in that
+transaction. A failure reported by the service leaves it rollback-only;
+call `rollback()` before issuing another query. Client-side validation
+errors, such as an invalid `access_mode`, do not change the transaction
+state.
 
 **Arguments**:
 
@@ -153,4 +218,3 @@ def timeout()
 ```
 
 Get the timeout duration for the session, in seconds.
-

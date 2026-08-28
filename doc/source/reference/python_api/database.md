@@ -149,7 +149,8 @@ def serve(port: int = 10000,
           host: str = "localhost",
           blocking: bool = True,
           thread_num: int = 0,
-          auto_compaction: bool = True)
+          auto_compaction: bool = True,
+          explicit_transaction_timeout_ms: int = 60000)
 ```
 
 Start the database server for handling remote connections(TP mode).
@@ -173,6 +174,9 @@ documentation of Session.
     Service threads run TP queries concurrently, but each query uses one execution context and one thread.
   - `auto_compaction` (bool)
     Enable background auto-compaction while serving. Default is `True`.
+  - `explicit_transaction_timeout_ms` (int)
+    Absolute lifetime of an explicit transaction in milliseconds. Default is
+    `60000`.
 
 - **Returns:**
   - `uri` (str)
