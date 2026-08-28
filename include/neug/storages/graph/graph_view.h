@@ -123,7 +123,11 @@ class GraphView {
 
   const Schema& schema() const { return *schema_; }
   result<StorageIndex*> GetIndexByName(const std::string& name) const;
+  // Used by index-scan optimization to match an exact property set.
   result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::vector<std::string>& property_names) const;
+  // Used by physical analysis to detect an index containing a property.
+  result<std::vector<StorageIndex*>> GetIndexesContainingProperty(
       label_t label_id, const std::string& property_name) const;
   result<std::vector<StorageIndex*>> GetAllIndexes() const;
   result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;

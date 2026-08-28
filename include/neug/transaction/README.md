@@ -2,7 +2,7 @@
 
 > This file documents internal implementation details. For application-facing
 > behavior, see
-> [Transaction Management](../../../doc/source/transaction/transaction.md).
+> [Transaction Management](../../../doc/source/transaction/transaction.mdx).
 
 For ordinary queries, the transactional `ExecutionSlot` strategy uses
 `SnapshotReadTransaction`, `MvccInsertTransaction`, and

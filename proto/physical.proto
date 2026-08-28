@@ -330,6 +330,8 @@ message IndexScan {
   string unique_index_name = 2;
   common.Expression target_value = 3;
   map<string, string> options = 4;
+  common.Expression weights = 5;
+  repeated string property_names = 6;
 }
 
 message ExtensionInstall {

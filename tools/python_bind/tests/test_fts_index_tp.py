@@ -78,6 +78,105 @@ def fts_service(tmp_path, unused_tcp_port, monkeypatch):
         db.close()
 
 
+@pytest.fixture()
+def fts_multi_column_service(tmp_path, unused_tcp_port, monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
+    db = Database(db_path=str(tmp_path / "fts_multi_column_tp_db"), mode="w")
+    connection = db.connect()
+    try:
+        connection.execute("LOAD fts;")
+    except RuntimeError as error:
+        connection.close()
+        db.close()
+        pytest.skip(f"FTS extension not available: {error}")
+    connection.execute(
+        "CREATE NODE TABLE Article("
+        "id INT64 PRIMARY KEY, title STRING, description STRING, notes STRING);"
+    )
+    connection.execute(
+        "CREATE (:Article {id: 1, title: 'target target', "
+        "description: 'other', notes: 'mismatch'}), "
+        "(:Article {id: 2, title: 'other', "
+        "description: 'target target', notes: 'mismatch'}), "
+        "(:Article {id: 3, title: 'other', "
+        "description: 'other', notes: 'target'});"
+    )
+    connection.execute(
+        "CREATE INDEX article_text_fts ON Article USING FTS (title, description);"
+    )
+    connection.execute(
+        "CREATE NODE TABLE SingleArticle("
+        "id INT64 PRIMARY KEY, title STRING, description STRING);"
+    )
+    connection.execute(
+        "CREATE (:SingleArticle {id: 1, title: 'target', " "description: 'target'});"
+    )
+    connection.execute(
+        "CREATE INDEX single_article_title_fts ON SingleArticle USING FTS (title);"
+    )
+    connection.close()
+    endpoint = db.serve(
+        port=unused_tcp_port,
+        host="127.0.0.1",
+        blocking=False,
+        thread_num=2,
+    )
+    try:
+        yield db, endpoint
+    finally:
+        db.stop_serving()
+        db.close()
+
+
+def test_fts_tp_multi_column_bm25_constant_and_dynamic_arguments(
+    fts_multi_column_service,
+):
+    _, endpoint = fts_multi_column_service
+    session = Session.open(endpoint)
+    try:
+        single_rows = session.execute(
+            "MATCH (a:Article) "
+            "RETURN a.id, bm25(a.title, $target) AS score "
+            "ORDER BY score ASC;",
+            parameters={"target": "target"},
+        )
+        assert [row[0] for row in single_rows] == [1]
+
+        cases = [
+            ("[10.0, 1.0]", "'target'", {}),
+            ("$weights", "'target'", {"weights": [10.0, 1.0]}),
+            ("[10.0, 1.0]", "$target", {"target": "target"}),
+            (
+                "$weights",
+                "$target",
+                {"weights": [10.0, 1.0], "target": "target"},
+            ),
+        ]
+        for weights, target, parameters in cases:
+            rows = session.execute(
+                "MATCH (a:Article) RETURN a.id, "
+                f"bm25([a.title, a.description], {weights}, {target}) AS score "
+                "ORDER BY score ASC;",
+                parameters=parameters,
+            )
+            assert [row[0] for row in rows] == [1, 2]
+
+        with pytest.raises(Exception):
+            session.execute(
+                "MATCH (a:Article) " "RETURN bm25(a.notes, 'target') AS score;"
+            )
+
+        with pytest.raises(Exception):
+            session.execute(
+                "MATCH (a:SingleArticle) "
+                "RETURN bm25([a.title, a.description], [1.0, 1.0], "
+                "'target') AS score;"
+            )
+    finally:
+        session.close()
+
+
 def test_fts_tp_tracks_insert_update_delete_and_failed_transaction(fts_service):
     _, endpoint = fts_service
     session = Session.open(endpoint)

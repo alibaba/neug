@@ -191,15 +191,22 @@ void HNSWIndex::ParseOptions() {
                                      metric->second);
   }
 
-  if (meta_->schema.property_type.id() != DataTypeId::kArray) {
+  if (meta_->schema.columns.size() != 1 ||
+      meta_->schema.columns[0].property_type.id() != DataTypeId::kArray) {
     THROW_INVALID_ARGUMENT_EXCEPTION("HNSWIndex requires an ARRAY property");
   }
-  dimension_ =
-      static_cast<int>(ArrayType::GetNumElements(meta_->schema.property_type));
+  dimension_ = static_cast<int>(
+      ArrayType::GetNumElements(meta_->schema.columns[0].property_type));
 }
 
 zvec::core_interface::DataType HNSWIndex::ResolveDataType() const {
-  auto child = ArrayType::GetChildType(meta_->schema.property_type).id();
+  if (!meta_ || meta_->schema.columns.size() != 1 ||
+      meta_->schema.columns[0].property_type.id() != DataTypeId::kArray) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "HNSWIndex metadata must describe exactly one ARRAY property");
+  }
+  auto child =
+      ArrayType::GetChildType(meta_->schema.columns[0].property_type).id();
   if (child == DataTypeId::kFloat) {
     return zvec::core_interface::DataType::DT_FP32;
   }
@@ -223,7 +230,7 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   auto runtime_file = ckp.CreateRuntimeFile();
   zvec_runtime_path_ = runtime_file.path();
   zvec_runtime_file_ =
-      std::make_unique<CheckpointFileManager::RuntimeFileHandle>(
+      std::make_shared<CheckpointFileManager::RuntimeFileHandle>(
           std::move(runtime_file));
   auto index_path = descriptor.get_path(kIndexBufferPath);
   bool has_existing = index_path && !index_path->empty() &&
@@ -287,16 +294,22 @@ void HNSWIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
 }
 
 Status HNSWIndex::Rebind(const IndexBindContext& context) {
-  auto* column = dynamic_cast<const VecColumn*>(context.column);
+  if (context.columns.size() != 1) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSWIndex requires exactly one property column binding");
+  }
+  auto* column = dynamic_cast<const VecColumn*>(context.columns[0]);
   if (!column) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSWIndex requires a VecColumn binding");
   }
-  if (!meta_ || meta_->schema.property_type.id() != DataTypeId::kArray) {
+  if (!meta_ || meta_->schema.columns.size() != 1 ||
+      meta_->schema.columns[0].property_type.id() != DataTypeId::kArray) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSWIndex metadata does not describe an ARRAY");
   }
-  auto element_type = ArrayType::GetChildType(meta_->schema.property_type).id();
+  auto element_type =
+      ArrayType::GetChildType(meta_->schema.columns[0].property_type).id();
   if (element_type != DataTypeId::kFloat) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "HNSWIndex supports only FLOAT arrays");
@@ -365,6 +378,7 @@ std::unique_ptr<Module> HNSWIndex::Clone() const {
     cloned->vec_source_ = std::make_unique<HNSWVecSource>(*vec_source_);
   }
   cloned->zvec_runtime_path_ = zvec_runtime_path_;
+  cloned->zvec_runtime_file_ = zvec_runtime_file_;
   cloned->dimension_ = dimension_;
   cloned->m_ = m_;
   cloned->ef_construction_ = ef_construction_;
@@ -388,7 +402,7 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
         "HNSW search topk and ef_search must be positive");
   }
 
-  GS_AUTO(target, ConvertDenseValue(meta_->schema.property_type,
+  GS_AUTO(target, ConvertDenseValue(meta_->schema.columns[0].property_type,
                                     hnsw_params->target_value, dimension_));
 
   auto query_param = std::make_shared<zvec::core_interface::HNSWQueryParam>();
@@ -466,14 +480,19 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   return result;
 }
 
-Status HNSWIndex::AppendImpl(index_id_t index_id, const Value& value) {
+Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
   if (!zvec_index_ || !vec_source_) {
     return Status::RuntimeError(
         "HNSWIndex must be open and bound before append");
   }
 
-  auto dense_result =
-      ConvertDenseValue(meta_->schema.property_type, value, dimension_);
+  if (values.size() != 1) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSWIndex requires exactly one value");
+  }
+
+  auto dense_result = ConvertDenseValue(meta_->schema.columns[0].property_type,
+                                        values[0], dimension_);
   if (!dense_result) {
     return dense_result.error();
   }
@@ -488,6 +507,21 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const Value& value) {
                                 std::to_string(ret));
   }
   return Status::OK();
+}
+
+Status HNSWIndex::Upsert(vid_t vid, const IndexValue& new_value) {
+  if (new_value.column_id != 0) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSWIndex column id is out of range");
+  }
+  if (!index_id_accessor_) {
+    return Status::InternalError("Index ID accessor is not initialized");
+  }
+  if (new_value.value.IsNull()) {
+    return Delete(vid);
+  }
+  auto index_id = index_id_accessor_->UpsertVID(vid);
+  return AppendImpl(index_id, IndexValues{new_value.value});
 }
 
 NEUG_REGISTER_MODULE(HNSWIndex);

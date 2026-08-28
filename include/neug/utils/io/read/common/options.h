@@ -140,6 +140,7 @@ struct CSVParseOptions {
   Option<bool> escaping = Option<bool>::BoolOption("escaping", true);
   Option<char> escape_char = Option<char>::CharOption("escape", '\\');
   Option<bool> has_header = Option<bool>::BoolOption("header", true);
+  Option<bool> use_threads = Option<bool>::BoolOption("parallel", true);
 };
 
 struct ReadOptions {

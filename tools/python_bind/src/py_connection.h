@@ -36,6 +36,11 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
 
   void close();
 
+  void begin_transaction(bool read_only = false);
+  void commit();
+  void rollback();
+  bool has_active_transaction() const;
+
   PyConnection(const PyConnection& other)
       : db_(other.db_), conn_(other.conn_) {}
 

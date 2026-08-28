@@ -20,7 +20,6 @@
 #else
 #include <glob.h>
 #endif
-#include <glog/logging.h>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -44,27 +43,6 @@ namespace neug {
 namespace execution {
 
 namespace ops {
-
-bool check_csv_import_options(
-    const std::unordered_map<std::string, std::string>& options) {
-  std::unordered_set<std::string> valid_keys = {
-      CSV_DELIMITER_KEY,    CSV_DELIM_KEY,  CSV_HEADER_KEY, CSV_QUOTE_KEY,
-      CSV_DOUBLE_QUOTE_KEY, CSV_ESCAPE_KEY, CSV_SKIP_KEY,   CSV_PARALLEL_KEY};
-  int32_t delim_count = 0;
-  for (const auto& [key, value] : options) {
-    if (valid_keys.find(key) == valid_keys.end()) {
-      LOG(ERROR) << "\"" << key << "\" is not a valid parameter";
-      return false;
-    }
-    if (key == CSV_DELIMITER_KEY || key == CSV_DELIM_KEY) {
-      delim_count++;
-    }
-  }
-  if (delim_count >= 2) {
-    LOG(ERROR) << "Too many \"DELIMITER\" parameters";
-  }
-  return true;
-}
 
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,

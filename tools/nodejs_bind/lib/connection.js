@@ -60,6 +60,64 @@ class Connection {
   }
 
   /**
+   * Whether this connection has an unfinished explicit transaction.
+   *
+   * The property remains true while a failed transaction is rollback-only.
+   * Call {@link rollback} before issuing another query.
+   *
+   * @returns {boolean}
+   */
+  get hasActiveTransaction() {
+    return this._isOpen && this._conn.hasActiveTransaction();
+  }
+
+  /**
+   * Begin an explicit embedded AP transaction.
+   *
+   * @param {{readOnly?: boolean}} [options={}] Transaction options.
+   * @param {boolean} [options.readOnly=false] Pin one read view and reject
+   *   writes. By default, the transaction uses a private COW write view.
+   * @throws {Error} If the connection is closed or already has an active
+   *   transaction.
+   */
+  beginTransaction(options = {}) {
+    this._ensureOpen('beginning a transaction');
+    if (
+      typeof options !== 'object' ||
+      options === null ||
+      Array.isArray(options)
+    ) {
+      throw new TypeError('Transaction options must be an object.');
+    }
+    const { readOnly = false } = options;
+    if (typeof readOnly !== 'boolean') {
+      throw new TypeError('options.readOnly must be a boolean.');
+    }
+    this._checkTransactionStatus(
+      'begin transaction',
+      this._conn.beginTransaction(readOnly)
+    );
+  }
+
+  /**
+   * Commit the active explicit transaction.
+   *
+   * A rollback-only transaction must be rolled back instead.
+   */
+  commit() {
+    this._ensureOpen('committing a transaction');
+    this._checkTransactionStatus('commit transaction', this._conn.commit());
+  }
+
+  /**
+   * Roll back the active explicit transaction and return to auto-commit mode.
+   */
+  rollback() {
+    this._ensureOpen('rolling back a transaction');
+    this._checkTransactionStatus('roll back transaction', this._conn.rollback());
+  }
+
+  /**
    * Execute a cypher query on the database.
    *
    * @param {string} query - The cypher query to execute.
@@ -81,12 +139,7 @@ class Connection {
    * );
    */
   execute(query, accessMode = '', parameters = null) {
-    if (!this._isOpen) {
-      throw new Error(
-        `Connection is closed. Please open the connection before executing queries. ` +
-        `Error code: ${ERR_CONNECTION_CLOSED}`
-      );
-    }
+    this._ensureOpen('executing queries');
 
     if (accessMode !== '' && !isAccessModeValid(accessMode.toLowerCase())) {
       throw new Error(
@@ -120,7 +173,26 @@ class Connection {
    * @returns {string} The schema as a string.
    */
   getSchema() {
+    this._ensureOpen('getting the schema');
     return this._conn.getSchema();
+  }
+
+  _ensureOpen(action) {
+    if (!this._isOpen) {
+      throw new Error(
+        `Connection is closed. Please open the connection before ${action}. ` +
+        `Error code: ${ERR_CONNECTION_CLOSED}`
+      );
+    }
+  }
+
+  _checkTransactionStatus(action, status) {
+    if (status.code !== OK) {
+      throw new Error(
+        `Failed to ${action}. Error code: ${status.code}, Error Message: ` +
+        `${codeName(status.code)}: ${status.message}`
+      );
+    }
   }
 }
 

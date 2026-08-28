@@ -18,7 +18,9 @@ ENV BUILD_TYPE=RELEASE
 ENV BUILD_TEST=OFF
 RUN bash -c "source /home/neug/.neug_env && make python-dev EXTRA_CMAKE_FLAGS=\"-DNEUG_PACKAGE_BUILD=${NEUG_PACKAGE_BUILD} -DNEUG_NATIVE_ARCH=${NEUG_NATIVE_ARCH}\" && make python-wheel"
 RUN bash -c "sudo apt install patchelf -y"
-RUN bash -c "pip install auditwheel && auditwheel repair -w tools/python_bind/dist/wheelhouse tools/python_bind/dist/*.whl"
+# Ubuntu 22.04 ships patchelf 0.14.3, while auditwheel 6.x requires >= 0.14.5.
+# Pin to auditwheel 5.x until the base image provides a newer patchelf.
+RUN bash -c "pip install 'auditwheel<6' && auditwheel repair -w tools/python_bind/dist/wheelhouse tools/python_bind/dist/*.whl"
 
 FROM ubuntu:22.04
 

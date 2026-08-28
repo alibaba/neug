@@ -903,7 +903,7 @@ Status CowGraphStorage::UpdateVertexPropertyImpl(label_t label, vid_t lid,
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Column id " + std::to_string(col_id) + " is out of range.");
   }
-  if (types[col_id] != value.type()) {
+  if (!value.IsNull() && types[col_id] != value.type()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Type mismatch for column " + std::to_string(col_id) + ".");
   }
