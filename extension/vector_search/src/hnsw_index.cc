@@ -472,8 +472,20 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const Value& value) {
         "HNSWIndex must be open and bound before append");
   }
 
+  if (value.IsNull()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSW index does not support NULL vector values");
+  }
+  Value index_value = value;
+  auto normalize = meta_->options.find("normalize");
+  if (normalize != meta_->options.end() && normalize->second == "true") {
+    auto status = VectorNormalizer::ValueNormalize(value, index_value);
+    if (!status.ok()) {
+      return status;
+    }
+  }
   auto dense_result =
-      ConvertDenseValue(meta_->schema.property_type, value, dimension_);
+      ConvertDenseValue(meta_->schema.property_type, index_value, dimension_);
   if (!dense_result) {
     return dense_result.error();
   }

@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -422,7 +423,9 @@ class APIndexTest : public ::testing::Test {
     return vid;
   }
 
-  result<StorageIndex*> CreateVecIndex(const std::string& name) {
+  result<StorageIndex*> CreateVecIndex(
+      const std::string& name,
+      common::case_insensitive_map_t<std::string> options = {}) {
     auto label = graph_->schema().get_vertex_label_id("Vector");
     auto meta = std::make_unique<IndexMeta>();
     meta->name = name;
@@ -430,6 +433,7 @@ class APIndexTest : public ::testing::Test {
     meta->schema.label_id = label;
     meta->schema.property_name = "embedding";
     meta->schema.property_type = DataType::Array(DataType::FLOAT, 2);
+    meta->options = std::move(options);
     GS_AUTO(created, ap_->CreateIndex(std::move(meta)));
     return std::get<StorageIndex*>(created);
   }
@@ -576,6 +580,74 @@ TEST_F(APIndexTest, VecIndexCreateSearchUpdateAndDrop) {
   const auto& third_vector = ArrayValue::GetChildren(third_value);
   EXPECT_FLOAT_EQ(third_vector[0].GetValue<float>(), 9.0f);
   EXPECT_FLOAT_EQ(third_vector[1].GetValue<float>(), 9.0f);
+}
+
+TEST_F(APIndexTest, HnswNormalizeTransformsAndMaintainsVecColumn) {
+  CreateVectorTable();
+  auto first_vid = AddVector(1, 3.0f, 4.0f);
+  auto created =
+      CreateVecIndex("idx_vector_normalized", {{"normalize", "true"}});
+  ASSERT_TRUE(created) << created.error().ToString();
+
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  auto& vertex_table = graph_->get_vertex_table(label);
+  auto* vec = dynamic_cast<const VecColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(vec, nullptr);
+  EXPECT_TRUE(vec->is_l2_normalized());
+  auto first = ArrayValue::GetChildren(vec->get_any(first_vid));
+  EXPECT_NEAR(first[0].GetValue<float>(), 0.6f, 1e-6f);
+  EXPECT_NEAR(first[1].GetValue<float>(), 0.8f, 1e-6f);
+
+  auto second_vid = AddVector(2, 5.0f, 12.0f);
+  auto second = ArrayValue::GetChildren(vec->get_any(second_vid));
+  EXPECT_NEAR(second[0].GetValue<float>(), 5.0f / 13.0f, 1e-6f);
+  EXPECT_NEAR(second[1].GetValue<float>(), 12.0f / 13.0f, 1e-6f);
+
+  ASSERT_TRUE(ap_->DropIndex("idx_vector_normalized").ok());
+  auto* retained = dynamic_cast<const VecColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(retained, nullptr);
+  EXPECT_TRUE(retained->is_l2_normalized());
+  auto third_vid = AddVector(3, 8.0f, 15.0f);
+  auto third = ArrayValue::GetChildren(retained->get_any(third_vid));
+  EXPECT_NEAR(third[0].GetValue<float>(), 8.0f / 17.0f, 1e-6f);
+  EXPECT_NEAR(third[1].GetValue<float>(), 15.0f / 17.0f, 1e-6f);
+}
+
+TEST_F(APIndexTest, HnswNormalizeAcceptsZeroVector) {
+  CreateVectorTable();
+  auto zero_vid = AddVector(1, 0.0f, 0.0f);
+  auto created =
+      CreateVecIndex("idx_vector_normalized", {{"normalize", "true"}});
+  ASSERT_TRUE(created) << created.error().ToString();
+
+  auto label = graph_->schema().get_vertex_label_id("Vector");
+  const auto& vertex_table = graph_->get_vertex_table(label);
+  const auto* vec = dynamic_cast<const VecColumn*>(
+      vertex_table.GetPropertyColumnBase("embedding"));
+  ASSERT_NE(vec, nullptr);
+  EXPECT_TRUE(vec->is_l2_normalized());
+  auto zero = ArrayValue::GetChildren(vec->get_any(zero_vid));
+  EXPECT_FLOAT_EQ(zero[0].GetValue<float>(), 0.0f);
+  EXPECT_FLOAT_EQ(zero[1].GetValue<float>(), 0.0f);
+}
+
+TEST_F(APIndexTest, HnswNormalizeRejectsNonFiniteVectorsAtomically) {
+  CreateVectorTable();
+  AddVector(1, std::numeric_limits<float>::infinity(), 0.0f);
+  auto created =
+      CreateVecIndex("idx_vector_normalized", {{"normalize", "true"}});
+  ASSERT_FALSE(created);
+  EXPECT_EQ(created.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+}
+
+TEST_F(APIndexTest, CosineHnswWithoutNormalizeRequiresUnitSamples) {
+  CreateVectorTable();
+  AddVector(1, 3.0f, 4.0f);
+  auto created = CreateVecIndex("idx_vector_cosine", {{"metric", "cosine"}});
+  ASSERT_FALSE(created);
+  EXPECT_EQ(created.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
 TEST_F(APIndexTest, HnswIndexRejectsPropertyWithNonHnswIndex) {

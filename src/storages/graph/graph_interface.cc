@@ -17,6 +17,7 @@
 
 #include <cstring>
 #include <limits>
+#include <string_view>
 
 #include "neug/storages/index/index_id_accessor.h"
 #include "neug/storages/index/index_utils.h"
@@ -31,6 +32,35 @@
 namespace neug {
 
 namespace {
+
+bool ParseNormalizeOption(IndexMeta& meta) {
+  auto option = meta.options.find("normalize");
+  if (option == meta.options.end()) {
+    return false;
+  }
+  if (option->second == "true" || option->second == "TRUE") {
+    option->second = "true";
+    return true;
+  }
+  if (option->second == "false" || option->second == "FALSE") {
+    option->second = "false";
+    return false;
+  }
+  THROW_INVALID_ARGUMENT_EXCEPTION(
+      "HNSW option 'normalize' must be true or false");
+}
+
+bool IsCosineMetric(const IndexMeta& meta) {
+  const auto metric = meta.options.find("metric");
+  return metric != meta.options.end() &&
+         (metric->second == "cosine" || metric->second == "COSINE");
+}
+
+bool RequiresNormalization(const IndexMeta& meta) {
+  auto option = meta.options.find("normalize");
+  return option != meta.options.end() &&
+         (option->second == "true" || option->second == "TRUE");
+}
 
 std::unique_ptr<ColumnBase> FromArrayColumn(const ArrayColumn& array,
                                             size_t vid_size,
@@ -158,6 +188,7 @@ neug::result<CreatedIndex> CreateStorageIndex(
   };
 
   if (IsHNSWIndex(*meta)) {
+    const bool normalize = ParseNormalizeOption(*meta);
     const bool has_non_hnsw =
         std::any_of(existing_indexes.begin(), existing_indexes.end(),
                     [&](StorageIndex* index) {
@@ -195,6 +226,37 @@ neug::result<CreatedIndex> CreateStorageIndex(
         vec_column ? vec_column.get()
                    : vertex_table.get_table().get_column_by_id(property_col);
     if (auto* vec = dynamic_cast<VecColumn*>(candidate_column)) {
+      if (normalize && !vec->is_l2_normalized()) {
+        const bool has_raw_hnsw =
+            std::any_of(existing_indexes.begin(), existing_indexes.end(),
+                        [&](StorageIndex* index) {
+                          return active_matches(index) &&
+                                 IsHNSWIndex(index->GetMeta()) &&
+                                 !RequiresNormalization(index->GetMeta());
+                        }) ||
+            std::any_of(pending_indexes.begin(), pending_indexes.end(),
+                        [](const StorageIndexManager::PendingIndex* index) {
+                          return IsHNSWIndex(index->meta) &&
+                                 !RequiresNormalization(index->meta);
+                        });
+        if (has_raw_hnsw) {
+          RETURN_STATUS_ERROR(
+              StatusCode::ERR_INVALID_ARGUMENT,
+              "Cannot normalize a vector property used by an existing "
+              "HNSW index built from raw vectors");
+        }
+        auto status = vec->EnsureL2Normalized();
+        if (!status.ok()) {
+          RETURN_ERROR(status);
+        }
+      } else if (!normalize && IsCosineMetric(*meta) &&
+                 !vec->SampleIsL2Normalized()) {
+        RETURN_STATUS_ERROR(
+            StatusCode::ERR_INVALID_ARGUMENT,
+            "Cosine HNSW requires L2-normalized vectors; specify "
+            "normalize = true or normalize the property data before "
+            "creating the index");
+      }
       index_id_accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(
           *vec->get_offset_accessor());
     } else {
@@ -309,9 +371,14 @@ Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
       const auto& default_value = schema->default_property_values[property_col];
       auto* column = vertex_table.get_table().get_column_by_id(property_col);
       if (auto* vec = dynamic_cast<VecColumn*>(column)) {
-        array_column = FromVecColumn(*vec, vertex_table.Size(),
-                                     vertex_table.Capacity(), default_value,
-                                     graph.checkpoint(), graph.memory_level());
+        // Normalization permanently changes the property representation. Keep
+        // the VecColumn after the last index is dropped so subsequent writes
+        // continue to follow the persisted L2-normalized representation.
+        if (!vec->is_l2_normalized()) {
+          array_column = FromVecColumn(
+              *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
+              graph.checkpoint(), graph.memory_level());
+        }
       } else {
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "DropIndex: HNSW index can only be created on VecColumn");

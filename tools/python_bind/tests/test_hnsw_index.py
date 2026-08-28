@@ -16,6 +16,7 @@
 import json
 import math
 import os
+import random
 import subprocess
 import sys
 import textwrap
@@ -472,6 +473,126 @@ def test_documented_vector_import_examples(tmp_path, file_format):
             "RETURN id, CAST(vec, 'FLOAT[4]') AS vec);"
         )
         assert list(conn.execute("MATCH (n:vector_node) RETURN count(n);"))[0][0] == 2
+    finally:
+        _close_database(db, conn)
+
+
+def test_cosine_normalize_1024d_regression_and_incremental_writes(tmp_path):
+    """Regression for #931: normalization must use the VecColumn storage."""
+    dimension = 1024
+    initial = [3.0, 4.0] + [0.0] * (dimension - 2)
+    inserted = [5.0, 12.0] + [0.0] * (dimension - 2)
+    db, conn = _open_database(tmp_path / "normalize-1024d", checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE NormalizedItem("
+            f"id INT64 PRIMARY KEY, embedding FLOAT[{dimension}]);"
+        )
+        conn.execute(
+            "CREATE (:NormalizedItem {"
+            f"id: 1, embedding: {_array_literal(initial)}}});"
+        )
+        conn.execute(
+            "CREATE INDEX normalized_item_hnsw ON NormalizedItem USING HNSW "
+            "(embedding) WITH (metric = 'cosine', normalize = true);"
+        )
+
+        first = list(
+            conn.execute("MATCH (n:NormalizedItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert first[:2] == pytest.approx([0.6, 0.8], abs=1e-6)
+
+        conn.execute(
+            "CREATE (:NormalizedItem {"
+            f"id: 2, embedding: {_array_literal(inserted)}}});"
+        )
+        second = list(
+            conn.execute("MATCH (n:NormalizedItem {id: 2}) RETURN n.embedding;")
+        )[0][0]
+        assert second[:2] == pytest.approx([5.0 / 13.0, 12.0 / 13.0], abs=1e-6)
+
+        zero = [0.0] * dimension
+        conn.execute(
+            "CREATE (:NormalizedItem {" f"id: 3, embedding: {_array_literal(zero)}}});"
+        )
+        zero_distance = list(
+            conn.execute(
+                "MATCH (n:NormalizedItem {id: 3}) RETURN "
+                f"vector_distance_cosine(n.embedding, {_array_literal(initial)});"
+            )
+        )[0][0]
+        assert zero_distance == pytest.approx(1.0)
+
+        result = conn.execute(
+            "PROFILE MATCH (n:NormalizedItem) RETURN n.id, "
+            f"vector_distance_cosine(n.embedding, {_array_literal(initial)}) "
+            "AS score ORDER BY score ASC LIMIT 1;"
+        )
+        assert list(result)[0][0] == 1
+        assert "IndexScanOpr" in _profile_operator_names(result)
+
+        with pytest.raises(Exception):
+            conn.execute("MATCH (n:NormalizedItem {id: 1}) SET n.embedding = NULL;")
+    finally:
+        _close_database(db, conn)
+
+
+def test_issue_931_cosine_ann_returns_distance_with_normalize(tmp_path):
+    """Regression for #931: ANN projection must return cosine distances."""
+    dimension = 1024
+    rng = random.Random(42)
+    vec_a = [rng.uniform(0.0, 0.9) for _ in range(dimension)]
+    vec_b = [rng.uniform(0.0, 0.9) for _ in range(dimension)]
+    literal_a = _array_literal(vec_a)
+    literal_b = _array_literal(vec_b)
+    db, conn = _open_database(tmp_path / "issue-931", checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Issue931Node("
+            f"uuid STRING PRIMARY KEY, embedding FLOAT[{dimension}]);"
+        )
+        conn.execute(
+            "CREATE INDEX issue_931_hnsw ON Issue931Node USING HNSW "
+            "(embedding) WITH (metric = 'cosine', normalize = true);"
+        )
+        conn.execute(
+            "MERGE (n:Issue931Node {uuid: 'a'}) "
+            f"SET n.embedding = CAST({literal_a}, 'FLOAT[{dimension}]');"
+        )
+        conn.execute(
+            "MERGE (n:Issue931Node {uuid: 'b'}) "
+            f"SET n.embedding = CAST({literal_b}, 'FLOAT[{dimension}]');"
+        )
+
+        base = (
+            "MATCH (n:Issue931Node) WITH n, "
+            f"vector_distance_cosine(n.embedding, {literal_a}) AS dist "
+        )
+        rows_without_limit = list(
+            conn.execute(base + "RETURN n.uuid, dist ORDER BY dist ASC;")
+        )
+        tight_result = conn.execute(
+            "PROFILE " + base + "ORDER BY dist ASC LIMIT 10 RETURN n.uuid, dist;"
+        )
+        rows_tight = list(tight_result)
+        rows_extra_with = list(
+            conn.execute(
+                base + "WITH n, dist ORDER BY dist ASC LIMIT 10 " "RETURN n.uuid, dist;"
+            )
+        )
+
+        assert "IndexScanOpr" in _profile_operator_names(tight_result)
+        assert [row[0] for row in rows_tight] == ["a", "b"]
+        assert rows_tight[0][1] == pytest.approx(0.0, abs=1e-6)
+        assert all(0.0 <= row[1] <= 2.0 for row in rows_tight)
+        assert [row[0] for row in rows_tight] == [row[0] for row in rows_without_limit]
+        assert [row[1] for row in rows_tight] == pytest.approx(
+            [row[1] for row in rows_without_limit], abs=1e-6
+        )
+        assert [row[0] for row in rows_tight] == [row[0] for row in rows_extra_with]
+        assert [row[1] for row in rows_tight] == pytest.approx(
+            [row[1] for row in rows_extra_with], abs=1e-6
+        )
     finally:
         _close_database(db, conn)
 

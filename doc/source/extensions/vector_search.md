@@ -203,7 +203,8 @@ CREATE INDEX vec_hnsw_index IF NOT EXISTS
 ON vector_node
 USING HNSW (vec)
 WITH (
-    metric = 'ip',
+    metric = 'cosine',
+    normalize = true,
     m = 16,
     ef_construction = 200
 );
@@ -222,6 +223,7 @@ The following parameters control HNSW index construction and search behavior:
 | Parameter         | Description                                                           | Default |
 | ----------------- | --------------------------------------------------------------------- | ------- |
 | `metric`          | Distance metric. Supported values are `l2` (or `l2sq`), `cosine`, and `ip` (or `inner_product`) | `l2` |
+| `normalize`       | Whether NeuG may permanently L2-normalize the indexed property values. Supported values are `true` and `false` | `false` |
 | `m`               | Maximum number of connections created for each node in the HNSW graph | `50` |
 | `ef_construction` | Size of the candidate list used while building the index. Larger values generally improve index quality at the cost of build time and memory | `500` |
 
@@ -230,6 +232,68 @@ When creating an index:
 - Existing nodes are automatically indexed.
 - Nodes inserted after index creation are automatically added to the HNSW
   index.
+
+### Vector normalization
+
+HNSW cosine search requires stored vectors to have unit L2 norm. Set
+`normalize = true` to allow NeuG to normalize the property column when sampled
+values are not already normalized:
+
+```cypher
+CREATE INDEX vec_cosine_hnsw
+ON vector_node
+USING HNSW (vec)
+WITH (metric = 'cosine', normalize = true);
+```
+
+`normalize` defaults to `false`. When it is omitted or set to `false`, NeuG
+never modifies the property values. A cosine index performs a deterministic
+sample check and rejects creation when a sampled vector is not normalized. A
+successful sample check is not a full-column guarantee: users choosing
+`normalize = false` are responsible for ensuring that every existing and
+future vector has unit L2 norm.
+
+When `normalize = true`, NeuG first samples the current column. If all sampled
+vectors have unit norm, it skips the conversion. Otherwise it creates a new
+buffer and normalizes the vectors in one pass. An all-zero vector remains
+all-zero. Encountering NULL, a non-zero near-zero vector, NaN, infinity, or
+another value that cannot be normalized
+causes index creation to fail without publishing the partially converted
+buffer.
+
+.. warning::
+
+   Sampling can miss a non-normalized vector. This applies even when
+   ``normalize = true`` because NeuG skips conversion after a successful sample
+   check. For strict correctness, normalize and validate the complete dataset
+   before importing it.
+
+.. warning::
+
+   Normalization permanently overwrites the stored property values. The
+   original vector magnitudes cannot be recovered. Property reads, exports,
+   checkpoints, and values observed after ``DROP INDEX`` contain normalized
+   vectors. Back up the original embeddings or store normalized vectors in a
+   separate property before creating the index.
+
+After a column adopts the normalized representation, subsequent INSERT and SET
+operations are normalized automatically. Explicit NULL vector values and NULL
+vector elements are unsupported. All-zero vectors are preserved as all-zero;
+``vector_distance_cosine`` returns ``1`` when either argument is all-zero.
+Non-zero near-zero vectors and non-finite values are rejected.
+Omitting the property is accepted when its schema default materializes as a
+valid non-NULL vector, including the implicit all-zero default.
+
+The option is also accepted for IP and L2 indexes, but it is disabled by
+default and is generally not recommended. Normalizing IP removes magnitude
+information and changes point-product scores; normalizing L2 changes distances
+and nearest-neighbor ordering. IP and L2 preserve the original vectors unless
+the user explicitly specifies `normalize = true`.
+
+NeuG rejects attempts to normalize a property already used by an HNSW index
+built from raw vectors. Avoid mixing indexes that require raw and normalized
+representations on the same property. Dropping the last index does not restore
+the original vectors or disable the normalized write constraint.
 
 Therefore, users can choose either workflow:
 
