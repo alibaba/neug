@@ -726,6 +726,27 @@ TEST(VecColumnTest, AccessResizeCloneAndDumpOpen) {
   EXPECT_THROW(reopened.set_any(0, Value(DataType::SQLNULL), true),
                exception::InvalidArgumentException);
 
+  auto int_array_type = DataType::Array(DataType::INT32, dimension);
+  auto int_default =
+      Value::ARRAY(int_array_type, {Value::INT32(0), Value::INT32(0)});
+  auto int_buffer = ckp->CreateRuntimeContainer(dimension * sizeof(int32_t),
+                                                MemoryLevel::kInMemory);
+  auto int_accessor = std::make_unique<DefaultIndexIDAccessor>();
+  int_accessor->Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  VecColumn int_column(std::move(int_buffer), std::move(int_accessor),
+                       int_array_type, 1, int_default, *ckp,
+                       MemoryLevel::kInMemory);
+  CheckpointManifest invalid_manifest;
+  int_column.Dump(*ckp, invalid_manifest, "invalid_normalized_vec");
+  auto* invalid_desc =
+      invalid_manifest.FindMutableModule("invalid_normalized_vec");
+  ASSERT_NE(invalid_desc, nullptr);
+  invalid_desc->set("vector_representation", "l2_normalized");
+  VecColumn invalid_reopened;
+  EXPECT_THROW(invalid_reopened.Open(*ckp, invalid_manifest, *invalid_desc,
+                                     MemoryLevel::kInMemory),
+               exception::InvalidArgumentException);
+
   std::filesystem::remove_all(temp_dir);
 }
 

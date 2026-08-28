@@ -636,6 +636,11 @@ void VecColumn::validatePodType() const {
 
 void VecColumn::validateState() const {
   validatePodType();
+  if (is_l2_normalized() &&
+      ArrayType::GetChildType(array_type_).id() != DataTypeId::kFloat) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "L2-normalized VecColumn requires FLOAT elements");
+  }
   if (!buffer_ || !offset_accessor_ || array_size() == 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn requires a buffer, accessor, and non-zero array size");

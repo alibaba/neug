@@ -586,7 +586,7 @@ TEST_F(APIndexTest, VecIndexCreateSearchUpdateAndDrop) {
   EXPECT_FLOAT_EQ(third_vector[1].GetValue<float>(), 9.0f);
 }
 
-TEST_F(APIndexTest, HnswNormalizeTransformsAndMaintainsVecColumn) {
+TEST_F(APIndexTest, HnswNormalizeTransformsAndRestoresArrayColumnOnDrop) {
   CreateVectorTable();
   auto first_vid = AddVector(1, 3.0f, 4.0f);
   auto created =
@@ -609,14 +609,17 @@ TEST_F(APIndexTest, HnswNormalizeTransformsAndMaintainsVecColumn) {
   EXPECT_NEAR(second[1].GetValue<float>(), 12.0f / 13.0f, 1e-6f);
 
   ASSERT_TRUE(ap_->DropIndex("idx_vector_normalized").ok());
-  auto* retained = dynamic_cast<const VecColumn*>(
+  auto* restored = dynamic_cast<const ArrayColumn*>(
       vertex_table.GetPropertyColumnBase("embedding"));
-  ASSERT_NE(retained, nullptr);
-  EXPECT_TRUE(retained->is_l2_normalized());
+  ASSERT_NE(restored, nullptr);
+  auto retained_first = ArrayValue::GetChildren(restored->get_any(first_vid));
+  EXPECT_NEAR(retained_first[0].GetValue<float>(), 0.6f, 1e-6f);
+  EXPECT_NEAR(retained_first[1].GetValue<float>(), 0.8f, 1e-6f);
+
   auto third_vid = AddVector(3, 8.0f, 15.0f);
-  auto third = ArrayValue::GetChildren(retained->get_any(third_vid));
-  EXPECT_NEAR(third[0].GetValue<float>(), 8.0f / 17.0f, 1e-6f);
-  EXPECT_NEAR(third[1].GetValue<float>(), 15.0f / 17.0f, 1e-6f);
+  auto third = ArrayValue::GetChildren(restored->get_any(third_vid));
+  EXPECT_FLOAT_EQ(third[0].GetValue<float>(), 8.0f);
+  EXPECT_FLOAT_EQ(third[1].GetValue<float>(), 15.0f);
 }
 
 TEST_F(APIndexTest, HnswNormalizeAcceptsZeroVector) {

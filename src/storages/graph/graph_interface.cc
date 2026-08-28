@@ -19,6 +19,8 @@
 #include <limits>
 #include <string_view>
 
+#include <glog/logging.h>
+
 #include "neug/storages/index/index_id_accessor.h"
 #include "neug/storages/index/index_utils.h"
 #include "neug/storages/index/storage_index_manager.h"
@@ -509,14 +511,17 @@ Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
       const auto& default_value = schema->default_property_values[property_col];
       auto* column = vertex_table.get_table().get_column_by_id(property_col);
       if (auto* vec = dynamic_cast<VecColumn*>(column)) {
-        // Normalization permanently changes the property representation. Keep
-        // the VecColumn after the last index is dropped so subsequent writes
-        // continue to follow the persisted L2-normalized representation.
-        if (!vec->is_l2_normalized()) {
-          array_column = FromVecColumn(
-              *vec, vertex_table.Size(), vertex_table.Capacity(), default_value,
-              graph.checkpoint(), graph.memory_level());
+        if (vec->is_l2_normalized()) {
+          LOG(WARNING)
+              << "Dropping the last HNSW index on L2-normalized property '"
+              << property_name
+              << "' converts it back to an ArrayColumn. Existing normalized "
+                 "values remain irreversible, while subsequent writes will "
+                 "not be normalized automatically.";
         }
+        array_column = FromVecColumn(*vec, vertex_table.Size(),
+                                     vertex_table.Capacity(), default_value,
+                                     graph.checkpoint(), graph.memory_level());
       } else {
         return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "DropIndex: HNSW index can only be created on VecColumn");
