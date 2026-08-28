@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 DIMENSION = 16
-NUM_VECTORS = 1000
+NUM_VECTORS = 2000
 
 
 def _array_literal(values):
@@ -257,15 +257,16 @@ def test_inner_product_index_scan(advanced_connection):
             "AS score ORDER BY score DESC LIMIT 3;"
         )
     )
-    assert [row[0] for row in rows] == [999, 998, 997]
+    expected_ids = [NUM_VECTORS - 1, NUM_VECTORS - 2, NUM_VECTORS - 3]
+    assert [row[0] for row in rows] == expected_ids
     assert [row[1] for row in rows] == pytest.approx(
-        [999 * DIMENSION, 998 * DIMENSION, 997 * DIMENSION]
+        [index * DIMENSION for index in expected_ids]
     )
 
 
 def test_hnsw_limit_above_1024(advanced_connection):
     rows = _l2_search(advanced_connection, 500.0, 1025)
-    assert len(rows) == NUM_VECTORS
+    assert len(rows) == 1025
 
 
 def test_graph_filtering_during_index_scan(advanced_connection):
