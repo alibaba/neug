@@ -45,6 +45,7 @@
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/types/value.h"
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/column.h"
@@ -67,6 +68,7 @@ size_t resolve_chunk_size(const CsvReadConfig& config) {
 
 csv::CSVFormat build_csv_format(const CsvReadConfig& config) {
   csv::CSVFormat csv_format;
+  csv_format.threading(config.use_threads);
   csv_format.delimiter(config.delimiter);
   if (config.quoting) {
     csv_format.quote(config.quote_char);
@@ -630,13 +632,14 @@ class CsvRowCountCounter {
   // separately, and RowNum() is only a pre-allocation hint, so a slight
   // overcount (by at most skip_rows, typically 1 for header) is safe.
   CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
-                     bool double_quote, char delimiter,
+                     bool double_quote, char delimiter, bool use_threads,
                      io::InputStreamFactory stream_factory = nullptr)
       : file_path_(std::move(file_path)),
         quoting_(quoting),
         quote_char_(quote_char),
         double_quote_(double_quote),
         delimiter_(delimiter),
+        use_threads_(use_threads),
         stream_factory_(std::move(stream_factory)) {}
 
   int64_t count() const {
@@ -650,6 +653,8 @@ class CsvRowCountCounter {
     auto file_size = static_cast<size_t>(st.st_size);
     if (file_size == 0)
       return 0;
+    if (!use_threads_)
+      return count_single(file_size);
 
     constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
     unsigned num_threads = std::thread::hardware_concurrency();
@@ -847,6 +852,7 @@ class CsvRowCountCounter {
   char quote_char_;
   bool double_quote_;
   char delimiter_;
+  bool use_threads_;
   io::InputStreamFactory stream_factory_;
 };
 
@@ -876,7 +882,7 @@ struct CsvSupplierRuntime {
     }
     row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
                                   config.double_quote, config.delimiter,
-                                  stream_factory_)
+                                  config.use_threads, stream_factory_)
                    .count();
     reset_reader();
   }
@@ -1231,49 +1237,65 @@ CsvReadConfig build_csv_read_config(
     const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
     const std::vector<DataType>& column_types) {
+  common::case_insensitive_map_t<std::string> options;
+  options.insert(csv_options.begin(), csv_options.end());
+
   CsvReadConfig config;
   put_boolean_option(config);
 
-  static constexpr const char* kDefaultDelimiter = "|";
-  if (csv_options.count("DELIMITER")) {
-    put_delimiter_option(csv_options.at("DELIMITER"), config);
-  } else if (csv_options.count("DELIM")) {
-    put_delimiter_option(csv_options.at("DELIM"), config);
+  if (options.count(reader_options::DELIMITER)) {
+    put_delimiter_option(options.at(reader_options::DELIMITER), config);
+  } else if (options.count(reader_options::DELIM)) {
+    put_delimiter_option(options.at(reader_options::DELIM), config);
   } else {
-    put_delimiter_option(kDefaultDelimiter, config);
+    put_delimiter_option(reader_options::DEFAULT_CSV_DELIMITER, config);
   }
 
-  if (csv_options.count("ESCAPE")) {
-    if (csv_options.at("ESCAPE").size() == 1) {
+  if (options.count(reader_options::ESCAPE)) {
+    if (options.at(reader_options::ESCAPE).size() == 1) {
       config.escaping = true;
-      config.escape_char = csv_options.at("ESCAPE")[0];
+      config.escape_char = options.at(reader_options::ESCAPE)[0];
     } else {
       config.escaping = false;
     }
   }
 
-  if (csv_options.count("QUOTE")) {
-    if (csv_options.at("QUOTE").size() == 1) {
+  if (options.count(reader_options::QUOTE)) {
+    if (options.at(reader_options::QUOTE).size() == 1) {
       config.quoting = true;
       config.double_quote = false;
-      config.quote_char = csv_options.at("QUOTE")[0];
+      config.quote_char = options.at(reader_options::QUOTE)[0];
     } else {
       config.quoting = false;
     }
   }
 
-  if (csv_options.count("DOUBLE_QUOTE")) {
+  if (options.count(reader_options::DOUBLE_QUOTE)) {
     if (!config.quoting) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "CSV quoting must be enabled for double quotes");
     }
-    auto value = csv_options.at("DOUBLE_QUOTE");
+    auto value = options.at(reader_options::DOUBLE_QUOTE);
     config.double_quote = (value == "true" || value == "1" || value == "TRUE");
   }
 
+  auto parallel_it = options.find(reader_options::PARALLEL);
+  if (parallel_it != options.end()) {
+    const auto& raw_value = parallel_it->second;
+    auto value = to_lower_copy(raw_value);
+    if (value == "true" || value == "1" || value == "yes" || value == "on") {
+      config.use_threads = true;
+    } else if (value == "false" || value == "0" || value == "no" ||
+               value == "off") {
+      config.use_threads = false;
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid boolean value: " + raw_value);
+    }
+  }
+
   bool header_row = true;
-  if (csv_options.count("HEADER")) {
-    auto val = to_lower_copy(csv_options.at("HEADER"));
+  if (options.count(reader_options::HEADER)) {
+    auto val = to_lower_copy(options.at(reader_options::HEADER));
     if (val == "false" || val == "0") {
       header_row = false;
     }
