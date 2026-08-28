@@ -1305,7 +1305,7 @@ TEST_F(NeugDBServiceTest,
            invalidated_id);
   EXPECT_TRUE(invalidated_id.Failed());
   EXPECT_EQ(invalidated_id.http_response().status_code(),
-            brpc::HTTP_STATUS_NOT_FOUND);
+            brpc::HTTP_STATUS_GONE);
   service.Stop();
 }
 
@@ -1352,6 +1352,8 @@ TEST_F(NeugDBServiceTest, ExplicitTransactionCapacityAndExpiryAreHandled) {
   PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
            first_begin);
   ASSERT_FALSE(first_begin.Failed()) << first_begin.ErrorText();
+  const auto first_transaction_id = ReadTransactionId(first_begin);
+  ASSERT_FALSE(first_transaction_id.empty());
 
   brpc::Controller capacity_rejected;
   PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
@@ -1362,6 +1364,15 @@ TEST_F(NeugDBServiceTest, ExplicitTransactionCapacityAndExpiryAreHandled) {
 
   // The reaper removes the first expired session, freeing the only slot.
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  const auto read = RequestSerializer::SerializeRequest(
+      "MATCH (n) RETURN n LIMIT 1;", "read", {});
+  brpc::Controller expired_transaction;
+  PostHttp(channel, uri, TransactionPath(first_transaction_id, "query"), read,
+           expired_transaction);
+  EXPECT_TRUE(expired_transaction.Failed());
+  EXPECT_EQ(expired_transaction.http_response().status_code(),
+            brpc::HTTP_STATUS_GONE);
+
   brpc::Controller second_begin;
   PostHttp(channel, uri, "/transactions", R"({"mode":"read_only"})",
            second_begin);

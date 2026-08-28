@@ -165,7 +165,9 @@ A failed ordinary statement leaves the transaction rollback-only. `rollback`
 ends that transaction immediately; its handle cannot be reused, so clients
 must begin a new transaction before issuing more queries. Transactions may have
 an absolute service-configured lifetime. Expired, failed, or shutdown
-transactions are rolled back and ended. Clients must reliably finish a
+transactions are rolled back and ended. When the service reports that a
+transaction has ended, `Session` clears its local handle so it can begin a new
+transaction. Clients must reliably finish a
 read-write transaction: an abandoned transaction can keep the TP update lease
 and delay ordinary TP writes until the service releases it.
 

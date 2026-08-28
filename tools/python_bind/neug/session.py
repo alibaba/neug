@@ -180,6 +180,7 @@ class Session:
                 f"Could not {operation}, Error code: {ERR_NETWORK}"
             ) from e
         if response.status_code != expected_status:
+            self._clear_terminated_transaction(response)
             error_message = (
                 f"Failed to {operation}. Http code: {response.status_code}, "
                 f"Response: {response.text}"
@@ -187,6 +188,10 @@ class Session:
             logger.error(error_message)
             raise RuntimeError(error_message)
         return response
+
+    def _clear_terminated_transaction(self, response):
+        if response.status_code == requests.codes.gone:
+            self._transaction_id = None
 
     def _require_active_transaction(self, operation: str):
         self._require_open(operation)
@@ -318,6 +323,7 @@ class Session:
                 f"Could not execute query: {query}, Error code: {ERR_NETWORK}"
             ) from e
         if response.status_code != 200:
+            self._clear_terminated_transaction(response)
             error_message = f"Failed to execute query: {query}. Http code: {response.status_code}, Response: {response.text}"
             logger.error(error_message)
             raise Exception(error_message)

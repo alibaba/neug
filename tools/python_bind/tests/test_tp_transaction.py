@@ -18,6 +18,7 @@
 import json
 import queue
 import threading
+import time
 
 import pytest
 from conftest import wait_for_server_ready
@@ -27,7 +28,8 @@ from neug.session import Session
 
 
 @pytest.fixture
-def tp_endpoint(tmp_path, unused_tcp_port):
+def tp_endpoint(tmp_path, unused_tcp_port, request):
+    explicit_transaction_timeout_ms = getattr(request, "param", 60000)
     db = Database(
         db_path=str(tmp_path / "tp_explicit_transaction"),
         mode="w",
@@ -39,6 +41,7 @@ def tp_endpoint(tmp_path, unused_tcp_port):
         blocking=False,
         thread_num=2,
         auto_compaction=False,
+        explicit_transaction_timeout_ms=explicit_transaction_timeout_ms,
     )
     wait_for_server_ready(endpoint)
     yield endpoint
@@ -120,6 +123,25 @@ def test_tp_explicit_transaction_read_only_failure_requires_rollback(tp_endpoint
         assert not transaction.has_active_transaction
     finally:
         setup.close()
+        transaction.close()
+
+
+@pytest.mark.parametrize("tp_endpoint", [20], indirect=True)
+def test_tp_session_recovers_after_transaction_expiry(tp_endpoint):
+    transaction = Session.open(tp_endpoint, num_threads=1)
+    try:
+        transaction.begin_transaction(read_only=True)
+        time.sleep(0.1)
+
+        with pytest.raises(Exception, match="Http code: 410"):
+            transaction.execute("MATCH (n) RETURN n LIMIT 1;", "read")
+        assert not transaction.has_active_transaction
+
+        transaction.begin_transaction(read_only=True)
+        assert transaction.has_active_transaction
+        transaction.rollback()
+        assert not transaction.has_active_transaction
+    finally:
         transaction.close()
 
 

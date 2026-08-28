@@ -33,7 +33,8 @@ Status ServiceUnavailable(const std::string& message) {
 }
 
 Status TransactionNotFound() {
-  return Status(StatusCode::ERR_NOT_FOUND, "Transaction does not exist.");
+  return Status(StatusCode::ERR_TX_NOT_FOUND,
+                "Transaction does not exist or has already ended.");
 }
 
 Status TransactionExpired() {
