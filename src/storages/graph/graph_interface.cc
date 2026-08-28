@@ -100,6 +100,153 @@ std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn& vec, size_t vid_size,
   return array_column;
 }
 
+// Drops every index whose metadata references the given vertex label/property.
+static Status dropVertexIndex(PropertyGraph& graph, label_t label,
+                              const std::string& prop_name) {
+  auto& index_manager = graph.mutable_index_manager();
+  auto indexes = index_manager.GetIndexesContainingProperty(label, prop_name);
+  if (!indexes) {
+    return indexes.error();
+  }
+
+  std::vector<std::string> index_names;
+  index_names.reserve(indexes->size());
+  for (const auto& binding : indexes.value()) {
+    index_names.push_back(binding.index->GetMeta().name);
+  }
+  for (const auto& index_name : index_names) {
+    RETURN_IF_NOT_OK(index_manager.DropIndex(index_name));
+  }
+  return Status::OK();
+}
+
+// Updates metadata for every index bound to a renamed vertex property.
+static Status renameVertexIndex(PropertyGraph& graph, label_t label,
+                                const std::string& old_name,
+                                const std::string& new_name) {
+  auto indexes =
+      graph.mutable_index_manager().GetIndexesContainingPropertyForUpdate(
+          label, old_name);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (const auto& binding : indexes.value()) {
+    binding.index->RenameProperty(old_name, new_name);
+  }
+  return Status::OK();
+}
+
+// Appends index entries for one newly inserted vertex row.
+static Status addVertexIndexData(PropertyGraph& graph, label_t label, vid_t lid,
+                                 const Value& id,
+                                 const std::vector<Value>& props) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  auto& index_manager = graph.mutable_index_manager();
+
+  // Build every indexed tuple in metadata order. Primary keys are stored
+  // separately from regular properties, so read the supplied id explicitly.
+  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
+  auto indexes = index_manager.GetIndexesForUpdate(label);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    IndexValues values;
+    for (const auto& column : index->GetMeta().schema.columns) {
+      if (column.property_name == pk_name) {
+        values.push_back(id);
+        continue;
+      }
+      auto it = std::find(v_schema->property_names.begin(),
+                          v_schema->property_names.end(), column.property_name);
+      if (it == v_schema->property_names.end()) {
+        return Status::InternalError("Indexed property does not exist");
+      }
+      auto pos = static_cast<size_t>(
+          std::distance(v_schema->property_names.begin(), it));
+      values.push_back(pos < props.size() ? props[pos] : Value());
+    }
+    RETURN_IF_NOT_OK(index->Upsert(lid, values));
+  }
+  return Status::OK();
+}
+
+// Appends index entries for a batch of newly inserted vertex rows.
+static Status batchAddVertexIndexData(PropertyGraph& graph, label_t label,
+                                      const std::vector<vid_t>& vids) {
+  const auto& vtable = graph.get_vertex_table(label);
+  auto& index_manager = graph.mutable_index_manager();
+
+  // Resolve all columns by name so the same path handles regular properties
+  // and the primary-key column maintained by the vertex table.
+  auto indexes = index_manager.GetIndexesForUpdate(label);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    std::vector<const ColumnBase*> columns;
+    for (const auto& column : index->GetMeta().schema.columns) {
+      const auto* property_column =
+          vtable.GetPropertyColumnBase(column.property_name);
+      if (!property_column) {
+        return Status::InternalError("Indexed property column does not exist");
+      }
+      columns.push_back(property_column);
+    }
+    for (vid_t vid : vids) {
+      IndexValues values;
+      for (const auto* column : columns) {
+        values.push_back(column->get_any(vid));
+      }
+      RETURN_IF_NOT_OK(index->Upsert(vid, values));
+    }
+  }
+  return Status::OK();
+}
+
+// Updates index entries for one changed vertex property. Primary keys are not
+// handled here because PropertyGraph does not allow modifying the primary key
+// of an existing vertex.
+static Status updateVertexIndexData(PropertyGraph& graph, label_t label,
+                                    vid_t lid, int32_t col_id,
+                                    const Value& value) {
+  const auto& v_schema = graph.schema().get_vertex_schema(label);
+  if (col_id < 0 ||
+      static_cast<size_t>(col_id) >= v_schema->property_names.size() ||
+      v_schema->vprop_soft_deleted[col_id]) {
+    return Status::OK();
+  }
+
+  auto& index_manager = graph.mutable_index_manager();
+  auto indexes = index_manager.GetIndexesContainingPropertyForUpdate(
+      label, v_schema->property_names[col_id]);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (const auto& binding : indexes.value()) {
+    RETURN_IF_NOT_OK(
+        binding.index->Upsert(lid, IndexValue{binding.column_id, value}));
+  }
+  return Status::OK();
+}
+
+// Deletes index entries for one or more removed vertex rows.
+static Status deleteVertexIndexData(PropertyGraph& graph, label_t label,
+                                    const std::vector<vid_t>& vids) {
+  auto& index_manager = graph.mutable_index_manager();
+
+  auto indexes = index_manager.GetIndexesForUpdate(label);
+  if (!indexes) {
+    return indexes.error();
+  }
+  for (auto* index : indexes.value()) {
+    for (vid_t vid : vids) {
+      RETURN_IF_NOT_OK(index->Delete(vid));
+    }
+  }
+  return Status::OK();
+}
+
 }  // namespace
 
 result<std::vector<SearchResult>> StorageReadInterface::IndexSearch(
@@ -133,14 +280,24 @@ neug::result<CreatedIndex> CreateStorageIndex(
 
   auto& vertex_table = graph.get_vertex_table(label_id);
   const auto schema = vertex_table.get_vertex_schema_ptr();
-  const auto& property_name = meta->schema.property_name;
-  const bool is_primary_key =
-      property_name == std::get<1>(schema->primary_keys[0]);
-  const ColumnBase* column = vertex_table.GetPropertyColumnBase(property_name);
-  if (!column) {
-    RETURN_STATUS_ERROR(
-        StatusCode::ERR_INVALID_ARGUMENT,
-        "Indexed property column does not exist: " + property_name);
+  if (meta->schema.columns.empty()) {
+    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Index must bind at least one property");
+  }
+  std::vector<const ColumnBase*> columns;
+  std::vector<std::string> property_names;
+  columns.reserve(meta->schema.columns.size());
+  property_names.reserve(meta->schema.columns.size());
+  for (const auto& index_column : meta->schema.columns) {
+    const auto* column =
+        vertex_table.GetPropertyColumnBase(index_column.property_name);
+    if (!column) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Indexed property column does not exist: " +
+                              index_column.property_name);
+    }
+    columns.push_back(column);
+    property_names.push_back(index_column.property_name);
   }
 
   int32_t property_col = -1;
@@ -148,21 +305,23 @@ neug::result<CreatedIndex> CreateStorageIndex(
   std::unique_ptr<IndexIDAccessor> index_id_accessor;
 
   auto& index_manager = graph.mutable_index_manager();
-  GS_AUTO(existing_indexes, index_manager.GetAllIndexes());
-  GS_AUTO(pending_indexes,
-          index_manager.GetPendingIndex(label_id, property_name));
-  const auto active_matches = [&](StorageIndex* index) {
-    const auto& existing_meta = index->GetMeta();
-    return existing_meta.schema.label_id == label_id &&
-           existing_meta.schema.property_name == property_name;
-  };
 
   if (IsHNSWIndex(*meta)) {
+    if (meta->schema.columns.size() != 1) {
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "HNSW index requires exactly one property");
+    }
+    const auto& property_name = meta->schema.columns[0].property_name;
+    const bool is_primary_key =
+        property_name == std::get<1>(schema->primary_keys[0]);
+    GS_AUTO(existing_indexes, index_manager.GetIndexesContainingProperty(
+                                  label_id, property_name));
+    GS_AUTO(pending_indexes, index_manager.GetPendingIndexContainingProperty(
+                                 label_id, property_name));
     const bool has_non_hnsw =
         std::any_of(existing_indexes.begin(), existing_indexes.end(),
-                    [&](StorageIndex* index) {
-                      return active_matches(index) &&
-                             !IsHNSWIndex(index->GetMeta());
+                    [](const BoundIndexRef& binding) {
+                      return !IsHNSWIndex(binding.index->GetMeta());
                     }) ||
         std::any_of(pending_indexes.begin(), pending_indexes.end(),
                     [](const StorageIndexManager::PendingIndex* index) {
@@ -184,11 +343,11 @@ neug::result<CreatedIndex> CreateStorageIndex(
                           "Indexed property does not exist: " + property_name);
     }
 
-    if (const auto* array = dynamic_cast<const ArrayColumn*>(column)) {
+    if (const auto* array = dynamic_cast<const ArrayColumn*>(columns[0])) {
       const auto& default_value = schema->default_property_values[property_col];
       vec_column = FromArrayColumn(*array, vertex_table.Size(), default_value,
                                    graph.checkpoint(), graph.memory_level());
-      column = vec_column.get();
+      columns[0] = vec_column.get();
     }
 
     auto* candidate_column =
@@ -203,32 +362,39 @@ neug::result<CreatedIndex> CreateStorageIndex(
           "CreateIndex: HNSW index can only be created on VecColumn");
     }
   } else {
-    const bool has_hnsw =
-        std::any_of(existing_indexes.begin(), existing_indexes.end(),
-                    [&](StorageIndex* index) {
-                      return active_matches(index) &&
-                             IsHNSWIndex(index->GetMeta());
-                    }) ||
-        std::any_of(pending_indexes.begin(), pending_indexes.end(),
-                    [](const StorageIndexManager::PendingIndex* index) {
-                      return IsHNSWIndex(index->meta);
-                    });
-    if (has_hnsw) {
-      RETURN_STATUS_ERROR(
-          StatusCode::ERR_INVALID_ARGUMENT,
-          "Non-HNSW index cannot coexist with HNSW indexes on the same "
-          "property");
-    }
-    if (dynamic_cast<const VecColumn*>(column)) {
-      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Non-HNSW index cannot be created on VecColumn");
+    for (size_t i = 0; i < columns.size(); ++i) {
+      const auto* column = columns[i];
+      GS_AUTO(existing_indexes,
+              index_manager.GetIndex(label_id, {property_names[i]}));
+      GS_AUTO(pending_indexes,
+              index_manager.GetPendingIndex(label_id, {property_names[i]}));
+      const bool has_hnsw =
+          std::any_of(existing_indexes.begin(), existing_indexes.end(),
+                      [](const StorageIndex* index) {
+                        return IsHNSWIndex(index->GetMeta());
+                      }) ||
+          std::any_of(pending_indexes.begin(), pending_indexes.end(),
+                      [](const StorageIndexManager::PendingIndex* index) {
+                        return IsHNSWIndex(index->meta);
+                      });
+      if (has_hnsw) {
+        RETURN_STATUS_ERROR(
+            StatusCode::ERR_INVALID_ARGUMENT,
+            "Non-HNSW index cannot coexist with HNSW indexes on the same "
+            "property");
+      }
+      if (dynamic_cast<const VecColumn*>(column)) {
+        RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                            "Non-HNSW index cannot be created on VecColumn");
+      }
     }
     index_id_accessor = std::make_unique<DefaultIndexIDAccessor>();
   }
 
-  GS_AUTO(index, index_manager.CreateIndex(
-                     std::move(meta), std::move(index_id_accessor), column,
-                     graph.GetVertexSet(label_id, timestamp), required));
+  GS_AUTO(index,
+          index_manager.CreateIndex(
+              std::move(meta), std::move(index_id_accessor), std::move(columns),
+              graph.GetVertexSet(label_id, timestamp), required));
 
   if (on_planning_changed) {
     on_planning_changed();
@@ -270,9 +436,10 @@ Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
   int32_t property_col = -1;
 
   if (IsHNSWIndex(meta)) {
+    const auto& property_name = meta.schema.columns[0].property_name;
     bool has_other_hnsw = false;
-    auto pending_indexes = index_manager.GetPendingIndex(
-        meta.schema.label_id, meta.schema.property_name);
+    auto pending_indexes =
+        index_manager.GetPendingIndex(meta.schema.label_id, {property_name});
     if (!pending_indexes) {
       return pending_indexes.error();
     }
@@ -291,19 +458,19 @@ Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
             const auto& other_meta = index->GetMeta();
             return other_meta.name != name &&
                    other_meta.schema.label_id == meta.schema.label_id &&
-                   other_meta.schema.property_name ==
-                       meta.schema.property_name &&
+                   other_meta.schema.columns.size() == 1 &&
+                   other_meta.schema.columns[0].property_name ==
+                       property_name &&
                    IsHNSWIndex(other_meta);
           });
     }
     if (!has_other_hnsw) {
       auto& vertex_table = graph.get_vertex_table(meta.schema.label_id);
       const auto schema = vertex_table.get_vertex_schema_ptr();
-      property_col = schema->get_property_index(meta.schema.property_name);
+      property_col = schema->get_property_index(property_name);
       if (property_col < 0) {
-        return Status(
-            StatusCode::ERR_INVALID_ARGUMENT,
-            "Indexed property does not exist: " + meta.schema.property_name);
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                      "Indexed property does not exist: " + property_name);
       }
 
       const auto& default_value = schema->default_property_values[property_col];

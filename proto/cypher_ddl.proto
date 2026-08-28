@@ -155,14 +155,16 @@ message CreateIndex {
     // Vertex type the index is bound to
     common.NameOrId vertex_type = 2;
     string create_index_type = 3;
-    // Property name to index
-    string property = 4;
-    // Property type resolved from catalog
-    common.DataType property_type = 5;
     // WITH clause options (metric, m, ef_construction, ...)
-    map<string, string> options = 6;
+    map<string, string> options = 4;
     // Conflict handling
-    ConflictAction conflict_action = 7;
+    ConflictAction conflict_action = 5;
+    repeated IndexColumn columns = 6;
+}
+
+message IndexColumn {
+    string property = 1;
+    common.DataType property_type = 2;
 }
 
 message DropIndex {

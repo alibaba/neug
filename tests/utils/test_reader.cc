@@ -15,8 +15,44 @@
 
 #include "test_reader.h"
 
+#include "neug/storages/loader/loader_utils.h"
+
 namespace neug {
 namespace test {
+
+TEST_F(ReaderTest, TestCsvParallelOptionPropagation) {
+  createCsvFile("parallel_options.csv", "id\n1\n");
+
+  std::vector<std::string> columnNames = {"id"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt64Type()};
+
+  auto defaultState =
+      createSharedState("parallel_options.csv", columnNames, columnTypes);
+  reader::CsvOptionsBuilder defaultBuilder(defaultState);
+  EXPECT_TRUE(defaultBuilder.build().use_threads);
+
+  auto singleThreadedState =
+      createSharedState("parallel_options.csv", columnNames, columnTypes,
+                        {{"parallel", "false"}});
+  reader::CsvOptionsBuilder singleThreadedBuilder(singleThreadedState);
+  EXPECT_FALSE(singleThreadedBuilder.build().use_threads);
+
+  const auto filePath =
+      std::string(ARROW_READER_TEST_DIR) + "/parallel_options.csv";
+  const std::vector<DataType> nativeColumnTypes = {
+      DataType(DataTypeId::kInt64)};
+  EXPECT_TRUE(
+      build_csv_read_config(filePath, {}, nativeColumnTypes).use_threads);
+  EXPECT_FALSE(build_csv_read_config(filePath,
+                                     {{reader_options::PARALLEL, "false"}},
+                                     nativeColumnTypes)
+                   .use_threads);
+  EXPECT_THROW(
+      build_csv_read_config(filePath, {{reader_options::PARALLEL, "invalid"}},
+                            nativeColumnTypes),
+      exception::InvalidArgumentException);
+}
 
 // Test 1: Basic CSV reading with default options
 TEST_F(ReaderTest, TestBasicCsvRead) {

@@ -40,6 +40,7 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/index/index_id_accessor.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/column.h"
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -49,6 +50,25 @@
 
 namespace neug::fts_ext {
 namespace {
+
+class NullStringColumn final : public ColumnBase {
+ public:
+  size_t size() const override { return 0; }
+  void resize(size_t) override {}
+  void resize(size_t, const Value&) override {}
+  DataTypeId type() const override { return DataTypeId::kVarchar; }
+  void set_any(size_t, const Value&, bool) override {}
+  Value get_any(size_t) const override { return Value(); }
+  void Open(Checkpoint&, const ModuleDescriptor&, MemoryLevel) override {}
+  void Dump(Checkpoint&, CheckpointManifest&, const std::string&) override {}
+  std::unique_ptr<Module> Clone() const override {
+    return std::make_unique<NullStringColumn>();
+  }
+  void Detach(Checkpoint&, MemoryLevel) override {}
+  std::string ModuleTypeName() const override { return "null_string_column"; }
+};
+
+NullStringColumn test_string_column;
 
 class TemporaryDatabaseDirectory {
  public:
@@ -199,6 +219,7 @@ TEST(FTSExtensionTest, JiebaOptionSupportsChineseSearch) {
 
 TEST(FTSIndexScanInputTest, BindsConstantQueryExpression) {
   FTSIndexScanFuncInput input;
+  input.property_names = {"text"};
   input.query_string =
       std::make_unique<execution::ConstExpr>(Value::STRING("search terms"));
 
@@ -212,6 +233,7 @@ TEST(FTSIndexScanInputTest, BindsConstantQueryExpression) {
 
 TEST(FTSIndexScanInputTest, BindsAndValidatesDynamicQueryParameter) {
   FTSIndexScanFuncInput input;
+  input.property_names = {"text"};
   input.query_string = std::make_unique<execution::ParamExpr>(
       "query", DataType(DataTypeId::kVarchar));
 
@@ -244,8 +266,7 @@ std::unique_ptr<FTSIndex> MakeOpenedIndex(
   meta->name = "item_text_fts";
   meta->type = "FTS";
   meta->schema.label_id = 0;
-  meta->schema.property_name = "text";
-  meta->schema.property_type = DataType(DataTypeId::kVarchar);
+  meta->schema.columns.push_back({"text", DataType(DataTypeId::kVarchar)});
   if (tokenizer != "unicode61") {
     meta->options["tokenizer"] = tokenizer;
   }
@@ -256,8 +277,14 @@ std::unique_ptr<FTSIndex> MakeOpenedIndex(
   auto status =
       index->Init(std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
   EXPECT_TRUE(status.ok()) << status.error_message();
+  status = index->Rebind(IndexBindContext{{&test_string_column}});
+  EXPECT_TRUE(status.ok()) << status.error_message();
   index->Open(checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
   return index;
+}
+
+IndexValue MakeTextIndexValue(Value value) {
+  return IndexValue{0, std::move(value)};
 }
 
 struct CollectedToken {
@@ -279,11 +306,12 @@ std::unique_ptr<FTSIndex> MakeUnopenedIndex(
   meta->name = name;
   meta->type = "FTS";
   meta->schema.label_id = 0;
-  meta->schema.property_name = "text";
-  meta->schema.property_type = DataType(DataTypeId::kVarchar);
+  meta->schema.columns.push_back({"text", DataType(DataTypeId::kVarchar)});
   auto index = std::make_unique<FTSIndex>();
   auto status =
       index->Init(std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
+  EXPECT_TRUE(status.ok()) << status.error_message();
+  status = index->Rebind(IndexBindContext{{&test_string_column}});
   EXPECT_TRUE(status.ok()) << status.error_message();
   return index;
 }
@@ -292,6 +320,8 @@ FTSQueryParams MakeQuery(std::string query,
                          std::optional<uint64_t> limit = std::nullopt) {
   FTSQueryParams params;
   params.query_string = std::move(query);
+  params.property_names = {"text"};
+  params.weights["text"] = 1.0;
   params.limit = limit;
   return params;
 }
@@ -433,8 +463,11 @@ TEST(FTSIndexTest, JiebaIndexesAndSearchesChineseText) {
   TemporaryDatabaseDirectory directory;
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint, "jieba", "mix");
-  ASSERT_TRUE(index->Upsert(7, Value::STRING("我来到北京清华大学")).ok());
-  ASSERT_TRUE(index->Upsert(8, Value::STRING("上海交通大学")).ok());
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("我来到北京清华大学")))
+          .ok());
+  ASSERT_TRUE(
+      index->Upsert(8, MakeTextIndexValue(Value::STRING("上海交通大学"))).ok());
 
   for (const auto& query : {"北京", "清华大学"}) {
     auto result = index->Search(MakeQuery(query));
@@ -451,11 +484,14 @@ TEST(FTSIndexTest, SearchSupportsWordsPhrasesAndPrefixes) {
   TemporaryDatabaseDirectory directory;
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
-  auto first = index->Upsert(7, Value::STRING("quick brown fox"));
+  auto first =
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("quick brown fox")));
   ASSERT_TRUE(first.ok()) << first.error_message();
-  auto second = index->Upsert(3, Value::STRING("quick blue hare"));
+  auto second =
+      index->Upsert(3, MakeTextIndexValue(Value::STRING("quick blue hare")));
   ASSERT_TRUE(second.ok()) << second.error_message();
-  auto third = index->Upsert(9, Value::STRING("slow brown bear"));
+  auto third =
+      index->Upsert(9, MakeTextIndexValue(Value::STRING("slow brown bear")));
   ASSERT_TRUE(third.ok()) << third.error_message();
 
   const std::vector<std::pair<std::string, std::vector<vid_t>>> cases = {
@@ -745,7 +781,7 @@ TEST(FTSIndexTest, RejectsInvalidMetadataAndParams) {
   TemporaryDatabaseDirectory directory;
   TestCheckpoint checkpoint(directory.path().string());
   auto meta = std::make_unique<IndexMeta>();
-  meta->schema.property_type = DataType::INT64;
+  meta->schema.columns.push_back({"text", DataType::INT64});
   FTSIndex index;
   auto status =
       index.Init(std::move(meta), std::make_unique<DefaultIndexIDAccessor>());
@@ -760,19 +796,22 @@ TEST(FTSIndexTest, RejectsInvalidMetadataAndParams) {
   auto result = valid_index->Search(params);
   ASSERT_TRUE(result.has_value()) << result.error().ToString();
   EXPECT_TRUE(result->empty());
-  auto null_value = valid_index->Upsert(1, Value());
+  auto null_value = valid_index->Upsert(1, MakeTextIndexValue(Value()));
   EXPECT_TRUE(null_value.ok()) << null_value.error_message();
-  ASSERT_TRUE(valid_index->Upsert(1, Value::STRING("defined token")).ok());
+  ASSERT_TRUE(
+      valid_index->Upsert(1, MakeTextIndexValue(Value::STRING("defined token")))
+          .ok());
   auto defined = valid_index->Search(MakeQuery("defined"));
   ASSERT_TRUE(defined.has_value()) << defined.error().ToString();
   ASSERT_EQ(defined->size(), 1u);
-  ASSERT_TRUE(valid_index->Upsert(1, Value()).ok());
-  ASSERT_TRUE(valid_index->Upsert(1, Value()).ok());
+  ASSERT_TRUE(valid_index->Upsert(1, MakeTextIndexValue(Value())).ok());
+  ASSERT_TRUE(valid_index->Upsert(1, MakeTextIndexValue(Value())).ok());
   auto deleted_by_null = valid_index->Search(MakeQuery("defined"));
   ASSERT_TRUE(deleted_by_null.has_value())
       << deleted_by_null.error().ToString();
   EXPECT_TRUE(deleted_by_null->empty());
-  auto wrong_type = valid_index->Upsert(2, Value::INT64(42));
+  auto wrong_type =
+      valid_index->Upsert(2, MakeTextIndexValue(Value::INT64(42)));
   EXPECT_EQ(wrong_type.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
 }
 
@@ -785,7 +824,7 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
                        {"valid_name", {"tokenizer", "unknown"}},
                        {"valid_name", {"Tokenizer", "unicode61"}},
                        {"valid_name", {"prefix", "2 bad"}},
-                       {"valid_name", {"detail", "invalid"}},
+                       {"valid_name", {"detail", "full"}},
                        {"valid_name", {"jieba_mode", "mix"}},
                        {"valid_name", {"jieba_dict", "user.dict.utf8"}},
                        {"valid_name", {"rank", "bm25"}}};
@@ -812,7 +851,6 @@ TEST(FTSIndexTest, ValidatesNameAndFTSOptions) {
   auto& options = const_cast<IndexMeta&>(valid->GetMeta()).options;
   options["tokenizer"] = "porter unicode61";
   options["prefix"] = "2 3";
-  options["detail"] = "full";
   EXPECT_NO_THROW(
       valid->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory));
 
@@ -842,9 +880,13 @@ TEST(FTSIndexTest, FiltersSupersededAndDeletedRowsWithScores) {
   TemporaryDatabaseDirectory directory;
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
-  ASSERT_TRUE(index->Upsert(7, Value::STRING("legacy token")).ok());
-  ASSERT_TRUE(index->Upsert(8, Value::STRING("legacy token")).ok());
-  ASSERT_TRUE(index->Upsert(7, Value::STRING("current token")).ok());
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("legacy token"))).ok());
+  ASSERT_TRUE(
+      index->Upsert(8, MakeTextIndexValue(Value::STRING("legacy token"))).ok());
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("current token")))
+          .ok());
 
   auto legacy = index->Search(MakeQuery("legacy"));
   ASSERT_TRUE(legacy.has_value()) << legacy.error().ToString();
@@ -870,13 +912,19 @@ TEST(FTSIndexTest, SearchesPastAnyNumberOfSupersededCandidates) {
 
   constexpr vid_t kSupersededCount = 256;
   for (vid_t vid = 0; vid < kSupersededCount; ++vid) {
-    ASSERT_TRUE(index->Upsert(vid, Value::STRING("legacy token")).ok());
+    ASSERT_TRUE(
+        index->Upsert(vid, MakeTextIndexValue(Value::STRING("legacy token")))
+            .ok());
   }
   for (vid_t vid = 0; vid < kSupersededCount; ++vid) {
-    ASSERT_TRUE(index->Upsert(vid, Value::STRING("current token")).ok());
+    ASSERT_TRUE(
+        index->Upsert(vid, MakeTextIndexValue(Value::STRING("current token")))
+            .ok());
   }
-  ASSERT_TRUE(
-      index->Upsert(kSupersededCount, Value::STRING("legacy token")).ok());
+  ASSERT_TRUE(index
+                  ->Upsert(kSupersededCount,
+                           MakeTextIndexValue(Value::STRING("legacy token")))
+                  .ok());
 
   auto result = index->Search(MakeQuery("legacy", 1));
   ASSERT_TRUE(result.has_value()) << result.error().ToString();
@@ -888,14 +936,17 @@ TEST(FTSIndexTest, CloneDetachIsolatesVisibilityAndSharesDatabase) {
   TemporaryDatabaseDirectory directory;
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint);
-  ASSERT_TRUE(index->Upsert(7, Value::STRING("shared original")).ok());
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("shared original")))
+          .ok());
 
   auto cloned_module = index->Clone();
   auto clone = std::unique_ptr<FTSIndex>(
       static_cast<FTSIndex*>(cloned_module.release()));
   clone->Detach(*checkpoint, MemoryLevel::kInMemory);
 
-  ASSERT_TRUE(clone->Upsert(8, Value::STRING("clone only")).ok());
+  ASSERT_TRUE(
+      clone->Upsert(8, MakeTextIndexValue(Value::STRING("clone only"))).ok());
   auto clone_only = clone->Search(MakeQuery("clone"));
   ASSERT_TRUE(clone_only.has_value()) << clone_only.error().ToString();
   ASSERT_EQ(clone_only->size(), 1u);
@@ -906,7 +957,9 @@ TEST(FTSIndexTest, CloneDetachIsolatesVisibilityAndSharesDatabase) {
       << original_clone_query.error().ToString();
   EXPECT_TRUE(original_clone_query->empty());
 
-  ASSERT_TRUE(index->Upsert(9, Value::STRING("original only")).ok());
+  ASSERT_TRUE(
+      index->Upsert(9, MakeTextIndexValue(Value::STRING("original only")))
+          .ok());
   auto original_only = index->Search(MakeQuery("original"));
   ASSERT_TRUE(original_only.has_value()) << original_only.error().ToString();
   ASSERT_EQ(original_only->size(), 2u);
@@ -966,7 +1019,9 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex();
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
-  ASSERT_TRUE(index->Upsert(7, Value::STRING("persisted fox")).ok());
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("persisted fox")))
+          .ok());
 
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_item_text_fts");
@@ -975,11 +1030,14 @@ TEST(FTSIndexTest, OuterReopenPreservesSearchAndAllowsAppend) {
 
   FTSIndex restored;
   restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+  ASSERT_TRUE(restored.Rebind(IndexBindContext{{&test_string_column}}).ok());
   auto before_append = restored.Search(MakeQuery("persisted"));
   ASSERT_TRUE(before_append.has_value()) << before_append.error().ToString();
   ASSERT_EQ(before_append->size(), 1);
   EXPECT_EQ(before_append->front().vid, 7u);
-  ASSERT_TRUE(restored.Upsert(8, Value::STRING("persisted hare")).ok());
+  ASSERT_TRUE(
+      restored.Upsert(8, MakeTextIndexValue(Value::STRING("persisted hare")))
+          .ok());
   auto after_append = restored.Search(MakeQuery("persisted"));
   ASSERT_TRUE(after_append.has_value()) << after_append.error().ToString();
   ASSERT_EQ(after_append->size(), 2);
@@ -1001,7 +1059,9 @@ TEST(FTSIndexTest, JiebaModePersistsAcrossDumpAndReopen) {
   options["tokenizer"] = "jieba";
   options["jieba_mode"] = "mp";
   index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
-  ASSERT_TRUE(index->Upsert(7, Value::STRING("我来到北京清华大学")).ok());
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("我来到北京清华大学")))
+          .ok());
 
   CheckpointManifest manifest;
   index->Dump(*checkpoint, manifest, "index_jieba_persisted_fts");

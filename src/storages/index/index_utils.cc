@@ -16,7 +16,7 @@
 
 #include "neug/storages/index/index_utils.h"
 
-#include <tuple>
+#include <vector>
 
 #include "neug/compiler/common/string_utils.h"
 #include "neug/storages/graph/property_graph.h"
@@ -34,54 +34,33 @@ bool IsHNSWIndex(const IndexMeta& meta) {
 Status AddBatchVertexIndexData(
     PropertyGraph& graph, label_t label, const std::vector<vid_t>& vids,
     const std::function<Status(StorageIndex&)>& prepare_index) {
-  const auto& v_schema = graph.schema().get_vertex_schema(label);
   const auto& vtable = graph.get_vertex_table(label);
   auto& index_manager = graph.mutable_index_manager();
-
-  const auto& pk_name = std::get<1>(v_schema->primary_keys[0]);
-  auto pk_indexes = index_manager.GetIndexForUpdate(label, pk_name);
-  if (!pk_indexes) {
-    return pk_indexes.error();
+  auto indexes = index_manager.GetIndexesForUpdate(label);
+  if (!indexes) {
+    return indexes.error();
   }
-  if (!pk_indexes->empty()) {
-    auto pk_col = vtable.GetPropertyColumn(pk_name);
-    if (!pk_col) {
-      return Status::InternalError("Primary key column does not exist");
+  for (auto* index : indexes.value()) {
+    if (prepare_index) {
+      RETURN_IF_NOT_OK(prepare_index(*index));
     }
-    for (auto* index : pk_indexes.value()) {
-      if (prepare_index) {
-        RETURN_IF_NOT_OK(prepare_index(*index));
+    std::vector<const ColumnBase*> columns;
+    columns.reserve(index->GetMeta().schema.columns.size());
+    for (const auto& column : index->GetMeta().schema.columns) {
+      const auto* property_column =
+          vtable.GetPropertyColumnBase(column.property_name);
+      if (!property_column) {
+        return Status::InternalError("Indexed property column does not exist");
       }
-      for (vid_t vid : vids) {
-        RETURN_IF_NOT_OK(index->Upsert(vid, pk_col->get_any(vid)));
+      columns.push_back(property_column);
+    }
+    for (vid_t vid : vids) {
+      IndexValues values;
+      values.reserve(columns.size());
+      for (const auto* column : columns) {
+        values.push_back(column->get_any(vid));
       }
-    }
-  }
-
-  for (size_t prop_idx = 0; prop_idx < v_schema->property_names.size();
-       ++prop_idx) {
-    if (v_schema->vprop_soft_deleted[prop_idx]) {
-      continue;
-    }
-    auto indexes = index_manager.GetIndexForUpdate(
-        label, v_schema->property_names[prop_idx]);
-    if (!indexes) {
-      return indexes.error();
-    }
-    if (indexes->empty()) {
-      continue;
-    }
-    auto col = vtable.GetPropertyColumn(static_cast<int32_t>(prop_idx));
-    if (!col) {
-      continue;
-    }
-    for (auto* index : indexes.value()) {
-      if (prepare_index) {
-        RETURN_IF_NOT_OK(prepare_index(*index));
-      }
-      for (vid_t vid : vids) {
-        RETURN_IF_NOT_OK(index->Upsert(vid, col->get_any(vid)));
-      }
+      RETURN_IF_NOT_OK(index->Upsert(vid, values));
     }
   }
   return Status::OK();

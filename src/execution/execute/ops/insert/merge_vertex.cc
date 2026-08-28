@@ -102,7 +102,7 @@ void apply_on_match_vertex(
     }
     int32_t col_id =
         static_cast<int32_t>(std::distance(property_names.begin(), pos));
-    if (property_types[col_id] != prop.type()) {
+    if (!prop.IsNull() && property_types[col_id] != prop.type()) {
       THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name);
     }
     auto update_status = graph.UpdateVertexProperty(label, vid, col_id, prop);

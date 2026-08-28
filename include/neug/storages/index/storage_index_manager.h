@@ -47,6 +47,12 @@ struct PendingIndex {
   State state{State::kPersisted};
 };
 
+struct BoundIndexRef {
+  StorageIndex* index;
+  // Position of the property in IndexMeta::schema.columns.
+  size_t column_id;
+};
+
 /**
  * @brief Manages all index instances in the storage layer.
  *
@@ -85,7 +91,7 @@ class StorageIndexManager {
   neug::result<CreatedIndex> CreateIndex(
       std::unique_ptr<IndexMeta> meta,
       std::unique_ptr<IndexIDAccessor> index_id_accessor,
-      const ColumnBase* column, const VertexSet& vertex_set,
+      std::vector<const ColumnBase*> columns, const VertexSet& vertex_set,
       bool required = true);
 
   /**
@@ -93,21 +99,29 @@ class StorageIndexManager {
    */
   Status DropIndex(const std::string& name);
 
-  /**
-   * @brief Find indexes matching a label and one property name.
-   */
+  /// Find indexes whose complete property set matches property_names. The
+  /// order of property_names does not affect matching.
   neug::result<std::vector<StorageIndex*>> GetIndex(
+      label_t label_id, const std::vector<std::string>& property_names) const;
+
+  /// Find every index containing property_name and its metadata column offset.
+  neug::result<std::vector<BoundIndexRef>> GetIndexesContainingProperty(
       label_t label_id, const std::string& property_name) const;
 
   /// Return indexes that are about to be mutated and mark them dirty for
   /// incremental checkpoint persistence.
-  neug::result<std::vector<StorageIndex*>> GetIndexForUpdate(
-      label_t label_id, const std::string& property_name);
+  neug::result<std::vector<BoundIndexRef>>
+  GetIndexesContainingPropertyForUpdate(label_t label_id,
+                                        const std::string& property_name);
+  neug::result<std::vector<StorageIndex*>> GetIndexesForUpdate(
+      label_t label_id);
 
   bool HasPendingIndex(label_t label_id) const;
-  bool HasPendingIndex(label_t label_id,
-                       const std::string& property_name) const;
+  bool HasPendingIndexContainingProperty(
+      label_t label_id, const std::string& property_name) const;
   neug::result<std::vector<PendingIndex*>> GetPendingIndex(
+      label_t label_id, const std::vector<std::string>& property_names);
+  neug::result<std::vector<PendingIndex*>> GetPendingIndexContainingProperty(
       label_t label_id, const std::string& property_name);
   result<PendingIndex*> GetPendingIndexByName(const std::string& name);
   result<std::vector<const PendingIndex*>> GetAllPendingIndexes() const;

@@ -793,7 +793,8 @@ public:
     OC_SchemaNameContext* oC_SchemaName(size_t i);
     antlr4::tree::TerminalNode *ON();
     antlr4::tree::TerminalNode *USING();
-    OC_PropertyKeyNameContext *oC_PropertyKeyName();
+    std::vector<OC_PropertyKeyNameContext *> oC_PropertyKeyName();
+    OC_PropertyKeyNameContext* oC_PropertyKeyName(size_t i);
     NEUG_IfNotExistsContext *nEUG_IfNotExists();
     NEUG_CreateIndexOptionsContext *nEUG_CreateIndexOptions();
 
