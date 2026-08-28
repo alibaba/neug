@@ -297,6 +297,31 @@ def test_update_and_delete_maintain_index(advanced_connection):
     assert rows[0][0] == 334
 
 
+def test_bulk_build_reports_duplicate_vectors(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item("
+            "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
+        )
+        for i in range(100):
+            vector = [float(i % 17)] * 8
+            conn.execute(
+                "CREATE (:Item {id: $id, embedding: $embedding})",
+                parameters={"id": i, "embedding": vector},
+            )
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='ip', m=16, ef_construction=200);"
+        )
+        warning = capfd.readouterr().err
+        assert "83 / 100 (83%) duplicate vectors" in warning
+    finally:
+        _close_database(db, conn)
+
+
 def test_documented_schema_index_and_query_examples(tmp_path):
     """Exercise the DDL, DML, SHOW_INDEXES, brute-force and ANN doc examples."""
     db, conn = _open_database(tmp_path / "docs")

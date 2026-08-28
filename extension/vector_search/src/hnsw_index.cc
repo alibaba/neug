@@ -16,8 +16,10 @@
 #include "hnsw_index.h"
 
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 #include <variant>
 
@@ -26,6 +28,7 @@
 #include <roaring.hh>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/common/types/container_types.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -336,14 +339,20 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     return Status::RuntimeError(
         "HNSWIndex must be open and bound before bulk build");
   }
+  flat_hash_set<uint64_t> duplicate_statistics;
+  const auto vector_byte_size = dimension_ * sizeof(float);
   for (auto vid : vertices) {
     auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
     if (index_id == INVALID_INDEX_ID) {
       continue;
     }
+    const auto* vector_data = vec_source_->get_vector(index_id);
+    const auto fingerprint =
+        static_cast<uint64_t>(std::hash<std::string_view>{}(std::string_view(
+            static_cast<const char*>(vector_data), vector_byte_size)));
+    duplicate_statistics.insert(fingerprint);
     zvec::core_interface::VectorData vector;
-    vector.vector =
-        zvec::core_interface::DenseVector{vec_source_->get_vector(index_id)};
+    vector.vector = zvec::core_interface::DenseVector{vector_data};
     auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
     if (ret != 0) {
       return Status::RuntimeError("ZVec HNSW bulk build failed for vertex " +
@@ -351,6 +360,18 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
                                   std::to_string(ret));
     }
   }
+  const auto indexed_vector_count =
+      index_id_accessor_->GetNextIndexID() -
+      index_id_accessor_->GetDeletedIndexIDs().size();
+  const auto duplicate_vector_count =
+      indexed_vector_count - duplicate_statistics.size();
+  LOG(WARNING) << "HNSW duplicate statistics for index '" << meta_->name
+               << "': " << duplicate_vector_count << " / "
+               << indexed_vector_count << " ("
+               << (indexed_vector_count == 0
+                       ? 0.0
+                       : 100.0 * duplicate_vector_count / indexed_vector_count)
+               << "%) duplicate vectors";
   return Status::OK();
 }
 
