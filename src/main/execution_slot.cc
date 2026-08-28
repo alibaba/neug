@@ -216,6 +216,25 @@ SnapshotCowWriteTransaction ExecutionSlot::BeginSnapshotCowWriteTransaction() {
                                      std::move(timestamp_lease));
 }
 
+result<SnapshotCowWriteTransaction>
+ExecutionSlot::TryBeginSnapshotCowWriteTransaction() {
+  if (db_config_.mode == DBMode::READ_ONLY) {
+    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                        "Write transactions are not allowed on a read-only "
+                        "database."));
+  }
+  auto timestamp_lease = UpdateTimestampLease::TryAcquire(version_manager_);
+  if (!timestamp_lease) {
+    RETURN_ERROR(Status(StatusCode::ERR_SERVICE_UNAVAILABLE,
+                        "The TP update lease is unavailable."));
+  }
+  auto [cow_graph, planning_generation] =
+      snapshot_store_.CloneCurrentForUpdate();
+  return SnapshotCowWriteTransaction(std::move(cow_graph), planning_generation,
+                                     alloc_, *wal_writer_, snapshot_store_,
+                                     std::move(*timestamp_lease));
+}
+
 result<CurrentCowWriteTransaction>
 ExecutionSlot::BeginCurrentCowWriteTransaction() {
   if (execution_strategy_ != QueryExecutionStrategy::kDirect) {
@@ -422,7 +441,7 @@ Status ExecutionSlot::executePreparedQuery(
 }
 
 result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
-    const std::string& query_string, const std::string& access_mode,
+    const std::string& query_string, AccessMode requested_mode,
     const rapidjson::Value& parameters, int32_t num_threads,
     TransactionContext& transaction_context) {
   CHECK(transaction_context.IsActive());
@@ -435,9 +454,6 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
       RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED,
                           "COPY is not supported in an explicit transaction."));
     }
-    const auto requested_mode = access_mode.empty()
-                                    ? AccessMode::kUnKnown
-                                    : ParseAccessMode(access_mode);
     const auto resolved_mode = requested_mode == AccessMode::kUnKnown
                                    ? analysis.access_mode
                                    : requested_mode;
@@ -482,13 +498,15 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
       status = prepare_and_execute(transaction.statistic(), storage,
                                    QueryCacheMode::kShared, true);
     } else {
-      auto& transaction = transaction_context.WriteTransactionOwner();
-      auto storage = transaction.OpenStorage();
-      const auto cache_mode = transaction.PlanningChanged()
-                                  ? QueryCacheMode::kBypassShared
-                                  : QueryCacheMode::kShared;
-      status = prepare_and_execute(transaction.statistic(), storage, cache_mode,
-                                   false);
+      status = transaction_context.VisitCowWriteOwner(
+          [&prepare_and_execute](auto& transaction) {
+            auto storage = transaction.OpenStorage();
+            const auto cache_mode = transaction.PlanningChanged()
+                                        ? QueryCacheMode::kBypassShared
+                                        : QueryCacheMode::kShared;
+            return prepare_and_execute(transaction.statistic(), storage,
+                                       cache_mode, false);
+          });
     }
     if (!status.ok()) {
       transaction_context.AbortAndMarkRollbackOnly();

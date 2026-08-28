@@ -20,6 +20,7 @@
 
 namespace neug {
 
+class ExecutionSlot;
 class IVersionManager;
 
 /**
@@ -53,6 +54,12 @@ class UpdateTimestampLease {
   void FinishAndResetTimeline() noexcept;
 
  private:
+  friend class ExecutionSlot;
+
+  static std::optional<UpdateTimestampLease> TryAcquire(
+      IVersionManager& version_manager);
+  UpdateTimestampLease(IVersionManager& version_manager, uint32_t timestamp)
+      : version_manager_(&version_manager), timestamp_(timestamp) {}
   void reset() noexcept;
 
   static constexpr uint32_t kInactiveTimestamp = UINT32_MAX;

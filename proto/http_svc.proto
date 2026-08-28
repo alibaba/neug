@@ -32,4 +32,8 @@ service HttpService {
       returns (HttpResponse);  // Use a different name to avoid conflict with
                                // the brpc status method
   rpc PostCypherQuery(HttpRequest) returns (HttpResponse);
+  rpc BeginTransaction(HttpRequest) returns (HttpResponse);
+  rpc ExecuteTransactionQuery(HttpRequest) returns (HttpResponse);
+  rpc CommitTransaction(HttpRequest) returns (HttpResponse);
+  rpc RollbackTransaction(HttpRequest) returns (HttpResponse);
 }

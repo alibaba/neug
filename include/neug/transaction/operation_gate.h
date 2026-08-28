@@ -23,6 +23,8 @@
 
 namespace neug {
 
+class VersionManager;
+
 namespace detail {
 
 enum class AdmissionState : uint8_t { kOpen, kInsertsBlocked, kAllBlocked };
@@ -181,6 +183,13 @@ class OperationGate {
   }
 
  private:
+  friend class VersionManager;
+
+  // One-shot phase acquisition for service admission. It never waits and
+  // leaves the gate unchanged when another writer or maintenance operation is
+  // already active.
+  bool try_enter_phase(detail::AdmissionState desired_phase) noexcept;
+
   std::atomic<uint64_t> state_;
   std::atomic<RuntimeWaitFn> runtime_wait_;
 };

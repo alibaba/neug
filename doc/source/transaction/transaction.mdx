@@ -113,10 +113,35 @@ programmatic control calls report a transaction-state error without changing an
 otherwise active transaction.
 
 This API does **not** accept Cypher `BEGIN`, `COMMIT`, or `ROLLBACK`; use the
-programmatic `Connection` methods shown above. It does not yet include TP
-service sessions, remote clients, Java bindings, savepoints, transaction
-timeouts, or explicit-transaction `COPY`, batch, index, checkpoint, procedure
-calls, or temporary schema operations.
+programmatic `Connection` methods shown above. The embedded API does not
+include remote clients, Java bindings, savepoints, transaction timeouts, or
+explicit-transaction `COPY`, batch, index, checkpoint, procedure calls, or
+temporary schema operations.
+
+#### Explicit Transactions in TP Service Mode
+
+TP service explicit transactions are exposed through supported client APIs.
+Clients begin a read-only or read-write transaction, execute queries, then
+commit or roll it back. This guide documents that client-level contract;
+service URIs, headers, status codes, and request or response payloads are
+transport details rather than public transaction semantics.
+
+A read-only transaction pins one TP read view. A read-write transaction owns
+one private COW view, reads its own successful writes, and appends and publishes
+one WAL commit only when `commit` succeeds. While a read-write transaction owns
+the TP update lease, another read-write transaction cannot begin; ordinary TP
+inserts and updates wait for it to finish, while TP reads remain concurrent.
+
+A failed ordinary statement leaves the transaction rollback-only. `rollback`
+ends that transaction immediately; its handle cannot be reused, so clients
+must begin a new transaction before issuing more queries. Transactions may have
+an absolute service-configured lifetime. Expired, failed, or shutdown
+transactions are rolled back and ended. Clients must reliably finish a
+read-write transaction: an abandoned transaction can keep the TP update lease
+and delay ordinary TP writes until the service releases it.
+
+Cypher `BEGIN`, `COMMIT`, and `ROLLBACK` remain unsupported within transaction
+queries; use the client API's transaction-control methods instead.
 
 ## Deployment Modes Overview
 

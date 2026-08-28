@@ -29,6 +29,15 @@ UpdateTimestampLease::UpdateTimestampLease(IVersionManager& version_manager)
   CHECK_NE(timestamp_, kInactiveTimestamp);
 }
 
+std::optional<UpdateTimestampLease> UpdateTimestampLease::TryAcquire(
+    IVersionManager& version_manager) {
+  uint32_t timestamp = kInactiveTimestamp;
+  if (!version_manager.try_acquire_update_timestamp(timestamp)) {
+    return std::nullopt;
+  }
+  return UpdateTimestampLease(version_manager, timestamp);
+}
+
 UpdateTimestampLease::UpdateTimestampLease(
     IVersionManager& version_manager,
     std::chrono::steady_clock::time_point deadline)
