@@ -86,6 +86,7 @@ class Session:
         self._query_endpoint = endpoint + "/cypher"
         self._status_endpoint = endpoint + "/service_status"
         self._schema_endpoint = endpoint + "/schema"
+        self._transactions_endpoint = endpoint + "/transactions"
         self._timeout = timeout
         if isinstance(self._timeout, int):
             self._timeout = f"{self._timeout}s"
@@ -111,6 +112,7 @@ class Session:
             f"Session initialized with endpoint: {endpoint} and timeout: {self.timeout}"
         )
         self._closed = False
+        self._transaction_id = None
 
     @staticmethod
     def open(
@@ -131,18 +133,183 @@ class Session:
 
     def close(self):
         """
-        Close the session. This method is a placeholder for any cleanup operations.
-        Currently, it does not perform any specific actions.
+        Close the session. An active explicit transaction is rolled back on a
+        best-effort basis.
         """
         if self._closed:
             logger.warning("Session is already closed.")
             return
         logger.info(f"Closing session at endpoint: {self._endpoint}")
+        if self._transaction_id is not None:
+            try:
+                self.rollback()
+            except (ConnectionError, RuntimeError) as e:
+                logger.warning("Failed to roll back transaction while closing: %s", e)
+            self._transaction_id = None
         self._closed = True
         self._http_session.close()
         self._http_adapter.close()
         self._http_session = None
         self._http_adapter = None
+
+    @property
+    def has_active_transaction(self) -> bool:
+        """Whether this session has an active explicit transaction.
+
+        The property remains true while a failed transaction is rollback-only.
+        Call `rollback()` to discard that transaction before issuing another
+        query or beginning a new transaction.
+        """
+        return not self._closed and self._transaction_id is not None
+
+    def _require_open(self, operation: str):
+        if self._closed:
+            raise ConnectionError(
+                f"Session is closed. Cannot {operation}, Error code: {ERR_SESSION_CLOSED}"
+            )
+
+    def _post_transaction_request(
+        self, endpoint: str, payload: str, operation: str, expected_status: int = 200
+    ):
+        try:
+            response = self._http_session.post(
+                endpoint, data=payload, timeout=self.timeout
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error("Failed to %s: %s", operation, e)
+            raise ConnectionError(
+                f"Could not {operation}, Error code: {ERR_NETWORK}"
+            ) from e
+        if response.status_code != expected_status:
+            self._clear_terminated_transaction(response)
+            error_message = (
+                f"Failed to {operation}. Http code: {response.status_code}, "
+                f"Response: {response.text}"
+            )
+            logger.error(error_message)
+            raise RuntimeError(error_message)
+        return response
+
+    def _clear_terminated_transaction(self, response):
+        if response.status_code == requests.codes.gone:
+            self._transaction_id = None
+
+    def _transaction_id_from_location(self, response):
+        location = response.headers.get("Location")
+        location_prefix = "/transactions/"
+        if not isinstance(location, str) or not location.startswith(location_prefix):
+            return None
+        transaction_id = location[len(location_prefix) :]
+        if not transaction_id or any(char in transaction_id for char in "/?#"):
+            return None
+        return transaction_id
+
+    def _rollback_transaction(self, transaction_id):
+        if transaction_id is None:
+            logger.warning(
+                "Transaction begin response did not include a usable Location."
+            )
+            return
+        try:
+            rollback_response = self._http_session.post(
+                f"{self._transactions_endpoint}/{transaction_id}/rollback",
+                data="",
+                timeout=self.timeout,
+            )
+        except requests.exceptions.RequestException as e:
+            logger.warning("Failed to clean up transaction after begin: %s", e)
+            return
+        if rollback_response.status_code != 200:
+            logger.warning(
+                "Failed to clean up transaction after begin. Http code: %s, "
+                "Response: %s",
+                rollback_response.status_code,
+                rollback_response.text,
+            )
+
+    def _require_active_transaction(self, operation: str):
+        self._require_open(operation)
+        if self._transaction_id is None:
+            raise RuntimeError(f"No active explicit transaction to {operation}.")
+
+    def _active_transaction_endpoint(self, operation: str) -> str:
+        return f"{self._transactions_endpoint}/{self._transaction_id}/{operation}"
+
+    def begin_transaction(self, read_only: bool = False):
+        """Begin an explicit transaction.
+
+        Parameters
+        ----------
+        read_only : bool
+            Pin one read view and reject writes when true. The default starts
+            a read-write transaction with a private COW view.
+
+        Raises
+        ------
+        ConnectionError
+            If the session is closed or the service cannot be reached.
+        RuntimeError
+            If the session already has an active transaction or the service
+            rejects the begin request.
+        """
+        self._require_open("begin a transaction")
+        if self._transaction_id is not None:
+            raise RuntimeError("An explicit transaction is already active.")
+        mode = "read_only" if read_only else "read_write"
+        response = self._post_transaction_request(
+            self._transactions_endpoint,
+            json.dumps({"mode": mode}),
+            "begin transaction",
+            expected_status=201,
+        )
+        location_transaction_id = self._transaction_id_from_location(response)
+        try:
+            response_body = response.json()
+        except ValueError as e:
+            self._rollback_transaction(location_transaction_id)
+            raise RuntimeError(
+                "Transaction begin response did not contain valid JSON."
+            ) from e
+        transaction_id = (
+            response_body.get("transaction_id")
+            if isinstance(response_body, dict)
+            else None
+        )
+        if not isinstance(transaction_id, str) or not transaction_id:
+            self._rollback_transaction(location_transaction_id)
+            raise RuntimeError("Transaction begin response did not include an ID.")
+        if (
+            location_transaction_id is not None
+            and location_transaction_id != transaction_id
+        ):
+            self._rollback_transaction(location_transaction_id)
+            raise RuntimeError(
+                "Transaction begin response ID did not match its Location."
+            )
+        self._transaction_id = transaction_id
+
+    def commit(self):
+        """Commit the active explicit transaction.
+
+        A rollback-only transaction must be rolled back instead.
+        """
+        self._require_active_transaction("commit")
+        self._post_transaction_request(
+            self._active_transaction_endpoint("commit"),
+            "",
+            "commit transaction",
+        )
+        self._transaction_id = None
+
+    def rollback(self):
+        """Roll back the active explicit transaction and return to auto-commit."""
+        self._require_active_transaction("roll back")
+        self._post_transaction_request(
+            self._active_transaction_endpoint("rollback"),
+            "",
+            "roll back transaction",
+        )
+        self._transaction_id = None
 
     def execute(
         self, query: str, access_mode: str = "", parameters: dict = None
@@ -158,14 +325,25 @@ class Session:
             - `schema` or `s`: Schema modification operations
         :param parameters: Optional dict of query parameters.
         :return: The result of the query execution.
+
+        While an explicit transaction is active, the query runs in that
+        transaction. A failure reported by the service leaves it rollback-only;
+        call `rollback()` before issuing another query. Client-side validation
+        errors, such as an invalid `access_mode`, do not change the transaction
+        state.
         """
         if self._closed:
             logger.error("Session is closed. Cannot execute query.")
             raise ConnectionError(
                 f"Session is closed. Cannot execute query, Error code: {ERR_SESSION_CLOSED}"
             )
+        query_endpoint = (
+            self._active_transaction_endpoint("query")
+            if self._transaction_id is not None
+            else self._query_endpoint
+        )
         logger.info(
-            f"Executing query: {query} on endpoint: {self._query_endpoint} with timeout: {self.timeout}"
+            f"Executing query: {query} on endpoint: {query_endpoint} with timeout: {self.timeout}"
         )
         access_mode = access_mode.lower()
         if access_mode != "" and not is_access_mode_valid(access_mode):
@@ -182,7 +360,7 @@ class Session:
                 payload = PyQueryRequest.serialize_request(query, access_mode)
             logger.info(f"Payload for query: {query} is {payload}")
             response = self._http_session.post(
-                self._query_endpoint, data=payload, timeout=self.timeout
+                query_endpoint, data=payload, timeout=self.timeout
             )
         except requests.exceptions.Timeout as e:
             error_message = (
@@ -201,6 +379,7 @@ class Session:
                 f"Could not execute query: {query}, Error code: {ERR_NETWORK}"
             ) from e
         if response.status_code != 200:
+            self._clear_terminated_transaction(response)
             error_message = f"Failed to execute query: {query}. Http code: {response.status_code}, Response: {response.text}"
             logger.error(error_message)
             raise Exception(error_message)
@@ -232,6 +411,7 @@ class Session:
 
         :return: The schema of the NeuG database.
         """
+        self._require_open("fetch schema")
         logger.info(f"Fetching schema from endpoint: {self._schema_endpoint}")
         try:
             response = self._http_session.get(

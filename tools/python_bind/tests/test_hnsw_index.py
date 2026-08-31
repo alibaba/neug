@@ -71,6 +71,13 @@ def _close_database(db, conn):
     db.close()
 
 
+def _duplicate_statistics_line(log_output, index_name):
+    marker = f"HNSW duplicate statistics for index '{index_name}'"
+    matching_lines = [line for line in log_output.splitlines() if marker in line]
+    assert len(matching_lines) == 1, log_output
+    return matching_lines[0]
+
+
 def _l2_search(conn, query_value, topk=10, predicate=""):
     where = f"WHERE {predicate} " if predicate else ""
     return list(
@@ -306,6 +313,91 @@ def test_update_and_delete_maintain_index(advanced_connection):
     rows = _l2_search(advanced_connection, 333.1)
     assert 333 not in [row[0] for row in rows]
     assert rows[0][0] == 334
+
+
+def test_bulk_build_reports_duplicate_vectors(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
+        )
+        for i in range(100):
+            vector = [float(i % 17)] * 8
+            conn.execute(
+                "CREATE (:Item {id: $id, embedding: $embedding})",
+                parameters={"id": i, "embedding": vector},
+            )
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='ip', m=16, ef_construction=200);"
+        )
+        statistics_line = _duplicate_statistics_line(
+            capfd.readouterr().err, "item_hnsw"
+        )
+        assert statistics_line.startswith("W")
+        assert "83 / 100 (83%) duplicate vectors" in statistics_line
+    finally:
+        _close_database(db, conn)
+
+
+def test_bulk_build_reports_low_duplicate_ratio_as_info(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
+        )
+        for i in range(10):
+            conn.execute(
+                "CREATE (:Item {id: $id, embedding: $embedding})",
+                parameters={"id": i, "embedding": [float(i)] * 8},
+            )
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='ip', m=16, ef_construction=200);"
+        )
+        statistics_line = _duplicate_statistics_line(
+            capfd.readouterr().err, "item_hnsw"
+        )
+        assert statistics_line.startswith("I")
+        assert "0 / 10 (0%) duplicate vectors" in statistics_line
+    finally:
+        _close_database(db, conn)
+
+
+def test_bulk_build_ignores_index_id_consumed_by_rolled_back_transaction(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:Item {id: 1, embedding: [1.0, 0.0, 0.0, 0.0]}), "
+            "(:Item {id: 2, embedding: [0.0, 1.0, 0.0, 0.0]});"
+        )
+
+        conn.begin_transaction()
+        conn.execute("CREATE (:Item {id: 3, embedding: [0.0, 0.0, 1.0, 0.0]});")
+        conn.rollback()
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
+            [1],
+            [2],
+        ]
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='l2', m=16, ef_construction=200);"
+        )
+        statistics_line = _duplicate_statistics_line(
+            capfd.readouterr().err, "item_hnsw"
+        )
+        assert "0 / 2 (0%) duplicate vectors" in statistics_line
+    finally:
+        _close_database(db, conn)
 
 
 def test_documented_schema_index_and_query_examples(tmp_path):

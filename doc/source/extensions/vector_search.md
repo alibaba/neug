@@ -319,6 +319,24 @@ Therefore, users can choose either workflow:
 - Workflow 1: Import Data First, Build Index Later
 - Workflow 2: Create Index First, Continuously Write Data
 
+### Duplicate Vectors
+
+A large number of duplicate vectors can degrade HNSW index construction and
+query performance. When `CREATE INDEX` bulk-builds an HNSW index, NeuG estimates
+the duplicate rate from vector hashes and writes a warning containing approximate
+duplicate statistics, for example:
+
+```text
+HNSW duplicate statistics for index 'vec_hnsw_index': 83 / 100 (83%) duplicate vectors
+```
+
+This check is intended as a lightweight diagnostic. Hash collisions are
+possible, so the result is approximate. NeuG does not reject or automatically
+remove duplicate vectors during index creation. The statistics are computed
+only for existing vectors during the initial ``CREATE INDEX`` bulk build;
+vectors added or changed later through ``CREATE`` or ``SET`` are not included,
+and the statistics are not updated continuously.
+
 
 To remove or inspect the index, use the common [DROP
 INDEX](../storage_index/index.md#drop-an-index) and [SHOW_INDEXES](../storage_index/index.md#inspect-indexes)

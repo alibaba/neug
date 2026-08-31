@@ -121,6 +121,8 @@ enum Code {
   ERR_WAL_WRITE_FAIL = 4002;
   // Transaction timeout, e.g., the transaction takes too long to commit.
   ERR_TX_TIMEOUT = 4003;
+  // Explicit transaction does not exist because it has already ended.
+  ERR_TX_NOT_FOUND = 4004;
 
   // Error during schema management
   ERR_SCHEMA_MISMATCH = 5001;
