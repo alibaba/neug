@@ -700,8 +700,7 @@ def test_list_and_array_index_supported(tmp_path):
     conn.execute("CREATE (s:Sensor {id: 1, readings: [10, 20, 30]});")
     rows = list(
         conn.execute(
-            "MATCH (s:Sensor) "
-            "RETURN s.readings[0], s.readings[1], s.readings[2];"
+            "MATCH (s:Sensor) " "RETURN s.readings[0], s.readings[1], s.readings[2];"
         )
     )
     assert tuple(rows[0]) == (10, 20, 30)
