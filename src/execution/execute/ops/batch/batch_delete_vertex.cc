@@ -16,6 +16,7 @@
 #include "neug/execution/execute/ops/batch/batch_delete_vertex.h"
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/vertex_columns.h"
+#include "neug/utils/property/types.h"
 
 #include <unordered_set>
 
@@ -45,7 +46,10 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  std::unordered_map<label_t, std::unordered_set<vid_t>> deleted_vids;
+  std::unordered_set<GlobalId::gid_t> deleted_vids;
+  auto to_gid = [](label_t label, vid_t vid) {
+    return GlobalId(label, vid).global_id;
+  };
   return ctx.apply_chunks([&](ContextChunk&& chunk)
                               -> neug::result<ContextChunk> {
     size_t binding_size = vertex_bindings_.size();
@@ -59,7 +63,7 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
         const auto label = sl_vertex_column->label();
         std::vector<vid_t> vids;
         for (auto v : sl_vertex_column->vertices()) {
-          if (deleted_vids[label].insert(v).second) {
+          if (deleted_vids.insert(to_gid(label, v)).second) {
             vids.emplace_back(v);
           }
         }
@@ -78,7 +82,7 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
         size_t vertex_size = vertex_column->size();
         for (size_t j = 0; j < vertex_size; j++) {
           auto vertex = vertex_column->get_vertex(j);
-          if (deleted_vids[vertex.label_].insert(vertex.vid_).second) {
+          if (deleted_vids.insert(to_gid(vertex.label_, vertex.vid_)).second) {
             vids_map.at(vertex.label_).emplace_back(vertex.vid_);
           }
         }
