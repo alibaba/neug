@@ -726,14 +726,16 @@ Status PropertyGraph::DeleteVertex(label_t label, const Value& oid,
   RETURN_IF_NOT_OK(vertex_label_check(label));
   vid_t lid;
   if (!vertex_tables_.at(label).get_index(oid, lid, ts)) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Vertex oid does not exist.");
+    return Status::OK();
   }
   return DeleteVertex(label, lid, ts);
 }
 
 Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
   RETURN_IF_NOT_OK(vertex_label_check(label));
+  if (!IsValidLid(label, lid, ts)) {
+    return Status::OK();
+  }
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
     if (!schema_.is_vertex_label_valid(i)) {
       continue;
