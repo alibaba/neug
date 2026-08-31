@@ -720,8 +720,7 @@ Status CowGraphStorage::AddVertexImpl(label_t label, const Value& oid,
 
 Status CowGraphStorage::DeleteVertexImpl(label_t label, vid_t lid) {
   if (!graph_.IsValidLid(label, lid, read_ts_)) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Vertex id is out of range or already deleted");
+    return Status::OK();
   }
   auto oid = graph_.GetOid(label, lid, read_ts_);
 

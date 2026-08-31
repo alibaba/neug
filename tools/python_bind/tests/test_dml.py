@@ -411,7 +411,7 @@ def test_delete_vertex_detach_edge(tmp_path):
 
 
 # Regression test for issue #965: an undirected edge expansion emits the same
-# target twice. DETACH DELETE must de-duplicate vertex IDs before batch delete.
+# target twice. DETACH DELETE succeeds because vertex deletion is idempotent.
 def test_detach_delete_after_undirected_match(tmp_path):
     db_dir = tmp_path / "detach_delete_after_undirected_match"
     db = Database(db_path=str(db_dir), mode="w")
