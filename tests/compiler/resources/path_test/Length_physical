@@ -67,7 +67,7 @@
       "upper": 4
      },
      "path_opt": "ARBITRARY",
-     "result_opt": "ALL_V",
+     "result_opt": "END_V",
      "is_optional": false
     }
    },
@@ -136,6 +136,19 @@
       {
        "expr": {
         "operators": [
+         {
+          "const": {
+           "i64": "0"
+          }
+         },
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
+          },
+          "arith": "ADD"
+         },
          {
           "var": {
            "tag": {

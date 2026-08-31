@@ -161,16 +161,21 @@ TEST_F(PathTest, Length) {
     }
   }
   ASSERT_NE(pathExpand, nullptr);
-  // length(p) consumes p, so the existing path-materializing route must be
-  // retained.
-  EXPECT_EQ(pathExpand->result_opt(), physical::PathExpand::ALL_V);
+  // length(p) only needs the hop count, which the END_V executor provides
+  // without full path materialisation.
+  EXPECT_EQ(pathExpand->result_opt(), physical::PathExpand::END_V);
 
   ASSERT_NE(project, nullptr);
   ASSERT_EQ(project->mappings_size(), 1);
   const auto& operators = project->mappings(0).expr().operators();
-  ASSERT_EQ(operators.size(), 1);
-  ASSERT_TRUE(operators.Get(0).has_var());
-  const auto& lengthVar = operators.Get(0).var();
+  // length(p) is rewritten to add(literal(0), rel.length), which emits three
+  // operators in infix order: const(0) → ADD → var(len).
+  ASSERT_EQ(operators.size(), 3);
+  ASSERT_TRUE(operators.Get(0).has_const_());
+  EXPECT_EQ(operators.Get(0).const_().i64(), 0);
+  ASSERT_TRUE(operators.Get(1).has_arith());
+  ASSERT_TRUE(operators.Get(2).has_var());
+  const auto& lengthVar = operators.Get(2).var();
   ASSERT_TRUE(lengthVar.has_tag());
   ASSERT_TRUE(lengthVar.has_property());
   EXPECT_TRUE(lengthVar.property().has_len());
