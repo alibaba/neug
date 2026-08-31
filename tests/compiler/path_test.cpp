@@ -147,7 +147,7 @@ TEST_F(PathTest, START_NODE) {
 
 TEST_F(PathTest, Length) {
   std::string query =
-      "MATCH p = (a:person)-[:knows*1..3]-(c:person) RETURN length(p) AS len";
+      "MATCH (a:person)-[p:knows*1..3]-(c:person) RETURN length(p) AS len";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
   const physical::PathExpand* pathExpand = nullptr;
