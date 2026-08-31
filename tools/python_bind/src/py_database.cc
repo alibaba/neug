@@ -74,6 +74,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
            pybind11::arg("host") = "localhost", pybind11::arg("thread_num") = 0,
            pybind11::arg("blocking") = false,
            pybind11::arg("auto_compaction") = true,
+           pybind11::arg("explicit_transaction_timeout_ms") = 60000,
            "Start the database server.\n\n"
            "Args:\n"
            "    port (int): The port to listen on, default is 10000.\n"
@@ -84,6 +85,8 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "server shuts down.\n"
            "    auto_compaction (bool): Enable background "
            "auto-compaction while serving, default is True.\n"
+           "    explicit_transaction_timeout_ms (int): Absolute lifetime of "
+           "an explicit transaction in milliseconds, default is 60000.\n"
            "Returns:\n"
            "    uri (str): A string containing the URL of the server.\n")
       .def("stop_serving", &PyDatabase::stop_serving,
@@ -101,7 +104,8 @@ PyConnection PyDatabase::connect() {
 
 std::string PyDatabase::serve(int port, const std::string& host,
                               int32_t thread_num, bool blocking,
-                              bool auto_compaction) {
+                              bool auto_compaction,
+                              uint64_t explicit_transaction_timeout_ms) {
 #ifdef BUILD_HTTP_SERVER
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   if (!database) {
@@ -133,6 +137,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   config.host_str = host;
   config.thread_num = static_cast<uint32_t>(thread_num);
   config.auto_compaction = auto_compaction;
+  config.explicit_transaction_timeout_ms = explicit_transaction_timeout_ms;
 #ifdef __APPLE__
   if (host == "localhost") {
     config.host_str = "127.0.0.1";

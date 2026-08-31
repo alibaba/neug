@@ -17,6 +17,7 @@
 #include "neug/utils/property/vec_column.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
@@ -38,6 +39,7 @@ namespace {
 constexpr const char* kAccessorRef = "offset_accessor";
 constexpr const char* kArrayType = "array_type";
 constexpr const char* kDefaultValue = "default_value";
+constexpr const char* kRepresentation = "vector_representation";
 constexpr std::string_view kBase64Alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -207,7 +209,8 @@ VecColumn::VecColumn()
       level_(MemoryLevel::kInMemory),
       array_type_(DataType::SQLNULL),
       size_(0),
-      default_value_(DataType::SQLNULL) {}
+      default_value_(DataType::SQLNULL),
+      representation_(VectorRepresentation::kRaw) {}
 
 VecColumn::VecColumn(std::shared_ptr<IDataContainer> buffer,
                      std::unique_ptr<IndexIDAccessor> offset_accessor,
@@ -220,7 +223,8 @@ VecColumn::VecColumn(std::shared_ptr<IDataContainer> buffer,
       level_(level),
       array_type_(array_type),
       size_(size),
-      default_value_(default_value) {
+      default_value_(default_value),
+      representation_(VectorRepresentation::kRaw) {
   validateState();
 }
 
@@ -256,6 +260,18 @@ void VecColumn::openInternal(Checkpoint& ckp,
         "VecColumn::Open: missing default_value in module descriptor");
   }
   default_value_ = DeserializeValue(*default_value);
+  // Checkpoints written before vector representations were introduced do not
+  // contain this field and therefore retain their original raw semantics.
+  const auto representation = desc.get(kRepresentation).value_or("raw");
+  if (representation == "raw") {
+    representation_ = VectorRepresentation::kRaw;
+  } else if (representation == "l2_normalized") {
+    representation_ = VectorRepresentation::kL2Normalized;
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn::Open: invalid vector_representation '" + representation +
+        "'");
+  }
   buffer_ = ckp.OpenFile(
       desc.get_path(ModuleDescriptor::kDataPath).value_or(""), level);
   auto accessor_ref = desc.get_ref(kAccessorRef);
@@ -284,6 +300,7 @@ void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
            YAML::Dump(YAML::convert<DataType>::encode(array_type_)));
   desc.set("size", std::to_string(size_));
   desc.set(kDefaultValue, SerializeValue(default_value_));
+  desc.set(kRepresentation, is_l2_normalized() ? "l2_normalized" : "raw");
   desc.set_path(ModuleDescriptor::kDataPath, ckp.Commit(*buffer_));
   auto accessor_key = key + "/" + kAccessorRef;
   offset_accessor_->Dump(ckp, meta, accessor_key);
@@ -347,11 +364,18 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
     THROW_INVALID_ARGUMENT_EXCEPTION("VecColumn::set_any: invalid vid");
   }
   validatePodType();
-  // As with the other property columns, an untyped NULL assignment is stored
-  // as the column default. Secondary indexes still receive the original NULL
-  // value and remove the row instead of indexing this physical placeholder.
-  const Value& normalized = value.IsNull() ? default_value_ : value;
-  validateValue(normalized);
+  if (value.IsNull()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "VecColumn does not support NULL vector values");
+  }
+  validateValue(value);
+  Value stored_value = value;
+  if (is_l2_normalized()) {
+    auto status = VectorNormalizer::ValueNormalize(value, stored_value);
+    if (!status.ok()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(status.ToString());
+    }
+  }
   index_id_t next_offset = offset_accessor_->GetNextIndexID();
   if (next_offset >= size_) {
     if (!insert_safe) {
@@ -367,7 +391,7 @@ void VecColumn::set_any(size_t vid, const Value& value, bool insert_safe) {
 #define TYPE_DISPATCHER(enum_val, type)                            \
   case DataTypeId::enum_val:                                       \
     SetBufferValue<type>(buffer_->GetData(), offset, array_size(), \
-                         normalized);                              \
+                         stored_value);                            \
     return;
     FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
@@ -414,6 +438,161 @@ uint64_t VecColumn::array_size() const {
 
 DataType VecColumn::array_type() const { return array_type_; }
 
+bool VectorNormalizer::IsNormalized(const float* vector, size_t dimension) {
+  double squared_norm = 0.0;
+  for (size_t i = 0; i < dimension; ++i) {
+    if (!std::isfinite(vector[i])) {
+      return false;
+    }
+    squared_norm += static_cast<double>(vector[i]) * vector[i];
+  }
+  if (!std::isfinite(squared_norm)) {
+    return false;
+  }
+  if (squared_norm == 0.0) {
+    return true;
+  }
+  if (squared_norm <= kMinimumNorm) {
+    return false;
+  }
+  return std::abs(std::sqrt(squared_norm) - 1.0) <= kNormalizedTolerance;
+}
+
+Status VectorNormalizer::Normalize(float* vector, size_t dimension) {
+  double squared_norm = 0.0;
+  for (size_t i = 0; i < dimension; ++i) {
+    if (!std::isfinite(vector[i])) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Cannot L2-normalize a vector containing a non-finite "
+                    "value");
+    }
+    squared_norm += static_cast<double>(vector[i]) * vector[i];
+  }
+  if (!std::isfinite(squared_norm)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Cannot L2-normalize a vector with a non-finite norm");
+  }
+  // An all-zero vector remains all-zero.
+  if (squared_norm == 0.0) {
+    return Status::OK();
+  }
+  if (squared_norm <= kMinimumNorm) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Cannot L2-normalize a near-zero vector");
+  }
+  const auto inverse_norm = 1.0 / std::sqrt(squared_norm);
+  for (size_t i = 0; i < dimension; ++i) {
+    vector[i] = static_cast<float>(vector[i] * inverse_norm);
+  }
+  return Status::OK();
+}
+
+Status VectorNormalizer::ValueNormalize(const Value& value, Value& normalized) {
+  if (value.IsNull() || value.type().id() != DataTypeId::kArray ||
+      ArrayType::GetChildType(value.type()).id() != DataTypeId::kFloat) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "L2 normalization requires a non-NULL FLOAT array");
+  }
+  const auto& children = ArrayValue::GetChildren(value);
+  std::vector<float> values;
+  values.reserve(children.size());
+  for (const auto& child : children) {
+    if (child.IsNull()) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Cannot L2-normalize a vector containing NULL");
+    }
+    values.push_back(child.GetValue<float>());
+  }
+  auto status = Normalize(values.data(), values.size());
+  if (!status.ok()) {
+    return status;
+  }
+  std::vector<Value> normalized_children;
+  normalized_children.reserve(values.size());
+  for (auto element : values) {
+    normalized_children.emplace_back(Value::FLOAT(element));
+  }
+  normalized = Value::ARRAY(value.type(), std::move(normalized_children));
+  return Status::OK();
+}
+
+bool VectorNormalizer::Sample(const VecColumn& column) {
+  if (ArrayType::GetChildType(column.array_type_).id() != DataTypeId::kFloat) {
+    return false;
+  }
+  const auto visible_limit = column.offset_accessor_->GetVisibleLimit();
+  size_t active_count = 0;
+  for (index_id_t index_id = 0; index_id < visible_limit; ++index_id) {
+    if (column.offset_accessor_->GetVIDByIndexID(index_id) != INVALID_VID) {
+      ++active_count;
+    }
+  }
+  if (active_count == 0) {
+    return true;
+  }
+  const auto sample_count =
+      std::min<size_t>(active_count, kNormalizationSampleSize);
+  const auto* data = static_cast<const float*>(column.buffer_->GetData());
+  size_t active_ordinal = 0;
+  size_t next_sample = 0;
+  for (index_id_t index_id = 0;
+       index_id < visible_limit && next_sample < sample_count; ++index_id) {
+    if (column.offset_accessor_->GetVIDByIndexID(index_id) == INVALID_VID) {
+      continue;
+    }
+    const auto target_ordinal = (next_sample * active_count) / sample_count;
+    if (active_ordinal == target_ordinal) {
+      if (!IsNormalized(
+              data + static_cast<size_t>(index_id) * column.array_size(),
+              column.array_size())) {
+        return false;
+      }
+      ++next_sample;
+    }
+    ++active_ordinal;
+  }
+  return true;
+}
+
+Status VectorNormalizer::Ensure(VecColumn& column) {
+  if (column.is_l2_normalized()) {
+    return Status::OK();
+  }
+  if (ArrayType::GetChildType(column.array_type_).id() != DataTypeId::kFloat) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "L2 normalization supports only FLOAT vectors");
+  }
+  if (Sample(column)) {
+    column.representation_ = VectorRepresentation::kL2Normalized;
+    return Status::OK();
+  }
+  if (!column.ckp_) {
+    return Status::RuntimeError(
+        "VecColumn normalization requires a checkpoint context");
+  }
+  const auto bytes = column.size_ * column.array_size() * sizeof(float);
+  auto replacement = column.ckp_->CreateRuntimeContainer(bytes, column.level_);
+  if (bytes != 0) {
+    std::memcpy(replacement->GetData(), column.buffer_->GetData(), bytes);
+  }
+  auto* data = static_cast<float*>(replacement->GetData());
+  const auto visible_limit = column.offset_accessor_->GetVisibleLimit();
+  for (index_id_t index_id = 0; index_id < visible_limit; ++index_id) {
+    if (column.offset_accessor_->GetVIDByIndexID(index_id) == INVALID_VID) {
+      continue;
+    }
+    auto status =
+        Normalize(data + static_cast<size_t>(index_id) * column.array_size(),
+                  column.array_size());
+    if (!status.ok()) {
+      return status;
+    }
+  }
+  column.buffer_ = std::move(replacement);
+  column.representation_ = VectorRepresentation::kL2Normalized;
+  return Status::OK();
+}
+
 std::unique_ptr<Module> VecColumn::Clone() const {
   auto cloned = std::make_unique<VecColumn>();
   cloned->buffer_ = buffer_;
@@ -425,6 +604,7 @@ std::unique_ptr<Module> VecColumn::Clone() const {
   cloned->array_type_ = array_type_;
   cloned->size_ = size_;
   cloned->default_value_ = default_value_;
+  cloned->representation_ = representation_;
   return cloned;
 }
 
@@ -456,6 +636,11 @@ void VecColumn::validatePodType() const {
 
 void VecColumn::validateState() const {
   validatePodType();
+  if (is_l2_normalized() &&
+      ArrayType::GetChildType(array_type_).id() != DataTypeId::kFloat) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "L2-normalized VecColumn requires FLOAT elements");
+  }
   if (!buffer_ || !offset_accessor_ || array_size() == 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn requires a buffer, accessor, and non-zero array size");
@@ -478,6 +663,12 @@ void VecColumn::validateValue(const Value& value) const {
   if (children.size() != array_size()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "VecColumn value element count does not match vector dimension");
+  }
+  for (const auto& child : children) {
+    if (child.IsNull()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "VecColumn does not support NULL vector elements");
+    }
   }
 }
 

@@ -29,6 +29,9 @@ class PropertyGraph;
 class StorageIndex;
 
 bool IsHNSWIndex(const IndexMeta& meta);
+bool IsCosineMetric(const IndexMeta& meta);
+bool ParseCosineNormalizeOption(IndexMeta& meta);
+bool UsesCosineNormalization(const IndexMeta& meta);
 
 // Adds index entries for newly inserted vertices. COW callers use
 // prepare_index to detach each index before its first mutation.

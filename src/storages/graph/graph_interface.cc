@@ -17,6 +17,9 @@
 
 #include <cstring>
 #include <limits>
+#include <string_view>
+
+#include <glog/logging.h>
 
 #include "neug/storages/index/index_id_accessor.h"
 #include "neug/storages/index/index_utils.h"
@@ -318,6 +321,7 @@ neug::result<CreatedIndex> CreateStorageIndex(
                                   label_id, property_name));
     GS_AUTO(pending_indexes, index_manager.GetPendingIndexContainingProperty(
                                  label_id, property_name));
+    const bool cosine_normalize = ParseCosineNormalizeOption(*meta);
     const bool has_non_hnsw =
         std::any_of(existing_indexes.begin(), existing_indexes.end(),
                     [](const BoundIndexRef& binding) {
@@ -354,6 +358,37 @@ neug::result<CreatedIndex> CreateStorageIndex(
         vec_column ? vec_column.get()
                    : vertex_table.get_table().get_column_by_id(property_col);
     if (auto* vec = dynamic_cast<VecColumn*>(candidate_column)) {
+      if (cosine_normalize && !vec->is_l2_normalized()) {
+        const bool has_raw_hnsw =
+            std::any_of(
+                existing_indexes.begin(), existing_indexes.end(),
+                [](const BoundIndexRef& binding) {
+                  return IsHNSWIndex(binding.index->GetMeta()) &&
+                         !UsesCosineNormalization(binding.index->GetMeta());
+                }) ||
+            std::any_of(pending_indexes.begin(), pending_indexes.end(),
+                        [](const StorageIndexManager::PendingIndex* index) {
+                          return IsHNSWIndex(index->meta) &&
+                                 !UsesCosineNormalization(index->meta);
+                        });
+        if (has_raw_hnsw) {
+          RETURN_STATUS_ERROR(
+              StatusCode::ERR_INVALID_ARGUMENT,
+              "Cannot normalize a vector property used by an existing "
+              "HNSW index built from raw vectors");
+        }
+        auto status = vec->EnsureL2Normalized();
+        if (!status.ok()) {
+          RETURN_ERROR(status);
+        }
+      } else if (!cosine_normalize && IsCosineMetric(*meta) &&
+                 !vec->SampleIsL2Normalized()) {
+        RETURN_STATUS_ERROR(
+            StatusCode::ERR_INVALID_ARGUMENT,
+            "Cosine HNSW requires L2-normalized vectors; specify "
+            "cosine_normalize = true or normalize the property data before "
+            "creating the index");
+      }
       index_id_accessor = std::make_unique<VecColumnBackedIndexIDAccessor>(
           *vec->get_offset_accessor());
     } else {
@@ -476,6 +511,14 @@ Status DropStorageIndex(PropertyGraph& graph, GraphView& view,
       const auto& default_value = schema->default_property_values[property_col];
       auto* column = vertex_table.get_table().get_column_by_id(property_col);
       if (auto* vec = dynamic_cast<VecColumn*>(column)) {
+        if (vec->is_l2_normalized()) {
+          LOG(WARNING)
+              << "Dropping the last HNSW index on L2-normalized property '"
+              << property_name
+              << "' converts it back to an ArrayColumn. Existing normalized "
+                 "values remain irreversible, while subsequent writes will "
+                 "not be normalized automatically.";
+        }
         array_column = FromVecColumn(*vec, vertex_table.Size(),
                                      vertex_table.Capacity(), default_value,
                                      graph.checkpoint(), graph.memory_level());

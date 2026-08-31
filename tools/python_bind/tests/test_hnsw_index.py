@@ -16,6 +16,7 @@
 import json
 import math
 import os
+import random
 import subprocess
 import sys
 import textwrap
@@ -36,7 +37,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 DIMENSION = 16
-NUM_VECTORS = 1000
+NUM_VECTORS = 2000
 
 
 def _array_literal(values):
@@ -68,6 +69,13 @@ def _open_database(path, checkpoint_on_close=True):
 def _close_database(db, conn):
     conn.close()
     db.close()
+
+
+def _duplicate_statistics_line(log_output, index_name):
+    marker = f"HNSW duplicate statistics for index '{index_name}'"
+    matching_lines = [line for line in log_output.splitlines() if marker in line]
+    assert len(matching_lines) == 1, log_output
+    return matching_lines[0]
 
 
 def _l2_search(conn, query_value, topk=10, predicate=""):
@@ -160,11 +168,9 @@ def test_l2_index_scan_and_index_filtering(advanced_connection):
     assert [row[0] for row in rows[:3]] == [3, 4, 2]
     assert [row[1] for row in rows[:3]] == pytest.approx([0.16, 12.96, 19.36], abs=1e-5)
     assert _l2_search(advanced_connection, 0.0)[0][0] == 0
-    assert [row[0] for row in _l2_search(advanced_connection, 500.0)[:3]] == [
-        500,
-        501,
-        499,
-    ]
+    centered = _l2_search(advanced_connection, 500.0)[:3]
+    assert centered[0][0] == 500
+    assert {row[0] for row in centered[1:]} == {499, 501}
     assert _l2_search(advanced_connection, 999.0)[0][0] == 999
     filtered = _l2_search(advanced_connection, 3.1, 2, "n.group_id = 0")
     assert [row[0] for row in filtered] == [4, 2]
@@ -257,10 +263,22 @@ def test_inner_product_index_scan(advanced_connection):
             "AS score ORDER BY score DESC LIMIT 3;"
         )
     )
-    assert [row[0] for row in rows] == [999, 998, 997]
+    expected_ids = [NUM_VECTORS - 1, NUM_VECTORS - 2, NUM_VECTORS - 3]
+    assert [row[0] for row in rows] == expected_ids
     assert [row[1] for row in rows] == pytest.approx(
-        [999 * DIMENSION, 998 * DIMENSION, 997 * DIMENSION]
+        [index * DIMENSION for index in expected_ids]
     )
+
+
+def test_hnsw_limit_above_1024(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.0))}) "
+        "AS score ORDER BY score ASC LIMIT 1025;"
+    )
+    rows = list(result)
+    assert len(rows) == 1025
+    assert "IndexScanOpr" in _profile_operator_names(result)
 
 
 def test_graph_filtering_during_index_scan(advanced_connection):
@@ -295,6 +313,91 @@ def test_update_and_delete_maintain_index(advanced_connection):
     rows = _l2_search(advanced_connection, 333.1)
     assert 333 not in [row[0] for row in rows]
     assert rows[0][0] == 334
+
+
+def test_bulk_build_reports_duplicate_vectors(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
+        )
+        for i in range(100):
+            vector = [float(i % 17)] * 8
+            conn.execute(
+                "CREATE (:Item {id: $id, embedding: $embedding})",
+                parameters={"id": i, "embedding": vector},
+            )
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='ip', m=16, ef_construction=200);"
+        )
+        statistics_line = _duplicate_statistics_line(
+            capfd.readouterr().err, "item_hnsw"
+        )
+        assert statistics_line.startswith("W")
+        assert "83 / 100 (83%) duplicate vectors" in statistics_line
+    finally:
+        _close_database(db, conn)
+
+
+def test_bulk_build_reports_low_duplicate_ratio_as_info(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[8]);"
+        )
+        for i in range(10):
+            conn.execute(
+                "CREATE (:Item {id: $id, embedding: $embedding})",
+                parameters={"id": i, "embedding": [float(i)] * 8},
+            )
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='ip', m=16, ef_construction=200);"
+        )
+        statistics_line = _duplicate_statistics_line(
+            capfd.readouterr().err, "item_hnsw"
+        )
+        assert statistics_line.startswith("I")
+        assert "0 / 10 (0%) duplicate vectors" in statistics_line
+    finally:
+        _close_database(db, conn)
+
+
+def test_bulk_build_ignores_index_id_consumed_by_rolled_back_transaction(capfd):
+    db, conn = _open_database(":memory:")
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Item(" "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:Item {id: 1, embedding: [1.0, 0.0, 0.0, 0.0]}), "
+            "(:Item {id: 2, embedding: [0.0, 1.0, 0.0, 0.0]});"
+        )
+
+        conn.begin_transaction()
+        conn.execute("CREATE (:Item {id: 3, embedding: [0.0, 0.0, 1.0, 0.0]});")
+        conn.rollback()
+        assert list(conn.execute("MATCH (n:Item) RETURN n.id ORDER BY n.id;")) == [
+            [1],
+            [2],
+        ]
+
+        capfd.readouterr()
+        conn.execute(
+            "CREATE INDEX item_hnsw ON Item USING HNSW (embedding) "
+            "WITH (metric='l2', m=16, ef_construction=200);"
+        )
+        statistics_line = _duplicate_statistics_line(
+            capfd.readouterr().err, "item_hnsw"
+        )
+        assert "0 / 2 (0%) duplicate vectors" in statistics_line
+    finally:
+        _close_database(db, conn)
 
 
 def test_documented_schema_index_and_query_examples(tmp_path):
@@ -473,6 +576,226 @@ def test_documented_vector_import_examples(tmp_path, file_format):
             "RETURN id, CAST(vec, 'FLOAT[4]') AS vec);"
         )
         assert list(conn.execute("MATCH (n:vector_node) RETURN count(n);"))[0][0] == 2
+    finally:
+        _close_database(db, conn)
+
+
+def test_cosine_normalize_1024d_regression_and_incremental_writes(tmp_path):
+    """Regression for #931: normalization must use the VecColumn storage."""
+    dimension = 1024
+    initial = [3.0, 4.0] + [0.0] * (dimension - 2)
+    inserted = [5.0, 12.0] + [0.0] * (dimension - 2)
+    db, conn = _open_database(tmp_path / "normalize-1024d", checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE NormalizedItem("
+            f"id INT64 PRIMARY KEY, embedding FLOAT[{dimension}]);"
+        )
+        conn.execute(
+            "CREATE (:NormalizedItem {"
+            f"id: 1, embedding: {_array_literal(initial)}}});"
+        )
+        conn.execute(
+            "CREATE INDEX normalized_item_hnsw ON NormalizedItem USING HNSW "
+            "(embedding) WITH (metric = 'cosine');"
+        )
+
+        first = list(
+            conn.execute("MATCH (n:NormalizedItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert first[:2] == pytest.approx([0.6, 0.8], abs=1e-6)
+
+        conn.execute(
+            "CREATE (:NormalizedItem {"
+            f"id: 2, embedding: {_array_literal(inserted)}}});"
+        )
+        second = list(
+            conn.execute("MATCH (n:NormalizedItem {id: 2}) RETURN n.embedding;")
+        )[0][0]
+        assert second[:2] == pytest.approx([5.0 / 13.0, 12.0 / 13.0], abs=1e-6)
+
+        zero = [0.0] * dimension
+        conn.execute(
+            "CREATE (:NormalizedItem {" f"id: 3, embedding: {_array_literal(zero)}}});"
+        )
+        zero_distance = list(
+            conn.execute(
+                "MATCH (n:NormalizedItem {id: 3}) RETURN "
+                f"vector_distance_cosine(n.embedding, {_array_literal(initial)});"
+            )
+        )[0][0]
+        assert zero_distance == pytest.approx(1.0)
+
+        result = conn.execute(
+            "PROFILE MATCH (n:NormalizedItem) RETURN n.id, "
+            f"vector_distance_cosine(n.embedding, {_array_literal(initial)}) "
+            "AS score ORDER BY score ASC LIMIT 1;"
+        )
+        assert list(result)[0][0] == 1
+        assert "IndexScanOpr" in _profile_operator_names(result)
+
+        with pytest.raises(Exception):
+            conn.execute("MATCH (n:NormalizedItem {id: 1}) SET n.embedding = NULL;")
+    finally:
+        _close_database(db, conn)
+
+
+def test_issue_931_cosine_ann_returns_distance_with_normalize(tmp_path):
+    """Regression for #931: ANN projection must return cosine distances."""
+    dimension = 1024
+    rng = random.Random(42)
+    vec_a = [rng.uniform(0.0, 0.9) for _ in range(dimension)]
+    vec_b = [rng.uniform(0.0, 0.9) for _ in range(dimension)]
+    literal_a = _array_literal(vec_a)
+    literal_b = _array_literal(vec_b)
+    db, conn = _open_database(tmp_path / "issue-931", checkpoint_on_close=False)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Issue931Node("
+            f"uuid STRING PRIMARY KEY, embedding FLOAT[{dimension}]);"
+        )
+        conn.execute(
+            "CREATE INDEX issue_931_hnsw ON Issue931Node USING HNSW "
+            "(embedding) WITH (metric = 'cosine', cosine_normalize = true);"
+        )
+        conn.execute(
+            "MERGE (n:Issue931Node {uuid: 'a'}) "
+            f"SET n.embedding = CAST({literal_a}, 'FLOAT[{dimension}]');"
+        )
+        conn.execute(
+            "MERGE (n:Issue931Node {uuid: 'b'}) "
+            f"SET n.embedding = CAST({literal_b}, 'FLOAT[{dimension}]');"
+        )
+
+        base = (
+            "MATCH (n:Issue931Node) WITH n, "
+            f"vector_distance_cosine(n.embedding, {literal_a}) AS dist "
+        )
+        rows_without_limit = list(
+            conn.execute(base + "RETURN n.uuid, dist ORDER BY dist ASC;")
+        )
+        tight_result = conn.execute(
+            "PROFILE " + base + "ORDER BY dist ASC LIMIT 10 RETURN n.uuid, dist;"
+        )
+        rows_tight = list(tight_result)
+        rows_extra_with = list(
+            conn.execute(
+                base + "WITH n, dist ORDER BY dist ASC LIMIT 10 " "RETURN n.uuid, dist;"
+            )
+        )
+
+        assert "IndexScanOpr" in _profile_operator_names(tight_result)
+        assert [row[0] for row in rows_tight] == ["a", "b"]
+        assert rows_tight[0][1] == pytest.approx(0.0, abs=1e-6)
+        assert all(0.0 <= row[1] <= 2.0 for row in rows_tight)
+        assert [row[0] for row in rows_tight] == [row[0] for row in rows_without_limit]
+        assert [row[1] for row in rows_tight] == pytest.approx(
+            [row[1] for row in rows_without_limit], abs=1e-6
+        )
+        assert [row[0] for row in rows_tight] == [row[0] for row in rows_extra_with]
+        assert [row[1] for row in rows_tight] == pytest.approx(
+            [row[1] for row in rows_extra_with], abs=1e-6
+        )
+    finally:
+        _close_database(db, conn)
+
+
+@pytest.mark.parametrize("metric", ["l2", "ip"])
+def test_cosine_normalize_is_ignored_for_non_cosine_metrics(tmp_path, metric):
+    db, conn = _open_database(
+        tmp_path / f"cosine-normalize-ignored-{metric}", checkpoint_on_close=False
+    )
+    try:
+        conn.execute(
+            "CREATE NODE TABLE RawVectorItem("
+            "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:RawVectorItem {" "id: 1, embedding: [3.0, 4.0, 0.0, 0.0]});"
+        )
+        conn.execute(
+            "CREATE INDEX raw_vector_hnsw ON RawVectorItem USING HNSW "
+            "(embedding) WITH ("
+            f"metric = '{metric}', cosine_normalize = true);"
+        )
+
+        stored = list(
+            conn.execute("MATCH (n:RawVectorItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert stored == pytest.approx([3.0, 4.0, 0.0, 0.0])
+    finally:
+        _close_database(db, conn)
+
+
+def test_cosine_normalize_false_preserves_valid_unit_vectors(tmp_path):
+    db, conn = _open_database(
+        tmp_path / "cosine-normalize-disabled", checkpoint_on_close=False
+    )
+    try:
+        conn.execute(
+            "CREATE NODE TABLE UnitVectorItem("
+            "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:UnitVectorItem {" "id: 1, embedding: [0.6, 0.8, 0.0, 0.0]});"
+        )
+        conn.execute(
+            "CREATE INDEX unit_vector_hnsw ON UnitVectorItem USING HNSW "
+            "(embedding) WITH ("
+            "metric = 'cosine', cosine_normalize = false);"
+        )
+
+        stored = list(
+            conn.execute("MATCH (n:UnitVectorItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert stored == pytest.approx([0.6, 0.8, 0.0, 0.0])
+    finally:
+        _close_database(db, conn)
+
+
+def test_cosine_normalize_rejects_property_used_by_raw_hnsw_index(tmp_path):
+    """A normalized representation cannot replace data used by a raw index."""
+    db, conn = _open_database(
+        tmp_path / "normalize-index-conflict", checkpoint_on_close=False
+    )
+    try:
+        conn.execute(
+            "CREATE NODE TABLE ConflictingIndexItem("
+            "id INT64 PRIMARY KEY, embedding FLOAT[4]);"
+        )
+        conn.execute(
+            "CREATE (:ConflictingIndexItem {"
+            "id: 1, embedding: [3.0, 4.0, 0.0, 0.0]});"
+        )
+        conn.execute(
+            "CREATE INDEX raw_embedding_hnsw ON ConflictingIndexItem "
+            "USING HNSW (embedding) WITH (metric = 'l2');"
+        )
+
+        with pytest.raises(
+            RuntimeError,
+            match="Cannot normalize a vector property used by an existing HNSW index",
+        ):
+            conn.execute(
+                "CREATE INDEX normalized_embedding_hnsw ON ConflictingIndexItem "
+                "USING HNSW (embedding) "
+                "WITH (metric = 'cosine', cosine_normalize = true);"
+            )
+
+        stored = list(
+            conn.execute("MATCH (n:ConflictingIndexItem {id: 1}) RETURN n.embedding;")
+        )[0][0]
+        assert stored == pytest.approx([3.0, 4.0, 0.0, 0.0])
+
+        raw_result = conn.execute(
+            "PROFILE MATCH (n:ConflictingIndexItem) RETURN n.id, "
+            "vector_distance_l2(n.embedding, [3.0, 4.0, 0.0, 0.0]) "
+            "AS score ORDER BY score ASC LIMIT 1;"
+        )
+        raw_rows = list(raw_result)
+        assert raw_rows[0][0] == 1
+        assert raw_rows[0][1] == pytest.approx(0.0)
+        assert "IndexScanOpr" in _profile_operator_names(raw_result)
     finally:
         _close_database(db, conn)
 

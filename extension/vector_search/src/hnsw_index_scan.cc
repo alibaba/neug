@@ -305,11 +305,13 @@ execution::Context ExecuteHNSWIndexScan(
   params.target_value = input.bound_target_value;
   params.topk = input.topk;
   constexpr uint32_t kMinEfSearch = 100;
+  constexpr uint32_t kMaxEfSearch = 2048;
   const auto doubled_topk =
       input.topk > std::numeric_limits<uint32_t>::max() / 2
           ? std::numeric_limits<uint32_t>::max()
           : input.topk * 2;
-  params.ef_search = std::max(doubled_topk, kMinEfSearch);
+  params.ef_search =
+      std::min(std::max(doubled_topk, kMinEfSearch), kMaxEfSearch);
 
   std::vector<std::shared_ptr<IVertexColumn>> filter_inputs;
   size_t scalar_filter_size = 0;

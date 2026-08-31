@@ -16,8 +16,11 @@
 #include "hnsw_index.h"
 
 #include <filesystem>
+#include <functional>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 #include <variant>
 
@@ -26,6 +29,7 @@
 #include <roaring.hh>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/common/types/container_types.h"
 #include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/vertex_table.h"
@@ -37,6 +41,7 @@ namespace neug::vector_search_ext {
 
 namespace {
 constexpr const char* kIndexBufferPath = "index_buffer";
+constexpr double kDuplicateWarningThresholdPercentage = 20.0;
 
 struct DenseValueBuffer {
   using Buffer = std::variant<std::vector<float>>;
@@ -256,9 +261,9 @@ void HNSWIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
   options.copy_on_write = false;
   auto ret = zvec_index_->Open(zvec_runtime_path_, options);
   if (ret != 0) {
-    THROW_RUNTIME_ERROR("[zvec] Failed to open HNSW index at " +
-                        zvec_runtime_path_ +
-                        ", error code: " + std::to_string(ret));
+    THROW_RUNTIME_ERROR(
+        "ZVec internal open failed for HNSW index at " + zvec_runtime_path_ +
+        ", error code: " + std::to_string(ret) + ". See logs for details.");
   }
   LOG(INFO) << "[zvec] Opened HNSW index at " << zvec_runtime_path_;
 }
@@ -336,20 +341,46 @@ Status HNSWIndex::BulkBuild(const VertexSet& vertices) {
     return Status::RuntimeError(
         "HNSWIndex must be open and bound before bulk build");
   }
+  flat_hash_set<uint64_t> duplicate_statistics;
+  size_t indexed_vector_count = 0;
+  const auto vector_byte_size = vec_source_->GetVectorByteSize();
   for (auto vid : vertices) {
     auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
     if (index_id == INVALID_INDEX_ID) {
       continue;
     }
+    const auto* vector_data = vec_source_->get_vector(index_id);
+    const auto fingerprint =
+        static_cast<uint64_t>(std::hash<std::string_view>{}(std::string_view(
+            static_cast<const char*>(vector_data), vector_byte_size)));
+    ++indexed_vector_count;
+    duplicate_statistics.insert(fingerprint);
     zvec::core_interface::VectorData vector;
-    vector.vector =
-        zvec::core_interface::DenseVector{vec_source_->get_vector(index_id)};
+    vector.vector = zvec::core_interface::DenseVector{vector_data};
     auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
     if (ret != 0) {
-      return Status::RuntimeError("ZVec HNSW bulk build failed for vertex " +
-                                  std::to_string(vid) + " with error code " +
-                                  std::to_string(ret));
+      return Status::RuntimeError(
+          "ZVec internal bulk build failed for vertex " + std::to_string(vid) +
+          " with error code " + std::to_string(ret) +
+          ". See logs for details.");
     }
+  }
+  const auto duplicate_vector_count =
+      indexed_vector_count - duplicate_statistics.size();
+  const auto duplicate_percentage =
+      indexed_vector_count == 0
+          ? 0.0
+          : 100.0 * duplicate_vector_count / indexed_vector_count;
+  std::ostringstream message_stream;
+  message_stream << "HNSW duplicate statistics for index '" << meta_->name
+                 << "': " << duplicate_vector_count << " / "
+                 << indexed_vector_count << " (" << duplicate_percentage
+                 << "%) duplicate vectors";
+  const auto message = message_stream.str();
+  if (duplicate_percentage >= kDuplicateWarningThresholdPercentage) {
+    LOG(WARNING) << message;
+  } else {
+    LOG(INFO) << message;
   }
   return Status::OK();
 }
@@ -465,8 +496,9 @@ result<std::vector<SearchCandidate>> HNSWIndex::SearchImpl(
   auto ret = zvec_index_->SearchWithSource(query, query_param, *vec_source_,
                                            &search_result);
   if (ret != 0) {
-    RETURN_ERROR(Status::RuntimeError(
-        "ZVec HNSW search failed with error code " + std::to_string(ret)));
+    RETURN_ERROR(
+        Status::RuntimeError("ZVec internal search failed with error code " +
+                             std::to_string(ret) + ". See logs for details."));
   }
 
   std::vector<SearchCandidate> result;
@@ -491,8 +523,24 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
                   "HNSWIndex requires exactly one value");
   }
 
+  const auto& value = values[0];
+  if (value.IsNull()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSW index does not support NULL vector values");
+  }
+  Value index_value = value;
+  auto cosine_normalize = meta_->options.find("cosine_normalize");
+  if (metric_ == zvec::core_interface::MetricType::kCosine &&
+      (cosine_normalize == meta_->options.end() ||
+       cosine_normalize->second == "true" ||
+       cosine_normalize->second == "TRUE")) {
+    auto status = VectorNormalizer::ValueNormalize(value, index_value);
+    if (!status.ok()) {
+      return status;
+    }
+  }
   auto dense_result = ConvertDenseValue(meta_->schema.columns[0].property_type,
-                                        values[0], dimension_);
+                                        index_value, dimension_);
   if (!dense_result) {
     return dense_result.error();
   }
@@ -503,8 +551,9 @@ Status HNSWIndex::AppendImpl(index_id_t index_id, const IndexValues& values) {
   vector.vector = zvec::core_interface::DenseVector{dense.data()};
   auto ret = zvec_index_->AddWithSource(vector, index_id, *vec_source_);
   if (ret != 0) {
-    return Status::RuntimeError("ZVec HNSW append failed with error code " +
-                                std::to_string(ret));
+    return Status::RuntimeError("ZVec internal append failed with error code " +
+                                std::to_string(ret) +
+                                ". See logs for details.");
   }
   return Status::OK();
 }
@@ -518,7 +567,8 @@ Status HNSWIndex::Upsert(vid_t vid, const IndexValue& new_value) {
     return Status::InternalError("Index ID accessor is not initialized");
   }
   if (new_value.value.IsNull()) {
-    return Delete(vid);
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "HNSW index does not support NULL vector values");
   }
   auto index_id = index_id_accessor_->UpsertVID(vid);
   return AppendImpl(index_id, IndexValues{new_value.value});

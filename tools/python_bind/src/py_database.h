@@ -19,6 +19,7 @@
 #include "pybind11/include/pybind11/pybind11.h"
 #include "pybind11/include/pybind11/stl.h"
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -80,13 +81,16 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
    * @param blocking Whether to block the function until the server shuts down.
    * @param auto_compaction Enable background auto-compaction while
    * serving.
+   * @param explicit_transaction_timeout_ms Absolute lifetime of an explicit
+   * transaction in milliseconds.
    * @return A string containing the URL of the server.
    * @note When blocking is true, this method blocks until the server is
    * stopped; otherwise it returns immediately after the server starts.
    */
   std::string serve(int port = 10000, const std::string& host = "localhost",
                     int32_t thread_num = 0, bool blocking = false,
-                    bool auto_compaction = true);
+                    bool auto_compaction = true,
+                    uint64_t explicit_transaction_timeout_ms = 60000);
 
   /**
    * @brief Stop the database server.

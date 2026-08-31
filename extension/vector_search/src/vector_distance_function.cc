@@ -106,8 +106,9 @@ double CosineDistance(const std::vector<Value>& lhs,
     rhs_norm += rhs_value * rhs_value;
   }
   if (lhs_norm == 0.0 || rhs_norm == 0.0) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Cosine distance is undefined for a zero vector");
+    // Zero vectors remain zero during normalization, so their dot product is
+    // zero and the distance is defined as 1.
+    return 1.0;
   }
   return 1.0 - dot_product / std::sqrt(lhs_norm * rhs_norm);
 }

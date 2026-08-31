@@ -31,6 +31,28 @@ namespace neug {
 
 inline constexpr index_id_t INVALID_OFFSET = INVALID_INDEX_ID;
 
+enum class VectorRepresentation : uint8_t {
+  kRaw = 0,
+  kL2Normalized = 1,
+};
+
+class VecColumn;
+
+class VectorNormalizer {
+ public:
+  static bool Sample(const VecColumn& column);
+  static Status Ensure(VecColumn& column);
+  static Status ValueNormalize(const Value& value, Value& normalized);
+
+ private:
+  static constexpr double kNormalizedTolerance = 1e-4;
+  static constexpr double kMinimumNorm = 1e-12;
+  static constexpr size_t kNormalizationSampleSize = 4096;
+
+  static bool IsNormalized(const float* vector, size_t dimension);
+  static Status Normalize(float* vector, size_t dimension);
+};
+
 // A column specialized for vector data. VecColumn:
 // 1. stores fixed-dimensional vectors;
 // 2. allocates a new buffer version when growing to avoid copy-on-write; and
@@ -80,6 +102,18 @@ class VecColumn : public ColumnBase {
   const void* get_buffer_ptr() const;
   uint64_t array_size() const;
   DataType array_type() const;
+  VectorRepresentation representation() const { return representation_; }
+  bool is_l2_normalized() const {
+    return representation_ == VectorRepresentation::kL2Normalized;
+  }
+
+  // Deterministically samples active vectors. This is an
+  // optimization hint only and does not prove that every vector is normalized.
+  bool SampleIsL2Normalized() const { return VectorNormalizer::Sample(*this); }
+  // Marks the column as L2-normalized when sampling succeeds. Otherwise,
+  // validates and normalizes all active vectors in one pass using
+  // a private replacement buffer.
+  Status EnsureL2Normalized() { return VectorNormalizer::Ensure(*this); }
 
   std::unique_ptr<Module> Clone() const override;
   void Detach(Checkpoint& ckp, MemoryLevel level) override;
@@ -88,6 +122,8 @@ class VecColumn : public ColumnBase {
   static std::string type_name();
 
  private:
+  friend class VectorNormalizer;
+
   void openInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
                     const ModuleDescriptor& desc, MemoryLevel level);
   void validatePodType() const;
@@ -101,6 +137,7 @@ class VecColumn : public ColumnBase {
   DataType array_type_;
   size_t size_;
   Value default_value_;
+  VectorRepresentation representation_;
 };
 
 class VecRefColumn : public RefColumnBase {
