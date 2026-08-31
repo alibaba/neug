@@ -1696,6 +1696,51 @@ class TestCopyFrom:
         )
         assert records == [["a.py", 1]]
 
+    def test_copy_vertices_after_edge_copy_persists_incident_csr_growth(self):
+        """A later vertex COPY must persist CSR growth before edge CREATE."""
+        initial_nodes_csv = self.tmp_path / "initial_nodes.csv"
+        edges_csv = self.tmp_path / "edges.csv"
+        appended_nodes_csv = self.tmp_path / "appended_nodes.csv"
+        initial_nodes_csv.write_text("id\n1\n", encoding="utf-8")
+        edges_csv.write_text("src,dst\n1,1\n", encoding="utf-8")
+        appended_nodes_csv.write_text(
+            "id\n" + "\n".join(str(node_id) for node_id in range(2, 4098)) + "\n",
+            encoding="utf-8",
+        )
+
+        self.conn.execute("CREATE NODE TABLE node(id INT64, PRIMARY KEY(id))")
+        self.conn.execute("CREATE REL TABLE rel(FROM node TO node)")
+        self.conn.execute(
+            f'COPY node FROM "{initial_nodes_csv}" (header=true, delimiter=",")'
+        )
+        self.conn.execute(f'COPY rel FROM "{edges_csv}" (header=true, delimiter=",")')
+        self.conn.execute(
+            f'COPY node FROM "{appended_nodes_csv}" (header=true, delimiter=",")'
+        )
+        self.conn.execute("CHECKPOINT")
+        self.conn.close()
+        self.db.close()
+
+        db = Database(db_path=self.db_dir, mode="w")
+        conn = db.connect()
+        conn.execute(
+            "MATCH (a:node {id: 4097}), (b:node {id: 1}) " "CREATE (a)-[:rel]->(b)"
+        )
+        conn.execute("CHECKPOINT")
+        conn.close()
+        db.close()
+
+        db = Database(db_path=self.db_dir, mode="r")
+        conn = db.connect()
+        records = list(
+            conn.execute(
+                "MATCH (a:node {id: 4097})-[r:rel]->(b:node {id: 1}) " "RETURN count(r)"
+            )
+        )
+        assert records == [[1]]
+        conn.close()
+        db.close()
+
     def test_copy_from_edge_dangling_warns(self):
         """COPY edges referencing missing vertices must log a warning (#166)."""
         nodes_csv = self.tmp_path / "persons.csv"

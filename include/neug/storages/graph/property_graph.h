@@ -356,6 +356,7 @@ class NEUG_API PropertyGraph {
                               const DeleteEdgePropertiesParam& config);
 
   Status EnsureCapacity(label_t v_label, size_t capacity);
+  Status SyncIncidentEdgeCapacity(label_t v_label);
 
   Status EnsureCapacity(label_t src_label, label_t dst_label,
                         label_t edge_label, size_t capacity);

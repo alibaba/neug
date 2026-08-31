@@ -1126,12 +1126,7 @@ Status CowGraphStorage::detachAdjlists(uint32_t edge_triplet_id, vid_t src_lid,
   return Status::OK();
 }
 
-Status CowGraphStorage::detachForResize(label_t label, size_t capacity) {
-  const auto& vertex_table = graph_.get_vertex_table(label);
-  if (capacity <= vertex_table.Capacity()) {
-    return Status::OK();
-  }
-  RETURN_IF_NOT_OK(detachVertexTableForInsert(label));
+Status CowGraphStorage::detachIncidentEdgeTablesForResize(label_t label) {
   const auto& schema = graph_.schema();
   auto vertex_label_count = schema.vertex_label_frontier();
   auto edge_label_count = schema.edge_label_frontier();
@@ -1151,6 +1146,15 @@ Status CowGraphStorage::detachForResize(label_t label, size_t capacity) {
     }
   }
   return Status::OK();
+}
+
+Status CowGraphStorage::detachForResize(label_t label, size_t capacity) {
+  const auto& vertex_table = graph_.get_vertex_table(label);
+  if (capacity <= vertex_table.Capacity()) {
+    return Status::OK();
+  }
+  RETURN_IF_NOT_OK(detachVertexTableForInsert(label));
+  return detachIncidentEdgeTablesForResize(label);
 }
 
 Status CowGraphStorage::detachForResize(label_t src_label, label_t dst_label,
@@ -1212,6 +1216,7 @@ Status BulkCowGraphStorage::CreateEdgeTypeImpl(
 result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
   RETURN_STATUS_ERROR_IF_NOT_OK(detachVertexTableForInsert(v_label_id));
+  const auto old_capacity = graph_.get_vertex_table(v_label_id).Capacity();
   GS_AUTO(indexes, graph_.mutable_index_manager().GetAllIndexes());
   for (auto* index : indexes) {
     if (index->GetMeta().schema.label_id == v_label_id) {
@@ -1219,6 +1224,11 @@ result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
     }
   }
   auto new_vids = graph_.BatchAddVertices(v_label_id, std::move(supplier));
+  if (graph_.get_vertex_table(v_label_id).Capacity() > old_capacity) {
+    RETURN_STATUS_ERROR_IF_NOT_OK(
+        detachIncidentEdgeTablesForResize(v_label_id));
+    RETURN_STATUS_ERROR_IF_NOT_OK(graph_.SyncIncidentEdgeCapacity(v_label_id));
+  }
   if (!new_vids || new_vids->empty()) {
     return new_vids;
   }
