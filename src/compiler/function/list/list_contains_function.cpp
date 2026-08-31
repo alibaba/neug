@@ -53,7 +53,8 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   // list child type because casting list is more expensive.
   std::vector<DataType> paramTypes;
   DataType listType, childType;
-  if (ExpressionUtil::isEmptyList(*input.arguments[0])) {
+  if (ExpressionUtil::isEmptyList(*input.arguments[0]) ||
+      input.arguments[0]->getDataType().containsAny()) {
     childType = input.arguments[1]->getDataType().copy();
     listType = DataType::List(childType.copy());
   } else {
