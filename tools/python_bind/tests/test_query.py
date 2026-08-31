@@ -564,6 +564,19 @@ def test_parameterized_query(modern_graph):
     ], f"Expected value [['vadas'], ['josh']], got {records}"
 
 
+def test_parameterized_list_membership(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE T(id STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (:T {id: 'n0'}), (:T {id: 'n1'}), (:T {id: 'n2'});")
+
+    result = conn.execute(
+        "MATCH (n:T) WHERE n.id IN $ids RETURN n.id;",
+        parameters={"ids": ["n0", "n1"]},
+    )
+
+    assert sorted(row[0] for row in result) == ["n0", "n1"]
+
+
 def test_parameterized_where_on_edge_string_property():
     """Test that parameterized WHERE on edge STRING property works (not just literals)."""
     db = Database(db_path=":memory", mode="w")
