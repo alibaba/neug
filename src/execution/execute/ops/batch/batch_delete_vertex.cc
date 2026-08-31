@@ -17,6 +17,8 @@
 #include "neug/common/columns/edge_columns.h"
 #include "neug/common/columns/vertex_columns.h"
 
+#include <unordered_set>
+
 namespace neug {
 namespace execution {
 namespace ops {
@@ -43,6 +45,7 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+  std::unordered_map<label_t, std::unordered_set<vid_t>> deleted_vids;
   return ctx.apply_chunks(
       [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
         size_t binding_size = vertex_bindings_.size();
@@ -54,12 +57,17 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
               VertexColumnType::kSingle) {
             auto sl_vertex_column =
                 std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
+            const auto label = sl_vertex_column->label();
             std::vector<vid_t> vids;
             for (auto v : sl_vertex_column->vertices()) {
-              vids.emplace_back(v);
+              if (deleted_vids[label].insert(v).second) {
+                vids.emplace_back(v);
+              }
             }
-            RETURN_STATUS_ERROR_IF_NOT_OK(
-                graph.BatchDeleteVertices(sl_vertex_column->label(), vids));
+            if (!vids.empty()) {
+              RETURN_STATUS_ERROR_IF_NOT_OK(
+                  graph.BatchDeleteVertices(label, vids));
+            }
           } else if (vertex_column->vertex_column_type() ==
                          VertexColumnType::kMultiple ||
                      vertex_column->vertex_column_type() ==
@@ -72,11 +80,15 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
             size_t vertex_size = vertex_column->size();
             for (size_t j = 0; j < vertex_size; j++) {
               auto vertex = vertex_column->get_vertex(j);
-              vids_map.at(vertex.label_).emplace_back(vertex.vid_);
+              if (deleted_vids[vertex.label_].insert(vertex.vid_).second) {
+                vids_map.at(vertex.label_).emplace_back(vertex.vid_);
+              }
             }
             for (auto& vids_pair : vids_map) {
-              RETURN_STATUS_ERROR_IF_NOT_OK(
-                  graph.BatchDeleteVertices(vids_pair.first, vids_pair.second));
+              if (!vids_pair.second.empty()) {
+                RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
+                    vids_pair.first, vids_pair.second));
+              }
             }
           } else {
             THROW_RUNTIME_ERROR(
