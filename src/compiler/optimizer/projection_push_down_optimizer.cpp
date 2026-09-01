@@ -23,6 +23,7 @@
 #include "neug/compiler/optimizer/projection_push_down_optimizer.h"
 #include <algorithm>
 
+#include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/function/gds/rec_joins.h"
@@ -89,6 +90,37 @@ void ProjectionPushDownOptimizer::visitExtend(LogicalOperator* op) {
   collectExpressionsInUse(boundNodeID);
   const auto nbrNodeID = extend.getNbrNode()->getInternalID();
   extend.setScanNbrID(propertiesInUse.contains(nbrNodeID));
+}
+
+void ProjectionPushDownOptimizer::visitRecursiveExtend(LogicalOperator* op) {
+  auto& extend = op->cast<LogicalRecursiveExtend>();
+  const auto rel = extend.getRel();
+  if (rel == nullptr ||
+      rel->getRelType() != QueryRelType::VARIABLE_LENGTH_WALK) {
+    return;
+  }
+
+  const auto recursiveInfo = rel->getRecursiveInfo();
+  // The endpoint-only executor currently supports predicate-free arbitrary
+  // walks. Keep materializing paths for other semantics and predicates.
+  if (recursiveInfo == nullptr || recursiveInfo->nodePredicate != nullptr ||
+      recursiveInfo->relPredicate != nullptr) {
+    return;
+  }
+
+  if (nodeOrRelInUse.contains(rel)) {
+    return;
+  }
+  const auto relUniqueName = rel->getUniqueName();
+  for (const auto& property : propertiesInUse) {
+    const auto& propertyExpr = property->constCast<PropertyExpression>();
+    // Virtual properties such as length(e) also require the path result.
+    if (propertyExpr.getVariableName() == relUniqueName) {
+      return;
+    }
+  }
+
+  extend.setResultOpt(ResultOpt::END_V);
 }
 
 void ProjectionPushDownOptimizer::visitAccumulate(LogicalOperator* op) {

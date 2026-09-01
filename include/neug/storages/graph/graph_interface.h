@@ -632,6 +632,9 @@ class StorageUpdateInterface : public StorageReadInterface,
 
   /**
    * @brief Delete a single vertex and its associated edges.
+   *
+   * For a valid vertex label, deleting a missing or already deleted internal
+   * ID is a successful no-op.
    */
   Status DeleteVertex(label_t label, vid_t lid) {
     return DeleteVertexImpl(label, lid);
@@ -667,7 +670,8 @@ class StorageUpdateInterface : public StorageReadInterface,
    *
    * @param v_label_id Vertex label
    * @param vids Vector of internal vertex IDs to delete
-   * @return Status indicating success or failure
+   * @return Status indicating success or failure. For a valid vertex label,
+   *         missing or already deleted IDs are successful no-ops.
    */
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids) {

@@ -18,6 +18,8 @@
 #include <memory>
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
+#include "neug/compiler/optimizer/logical_operator_collector.h"
+#include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "protobuf/src/google/protobuf/parse_context.h"
 
@@ -71,9 +73,20 @@ TEST_F(PathTest, KNOWS_V2_1_2) {
 
 TEST_F(PathTest, KNOWS_3_3) {
   std::string query =
-      "MATCH (a:person)-[e:knows*3..3]->(b:person) RETURN COUNT(b.name);";
+      "MATCH p = (a:person)-[e:knows*3..3]->(b:person) RETURN COUNT(b.name);";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
+  const physical::PathExpand* pathExpand = nullptr;
+  for (int i = 0; i < physical->plan_size(); ++i) {
+    if (physical->plan(i).opr().has_path()) {
+      pathExpand = &physical->plan(i).opr().path();
+      break;
+    }
+  }
+  ASSERT_NE(pathExpand, nullptr);
+  // END_V makes the executor emit only endpoint vertices instead of
+  // materializing the unused p/e path value.
+  EXPECT_EQ(pathExpand->result_opt(), physical::PathExpand::END_V);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getPathResource("KNOWS_3_3_physical"));
 }
@@ -134,9 +147,34 @@ TEST_F(PathTest, START_NODE) {
 
 TEST_F(PathTest, Length) {
   std::string query =
-      "Match (a:person)-[b:knows*1..3]-(c:person) Return length(b) as len";
+      "MATCH (a:person)-[p:knows*1..3]-(c:person) RETURN length(p) AS len";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
+  const physical::PathExpand* pathExpand = nullptr;
+  const physical::Project* project = nullptr;
+  for (int i = 0; i < physical->plan_size(); ++i) {
+    const auto& opr = physical->plan(i).opr();
+    if (opr.has_path()) {
+      pathExpand = &opr.path();
+    } else if (opr.has_project()) {
+      project = &opr.project();
+    }
+  }
+  ASSERT_NE(pathExpand, nullptr);
+  // length(p) consumes p, so the existing path-materializing route must be
+  // retained.
+  EXPECT_EQ(pathExpand->result_opt(), physical::PathExpand::ALL_V);
+
+  ASSERT_NE(project, nullptr);
+  ASSERT_EQ(project->mappings_size(), 1);
+  const auto& operators = project->mappings(0).expr().operators();
+  ASSERT_EQ(operators.size(), 1);
+  ASSERT_TRUE(operators.Get(0).has_var());
+  const auto& lengthVar = operators.Get(0).var();
+  ASSERT_TRUE(lengthVar.has_tag());
+  ASSERT_TRUE(lengthVar.has_property());
+  EXPECT_TRUE(lengthVar.property().has_len());
+  EXPECT_EQ(lengthVar.tag().id(), pathExpand->alias().value());
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getPathResource("Length_physical"));
 }

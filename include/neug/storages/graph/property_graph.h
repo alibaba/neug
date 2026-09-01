@@ -356,6 +356,7 @@ class NEUG_API PropertyGraph {
                               const DeleteEdgePropertiesParam& config);
 
   Status EnsureCapacity(label_t v_label, size_t capacity);
+  Status SyncIncidentEdgeCapacity(label_t v_label);
 
   Status EnsureCapacity(label_t src_label, label_t dst_label,
                         label_t edge_label, size_t capacity);
@@ -378,7 +379,9 @@ class NEUG_API PropertyGraph {
    * @param label Vertex label id.
    * @param oid Vertex original id.
    * @param ts Timestamp of the deletion.
-   * @return true if deletion is successful, false otherwise.
+   * @return Status indicating success or failure. For a valid vertex label,
+   *         deleting a missing or already deleted vertex is a successful
+   *         no-op.
    * @note We always delete vertex in detach mode.
    */
   Status DeleteVertex(label_t v_label, const Value& oid, timestamp_t ts);

@@ -87,6 +87,7 @@ class LogicalRecursiveExtend final : public LogicalOperator {
     result->limitNum = limitNum;
     result->hasInputNodeMask_ = hasInputNodeMask_;
     result->hasOutputNodeMask_ = hasOutputNodeMask_;
+    result->resultOpt = resultOpt;
     return result;
   }
 

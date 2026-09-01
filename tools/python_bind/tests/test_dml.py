@@ -410,6 +410,38 @@ def test_delete_vertex_detach_edge(tmp_path):
     db.close()
 
 
+# Regression test for issue #965: an undirected edge expansion emits the same
+# target twice. DETACH DELETE succeeds because vertex deletion is idempotent.
+def test_detach_delete_after_undirected_match(tmp_path):
+    db_dir = tmp_path / "detach_delete_after_undirected_match"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            "CREATE NODE TABLE Entity (uuid STRING, group_id STRING, PRIMARY KEY(uuid));"
+        )
+        conn.execute("CREATE NODE TABLE EdgeDoc (uuid STRING, PRIMARY KEY(uuid));")
+        conn.execute(
+            "CREATE REL TABLE RELATES_TO (FROM Entity TO Entity, uuid STRING);"
+        )
+        conn.execute("CREATE (a:Entity {uuid: 'a', group_id: 'g'});")
+        conn.execute("CREATE (b:Entity {uuid: 'b', group_id: 'g'});")
+        conn.execute("CREATE (d:EdgeDoc {uuid: 'e1'});")
+        conn.execute(
+            "MATCH (a:Entity {uuid: 'a'}), (b:Entity {uuid: 'b'}) "
+            "CREATE (a)-[:RELATES_TO {uuid: 'e1'}]->(b);"
+        )
+        conn.execute(
+            "MATCH (n:Entity {group_id: 'g'})-[e:RELATES_TO]-(m:Entity), "
+            "(d:EdgeDoc {uuid: e.uuid}) DETACH DELETE d;"
+        )
+
+        assert list(conn.execute("MATCH (d:EdgeDoc) RETURN d.uuid;")) == []
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_delete_vertex_detach_edge2(tmp_path):
     db_dir = str(tmp_path / "test_delete_vertex_detach_edge2")
     logger.info("Starting test_delete_vertex_detach_edge2")

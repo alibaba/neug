@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+from pathlib import Path
+
 import pytest
 from conftest import HAS_LDBC
 from conftest import LDBC_DIR
@@ -23,6 +25,36 @@ from conftest import ensure_result_cnt_gt_zero
 from conftest import submit_cypher_query
 
 from neug.database import Database
+from neug.datasets.loader import get_available_datasets
+
+
+@pytest.fixture
+def path_expand_connection(tmp_path):
+    dataset_dir = Path(__file__).resolve().parents[3] / "example_dataset" / "tinysnb"
+    if not dataset_dir.is_dir():
+        pytest.skip(f"TinySNB dataset not found: {dataset_dir}")
+
+    db = Database(db_path=str(tmp_path / "path_expand_optimizer"), mode="w")
+    conn = db.connect()
+    dataset = next(
+        dataset for dataset in get_available_datasets() if dataset.name == "tinysnb"
+    )
+    for query in dataset.create_schema_query:
+        conn.execute(query)
+    for query in dataset.data_import_query:
+        conn.execute(query.format(dataset_dir.as_posix()))
+
+    yield conn
+
+    conn.close()
+    db.close()
+
+
+def _operator_names(result):
+    return {
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    }
 
 
 def test_path_expand(modern_graph):
@@ -297,6 +329,33 @@ def test_tinysnb_path_expand(tinysnb):
     records = list(result)
     assert len(records) == 1
     assert records[0][0] == 13
+
+
+def test_unused_named_path_uses_endpoint_only_expand(path_expand_connection):
+    result = path_expand_connection.execute(
+        "PROFILE MATCH p = (a:person)-[e:knows*3..3]->(b:person) " "RETURN COUNT(b.ID);"
+    )
+
+    assert list(result) == [[108]]
+    operator_names = _operator_names(result)
+    # PathExpandVOpr calls edge_expand_v(), which only produces endpoint
+    # vertices and does not construct a Path column.
+    assert "PathExpandVOpr" in operator_names
+    assert "PathExpandOpr" not in operator_names
+
+
+def test_materialized_path_returns_correct_length(path_expand_connection):
+    result = path_expand_connection.execute(
+        "PROFILE MATCH p = (a:person)-[e:knows*1..3]->(b:person) "
+        "WHERE a.ID = 0 RETURN length(p);"
+    )
+
+    lengths = sorted(row[0] for row in result)
+    assert lengths == [1] * 3 + [2] * 9 + [3] * 27
+    operator_names = _operator_names(result)
+    # length(p) consumes p and therefore keeps the existing ALL_V route.
+    assert "PathExpandOpr" in operator_names
+    assert "PathExpandVOpr" not in operator_names
 
 
 def test_path_expand_count_on_typed_rel_table(tmp_path):

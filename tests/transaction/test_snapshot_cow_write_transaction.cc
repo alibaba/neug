@@ -3070,7 +3070,8 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteEdges) {
   db.Close();
 }
 
-TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVerticesFailure) {
+TEST_F(SnapshotCowWriteTransactionTest,
+       DeleteVerticesIgnoresMissingAndAlreadyDeletedVertices) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
@@ -3086,17 +3087,20 @@ TEST_F(SnapshotCowWriteTransactionTest, BatchDeleteVerticesFailure) {
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, neug::Value::INT64(1), alice_vid));
     auto invalid_vid = std::numeric_limits<neug::vid_t>::max();
-    EXPECT_FALSE(
-        interface.BatchDeleteVertices(person_label, {alice_vid, invalid_vid})
-            .ok());
-    txn.Abort();
+    EXPECT_TRUE(interface
+                    .BatchDeleteVertices(person_label,
+                                         {alice_vid, alice_vid, invalid_vid})
+                    .ok());
+    EXPECT_TRUE(interface.DeleteVertex(person_label, alice_vid).ok());
+    EXPECT_TRUE(interface.DeleteVertex(person_label, invalid_vid).ok());
+    EXPECT_TRUE(txn.Commit());
   }
   {
     auto slot = svc->AcquireExecutionSlot();
     auto txn = slot->BeginSnapshotReadTransaction();
     neug::StorageReadInterface gi(txn.view(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
-    EXPECT_EQ(count_vertices(gi, person_label), 2);
+    EXPECT_EQ(count_vertices(gi, person_label), 1);
   }
   svc.reset();
   db.Close();

@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#include <limits>
+
 #include <gtest/gtest.h>
 
 #include "neug/common/types/value.h"
@@ -155,6 +157,33 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
                                MAX_TIMESTAMP, allocator, oe_offset, prop)
                      .ok());
   }
+}
+
+TEST_F(PropertyGraphTest, DeleteMissingVerticesIsNoOp) {
+  CreateModernGraphSchema();
+  const auto person_label = graph_->schema().get_vertex_label_id("person");
+  vid_t alice_vid;
+  ASSERT_TRUE(graph_
+                  ->AddVertex(person_label, Value::INT64(1),
+                              {Value::STRING("Alice"), Value::INT32(30),
+                               Value::DOUBLE(88.5)},
+                              alice_vid, MAX_TIMESTAMP)
+                  .ok());
+
+  const auto missing_vid = std::numeric_limits<vid_t>::max();
+  EXPECT_TRUE(
+      graph_->DeleteVertex(person_label, Value::INT64(2), MAX_TIMESTAMP).ok());
+  EXPECT_TRUE(
+      graph_->DeleteVertex(person_label, missing_vid, MAX_TIMESTAMP).ok());
+  EXPECT_TRUE(graph_
+                  ->BatchDeleteVertices(person_label,
+                                        {alice_vid, alice_vid, missing_vid})
+                  .ok());
+  EXPECT_TRUE(
+      graph_->DeleteVertex(person_label, alice_vid, MAX_TIMESTAMP).ok());
+  EXPECT_TRUE(
+      graph_->DeleteVertex(person_label, Value::INT64(1), MAX_TIMESTAMP).ok());
+  EXPECT_EQ(graph_->VertexNum(person_label), 0);
 }
 
 }  // namespace neug

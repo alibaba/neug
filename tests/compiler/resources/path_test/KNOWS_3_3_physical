@@ -67,7 +67,7 @@
       "upper": 4
      },
      "path_opt": "ARBITRARY",
-     "result_opt": "ALL_V",
+     "result_opt": "END_V",
      "is_optional": false
     }
    },

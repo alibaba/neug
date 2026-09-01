@@ -134,7 +134,17 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
     if (capacity <= old_cap) {
       return neug::Status::OK();
     }
-    auto v_new_cap = vertex_tables_[v_label].EnsureCapacity(capacity);
+    vertex_tables_[v_label].EnsureCapacity(capacity);
+    return SyncIncidentEdgeCapacity(v_label);
+  } else {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex label does not exist.");
+  }
+}
+
+Status PropertyGraph::SyncIncidentEdgeCapacity(label_t v_label) {
+  if (schema_.is_vertex_label_valid(v_label)) {
+    const auto v_capacity = vertex_tables_[v_label].Capacity();
     for (label_t dst_label = 0; dst_label < vertex_label_total_count_;
          ++dst_label) {
       if (!schema_.is_vertex_label_valid(dst_label)) {
@@ -142,15 +152,18 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
       }
       for (label_t e_label = 0; e_label < edge_label_total_count_; ++e_label) {
         size_t index = schema_.generate_edge_label(v_label, dst_label, e_label);
+        // Resizing an edge CSR directory must be checkpoint-visible.
         if (edge_tables_.count(index) > 0) {
           edge_tables_.at(index).EnsureCapacity(
-              v_new_cap, vertex_tables_[dst_label].Capacity());
+              v_capacity, vertex_tables_[dst_label].Capacity());
+          MarkEdgeTableDirty(v_label, dst_label, e_label);
         }
         if (v_label != dst_label) {
           index = schema_.generate_edge_label(dst_label, v_label, e_label);
           if (edge_tables_.count(index) > 0) {
             edge_tables_.at(index).EnsureCapacity(
-                vertex_tables_[dst_label].Capacity(), v_new_cap);
+                vertex_tables_[dst_label].Capacity(), v_capacity);
+            MarkEdgeTableDirty(dst_label, v_label, e_label);
           }
         }
       }
@@ -726,14 +739,16 @@ Status PropertyGraph::DeleteVertex(label_t label, const Value& oid,
   RETURN_IF_NOT_OK(vertex_label_check(label));
   vid_t lid;
   if (!vertex_tables_.at(label).get_index(oid, lid, ts)) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Vertex oid does not exist.");
+    return Status::OK();
   }
   return DeleteVertex(label, lid, ts);
 }
 
 Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
   RETURN_IF_NOT_OK(vertex_label_check(label));
+  if (!IsValidLid(label, lid, ts)) {
+    return Status::OK();
+  }
   for (label_t i = 0; i < vertex_label_total_count_; i++) {
     if (!schema_.is_vertex_label_valid(i)) {
       continue;

@@ -59,6 +59,7 @@ class ProjectionPushDownOptimizer : public LogicalOperatorVisitor {
 
   void visitPathPropertyProbe(planner::LogicalOperator* op) override;
   void visitExtend(planner::LogicalOperator* op) override;
+  void visitRecursiveExtend(planner::LogicalOperator* op) override;
   void visitAccumulate(planner::LogicalOperator* op) override;
   void visitFilter(planner::LogicalOperator* op) override;
   void visitNodeLabelFilter(planner::LogicalOperator* op) override;

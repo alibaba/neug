@@ -134,6 +134,7 @@ class CowGraphStorage : public StorageUpdateInterface,
   Status detachEdgeColumn(uint32_t edge_triplet_id, int32_t col_id);
   Status detachAdjlists(uint32_t edge_triplet_id, vid_t src_lid, vid_t dst_lid,
                         Allocator& alloc);
+  Status detachIncidentEdgeTablesForResize(label_t label);
   Status detachForResize(label_t label, size_t capacity);
   Status detachForResize(label_t src_label, label_t dst_label,
                          label_t edge_label, size_t capacity);
