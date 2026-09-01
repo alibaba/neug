@@ -21,10 +21,10 @@ def wait_until_ready(host, port, timeout=60):
     raise RuntimeError(f"Timed out waiting for NeuG server on {host}:{port}")
 
 
-def test_java_driver_e2e():
+def test_java_driver_e2e(tmp_path):
     host = os.environ.get("NEUG_JAVA_DRIVER_E2E_HOST", "127.0.0.1")
     port = int(os.environ.get("NEUG_JAVA_DRIVER_E2E_PORT", "10010"))
-    db_path = os.environ.get("NEUG_JAVA_DRIVER_E2E_DB_PATH", "/tmp/modern_graph")
+    db_path = str(tmp_path / "modern_graph")
     test_name = os.environ.get("NEUG_JAVA_DRIVER_E2E_TEST", "JavaDriverE2ETest")
     repo_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..")
@@ -34,6 +34,12 @@ def test_java_driver_e2e():
 
     db = Database(db_path=db_path, mode="w")
     try:
+        with db.connect() as connection:
+            connection.execute(
+                "CREATE NODE TABLE person "
+                "(id INT64, name STRING, age INT32, PRIMARY KEY(id));"
+            )
+            connection.execute("CREATE (:person {id: 1, name: 'marko', age: 29});")
         db.serve(host=host, port=port, blocking=False)
         wait_until_ready(host, port)
 

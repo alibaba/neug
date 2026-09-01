@@ -16,6 +16,7 @@ package com.alibaba.neug.driver.utils;
 import com.alibaba.neug.driver.ResultSet;
 import com.alibaba.neug.driver.Results;
 import com.alibaba.neug.driver.internal.InternalResultSet;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Utility class for parsing database server responses.
@@ -24,6 +25,25 @@ import com.alibaba.neug.driver.internal.InternalResultSet;
  * access query results.
  */
 public class ResponseParser {
+
+    /** Parses the identifier returned by {@code POST /transactions}. */
+    public static String parseTransactionId(byte[] response) {
+        if (response == null || response.length == 0) {
+            throw new IllegalArgumentException("Transaction response must not be empty");
+        }
+        try {
+            JsonNode idNode = JsonUtil.getInstance().readTree(response).get("transaction_id");
+            if (idNode == null || !idNode.isTextual() || idNode.textValue().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Transaction response does not contain a valid transaction_id");
+            }
+            return idNode.textValue();
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse transaction response", e);
+        }
+    }
 
     /**
      * Parses a response byte array into a ResultSet.

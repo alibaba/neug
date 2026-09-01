@@ -16,6 +16,7 @@ package com.alibaba.neug.driver.utils;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import okhttp3.ConnectionPool;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -30,7 +31,7 @@ import okhttp3.ResponseBody;
  */
 public class Client {
 
-    private final String uri;
+    private final HttpUrl baseUrl;
     private OkHttpClient httpClient = null;
     private boolean closed = false;
 
@@ -41,7 +42,10 @@ public class Client {
      * @param config the configuration for connection pooling and timeouts
      */
     public Client(String uri, Config config) {
-        this.uri = (uri != null && uri.endsWith("/")) ? uri + "cypher" : uri + "/cypher";
+        if (uri == null) {
+            throw new IllegalArgumentException("URI must not be null");
+        }
+        this.baseUrl = HttpUrl.get(uri);
         this.closed = false;
 
         httpClient =
@@ -51,7 +55,11 @@ public class Client {
                                         config.getMaxConnectionPoolSize(),
                                         config.getKeepAliveIntervalMillis(),
                                         TimeUnit.MILLISECONDS))
-                        .retryOnConnectionFailure(true)
+                        // Every NeuG endpoint uses POST and may mutate database state. Without a
+                        // protocol-level request ID, replaying a request after a connection failure
+                        // could execute it twice, so the driver deliberately uses at-most-once
+                        // delivery for autocommit and explicit-transaction requests alike.
+                        .retryOnConnectionFailure(false)
                         .connectTimeout(config.getConnectionTimeoutMillis(), TimeUnit.MILLISECONDS)
                         .readTimeout(config.getReadTimeoutMillis(), TimeUnit.MILLISECONDS)
                         .writeTimeout(config.getWriteTimeoutMillis(), TimeUnit.MILLISECONDS)
@@ -59,27 +67,71 @@ public class Client {
     }
 
     /**
-     * Sends a synchronous POST request to the database server.
+     * Builds an endpoint relative to the database server's base URL. Each path segment is encoded
+     * independently, so identifiers such as transaction IDs can be passed without manually escaping
+     * them. Callers should cache the returned URL instead of rebuilding it for every request.
      *
-     * @param request the request body as a byte array
-     * @return the response body as a byte array
-     * @throws IOException if an I/O error occurs during the request
+     * @param pathSegments endpoint path segments, for example {@code "transactions", transactionId,
+     *     "commit"}
+     * @return the encoded endpoint URL
      */
-    public byte[] syncPost(byte[] request) throws IOException {
+    public HttpUrl endpoint(String... pathSegments) {
+        HttpUrl.Builder urlBuilder = baseUrl.newBuilder();
+        for (String pathSegment : pathSegments) {
+            if (pathSegment == null || pathSegment.isEmpty()) {
+                throw new IllegalArgumentException("Path segments must not be null or empty");
+            }
+            urlBuilder.addPathSegment(pathSegment);
+        }
+        return urlBuilder.build();
+    }
+
+    /**
+     * Sends a synchronous POST request to a pre-built endpoint.
+     *
+     * <p>This method returns both the HTTP status code and response body. Callers are responsible
+     * for interpreting non-success status codes according to the operation's semantics.
+     *
+     * @param url the endpoint URL, normally built once with {@link #endpoint(String...)} and cached
+     *     by the caller
+     * @param request the request body as a byte array
+     * @return the HTTP response containing the status code and response body
+     * @throws IOException if the request cannot be sent or the response cannot be read
+     * @throws IllegalStateException if this client has already been closed
+     */
+    public HttpResponse syncPost(HttpUrl url, byte[] request) throws IOException {
         if (closed) {
             throw new IllegalStateException("Client is already closed");
         }
         RequestBody body = RequestBody.create(request);
-        Request httpRequest = new Request.Builder().url(uri).post(body).build();
+        Request httpRequest = new Request.Builder().url(url).post(body).build();
         try (Response response = httpClient.newCall(httpRequest).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected code " + response);
-            }
             ResponseBody responseBody = response.body();
-            if (responseBody == null) {
-                throw new IOException("Response body is null");
-            }
-            return responseBody.bytes();
+            byte[] responseBytes = responseBody == null ? new byte[0] : responseBody.bytes();
+            return new HttpResponse(response.code(), responseBytes);
+        }
+    }
+
+    /** HTTP response envelope retained for callers that need to inspect non-success responses. */
+    public static final class HttpResponse {
+        private final int statusCode;
+        private final byte[] body;
+
+        public HttpResponse(int statusCode, byte[] body) {
+            this.statusCode = statusCode;
+            this.body = body;
+        }
+
+        public boolean isSuccessful() {
+            return statusCode >= 200 && statusCode < 300;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public byte[] getBody() {
+            return body;
         }
     }
 

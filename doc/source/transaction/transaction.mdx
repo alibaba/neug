@@ -38,11 +38,11 @@ following clients support programmatic explicit transactions:
 | C++ | ✅ | — |
 | Python | ✅ | ✅ |
 | Node.js | ✅ | — |
-| Java | — | Planned |
+| Java | — | ✅ |
 
-✅ available · Planned: a later release · — no client for that mode.
+✅ available · — no client for that mode.
 
-The two mode sections below therefore show different languages.
+The examples below use the clients available for each deployment mode.
 
 An explicit transaction spans multiple queries: begin a transaction, execute
 queries within it, then commit or roll it back. A read-only transaction pins one
@@ -164,7 +164,7 @@ Until then the connection still reports an active transaction.
 In service mode, an explicit transaction is owned by its `Session`, and one
 `Session` owns at most one transaction at a time.
 
-<Tabs items={['Python']}>
+<Tabs items={['Python', 'Java']}>
 
 <Tab>
 
@@ -181,16 +181,38 @@ session.close()
 
 </Tab>
 
+<Tab>
+
+```java
+import com.alibaba.neug.driver.Driver;
+import com.alibaba.neug.driver.GraphDatabase;
+import com.alibaba.neug.driver.Session;
+import com.alibaba.neug.driver.Transaction;
+
+try (Driver driver = GraphDatabase.driver("http://localhost:10000");
+        Session session = driver.session();
+        Transaction txn = session.beginTransaction()) {
+    txn.run("CREATE (:Person {name: 'Alice'})").close();
+    txn.run("MATCH (p:Person) RETURN p.name").close();
+    txn.commit();
+}
+```
+
+</Tab>
+
 </Tabs>
 
 For the transaction-control methods each service-mode client exposes, see the
-[API reference](../../reference).
+[API reference](../../reference), including the [Java transaction API](../../reference/java_api/transaction).
 
-**Using the session.** Every query issued on the session runs inside its active
-transaction, and closing the session tries to roll that transaction back. Never
-issue concurrent requests through one `Session` — use one `Session` per client
-worker. Schema lookups always show the service's committed schema, never a
-transaction-private one.
+**Using the session.** Python routes queries issued on an active `Session` into
+its transaction. In Java, execute every transactional statement through
+`Transaction.run(...)`; direct `Session.run(...)` calls are rejected until that
+transaction ends. Both clients allow at most one explicit transaction per
+`Session`, and closing a session tries to roll it back. Never issue concurrent
+requests through one `Session` — use one `Session` per client worker. Schema
+lookups always show the service's committed schema, never a transaction-private
+one.
 
 **Concurrency.** A read-write transaction holds the TP update lease. While it
 holds it, no other read-write transaction can begin, and ordinary inserts and
@@ -203,9 +225,13 @@ transaction request returns `410 Gone`, and `Session` then clears its local
 handle. After shutdown or a network failure, local state may be stale; close the
 session. Ordinary statement failures leave the transaction rollback-only.
 
-**Ending a rollback-only transaction.** Call `rollback()`. If the transaction has
-already expired, the call raises `RuntimeError` on `410 Gone` but clears the local
-handle.
+**Ending a rollback-only transaction.** Call `rollback()` (or Java
+`Transaction.rollback()`). If a Python transaction has already expired, the
+call raises `RuntimeError` on `410 Gone` but clears the local handle. In Java, a
+statement rejected by `Transaction.run(...)` makes the transaction rollback-only,
+so only `rollback()` is allowed. If the network fails while Java commits or
+rolls back, the final outcome is unknown; the driver does not retry, and the
+owning session must be closed and replaced.
 
 **Abandoned transactions.** A read-write transaction that is never finished keeps
 the update lease and delays ordinary TP writes until the service releases it.
