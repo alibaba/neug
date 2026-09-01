@@ -1,7 +1,7 @@
 # Building a Code Wiki with Graph
 
 This tutorial shows how to use graph algorithms to **structure and maintain a code wiki**
-with NeuG (version >= v0.1.3) and its GDS (Graph Data Science) extension:
+with NeuG (version >= v0.2.0) and its GDS (Graph Data Science) extension:
 
 1. **Build** — import a file-level relationship graph, use Leiden to detect wiki section
    boundaries, and use PageRank to pick the core files of each section.
@@ -14,7 +14,7 @@ relationships are derived from the underlying code graph — for example, if a f
 file A calls a function in file B, then A and B are connected by an edge.
 
 **Time**: ~15 minutes
-**Prerequisites**: `pip install neug>=0.1.3`
+**Prerequisites**: `pip install neug>=0.2.0`
 
 ---
 
