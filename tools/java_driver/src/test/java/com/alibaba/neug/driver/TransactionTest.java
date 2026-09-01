@@ -86,14 +86,31 @@ public class TransactionTest {
     }
 
     @Test
-    public void rejectedCommitClosesTransactionAndReleasesSession() {
-        client.rejectCommit = true;
+    public void busyCommitLeavesTransactionRollbackOnly() {
+        client.busyCommit = true;
         InternalSession session = new InternalSession(client);
         Transaction transaction = session.beginTransaction();
 
         RuntimeException error = assertThrows(RuntimeException.class, transaction::commit);
 
-        assertTrue(error.getMessage().contains("HTTP 409 write conflict"));
+        assertTrue(error.getMessage().contains("HTTP 409 transaction busy"));
+        assertTrue(transaction.isOpen());
+        assertThrows(IllegalStateException.class, session::beginTransaction);
+
+        client.busyCommit = false;
+        transaction.rollback();
+        assertTrue(session.beginTransaction().isOpen());
+    }
+
+    @Test
+    public void expiredCommitClosesTransactionAndReleasesSession() {
+        client.expireCommit = true;
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        RuntimeException error = assertThrows(RuntimeException.class, transaction::commit);
+
+        assertTrue(error.getMessage().contains("HTTP 410 transaction expired"));
         assertFalse(transaction.isOpen());
         assertTrue(session.beginTransaction().isOpen());
     }
@@ -109,6 +126,36 @@ public class TransactionTest {
         assertTrue(error.getMessage().contains("HTTP 410 transaction expired"));
         assertFalse(transaction.isOpen());
         assertTrue(session.beginTransaction().isOpen());
+    }
+
+    @Test
+    public void busyRollbackCanBeRetried() {
+        client.busyRollback = true;
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        RuntimeException error = assertThrows(RuntimeException.class, transaction::rollback);
+
+        assertTrue(error.getMessage().contains("HTTP 409 transaction busy"));
+        assertTrue(transaction.isOpen());
+
+        client.busyRollback = false;
+        transaction.rollback();
+        assertFalse(transaction.isOpen());
+        assertTrue(session.beginTransaction().isOpen());
+    }
+
+    @Test
+    public void serverFailureLeavesCommitOutcomeUnknown() {
+        client.failCommitWithServerError = true;
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        RuntimeException error = assertThrows(RuntimeException.class, transaction::commit);
+
+        assertTrue(error.getMessage().contains("HTTP 500 internal error"));
+        assertFalse(transaction.isOpen());
+        assertThrows(IllegalStateException.class, session::beginTransaction);
     }
 
     @Test
@@ -145,8 +192,11 @@ public class TransactionTest {
 
     private static final class FakeClient extends Client {
         private boolean failCommit;
-        private boolean rejectCommit;
+        private boolean busyCommit;
+        private boolean expireCommit;
         private boolean rejectRollback;
+        private boolean busyRollback;
+        private boolean failCommitWithServerError;
         private String lastPath;
         private String lastRequestBody;
 
@@ -168,12 +218,22 @@ public class TransactionTest {
             if (path.endsWith("/commit") && failCommit) {
                 throw new IOException("response lost");
             }
-            if (path.endsWith("/commit") && rejectCommit) {
-                return new HttpResponse(409, "write conflict".getBytes(StandardCharsets.UTF_8));
+            if (path.endsWith("/commit") && busyCommit) {
+                return new HttpResponse(409, "transaction busy".getBytes(StandardCharsets.UTF_8));
+            }
+            if (path.endsWith("/commit") && expireCommit) {
+                return new HttpResponse(
+                        410, "transaction expired".getBytes(StandardCharsets.UTF_8));
+            }
+            if (path.endsWith("/commit") && failCommitWithServerError) {
+                return new HttpResponse(500, "internal error".getBytes(StandardCharsets.UTF_8));
             }
             if (path.endsWith("/rollback") && rejectRollback) {
                 return new HttpResponse(
                         410, "transaction expired".getBytes(StandardCharsets.UTF_8));
+            }
+            if (path.endsWith("/rollback") && busyRollback) {
+                return new HttpResponse(409, "transaction busy".getBytes(StandardCharsets.UTF_8));
             }
             return new HttpResponse(200, new byte[0]);
         }

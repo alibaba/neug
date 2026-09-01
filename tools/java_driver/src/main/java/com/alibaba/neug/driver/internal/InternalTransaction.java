@@ -88,10 +88,7 @@ public class InternalTransaction implements Transaction {
         try {
             Client.HttpResponse response = client.syncPost(commitEndpoint, EMPTY_BODY);
             if (!response.isSuccessful()) {
-                // A non-success response confirms that the server handled the terminal request.
-                // The service removes the transaction after commit, including rejected commits,
-                // so there is nothing left to roll back and the owning session can be reused.
-                state = State.CLOSED;
+                updateStateAfterTerminalFailure(response);
                 throw httpFailure("commit transaction", response);
             }
             state = State.CLOSED;
@@ -109,8 +106,7 @@ public class InternalTransaction implements Transaction {
         try {
             Client.HttpResponse response = client.syncPost(rollbackEndpoint, EMPTY_BODY);
             if (!response.isSuccessful()) {
-                // Unlike an I/O failure, an HTTP response gives us a definitive terminal result.
-                state = State.CLOSED;
+                updateStateAfterTerminalFailure(response);
                 throw httpFailure("rollback transaction", response);
             }
             state = State.CLOSED;
@@ -157,5 +153,19 @@ public class InternalTransaction implements Transaction {
         String body = new String(response.getBody(), StandardCharsets.UTF_8);
         return new RuntimeException(
                 "Failed to " + operation + ": HTTP " + response.getStatusCode() + " " + body);
+    }
+
+    private void updateStateAfterTerminalFailure(Client.HttpResponse response) {
+        if (response.getStatusCode() == 409) {
+            // The request may have raced with an in-flight operation. The server keeps the
+            // transaction, so prevent further queries or commits but allow rollback to be retried.
+            state = State.ROLLBACK_ONLY;
+        } else if (response.getStatusCode() == 410) {
+            // The server confirms that the transaction has expired or no longer exists.
+            state = State.CLOSED;
+        } else {
+            // Other failures do not establish whether the terminal operation took effect.
+            state = State.TERMINAL_UNKNOWN;
+        }
     }
 }

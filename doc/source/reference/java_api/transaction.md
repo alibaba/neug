@@ -80,15 +80,17 @@ try (Session session = driver.session();
 |---|---|---|---|---|
 | Active | Allowed | Allowed | Allowed | `true` |
 | Rollback-only | Rejected | Rejected | Allowed | `true` |
-| Closed after a rejected commit/rollback | Rejected | Rejected | Rejected | `false` |
+| Rollback-only after HTTP 409 | Rejected | Rejected | Allowed | `true` |
+| Closed after HTTP 410 | Rejected | Rejected | Rejected | `false` |
 | Closed after commit/rollback | Rejected | Rejected | Rejected | `false` |
 | Commit or rollback outcome unknown | Rejected | Rejected | Rejected | `false` |
 
 A failed statement makes the transaction rollback-only. Roll it back before reusing the session.
 
-If the server explicitly rejects a commit or rollback, the transaction is closed because the
-server has already ended and removed it. The original HTTP failure is preserved, and the owning
-session can be reused.
+If commit or rollback returns HTTP 409, an operation may still be running and the server retains the
+transaction. The transaction becomes rollback-only so rollback can be retried. HTTP 410 confirms
+that the transaction has expired or no longer exists, so the transaction is closed and the owning
+session can be reused. Other HTTP failures leave the outcome unknown.
 
 If the connection fails while committing or rolling back, the final server-side outcome may be unknown. The driver does not transparently retry requests because replaying an operation whose response was lost may execute it twice. Close the owning session and create a new session; the server-side transaction deadline provides final resource reclamation.
 
