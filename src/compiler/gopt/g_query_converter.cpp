@@ -111,9 +111,8 @@ std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
       NEUG_ASSERT(schema);
       for (const auto& expr : schema->getExpressionsInScope()) {
         auto tag = sink->add_tags();
-        auto alias = std::make_unique<::google::protobuf::Int32Value>();
-        alias->set_value(aliasManager->getAliasId(expr->getUniqueName()));
-        tag->set_allocated_tag(alias.release());
+        tag->mutable_tag()->set_value(
+            aliasManager->getAliasId(expr->getUniqueName()));
       }
     }
     auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
