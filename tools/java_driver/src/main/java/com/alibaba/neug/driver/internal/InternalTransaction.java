@@ -131,12 +131,14 @@ public class InternalTransaction implements Transaction {
         return state == State.ACTIVE || state == State.ROLLBACK_ONLY;
     }
 
-    boolean blocksSession() {
-        return state != State.CLOSED;
-    }
-
-    boolean hasUnknownOutcome() {
-        return state == State.TERMINAL_UNKNOWN;
+    void ensureSessionReusable() {
+        if (state == State.TERMINAL_UNKNOWN) {
+            throw new IllegalStateException(
+                    "Transaction outcome is unknown; close this session and create a new one");
+        }
+        if (state != State.CLOSED) {
+            throw new IllegalStateException("There is an active transaction");
+        }
     }
 
     private void ensureRunnable() {

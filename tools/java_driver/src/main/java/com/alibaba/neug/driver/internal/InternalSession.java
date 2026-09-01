@@ -132,12 +132,8 @@ public class InternalSession implements Session {
     }
 
     private void ensureNoActiveTransaction() {
-        if (activeTransaction != null && activeTransaction.hasUnknownOutcome()) {
-            throw new IllegalStateException(
-                    "Transaction outcome is unknown; close this session and create a new one");
-        }
-        if (activeTransaction != null && activeTransaction.blocksSession()) {
-            throw new IllegalStateException("There is an active transaction");
+        if (activeTransaction != null) {
+            activeTransaction.ensureSessionReusable();
         }
     }
 
