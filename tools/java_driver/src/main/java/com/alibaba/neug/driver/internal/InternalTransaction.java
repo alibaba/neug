@@ -135,6 +135,10 @@ public class InternalTransaction implements Transaction {
         return state != State.CLOSED;
     }
 
+    boolean hasUnknownOutcome() {
+        return state == State.TERMINAL_UNKNOWN;
+    }
+
     private void ensureRunnable() {
         if (state == State.ROLLBACK_ONLY) {
             throw new IllegalStateException("Transaction is rollback-only");

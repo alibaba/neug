@@ -75,8 +75,14 @@ public class TransactionTest {
         assertThrows(RuntimeException.class, transaction::commit);
 
         assertFalse(transaction.isOpen());
-        assertThrows(IllegalStateException.class, session::beginTransaction);
-        assertThrows(IllegalStateException.class, () -> session.run("RETURN 1"));
+        IllegalStateException beginError =
+                assertThrows(IllegalStateException.class, session::beginTransaction);
+        IllegalStateException runError =
+                assertThrows(IllegalStateException.class, () -> session.run("RETURN 1"));
+        assertEquals(
+                "Transaction outcome is unknown; close this session and create a new one",
+                beginError.getMessage());
+        assertEquals(beginError.getMessage(), runError.getMessage());
     }
 
     @Test
@@ -106,6 +112,27 @@ public class TransactionTest {
     }
 
     @Test
+    public void beginTransactionSendsRequestedMode() {
+        InternalSession session = new InternalSession(client);
+
+        session.beginTransaction(Transaction.Mode.READ_ONLY);
+
+        assertEquals("{\"mode\":\"read_only\"}", client.lastRequestBody);
+    }
+
+    @Test
+    public void closeRollsBackAndReleasesSession() {
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        transaction.close();
+
+        assertEquals("/transactions/" + TRANSACTION_ID + "/rollback", client.lastPath);
+        assertFalse(transaction.isOpen());
+        assertTrue(session.beginTransaction().isOpen());
+    }
+
+    @Test
     public void transactionQueriesUseTpServiceRoute() {
         InternalSession session = new InternalSession(client);
         Transaction transaction = session.beginTransaction();
@@ -121,6 +148,7 @@ public class TransactionTest {
         private boolean rejectCommit;
         private boolean rejectRollback;
         private String lastPath;
+        private String lastRequestBody;
 
         private FakeClient() {
             super("http://localhost", Config.builder().build());
@@ -130,6 +158,7 @@ public class TransactionTest {
         public HttpResponse syncPost(HttpUrl url, byte[] request) throws IOException {
             String path = url.encodedPath();
             lastPath = path;
+            lastRequestBody = new String(request, StandardCharsets.UTF_8);
             if ("/transactions".equals(path)) {
                 return new HttpResponse(
                         201,
