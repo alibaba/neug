@@ -107,8 +107,11 @@ std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
     auto sink = std::make_unique<::physical::Sink>();
     auto lastOp = plan.getLastOperator();
     if (lastOp->getOperatorType() == planner::LogicalOperatorType::UNION_ALL) {
-      auto schema = lastOp->getSchema();
-      NEUG_ASSERT(schema);
+      auto* schema = lastOp->getSchema();
+      if (schema == nullptr) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "Cannot build UNION ALL physical plan: output schema is not set");
+      }
       for (const auto& expr : schema->getExpressionsInScope()) {
         auto tag = sink->add_tags();
         tag->mutable_tag()->set_value(
@@ -2376,9 +2379,17 @@ void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Union operator should have at least one sub query");
     }
+    ++subQueryOffset;
+  }
+  const auto subQueryCount = unionOp.getNumChildren() - subQueryOffset;
+  if (subQueryCount != 2) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "UNION ALL currently supports exactly two branches; got " +
+        std::to_string(subQueryCount));
+  }
+  if (unionOp.getPreQuery()) {
     auto preQuery = unionOp.getChild(0);
     convertOperator(*preQuery, plan);
-    ++subQueryOffset;
   }
   auto unionPB = std::make_unique<::physical::Union>();
   for (auto pos = subQueryOffset; pos < unionOp.getNumChildren(); ++pos) {

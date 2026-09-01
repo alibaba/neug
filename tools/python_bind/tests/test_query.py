@@ -423,35 +423,40 @@ def test_union_all_remains_supported(empty_db):
 
 def _create_union_all_limit_data(conn):
     conn.execute(
-        "CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));",
+        "CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));",
         access_mode="schema",
     )
     conn.execute(
-        "CREATE NODE TABLE Animal(id INT64, PRIMARY KEY(id));",
+        "CREATE NODE TABLE Animal(id INT64, name STRING, PRIMARY KEY(id));",
         access_mode="schema",
     )
-    for person_id in (1, 2):
-        conn.execute(f"CREATE (:Person {{id: {person_id}}});", access_mode="update")
-    for animal_id in (10, 20):
-        conn.execute(f"CREATE (:Animal {{id: {animal_id}}});", access_mode="update")
+    for person_id, name in ((1, "Alice"), (2, "Bob")):
+        conn.execute(
+            f"CREATE (:Person {{id: {person_id}, name: '{name}'}});",
+            access_mode="update",
+        )
+    for animal_id, name in ((10, "Cat"), (20, "Dog")):
+        conn.execute(
+            f"CREATE (:Animal {{id: {animal_id}, name: '{name}'}});",
+            access_mode="update",
+        )
 
 
 @pytest.mark.parametrize(
-    "person_limit, animal_limit, expected_persons, expected_animals",
+    "person_suffix, animal_suffix, expected_persons, expected_animals",
     [
-        (True, True, 1, 1),
-        (True, False, 1, 2),
-        (False, True, 2, 1),
+        (" LIMIT 1", " LIMIT 1", 1, 1),
+        (" LIMIT 1", "", 1, 2),
+        ("", " LIMIT 1", 2, 1),
+        (" SKIP 1", "", 1, 2),
     ],
 )
-def test_union_all_with_branch_local_limit(
-    empty_db, person_limit, animal_limit, expected_persons, expected_animals
+def test_union_all_with_branch_local_skip_or_limit(
+    empty_db, person_suffix, animal_suffix, expected_persons, expected_animals
 ):
     _, conn = empty_db
     _create_union_all_limit_data(conn)
 
-    person_suffix = " LIMIT 1" if person_limit else ""
-    animal_suffix = " LIMIT 1" if animal_limit else ""
     result = conn.execute(
         "MATCH (p:Person) RETURN p.id AS id"
         + person_suffix
@@ -464,6 +469,26 @@ def test_union_all_with_branch_local_limit(
     values = [row[0] for row in result]
     assert sum(value < 10 for value in values) == expected_persons
     assert sum(value >= 10 for value in values) == expected_animals
+
+
+def test_union_all_with_branch_local_limit_preserves_column_order(empty_db):
+    _, conn = empty_db
+    _create_union_all_limit_data(conn)
+
+    result = conn.execute(
+        "MATCH (p:Person) RETURN p.id AS id, p.name AS name LIMIT 1 "
+        "UNION ALL "
+        "MATCH (a:Animal) RETURN a.id AS id, a.name AS name LIMIT 1",
+        access_mode="read",
+    )
+
+    assert result.column_names() == ["id", "name"]
+    rows = list(result)
+    assert len(rows) == 2
+    expected_rows = {(1, "Alice"), (2, "Bob"), (10, "Cat"), (20, "Dog")}
+    assert all(tuple(row) in expected_rows for row in rows)
+    assert sum(row[0] < 10 for row in rows) == 1
+    assert sum(row[0] >= 10 for row in rows) == 1
 
 
 def test_union_all_with_branch_local_limit_validates_logical_types(empty_db):
@@ -485,7 +510,9 @@ def test_union_all_with_branch_local_limit_validates_logical_types(empty_db):
             access_mode="read",
         )
 
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    message = str(excinfo.value)
+    assert str(ERR_COMPILATION) in message
+    assert "id has data type VARCHAR but INT64 was expected" in message
 
 
 def test_result(modern_graph):

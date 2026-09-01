@@ -83,14 +83,21 @@ class UnionOpr : public IOperator {
 neug::result<OpBuildResultT> UnionOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
+  const auto& union_op = plan.plan(op_idx).opr().union_();
+  if (union_op.sub_plans_size() != 2) {
+    RETURN_UNSUPPORTED_ERROR(
+        "Union: exactly two sub-plans are supported, got " +
+        std::to_string(union_op.sub_plans_size()));
+  }
+
   std::vector<Pipeline> sub_plans;
   std::vector<ContextMeta> sub_metas;
-  for (int i = 0; i < plan.plan(op_idx).opr().union_().sub_plans_size(); ++i) {
-    auto& sub_plan = plan.plan(op_idx).opr().union_().sub_plans(i);
+  for (int i = 0; i < union_op.sub_plans_size(); ++i) {
+    const auto& sub_plan = union_op.sub_plans(i);
     auto pair_res = PlanParser::get().parse_execute_pipeline_with_meta(
         schema, ctx_meta, sub_plan);
     if (!pair_res) {
-      return std::make_pair(nullptr, ContextMeta());
+      RETURN_ERROR(pair_res.error());
     }
     auto pair = std::move(pair_res.value());
     sub_plans.emplace_back(std::move(pair.first));
@@ -100,6 +107,24 @@ neug::result<OpBuildResultT> UnionOprBuilder::Build(
   ContextMeta ret_meta = ctx_meta;
   if (!sub_metas.empty()) {
     ret_meta = sub_metas.front();
+    const auto& expected_columns = ret_meta.columns();
+    for (size_t i = 1; i < sub_metas.size(); ++i) {
+      const auto& actual_columns = sub_metas[i].columns();
+      bool aliases_match = actual_columns.size() == expected_columns.size();
+      if (aliases_match) {
+        for (const auto& column : expected_columns) {
+          if (actual_columns.find(column.first) == actual_columns.end()) {
+            aliases_match = false;
+            break;
+          }
+        }
+      }
+      if (!aliases_match) {
+        RETURN_STATUS_ERROR(neug::StatusCode::ERR_SCHEMA_MISMATCH,
+                            "Union: output aliases of branch " +
+                                std::to_string(i) + " do not match branch 0");
+      }
+    }
   }
 
   return std::make_pair(std::make_unique<UnionOpr>(std::move(sub_plans)),

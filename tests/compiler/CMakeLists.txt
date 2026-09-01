@@ -14,6 +14,7 @@ add_neug_test(
 	explain_test.cpp
 	project_test.cpp
 	result_test.cpp
+	union_test.cpp
 	# cyclic_test.cpp
 	lsqb_test.cpp
 	# TODO: enable the test after the match order of BI is ready
