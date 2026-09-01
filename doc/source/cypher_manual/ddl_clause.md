@@ -25,6 +25,11 @@ Please refer to the following examples for more usages.
 
 Create a node with Label type "Person", specifying the property names, types, and primary key for the Person.
 
+Each node table must declare exactly one primary key. The primary-key column
+must use `INT32`, `UINT32`, `INT64`, `UINT64`, `STRING`, or `VARCHAR(n)`.
+Composite primary keys and all other types, including floating-point, boolean,
+temporal, list, and array types, are not supported.
+
 ```
 CREATE NODE TABLE Person (
     name STRING,
