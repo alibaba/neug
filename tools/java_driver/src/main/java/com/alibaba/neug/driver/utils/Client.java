@@ -55,6 +55,10 @@ public class Client {
                                         config.getMaxConnectionPoolSize(),
                                         config.getKeepAliveIntervalMillis(),
                                         TimeUnit.MILLISECONDS))
+                        // Every NeuG endpoint uses POST and may mutate database state. Without a
+                        // protocol-level request ID, replaying a request after a connection failure
+                        // could execute it twice, so the driver deliberately uses at-most-once
+                        // delivery for autocommit and explicit-transaction requests alike.
                         .retryOnConnectionFailure(false)
                         .connectTimeout(config.getConnectionTimeoutMillis(), TimeUnit.MILLISECONDS)
                         .readTimeout(config.getReadTimeoutMillis(), TimeUnit.MILLISECONDS)

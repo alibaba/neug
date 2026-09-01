@@ -120,6 +120,17 @@ try (Session session = driver.session();
 
 Each session owns at most one explicit transaction and is not thread-safe. Closing an active session performs best-effort rollback. A lost commit response is not retried because its durable outcome may already be committed.
 
+### Retry and Failure Semantics
+
+The Java driver does not transparently retry requests after connection failures. NeuG query
+endpoints use HTTP POST, and both autocommit queries and explicit-transaction operations may change
+database state. Because the protocol does not currently provide request IDs or server-side request
+deduplication, replaying a request whose response was lost could execute it twice.
+
+An HTTP error response is definitive and is returned to the application with its status and body.
+An `IOException` means that the request outcome may be unknown. Applications should retry only
+operations that they know are safe to execute more than once.
+
 ## Dependencies
 
 This driver depends on the following libraries:

@@ -77,7 +77,7 @@ try (Session session = driver.session();
 }
 ```
 
-A statement failure makes the transaction rollback-only. If a commit response is lost, the session treats the outcome as unknown and does not retry commit or rollback; close that session and create another one. `close()` performs best-effort rollback for an active transaction, while the server-side absolute transaction deadline provides final resource reclamation.
+A statement failure makes the transaction rollback-only. The driver does not transparently retry requests after connection failures because replaying an operation whose response was lost may execute it twice. If a commit response is lost, the session treats the outcome as unknown; close that session and create another one. `close()` performs best-effort rollback for an active transaction, while the server-side absolute transaction deadline provides final resource reclamation.
 
 ## Usage Notes
 

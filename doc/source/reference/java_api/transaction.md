@@ -90,7 +90,7 @@ If the server explicitly rejects a commit or rollback, the transaction is closed
 server has already ended and removed it. The original HTTP failure is preserved, and the owning
 session can be reused.
 
-If the connection fails while committing or rolling back, the final server-side outcome may be unknown. The driver does not retry a transaction-ending request because replaying it may be unsafe. Close the owning session and create a new session; the server-side transaction deadline provides final resource reclamation.
+If the connection fails while committing or rolling back, the final server-side outcome may be unknown. The driver does not transparently retry requests because replaying an operation whose response was lost may execute it twice. Close the owning session and create a new session; the server-side transaction deadline provides final resource reclamation.
 
 ## API Summary
 
