@@ -88,7 +88,10 @@ public class InternalTransaction implements Transaction {
         try {
             Client.HttpResponse response = client.syncPost(commitEndpoint, EMPTY_BODY);
             if (!response.isSuccessful()) {
-                state = State.ROLLBACK_ONLY;
+                // A non-success response confirms that the server handled the terminal request.
+                // The service removes the transaction after commit, including rejected commits,
+                // so there is nothing left to roll back and the owning session can be reused.
+                state = State.CLOSED;
                 throw httpFailure("commit transaction", response);
             }
             state = State.CLOSED;
@@ -106,7 +109,8 @@ public class InternalTransaction implements Transaction {
         try {
             Client.HttpResponse response = client.syncPost(rollbackEndpoint, EMPTY_BODY);
             if (!response.isSuccessful()) {
-                state = State.ROLLBACK_ONLY;
+                // Unlike an I/O failure, an HTTP response gives us a definitive terminal result.
+                state = State.CLOSED;
                 throw httpFailure("rollback transaction", response);
             }
             state = State.CLOSED;

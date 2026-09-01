@@ -66,16 +66,9 @@ Call `commit()` to make all changes permanent. If application work fails, call `
 ```java
 try (Session session = driver.session();
         Transaction txn = session.beginTransaction()) {
-    try {
-        txn.run("CREATE (:Person {id: 1})").close();
-        txn.run("CREATE (:Person {id: 2})").close();
-        txn.commit();
-    } catch (RuntimeException e) {
-        if (txn.isOpen()) {
-            txn.rollback();
-        }
-        throw e;
-    }
+    txn.run("CREATE (:Person {id: 1})").close();
+    txn.run("CREATE (:Person {id: 2})").close();
+    txn.commit();
 }
 ```
 
@@ -87,10 +80,15 @@ try (Session session = driver.session();
 |---|---|---|---|---|
 | Active | Allowed | Allowed | Allowed | `true` |
 | Rollback-only | Rejected | Rejected | Allowed | `true` |
+| Closed after a rejected commit/rollback | Rejected | Rejected | Rejected | `false` |
 | Closed after commit/rollback | Rejected | Rejected | Rejected | `false` |
 | Commit or rollback outcome unknown | Rejected | Rejected | Rejected | `false` |
 
 A failed statement makes the transaction rollback-only. Roll it back before reusing the session.
+
+If the server explicitly rejects a commit or rollback, the transaction is closed because the
+server has already ended and removed it. The original HTTP failure is preserved, and the owning
+session can be reused.
 
 If the connection fails while committing or rolling back, the final server-side outcome may be unknown. The driver does not retry a transaction-ending request because replaying it may be unsafe. Close the owning session and create a new session; the server-side transaction deadline provides final resource reclamation.
 

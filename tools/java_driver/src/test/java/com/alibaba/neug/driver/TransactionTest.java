@@ -80,6 +80,32 @@ public class TransactionTest {
     }
 
     @Test
+    public void rejectedCommitClosesTransactionAndReleasesSession() {
+        client.rejectCommit = true;
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        RuntimeException error = assertThrows(RuntimeException.class, transaction::commit);
+
+        assertTrue(error.getMessage().contains("HTTP 409 write conflict"));
+        assertFalse(transaction.isOpen());
+        assertTrue(session.beginTransaction().isOpen());
+    }
+
+    @Test
+    public void rejectedRollbackClosesTransactionAndReleasesSession() {
+        client.rejectRollback = true;
+        InternalSession session = new InternalSession(client);
+        Transaction transaction = session.beginTransaction();
+
+        RuntimeException error = assertThrows(RuntimeException.class, transaction::rollback);
+
+        assertTrue(error.getMessage().contains("HTTP 410 transaction expired"));
+        assertFalse(transaction.isOpen());
+        assertTrue(session.beginTransaction().isOpen());
+    }
+
+    @Test
     public void transactionQueriesUseTpServiceRoute() {
         InternalSession session = new InternalSession(client);
         Transaction transaction = session.beginTransaction();
@@ -92,6 +118,8 @@ public class TransactionTest {
 
     private static final class FakeClient extends Client {
         private boolean failCommit;
+        private boolean rejectCommit;
+        private boolean rejectRollback;
         private String lastPath;
 
         private FakeClient() {
@@ -110,6 +138,13 @@ public class TransactionTest {
             }
             if (path.endsWith("/commit") && failCommit) {
                 throw new IOException("response lost");
+            }
+            if (path.endsWith("/commit") && rejectCommit) {
+                return new HttpResponse(409, "write conflict".getBytes(StandardCharsets.UTF_8));
+            }
+            if (path.endsWith("/rollback") && rejectRollback) {
+                return new HttpResponse(
+                        410, "transaction expired".getBytes(StandardCharsets.UTF_8));
             }
             return new HttpResponse(200, new byte[0]);
         }
