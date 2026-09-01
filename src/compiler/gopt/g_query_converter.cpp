@@ -105,6 +105,17 @@ std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
   convertOperator(*plan.getLastOperator(), planPB.get());
   if (!skipSink) {
     auto sink = std::make_unique<::physical::Sink>();
+    auto lastOp = plan.getLastOperator();
+    if (lastOp->getOperatorType() == planner::LogicalOperatorType::UNION_ALL) {
+      auto schema = lastOp->getSchema();
+      NEUG_ASSERT(schema);
+      for (const auto& expr : schema->getExpressionsInScope()) {
+        auto tag = sink->add_tags();
+        auto alias = std::make_unique<::google::protobuf::Int32Value>();
+        alias->set_value(aliasManager->getAliasId(expr->getUniqueName()));
+        tag->set_allocated_tag(alias.release());
+      }
+    }
     auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
     auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
     oprPB->set_allocated_sink(sink.release());

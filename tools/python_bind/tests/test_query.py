@@ -418,6 +418,74 @@ def test_union_all_remains_supported(empty_db):
 
     assert len(result) == 4
     assert len(result.column_names()) == 1
+    assert sorted(row[0] for row in result) == ["Alice", "Alice", "Bob", "Bob"]
+
+
+def _create_union_all_limit_data(conn):
+    conn.execute(
+        "CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE NODE TABLE Animal(id INT64, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    for person_id in (1, 2):
+        conn.execute(f"CREATE (:Person {{id: {person_id}}});", access_mode="update")
+    for animal_id in (10, 20):
+        conn.execute(f"CREATE (:Animal {{id: {animal_id}}});", access_mode="update")
+
+
+@pytest.mark.parametrize(
+    "person_limit, animal_limit, expected_persons, expected_animals",
+    [
+        (True, True, 1, 1),
+        (True, False, 1, 2),
+        (False, True, 2, 1),
+    ],
+)
+def test_union_all_with_branch_local_limit(
+    empty_db, person_limit, animal_limit, expected_persons, expected_animals
+):
+    _, conn = empty_db
+    _create_union_all_limit_data(conn)
+
+    person_suffix = " LIMIT 1" if person_limit else ""
+    animal_suffix = " LIMIT 1" if animal_limit else ""
+    result = conn.execute(
+        "MATCH (p:Person) RETURN p.id AS id"
+        + person_suffix
+        + " UNION ALL MATCH (a:Animal) RETURN a.id AS id"
+        + animal_suffix,
+        access_mode="read",
+    )
+
+    assert result.column_names() == ["id"]
+    values = [row[0] for row in result]
+    assert sum(value < 10 for value in values) == expected_persons
+    assert sum(value >= 10 for value in values) == expected_animals
+
+
+def test_union_all_with_branch_local_limit_validates_logical_types(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+    conn.execute(
+        "CREATE NODE TABLE Animal(id STRING, PRIMARY KEY(id));",
+        access_mode="schema",
+    )
+
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            "MATCH (p:Person) RETURN p.id AS id LIMIT 1 "
+            "UNION ALL "
+            "MATCH (a:Animal) RETURN a.id AS id LIMIT 1",
+            access_mode="read",
+        )
+
+    assert str(ERR_COMPILATION) in str(excinfo.value)
 
 
 def test_result(modern_graph):

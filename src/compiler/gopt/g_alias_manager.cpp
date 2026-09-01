@@ -151,6 +151,7 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::FILTER:
   case planner::LogicalOperatorType::ORDER_BY:
   case planner::LogicalOperatorType::LIMIT:
+  case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::SET_PROPERTY:
   case planner::LogicalOperatorType::DELETE_OP:
   case planner::LogicalOperatorType::INSERT: {
@@ -180,7 +181,6 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::CREATE_TABLE:
   case planner::LogicalOperatorType::INDEX_LOOK_UP:
   case planner::LogicalOperatorType::PARTITIONER:
-  case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
   case planner::LogicalOperatorType::DUMMY_SCAN:
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
