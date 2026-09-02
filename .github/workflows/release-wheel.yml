@@ -7,6 +7,11 @@ on:
         description: 'Python version (e.g. 3.9) or range (e.g. 3.8-3.14) to build'
         required: false
         default: ''
+      publish_to_pypi:
+        description: 'Publish the built wheels to PyPI'
+        type: boolean
+        required: false
+        default: true
   release:
     types:
       - created
@@ -47,4 +52,6 @@ jobs:
       cibuildwheel_version: '3.4.0'
       enable_macos_x86: false
       caller_event_name: ${{ github.event_name }}
+      # Undefined on release/pull_request triggers; '|| false' keeps the value boolean.
+      publish_to_pypi: ${{ inputs.publish_to_pypi || false }}
     secrets: inherit

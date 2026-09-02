@@ -43,6 +43,10 @@ on:
         type: string
         required: false
         default: 'workflow_call'
+      publish_to_pypi:
+        type: boolean
+        required: false
+        default: true
     secrets:
       PYPI_PASSWORD:
         required: false
@@ -674,8 +678,8 @@ jobs:
           inputs.mode == 'release' &&
           github.repository == 'alibaba/neug' &&
           (
-            inputs.caller_event_name == 'workflow_dispatch' ||
-            inputs.caller_event_name == 'release'
+            inputs.caller_event_name == 'release' ||
+            (inputs.caller_event_name == 'workflow_dispatch' && inputs.publish_to_pypi)
           )
         }}
     steps:
