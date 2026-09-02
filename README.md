@@ -4,23 +4,42 @@
     <source media="(prefers-color-scheme: light)" srcset="img/neug-logo-light.png">
     <img src="img/neug-logo-light.png" width="320" alt="NeuG">
   </picture><br>
-  <b>A Graph Database for HTAP Workloads</b><br><br>
+  <b>The one data index for your agentic applications</b><br><br>
   <a href="https://github.com/alibaba/neug/actions/workflows/Linux.yml"><img src="https://github.com/alibaba/neug/actions/workflows/Linux.yml/badge.svg" alt="NeuG Test (Linux)"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml"><img src="https://github.com/alibaba/neug/actions/workflows/release-wheel.yml/badge.svg" alt="NeuG Wheel Packaging"></a>
   <a href="https://github.com/alibaba/neug/actions/workflows/docs.yml"><img src="https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg" alt="NeuG Documentation"></a>
   <a href="https://codecov.io/gh/alibaba/neug"><img src="https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg" alt="Coverage"></a>
-  <a href="https://discord.gg/2S8344ew"><img src="https://img.shields.io/badge/Discord-NeuG-7289da?logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://x.com/graphscope2021"><img src="https://img.shields.io/badge/Twitter-@graphscope2021-1da1f2?logo=x&logoColor=white" alt="Twitter"></a>
+  <a href="https://x.com/graphscope2021"><img src="https://img.shields.io/badge/Follow-NeuG-111111?logo=x&logoColor=white" alt="Follow NeuG"></a>
 </p>
 
 ---
 
-**NeuG** (pronounced "new-gee") is a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. It provides **two modes** that you can switch between based on your needs:
+**NeuG** (pronounced "new-gee") is the one data index for your agentic applications. It indexes **structure, semantics, and exact keywords** over the same transactional data, so applications can combine graph-native querying, vector similarity search, full-text retrieval, and graph algorithms without synchronizing multiple specialized data engines.
 
-- **Embedded Mode**: Optimized for analytical workloads including bulk data loading, complex pattern matching, and graph analytics
-- **Service Mode**: Optimized for transactional workloads for real-time applications and concurrent user access
+Run NeuG directly inside your application for low-overhead local workflows, or expose the same lightweight runtime as a service for concurrent access. For more information, see the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
 
-For more information, please refer to the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
+## One Data, Indexed Three Ways
+
+NeuG provides complementary ways to retrieve and analyze the same entities and properties:
+
+| | What NeuG indexes | What it enables |
+|---|---|---|
+| **Structure** | Entities, relationships, and graph topology | Cypher traversal, pattern matching, PageRank, Leiden, shortest paths, and more |
+| **Semantics** | Dense vector properties with HNSW | Similarity search using cosine, L2, or inner-product distance |
+| **Keywords** | Text properties with full-text indexes | BM25-ranked word, phrase, prefix, Boolean, and exclusion search |
+
+Structure is native to NeuG's graph storage. Vector and full-text indexes are maintained with the same underlying graph properties: graph changes and index changes commit atomically, and committed indexes recover with the graph through checkpoints and the write-ahead log.
+
+> **Roadmap** — NeuG's unified indexing layer will continue to support more data types and access patterns, all over the same transactional data.
+
+## One Engine, Two Modes
+
+| Mode | Designed for |
+|---|---|
+| **Embedded** | In-process agent workflows, local analytics, data science, and batch processing without network serialization |
+| **Service** | Concurrent applications and real-time transactional access through a network endpoint |
+
+Both modes use the same NeuG runtime and Cypher query engine. Start embedded with `db.connect()`, or close the embedded connection and call `db.serve()` when the database needs to run behind a service.
 
 ## News
 
@@ -28,11 +47,11 @@ For more information, please refer to the [NeuG documentation](https://graphscop
 - **2026-06** — NeuG v0.1.3: [GDS extensions](https://graphscope.io/neug/en/extensions/load_gds/), [`COPY TEMP`](https://graphscope.io/neug/en/data_io/import_data/), [Node.js client](https://graphscope.io/neug/en/reference/nodejs_api/)
 - **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://graphscope.io/neug/en/data_io/load_data/), [Parquet](https://graphscope.io/neug/en/extensions/load_parquet/) & [HTTPFS](https://graphscope.io/neug/en/extensions/load_httpfs/) extensions
 - **2026-03** — NeuG v0.1 released
-- **2025-06** — Shattered [LDBC SNB Interactive Benchmark world record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS
+- **2025-06** — GraphScope Flex, the engine foundation behind NeuG, set an [LDBC SNB Interactive Benchmark record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS
 
 ## Installation
 
-The packages work on Linux, macOS, and Windows (via WSL2). For more detailed instructions (including C++ from source), see the [installation guide](https://graphscope.io/neug/en/installation/installation).
+The packages support Linux and macOS on x86_64 and ARM64. Windows users can run NeuG through WSL2; native Windows support is on the roadmap. For more detailed instructions (including C++ from source), see the [installation guide](https://graphscope.io/neug/en/installation/installation).
 
 <details open>
 <summary><b>Python</b> &nbsp;·&nbsp; requires Python 3.8+</summary>
@@ -108,6 +127,15 @@ conn.close();
 db.close();
 ```
 </details>
+
+## Reproducible Performance
+
+NeuG publishes reproducible benchmarks for both deployment modes using the LDBC SNB SF1 dataset:
+
+- **Service Mode**: 617 QPS for NeuG versus 12.2 QPS for Neo4j across the 14 LDBC SNB Interactive complex read queries, using four concurrent clients for 300 seconds.
+- **Embedded Mode**: Lower latency on eight of nine LSQB queries with one NeuG thread, compared with LadybugDB's best result across its tested thread counts.
+
+These results cover read workloads on Apple Silicon. See the full [benchmark methodology, query results, and reproduction steps](./doc/source/tutorials/benchmark-neug-dual-mode.md).
 
 ## Development & Contributing
 

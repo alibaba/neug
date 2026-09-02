@@ -1,18 +1,33 @@
 # Introduction
 
+**NeuG is the one data index for your agentic applications.** It indexes structure, semantics, and exact keywords over the same transactional data—embedded in your application or running behind a service.
 
-Welcome to NeuG (pronounced "new-gee"), a high-performance embedded graph database for analytics and real-time transactions. For questions and community support, visit our [GitHub repository](https://github.com/alibaba/neug).
+Instead of synchronizing a graph database, vector database, and search engine, applications can use NeuG for graph-native querying, vector similarity search, full-text retrieval, and graph algorithms over the same entities and properties. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
 
-NeuG follows the same design philosophy as [DuckDB](https://duckdb.org/) — but for graph databases: **lightweight, minimal dependencies, and easy to embed**. Just as DuckDB revolutionized how developers work with relational data, NeuG brings that same simplicity to graph data.
+## One Dataset, Indexed in Multiple Ways
 
-The core library stays simple by design. When you need to serve concurrent users, simply call `db.serve()` to expose the same database as a network service. For production concerns like high availability and security, we will manage them externally rather than coupling them into the core — keeping NeuG focused on what it does best.
+NeuG provides complementary access paths over one graph:
 
-**Two Modes, One Lightweight Library**:
+| | What is indexed | What it enables |
+|---|---|---|
+| **Structure** | Entities, relationships, and topology | Cypher traversal, pattern matching, and structural analysis with algorithms such as PageRank, Leiden, shortest paths, and community detection |
+| **Semantics** | Dense vector properties | HNSW-based similarity retrieval using cosine, L2, or inner-product distance |
+| **Keywords** | Natural-language text | Full-text retrieval with BM25 ranking, phrase queries, prefix queries, and Boolean operators |
 
-- **Embedded Mode**: Import as a Python library with minimal external dependencies. Perfect for data science workflows, ML/AI pipelines, and batch analytics
-- **Service Mode**: Call `db.serve()` to start a network service for concurrent access and real-time queries. The same lightweight core, now accessible over the network
+Structure is native to NeuG's graph storage; graph algorithms are another way to use and analyze that structure, not a separate index. Vector and full-text retrieval are provided by storage indexes integrated with NeuG's query and transaction model.
 
-This design makes NeuG easy to integrate into Python applications, Jupyter notebooks, and upcoming environments like Node.js — wherever you need graph capabilities without the overhead of running a JVM, or configuring complex infrastructure.
+All three operate over the same underlying data. Inserts, updates, and deletes maintain graph properties and their vector or full-text indexes atomically. Committed index state is persisted and recovered with the graph through checkpoints and the write-ahead log. Applications do not need a separate synchronization pipeline to keep retrieval systems consistent.
+
+> **Roadmap** — NeuG's unified indexing layer will continue to support more data types and access patterns, all over the same transactional data.
+
+## One Engine, Two Ways to Run
+
+NeuG keeps the core runtime lightweight and supports two deployment modes:
+
+- **Embedded Mode** runs in the application process for low-overhead agent workflows, analytics, notebooks, and batch processing.
+- **Service Mode** exposes the same NeuG runtime through a network endpoint for concurrent applications and transactional access.
+
+Both modes use the same database and Cypher query engine. Start with `db.connect()` for embedded access. When the database needs to run behind a service, close the embedded connection and call `db.serve()`. See the [dual-mode benchmark](../../tutorials/benchmark-neug-dual-mode) for reproducible performance results and methodology.
 
 ## Quick Example
 
@@ -43,51 +58,12 @@ db.serve(port=8080)
 # Now your application can handle concurrent users
 ```
 
-## Key Features
-
-**Lightweight & Embeddable**:
-- Single binary, zero external dependencies
-- Embed directly into your Python app for offline analytics, or run as a service for online transactions — no DevOps overhead
-
-**Cypher-Native, GQL-Ready**:
-- Write queries in industry-standard Cypher
-- Powered by [GOpt](https://graphscope.io/blog/tech/2024/02/22/GOpt-A-Unified-Graph-Query-Optimization-Framework-in-GraphScope)'s unified IR design — ready for [ISO/GQL](https://www.gqlstandards.org/) with minimal migration cost
-
-**Extensible by Design**:
-- Postgres/DuckDB-inspired extension system
-- Keep the core lean. Add graph algorithms, vector search, or custom procedures through an extensible framework
-
-**High Performance**:
-- Built on GraphScope Flex, which set the [record on LDBC SNB Interactive benchmark](https://ldbcouncil.org/benchmarks/snb/interactive/2025-04-21-graphscope-flex-sf300/) using Cypher queries (80,000+ QPS)
-- Optimized for both analytical and transactional workloads
-- Works on Linux, macOS, x86, and ARM architectures
-
-**ACID Transactions**:
-- Reliable data consistency for production applications
-- Multi-session transaction support in Service Mode
-
-NeuG is developed by the [GraphScope](https://graphscope.io) team at Alibaba, bringing enterprise-scale graph computing expertise to an easy-to-use embedded database.
-
-## What's Next
-
-NeuG is actively evolving. Recent additions:
-
-- **[Node.js Client](../../reference/nodejs_api/)** — Available since v0.1.3, AI Agent integration ready
-- **[Graph Algorithms](../../extensions/load_gds/)** — Available since v0.1.3, including Leiden community detection for AI applications
-- **[Data Lake Support](../../extensions/load_httpfs/)** — Available since v0.1.2, [S3/OSS](../../extensions/load_httpfs/) + [Parquet](../../extensions/load_parquet/) integration
-
-Upcoming for v0.2:
-
-- **Vector DB Extension** — RAG & GraphRAG support
-
-Star us on [GitHub](https://github.com/alibaba/neug) to stay updated on new releases.
-
 ## Next Steps
 
-- **[Installation](../../installation/installation)** - Setup guide for Python, Node.js, and C++
-- **[Getting Started](../../getting_started/getting_started)** - Basic operations and examples  
-- **[Data Import](../../data_io/import_data)** - Loading data into your database
-- **[Cypher Manual](../../cypher_manual)** - Query language reference
-
-
+- **[Installation](../../installation/installation)** — Set up NeuG for Python, Node.js, or C++
+- **[Getting Started](../../getting_started/getting_started)** — Create a database and run your first queries
+- **[Vector Search](../../extensions/vector_search)** — Store vectors and build HNSW indexes
+- **[Full-Text Search](../../extensions/fts_search)** — Build full-text indexes and run BM25-ranked queries
+- **[Graph Algorithms](../../extensions/load_gds)** — Project a graph and run graph algorithms
+- **[Transaction Management](../../transaction/transaction)** — Understand NeuG's transaction and isolation model
 
