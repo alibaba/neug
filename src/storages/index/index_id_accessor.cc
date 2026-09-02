@@ -147,6 +147,10 @@ void DefaultIndexIDAccessor::rebuildIndexIDToVID() {
   }
 }
 
+size_t VecColumnBackedIndexIDAccessor::size() const {
+  return offset_accessor_.size();
+}
+
 index_id_t VecColumnBackedIndexIDAccessor::GetIndexIDByVID(vid_t vid) const {
   return offset_accessor_.GetIndexIDByVID(vid);
 }

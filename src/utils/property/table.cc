@@ -258,15 +258,8 @@ void Table::resize(size_t row_num, const std::vector<Value>& default_values) {
                         std::to_string(columns_.size()) + " but got " +
                         std::to_string(default_values.size()));
   }
-  // Column sizes can diverge: VecColumn::size() tracks versioned vector
-  // index-ID slots, so repeated updates may make it larger than the table's
-  // VID capacity while ordinary property columns still need to grow. Check
-  // every column independently to avoid leaving row-addressed columns at the
-  // old capacity.
   for (size_t i = 0; i < columns_.size(); ++i) {
-    if (columns_[i]->size() < row_num) {
-      columns_[i]->resize(row_num, default_values[i]);
-    }
+    columns_[i]->resize(row_num, default_values[i]);
   }
 }
 

@@ -247,11 +247,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
   if (capacity > indexer_->capacity()) {
     indexer_->reserve(capacity);
   }
-  if (table_) {
-    // Do not gate this on Table::size(), which reflects only the first column
-    // and may be inflated by VecColumn's versioned index-ID slots.
-    // Table::resize checks each column and grows only those below the new VID
-    // capacity.
+  if (table_ && table_->size() < capacity) {
     table_->resize(capacity, vertex_schema_->get_default_property_values());
   }
   v_ts_->Reserve(capacity);
