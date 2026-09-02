@@ -30,8 +30,6 @@ NeuG provides complementary ways to retrieve and analyze the same entities and p
 
 Structure is native to NeuG's graph storage. Vector and full-text indexes are maintained with the same underlying graph properties: graph changes and index changes commit atomically, and committed indexes recover with the graph through checkpoints and the write-ahead log.
 
-> **Roadmap** — NeuG's unified indexing layer will continue to support more data types and access patterns, all over the same transactional data.
-
 ## One Engine, Two Modes
 
 | Mode | Designed for |
@@ -43,6 +41,7 @@ Both modes use the same NeuG runtime and Cypher query engine. Start embedded wit
 
 ## News
 
+- **2026-09** — NeuG v0.2: [HNSW vector search](https://graphscope.io/neug/en/extensions/vector_search/), [BM25 full-text search](https://graphscope.io/neug/en/extensions/fts_search/), [transactional storage indexes](https://graphscope.io/neug/en/storage_index/index/) and [explicit transactions](https://graphscope.io/neug/en/transaction/transaction/), plus [projected graph namespaces](https://graphscope.io/neug/en/cypher_manual/namespace/) and [exact or sampled pattern matching](https://graphscope.io/neug/en/extensions/pattern_match/)
 - **2026-07** — NeuG is listed in [Database of Databases](https://dbdb.io/db/neug)
 - **2026-06** — NeuG v0.1.3: [GDS extensions](https://graphscope.io/neug/en/extensions/load_gds/), [`COPY TEMP`](https://graphscope.io/neug/en/data_io/import_data/), [Node.js client](https://graphscope.io/neug/en/reference/nodejs_api/)
 - **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://graphscope.io/neug/en/data_io/load_data/), [Parquet](https://graphscope.io/neug/en/extensions/load_parquet/) & [HTTPFS](https://graphscope.io/neug/en/extensions/load_httpfs/) extensions
@@ -128,15 +127,6 @@ db.close();
 ```
 </details>
 
-## Reproducible Performance
-
-NeuG publishes reproducible benchmarks for both deployment modes using the LDBC SNB SF1 dataset:
-
-- **Service Mode**: 617 QPS for NeuG versus 12.2 QPS for Neo4j across the 14 LDBC SNB Interactive complex read queries, using four concurrent clients for 300 seconds.
-- **Embedded Mode**: Lower latency on eight of nine LSQB queries with one NeuG thread, compared with LadybugDB's best result across its tested thread counts.
-
-These results cover read workloads on Apple Silicon. See the full [benchmark methodology, query results, and reproduction steps](./doc/source/tutorials/benchmark-neug-dual-mode.md).
-
 ## Development & Contributing
 
 For building NeuG from source, see the [Development Guide](./doc/source/development/dev_guide.md). We welcome contributions — please read the [Contributing Guide](./CONTRIBUTING.md) before submitting issues or pull requests.
@@ -158,6 +148,7 @@ NeuG builds upon the excellent work of the open-source community. We would like 
 
 - **[Kùzu](https://github.com/kuzudb/kuzu/)**: Our C++ Cypher compiler is adapted from Kùzu's implementation
 - **[DuckDB](https://duckdb.org/)**: Our runtime value system and extension framework are inspired by DuckDB's architecture
+- **[zvec](https://github.com/alibaba/zvec)**: Its in-process vector indexing engine provides the HNSW foundation for NeuG's vector search extension
 
 ## License
 
