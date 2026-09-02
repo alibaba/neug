@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">NeuG dual-mode performance compared with Neo4j and LadybugDB</title>
+  <desc id="desc">In service mode, NeuG reaches 617 queries per second compared with 12.2 for Neo4j. In embedded mode, NeuG has lower latency on eight of nine LSQB queries compared with LadybugDB.</desc>
+  <defs>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="var(--blue-start)"/>
+      <stop offset="1" stop-color="var(--blue-end)"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --canvas: #f8fafc;
+        --panel: #ffffff;
+        --border: #e2e8f0;
+        --ink: #0f172a;
+        --strong: #475569;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --grid: #e2e8f0;
+        --track: #edf2f7;
+        --blue: #2563eb;
+        --blue-start: #2563eb;
+        --blue-end: #5b7cfa;
+        --dot-blue: #3f6df6;
+        --dot-border: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --canvas: #09111f;
+          --panel: #111b2b;
+          --border: #27364c;
+          --ink: #f5f8ff;
+          --strong: #cbd5e1;
+          --muted: #9aa9bd;
+          --faint: #7d8ea6;
+          --grid: #26364c;
+          --track: #1c293c;
+          --blue: #7b96ff;
+          --blue-start: #4f7cff;
+          --blue-end: #8da4ff;
+          --dot-blue: #7b96ff;
+          --dot-border: #111b2b;
+        }
+      }
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .label { fill: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 1.6px; }
+      .heading { fill: var(--ink); font-size: 25px; font-weight: 720; }
+      .body { fill: var(--muted); font-size: 14px; }
+      .metric { fill: var(--ink); font-size: 19px; font-weight: 700; }
+      .axis { fill: var(--faint); font-size: 11px; font-weight: 600; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="520" rx="28" fill="var(--canvas)"/>
+  <rect x="26" y="26" width="554" height="424" rx="22" fill="var(--panel)" stroke="var(--border)" filter="url(#shadow)"/>
+  <rect x="600" y="26" width="574" height="424" rx="22" fill="var(--panel)" stroke="var(--border)" filter="url(#shadow)"/>
+
+  <!-- Service mode -->
+  <text class="label" x="62" y="67">SERVICE MODE</text>
+  <text class="heading" x="62" y="103">Throughput</text>
+  <text class="body" x="62" y="128">14 complex reads · 4 clients · 300 seconds</text>
+
+  <text class="metric" x="62" y="181">NeuG</text>
+  <text class="metric" x="544" y="181" text-anchor="end" fill="var(--blue)">617 QPS</text>
+  <rect x="62" y="196" width="482" height="18" rx="9" fill="var(--track)"/>
+  <rect x="62" y="196" width="482" height="18" rx="9" fill="url(#blue)"/>
+
+  <text class="metric" x="62" y="260" fill="var(--strong)">Neo4j</text>
+  <text class="metric" x="544" y="260" text-anchor="end" fill="var(--muted)">12.2 QPS</text>
+  <rect x="62" y="275" width="482" height="18" rx="9" fill="var(--track)"/>
+  <rect x="62" y="275" width="10" height="18" rx="5" fill="var(--faint)"/>
+
+  <text x="62" y="368" fill="var(--blue)" font-size="54" font-weight="760">50.6×</text>
+  <text x="62" y="398" fill="var(--strong)" font-size="15" font-weight="650">higher throughput</text>
+  <text class="body" x="544" y="397" text-anchor="end">LDBC SNB Interactive SF1</text>
+
+  <!-- Embedded mode -->
+  <text class="label" x="636" y="67">EMBEDDED MODE</text>
+  <text class="heading" x="636" y="103">Query latency</text>
+  <text class="body" x="636" y="128">NeuG 1 thread · LadybugDB best tested thread count</text>
+
+  <circle cx="904" cy="102" r="5" fill="var(--dot-blue)"/>
+  <text class="axis" x="916" y="106">NeuG</text>
+  <circle cx="1010" cy="102" r="5" fill="var(--faint)"/>
+  <text class="axis" x="1022" y="106">LadybugDB</text>
+
+  <line x1="676" y1="170" x2="1138" y2="170" stroke="var(--grid)"/>
+  <line x1="676" y1="230" x2="1138" y2="230" stroke="var(--grid)"/>
+  <line x1="676" y1="290" x2="1138" y2="290" stroke="var(--grid)"/>
+  <line x1="676" y1="350" x2="1138" y2="350" stroke="var(--grid)"/>
+  <text class="axis" x="666" y="174" text-anchor="end">100s</text>
+  <text class="axis" x="666" y="234" text-anchor="end">10s</text>
+  <text class="axis" x="666" y="294" text-anchor="end">1s</text>
+  <text class="axis" x="666" y="354" text-anchor="end">0.1s</text>
+
+  <!-- Log-scale latency dumbbells, lower is better -->
+  <g stroke="var(--grid)" stroke-width="2">
+    <line x1="704" y1="183" x2="704" y2="265"/>
+    <line x1="756" y1="224" x2="756" y2="341"/>
+    <line x1="808" y1="168" x2="808" y2="316"/>
+    <line x1="860" y1="284" x2="860" y2="341"/>
+    <line x1="912" y1="245" x2="912" y2="295"/>
+    <line x1="964" y1="309" x2="964" y2="339"/>
+    <line x1="1016" y1="249" x2="1016" y2="304"/>
+    <line x1="1068" y1="239" x2="1068" y2="299"/>
+    <line x1="1120" y1="290" x2="1120" y2="303"/>
+  </g>
+  <g fill="var(--faint)" stroke="var(--dot-border)" stroke-width="2">
+    <circle cx="704" cy="183" r="6"/><circle cx="756" cy="224" r="6"/>
+    <circle cx="808" cy="168" r="6"/><circle cx="860" cy="284" r="6"/>
+    <circle cx="912" cy="245" r="6"/><circle cx="964" cy="339" r="6"/>
+    <circle cx="1016" cy="249" r="6"/><circle cx="1068" cy="239" r="6"/>
+    <circle cx="1120" cy="290" r="6"/>
+  </g>
+  <g fill="var(--dot-blue)" stroke="var(--dot-border)" stroke-width="2">
+    <circle cx="704" cy="265" r="7"/><circle cx="756" cy="341" r="7"/>
+    <circle cx="808" cy="316" r="7"/><circle cx="860" cy="341" r="7"/>
+    <circle cx="912" cy="295" r="7"/><circle cx="964" cy="309" r="7"/>
+    <circle cx="1016" cy="304" r="7"/><circle cx="1068" cy="299" r="7"/>
+    <circle cx="1120" cy="303" r="7"/>
+  </g>
+  <g class="axis" text-anchor="middle">
+    <text x="704" y="374">Q1</text><text x="756" y="374">Q2</text>
+    <text x="808" y="374">Q3</text><text x="860" y="374">Q4</text>
+    <text x="912" y="374">Q5</text><text x="964" y="374">Q6</text>
+    <text x="1016" y="374">Q7</text><text x="1068" y="374">Q8</text>
+    <text x="1120" y="374">Q9</text>
+  </g>
+  <text x="636" y="416" fill="var(--blue)" font-size="30" font-weight="760">8 / 9</text>
+  <text x="724" y="416" fill="var(--strong)" font-size="15" font-weight="650">queries with lower latency</text>
+  <text class="body" x="1138" y="416" text-anchor="end">LSQB SF1 · log scale</text>
+
+  <text x="600" y="487" text-anchor="middle" fill="var(--muted)" font-size="13">LDBC SNB SF1 · Apple Silicon · read workloads · lower latency and higher throughput are better</text>
+</svg>

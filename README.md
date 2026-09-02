@@ -14,7 +14,7 @@
 
 ---
 
-**NeuG** (pronounced "new-gee") is the one data index for your agentic applications. It indexes **structure, semantics, and exact keywords** over the same transactional data, so applications can combine graph-native querying, vector similarity search, full-text retrieval, and graph algorithms without synchronizing multiple specialized data engines.
+**NeuG** (pronounced "new-gee") is the one data index for your agentic applications. It indexes **structure, semantics, and exact keywords** over the same transactional data, so applications can combine graph-native querying/algorithms, vector similarity search, and full-text retrieval without synchronizing multiple specialized data engines.
 
 Run NeuG directly inside your application for low-overhead local workflows, or expose the same lightweight runtime as a service for concurrent access. For more information, see the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
 
@@ -39,9 +39,16 @@ Structure is native to NeuG's graph storage. Vector and full-text indexes are ma
 
 Both modes use the same NeuG runtime and Cypher query engine. Start embedded with `db.connect()`, or close the embedded connection and call `db.serve()` when the database needs to run behind a service.
 
+<p align="center">
+  <a href="./doc/source/tutorials/benchmark-neug-dual-mode.md">
+    <img src="img/neug-dual-mode-benchmark.svg" width="100%" alt="NeuG service throughput compared with Neo4j and embedded query latency compared with LadybugDB">
+  </a>
+</p>
+<p align="center"><sub>Reproducible methodology and complete results are available in the <a href="./doc/source/tutorials/benchmark-neug-dual-mode.md">dual-mode benchmark</a>.</sub></p>
+
 ## News
 
-- **2026-09** — NeuG v0.2: [HNSW vector search](https://graphscope.io/neug/en/extensions/vector_search/), [BM25 full-text search](https://graphscope.io/neug/en/extensions/fts_search/), [transactional storage indexes](https://graphscope.io/neug/en/storage_index/index/) and [explicit transactions](https://graphscope.io/neug/en/transaction/transaction/), plus [projected graph namespaces](https://graphscope.io/neug/en/cypher_manual/namespace/) and [exact or sampled pattern matching](https://graphscope.io/neug/en/extensions/pattern_match/)
+- **2026-09** — NeuG v0.2: [HNSW vector search](https://graphscope.io/neug/en/extensions/vector_search/), [BM25 full-text search](https://graphscope.io/neug/en/extensions/fts_search/) and [explicit transactions](https://graphscope.io/neug/en/transaction/transaction/)
 - **2026-07** — NeuG is listed in [Database of Databases](https://dbdb.io/db/neug)
 - **2026-06** — NeuG v0.1.3: [GDS extensions](https://graphscope.io/neug/en/extensions/load_gds/), [`COPY TEMP`](https://graphscope.io/neug/en/data_io/import_data/), [Node.js client](https://graphscope.io/neug/en/reference/nodejs_api/)
 - **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://graphscope.io/neug/en/data_io/load_data/), [Parquet](https://graphscope.io/neug/en/extensions/load_parquet/) & [HTTPFS](https://graphscope.io/neug/en/extensions/load_httpfs/) extensions
