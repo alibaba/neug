@@ -14,37 +14,9 @@
 
 ---
 
-**NeuG** (pronounced "new-gee") is the one data index for your agentic applications. It indexes **structure, semantics, and exact keywords** over the same transactional data, so applications can combine graph-native querying/algorithms, vector similarity search, and full-text retrieval without synchronizing multiple specialized data engines.
+**NeuG** (pronounced "new-gee") is a high-performance, graph-native transactional database that runs embedded in your application or behind a service. It provides durable storage, explicit transactions, Cypher-native querying, and in-place graph analytics.
 
-Run NeuG directly inside your application for low-overhead local workflows, or expose the same lightweight runtime as a service for concurrent access. For more information, see the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
-
-## One Data, Indexed Three Ways
-
-NeuG provides complementary ways to retrieve and analyze the same entities and properties:
-
-| | What NeuG indexes | What it enables |
-|---|---|---|
-| **Structure** | Entities, relationships, and graph topology | Cypher traversal, pattern matching, PageRank, Leiden, shortest paths, and more |
-| **Semantics** | Dense vector properties with HNSW | Similarity search using cosine, L2, or inner-product distance |
-| **Keywords** | Text properties with full-text indexes | BM25-ranked word, phrase, prefix, Boolean, and exclusion search |
-
-Structure is native to NeuG's graph storage. Vector and full-text indexes are maintained with the same underlying graph properties: graph changes and index changes commit atomically, and committed indexes recover with the graph through checkpoints and the write-ahead log.
-
-## One Engine, Two Modes
-
-| Mode | Designed for |
-|---|---|
-| **Embedded** | In-process agent workflows, local analytics, data science, and batch processing without network serialization |
-| **Service** | Concurrent applications and real-time transactional access through a network endpoint |
-
-Both modes use the same NeuG runtime and Cypher query engine. Start embedded with `db.connect()`, or close the embedded connection and call `db.serve()` when the database needs to run behind a service.
-
-<p align="center">
-  <a href="./doc/source/tutorials/benchmark-neug-dual-mode.md">
-    <img src="img/neug-dual-mode-benchmark.svg" width="100%" alt="NeuG service throughput compared with Neo4j and embedded query latency compared with LadybugDB">
-  </a>
-</p>
-<p align="center"><sub>Reproducible methodology and complete results are available in the <a href="./doc/source/tutorials/benchmark-neug-dual-mode.md">dual-mode benchmark</a>.</sub></p>
+Built on this data foundation, NeuG is **the one data index for your agentic applications**—indexing structure, semantics, and exact keywords over the same managed data. For more information, see the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
 
 ## News
 
@@ -77,62 +49,59 @@ npm install @graphscope-neug/neug
 
 ## Quick Example
 
-<details open>
-<summary><b>Python</b></summary>
+The same data can be queried by graph structure, vector similarity, or exact keywords. With the extensions installed and `Service` and `Runbook` data already loaded:
 
 ```python
 import neug
 
-db = neug.Database("/path/to/database")
-db.load_builtin_dataset("tinysnb")
-
+db = neug.Database("agent.db")
 conn = db.connect()
+conn.execute("LOAD vector_search;")
+conn.execute("LOAD fts;")
+conn.execute("CREATE INDEX runbook_vec ON Runbook USING HNSW (embedding) WITH (metric = 'l2');")
+conn.execute("CREATE INDEX runbook_text ON Runbook USING FTS (content);")
+query_embedding = [0.1, 0.2, 0.3, 0.4]
 
-# Find triangles in the graph
-result = conn.execute("""
-    MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person),
-          (a)-[:knows]->(c)
-    RETURN a.fName, b.fName, c.fName
+# Structure
+conn.execute("""
+    MATCH (:Service {name: 'PaymentService'})-[:HAS_RUNBOOK]->(r:Runbook)
+    RETURN r.title
 """)
 
-for record in result:
-    print(f"{record[0]}, {record[1]}, {record[2]} are mutual friends")
+# Semantics — accelerated by an HNSW index on Runbook.embedding
+conn.execute("""
+    MATCH (r:Runbook)
+    RETURN r.title, vector_distance_l2(r.embedding, $embedding) AS distance
+    ORDER BY distance ASC LIMIT 5
+""", parameters={"embedding": query_embedding})
 
-# Switch to service mode
-conn.close()
-db.serve(port=8080)
+# Keywords — ranked by an FTS index on Runbook.content
+conn.execute("""
+    MATCH (r:Runbook)
+    RETURN r.title, bm25(r.content, 'retry timeout') AS score
+    ORDER BY score ASC LIMIT 5
+""")
 ```
-</details>
 
-<details>
-<summary><b>Node.js</b></summary>
+[Create an HNSW index](./doc/source/extensions/vector_search.md#create-hnsw-index) · [Create a full-text index](./doc/source/extensions/fts_search.md#create-an-fts-index)
 
-```javascript
-const { Database } = require('@graphscope-neug/neug');
+## One Data, Indexed Three Ways
 
-const db = new Database({ databasePath: '', mode: 'w' });
-const conn = db.connect();
+NeuG provides complementary ways to retrieve and analyze the same entities and properties:
 
-conn.execute("CREATE NODE TABLE person(id INT64, fName STRING, PRIMARY KEY(id));");
-conn.execute("CREATE REL TABLE knows(FROM person TO person);");
-conn.execute("CREATE (:person {id: 1, fName: 'Alice'}), (:person {id: 2, fName: 'Bob'}), (:person {id: 3, fName: 'Carol'});");
-conn.execute("MATCH (a:person {id: 1}), (b:person {id: 2}), (c:person {id: 3}) CREATE (a)-[:knows]->(b), (b)-[:knows]->(c), (a)-[:knows]->(c);");
+| | What NeuG indexes | What it enables |
+|---|---|---|
+| **Structure** | Entities, relationships, and graph topology | Cypher traversal, pattern matching, PageRank, Leiden, shortest paths, and more |
+| **Semantics** | Dense vector properties with HNSW | Similarity search using cosine, L2, or inner-product distance |
+| **Keywords** | Text properties with full-text indexes | BM25-ranked word, phrase, prefix, Boolean, and exclusion search |
 
-// Find triangles in the graph
-const result = conn.execute(`
-    MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person),
-          (a)-[:knows]->(c)
-    RETURN a.fName, b.fName, c.fName
-`);
+Structure is native to NeuG's graph storage. Vector and full-text indexes are maintained with the same underlying graph properties: graph changes and index changes commit atomically, and committed indexes recover with the graph through checkpoints and the write-ahead log.
 
-for (const record of result) {
-    console.log(`${record[0]}, ${record[1]}, ${record[2]} are mutual friends`);
-}
+## Embedded or Service
 
-conn.close();
-db.close();
-```
-</details>
+Run NeuG in-process for local agent workflows and low-overhead analytics. When concurrent applications need network access, expose the same runtime as a service with `db.serve()`.
+
+See the [reproducible dual-mode benchmark](./doc/source/tutorials/benchmark-neug-dual-mode.md) for complete results and methodology.
 
 ## Development & Contributing
 

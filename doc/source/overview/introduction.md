@@ -1,8 +1,8 @@
 # Introduction
 
-**NeuG is the one data index for your agentic applications.** It indexes structure, semantics, and exact keywords over the same transactional data—embedded in your application or running behind a service.
+**NeuG** is a high-performance, graph-native transactional database that runs embedded in your application or behind a service. It provides durable storage, explicit transactions, Cypher-native querying, and in-place graph analytics.
 
-Instead of synchronizing a graph database, vector database, and search engine, applications can use NeuG for graph-native querying, vector similarity search, full-text retrieval, and graph algorithms over the same entities and properties. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
+Built on this data foundation, NeuG is **the one data index for your agentic applications**—indexing structure, semantics, and exact keywords over the same managed data. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
 
 ## One Dataset, Indexed in Multiple Ways
 
@@ -16,7 +16,7 @@ NeuG provides complementary access paths over one graph:
 
 Structure is native to NeuG's graph storage; graph algorithms are another way to use and analyze that structure, not a separate index. Vector and full-text retrieval are provided by storage indexes integrated with NeuG's query and transaction model.
 
-All three operate over the same underlying data. Inserts, updates, and deletes maintain graph properties and their vector or full-text indexes atomically. Committed index state is persisted and recovered with the graph through checkpoints and the write-ahead log. Applications do not need a separate synchronization pipeline to keep retrieval systems consistent.
+All three operate over the same underlying data. Inserts, updates, and deletes maintain graph properties and their vector or full-text indexes atomically. Committed index state is persisted and recovered with the graph through checkpoints and the write-ahead log.
 
 > **Roadmap** — NeuG's unified indexing layer will continue to support more data types and access patterns, all over the same transactional data.
 
@@ -66,4 +66,3 @@ db.serve(port=8080)
 - **[Full-Text Search](../../extensions/fts_search)** — Build full-text indexes and run BM25-ranked queries
 - **[Graph Algorithms](../../extensions/load_gds)** — Project a graph and run graph algorithms
 - **[Transaction Management](../../transaction/transaction)** — Understand NeuG's transaction and isolation model
-
