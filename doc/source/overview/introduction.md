@@ -2,9 +2,15 @@
 
 **NeuG** is a high-performance, graph-native transactional database that runs embedded in your application or behind a service. It provides durable storage, explicit transactions, Cypher-native querying, and in-place graph analytics.
 
-Built on this data foundation, NeuG is **the one data index for your agentic applications**—indexing structure, semantics, and exact keywords over the same managed data. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
+Starting with **NeuG v0.2**, NeuG introduces a storage-index framework with HNSW vector search and BM25 full-text search. Together with NeuG's native graph structure, these capabilities make NeuG **the one data index for your agentic applications**—bringing structure, semantics, and exact keywords together over the same managed data. These indexing capabilities are not available in NeuG v0.1.x. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
 
-> **New in NeuG v0.2** — NeuG introduces its storage-index framework together with HNSW vector search and BM25 full-text search. These indexing capabilities are not available in NeuG v0.1.x.
+## Key Capabilities
+
+- **Graph-native data management** — Store entities, relationships, and properties with durable storage, explicit transactions, checkpoints, and write-ahead logging.
+- **Unified retrieval** — Query graph structure natively and use HNSW and BM25 indexes for semantic and keyword retrieval over the same data.
+- **Cypher query and graph analytics** — Traverse and filter with Cypher, then run algorithms such as PageRank, Leiden, and shortest path without exporting the graph to another system.
+- **Embedded or service deployment** — Run NeuG in-process for low-overhead local workflows, or expose the same database as a service for concurrent applications. See the [dual-mode benchmark](../../tutorials/benchmark-neug-dual-mode) for reproducible results.
+- **Extensible and interoperable** — Add capabilities through extensions and exchange data through formats and systems such as Apache Arrow, Parquet, S3, and OSS.
 
 ## One Dataset, Indexed in Multiple Ways
 
@@ -21,15 +27,6 @@ Structure is native to NeuG's graph storage; graph algorithms are another way to
 All three operate over the same underlying data. Inserts, updates, and deletes maintain graph properties and their vector or full-text indexes atomically. Committed index state is persisted and recovered with the graph through checkpoints and the write-ahead log.
 
 > **Roadmap** — NeuG's unified indexing layer will continue to support more data types and access patterns, all over the same transactional data.
-
-## One Engine, Two Ways to Run
-
-NeuG keeps the core runtime lightweight and supports two deployment modes:
-
-- **Embedded Mode** runs in the application process for low-overhead agent workflows, analytics, notebooks, and batch processing.
-- **Service Mode** exposes the same NeuG runtime through a network endpoint for concurrent applications and transactional access.
-
-Both modes use the same database and Cypher query engine. Start with `db.connect()` for embedded access. When the database needs to run behind a service, close the embedded connection and call `db.serve()`. See the [dual-mode benchmark](../../tutorials/benchmark-neug-dual-mode) for reproducible performance results and methodology.
 
 ## Quick Example
 
