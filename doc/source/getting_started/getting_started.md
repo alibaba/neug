@@ -101,21 +101,23 @@ Before inserting data, you need to define your graph schema with node and edge t
 # Create node tables
 conn.execute("""
     CREATE NODE TABLE Person(
-        id INT64 PRIMARY KEY,
+        id INT64,
         name STRING,
         age INT64,
         email STRING,
-        profile STRING,
-        embedding FLOAT[4]
+        bio STRING,
+        embedding FLOAT[4],
+        PRIMARY KEY (id)
     )
 """)
 
 conn.execute("""
     CREATE NODE TABLE Company(
-        id INT64 PRIMARY KEY,
+        id INT64,
         name STRING,
         industry STRING,
-        founded_year INT64
+        founded_year INT64,
+        PRIMARY KEY (id)
     )
 """)
 
@@ -152,7 +154,7 @@ conn.execute("""
         name: 'Alice Johnson',
         age: 30,
         email: 'alice@example.com',
-        profile: 'Graph databases and distributed systems',
+        bio: 'Graph databases and distributed systems',
         embedding: [0.1, 0.2, 0.3, 0.4]
     })
 """)
@@ -163,7 +165,7 @@ conn.execute("""
         name: 'Bob Smith',
         age: 35,
         email: 'bob@example.com',
-        profile: 'Machine learning and semantic search',
+        bio: 'Machine learning and semantic search',
         embedding: [0.2, 0.1, 0.1, 0.1]
     })
 """)
@@ -234,11 +236,11 @@ conn.execute("""
     WITH (metric = 'l2')
 """)
 
-# Index profile text for BM25 retrieval
+# Index biography text for BM25 retrieval
 conn.execute("""
-    CREATE INDEX person_profile_idx IF NOT EXISTS
+    CREATE INDEX person_bio_idx IF NOT EXISTS
     ON Person
-    USING FTS (profile)
+    USING FTS (bio)
 """)
 
 # Query semantic similarity
@@ -253,7 +255,7 @@ semantic_results = conn.execute("""
 # Query exact keywords and rank with BM25
 keyword_results = conn.execute("""
     MATCH (p:Person)
-    RETURN p.name, bm25(p.profile, 'graph database') AS score
+    RETURN p.name, bm25(p.bio, 'graph databases') AS score
     ORDER BY score ASC
     LIMIT 5
 """)
