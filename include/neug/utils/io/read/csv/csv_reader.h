@@ -43,9 +43,13 @@ class CsvReader {
   void read(std::shared_ptr<ReadLocalState> localState,
             execution::Context& ctx);
 
+  std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier();
+
   result<std::shared_ptr<EntrySchema>> inferSchema();
 
  private:
+  CsvReadConfig buildReadConfig();
+
   void full_read(
       const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
       execution::Context& output, const CsvReadConfig& output_config);

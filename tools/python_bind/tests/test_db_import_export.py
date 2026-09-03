@@ -530,6 +530,104 @@ def test_copy_from_no_schema_node_subquery(tmp_path):
     db.close()
 
 
+def test_copy_from_projection_fallback_matches_load_from(tmp_path):
+    """RETURN keeps Project between Source and Load, so COPY uses fallback."""
+    db_dir = tmp_path / "fallback_projection_ab"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        csv_path = tmp_path / "proj.csv"
+        with open(csv_path, "w") as f:
+            f.write("a|b|c|d\n")
+            for i in range(1, 51):
+                f.write(f"{i}|name{i}|{i * 10}|tag{i % 5}\n")
+
+        load_from = f'LOAD FROM "{Path(csv_path).as_posix()}" (header=true, delim="|")'
+        projection = "RETURN a, d, b"  # reordered + subset (drops column c)
+
+        # Reference: standalone LOAD FROM runs the non-fused full_read path.
+        ref = sorted(tuple(row) for row in conn.execute(f"{load_from} {projection}"))
+
+        result = conn.execute(
+            f"PROFILE COPY proj_node FROM ({load_from} {projection});"
+        )
+        operators = [
+            op["operator_name"] for op in result.get_profile_metrics()["operators"]
+        ]
+        assert "FusedCSVVertexInsertOpr" not in operators
+        assert "DataSourceOpr" in operators
+        assert "BatchInsertVertexOpr" in operators
+        assert len(result) == 50
+        loaded = sorted(
+            tuple(row)
+            for row in conn.execute("MATCH (n:proj_node) RETURN n.a, n.d, n.b")
+        )
+
+        assert len(loaded) == 50
+        assert loaded == ref
+    finally:
+        # Always release the DB so pytest can remove the tmp_path data, even if
+        # an assertion above fails.
+        conn.close()
+        db.close()
+
+
+def test_copy_from_edge_projection_fallback_matches_load_from(tmp_path):
+    """Edge COPY with a RETURN projection also retains the fallback path."""
+    db_dir = tmp_path / "fallback_edge_projection_ab"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        person_csv = tmp_path / "person.csv"
+        with open(person_csv, "w") as f:
+            f.write("id\n")
+            for i in range(1, 11):
+                f.write(f"{i}\n")
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        conn.execute(f'COPY person FROM "{Path(person_csv).as_posix()}" (header=true);')
+
+        edge_csv = tmp_path / "edges.csv"
+        with open(edge_csv, "w") as f:
+            f.write("src|dst|weight|note\n")
+            for i in range(1, 10):
+                f.write(f"{i}|{i + 1}|{i * 100}|n{i}\n")
+
+        load_from = f'LOAD FROM "{Path(edge_csv).as_posix()}" (header=true, delim="|")'
+        projection = "RETURN src, dst, note, weight"  # properties reordered
+
+        # Reference: standalone LOAD FROM runs the non-fused full_read path.
+        ref = sorted(tuple(row) for row in conn.execute(f"{load_from} {projection}"))
+
+        result = conn.execute(
+            f"PROFILE COPY follows FROM ({load_from} {projection}) "
+            '(from="person", to="person");'
+        )
+        operators = [
+            op["operator_name"] for op in result.get_profile_metrics()["operators"]
+        ]
+        assert "FusedCSVEdgeInsertOpr" not in operators
+        assert "DataSourceOpr" in operators
+        assert "BatchInsertEdgeOpr" in operators
+        assert len(result) == 9
+        loaded = sorted(
+            tuple(row)
+            for row in conn.execute(
+                "MATCH (a:person)-[f:follows]->(b:person) "
+                "RETURN a.id, b.id, f.note, f.weight"
+            )
+        )
+
+        assert len(loaded) == 9
+        assert loaded == ref
+    finally:
+        # Always release the DB so pytest can remove the tmp_path data, even if
+        # an assertion above fails.
+        conn.close()
+        db.close()
+
+
 def test_copy_from_no_schema_edge_from_file(tmp_path):
     """COPY <new_edge> FROM 'file.csv' (from='src_label', to='dst_label')
     Vertex tables must already exist; edge table is auto-created.
