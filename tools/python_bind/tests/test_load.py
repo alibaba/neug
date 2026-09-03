@@ -50,6 +50,13 @@ def _nested_list(value):
         return value
 
 
+def _operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
+
+
 def get_tinysnb_dataset_path():
     """Get the path to tinysnb dataset CSV files."""
     # Try to get from environment variable first
@@ -1659,6 +1666,74 @@ class TestCopyFrom:
         assert records[0][3] == "Bob", "Target person name should be Bob"
         assert records[0][4] == 5, "Times should be 5"
         assert records[0][5] is not None, "Location should not be None"
+
+    def test_direct_csv_copy_uses_fused_operators(self):
+        """Direct CSV COPY streams into storage while subqueries retain the old path."""
+        (self.tmp_path / "nodes_1.csv").write_text(
+            "id,name\n1,Alice\n2,Bob\n", encoding="utf-8"
+        )
+        (self.tmp_path / "nodes_2.csv").write_text(
+            "id,name\n3,Carol\n", encoding="utf-8"
+        )
+        edges_path = self.tmp_path / "edges.csv"
+        edges_path.write_text("from,to,weight\n1,2,1.5\n2,3,2.5\n", encoding="utf-8")
+
+        self.conn.execute(
+            "CREATE NODE TABLE person (id INT64, name STRING, PRIMARY KEY (id))"
+        )
+        node_pattern = (self.tmp_path / "nodes_*.csv").as_posix()
+        node_result = self.conn.execute(
+            f'PROFILE COPY person FROM "{node_pattern}" '
+            '(header=true, delimiter=",", batch_size=1)'
+        )
+        node_operators = _operator_names(node_result)
+        assert node_operators == ["FusedCSVVertexInsertOpr", "SinkOpr"]
+        assert list(
+            self.conn.execute("MATCH (p:person) RETURN p.id, p.name ORDER BY p.id")
+        ) == [[1, "Alice"], [2, "Bob"], [3, "Carol"]]
+
+        self.conn.execute(
+            "CREATE REL TABLE knows (FROM person TO person, weight DOUBLE)"
+        )
+        edge_result = self.conn.execute(
+            f'PROFILE COPY knows FROM "{edges_path.as_posix()}" '
+            '(from="person", to="person", header=true, delimiter=",", '
+            "batch_size=1)"
+        )
+        edge_operators = _operator_names(edge_result)
+        assert edge_operators == ["FusedCSVEdgeInsertOpr", "SinkOpr"]
+        assert list(
+            self.conn.execute(
+                "MATCH (a:person)-[r:knows]->(b:person) "
+                "RETURN a.id, b.id, r.weight ORDER BY a.id"
+            )
+        ) == [[1, 2, 1.5], [2, 3, 2.5]]
+
+        self.conn.execute(
+            "CREATE NODE TABLE fallback_person ("
+            "id INT64, name STRING, PRIMARY KEY (id))"
+        )
+        fallback_result = self.conn.execute(
+            f'PROFILE COPY fallback_person FROM (LOAD FROM "{node_pattern}" '
+            '(header=true, delimiter=",") RETURN id, name)'
+        )
+        fallback_operators = _operator_names(fallback_result)
+        assert "FusedCSVVertexInsertOpr" not in fallback_operators
+        assert "DataSourceOpr" in fallback_operators
+        assert "BatchInsertVertexOpr" in fallback_operators
+
+        json_path = self.tmp_path / "nodes.jsonl"
+        json_path.write_text('{"id": 4, "name": "Dora"}\n', encoding="utf-8")
+        self.conn.execute(
+            "CREATE NODE TABLE json_person (" "id INT64, name STRING, PRIMARY KEY (id))"
+        )
+        json_result = self.conn.execute(
+            f'PROFILE COPY json_person FROM "{json_path.as_posix()}"'
+        )
+        json_operators = _operator_names(json_result)
+        assert "FusedCSVVertexInsertOpr" not in json_operators
+        assert "DataSourceOpr" in json_operators
+        assert "BatchInsertVertexOpr" in json_operators
 
     def test_create_edge_after_copy_from_edges(self):
         """Vertices created after edge COPY retain usable CSR slots."""

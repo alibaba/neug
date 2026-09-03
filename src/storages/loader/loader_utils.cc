@@ -884,7 +884,9 @@ struct CsvSupplierRuntime {
                                   config.double_quote, config.delimiter,
                                   config.use_threads, stream_factory_)
                    .count();
-    reset_reader();
+    if (row_num_ > rows_to_skip_) {
+      reset_reader();
+    }
   }
 
   std::shared_ptr<DataChunk> get_next_chunk() {

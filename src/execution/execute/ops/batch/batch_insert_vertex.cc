@@ -16,6 +16,7 @@
 #include "neug/execution/execute/ops/batch/batch_insert_vertex.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/execution/execute/ops/batch/data_source.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/result.h"
@@ -34,21 +35,25 @@ namespace ops {
 class BatchInsertVertexOpr : public IOperator {
  public:
   BatchInsertVertexOpr(
-      common::NameOrId vertex_type,
-      std::vector<std::pair<int32_t, std::string>> prop_mappings)
+      ::common::NameOrId vertex_type,
+      std::vector<std::pair<int32_t, std::string>> prop_mappings,
+      ReadSource source = {})
       : vertex_type_(std::move(vertex_type)),
-        prop_mappings_(std::move(prop_mappings)) {}
+        prop_mappings_(std::move(prop_mappings)),
+        source_(std::move(source)) {}
 
   std::string get_operator_name() const override {
-    return "BatchInsertVertexOpr";
+    return source_.supports_supplier() ? "FusedCSVVertexInsertOpr"
+                                       : "BatchInsertVertexOpr";
   }
 
   neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                              Context&& ctx, OprTimer* timer) override;
 
  private:
-  common::NameOrId vertex_type_;
+  ::common::NameOrId vertex_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
+  ReadSource source_;
 };
 
 neug::result<Context> BatchInsertVertexOpr::Eval(
@@ -59,10 +64,10 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   label_t vertex_label_id = 0;
   switch (vertex_type_.item_case()) {
-  case common::NameOrId::kId:
+  case ::common::NameOrId::kId:
     vertex_label_id = vertex_type_.id();
     break;
-  case common::NameOrId::kName: {
+  case ::common::NameOrId::kName: {
     const auto& name = vertex_type_.name();
     if (!graph.schema().is_vertex_label_valid(name)) {
       LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
@@ -77,11 +82,44 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
         "BatchInsertVertexOpr: invalid vertex_type: " +
         vertex_type_.DebugString());
   }
-  auto supplier = create_data_chunk_supplier(ctx, prop_mappings_);
+  auto supplier = source_.supports_supplier()
+                      ? create_mapped_data_chunk_supplier(
+                            source_.create_supplier(), prop_mappings_)
+                      : create_data_chunk_supplier(ctx, prop_mappings_);
   GS_AUTO(inserted_vids,
           graph.BatchAddVertices(vertex_label_id, std::move(supplier)));
   (void) inserted_vids;
   return neug::result<Context>(std::move(ctx));
+}
+
+neug::result<OpBuildResultT> FusedCSVVertexInsertOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  (void) schema;
+  const auto& source_opr = plan.plan(op_idx).opr().source();
+  if (source_opr.file_schema().format() != "csv" ||
+      source_opr.has_skip_rows()) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+
+  auto source = build_read_source(source_opr);
+  if (!source.supports_supplier()) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+
+  const auto& insert_opr = plan.plan(op_idx + 1).opr().load_vertex();
+  if (!insert_opr.has_vertex_type()) {
+    THROW_INTERNAL_EXCEPTION("BatchInsertVertexOpr must have vertex type");
+  }
+  std::vector<std::pair<int32_t, std::string>> prop_mappings;
+  parse_property_mappings(insert_opr.property_mappings(), prop_mappings);
+
+  ::common::NameOrId vertex_type;
+  vertex_type.CopyFrom(insert_opr.vertex_type());
+  return std::make_pair(
+      std::make_unique<BatchInsertVertexOpr>(
+          std::move(vertex_type), std::move(prop_mappings), std::move(source)),
+      ctx_meta);
 }
 
 neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
@@ -97,7 +135,7 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
   std::vector<std::pair<int32_t, std::string>> prop_mappings;
   parse_property_mappings(opr.property_mappings(), prop_mappings);
 
-  common::NameOrId vertex_type;
+  ::common::NameOrId vertex_type;
   vertex_type.CopyFrom(opr.vertex_type());
   return std::make_pair(std::make_unique<BatchInsertVertexOpr>(
                             std::move(vertex_type), std::move(prop_mappings)),

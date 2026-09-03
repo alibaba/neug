@@ -15,6 +15,7 @@
 
 #include "test_reader.h"
 
+#include "neug/common/columns/value_columns.h"
 #include "neug/storages/loader/loader_utils.h"
 
 namespace neug {
@@ -658,6 +659,59 @@ TEST_F(ReaderTest, TestJsonStreamingRead) {
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierStreamsFilesInOrder) {
+  createCsvFile("supplier_1.csv",
+                "id|name|score\n1|Alice|91.5\n2|Bob|82.0\n3|Carol|73.5\n");
+  createCsvFile("supplier_2.csv", "id|name|score\n4|Dave|64.0\n5|Eve|55.5\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+  auto sharedState = createSharedState(
+      "supplier_1.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_size", "2"}, {"batch_read", "false"}},
+      {"score", "id"});
+  sharedState->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
+                                           "/supplier_2.csv");
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  // RowNum is a pre-allocation hint and includes each skipped header row.
+  EXPECT_EQ(supplier->RowNum(), 7);
+
+  std::vector<double> scores;
+  std::vector<int32_t> ids;
+  size_t chunkCount = 0;
+  while (auto chunk = supplier->GetNextChunk()) {
+    ++chunkCount;
+    ASSERT_EQ(chunk->col_num(), 2);
+    auto scoreColumn =
+        std::dynamic_pointer_cast<ValueColumn<double>>(chunk->get(0));
+    auto idColumn =
+        std::dynamic_pointer_cast<ValueColumn<int32_t>>(chunk->get(1));
+    ASSERT_NE(scoreColumn, nullptr);
+    ASSERT_NE(idColumn, nullptr);
+    for (size_t row = 0; row < chunk->row_num(); ++row) {
+      scores.push_back(scoreColumn->get_value(row));
+      ids.push_back(idColumn->get_value(row));
+    }
+  }
+
+  EXPECT_EQ(chunkCount, 3);
+  EXPECT_EQ(ids, (std::vector<int32_t>{1, 2, 3, 4, 5}));
+  EXPECT_EQ(scores, (std::vector<double>{91.5, 82.0, 73.5, 64.0, 55.5}));
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierHandlesEmptyFile) {
+  createCsvFile("supplier_empty.csv", "");
+  auto sharedState =
+      createSharedState("supplier_empty.csv", {"id"}, {createInt64Type()},
+                        {{"batch_size", "2"}, {"batch_read", "false"}});
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), 0);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
 }
 
 // A header-only CSV has no data rows: full_read must return an empty

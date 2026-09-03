@@ -470,11 +470,51 @@ DataChunk project_chunk(const DataChunk& input,
   return projected;
 }
 
-CsvReadConfig read_config_for_supplier(const CsvReadConfig& config) {
-  CsvReadConfig read_config = config;
-  read_config.include_columns = config.column_names;
-  return read_config;
+std::vector<std::shared_ptr<IDataChunkSupplier>> create_chunk_suppliers(
+    const std::shared_ptr<ReadSharedState>& state,
+    const CsvReadConfig& config) {
+  const auto& paths = state->schema.file.paths;
+  if (paths.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
+  }
+
+  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
+  suppliers.reserve(paths.size());
+  for (const auto& path : paths) {
+    suppliers.push_back(std::make_shared<CSVChunkSupplier>(
+        path, config, io::bindInputStream(state->stream_opener, path)));
+  }
+  return suppliers;
 }
+
+class SequentialChunkSupplier : public IDataChunkSupplier {
+ public:
+  explicit SequentialChunkSupplier(
+      std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers)
+      : suppliers_(std::move(suppliers)) {
+    for (const auto& supplier : suppliers_) {
+      row_num_ += supplier->RowNum();
+    }
+  }
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    while (supplier_idx_ < suppliers_.size()) {
+      auto chunk = suppliers_[supplier_idx_]->GetNextChunk();
+      if (chunk) {
+        return chunk;
+      }
+      ++supplier_idx_;
+    }
+    return nullptr;
+  }
+
+  int64_t RowNum() const override { return row_num_; }
+
+ private:
+  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers_;
+  size_t supplier_idx_ = 0;
+  int64_t row_num_ = 0;
+};
 
 }  // namespace
 
@@ -485,8 +525,7 @@ CsvReader::CsvReader(std::shared_ptr<ReadSharedState> sharedState,
 
 CsvReader::~CsvReader() = default;
 
-void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                     execution::Context& ctx) {
+CsvReadConfig CsvReader::buildReadConfig() {
   if (!sharedState_) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -495,48 +534,43 @@ void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   }
 
   auto config = optionsBuilder_->build();
-  if (!optionsBuilder_->projectColumns(config)) {
-    LOG(WARNING) << "Failed to set column projection, using all columns";
-  }
+  optionsBuilder_->projectColumns(config);
+  return config;
+}
+
+void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
+                     execution::Context& ctx) {
+  auto config = buildReadConfig();
 
   const auto& fileSchema = sharedState_->schema.file;
   ReadOptions readOpts;
   const bool use_batch_read = readOpts.batch_read.get(fileSchema.options);
 
-  auto read_config = read_config_for_supplier(config);
-  if (sharedState_->skipRows) {
-    // Need all columns to evaluate row-filter expression;
-    // full_read will project afterwards.
+  auto read_config = config;
+  if (sharedState_->skipRows ||
+      (!use_batch_read && !sharedState_->projectColumns.empty())) {
+    // Filters need all columns; full_read applies projection after merging.
     read_config.include_columns = config.column_names;
-  } else if (!sharedState_->projectColumns.empty()) {
-    if (use_batch_read) {
-      // batch_read streams chunks directly to the consumer without
-      // post-projection, so push column projection down to the supplier.
-      read_config.include_columns = config.include_columns;
-    } else {
-      // full_read handles projection via project_chunk().
-      read_config.include_columns = config.column_names;
-    }
   }
 
-  const auto& paths = fileSchema.paths;
-  if (paths.empty()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
-  }
-
-  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
-  suppliers.reserve(paths.size());
-  for (const auto& path : paths) {
-    suppliers.push_back(std::make_shared<CSVChunkSupplier>(
-        path, read_config,
-        io::bindInputStream(sharedState_->stream_opener, path)));
-  }
+  auto suppliers = create_chunk_suppliers(sharedState_, read_config);
 
   if (use_batch_read && !sharedState_->skipRows) {
     batch_read(suppliers, ctx);
   } else {
     full_read(suppliers, ctx, config);
   }
+}
+
+std::shared_ptr<IDataChunkSupplier> CsvReader::getDataChunkSupplier() {
+  auto config = buildReadConfig();
+  if (sharedState_->skipRows) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Filtered CSV reads cannot be exposed as a chunk supplier");
+  }
+
+  return std::make_shared<SequentialChunkSupplier>(
+      create_chunk_suppliers(sharedState_, config));
 }
 
 void CsvReader::full_read(
