@@ -1,8 +1,8 @@
 # Getting Started
 
-This guide walks you through creating your first graph database, performing basic operations, and exploring both embedded and service modes. Examples are in **Python**.
+This guide walks you through creating your first graph database, querying relationships, adding the indexes introduced in NeuG v0.2, and exploring both embedded and service modes. Examples are in **Python**.
 
-> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api) or [C++ API reference](../../reference/cpp_api) for equivalent examples in those languages.
+> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api/index) or [C++ API reference](../../reference/cpp_api/index) for equivalent examples in those languages.
 
 ## Prerequisites
 
@@ -101,19 +101,23 @@ Before inserting data, you need to define your graph schema with node and edge t
 # Create node tables
 conn.execute("""
     CREATE NODE TABLE Person(
-        id INT64 PRIMARY KEY,
+        id INT64,
         name STRING,
         age INT64,
-        email STRING
+        email STRING,
+        bio STRING,
+        embedding FLOAT[4],
+        PRIMARY KEY (id)
     )
 """)
 
 conn.execute("""
     CREATE NODE TABLE Company(
-        id INT64 PRIMARY KEY,
+        id INT64,
         name STRING,
         industry STRING,
-        founded_year INT64
+        founded_year INT64,
+        PRIMARY KEY (id)
     )
 """)
 
@@ -145,11 +149,25 @@ Now let's add some data to our graph:
 ```python
 # Insert nodes
 conn.execute("""
-    CREATE (p:Person {id: 1, name: 'Alice Johnson', age: 30, email: 'alice@example.com'})
+    CREATE (p:Person {
+        id: 1,
+        name: 'Alice Johnson',
+        age: 30,
+        email: 'alice@example.com',
+        bio: 'Graph databases and distributed systems',
+        embedding: [0.1, 0.2, 0.3, 0.4]
+    })
 """)
 
 conn.execute("""
-    CREATE (p:Person {id: 2, name: 'Bob Smith', age: 35, email: 'bob@example.com'})
+    CREATE (p:Person {
+        id: 2,
+        name: 'Bob Smith',
+        age: 35,
+        email: 'bob@example.com',
+        bio: 'Machine learning and semantic search',
+        embedding: [0.2, 0.1, 0.1, 0.1]
+    })
 """)
 
 conn.execute("""
@@ -200,6 +218,54 @@ for record in result:
     print(f"{record[0]} knows {record[1]} who works at {record[2]}")
     # Bob Smith knows Alice Johnson who works at TechCorp
 ```
+
+### Indexing the Same Data (NeuG v0.2+)
+
+NeuG v0.2 introduces storage indexes, HNSW vector search, and BM25 full-text search. These capabilities are not available in NeuG v0.1.x. The following examples add semantic and keyword indexes to the same `Person` nodes used by the graph queries above.
+
+```python
+# Load the index extensions
+conn.execute("LOAD vector_search;")
+conn.execute("LOAD fts;")
+
+# Index semantic embeddings with HNSW
+conn.execute("""
+    CREATE INDEX person_embedding_idx IF NOT EXISTS
+    ON Person
+    USING HNSW (embedding)
+    WITH (metric = 'l2')
+""")
+
+# Index biography text for BM25 retrieval
+conn.execute("""
+    CREATE INDEX person_bio_idx IF NOT EXISTS
+    ON Person
+    USING FTS (bio)
+""")
+
+# Query semantic similarity
+semantic_results = conn.execute("""
+    MATCH (p:Person)
+    RETURN p.name,
+           vector_distance_l2(p.embedding, [0.1, 0.2, 0.3, 0.4]) AS distance
+    ORDER BY distance ASC
+    LIMIT 5
+""")
+
+# Query exact keywords and rank with BM25
+keyword_results = conn.execute("""
+    MATCH (p:Person)
+    RETURN p.name, bm25(p.bio, 'graph databases') AS score
+    ORDER BY score ASC
+    LIMIT 5
+""")
+
+print(list(semantic_results))
+print(list(keyword_results))
+print(list(conn.execute("CALL SHOW_INDEXES() RETURN *;")))
+```
+
+The graph structure and both storage indexes are maintained over the same data. Inserts, updates, and deletes update the indexes as part of the same transaction. For index lifecycle and recovery guarantees, see [Storage Indexes](../../storage_index/index). For complete search options, see [Vector Search](../../extensions/vector_search) and [Full-Text Search](../../extensions/fts_search).
 
 ### Converting Results to Apache Arrow
 
@@ -277,6 +343,9 @@ db.load_builtin_dataset(dataset_name="modern_graph")
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
 
-1. **[Data Import/Export](../../data_io/import_data)**: Learn how to import large datasets
-2. **[Advanced Cypher Queries](../../cypher_manual)**: Master complex graph patterns
-3. **[Tutorials](../../tutorials/tinysnb_tutorial)**: Try these interesting tutorials of NeuG
+1. **[Storage Indexes](../../storage_index/index)**: Understand index lifecycle, transactions, and recovery
+2. **[Vector Search](../../extensions/vector_search)**: Configure HNSW indexes and similarity queries
+3. **[Full-Text Search](../../extensions/fts_search)**: Use BM25, phrase, prefix, and Boolean queries
+4. **[Graph Algorithms](../../extensions/load_gds)**: Run analytics over projected graphs
+5. **[Transaction Management](../../transaction/transaction)**: Learn NeuG's transaction and isolation model
+6. **[Data Import/Export](../../data_io/import_data)** and **[Cypher Manual](../../cypher_manual/index)**: Load production data and write advanced queries
