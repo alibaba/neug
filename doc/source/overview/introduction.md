@@ -4,6 +4,8 @@
 
 Built on this data foundation, NeuG is **the one data index for your agentic applications**—indexing structure, semantics, and exact keywords over the same managed data. For questions and community support, visit the [NeuG repository](https://github.com/alibaba/neug).
 
+> **New in NeuG v0.2** — NeuG introduces its storage-index framework together with HNSW vector search and BM25 full-text search. These indexing capabilities are not available in NeuG v0.1.x.
+
 ## One Dataset, Indexed in Multiple Ways
 
 NeuG provides complementary access paths over one graph:
@@ -29,36 +31,7 @@ NeuG keeps the core runtime lightweight and supports two deployment modes:
 
 Both modes use the same database and Cypher query engine. Start with `db.connect()` for embedded access. When the database needs to run behind a service, close the embedded connection and call `db.serve()`. See the [dual-mode benchmark](../../tutorials/benchmark-neug-dual-mode) for reproducible performance results and methodology.
 
-## Quick Example
-
-```python
-import neug
-
-# Step 1: Load and analyze data (Embedded Mode)
-db = neug.Database("/path/to/database") 
-# Load sample data
-db.load_builtin_dataset("tinysnb")
-
-conn = db.connect()
-
-# Run analytics
-result = conn.execute("""
-    MATCH (a:Person)-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person),
-        (a)-[:KNOWS]->(c)
-    RETURN a.fName, b.fName, c.fName
-""")
-
-for record in result:
-    print(f"{record} are mutual friends")
-
-# Step 2: Serve users (Service Mode)  
-# Should first close the embedded connection
-conn.close()
-db.serve(port=8080)
-# Now your application can handle concurrent users
-```
-
-## Next Steps
+## Start Exploring
 
 - **[Installation](../../installation/installation)** — Set up NeuG for Python, Node.js, or C++
 - **[Getting Started](../../getting_started/getting_started)** — Create a database and run your first queries
