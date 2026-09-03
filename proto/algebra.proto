@@ -191,16 +191,12 @@ message Limit {
 // where the values referred by k1, k2, ... are indexed and hence the
 // predicate can be efficiently verified by leveraging the index.
 message IndexPredicate {
-  // A triplet defines that a key must be **equal** to a given value.
-  // The value can be a constant value, or a dynamic parameter.
+  // A triplet compares an indexed key with an expression.
   message Triplet {
     common.Property key = 1;
-    oneof value {
-         common.Value const = 2;
-         common.DynamicParam param = 3;
-    }
+    common.Expression expression = 2;
     // TODO(longbin) More comparators (gt, ge, lt, le, ne) other than equivalence (eq or within) may be required
-    common.Logical cmp = 4;
+    common.Logical cmp = 3;
   }
   // A collection of `Triplet` that forms a logical **AND** of all `Predicate`s.
   message AndPredicate {

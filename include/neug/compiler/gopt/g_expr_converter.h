@@ -55,7 +55,8 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convert(
       const binder::Expression& expr, const planner::LogicalOperator& child);
   std::unique_ptr<::algebra::IndexPredicate> convertPrimaryKey(
-      const std::string& key, const binder::Expression& expr);
+      const std::string& key, const binder::Expression& expr,
+      ::common::Logical compare);
   std::unique_ptr<::common::Expression> convertVar(common::alias_id_t columnId);
   std::unique_ptr<::common::NameOrId> convertAlias(common::alias_id_t aliasId);
   std::unique_ptr<::physical::GroupBy_AggFunc> convertAggFunc(

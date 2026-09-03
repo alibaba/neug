@@ -818,6 +818,43 @@ def test_index_persistence_after_checkpoint_and_reopen(tmp_path):
         _close_database(db, conn)
 
 
+def test_vector_update_slots_do_not_mask_property_column_growth(tmp_path):
+    db, conn = _open_database(
+        tmp_path / "vector-column-growth", checkpoint_on_close=False
+    )
+    vector = _array_literal([0.1] * 32)
+    try:
+        conn.execute(
+            "CREATE NODE TABLE T("
+            "id INT64 PRIMARY KEY, vector FLOAT[32], text VARCHAR(65535));"
+        )
+        conn.execute(
+            "CREATE INDEX t_hnsw ON T USING HNSW (vector) " "WITH (metric = 'cosine');"
+        )
+
+        # Fill the initial VID capacity in batches, then update a vector so its
+        # versioned index-ID slots grow beyond the row-addressed text column.
+        for start in range(0, 4096, 128):
+            nodes = [
+                f"(:T {{id: {node_id}, vector: {vector}, text: 'created'}})"
+                for node_id in range(start, start + 128)
+            ]
+            conn.execute("CREATE " + ",".join(nodes) + ";")
+        conn.execute(
+            f"MATCH (n:T {{id: 0}}) SET n.vector = {vector}, n.text = 'updated';"
+        )
+
+        # Growing past 4096 must resize the text column even though the vector
+        # column already reports a larger size due to the update above.
+        conn.execute(f"CREATE (:T {{id: 4096, vector: {vector}, text: 'boundary'}});")
+        assert list(conn.execute("MATCH (n:T) RETURN count(n);")) == [[4097]]
+        assert list(conn.execute("MATCH (n:T {id: 4096}) RETURN n.text;")) == [
+            ["boundary"]
+        ]
+    finally:
+        _close_database(db, conn)
+
+
 def test_index_persistence_after_process_restart(tmp_path):
     db_path = tmp_path / "database"
     create_script = textwrap.dedent(

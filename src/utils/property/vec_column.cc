@@ -314,7 +314,11 @@ void VecColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
   meta.SetModule(key, std::move(desc));
 }
 
-size_t VecColumn::size() const { return size_; }
+size_t VecColumn::size() const {
+  return offset_accessor_ ? offset_accessor_->size() : 0;
+}
+
+size_t VecColumn::buffer_size() const { return size_; }
 
 void VecColumn::resize(size_t new_size) {
   if (new_size <= size_) {

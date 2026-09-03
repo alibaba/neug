@@ -7,6 +7,7 @@
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/storage/predicate/column_predicate.h"
+#include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
 namespace planner {
@@ -33,16 +34,18 @@ struct ExtraScanNodeTableInfo {
 
 struct PrimaryKeyScanInfo final : ExtraScanNodeTableInfo {
   std::shared_ptr<binder::Expression> key;
+  ::common::Logical compare;
 
-  explicit PrimaryKeyScanInfo(std::shared_ptr<binder::Expression> key)
-      : key{std::move(key)} {}
+  PrimaryKeyScanInfo(std::shared_ptr<binder::Expression> key,
+                     ::common::Logical compare)
+      : key{std::move(key)}, compare{compare} {}
 
   ExtraScanNodeTableInfoType getType() const override {
     return ExtraScanNodeTableInfoType::PRIMARY_KEY_SCAN;
   }
 
   std::unique_ptr<ExtraScanNodeTableInfo> copy() const override {
-    return std::make_unique<PrimaryKeyScanInfo>(key);
+    return std::make_unique<PrimaryKeyScanInfo>(key, compare);
   }
 };
 

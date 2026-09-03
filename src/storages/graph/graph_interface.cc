@@ -94,7 +94,7 @@ std::unique_ptr<ArrayColumn> FromVecColumn(VecColumn& vec, size_t vid_size,
     if (offset == INVALID_OFFSET) {
       continue;
     }
-    if (offset >= vec.size()) {
+    if (offset >= vec.buffer_size()) {
       THROW_RUNTIME_ERROR("FromVecColumn: offset out of range");
     }
     std::memcpy(dst + vid * array_size, src + offset * array_size,

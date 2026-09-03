@@ -33,6 +33,8 @@ class IndexIDAccessor : public Module {
  public:
   ~IndexIDAccessor() override = default;
 
+  // Number of addressable VID slots in the VID-to-index-ID mapping.
+  virtual size_t size() const = 0;
   virtual index_id_t GetIndexIDByVID(vid_t vid) const = 0;
   virtual vid_t GetVIDByIndexID(index_id_t index_id) const = 0;
   virtual index_id_t GetNextIndexID() const = 0;
@@ -62,7 +64,7 @@ class DefaultIndexIDAccessor final : public IndexIDAccessor {
         next_index_id_(std::make_shared<std::atomic<index_id_t>>(0)) {}
   ~DefaultIndexIDAccessor() override = default;
 
-  size_t size() const {
+  size_t size() const override {
     return vid_to_index_id_
                ? vid_to_index_id_->GetDataSize() / sizeof(index_id_t)
                : 0;
@@ -122,6 +124,7 @@ class VecColumnBackedIndexIDAccessor final : public IndexIDAccessor {
   explicit VecColumnBackedIndexIDAccessor(IndexIDAccessor& offset_accessor)
       : offset_accessor_(offset_accessor) {}
 
+  size_t size() const override;
   index_id_t GetIndexIDByVID(vid_t vid) const override;
   vid_t GetVIDByIndexID(index_id_t index_id) const override;
   index_id_t GetNextIndexID() const override;

@@ -27,14 +27,20 @@
                                                 "name": "id"
                                             }
                                         },
-                                        "param": {
-                                            "name": "personId",
-                                            "index": 0,
-                                            "data_type": {
-                                                "data_type": {
-                                                    "primitive_type": "DT_SIGNED_INT64"
-                                                }
+                                        "expression": {
+                                          "operators": [
+                                            {
+                                              "param": {
+                                                  "name": "personId",
+                                                  "index": 0,
+                                                  "data_type": {
+                                                      "data_type": {
+                                                          "primitive_type": "DT_SIGNED_INT64"
+                                                      }
+                                                  }
+                                              }
                                             }
+                                          ]
                                         },
                                         "cmp": "EQ"
                                     }

@@ -408,3 +408,138 @@ def test_return_multiple_lists(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_primary_key_in_list_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (:Item {id: 1}), (:Item {id: 2}), (:Item {id: 3});")
+
+    literal_collections = [
+        ("[3, 1, 3, 999]", [[1], [3]]),
+        ("[1, CAST(NULL, 'INT64'), 3]", [[1], [3]]),
+        ("[CAST(NULL, 'INT64')]", []),
+    ]
+    for collection, expected in literal_collections:
+        query = (
+            f"MATCH (item:Item) WHERE item.id IN {collection} "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        assert list(conn.execute(query)) == expected
+        result = conn.execute("EXPLAIN " + query)
+        list(result)
+        assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    parameter_collections = [
+        ([3, 1, 3, 999], [[1], [3]]),
+        ([], []),
+        ([1, None, 3], [[1], [3]]),
+        ([None], []),
+    ]
+    for collection, expected in parameter_collections:
+        query = (
+            "MATCH (item:Item) WHERE item.id IN $ids "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        parameters = {"ids": collection}
+        assert list(conn.execute(query, parameters=parameters)) == expected
+        result = conn.execute("EXPLAIN " + query, parameters=parameters)
+        list(result)
+        assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()
+
+
+def test_primary_key_in_null_collection_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (:Item {id: 1}), (:Item {id: 2}), (:Item {id: 3});")
+
+    literal_query = (
+        "MATCH (item:Item) WHERE item.id IN NULL " "RETURN item.id ORDER BY item.id;"
+    )
+    assert list(conn.execute(literal_query)) == []
+    result = conn.execute("EXPLAIN " + literal_query)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    parameter_query = (
+        "MATCH (item:Item) WHERE item.id IN $ids " "RETURN item.id ORDER BY item.id;"
+    )
+    assert list(conn.execute("RETURN 1 IN NULL;")) == [[None]]
+    parameters = {"ids": None}
+    assert list(conn.execute(parameter_query, parameters=parameters)) == []
+    result = conn.execute("EXPLAIN " + parameter_query, parameters=parameters)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()
+
+
+def test_primary_key_in_unsigned_parameter_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    for table, data_type in [("U32Item", "UINT32"), ("U64Item", "UINT64")]:
+        conn.execute(f"CREATE NODE TABLE {table}(id {data_type}, PRIMARY KEY(id));")
+        conn.execute(
+            f"CREATE (:{table} {{id: 1}}), "
+            f"(:{table} {{id: 2}}), "
+            f"(:{table} {{id: 3}});"
+        )
+        literal_query = (
+            f"MATCH (item:{table}) WHERE item.id IN [3, 1, 3, 999] "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        assert list(conn.execute(literal_query)) == [[1], [3]]
+        result = conn.execute("EXPLAIN " + literal_query)
+        list(result)
+        assert "ScanWithGPredOpr" in result.get_profile_text()
+
+        query = (
+            f"MATCH (item:{table}) WHERE item.id IN $ids "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        parameters = {"ids": [3, 1, 3, 999]}
+        assert list(conn.execute(query, parameters=parameters)) == [[1], [3]]
+        result = conn.execute("EXPLAIN " + query, parameters=parameters)
+        list(result)
+        assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()
+
+
+def test_primary_key_in_string_collection_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Item(id STRING, PRIMARY KEY(id));")
+    conn.execute("CREATE (:Item {id: 'a'}), (:Item {id: 'b'}), (:Item {id: 'c'});")
+
+    literal_query = (
+        "MATCH (item:Item) WHERE item.id IN ['c', 'a', 'c', 'missing'] "
+        "RETURN item.id ORDER BY item.id;"
+    )
+    assert list(conn.execute(literal_query)) == [["a"], ["c"]]
+    result = conn.execute("EXPLAIN " + literal_query)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    parameter_query = (
+        "MATCH (item:Item) WHERE item.id IN $ids " "RETURN item.id ORDER BY item.id;"
+    )
+    parameters = {"ids": ["c", "a", "c", "missing"]}
+    assert list(conn.execute(parameter_query, parameters=parameters)) == [
+        ["a"],
+        ["c"],
+    ]
+    result = conn.execute("EXPLAIN " + parameter_query, parameters=parameters)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()

@@ -425,14 +425,7 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       if (scan_opr.has_idx_predicate()) {
         const auto& predicate = scan_opr.idx_predicate();
         const auto& triplet = predicate.or_predicates(0).predicates(0);
-        if (triplet.value_case() ==
-            algebra::IndexPredicate_Triplet::ValueCase::kParam) {
-          const auto& param = triplet.param();
-          if (params_type.find(param.name()) == params_type.end()) {
-            params_type[param.name()] =
-                parse_from_ir_data_type(param.data_type());
-          }
-        }
+        expression_parse(triplet.expression(), params_type);
       }
       break;
     }

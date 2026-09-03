@@ -27,8 +27,14 @@
             "name": "id"
            }
           },
-          "const": {
-           "i64": "1"
+          "expression": {
+            "operators": [
+              {
+                "const": {
+                 "i64": "1"
+                }
+              }
+            ]
           },
           "cmp": "EQ"
          }

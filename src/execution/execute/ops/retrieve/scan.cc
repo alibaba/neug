@@ -15,6 +15,8 @@
 
 #include "neug/execution/execute/ops/retrieve/scan.h"
 
+#include <unordered_set>
+
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
@@ -29,6 +31,35 @@ class OprTimer;
 
 namespace ops {
 
+static std::vector<Value> deduplicate_ids(std::vector<Value> values) {
+  auto hash = [](const Value& value) {
+    switch (value.type().id()) {
+    case DataTypeId::kInt32:
+      return std::hash<int32_t>{}(value.GetValue<int32_t>());
+    case DataTypeId::kInt64:
+      return std::hash<int64_t>{}(value.GetValue<int64_t>());
+    case DataTypeId::kUInt32:
+      return std::hash<uint32_t>{}(value.GetValue<uint32_t>());
+    case DataTypeId::kUInt64:
+      return std::hash<uint64_t>{}(value.GetValue<uint64_t>());
+    case DataTypeId::kVarchar:
+      return std::hash<std::string>{}(StringValue::Get(value));
+    default:
+      return size_t{0};
+    }
+  };
+  std::unordered_set<Value, decltype(hash)> seen(0, hash);
+  seen.reserve(values.size());
+  std::vector<Value> result;
+  result.reserve(values.size());
+  for (auto& value : values) {
+    if (!value.IsNull() && seen.insert(value).second) {
+      result.emplace_back(std::move(value));
+    }
+  }
+  return result;
+}
+
 class FilterOidsGPredOpr : public IOperator {
  public:
   FilterOidsGPredOpr(ScanParams params,
@@ -42,12 +73,22 @@ class FilterOidsGPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     ctx = Context();
     ctx.append_chunk(DataChunk());
-    DataTypeId type =
-        std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
-            .id();
-
-    std::vector<Value> oid_values =
-        ScanUtils::parse_ids_with_type(type, oids_, params);
+    const auto& rhs_op = oids_.expression().operators(0);
+    if ((rhs_op.has_const_() && rhs_op.const_().has_none()) ||
+        (rhs_op.has_param() && params.at(rhs_op.param().name()).IsNull())) {
+      static const std::vector<Value> no_oids;
+      auto empty_chunk = Scan::filter_oids(std::move(ctx.chunk(0)), graph,
+                                           params_, DummyPred(), no_oids);
+      if (!empty_chunk) {
+        return tl::make_unexpected(empty_chunk.error());
+      }
+      ctx.chunk(0) = std::move(*empty_chunk);
+      return ctx;
+    }
+    std::vector<Value> oid_values = ScanUtils::parse_ids(oids_, params);
+    if (oids_.cmp() == common::Logical::WITHIN) {
+      oid_values = deduplicate_ids(std::move(oid_values));
+    }
 
     if (pred_ == nullptr) {
       if (params_.tables.size() == 1 && oid_values.size() == 1) {

@@ -36,9 +36,8 @@ namespace ops {
 
 class ScanUtils {
  public:
-  static std::vector<Value> parse_ids_with_type(
-      DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
-      const ParamsMap& params);
+  static std::vector<Value> parse_ids(
+      const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params);
 
   static bool check_idx_predicate(const physical::Scan& scan_opr);
 };

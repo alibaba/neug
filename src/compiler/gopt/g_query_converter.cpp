@@ -400,7 +400,9 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   auto pkOpt = scan.getPrimaryKey(catalog);
   if (pkOpt.has_value()) {
     scanPB->set_allocated_idx_predicate(
-        exprConvertor->convertPrimaryKey(pkOpt->key, *pkOpt->value->key)
+        exprConvertor
+            ->convertPrimaryKey(pkOpt->key, *pkOpt->value->key,
+                                pkOpt->value->compare)
             .release());
   }
 

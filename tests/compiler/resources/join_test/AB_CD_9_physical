@@ -75,8 +75,14 @@
                    "name": "ID"
                   }
                  },
-                 "const": {
-                  "i64": "0"
+                 "expression": {
+                   "operators": [
+                     {
+                       "const": {
+                        "i64": "0"
+                       }
+                     }
+                   ]
                  },
                  "cmp": "EQ"
                 }
@@ -219,8 +225,14 @@
                    "name": "ID"
                   }
                  },
-                 "const": {
-                  "i64": "2"
+                 "expression": {
+                   "operators": [
+                     {
+                       "const": {
+                        "i64": "2"
+                       }
+                     }
+                   ]
                  },
                  "cmp": "EQ"
                 }

@@ -27,6 +27,8 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/common/types/types.h"
+#include "neug/compiler/function/list/functions/list_function_utils.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/logical_filter.h"
@@ -176,6 +178,61 @@ static bool isConstantExpression(const std::shared_ptr<Expression> expression) {
   }
 }
 
+static bool isNodePrimaryKey(const Expression& expression,
+                             const Expression& nodeID,
+                             const std::vector<common::table_id_t>& tableIDs);
+
+static bool tryRewriteNodePKIn(PredicateSet& predicates,
+                               LogicalScanNodeTable& scan) {
+  for (auto i = 0u; i < predicates.nonEqualityPredicates.size(); ++i) {
+    auto candidate = predicates.nonEqualityPredicates[i];
+    // Condition 1: The predicate must be a binary scalar function.
+    if (candidate->expressionType != ExpressionType::FUNCTION ||
+        candidate->getNumChildren() != 2) {
+      continue;
+    }
+
+    // Condition 2: The function must be LIST_CONTAINS and its second argument
+    // must be the primary key of the current node scan.
+    auto& scalarFunction = candidate->constCast<ScalarFunctionExpression>();
+    if (scalarFunction.getFunction().name !=
+            function::ListContainsFunction::name ||
+        !isNodePrimaryKey(*candidate->getChild(1), *scan.getNodeID(),
+                          scan.getTableIDs())) {
+      continue;
+    }
+
+    // Condition 3: The collection must be a direct List/Array literal or
+    // dynamic parameter. Computed and upstream expressions fall back.
+    auto collection = candidate->getChild(0);
+    if (!function::ListFunctionUtils::isListLike(collection->getDataType()) ||
+        (collection->expressionType != ExpressionType::LITERAL &&
+         collection->expressionType != ExpressionType::PARAMETER)) {
+      continue;
+    }
+
+    auto elementType =
+        function::ListFunctionUtils::getElementType(collection->getDataType())
+            .id();
+    if (elementType != DataTypeId::kInt32 &&
+        elementType != DataTypeId::kInt64 &&
+        elementType != DataTypeId::kUInt32 &&
+        elementType != DataTypeId::kUInt64 &&
+        elementType != DataTypeId::kVarchar) {
+      continue;
+    }
+
+    scan.setScanType(LogicalScanNodeTableType::PRIMARY_KEY_SCAN);
+    scan.setExtraInfo(std::make_unique<PrimaryKeyScanInfo>(
+        collection, ::common::Logical::WITHIN));
+    scan.computeFlatSchema();
+    predicates.nonEqualityPredicates.erase(
+        predicates.nonEqualityPredicates.begin() + i);
+    return true;
+  }
+  return false;
+}
+
 std::shared_ptr<LogicalOperator>
 FilterPushDownOptimizer::visitScanNodeTableReplace(
     const std::shared_ptr<LogicalOperator>& op) {
@@ -188,13 +245,16 @@ FilterPushDownOptimizer::visitScanNodeTableReplace(
   if (primaryKeyEqualityComparison != nullptr) {
     auto rhs = primaryKeyEqualityComparison->getChild(1);
     if (isConstantExpression(rhs)) {
-      auto extraInfo = std::make_unique<PrimaryKeyScanInfo>(rhs);
+      auto extraInfo =
+          std::make_unique<PrimaryKeyScanInfo>(rhs, ::common::Logical::EQ);
       scan.setScanType(LogicalScanNodeTableType::PRIMARY_KEY_SCAN);
       scan.setExtraInfo(std::move(extraInfo));
       scan.computeFlatSchema();
     } else {
       predicateSet.addPredicate(primaryKeyEqualityComparison);
     }
+  } else {
+    tryRewriteNodePKIn(predicateSet, scan);
   }
   return finishPushDown(op);
 }
