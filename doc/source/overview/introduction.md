@@ -31,6 +31,38 @@ NeuG keeps the core runtime lightweight and supports two deployment modes:
 
 Both modes use the same database and Cypher query engine. Start with `db.connect()` for embedded access. When the database needs to run behind a service, close the embedded connection and call `db.serve()`. See the [dual-mode benchmark](../../tutorials/benchmark-neug-dual-mode) for reproducible performance results and methodology.
 
+## Quick Example
+
+The following NeuG v0.2 example indexes the same `Runbook` data by semantics and keywords, while keeping its graph structure directly queryable:
+
+```cypher
+LOAD vector_search;
+LOAD fts;
+
+CREATE INDEX runbook_vec ON Runbook
+USING HNSW (embedding) WITH (metric = 'l2');
+
+CREATE INDEX runbook_text ON Runbook
+USING FTS (content);
+
+// Structure: follow relationships
+MATCH (:Service {name: 'PaymentService'})-[:HAS_RUNBOOK]->(r:Runbook)
+RETURN r.title;
+
+// Semantics: find similar meaning
+MATCH (r:Runbook)
+RETURN r.title,
+       vector_distance_l2(r.embedding, [0.1, 0.2, 0.3, 0.4]) AS distance
+ORDER BY distance ASC LIMIT 5;
+
+// Keywords: rank exact terms
+MATCH (r:Runbook)
+RETURN r.title, bm25(r.content, 'retry timeout') AS score
+ORDER BY score ASC LIMIT 5;
+```
+
+See [Vector Search](../../extensions/vector_search) and [Full-Text Search](../../extensions/fts_search) for setup, index options, and complete examples.
+
 ## Start Exploring
 
 - **[Installation](../../installation/installation)** — Set up NeuG for Python, Node.js, or C++
