@@ -169,10 +169,11 @@ state.
 **Arguments**:
 
 - `query`: The query string to be executed.
-- `access_mode`: The access mode for the query. Supported modes are:
+- `access_mode`: The access mode for the query. When omitted, NeuG infers it
+  from the query text. Supported modes are:
 - `read` or `r`: Read-only queries
 - `insert` or `i`: Insert-only operations
-- `update` or `u`: Update/delete operations (default)
+- `update` or `u`: Update/delete operations
 - `schema` or `s`: Schema modification operations
 - `parameters`: Optional dict of query parameters.
 

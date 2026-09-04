@@ -406,10 +406,13 @@ conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduc
 
 ## Data Persistence
 
-### Embedded Mode: Checkpoint-Based
+### Embedded Mode: WAL and Checkpoints
 
-All changes are held in memory until a checkpoint persists them. See
-[Checkpoints](checkpoint.md) for usage, examples, and recovery behavior.
+Since v0.2, committed regular writes are saved in WAL and restored automatically
+after a restart. Persistent `COPY ... FROM` creates a checkpoint before reporting
+success, while `COPY TEMP` remains in memory and is lost when the database closes.
+Manual checkpoints are not required for durability, but can reduce the amount of
+WAL replayed during recovery. See [Checkpoints](checkpoint.md) for details.
 
 ### Service Mode: WAL-Based
 

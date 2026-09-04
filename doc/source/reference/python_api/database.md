@@ -70,7 +70,7 @@ Open a database.
     Note that in memory mode, the database will not be persisted to disk, and all data will be
     lost when the program exits. In this case, the db_path should not contain any illegal characters.
   - `mode` (str)
-    Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
+    Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'read-write'.
   - `max_thread_num` (int)
     Database query capacity; 0 selects hardware concurrency (fallback 1), while higher inputs warn and clamp to it.
 
@@ -82,13 +82,11 @@ Open a database.
     If False, no checkpoint is created automatically when close the database.
   - `buffer_strategy` (str)
     Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
-    or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'.
-    - 'InMemory' / 'M_FULL': The database will be opened fully in memory, and the changes will not be
-    persisted to disk until checkpoint is created.
-    - 'SyncToFile' / 'M_LAZY': The database will be opened in memory on demand, suitable for large databases
-    that cannot fit into memory. Also changes will not be persisted to disk until checkpoint is created.
-    - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but it will try to use huge pages for memory
-    allocation, which may improve performance for large databases.
+    or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'. This setting controls how graph data is
+    loaded into memory; it does not affect durability.
+    - 'InMemory' / 'M_FULL': Open the database fully in memory.
+    - 'SyncToFile' / 'M_LAZY': Load database pages on demand, suitable for databases that do not fit in memory.
+    - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
 - **Raises:**
   - **RuntimeError**
@@ -240,9 +238,7 @@ def close()
 
 Close the database and all of its connections.
 
-For a read-write database with `checkpoint_on_close=True`, this method creates a checkpoint before releasing the database resources.
-The method is idempotent.
-Automatic checkpoint creation is best effort: failures are logged and do not propagate to the caller.
+For a read-write database with `checkpoint_on_close=True`, this method creates a checkpoint before closing. If the checkpoint fails, `close()` raises an exception. Depending on when the failure occurs, the database may remain open for another attempt or may already be closed. Calling this method again after a successful close has no effect.
 
 <a id="neug.database.Database.load_builtin_dataset"></a>
 

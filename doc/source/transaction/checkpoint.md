@@ -1,18 +1,16 @@
 # Checkpoints
 
-A checkpoint creates a durable snapshot of the current database state. AP
-direct and TP ordinary writes both append logical WAL; successful persistent
-AP-direct COPY/batch insert instead publish a statement-level checkpoint
-without row-level WAL. Index DDL follows ordinary AP/TP logical-WAL commit.
-`COPY TEMP` is an in-memory private-COW
-commit and produces neither WAL nor a checkpoint. A checkpoint therefore has
-two roles:
+A checkpoint saves the current database state to disk. Since v0.2, regular
+committed writes in both embedded and service mode are already durable through
+WAL, so they do not require a manual checkpoint. Persistent `COPY ... FROM` and
+batch inserts create a checkpoint before reporting success. `COPY TEMP` remains
+in memory and is lost when the database closes.
 
-| Question | Ordinary DML/DDL, including index DDL | AP-direct COPY/batch insert |
+| Question | Regular writes, including index changes | Persistent COPY/batch insert |
 |---|---|---|
-| Is an explicit `CHECKPOINT` required for durability? | No; a committed write is already durable in WAL | No; the statement returns success only after its checkpoint is published |
-| What is it for? | Optional maintenance that bounds WAL replay | Statement commit and atomic publication |
-| What is recovered after restart? | `CURRENT` plus WAL records after `base_ts` | The checkpoint selected by `CURRENT`; bulk rows are not repeated in WAL |
+| Is a manual `CHECKPOINT` required for durability? | No; committed changes are already saved in WAL | No; a checkpoint is created before the statement reports success |
+| Why create one? | To reduce the amount of WAL replayed during recovery | To make the imported data durable |
+| What is restored after restart? | The latest checkpoint and later committed changes | The imported data from the latest checkpoint |
 
 For transaction boundaries and concurrency outside checkpoint operations, see
 [Transaction Management](transaction.mdx).
@@ -170,42 +168,42 @@ For Service mode, schedule checkpoints during a quiet period when possible.
 
 In the Python API, persistent read-write databases default to
 `checkpoint_on_close=True`, so closing the database attempts a final
-checkpoint. A failure before the destructive dump is raised from `close()` and
-leaves the database open for a corrected retry. A failure after the destructive
-dump completes teardown and is then raised.
+checkpoint. If it fails, `close()` raises an exception. Depending on when the
+failure occurs, the database may remain open for another attempt or may already
+be closed.
 
 Use an explicit `CHECKPOINT` when the application must know whether maintenance
-succeeded. If `checkpoint_on_close=False`, committed ordinary writes remain
-recoverable from WAL in AP direct and TP mode. Successful AP-direct bulk
-statements have already published their own checkpoints.
+succeeded. If `checkpoint_on_close=False`, regular committed writes remain
+recoverable through WAL in both embedded and service mode. Successful persistent
+bulk writes have already created their own checkpoints.
 
 ## Failure and recovery
 
-On startup, NeuG opens only the manifest named by `CURRENT`; it never falls back to a legacy directory when that selector exists. If `CURRENT` is absent, a read-write open may perform the one-time v1 migration described above. An incomplete staging manifest or object is unreachable until `CURRENT` changes and is therefore never selected. In Service mode, NeuG validates the selected WAL epoch and replays only records with timestamps greater than that manifest's `base_ts`.
+On startup, NeuG loads the checkpoint selected by `CURRENT`. When `CURRENT`
+exists, NeuG does not fall back to an older database directory. Incomplete
+checkpoints from interrupted operations are ignored. If `CURRENT` is absent, a
+read-write open may perform the one-time v1 migration described above. Persistent
+embedded and service databases then replay committed WAL records created after
+the selected checkpoint.
 
-A **manual** `CHECKPOINT` fails in one of two ways:
+A **manual** `CHECKPOINT` can fail in two ways:
 
-- **Before the snapshot build starts** — for example, if the database cannot
-  begin maintenance — the statement returns an error and the database keeps
-  running normally.
-- **After the destructive publication boundary**, a failure can leave the
-  in-memory state undefined. To avoid operating on a corrupt state, NeuG
-  intentionally terminates the database process via `LOG(FATAL)`. This is
-  by design, not a crash: restarting the database recovers cleanly from the
-  manifest selected by `CURRENT` and, in Service mode, its WAL epoch.
+- If NeuG cannot start the checkpoint, the statement returns an error and the
+  database remains usable.
+- If it fails after NeuG starts replacing the current state, NeuG terminates the
+  process to avoid using an unsafe state. Restarting recovers from the checkpoint
+  selected by `CURRENT` and subsequent committed writes.
 
-A **recovery** checkpoint (run automatically on database open) takes a
-different path: if it fails, NeuG does not terminate the process. Instead,
-the open returns an error and the database remains unopened. Fix the
-underlying cause (e.g., disk space, permissions) and retry.
+`checkpoint_on_recovery` optionally creates a checkpoint after WAL recovery
+when opening a read-write database. It is disabled by default. If it fails,
+the open returns an error without terminating the process. Fix the underlying
+cause (for example, disk space or permissions) and retry.
 
-### AP-direct bulk load failure
+### Persistent bulk load failure
 
-COPY/batch insert are atomic at statement scope. Their mutations
-remain in a private COW graph until the staging checkpoint is ready. Supplier,
-index maintenance, preflight, or staging failures discard that graph; the
-published current graph, checkpoint ID, and WAL epoch remain unchanged. There
-is no partial state or delayed checkpoint barrier to recover.
+Persistent COPY and batch inserts are atomic. If the import or its checkpoint
+fails, none of the new data becomes visible and the previous database state
+remains usable.
 
 ```python
 import neug
@@ -216,12 +214,11 @@ conn = db.connect()
 try:
     conn.execute("COPY Person FROM 'large_batch.csv'")
 except Exception:
-    # The previous published graph is still current and usable.
+    # The previous database state is still current and usable.
     pass
 ```
 
-Each successful persistent COPY publishes one checkpoint. `COPY TEMP` is the
-exception: it atomically updates only the current in-memory graph. Batch input
-at the application level when possible, and leave enough temporary disk space
-for rewritten objects and older objects retained until checkpoint garbage
-collection.
+Each successful persistent COPY creates one checkpoint. `COPY TEMP` is the
+exception: it updates only the in-memory database. Batch input at the application
+level when possible, and leave enough temporary disk space for the checkpoint
+and cleanup.
