@@ -2,7 +2,7 @@
 
 This guide walks you through creating your first graph database, querying relationships, adding the indexes introduced in NeuG v0.2, and exploring both embedded and service modes. Examples are in **Python**.
 
-> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api/index) or [C++ API reference](../../reference/cpp_api/index) for equivalent examples in those languages.
+> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api/) or [C++ API reference](../../reference/cpp_api/) for equivalent examples in those languages.
 
 ## Prerequisites
 
@@ -265,7 +265,7 @@ print(list(keyword_results))
 print(list(conn.execute("CALL SHOW_INDEXES() RETURN *;")))
 ```
 
-The graph structure and both storage indexes are maintained over the same data. Inserts, updates, and deletes update the indexes as part of the same transaction. For index lifecycle and recovery guarantees, see [Storage Indexes](../../storage_index/index). For complete search options, see [Vector Search](../../extensions/vector_search) and [Full-Text Search](../../extensions/fts_search).
+The graph structure and both storage indexes are maintained over the same data. Inserts, updates, and deletes update the indexes as part of the same transaction. For index lifecycle and recovery guarantees, see [Storage Indexes](../../storage_index/). For complete search options, see [Vector Search](../../extensions/vector_search) and [Full-Text Search](../../extensions/fts_search).
 
 ### Converting Results to Apache Arrow
 
@@ -343,9 +343,9 @@ db.load_builtin_dataset(dataset_name="modern_graph")
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
 
-1. **[Storage Indexes](../../storage_index/index)**: Understand index lifecycle, transactions, and recovery
+1. **[Storage Indexes](../../storage_index/)**: Understand index lifecycle, transactions, and recovery
 2. **[Vector Search](../../extensions/vector_search)**: Configure HNSW indexes and similarity queries
 3. **[Full-Text Search](../../extensions/fts_search)**: Use BM25, phrase, prefix, and Boolean queries
 4. **[Graph Algorithms](../../extensions/load_gds)**: Run analytics over projected graphs
 5. **[Transaction Management](../../transaction/transaction)**: Learn NeuG's transaction and isolation model
-6. **[Data Import/Export](../../data_io/import_data)** and **[Cypher Manual](../../cypher_manual/index)**: Load production data and write advanced queries
+6. **[Data Import/Export](../../data_io/import_data)** and **[Cypher Manual](../../cypher_manual/)**: Load production data and write advanced queries

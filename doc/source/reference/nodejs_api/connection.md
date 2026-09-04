@@ -43,6 +43,48 @@ Check if the connection is open.
   - **boolean**
     True if the connection is open, False otherwise.
 
+<a id="neug.connection.Connection.hasActiveTransaction"></a>
+
+### hasActiveTransaction
+
+```javascript
+get hasActiveTransaction() -> boolean
+```
+
+Whether this connection has an active or rollback-only explicit transaction.
+
+<a id="neug.connection.Connection.beginTransaction"></a>
+
+### beginTransaction
+
+```javascript
+beginTransaction(options = {})
+```
+
+Begin an explicit embedded transaction. By default, the transaction uses a
+private copy-on-write view. Pass `{ readOnly: true }` to pin a read-only view.
+Nested transactions and read-to-write upgrades are not supported.
+
+<a id="neug.connection.Connection.commit"></a>
+
+### commit
+
+```javascript
+commit()
+```
+
+Commit the active transaction. A rollback-only transaction must be rolled back.
+
+<a id="neug.connection.Connection.rollback"></a>
+
+### rollback
+
+```javascript
+rollback()
+```
+
+Roll back the active or rollback-only transaction and return to auto-commit mode.
+
 <a id="neug.connection.Connection.close"></a>
 
 ### close

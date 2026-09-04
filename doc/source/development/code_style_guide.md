@@ -16,7 +16,7 @@ We follow the [black](https://black.readthedocs.io/en/stable/the_black_code_styl
 Java code in NeuG follows [Google Java Style](https://google.github.io/styleguide/javaguide.html),
 enforced by the Maven Spotless plugin (with `google-java-format`).
 
-Java source is located at [tools/java_driver](../../tools/java_driver).
+Java source is located at [tools/java_driver](https://github.com/alibaba/neug/tree/main/tools/java_driver).
 
 ## Style Linter and Checker
 
