@@ -298,6 +298,42 @@ class MultiChunkSupplier : public IDataChunkSupplier {
   size_t index_;
 };
 
+std::shared_ptr<DataChunk> map_data_chunk(
+    const DataChunk& chunk,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  auto out_chunk = std::make_shared<DataChunk>();
+  for (size_t i = 0; i < prop_mappings.size(); ++i) {
+    auto tag_id = prop_mappings[i].first;
+    auto column = chunk.get(tag_id);
+    if (column == nullptr) {
+      THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
+                               std::to_string(tag_id));
+    }
+    out_chunk->set(static_cast<int>(i), column);
+  }
+  return out_chunk;
+}
+
+class MappedChunkSupplier : public IDataChunkSupplier {
+ public:
+  MappedChunkSupplier(
+      std::shared_ptr<IDataChunkSupplier> supplier,
+      std::vector<std::pair<int32_t, std::string>> prop_mappings)
+      : supplier_(std::move(supplier)),
+        prop_mappings_(std::move(prop_mappings)) {}
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    auto chunk = supplier_->GetNextChunk();
+    return chunk ? map_data_chunk(*chunk, prop_mappings_) : nullptr;
+  }
+
+  int64_t RowNum() const override { return supplier_->RowNum(); }
+
+ private:
+  std::shared_ptr<IDataChunkSupplier> supplier_;
+  std::vector<std::pair<int32_t, std::string>> prop_mappings_;
+};
+
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
@@ -305,19 +341,16 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
   projected_chunks.reserve(ctx.chunk_num());
   for (size_t i = 0; i < ctx.chunk_num(); ++i) {
     const auto& chunk = ctx.chunk(i).chunk();
-    auto out_chunk = std::make_shared<DataChunk>();
-    for (size_t j = 0; j < prop_mappings.size(); ++j) {
-      auto tag_id = prop_mappings[j].first;
-      auto column = chunk.get(tag_id);
-      if (column == nullptr) {
-        THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
-                                 std::to_string(tag_id));
-      }
-      out_chunk->set(static_cast<int>(j), column);
-    }
-    projected_chunks.push_back(std::move(out_chunk));
+    projected_chunks.push_back(map_data_chunk(chunk, prop_mappings));
   }
   return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
+}
+
+std::shared_ptr<IDataChunkSupplier> create_mapped_data_chunk_supplier(
+    std::shared_ptr<IDataChunkSupplier> supplier,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
+  return std::make_shared<MappedChunkSupplier>(std::move(supplier),
+                                               prop_mappings);
 }
 
 std::vector<std::string> match_files_with_pattern(

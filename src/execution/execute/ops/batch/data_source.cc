@@ -36,14 +36,8 @@ class OprTimer;
 namespace ops {
 
 class DataSourceOpr : public IOperator {
- private:
-  std::shared_ptr<reader::ReadSharedState> sharedState;
-  function::ReadFunction* readFunction;
-
  public:
-  DataSourceOpr(const std::shared_ptr<reader::ReadSharedState>& sharedState,
-                function::ReadFunction* readFunction)
-      : sharedState(std::move(sharedState)), readFunction(readFunction) {}
+  explicit DataSourceOpr(ReadSource source) : source_(std::move(source)) {}
 
   ~DataSourceOpr() override = default;
 
@@ -53,9 +47,12 @@ class DataSourceOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    NEUG_ASSERT(readFunction != nullptr);
-    return readFunction->execFunc(sharedState);
+    NEUG_ASSERT(source_.function != nullptr);
+    return source_.function->execFunc(source_.state);
   }
+
+ private:
+  ReadSource source_;
 };
 
 std::shared_ptr<ReadSharedState> ReadStateBuilder::build(
@@ -107,6 +104,21 @@ FileSchema ReadStateBuilder::buildFileSchema(
   return file_schema;
 }
 
+ReadSource build_read_source(const ::physical::DataSource& data_source) {
+  auto state = ReadStateBuilder().build(data_source);
+  auto gCatalog = neug::main::MetadataRegistry::getCatalog();
+  auto func = gCatalog->getFunctionWithSignature(data_source.extension_name());
+  return {std::move(state), func->ptrCast<function::ReadFunction>()};
+}
+
+std::shared_ptr<IDataChunkSupplier> ReadSource::create_supplier() const {
+  return function->supplierFunc(state);
+}
+
+bool ReadSource::supports_supplier() const {
+  return function != nullptr && function->supplierFunc != nullptr;
+}
+
 // Build DataSourceOpr from PB, there are two key fields:
 // 1. ReadSharedState: can be built from PB, which contains the entry and file
 // schema info.
@@ -116,16 +128,8 @@ neug::result<OpBuildResultT> DataSourceOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto sourcePB = plan.plan(op_idx).opr().source();
-  auto stateBuilder = ReadStateBuilder();
-  // build read shared state from PB
-  auto state = stateBuilder.build(sourcePB);
-
-  // look up read function from catalog
-  auto signatureName = sourcePB.extension_name();
-  auto gCatalog = neug::main::MetadataRegistry::getCatalog();
-  auto func = gCatalog->getFunctionWithSignature(signatureName);
-  auto readFunc = func->ptrCast<function::ReadFunction>();
-  return std::make_pair(std::make_unique<DataSourceOpr>(state, readFunc),
+  auto source = build_read_source(sourcePB);
+  return std::make_pair(std::make_unique<DataSourceOpr>(std::move(source)),
                         ctx_meta);
 }
 

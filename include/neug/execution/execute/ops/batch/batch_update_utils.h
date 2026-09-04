@@ -50,6 +50,10 @@ std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
 
+std::shared_ptr<IDataChunkSupplier> create_mapped_data_chunk_supplier(
+    std::shared_ptr<IDataChunkSupplier> supplier,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 
 std::vector<std::shared_ptr<IDataChunkSupplier>> create_csv_chunk_suppliers(

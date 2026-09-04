@@ -15,12 +15,14 @@
 #pragma once
 
 #include "neug/execution/execute/operator.h"
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/io/reader.h"
 
 namespace neug {
 using namespace reader;
 class IDataChunkSupplier;
+namespace function {
+struct ReadFunction;
+}
 namespace execution {
 
 namespace ops {
@@ -34,6 +36,16 @@ class ReadStateBuilder {
       const ::physical::EntrySchema& entry_schema);
   static FileSchema buildFileSchema(const ::physical::FileSchema& file_schema);
 };
+
+struct ReadSource {
+  std::shared_ptr<ReadSharedState> state;
+  function::ReadFunction* function = nullptr;
+
+  bool supports_supplier() const;
+  std::shared_ptr<IDataChunkSupplier> create_supplier() const;
+};
+
+ReadSource build_read_source(const ::physical::DataSource& data_source);
 
 class DataSourceOprBuilder : public IOperatorBuilder {
  public:
