@@ -406,14 +406,10 @@ conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduc
 
 ## Data Persistence
 
-### Embedded Mode: WAL and Checkpoints
+### Embedded Mode: Checkpoint-Based
 
-Since v0.2, committed ordinary writes are appended to the WAL and recovered
-automatically after restart. Persistent direct bulk operations, such as `COPY`,
-publish a checkpoint before returning success; temporary bulk writes remain
-in memory only. An explicit checkpoint materializes the current state and
-consolidates WAL, but is not required for ordinary commit durability. See
-[Checkpoints](checkpoint.md) for lifecycle and recovery details.
+All changes are held in memory until a checkpoint persists them. See
+[Checkpoints](checkpoint.md) for usage, examples, and recovery behavior.
 
 ### Service Mode: WAL-Based
 
