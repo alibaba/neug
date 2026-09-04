@@ -41,6 +41,9 @@
 #include "neug/utils/property/property_definition.h"
 
 namespace neug {
+namespace binder {
+class CompactLiteralExpression;
+}
 namespace gopt {
 
 class GExprConverter {
@@ -75,6 +78,8 @@ class GExprConverter {
       const binder::ParameterExpression& expr);
   std::unique_ptr<::common::Expression> convertLiteral(
       const binder::LiteralExpression& expr);
+  std::unique_ptr<::common::Expression> convertCompactLiteral(
+      const binder::CompactLiteralExpression& expr);
   std::unique_ptr<::common::Expression> convertProperty(
       const binder::PropertyExpression& expr);
   std::unique_ptr<::common::Expression> convertVariable(
