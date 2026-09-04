@@ -331,9 +331,9 @@ def test_tinysnb_path_expand(tinysnb):
     assert records[0][0] == 13
 
 
-def test_unused_named_path_uses_endpoint_only_expand(path_expand_connection):
+def test_unused_anonymous_varlen_uses_endpoint_only_expand(path_expand_connection):
     result = path_expand_connection.execute(
-        "PROFILE MATCH p = (a:person)-[e:knows*3..3]->(b:person) " "RETURN COUNT(b.ID);"
+        "PROFILE MATCH (a:person)-[:knows*3..3]->(b:person) " "RETURN COUNT(b.ID);"
     )
 
     assert list(result) == [[108]]
@@ -346,16 +346,54 @@ def test_unused_named_path_uses_endpoint_only_expand(path_expand_connection):
 
 def test_materialized_path_returns_correct_length(path_expand_connection):
     result = path_expand_connection.execute(
-        "PROFILE MATCH p = (a:person)-[e:knows*1..3]->(b:person) "
+        "PROFILE MATCH (a:person)-[p:knows*1..3]->(b:person) "
         "WHERE a.ID = 0 RETURN length(p);"
     )
 
     lengths = sorted(row[0] for row in result)
     assert lengths == [1] * 3 + [2] * 9 + [3] * 27
     operator_names = _operator_names(result)
-    # length(p) consumes p and therefore keeps the existing ALL_V route.
+    # length(p) consumes the recursive rel and therefore keeps the existing
+    # ALL_V route.
     assert "PathExpandOpr" in operator_names
     assert "PathExpandVOpr" not in operator_names
+
+
+def test_named_path_length_reports_unsupported(tmp_path):
+    db = Database(db_path=str(tmp_path / "named_path_length"), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE T(id STRING PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE R(FROM T TO T);")
+    conn.execute("CREATE (n:T {id: 'a'});")
+    conn.execute("CREATE (n:T {id: 'b'});")
+    conn.execute("CREATE (n:T {id: 'c'});")
+    conn.execute("MATCH (u:T {id: 'a'}), (v:T {id: 'b'}) CREATE (u)-[:R]->(v);")
+    conn.execute("MATCH (u:T {id: 'b'}), (v:T {id: 'c'}) CREATE (u)-[:R]->(v);")
+
+    with pytest.raises(RuntimeError, match="Named path syntax .* is not supported"):
+        conn.execute(
+            "MATCH p=(a:T {id: 'a'})-[:R*1..2]->(b:T) "
+            "RETURN length(p) AS l ORDER BY l;"
+        )
+
+    conn.close()
+    db.close()
+
+
+def test_named_path_return_reports_unsupported(tmp_path):
+    db = Database(db_path=str(tmp_path / "named_path_return"), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE T(id STRING PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE R(FROM T TO T);")
+    conn.execute("CREATE (n:T {id: 'a'});")
+    conn.execute("CREATE (n:T {id: 'b'});")
+    conn.execute("MATCH (u:T {id: 'a'}), (v:T {id: 'b'}) CREATE (u)-[:R]->(v);")
+
+    with pytest.raises(RuntimeError, match="Named path syntax .* is not supported"):
+        conn.execute("MATCH p=(a:T {id: 'a'})-[r:R*1..2]->(b:T) RETURN p;")
+
+    conn.close()
+    db.close()
 
 
 def test_path_expand_count_on_typed_rel_table(tmp_path):

@@ -107,25 +107,24 @@ BoundGraphPattern Binder::bindGraphPattern(
 // a query graph.
 QueryGraph Binder::bindPatternElement(const PatternElement& patternElement,
                                       expression_vector& namespacePredicates) {
+  if (patternElement.hasPathName()) {
+    THROW_BINDER_EXCEPTION(
+        stringFormat("Named path syntax '{} = (...)' is not supported. Use a "
+                     "variable-length relationship variable instead, e.g. "
+                     "MATCH (a)-[{}:R*1..2]->(b) RETURN length({}).",
+                     patternElement.getPathName(), patternElement.getPathName(),
+                     patternElement.getPathName()));
+  }
   auto queryGraph = QueryGraph();
-  expression_vector nodeAndRels;
   auto leftNode = bindQueryNode(*patternElement.getFirstNodePattern(),
                                 queryGraph, namespacePredicates);
-  nodeAndRels.push_back(leftNode);
   for (auto i = 0u; i < patternElement.getNumPatternElementChains(); ++i) {
     auto patternElementChain = patternElement.getPatternElementChain(i);
     auto rightNode = bindQueryNode(*patternElementChain->getNodePattern(),
                                    queryGraph, namespacePredicates);
-    auto rel = bindQueryRel(*patternElementChain->getRelPattern(), leftNode,
-                            rightNode, queryGraph, namespacePredicates);
-    nodeAndRels.push_back(rel);
-    nodeAndRels.push_back(rightNode);
+    bindQueryRel(*patternElementChain->getRelPattern(), leftNode, rightNode,
+                 queryGraph, namespacePredicates);
     leftNode = rightNode;
-  }
-  if (patternElement.hasPathName()) {
-    auto pathName = patternElement.getPathName();
-    auto pathExpression = createPath(pathName, nodeAndRels);
-    addToScope(pathName, pathExpression);
   }
   return queryGraph;
 }
