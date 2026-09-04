@@ -8,7 +8,7 @@ This tutorial walks you through a complete data pipeline using NeuG (version >= 
 4. Export results back to Parquet (local or cloud)
 
 **Time**: ~10 minutes
-**Prerequisites**: `pip install neug==0.1.3`, internet access
+**Prerequisites**: `pip install neug==0.2.0`, internet access
 
 ---
 
