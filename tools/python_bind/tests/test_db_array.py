@@ -470,6 +470,34 @@ def test_array_ddl_operations(tmp_path):
     rows = list(conn.execute("MATCH (s:Sensor {id: 1}) RETURN s.readings;"))
     assert _nested_list(rows[0][0]) == [0, 1, 0]
 
+    conn.execute(
+        "CREATE NODE TABLE FillDefault("
+        "  id INT64,"
+        "  all_fill FLOAT[4] DEFAULT [-1:4],"
+        "  segmented INT64[5] DEFAULT [-1:2; 0:3],"
+        "  mixed INT64[4] DEFAULT [7, 8, -1:2],"
+        "  PRIMARY KEY(id)"
+        ");"
+    )
+    conn.execute("CREATE (f:FillDefault {id: 1});")
+    rows = list(
+        conn.execute(
+            "MATCH (f:FillDefault {id: 1}) " "RETURN f.all_fill, f.segmented, f.mixed;"
+        )
+    )
+    assert _nested_list(rows[0][0]) == [-1.0, -1.0, -1.0, -1.0]
+    assert _nested_list(rows[0][1]) == [-1, -1, 0, 0, 0]
+    assert _nested_list(rows[0][2]) == [7, 8, -1, -1]
+
+    with pytest.raises(Exception, match="ARRAY value length mismatch"):
+        conn.execute(
+            "CREATE NODE TABLE BadFill("
+            "  id INT64,"
+            "  values INT64[4] DEFAULT [1:3],"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+
     conn.close()
     db.close()
 

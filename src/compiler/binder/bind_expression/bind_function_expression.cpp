@@ -22,6 +22,8 @@
 
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/aggregate_function_expression.h"
+#include "neug/compiler/binder/expression/compact_literal_expression.h"
+#include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/binder/expression_visitor.h"
@@ -45,11 +47,88 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace binder {
+namespace {
+
+constexpr std::string_view kCompactDefaultFunction = "NEUG_COMPACT_DEFAULT";
+
+uint64_t getRepeatCount(const LiteralExpression& literal) {
+  const auto& value = literal.getValue();
+  if (value.isNull()) {
+    THROW_BINDER_EXCEPTION("Compact default repeat count cannot be NULL.");
+  }
+  switch (value.getDataType().id()) {
+  case DataTypeId::kInt64: {
+    const auto count = value.getValue<int64_t>();
+    if (count < 0) {
+      THROW_BINDER_EXCEPTION(
+          "Compact default repeat count cannot be negative.");
+    }
+    return static_cast<uint64_t>(count);
+  }
+  case DataTypeId::kInt32: {
+    const auto count = value.getValue<int32_t>();
+    if (count < 0) {
+      THROW_BINDER_EXCEPTION(
+          "Compact default repeat count cannot be negative.");
+    }
+    return static_cast<uint64_t>(count);
+  }
+  case DataTypeId::kUInt64:
+    return value.getValue<uint64_t>();
+  case DataTypeId::kUInt32:
+    return value.getValue<uint32_t>();
+  default:
+    THROW_BINDER_EXCEPTION(
+        "Compact default repeat count must be an integer literal.");
+  }
+}
+
+}  // namespace
 
 std::shared_ptr<Expression> ExpressionBinder::bindFunctionExpression(
     const ParsedExpression& expr) {
   auto funcExpr = expr.constPtrCast<ParsedFunctionExpression>();
   auto functionName = funcExpr->getNormalizedFunctionName();
+  if (functionName == kCompactDefaultFunction) {
+    if (expr.getNumChildren() == 0 || expr.getNumChildren() % 2 != 0) {
+      THROW_BINDER_EXCEPTION(
+          "Compact default requires value/count argument pairs.");
+    }
+    std::vector<CompactLiteralSegment> segments;
+    std::vector<DataType> valueTypes;
+    for (auto i = 0u; i < expr.getNumChildren(); i += 2) {
+      auto valueExpr = bindExpression(*expr.getChild(i));
+      if (ConstantExpressionVisitor::needFold(*valueExpr)) {
+        valueExpr = foldExpression(valueExpr);
+      }
+      auto countExpr = bindExpression(*expr.getChild(i + 1));
+      if (ConstantExpressionVisitor::needFold(*countExpr)) {
+        countExpr = foldExpression(countExpr);
+      }
+      auto valueLiteral =
+          dynamic_cast<const LiteralExpression*>(valueExpr.get());
+      auto countLiteral =
+          dynamic_cast<const LiteralExpression*>(countExpr.get());
+      if (valueLiteral == nullptr || countLiteral == nullptr) {
+        THROW_BINDER_EXCEPTION(
+            "Compact default only supports constant value/count pairs.");
+      }
+      valueTypes.push_back(valueLiteral->getDataType().copy());
+      segments.emplace_back(valueLiteral->getValue(),
+                            getRepeatCount(*countLiteral));
+    }
+    DataType childType;
+    if (!LogicalTypeUtils::tryGetMaxLogicalType(valueTypes, childType)) {
+      THROW_BINDER_EXCEPTION(
+          "Cannot infer a common child type for compact default values.");
+    }
+    auto dataType = DataType::List(std::move(childType));
+    auto result = std::make_shared<CompactLiteralExpression>(
+        dataType.copy(), std::move(segments),
+        binder->getUniqueExpressionName(funcExpr->toString()));
+    result->cast(dataType);
+    return result;
+  }
   auto entry = context->getCatalog()->getFunctionEntry(
       context->getTransaction(), functionName);
   switch (entry->getType()) {

@@ -30,6 +30,7 @@
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
 #include "neug/compiler/binder/ddl/bound_drop_index.h"
+#include "neug/compiler/binder/expression/compact_literal_expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
@@ -130,6 +131,7 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
   for (auto& def : parsedDefinitions) {
     auto type = convertFromString(def.getType(), clientContext);
     auto defaultValue = get_default_value(type);
+    std::shared_ptr<Expression> boundDefaultForPlan;
     if (def.defaultExpr != nullptr) {
       auto directDefault =
           tryConvertTemporalDefault(def.defaultExpr.get(), type);
@@ -139,20 +141,43 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
         auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
                                                   tableName, def.getName());
         auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
-        if (boundExpr->dataType != type) {
-          boundExpr = expressionBinder.implicitCast(boundExpr, type);
+        if (auto compact =
+                dynamic_cast<CompactLiteralExpression*>(boundExpr.get())) {
+          try {
+            compact->cast(type);
+          } catch (const std::exception& e) {
+            THROW_BINDER_EXCEPTION(
+                stringFormat("Invalid compact default value for {}.{}: {}",
+                             tableName, def.getName(), e.what()));
+          }
+          defaultValue =
+              common::convertToExecutionValue(compact->materialize(), type);
+          boundDefaultForPlan = boundExpr;
+        } else if (type.id() == DataTypeId::kArray &&
+                   boundExpr->dataType.id() == DataTypeId::kArray &&
+                   ArrayType::GetNumElements(boundExpr->dataType) !=
+                       ArrayType::GetNumElements(type)) {
+          THROW_BINDER_EXCEPTION(stringFormat(
+              "ARRAY value length mismatch for default value of {}.{}: "
+              "expected {}, got {}.",
+              tableName, def.getName(), ArrayType::GetNumElements(type),
+              ArrayType::GetNumElements(boundExpr->dataType)));
+        } else {
+          if (boundExpr->dataType != type) {
+            boundExpr = expressionBinder.implicitCast(boundExpr, type);
+          }
+          if (ConstantExpressionVisitor::needFold(*boundExpr)) {
+            boundExpr = expressionBinder.foldExpression(boundExpr);
+          }
+          defaultValue = common::convertToExecutionValue(
+              boundExpr->constCast<LiteralExpression>().getValue(), type);
         }
-        if (ConstantExpressionVisitor::needFold(*boundExpr)) {
-          boundExpr = expressionBinder.foldExpression(boundExpr);
-        }
-        defaultValue = common::convertToExecutionValue(
-            boundExpr->constCast<LiteralExpression>().getValue(), type);
       }
     }
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));
-    definitions.emplace_back(std::move(columnDefinition),
-                             std::move(defaultValue),
-                             def.defaultExpr != nullptr);
+    definitions.emplace_back(
+        std::move(columnDefinition), std::move(defaultValue),
+        def.defaultExpr != nullptr, std::move(boundDefaultForPlan));
   }
   validatePropertyName(definitions);
   return definitions;
@@ -543,18 +568,28 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   auto defaultExpr = resolvePropertyDefault(extraInfo->defaultValue.get(), type,
                                             tableName, propertyName);
   auto boundDefault = expressionBinder.bindExpression(*defaultExpr);
-  boundDefault = expressionBinder.implicitCastIfNecessary(boundDefault, type);
-  if (ConstantExpressionVisitor::needFold(*boundDefault)) {
-    boundDefault = expressionBinder.foldExpression(boundDefault);
+  std::shared_ptr<Expression> boundDefaultForPlan;
+  ::neug::Value defaultValue(type.copy());
+  if (extraInfo->defaultValue != nullptr) {
+    if (auto compact =
+            dynamic_cast<CompactLiteralExpression*>(boundDefault.get())) {
+      compact->cast(type);
+      defaultValue =
+          common::convertToExecutionValue(compact->materialize(), type);
+      boundDefaultForPlan = boundDefault;
+    } else {
+      boundDefault =
+          expressionBinder.implicitCastIfNecessary(boundDefault, type);
+      if (ConstantExpressionVisitor::needFold(*boundDefault)) {
+        boundDefault = expressionBinder.foldExpression(boundDefault);
+      }
+      defaultValue = common::convertToExecutionValue(
+          boundDefault->constCast<LiteralExpression>().getValue(), type);
+    }
   }
-  auto defaultValue =
-      extraInfo->defaultValue == nullptr
-          ? ::neug::Value(type.copy())
-          : common::convertToExecutionValue(
-                boundDefault->constCast<LiteralExpression>().getValue(), type);
-  auto propertyDefinition =
-      PropertyDefinition(std::move(columnDefinition), std::move(defaultValue),
-                         extraInfo->defaultValue != nullptr);
+  auto propertyDefinition = PropertyDefinition(
+      std::move(columnDefinition), std::move(defaultValue),
+      extraInfo->defaultValue != nullptr, std::move(boundDefaultForPlan));
   auto boundExtraInfo = std::make_unique<BoundExtraAddPropertyInfo>(
       std::move(propertyDefinition), std::move(boundDefault));
   auto boundInfo = BoundAlterInfo(AlterType::ADD_PROPERTY, tableName,

@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -22,6 +23,9 @@
 #include "neug/utils/property/types.h"
 
 namespace neug {
+namespace binder {
+class Expression;
+}
 
 struct ColumnDefinition {
   std::string name;
@@ -35,20 +39,27 @@ struct ColumnDefinition {
 struct PropertyDefinition {
   ColumnDefinition columnDefinition;
   Value defaultExpr;
+  std::shared_ptr<binder::Expression> boundDefaultExpr;
   bool hasDefault = false;
 
   PropertyDefinition() = default;
   explicit PropertyDefinition(ColumnDefinition columnDefinition)
       : columnDefinition(std::move(columnDefinition)) {}
-  PropertyDefinition(ColumnDefinition columnDefinition, Value defaultExpr,
-                     bool hasDefault = false)
+  PropertyDefinition(
+      ColumnDefinition columnDefinition, Value defaultExpr,
+      bool hasDefault = false,
+      std::shared_ptr<binder::Expression> boundDefaultExpr = nullptr)
       : columnDefinition(std::move(columnDefinition)),
         defaultExpr(std::move(defaultExpr)),
+        boundDefaultExpr{std::move(boundDefaultExpr)},
         hasDefault(hasDefault) {}
 
   std::string getName() const { return columnDefinition.name; }
   const DataType& getType() const { return columnDefinition.type; }
   const Value& getDefaultValue() const { return defaultExpr; }
+  const std::shared_ptr<binder::Expression>& getBoundDefaultExpr() const {
+    return boundDefaultExpr;
+  }
   bool hasDefaultValue() const { return hasDefault; }
   void rename(const std::string& newName) { columnDefinition.name = newName; }
   PropertyDefinition copy() const { return *this; }
