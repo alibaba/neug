@@ -144,9 +144,9 @@ conn.commit()
 
 Read-write is the default when a client does not specify a mode; every client
 also exposes a read-only variant of its begin call. For exact signatures, see the
-[Python](../../reference/python_api/connection/),
-[Node.js](../../reference/nodejs_api/connection/), and
-[C++](../../reference/cpp_api/connection/) connection references.
+[Python](../reference/python_api/connection.md),
+[Node.js](../reference/nodejs_api/connection.md), and
+[C++](../reference/cpp_api/connection.md) connection references.
 
 **Concurrency.** A read-write transaction holds exclusive AP admission for its
 whole lifetime: every other AP operation waits until it commits, rolls back, or
@@ -204,8 +204,8 @@ try (Driver driver = GraphDatabase.driver("http://localhost:10000");
 </Tabs>
 
 For service-mode transaction controls, see the
-[Python Session reference](../../reference/python_api/session/) and
-[Java transaction API](../../reference/java_api/transaction/).
+[Python Session reference](../reference/python_api/session.md) and
+[Java transaction API](../reference/java_api/transaction.md).
 
 **Using the session.** Python routes queries issued on an active `Session` into
 its transaction. In Java, execute every transactional statement through
