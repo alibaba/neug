@@ -1,68 +1,111 @@
-# ============================================================================
-# This file should be placed in the NeuG repository:
-# https://github.com/alibaba/neug/.github/workflows/trigger-docs-sync.yml
-# ============================================================================
+name: Sync Docs to neug-ai/webpage
 
-name: Trigger Docs Sync to Website
+# WEBPAGE_DISPATCH_TOKEN must be able to create repository dispatch events
+# in neug-ai/webpage. The former GraphScope/web token is intentionally unused.
 
 on:
   release:
     types: [published]
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to sync (leave empty for latest)'
+        description: "Version label (leave empty to read NEUG_VERSION)"
         required: false
-        default: ''
+        default: ""
+      ref:
+        description: "Git ref or commit to sync"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-docs-to-webpage-${{ github.event.release.tag_name || inputs.ref || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  trigger-sync:
+  dispatch:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout the released source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.ref || github.ref }}
 
-      - name: Get version
-        id: version
+      - name: Resolve source version and commit
+        id: source
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_REF: ${{ github.event.release.tag_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          EVENT_REF: ${{ github.ref }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          elif [ -n "${{ github.event.release.tag_name }}" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION=$(cat NEUG_VERSION 2>/dev/null || cat tools/python_bind/VERSION 2>/dev/null || echo "unknown")
-            VERSION=$(echo "$VERSION" | tr -d '[:space:]')
-            [[ "$VERSION" =~ ^v ]] || VERSION="v${VERSION}"
-          fi
-          
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 Version to sync: ${VERSION}"
+          set -euo pipefail
 
-      - name: Trigger gs-web sync workflow
+          VERSION="${RELEASE_VERSION:-$INPUT_VERSION}"
+          if [[ -z "$VERSION" ]]; then
+            if [[ -f NEUG_VERSION ]]; then
+              VERSION=$(tr -d '[:space:]' < NEUG_VERSION)
+            elif [[ -f tools/python_bind/VERSION ]]; then
+              VERSION=$(tr -d '[:space:]' < tools/python_bind/VERSION)
+            else
+              echo "Unable to determine the NeuG version" >&2
+              exit 1
+            fi
+          fi
+          [[ "$VERSION" == v* ]] || VERSION="v${VERSION}"
+
+          SOURCE_REF="${RELEASE_REF:-${INPUT_REF:-$EVENT_REF}}"
+          SOURCE_SHA=$(git rev-parse HEAD)
+
+          {
+            echo "version=$VERSION"
+            echo "ref=$SOURCE_REF"
+            echo "sha=$SOURCE_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build dispatch payload
+        id: payload
+        env:
+          SOURCE_VERSION: ${{ steps.source.outputs.version }}
+          SOURCE_REF: ${{ steps.source.outputs.ref }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASED_AT: ${{ github.event.release.published_at }}
+          TRIGGERED_BY: ${{ github.actor }}
+        run: |
+          PAYLOAD=$(jq -cn \
+            --arg source_repository "$GITHUB_REPOSITORY" \
+            --arg version "$SOURCE_VERSION" \
+            --arg ref "$SOURCE_REF" \
+            --arg sha "$SOURCE_SHA" \
+            --arg released_at "$RELEASED_AT" \
+            --arg triggered_by "$TRIGGERED_BY" \
+            '{source_repository: $source_repository, version: $version, ref: $ref, sha: $sha, released_at: $released_at, triggered_by: $triggered_by}')
+          echo "json=$PAYLOAD" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch the website sync
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.GS_WEB_DISPATCH_TOKEN }}
-          repository: GraphScope/web
+          token: ${{ secrets.WEBPAGE_DISPATCH_TOKEN }}
+          repository: neug-ai/webpage
           event-type: neug-docs-update
-          client-payload: |
-            {
-              "version": "${{ steps.version.outputs.version }}",
-              "sha": "${{ github.sha }}",
-              "ref": "${{ github.ref }}",
-              "triggered_by": "${{ github.actor }}"
-            }
+          client-payload: ${{ steps.payload.outputs.json }}
 
       - name: Summary
+        env:
+          SOURCE_VERSION: ${{ steps.source.outputs.version }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
-          echo "## 🔄 Docs Sync Triggered" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Target Repo** | GraphScope/web |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## NeuG documentation sync dispatched"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| Version | $SOURCE_VERSION |"
+            echo "| Source commit | \`$SOURCE_SHA\` |"
+            echo "| Target | \`neug-ai/webpage\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
