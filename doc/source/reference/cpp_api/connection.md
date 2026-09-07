@@ -117,6 +117,51 @@ The parameter values are provided as a JSON object.
   - `access_mode`
   - `parameters_json`
 
+#### `BeginTransaction(...)`
+
+```cpp
+Status BeginTransaction(
+    TransactionMode mode = TransactionMode::kReadWrite
+)
+```
+
+Begin an explicit embedded transaction owned by this connection. A read-only
+transaction pins one published view. A read-write transaction uses a private
+copy-on-write view and publishes all successful writes together on `Commit()`.
+Nested transactions and read-to-write upgrades are not supported.
+
+- **Parameters:**
+  - `mode`: `TransactionMode::kReadWrite` or `TransactionMode::kReadOnly`
+- **Returns:** `Status::OK` on success, otherwise a connection, state, argument,
+  or unsupported-mode error
+
+#### `Commit()`
+
+```cpp
+Status Commit()
+```
+
+Commit the active explicit transaction. A failed commit leaves the connection
+rollback-only; call `Rollback()` before reusing it.
+
+#### `Rollback()`
+
+```cpp
+Status Rollback()
+```
+
+Discard the active or rollback-only transaction and return the connection to
+auto-commit mode.
+
+#### `HasActiveTransaction() const`
+
+```cpp
+bool HasActiveTransaction() const noexcept
+```
+
+Return whether this connection has an active or rollback-only explicit
+transaction.
+
 #### `GetSchema() const`
 
 Get the database schema as a `YAML` string.

@@ -143,9 +143,10 @@ conn.commit()
 </Tabs>
 
 Read-write is the default when a client does not specify a mode; every client
-also exposes a read-only variant of its begin call. For the exact signatures and
-the transaction-control methods of each client, see the
-[API reference](../../reference).
+also exposes a read-only variant of its begin call. For exact signatures, see the
+[Python](../reference/python_api/connection.md),
+[Node.js](../reference/nodejs_api/connection.md), and
+[C++](../reference/cpp_api/connection.md) connection references.
 
 **Concurrency.** A read-write transaction holds exclusive AP admission for its
 whole lifetime: every other AP operation waits until it commits, rolls back, or
@@ -202,8 +203,9 @@ try (Driver driver = GraphDatabase.driver("http://localhost:10000");
 
 </Tabs>
 
-For the transaction-control methods each service-mode client exposes, see the
-[API reference](../../reference), including the [Java transaction API](../../reference/java_api/transaction).
+For service-mode transaction controls, see the
+[Python Session reference](../reference/python_api/session.md) and
+[Java transaction API](../reference/java_api/transaction.md).
 
 **Using the session.** Python routes queries issued on an active `Session` into
 its transaction. In Java, execute every transactional statement through
@@ -404,10 +406,13 @@ conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but reduc
 
 ## Data Persistence
 
-### Embedded Mode: Checkpoint-Based
+### Embedded Mode: WAL and Checkpoints
 
-All changes are held in memory until a checkpoint persists them. See
-[Checkpoints](checkpoint.md) for usage, examples, and recovery behavior.
+Since v0.2, committed regular writes are saved in WAL and restored automatically
+after a restart. Persistent `COPY ... FROM` creates a checkpoint before reporting
+success, while `COPY TEMP` remains in memory and is lost when the database closes.
+Manual checkpoints are not required for durability, but can reduce the amount of
+WAL replayed during recovery. See [Checkpoints](checkpoint.md) for details.
 
 ### Service Mode: WAL-Based
 
@@ -432,8 +437,10 @@ durability. See [Checkpoints](checkpoint.md).
 
 ### Embedded Mode
 
-Recovery relies on the last successful checkpoint. See
-[Recovering from a failed Embedded write](checkpoint.md) for an example.
+On startup, NeuG loads the checkpoint selected by `CURRENT` and automatically
+replays committed WAL records after that checkpoint's `base_ts`. Failed or
+uncommitted private copy-on-write changes are never published. See
+[Checkpoints](checkpoint.md) for recovery behavior and failure handling.
 
 ### Service Mode
 
@@ -453,20 +460,19 @@ import neug
 db = neug.Database("/path/to/database")
 conn = db.connect()
 
-# 1. Create schema and checkpoint
+# 1. Create schema; ordinary committed writes are WAL-backed
 conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
 conn.execute("CREATE NODE TABLE Company(id INT64, name STRING, PRIMARY KEY(id))")
 conn.execute("CREATE REL TABLE WORKS_AT(FROM Person TO Company)")
+
+# Optional maintenance: materialize state and consolidate WAL
 conn.execute("CHECKPOINT")
 
-# 2. Load data in batches with periodic checkpoints
+# 2. Each persistent COPY ... FROM publishes its own checkpoint on success
 conn.execute("COPY Person FROM 'employees_batch1.csv'")
 conn.execute("COPY Person FROM 'employees_batch2.csv'")
-conn.execute("CHECKPOINT")
-
 conn.execute("COPY Company FROM 'companies.csv'")
 conn.execute("COPY WORKS_AT FROM 'employment.csv'")
-conn.execute("CHECKPOINT")
 
 # 3. Run analytical queries (read-only, high performance)
 result = conn.execute("MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN c.name, count(p)")
@@ -507,19 +513,19 @@ finally:
 
 | Property | Embedded Mode  | Service Mode  |
 |----------|-------------------|-------------------|
-| **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
+| **Atomicity** | Statement-level; supported writes can be grouped in explicit transactions | Full (automatic rollback) |
 | **Consistency** | Schema constraints enforced | Schema constraints enforced |
 | **Isolation** | Exclusive write locks | MVCC for reads/inserts; serialized updates/DDL; exclusive checkpoints |
-| **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
+| **Durability** | WAL for ordinary writes; checkpoints for persistent bulk operations | Automatic WAL persistence |
 | **Concurrent Reads** | Yes | Yes, except during exclusive checkpoint maintenance |
 | **Concurrent Inserts** | No | Yes, unless an update is active |
 | **Concurrent Updates** | No | No, updates are serialized while reads continue on consistent snapshots |
-| **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
+| **Recovery** | Automatic checkpoint restore and WAL replay | Automatic WAL replay |
 
 ## Roadmap
 
 **Recovery & Durability**
-- More transparent recovery mechanisms for Embedded mode
+- More transparent recovery diagnostics for Embedded mode
 - Delta checkpointing for efficient incremental persistence
 - Reduced checkpoint blocking time for large datasets
-- Automatic checkpoint
+- Policy-driven periodic checkpointing

@@ -44,3 +44,6 @@
 [submodule "third_party/cppjieba"]
 	path = third_party/cppjieba
 	url = https://github.com/yanyiwu/cppjieba.git
+[submodule "third_party/carquet"]
+	path = third_party/carquet
+	url = https://github.com/Vitruves/carquet.git

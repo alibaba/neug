@@ -63,11 +63,20 @@ with neug.Database("/path/to/database").connect() as conn:
 ## Transaction Management
 
 ```python
-# Using transactions
-with conn.begin() as tx:
-    tx.execute("CREATE (p:Person {name: $name})", name="Alice")
-    tx.execute("CREATE (p:Person {name: $name})", name="Bob")
-    # Automatic commit on successful completion
+conn.begin_transaction()
+try:
+    conn.execute(
+        "CREATE (p:Person {name: $name})",
+        parameters={"name": "Alice"},
+    )
+    conn.execute(
+        "CREATE (p:Person {name: $name})",
+        parameters={"name": "Bob"},
+    )
+    conn.commit()
+except Exception:
+    conn.rollback()
+    raise
 ```
 
 ## Advanced Features
