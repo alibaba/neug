@@ -24,8 +24,6 @@
 
 #include <vector>
 
-#include "neug/compiler/binder/ddl/bound_alter_info.h"
-#include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 #include "neug/compiler/catalog/property_definition_collection.h"
 #include "neug/compiler/common/types/types.h"
@@ -33,10 +31,6 @@
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
-namespace binder {
-struct BoundExtraCreateCatalogEntryInfo;
-}  // namespace binder
-
 namespace transaction {
 class Transaction;
 }  // namespace transaction
@@ -52,10 +46,6 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
   TableCatalogEntry& operator=(const TableCatalogEntry&) = delete;
 
   common::table_id_t getTableID() const { return oid; }
-
-  virtual std::unique_ptr<TableCatalogEntry> alter(
-      common::transaction_t timestamp,
-      const binder::BoundAlterInfo& alterInfo) const;
 
   virtual bool isParent(common::table_id_t /*tableID*/) { return false; };
   virtual SchemaEntryType getTableType() const = 0;
@@ -92,15 +82,10 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
       common::Deserializer& deserializer, CatalogEntryType type);
   virtual std::unique_ptr<TableCatalogEntry> copy() const = 0;
 
-  binder::BoundCreateTableInfo getBoundCreateTableInfo(
-      transaction::Transaction* transaction, bool isInternal) const;
-
   void setPropertyCollection(PropertyDefinitionCollection propertyCollection_);
 
  protected:
   void copyFrom(const CatalogEntry& other) override;
-  virtual std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
-  getBoundExtraCreateInfo(transaction::Transaction* transaction) const = 0;
 
  protected:
   std::string comment;

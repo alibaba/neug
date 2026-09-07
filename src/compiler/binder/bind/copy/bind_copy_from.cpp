@@ -94,8 +94,13 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
   }
   schemaEntry = std::make_unique<VertexSchema>(vertexLabelName, propertyTypes,
                                                propertyNames, primaryKeys);
+  std::vector<BoundPropertyDefinition> boundProperties;
+  boundProperties.reserve(propCopies.size());
+  for (const auto& property : propCopies) {
+    boundProperties.emplace_back(property.columnDefinition, nullptr);
+  }
   auto boundExtra = std::make_unique<BoundExtraCreateNodeTableInfo>(
-      primaryKeyName, std::move(propCopies));
+      primaryKeyName, std::move(boundProperties));
   createTableInfo = BoundCreateTableInfo(
       CatalogEntryType::NODE_TABLE_ENTRY, vertexLabelName,
       ConflictAction::ON_CONFLICT_THROW, std::move(boundExtra),
@@ -131,16 +136,19 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
   // index lookup); they are not stored as edge table properties. Storage strips
   // the first two RecordBatch columns before applying edge property types.
   std::vector<PropertyDefinition> relProps;
+  std::vector<BoundPropertyDefinition> boundRelProps;
   for (size_t i = 2; i < columns.size(); ++i) {
     const auto& column = columns[i];
     const auto& colName = column->rawName();
     relProps.emplace_back(
         ColumnDefinition(colName, column->getDataType().copy()),
         get_default_value(column->getDataType()));
+    boundRelProps.emplace_back(
+        ColumnDefinition(colName, column->getDataType().copy()), nullptr);
   }
   auto boundExtra = std::make_unique<BoundExtraCreateRelTableInfo>(
       RelMultiplicity::MANY, RelMultiplicity::MANY, ExtendDirection::BOTH,
-      srcLabelID, dstLabelID, std::move(relProps));
+      srcLabelID, dstLabelID, std::move(boundRelProps));
   createTableInfo = BoundCreateTableInfo(
       CatalogEntryType::REL_TABLE_ENTRY, edgeLabelName,
       ConflictAction::ON_CONFLICT_THROW, std::move(boundExtra),
@@ -150,9 +158,7 @@ DDLEdgeInfo::DDLEdgeInfo(const std::string& edgeLabelName,
       edgeLabelName, RelMultiplicity::MANY, RelMultiplicity::MANY,
       INVALID_TABLE_ID, INVALID_TABLE_ID, srcLabelID, dstLabelID,
       ExtendDirection::BOTH);
-  for (const auto& p :
-       createTableInfo.extraInfo->constPtrCast<BoundExtraCreateRelTableInfo>()
-           ->propertyDefinitions) {
+  for (const auto& p : relProps) {
     relTableEntry->addProperty(p.copy());
   }
   std::vector<DataType> propertyTypes;

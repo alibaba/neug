@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/copy_constructors.h"
@@ -30,7 +31,6 @@
 #include "neug/compiler/common/enums/rel_multiplicity.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
-#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace common {
@@ -93,10 +93,10 @@ struct BoundCreateTableInfo {
 
 struct NEUG_API BoundExtraCreateTableInfo
     : public BoundExtraCreateCatalogEntryInfo {
-  std::vector<PropertyDefinition> propertyDefinitions;
+  std::vector<BoundPropertyDefinition> propertyDefinitions;
 
   explicit BoundExtraCreateTableInfo(
-      std::vector<PropertyDefinition> propertyDefinitions)
+      std::vector<BoundPropertyDefinition> propertyDefinitions)
       : propertyDefinitions{std::move(propertyDefinitions)} {}
 
   BoundExtraCreateTableInfo(const BoundExtraCreateTableInfo& other)
@@ -112,8 +112,9 @@ struct NEUG_API BoundExtraCreateTableInfo
 struct BoundExtraCreateNodeTableInfo final : BoundExtraCreateTableInfo {
   std::string primaryKeyName;
 
-  BoundExtraCreateNodeTableInfo(std::string primaryKeyName,
-                                std::vector<PropertyDefinition> definitions)
+  BoundExtraCreateNodeTableInfo(
+      std::string primaryKeyName,
+      std::vector<BoundPropertyDefinition> definitions)
       : BoundExtraCreateTableInfo{std::move(definitions)},
         primaryKeyName{std::move(primaryKeyName)} {}
   BoundExtraCreateNodeTableInfo(const BoundExtraCreateNodeTableInfo& other)
@@ -135,22 +136,22 @@ struct BoundExtraCreateRelTableInfo final : BoundExtraCreateTableInfo {
   std::string dstTableName;
   common::case_insensitive_map_t<compiler_impl::Value> options;
 
-  BoundExtraCreateRelTableInfo(common::table_id_t srcTableID,
-                               common::table_id_t dstTableID,
-                               std::vector<PropertyDefinition> definitions);
-  BoundExtraCreateRelTableInfo(common::RelMultiplicity srcMultiplicity,
-                               common::RelMultiplicity dstMultiplicity,
-                               common::ExtendDirection storageDirection,
-                               common::table_id_t srcTableID,
-                               common::table_id_t dstTableID,
-                               std::vector<PropertyDefinition> definitions);
+  BoundExtraCreateRelTableInfo(
+      common::table_id_t srcTableID, common::table_id_t dstTableID,
+      std::vector<BoundPropertyDefinition> definitions);
+  BoundExtraCreateRelTableInfo(
+      common::RelMultiplicity srcMultiplicity,
+      common::RelMultiplicity dstMultiplicity,
+      common::ExtendDirection storageDirection, common::table_id_t srcTableID,
+      common::table_id_t dstTableID,
+      std::vector<BoundPropertyDefinition> definitions);
 
-  BoundExtraCreateRelTableInfo(common::RelMultiplicity srcMultiplicity,
-                               common::RelMultiplicity dstMultiplicity,
-                               common::ExtendDirection storageDirection,
-                               const std::string& srcLabelName,
-                               const std::string& dstLabelName,
-                               std::vector<PropertyDefinition> definitions);
+  BoundExtraCreateRelTableInfo(
+      common::RelMultiplicity srcMultiplicity,
+      common::RelMultiplicity dstMultiplicity,
+      common::ExtendDirection storageDirection, const std::string& srcLabelName,
+      const std::string& dstLabelName,
+      std::vector<BoundPropertyDefinition> definitions);
 
   BoundExtraCreateRelTableInfo(const BoundExtraCreateRelTableInfo& other);
 

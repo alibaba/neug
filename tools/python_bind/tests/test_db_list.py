@@ -29,6 +29,22 @@ def _nested_list(value):
         return value
 
 
+def test_compact_list_literal_expression(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(conn.execute("RETURN [-1:3], [-1:2; 0:3], [7, 8, -1:2], [1, 2, 3];"))[0]
+    assert [_nested_list(value) for value in row] == [
+        [-1, -1, -1],
+        [-1, -1, 0, 0, 0],
+        [7, 8, -1, -1],
+        [1, 2, 3],
+    ]
+
+    conn.close()
+    db.close()
+
+
 def test_list_append_and_concat(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()

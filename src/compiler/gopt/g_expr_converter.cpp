@@ -21,6 +21,8 @@
 #include <ostream>
 #include <string>
 #include <vector>
+
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
 #include "neug/compiler/binder/expression/compact_literal_expression.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
@@ -84,9 +86,14 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     }
   }
   switch (expr.expressionType) {
-  case common::ExpressionType::LITERAL:
+  case common::ExpressionType::LITERAL: {
+    if (auto compact =
+            dynamic_cast<const binder::CompactLiteralExpression*>(&expr)) {
+      return convertCompactLiteral(*compact);
+    }
     return convertLiteral(static_cast<const binder::LiteralExpression&>(
         expr));  // todo: add literal data type
+  }
   case common::ExpressionType::PROPERTY:
     return convertProperty(
         static_cast<const binder::PropertyExpression&>(expr));
@@ -270,20 +277,16 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const PropertyDefinition& propertyDef) {
-  if (const auto& boundDefault = propertyDef.getBoundDefaultExpr()) {
-    if (auto compact = dynamic_cast<const binder::CompactLiteralExpression*>(
-            boundDefault.get())) {
-      return convertCompactLiteral(*compact);
-    }
-  }
-  const auto& defaultValue = propertyDef.getDefaultValue();
-  if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
+    const binder::BoundPropertyDefinition& propertyDef) {
+  if (!propertyDef.defaultExpr) {
     return convertValue(
-        compiler_impl::Value::createNullValue(defaultValue.type()));
+        compiler_impl::Value::createNullValue(propertyDef.getType()));
   }
-  return convertValue(
-      common::convertToCompilerValue(defaultValue, defaultValue.type()));
+  if (auto compact = dynamic_cast<const binder::CompactLiteralExpression*>(
+          propertyDef.defaultExpr.get())) {
+    return convertCompactLiteral(*compact);
+  }
+  return convert(*propertyDef.defaultExpr, {});
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertCompactLiteral(

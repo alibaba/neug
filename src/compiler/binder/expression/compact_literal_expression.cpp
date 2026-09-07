@@ -35,9 +35,7 @@ compiler_impl::Value castScalarValue(const compiler_impl::Value& value,
     return compiler_impl::Value::createNullValue(targetType);
   }
   if (value.getDataType() == targetType) {
-    auto result = value;
-    result.setDataType(targetType);
-    return result;
+    return value;
   }
   auto executionValue =
       common::convertToExecutionValue(value, value.getDataType());

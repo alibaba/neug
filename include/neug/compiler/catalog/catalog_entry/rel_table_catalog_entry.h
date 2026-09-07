@@ -95,10 +95,6 @@ class NEUG_API RelTableCatalogEntry : public TableCatalogEntry {
   std::string toCypher(const ToCypherInfo& info) const override;
 
  private:
-  std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
-  getBoundExtraCreateInfo(transaction::Transaction* transaction) const override;
-
- private:
   common::RelMultiplicity srcMultiplicity;
   common::RelMultiplicity dstMultiplicity;
   common::ExtendDirection storageDirection;

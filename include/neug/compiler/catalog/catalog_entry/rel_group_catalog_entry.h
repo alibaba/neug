@@ -50,10 +50,6 @@ class RelGroupCatalogEntry final : public CatalogEntry {
     return relTableIDs;
   }
 
-  std::unique_ptr<RelGroupCatalogEntry> alter(
-      common::transaction_t timestamp,
-      const binder::BoundAlterInfo& alterInfo) const;
-
   bool is_parent(common::table_id_t tableID) const;
 
   //===--------------------------------------------------------------------===//
@@ -63,10 +59,6 @@ class RelGroupCatalogEntry final : public CatalogEntry {
   static std::unique_ptr<RelGroupCatalogEntry> deserialize(
       common::Deserializer& deserializer);
   std::string toCypher(const ToCypherInfo& info) const override;
-
-  binder::BoundCreateTableInfo getBoundCreateTableInfo(
-      transaction::Transaction* transaction, const Catalog* catalog,
-      bool isInternal) const;
 
   static std::string getChildTableName(const std::string& groupName,
                                        const std::string& srcName,

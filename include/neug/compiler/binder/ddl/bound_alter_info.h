@@ -22,10 +22,10 @@
 
 #pragma once
 
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/alter_type.h"
 #include "neug/compiler/common/enums/conflict_action.h"
-#include "neug/utils/property/property_definition.h"
 
 namespace neug {
 namespace binder {
@@ -89,16 +89,12 @@ struct BoundExtraRenameTableInfo final : BoundExtraAlterInfo {
 };
 
 struct BoundExtraAddPropertyInfo final : BoundExtraAlterInfo {
-  PropertyDefinition propertyDefinition;
-  std::shared_ptr<Expression> boundDefault;
+  BoundPropertyDefinition propertyDefinition;
 
-  BoundExtraAddPropertyInfo(const PropertyDefinition& definition,
-                            std::shared_ptr<Expression> boundDefault)
-      : propertyDefinition{definition.copy()},
-        boundDefault{std::move(boundDefault)} {}
+  explicit BoundExtraAddPropertyInfo(const BoundPropertyDefinition& definition)
+      : propertyDefinition{definition.copy()} {}
   BoundExtraAddPropertyInfo(const BoundExtraAddPropertyInfo& other)
-      : propertyDefinition{other.propertyDefinition.copy()},
-        boundDefault{other.boundDefault} {}
+      : propertyDefinition{other.propertyDefinition.copy()} {}
 
   std::unique_ptr<BoundExtraAlterInfo> copy() const override {
     return std::make_unique<BoundExtraAddPropertyInfo>(*this);
