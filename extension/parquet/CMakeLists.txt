@@ -78,7 +78,14 @@ if(BUILD_TEST)
         endif()
         # Recheck after a patch edit or a checkout that restores the source.
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-            "${_carquet_patch}" "${_carquet_source}/src/writer/page_writer.c")
+            "${_carquet_patch}"
+            "${_carquet_source}/include/carquet/carquet.h"
+            "${_carquet_source}/src/reader/file_reader.c"
+            "${_carquet_source}/src/reader/page_reader.c"
+            "${_carquet_source}/src/reader/reader_internal.h"
+            "${_carquet_source}/src/writer/file_writer.c"
+            "${_carquet_source}/src/writer/page_writer.c"
+            "${_carquet_source}/src/writer/row_group_writer.c")
         execute_process(
             COMMAND git apply --check "${_carquet_patch}"
             WORKING_DIRECTORY "${_carquet_source}"
@@ -130,6 +137,26 @@ if(BUILD_TEST)
         add_library(neug::carquet ALIAS carquet)
     endfunction()
     build_carquet_as_third_party()
+
+    add_library(neug_parquet_carquet_impl STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/input_adapter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc)
+    target_include_directories(neug_parquet_carquet_impl PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_BINARY_DIR})
+    target_link_libraries(neug_parquet_carquet_impl PUBLIC neug::carquet)
+
+    add_executable(parquet_carquet_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_input_adapter_test.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_output_adapter_test.cc)
+    target_link_libraries(parquet_carquet_test PRIVATE
+        neug::GTest
+        neug_parquet_carquet_impl
+        neug
+        ${GLOG_LIBRARIES}
+        ${Protobuf_LIBRARIES})
+    add_test(NAME parquet_carquet_test COMMAND parquet_carquet_test)
 
     add_executable(parquet_carquet_smoke_test
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_smoke_test.c)
