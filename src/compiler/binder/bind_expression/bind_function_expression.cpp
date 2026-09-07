@@ -22,6 +22,8 @@
 
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/aggregate_function_expression.h"
+#include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/binder/expression_visitor.h"
@@ -31,6 +33,7 @@
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
+#include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/scalar_macro_function.h"
 #include "neug/compiler/main/client_context.h"
@@ -79,6 +82,19 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
       expr->setAlias(parsedExpression.getChild(i)->getAlias());
     }
     children.push_back(expr);
+  }
+  if ((functionName == NodesFunction::name ||
+       functionName == RelsFunction::name ||
+       functionName == RelationshipsFunction::name) &&
+      children.size() == 1 &&
+      children[0]->expressionType == ExpressionType::PATH) {
+    const auto& pathChildren = children[0]->getChildren();
+    if (pathChildren.size() == 3 &&
+        ExpressionUtil::isRecursiveRelPattern(*pathChildren[1])) {
+      // A single recursive relationship already produces exactly the same
+      // PathValue as its enclosing named path.
+      children[0] = pathChildren[1];
+    }
   }
   return bindScalarFunctionExpression(
       children, functionName,

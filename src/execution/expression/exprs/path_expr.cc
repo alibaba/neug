@@ -80,34 +80,79 @@ std::unique_ptr<BindedExprBase> PathRelationsExpr::bind(
       path_expr_->bind(storage, params));
 }
 
-class BindedPathVerticesPropsExpr : public RecordExprBase {
+class BindedSingleRelationshipPathExpr : public RecordExprBase {
  public:
-  BindedPathVerticesPropsExpr(const StorageReadInterface& graph, int tag,
-                              const std::string& prop, const DataType& type)
-      : graph_(graph),
-        tag_(tag),
-        prop_(prop),
-        elem_type_(ListType::GetChildType(type)) {
-    type_ = type;
-  }
+  BindedSingleRelationshipPathExpr(std::unique_ptr<BindedExprBase>&& start_expr,
+                                   std::unique_ptr<BindedExprBase>&& rel_expr,
+                                   std::unique_ptr<BindedExprBase>&& end_expr)
+      : start_expr_(std::move(start_expr)),
+        rel_expr_(std::move(rel_expr)),
+        end_expr_(std::move(end_expr)),
+        type_(DataType::PATH) {}
+
   const DataType& type() const override { return type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    Value path_val = chunk.get(tag_)->get_elem(idx);
-    const Path& path = PathValue::Get(path_val);
-    const auto& vertices = path.nodes();
+    auto start_val =
+        start_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    auto rel_val = rel_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    auto end_val = end_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (start_val.IsNull() || rel_val.IsNull() || end_val.IsNull()) {
+      return Value(type_);
+    }
+    const auto& start = start_val.GetValue<vertex_t>();
+    const auto& rel = rel_val.GetValue<edge_t>();
+    const auto& end = end_val.GetValue<vertex_t>();
+    std::vector<std::tuple<label_t, Direction, const void*>> edge_data{
+        {rel.label.edge_label, rel.dir, rel.prop}};
+    std::vector<VertexRecord> vertices{start, end};
+    return Value::PATH(Path(edge_data, vertices));
+  }
+
+ private:
+  std::unique_ptr<BindedExprBase> start_expr_;
+  std::unique_ptr<BindedExprBase> rel_expr_;
+  std::unique_ptr<BindedExprBase> end_expr_;
+  DataType type_;
+};
+
+std::unique_ptr<BindedExprBase> SingleRelationshipPathExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  return std::make_unique<BindedSingleRelationshipPathExpr>(
+      start_expr_->bind(storage, params), rel_expr_->bind(storage, params),
+      end_expr_->bind(storage, params));
+}
+
+class BindedPathVerticesPropsExpr : public RecordExprBase {
+ public:
+  BindedPathVerticesPropsExpr(const StorageReadInterface& graph,
+                              std::unique_ptr<BindedExprBase>&& path_expr,
+                              const std::string& prop, const DataType& type)
+      : graph_(graph),
+        path_expr_(std::move(path_expr)),
+        prop_(prop),
+        elem_type_(ListType::GetChildType(type)),
+        type_(type) {}
+
+  const DataType& type() const override { return type_; }
+
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    auto path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (path_val.IsNull()) {
+      return Value(type_);
+    }
+    const auto& vertices = PathValue::Get(path_val).nodes();
     std::vector<Value> prop_values;
     for (const auto& vertex : vertices) {
       const auto& prop_names = graph_.schema().get_vertex_property_names(
           static_cast<label_t>(vertex.label()));
       auto it = std::find(prop_names.begin(), prop_names.end(), prop_);
       if (it == prop_names.end()) {
-        prop_values.push_back(Value(elem_type_));  // null value
+        prop_values.push_back(Value(elem_type_));
       } else {
-        int prop_id = std::distance(prop_names.begin(), it);
-        Value prop =
-            graph_.GetVertexProperty(vertex.label(), vertex.vid(), prop_id);
-        prop_values.emplace_back(std::move(prop));
+        auto prop_id = static_cast<int>(std::distance(prop_names.begin(), it));
+        prop_values.emplace_back(
+            graph_.GetVertexProperty(vertex.label(), vertex.vid(), prop_id));
       }
     }
     return Value::LIST(elem_type_, std::move(prop_values));
@@ -115,41 +160,43 @@ class BindedPathVerticesPropsExpr : public RecordExprBase {
 
  private:
   const StorageReadInterface& graph_;
-  int tag_;
+  std::unique_ptr<BindedExprBase> path_expr_;
   std::string prop_;
-  DataType type_;
   DataType elem_type_;
+  DataType type_;
 };
 
 class BindedPathEdgesPropsExpr : public RecordExprBase {
  public:
-  BindedPathEdgesPropsExpr(const StorageReadInterface& graph, int tag,
+  BindedPathEdgesPropsExpr(const StorageReadInterface& graph,
+                           std::unique_ptr<BindedExprBase>&& path_expr,
                            const std::string& prop, const DataType& type)
       : graph_(graph),
-        tag_(tag),
+        path_expr_(std::move(path_expr)),
         prop_(prop),
-        elem_type_(ListType::GetChildType(type)) {
-    type_ = type;
-  }
+        elem_type_(ListType::GetChildType(type)),
+        type_(type) {}
+
   const DataType& type() const override { return type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    Value path_val = chunk.get(tag_)->get_elem(idx);
-    const Path& path = PathValue::Get(path_val);
-    const auto& edges = path.relationships();
+    auto path_val = path_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (path_val.IsNull()) {
+      return Value(type_);
+    }
+    const auto& edges = PathValue::Get(path_val).relationships();
     std::vector<Value> prop_values;
     for (const auto& edge : edges) {
       const auto& prop_names = graph_.schema().get_edge_property_names(
           edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
       auto it = std::find(prop_names.begin(), prop_names.end(), prop_);
       if (it == prop_names.end()) {
-        prop_values.push_back(Value(elem_type_));  // null value
+        prop_values.push_back(Value(elem_type_));
       } else {
-        int prop_id = std::distance(prop_names.begin(), it);
+        auto prop_id = static_cast<int>(std::distance(prop_names.begin(), it));
         const auto& accessor = graph_.GetEdgeDataAccessor(
             edge.label.src_label, edge.label.dst_label, edge.label.edge_label,
             prop_id);
-
         prop_values.emplace_back(accessor.get_data_from_ptr(edge.prop));
       }
     }
@@ -158,22 +205,21 @@ class BindedPathEdgesPropsExpr : public RecordExprBase {
 
  private:
   const StorageReadInterface& graph_;
-  int tag_;
+  std::unique_ptr<BindedExprBase> path_expr_;
   std::string prop_;
-  DataType type_;
   DataType elem_type_;
+  DataType type_;
 };
 
 std::unique_ptr<BindedExprBase> PathPropsExpr::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
   const auto* graph = dynamic_cast<const StorageReadInterface*>(storage);
   if (extract_vertex_prop_) {
-    return std::make_unique<BindedPathVerticesPropsExpr>(*graph, tag_, prop_,
-                                                         type_);
-  } else {
-    return std::make_unique<BindedPathEdgesPropsExpr>(*graph, tag_, prop_,
-                                                      type_);
+    return std::make_unique<BindedPathVerticesPropsExpr>(
+        *graph, path_expr_->bind(storage, params), prop_, type_);
   }
+  return std::make_unique<BindedPathEdgesPropsExpr>(
+      *graph, path_expr_->bind(storage, params), prop_, type_);
 }
 
 class BindedStartEndNodeExpr : public RecordExprBase {

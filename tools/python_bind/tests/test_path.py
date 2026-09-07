@@ -358,6 +358,129 @@ def test_materialized_path_returns_correct_length(path_expand_connection):
     assert "PathExpandVOpr" not in operator_names
 
 
+def test_single_relationship_named_path(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person)-[]-(b:person)
+        WHERE (a.name = 'marko' AND b.name = 'vadas') OR
+              (a.name = 'vadas' AND b.name = 'marko')
+        RETURN p, length(p), nodes(p), rels(p),
+               properties(nodes(p), 'name'),
+               properties(rels(p), 'weight')
+        """
+    )
+
+    records = list(result)
+    assert len(records) == 2
+    node_name_pairs = set()
+    for path, length, nodes, rels, node_names, rel_weights in records:
+        assert length == 1
+        assert path["length"] == length
+        assert path["nodes"] == nodes
+        assert path["rels"] == rels
+        assert node_names == [node["name"] for node in nodes]
+        assert rel_weights == [0.5]
+        node_name_pairs.add(tuple(node_names))
+    assert node_name_pairs == {("marko", "vadas"), ("vadas", "marko")}
+
+
+def test_single_recursive_relationship_named_path(modern_graph):
+    result = modern_graph.execute(
+        """
+        PROFILE MATCH p = (a:person)-[:knows*1..2]->(b:person)
+        WHERE a.name = 'marko'
+        RETURN p, length(p), nodes(p), rels(p),
+               properties(nodes(p), 'name'),
+               properties(rels(p), 'weight')
+        """
+    )
+
+    records = list(result)
+    assert records
+    for path, length, nodes, rels, node_names, rel_weights in records:
+        assert path["length"] == length
+        assert path["nodes"] == nodes
+        assert path["rels"] == rels
+        assert node_names == [node["name"] for node in nodes]
+        assert rel_weights == [rel["weight"] for rel in rels]
+    operator_names = _operator_names(result)
+    assert "PathExpandOpr" in operator_names
+    assert "PathExpandVOpr" not in operator_names
+
+
+def test_named_path_with_explicit_relationship_alias(modern_graph):
+    fixed_result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[r:knows]->
+                  (b:person {name: 'vadas'})
+        RETURN p, r, length(p), nodes(p), rels(p)
+        """
+    )
+
+    fixed_records = list(fixed_result)
+    assert len(fixed_records) == 1
+    path, rel, length, nodes, rels = fixed_records[0]
+    assert length == 1
+    assert path["nodes"] == nodes
+    assert path["rels"] == rels == [rel]
+
+    recursive_result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[r:knows*1..2]->
+                  (b:person {name: 'josh'})
+        RETURN p, r, length(p), nodes(p), rels(p),
+               properties(nodes(r), 'name'),
+               properties(rels(r), 'weight')
+        """
+    )
+
+    recursive_records = list(recursive_result)
+    assert len(recursive_records) == 1
+    path, rel_path, length, nodes, rels, node_names, rel_weights = recursive_records[0]
+    assert path == rel_path
+    assert path["length"] == length
+    assert path["nodes"] == nodes
+    assert path["rels"] == rels
+    assert node_names == [node["name"] for node in nodes]
+    assert rel_weights == [rel["weight"] for rel in rels]
+
+
+def test_named_weighted_path_cost(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})
+                  -[:knows* WSHORTEST(weight)]->
+                  (b:person {name: 'josh'})
+        RETURN p, cost(p)
+        """
+    )
+
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0]["length"] == 1
+    assert records[0][1] == 1.0
+
+
+def test_named_unweighted_path_cost_is_rejected(modern_graph):
+    with pytest.raises(Exception, match="Cost function is not defined"):
+        modern_graph.execute(
+            """
+            MATCH p = (a:person)-[:knows*1..2]->(b:person)
+            RETURN cost(p)
+            """
+        )
+
+
+def test_multi_segment_named_path_return_is_not_supported(modern_graph):
+    with pytest.raises(Exception, match="exactly one relationship segment"):
+        modern_graph.execute(
+            """
+            MATCH p = (a:person)-[:knows]->(b:person)-[:knows]->(c:person)
+            RETURN p
+            """
+        )
+
+
 def test_path_expand_count_on_typed_rel_table(tmp_path):
     db_dir = tmp_path / "path_expand_typed_rel"
     db_dir.mkdir()

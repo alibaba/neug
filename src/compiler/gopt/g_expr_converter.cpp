@@ -22,7 +22,9 @@
 #include <string>
 #include <vector>
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
@@ -106,6 +108,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
   case common::ExpressionType::PATTERN: {
     return convertPattern(expr.constCast<binder::NodeOrRelExpression>());
   }
+  case common::ExpressionType::PATH: {
+    return convertPath(expr.constCast<binder::PathExpression>(), schemaAlias);
+  }
   case common::ExpressionType::IS_NOT_NULL: {
     return convertIsNotNull(expr);  // convert to IS NOT NULL
   }
@@ -124,6 +129,35 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported expression type: " +
                                    expr.toString());
   }
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertPath(
+    const binder::PathExpression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  const auto& children = expr.getChildren();
+  if (children.size() != 3 ||
+      (!binder::ExpressionUtil::isRelPattern(*children[1]) &&
+       !binder::ExpressionUtil::isRecursiveRelPattern(*children[1]))) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Named paths currently support exactly one relationship segment: " +
+        expr.toString());
+  }
+  if (binder::ExpressionUtil::isRecursiveRelPattern(*children[1])) {
+    return convert(*children[1], schemaAlias);
+  }
+
+  auto udfFuncPB = std::make_unique<::common::UserDefinedFunction>();
+  udfFuncPB->set_name("gs.function.singleRelationshipPath");
+  for (const auto& child : children) {
+    auto paramExpr = convert(*child, schemaAlias);
+    udfFuncPB->mutable_parameters()->AddAllocated(paramExpr.release());
+  }
+  auto exprPB = std::make_unique<::common::Expression>();
+  auto oprPB = exprPB->add_operators();
+  oprPB->set_allocated_udf_func(udfFuncPB.release());
+  oprPB->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
+  return exprPB;
 }
 
 ::physical::GroupBy_AggFunc::Aggregate convertAggregate(
@@ -420,7 +454,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertListContainsFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "List Contains function should be a function expression");
   }
-  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   if (expr.getChildren().size() < 2) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "List Contains function should have at least two children");
@@ -518,19 +551,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Properties function should be a function expression");
   }
-  auto& scalarExpr = expr.constCast<binder::ScalarFunctionExpression>();
   if (expr.getChildren().size() < 2) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Properties function should have at least two children");
   }
-  auto pathFuncPB = std::make_unique<::common::PathFunction>();
-  // convert property key
-  auto literalExpr =
-      expr.getChild(1)->constPtrCast<binder::LiteralExpression>();
-  auto key = literalExpr->getValue().getValue<std::string>();
-  pathFuncPB->set_allocated_property(convertPropertyExpr(key).release());
-
-  // convert path tag
   auto nodeOrRelExpr = expr.getChild(0);
   if (nodeOrRelExpr->getChildren().empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
@@ -539,33 +563,36 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
         expr.getChild(0)->toString());
   }
   auto pathExpr = nodeOrRelExpr->getChild(0);
-  auto pathAlias = aliasManager->getAliasId(pathExpr->getUniqueName());
-  if (pathAlias != DEFAULT_ALIAS_ID) {
-    pathFuncPB->set_allocated_tag(convertAlias(pathAlias).release());
-  }
-
-  // convert function opt: vertex or edge
   const auto& listType = expr.getChild(0)->getDataType();
   const auto& childType = common::ListType::GetChildType(listType);
-  // project properties for each node in path expand
+  bool extractVertexProp;
   if (childType.id() == common::DataTypeId::kVertex) {
-    pathFuncPB->set_opt(
-        ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_VERTEX);
+    extractVertexProp = true;
   } else if (childType.id() == common::DataTypeId::kEdge) {
-    pathFuncPB->set_opt(
-        ::common::PathFunction::FuncOpt::PathFunction_FuncOpt_EDGE);
+    extractVertexProp = false;
   } else {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "The first child of Properties function should be a list of nodes or "
         "rels, but is " +
         expr.getChild(0)->toString());
   }
-  auto oprPB = std::make_unique<::common::ExprOpr>();
-  oprPB->set_allocated_path_func(pathFuncPB.release());
+
+  // Both materialized path aliases and computed paths are child expressions.
+  // The selector is explicit because the property result type alone cannot
+  // distinguish properties(nodes(path)) from properties(rels(path)).
+  auto udfFuncPB = std::make_unique<::common::UserDefinedFunction>();
+  udfFuncPB->set_name("gs.function.pathProperties");
+  udfFuncPB->mutable_parameters()->AddAllocated(
+      convert(*pathExpr, schemaAlias).release());
+  udfFuncPB->mutable_parameters()->AddAllocated(
+      convert(*expr.getChild(1), schemaAlias).release());
+  udfFuncPB->mutable_parameters()->AddAllocated(
+      convertValue(compiler_impl::Value(extractVertexProp)).release());
+  auto exprPB = std::make_unique<::common::Expression>();
+  auto oprPB = exprPB->add_operators();
+  oprPB->set_allocated_udf_func(udfFuncPB.release());
   oprPB->set_allocated_node_type(
       typeConverter.convertLogicalType(expr.getDataType()).release());
-  auto exprPB = std::make_unique<::common::Expression>();
-  *exprPB->add_operators() = std::move(*oprPB);
   return exprPB;
 }
 
