@@ -557,6 +557,150 @@ def test_multi_segment_named_path_cost_is_rejected(modern_graph):
         )
 
 
+def test_path_semantic_functions(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH (a:person {name: 'marko'})-[r:knows*1..1]->
+              (b:person {name: 'josh'})
+        RETURN is_trail(r), is_acyclic(r)
+        """
+    )
+    assert list(result) == [[True, True]]
+
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[:knows]->
+                  (b:person {name: 'josh'})-[:created]->
+                  (c:software {name: 'lop'})<-[:created]-(a)
+        RETURN is_trail(p), is_acyclic(p)
+        """
+    )
+    assert list(result) == [[True, False]]
+
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[:knows]->
+                  (b:person {name: 'josh'})<-[:knows]-(a)
+        RETURN is_trail(p), is_acyclic(p)
+        """
+    )
+    assert list(result) == [[False, False]]
+
+
+def test_named_path_documentation_single_expand(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->
+                  (b:Person {name: 'vadas'})
+        RETURN p
+        """
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0]["length"] == 1
+    assert [node["name"] for node in records[0][0]["nodes"]] == ["marko", "vadas"]
+
+
+def test_named_path_documentation_repeated_expand(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:Person {name: 'marko'})-[:KNOWS*1..3]->
+                  (b:Person {name: 'josh'})
+        RETURN p
+        """
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0]["length"] == 1
+    assert [node["name"] for node in records[0][0]["nodes"]] == ["marko", "josh"]
+
+
+def test_named_path_documentation_multiple_expands(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:Person {name: 'marko'})-[:KNOWS*1..2]->
+                  (b:Person {name: 'josh'})-[:CREATED]->
+                  (c:Software {name: 'ripple'})
+        RETURN p
+        """
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0]["length"] == 2
+    assert [node["name"] for node in records[0][0]["nodes"]] == [
+        "marko",
+        "josh",
+        "ripple",
+    ]
+
+
+def test_named_path_documentation_unnamed_second_pattern(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a)-[:KNOWS]->(b),
+                  (a)-[:CREATED]->(c)
+        RETURN p
+        """
+    )
+    records = list(result)
+    assert len(records) == 2
+    assert all(record[0]["length"] == 1 for record in records)
+
+
+def test_named_path_documentation_multiple_named_patterns(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p1 = (a)-[:KNOWS]->(b),
+              p2 = (a)-[:CREATED]->(c)
+        RETURN p1, p2
+        """
+    )
+    records = list(result)
+    assert len(records) == 2
+    assert all(p1["length"] == 1 and p2["length"] == 1 for p1, p2 in records)
+
+
+def test_named_path_documentation_length_and_properties(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->
+                  (b:Person {name: 'josh'})-[:CREATED]->
+                  (c:Software {name: 'lop'})
+        RETURN LENGTH(p) AS path_length,
+               PROPERTIES(NODES(p), 'name') AS node_names,
+               PROPERTIES(RELS(p), 'weight') AS rel_weights
+        """
+    )
+    assert list(result) == [[2, ["marko", "josh", "lop"], [1.0, 0.4]]]
+
+
+def test_named_path_documentation_cost(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})
+                  -[:knows* WSHORTEST(weight)]->
+                  (b:person {name: 'josh'})
+        RETURN p, COST(p) AS path_cost
+        """
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0]["length"] == 1
+    assert records[0][1] == 1.0
+
+
+def test_named_path_documentation_semantics(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->
+                  (b:Person {name: 'josh'})-[:CREATED]->
+                  (c:Software {name: 'lop'})<-[:CREATED]-(a)
+        RETURN IS_TRAIL(p) AS is_trail, IS_ACYCLIC(p) AS is_acyclic
+        """
+    )
+    assert list(result) == [[True, False]]
+
+
 def test_path_expand_count_on_typed_rel_table(tmp_path):
     db_dir = tmp_path / "path_expand_typed_rel"
     db_dir.mkdir()
