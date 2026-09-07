@@ -78,6 +78,25 @@ class SingleRelationshipPathExpr : public ExprBase {
   DataType type_;
 };
 
+class PathConcatExpr : public ExprBase {
+ public:
+  PathConcatExpr(std::unique_ptr<ExprBase>&& left_expr,
+                 std::unique_ptr<ExprBase>&& right_expr)
+      : left_expr_(std::move(left_expr)),
+        right_expr_(std::move(right_expr)),
+        type_(DataType::PATH) {}
+
+  const DataType& type() const override { return type_; }
+
+  std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
+                                       const ParamsMap& params) const override;
+
+ private:
+  std::unique_ptr<ExprBase> left_expr_;
+  std::unique_ptr<ExprBase> right_expr_;
+  DataType type_;
+};
+
 class PathPropsExpr : public ExprBase {
  public:
   PathPropsExpr(std::unique_ptr<ExprBase>&& path_expr, const std::string& prop,

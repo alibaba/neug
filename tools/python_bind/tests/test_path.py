@@ -471,12 +471,88 @@ def test_named_unweighted_path_cost_is_rejected(modern_graph):
         )
 
 
-def test_multi_segment_named_path_return_is_not_supported(modern_graph):
-    with pytest.raises(Exception, match="exactly one relationship segment"):
+def test_multi_segment_named_path(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[]->
+                  (b:person {name: 'josh'})-[]->
+                  (c:software {name: 'lop'})<-[]-
+                  (d:person {name: 'peter'})
+        RETURN p, length(p), nodes(p), rels(p),
+               properties(nodes(p), 'name'),
+               properties(rels(p), 'weight')
+        """
+    )
+
+    records = list(result)
+    assert len(records) == 1
+    path, length, nodes, rels, node_names, rel_weights = records[0]
+    assert length == 3
+    assert path["length"] == length
+    assert path["nodes"] == nodes
+    assert path["rels"] == rels
+    assert len(rels) == 3
+    assert node_names == ["marko", "josh", "lop", "peter"]
+    assert rel_weights == [1.0, 0.4, 0.2]
+
+
+def test_recursive_and_fixed_segments_named_path(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[r1:knows*1..2]-
+                  (b:person {name: 'josh'})-[r2:created]->
+                  (c:software {name: 'ripple'})
+        RETURN p, r1, r2, length(p), nodes(p), rels(p),
+               properties(nodes(p), 'name'),
+               properties(rels(p), 'weight')
+        """
+    )
+
+    records = list(result)
+    assert len(records) == 1
+    path, recursive_path, fixed_rel, length, nodes, rels, node_names, rel_weights = (
+        records[0]
+    )
+    assert recursive_path["length"] == 1
+    assert length == recursive_path["length"] + 1
+    assert path["length"] == length
+    assert path["nodes"] == nodes
+    assert path["rels"] == rels
+    assert rels == recursive_path["rels"] + [fixed_rel]
+    assert node_names == ["marko", "josh", "ripple"]
+    assert rel_weights == [1.0, 1.0]
+
+
+def test_fixed_and_recursive_segments_named_path(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})-[r1:knows]->
+                  (b:person {name: 'josh'})-[r2:created*1..2]->
+                  (c:software {name: 'ripple'})
+        RETURN p, r1, r2, length(p), nodes(p), rels(p)
+        """
+    )
+
+    records = list(result)
+    assert len(records) == 1
+    path, fixed_rel, recursive_path, length, nodes, rels = records[0]
+    assert recursive_path["length"] == 1
+    assert length == 1 + recursive_path["length"]
+    assert path["length"] == length
+    assert path["nodes"] == nodes
+    assert path["rels"] == rels
+    assert rels == [fixed_rel] + recursive_path["rels"]
+
+
+def test_multi_segment_named_path_cost_is_rejected(modern_graph):
+    with pytest.raises(Exception, match="exactly one weighted recursive relationship"):
         modern_graph.execute(
             """
-            MATCH p = (a:person)-[:knows]->(b:person)-[:knows]->(c:person)
-            RETURN p
+            MATCH p = (a:person {name: 'marko'})
+                      -[:knows* WSHORTEST(weight)]->
+                      (b:person {name: 'josh'})-[:created]->
+                      (c:software {name: 'ripple'})
+            RETURN cost(p)
             """
         )
 

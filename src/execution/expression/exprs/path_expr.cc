@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/expression/exprs/path_expr.h"
+
 #include "neug/common/types/i_context_column.h"
 #include "neug/execution/common/context.h"
 
@@ -121,6 +122,55 @@ std::unique_ptr<BindedExprBase> SingleRelationshipPathExpr::bind(
   return std::make_unique<BindedSingleRelationshipPathExpr>(
       start_expr_->bind(storage, params), rel_expr_->bind(storage, params),
       end_expr_->bind(storage, params));
+}
+
+class BindedPathConcatExpr : public RecordExprBase {
+ public:
+  BindedPathConcatExpr(std::unique_ptr<BindedExprBase>&& left_expr,
+                       std::unique_ptr<BindedExprBase>&& right_expr)
+      : left_expr_(std::move(left_expr)),
+        right_expr_(std::move(right_expr)),
+        type_(DataType::PATH) {}
+
+  const DataType& type() const override { return type_; }
+
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    auto left_val = left_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    auto right_val =
+        right_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (left_val.IsNull() || right_val.IsNull()) {
+      return Value(type_);
+    }
+
+    const auto& left_path = PathValue::Get(left_val);
+    const auto& right_path = PathValue::Get(right_val);
+    auto right_vertices = right_path.nodes();
+    if (right_vertices.empty() ||
+        !(left_path.end_node() == right_vertices.front())) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Cannot concatenate paths with different boundary vertices");
+    }
+    auto right_edges = right_path.relationships();
+    auto result = left_path;
+    for (size_t i = 0; i < right_edges.size(); ++i) {
+      const auto& edge = right_edges[i];
+      const auto& vertex = right_vertices[i + 1];
+      result = result.expand(edge.label.edge_label, vertex.label(),
+                             vertex.vid(), edge.dir, edge.prop);
+    }
+    return Value::PATH(result);
+  }
+
+ private:
+  std::unique_ptr<BindedExprBase> left_expr_;
+  std::unique_ptr<BindedExprBase> right_expr_;
+  DataType type_;
+};
+
+std::unique_ptr<BindedExprBase> PathConcatExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  return std::make_unique<BindedPathConcatExpr>(
+      left_expr_->bind(storage, params), right_expr_->bind(storage, params));
 }
 
 class BindedPathVerticesPropsExpr : public RecordExprBase {

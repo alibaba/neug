@@ -135,29 +135,49 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPath(
     const binder::PathExpression& expr,
     const std::vector<std::string>& schemaAlias) {
   const auto& children = expr.getChildren();
-  if (children.size() != 3 ||
-      (!binder::ExpressionUtil::isRelPattern(*children[1]) &&
-       !binder::ExpressionUtil::isRecursiveRelPattern(*children[1]))) {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Named paths currently support exactly one relationship segment: " +
-        expr.toString());
-  }
-  if (binder::ExpressionUtil::isRecursiveRelPattern(*children[1])) {
-    return convert(*children[1], schemaAlias);
+  if (children.size() < 3 || children.size() % 2 == 0) {
+    THROW_NOT_SUPPORTED_EXCEPTION("Invalid named path expression: " +
+                                  expr.toString());
   }
 
-  auto udfFuncPB = std::make_unique<::common::UserDefinedFunction>();
-  udfFuncPB->set_name("gs.function.singleRelationshipPath");
-  for (const auto& child : children) {
-    auto paramExpr = convert(*child, schemaAlias);
-    udfFuncPB->mutable_parameters()->AddAllocated(paramExpr.release());
+  std::unique_ptr<::common::Expression> result;
+  for (size_t i = 1; i < children.size(); i += 2) {
+    const auto& rel = children[i];
+    std::unique_ptr<::common::Expression> segment;
+    if (binder::ExpressionUtil::isRecursiveRelPattern(*rel)) {
+      segment = convert(*rel, schemaAlias);
+    } else if (binder::ExpressionUtil::isRelPattern(*rel)) {
+      auto segmentFunc = std::make_unique<::common::UserDefinedFunction>();
+      segmentFunc->set_name("gs.function.singleRelationshipPath");
+      for (size_t childIdx = i - 1; childIdx <= i + 1; ++childIdx) {
+        auto paramExpr = convert(*children[childIdx], schemaAlias);
+        segmentFunc->mutable_parameters()->AddAllocated(paramExpr.release());
+      }
+      segment = std::make_unique<::common::Expression>();
+      auto segmentOpr = segment->add_operators();
+      segmentOpr->set_allocated_udf_func(segmentFunc.release());
+      segmentOpr->set_allocated_node_type(
+          typeConverter.convertLogicalType(expr.getDataType()).release());
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION("Invalid relationship segment in path: " +
+                                    expr.toString());
+    }
+
+    if (result == nullptr) {
+      result = std::move(segment);
+      continue;
+    }
+    auto concatFunc = std::make_unique<::common::UserDefinedFunction>();
+    concatFunc->set_name("gs.function.pathConcat");
+    concatFunc->mutable_parameters()->AddAllocated(result.release());
+    concatFunc->mutable_parameters()->AddAllocated(segment.release());
+    result = std::make_unique<::common::Expression>();
+    auto concatOpr = result->add_operators();
+    concatOpr->set_allocated_udf_func(concatFunc.release());
+    concatOpr->set_allocated_node_type(
+        typeConverter.convertLogicalType(expr.getDataType()).release());
   }
-  auto exprPB = std::make_unique<::common::Expression>();
-  auto oprPB = exprPB->add_operators();
-  oprPB->set_allocated_udf_func(udfFuncPB.release());
-  oprPB->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType()).release());
-  return exprPB;
+  return result;
 }
 
 ::physical::GroupBy_AggFunc::Aggregate convertAggregate(
