@@ -21,6 +21,16 @@
 
 namespace neug {
 namespace execution {
+
+Value evaluate_regex(const Value& value, const Value& pattern) {
+  if (value.IsNull() || pattern.IsNull()) {
+    return Value(DataType::BOOLEAN);
+  }
+  const auto value_str = value.GetValue<std::string>();
+  const auto pattern_str = pattern.GetValue<std::string>();
+  return Value::BOOLEAN(std::regex_match(value_str, std::regex(pattern_str)));
+}
+
 class BindedUnaryLogicalExpr : public VertexExprBase,
                                public EdgeExprBase,
                                public RecordExprBase {
@@ -108,11 +118,8 @@ class BindedBinaryLogicalExpr : public VertexExprBase,
       return Value::BOOLEAN(lhs_val == rhs_val);
     case ::common::Logical::NE:
       return Value::BOOLEAN(!(lhs_val == rhs_val));
-    case ::common::Logical::REGEX: {
-      auto lhs_str = lhs_val.GetValue<std::string>();
-      auto rhs_str = rhs_val.GetValue<std::string>();
-      return Value::BOOLEAN(std::regex_match(lhs_str, std::regex(rhs_str)));
-    }
+    case ::common::Logical::REGEX:
+      return evaluate_regex(lhs_val, rhs_val);
     default:
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported binary logical operation: " +
                                     std::to_string(static_cast<int>(logical_)));
