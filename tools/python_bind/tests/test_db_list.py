@@ -45,6 +45,53 @@ def test_compact_list_literal_expression(tmp_path):
     db.close()
 
 
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+def test_compact_list_default_forms_in_ddl(tmp_path, ddl_path):
+    """All documented compact forms work for LIST defaults in DDL."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        conn.execute(
+            "CREATE NODE TABLE CompactListDefaults("
+            "  id INT64,"
+            "  single_fill FLOAT[] DEFAULT [-1:4],"
+            "  segmented INT64[] DEFAULT [-1:2; 0:3],"
+            "  mixed INT64[] DEFAULT [7, 8, -1:2],"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+        conn.execute("CREATE (:CompactListDefaults {id: 1});")
+    else:
+        conn.execute(
+            "CREATE NODE TABLE CompactListDefaults(id INT64, PRIMARY KEY(id));"
+        )
+        conn.execute("CREATE (:CompactListDefaults {id: 1});")
+        conn.execute(
+            "ALTER TABLE CompactListDefaults " "ADD single_fill FLOAT[] DEFAULT [-1:4];"
+        )
+        conn.execute(
+            "ALTER TABLE CompactListDefaults "
+            "ADD segmented INT64[] DEFAULT [-1:2; 0:3];"
+        )
+        conn.execute(
+            "ALTER TABLE CompactListDefaults " "ADD mixed INT64[] DEFAULT [7, 8, -1:2];"
+        )
+
+    row = list(
+        conn.execute(
+            "MATCH (n:CompactListDefaults {id: 1}) "
+            "RETURN n.single_fill, n.segmented, n.mixed;"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [-1.0, -1.0, -1.0, -1.0]
+    assert _nested_list(row[1]) == [-1, -1, 0, 0, 0]
+    assert _nested_list(row[2]) == [7, 8, -1, -1]
+
+    conn.close()
+    db.close()
+
+
 def test_list_append_and_concat(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
