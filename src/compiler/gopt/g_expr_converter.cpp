@@ -140,7 +140,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPath(
                                   expr.toString());
   }
 
-  std::unique_ptr<::common::Expression> result;
+  std::vector<std::unique_ptr<::common::Expression>> segments;
+  segments.reserve(children.size() / 2);
   for (size_t i = 1; i < children.size(); i += 2) {
     const auto& rel = children[i];
     std::unique_ptr<::common::Expression> segment;
@@ -163,20 +164,22 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPath(
                                     expr.toString());
     }
 
-    if (result == nullptr) {
-      result = std::move(segment);
-      continue;
-    }
-    auto concatFunc = std::make_unique<::common::UserDefinedFunction>();
-    concatFunc->set_name("gs.function.pathConcat");
-    concatFunc->mutable_parameters()->AddAllocated(result.release());
-    concatFunc->mutable_parameters()->AddAllocated(segment.release());
-    result = std::make_unique<::common::Expression>();
-    auto concatOpr = result->add_operators();
-    concatOpr->set_allocated_udf_func(concatFunc.release());
-    concatOpr->set_allocated_node_type(
-        typeConverter.convertLogicalType(expr.getDataType()).release());
+    segments.emplace_back(std::move(segment));
   }
+  if (segments.size() == 1) {
+    return std::move(segments.front());
+  }
+
+  auto concatFunc = std::make_unique<::common::UserDefinedFunction>();
+  concatFunc->set_name("gs.function.pathConcat");
+  for (auto& segment : segments) {
+    concatFunc->mutable_parameters()->AddAllocated(segment.release());
+  }
+  auto result = std::make_unique<::common::Expression>();
+  auto concatOpr = result->add_operators();
+  concatOpr->set_allocated_udf_func(concatFunc.release());
+  concatOpr->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType()).release());
   return result;
 }
 

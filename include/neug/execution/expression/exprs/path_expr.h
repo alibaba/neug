@@ -80,11 +80,8 @@ class SingleRelationshipPathExpr : public ExprBase {
 
 class PathConcatExpr : public ExprBase {
  public:
-  PathConcatExpr(std::unique_ptr<ExprBase>&& left_expr,
-                 std::unique_ptr<ExprBase>&& right_expr)
-      : left_expr_(std::move(left_expr)),
-        right_expr_(std::move(right_expr)),
-        type_(DataType::PATH) {}
+  explicit PathConcatExpr(std::vector<std::unique_ptr<ExprBase>> path_exprs)
+      : path_exprs_(std::move(path_exprs)), type_(DataType::PATH) {}
 
   const DataType& type() const override { return type_; }
 
@@ -92,8 +89,7 @@ class PathConcatExpr : public ExprBase {
                                        const ParamsMap& params) const override;
 
  private:
-  std::unique_ptr<ExprBase> left_expr_;
-  std::unique_ptr<ExprBase> right_expr_;
+  std::vector<std::unique_ptr<ExprBase>> path_exprs_;
   DataType type_;
 };
 

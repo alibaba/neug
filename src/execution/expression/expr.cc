@@ -245,14 +245,18 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<SingleRelationshipPathExpr>(
             std::move(expr), std::move(rel_expr), std::move(end_expr));
       } else if (name == "gs.function.pathConcat") {
-        if (op.parameters_size() != 2) {
+        if (op.parameters_size() < 2) {
           THROW_INVALID_ARGUMENT_EXCEPTION(
-              "pathConcat expects two path parameters");
+              "pathConcat expects at least two path parameters");
         }
-        auto right_expr =
-            parse_expression(op.parameters(1), ctx_meta, var_type);
-        return std::make_unique<PathConcatExpr>(std::move(expr),
-                                                std::move(right_expr));
+        std::vector<std::unique_ptr<ExprBase>> path_exprs;
+        path_exprs.reserve(op.parameters_size());
+        path_exprs.emplace_back(std::move(expr));
+        for (int i = 1; i < op.parameters_size(); ++i) {
+          path_exprs.emplace_back(
+              parse_expression(op.parameters(i), ctx_meta, var_type));
+        }
+        return std::make_unique<PathConcatExpr>(std::move(path_exprs));
       } else if (name == "gs.function.pathProperties") {
         if (op.parameters_size() != 3 ||
             op.parameters(1).operators_size() != 1 ||
