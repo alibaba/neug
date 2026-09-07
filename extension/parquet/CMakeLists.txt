@@ -108,15 +108,30 @@ if(BUILD_TEST)
             endif()
         endif()
 
-        # Require the existing system codecs instead of fetching another copy.
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(NEUG_CARQUET_ZSTD REQUIRED libzstd)
-        pkg_check_modules(NEUG_CARQUET_LZ4 REQUIRED IMPORTED_TARGET liblz4)
+        # Resolve system codecs without requiring pkg-config or .pc files.
+        # Absolute library paths also remain valid across reconfiguration.
+        foreach(_codec IN ITEMS ZSTD LZ4)
+            string(TOLOWER "${_codec}" _codec_name)
+            find_path(NEUG_CARQUET_${_codec}_INCLUDE_DIR
+                NAMES "${_codec_name}.h")
+            find_library(NEUG_CARQUET_${_codec}_LIBRARY
+                NAMES "${_codec_name}")
+            if(NOT NEUG_CARQUET_${_codec}_INCLUDE_DIR OR
+                    NOT NEUG_CARQUET_${_codec}_LIBRARY)
+                message(FATAL_ERROR
+                    "Carquet requires the ${_codec_name} development library. "
+                    "Run scripts/install_deps.sh or set CMAKE_PREFIX_PATH.")
+            endif()
+            set(${_codec}_FOUND TRUE)
+            set(${_codec}_INCLUDE_DIRS "${NEUG_CARQUET_${_codec}_INCLUDE_DIR}")
+            set(${_codec}_LIBRARIES "${NEUG_CARQUET_${_codec}_LIBRARY}")
+            # Ignore discovery results inherited from the parent or its cache.
+            set(${_codec_name}_FOUND FALSE)
+            set(CMAKE_DISABLE_FIND_PACKAGE_${_codec_name} TRUE)
+        endforeach()
+        set(PkgConfig_FOUND FALSE)
+        set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig TRUE)
         find_package(ZLIB REQUIRED)
-        # Upstream skips LZ4 resolution on reconfigure when LZ4_FOUND is cached,
-        # leaving a bare library name. Supply a target that retains its path.
-        set(LZ4_FOUND TRUE)
-        set(LZ4_LIBRARIES PkgConfig::NEUG_CARQUET_LZ4)
         foreach(_option IN ITEMS BUILD_DEV BUILD_TESTS BUILD_EXAMPLES
                 BUILD_BENCHMARKS BUILD_ARROW_CPP_BENCHMARK BUILD_INTEROP
                 BUILD_CLI BUILD_SHARED BUILD_FUZZ BUILD_DOCS BUNDLE_DEPS
