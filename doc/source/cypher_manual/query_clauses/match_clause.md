@@ -267,6 +267,88 @@ MATCH (p:Person {name: 'marko'})-[k:KNOWS* SHORTEST 1..2]->(f:Person {name: 'jos
 RETURN k;
 ```
 
+### Named Path
+
+A path can be bound to a variable with `p =` and returned or passed to a path function. NeuG currently supports named paths that contain exactly one relationship segment. The segment can be either a single edge or a repeated path, and the relationship may also have its own variable.
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->(b:Person {name: 'vadas'})
+RETURN p AS path;
+```
+
+output:
+```
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| path                                                                                                                                                                                                 |
++======================================================================================================================================================================================================+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 1, _LABEL: person, id: 2, name: vadas, age: 27}, rels: {_ID: 1, _LABEL: knows, _SRC_ID: 0, _DST_ID: 1, weight: 0.5}, length: 1} |
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[r:KNOWS*1..3]->(b:Person {name: 'josh'})
+RETURN LENGTH(p) AS path_length, LENGTH(r) AS relationship_path_length;
+```
+
+output:
+```
++-------------+----------------------------+
+| path_length | relationship_path_length   |
++=============+============================+
+| 1           | 1                          |
++-------------+----------------------------+
+```
+
+A named path containing multiple relationship segments is not currently supported. For example, the following query is unsupported:
+
+```cypher
+MATCH p = (a:Person)-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person)
+RETURN p;
+```
+
+error:
+```
+Not supported: Named paths currently support exactly one relationship segment: p
+```
+
+Named paths can be used with path functions such as `LENGTH`, `NODES`, `RELS`, `PROPERTIES`, and `COST`:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS*1..3]->(b:Person {name: 'josh'})
+RETURN LENGTH(p) AS path_length,
+       NODES(p) AS path_nodes,
+       RELS(p) AS path_rels,
+       PROPERTIES(NODES(p), 'name') AS node_names,
+       PROPERTIES(RELS(p), 'weight') AS rel_weights;
+```
+
+output:
+```
++-------------+-------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------+-------------+-------------+
+| path_length | path_nodes                                                                                                  | path_rels                                                    | node_names  | rel_weights |
++=============+=============================================================================================================+==============================================================+=============+=============+
+| 1           | {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 2, _LABEL: person, id: 4, name: josh, age: 32} | {_ID: 2, _LABEL: knows, _SRC_ID: 0, _DST_ID: 2, weight: 1.0} | marko, josh | 1.0         |
++-------------+-------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------+-------------+-------------+
+```
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})
+          -[:KNOWS* WSHORTEST(weight) 1..3]->
+          (b:Person {name: 'josh'})
+RETURN p AS path, COST(p) AS path_cost;
+```
+
+output:
+```
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| path                                                                                                                                                                                                | path_cost |
++=====================================================================================================================================================================================================+===========+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 2, _LABEL: person, id: 4, name: josh, age: 32}, rels: {_ID: 2, _LABEL: knows, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}, length: 1} | 1.0       |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+
+```
+
+For the available path functions and their usage, see [Repeated Path Function](../expression/graph_func.md#repeated-path-function).
+
 ## Match Patterns
 
 The `MATCH` clause supports complex pattern matching that combines nodes, edges, and conditions in various ways to express sophisticated graph queries.
