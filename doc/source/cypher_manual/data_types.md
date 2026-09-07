@@ -71,7 +71,7 @@ The following table showcases all data types supported by NeuG and their differe
 
 ### String Types
 
-We currently support only the VARCHAR type for strings. You can specify a maximum character length using the `VARCHAR(max_length)` syntax. The default value of `max_length` is 256, and the maximum limit is 65536.
+We currently support only the VARCHAR type for strings. You can specify a maximum character length using the `VARCHAR(max_length)` syntax. The valid range of `max_length` is from 1 to 65535, and the default value is 256.
 Alternatively, you can use STRING to specify the character type directly; STRING is equivalent to VARCHAR(256), i.e., a varchar type with a default maximum length of 256 characters.
 
 #### VARCHAR
