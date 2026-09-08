@@ -35,8 +35,10 @@ Return the current cursor position (0-based row index).
 
 All getters read from the **current cursor row**. Each method has two overloads:
 by column index or by column name. Use `IsNull(...)` before reading a nullable
-cell. A getter throws when the cursor or column selector is invalid, or when the
-column type cannot be converted to the requested return type.
+cell. Choose a getter according to the column's underlying result type; these
+methods do not parse or coerce arbitrary source types. A getter throws
+`neug::exception::RuntimeError` when the cursor or column selector is invalid,
+or when the source column type is not listed for that getter.
 
 #### `IsNull(size_t column_index)` / `IsNull(const std::string& column_name)`
 
@@ -44,50 +46,62 @@ Check whether the cell at current row is NULL.
 
 #### `GetInt32(...)`
 
-Return the current cell as a signed 32-bit integer. This accessor accepts
-`int32` and `bool` columns; `true` is converted to `1` and `false` to `0`.
+Return the current cell as a signed 32-bit integer. Call this method only when
+the source column type is `int32` or `bool`; any other source type causes a
+`neug::exception::RuntimeError`. An `int32` value is returned unchanged, while
+`true` is converted to `1` and `false` to `0`.
 
 #### `GetUInt32(...)`
 
-Return the current cell as an unsigned 32-bit integer. This accessor accepts
-`uint32` and `bool` columns; `true` is converted to `1` and `false` to `0`.
+Return the current cell as an unsigned 32-bit integer. Call this method only
+when the source column type is `uint32` or `bool`; any other source type causes
+a `neug::exception::RuntimeError`. A `uint32` value is returned unchanged,
+while `true` is converted to `1` and `false` to `0`.
 
 #### `GetInt64(...)`
 
-Return the current cell as a signed 64-bit integer. This accessor accepts
-`int64`, `int32`, `uint32`, `bool`, `date`, and `timestamp` columns. Smaller
-integers are widened, booleans become `1` or `0`, and `date` / `timestamp`
-values are returned as the raw epoch value stored by NeuG.
+Return the current cell as a signed 64-bit integer. Call this method only when
+the source column type is `int64`, `int32`, `uint32`, `bool`, `date`, or
+`timestamp`; any other source type causes a `neug::exception::RuntimeError`.
+An `int64` value is returned unchanged, smaller integers are widened, booleans
+become `1` or `0`, and `date` / `timestamp` values are returned as the raw epoch
+value stored by NeuG.
 
 #### `GetUInt64(...)`
 
-Return the current cell as an unsigned 64-bit integer. This accessor accepts
-`uint64`, `uint32`, and `bool` columns. A `uint32` value is widened, while
-`true` and `false` are converted to `1` and `0` respectively.
+Return the current cell as an unsigned 64-bit integer. Call this method only
+when the source column type is `uint64`, `uint32`, or `bool`; any other source
+type causes a `neug::exception::RuntimeError`. A `uint64` value is returned
+unchanged, a `uint32` value is widened, and booleans become `1` or `0`.
 
 #### `GetFloat(...)`
 
-Return the current cell as a single-precision floating-point value. This
-accessor accepts `float`, `int32`, `uint32`, and `bool` columns. Integer values
-are converted to `float`; booleans become `1.0f` or `0.0f`.
+Return the current cell as a single-precision floating-point value. Call this
+method only when the source column type is `float`, `int32`, `uint32`, or
+`bool`; any other source type causes a `neug::exception::RuntimeError`. A
+`float` value is returned unchanged, integer values are converted to `float`,
+and booleans become `1.0f` or `0.0f`.
 
 #### `GetDouble(...)`
 
-Return the current cell as a double-precision floating-point value. This
-accessor accepts `double`, `float`, `int32`, `uint32`, `int64`, `uint64`, and
-`bool` columns. Numeric values are converted to `double`, and booleans become
-`1.0` or `0.0`. Large 64-bit integers may lose precision during conversion.
+Return the current cell as a double-precision floating-point value. Call this
+method only when the source column type is `double`, `float`, `int32`, `uint32`,
+`int64`, `uint64`, or `bool`; any other source type causes a
+`neug::exception::RuntimeError`. A `double` value is returned unchanged, other
+numeric values are converted to `double`, and booleans become `1.0` or `0.0`.
+Large 64-bit integers may lose precision during conversion.
 
 #### `GetString(...)`
 
-Return the current cell as a string. This accessor accepts every column type:
-string values are returned directly, while other values use NeuG's
-human-readable string representation.
+Return the current cell as a string. This is the only typed getter that can be
+called for every source column type. String values are returned directly;
+other values use NeuG's human-readable string representation.
 
 #### `GetBool(...)`
 
-Return the current cell as a Boolean value. This accessor accepts only `bool`
-columns; requesting a Boolean from any other column type throws an exception.
+Return the current cell as a Boolean value. Call this method only when the
+source column type is `bool`; any other source type causes a
+`neug::exception::RuntimeError`. The Boolean value is returned unchanged.
 
 > Temporal columns (`date`, `timestamp`, `interval`) are not exposed as
 > dedicated typed objects. Use `GetString(...)` for their canonical string form
