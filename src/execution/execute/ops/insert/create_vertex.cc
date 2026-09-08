@@ -33,34 +33,40 @@ class CreateVertexOpr : public IOperator {
           properties)
       : labels_(labels), alias_(alias), properties_(std::move(properties)) {}
 
-  neug::result<Context> Eval(IStorageInterface& graph_interface,
-                             const ParamsMap& params, Context&& ctx,
-                             OprTimer* timer) override {
-    // Implementation of vertex creation logic goes here.
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph_interface,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      // Implementation of vertex creation logic goes here.
 
-    const StorageReadInterface* graph_ptr = nullptr;
-    if (graph_interface.readable()) {
-      graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
-    }
-    std::vector<
-        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
-        expr_properties;
-    for (size_t i = 0; i < labels_.size(); ++i) {
-      const auto& props = properties_[i];
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-          expr_props;
-      for (auto& [prop, prop_value] : props) {
-        auto expr = prop_value->bind(graph_ptr, params);
-        expr_props.emplace_back(prop, std::move(expr));
+      const StorageReadInterface* graph_ptr = nullptr;
+      if (graph_interface.readable()) {
+        graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
       }
-      expr_properties.emplace_back(std::move(expr_props));
-    }
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return CreateVertex::insert_vertex(
-              dynamic_cast<StorageInsertInterface&>(graph_interface),
-              std::move(chunk), labels_, std::move(expr_properties), alias_);
-        });
+      std::vector<
+          std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
+          expr_properties;
+      for (size_t i = 0; i < labels_.size(); ++i) {
+        const auto& props = properties_[i];
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+            expr_props;
+        for (auto& [prop, prop_value] : props) {
+          auto expr = prop_value->bind(graph_ptr, params);
+          expr_props.emplace_back(prop, std::move(expr));
+        }
+        expr_properties.emplace_back(std::move(expr_props));
+      }
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return CreateVertex::insert_vertex(
+                dynamic_cast<StorageInsertInterface&>(graph_interface),
+                std::move(chunk), labels_, std::move(expr_properties), alias_);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
   std::string get_operator_name() const override { return "CreateVertexOpr"; }
 

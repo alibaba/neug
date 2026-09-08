@@ -36,27 +36,31 @@ class ProcedureCallOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    (void) ctx;
-    (void) timer;
-    if (callFunction_ == nullptr) {
-      THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
-    }
-    if (unboundInput_ == nullptr) {
-      THROW_RUNTIME_ERROR("ProcedureCallOpr: unbound input is nullptr");
-    }
-    if (callFunction_->execFunc == nullptr) {
-      THROW_RUNTIME_ERROR("ProcedureCallOpr: execFunc is nullptr");
-    }
-    // bindParams returns a per-Eval bound input; nullptr means no deferred
-    // params and the unbound template is safe to exec as-is.
-    auto boundInput = unboundInput_->bindParams(params);
-    const auto& input = boundInput ? *boundInput : *unboundInput_;
-    return neug::result<neug::execution::Context>(
-        callFunction_->execFunc(input, graph));
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      (void) ctx;
+      (void) timer;
+      if (callFunction_ == nullptr) {
+        THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
+      }
+      if (unboundInput_ == nullptr) {
+        THROW_RUNTIME_ERROR("ProcedureCallOpr: unbound input is nullptr");
+      }
+      if (callFunction_->execFunc == nullptr) {
+        THROW_RUNTIME_ERROR("ProcedureCallOpr: execFunc is nullptr");
+      }
+      // bindParams returns a per-Eval bound input; nullptr means no deferred
+      // params and the unbound template is safe to exec as-is.
+      auto boundInput = unboundInput_->bindParams(params);
+      const auto& input = boundInput ? *boundInput : *unboundInput_;
+      return neug::result<neug::execution::Context>(
+          callFunction_->execFunc(input, graph));
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 };
 

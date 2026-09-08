@@ -36,33 +36,38 @@ class UnionOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    std::vector<neug::execution::ContextChunk> chunks;
-    for (auto& plan : sub_plans_) {
-      neug::execution::Context n_ctx = ctx;
-      std::unique_ptr<neug::execution::OprTimer> sub_timer =
-          (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
-                             : nullptr;
-      auto ret = plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
-      if (NEUG_UNLIKELY(timer != nullptr)) {
-        timer->add_child(std::move(sub_timer));
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      std::vector<neug::execution::ContextChunk> chunks;
+      for (auto& plan : sub_plans_) {
+        neug::execution::Context n_ctx = ctx;
+        std::unique_ptr<neug::execution::OprTimer> sub_timer =
+            (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
+                               : nullptr;
+        auto ret =
+            plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
+        if (NEUG_UNLIKELY(timer != nullptr)) {
+          timer->add_child(std::move(sub_timer));
+        }
+        if (!ret) {
+          return ret;
+        }
+        ret.value().ensure_single_chunk("UnionOpr::sub_plan");
+        chunks.emplace_back(std::move(ret.value().chunk(0)));
       }
-      if (!ret) {
-        return ret;
+      auto union_result = Union::union_op(std::move(chunks));
+      if (!union_result) {
+        return tl::make_unexpected(union_result.error());
       }
-      ret.value().ensure_single_chunk("UnionOpr::sub_plan");
-      chunks.emplace_back(std::move(ret.value().chunk(0)));
-    }
-    auto union_result = Union::union_op(std::move(chunks));
-    if (!union_result) {
-      return tl::make_unexpected(union_result.error());
-    }
-    Context out;
-    out.append_chunk(std::move(union_result.value()));
-    return out;
+      Context out;
+      out.append_chunk(std::move(union_result.value()));
+      return out;
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
   void build_explain_children(OprTimer* parent_timer, const ParamsMap& params,

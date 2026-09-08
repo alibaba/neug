@@ -43,12 +43,11 @@ class JsonReader {
   void read(std::shared_ptr<ReadLocalState> localState,
             execution::Context& ctx);
 
+  std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier();
+
   result<std::shared_ptr<EntrySchema>> inferSchema();
 
  private:
-  void full_read(
-      const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-      execution::Context& output, const JsonReadConfig& output_config);
   void batch_read(
       const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
       execution::Context& output);

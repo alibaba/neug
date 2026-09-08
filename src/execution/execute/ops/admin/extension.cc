@@ -83,8 +83,10 @@ class ExtensionInstallOpr : public IOperator {
   std::string get_operator_name() const override {
     return "ExtensionInstallOpr";
   }
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 
  private:
   std::string extension_name_;
@@ -96,8 +98,10 @@ class ExtensionLoadOpr : public IOperator {
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionLoadOpr() override = default;
   std::string get_operator_name() const override { return "ExtensionLoadOpr"; }
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 
  private:
   std::string extension_name_;
@@ -111,64 +115,79 @@ class ExtensionUninstallOpr : public IOperator {
   std::string get_operator_name() const override {
     return "ExtensionUninstallOpr";
   }
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 
  private:
   std::string extension_name_;
 };
 
-neug::result<Context> ExtensionInstallOpr::Eval(IStorageInterface& graph,
-                                                const ParamsMap& params,
-                                                Context&& ctx,
-                                                OprTimer* timer) {
-  LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
-            << extension_name_;
+neug::result<Stream<DataChunk>> ExtensionInstallOpr::Eval(
+    IStorageInterface& graph, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
+              << extension_name_;
 
-  checkDeprecatedExtension(extension_name_);
+    checkDeprecatedExtension(extension_name_);
 
-  auto status = neug::extension::install_extension(extension_name_);
-  if (!status.ok()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() +
-                                   "; ");
-  }
-  return neug::result<Context>(std::move(ctx));
-}
-
-neug::result<Context> ExtensionLoadOpr::Eval(IStorageInterface& graph,
-                                             const ParamsMap& params,
-                                             Context&& ctx, OprTimer* timer) {
-  LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
-            << extension_name_;
-
-  checkDeprecatedExtension(extension_name_);
-
-  auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&graph);
-  if (index_ddl) {
-    auto activated = index_ddl->ActivateIndexes();
-    if (!activated) {
-      RETURN_ERROR(activated.error());
+    auto status = neug::extension::install_extension(extension_name_);
+    if (!status.ok()) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() +
+                                     "; ");
     }
-  } else {
-    LOG(WARNING) << "[Admin Pipeline] Current storage interface does not "
-                    "support index DDL; skipping pending index activation";
-  }
-  return neug::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
 }
 
-neug::result<Context> ExtensionUninstallOpr::Eval(IStorageInterface& graph,
-                                                  const ParamsMap& params,
-                                                  Context&& ctx,
-                                                  OprTimer* timer) {
-  LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
-            << extension_name_;
+neug::result<Stream<DataChunk>> ExtensionLoadOpr::Eval(
+    IStorageInterface& graph, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
+              << extension_name_;
 
-  auto status = neug::extension::uninstall_extension(extension_name_);
-  if (!status.ok()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Uninstall failed: " + status.ToString() +
-                                   "; ");
-  }
-  return neug::result<Context>(std::move(ctx));
+    checkDeprecatedExtension(extension_name_);
+
+    auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+    if (index_ddl) {
+      auto activated = index_ddl->ActivateIndexes();
+      if (!activated) {
+        RETURN_ERROR(activated.error());
+      }
+    } else {
+      LOG(WARNING) << "[Admin Pipeline] Current storage interface does not "
+                      "support index DDL; skipping pending index activation";
+    }
+    return neug::result<Context>(std::move(ctx));
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
+}
+
+neug::result<Stream<DataChunk>> ExtensionUninstallOpr::Eval(
+    IStorageInterface& graph, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
+              << extension_name_;
+
+    auto status = neug::extension::uninstall_extension(extension_name_);
+    if (!status.ok()) {
+      THROW_EXCEPTION_WITH_FILE_LINE("Uninstall failed: " + status.ToString() +
+                                     "; ");
+    }
+    return neug::result<Context>(std::move(ctx));
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
 }
 
 // Builders

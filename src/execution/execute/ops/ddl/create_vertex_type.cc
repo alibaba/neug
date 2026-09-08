@@ -38,27 +38,34 @@ class CreateVertexTypeOpr : public IOperator {
     return "CreateVertexTypeOpr";
   }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    CreateVertexTypeParamBuilder builder;
-    builder.VertexLabel(type_name_)
-        .PrimaryKeyNames(pks_)
-        .Temporary(is_temporary_);
-    for (const auto& [prop_name, prop_value] : properties_) {
-      builder.AddProperty(prop_name, prop_value);
-    }
-    auto res = storage.CreateVertexType(builder.Build());
-    if (!res.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(res)) {
-        return neug::result<Context>(std::move(ctx));
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      StorageUpdateInterface& storage =
+          dynamic_cast<StorageUpdateInterface&>(graph);
+      CreateVertexTypeParamBuilder builder;
+      builder.VertexLabel(type_name_)
+          .PrimaryKeyNames(pks_)
+          .Temporary(is_temporary_);
+      for (const auto& [prop_name, prop_value] : properties_) {
+        builder.AddProperty(prop_name, prop_value);
       }
-      LOG(ERROR) << "Fail to create vertex type: " << type_name_
-                 << ", reason: " << res.ToString();
-      RETURN_ERROR(res);
-    }
-    return neug::result<Context>(std::move(ctx));
+      auto res = storage.CreateVertexType(builder.Build());
+      if (!res.ok()) {
+        if (ignore_conflict_ && IsSchemaConflictError(res)) {
+          return neug::result<Context>(std::move(ctx));
+        }
+        LOG(ERROR) << "Fail to create vertex type: " << type_name_
+                   << ", reason: " << res.ToString();
+        RETURN_ERROR(res);
+      }
+      return neug::result<Context>(std::move(ctx));
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:

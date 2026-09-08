@@ -43,17 +43,19 @@ class BatchInsertVertexOpr : public IOperator {
     return "BatchInsertVertexOpr";
   }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 
  private:
   common::NameOrId vertex_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
-neug::result<Context> BatchInsertVertexOpr::Eval(
-    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
-    OprTimer* timer) {
+neug::result<Stream<DataChunk>> BatchInsertVertexOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
   (void) params;
   (void) timer;
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
@@ -77,11 +79,14 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
         "BatchInsertVertexOpr: invalid vertex_type: " +
         vertex_type_.DebugString());
   }
-  auto supplier = create_data_chunk_supplier(ctx, prop_mappings_);
-  GS_AUTO(inserted_vids,
-          graph.BatchAddVertices(vertex_label_id, std::move(supplier)));
-  (void) inserted_vids;
-  return neug::result<Context>(std::move(ctx));
+  auto supplier =
+      std::make_shared<StreamChunkSupplier>(std::move(input), prop_mappings_);
+  auto inserted_vids = graph.BatchAddVertices(vertex_label_id, supplier);
+  RETURN_STATUS_ERROR_IF_NOT_OK(supplier->status());
+  if (!inserted_vids) {
+    return tl::unexpected(inserted_vids.error());
+  }
+  return batch_insert_result(supplier->rows_read());
 }
 
 neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(

@@ -26,20 +26,27 @@ class CheckpointOpr : public IOperator {
   CheckpointOpr() = default;
   ~CheckpointOpr() override = default;
   std::string get_operator_name() const override { return "CheckpointOpr"; }
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 };
 
-neug::result<Context> CheckpointOpr::Eval(IStorageInterface& graph_interface,
-                                          const ParamsMap& params,
-                                          Context&& ctx, OprTimer* timer) {
-  (void) graph_interface;
-  (void) params;
-  (void) ctx;
-  (void) timer;
-  RETURN_ERROR(neug::Status(
-      neug::StatusCode::ERR_ILLEGAL_OPERATION,
-      "CHECKPOINT must be executed by the database checkpoint executor"));
+neug::result<Stream<DataChunk>> CheckpointOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    (void) graph_interface;
+    (void) params;
+    (void) ctx;
+    (void) timer;
+    RETURN_ERROR(neug::Status(
+        neug::StatusCode::ERR_ILLEGAL_OPERATION,
+        "CHECKPOINT must be executed by the database checkpoint executor"));
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
 }
 
 neug::result<OpBuildResultT> CheckpointOprBuilder::Build(

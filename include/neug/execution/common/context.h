@@ -31,7 +31,9 @@ class StorageReadInterface;
 namespace execution {
 
 /**
- * @brief Context is a multi-chunk container passed between operators.
+ * @brief Context is a materialized multi-chunk container for internal
+ * algorithms and public query results. Operators exchange Stream<DataChunk>
+ * instead.
  *
  * A Context holds one or more ContextChunks (DataChunk + head pairs) that
  * share the same schema. Operators iterate chunks via `apply_chunks`, whose

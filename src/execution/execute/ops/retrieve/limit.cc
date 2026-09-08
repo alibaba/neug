@@ -39,15 +39,19 @@ class LimitOpr : public IOperator {
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx.ensure_single_chunk("LimitOpr");
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Limit::limit(std::move(chunk), lower_, upper_);
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      ctx.ensure_single_chunk("LimitOpr");
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Limit::limit(std::move(chunk), lower_, upper_);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:

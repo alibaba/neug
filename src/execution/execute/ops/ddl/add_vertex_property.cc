@@ -35,35 +35,42 @@ class AddVertexPropertySchemaOpr : public IOperator {
   std::string get_operator_name() const override {
     return "AddVertexPropertySchemaOpr";
   }
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    label_t label;
-    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
-    if (!resolve.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
-        return neug::result<Context>(std::move(ctx));
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      StorageUpdateInterface& storage =
+          dynamic_cast<StorageUpdateInterface&>(graph);
+      label_t label;
+      auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
+      if (!resolve.ok()) {
+        if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+          return neug::result<Context>(std::move(ctx));
+        }
+        LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
+                   << ", reason: " << resolve.ToString();
+        RETURN_ERROR(resolve);
       }
-      LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
-                 << ", reason: " << resolve.ToString();
-      RETURN_ERROR(resolve);
-    }
-    AddVertexPropertiesParamBuilder builder;
-    for (const auto& [prop_name, prop_value] : properties_) {
-      builder.AddProperty(prop_name, prop_value);
-    }
-    auto config = builder.Build();
-    auto res = storage.AddVertexProperties(label, config);
-    if (!res.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(res)) {
-        return neug::result<Context>(std::move(ctx));
+      AddVertexPropertiesParamBuilder builder;
+      for (const auto& [prop_name, prop_value] : properties_) {
+        builder.AddProperty(prop_name, prop_value);
       }
-      LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
-                 << ", reason: " << res.ToString();
-      RETURN_ERROR(res);
-    }
-    return neug::result<Context>(std::move(ctx));
+      auto config = builder.Build();
+      auto res = storage.AddVertexProperties(label, config);
+      if (!res.ok()) {
+        if (ignore_conflict_ && IsSchemaConflictError(res)) {
+          return neug::result<Context>(std::move(ctx));
+        }
+        LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
+                   << ", reason: " << res.ToString();
+        RETURN_ERROR(res);
+      }
+      return neug::result<Context>(std::move(ctx));
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:

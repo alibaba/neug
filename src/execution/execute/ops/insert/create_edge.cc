@@ -36,38 +36,44 @@ class CreateEdgeOpr : public IOperator {
         src_dst_tags_(src_dst_tags),
         properties_(std::move(properties)) {}
 
-  neug::result<Context> Eval(IStorageInterface& graph_interface,
-                             const ParamsMap& params, Context&& ctx,
-                             OprTimer* timer) override {
-    const StorageReadInterface* graph_ptr = nullptr;
-    if (graph_interface.readable()) {
-      graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
-    }
-    std::vector<
-        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
-        expr_properties;
-    for (size_t i = 0; i < labels_.size(); ++i) {
-      const auto& props = properties_[i];
-      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-          expr_props;
-      for (const auto& [prop, prop_value] : props) {
-        auto expr = prop_value->bind(graph_ptr, params);
-        expr_props.emplace_back(prop, std::move(expr));
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph_interface,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const StorageReadInterface* graph_ptr = nullptr;
+      if (graph_interface.readable()) {
+        graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
       }
-      expr_properties.emplace_back(std::move(expr_props));
-    }
-    // TODO(liulx20,zhanglei): CREATE on bundled edges may detach or grow CSR
-    // storage,
-    // leaving edge-property pointers in other chunks stale. Preserve the
-    // chunk-oriented apply_chunks path for now; track a compatible fix at
-    // https://github.com/alibaba/neug/issues/927.
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return CreateEdge::insert_edge(
-              dynamic_cast<StorageInsertInterface&>(graph_interface),
-              std::move(chunk), labels_, src_dst_tags_,
-              std::move(expr_properties), alias_);
-        });
+      std::vector<
+          std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
+          expr_properties;
+      for (size_t i = 0; i < labels_.size(); ++i) {
+        const auto& props = properties_[i];
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+            expr_props;
+        for (const auto& [prop, prop_value] : props) {
+          auto expr = prop_value->bind(graph_ptr, params);
+          expr_props.emplace_back(prop, std::move(expr));
+        }
+        expr_properties.emplace_back(std::move(expr_props));
+      }
+      // TODO(liulx20,zhanglei): CREATE on bundled edges may detach or grow CSR
+      // storage,
+      // leaving edge-property pointers in other chunks stale. Preserve the
+      // chunk-oriented apply_chunks path for now; track a compatible fix at
+      // https://github.com/alibaba/neug/issues/927.
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return CreateEdge::insert_edge(
+                dynamic_cast<StorageInsertInterface&>(graph_interface),
+                std::move(chunk), labels_, src_dst_tags_,
+                std::move(expr_properties), alias_);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
   std::string get_operator_name() const override { return "CreateEdgeOpr"; }
 

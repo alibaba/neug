@@ -24,6 +24,7 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/data_source.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
 #include "neug/utils/result.h"
@@ -49,12 +50,45 @@ class DataSourceOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataSourceOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
+  result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                 const ParamsMap& params,
+                                 Stream<DataChunk>&& input,
+                                 OprTimer* timer) override {
     NEUG_ASSERT(readFunction != nullptr);
-    return readFunction->execFunc(sharedState);
+    // Reader initialization may expand globs and normalize options. Never
+    // mutate the state captured by the cached operator.
+    auto state = std::make_shared<reader::ReadSharedState>(*sharedState);
+    auto function = readFunction;
+    struct Cursor {
+      bool initialized = false;
+      std::shared_ptr<IDataChunkSupplier> supplier;
+      Stream<DataChunk> fallback;
+    };
+    auto cursor = std::make_shared<Cursor>();
+    return Stream<DataChunk>(
+        [state, function, cursor]() mutable -> Stream<DataChunk>::NextResult {
+          if (!cursor->initialized) {
+            cursor->initialized = true;
+            if (function->supplierFunc) {
+              cursor->supplier = function->supplierFunc(state);
+              if (!cursor->supplier) {
+                return tl::unexpected(
+                    Status::InternalError("Reader returned a null supplier"));
+              }
+            } else {
+              cursor->fallback = stream_from_context(function->execFunc(state));
+            }
+          }
+          if (!cursor->supplier) {
+            return cursor->fallback.Next();
+          }
+          auto chunk = cursor->supplier->GetNextChunk();
+          if (!chunk) {
+            return std::optional<Stream<DataChunk>::Batch>{};
+          }
+          return std::optional<Stream<DataChunk>::Batch>(
+              {std::move(*chunk), nullptr});
+        });
   }
 };
 

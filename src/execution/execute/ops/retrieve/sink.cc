@@ -30,10 +30,12 @@ class SinkOpr : public IOperator {
  public:
   explicit SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override {
-    ctx.tag_ids = tag_ids_;
-    return ctx;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override {
+    input.tag_ids = tag_ids_;
+    return std::move(input);
   }
 
   std::string get_operator_name() const override { return "SinkOpr"; }

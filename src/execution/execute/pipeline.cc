@@ -16,6 +16,7 @@
 #include "neug/execution/execute/pipeline.h"
 
 #include <glog/logging.h>
+#include <algorithm>
 #include <exception>
 #include <ostream>
 #include <sstream>
@@ -28,49 +29,94 @@ namespace neug {
 namespace execution {
 class OprTimer;
 
+namespace {
+Status operator_error(const Status& error, const std::string& name) {
+  return Status(error.error_code(), "Execution failed at operator: [" + name +
+                                        "], " + error.error_message());
+}
+
+// Pulling upstream happens inside downstream Eval/Next. Charge that time only
+// to its producer, rather than counting it twice in PROFILE.
+class StreamTimerScope {
+ public:
+  StreamTimerScope(OprTimer* timer, std::shared_ptr<double> charged)
+      : timer_(timer), charged_(std::move(charged)), before_(*charged_) {
+    clock_.start();
+  }
+  ~StreamTimerScope() {
+    if (timer_) {
+      double elapsed = std::max(0.0, clock_.elapsed() - (*charged_ - before_));
+      timer_->add_elapsed(elapsed);
+      *charged_ += elapsed;
+    }
+  }
+
+ private:
+  OprTimer* timer_;
+  std::shared_ptr<double> charged_;
+  double before_;
+  TimerUnit clock_;
+};
+}  // namespace
+
 neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
                                         const ParamsMap& params,
                                         OprTimer* timer) {
-  neug::Status status = Status::OK();
-  TimerUnit tu;
-  OprTimer* cur_timer = timer;
-  std::unique_ptr<OprTimer> next_timer = nullptr;
+  auto stream = stream_from_context(std::move(ctx));
+  auto charged = std::make_shared<double>(0.0);
+  auto* current_timer = timer;
   for (size_t i = 0; i < operators_.size(); ++i) {
-    if (NEUG_UNLIKELY(timer != nullptr)) {
-      tu.start();
+    const auto name = operators_[i]->get_operator_name();
+    if (current_timer) {
+      current_timer->set_name(name);
     }
-    TRY_HANDLE_ALL_WITH_EXCEPTION(
-        neug::result<Context>,
-        [&]() -> neug::result<Context> {
-          auto ret =
-              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
-          if (!ret) {
-            return ret;
+    auto invoke = [&]() -> result<Stream<DataChunk>> {
+      StreamTimerScope scope(current_timer, charged);
+      result<Stream<DataChunk>> output = Stream<DataChunk>();
+      TRY_HANDLE_ALL_WITH_EXCEPTION(
+          result<Stream<DataChunk>>,
+          [&]() {
+            return operators_[i]->Eval(graph, params, std::move(stream),
+                                       current_timer);
+          },
+          [&](const Status& error) { output = tl::unexpected(error); },
+          [&](result<Stream<DataChunk>>&& result) {
+            output = std::move(result);
+          });
+      return output;
+    };
+    auto output = invoke();
+    if (!output) {
+      return tl::unexpected(operator_error(output.error(), name));
+    }
+    auto tags = std::move(output->tag_ids);
+    auto producer = std::make_shared<Stream<DataChunk>>(std::move(*output));
+    stream = Stream<DataChunk>(
+        [producer, current_timer, charged,
+         name]() -> Stream<DataChunk>::NextResult {
+          StreamTimerScope scope(current_timer, charged);
+          auto next = producer->Next();
+          if (!next) {
+            return tl::unexpected(operator_error(next.error(), name));
           }
-          if (NEUG_UNLIKELY(timer != nullptr)) {
-            cur_timer->set_name(operators_[i]->get_operator_name());
-            cur_timer->add_num_tuples(ret.value().row_num());
-            cur_timer->record(tu);
-            if (i + 1 < operators_.size()) {
-              next_timer = std::make_unique<OprTimer>();
-              cur_timer->set_next(std::move(next_timer));
-              cur_timer = cur_timer->next();
-            }
+          if (current_timer && *next) {
+            const auto& batch = **next;
+            auto rows = batch.chunk.col_num()
+                            ? batch.chunk.row_num()
+                            : (batch.head ? batch.head->size() : 0);
+            current_timer->add_num_tuples(rows);
           }
-          return ret;
+          return next;
         },
-        [&](const neug::Status& err) {
-          status = neug::Status(err.error_code(),
-                                "Execution failed at operator: [" +
-                                    operators_[i]->get_operator_name() + "], " +
-                                    err.error_message());
-        },
-        [&ctx](neug::result<Context>&& res) { ctx = std::move(res.value()); });
-    if (!status.ok()) {
-      RETURN_ERROR(status);
+        std::move(tags));
+    if (current_timer && i + 1 < operators_.size()) {
+      current_timer->set_next(std::make_unique<OprTimer>());
+      current_timer = current_timer->next();
     }
   }
-  return ctx;
+  // The public query API still owns a materialized result. All inter-operator
+  // edges above are streams, and COPY consumes them before this boundary.
+  return materialize(std::move(stream));
 }
 
 neug::result<std::unique_ptr<OprTimer>> Pipeline::explain_tree(

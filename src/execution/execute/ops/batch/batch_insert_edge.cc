@@ -106,8 +106,10 @@ class BatchInsertEdgeOpr : public IOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 
  private:
   physical::EdgeType edge_type_;
@@ -115,9 +117,9 @@ class BatchInsertEdgeOpr : public IOperator {
       src_vertex_bindings_, dst_vertex_bindings_;
 };
 
-neug::result<Context> BatchInsertEdgeOpr::Eval(
-    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
-    OprTimer* timer) {
+neug::result<Stream<DataChunk>> BatchInsertEdgeOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
   (void) params;
   (void) timer;
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
@@ -143,11 +145,14 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
   for (const auto& mapping : prop_mappings_) {
     total_mappings.emplace_back(mapping);
   }
-  auto supplier = create_data_chunk_supplier(ctx, total_mappings);
+  auto supplier =
+      std::make_shared<StreamChunkSupplier>(std::move(input), total_mappings);
 
-  RETURN_STATUS_ERROR_IF_NOT_OK(
-      graph.BatchAddEdges(src_label_id, dst_label_id, edge_label_id, supplier));
-  return neug::result<Context>(std::move(ctx));
+  auto insert_status =
+      graph.BatchAddEdges(src_label_id, dst_label_id, edge_label_id, supplier);
+  RETURN_STATUS_ERROR_IF_NOT_OK(supplier->status());
+  RETURN_STATUS_ERROR_IF_NOT_OK(insert_status);
+  return batch_insert_result(supplier->rows_read());
 }
 
 neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(

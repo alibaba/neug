@@ -28,24 +28,29 @@ GDSAlgoOpr::GDSAlgoOpr(std::unique_ptr<function::CallFuncInputBase> algo_input,
                        function::GDSAlgoFunction* algo_func)
     : algo_input_(std::move(algo_input)), algo_func_(algo_func) {}
 
-neug::result<neug::execution::Context> GDSAlgoOpr::Eval(
+neug::result<Stream<DataChunk>> GDSAlgoOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    neug::execution::Context&& ctx, neug::execution::OprTimer* timer) {
-  (void) ctx;
-  (void) timer;
-  if (algo_func_ == nullptr) {
-    THROW_RUNTIME_ERROR("GDSAlgoOpr: GDSAlgoFunction pointer is null");
-  }
-  if (algo_func_->execFunc == nullptr) {
-    THROW_RUNTIME_ERROR(
-        "GDSAlgoOpr: algoExec not registered for GDS algorithm");
-  }
-  if (algo_input_ == nullptr) {
-    THROW_RUNTIME_ERROR("GDSAlgoOpr: algo input is null");
-  }
-  auto bound_input = algo_input_->bindParams(params);
-  const auto& input = bound_input ? *bound_input : *algo_input_;
-  return algo_func_->execFunc(input, graph_interface);
+    Stream<DataChunk>&& input, neug::execution::OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    (void) ctx;
+    (void) timer;
+    if (algo_func_ == nullptr) {
+      THROW_RUNTIME_ERROR("GDSAlgoOpr: GDSAlgoFunction pointer is null");
+    }
+    if (algo_func_->execFunc == nullptr) {
+      THROW_RUNTIME_ERROR(
+          "GDSAlgoOpr: algoExec not registered for GDS algorithm");
+    }
+    if (algo_input_ == nullptr) {
+      THROW_RUNTIME_ERROR("GDSAlgoOpr: algo input is null");
+    }
+    auto bound_input = algo_input_->bindParams(params);
+    const auto& input = bound_input ? *bound_input : *algo_input_;
+    return algo_func_->execFunc(input, graph_interface);
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
 }
 
 neug::result<OpBuildResultT> GDSAlgoOprBuilder::Build(

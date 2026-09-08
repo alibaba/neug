@@ -273,51 +273,55 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   return buffer.GetString();
 }
 
-/// A supplier that yields pre-projected DataChunks one by one.
-class MultiChunkSupplier : public IDataChunkSupplier {
- public:
-  explicit MultiChunkSupplier(std::vector<std::shared_ptr<DataChunk>> chunks)
-      : chunks_(std::move(chunks)), index_(0) {}
+StreamChunkSupplier::StreamChunkSupplier(
+    Stream<DataChunk> stream,
+    std::vector<std::pair<int32_t, std::string>> mappings)
+    : stream_(std::move(stream)), mappings_(std::move(mappings)) {}
 
-  std::shared_ptr<DataChunk> GetNextChunk() override {
-    if (index_ >= chunks_.size())
-      return nullptr;
-    return chunks_[index_++];
+std::shared_ptr<DataChunk> StreamChunkSupplier::GetNextChunk() {
+  auto next = stream_.Next();
+  if (!next) {
+    status_ = next.error();
+    return nullptr;
   }
-
-  int64_t RowNum() const override {
-    int64_t total = 0;
-    for (const auto& chunk : chunks_) {
-      total += static_cast<int64_t>(chunk->row_num());
+  if (!*next) {
+    return nullptr;
+  }
+  rows_read_ += (**next).chunk.row_num();
+  auto output = std::make_shared<DataChunk>();
+  for (size_t i = 0; i < mappings_.size(); ++i) {
+    auto column = (**next).chunk.get(mappings_[i].first);
+    if (!column) {
+      THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
+                               std::to_string(mappings_[i].first));
     }
-    return total;
+    output->set(static_cast<int>(i), std::move(column));
   }
+  return output;
+}
 
- private:
-  std::vector<std::shared_ptr<DataChunk>> chunks_;
-  size_t index_;
-};
-
-std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
-    const Context& ctx,
-    const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
-  std::vector<std::shared_ptr<DataChunk>> projected_chunks;
-  projected_chunks.reserve(ctx.chunk_num());
-  for (size_t i = 0; i < ctx.chunk_num(); ++i) {
-    const auto& chunk = ctx.chunk(i).chunk();
-    auto out_chunk = std::make_shared<DataChunk>();
-    for (size_t j = 0; j < prop_mappings.size(); ++j) {
-      auto tag_id = prop_mappings[j].first;
-      auto column = chunk.get(tag_id);
-      if (column == nullptr) {
-        THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
-                                 std::to_string(tag_id));
-      }
-      out_chunk->set(static_cast<int>(j), column);
+Stream<DataChunk> batch_insert_result(size_t rows) {
+  // COPY's sink has no output tags, but QueryResponse still reports the
+  // consumed row count. A head-only constant column preserves that contract
+  // in O(1) space rather than keeping every input property column alive.
+  class CardinalityColumn final : public IContextColumn {
+   public:
+    explicit CardinalityColumn(size_t rows) : rows_(rows) {}
+    size_t size() const override { return rows_; }
+    std::string column_info() const override { return "COPY cardinality"; }
+    ContextColumnType column_type() const override {
+      return ContextColumnType::kValue;
     }
-    projected_chunks.push_back(std::move(out_chunk));
-  }
-  return std::make_shared<MultiChunkSupplier>(std::move(projected_chunks));
+    const DataType& elem_type() const override { return DataType::BOOLEAN; }
+    Value get_elem(size_t) const override { return Value::BOOLEAN(true); }
+    bool is_optional() const override { return false; }
+
+   private:
+    size_t rows_;
+  };
+  Context output;
+  output.append_chunk(DataChunk(), std::make_shared<CardinalityColumn>(rows));
+  return stream_from_context(std::move(output));
 }
 
 std::vector<std::string> match_files_with_pattern(

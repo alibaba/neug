@@ -65,6 +65,8 @@ class OprTimer {
 
   void record(const TimerUnit& tu) { time_ += tu.elapsed(); }
 
+  void add_elapsed(double seconds) { time_ += seconds; }
+
   void add_num_tuples(uint64_t num) { numTuples_ += num; }
 
   ~OprTimer() = default;

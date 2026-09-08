@@ -20,6 +20,25 @@
 namespace neug {
 namespace test {
 
+TEST_F(ReaderTest, TestCsvSupplierOpensEachFileOnDemand) {
+  auto state = createSharedState("lazy_first.csv", {"id"}, {createInt64Type()},
+                                 {{"skip_rows", "1"}, {"batch_size", "1"}});
+  state->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
+                                     "/lazy_second.csv");
+  auto supplier = createCsvReader(state)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), -1);
+  // Neither file exists when the stream is constructed.
+  createCsvFile("lazy_first.csv", "id\n1\n");
+  auto first = supplier->GetNextChunk();
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->get(0)->get_elem(0).GetValue<int64_t>(), 1);
+  createCsvFile("lazy_second.csv", "id\n2\n");
+  auto second = supplier->GetNextChunk();
+  ASSERT_NE(second, nullptr);
+  EXPECT_EQ(second->get(0)->get_elem(0).GetValue<int64_t>(), 2);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
 TEST_F(ReaderTest, TestCsvParallelOptionPropagation) {
   createCsvFile("parallel_options.csv", "id\n1\n");
 

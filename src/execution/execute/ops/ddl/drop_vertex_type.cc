@@ -27,30 +27,37 @@ class DropVertexTypeOpr : public IOperator {
       : vertex_type_(vertex_type), ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override { return "DropVertexTypeOpr"; }
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    label_t label;
-    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
-    if (!resolve.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
-        return neug::result<Context>(std::move(ctx));
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      StorageUpdateInterface& storage =
+          dynamic_cast<StorageUpdateInterface&>(graph);
+      label_t label;
+      auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
+      if (!resolve.ok()) {
+        if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+          return neug::result<Context>(std::move(ctx));
+        }
+        LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
+                   << ", reason: " << resolve.ToString();
+        RETURN_ERROR(resolve);
       }
-      LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
-                 << ", reason: " << resolve.ToString();
-      RETURN_ERROR(resolve);
-    }
-    auto res = storage.DeleteVertexType(label);
-    if (!res.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(res)) {
-        return neug::result<Context>(std::move(ctx));
+      auto res = storage.DeleteVertexType(label);
+      if (!res.ok()) {
+        if (ignore_conflict_ && IsSchemaConflictError(res)) {
+          return neug::result<Context>(std::move(ctx));
+        }
+        LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
+                   << ", reason: " << res.ToString();
+        RETURN_ERROR(res);
       }
-      LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
-                 << ", reason: " << res.ToString();
-      RETURN_ERROR(res);
-    }
-    return neug::result<Context>(std::move(ctx));
+      return neug::result<Context>(std::move(ctx));
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:

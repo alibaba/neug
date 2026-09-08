@@ -29,6 +29,7 @@
 #include "neug/utils/io/reader.h"
 
 namespace neug {
+class IDataChunkSupplier;
 namespace function {
 
 // The exec function invoked by data source operators to load data from external
@@ -43,6 +44,9 @@ using read_sniff_func_t = std::function<std::shared_ptr<reader::EntrySchema>(
 
 struct ReadFunction : public TableFunction {
   read_exec_func_t execFunc = nullptr;
+  std::function<std::shared_ptr<IDataChunkSupplier>(
+      std::shared_ptr<reader::ReadSharedState>)>
+      supplierFunc;
   read_sniff_func_t sniffFunc = nullptr;
 
   ReadFunction(std::string name, std::vector<common::DataTypeId> inputTypes)

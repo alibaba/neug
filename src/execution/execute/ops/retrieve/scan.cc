@@ -67,52 +67,56 @@ class FilterOidsGPredOpr : public IOperator {
                      std::unique_ptr<neug::execution::ExprBase>&& pred)
       : params_(params), oids_(oids), pred_(std::move(pred)) {}
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx = Context();
-    ctx.append_chunk(DataChunk());
-    const auto& rhs_op = oids_.expression().operators(0);
-    if ((rhs_op.has_const_() && rhs_op.const_().has_none()) ||
-        (rhs_op.has_param() && params.at(rhs_op.param().name()).IsNull())) {
-      static const std::vector<Value> no_oids;
-      auto empty_chunk = Scan::filter_oids(std::move(ctx.chunk(0)), graph,
-                                           params_, DummyPred(), no_oids);
-      if (!empty_chunk) {
-        return tl::make_unexpected(empty_chunk.error());
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      ctx = Context();
+      ctx.append_chunk(DataChunk());
+      const auto& rhs_op = oids_.expression().operators(0);
+      if ((rhs_op.has_const_() && rhs_op.const_().has_none()) ||
+          (rhs_op.has_param() && params.at(rhs_op.param().name()).IsNull())) {
+        static const std::vector<Value> no_oids;
+        auto empty_chunk = Scan::filter_oids(std::move(ctx.chunk(0)), graph,
+                                             params_, DummyPred(), no_oids);
+        if (!empty_chunk) {
+          return tl::make_unexpected(empty_chunk.error());
+        }
+        ctx.chunk(0) = std::move(*empty_chunk);
+        return ctx;
       }
-      ctx.chunk(0) = std::move(*empty_chunk);
-      return ctx;
-    }
-    std::vector<Value> oid_values = ScanUtils::parse_ids(oids_, params);
-    if (oids_.cmp() == common::Logical::WITHIN) {
-      oid_values = deduplicate_ids(std::move(oid_values));
-    }
+      std::vector<Value> oid_values = ScanUtils::parse_ids(oids_, params);
+      if (oids_.cmp() == common::Logical::WITHIN) {
+        oid_values = deduplicate_ids(std::move(oid_values));
+      }
 
-    if (pred_ == nullptr) {
-      if (params_.tables.size() == 1 && oid_values.size() == 1) {
+      if (pred_ == nullptr) {
+        if (params_.tables.size() == 1 && oid_values.size() == 1) {
+          return ctx.apply_chunks(
+              [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+                return Scan::find_vertex_with_oid(std::move(chunk), graph,
+                                                  params_.tables[0],
+                                                  oid_values[0], params_.alias);
+              });
+        }
         return ctx.apply_chunks(
             [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-              return Scan::find_vertex_with_oid(std::move(chunk), graph,
-                                                params_.tables[0],
-                                                oid_values[0], params_.alias);
+              return Scan::filter_oids(std::move(chunk), graph, params_,
+                                       DummyPred(), oid_values);
+            });
+      } else {
+        auto pred = pred_->bind(&graph, params);
+        GeneralPred predicate_wrapper(std::move(pred));
+        return ctx.apply_chunks(
+            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+              return Scan::filter_oids(std::move(chunk), graph, params_,
+                                       predicate_wrapper, oid_values);
             });
       }
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return Scan::filter_oids(std::move(chunk), graph, params_,
-                                     DummyPred(), oid_values);
-          });
-    } else {
-      auto pred = pred_->bind(&graph, params);
-      GeneralPred predicate_wrapper(std::move(pred));
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return Scan::filter_oids(std::move(chunk), graph, params_,
-                                     predicate_wrapper, oid_values);
-          });
-    }
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
   std::string get_operator_name() const override {
@@ -133,18 +137,22 @@ class ScanWithSPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx = Context();
-    ctx.append_chunk(DataChunk());
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      ctx = Context();
+      ctx.append_chunk(DataChunk());
 
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Scan::scan_vertex_with_special_vertex_predicate(
-              std::move(chunk), graph, scan_params_, config_, params);
-        });
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return Scan::scan_vertex_with_special_vertex_predicate(
+                std::move(chunk), graph, scan_params_, config_, params);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -157,27 +165,31 @@ class ScanWithGPredOpr : public IOperator {
   ScanWithGPredOpr(const ScanParams& scan_params,
                    std::unique_ptr<neug::execution::ExprBase> pred)
       : scan_params_(scan_params), pred_(std::move(pred)) {}
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx = Context();
-    ctx.append_chunk(DataChunk());
-    if (pred_ == nullptr) {
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return Scan::scan_vertex(std::move(chunk), graph, scan_params_,
-                                     DummyPred());
-          });
-    } else {
-      auto pred = pred_->bind(&graph, params);
-      GeneralPred pred_wrapper(std::move(pred));
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return Scan::scan_vertex(std::move(chunk), graph, scan_params_,
-                                     pred_wrapper);
-          });
-    }
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      ctx = Context();
+      ctx.append_chunk(DataChunk());
+      if (pred_ == nullptr) {
+        return ctx.apply_chunks(
+            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+              return Scan::scan_vertex(std::move(chunk), graph, scan_params_,
+                                       DummyPred());
+            });
+      } else {
+        auto pred = pred_->bind(&graph, params);
+        GeneralPred pred_wrapper(std::move(pred));
+        return ctx.apply_chunks(
+            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+              return Scan::scan_vertex(std::move(chunk), graph, scan_params_,
+                                       pred_wrapper);
+            });
+      }
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
   std::string get_operator_name() const override { return "ScanWithGPredOpr"; }
 
@@ -256,17 +268,21 @@ class DummySourceOpr : public IOperator {
  public:
   DummySourceOpr() {}
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    Context out;
-    ContextChunk chunk;
-    ValueColumnBuilder<int32_t> builder;
-    builder.push_back_opt(0);
-    chunk.set(-1, builder.finish());
-    out.append_chunk(std::move(chunk));
-    return out;
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      Context out;
+      ContextChunk chunk;
+      ValueColumnBuilder<int32_t> builder;
+      builder.push_back_opt(0);
+      chunk.set(-1, builder.finish());
+      out.append_chunk(std::move(chunk));
+      return out;
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
   std::string get_operator_name() const override { return "DummySourceOpr"; }

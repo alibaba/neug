@@ -40,8 +40,10 @@ class UpdateVertexOpr : public IOperator {
                                        const ParamsMap& params,
                                        ContextChunk&& chunk, OprTimer* timer);
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& input,
+                                       OprTimer* timer) override;
 
  private:
   // No alias is produced in this operator.
@@ -114,13 +116,18 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
   return chunk;
 }
 
-neug::result<Context> UpdateVertexOpr::Eval(IStorageInterface& graph_interface,
-                                            const ParamsMap& params,
-                                            Context&& ctx, OprTimer* timer) {
-  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  return ctx.apply_chunks([&](ContextChunk&& chunk) {
-    return eval_impl(graph, params, std::move(chunk), timer);
-  });
+neug::result<Stream<DataChunk>> UpdateVertexOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params,
+    Stream<DataChunk>&& input, OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+    return ctx.apply_chunks([&](ContextChunk&& chunk) {
+      return eval_impl(graph, params, std::move(chunk), timer);
+    });
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
 }
 
 neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(

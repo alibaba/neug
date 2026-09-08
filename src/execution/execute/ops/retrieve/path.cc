@@ -229,23 +229,27 @@ class SPOrderByLimitOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SPOrderByLimitOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::set<label_t> expected_labels;
-    for (auto label : spp_.labels) {
-      expected_labels.insert(label.src_label);
-      expected_labels.insert(label.dst_label);
-    }
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return dispatch_vertex_predicate<OrderByLimitSPOp>(
-              graph, expected_labels, config_, params, graph, std::move(chunk),
-              spp_, limit_);
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      std::set<label_t> expected_labels;
+      for (auto label : spp_.labels) {
+        expected_labels.insert(label.src_label);
+        expected_labels.insert(label.dst_label);
+      }
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return dispatch_vertex_predicate<OrderByLimitSPOp>(
+                graph, expected_labels, config_, params, graph,
+                std::move(chunk), spp_, limit_);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -264,32 +268,36 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
     return "SPOrderByLimitWithGPredOpr";
   }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    if (pred_) {
-      auto pred = pred_->bind(&graph, params);
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      if (pred_) {
+        auto pred = pred_->bind(&graph, params);
 
-      GeneralPred predicate_wrapper(std::move(pred));
+        GeneralPred predicate_wrapper(std::move(pred));
 
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return PathExpand::
-                single_source_shortest_path_with_order_by_length_limit(
-                    graph, std::move(chunk), spp_, predicate_wrapper, limit_);
-          });
-    } else {
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return PathExpand::
-                single_source_shortest_path_with_order_by_length_limit(
-                    graph, std::move(chunk), spp_,
-                    [](label_t, vid_t) { return true; }, limit_);
-          });
-    }
+        return ctx.apply_chunks(
+            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+              return PathExpand::
+                  single_source_shortest_path_with_order_by_length_limit(
+                      graph, std::move(chunk), spp_, predicate_wrapper, limit_);
+            });
+      } else {
+        return ctx.apply_chunks(
+            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+              return PathExpand::
+                  single_source_shortest_path_with_order_by_length_limit(
+                      graph, std::move(chunk), spp_,
+                      [](label_t, vid_t) { return true; }, limit_);
+            });
+      }
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -366,18 +374,22 @@ class SPSPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SPSPredOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::
-              single_source_shortest_path_with_special_vertex_predicate(
-                  graph, std::move(chunk), spp_, config_, params);
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::
+                single_source_shortest_path_with_special_vertex_predicate(
+                    graph, std::move(chunk), spp_, config_, params);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -392,20 +404,24 @@ class SPGPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SPGPredOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto pred = pred_->bind(&graph, params);
-    GeneralPred predicate_wrapper(std::move(pred));
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      auto pred = pred_->bind(&graph, params);
+      GeneralPred predicate_wrapper(std::move(pred));
 
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::single_source_shortest_path(
-              graph, std::move(chunk), spp_, predicate_wrapper);
-        });
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::single_source_shortest_path(
+                graph, std::move(chunk), spp_, predicate_wrapper);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -418,18 +434,22 @@ class SPWithoutPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SPWithoutPredOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::single_source_shortest_path(
-              graph, std::move(chunk), spp_,
-              [](label_t, vid_t) { return true; });
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::single_source_shortest_path(
+                graph, std::move(chunk), spp_,
+                [](label_t, vid_t) { return true; });
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -461,38 +481,42 @@ class ASPOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ASPOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Value oid;
-    if (expr_opr_.has_param()) {
-      auto name = expr_opr_.param().name();
-      auto val = params.at(name).GetValue<int64_t>();
-      oid = Value::INT64(val);
-    } else {
-      const auto& c = expr_opr_.const_();
-      oid = Value::INT64(c.i64());
-    }
-    vid_t vid;
-    if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
-      LOG(ERROR) << "vertex not found "
-                 << static_cast<int>(aspp_.labels[0].dst_label) << " "
-                 << oid.to_string();
-      RETURN_UNSUPPORTED_ERROR(
-          "vertex not found" +
-          std::to_string(static_cast<int>(aspp_.labels[0].dst_label)) + " " +
-          std::string(oid.to_string()));
-    }
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      Value oid;
+      if (expr_opr_.has_param()) {
+        auto name = expr_opr_.param().name();
+        auto val = params.at(name).GetValue<int64_t>();
+        oid = Value::INT64(val);
+      } else {
+        const auto& c = expr_opr_.const_();
+        oid = Value::INT64(c.i64());
+      }
+      vid_t vid;
+      if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
+        LOG(ERROR) << "vertex not found "
+                   << static_cast<int>(aspp_.labels[0].dst_label) << " "
+                   << oid.to_string();
+        RETURN_UNSUPPORTED_ERROR(
+            "vertex not found" +
+            std::to_string(static_cast<int>(aspp_.labels[0].dst_label)) + " " +
+            std::string(oid.to_string()));
+      }
 
-    auto v = std::make_pair(aspp_.labels[0].dst_label, vid);
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::all_shortest_paths_with_given_source_and_dest(
-              graph, std::move(chunk), aspp_, v);
-        });
+      auto v = std::make_pair(aspp_.labels[0].dst_label, vid);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::all_shortest_paths_with_given_source_and_dest(
+                graph, std::move(chunk), aspp_, v);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -506,39 +530,43 @@ class SSSDSPOpr : public IOperator {
       : spp_(spp), expr_opr_(expr_opr) {}
   std::string get_operator_name() const override { return "SSSDSPOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Value vertex = [&]() {
-      if (expr_opr_.has_param()) {
-        auto name = expr_opr_.param().name();
-        auto val = params.at(name).GetValue<int64_t>();
-        return Value::INT64(val);
-      } else {
-        const auto& c = expr_opr_.const_();
-        return Value::INT64(c.i64());
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      Value vertex = [&]() {
+        if (expr_opr_.has_param()) {
+          auto name = expr_opr_.param().name();
+          auto val = params.at(name).GetValue<int64_t>();
+          return Value::INT64(val);
+        } else {
+          const auto& c = expr_opr_.const_();
+          return Value::INT64(c.i64());
+        }
+      }();
+      vid_t vid;
+      if (!graph.GetVertexIndex(spp_.labels[0].dst_label, vertex, vid)) {
+        LOG(ERROR) << "vertex not found" << spp_.labels[0].dst_label << " "
+                   << vertex.to_string();
+        RETURN_UNSUPPORTED_ERROR(
+            "vertex not found" +
+            std::to_string(static_cast<int>(spp_.labels[0].dst_label)) + " " +
+            vertex.to_string());
       }
-    }();
-    vid_t vid;
-    if (!graph.GetVertexIndex(spp_.labels[0].dst_label, vertex, vid)) {
-      LOG(ERROR) << "vertex not found" << spp_.labels[0].dst_label << " "
-                 << vertex.to_string();
-      RETURN_UNSUPPORTED_ERROR(
-          "vertex not found" +
-          std::to_string(static_cast<int>(spp_.labels[0].dst_label)) + " " +
-          vertex.to_string());
-    }
 
-    auto v = std::make_pair(spp_.labels[0].dst_label, vid);
+      auto v = std::make_pair(spp_.labels[0].dst_label, vid);
 
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::single_source_single_dest_shortest_path(
-              graph, std::move(chunk), spp_, v);
-        });
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::single_source_single_dest_shortest_path(
+                graph, std::move(chunk), spp_, v);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -642,16 +670,20 @@ class PathExpandVOpr : public IOperator {
  public:
   explicit PathExpandVOpr(const PathExpandParams& pep) : pep_(pep) {}
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::edge_expand_v(graph, std::move(chunk), pep_);
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::edge_expand_v(graph, std::move(chunk), pep_);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
   std::string get_operator_name() const override { return "PathExpandVOpr"; }
 
@@ -743,16 +775,20 @@ class PathExpandOpr : public IOperator {
 
   std::string get_operator_name() const override { return "PathExpandOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::edge_expand_p(graph, std::move(chunk), pep_);
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::edge_expand_p(graph, std::move(chunk), pep_);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -768,19 +804,23 @@ class PathExpandOprWithPred : public IOperator {
     return "PathExpandOprWithPred";
   }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto expr = pred_->bind(&graph, params);
-    GeneralPred predicate_wrapper(std::move(expr));
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::edge_expand_p_with_pred(graph, std::move(chunk),
-                                                     pep_, predicate_wrapper);
-        });
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      auto expr = pred_->bind(&graph, params);
+      GeneralPred predicate_wrapper(std::move(expr));
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::edge_expand_p_with_pred(graph, std::move(chunk),
+                                                       pep_, predicate_wrapper);
+          });
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:
@@ -798,24 +838,28 @@ class AnyWeightedShortestPathOpr : public IOperator {
     return "WeightedShortestPathOpr";
   }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto expr = weight_->bind(&graph, params);
-    auto weight_func = [&expr](const LabelTriplet& label, vid_t src, vid_t dst,
-                               const void* data_ptr) {
-      return expr->Cast<EdgeExprBase>()
-          .eval_edge(label, src, dst, data_ptr)
-          .GetValue<double>();
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+    GS_AUTO(ctx, materialize(std::move(input)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      const auto& graph =
+          dynamic_cast<const StorageReadInterface&>(graph_interface);
+      auto expr = weight_->bind(&graph, params);
+      auto weight_func = [&expr](const LabelTriplet& label, vid_t src,
+                                 vid_t dst, const void* data_ptr) {
+        return expr->Cast<EdgeExprBase>()
+            .eval_edge(label, src, dst, data_ptr)
+            .GetValue<double>();
+      };
+      return ctx.apply_chunks(
+          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            return PathExpand::any_weighted_shortest_path(
+                graph, std::move(chunk), pep_, weight_func);
+          });
     };
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return PathExpand::any_weighted_shortest_path(graph, std::move(chunk),
-                                                        pep_, weight_func);
-        });
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
  private:

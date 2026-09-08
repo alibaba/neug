@@ -36,10 +36,9 @@ class DataExportOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
+  neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override;
+      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override;
 
  private:
   reader::FileSchema schema_;
@@ -47,19 +46,24 @@ class DataExportOpr : public IOperator {
   function::ExportFunction* exportFunction_;
 };
 
-neug::result<neug::execution::Context> DataExportOpr::Eval(
+neug::result<Stream<DataChunk>> DataExportOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    neug::execution::Context&& ctx, neug::execution::OprTimer* timer) {
-  const auto& graph =
-      dynamic_cast<const StorageReadInterface&>(graph_interface);
-  if (!exportFunction_) {
-    THROW_IO_EXCEPTION("DataExportOpr: export function is nullptr");
-  }
-  if (!exportFunction_->execFunc) {
-    THROW_IO_EXCEPTION(
-        "DataExportOpr: write function in export function is nullptr");
-  }
-  return exportFunction_->execFunc(ctx, schema_, entry_schema_, graph);
+    Stream<DataChunk>&& input, neug::execution::OprTimer* timer) {
+  GS_AUTO(ctx, materialize(std::move(input)));
+  auto evaluate_materialized = [&]() -> result<Context> {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
+    if (!exportFunction_) {
+      THROW_IO_EXCEPTION("DataExportOpr: export function is nullptr");
+    }
+    if (!exportFunction_->execFunc) {
+      THROW_IO_EXCEPTION(
+          "DataExportOpr: write function in export function is nullptr");
+    }
+    return exportFunction_->execFunc(ctx, schema_, entry_schema_, graph);
+  };
+  GS_AUTO(output, evaluate_materialized());
+  return stream_from_context(std::move(output));
 }
 
 neug::result<OpBuildResultT> DataExportOprBuilder::Build(

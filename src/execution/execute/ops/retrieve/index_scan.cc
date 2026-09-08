@@ -28,26 +28,34 @@ class IndexScanOpr final : public IOperator {
                function::NeugCallFunction* function)
       : input{std::move(input)}, function{function} {}
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer*) override {
-    if (input == nullptr) {
-      THROW_RUNTIME_ERROR("IndexScanOpr: index scan input is null");
-    }
-    if (function == nullptr || function->execFunc == nullptr) {
-      THROW_RUNTIME_ERROR(
-          "IndexScanOpr: index scan function is not executable");
-    }
-    auto bound_input = input->bindParams(params);
-    if (bound_input == nullptr) {
-      THROW_RUNTIME_ERROR(
-          "IndexScanOpr: index scan input did not create a per-Eval instance");
-    }
-    auto context_bound_input = bound_input->bindContext(std::move(ctx));
-    if (context_bound_input == nullptr) {
-      THROW_RUNTIME_ERROR(
-          "IndexScanOpr: index scan input did not bind the input context");
-    }
-    return function->execFunc(*context_bound_input, graph);
+  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
+                                       const ParamsMap& params,
+                                       Stream<DataChunk>&& upstream,
+                                       OprTimer*) override {
+    GS_AUTO(ctx, materialize(std::move(upstream)));
+    auto evaluate_materialized = [&]() -> result<Context> {
+      if (input == nullptr) {
+        THROW_RUNTIME_ERROR("IndexScanOpr: index scan input is null");
+      }
+      if (function == nullptr || function->execFunc == nullptr) {
+        THROW_RUNTIME_ERROR(
+            "IndexScanOpr: index scan function is not executable");
+      }
+      auto bound_input = input->bindParams(params);
+      if (bound_input == nullptr) {
+        THROW_RUNTIME_ERROR(
+            "IndexScanOpr: index scan input did not create a per-Eval "
+            "instance");
+      }
+      auto context_bound_input = bound_input->bindContext(std::move(ctx));
+      if (context_bound_input == nullptr) {
+        THROW_RUNTIME_ERROR(
+            "IndexScanOpr: index scan input did not bind the input context");
+      }
+      return function->execFunc(*context_bound_input, graph);
+    };
+    GS_AUTO(output, evaluate_materialized());
+    return stream_from_context(std::move(output));
   }
 
   std::string get_operator_name() const override { return "IndexScanOpr"; }
