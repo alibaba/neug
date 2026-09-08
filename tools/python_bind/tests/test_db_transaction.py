@@ -482,6 +482,51 @@ def test_read_write_reopen_without_mutation_does_not_create_wal(tmp_path):
     assert list((db_dir / "wal").rglob("*.wal")) == []
 
 
+def test_repeated_writes_without_checkpoint_accumulate_and_recover_wal(tmp_path):
+    db_dir = tmp_path / "repeated_wal_recovery"
+    previous_wal_sizes = {}
+
+    for value in range(5):
+        db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+
+        if value == 0:
+            conn.execute("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id));")
+        else:
+            assert list(conn.execute("MATCH (n:T) RETURN n.id ORDER BY n.id;")) == [
+                [existing] for existing in range(value)
+            ]
+
+        conn.execute(f"CREATE (:T {{id: {value}}});")
+        assert list(conn.execute("MATCH (n:T) RETURN n.id ORDER BY n.id;")) == [
+            [existing] for existing in range(value + 1)
+        ]
+
+        conn.close()
+        db.close()
+
+        wal_sizes = {
+            path.relative_to(db_dir): path.stat().st_size
+            for path in (db_dir / "wal").rglob("*.wal")
+        }
+        assert previous_wal_sizes.keys() < wal_sizes.keys()
+        assert all(wal_sizes[path] == size for path, size in previous_wal_sizes.items())
+        previous_wal_sizes = wal_sizes
+
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    assert list(conn.execute("MATCH (n:T) RETURN n.id ORDER BY n.id;")) == [
+        [value] for value in range(5)
+    ]
+    conn.close()
+    db.close()
+
+    assert {
+        path.relative_to(db_dir): path.stat().st_size
+        for path in (db_dir / "wal").rglob("*.wal")
+    } == previous_wal_sizes
+
+
 # DB-004-18
 def test_manual_checkpoint_command(tmp_path):
     db_dir = tmp_path / "test_checkpoint"

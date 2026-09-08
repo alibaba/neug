@@ -998,7 +998,7 @@ TEST_F(NeugDBServiceTest,
   const auto storage_modified_before = db_->graph().IsModified();
   const auto wal_dir = db_->graph().checkpoint().wal_dir();
   const auto wal_before = readWalPrefixes(wal_dir);
-  ASSERT_FALSE(wal_before.empty());
+  ASSERT_TRUE(wal_before.empty());
   ASSERT_FALSE(std::filesystem::exists(export_path));
   ASSERT_FALSE(db_->schema().is_vertex_label_valid("TempPerson"));
 
@@ -1038,7 +1038,7 @@ TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
       db_->graph().VertexNum(person_label, MAX_TIMESTAMP);
   const auto wal_dir = db_->graph().checkpoint().wal_dir();
   const auto wal_before = readWalPrefixes(wal_dir);
-  ASSERT_FALSE(wal_before.empty());
+  ASSERT_TRUE(wal_before.empty());
 
   // A non-primary-key MATCH needs a graph scan, so the plan is genuinely
   // mixed read + CREATE rather than the atomic key lookup supported by
@@ -1066,6 +1066,8 @@ TEST_F(NeugDBServiceTest, InsertModeRejectsMixedPlanWithoutSideEffects) {
           "CREATE (:person {id: 90001, name: 'tp-insert', age: 1});", "insert",
           {}));
   ASSERT_TRUE(accepted) << accepted.error().ToString();
+  EXPECT_FALSE(readWalPrefixes(wal_dir).empty())
+      << "An accepted insert must create and append WAL";
 }
 
 TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {

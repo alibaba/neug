@@ -188,7 +188,8 @@ void LocalWalWriter::close() {
     const int close_result = ::close(fd);
 #endif
     if (close_result != 0) {
-      THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
+      THROW_IO_EXCEPTION("Failed to close WAL file: " +
+                         std::string(strerror(errno)));
     }
   }
 }
