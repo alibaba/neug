@@ -1,7 +1,7 @@
 export default {
   "index": "C++ API Overview",
-  "neug_db": "NeugDB",
+  "neug_db": "Database",
   "connection": "Connection",
-  "query_result": "QueryResult",
-  "service": "NeugDBService",
-}
+  "query_result": "Query Result",
+  "service": "Service",
+};

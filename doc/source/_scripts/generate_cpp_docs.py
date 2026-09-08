@@ -1331,9 +1331,18 @@ if (!result.has_value()) {
         
         content = "export default {\n"
         content += '  "index": "C++ API Overview",\n'
+
+        friendly_names = {
+            "neug_db": "Database",
+            "connection": "Connection",
+            "query_result": "Query Result",
+            "service": "Service",
+        }
         
         for file_info in generated_files:
-            content += f'  "{file_info["filename"]}": "{file_info["title"]}",\n'
+            page_name = file_info["filename"]
+            title = friendly_names.get(page_name, file_info["title"])
+            content += f'  "{page_name}": "{title}",\n'
         
         content += "}\n"
         
@@ -1888,10 +1897,10 @@ The C++ API is designed with the following principles:
         filename = reference_dir / "_meta.ts"
         
         content = """export default {
-  cpp_api: "C++ API",
   python_api: "Python API",
+  nodejs_api: "Node.js API",
   java_api: "Java API",
-  nodejs_api: "NodeJS API",
+  cpp_api: "C++ API",
 };
 """
         

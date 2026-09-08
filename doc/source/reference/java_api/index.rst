@@ -5,8 +5,8 @@ Java API Reference
    :maxdepth: 2
    :caption: Java API
 
-   driver
    config
+   driver
    session
    transaction
    result_set

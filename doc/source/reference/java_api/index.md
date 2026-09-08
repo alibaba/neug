@@ -34,8 +34,8 @@ If you need embedded access, use the C++ or Python APIs. The Java SDK should be 
 
 ## Core Interfaces
 
-- **[Driver](driver)** - manages connectivity and creates sessions
 - **[Config](config)** - customizes connection and timeout behavior
+- **[Driver](driver)** - manages connectivity and creates sessions
 - **[Session](session)** - executes statements against a NeuG server
 - **[Transaction](transaction)** - groups multiple statements into one explicit transaction
 - **[ResultSet](result_set)** - reads rows and typed values from query results

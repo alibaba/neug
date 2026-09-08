@@ -1,6 +1,6 @@
 .. _nodejs_api_reference:
 
-NodeJS API Reference
+Node.js API Reference
 =====================
 
 .. toctree::
