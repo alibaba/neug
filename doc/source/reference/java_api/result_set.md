@@ -54,6 +54,32 @@ Each result set exposes metadata for column names and types:
 ResultSetMetaData metaData = rs.getMetaData();
 ```
 
+Unlike JDBC-oriented APIs, NeuG returns native driver `Types` instead of SQL
+type codes. Common metadata methods include:
+
+- `getColumnCount(int)`
+- `getColumnName(int)`
+- `getColumnType(int)`
+- `getColumnTypeName(int)`
+- `isNullable(int)`
+- `isSigned(int)`
+
+For example:
+
+```java
+ResultSetMetaData metaData = rs.getMetaData();
+String columnName = metaData.getColumnName(0);
+Types columnType = metaData.getColumnType(0);
+String typeName = metaData.getColumnTypeName(0);
+
+if (columnType == Types.INT64) {
+    long value = rs.getLong(0);
+}
+```
+
+Native `Types` preserve NeuG-specific type information and avoid lossy JDBC
+mappings.
+
 ## PROFILE and EXPLAIN
 
 The Java driver also exposes PROFILE or EXPLAIN metadata through:
@@ -85,4 +111,4 @@ Each operator entry in `operators` has this structure:
 }
 ```
 
-See also: [ResultSetMetaData](result_set_metadata), [Session](session)
+See also: [Session](session.md)

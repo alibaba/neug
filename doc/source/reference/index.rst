@@ -5,7 +5,7 @@ This section contains the complete API reference for NeuG.
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Documentation
+   :caption: API Reference
 
    Python API <python_api/index>
    Node.js API <nodejs_api/index>

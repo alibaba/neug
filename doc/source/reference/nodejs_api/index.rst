@@ -5,7 +5,8 @@ Node.js API Reference
 
 .. toctree::
    :maxdepth: 2
+   :caption: Node.js API
 
-   database
-   connection
-   query_result
+   Database <database>
+   Connection <connection>
+   Query Result <query_result>

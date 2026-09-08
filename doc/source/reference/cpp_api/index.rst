@@ -1,3 +1,5 @@
+.. _cpp_api_reference:
+
 C++ API Reference
 =================
 
@@ -5,7 +7,7 @@ C++ API Reference
    :maxdepth: 2
    :caption: C++ API
 
-   neug_db
-   connection
-   query_result
-   service
+   Database <neug_db>
+   Connection <connection>
+   Query Result <query_result>
+   Service <service>
