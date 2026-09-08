@@ -37,9 +37,8 @@ struct JsonReadFunction {
   static function_set getFunctionSet() {
     auto typeIDs =
         std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
-    auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
-    readFunction->execFunc = jsonExecFunc;
-    readFunction->supplierFunc = supplierFunc;
+    auto readFunction =
+        std::make_unique<ReadFunction>(name, typeIDs, supplierFunc);
     readFunction->sniffFunc = jsonSniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -63,14 +62,6 @@ struct JsonReadFunction {
     auto reader =
         std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
     return reader;
-  }
-
-  static execution::Context jsonExecFunc(
-      std::shared_ptr<reader::ReadSharedState> state) {
-    auto reader = createReader(std::move(state));
-    execution::Context ctx;
-    reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
-    return ctx;
   }
 
   static std::shared_ptr<IDataChunkSupplier> supplierFunc(
@@ -116,9 +107,8 @@ struct JsonLReadFunction {
   static function_set getFunctionSet() {
     auto typeIDs =
         std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
-    auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
-    readFunction->execFunc = jsonLExecFunc;
-    readFunction->supplierFunc = supplierFunc;
+    auto readFunction =
+        std::make_unique<ReadFunction>(name, typeIDs, supplierFunc);
     readFunction->sniffFunc = jsonLSniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -142,14 +132,6 @@ struct JsonLReadFunction {
     auto reader =
         std::make_unique<reader::JsonReader>(state, std::move(optionsBuilder));
     return reader;
-  }
-
-  static execution::Context jsonLExecFunc(
-      std::shared_ptr<reader::ReadSharedState> state) {
-    auto reader = createReader(std::move(state));
-    execution::Context ctx;
-    reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
-    return ctx;
   }
 
   static std::shared_ptr<IDataChunkSupplier> supplierFunc(

@@ -23,8 +23,6 @@
 #include <string>
 #include <vector>
 #include "neug/compiler/function/table/table_function.h"
-#include "neug/execution/common/context.h"
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
 
@@ -32,10 +30,9 @@ namespace neug {
 class IDataChunkSupplier;
 namespace function {
 
-// The exec function invoked by data source operators to load data from external
-// data sources.
-using read_exec_func_t = std::function<execution::Context(
-    std::shared_ptr<reader::ReadSharedState> state)>;
+// Required factory for a single execution's incremental reader.
+using read_supplier_func_t = std::function<std::shared_ptr<IDataChunkSupplier>(
+    std::shared_ptr<reader::ReadSharedState>)>;
 
 // The function used to sniff/infer file column names and their types from
 // external data sources.
@@ -43,14 +40,18 @@ using read_sniff_func_t = std::function<std::shared_ptr<reader::EntrySchema>(
     const reader::FileSchema& schema)>;
 
 struct ReadFunction : public TableFunction {
-  read_exec_func_t execFunc = nullptr;
-  std::function<std::shared_ptr<IDataChunkSupplier>(
-      std::shared_ptr<reader::ReadSharedState>)>
-      supplierFunc;
+  read_supplier_func_t supplierFunc;
   read_sniff_func_t sniffFunc = nullptr;
 
-  ReadFunction(std::string name, std::vector<common::DataTypeId> inputTypes)
-      : TableFunction{std::move(name), std::move(inputTypes)} {}
+  ReadFunction(std::string name, std::vector<common::DataTypeId> inputTypes,
+               read_supplier_func_t supplier)
+      : TableFunction{std::move(name), std::move(inputTypes)},
+        supplierFunc(std::move(supplier)) {
+    if (!supplierFunc) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "ReadFunction requires a supplier factory");
+    }
+  }
 };
 }  // namespace function
 }  // namespace neug

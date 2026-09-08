@@ -31,6 +31,7 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
@@ -738,6 +739,27 @@ TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
     EXPECT_GT(val.GetValue<double>(), 90.0)
         << "Extension's filter translation should result in all scores > 90.0";
   }
+}
+
+TEST_F(ParquetTest, SupplierOwnsReaderAndProducesIndividualBatches) {
+  createSimpleParquetFile("supplier.parquet");
+  auto state = createSharedState(
+      "supplier.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"PARQUET_BATCH_ROWS", "1"}});
+  auto reader = createParquetReader(state);
+  auto supplier = reader->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), -1);
+  reader.reset();
+  size_t rows = 0;
+  size_t batches = 0;
+  while (auto chunk = supplier->GetNextChunk()) {
+    EXPECT_LE(chunk->row_num(), 1);
+    rows += chunk->row_num();
+    ++batches;
+  }
+  EXPECT_EQ(rows, 3);
+  EXPECT_EQ(batches, 3);
 }
 
 TEST_F(ParquetTest, TestIntegration_BatchReadMode) {

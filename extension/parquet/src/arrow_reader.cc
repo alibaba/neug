@@ -39,25 +39,28 @@ namespace reader {
 
 void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
                        execution::Context& ctx) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
+  auto supplier = getDataChunkSupplier();
+  ctx.clear();
+  while (auto chunk = supplier->GetNextChunk()) {
+    ctx.append_chunk(std::move(*chunk));
   }
-
-  if (!fileSystem) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("FileSystem is null");
-  }
-
-  auto scanner = createScanner(fileSystem);
-  NEUG_ASSERT(scanner != nullptr);
-
-  // Choose read mode: batch_read streams data, full_read loads entire dataset
-  const auto& fileSchema = sharedState->schema.file;
   ReadOptions options;
-  if (options.batch_read.get(fileSchema.options)) {
-    batch_read(scanner, ctx);
-  } else {
-    full_read(scanner, ctx);
+  if (!options.batch_read.get(sharedState->schema.file.options)) {
+    ctx.flatten();
   }
+}
+
+std::shared_ptr<IDataChunkSupplier> ArrowReader::getDataChunkSupplier() {
+  auto scanner = createScanner(fileSystem);
+  auto batches = scanner->ToRecordBatchReader();
+  if (!batches.ok()) {
+    THROW_IO_EXCEPTION("Failed to create RecordBatchReader: " +
+                       batches.status().message());
+  }
+  // Row count is unknown until consumption. Never scan the dataset merely to
+  // count rows before producing its first batch.
+  return std::make_shared<RecordBatchChunkSupplier>(batches.ValueOrDie(), -1,
+                                                    std::move(scanner));
 }
 
 std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
@@ -182,79 +185,6 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
                        scanner_result.status().message());
   }
   return scanner_result.ValueOrDie();
-}
-
-void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                            execution::Context& output) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-  if (!scanner) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Scanner is null");
-  }
-
-  auto table_result = scanner->ToTable();
-  if (!table_result.ok()) {
-    LOG(ERROR) << "Failed to read table via scanner: "
-               << table_result.status().message();
-    THROW_IO_EXCEPTION("Failed to read table via scanner: " +
-                       table_result.status().message());
-  }
-  auto table = table_result.ValueOrDie();
-
-  int num_cols = sharedState->columnNum();
-  if (num_cols != table->num_columns()) {
-    THROW_IO_EXCEPTION(
-        "Column number mismatch between schema and table, schema: " +
-        std::to_string(num_cols) +
-        ", table: " + std::to_string(table->num_columns()));
-  }
-
-  output.clear();
-  DataChunk chunk;
-  for (int i = 0; i < num_cols; ++i) {
-    auto table_column = table->column(i);
-    chunk.set(i, arrow_arrays_to_value_column(table_column->chunks()));
-  }
-  output.append_chunk(std::move(chunk));
-}
-
-void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                             execution::Context& output) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-  if (!scanner) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Scanner is null");
-  }
-  auto row_num_result = scanner->CountRows();
-  int64_t row_num = 0;
-  if (!row_num_result.ok()) {
-    LOG(WARNING) << "Failed to count rows via scanner: "
-                 << row_num_result.status().message();
-    THROW_IO_EXCEPTION("Failed to count rows via scanner: " +
-                       row_num_result.status().message());
-  } else {
-    VLOG(10) << "Row count from scanner: " << row_num_result.ValueOrDie();
-    row_num = row_num_result.ValueOrDie();
-  }
-
-  auto batch_reader_result = scanner->ToRecordBatchReader();
-  if (!batch_reader_result.ok()) {
-    LOG(ERROR) << "Failed to create RecordBatchReader from scanner: "
-               << batch_reader_result.status().message();
-    THROW_IO_EXCEPTION("Failed to create RecordBatchReader from scanner: " +
-                       batch_reader_result.status().message());
-  }
-  auto batch_reader = batch_reader_result.ValueOrDie();
-
-  auto batch_supplier =
-      std::make_shared<RecordBatchChunkSupplier>(batch_reader, row_num);
-
-  output.clear();
-  while (auto chunk = batch_supplier->GetNextChunk()) {
-    output.append_chunk(std::move(*chunk));
-  }
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {

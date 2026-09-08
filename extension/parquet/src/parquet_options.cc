@@ -44,6 +44,9 @@ ArrowOptions ArrowParquetOptionsBuilder::build() const {
   // this the scanner always runs single-threaded, regardless of
   // ArrowReaderProperties::set_use_threads() below.
   ReadOptions readOpts;
+  ParquetParseOptions parquetOpts;
+  scanOptions->batch_size =
+      parquetOpts.row_batch_size.get(state->schema.file.options);
   scanOptions->use_threads =
       readOpts.use_threads.get(state->schema.file.options);
   // The scanner needs an IOContext with an executor for parallel scans.

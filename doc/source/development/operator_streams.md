@@ -49,7 +49,9 @@ through downstream consumers.
 Index-scan and export extension callbacks still take Context in their existing
 ABI; those operators convert only at that explicit callback boundary. Procedure
 and GDS callbacks still return Context, which is exposed as a stream once.
-Readers without a supplier callback use their legacy materialized reader.
+Every registered reader must supply a supplier factory; there is no materialized
+reader callback or fallback. Parquet uses RecordBatchReader directly without a
+CountRows or ToTable pass.
 
 This does not replace every underlying algorithm with an incremental one.
 Graph scan kernels may still produce a large single batch. CSV counts a file

@@ -66,7 +66,6 @@ class DataSourceOpr : public IOperator {
     struct Cursor {
       bool initialized = false;
       std::shared_ptr<IDataChunkSupplier> supplier;
-      Stream<ContextChunk> fallback;
     };
     auto cursor = std::make_shared<Cursor>();
     auto raw = Stream<ContextChunk>(
@@ -74,18 +73,11 @@ class DataSourceOpr : public IOperator {
          cursor]() mutable -> Stream<ContextChunk>::NextResult {
           if (!cursor->initialized) {
             cursor->initialized = true;
-            if (function->supplierFunc) {
-              cursor->supplier = function->supplierFunc(state);
-              if (!cursor->supplier) {
-                return tl::unexpected(
-                    Status::InternalError("Reader returned a null supplier"));
-              }
-            } else {
-              cursor->fallback = stream_from_context(function->execFunc(state));
+            cursor->supplier = function->supplierFunc(state);
+            if (!cursor->supplier) {
+              return tl::unexpected(
+                  Status::InternalError("Reader returned a null supplier"));
             }
-          }
-          if (!cursor->supplier) {
-            return cursor->fallback.Next();
           }
           auto chunk = cursor->supplier->GetNextChunk();
           if (!chunk) {

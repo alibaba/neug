@@ -25,6 +25,7 @@
 #include "parquet/arrow_options.h"
 
 namespace neug {
+class IDataChunkSupplier;
 namespace reader {
 
 class DatasetBuilder {
@@ -75,15 +76,13 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
   void read(std::shared_ptr<ReadLocalState> localState,
             execution::Context& ctx) override;
 
+  std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier();
+
   arrow::Result<std::shared_ptr<arrow::Schema>> inferSchema();
 
  protected:
   std::shared_ptr<arrow::dataset::Scanner> createScanner(
       std::shared_ptr<arrow::fs::FileSystem> fs);
-  void full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                 execution::Context& output);
-  void batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                  execution::Context& output);
 
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
   std::shared_ptr<DatasetBuilder> datasetBuilder;

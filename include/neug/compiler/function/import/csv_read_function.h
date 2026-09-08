@@ -35,9 +35,8 @@ struct CSVReadFunction {
   static function_set getFunctionSet() {
     auto typeIDs =
         std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
-    auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
-    readFunction->execFunc = execFunc;
-    readFunction->supplierFunc = supplierFunc;
+    auto readFunction =
+        std::make_unique<ReadFunction>(name, typeIDs, supplierFunc);
     readFunction->sniffFunc = sniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -130,14 +129,6 @@ struct CSVReadFunction {
     auto reader =
         std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
     return reader;
-  }
-
-  static execution::Context execFunc(
-      std::shared_ptr<reader::ReadSharedState> state) {
-    auto reader = createReader(std::move(state));
-    execution::Context ctx;
-    reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
-    return ctx;
   }
 
   static std::shared_ptr<IDataChunkSupplier> supplierFunc(
