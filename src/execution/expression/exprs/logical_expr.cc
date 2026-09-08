@@ -153,32 +153,38 @@ class BindedAndExpr : public VertexExprBase,
   const DataType& type() const override { return type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
-    if (!lhs_val.IsTrue()) {
-      return lhs_val;
-    }
-    return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    const auto lhs = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    });
   }
   Value eval_vertex(label_t v_label, vid_t v_id) const override {
-    const auto& lhs_val =
-        lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
-    if (!lhs_val.IsTrue()) {
-      return Value::BOOLEAN(false);
-    }
-    return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    const auto lhs = lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    });
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const void* data_ptr) const override {
-    const auto& lhs_val =
+    const auto lhs =
         lhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
-    if (!lhs_val.IsTrue()) {
-      return Value::BOOLEAN(false);
-    }
-    return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    });
   }
 
  private:
+  template <typename EvalRight>
+  static Value eval_impl(const Value& lhs, EvalRight evalRight) {
+    // Only FALSE determines AND without evaluating the right operand.
+    if (!lhs.IsNull() && !lhs.IsTrue()) {
+      return Value::BOOLEAN(false);
+    }
+    auto rhs = evalRight();
+    return lhs.IsNull() && rhs.IsTrue() ? Value(DataType::BOOLEAN) : rhs;
+  }
+
   std::unique_ptr<BindedExprBase> lhs_;
   std::unique_ptr<BindedExprBase> rhs_;
   DataType type_;
@@ -196,35 +202,38 @@ class BindedOrExpr : public VertexExprBase,
   const DataType& type() const override { return type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
-
-    if (lhs_val.IsTrue()) {
-      return Value::BOOLEAN(true);
-    }
-    return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    const auto lhs = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    });
   }
   Value eval_vertex(label_t v_label, vid_t v_id) const override {
-    const auto& lhs_val =
-        lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
-
-    if (lhs_val.IsTrue()) {
-      return Value::BOOLEAN(true);
-    }
-    return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    const auto lhs = lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    });
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const void* data_ptr) const override {
-    const auto& lhs_val =
+    const auto lhs =
         lhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
-
-    if (lhs_val.IsTrue()) {
-      return Value::BOOLEAN(true);
-    }
-    return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    });
   }
 
  private:
+  template <typename EvalRight>
+  static Value eval_impl(const Value& lhs, EvalRight evalRight) {
+    // Only TRUE determines OR without evaluating the right operand.
+    if (lhs.IsTrue()) {
+      return Value::BOOLEAN(true);
+    }
+    auto rhs = evalRight();
+    return lhs.IsNull() && !rhs.IsTrue() ? Value(DataType::BOOLEAN) : rhs;
+  }
+
   std::unique_ptr<BindedExprBase> lhs_;
   std::unique_ptr<BindedExprBase> rhs_;
   DataType type_;

@@ -201,6 +201,91 @@ class ParquetTest : public ::testing::Test {
   }
 };
 
+TEST_F(ParquetTest, ReaderPreservesNativeArithmeticFiltering) {
+  createSimpleParquetFile("native_filter.parquet");
+  auto state = createSharedState(
+      "native_filter.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()});
+  state->projectColumns = {"name"};
+  auto predicate = std::make_shared<::common::Expression>();
+  predicate->add_operators()->mutable_var()->mutable_tag()->set_name("value");
+  predicate->add_operators()->set_arith(::common::Arithmetic::MUL);
+  predicate->add_operators()->mutable_const_()->set_f64(2.0);
+  predicate->add_operators()->set_logical(::common::Logical::GT);
+  predicate->add_operators()->mutable_const_()->set_f64(40.0);
+  state->skipRows = predicate;
+
+  reader::ArrowParquetOptionsBuilder builder(state);
+  auto options = builder.build();
+  ASSERT_TRUE(builder.skipRows(options));
+  EXPECT_FALSE(
+      options.scanOptions->filter.Equals(arrow::compute::literal(true)));
+  for (const auto* batch : {"false", "true"}) {
+    state->schema.file.options = {{"batch_read", batch},
+                                  {"row_batch_size", "1"}};
+    execution::Context output;
+    createParquetReader(state)->read(nullptr, output);
+    ASSERT_EQ(output.row_num(), 2);
+    ASSERT_EQ(output.col_num(), 1);
+    std::vector<std::string> names;
+    for (const auto& chunk : output.chunks()) {
+      for (size_t row = 0; row < chunk.row_num(); ++row) {
+        names.push_back(chunk.get(0)->get_elem(row).GetValue<std::string>());
+      }
+    }
+    EXPECT_EQ(names, (std::vector<std::string>{"Bob", "Charlie"}));
+  }
+}
+
+TEST_F(ParquetTest, ReaderFallsBackBeforeProjectionAndRebindsParameters) {
+  createSimpleParquetFile("fallback_filter.parquet");
+  auto state = createSharedState(
+      "fallback_filter.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()});
+  state->projectColumns = {"name"};
+  auto predicate = std::make_shared<::common::Expression>();
+  predicate->add_operators()->mutable_var()->mutable_tag()->set_name("id");
+  predicate->add_operators()->set_logical(::common::Logical::GT);
+  auto* parameter = predicate->add_operators()->mutable_param();
+  parameter->set_name("minimum");
+  parameter->mutable_data_type()->mutable_data_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT64);
+  state->skipRows = predicate;
+  const auto original = predicate->SerializeAsString();
+
+  reader::ArrowParquetOptionsBuilder builder(state);
+  auto options = builder.build();
+  ASSERT_FALSE(builder.skipRows(options));
+  EXPECT_TRUE(
+      options.scanOptions->filter.Equals(arrow::compute::literal(true)));
+  for (const auto* batch : {"false", "true"}) {
+    state->schema.file.options = {{"batch_read", batch},
+                                  {"row_batch_size", "1"}};
+    auto reader = createParquetReader(state);
+    for (int64_t minimum : {2, 3, 0}) {
+      state->parameters = {{"minimum", Value::INT64(minimum)}};
+      execution::Context output;
+      reader->read(nullptr, output);
+      EXPECT_EQ(output.row_num(), 3 - minimum);
+      ASSERT_EQ(output.col_num(), 1);
+      for (const auto& chunk : output.chunks()) {
+        EXPECT_EQ(chunk.get(0)->elem_type(), DataType::VARCHAR);
+      }
+      if (minimum == 2) {
+        std::vector<std::string> names;
+        for (const auto& chunk : output.chunks()) {
+          for (size_t row = 0; row < chunk.row_num(); ++row) {
+            names.push_back(
+                chunk.get(0)->get_elem(row).GetValue<std::string>());
+          }
+        }
+        EXPECT_EQ(names, (std::vector<std::string>{"Charlie"}));
+      }
+      EXPECT_EQ(predicate->SerializeAsString(), original);
+    }
+  }
+}
+
 // =============================================================================
 // Test Suite 1: Options Translation Tests
 // Verify that Neug options are correctly translated to Arrow Parquet

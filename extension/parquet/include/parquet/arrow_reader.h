@@ -85,6 +85,9 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
   void batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
                   execution::Context& output);
 
+  DataChunk finishChunk(DataChunk chunk) const;
+  bool filter_after_read_ = false;
+
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
   std::shared_ptr<DatasetBuilder> datasetBuilder;
 };

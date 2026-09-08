@@ -33,6 +33,7 @@
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/row_expression_filter.h"
 
 namespace neug {
 namespace reader {
@@ -86,12 +87,20 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
     THROW_INVALID_ARGUMENT_EXCEPTION("Failed to build arrow options");
   }
 
-  if (!optionsBuilder->projectColumns(arrowOptions)) {
-    LOG(WARNING) << "Failed to set column projection, using all columns";
-  }
-
-  if (!optionsBuilder->skipRows(arrowOptions)) {
-    LOG(WARNING) << "Failed to set row filter, using no filter";
+  filter_after_read_ = !optionsBuilder->skipRows(arrowOptions);
+  if (filter_after_read_) {
+    // Retain filter-only columns until the complete predicate is evaluated.
+    // The caller receives the requested projection in either execution path.
+    auto projection = arrow::dataset::ProjectionDescr::FromNames(
+        sharedState->schema.entry->columnNames,
+        *arrowOptions.scanOptions->dataset_schema);
+    if (!projection.ok()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(projection.status().ToString());
+    }
+    arrowOptions.scanOptions->projection = projection->expression;
+    arrowOptions.scanOptions->projected_schema = projection->schema;
+  } else if (!optionsBuilder->projectColumns(arrowOptions)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Failed to set column projection");
   }
 
   auto scan_opts = arrowOptions.scanOptions;
@@ -202,7 +211,9 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
   auto table = table_result.ValueOrDie();
 
-  int num_cols = sharedState->columnNum();
+  int num_cols = filter_after_read_
+                     ? sharedState->schema.entry->columnNames.size()
+                     : sharedState->columnNum();
   if (num_cols != table->num_columns()) {
     THROW_IO_EXCEPTION(
         "Column number mismatch between schema and table, schema: " +
@@ -216,7 +227,7 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
     auto table_column = table->column(i);
     chunk.set(i, arrow_arrays_to_value_column(table_column->chunks()));
   }
-  output.append_chunk(std::move(chunk));
+  output.append_chunk(finishChunk(std::move(chunk)));
 }
 
 void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
@@ -253,8 +264,18 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
 
   output.clear();
   while (auto chunk = batch_supplier->GetNextChunk()) {
-    output.append_chunk(std::move(*chunk));
+    output.append_chunk(finishChunk(std::move(*chunk)));
   }
+}
+
+DataChunk ArrowReader::finishChunk(DataChunk chunk) const {
+  if (!filter_after_read_ || chunk.col_num() == 0) {
+    return chunk;
+  }
+  const auto& names = sharedState->schema.entry->columnNames;
+  auto filtered = filter_chunk(chunk, sharedState->skipRows, names,
+                               sharedState->parameters);
+  return project_chunk(filtered, names, sharedState->projectColumns);
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {

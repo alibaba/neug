@@ -92,8 +92,19 @@ bool ArrowOptionsBuilder::skipRows(ArrowOptions& options) {
     return false;
   }
   ArrowExpressionConverter converter;
-  options.scanOptions->filter = converter.convert(*state->skipRows);
-  return true;
+  try {
+    auto filter = converter.convert(*state->skipRows);
+    auto bound = filter.Bind(*options.scanOptions->dataset_schema);
+    if (!bound.ok()) {
+      return false;
+    }
+    options.scanOptions->filter = std::move(*bound);
+    return true;
+  } catch (const exception::ConversionException&) {
+    // Only expression conversion failures select decoded-chunk filtering.
+    // IO and decoding failures must still propagate to the caller.
+    return false;
+  }
 }
 
 }  // namespace reader
