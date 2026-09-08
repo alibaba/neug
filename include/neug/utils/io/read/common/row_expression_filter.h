@@ -46,6 +46,5 @@ DataChunk project_chunk(const DataChunk& input,
                         const std::vector<std::string>& column_names,
                         const std::vector<std::string>& project_columns);
 
-
 }  // namespace reader
 }  // namespace neug
