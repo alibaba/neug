@@ -9,5 +9,5 @@ C++ API Reference
 
    Database <neug_db>
    Connection <connection>
-   Query Result <query_result>
    Service <service>
+   Query Result <query_result>

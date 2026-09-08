@@ -5,12 +5,12 @@
   "key_classes": [
     "neug::NeugDB",
     "neug::Connection",
-    "neug::QueryResult",
-    "neug::RecordLine",
     "neug::NeugDBService",
     "neug::ExecutionSlot",
     "neug::TpExecutionSlotPool",
-    "neug::ExecutionSlotLease"
+    "neug::ExecutionSlotLease",
+    "neug::QueryResult",
+    "neug::RecordLine"
   ],
   "class_files": {
     "neug::NeugDB": {
