@@ -932,9 +932,8 @@ void GQueryConvertor::convertIntersect(
     THROW_EXCEPTION_WITH_FILE_LINE("intersect should have at least one child");
   }
   convertOperator(*children[0], plan);
-  if (children.size() < 2) {
+  if (children.size() < 2)
     return;
-  }
   // buid intersect opr
   auto intersectPB = std::make_unique<::physical::Intersect>();
   // set intersect key

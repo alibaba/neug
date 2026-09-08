@@ -170,23 +170,19 @@ bool parse_bool_value(std::string_view token,
     return false;
   }
   auto matches_ci = [](std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) {
+    if (a.size() != b.size())
       return false;
-    }
     for (size_t i = 0; i < a.size(); ++i) {
       if (std::tolower(static_cast<unsigned char>(a[i])) !=
-          std::tolower(static_cast<unsigned char>(b[i]))) {
+          std::tolower(static_cast<unsigned char>(b[i])))
         return false;
-      }
     }
     return true;
   };
-  if (matches_ci(token, "true")) {
+  if (matches_ci(token, "true"))
     return true;
-  }
-  if (matches_ci(token, "false")) {
+  if (matches_ci(token, "false"))
     return false;
-  }
   THROW_CONVERSION_EXCEPTION("Invalid boolean value: " + std::string(token));
 }
 
@@ -591,11 +587,10 @@ struct RowCounterState {
       }
       if (in_quotes) {
         if (c == quote_char) {
-          if (double_quote) {
+          if (double_quote)
             pending_quote = true;
-          } else {
+          else
             in_quotes = false;
-          }
         }
         return;
       }
@@ -614,9 +609,8 @@ struct RowCounterState {
       // Treat both \n (LF) and \r (CR) as row terminators.
       // For CRLF, \r counts the row and clears has_content,
       // so the following \n is a no-op (no double-count).
-      if (has_content) {
+      if (has_content)
         ++count;
-      }
       has_content = false;
       at_field_start = true;  // new row = new field
     } else if (c == delimiter) {
@@ -657,25 +651,21 @@ class CsvRowCountCounter {
       THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
     }
     auto file_size = static_cast<size_t>(st.st_size);
-    if (file_size == 0) {
+    if (file_size == 0)
       return 0;
-    }
-    if (!use_threads_) {
+    if (!use_threads_)
       return count_single(file_size);
-    }
 
     constexpr size_t kMinChunkSize = 4 << 20;  // 4 MB
     unsigned num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0) {
+    if (num_threads == 0)
       num_threads = 1;
-    }
     if (file_size < kMinChunkSize * num_threads) {
       num_threads =
           std::max(1u, static_cast<unsigned>(file_size / kMinChunkSize));
     }
-    if (num_threads <= 1) {
+    if (num_threads <= 1)
       return count_single(file_size);
-    }
     return count_parallel(file_size, num_threads);
   }
 
@@ -701,9 +691,8 @@ class CsvRowCountCounter {
       size_t to_read = std::min(kBufSize, end - pos);
       file.read(buffer.data(), to_read);
       auto bytes_read = static_cast<size_t>(file.gcount());
-      if (bytes_read == 0) {
+      if (bytes_read == 0)
         break;
-      }
       fn(buffer.data(), bytes_read);
       pos += bytes_read;
     }
@@ -712,9 +701,8 @@ class CsvRowCountCounter {
   /// Find byte offset after the first row terminator (\n or \r) at or
   /// after \p start.  Used for newline-aligned chunk boundaries.
   size_t align_to_newline(size_t start, size_t end) const {
-    if (start >= end) {
+    if (start >= end)
       return end;
-    }
     std::ifstream file(file_path_, std::ios::binary);
     if (!file.is_open()) {
       THROW_IO_EXCEPTION("Failed to open file for counting: " + file_path_);
@@ -730,13 +718,11 @@ class CsvRowCountCounter {
       size_t to_read = std::min(kScanBuf, end - pos);
       file.read(buf, to_read);
       auto n = static_cast<size_t>(file.gcount());
-      if (n == 0) {
+      if (n == 0)
         break;
-      }
       for (size_t i = 0; i < n; ++i) {
-        if (buf[i] == '\n' || buf[i] == '\r') {
+        if (buf[i] == '\n' || buf[i] == '\r')
           return pos + i + 1;
-        }
       }
       pos += n;
     }
@@ -794,9 +780,8 @@ class CsvRowCountCounter {
       }
     }
     int64_t total = state.count;
-    if (state.has_content) {
+    if (state.has_content)
       ++total;  // last row without trailing newline
-    }
     return total;
   }
 
@@ -810,9 +795,8 @@ class CsvRowCountCounter {
       }
     });
     int64_t total = state.count;
-    if (state.has_content) {
+    if (state.has_content)
       ++total;  // last row without trailing newline
-    }
     return total;
   }
 
@@ -824,9 +808,8 @@ class CsvRowCountCounter {
     bounds.push_back(0);
     for (unsigned i = 1; i < num_threads; ++i) {
       size_t actual = align_to_newline(i * approx_chunk, file_size);
-      if (actual <= bounds.back() || actual >= file_size) {
+      if (actual <= bounds.back() || actual >= file_size)
         break;
-      }
       bounds.push_back(actual);
     }
     bounds.push_back(file_size);
@@ -840,9 +823,8 @@ class CsvRowCountCounter {
         results[i] = scan_chunk(bounds[i], bounds[i + 1]);
       });
     }
-    for (auto& t : threads) {
+    for (auto& t : threads)
       t.join();
-    }
 
     // Sequential resolution: chain quote state across chunks.
     int64_t total = 0;
@@ -859,9 +841,8 @@ class CsvRowCountCounter {
     // Handle last row without trailing newline.
     // Use the actually-selected variant for the last chunk, not the
     // ending in_quotes state (which may differ from the start assumption).
-    if (last_selected && last_selected->has_content) {
+    if (last_selected && last_selected->has_content)
       ++total;
-    }
 
     return total;
   }
@@ -1621,30 +1602,26 @@ void set_column_from_value_column(
       typed->set_value(vid, std::string_view(s));
     };
     for (size_t k = 0; k < vids.size(); ++k) {
-      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max())
         continue;
-      }
       if (value_col) {
         write(vids[k], value_col->data()[k]);
       } else {
         auto val = ctx_col->get_elem(k);
-        if (!val.IsNull()) {
+        if (!val.IsNull())
           write(vids[k], val.GetValue<std::string>());
-        }
       }
     }
   } else {
     for (size_t k = 0; k < vids.size(); ++k) {
-      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max())
         continue;
-      }
       if (value_col) {
         typed->set_value(vids[k], value_col->data()[k]);
       } else {
         auto val = ctx_col->get_elem(k);
-        if (!val.IsNull()) {
+        if (!val.IsNull())
           typed->set_value(vids[k], val.GetValue<COL_T>());
-        }
       }
     }
   }

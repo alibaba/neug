@@ -611,49 +611,39 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
 
   // Helper lambdas for type detection.
   auto is_bool_token = [](const std::string& s) -> bool {
-    if (s.size() < 4 || s.size() > 5) {
+    if (s.size() < 4 || s.size() > 5)
       return false;
-    }
     std::string lower;
     lower.reserve(s.size());
-    for (char c : s) {
+    for (char c : s)
       lower.push_back(static_cast<char>(std::tolower(c)));
-    }
     return lower == "true" || lower == "false";
   };
   auto is_date_token = [](const std::string& s) -> bool {
     // YYYY-MM-DD (exactly 10 chars)
-    if (s.size() != 10) {
+    if (s.size() != 10)
       return false;
-    }
-    if (s[4] != '-' || s[7] != '-') {
+    if (s[4] != '-' || s[7] != '-')
       return false;
-    }
     for (int i : {0, 1, 2, 3, 5, 6, 8, 9}) {
-      if (!std::isdigit(static_cast<unsigned char>(s[i]))) {
+      if (!std::isdigit(static_cast<unsigned char>(s[i])))
         return false;
-      }
     }
     return true;
   };
   auto is_datetime_token = [](const std::string& s) -> bool {
     // YYYY-MM-DD HH:MM:SS (19 chars) or with fractional seconds
-    if (s.size() < 19) {
+    if (s.size() < 19)
       return false;
-    }
-    if (s[4] != '-' || s[7] != '-') {
+    if (s[4] != '-' || s[7] != '-')
       return false;
-    }
-    if (s[10] != ' ' && s[10] != 'T') {
+    if (s[10] != ' ' && s[10] != 'T')
       return false;
-    }
-    if (s[13] != ':' || s[16] != ':') {
+    if (s[13] != ':' || s[16] != ':')
       return false;
-    }
     for (int i : {0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18}) {
-      if (!std::isdigit(static_cast<unsigned char>(s[i]))) {
+      if (!std::isdigit(static_cast<unsigned char>(s[i])))
         return false;
-      }
     }
     return true;
   };
@@ -699,24 +689,19 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
         all_double = false;
       }
       // Bool check
-      if (!is_bool_token(token)) {
+      if (!is_bool_token(token))
         all_bool = false;
-      }
       // Temporal checks
       bool is_dt = is_datetime_token(token);
       bool is_d = is_date_token(token);
-      if (!is_dt) {
+      if (!is_dt)
         all_datetime = false;
-      }
-      if (!is_d) {
+      if (!is_d)
         all_date = false;
-      }
-      if (!is_dt && !is_d) {
+      if (!is_dt && !is_d)
         all_date_or_datetime = false;
-      }
-      if (is_dt) {
+      if (is_dt)
         any_datetime = true;
-      }
     }
     DataType inferred_type(DataTypeId::kVarchar);
     if (has_value && all_int) {
