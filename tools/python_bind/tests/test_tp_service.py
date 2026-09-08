@@ -1243,8 +1243,7 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         checkpoint_on_close=False,
         max_thread_num=cpu_count + 1,
     )
-    # max_thread_num above the hardware limit is clamped down to it; the WAL
-    # count equals the effective (clamped) execution-slot count.
+    # max_thread_num above the hardware limit is clamped down to it.
     expected_slots = db._max_thread_num
     session = None
     try:
@@ -1262,23 +1261,18 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         session.execute("CHECKPOINT;")
         first_timeline_wal_dir = _current_checkpoint_wal_dir(db_dir, 1)
         first_timeline_wals = sorted(first_timeline_wal_dir.glob("*.wal"))
-        assert len(first_timeline_wals) == expected_slots
-        for wal_path in first_timeline_wals:
-            with wal_path.open("rb") as wal_file:
-                assert int.from_bytes(wal_file.read(4), "little") == 0
+        assert first_timeline_wals == []
 
         session.execute("ALTER TABLE Person ADD name STRING;")
         session.execute("MATCH (p:Person {id: 1}) SET p.name = 'one';")
         session.execute("CREATE (:Person {id: 2, name: 'two'});")
 
-        assert sorted(first_timeline_wal_dir.glob("*.wal")) == first_timeline_wals
+        first_timeline_wals = sorted(first_timeline_wal_dir.glob("*.wal"))
+        assert 1 <= len(first_timeline_wals) <= expected_slots
 
         session.execute("CHECKPOINT;")
         current_wals = sorted(_current_checkpoint_wal_dir(db_dir, 2).glob("*.wal"))
-        assert len(current_wals) == expected_slots
-        for wal_path in current_wals:
-            with wal_path.open("rb") as wal_file:
-                assert int.from_bytes(wal_file.read(4), "little") == 0
+        assert current_wals == []
 
         # Issue #651 regression: PK index point lookups must survive the
         # checkpoint that runs between writes. A plain count() would still
@@ -1293,11 +1287,13 @@ def test_tp_checkpoint_rotates_wal_and_resets_timeline(tmp_path, unused_tcp_port
         # The first transaction in the new complete-baseline timeline must use
         # timestamp 1 and write only beneath the current generation.
         session.execute("CREATE (:Person {id: 3, name: 'three'});")
+        current_wals = sorted(_current_checkpoint_wal_dir(db_dir, 2).glob("*.wal"))
+        assert len(current_wals) == 1
         first_timestamps = []
         for wal_path in current_wals:
             with wal_path.open("rb") as wal_file:
                 first_timestamps.append(int.from_bytes(wal_file.read(4), "little"))
-        assert sorted(first_timestamps) == [0] * (expected_slots - 1) + [1]
+        assert first_timestamps == [1]
     finally:
         if session is not None:
             session.close()
