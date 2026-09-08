@@ -39,6 +39,15 @@ using neug::function::BuiltInFunctionsUtils;
 namespace neug {
 namespace common {
 
+void LogicalTypeUtils::validateStringLength(int64_t length) {
+  if (length < MIN_STRING_LENGTH || length > MAX_STRING_LENGTH) {
+    THROW_BINDER_EXCEPTION("The length of VARCHAR/STRING must be between " +
+                           std::to_string(MIN_STRING_LENGTH) + " and " +
+                           std::to_string(MAX_STRING_LENGTH) +
+                           ". Given: " + std::to_string(length) + ".");
+  }
+}
+
 // ============================================================================
 // internalID_t implementations
 // ============================================================================
@@ -690,6 +699,7 @@ DataType parseStringType(const std::string& trimmedStr) {
         "The max length of string must be a positive integer. Given: " +
         maxLenStr);
   }
+  LogicalTypeUtils::validateStringLength(maxLen);
   return DataType::Varchar(maxLen);
 }
 

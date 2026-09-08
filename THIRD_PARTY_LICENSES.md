@@ -9,7 +9,8 @@ upstream copyright and permission notice are retained in
 [`third_party/carquet/LICENSE`](third_party/carquet/LICENSE).
 
 NeuG applies [`third_party/carquet.patch`](third_party/carquet.patch) to fix
-multi-batch BOOLEAN and BYTE_STREAM_SPLIT page encoding in the pinned version.
+multi-batch BOOLEAN and BYTE_STREAM_SPLIT page encoding and to add input/output
+callbacks for integration with NeuG streams in the pinned version.
 
 ## Kùzu
 
