@@ -48,7 +48,6 @@ class LocalWalWriter : public IWalWriter {
   int fd_;
   size_t file_used_;
   bool opened_;
-  bool directory_sync_pending_ = false;
 
   static const bool registered_;
 };

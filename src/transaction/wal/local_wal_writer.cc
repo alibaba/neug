@@ -165,7 +165,6 @@ void LocalWalWriter::create_file() {
     fd_ = ::open(wal_path.c_str(), O_RDWR | O_CREAT | O_EXCL, 0644);
 #endif
     if (fd_ != -1) {
-      directory_sync_pending_ = true;
       return;
     }
     if (errno != EEXIST) {
@@ -180,7 +179,6 @@ void LocalWalWriter::create_file() {
 
 void LocalWalWriter::close() {
   opened_ = false;
-  directory_sync_pending_ = false;
   if (fd_ != -1) {
     // Retire the descriptor before calling close(). Retrying close() after an
     // error is unsafe because the descriptor may already have been released
@@ -214,7 +212,8 @@ bool LocalWalWriter::append(const char* data, size_t length) {
     THROW_OVERFLOW_EXCEPTION("WAL file size overflow");
   }
 
-  if (fd_ == -1) {
+  const bool file_created = fd_ == -1;
+  if (file_created) {
     create_file();
   }
 
@@ -222,12 +221,11 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   WriteAllAt(fd_, data, length, file_used_);
   WriteAllAt(fd_, terminator.data(), terminator.size(), file_used_ + length);
   SyncFile(fd_);
-  if (directory_sync_pending_ &&
+  if (file_created &&
       !file_utils::fsync_directory(get_wal_uri_path(wal_uri_))) {
     THROW_IO_EXCEPTION("Failed to sync wal directory " +
                        get_wal_uri_path(wal_uri_));
   }
-  directory_sync_pending_ = false;
   file_used_ += length;
   return true;
 }
