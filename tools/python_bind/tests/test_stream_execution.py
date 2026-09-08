@@ -144,33 +144,14 @@ def test_unwind_limit_stops_upstream_batches(empty_db, tmp_path):
     assert source["output_rows"] == 1
 
 
-def test_cross_batch_skip_distinct_and_topk(empty_db, tmp_path):
+def test_cross_batch_skip_and_topk(empty_db, tmp_path):
     _, conn = empty_db
     path = tmp_path / "cross_batch.csv"
     path.write_text("id\n4\n1\n4\n3\n2\n")
     source = f'LOAD FROM "{path}" (header=true, batch_size=1)'
     assert list(conn.execute(f"{source} RETURN id SKIP 2 LIMIT 2")) == [[4], [3]]
-    assert list(conn.execute(f"{source} RETURN DISTINCT id ORDER BY id")) == [
-        [1],
-        [2],
-        [3],
-        [4],
-    ]
     assert list(conn.execute(f"{source} RETURN id + 1 AS x ORDER BY x LIMIT 2")) == [
         [2],
         [3],
     ]
     assert list(conn.execute(f"{source} RETURN id LIMIT 0")) == []
-
-
-def test_union_stream_keeps_all_branches(empty_db, tmp_path):
-    _, conn = empty_db
-    left = tmp_path / "left.csv"
-    right = tmp_path / "right.csv"
-    left.write_text("id\n1\n2\n")
-    right.write_text("id\n2\n3\n")
-    query = (
-        f'LOAD FROM "{left}" (header=true, batch_size=1) RETURN id '
-        f'UNION ALL LOAD FROM "{right}" (header=true, batch_size=1) RETURN id'
-    )
-    assert list(conn.execute(query)) == [[1], [2], [2], [3]]

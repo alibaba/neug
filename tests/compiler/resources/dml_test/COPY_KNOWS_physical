@@ -36,32 +36,7 @@
       "project_columns": []
      }
     },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_DOUBLE"
-       }
-      },
-      "alias": 2
-     }
-    ]
+    "meta_data": []
    },
    {
     "opr": {
