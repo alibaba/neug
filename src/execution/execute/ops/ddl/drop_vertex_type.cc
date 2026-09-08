@@ -27,10 +27,10 @@ class DropVertexTypeOpr : public IOperator {
       : vertex_type_(vertex_type), ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override { return "DropVertexTypeOpr"; }
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override {
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     label_t label;

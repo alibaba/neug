@@ -36,10 +36,10 @@ class CreateEdgeOpr : public IOperator {
         src_dst_tags_(src_dst_tags),
         properties_(std::move(properties)) {}
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph_interface,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override {
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph_interface,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override {
     // Finish reading before mutation; downstream cancellation must not skip
     // writes.
     return reduce_stream(

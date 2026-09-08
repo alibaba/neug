@@ -41,9 +41,9 @@ class IntersectOprMultip : public IOperator {
     return "IntersectOprMultip";
   }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -97,9 +97,9 @@ class IntersectWithEdgeOpr : public IOperator {
     return "IntersectWithEdgeOpr";
   }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,

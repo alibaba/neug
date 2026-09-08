@@ -22,7 +22,7 @@
 
 namespace neug::execution {
 namespace {
-using ChunkStream = Stream<DataChunk>;
+using ChunkStream = Stream<ContextChunk>;
 
 DataChunk chunk(int64_t value, int alias = 0) {
   ValueColumnBuilder<int64_t> builder;
@@ -40,7 +40,7 @@ TEST(StreamTest, IsLazyAndReleasesCursorOnCancellation) {
     weak = lifetime;
     ChunkStream stream([&, lifetime]() -> ChunkStream::NextResult {
       ++pulls;
-      return std::optional<ChunkStream::Batch>({chunk(pulls), nullptr});
+      return std::optional<ContextChunk>(std::in_place, chunk(pulls));
     });
     EXPECT_EQ(pulls, 0);
     ASSERT_TRUE(stream.Next());
@@ -55,7 +55,7 @@ TEST(StreamTest, ErrorIsTerminalAndIsNotEndOfStream) {
   ChunkStream stream([&]() -> ChunkStream::NextResult {
     ++pulls;
     if (pulls == 1) {
-      return std::optional<ChunkStream::Batch>({chunk(1), nullptr});
+      return std::optional<ContextChunk>(std::in_place, chunk(1));
     }
     THROW_IO_EXCEPTION("late read failure");
   });
@@ -97,7 +97,8 @@ TEST(StreamTest, BatchTransformPreservesColumnIdentityAndDoesNotReadAhead) {
       [&]() -> ChunkStream::NextResult {
         if (++pulls > 1)
           THROW_IO_EXCEPTION("must not read ahead");
-        return std::optional<ChunkStream::Batch>({std::move(data), column});
+        return std::optional<ContextChunk>(std::in_place, std::move(data),
+                                           column);
       },
       {3, -1});
   auto mapped = map_chunks(std::move(source),
@@ -108,8 +109,8 @@ TEST(StreamTest, BatchTransformPreservesColumnIdentityAndDoesNotReadAhead) {
   auto first = mapped.Next();
   ASSERT_TRUE(first);
   ASSERT_TRUE(*first);
-  EXPECT_EQ((**first).chunk.get(3), column);
-  EXPECT_EQ((**first).head, column);
+  EXPECT_EQ((**first).get(3), column);
+  EXPECT_EQ((**first).head(), column);
   EXPECT_EQ(mapped.tag_ids, (std::vector<int>{3, -1}));
   EXPECT_EQ(pulls, 1);
 }
@@ -123,7 +124,7 @@ TEST(StreamTest, StorageBridgePreservesMappingAndLateError) {
     }
     auto input = chunk(5, 2);
     input.set(0, chunk(9).get(0));
-    return std::optional<ChunkStream::Batch>({std::move(input), nullptr});
+    return std::optional<ContextChunk>(std::in_place, std::move(input));
   });
   ops::StreamChunkSupplier supplier(std::move(stream), {{2, "a"}, {0, "b"}});
   EXPECT_EQ(pulls, 0);
@@ -157,9 +158,9 @@ class CountingSource final : public IOperator {
     return ChunkStream([this]() -> ChunkStream::NextResult {
       EXPECT_EQ(counts_.produced, counts_.consumed);
       if (counts_.produced == 3)
-        return std::optional<ChunkStream::Batch>{};
-      return std::optional<ChunkStream::Batch>(
-          {chunk(++counts_.produced), nullptr});
+        return std::optional<ContextChunk>{};
+      return std::optional<ContextChunk>(std::in_place,
+                                         chunk(++counts_.produced));
     });
   }
 
@@ -170,9 +171,9 @@ class CountingProject final : public IOperator {
  public:
   explicit CountingProject(Counts& counts) : counts_(counts) {}
   std::string get_operator_name() const override { return "CountingProject"; }
-  result<Stream<DataChunk>> Eval(IStorageInterface&, const ParamsMap&,
-                                 Stream<DataChunk>&& input,
-                                 OprTimer*) override {
+  result<Stream<ContextChunk>> Eval(IStorageInterface&, const ParamsMap&,
+                                    Stream<ContextChunk>&& input,
+                                    OprTimer*) override {
     return map_chunks(std::move(input),
                       [this](ContextChunk&& chunk) -> result<ContextChunk> {
                         ++counts_.consumed;

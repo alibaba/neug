@@ -46,11 +46,11 @@ class JoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     auto tags = input.tag_ids;
-    auto upstream = std::make_shared<Stream<DataChunk>>(std::move(input));
+    auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
     return generate_chunk([this, &graph, params, timer, upstream,
                            tags]() -> result<ContextChunk> {
       GS_AUTO(seed, collect_batches(std::move(*upstream)));
@@ -186,9 +186,9 @@ class PrimaryKeyJoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "PrimaryJoinOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
     auto* child = right_timer.get();
     if (timer)

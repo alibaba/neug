@@ -34,10 +34,10 @@ class IOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                               const ParamsMap& params,
-                                               Stream<DataChunk>&& input,
-                                               OprTimer* timer) = 0;
+  virtual neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                                  const ParamsMap& params,
+                                                  Stream<ContextChunk>&& input,
+                                                  OprTimer* timer) = 0;
 
   virtual void build_explain_children(OprTimer* parent_timer,
                                       const ParamsMap& params,

@@ -30,10 +30,10 @@ class DropIndexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DropIndexOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap&,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer*) override {
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap&,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer*) override {
     auto* indexInterface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
     if (!indexInterface) {
       RETURN_STATUS_ERROR(

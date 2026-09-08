@@ -34,10 +34,10 @@ class BatchDeleteEdgeOpr : public IOperator {
     return "BatchDeleteEdgeOpr";
   }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 
  private:
   std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>
@@ -45,9 +45,9 @@ class BatchDeleteEdgeOpr : public IOperator {
   std::vector<int32_t> edge_bindings_;
 };
 
-neug::result<Stream<DataChunk>> BatchDeleteEdgeOpr::Eval(
+neug::result<Stream<ContextChunk>> BatchDeleteEdgeOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   // Finish reading before mutation; downstream cancellation must not skip
   // writes.
   return reduce_stream(

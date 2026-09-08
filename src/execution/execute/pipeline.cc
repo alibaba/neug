@@ -67,10 +67,9 @@ neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
   return materialize(std::move(stream));
 }
 
-result<Stream<DataChunk>> Pipeline::ExecuteStream(IStorageInterface& graph,
-                                                  Stream<DataChunk> stream,
-                                                  const ParamsMap& params,
-                                                  OprTimer* timer) {
+result<Stream<ContextChunk>> Pipeline::ExecuteStream(
+    IStorageInterface& graph, Stream<ContextChunk> stream,
+    const ParamsMap& params, OprTimer* timer) {
   auto charged = std::make_shared<double>(0.0);
   auto* current_timer = timer;
   for (size_t i = 0; i < operators_.size(); ++i) {
@@ -78,17 +77,17 @@ result<Stream<DataChunk>> Pipeline::ExecuteStream(IStorageInterface& graph,
     if (current_timer) {
       current_timer->set_name(name);
     }
-    auto invoke = [&]() -> result<Stream<DataChunk>> {
+    auto invoke = [&]() -> result<Stream<ContextChunk>> {
       StreamTimerScope scope(current_timer, charged);
-      result<Stream<DataChunk>> output = Stream<DataChunk>();
+      result<Stream<ContextChunk>> output = Stream<ContextChunk>();
       TRY_HANDLE_ALL_WITH_EXCEPTION(
-          result<Stream<DataChunk>>,
+          result<Stream<ContextChunk>>,
           [&]() {
             return operators_[i]->Eval(graph, params, std::move(stream),
                                        current_timer);
           },
           [&](const Status& error) { output = tl::unexpected(error); },
-          [&](result<Stream<DataChunk>>&& result) {
+          [&](result<Stream<ContextChunk>>&& result) {
             output = std::move(result);
           });
       return output;
@@ -98,10 +97,10 @@ result<Stream<DataChunk>> Pipeline::ExecuteStream(IStorageInterface& graph,
       return tl::unexpected(operator_error(output.error(), name));
     }
     auto tags = std::move(output->tag_ids);
-    auto producer = std::make_shared<Stream<DataChunk>>(std::move(*output));
-    stream = Stream<DataChunk>(
+    auto producer = std::make_shared<Stream<ContextChunk>>(std::move(*output));
+    stream = Stream<ContextChunk>(
         [producer, current_timer, charged,
-         name]() -> Stream<DataChunk>::NextResult {
+         name]() -> Stream<ContextChunk>::NextResult {
           StreamTimerScope scope(current_timer, charged);
           auto next = producer->Next();
           if (!next) {
@@ -109,9 +108,7 @@ result<Stream<DataChunk>> Pipeline::ExecuteStream(IStorageInterface& graph,
           }
           if (current_timer && *next) {
             const auto& batch = **next;
-            auto rows = batch.chunk.col_num()
-                            ? batch.chunk.row_num()
-                            : (batch.head ? batch.head->size() : 0);
+            auto rows = batch.row_num();
             current_timer->add_num_tuples(rows);
           }
           return next;

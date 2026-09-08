@@ -33,10 +33,10 @@ class Pipeline {
 
   // Caller keeps this pipeline, storage and timer alive until the stream is
   // consumed or destroyed. Params are captured by value by lazy operators.
-  result<Stream<DataChunk>> ExecuteStream(IStorageInterface& graph,
-                                          Stream<DataChunk> input,
-                                          const ParamsMap& params,
-                                          OprTimer* timer);
+  result<Stream<ContextChunk>> ExecuteStream(IStorageInterface& graph,
+                                             Stream<ContextChunk> input,
+                                             const ParamsMap& params,
+                                             OprTimer* timer);
 
   neug::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
                                 const ParamsMap& params, OprTimer* timer);

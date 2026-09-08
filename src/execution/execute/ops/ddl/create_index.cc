@@ -66,10 +66,10 @@ class CreateIndexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "CreateIndexOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override {
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override {
     auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
     if (!index_interface) {
       RETURN_STATUS_ERROR(

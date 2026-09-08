@@ -274,7 +274,7 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
 }
 
 StreamChunkSupplier::StreamChunkSupplier(
-    Stream<DataChunk> stream,
+    Stream<ContextChunk> stream,
     std::vector<std::pair<int32_t, std::string>> mappings)
     : stream_(std::move(stream)), mappings_(std::move(mappings)) {}
 
@@ -287,10 +287,10 @@ std::shared_ptr<DataChunk> StreamChunkSupplier::GetNextChunk() {
   if (!*next) {
     return nullptr;
   }
-  rows_read_ += (**next).chunk.row_num();
+  rows_read_ += (**next).row_num();
   auto output = std::make_shared<DataChunk>();
   for (size_t i = 0; i < mappings_.size(); ++i) {
-    auto column = (**next).chunk.get(mappings_[i].first);
+    auto column = (**next).get(mappings_[i].first);
     if (!column) {
       THROW_INTERNAL_EXCEPTION("Column not found for tag id: " +
                                std::to_string(mappings_[i].first));
@@ -300,7 +300,7 @@ std::shared_ptr<DataChunk> StreamChunkSupplier::GetNextChunk() {
   return output;
 }
 
-Stream<DataChunk> batch_insert_result(size_t rows) {
+Stream<ContextChunk> batch_insert_result(size_t rows) {
   // COPY's sink has no output tags, but QueryResponse still reports the
   // consumed row count. A head-only constant column preserves that contract
   // in O(1) space rather than keeping every input property column alive.
@@ -319,9 +319,11 @@ Stream<DataChunk> batch_insert_result(size_t rows) {
    private:
     size_t rows_;
   };
-  Context output;
-  output.append_chunk(DataChunk(), std::make_shared<CardinalityColumn>(rows));
-  return stream_from_context(std::move(output));
+  return generate_chunk([rows]() -> result<ContextChunk> {
+    ContextChunk output;
+    output.set(-1, std::make_shared<CardinalityColumn>(rows));
+    return output;
+  });
 }
 
 std::vector<std::string> match_files_with_pattern(

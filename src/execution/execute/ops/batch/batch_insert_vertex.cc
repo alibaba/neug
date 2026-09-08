@@ -43,19 +43,19 @@ class BatchInsertVertexOpr : public IOperator {
     return "BatchInsertVertexOpr";
   }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 
  private:
   common::NameOrId vertex_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
-neug::result<Stream<DataChunk>> BatchInsertVertexOpr::Eval(
+neug::result<Stream<ContextChunk>> BatchInsertVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   (void) params;
   (void) timer;
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);

@@ -36,9 +36,9 @@ class DataExportOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override;
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override;
 
  private:
   reader::FileSchema schema_;
@@ -46,9 +46,9 @@ class DataExportOpr : public IOperator {
   function::ExportFunction* exportFunction_;
 };
 
-neug::result<Stream<DataChunk>> DataExportOpr::Eval(
+neug::result<Stream<ContextChunk>> DataExportOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, neug::execution::OprTimer* timer) {
+    Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) {
   // Legacy extension ABI: Context conversion is confined to this boundary.
 
   GS_AUTO(ctx, materialize(std::move(input)));

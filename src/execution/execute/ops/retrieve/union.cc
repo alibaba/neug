@@ -36,21 +36,21 @@ class UnionOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     struct State {
-      Stream<DataChunk> input;
+      Stream<ContextChunk> input;
       std::optional<std::vector<ContextChunk>> seed;
-      Stream<DataChunk> branch;
+      Stream<ContextChunk> branch;
       size_t index = 0;
     };
     auto tags = input.tag_ids;
     auto state = std::make_shared<State>();
     state->input = std::move(input);
-    return Stream<DataChunk>(
+    return Stream<ContextChunk>(
         [this, &graph, params, timer, tags,
-         state]() mutable -> Stream<DataChunk>::NextResult {
+         state]() mutable -> Stream<ContextChunk>::NextResult {
           if (!state->seed) {
             GS_AUTO(seed, collect_batches(std::move(state->input)));
             state->seed = std::move(seed);
@@ -59,11 +59,11 @@ class UnionOpr : public IOperator {
             GS_AUTO(next, state->branch.Next());
             if (next) {
               // UNION has no anonymous output head, matching the union kernel.
-              next->head.reset();
+              next->head().reset();
               return next;
             }
             if (state->index == sub_plans_.size())
-              return std::optional<Stream<DataChunk>::Batch>{};
+              return std::optional<ContextChunk>{};
             auto sub_timer = timer ? std::make_unique<OprTimer>() : nullptr;
             auto* child = sub_timer.get();
             if (timer)

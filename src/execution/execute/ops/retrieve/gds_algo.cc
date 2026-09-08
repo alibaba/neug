@@ -28,9 +28,9 @@ GDSAlgoOpr::GDSAlgoOpr(std::unique_ptr<function::CallFuncInputBase> algo_input,
                        function::GDSAlgoFunction* algo_func)
     : algo_input_(std::move(algo_input)), algo_func_(algo_func) {}
 
-neug::result<Stream<DataChunk>> GDSAlgoOpr::Eval(
+neug::result<Stream<ContextChunk>> GDSAlgoOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, neug::execution::OprTimer* timer) {
+    Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) {
   // Legacy extension ABI: Context conversion is confined to this boundary.
 
   while (true) {

@@ -40,10 +40,10 @@ class UpdateVertexOpr : public IOperator {
                                        const ParamsMap& params,
                                        ContextChunk&& chunk, OprTimer* timer);
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 
  private:
   // No alias is produced in this operator.
@@ -116,9 +116,9 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
   return chunk;
 }
 
-neug::result<Stream<DataChunk>> UpdateVertexOpr::Eval(
+neug::result<Stream<ContextChunk>> UpdateVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   // Finish reading before mutation; downstream cancellation must not skip
   // writes.
   return reduce_stream(

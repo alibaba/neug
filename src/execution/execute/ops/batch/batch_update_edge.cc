@@ -44,18 +44,18 @@ class UpdateEdgeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 
  private:
   edge_data_vec_t edge_data_;
 };
 
-neug::result<Stream<DataChunk>> UpdateEdgeOpr::Eval(
+neug::result<Stream<ContextChunk>> UpdateEdgeOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   // Edge property writes can invalidate pointers in later batches. Retain
   // and refresh every affected column before exposing the result downstream.
   auto tags = input.tag_ids;

@@ -39,9 +39,9 @@ class GetVFromEdgesOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return map_chunks(std::move(input),
                       [this, &graph, params,
                        timer](ContextChunk&& chunk) -> result<ContextChunk> {

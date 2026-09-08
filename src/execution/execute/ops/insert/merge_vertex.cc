@@ -198,10 +198,10 @@ class MergeVertexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "MergeVertexOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph_interface,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override {
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph_interface,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override {
     // Finish reading before mutation; downstream cancellation must not skip
     // writes.
     return reduce_stream(

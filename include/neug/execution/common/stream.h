@@ -24,17 +24,13 @@
 namespace neug::execution {
 
 // A single-consumer, synchronous pull stream. Construction does not read rows.
-// A batch carries its anonymous head separately, keeping DataChunk a pure data
-// container. Output tags describe the stream, including an empty stream.
+// The stream yields T directly. Execution uses ContextChunk, which already
+// owns the DataChunk and anonymous head. Tags also describe empty streams.
 // EOF and errors are terminal; an empty batch is NOT EOF.
 template <typename T>
 class Stream {
  public:
-  struct Batch {
-    T chunk;
-    std::shared_ptr<IContextColumn> head;
-  };
-  using NextResult = result<std::optional<Batch>>;
+  using NextResult = result<std::optional<T>>;
   using Pull = std::function<NextResult()>;
 
   Stream() = default;
@@ -50,7 +46,7 @@ class Stream {
       return tl::unexpected(*error_);
     }
     if (!pull_) {
-      return std::optional<Batch>{};
+      return std::optional<T>{};
     }
     auto output = PullOne();
     if (!output) {
@@ -66,7 +62,7 @@ class Stream {
 
  private:
   NextResult PullOne() {
-    NextResult output = std::optional<Batch>{};
+    NextResult output = std::optional<T>{};
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         NextResult, [&]() { return pull_(); },
         [&](const Status& status) { output = tl::unexpected(status); },
@@ -78,59 +74,51 @@ class Stream {
   std::optional<Status> error_;
 };
 
-// ContextChunk is only a DataChunk + anonymous head envelope. Moving this
-// envelope does not collect batches or copy columns.
-inline Stream<DataChunk>::Batch release_batch(ContextChunk chunk) {
-  return {std::move(chunk.chunk()), std::move(chunk.head())};
-}
-
 // Exactly one upstream pull and one kernel invocation per downstream pull.
 template <typename Transform>
-Stream<DataChunk> map_chunks(Stream<DataChunk> input, Transform transform) {
+Stream<ContextChunk> map_chunks(Stream<ContextChunk> input,
+                                Transform transform) {
   auto tags = input.tag_ids;
-  auto upstream = std::make_shared<Stream<DataChunk>>(std::move(input));
-  return Stream<DataChunk>(
+  auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
+  return Stream<ContextChunk>(
       [upstream, transform = std::move(
-                     transform)]() mutable -> Stream<DataChunk>::NextResult {
+                     transform)]() mutable -> Stream<ContextChunk>::NextResult {
         GS_AUTO(next, upstream->Next());
         if (!next) {
-          return std::optional<Stream<DataChunk>::Batch>{};
+          return std::optional<ContextChunk>{};
         }
-        GS_AUTO(output, transform(ContextChunk(std::move(next->chunk),
-                                               std::move(next->head))));
-        return std::optional<Stream<DataChunk>::Batch>(
-            release_batch(std::move(output)));
+        GS_AUTO(output, transform(std::move(*next)));
+        return std::optional<ContextChunk>(std::move(output));
       },
       std::move(tags));
 }
 
 // Invoke a producer on first demand, without an intermediate Context.
 template <typename Producer>
-Stream<DataChunk> generate_chunk(Producer producer,
-                                 std::vector<int> tags = {}) {
-  return Stream<DataChunk>(
+Stream<ContextChunk> generate_chunk(Producer producer,
+                                    std::vector<int> tags = {}) {
+  return Stream<ContextChunk>(
       [producer = std::move(producer),
-       done = false]() mutable -> Stream<DataChunk>::NextResult {
+       done = false]() mutable -> Stream<ContextChunk>::NextResult {
         if (done) {
-          return std::optional<Stream<DataChunk>::Batch>{};
+          return std::optional<ContextChunk>{};
         }
         done = true;
         GS_AUTO(chunk, producer());
-        return std::optional<Stream<DataChunk>::Batch>(
-            release_batch(std::move(chunk)));
+        return std::optional<ContextChunk>(std::move(chunk));
       },
       std::move(tags));
 }
 
 // Explicit global-input boundary. Row-local operators never collect input.
-inline result<ContextChunk> collect_chunk(Stream<DataChunk> input) {
+inline result<ContextChunk> collect_chunk(Stream<ContextChunk> input) {
   std::optional<ContextChunk> accumulated;
   while (true) {
     GS_AUTO(next, input.Next());
     if (!next) {
       return accumulated ? std::move(*accumulated) : ContextChunk{};
     }
-    ContextChunk chunk(std::move(next->chunk), std::move(next->head));
+    ContextChunk chunk = std::move(*next);
     if (accumulated) {
       *accumulated = accumulated->union_with(chunk);
     } else {
@@ -140,9 +128,9 @@ inline result<ContextChunk> collect_chunk(Stream<DataChunk> input) {
 }
 
 template <typename Reduce>
-Stream<DataChunk> reduce_stream(Stream<DataChunk> input, Reduce reduce) {
+Stream<ContextChunk> reduce_stream(Stream<ContextChunk> input, Reduce reduce) {
   auto tags = input.tag_ids;
-  auto upstream = std::make_shared<Stream<DataChunk>>(std::move(input));
+  auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
   return generate_chunk(
       [upstream, reduce = std::move(reduce)]() mutable -> result<ContextChunk> {
         GS_AUTO(chunk, collect_chunk(std::move(*upstream)));
@@ -154,46 +142,34 @@ Stream<DataChunk> reduce_stream(Stream<DataChunk> input, Reduce reduce) {
 // Buffer only when an operator must replay its input or stabilize it before
 // mutations. Batches retain their boundaries and share column ownership.
 inline result<std::vector<ContextChunk>> collect_batches(
-    Stream<DataChunk> input) {
+    Stream<ContextChunk> input) {
   std::vector<ContextChunk> chunks;
   while (true) {
     GS_AUTO(next, input.Next());
     if (!next)
       return chunks;
-    chunks.emplace_back(std::move(next->chunk), std::move(next->head));
+    chunks.push_back(std::move(*next));
   }
 }
 
-inline Stream<DataChunk> stream_from_batches(std::vector<ContextChunk> chunks,
-                                             std::vector<int> tags = {}) {
+inline Stream<ContextChunk> stream_from_batches(
+    std::vector<ContextChunk> chunks, std::vector<int> tags = {}) {
   auto batches = std::make_shared<std::vector<ContextChunk>>(std::move(chunks));
-  return Stream<DataChunk>(
-      [batches, index = size_t{0}]() mutable -> Stream<DataChunk>::NextResult {
+  return Stream<ContextChunk>(
+      [batches,
+       index = size_t{0}]() mutable -> Stream<ContextChunk>::NextResult {
         if (index == batches->size())
-          return std::optional<Stream<DataChunk>::Batch>{};
-        return std::optional<Stream<DataChunk>::Batch>(
-            release_batch(std::move((*batches)[index++])));
+          return std::optional<ContextChunk>{};
+        return std::optional<ContextChunk>(std::move((*batches)[index++]));
       },
       std::move(tags));
 }
 
-inline Stream<DataChunk> stream_from_context(Context ctx) {
-  auto tags = std::move(ctx.tag_ids);
-  auto chunks =
-      std::make_shared<std::vector<ContextChunk>>(std::move(ctx.chunks()));
-  return Stream<DataChunk>(
-      [chunks, index = size_t{0}]() mutable -> Stream<DataChunk>::NextResult {
-        if (index == chunks->size()) {
-          return std::optional<Stream<DataChunk>::Batch>{};
-        }
-        auto& cc = (*chunks)[index++];
-        return std::optional<Stream<DataChunk>::Batch>(
-            {std::move(cc.chunk()), std::move(cc.head())});
-      },
-      std::move(tags));
+inline Stream<ContextChunk> stream_from_context(Context ctx) {
+  return stream_from_batches(std::move(ctx.chunks()), std::move(ctx.tag_ids));
 }
 
-inline result<Context> materialize(Stream<DataChunk> stream) {
+inline result<Context> materialize(Stream<ContextChunk> stream) {
   Context ctx;
   ctx.tag_ids = std::move(stream.tag_ids);
   while (true) {
@@ -205,7 +181,7 @@ inline result<Context> materialize(Stream<DataChunk> stream) {
       return ctx;
     }
     auto& batch = **next;
-    ctx.append_chunk(std::move(batch.chunk), std::move(batch.head));
+    ctx.append_chunk(std::move(batch));
   }
 }
 

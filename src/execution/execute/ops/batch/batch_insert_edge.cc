@@ -106,10 +106,10 @@ class BatchInsertEdgeOpr : public IOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 
  private:
   physical::EdgeType edge_type_;
@@ -117,9 +117,9 @@ class BatchInsertEdgeOpr : public IOperator {
       src_vertex_bindings_, dst_vertex_bindings_;
 };
 
-neug::result<Stream<DataChunk>> BatchInsertEdgeOpr::Eval(
+neug::result<Stream<ContextChunk>> BatchInsertEdgeOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   (void) params;
   (void) timer;
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);

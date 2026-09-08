@@ -26,15 +26,15 @@ class CheckpointOpr : public IOperator {
   CheckpointOpr() = default;
   ~CheckpointOpr() override = default;
   std::string get_operator_name() const override { return "CheckpointOpr"; }
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 };
 
-neug::result<Stream<DataChunk>> CheckpointOpr::Eval(
+neug::result<Stream<ContextChunk>> CheckpointOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   (void) graph_interface;
   (void) params;
   (void) input;

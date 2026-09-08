@@ -49,7 +49,7 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
 class StreamChunkSupplier final : public IDataChunkSupplier {
  public:
-  StreamChunkSupplier(Stream<DataChunk> stream,
+  StreamChunkSupplier(Stream<ContextChunk> stream,
                       std::vector<std::pair<int32_t, std::string>> mappings);
   std::shared_ptr<DataChunk> GetNextChunk() override;
   int64_t RowNum() const override { return -1; }
@@ -57,14 +57,14 @@ class StreamChunkSupplier final : public IDataChunkSupplier {
   size_t rows_read() const { return rows_read_; }
 
  private:
-  Stream<DataChunk> stream_;
+  Stream<ContextChunk> stream_;
   std::vector<std::pair<int32_t, std::string>> mappings_;
   Status status_ = Status::OK();
   size_t rows_read_ = 0;
 };
 
 // Preserve COPY result cardinality without retaining its input payload.
-Stream<DataChunk> batch_insert_result(size_t rows);
+Stream<ContextChunk> batch_insert_result(size_t rows);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 

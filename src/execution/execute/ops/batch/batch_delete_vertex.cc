@@ -31,19 +31,19 @@ class BatchDeleteVertexOpr : public IOperator {
     return "BatchDeleteVertexOpr";
   }
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& input,
-                                       OprTimer* timer) override;
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& input,
+                                          OprTimer* timer) override;
 
  private:
   std::vector<std::vector<label_t>> vertex_labels_;
   std::vector<int32_t> vertex_bindings_;
 };
 
-neug::result<Stream<DataChunk>> BatchDeleteVertexOpr::Eval(
+neug::result<Stream<ContextChunk>> BatchDeleteVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<DataChunk>&& input, OprTimer* timer) {
+    Stream<ContextChunk>&& input, OprTimer* timer) {
   // Finish reading before mutation; downstream cancellation must not skip
   // writes.
   return reduce_stream(

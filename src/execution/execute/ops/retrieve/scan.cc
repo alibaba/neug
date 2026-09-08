@@ -67,9 +67,9 @@ class FilterOidsGPredOpr : public IOperator {
                      std::unique_ptr<neug::execution::ExprBase>&& pred)
       : params_(params), oids_(oids), pred_(std::move(pred)) {}
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return generate_chunk([this, &graph, params,
                            timer]() -> result<ContextChunk> {
       ContextChunk chunk;
@@ -132,9 +132,9 @@ class ScanWithSPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return generate_chunk(
         [this, &graph, params, timer]() -> result<ContextChunk> {
           ContextChunk chunk;
@@ -156,9 +156,9 @@ class ScanWithGPredOpr : public IOperator {
   ScanWithGPredOpr(const ScanParams& scan_params,
                    std::unique_ptr<neug::execution::ExprBase> pred)
       : scan_params_(scan_params), pred_(std::move(pred)) {}
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return generate_chunk(
         [this, &graph, params, timer]() -> result<ContextChunk> {
           ContextChunk chunk;
@@ -255,9 +255,9 @@ class DummySourceOpr : public IOperator {
  public:
   DummySourceOpr() {}
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     return generate_chunk(
         [this, &graph_interface, params, timer]() -> result<ContextChunk> {
           ContextChunk chunk;

@@ -36,9 +36,9 @@ class ProcedureCallOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  neug::result<Stream<DataChunk>> Eval(
+  neug::result<Stream<ContextChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
+      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     // Legacy extension ABI: Context conversion is confined to this boundary.
 
     while (true) {

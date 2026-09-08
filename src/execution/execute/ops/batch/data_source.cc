@@ -54,10 +54,10 @@ class DataSourceOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataSourceOpr"; }
 
-  result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                 const ParamsMap& params,
-                                 Stream<DataChunk>&& input,
-                                 OprTimer* timer) override {
+  result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                    const ParamsMap& params,
+                                    Stream<ContextChunk>&& input,
+                                    OprTimer* timer) override {
     NEUG_ASSERT(readFunction != nullptr);
     // Reader initialization may expand globs and normalize options. Never
     // mutate the state captured by the cached operator.
@@ -66,11 +66,12 @@ class DataSourceOpr : public IOperator {
     struct Cursor {
       bool initialized = false;
       std::shared_ptr<IDataChunkSupplier> supplier;
-      Stream<DataChunk> fallback;
+      Stream<ContextChunk> fallback;
     };
     auto cursor = std::make_shared<Cursor>();
-    auto raw = Stream<DataChunk>(
-        [state, function, cursor]() mutable -> Stream<DataChunk>::NextResult {
+    auto raw = Stream<ContextChunk>(
+        [state, function,
+         cursor]() mutable -> Stream<ContextChunk>::NextResult {
           if (!cursor->initialized) {
             cursor->initialized = true;
             if (function->supplierFunc) {
@@ -88,10 +89,9 @@ class DataSourceOpr : public IOperator {
           }
           auto chunk = cursor->supplier->GetNextChunk();
           if (!chunk) {
-            return std::optional<Stream<DataChunk>::Batch>{};
+            return std::optional<ContextChunk>{};
           }
-          return std::optional<Stream<DataChunk>::Batch>(
-              {std::move(*chunk), nullptr});
+          return std::optional<ContextChunk>(std::in_place, std::move(*chunk));
         });
     if (aliases_.empty())
       return std::move(raw);

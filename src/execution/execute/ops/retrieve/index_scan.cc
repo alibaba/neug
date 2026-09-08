@@ -28,10 +28,10 @@ class IndexScanOpr final : public IOperator {
                function::NeugCallFunction* function)
       : input{std::move(input)}, function{function} {}
 
-  neug::result<Stream<DataChunk>> Eval(IStorageInterface& graph,
-                                       const ParamsMap& params,
-                                       Stream<DataChunk>&& upstream,
-                                       OprTimer*) override {
+  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
+                                          const ParamsMap& params,
+                                          Stream<ContextChunk>&& upstream,
+                                          OprTimer*) override {
     // Legacy extension ABI: Context conversion is confined to this boundary.
 
     GS_AUTO(ctx, materialize(std::move(upstream)));

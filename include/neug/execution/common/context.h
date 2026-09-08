@@ -32,7 +32,7 @@ namespace execution {
 
 /**
  * @brief Context is a materialized multi-chunk container for internal
- * algorithms and public query results. Operators exchange Stream<DataChunk>
+ * algorithms and public query results. Operators exchange Stream<ContextChunk>
  * instead.
  *
  * A Context holds one or more ContextChunks (DataChunk + head pairs) that

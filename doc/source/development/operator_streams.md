@@ -1,15 +1,16 @@
 # Operator batch streams
 
-Every concrete `IOperator::Eval` accepts and returns `Stream<DataChunk>`
+Every concrete `IOperator::Eval` accepts and returns `Stream<ContextChunk>`
 (`result` reports setup errors). A stream is a move-only synchronous pull
 interface. `Next()` produces one batch, EOF, or a terminal error. An empty
 batch retains its schema and is not EOF. Destroying the stream releases its
 cursor without reading the rest of its input.
 
-A batch carries a DataChunk and its anonymous execution `head`. Existing
-single-batch kernels access that pair through `ContextChunk`: this is an
-ownership envelope, not a multi-batch collection or a column copy. Stream
-`tag_ids` preserve output aliases, including empty and head-only results.
+`Next()` returns `result<std::optional<ContextChunk>>` directly. ContextChunk
+owns its DataChunk and anonymous execution head; Stream has no additional Batch
+wrapper. Readers and storage suppliers keep their DataChunk interface and adapt
+once at the Source/BatchInsert boundary. Between operators, the same ContextChunk
+is moved directly through the kernels. Stream tag_ids retain output aliases.
 
 ## Execution and state
 
