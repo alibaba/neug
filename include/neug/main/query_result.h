@@ -107,21 +107,151 @@ class NEUG_API QueryResult {
   bool IsNull(size_t column_index) const;
   bool IsNull(const std::string& column_name) const;
 
+  /**
+   * @brief Return the current cell as a signed 32-bit integer.
+   *
+   * Accepts int32 and bool columns. Boolean values are converted to 1 or 0.
+   *
+   * @param column_index Zero-based column index.
+   */
   int32_t GetInt32(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a signed 32-bit integer.
+   *
+   * Accepts int32 and bool columns. Boolean values are converted to 1 or 0.
+   *
+   * @param column_name Column name from the result schema.
+   */
   int32_t GetInt32(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as an unsigned 32-bit integer.
+   *
+   * Accepts uint32 and bool columns. Boolean values are converted to 1 or 0.
+   *
+   * @param column_index Zero-based column index.
+   */
   uint32_t GetUInt32(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as an unsigned 32-bit integer.
+   *
+   * Accepts uint32 and bool columns. Boolean values are converted to 1 or 0.
+   *
+   * @param column_name Column name from the result schema.
+   */
   uint32_t GetUInt32(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a signed 64-bit integer.
+   *
+   * Accepts int64, int32, uint32, bool, date, and timestamp columns. Date and
+   * timestamp values are returned as their raw stored epoch values.
+   *
+   * @param column_index Zero-based column index.
+   */
   int64_t GetInt64(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a signed 64-bit integer.
+   *
+   * Accepts int64, int32, uint32, bool, date, and timestamp columns. Date and
+   * timestamp values are returned as their raw stored epoch values.
+   *
+   * @param column_name Column name from the result schema.
+   */
   int64_t GetInt64(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as an unsigned 64-bit integer.
+   *
+   * Accepts uint64, uint32, and bool columns. Boolean values are converted to
+   * 1 or 0.
+   *
+   * @param column_index Zero-based column index.
+   */
   uint64_t GetUInt64(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as an unsigned 64-bit integer.
+   *
+   * Accepts uint64, uint32, and bool columns. Boolean values are converted to
+   * 1 or 0.
+   *
+   * @param column_name Column name from the result schema.
+   */
   uint64_t GetUInt64(const std::string& column_name) const;
+  /**
+   * @brief Return the current cell as a single-precision floating-point value.
+   *
+   * Accepts float, int32, uint32, and bool columns. Boolean values are
+   * converted to 1.0 or 0.0.
+   *
+   * @param column_index Zero-based column index.
+   */
   float GetFloat(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a single-precision floating-point
+   * value.
+   *
+   * Accepts float, int32, uint32, and bool columns. Boolean values are
+   * converted to 1.0 or 0.0.
+   *
+   * @param column_name Column name from the result schema.
+   */
   float GetFloat(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a double-precision floating-point value.
+   *
+   * Accepts double, float, int32, uint32, int64, uint64, and bool columns.
+   * Boolean values are converted to 1.0 or 0.0.
+   *
+   * @param column_index Zero-based column index.
+   */
   double GetDouble(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a double-precision floating-point
+   * value.
+   *
+   * Accepts double, float, int32, uint32, int64, uint64, and bool columns.
+   * Boolean values are converted to 1.0 or 0.0.
+   *
+   * @param column_name Column name from the result schema.
+   */
   double GetDouble(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a string.
+   *
+   * Accepts every column type. String values are returned directly; all other
+   * values use their human-readable representation.
+   *
+   * @param column_index Zero-based column index.
+   */
   std::string GetString(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a string.
+   *
+   * Accepts every column type. String values are returned directly; all other
+   * values use their human-readable representation.
+   *
+   * @param column_name Column name from the result schema.
+   */
   std::string GetString(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a boolean value.
+   *
+   * Accepts bool columns only.
+   *
+   * @param column_index Zero-based column index.
+   */
   bool GetBool(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a boolean value.
+   *
+   * Accepts bool columns only.
+   *
+   * @param column_name Column name from the result schema.
+   */
   bool GetBool(const std::string& column_name) const;
 
   /**

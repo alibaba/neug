@@ -33,27 +33,61 @@ Return the current cursor position (0-based row index).
 
 ### Typed Value Accessors
 
-All getters read from the **current cursor row**. Each method has two overloads: by column index or by column name.
+All getters read from the **current cursor row**. Each method has two overloads:
+by column index or by column name. Use `IsNull(...)` before reading a nullable
+cell. A getter throws when the cursor or column selector is invalid, or when the
+column type cannot be converted to the requested return type.
 
 #### `IsNull(size_t column_index)` / `IsNull(const std::string& column_name)`
 
 Check whether the cell at current row is NULL.
 
-#### `GetInt32(...)` — accepts `int32`, `bool`
+#### `GetInt32(...)`
 
-#### `GetUInt32(...)` — accepts `uint32`, `bool`
+Return the current cell as a signed 32-bit integer. This accessor accepts
+`int32` and `bool` columns; `true` is converted to `1` and `false` to `0`.
 
-#### `GetInt64(...)` — accepts `int64`, `int32`, `uint32`, `bool`, `date`, `timestamp` (date/timestamp return the raw int64 epoch value)
+#### `GetUInt32(...)`
 
-#### `GetUInt64(...)` — accepts `uint64`, `uint32`, `bool`
+Return the current cell as an unsigned 32-bit integer. This accessor accepts
+`uint32` and `bool` columns; `true` is converted to `1` and `false` to `0`.
 
-#### `GetFloat(...)` — accepts `float`, `int32`, `uint32`, `bool`
+#### `GetInt64(...)`
 
-#### `GetDouble(...)` — accepts `double`, `float`, `int32`, `uint32`, `int64`, `uint64`, `bool`
+Return the current cell as a signed 64-bit integer. This accessor accepts
+`int64`, `int32`, `uint32`, `bool`, `date`, and `timestamp` columns. Smaller
+integers are widened, booleans become `1` or `0`, and `date` / `timestamp`
+values are returned as the raw epoch value stored by NeuG.
 
-#### `GetString(...)` — accepts **any type** (falls back to string representation)
+#### `GetUInt64(...)`
 
-#### `GetBool(...)` — accepts `bool` only
+Return the current cell as an unsigned 64-bit integer. This accessor accepts
+`uint64`, `uint32`, and `bool` columns. A `uint32` value is widened, while
+`true` and `false` are converted to `1` and `0` respectively.
+
+#### `GetFloat(...)`
+
+Return the current cell as a single-precision floating-point value. This
+accessor accepts `float`, `int32`, `uint32`, and `bool` columns. Integer values
+are converted to `float`; booleans become `1.0f` or `0.0f`.
+
+#### `GetDouble(...)`
+
+Return the current cell as a double-precision floating-point value. This
+accessor accepts `double`, `float`, `int32`, `uint32`, `int64`, `uint64`, and
+`bool` columns. Numeric values are converted to `double`, and booleans become
+`1.0` or `0.0`. Large 64-bit integers may lose precision during conversion.
+
+#### `GetString(...)`
+
+Return the current cell as a string. This accessor accepts every column type:
+string values are returned directly, while other values use NeuG's
+human-readable string representation.
+
+#### `GetBool(...)`
+
+Return the current cell as a Boolean value. This accessor accepts only `bool`
+columns; requesting a Boolean from any other column type throws an exception.
 
 > Temporal columns (`date`, `timestamp`, `interval`) are not exposed as
 > dedicated typed objects. Use `GetString(...)` for their canonical string form
@@ -129,4 +163,3 @@ while (result.hasNext()) {
     result.next();
 }
 ```
-
