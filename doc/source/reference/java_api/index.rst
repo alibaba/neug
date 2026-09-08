@@ -1,3 +1,5 @@
+.. _java_api_reference:
+
 Java API Reference
 ==================
 
@@ -5,9 +7,6 @@ Java API Reference
    :maxdepth: 2
    :caption: Java API
 
-   driver
-   config
-   session
-   transaction
-   result_set
-   result_set_metadata
+   Driver <driver>
+   Session <session>
+   Query Result <result_set>

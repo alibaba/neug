@@ -98,20 +98,15 @@ below.
 
 In embedded mode, an explicit transaction is owned by its `Connection`.
 
-<Tabs items={['C++', 'Node.js', 'Python']}>
+<Tabs items={['Python', 'Node.js', 'C++']}>
 
 <Tab>
 
-```cpp
-auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
-if (!status.ok()) {
-  // Handle the begin error.
-}
-
-auto created = conn->Query("CREATE (:Person {name: 'Alice'})", "insert");
-auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
-
-status = conn->Commit();  // Publishes all successful writes as one commit.
+```python
+conn.begin_transaction()
+created = conn.execute("CREATE (:Person {name: 'Alice'})", "insert")
+visible = conn.execute("MATCH (p:Person) RETURN p.name")
+conn.commit()
 ```
 
 </Tab>
@@ -131,11 +126,16 @@ conn.commit(); // Publishes all successful writes as one commit.
 
 <Tab>
 
-```python
-conn.begin_transaction()
-created = conn.execute("CREATE (:Person {name: 'Alice'})", "insert")
-visible = conn.execute("MATCH (p:Person) RETURN p.name")
-conn.commit()
+```cpp
+auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
+if (!status.ok()) {
+  // Handle the begin error.
+}
+
+auto created = conn->Query("CREATE (:Person {name: 'Alice'})", "insert");
+auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
+
+status = conn->Commit();  // Publishes all successful writes as one commit.
 ```
 
 </Tab>
@@ -205,7 +205,7 @@ try (Driver driver = GraphDatabase.driver("http://localhost:10000");
 
 For service-mode transaction controls, see the
 [Python Session reference](../reference/python_api/session.md) and
-[Java transaction API](../reference/java_api/transaction.md).
+[Java session and transaction API](../reference/java_api/session.md).
 
 **Using the session.** Python routes queries issued on an active `Session` into
 its transaction. In Java, execute every transactional statement through

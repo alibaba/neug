@@ -13,7 +13,9 @@ The Java driver is designed for application integration and service-side usage:
 
 ## Deployment Model
 
-The current Java SDK supports **remote access over HTTP only**, i.e., [**service mode**](../../getting_started/getting_started.md#service-mode).
+The current Java SDK supports **remote access over HTTP only**, i.e., the
+[**service mode**](../../getting_started/getting_started.md) described in
+Getting Started.
 
 - **Supported**: connect to a running NeuG server with `GraphDatabase.driver("http://host:port")`
 - **Not supported**: embedded/in-process database access from Java
@@ -34,12 +36,9 @@ If you need embedded access, use the C++ or Python APIs. The Java SDK should be 
 
 ## Core Interfaces
 
-- **[Driver](driver)** - manages connectivity and creates sessions
-- **[Config](config)** - customizes connection and timeout behavior
-- **[Session](session)** - executes statements against a NeuG server
-- **[Transaction](transaction)** - groups multiple statements into one explicit transaction
-- **[ResultSet](result_set)** - reads rows and typed values from query results
-- **[ResultSetMetaData](result_set_metadata)** - inspects result column names, nullability, and native NeuG types
+- **[Driver](driver.md)** - configures connectivity and creates sessions
+- **[Session](session.md)** - executes statements and manages explicit transactions
+- **[ResultSet](result_set.md)** - reads rows, typed values, and result metadata
 
 ## Quick Start
 
@@ -183,7 +182,7 @@ These dependencies are managed automatically by Maven.
 
 ## API Documentation
 
-The generated Javadoc can be built locally. See [Build Javadoc Locally](#build-javadoc-locally) below.
+The generated Javadoc can be built locally by following the instructions below.
 
 ## Build Javadoc Locally
 
