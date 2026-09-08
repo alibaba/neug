@@ -63,25 +63,21 @@ bool ParseWalVersion(const std::filesystem::path& path, int slot_id,
          result.ptr == version_text.data() + version_text.size();
 }
 
-int64_t WriteSome(int fd, const char* data, size_t length, size_t offset) {
-#ifdef _WIN32
-  if (_lseeki64(fd, static_cast<__int64>(offset), SEEK_SET) == -1) {
-    THROW_IO_EXCEPTION("Failed to seek wal file: " +
-                       std::string(strerror(errno)));
-  }
-  const auto chunk = static_cast<unsigned int>(
-      std::min<size_t>(length, std::numeric_limits<unsigned int>::max()));
-  return _write(fd, data, chunk);
-#else
-  return ::pwrite(fd, data, length, static_cast<off_t>(offset));
-#endif
-}
-
 void WriteAllAt(int fd, const char* data, size_t length, size_t offset) {
   size_t written = 0;
   while (written < length) {
-    const auto ret =
-        WriteSome(fd, data + written, length - written, offset + written);
+#ifdef _WIN32
+    if (_lseeki64(fd, static_cast<__int64>(offset + written), SEEK_SET) == -1) {
+      THROW_IO_EXCEPTION("Failed to seek wal file: " +
+                         std::string(strerror(errno)));
+    }
+    const auto chunk = static_cast<unsigned int>(std::min<size_t>(
+        length - written, std::numeric_limits<unsigned int>::max()));
+    const auto ret = _write(fd, data + written, chunk);
+#else
+    const auto ret = ::pwrite(fd, data + written, length - written,
+                              static_cast<off_t>(offset + written));
+#endif
     if (ret < 0) {
       if (errno == EINTR) {
         continue;
@@ -218,6 +214,8 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   }
 
   const std::array<char, sizeof(WalHeader)> terminator{};
+  // Preserve the legacy framing without the old zero-filled preallocation:
+  // each append overwrites the previous terminator, then writes a new one.
   WriteAllAt(fd_, data, length, file_used_);
   WriteAllAt(fd_, terminator.data(), terminator.size(), file_used_ + length);
   SyncFile(fd_);
