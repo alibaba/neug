@@ -70,7 +70,7 @@ jobs:
 
       - name: Setup CCache
         run: |
-          sudo apt-get update && sudo apt-get install -y ccache
+          sudo apt-get update && sudo apt-get install -y ccache libzstd-dev liblz4-dev zlib1g-dev
           mkdir -p ~/.cache/ccache
           {
             echo "CCACHE_DIR=$HOME/.cache/ccache"
