@@ -17,7 +17,9 @@
 
 #include <cerrno>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 
 #include "neug/utils/exception/exception.h"
@@ -41,7 +43,7 @@ std::string normalizeLocalPath(const std::string& path) {
 class FileOutputStream : public OutputStream {
  public:
   explicit FileOutputStream(const std::string& path)
-      : stream_(path, std::ios::binary | std::ios::trunc) {
+      : path_(path), stream_(path_, std::ios::binary | std::ios::trunc) {
     if (!stream_) {
       if (errno == EACCES || errno == EPERM) {
         THROW_PERMISSION_DENIED("Failed to open output file: " + path);
@@ -50,32 +52,91 @@ class FileOutputStream : public OutputStream {
     }
   }
 
+  ~FileOutputStream() override {
+    if (state_ == State::OPEN) {
+      Abort();
+    }
+  }
+
   neug::Status Write(const uint8_t* data, int64_t nbytes) override {
+    if (state_ != State::OPEN) {
+      return neug::Status(StatusCode::ERR_IO_ERROR,
+                          "Cannot write to a finalized output file: " + path_);
+    }
     if (nbytes <= 0) {
       return neug::Status::OK();
     }
+    if (!data) {
+      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Cannot write a null buffer to: " + path_);
+    }
+    if (static_cast<uint64_t>(nbytes) >
+        static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
+      return neug::Status(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Write size exceeds stream limit for: " + path_);
+    }
+    errno = 0;
     stream_.write(reinterpret_cast<const char*>(data),
                   static_cast<std::streamsize>(nbytes));
     if (!stream_) {
-      return neug::Status(
-          StatusCode::ERR_IO_ERROR,
-          std::string("Failed to write file: ") + std::strerror(errno));
+      failed_ = true;
+      return ioError("write");
     }
     return neug::Status::OK();
   }
 
   neug::Status Close() override {
+    if (state_ != State::OPEN) {
+      return neug::Status::OK();
+    }
+    if (failed_) {
+      Abort();
+      return neug::Status(StatusCode::ERR_IO_ERROR,
+                          "Output discarded after a write failure: " + path_);
+    }
+    errno = 0;
+    stream_.flush();
     stream_.close();
     if (stream_.fail()) {
-      return neug::Status(
-          StatusCode::ERR_IO_ERROR,
-          std::string("Failed to close file: ") + std::strerror(errno));
+      auto status = ioError("close");
+      Abort();
+      return status;
     }
+    state_ = State::CLOSED;
     return neug::Status::OK();
   }
 
+  void Abort() override {
+    if (state_ != State::OPEN) {
+      return;
+    }
+    if (stream_.is_open()) {
+      stream_.close();
+    }
+    std::error_code ignored;
+    std::filesystem::remove(path_, ignored);
+    state_ = State::ABORTED;
+  }
+
  private:
+  enum class State { OPEN, CLOSED, ABORTED };
+
+  neug::Status ioError(const char* operation) const {
+    std::string message = "Failed to ";
+    message += operation;
+    message += " output file ";
+    message += path_;
+    if (errno != 0) {
+      message += ": ";
+      message += std::strerror(errno);
+    }
+    return neug::Status(StatusCode::ERR_IO_ERROR, std::move(message));
+  }
+
+  std::string path_;
   std::ofstream stream_;
+  State state_ = State::OPEN;
+  bool failed_ = false;
 };
 
 }  // namespace

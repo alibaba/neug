@@ -29,9 +29,9 @@ class OutputStream {
   virtual neug::Status Write(const uint8_t* data, int64_t nbytes) = 0;
   virtual neug::Status Close() = 0;
 
-  /// Discard the output instead of finalizing it (e.g. abort a remote
-  /// multipart upload after a write failure). Never publishes a partial
-  /// object. No-op for local files by default.
+  /// Discard the output instead of finalizing it (e.g. remove a local partial
+  /// file or abort a remote multipart upload). Implementations must make this
+  /// operation idempotent and must preserve an output that was already closed.
   virtual void Abort() {}
 };
 
