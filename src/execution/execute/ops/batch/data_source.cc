@@ -177,8 +177,9 @@ neug::result<OpBuildResultT> DataSourceOprBuilder::Build(
     output_meta.set(column.alias(), parse_from_ir_data_type(column.type()));
   }
   // Metadata and reader batches use the same projected-column order.
-  for (const auto& column : metadata)
+  for (const auto& column : metadata) {
     aliases.push_back(column.alias());
+  }
   return std::make_pair(
       std::make_unique<DataSourceOpr>(state, readFunc, std::move(aliases)),
       output_meta);
