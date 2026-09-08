@@ -39,35 +39,30 @@ class RenameVertexPropertyOpr : public IOperator {
                                        const ParamsMap& params,
                                        Stream<DataChunk>&& input,
                                        OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      StorageUpdateInterface& storage =
-          dynamic_cast<StorageUpdateInterface&>(graph);
-      label_t label;
-      auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
-      if (!resolve.ok()) {
-        if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
-          return neug::result<Context>(std::move(ctx));
-        }
-        LOG(ERROR) << "Fail to rename vertex property in type: " << vertex_type_
-                   << ", reason: " << resolve.ToString();
-        RETURN_ERROR(resolve);
+    StorageUpdateInterface& storage =
+        dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t label;
+    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return std::move(input);
       }
-      RenameVertexPropertiesParamBuilder builder;
-      auto config = builder.RenameProperties(rename_properties_).Build();
-      auto res = storage.RenameVertexProperties(label, config);
-      if (!res.ok()) {
-        if (ignore_conflict_ && IsSchemaConflictError(res)) {
-          return neug::result<Context>(std::move(ctx));
-        }
-        LOG(ERROR) << "Fail to rename vertex property in type: " << vertex_type_
-                   << ", reason: " << res.ToString();
-        RETURN_ERROR(res);
+      LOG(ERROR) << "Fail to rename vertex property in type: " << vertex_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
+    RenameVertexPropertiesParamBuilder builder;
+    auto config = builder.RenameProperties(rename_properties_).Build();
+    auto res = storage.RenameVertexProperties(label, config);
+    if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return std::move(input);
       }
-      return neug::result<Context>(std::move(ctx));
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+      LOG(ERROR) << "Fail to rename vertex property in type: " << vertex_type_
+                 << ", reason: " << res.ToString();
+      RETURN_ERROR(res);
+    }
+    return std::move(input);
   }
 
  private:

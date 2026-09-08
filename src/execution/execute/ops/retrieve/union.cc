@@ -39,35 +39,41 @@ class UnionOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      std::vector<neug::execution::ContextChunk> chunks;
-      for (auto& plan : sub_plans_) {
-        neug::execution::Context n_ctx = ctx;
-        std::unique_ptr<neug::execution::OprTimer> sub_timer =
-            (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
-                               : nullptr;
-        auto ret =
-            plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
-        if (NEUG_UNLIKELY(timer != nullptr)) {
-          timer->add_child(std::move(sub_timer));
-        }
-        if (!ret) {
-          return ret;
-        }
-        ret.value().ensure_single_chunk("UnionOpr::sub_plan");
-        chunks.emplace_back(std::move(ret.value().chunk(0)));
-      }
-      auto union_result = Union::union_op(std::move(chunks));
-      if (!union_result) {
-        return tl::make_unexpected(union_result.error());
-      }
-      Context out;
-      out.append_chunk(std::move(union_result.value()));
-      return out;
+    struct State {
+      Stream<DataChunk> input;
+      std::optional<std::vector<ContextChunk>> seed;
+      Stream<DataChunk> branch;
+      size_t index = 0;
     };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    auto tags = input.tag_ids;
+    auto state = std::make_shared<State>();
+    state->input = std::move(input);
+    return Stream<DataChunk>(
+        [this, &graph, params, timer, tags,
+         state]() mutable -> Stream<DataChunk>::NextResult {
+          if (!state->seed) {
+            GS_AUTO(seed, collect_batches(std::move(state->input)));
+            state->seed = std::move(seed);
+          }
+          while (true) {
+            GS_AUTO(next, state->branch.Next());
+            if (next) {
+              // UNION has no anonymous output head, matching the union kernel.
+              next->head.reset();
+              return next;
+            }
+            if (state->index == sub_plans_.size())
+              return std::optional<Stream<DataChunk>::Batch>{};
+            auto sub_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+            auto* child = sub_timer.get();
+            if (timer)
+              timer->add_child(std::move(sub_timer));
+            GS_AUTO(branch, sub_plans_[state->index++].ExecuteStream(
+                                graph, stream_from_batches(*state->seed, tags),
+                                params, child));
+            state->branch = std::move(branch);
+          }
+        });
   }
 
   void build_explain_children(OprTimer* parent_timer, const ParamsMap& params,

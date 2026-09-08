@@ -55,25 +55,19 @@ class UnfoldOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      if (key_.has_value()) {
-        auto key_val = key_.value();
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-              return Unfold::unfold(std::move(chunk), key_val, alias_);
-            });
-      } else {
-        auto expr = expr_->bind(&graph, params);
-        auto& record_expr = expr->Cast<RecordExprBase>();
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-              return Unfold::unfold(std::move(chunk), record_expr, alias_);
-            });
-      }
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    return map_chunks(
+        std::move(input),
+        [this, &graph, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          if (key_.has_value()) {
+            auto key_val = key_.value();
+            { return Unfold::unfold(std::move(chunk), key_val, alias_); }
+          } else {
+            auto expr = expr_->bind(&graph, params);
+            auto& record_expr = expr->Cast<RecordExprBase>();
+            { return Unfold::unfold(std::move(chunk), record_expr, alias_); }
+          }
+        });
   }
 
  private:

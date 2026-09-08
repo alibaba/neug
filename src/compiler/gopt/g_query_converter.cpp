@@ -1234,6 +1234,24 @@ void GQueryConvertor::convertDataSource(
   oprPB->set_allocated_source(sourcePB.release());
   physicalPB->set_allocated_opr(oprPB.release());
 
+  binder::expression_vector outputColumns;
+  const auto& projected = scanBindData->getProjectColumns();
+  if (projected.empty()) {
+    for (const auto& column : scanBindData->columns) {
+      if (!skipColumn(column->rawName()))
+        outputColumns.push_back(column);
+    }
+  } else {
+    for (const auto& name : projected) {
+      for (const auto& column : scanBindData->columns) {
+        if (column->rawName() == name) {
+          outputColumns.push_back(column);
+          break;
+        }
+      }
+    }
+  }
+  setMetaData(physicalPB.get(), funcCall, outputColumns);
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 

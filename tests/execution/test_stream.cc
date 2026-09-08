@@ -89,6 +89,31 @@ TEST(StreamTest, PreservesHeadsTagsSparseAliasesAndEmptyBatches) {
   EXPECT_EQ(restored->chunk(2).row_num(), 1);
 }
 
+TEST(StreamTest, BatchTransformPreservesColumnIdentityAndDoesNotReadAhead) {
+  int pulls = 0;
+  auto data = chunk(42, 3);
+  auto column = data.get(3);
+  ChunkStream source(
+      [&]() -> ChunkStream::NextResult {
+        if (++pulls > 1)
+          THROW_IO_EXCEPTION("must not read ahead");
+        return std::optional<ChunkStream::Batch>({std::move(data), column});
+      },
+      {3, -1});
+  auto mapped = map_chunks(std::move(source),
+                           [](ContextChunk&& batch) -> result<ContextChunk> {
+                             return std::move(batch);
+                           });
+  EXPECT_EQ(pulls, 0);
+  auto first = mapped.Next();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(*first);
+  EXPECT_EQ((**first).chunk.get(3), column);
+  EXPECT_EQ((**first).head, column);
+  EXPECT_EQ(mapped.tag_ids, (std::vector<int>{3, -1}));
+  EXPECT_EQ(pulls, 1);
+}
+
 TEST(StreamTest, StorageBridgePreservesMappingAndLateError) {
   int pulls = 0;
   ChunkStream stream([&]() -> ChunkStream::NextResult {
@@ -148,12 +173,12 @@ class CountingProject final : public IOperator {
   result<Stream<DataChunk>> Eval(IStorageInterface&, const ParamsMap&,
                                  Stream<DataChunk>&& input,
                                  OprTimer*) override {
-    return transform_stream(std::move(input),
-                            [this](Context&& ctx) -> result<Context> {
-                              ++counts_.consumed;
-                              EXPECT_EQ(ctx.chunk_num(), 1);
-                              return std::move(ctx);
-                            });
+    return map_chunks(std::move(input),
+                      [this](ContextChunk&& chunk) -> result<ContextChunk> {
+                        ++counts_.consumed;
+                        EXPECT_EQ(chunk.row_num(), 1);
+                        return std::move(chunk);
+                      });
   }
 
  private:

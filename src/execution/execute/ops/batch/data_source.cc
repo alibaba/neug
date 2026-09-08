@@ -24,6 +24,7 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/data_source.h"
+#include "neug/execution/utils/params.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
@@ -40,11 +41,14 @@ class DataSourceOpr : public IOperator {
  private:
   std::shared_ptr<reader::ReadSharedState> sharedState;
   function::ReadFunction* readFunction;
+  std::vector<int> aliases_;
 
  public:
   DataSourceOpr(const std::shared_ptr<reader::ReadSharedState>& sharedState,
-                function::ReadFunction* readFunction)
-      : sharedState(std::move(sharedState)), readFunction(readFunction) {}
+                function::ReadFunction* readFunction, std::vector<int> aliases)
+      : sharedState(std::move(sharedState)),
+        readFunction(readFunction),
+        aliases_(std::move(aliases)) {}
 
   ~DataSourceOpr() override = default;
 
@@ -65,7 +69,7 @@ class DataSourceOpr : public IOperator {
       Stream<DataChunk> fallback;
     };
     auto cursor = std::make_shared<Cursor>();
-    return Stream<DataChunk>(
+    auto raw = Stream<DataChunk>(
         [state, function, cursor]() mutable -> Stream<DataChunk>::NextResult {
           if (!cursor->initialized) {
             cursor->initialized = true;
@@ -88,6 +92,21 @@ class DataSourceOpr : public IOperator {
           }
           return std::optional<Stream<DataChunk>::Batch>(
               {std::move(*chunk), nullptr});
+        });
+    if (aliases_.empty())
+      return std::move(raw);
+    return map_chunks(
+        std::move(raw),
+        [aliases = aliases_](ContextChunk&& batch) -> result<ContextChunk> {
+          if (batch.col_num() != aliases.size()) {
+            RETURN_INVALID_ARGUMENT_ERROR(
+                "Reader column count does not match source aliases");
+          }
+          DataChunk output;
+          for (size_t i = 0; i < aliases.size(); ++i) {
+            output.set(aliases[i], batch.chunk().get(i));
+          }
+          return ContextChunk(std::move(output), std::move(batch.head()));
         });
   }
 };
@@ -159,8 +178,18 @@ neug::result<OpBuildResultT> DataSourceOprBuilder::Build(
   auto gCatalog = neug::main::MetadataRegistry::getCatalog();
   auto func = gCatalog->getFunctionWithSignature(signatureName);
   auto readFunc = func->ptrCast<function::ReadFunction>();
-  return std::make_pair(std::make_unique<DataSourceOpr>(state, readFunc),
-                        ctx_meta);
+  auto output_meta = ctx_meta;
+  std::vector<int> aliases;
+  const auto& metadata = plan.plan(op_idx).meta_data();
+  for (const auto& column : metadata) {
+    output_meta.set(column.alias(), parse_from_ir_data_type(column.type()));
+  }
+  // Metadata and reader batches use the same projected-column order.
+  for (const auto& column : metadata)
+    aliases.push_back(column.alias());
+  return std::make_pair(
+      std::make_unique<DataSourceOpr>(state, readFunc, std::move(aliases)),
+      output_meta);
 }
 
 }  // namespace ops

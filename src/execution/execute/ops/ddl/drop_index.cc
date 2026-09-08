@@ -34,29 +34,24 @@ class DropIndexOpr : public IOperator {
                                        const ParamsMap&,
                                        Stream<DataChunk>&& input,
                                        OprTimer*) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      auto* indexInterface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
-      if (!indexInterface) {
-        RETURN_STATUS_ERROR(
-            StatusCode::ERR_NOT_SUPPORTED,
-            "Current storage interface does not support index DDL");
-      }
+    auto* indexInterface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+    if (!indexInterface) {
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_NOT_SUPPORTED,
+          "Current storage interface does not support index DDL");
+    }
 
-      auto status = indexInterface->DropIndex(indexName_);
-      if (!status.ok()) {
-        // The storage layer reports ERR_NOT_FOUND when the target index does
-        // not exist; honor IF EXISTS in that case.
-        if (ignore_conflict_ &&
-            status.error_code() == StatusCode::ERR_NOT_FOUND) {
-          return std::move(ctx);
-        }
-        RETURN_ERROR(status);
+    auto status = indexInterface->DropIndex(indexName_);
+    if (!status.ok()) {
+      // The storage layer reports ERR_NOT_FOUND when the target index does
+      // not exist; honor IF EXISTS in that case.
+      if (ignore_conflict_ &&
+          status.error_code() == StatusCode::ERR_NOT_FOUND) {
+        return std::move(input);
       }
-      return std::move(ctx);
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+      RETURN_ERROR(status);
+    }
+    return std::move(input);
   }
 
  private:

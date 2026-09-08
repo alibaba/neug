@@ -49,44 +49,28 @@ class JoinOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      neug::execution::Context ret_dup(ctx);
-
-      std::unique_ptr<neug::execution::OprTimer> left_timer =
-          (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
-                             : nullptr;
-      auto left_ctx = left_pipeline_.Execute(graph, std::move(ctx), params,
-                                             left_timer.get());
-      if (!left_ctx) {
-        return left_ctx;
-      }
-      std::unique_ptr<neug::execution::OprTimer> right_timer =
-          (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
-                             : nullptr;
-      auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup),
-                                               params, right_timer.get());
-      if (!right_ctx) {
-        return right_ctx;
-      }
-      if (NEUG_UNLIKELY(timer != nullptr)) {
+    auto tags = input.tag_ids;
+    auto upstream = std::make_shared<Stream<DataChunk>>(std::move(input));
+    return generate_chunk([this, &graph, params, timer, upstream,
+                           tags]() -> result<ContextChunk> {
+      GS_AUTO(seed, collect_batches(std::move(*upstream)));
+      auto left_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+      auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+      GS_AUTO(left_stream, left_pipeline_.ExecuteStream(
+                               graph, stream_from_batches(seed, tags), params,
+                               left_timer.get()));
+      GS_AUTO(left, collect_chunk(std::move(left_stream)));
+      GS_AUTO(right_stream,
+              right_pipeline_.ExecuteStream(
+                  graph, stream_from_batches(std::move(seed), tags), params,
+                  right_timer.get()));
+      GS_AUTO(right, collect_chunk(std::move(right_stream)));
+      if (timer) {
         timer->add_child(std::move(left_timer));
         timer->add_child(std::move(right_timer));
       }
-      left_ctx.value().ensure_single_chunk("JoinOpr::left");
-      right_ctx.value().ensure_single_chunk("JoinOpr::right");
-      auto join_result =
-          Join::join(std::move(left_ctx.value().chunk(0)),
-                     std::move(right_ctx.value().chunk(0)), params_);
-      if (!join_result) {
-        return tl::make_unexpected(join_result.error());
-      }
-      Context out;
-      out.append_chunk(std::move(join_result.value()));
-      return out;
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+      return Join::join(std::move(left), std::move(right), params_);
+    });
   }
 
   void build_explain_children(OprTimer* parent_timer, const ParamsMap& params,
@@ -205,32 +189,17 @@ class PrimaryKeyJoinOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      neug::execution::Context ret_dup(ctx);
-      std::unique_ptr<neug::execution::OprTimer> right_timer =
-          (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
-                             : nullptr;
-      auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup),
-                                               params, right_timer.get());
-      if (!right_ctx) {
-        return right_ctx;
-      }
-      if (NEUG_UNLIKELY(timer != nullptr)) {
-        timer->add_child(std::move(right_timer));
-      }
-      right_ctx.value().ensure_single_chunk("PrimaryKeyJoinOpr");
-      auto pk_result = Join::pk_join(
-          graph, std::move(right_ctx.value().chunk(0)), labels_, tag_, alias_);
-      if (!pk_result) {
-        return tl::make_unexpected(pk_result.error());
-      }
-      Context out;
-      out.append_chunk(std::move(pk_result.value()));
-      return out;
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+    auto* child = right_timer.get();
+    if (timer)
+      timer->add_child(std::move(right_timer));
+    GS_AUTO(right, right_pipeline_.ExecuteStream(graph, std::move(input),
+                                                 params, child));
+    return map_chunks(
+        std::move(right),
+        [this, &graph](ContextChunk&& chunk) -> result<ContextChunk> {
+          return Join::pk_join(graph, std::move(chunk), labels_, tag_, alias_);
+        });
   }
 
  private:

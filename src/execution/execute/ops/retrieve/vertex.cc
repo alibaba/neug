@@ -42,26 +42,24 @@ class GetVFromEdgesOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      if (pred_ != nullptr) {
-        auto expr = pred_->bind(&graph, params);
-        GeneralPred pred(std::move(expr));
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-              return GetV::get_vertex_from_edges(graph, std::move(chunk),
-                                                 v_params_, pred);
-            });
-      } else {
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-              return GetV::get_vertex_from_edges(graph, std::move(chunk),
-                                                 v_params_, DummyPred());
-            });
-      }
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    return map_chunks(std::move(input),
+                      [this, &graph, params,
+                       timer](ContextChunk&& chunk) -> result<ContextChunk> {
+                        if (pred_ != nullptr) {
+                          auto expr = pred_->bind(&graph, params);
+                          GeneralPred pred(std::move(expr));
+                          {
+                            return GetV::get_vertex_from_edges(
+                                graph, std::move(chunk), v_params_, pred);
+                          }
+                        } else {
+                          {
+                            return GetV::get_vertex_from_edges(
+                                graph, std::move(chunk), v_params_,
+                                DummyPred());
+                          }
+                        }
+                      });
   }
 
  private:

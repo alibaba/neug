@@ -44,11 +44,14 @@ class BatchDeleteVertexOpr : public IOperator {
 neug::result<Stream<DataChunk>> BatchDeleteVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
     Stream<DataChunk>&& input, OprTimer* timer) {
-  GS_AUTO(ctx, materialize(std::move(input)));
-  auto evaluate_materialized = [&]() -> result<Context> {
-    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+  // Finish reading before mutation; downstream cancellation must not skip
+  // writes.
+  return reduce_stream(
+      std::move(input),
+      [this, &graph_interface, params,
+       timer](ContextChunk&& chunk) -> result<ContextChunk> {
+        auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+        {
           size_t binding_size = vertex_bindings_.size();
           for (size_t i = 0; i < binding_size; i++) {
             int32_t alias = vertex_bindings_[i];
@@ -92,10 +95,8 @@ neug::result<Stream<DataChunk>> BatchDeleteVertexOpr::Eval(
                 offsets);  // reshuffle with empty offsets to remove all data
           }
           return chunk;
-        });
-  };
-  GS_AUTO(output, evaluate_materialized());
-  return stream_from_context(std::move(output));
+        }
+      });
 }
 
 neug::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(

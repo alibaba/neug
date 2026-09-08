@@ -41,11 +41,11 @@ class GroupByOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      ctx.ensure_single_chunk("GroupByOpr");
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return reduce_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          {
             auto key = create_key_func(mappings_, graph, chunk.chunk());
             std::vector<ReduceOp> reducers;
             for (auto& aggr : aggrs_) {
@@ -53,10 +53,8 @@ class GroupByOpr : public IOperator {
             }
             return GroupBy::group_by(std::move(chunk), std::move(key),
                                      std::move(reducers));
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:

@@ -44,10 +44,10 @@ class SelectIdNeOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    return transform_stream(
+    return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
-         timer](Context&& ctx) -> result<Context> {
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
           auto expr = pred_->bind(&graph_interface, params);
           neug::execution::GeneralPred fallback_pred(std::move(expr));
           const auto& name = prop_name_;
@@ -55,8 +55,7 @@ class SelectIdNeOpr : public IOperator {
                             ? params.at(param_name_).GetValue<int64_t>()
                             : 0;
 
-          return ctx.apply_chunks([&](ContextChunk&& chunk)
-                                      -> neug::result<ContextChunk> {
+          {
             auto col = chunk.get(tag_);
             if ((!col->is_optional()) &&
                 col->column_type() == ContextColumnType::kVertex) {
@@ -89,7 +88,7 @@ class SelectIdNeOpr : public IOperator {
               }
             }
             return Select::select(std::move(chunk), fallback_pred);
-          });
+          }
         });
   }
 
@@ -110,15 +109,13 @@ class SelectOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    return transform_stream(
+    return map_chunks(
         std::move(input),
-        [this, &graph, params, timer](Context&& ctx) -> result<Context> {
+        [this, &graph, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
           auto expr = pred_->bind(&graph, params);
           neug::execution::GeneralPred expr_wrapper(std::move(expr));
-          return ctx.apply_chunks(
-              [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-                return Select::select(std::move(chunk), expr_wrapper);
-              });
+          { return Select::select(std::move(chunk), expr_wrapper); }
         });
   }
 

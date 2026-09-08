@@ -49,20 +49,20 @@ class DataExportOpr : public IOperator {
 neug::result<Stream<DataChunk>> DataExportOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
     Stream<DataChunk>&& input, neug::execution::OprTimer* timer) {
+  // Legacy extension ABI: Context conversion is confined to this boundary.
+
   GS_AUTO(ctx, materialize(std::move(input)));
-  auto evaluate_materialized = [&]() -> result<Context> {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    if (!exportFunction_) {
-      THROW_IO_EXCEPTION("DataExportOpr: export function is nullptr");
-    }
-    if (!exportFunction_->execFunc) {
-      THROW_IO_EXCEPTION(
-          "DataExportOpr: write function in export function is nullptr");
-    }
-    return exportFunction_->execFunc(ctx, schema_, entry_schema_, graph);
-  };
-  GS_AUTO(output, evaluate_materialized());
+
+  const auto& graph =
+      dynamic_cast<const StorageReadInterface&>(graph_interface);
+  if (!exportFunction_) {
+    THROW_IO_EXCEPTION("DataExportOpr: export function is nullptr");
+  }
+  if (!exportFunction_->execFunc) {
+    THROW_IO_EXCEPTION(
+        "DataExportOpr: write function in export function is nullptr");
+  }
+  auto output = exportFunction_->execFunc(ctx, schema_, entry_schema_, graph);
   return stream_from_context(std::move(output));
 }
 

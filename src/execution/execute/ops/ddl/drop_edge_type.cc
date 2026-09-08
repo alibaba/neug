@@ -35,34 +35,29 @@ class DropEdgeTypeOpr : public IOperator {
                                        const ParamsMap& params,
                                        Stream<DataChunk>&& input,
                                        OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      StorageUpdateInterface& storage =
-          dynamic_cast<StorageUpdateInterface&>(graph);
-      label_t src, dst, edge;
-      auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
-                                        edge_type_, src, dst, edge);
-      if (!resolve.ok()) {
-        if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
-          return neug::result<Context>(std::move(ctx));
-        }
-        LOG(ERROR) << "Fail to drop edge type: " << edge_type_
-                   << ", reason: " << resolve.ToString();
-        RETURN_ERROR(resolve);
+    StorageUpdateInterface& storage =
+        dynamic_cast<StorageUpdateInterface&>(graph);
+    label_t src, dst, edge;
+    auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
+                                      edge_type_, src, dst, edge);
+    if (!resolve.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+        return std::move(input);
       }
-      auto res = storage.DeleteEdgeType(src, dst, edge);
-      if (!res.ok()) {
-        if (ignore_conflict_ && IsSchemaConflictError(res)) {
-          return neug::result<Context>(std::move(ctx));
-        }
-        LOG(ERROR) << "Fail to drop edge type: " << edge_type_
-                   << ", reason: " << res.ToString();
-        RETURN_ERROR(res);
+      LOG(ERROR) << "Fail to drop edge type: " << edge_type_
+                 << ", reason: " << resolve.ToString();
+      RETURN_ERROR(resolve);
+    }
+    auto res = storage.DeleteEdgeType(src, dst, edge);
+    if (!res.ok()) {
+      if (ignore_conflict_ && IsSchemaConflictError(res)) {
+        return std::move(input);
       }
-      return neug::result<Context>(std::move(ctx));
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+      LOG(ERROR) << "Fail to drop edge type: " << edge_type_
+                 << ", reason: " << res.ToString();
+      RETURN_ERROR(res);
+    }
+    return std::move(input);
   }
 
  private:

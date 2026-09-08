@@ -62,7 +62,15 @@ class StreamTimerScope {
 neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
                                         const ParamsMap& params,
                                         OprTimer* timer) {
-  auto stream = stream_from_context(std::move(ctx));
+  GS_AUTO(stream, ExecuteStream(graph, stream_from_context(std::move(ctx)),
+                                params, timer));
+  return materialize(std::move(stream));
+}
+
+result<Stream<DataChunk>> Pipeline::ExecuteStream(IStorageInterface& graph,
+                                                  Stream<DataChunk> stream,
+                                                  const ParamsMap& params,
+                                                  OprTimer* timer) {
   auto charged = std::make_shared<double>(0.0);
   auto* current_timer = timer;
   for (size_t i = 0; i < operators_.size(); ++i) {
@@ -114,9 +122,7 @@ neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
       current_timer = current_timer->next();
     }
   }
-  // The public query API still owns a materialized result. All inter-operator
-  // edges above are streams, and COPY consumes them before this boundary.
-  return materialize(std::move(stream));
+  return std::move(stream);
 }
 
 neug::result<std::unique_ptr<OprTimer>> Pipeline::explain_tree(

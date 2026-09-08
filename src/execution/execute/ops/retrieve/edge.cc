@@ -105,35 +105,32 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      if ((!eep_.is_optional) &&
-          (config_.ptype == SPPredicateType::kPropertyLT ||
-           config_.ptype == SPPredicateType::kPropertyGT)) {
-        const auto& param_value = params.at(config_.param_names[0]);
-        auto ret = ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-              return EdgeExpand::expand_vertex_ep_cmp(
-                  graph, std::move(chunk), eep_, param_value, config_.ptype);
-            });
-        if (ret) {
-          return ret.value();
-        }
-      }
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          if ((!eep_.is_optional) &&
+              (config_.ptype == SPPredicateType::kPropertyLT ||
+               config_.ptype == SPPredicateType::kPropertyGT)) {
+            const auto& param_value = params.at(config_.param_names[0]);
+            auto candidate = chunk;
+            auto ret = EdgeExpand::expand_vertex_ep_cmp(
+                graph, std::move(candidate), eep_, param_value, config_.ptype);
+            if (ret) {
+              return ret.value();
+            }
+          }
 
-      auto expr = pred_->bind(&graph, params);
-      GeneralPred expr_wrapper(std::move(expr));
-      EdgePredicate<GeneralPred> pred(expr_wrapper);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          auto expr = pred_->bind(&graph, params);
+          GeneralPred expr_wrapper(std::move(expr));
+          EdgePredicate<GeneralPred> pred(expr_wrapper);
+          {
             return EdgeExpand::expand_vertex<decltype(pred)>(
                 graph, std::move(chunk), eep_, pred);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:
@@ -152,30 +149,28 @@ class EdgeExpandVOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
 
-      if (pred_ != nullptr) {
-        auto expr = pred_->bind(&graph, params);
-        GeneralPred expr_wrapper(std::move(expr));
-        EdgePredicate pred(expr_wrapper);
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          if (pred_ != nullptr) {
+            auto expr = pred_->bind(&graph, params);
+            GeneralPred expr_wrapper(std::move(expr));
+            EdgePredicate pred(expr_wrapper);
+            {
               return EdgeExpand::expand_vertex<decltype(pred)>(
                   graph, std::move(chunk), eep_, pred);
-            });
-      } else {
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            }
+          } else {
+            {
               return EdgeExpand::expand_vertex<DummyPred>(
                   graph, std::move(chunk), eep_, DummyPred());
-            });
-      }
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+            }
+          }
+        });
   }
 
  private:
@@ -196,19 +191,18 @@ class EdgeExpandEWithSPredOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          {
             return EdgeExpand::expand_edge_with_special_edge_predicate(
                 graph, std::move(chunk), eep_, config_,
                 params.at(config_.param_names[0]));
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:
@@ -226,29 +220,27 @@ class EdgeExpandEOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      if (pred_ == nullptr) {
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          if (pred_ == nullptr) {
+            {
               return EdgeExpand::expand_edge(graph, std::move(chunk), eep_,
                                              DummyPred());
-            });
-      } else {
-        auto expr = pred_->bind(&graph, params);
-        GeneralPred expr_wrapper(std::move(expr));
-        EdgePredicate pred(expr_wrapper);
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+            }
+          } else {
+            auto expr = pred_->bind(&graph, params);
+            GeneralPred expr_wrapper(std::move(expr));
+            EdgePredicate pred(expr_wrapper);
+            {
               return EdgeExpand::expand_edge<decltype(pred)>(
                   graph, std::move(chunk), eep_, pred);
-            });
-      }
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+            }
+          }
+        });
   }
 
  private:
@@ -269,18 +261,17 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          {
             return EdgeExpand::expand_vertex_with_special_vertex_predicate(
                 graph, std::move(chunk), eep_, config_, params);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:
@@ -300,21 +291,20 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      auto expr = pred_->bind(&graph, params);
-      GeneralPred expr_wrapper(std::move(expr));
-      EdgeNbrPredicate vpred(expr_wrapper);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          auto expr = pred_->bind(&graph, params);
+          GeneralPred expr_wrapper(std::move(expr));
+          EdgeNbrPredicate vpred(expr_wrapper);
+          {
             return EdgeExpand::expand_vertex<EdgeNbrPredicate<GeneralPred>>(
                 graph, std::move(chunk), eep_, vpred);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:
@@ -329,17 +319,14 @@ class EdgeExpandDegreeOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return EdgeExpand::expand_degree(graph, std::move(chunk), eep_);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          { return EdgeExpand::expand_degree(graph, std::move(chunk), eep_); }
+        });
   }
 
   std::string get_operator_name() const override {
@@ -538,17 +525,14 @@ class ExpandCountOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return EdgeExpand::expand_count(graph, std::move(chunk), eep_);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          { return EdgeExpand::expand_count(graph, std::move(chunk), eep_); }
+        });
   }
 
   std::string get_operator_name() const override { return "ExpandCountOpr"; }

@@ -36,13 +36,13 @@ class OrderByOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      ctx.ensure_single_chunk("OrderByOpr");
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return reduce_stream(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          {
             int keys_num = keys_.size();
             GeneralComparer cmp;
             for (int i = 0; i < keys_num; ++i) {
@@ -58,10 +58,8 @@ class OrderByOpr : public IOperator {
 
             return OrderBy::order_by_with_limit<GeneralComparer>(
                 graph, std::move(chunk), cmp, lower_, upper_);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:

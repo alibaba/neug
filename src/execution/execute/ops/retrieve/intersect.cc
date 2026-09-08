@@ -44,36 +44,35 @@ class IntersectOprMultip : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      std::vector<EdgeAndNbrPredicate> preds;
-      for (size_t i = 0; i < edge_preds_.size(); ++i) {
-        std::unique_ptr<BindedExprBase> v_pred =
-            vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params) : nullptr;
-        std::unique_ptr<BindedExprBase> e_pred =
-            edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
-        preds.emplace_back(std::move(v_pred), std::move(e_pred));
-      }
-      if (eeps_.size() == 2) {
-        return ctx.apply_chunks(
-            [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          std::vector<EdgeAndNbrPredicate> preds;
+          for (size_t i = 0; i < edge_preds_.size(); ++i) {
+            std::unique_ptr<BindedExprBase> v_pred =
+                vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params)
+                                 : nullptr;
+            std::unique_ptr<BindedExprBase> e_pred =
+                edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
+            preds.emplace_back(std::move(v_pred), std::move(e_pred));
+          }
+          if (eeps_.size() == 2) {
+            {
               return Intersect::Binary_Intersect(
                   graph, params, std::move(chunk), std::move(preds[0]),
                   std::move(preds[1]), eeps_[0], eeps_[1], alias_);
-            });
-      }
+            }
+          }
 
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+          {
             return Intersect::Multiple_Intersect(
                 graph, params, std::move(chunk), std::move(preds), eeps_,
                 alias_);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
   std::vector<EdgeExpandParams> eeps_;
@@ -101,20 +100,22 @@ class IntersectWithEdgeOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      const auto& graph =
-          dynamic_cast<const StorageReadInterface&>(graph_interface);
-      std::vector<EdgeAndNbrPredicate> preds;
-      for (size_t i = 0; i < edge_preds_.size(); ++i) {
-        std::unique_ptr<BindedExprBase> v_pred =
-            vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params) : nullptr;
-        std::unique_ptr<BindedExprBase> e_pred =
-            edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
-        preds.emplace_back(std::move(v_pred), std::move(e_pred));
-      }
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
+    return map_chunks(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
+          std::vector<EdgeAndNbrPredicate> preds;
+          for (size_t i = 0; i < edge_preds_.size(); ++i) {
+            std::unique_ptr<BindedExprBase> v_pred =
+                vertex_preds_[i] ? vertex_preds_[i]->bind(&graph, params)
+                                 : nullptr;
+            std::unique_ptr<BindedExprBase> e_pred =
+                edge_preds_[i] ? edge_preds_[i]->bind(&graph, params) : nullptr;
+            preds.emplace_back(std::move(v_pred), std::move(e_pred));
+          }
+          {
             if (eeps_.size() == 2) {
               return Intersect::Binary_Intersect_With_Edge(
                   graph, params, std::move(chunk), std::move(preds[0]),
@@ -124,10 +125,8 @@ class IntersectWithEdgeOpr : public IOperator {
             return Intersect::Multiple_Intersect_With_Edge(
                 graph, params, std::move(chunk), std::move(preds), eeps_,
                 v_alias_, edge_alias_);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+          }
+        });
   }
 
  private:

@@ -44,40 +44,6 @@ class IOperator {
                                       IStorageInterface& graph) {}
 };
 
-// Pull one batch at a time for row-local transformations. The callback owns
-// execution state; no mutable cursor is stored on a reusable operator.
-// Pipeline::Execute keeps operator/storage references alive until consumption.
-template <typename Transform>
-Stream<DataChunk> transform_stream(Stream<DataChunk>&& input,
-                                   Transform transform) {
-  auto tags = input.tag_ids;
-  auto upstream = std::make_shared<Stream<DataChunk>>(std::move(input));
-  auto pending = std::make_shared<Stream<DataChunk>>();
-  return Stream<DataChunk>(
-      [transform = std::move(transform), upstream, pending,
-       tags]() mutable -> Stream<DataChunk>::NextResult {
-        while (true) {
-          auto output = pending->Next();
-          if (!output || *output) {
-            return output;
-          }
-          auto next = upstream->Next();
-          if (!next || !*next) {
-            return next;
-          }
-          Context ctx;
-          ctx.tag_ids = tags;
-          ctx.append_chunk(std::move((**next).chunk), std::move((**next).head));
-          auto result = transform(std::move(ctx));
-          if (!result) {
-            return tl::unexpected(result.error());
-          }
-          *pending = stream_from_context(std::move(*result));
-        }
-      },
-      tags);
-}
-
 using OpBuildResultT = std::pair<std::unique_ptr<IOperator>, ContextMeta>;
 
 class IOperatorBuilder {

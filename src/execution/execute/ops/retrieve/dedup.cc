@@ -41,16 +41,11 @@ class DedupOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      ctx.ensure_single_chunk("DedupOpr");
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return Dedup::dedup(std::move(chunk), tag_ids_);
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    return reduce_stream(std::move(input),
+                         [this, &graph, params,
+                          timer](ContextChunk&& chunk) -> result<ContextChunk> {
+                           { return Dedup::dedup(std::move(chunk), tag_ids_); }
+                         });
   }
 
   std::vector<int32_t> tag_ids_;

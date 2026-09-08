@@ -35,18 +35,13 @@ class CheckpointOpr : public IOperator {
 neug::result<Stream<DataChunk>> CheckpointOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
     Stream<DataChunk>&& input, OprTimer* timer) {
-  GS_AUTO(ctx, materialize(std::move(input)));
-  auto evaluate_materialized = [&]() -> result<Context> {
-    (void) graph_interface;
-    (void) params;
-    (void) ctx;
-    (void) timer;
-    RETURN_ERROR(neug::Status(
-        neug::StatusCode::ERR_ILLEGAL_OPERATION,
-        "CHECKPOINT must be executed by the database checkpoint executor"));
-  };
-  GS_AUTO(output, evaluate_materialized());
-  return stream_from_context(std::move(output));
+  (void) graph_interface;
+  (void) params;
+  (void) input;
+  (void) timer;
+  RETURN_ERROR(neug::Status(
+      neug::StatusCode::ERR_ILLEGAL_OPERATION,
+      "CHECKPOINT must be executed by the database checkpoint executor"));
 }
 
 neug::result<OpBuildResultT> CheckpointOprBuilder::Build(

@@ -70,30 +70,25 @@ class CreateIndexOpr : public IOperator {
                                        const ParamsMap& params,
                                        Stream<DataChunk>&& input,
                                        OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
-      if (!index_interface) {
-        RETURN_STATUS_ERROR(
-            StatusCode::ERR_NOT_SUPPORTED,
-            "Current storage interface does not support index DDL");
-      }
+    auto* index_interface = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+    if (!index_interface) {
+      RETURN_STATUS_ERROR(
+          StatusCode::ERR_NOT_SUPPORTED,
+          "Current storage interface does not support index DDL");
+    }
 
-      auto index_meta = CreateIndexMeta(graph.schema(), create_index_);
-      auto index = index_interface->CreateIndex(std::move(index_meta));
-      if (!index) {
-        // The storage layer reports ERR_ILLEGAL_OPERATION when an index with
-        // the same name already exists; honor IF NOT EXISTS in that case.
-        if (ignore_conflict_ &&
-            index.error().error_code() == StatusCode::ERR_ILLEGAL_OPERATION) {
-          return std::move(ctx);
-        }
-        RETURN_ERROR(index.error());
+    auto index_meta = CreateIndexMeta(graph.schema(), create_index_);
+    auto index = index_interface->CreateIndex(std::move(index_meta));
+    if (!index) {
+      // The storage layer reports ERR_ILLEGAL_OPERATION when an index with
+      // the same name already exists; honor IF NOT EXISTS in that case.
+      if (ignore_conflict_ &&
+          index.error().error_code() == StatusCode::ERR_ILLEGAL_OPERATION) {
+        return std::move(input);
       }
-      return std::move(ctx);
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+      RETURN_ERROR(index.error());
+    }
+    return std::move(input);
   }
 
  private:

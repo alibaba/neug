@@ -119,15 +119,15 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
 neug::result<Stream<DataChunk>> UpdateVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
     Stream<DataChunk>&& input, OprTimer* timer) {
-  GS_AUTO(ctx, materialize(std::move(input)));
-  auto evaluate_materialized = [&]() -> result<Context> {
-    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-    return ctx.apply_chunks([&](ContextChunk&& chunk) {
-      return eval_impl(graph, params, std::move(chunk), timer);
-    });
-  };
-  GS_AUTO(output, evaluate_materialized());
-  return stream_from_context(std::move(output));
+  // Finish reading before mutation; downstream cancellation must not skip
+  // writes.
+  return reduce_stream(
+      std::move(input),
+      [this, &graph_interface, params,
+       timer](ContextChunk&& chunk) -> result<ContextChunk> {
+        auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+        { return eval_impl(graph, params, std::move(chunk), timer); }
+      });
 }
 
 neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(

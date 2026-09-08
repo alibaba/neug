@@ -76,18 +76,17 @@ class TCOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    GS_AUTO(ctx, materialize(std::move(input)));
-    auto evaluate_materialized = [&]() -> result<Context> {
-      auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return EdgeExpand::tc<T1>(graph, std::move(chunk), labels_,
-                                      input_tag_, alias1_, alias2_, is_lt_,
-                                      params.at(param_name_));
-          });
-    };
-    GS_AUTO(output, evaluate_materialized());
-    return stream_from_context(std::move(output));
+    return map_chunks(std::move(input),
+                      [this, &graph_interface, params,
+                       timer](ContextChunk&& chunk) -> result<ContextChunk> {
+                        auto& graph = dynamic_cast<const StorageReadInterface&>(
+                            graph_interface);
+                        {
+                          return EdgeExpand::tc<T1>(
+                              graph, std::move(chunk), labels_, input_tag_,
+                              alias1_, alias2_, is_lt_, params.at(param_name_));
+                        }
+                      });
   }
 
  private:

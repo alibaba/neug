@@ -50,18 +50,18 @@ class ProjectOpr : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    return transform_stream(
+    return map_chunks(
         std::move(input),
-        [this, &graph, params, timer](Context&& ctx) -> result<Context> {
+        [this, &graph, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
           if (is_select_columns_) {
-            return ctx.apply_chunks(
-                [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-                  ContextChunk ret;
-                  for (auto& p : select_columns_mapping_) {
-                    ret.set(p.second, chunk.get(p.first));
-                  }
-                  return ret;
-                });
+            {
+              ContextChunk ret;
+              for (auto& p : select_columns_mapping_) {
+                ret.set(p.second, chunk.get(p.first));
+              }
+              return ret;
+            }
           }
 
           std::vector<ProjectOp> exprs;
@@ -80,10 +80,7 @@ class ProjectOpr : public IOperator {
             }
           }
 
-          return ctx.apply_chunks(
-              [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-                return Project::project(std::move(chunk), exprs, is_append_);
-              });
+          { return Project::project(std::move(chunk), exprs, is_append_); }
         });
   }
 
@@ -187,10 +184,10 @@ class ProjectOrderByOprBeta : public IOperator {
   neug::result<Stream<DataChunk>> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       Stream<DataChunk>&& input, neug::execution::OprTimer* timer) override {
-    return transform_stream(
+    return reduce_stream(
         std::move(input),
         [this, &graph_interface, params,
-         timer](Context&& ctx) -> result<Context> {
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
           const auto& graph =
               dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -216,13 +213,11 @@ class ProjectOrderByOprBeta : public IOperator {
                           fallback_expr_builders_[i]->build(graph, params),
                           expr_builders_[i]->alias()));
           }
-          ctx.ensure_single_chunk("ProjectOrderByOprBeta");
-          return ctx.apply_chunks(
-              [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-                return Project::project_order_by_fuse<GeneralComparer>(
-                    graph, params, std::move(chunk), std::move(exprs), cmp_func,
-                    lower_bound_, upper_bound_, order_by_keys_, first_pair_);
-              });
+          {
+            return Project::project_order_by_fuse<GeneralComparer>(
+                graph, params, std::move(chunk), std::move(exprs), cmp_func,
+                lower_bound_, upper_bound_, order_by_keys_, first_pair_);
+          }
         });
   }
 
