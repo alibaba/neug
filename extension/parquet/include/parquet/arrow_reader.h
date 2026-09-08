@@ -48,8 +48,7 @@ class Reader {
         fileSystem(std::move(fileSystem)) {}
   virtual ~Reader() = default;
 
-  virtual void read(std::shared_ptr<ReadLocalState> localState,
-                    execution::Context& ctx) = 0;
+  virtual std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier() = 0;
 
  protected:
   std::shared_ptr<ReadSharedState> sharedState;
@@ -73,10 +72,7 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
         datasetBuilder(std::move(datasetBuilder)) {}
   ~ArrowReader() override = default;
 
-  void read(std::shared_ptr<ReadLocalState> localState,
-            execution::Context& ctx) override;
-
-  std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier();
+  std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier() override;
 
   arrow::Result<std::shared_ptr<arrow::Schema>> inferSchema();
 

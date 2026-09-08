@@ -24,7 +24,6 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
-class IDataChunkSupplier;
 namespace reader {
 
 /// Evaluates a common::Expression row-by-row against a DataChunk.
@@ -47,8 +46,6 @@ DataChunk project_chunk(const DataChunk& input,
                         const std::vector<std::string>& column_names,
                         const std::vector<std::string>& project_columns);
 
-DataChunk read_all_chunks(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers);
 
 }  // namespace reader
 }  // namespace neug

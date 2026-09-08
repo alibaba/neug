@@ -51,7 +51,9 @@ ABI; those operators convert only at that explicit callback boundary. Procedure
 and GDS callbacks still return Context, which is exposed as a stream once.
 Every registered reader must supply a supplier factory; there is no materialized
 reader callback or fallback. Parquet uses RecordBatchReader directly without a
-CountRows or ToTable pass.
+CountRows or ToTable pass. Reader classes expose only supplier creation and schema
+inference: their Context-based read methods, ReadLocalState, and the obsolete
+batch_read option have been removed. Reader tests consume suppliers directly.
 
 This does not replace every underlying algorithm with an incremental one.
 Graph scan kernels may still produce a large single batch. CSV counts a file

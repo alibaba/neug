@@ -37,19 +37,6 @@
 namespace neug {
 namespace reader {
 
-void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
-                       execution::Context& ctx) {
-  auto supplier = getDataChunkSupplier();
-  ctx.clear();
-  while (auto chunk = supplier->GetNextChunk()) {
-    ctx.append_chunk(std::move(*chunk));
-  }
-  ReadOptions options;
-  if (!options.batch_read.get(sharedState->schema.file.options)) {
-    ctx.flatten();
-  }
-}
-
 std::shared_ptr<IDataChunkSupplier> ArrowReader::getDataChunkSupplier() {
   auto scanner = createScanner(fileSystem);
   auto batches = scanner->ToRecordBatchReader();

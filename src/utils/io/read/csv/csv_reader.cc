@@ -35,7 +35,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
@@ -398,25 +397,6 @@ class CsvRowFilter {
   EvalFn evaluator_;
 };
 
-DataChunk read_all_chunks(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
-  DataChunk merged;
-  for (const auto& supplier : suppliers) {
-    while (true) {
-      auto chunk = supplier->GetNextChunk();
-      if (!chunk) {
-        break;
-      }
-      if (merged.row_num() == 0) {
-        merged = *chunk;
-      } else {
-        merged = merged.union_chunk(*chunk);
-      }
-    }
-  }
-  return merged;
-}
-
 void build_name_to_index(const std::vector<std::string>& column_names,
                          std::unordered_map<std::string, int>* name_to_index) {
   for (size_t i = 0; i < column_names.size(); ++i) {
@@ -536,32 +516,6 @@ std::shared_ptr<IDataChunkSupplier> CsvReader::getDataChunkSupplier() {
     std::shared_ptr<IDataChunkSupplier> current_;
   };
   return std::make_shared<CsvStreamSupplier>(sharedState_, std::move(config));
-}
-
-void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                     execution::Context& ctx) {
-  auto supplier = getDataChunkSupplier();
-  ReadOptions options;
-  if (options.batch_read.get(sharedState_->schema.file.options)) {
-    batch_read({supplier}, ctx);
-  } else {
-    auto merged = read_all_chunks({supplier});
-    ctx.clear();
-    if (merged.col_num() != 0) {
-      ctx.append_chunk(std::move(merged));
-    }
-  }
-}
-
-void CsvReader::batch_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output) {
-  output.clear();
-  for (const auto& supplier : suppliers) {
-    while (auto chunk = supplier->GetNextChunk()) {
-      output.append_chunk(std::move(*chunk));
-    }
-  }
 }
 
 result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {

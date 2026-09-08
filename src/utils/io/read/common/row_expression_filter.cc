@@ -21,7 +21,6 @@
 
 #include "neug/common/types/value.h"
 #include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/operator_precedence.h"
 
@@ -221,25 +220,6 @@ bool RowExpressionFilter::eval(const DataChunk& chunk, size_t row) const {
     return true;
   }
   return evaluator_(chunk, row);
-}
-
-DataChunk read_all_chunks(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
-  DataChunk merged;
-  for (const auto& supplier : suppliers) {
-    while (true) {
-      auto chunk = supplier->GetNextChunk();
-      if (!chunk) {
-        break;
-      }
-      if (merged.row_num() == 0) {
-        merged = *chunk;
-      } else {
-        merged = merged.union_chunk(*chunk);
-      }
-    }
-  }
-  return merged;
 }
 
 DataChunk filter_chunk(const DataChunk& input,

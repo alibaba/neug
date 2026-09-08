@@ -31,7 +31,6 @@
 
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/types/value.h"
-#include "neug/execution/common/context.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
@@ -478,32 +477,6 @@ std::shared_ptr<IDataChunkSupplier> JsonReader::getDataChunkSupplier() {
     std::shared_ptr<IDataChunkSupplier> current_;
   };
   return std::make_shared<JsonStreamSupplier>(sharedState_, std::move(config));
-}
-
-void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                      execution::Context& ctx) {
-  auto supplier = getDataChunkSupplier();
-  ReadOptions options;
-  if (options.batch_read.get(sharedState_->schema.file.options)) {
-    batch_read({supplier}, ctx);
-  } else {
-    auto merged = read_all_chunks({supplier});
-    ctx.clear();
-    if (merged.col_num() != 0) {
-      ctx.append_chunk(std::move(merged));
-    }
-  }
-}
-
-void JsonReader::batch_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output) {
-  output.clear();
-  for (const auto& supplier : suppliers) {
-    while (auto chunk = supplier->GetNextChunk()) {
-      output.append_chunk(std::move(*chunk));
-    }
-  }
 }
 
 result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
