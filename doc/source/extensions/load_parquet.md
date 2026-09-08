@@ -81,6 +81,12 @@ RETURN fName AS name, age AS years;
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with Parquet files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
 
+When a `WHERE` expression requires filtering after decoding, the reader still
+prunes columns: it reads the requested output columns and all columns referenced
+by the filter, including references inside nested expressions. Filter-only columns
+are removed from the result after filtering. This applies to both batch and full
+reads. In this fallback path, the predicate does not prune Parquet row groups.
+
 ## Export to Parquet
 
 NeuG supports exporting query results to Parquet files using the `COPY TO` command. This is useful for:

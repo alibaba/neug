@@ -46,6 +46,12 @@ namespace test {
 
 static constexpr const char* PARQUET_TEST_DIR = "/tmp/parquet_test";
 
+class InspectableArrowReader : public reader::ArrowReader {
+ public:
+  using ArrowReader::ArrowReader;
+  using ArrowReader::createScanner;
+};
+
 class ParquetTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -191,12 +197,12 @@ class ParquetTest : public ::testing::Test {
     return sharedState;
   }
 
-  std::shared_ptr<reader::ArrowReader> createParquetReader(
+  std::shared_ptr<InspectableArrowReader> createParquetReader(
       const std::shared_ptr<reader::ReadSharedState>& sharedState) {
     auto fileSystem = std::make_shared<arrow::fs::LocalFileSystem>();
     auto optionsBuilder =
         std::make_unique<reader::ArrowParquetOptionsBuilder>(sharedState);
-    return std::make_shared<reader::ArrowReader>(
+    return std::make_shared<InspectableArrowReader>(
         sharedState, std::move(optionsBuilder), std::move(fileSystem));
   }
 };
@@ -262,6 +268,12 @@ TEST_F(ParquetTest, ReaderFallsBackBeforeProjectionAndRebindsParameters) {
     state->schema.file.options = {{"batch_read", batch},
                                   {"row_batch_size", "1"}};
     auto reader = createParquetReader(state);
+    auto scanner =
+        reader->createScanner(std::make_shared<arrow::fs::LocalFileSystem>());
+    auto table = scanner->ToTable();
+    ASSERT_TRUE(table.ok()) << table.status().ToString();
+    EXPECT_EQ((*table)->schema()->field_names(),
+              (std::vector<std::string>{"id", "name"}));
     for (int64_t minimum : {2, 3, 0}) {
       state->parameters = {{"minimum", Value::INT64(minimum)}};
       execution::Context output;
@@ -284,6 +296,136 @@ TEST_F(ParquetTest, ReaderFallsBackBeforeProjectionAndRebindsParameters) {
       EXPECT_EQ(predicate->SerializeAsString(), original);
     }
   }
+}
+
+TEST_F(ParquetTest, ReaderPrunesColumnsReferencedInsideNestedPredicates) {
+  createSimpleParquetFile("nested_filter.parquet");
+  // name IN [CASE WHEN value > 20 THEN name ELSE $fallback END]
+  for (const bool as_array : {false, true}) {
+    auto state = createSharedState(
+        "nested_filter.parquet", {"id", "name", "value"},
+        {createInt64Type(), createStringType(), createDoubleType()});
+    auto predicate = std::make_shared<::common::Expression>();
+    predicate->add_operators()->mutable_var()->mutable_tag()->set_name("name");
+    predicate->add_operators()->set_logical(::common::Logical::WITHIN);
+    auto* container = predicate->add_operators();
+    auto* fields = as_array ? container->mutable_to_array()->mutable_fields()
+                            : container->mutable_to_list()->mutable_fields();
+    if (as_array) {
+      auto* type =
+          container->mutable_node_type()->mutable_data_type()->mutable_array();
+      *type->mutable_component_type() = *createStringType();
+      type->set_fixed_length(1);
+    }
+    auto* cases = fields->Add()->add_operators()->mutable_case_();
+    auto* when = cases->add_when_then_expressions();
+    auto* condition = when->mutable_when_expression();
+    condition->add_operators()->mutable_var()->mutable_tag()->set_name("value");
+    condition->add_operators()->set_logical(::common::Logical::GT);
+    condition->add_operators()->mutable_const_()->set_f64(20.0);
+    when->mutable_then_result_expression()
+        ->add_operators()
+        ->mutable_var()
+        ->mutable_tag()
+        ->set_name("name");
+    auto* parameter = cases->mutable_else_result_expression()
+                          ->add_operators()
+                          ->mutable_param();
+    parameter->set_name("fallback");
+    *parameter->mutable_data_type()->mutable_data_type() = *createStringType();
+    state->skipRows = predicate;
+    state->parameters = {{"fallback", Value::STRING("no match")}};
+    const auto original = predicate->SerializeAsString();
+
+    for (const auto* batch : {"false", "true"}) {
+      state->schema.file.options = {{"batch_read", batch},
+                                    {"row_batch_size", "1"}};
+      auto reader = createParquetReader(state);
+      // Reuse the reader with reordered, duplicated and all-column outputs.
+      for (const auto& projection : std::vector<std::vector<std::string>>{
+               {"name"}, {"value", "name"}, {"name", "name"}, {}}) {
+        state->projectColumns = projection;
+        auto scanner = reader->createScanner(
+            std::make_shared<arrow::fs::LocalFileSystem>());
+        const auto expected_columns =
+            projection.empty() ? std::vector<std::string>{"id", "name", "value"}
+                               : std::vector<std::string>{"name", "value"};
+        EXPECT_EQ(scanner->options()->projected_schema->field_names(),
+                  expected_columns);
+        EXPECT_EQ(scanner->options()->MaterializedFields().size(),
+                  expected_columns.size());
+        auto scanned = scanner->ToTable();
+        ASSERT_TRUE(scanned.ok()) << scanned.status().ToString();
+        EXPECT_EQ((*scanned)->schema()->field_names(), expected_columns);
+
+        execution::Context output;
+        reader->read(nullptr, output);
+        ASSERT_EQ(output.row_num(), 2);
+        const auto& output_columns =
+            projection.empty() ? state->schema.entry->columnNames : projection;
+        ASSERT_EQ(output.col_num(), output_columns.size());
+        size_t index = 0;
+        for (const auto& chunk : output.chunks()) {
+          for (size_t row = 0; row < chunk.row_num(); ++row, ++index) {
+            for (size_t col = 0; col < output_columns.size(); ++col) {
+              const auto value = chunk.get(col)->get_elem(row);
+              if (output_columns[col] == "name") {
+                EXPECT_EQ(value.GetValue<std::string>(),
+                          index == 0 ? "Bob" : "Charlie");
+              } else if (output_columns[col] == "value") {
+                EXPECT_DOUBLE_EQ(value.GetValue<double>(),
+                                 index == 0 ? 20.3 : 30.7);
+              } else {
+                EXPECT_EQ(value.GetValue<int64_t>(), index + 2);
+              }
+            }
+          }
+        }
+        EXPECT_EQ(predicate->SerializeAsString(), original);
+      }
+      state->projectColumns = {"missing"};
+      EXPECT_THROW(
+          reader->createScanner(std::make_shared<arrow::fs::LocalFileSystem>()),
+          exception::InvalidArgumentException);
+    }
+  }
+}
+
+TEST_F(ParquetTest, ReaderPrunesConstantFiltersAndValidatesHiddenColumns) {
+  createSimpleParquetFile("constant_filter.parquet");
+  auto state = createSharedState(
+      "constant_filter.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()});
+  state->projectColumns = {"name"};
+  auto predicate = std::make_shared<::common::Expression>();
+  auto* param = predicate->add_operators()->mutable_param();
+  param->set_name("keep");
+  param->mutable_data_type()->mutable_data_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_BOOL);
+  state->skipRows = predicate;
+  for (const auto* batch : {"false", "true"}) {
+    state->schema.file.options = {{"batch_read", batch},
+                                  {"row_batch_size", "1"}};
+    auto reader = createParquetReader(state);
+    auto scanner =
+        reader->createScanner(std::make_shared<arrow::fs::LocalFileSystem>());
+    EXPECT_EQ(scanner->options()->projected_schema->field_names(),
+              (std::vector<std::string>{"name"}));
+    for (const bool keep : {false, true}) {
+      state->parameters = {{"keep", Value::BOOLEAN(keep)}};
+      execution::Context output;
+      reader->read(nullptr, output);
+      EXPECT_EQ(output.row_num(), keep ? 3 : 0);
+      EXPECT_EQ(output.col_num(), 1);
+    }
+  }
+
+  predicate->add_operators()->set_logical(::common::Logical::AND);
+  auto* var = predicate->add_operators()->mutable_var();
+  var->mutable_tag()->set_name("missing");
+  EXPECT_THROW(createParquetReader(state)->createScanner(
+                   std::make_shared<arrow::fs::LocalFileSystem>()),
+               exception::InvalidArgumentException);
 }
 
 // =============================================================================

@@ -15,6 +15,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/scanner.h>
@@ -90,6 +92,9 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
 
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
   std::shared_ptr<DatasetBuilder> datasetBuilder;
+
+ private:
+  std::vector<std::string> fallback_columns_;
 };
 
 }  // namespace reader

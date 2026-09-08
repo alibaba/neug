@@ -210,14 +210,26 @@ def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
         ("CASE WHEN score IS NULL THEN 10 ELSE score END > 3", [3, 4]),
         ("CAST(CAST(id, 'STRING'), 'INT64') + 1 > 3", [3, 4]),
         ("upper(CAST(id, 'STRING')) = '3' AND score IS NULL", [3]),
+        (
+            "CASE WHEN enabled THEN CAST(score, 'INT64') "
+            "ELSE CAST(signed_value, 'INT64') END > 0",
+            [1, 3, 4],
+        ),
+        (
+            "id IN [CASE WHEN score IS NULL THEN 3 ELSE 0 END, "
+            "CAST(signed_value, 'INT64')]",
+            [3],
+        ),
     ],
 )
+@pytest.mark.parametrize("batch_read", [False, True])
 def test_reader_preserves_complete_predicates(
-    connection, type_file, predicate, expected
+    connection, type_file, predicate, expected, batch_read
 ):
     rows = list(
         connection.execute(
             f'LOAD FROM "{type_file.as_posix()}" '
+            f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
             f"WHERE {predicate} RETURN id ORDER BY id"
         )
     )

@@ -24,6 +24,8 @@
 #include <arrow/table.h>
 #include <glog/logging.h>
 
+#include <unordered_set>
+
 #include "parquet/arrow_column.h"
 #include "parquet/arrow_reader.h"
 #include "parquet/record_batch_supplier.h"
@@ -37,6 +39,85 @@
 
 namespace neug {
 namespace reader {
+namespace {
+
+std::vector<std::string> fallbackProjection(const ReadSharedState& state) {
+  const auto& all_columns = state.schema.entry->columnNames;
+  // An empty projection means that the caller requests every column.
+  if (state.projectColumns.empty()) {
+    return all_columns;
+  }
+  std::unordered_set<std::string> required(state.projectColumns.begin(),
+                                           state.projectColumns.end());
+  std::vector<const ::common::Expression*> pending{state.skipRows.get()};
+  while (!pending.empty()) {
+    const auto* expr = pending.back();
+    pending.pop_back();
+    if (!expr) {
+      continue;
+    }
+    for (const auto& opr : expr->operators()) {
+      switch (opr.item_case()) {
+      case ::common::ExprOpr::kVar:
+        if (!opr.var().tag().has_name() || opr.var().has_property()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "File filter requires a column name without a graph property");
+        }
+        required.insert(opr.var().tag().name());
+        break;
+      case ::common::ExprOpr::kCase:
+        for (const auto& when : opr.case_().when_then_expressions()) {
+          pending.push_back(&when.when_expression());
+          pending.push_back(&when.then_result_expression());
+        }
+        pending.push_back(&opr.case_().else_result_expression());
+        break;
+      case ::common::ExprOpr::kScalarFunc:
+        for (const auto& arg : opr.scalar_func().parameters()) {
+          pending.push_back(&arg);
+        }
+        break;
+      case ::common::ExprOpr::kUdfFunc:
+        for (const auto& arg : opr.udf_func().parameters()) {
+          pending.push_back(&arg);
+        }
+        break;
+      case ::common::ExprOpr::kToTuple:
+        for (const auto& field : opr.to_tuple().fields()) {
+          pending.push_back(&field);
+        }
+        break;
+      case ::common::ExprOpr::kToList:
+        for (const auto& field : opr.to_list().fields()) {
+          pending.push_back(&field);
+        }
+        break;
+      case ::common::ExprOpr::kToArray:
+        for (const auto& field : opr.to_array().fields()) {
+          pending.push_back(&field);
+        }
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
+  // Keep a stable scan order; finishChunk restores the requested output order.
+  std::vector<std::string> columns;
+  for (const auto& name : all_columns) {
+    if (required.erase(name)) {
+      columns.push_back(name);
+    }
+  }
+  if (!required.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Column not found in entry schema: " +
+                                     *required.begin());
+  }
+  return columns;
+}
+
+}  // namespace
 
 void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
                        execution::Context& ctx) {
@@ -89,11 +170,9 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
 
   filter_after_read_ = !optionsBuilder->skipRows(arrowOptions);
   if (filter_after_read_) {
-    // Retain filter-only columns until the complete predicate is evaluated.
-    // The caller receives the requested projection in either execution path.
+    fallback_columns_ = fallbackProjection(*sharedState);
     auto projection = arrow::dataset::ProjectionDescr::FromNames(
-        sharedState->schema.entry->columnNames,
-        *arrowOptions.scanOptions->dataset_schema);
+        fallback_columns_, *arrowOptions.scanOptions->dataset_schema);
     if (!projection.ok()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(projection.status().ToString());
     }
@@ -211,9 +290,8 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
   auto table = table_result.ValueOrDie();
 
-  int num_cols = filter_after_read_
-                     ? sharedState->schema.entry->columnNames.size()
-                     : sharedState->columnNum();
+  int num_cols =
+      filter_after_read_ ? fallback_columns_.size() : sharedState->columnNum();
   if (num_cols != table->num_columns()) {
     THROW_IO_EXCEPTION(
         "Column number mismatch between schema and table, schema: " +
@@ -272,10 +350,10 @@ DataChunk ArrowReader::finishChunk(DataChunk chunk) const {
   if (!filter_after_read_ || chunk.col_num() == 0) {
     return chunk;
   }
-  const auto& names = sharedState->schema.entry->columnNames;
-  auto filtered = filter_chunk(chunk, sharedState->skipRows, names,
+  auto filtered = filter_chunk(chunk, sharedState->skipRows, fallback_columns_,
                                sharedState->parameters);
-  return project_chunk(filtered, names, sharedState->projectColumns);
+  return project_chunk(filtered, fallback_columns_,
+                       sharedState->projectColumns);
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
