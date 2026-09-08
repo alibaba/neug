@@ -146,8 +146,9 @@ inline result<std::vector<ContextChunk>> collect_batches(
   std::vector<ContextChunk> chunks;
   while (true) {
     GS_AUTO(next, input.Next());
-    if (!next)
+    if (!next) {
       return chunks;
+    }
     chunks.push_back(std::move(*next));
   }
 }
@@ -158,8 +159,9 @@ inline Stream<ContextChunk> stream_from_batches(
   return Stream<ContextChunk>(
       [batches,
        index = size_t{0}]() mutable -> Stream<ContextChunk>::NextResult {
-        if (index == batches->size())
+        if (index == batches->size()) {
           return std::optional<ContextChunk>{};
+        }
         return std::optional<ContextChunk>(std::move((*batches)[index++]));
       },
       std::move(tags));

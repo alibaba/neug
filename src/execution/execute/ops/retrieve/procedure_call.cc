@@ -43,8 +43,9 @@ class ProcedureCallOpr : public IOperator {
 
     while (true) {
       GS_AUTO(next, input.Next());
-      if (!next)
+      if (!next) {
         break;
+      }
     }
 
     (void) timer;

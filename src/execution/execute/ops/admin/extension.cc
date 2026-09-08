@@ -43,10 +43,12 @@ bool DeprecatedInfo::compareVersion(const std::string& lhs,
       !parseVersion(rhs, rMajor, rMinor, rPatch)) {
     return false;
   }
-  if (lMajor != rMajor)
+  if (lMajor != rMajor) {
     return lMajor > rMajor;
-  if (lMinor != rMinor)
+  }
+  if (lMinor != rMinor) {
     return lMinor > rMinor;
+  }
   return lPatch >= rPatch;
 }
 

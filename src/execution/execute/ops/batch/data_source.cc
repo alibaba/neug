@@ -85,8 +85,9 @@ class DataSourceOpr : public IOperator {
           }
           return std::optional<ContextChunk>(std::in_place, std::move(*chunk));
         });
-    if (aliases_.empty())
+    if (aliases_.empty()) {
       return std::move(raw);
+    }
     return map_chunks(
         std::move(raw),
         [aliases = aliases_](ContextChunk&& batch) -> result<ContextChunk> {

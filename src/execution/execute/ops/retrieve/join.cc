@@ -191,8 +191,9 @@ class PrimaryKeyJoinOpr : public IOperator {
       Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
     auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
     auto* child = right_timer.get();
-    if (timer)
+    if (timer) {
       timer->add_child(std::move(right_timer));
+    }
     GS_AUTO(right, right_pipeline_.ExecuteStream(graph, std::move(input),
                                                  params, child));
     return map_chunks(

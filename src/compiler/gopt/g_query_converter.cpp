@@ -932,8 +932,9 @@ void GQueryConvertor::convertIntersect(
     THROW_EXCEPTION_WITH_FILE_LINE("intersect should have at least one child");
   }
   convertOperator(*children[0], plan);
-  if (children.size() < 2)
+  if (children.size() < 2) {
     return;
+  }
   // buid intersect opr
   auto intersectPB = std::make_unique<::physical::Intersect>();
   // set intersect key
@@ -1238,8 +1239,9 @@ void GQueryConvertor::convertDataSource(
   const auto& projected = scanBindData->getProjectColumns();
   if (projected.empty()) {
     for (const auto& column : scanBindData->columns) {
-      if (!skipColumn(column->rawName()))
+      if (!skipColumn(column->rawName())) {
         outputColumns.push_back(column);
+      }
     }
   } else {
     for (const auto& name : projected) {

@@ -35,8 +35,9 @@ neug::result<Stream<ContextChunk>> GDSAlgoOpr::Eval(
 
   while (true) {
     GS_AUTO(next, input.Next());
-    if (!next)
+    if (!next) {
       break;
+    }
   }
 
   (void) timer;

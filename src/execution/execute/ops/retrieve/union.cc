@@ -62,12 +62,14 @@ class UnionOpr : public IOperator {
               next->head().reset();
               return next;
             }
-            if (state->index == sub_plans_.size())
+            if (state->index == sub_plans_.size()) {
               return std::optional<ContextChunk>{};
+            }
             auto sub_timer = timer ? std::make_unique<OprTimer>() : nullptr;
             auto* child = sub_timer.get();
-            if (timer)
+            if (timer) {
               timer->add_child(std::move(sub_timer));
+            }
             GS_AUTO(branch, sub_plans_[state->index++].ExecuteStream(
                                 graph, stream_from_batches(*state->seed, tags),
                                 params, child));

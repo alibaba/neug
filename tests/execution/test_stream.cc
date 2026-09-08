@@ -95,8 +95,9 @@ TEST(StreamTest, BatchTransformPreservesColumnIdentityAndDoesNotReadAhead) {
   auto column = data.get(3);
   ChunkStream source(
       [&]() -> ChunkStream::NextResult {
-        if (++pulls > 1)
+        if (++pulls > 1) {
           THROW_IO_EXCEPTION("must not read ahead");
+        }
         return std::optional<ContextChunk>(std::in_place, std::move(data),
                                            column);
       },
@@ -157,8 +158,9 @@ class CountingSource final : public IOperator {
                            OprTimer*) override {
     return ChunkStream([this]() -> ChunkStream::NextResult {
       EXPECT_EQ(counts_.produced, counts_.consumed);
-      if (counts_.produced == 3)
+      if (counts_.produced == 3) {
         return std::optional<ContextChunk>{};
+      }
       return std::optional<ContextChunk>(std::in_place,
                                          chunk(++counts_.produced));
     });

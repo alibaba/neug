@@ -593,28 +593,36 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
 
   // Helper lambdas for temporal detection on strings.
   auto is_date_str = [](const std::string& s) -> bool {
-    if (s.size() != 10)
+    if (s.size() != 10) {
       return false;
-    if (s[4] != '-' || s[7] != '-')
+    }
+    if (s[4] != '-' || s[7] != '-') {
       return false;
+    }
     for (int i : {0, 1, 2, 3, 5, 6, 8, 9}) {
-      if (!std::isdigit(static_cast<unsigned char>(s[i])))
+      if (!std::isdigit(static_cast<unsigned char>(s[i]))) {
         return false;
+      }
     }
     return true;
   };
   auto is_datetime_str = [](const std::string& s) -> bool {
-    if (s.size() < 19)
+    if (s.size() < 19) {
       return false;
-    if (s[4] != '-' || s[7] != '-')
+    }
+    if (s[4] != '-' || s[7] != '-') {
       return false;
-    if (s[10] != ' ' && s[10] != 'T')
+    }
+    if (s[10] != ' ' && s[10] != 'T') {
       return false;
-    if (s[13] != ':' || s[16] != ':')
+    }
+    if (s[13] != ':' || s[16] != ':') {
       return false;
+    }
     for (int i : {0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18}) {
-      if (!std::isdigit(static_cast<unsigned char>(s[i])))
+      if (!std::isdigit(static_cast<unsigned char>(s[i]))) {
         return false;
+      }
     }
     return true;
   };
@@ -651,14 +659,18 @@ result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {
         std::string sv(val.GetString(), val.GetStringLength());
         bool is_dt = is_datetime_str(sv);
         bool is_d = is_date_str(sv);
-        if (!is_dt)
+        if (!is_dt) {
           all_datetime[col] = false;
-        if (!is_d)
+        }
+        if (!is_d) {
           all_date[col] = false;
-        if (!is_dt && !is_d)
+        }
+        if (!is_dt && !is_d) {
           all_date_or_datetime[col] = false;
-        if (is_dt)
+        }
+        if (is_dt) {
           any_datetime[col] = true;
+        }
       } else {
         all_datetime[col] = false;
         all_date[col] = false;
