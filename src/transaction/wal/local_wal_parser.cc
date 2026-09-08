@@ -49,6 +49,7 @@ void LocalWalParser::open(const std::string& wal_uri) {
   for (const auto& entry : std::filesystem::directory_iterator(wal_dir)) {
     paths.push_back(entry.path().string());
   }
+  std::vector<std::string> mapped_paths;
   for (auto path : paths) {
     size_t file_size = std::filesystem::file_size(path);
     if (file_size == 0) {
@@ -80,42 +81,62 @@ void LocalWalParser::open(const std::string& wal_uri) {
     fds_.push_back(fd);
     mmapped_ptrs_.push_back(mmapped_buffer);
     mmapped_size_.push_back(file_size);
+    mapped_paths.push_back(path);
   }
 
-  insert_wal_list_.resize(4096);
-  for (size_t i = 0; i < mmapped_ptrs_.size(); ++i) {
-    char* ptr = static_cast<char*>(mmapped_ptrs_[i]);
-    while (true) {
-      const WalHeader* header = reinterpret_cast<const WalHeader*>(ptr);
-      ptr += sizeof(WalHeader);
-      uint32_t ts = header->timestamp;
-      if (ts == 0) {
-        break;
-      }
-      int length = header->length;
-      if (header->type) {
-        UpdateWalUnit unit;
-        unit.timestamp = ts;
-        unit.ptr = ptr;
-        unit.size = length;
-        update_wal_list_.push_back(unit);
-      } else {
-        if (ts >= insert_wal_list_.size()) {
-          insert_wal_list_.resize(ts + 1);
+  try {
+    insert_wal_list_.resize(4096);
+    for (size_t i = 0; i < mmapped_ptrs_.size(); ++i) {
+      char* ptr = static_cast<char*>(mmapped_ptrs_[i]);
+      const char* end = ptr + mmapped_size_[i];
+      while (true) {
+        if (static_cast<size_t>(end - ptr) < sizeof(WalHeader)) {
+          THROW_IO_EXCEPTION("Corrupt WAL file " + mapped_paths[i] +
+                             ": truncated header or missing terminator");
         }
-        insert_wal_list_[ts].ptr = ptr;
-        insert_wal_list_[ts].size = length;
+        WalHeader header{};
+        std::memcpy(&header, ptr, sizeof(header));
+        ptr += sizeof(WalHeader);
+        const uint32_t ts = header.timestamp;
+        if (ts == 0) {
+          break;
+        }
+        if (header.length < 0) {
+          THROW_IO_EXCEPTION("Corrupt WAL file " + mapped_paths[i] +
+                             ": negative record length");
+        }
+        const auto length = static_cast<size_t>(header.length);
+        if (length > static_cast<size_t>(end - ptr)) {
+          THROW_IO_EXCEPTION("Corrupt WAL file " + mapped_paths[i] +
+                             ": record payload exceeds file size");
+        }
+        if (header.type) {
+          UpdateWalUnit unit;
+          unit.timestamp = ts;
+          unit.ptr = ptr;
+          unit.size = length;
+          update_wal_list_.push_back(unit);
+        } else {
+          if (ts >= insert_wal_list_.size()) {
+            insert_wal_list_.resize(ts + 1);
+          }
+          insert_wal_list_[ts].ptr = ptr;
+          insert_wal_list_[ts].size = length;
+        }
+        ptr += length;
+        last_ts_ = std::max(ts, last_ts_);
       }
-      ptr += length;
-      last_ts_ = std::max(ts, last_ts_);
     }
-  }
 
-  if (!update_wal_list_.empty()) {
-    std::sort(update_wal_list_.begin(), update_wal_list_.end(),
-              [](const UpdateWalUnit& lhs, const UpdateWalUnit& rhs) {
-                return lhs.timestamp < rhs.timestamp;
-              });
+    if (!update_wal_list_.empty()) {
+      std::sort(update_wal_list_.begin(), update_wal_list_.end(),
+                [](const UpdateWalUnit& lhs, const UpdateWalUnit& rhs) {
+                  return lhs.timestamp < rhs.timestamp;
+                });
+    }
+  } catch (...) {
+    close();
+    throw;
   }
 }
 

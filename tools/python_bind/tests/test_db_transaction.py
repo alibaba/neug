@@ -18,7 +18,9 @@
 
 import os
 import shutil
+import subprocess
 import sys
+import textwrap
 import time
 
 import pytest
@@ -453,6 +455,10 @@ def test_disable_checkpoint_on_close_recovers_wal(tmp_path):
     conn.close()
     db.close()
 
+    wal_files = list((db_dir / "wal").rglob("*.wal"))
+    assert wal_files
+    assert sum(path.stat().st_size for path in wal_files) < 1024 * 1024
+
     # 2. reopen database and recover committed writes from WAL
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
@@ -461,6 +467,19 @@ def test_disable_checkpoint_on_close_recovers_wal(tmp_path):
     assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
     conn.close()
     db.close()
+
+
+def test_read_write_reopen_without_mutation_does_not_create_wal(tmp_path):
+    db_dir = tmp_path / "no_mutation_wal"
+
+    for _ in range(5):
+        db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        assert list(conn.execute("RETURN 1;")) == [[1]]
+        conn.close()
+        db.close()
+
+    assert list((db_dir / "wal").rglob("*.wal")) == []
 
 
 # DB-004-18
@@ -688,3 +707,43 @@ def test_checkpoint_alter(tmp_path):
     assert rows == [[1, "Alice", 30], [2, "Bob", 25]]
     conn.close()
     db.close()
+
+
+def test_committed_wal_recovers_after_process_exit_without_close(tmp_path):
+    db_dir = tmp_path / "abrupt_exit_wal"
+    script = textwrap.dedent(
+        """
+        import os
+        import sys
+        from neug.database import Database
+
+        db = Database(db_path=sys.argv[1], mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        conn.execute("CREATE NODE TABLE T(id INT64, name STRING, PRIMARY KEY(id));")
+        conn.begin_transaction()
+        conn.execute("CREATE (:T {id: 1, name: 'committed'});")
+        conn.commit()
+        conn.begin_transaction()
+        conn.execute("CREATE (:T {id: 2, name: 'uncommitted'});")
+        os._exit(73)
+        """
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(str(path) for path in sys.path)
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(db_dir)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 73, result.stdout + result.stderr
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        assert list(conn.execute("MATCH (n:T) RETURN n.id, n.name ORDER BY n.id;")) == [
+            [1, "committed"]
+        ]
+    finally:
+        conn.close()
+        db.close()

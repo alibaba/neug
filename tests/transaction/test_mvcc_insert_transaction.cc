@@ -21,6 +21,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/mvcc_insert_transaction.h"
 #include "neug/transaction/wal/local_wal_parser.h"
+#include "neug/transaction/wal/local_wal_writer.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
 
@@ -39,6 +40,8 @@
 #endif
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -296,6 +299,136 @@ TEST_F(LocalWalParserTest, OpenAndParseValidWalFile) {
   // The ptr should point to the payload data within the mmap region.
   EXPECT_NE(unit.ptr, nullptr);
   EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
+}
+
+TEST_F(LocalWalParserTest, WriterOpenCloseWithoutAppendCreatesNoFile) {
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  for (size_t i = 0; i < 5; ++i) {
+    writer.open(wal_dir_);
+    EXPECT_TRUE(writer.append(nullptr, 0));
+    writer.close();
+  }
+  EXPECT_TRUE(std::filesystem::is_empty(wal_dir_));
+}
+
+TEST_F(LocalWalParserTest, WriterStoresExactLengthAndSingleTerminator) {
+  std::vector<char> first_record;
+  std::vector<char> second_record;
+  AppendWalEntry(first_record, /*ts=*/1, /*type=*/0, "first");
+  AppendWalEntry(second_record, /*ts=*/2, /*type=*/1, "second");
+
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  writer.open(wal_dir_);
+  ASSERT_TRUE(writer.append(first_record.data(), first_record.size()));
+  const auto path = std::filesystem::path(wal_dir_) / "thread_0_0.wal";
+  ASSERT_TRUE(std::filesystem::exists(path));
+  EXPECT_EQ(std::filesystem::file_size(path),
+            first_record.size() + sizeof(neug::WalHeader));
+
+  ASSERT_TRUE(writer.append(second_record.data(), second_record.size()));
+  writer.close();
+  EXPECT_EQ(
+      std::filesystem::file_size(path),
+      first_record.size() + second_record.size() + sizeof(neug::WalHeader));
+
+  std::ifstream input(path, std::ios::binary);
+  std::vector<char> bytes((std::istreambuf_iterator<char>(input)), {});
+  auto expected = first_record;
+  expected.insert(expected.end(), second_record.begin(), second_record.end());
+  expected.resize(expected.size() + sizeof(neug::WalHeader), 0);
+  EXPECT_EQ(bytes, expected);
+
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 2u);
+  EXPECT_EQ(parser.get_insert_wal(1).size, 5u);
+  ASSERT_EQ(parser.get_update_wals().size(), 1u);
+  EXPECT_EQ(parser.get_update_wals()[0].timestamp, 2u);
+  EXPECT_EQ(parser.get_update_wals()[0].size, 6u);
+}
+
+TEST_F(LocalWalParserTest, RejectsTruncatedHeader) {
+  WriteWalFile("truncated.wal",
+               std::vector<char>(sizeof(neug::WalHeader) - 1, 1));
+  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
+               neug::exception::IOException);
+}
+
+TEST_F(LocalWalParserTest, RejectsMissingTerminator) {
+  std::vector<char> buf;
+  AppendWalEntry(buf, /*ts=*/1, /*type=*/0, "payload");
+  WriteWalFile("missing_terminator.wal", buf);
+  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
+               neug::exception::IOException);
+}
+
+TEST_F(LocalWalParserTest, RejectsNegativeRecordLength) {
+  neug::WalHeader header{};
+  header.timestamp = 1;
+  header.length = -1;
+  std::vector<char> negative_length(sizeof(header));
+  std::memcpy(negative_length.data(), &header, sizeof(header));
+  AppendWalTerminator(negative_length);
+  WriteWalFile("negative_length.wal", negative_length);
+  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
+               neug::exception::IOException);
+}
+
+TEST_F(LocalWalParserTest, RejectsPayloadPastEndOfFile) {
+  neug::WalHeader header{};
+  header.timestamp = 1;
+  header.length = 1024;
+  std::vector<char> oversized_payload(sizeof(header));
+  std::memcpy(oversized_payload.data(), &header, sizeof(header));
+  AppendWalTerminator(oversized_payload);
+  WriteWalFile("oversized_payload.wal", oversized_payload);
+  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
+               neug::exception::IOException);
+}
+
+TEST_F(LocalWalParserTest, WriterUsesNextVersionAndPreservesExistingFiles) {
+  const std::vector<char> old_bytes{'o', 'l', 'd'};
+  for (const auto* name :
+       {"thread_0_0.wal", "thread_0_2.wal", "thread_1_65535.wal",
+        "thread_0_bad.wal", "thread_0_4junk.wal"}) {
+    WriteWalFile(name, old_bytes);
+  }
+  std::vector<char> record;
+  AppendWalEntry(record, 1, 0, "new");
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  for (int version : {3, 4}) {
+    writer.open(wal_dir_);
+    ASSERT_TRUE(writer.append(record.data(), record.size()));
+    writer.close();
+    EXPECT_TRUE(std::filesystem::exists(
+        std::filesystem::path(wal_dir_) /
+        ("thread_0_" + std::to_string(version) + ".wal")));
+  }
+  EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(wal_dir_) /
+                                       "thread_0_1.wal"));
+  for (const auto* name :
+       {"thread_0_0.wal", "thread_0_2.wal", "thread_1_65535.wal",
+        "thread_0_bad.wal", "thread_0_4junk.wal"}) {
+    std::ifstream input(std::filesystem::path(wal_dir_) / name,
+                        std::ios::binary);
+    std::vector<char> bytes((std::istreambuf_iterator<char>(input)), {});
+    EXPECT_EQ(bytes, old_bytes);
+  }
+}
+
+TEST_F(LocalWalParserTest, WriterRejectsExhaustedVersionsWithoutOverwriting) {
+  const std::vector<char> old_bytes{'o', 'l', 'd'};
+  WriteWalFile("thread_0_65535.wal", old_bytes);
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  writer.open(wal_dir_);
+  EXPECT_THROW(writer.append("x", 1), neug::exception::IOException);
+  writer.close();
+  std::ifstream input(std::filesystem::path(wal_dir_) / "thread_0_65535.wal",
+                      std::ios::binary);
+  std::vector<char> bytes((std::istreambuf_iterator<char>(input)), {});
+  EXPECT_EQ(bytes, old_bytes);
+  EXPECT_EQ(std::distance(std::filesystem::directory_iterator(wal_dir_),
+                          std::filesystem::directory_iterator()),
+            1);
 }
 
 #ifndef _WIN32
