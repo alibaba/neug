@@ -1527,17 +1527,23 @@ def test_load_preserves_parameterized_filters(empty_db, tmp_path, with_clause):
 
 
 @pytest.mark.parametrize("file_format", ["csv", "jsonl"])
-def test_load_reader_binds_parameters_inside_list(empty_db, tmp_path, file_format):
+@pytest.mark.parametrize("with_clause", [False, True])
+@pytest.mark.parametrize("as_list", [False, True])
+def test_load_reader_binds_parameters_inside_list(
+    empty_db, tmp_path, file_format, with_clause, as_list
+):
     _, conn = empty_db
     path = tmp_path / f"parameter_list.{file_format}"
     path.write_text(
         "id\n1\n2\n3\n" if file_format == "csv" else '{"id":1}\n{"id":2}\n{"id":3}\n',
         encoding="utf-8",
     )
-    query = (
-        f"LOAD FROM '{path}' WHERE id IN "
-        "[CAST($first, 'INT64'), CAST($last, 'INT64')] RETURN id ORDER BY id"
-    )
+    # Non-empty literals are fixed-size ARRAYs; also exercise a variable LIST.
+    values = "[CAST($first, 'INT64'), CAST($last, 'INT64')]"
+    if as_list:
+        values = f"CAST({values}, 'INT64[]')"
+    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    query = f"{source} WHERE id IN {values} RETURN id ORDER BY id"
     for first, last, expected in [(1, 3, [[1], [3]]), (2, 4, [[2]])]:
         assert (
             list(conn.execute(query, parameters={"first": first, "last": last}))

@@ -267,8 +267,13 @@ class BindedWithInExpr : public VertexExprBase,
     if (lhs_val.IsNull() || rhs_val.IsNull()) {
       return Value(DataType::BOOLEAN);
     }
-    // rhs is list
-    const auto& list_values = ListValue::GetChildren(rhs_val);
+    const auto rhs_type = rhs_val.type().id();
+    if (rhs_type != DataTypeId::kList && rhs_type != DataTypeId::kArray) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("IN requires a LIST or ARRAY operand");
+    }
+    const auto& list_values = rhs_type == DataTypeId::kArray
+                                  ? ArrayValue::GetChildren(rhs_val)
+                                  : ListValue::GetChildren(rhs_val);
     for (const auto& val : list_values) {
       if (lhs_val == val) {
         return Value::BOOLEAN(true);

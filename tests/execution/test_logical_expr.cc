@@ -6,11 +6,14 @@
 
 #include <gtest/gtest.h>
 
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
 
+#include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/execution/expression/exprs/logical_expr.h"
+#include "neug/utils/exception/exception.h"
 
 namespace neug::execution {
 namespace {
@@ -110,6 +113,64 @@ TEST(LogicalExprTest, PreservesThreeValuedLogicInEveryEvaluationMode) {
         EXPECT_EQ(rightCalls, shortCircuit ? 0 : 1);
       }
     }
+  }
+}
+
+TEST(LogicalExprTest, WithinSupportsListsAndArraysInEveryEvaluationMode) {
+  for (const bool as_array : {false, true}) {
+    SCOPED_TRACE(as_array ? "array" : "list");
+    const auto type = as_array ? DataType::Array(DataType::INT64, 2)
+                               : DataType::List(DataType::INT64);
+    const auto values =
+        as_array
+            ? Value::ARRAY(type, {Value::INT64(1), Value::INT64(3)})
+            : Value::LIST(DataType::INT64, {Value::INT64(1), Value::INT64(3)});
+    struct TestCase {
+      Value needle;
+      Value haystack;
+      std::optional<bool> expected;
+    };
+    const TestCase cases[] = {
+        {Value::INT64(1), values, true},
+        {Value::INT64(2), values, false},
+        {Value::INT64(3), values, true},
+        {Value(DataType::INT64), values, std::nullopt},
+        {Value::INT64(1), Value(type), std::nullopt},
+    };
+    for (size_t i = 0; i < std::size(cases); ++i) {
+      SCOPED_TRACE(i);
+      const auto& test = cases[i];
+      WithInExpr expression(std::make_unique<ConstExpr>(test.needle),
+                            std::make_unique<ConstExpr>(test.haystack));
+      auto bound = expression.bind(nullptr, {});
+      for (const auto mode :
+           {VarType::kRecord, VarType::kVertex, VarType::kEdge}) {
+        SCOPED_TRACE(static_cast<int>(mode));
+        const auto actual = evaluate(*bound, mode);
+        ASSERT_EQ(actual.IsNull(), !test.expected.has_value());
+        if (test.expected) {
+          EXPECT_EQ(actual.GetValue<bool>(), *test.expected);
+        }
+      }
+    }
+  }
+}
+
+TEST(LogicalExprTest, WithinHandlesEmptyListsAndRejectsScalarContainers) {
+  WithInExpr empty(
+      std::make_unique<ConstExpr>(Value::INT64(1)),
+      std::make_unique<ConstExpr>(Value::LIST(DataType::INT64, {})));
+  WithInExpr invalid(std::make_unique<ConstExpr>(Value::INT64(1)),
+                     std::make_unique<ConstExpr>(Value::INT64(1)));
+  auto bound_empty = empty.bind(nullptr, {});
+  auto bound_invalid = invalid.bind(nullptr, {});
+  for (const auto mode : {VarType::kRecord, VarType::kVertex, VarType::kEdge}) {
+    SCOPED_TRACE(static_cast<int>(mode));
+    const auto actual = evaluate(*bound_empty, mode);
+    ASSERT_FALSE(actual.IsNull());
+    EXPECT_FALSE(actual.GetValue<bool>());
+    EXPECT_THROW(evaluate(*bound_invalid, mode),
+                 exception::InvalidArgumentException);
   }
 }
 
