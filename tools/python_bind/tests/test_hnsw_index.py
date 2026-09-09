@@ -256,7 +256,7 @@ def test_hnsw_index_scan_with_dynamic_skip_and_limit(advanced_connection):
     assert "IndexScanOpr" in _profile_operator_names(result)
     assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
 
-    result = advanced_connection.execute(query, parameters={"offset": 0, "k": 0})
+    result = advanced_connection.execute(query, parameters={"offset": 10, "k": 0})
     assert list(result) == []
     assert "IndexScanOpr" in _profile_operator_names(result)
     assert "ProjectOrderByOprBeta" in _profile_operator_names(result)

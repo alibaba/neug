@@ -147,7 +147,8 @@ std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
     }
   }
   if (range) {
-    bound->bound_range = range->bind(nullptr, params).upper;
+    const auto resolved = range->bind(nullptr, params);
+    bound->bound_range = resolved.upper <= resolved.lower ? 0 : resolved.upper;
   }
   bound->ascending = ascending;
   bound->node_alias = node_alias;

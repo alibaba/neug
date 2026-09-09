@@ -456,6 +456,14 @@ def test_fts_rejects_range_values_above_uint32_max(fts_database, suffix, paramet
             True,
             id="order-by-skip-limit",
         ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset LIMIT $k",
+            {"offset": 10, "k": 0},
+            10,
+            10,
+            True,
+            id="order-by-skip-zero-limit",
+        ),
     ],
 )
 def test_fts_index_scan_with_dynamic_limit_and_skip(

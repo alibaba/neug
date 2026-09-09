@@ -388,12 +388,8 @@ std::unique_ptr<function::CallFuncInputBase> HNSWIndexScanFuncInput::bindParams(
   auto bound = std::make_unique<HNSWIndexScanFuncInput>();
   bound->label_id = label_id;
   bound->unique_index_name = unique_index_name;
-  auto upper = range->bind(nullptr, params).upper;
-  if (upper > std::numeric_limits<uint32_t>::max()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "HNSW_INDEX_SCAN limit exceeds UINT32_MAX");
-  }
-  bound->bound_range = static_cast<uint32_t>(upper);
+  const auto resolved = range->bind(nullptr, params);
+  bound->bound_range = resolved.upper <= resolved.lower ? 0 : resolved.upper;
   bound->vertex_alias = vertex_alias;
   bound->score_alias = score_alias;
   bound->bound_target_value =
