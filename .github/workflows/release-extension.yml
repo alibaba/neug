@@ -18,6 +18,12 @@ concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
   cancel-in-progress: true
 
+env:
+  OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+  OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+  OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+  OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
+
 jobs:
   # Shared step to determine extensions and version
   prepare:
