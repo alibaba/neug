@@ -1449,3 +1449,103 @@ def test_multi_label2(tinysnb):
     records = list(result)
     logger.info(f"records: {records}, len: {len(records)}")
     assert len(records) == 11
+
+
+@pytest.mark.parametrize(
+    "left,right,expected_and,expected_or",
+    [
+        ("true", "true", True, True),
+        ("true", "false", False, True),
+        ("true", "null", None, True),
+        ("false", "true", False, True),
+        ("false", "false", False, False),
+        ("false", "null", False, None),
+        ("null", "true", None, True),
+        ("null", "false", False, None),
+        ("null", "null", None, None),
+    ],
+)
+def test_boolean_three_valued_logic(
+    empty_db, tmp_path, left, right, expected_and, expected_or
+):
+    _, conn = empty_db
+    path = tmp_path / "logic.jsonl"
+    path.write_text(
+        '{"id":0,"a":true,"b":true}\n' + f'{{"id":1,"a":{left},"b":{right}}}\n',
+        encoding="utf-8",
+    )
+    assert list(
+        conn.execute(f"LOAD FROM '{path}' WHERE id = 1 RETURN a AND b, a OR b;")
+    ) == [[expected_and, expected_or]]
+
+
+@pytest.mark.parametrize("file_format", ["csv", "jsonl"])
+@pytest.mark.parametrize(
+    "predicate, expected",
+    [
+        ("id + 1 > 3", [3, 4]),
+        ("CAST(id, 'DOUBLE') > 2", [3, 4]),
+        ("CAST(id, 'STRING') = '3'", [3]),
+        ("CAST(score, 'INT64') = 1", [1]),
+        ("id >= 2 AND score * 2 > 3", [4]),
+        ("score IS NULL", [3]),
+        ("score IS NOT NULL", [1, 2, 4]),
+        ("NOT (score * 2 > 3)", [1, 2]),
+        ("NOT (score * 2 > 3 AND id > 999)", [1, 2, 3, 4]),
+        ("NOT (score * 2 > 3 OR id > 999)", [1, 2]),
+        ("CASE WHEN score IS NULL THEN 10 ELSE score END > 3", [3, 4]),
+        ("CAST(CAST(id, 'STRING'), 'INT64') + 1 > 3", [3, 4]),
+        ("upper(CAST(id, 'STRING')) = '3' AND score IS NULL", [3]),
+    ],
+)
+def test_load_preserves_execution_filters(
+    empty_db, tmp_path, file_format, predicate, expected
+):
+    _, conn = empty_db
+    path = tmp_path / f"filter.{file_format}"
+    content = (
+        "id|score\n1|1.25\n2|-2.5\n3|\n4|4.5\n"
+        if file_format == "csv"
+        else '{"id":1,"score":1.25}\n{"id":2,"score":-2.5}\n'
+        '{"id":3,"score":null}\n{"id":4,"score":4.5}\n'
+    )
+    path.write_text(content, encoding="utf-8")
+    assert list(
+        conn.execute(f"LOAD FROM '{path}' WHERE {predicate} RETURN id ORDER BY id;")
+    ) == [[value] for value in expected]
+
+
+@pytest.mark.parametrize("with_clause", [False, True])
+def test_load_preserves_parameterized_filters(empty_db, tmp_path, with_clause):
+    _, conn = empty_db
+    path = tmp_path / "parameter_filter.jsonl"
+    path.write_text('{"id":1}\n{"id":2}\n{"id":3}\n', encoding="utf-8")
+    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    query = f"{source} WHERE id + 1 > $minimum RETURN id ORDER BY id;"
+    for minimum, expected in [(3, [[3]]), (1, [[1], [2], [3]]), (4, [])]:
+        assert list(conn.execute(query, parameters={"minimum": minimum})) == expected
+
+
+@pytest.mark.parametrize("file_format", ["csv", "jsonl"])
+@pytest.mark.parametrize("with_clause", [False, True])
+@pytest.mark.parametrize("as_list", [False, True])
+def test_load_reader_binds_parameters_inside_list(
+    empty_db, tmp_path, file_format, with_clause, as_list
+):
+    _, conn = empty_db
+    path = tmp_path / f"parameter_list.{file_format}"
+    path.write_text(
+        "id\n1\n2\n3\n" if file_format == "csv" else '{"id":1}\n{"id":2}\n{"id":3}\n',
+        encoding="utf-8",
+    )
+    # Non-empty literals are fixed-size ARRAYs; also exercise a variable LIST.
+    values = "[CAST($first, 'INT64'), CAST($last, 'INT64')]"
+    if as_list:
+        values = f"CAST({values}, 'INT64[]')"
+    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    query = f"{source} WHERE id IN {values} RETURN id ORDER BY id"
+    for first, last, expected in [(1, 3, [[1], [3]]), (2, 4, [[2]])]:
+        assert (
+            list(conn.execute(query, parameters={"first": first, "last": last}))
+            == expected
+        )

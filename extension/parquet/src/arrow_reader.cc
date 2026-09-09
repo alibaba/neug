@@ -24,6 +24,8 @@
 #include <arrow/table.h>
 #include <glog/logging.h>
 
+#include <unordered_set>
+
 #include "parquet/arrow_column.h"
 #include "parquet/arrow_reader.h"
 #include "parquet/record_batch_supplier.h"
@@ -33,9 +35,89 @@
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
+#include "neug/utils/io/read/common/row_expression_filter.h"
 
 namespace neug {
 namespace reader {
+namespace {
+
+std::vector<std::string> fallbackProjection(const ReadSharedState& state) {
+  const auto& all_columns = state.schema.entry->columnNames;
+  // An empty projection means that the caller requests every column.
+  if (state.projectColumns.empty()) {
+    return all_columns;
+  }
+  std::unordered_set<std::string> required(state.projectColumns.begin(),
+                                           state.projectColumns.end());
+  std::vector<const ::common::Expression*> pending{state.skipRows.get()};
+  while (!pending.empty()) {
+    const auto* expr = pending.back();
+    pending.pop_back();
+    if (!expr) {
+      continue;
+    }
+    for (const auto& opr : expr->operators()) {
+      switch (opr.item_case()) {
+      case ::common::ExprOpr::kVar:
+        if (!opr.var().tag().has_name() || opr.var().has_property()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "File filter requires a column name without a graph property");
+        }
+        required.insert(opr.var().tag().name());
+        break;
+      case ::common::ExprOpr::kCase:
+        for (const auto& when : opr.case_().when_then_expressions()) {
+          pending.push_back(&when.when_expression());
+          pending.push_back(&when.then_result_expression());
+        }
+        pending.push_back(&opr.case_().else_result_expression());
+        break;
+      case ::common::ExprOpr::kScalarFunc:
+        for (const auto& arg : opr.scalar_func().parameters()) {
+          pending.push_back(&arg);
+        }
+        break;
+      case ::common::ExprOpr::kUdfFunc:
+        for (const auto& arg : opr.udf_func().parameters()) {
+          pending.push_back(&arg);
+        }
+        break;
+      case ::common::ExprOpr::kToTuple:
+        for (const auto& field : opr.to_tuple().fields()) {
+          pending.push_back(&field);
+        }
+        break;
+      case ::common::ExprOpr::kToList:
+        for (const auto& field : opr.to_list().fields()) {
+          pending.push_back(&field);
+        }
+        break;
+      case ::common::ExprOpr::kToArray:
+        for (const auto& field : opr.to_array().fields()) {
+          pending.push_back(&field);
+        }
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
+  // Keep a stable scan order; finishChunk restores the requested output order.
+  std::vector<std::string> columns;
+  for (const auto& name : all_columns) {
+    if (required.erase(name)) {
+      columns.push_back(name);
+    }
+  }
+  if (!required.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Column not found in entry schema: " +
+                                     *required.begin());
+  }
+  return columns;
+}
+
+}  // namespace
 
 void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
                        execution::Context& ctx) {
@@ -86,12 +168,18 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
     THROW_INVALID_ARGUMENT_EXCEPTION("Failed to build arrow options");
   }
 
-  if (!optionsBuilder->projectColumns(arrowOptions)) {
-    LOG(WARNING) << "Failed to set column projection, using all columns";
-  }
-
-  if (!optionsBuilder->skipRows(arrowOptions)) {
-    LOG(WARNING) << "Failed to set row filter, using no filter";
+  filter_after_read_ = !optionsBuilder->skipRows(arrowOptions);
+  if (filter_after_read_) {
+    fallback_columns_ = fallbackProjection(*sharedState);
+    auto projection = arrow::dataset::ProjectionDescr::FromNames(
+        fallback_columns_, *arrowOptions.scanOptions->dataset_schema);
+    if (!projection.ok()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(projection.status().ToString());
+    }
+    arrowOptions.scanOptions->projection = projection->expression;
+    arrowOptions.scanOptions->projected_schema = projection->schema;
+  } else if (!optionsBuilder->projectColumns(arrowOptions)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Failed to set column projection");
   }
 
   auto scan_opts = arrowOptions.scanOptions;
@@ -202,7 +290,8 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
   auto table = table_result.ValueOrDie();
 
-  int num_cols = sharedState->columnNum();
+  int num_cols =
+      filter_after_read_ ? fallback_columns_.size() : sharedState->columnNum();
   if (num_cols != table->num_columns()) {
     THROW_IO_EXCEPTION(
         "Column number mismatch between schema and table, schema: " +
@@ -216,7 +305,7 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
     auto table_column = table->column(i);
     chunk.set(i, arrow_arrays_to_value_column(table_column->chunks()));
   }
-  output.append_chunk(std::move(chunk));
+  output.append_chunk(finishChunk(std::move(chunk)));
 }
 
 void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
@@ -253,8 +342,18 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
 
   output.clear();
   while (auto chunk = batch_supplier->GetNextChunk()) {
-    output.append_chunk(std::move(*chunk));
+    output.append_chunk(finishChunk(std::move(*chunk)));
   }
+}
+
+DataChunk ArrowReader::finishChunk(DataChunk chunk) const {
+  if (!filter_after_read_ || chunk.col_num() == 0) {
+    return chunk;
+  }
+  auto filtered = filter_chunk(chunk, sharedState->skipRows, fallback_columns_,
+                               sharedState->parameters);
+  return project_chunk(filtered, fallback_columns_,
+                       sharedState->projectColumns);
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
