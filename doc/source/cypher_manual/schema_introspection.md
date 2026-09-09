@@ -28,7 +28,7 @@ The result contains one row per node table and is ordered by node label name.
 | Column | Type | Description |
 | --- | --- | --- |
 | `vertex_label_name` | `STRING` | Node label name. |
-| `primary_key` | `STRING` | Primary-key property name. |
+| `primary_key` | `STRING` | Primary-key property name. NeuG currently requires exactly one single-column primary key for each node table; composite primary keys are not supported. |
 | `temporary` | `BOOL` | `true` for a temporary node table and `false` for a persistent node table. |
 
 For example, given persistent `Person` and `Company` node tables and a
