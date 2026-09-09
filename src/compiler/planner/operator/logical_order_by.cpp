@@ -50,9 +50,7 @@ void LogicalOrderBy::computeFlatSchema() {
 std::string LogicalOrderBy::getExpressionsForPrinting() const {
   auto result = binder::ExpressionUtil::toString(expressionsToOrderBy) + " ";
   if (hasLimitNum()) {
-    if (skipNum) {
-      result += "SKIP " + skipNum->toString() + " ";
-    }
+    result += "SKIP " + (skipNum ? skipNum->toString() : "0") + " ";
     result += "LIMIT " + limitNum->toString();
   }
   return result;
