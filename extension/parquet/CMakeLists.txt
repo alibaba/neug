@@ -154,17 +154,25 @@ if(BUILD_TEST)
     build_carquet_as_third_party()
 
     add_library(neug_parquet_carquet_impl STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/chunk_supplier.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/column_converter.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/input_adapter.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/schema_converter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/sniffer.cc)
     target_include_directories(neug_parquet_carquet_impl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR})
     target_link_libraries(neug_parquet_carquet_impl PUBLIC neug::carquet)
+    add_dependencies(neug_parquet_carquet_impl neug_proto)
 
     add_executable(parquet_carquet_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_chunk_supplier_test.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_input_adapter_test.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_output_adapter_test.cc)
+    target_compile_definitions(parquet_carquet_test PRIVATE
+        NEUG_PARQUET_DATASET_DIR="${CMAKE_SOURCE_DIR}/example_dataset")
     target_link_libraries(parquet_carquet_test PRIVATE
         neug::GTest
         neug_parquet_carquet_impl
