@@ -269,20 +269,18 @@ std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
   const auto& scan = op.opr().index_scan();
   auto input = std::make_unique<HNSWIndexScanFuncInput>();
   std::string label;
-  std::string topk;
   for (const auto& option : scan.options()) {
     if (option.first == "label_id") {
       label = option.second;
-    } else if (option.first == "topk") {
-      topk = option.second;
     }
   }
-  if (label.empty() || scan.unique_index_name().empty() || topk.empty()) {
+  if (label.empty() || scan.unique_index_name().empty() || !scan.has_limit()) {
     THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN is missing required options");
   }
   input->label_id = ParseUnsignedOption<label_t>(label, "label_id");
   input->unique_index_name = scan.unique_index_name();
-  input->topk = ParseUnsignedOption<uint32_t>(topk, "topk");
+  input->range = std::make_unique<execution::ops::RangeExpression>(
+      scan.limit(), context_meta);
   input->target_value = execution::parse_expression(
       scan.target_value(), context_meta, execution::VarType::kRecord);
   if (op.meta_data_size() != 2) {
@@ -296,6 +294,16 @@ std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
 execution::Context ExecuteHNSWIndexScan(
     const function::CallFuncInputBase& base_input, IStorageInterface& graph) {
   const auto& input = dynamic_cast<const HNSWIndexScanFuncInput&>(base_input);
+  if (input.bound_range == 0) {
+    execution::Context context;
+    execution::ContextChunk chunk;
+    MSVertexColumnBuilder vertex_builder(input.label_id);
+    ValueColumnBuilder<double> score_builder;
+    chunk.set(input.vertex_alias, vertex_builder.finish());
+    chunk.set(input.score_alias, score_builder.finish());
+    context.append_chunk(std::move(chunk));
+    return context;
+  }
   auto* reader = dynamic_cast<StorageReadInterface*>(&graph);
   if (reader == nullptr) {
     THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN requires a readable graph");
@@ -303,13 +311,13 @@ execution::Context ExecuteHNSWIndexScan(
 
   HNSWIndexQueryParams params;
   params.target_value = input.bound_target_value;
-  params.topk = input.topk;
+  params.topk = input.bound_range;
   constexpr uint32_t kMinEfSearch = 100;
   constexpr uint32_t kMaxEfSearch = 2048;
   const auto doubled_topk =
-      input.topk > std::numeric_limits<uint32_t>::max() / 2
+      input.bound_range > std::numeric_limits<uint32_t>::max() / 2
           ? std::numeric_limits<uint32_t>::max()
-          : input.topk * 2;
+          : input.bound_range * 2;
   params.ef_search =
       std::min(std::max(doubled_topk, kMinEfSearch), kMaxEfSearch);
 
@@ -380,7 +388,12 @@ std::unique_ptr<function::CallFuncInputBase> HNSWIndexScanFuncInput::bindParams(
   auto bound = std::make_unique<HNSWIndexScanFuncInput>();
   bound->label_id = label_id;
   bound->unique_index_name = unique_index_name;
-  bound->topk = topk;
+  auto upper = range->bind(nullptr, params).upper;
+  if (upper > std::numeric_limits<uint32_t>::max()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "HNSW_INDEX_SCAN limit exceeds UINT32_MAX");
+  }
+  bound->bound_range = static_cast<uint32_t>(upper);
   bound->vertex_alias = vertex_alias;
   bound->score_alias = score_alias;
   bound->bound_target_value =
@@ -413,9 +426,7 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
     return op;
   }
   auto order_by = op->ptrCast<planner::LogicalOrderBy>();
-  if (!order_by->isTopK() ||
-      (order_by->getSkipNum() != 0 && order_by->getSkipNum() != UINT64_MAX) ||
-      order_by->getLimitNum() == 0 || order_by->getNumChildren() != 1) {
+  if (!order_by->isTopK() || order_by->getNumChildren() != 1) {
     return op;
   }
   auto child = order_by->getChild(0);
@@ -495,7 +506,8 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
   auto bind_data = std::make_unique<function::IndexScanBindData>(
       columns, hnsw_index->GetMeta().name, target);
   bind_data->options["label_id"] = std::to_string(property->getSingleTableID());
-  bind_data->options["topk"] = std::to_string(order_by->getLimitNum());
+  bind_data->rangeOffset = order_by->getSkipNum();
+  bind_data->rangeLimit = order_by->getLimitNum();
 
   auto table_call = std::make_shared<planner::LogicalTableFunctionCall>(
       *function, std::move(bind_data));
@@ -504,6 +516,8 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
   }
   table_call->computeFlatSchema();
   projection->setChild(0, std::move(table_call));
+  // Keep OrderBy after the index scan so it applies the final skip/limit slice
+  // to the candidate set returned by HNSW.
   return op;
 }
 

@@ -27,22 +27,33 @@ class LogicalOrderBy final : public LogicalOperator {
   inline std::vector<bool> getIsAscOrders() const { return isAscOrders; }
 
   inline bool isTopK() const { return hasLimitNum(); }
-  inline void setSkipNum(uint64_t num) { skipNum = num; }
-  inline uint64_t getSkipNum() const { return skipNum; }
-  inline void setLimitNum(uint64_t num) { limitNum = num; }
-  inline bool hasLimitNum() const { return limitNum != UINT64_MAX; }
-  inline uint64_t getLimitNum() const { return limitNum; }
+  inline void setSkipNum(std::shared_ptr<binder::Expression> num) {
+    skipNum = std::move(num);
+  }
+  inline std::shared_ptr<binder::Expression> getSkipNum() const {
+    return skipNum;
+  }
+  inline void setLimitNum(std::shared_ptr<binder::Expression> num) {
+    limitNum = std::move(num);
+  }
+  inline bool hasLimitNum() const { return limitNum != nullptr; }
+  inline std::shared_ptr<binder::Expression> getLimitNum() const {
+    return limitNum;
+  }
 
   inline std::unique_ptr<LogicalOperator> copy() override {
-    return make_unique<LogicalOrderBy>(expressionsToOrderBy, isAscOrders,
-                                       children[0]->copy());
+    auto result = make_unique<LogicalOrderBy>(expressionsToOrderBy, isAscOrders,
+                                              children[0]->copy());
+    result->skipNum = skipNum;
+    result->limitNum = limitNum;
+    return result;
   }
 
  private:
   binder::expression_vector expressionsToOrderBy;
   std::vector<bool> isAscOrders;
-  uint64_t skipNum = UINT64_MAX;
-  uint64_t limitNum = UINT64_MAX;
+  std::shared_ptr<binder::Expression> skipNum;
+  std::shared_ptr<binder::Expression> limitNum;
 };
 
 }  // namespace planner

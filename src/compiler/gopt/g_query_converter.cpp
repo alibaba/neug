@@ -586,48 +586,28 @@ GQueryConvertor::convertPathBase(
   }
 }
 
-uint64_t GQueryConvertor::convertValueAsUint64(compiler_impl::Value value) {
-  std::string valueStr = value.toString();
-  return std::stoull(valueStr);
-}
-
 std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
     std::shared_ptr<binder::Expression> skip,
     std::shared_ptr<binder::Expression> limit) {
-  if (skip && skip->expressionType != common::ExpressionType::LITERAL ||
-      limit && limit->expressionType != common::ExpressionType::LITERAL) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Skip and limit must be literal expressions.");
-  }
-  uint64_t skipValue = 0;
-  uint64_t limitValue = neug::Constants::MAX_UPPER_BOUND;
+  auto rangePB = std::make_unique<::algebra::Range>();
   if (skip) {
-    auto valueExpr = skip->ptrCast<binder::LiteralExpression>()->getValue();
-    skipValue = convertValueAsUint64(valueExpr);
+    rangePB->set_allocated_offset(exprConvertor->convert(*skip, {}).release());
   }
   if (limit) {
-    auto valueExpr = limit->ptrCast<binder::LiteralExpression>()->getValue();
-    limitValue = convertValueAsUint64(valueExpr);
+    rangePB->set_allocated_limit(exprConvertor->convert(*limit, {}).release());
   }
-  return convertRange(skipValue, limitValue);
+  return rangePB;
 }
 
 std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
     uint64_t skip, uint64_t limit) {
   auto rangePB = std::make_unique<::algebra::Range>();
-  if (skip > neug::Constants::MAX_UPPER_BOUND) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Skip value exceeds maximum allowed value: " +
-        std::to_string(neug::Constants::MAX_UPPER_BOUND));
-  }
-  int32_t upper = 0;
-  if (limit > neug::Constants::MAX_UPPER_BOUND - skip) {
-    upper = neug::Constants::MAX_UPPER_BOUND;
-  } else {
-    upper = static_cast<int32_t>(skip + limit);
-  }
-  rangePB->set_lower(skip);
-  rangePB->set_upper(upper);
+  auto offsetPB = std::make_unique<::common::Expression>();
+  offsetPB->add_operators()->mutable_const_()->set_u64(skip);
+  rangePB->set_allocated_offset(offsetPB.release());
+  auto limitPB = std::make_unique<::common::Expression>();
+  limitPB->add_operators()->mutable_const_()->set_u64(limit);
+  rangePB->set_allocated_limit(limitPB.release());
   return rangePB;
 }
 
@@ -691,11 +671,10 @@ void GQueryConvertor::convertRecursiveExtend(
   }
 
   // set hop ranges
-  auto rangePB = std::make_unique<::algebra::Range>();
   auto bindData = extend.getBindData();
-  // the range in physical pb is [lower, upper), so we need to add 1 to upper
-  rangePB->set_lower(bindData.lowerBound);
-  rangePB->set_upper(bindData.upperBound + 1);
+  auto rangePB = convertRange(
+      bindData.lowerBound,
+      static_cast<uint64_t>(bindData.upperBound) - bindData.lowerBound + 1);
   pathPB->set_allocated_hop_range(rangePB.release());
 
   // set path opt
@@ -1283,6 +1262,10 @@ void GQueryConvertor::convertIndexScan(
   if (bindData.weights) {
     indexScanPB->set_allocated_weights(
         exprConvertor->convert(*bindData.weights, {}).release());
+  }
+  if (bindData.rangeOffset || bindData.rangeLimit) {
+    indexScanPB->set_allocated_limit(
+        convertRange(bindData.rangeOffset, bindData.rangeLimit).release());
   }
   for (const auto& property_name : bindData.propertyNames) {
     indexScanPB->add_property_names(property_name);

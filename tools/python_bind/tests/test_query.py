@@ -34,6 +34,13 @@ from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 logger = logging.getLogger(__name__)
 
 
+def _profile_operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
+
+
 # DB-003-12
 def test_query_sync(modern_graph):
     conn = modern_graph
@@ -311,6 +318,230 @@ def test_builtin_scalar_function_with_dynamic_parameter(empty_db):
     )
 
     assert list(result) == [["neug"]]
+
+
+def test_dynamic_limit_without_order_by(modern_graph):
+    query = "MATCH (n) RETURN n.id AS id LIMIT $k"
+
+    assert len(modern_graph.execute(query, parameters={"k": 2})) == 2
+    # Exercise the same cached plan with a different runtime value.
+    assert len(modern_graph.execute(query, parameters={"k": 4})) == 4
+
+
+def test_dynamic_limit_without_match(modern_graph):
+    assert list(
+        modern_graph.execute("RETURN 1 AS value LIMIT $k", parameters={"k": 1})
+    ) == [[1]]
+    assert (
+        list(modern_graph.execute("RETURN 1 AS value LIMIT $k", parameters={"k": 0}))
+        == []
+    )
+
+
+def test_dynamic_skip_without_order_by(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id SKIP $offset",
+        parameters={"offset": 2},
+    )
+
+    assert len(result) == 4
+
+
+def test_dynamic_skip_and_limit_without_order_by(modern_graph):
+    exhaustive = list(modern_graph.execute("MATCH (n) RETURN n.id AS id"))
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id SKIP $offset LIMIT $k",
+        parameters={"offset": 1, "k": 3},
+    )
+
+    assert list(result) == exhaustive[1:4]
+
+
+def test_dynamic_order_by_limit_applies_project_order_by_fusion(modern_graph):
+    result = modern_graph.execute(
+        "PROFILE MATCH (n) RETURN n.id AS id ORDER BY id LIMIT $k",
+        parameters={"k": 3},
+    )
+
+    assert list(result) == [[1], [2], [3]]
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+
+def test_dynamic_order_by_skip_uses_unbounded_fallback(modern_graph):
+    result = modern_graph.execute(
+        "PROFILE MATCH (n) RETURN n.id AS id ORDER BY id SKIP $offset",
+        parameters={"offset": 2},
+    )
+
+    assert list(result) == [[3], [4], [5], [6]]
+    operator_names = _profile_operator_names(result)
+    assert "ProjectOrderByOprBeta" not in operator_names
+    assert "OrderByOpr" in operator_names
+
+
+def test_dynamic_order_by_skip_and_limit(modern_graph):
+    query = "PROFILE MATCH (n) RETURN n.id AS id " "ORDER BY id SKIP $offset LIMIT $k"
+
+    result = modern_graph.execute(query, parameters={"offset": 1, "k": 3})
+    assert list(result) == [
+        [2],
+        [3],
+        [4],
+    ]
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+    result = modern_graph.execute(query, parameters={"offset": 3, "k": 2})
+    assert list(result) == [
+        [4],
+        [5],
+    ]
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters", "expected"),
+    [
+        ("LIMIT $k", {"k": 1}, [[2, 1]]),
+        ("SKIP $offset LIMIT $k", {"offset": 1, "k": 1}, [[4, 1]]),
+    ],
+)
+def test_dynamic_shortest_path_limit_rule(modern_graph, suffix, parameters, expected):
+    result = modern_graph.execute(
+        "PROFILE MATCH (v:person {id: 1})"
+        "-[e:knows*SHORTEST 1..]-(v2:person) "
+        "WHERE v <> v2 "
+        "WITH v2, length(e) AS distance "
+        "RETURN v2.id, distance ORDER BY distance ASC " + suffix,
+        parameters=parameters,
+    )
+
+    assert list(result) == expected
+    operator_names = _profile_operator_names(result)
+    assert "SPOrderByLimitWithGPredOpr" in operator_names
+    assert "ProjectOrderByOprBeta" in operator_names
+
+
+@pytest.mark.parametrize("suffix", ["LIMIT $value", "SKIP $value"])
+@pytest.mark.parametrize("value", [-1, 1.5, "2", True, None])
+def test_dynamic_limit_and_skip_reject_invalid_values(modern_graph, suffix, value):
+    with pytest.raises(Exception):
+        modern_graph.execute(
+            f"MATCH (n) RETURN n.id AS id {suffix}",
+            parameters={"value": value},
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameter_name"),
+    [("LIMIT $k", "k"), ("SKIP $offset", "offset")],
+)
+def test_dynamic_limit_and_skip_report_missing_parameter(
+    modern_graph, suffix, parameter_name
+):
+    with pytest.raises(
+        Exception, match=rf"Missing query parameter: \${parameter_name}"
+    ):
+        modern_graph.execute(f"MATCH (n) RETURN n.id AS id {suffix}")
+
+
+def test_dynamic_skip_and_limit_clamp_combined_upper_bound(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id ORDER BY id SKIP $offset LIMIT $k",
+        parameters={"offset": 1, "k": 2**32 - 1},
+    )
+
+    assert list(result) == [[2], [3], [4], [5], [6]]
+
+
+def test_literal_integer_expression_for_limit_and_skip(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id ORDER BY id SKIP 1 + 1 LIMIT 1 + 1"
+    )
+
+    assert list(result) == [[3], [4]]
+
+
+def test_skip_may_be_greater_than_limit(modern_graph):
+    result = modern_graph.execute(
+        "MATCH (n) RETURN n.id AS id ORDER BY id SKIP 4 LIMIT 1"
+    )
+
+    assert list(result) == [[5]]
+
+
+def test_dynamic_skip_rejects_value_above_upper_bound(modern_graph):
+    with pytest.raises(Exception, match="exceeds maximum allowed value: 4294967295"):
+        modern_graph.execute(
+            "MATCH (n) RETURN n.id AS id SKIP $offset",
+            parameters={"offset": 2**32},
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("SKIP 4294967296", None),
+        ("SKIP $value", {"value": 2**32}),
+        ("LIMIT 4294967296", None),
+        ("LIMIT $value", {"value": 2**32}),
+    ],
+)
+def test_skip_and_limit_reject_out_of_range_values(modern_graph, suffix, parameters):
+    with pytest.raises(Exception):
+        modern_graph.execute(
+            f"MATCH (n) RETURN n.id AS id {suffix}",
+            parameters=parameters,
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("SKIP 4294967295", None),
+        ("SKIP $value", {"value": 2**32 - 1}),
+        ("LIMIT 4294967295", None),
+        ("LIMIT $value", {"value": 2**32 - 1}),
+    ],
+)
+def test_skip_and_limit_accept_upper_bound(modern_graph, suffix, parameters):
+    result = list(
+        modern_graph.execute(
+            f"MATCH (n) RETURN n.id AS id {suffix}",
+            parameters=parameters,
+        )
+    )
+
+    if suffix.startswith("SKIP"):
+        assert result == []
+    else:
+        assert len(result) == 6
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "SKIP 10",
+        "SKIP $value",
+        "SKIP 10 LIMIT 1",
+        "SKIP $value LIMIT $limit",
+    ],
+)
+def test_skip_beyond_result_cardinality_returns_empty(modern_graph, suffix):
+    assert (
+        list(
+            modern_graph.execute(
+                f"MATCH (n) RETURN n.id AS id {suffix}",
+                parameters={"value": 10, "limit": 1},
+            )
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("suffix", ["LIMIT -1", "SKIP -1", "LIMIT 1.5"])
+def test_literal_limit_and_skip_reject_invalid_values(modern_graph, suffix):
+    with pytest.raises(Exception):
+        modern_graph.execute(f"MATCH (n) RETURN n.id AS id {suffix}")
 
 
 @pytest.mark.parametrize(

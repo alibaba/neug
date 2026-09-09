@@ -176,14 +176,14 @@ message Unfold {
 }
 
 message Range {
-  // The lower bound of the range, included
-  int32 lower = 1;
-  // The upper bound of the range, **excluded**
-  int32 upper = 2;
+  // Number of entries skipped from the beginning. Missing means zero.
+  common.Expression offset = 1;
+  // Maximum number of entries returned. Missing means unbounded.
+  common.Expression limit = 2;
 }
 
 message Limit {
-  // The limit range, e.g., limit(10) will be represented by Range {lower = 0, upper = 10}
+  // The limit range, e.g., limit(10) is represented by offset 0 and limit 10.
   Range range = 1;
 }
 
