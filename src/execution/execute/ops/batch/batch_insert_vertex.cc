@@ -43,50 +43,68 @@ class BatchInsertVertexOpr : public IOperator {
     return "BatchInsertVertexOpr";
   }
 
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   common::NameOrId vertex_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
-neug::result<Stream<ContextChunk>> BatchInsertVertexOpr::Eval(
+Stream<ContextChunk> BatchInsertVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
     Stream<ContextChunk>&& input, OprTimer* timer) {
-  (void) params;
-  (void) timer;
-  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  label_t vertex_label_id = 0;
-  switch (vertex_type_.item_case()) {
-  case common::NameOrId::kId:
-    vertex_label_id = vertex_type_.id();
-    break;
-  case common::NameOrId::kName: {
-    const auto& name = vertex_type_.name();
-    if (!graph.schema().is_vertex_label_valid(name)) {
-      LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
-      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                          "Unknown vertex type: " + name);
-    }
-    vertex_label_id = graph.schema().get_vertex_label_id(name);
-    break;
-  }
-  default:
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "BatchInsertVertexOpr: invalid vertex_type: " +
-        vertex_type_.DebugString());
-  }
-  auto supplier =
-      std::make_shared<StreamChunkSupplier>(std::move(input), prop_mappings_);
-  auto inserted_vids = graph.BatchAddVertices(vertex_label_id, supplier);
-  RETURN_STATUS_ERROR_IF_NOT_OK(supplier->status());
-  if (!inserted_vids) {
-    return tl::unexpected(inserted_vids.error());
-  }
-  return batch_insert_result(supplier->rows_read());
+  return defer_stream(
+      std::move(input),
+      [this, &graph_interface, params,
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        // Pull once so upstream schema creation completes before resolving
+        // the target label; retain the batch for the storage supplier.
+        auto first = input.Next();
+        if (!first) {
+          return error_stream<ContextChunk>(first.error());
+        }
+        input = prepend_chunk(std::move(*first), std::move(input));
+
+        (void) params;
+        (void) timer;
+        auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+        label_t vertex_label_id = 0;
+        switch (vertex_type_.item_case()) {
+        case common::NameOrId::kId:
+          vertex_label_id = vertex_type_.id();
+          break;
+        case common::NameOrId::kName: {
+          const auto& name = vertex_type_.name();
+          if (!graph.schema().is_vertex_label_valid(name)) {
+            LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
+            return error_stream<ContextChunk>(
+                Status(StatusCode::ERR_INVALID_ARGUMENT,
+                       "Unknown vertex type: " + name));
+          }
+          vertex_label_id = graph.schema().get_vertex_label_id(name);
+          break;
+        }
+        default:
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "BatchInsertVertexOpr: invalid vertex_type: " +
+              vertex_type_.DebugString());
+        }
+        auto supplier = std::make_shared<StreamChunkSupplier>(std::move(input),
+                                                              prop_mappings_);
+        auto inserted_vids = graph.BatchAddVertices(vertex_label_id, supplier);
+        {
+          auto status = supplier->status();
+          if (!status.ok()) {
+            return error_stream<ContextChunk>(status);
+          }
+        };
+        if (!inserted_vids) {
+          return error_stream<ContextChunk>(inserted_vids.error());
+        }
+        return batch_insert_result(supplier->rows_read());
+      });
 }
 
 neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(

@@ -198,95 +198,108 @@ class MergeVertexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "MergeVertexOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph_interface,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override {
-    // Finish reading before mutation; downstream cancellation must not skip
-    // writes.
-    return reduce_stream(
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override {
+    return defer_stream(
         std::move(input),
         [this, &graph_interface, params,
-         timer](ContextChunk&& chunk) -> result<ContextChunk> {
-          (void) timer;
-          auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-          const StorageReadInterface* graph_read = nullptr;
-          if (graph_interface.readable()) {
-            graph_read =
-                dynamic_cast<const StorageReadInterface*>(&graph_interface);
-          }
-
-          {
-            for (const auto& plan : entries_) {
-              std::vector<
-                  std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-                  pattern_binded;
-              std::vector<
-                  std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-                  on_create_binded;
-              std::vector<
-                  std::pair<std::string, std::unique_ptr<BindedExprBase>>>
-                  on_match_binded;
-              for (const auto& [n, e] : plan.pattern_props) {
-                pattern_binded.emplace_back(n, e->bind(graph_read, params));
-              }
-              for (const auto& [n, e] : plan.on_create_props) {
-                on_create_binded.emplace_back(n, e->bind(graph_read, params));
-              }
-              for (const auto& [n, e] : plan.on_match_props) {
-                on_match_binded.emplace_back(n, e->bind(graph_read, params));
-              }
-              auto merged_binded = merge_pattern_and_on_create(
-                  std::move(pattern_binded), std::move(on_create_binded));
-
-              MSVertexColumnBuilder builder(plan.label);
-
-              // Standalone MERGE after OPTIONAL MATCH can yield row_num() == 0
-              // when the inner scan finds no row. MERGE write semantics still
-              // need exactly one logical row (CREATE/MATCH branch once).
-              std::shared_ptr<IContextColumn> alias_col;
-              if (chunk.exist(plan.alias_id)) {
-                auto c = chunk.get(plan.alias_id);
-                if (c != nullptr && c->size() > 0) {
-                  alias_col = std::move(c);
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          // Finish reading before mutation; downstream cancellation must not
+          // skip writes.
+          return reduce_stream(
+              std::move(input),
+              [this, &graph_interface, params,
+               timer](ContextChunk&& chunk) -> result<ContextChunk> {
+                (void) timer;
+                auto& graph =
+                    dynamic_cast<StorageUpdateInterface&>(graph_interface);
+                const StorageReadInterface* graph_read = nullptr;
+                if (graph_interface.readable()) {
+                  graph_read = dynamic_cast<const StorageReadInterface*>(
+                      &graph_interface);
                 }
-              }
-              size_t num_rows = chunk.row_num();
-              if (num_rows == 0) {
-                num_rows = 1;
-              }
 
-              for (size_t row = 0; row < num_rows; ++row) {
-                bool matched = false;
-                vid_t matched_vid = 0;
-                if (alias_col) {
-                  auto vc = std::dynamic_pointer_cast<IVertexColumn>(alias_col);
-                  if (vc && row < vc->size() && vc->has_value(row)) {
-                    auto vr = vc->get_vertex(row);
-                    if (vr.label_ == plan.label) {
-                      matched = true;
-                      matched_vid = vr.vid_;
+                {
+                  for (const auto& plan : entries_) {
+                    std::vector<
+                        std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+                        pattern_binded;
+                    std::vector<
+                        std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+                        on_create_binded;
+                    std::vector<
+                        std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+                        on_match_binded;
+                    for (const auto& [n, e] : plan.pattern_props) {
+                      pattern_binded.emplace_back(n,
+                                                  e->bind(graph_read, params));
                     }
+                    for (const auto& [n, e] : plan.on_create_props) {
+                      on_create_binded.emplace_back(
+                          n, e->bind(graph_read, params));
+                    }
+                    for (const auto& [n, e] : plan.on_match_props) {
+                      on_match_binded.emplace_back(n,
+                                                   e->bind(graph_read, params));
+                    }
+                    auto merged_binded = merge_pattern_and_on_create(
+                        std::move(pattern_binded), std::move(on_create_binded));
+
+                    MSVertexColumnBuilder builder(plan.label);
+
+                    // Standalone MERGE after OPTIONAL MATCH can yield row_num()
+                    // == 0 when the inner scan finds no row. MERGE write
+                    // semantics still need exactly one logical row
+                    // (CREATE/MATCH branch once).
+                    std::shared_ptr<IContextColumn> alias_col;
+                    if (chunk.exist(plan.alias_id)) {
+                      auto c = chunk.get(plan.alias_id);
+                      if (c != nullptr && c->size() > 0) {
+                        alias_col = std::move(c);
+                      }
+                    }
+                    size_t num_rows = chunk.row_num();
+                    if (num_rows == 0) {
+                      num_rows = 1;
+                    }
+
+                    for (size_t row = 0; row < num_rows; ++row) {
+                      bool matched = false;
+                      vid_t matched_vid = 0;
+                      if (alias_col) {
+                        auto vc =
+                            std::dynamic_pointer_cast<IVertexColumn>(alias_col);
+                        if (vc && row < vc->size() && vc->has_value(row)) {
+                          auto vr = vc->get_vertex(row);
+                          if (vr.label_ == plan.label) {
+                            matched = true;
+                            matched_vid = vr.vid_;
+                          }
+                        }
+                      }
+                      if (matched) {
+                        apply_on_match_vertex(graph, chunk.chunk(), row,
+                                              plan.label, matched_vid,
+                                              on_match_binded);
+                        builder.push_back_opt(matched_vid);
+                      } else {
+                        vid_t vid;
+                        GS_ASSIGN(vid,
+                                  insert_vertex_row(graph, chunk.chunk(), row,
+                                                    plan.label, merged_binded));
+                        builder.push_back_opt(vid);
+                      }
+                    }
+                    if (chunk.exist(plan.alias_id)) {
+                      chunk.remove(plan.alias_id);
+                    }
+                    chunk.set(plan.alias_id, builder.finish());
                   }
+                  return chunk;
                 }
-                if (matched) {
-                  apply_on_match_vertex(graph, chunk.chunk(), row, plan.label,
-                                        matched_vid, on_match_binded);
-                  builder.push_back_opt(matched_vid);
-                } else {
-                  vid_t vid;
-                  GS_ASSIGN(vid, insert_vertex_row(graph, chunk.chunk(), row,
-                                                   plan.label, merged_binded));
-                  builder.push_back_opt(vid);
-                }
-              }
-              if (chunk.exist(plan.alias_id)) {
-                chunk.remove(plan.alias_id);
-              }
-              chunk.set(plan.alias_id, builder.finish());
-            }
-            return chunk;
-          }
+              });
         });
   }
 

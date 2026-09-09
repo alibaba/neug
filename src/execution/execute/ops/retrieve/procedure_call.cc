@@ -36,35 +36,49 @@ class ProcedureCallOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
-    // Legacy extension ABI: Context conversion is confined to this boundary.
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          // Legacy extension ABI: Context conversion is confined to this
+          // boundary.
 
-    while (true) {
-      GS_AUTO(next, input.Next());
-      if (!next) {
-        break;
-      }
-    }
+          while (true) {
+            auto next_result = input.Next();
+            if (!next_result) {
+              return error_stream<ContextChunk>(next_result.error());
+            }
+            auto next = std::move(*next_result);
+            if (!next) {
+              break;
+            }
+          }
 
-    (void) timer;
-    if (callFunction_ == nullptr) {
-      THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
-    }
-    if (unboundInput_ == nullptr) {
-      THROW_RUNTIME_ERROR("ProcedureCallOpr: unbound input is nullptr");
-    }
-    if (callFunction_->execFunc == nullptr) {
-      THROW_RUNTIME_ERROR("ProcedureCallOpr: execFunc is nullptr");
-    }
-    // bindParams returns a per-Eval bound input; nullptr means no deferred
-    // params and the unbound template is safe to exec as-is.
-    auto boundInput = unboundInput_->bindParams(params);
-    const auto& bound = boundInput ? *boundInput : *unboundInput_;
-    GS_AUTO(output, neug::result<neug::execution::Context>(
-                        callFunction_->execFunc(bound, graph)));
-    return stream_from_context(std::move(output));
+          (void) timer;
+          if (callFunction_ == nullptr) {
+            THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
+          }
+          if (unboundInput_ == nullptr) {
+            THROW_RUNTIME_ERROR("ProcedureCallOpr: unbound input is nullptr");
+          }
+          if (callFunction_->execFunc == nullptr) {
+            THROW_RUNTIME_ERROR("ProcedureCallOpr: execFunc is nullptr");
+          }
+          // bindParams returns a per-Eval bound input; nullptr means no
+          // deferred params and the unbound template is safe to exec as-is.
+          auto boundInput = unboundInput_->bindParams(params);
+          const auto& bound = boundInput ? *boundInput : *unboundInput_;
+          auto output_result = neug::result<neug::execution::Context>(
+              callFunction_->execFunc(bound, graph));
+          if (!output_result) {
+            return error_stream<ContextChunk>(output_result.error());
+          }
+          auto output = std::move(*output_result);
+          return stream_from_context(std::move(output));
+        });
   }
 };
 

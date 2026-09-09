@@ -27,32 +27,44 @@ class DropVertexTypeOpr : public IOperator {
       : vertex_type_(vertex_type), ignore_conflict_(ignore_conflict) {}
 
   std::string get_operator_name() const override { return "DropVertexTypeOpr"; }
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    label_t label;
-    auto resolve = ResolveVertexLabel(storage.schema(), vertex_type_, label);
-    if (!resolve.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
-        return std::move(input);
-      }
-      LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
-                 << ", reason: " << resolve.ToString();
-      RETURN_ERROR(resolve);
-    }
-    auto res = storage.DeleteVertexType(label);
-    if (!res.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(res)) {
-        return std::move(input);
-      }
-      LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
-                 << ", reason: " << res.ToString();
-      RETURN_ERROR(res);
-    }
-    return std::move(input);
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          auto tags = input.tag_ids;
+          auto before = collect_batches(std::move(input));
+          if (!before) {
+            return error_stream<ContextChunk>(before.error());
+          }
+          input = stream_from_batches(std::move(*before), std::move(tags));
+
+          StorageUpdateInterface& storage =
+              dynamic_cast<StorageUpdateInterface&>(graph);
+          label_t label;
+          auto resolve =
+              ResolveVertexLabel(storage.schema(), vertex_type_, label);
+          if (!resolve.ok()) {
+            if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+              return std::move(input);
+            }
+            LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
+                       << ", reason: " << resolve.ToString();
+            return error_stream<ContextChunk>(resolve);
+          }
+          auto res = storage.DeleteVertexType(label);
+          if (!res.ok()) {
+            if (ignore_conflict_ && IsSchemaConflictError(res)) {
+              return std::move(input);
+            }
+            LOG(ERROR) << "Fail to drop vertex type: " << vertex_type_
+                       << ", reason: " << res.ToString();
+            return error_stream<ContextChunk>(res);
+          }
+          return std::move(input);
+        });
   }
 
  private:

@@ -62,14 +62,15 @@ class StreamTimerScope {
 neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
                                         const ParamsMap& params,
                                         OprTimer* timer) {
-  GS_AUTO(stream, ExecuteStream(graph, stream_from_context(std::move(ctx)),
-                                params, timer));
+  auto stream =
+      ExecuteStream(graph, stream_from_context(std::move(ctx)), params, timer);
   return materialize(std::move(stream));
 }
 
-result<Stream<ContextChunk>> Pipeline::ExecuteStream(
-    IStorageInterface& graph, Stream<ContextChunk> stream,
-    const ParamsMap& params, OprTimer* timer) {
+Stream<ContextChunk> Pipeline::ExecuteStream(IStorageInterface& graph,
+                                             Stream<ContextChunk> stream,
+                                             const ParamsMap& params,
+                                             OprTimer* timer) {
   auto charged = std::make_shared<double>(0.0);
   auto* current_timer = timer;
   for (size_t i = 0; i < operators_.size(); ++i) {
@@ -77,27 +78,10 @@ result<Stream<ContextChunk>> Pipeline::ExecuteStream(
     if (current_timer) {
       current_timer->set_name(name);
     }
-    auto invoke = [&]() -> result<Stream<ContextChunk>> {
-      StreamTimerScope scope(current_timer, charged);
-      result<Stream<ContextChunk>> output = Stream<ContextChunk>();
-      TRY_HANDLE_ALL_WITH_EXCEPTION(
-          result<Stream<ContextChunk>>,
-          [&]() {
-            return operators_[i]->Eval(graph, params, std::move(stream),
-                                       current_timer);
-          },
-          [&](const Status& error) { output = tl::unexpected(error); },
-          [&](result<Stream<ContextChunk>>&& result) {
-            output = std::move(result);
-          });
-      return output;
-    };
-    auto output = invoke();
-    if (!output) {
-      return tl::unexpected(operator_error(output.error(), name));
-    }
-    auto tags = std::move(output->tag_ids);
-    auto producer = std::make_shared<Stream<ContextChunk>>(std::move(*output));
+    auto output =
+        operators_[i]->Eval(graph, params, std::move(stream), current_timer);
+    auto tags = std::move(output.tag_ids);
+    auto producer = std::make_shared<Stream<ContextChunk>>(std::move(output));
     stream = Stream<ContextChunk>(
         [producer, current_timer, charged,
          name]() -> Stream<ContextChunk>::NextResult {

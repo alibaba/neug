@@ -37,35 +37,47 @@ class DropEdgePropertySchemaOpr : public IOperator {
   std::string get_operator_name() const override {
     return "DropEdgePropertySchemaOpr";
   }
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    label_t src, dst, edge;
-    auto resolve = ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
-                                      edge_type_, src, dst, edge);
-    if (!resolve.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
-        return std::move(input);
-      }
-      LOG(ERROR) << "Fail to drop edge property from type: " << edge_type_
-                 << ", reason: " << resolve.ToString();
-      RETURN_ERROR(resolve);
-    }
-    DeleteEdgePropertiesParamBuilder builder;
-    auto config = builder.DeleteProperties(property_names_).Build();
-    auto res = storage.DeleteEdgeProperties(src, dst, edge, config);
-    if (!res.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(res)) {
-        return std::move(input);
-      }
-      LOG(ERROR) << "Fail to drop edge property from type: " << edge_type_
-                 << ", reason: " << res.ToString();
-      RETURN_ERROR(res);
-    }
-    return std::move(input);
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          auto tags = input.tag_ids;
+          auto before = collect_batches(std::move(input));
+          if (!before) {
+            return error_stream<ContextChunk>(before.error());
+          }
+          input = stream_from_batches(std::move(*before), std::move(tags));
+
+          StorageUpdateInterface& storage =
+              dynamic_cast<StorageUpdateInterface&>(graph);
+          label_t src, dst, edge;
+          auto resolve =
+              ResolveEdgeTriplet(storage.schema(), src_type_, dst_type_,
+                                 edge_type_, src, dst, edge);
+          if (!resolve.ok()) {
+            if (ignore_conflict_ && IsSchemaConflictError(resolve)) {
+              return std::move(input);
+            }
+            LOG(ERROR) << "Fail to drop edge property from type: " << edge_type_
+                       << ", reason: " << resolve.ToString();
+            return error_stream<ContextChunk>(resolve);
+          }
+          DeleteEdgePropertiesParamBuilder builder;
+          auto config = builder.DeleteProperties(property_names_).Build();
+          auto res = storage.DeleteEdgeProperties(src, dst, edge, config);
+          if (!res.ok()) {
+            if (ignore_conflict_ && IsSchemaConflictError(res)) {
+              return std::move(input);
+            }
+            LOG(ERROR) << "Fail to drop edge property from type: " << edge_type_
+                       << ", reason: " << res.ToString();
+            return error_stream<ContextChunk>(res);
+          }
+          return std::move(input);
+        });
   }
 
  private:

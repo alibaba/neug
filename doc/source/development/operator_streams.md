@@ -1,7 +1,7 @@
 # Operator batch streams
 
 Every concrete `IOperator::Eval` accepts and returns `Stream<ContextChunk>`
-(`result` reports setup errors). A stream is a move-only synchronous pull
+directly. Initialization errors are deferred to `Next()`. A stream is a move-only synchronous pull
 interface. `Next()` produces one batch, EOF, or a terminal error. An empty
 batch retains its schema and is not EOF. Destroying the stream releases its
 cursor without reading the rest of its input.
@@ -62,3 +62,8 @@ grouping, deduplication and general join still buffer their inputs. Edge storage
 still accumulates endpoints and property batches, and mutation barriers retain
 input as described above. The interface is lazy, not asynchronous, and does not
 add parallel loading.
+
+Operators return Stream<ContextChunk> directly, and ExecuteStream only connects
+streams. Fallible execution initialization is deferred until the first Next();
+Next() is the stream error boundary and makes failures terminal. Plan builders
+and the materializing public Execute() still return result for their own work.

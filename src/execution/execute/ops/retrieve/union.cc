@@ -36,9 +36,9 @@ class UnionOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     struct State {
       Stream<ContextChunk> input;
       std::optional<std::vector<ContextChunk>> seed;
@@ -70,9 +70,8 @@ class UnionOpr : public IOperator {
             if (timer) {
               timer->add_child(std::move(sub_timer));
             }
-            GS_AUTO(branch, sub_plans_[state->index++].ExecuteStream(
-                                graph, stream_from_batches(*state->seed, tags),
-                                params, child));
+            auto branch = sub_plans_[state->index++].ExecuteStream(
+                graph, stream_from_batches(*state->seed, tags), params, child);
             state->branch = std::move(branch);
           }
         });

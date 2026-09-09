@@ -83,10 +83,9 @@ class ExtensionInstallOpr : public IOperator {
   std::string get_operator_name() const override {
     return "ExtensionInstallOpr";
   }
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   std::string extension_name_;
@@ -98,10 +97,9 @@ class ExtensionLoadOpr : public IOperator {
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionLoadOpr() override = default;
   std::string get_operator_name() const override { return "ExtensionLoadOpr"; }
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   std::string extension_name_;
@@ -115,64 +113,82 @@ class ExtensionUninstallOpr : public IOperator {
   std::string get_operator_name() const override {
     return "ExtensionUninstallOpr";
   }
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   std::string extension_name_;
 };
 
-neug::result<Stream<ContextChunk>> ExtensionInstallOpr::Eval(
-    IStorageInterface& graph, const ParamsMap& params,
-    Stream<ContextChunk>&& input, OprTimer* timer) {
-  LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
-            << extension_name_;
+Stream<ContextChunk> ExtensionInstallOpr::Eval(IStorageInterface& graph,
+                                               const ParamsMap& params,
+                                               Stream<ContextChunk>&& input,
+                                               OprTimer* timer) {
+  return defer_stream(
+      std::move(input),
+      [this, &graph, params,
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
+                  << extension_name_;
 
-  checkDeprecatedExtension(extension_name_);
+        checkDeprecatedExtension(extension_name_);
 
-  auto status = neug::extension::install_extension(extension_name_);
-  if (!status.ok()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() +
-                                   "; ");
-  }
-  return std::move(input);
+        auto status = neug::extension::install_extension(extension_name_);
+        if (!status.ok()) {
+          THROW_EXCEPTION_WITH_FILE_LINE(
+              "Install failed: " + status.ToString() + "; ");
+        }
+        return std::move(input);
+      });
 }
 
-neug::result<Stream<ContextChunk>> ExtensionLoadOpr::Eval(
-    IStorageInterface& graph, const ParamsMap& params,
-    Stream<ContextChunk>&& input, OprTimer* timer) {
-  LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
-            << extension_name_;
+Stream<ContextChunk> ExtensionLoadOpr::Eval(IStorageInterface& graph,
+                                            const ParamsMap& params,
+                                            Stream<ContextChunk>&& input,
+                                            OprTimer* timer) {
+  return defer_stream(
+      std::move(input),
+      [this, &graph, params,
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
+                  << extension_name_;
 
-  checkDeprecatedExtension(extension_name_);
+        checkDeprecatedExtension(extension_name_);
 
-  auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&graph);
-  if (index_ddl) {
-    auto activated = index_ddl->ActivateIndexes();
-    if (!activated) {
-      RETURN_ERROR(activated.error());
-    }
-  } else {
-    LOG(WARNING) << "[Admin Pipeline] Current storage interface does not "
-                    "support index DDL; skipping pending index activation";
-  }
-  return std::move(input);
+        auto* index_ddl = dynamic_cast<StorageIndexDDLInterface*>(&graph);
+        if (index_ddl) {
+          auto activated = index_ddl->ActivateIndexes();
+          if (!activated) {
+            return error_stream<ContextChunk>(activated.error());
+          }
+        } else {
+          LOG(WARNING)
+              << "[Admin Pipeline] Current storage interface does not "
+                 "support index DDL; skipping pending index activation";
+        }
+        return std::move(input);
+      });
 }
 
-neug::result<Stream<ContextChunk>> ExtensionUninstallOpr::Eval(
-    IStorageInterface& graph, const ParamsMap& params,
-    Stream<ContextChunk>&& input, OprTimer* timer) {
-  LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
-            << extension_name_;
+Stream<ContextChunk> ExtensionUninstallOpr::Eval(IStorageInterface& graph,
+                                                 const ParamsMap& params,
+                                                 Stream<ContextChunk>&& input,
+                                                 OprTimer* timer) {
+  return defer_stream(
+      std::move(input),
+      [this, &graph, params,
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
+                  << extension_name_;
 
-  auto status = neug::extension::uninstall_extension(extension_name_);
-  if (!status.ok()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Uninstall failed: " + status.ToString() +
-                                   "; ");
-  }
-  return std::move(input);
+        auto status = neug::extension::uninstall_extension(extension_name_);
+        if (!status.ok()) {
+          THROW_EXCEPTION_WITH_FILE_LINE(
+              "Uninstall failed: " + status.ToString() + "; ");
+        }
+        return std::move(input);
+      });
 }
 
 // Builders

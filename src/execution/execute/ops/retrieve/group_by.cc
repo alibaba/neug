@@ -38,9 +38,9 @@ class GroupByOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return reduce_stream(
         std::move(input),
         [this, &graph, params,

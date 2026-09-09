@@ -39,9 +39,9 @@ class LimitOpr : public IOperator {
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     auto tags = input.tag_ids;
     auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
     return Stream<ContextChunk>(

@@ -74,6 +74,58 @@ class Stream {
   std::optional<Status> error_;
 };
 
+// An execution error is observed through Next(), just like a read error.
+template <typename T>
+Stream<T> error_stream(Status error) {
+  return Stream<T>(
+      [error = std::move(error)]() ->
+      typename Stream<T>::NextResult { return tl::unexpected(error); });
+}
+
+// Own execution state until first demand. Initialization and its exceptions
+// run inside Stream::Next's error boundary, exactly once.
+template <typename Initialize>
+Stream<ContextChunk> defer_stream(Stream<ContextChunk> input,
+                                  Initialize initialize) {
+  auto tags = input.tag_ids;
+  struct State {
+    Stream<ContextChunk> input;
+    std::optional<Stream<ContextChunk>> output;
+  };
+  auto state = std::make_shared<State>(State{std::move(input), std::nullopt});
+  return Stream<ContextChunk>(
+      [state, initialize = std::move(
+                  initialize)]() mutable -> Stream<ContextChunk>::NextResult {
+        if (!state->output) {
+          state->output.emplace(initialize(std::move(state->input)));
+        }
+        return state->output->Next();
+      },
+      std::move(tags));
+}
+
+// Put a batch pulled for initialization back in front of its remaining input.
+inline Stream<ContextChunk> prepend_chunk(std::optional<ContextChunk> first,
+                                          Stream<ContextChunk> input) {
+  if (!first) {
+    return std::move(input);
+  }
+  auto tags = input.tag_ids;
+  auto pending =
+      std::make_shared<std::optional<ContextChunk>>(std::move(first));
+  auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
+  return Stream<ContextChunk>(
+      [pending, upstream]() -> Stream<ContextChunk>::NextResult {
+        if (*pending) {
+          auto chunk = std::move(*pending);
+          pending->reset();
+          return chunk;
+        }
+        return upstream->Next();
+      },
+      std::move(tags));
+}
+
 // Exactly one upstream pull and one kernel invocation per downstream pull.
 template <typename Transform>
 Stream<ContextChunk> map_chunks(Stream<ContextChunk> input,

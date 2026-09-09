@@ -102,9 +102,10 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
     return "EdgeExpandVWithEPCmpOpr";
   }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -146,9 +147,10 @@ class EdgeExpandVOpr : public IOperator {
 
   std::string get_operator_name() const override { return "EdgeExpandVOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -188,9 +190,10 @@ class EdgeExpandEWithSPredOpr : public IOperator {
     return "EdgeExpandEWithSPredOpr";
   }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -217,9 +220,10 @@ class EdgeExpandEOpr : public IOperator {
 
   std::string get_operator_name() const override { return "EdgeExpandEOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -258,9 +262,10 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
     return "EdgeExpandVWithSPVertexPredOpr";
   }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -288,9 +293,10 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
     return "EdgeExpandVWithGPVertexPredOpr";
   }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -316,9 +322,10 @@ class EdgeExpandDegreeOpr : public IOperator {
  public:
   EdgeExpandDegreeOpr(const EdgeExpandParams& eep) : eep_(eep) {}
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,
@@ -522,9 +529,10 @@ class ExpandCountOpr : public IOperator {
  public:
   ExpandCountOpr(const EdgeExpandParams& eep) : eep_(eep) {}
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
     return map_chunks(
         std::move(input),
         [this, &graph_interface, params,

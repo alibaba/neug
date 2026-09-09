@@ -154,8 +154,8 @@ class CountingSource final : public IOperator {
  public:
   explicit CountingSource(Counts& counts) : counts_(counts) {}
   std::string get_operator_name() const override { return "CountingSource"; }
-  result<ChunkStream> Eval(IStorageInterface&, const ParamsMap&, ChunkStream&&,
-                           OprTimer*) override {
+  ChunkStream Eval(IStorageInterface&, const ParamsMap&, ChunkStream&&,
+                   OprTimer*) override {
     return ChunkStream([this]() -> ChunkStream::NextResult {
       EXPECT_EQ(counts_.produced, counts_.consumed);
       if (counts_.produced == 3) {
@@ -173,9 +173,8 @@ class CountingProject final : public IOperator {
  public:
   explicit CountingProject(Counts& counts) : counts_(counts) {}
   std::string get_operator_name() const override { return "CountingProject"; }
-  result<Stream<ContextChunk>> Eval(IStorageInterface&, const ParamsMap&,
-                                    Stream<ContextChunk>&& input,
-                                    OprTimer*) override {
+  Stream<ContextChunk> Eval(IStorageInterface&, const ParamsMap&,
+                            Stream<ContextChunk>&& input, OprTimer*) override {
     return map_chunks(std::move(input),
                       [this](ContextChunk&& chunk) -> result<ContextChunk> {
                         ++counts_.consumed;
@@ -187,6 +186,72 @@ class CountingProject final : public IOperator {
  private:
   Counts& counts_;
 };
+
+TEST(StreamTest, DeferredInitializationRunsOnceAndReportsErrorsOnNext) {
+  int initialized = 0;
+  auto stream = defer_stream(
+      Stream<ContextChunk>(),
+      [&](Stream<ContextChunk> &&) -> Stream<ContextChunk> {
+        ++initialized;
+        return error_stream<ContextChunk>(Status::InternalError("init failed"));
+      });
+  EXPECT_EQ(initialized, 0);
+  auto first = stream.Next();
+  ASSERT_FALSE(first);
+  EXPECT_NE(first.error().ToString().find("init failed"), std::string::npos);
+  EXPECT_EQ(initialized, 1);
+  auto second = stream.Next();
+  ASSERT_FALSE(second);
+  EXPECT_EQ(second.error().ToString(), first.error().ToString());
+  EXPECT_EQ(initialized, 1);
+
+  auto throwing =
+      defer_stream(Stream<ContextChunk>(),
+                   [](Stream<ContextChunk> &&) -> Stream<ContextChunk> {
+                     THROW_IO_EXCEPTION("opening source failed");
+                   });
+  auto error = throwing.Next();
+  ASSERT_FALSE(error);
+  EXPECT_NE(error.error().ToString().find("opening source failed"),
+            std::string::npos);
+}
+
+TEST(StreamTest, PipelineReportsInitializationFailureOnlyWhenPulled) {
+  class FailingSource final : public IOperator {
+   public:
+    explicit FailingSource(int& calls) : calls_(calls) {}
+    std::string get_operator_name() const override { return "FailingSource"; }
+    Stream<ContextChunk> Eval(IStorageInterface&, const ParamsMap&,
+                              Stream<ContextChunk>&& input,
+                              OprTimer*) override {
+      return defer_stream(
+          std::move(input),
+          [this](Stream<ContextChunk> &&) -> Stream<ContextChunk> {
+            ++calls_;
+            THROW_IO_EXCEPTION("source initialization failed");
+          });
+    }
+
+   private:
+    int& calls_;
+  };
+  int calls = 0;
+  std::vector<std::unique_ptr<IOperator>> operators;
+  operators.push_back(std::make_unique<FailingSource>(calls));
+  Pipeline pipeline(std::move(operators));
+  PropertyGraph graph;
+  GraphView view(graph);
+  StorageReadInterface storage(view, 0);
+  auto output =
+      pipeline.ExecuteStream(storage, Stream<ContextChunk>(), {}, nullptr);
+  EXPECT_EQ(calls, 0);
+  auto error = output.Next();
+  ASSERT_FALSE(error);
+  EXPECT_NE(error.error().ToString().find("FailingSource"), std::string::npos);
+  EXPECT_EQ(calls, 1);
+  EXPECT_FALSE(output.Next());
+  EXPECT_EQ(calls, 1);
+}
 
 TEST(StreamTest, PipelinePullsThroughChunkwiseOperatorsAndProfilesRows) {
   Counts counts;

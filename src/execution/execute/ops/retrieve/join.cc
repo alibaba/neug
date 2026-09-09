@@ -46,31 +46,36 @@ class JoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
-    auto tags = input.tag_ids;
-    auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
-    return generate_chunk([this, &graph, params, timer, upstream,
-                           tags]() -> result<ContextChunk> {
-      GS_AUTO(seed, collect_batches(std::move(*upstream)));
-      auto left_timer = timer ? std::make_unique<OprTimer>() : nullptr;
-      auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
-      GS_AUTO(left_stream, left_pipeline_.ExecuteStream(
-                               graph, stream_from_batches(seed, tags), params,
-                               left_timer.get()));
-      GS_AUTO(left, collect_chunk(std::move(left_stream)));
-      GS_AUTO(right_stream,
-              right_pipeline_.ExecuteStream(
-                  graph, stream_from_batches(std::move(seed), tags), params,
-                  right_timer.get()));
-      GS_AUTO(right, collect_chunk(std::move(right_stream)));
-      if (timer) {
-        timer->add_child(std::move(left_timer));
-        timer->add_child(std::move(right_timer));
-      }
-      return Join::join(std::move(left), std::move(right), params_);
-    });
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          auto tags = input.tag_ids;
+          auto upstream =
+              std::make_shared<Stream<ContextChunk>>(std::move(input));
+          return generate_chunk([this, &graph, params, timer, upstream,
+                                 tags]() -> result<ContextChunk> {
+            GS_AUTO(seed, collect_batches(std::move(*upstream)));
+            auto left_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+            auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+            auto left_stream = left_pipeline_.ExecuteStream(
+                graph, stream_from_batches(seed, tags), params,
+                left_timer.get());
+            GS_AUTO(left, collect_chunk(std::move(left_stream)));
+            auto right_stream = right_pipeline_.ExecuteStream(
+                graph, stream_from_batches(std::move(seed), tags), params,
+                right_timer.get());
+            GS_AUTO(right, collect_chunk(std::move(right_stream)));
+            if (timer) {
+              timer->add_child(std::move(left_timer));
+              timer->add_child(std::move(right_timer));
+            }
+            return Join::join(std::move(left), std::move(right), params_);
+          });
+        });
   }
 
   void build_explain_children(OprTimer* parent_timer, const ParamsMap& params,
@@ -186,20 +191,26 @@ class PrimaryKeyJoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "PrimaryJoinOpr"; }
 
-  neug::result<Stream<ContextChunk>> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      Stream<ContextChunk>&& input, neug::execution::OprTimer* timer) override {
-    auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
-    auto* child = right_timer.get();
-    if (timer) {
-      timer->add_child(std::move(right_timer));
-    }
-    GS_AUTO(right, right_pipeline_.ExecuteStream(graph, std::move(input),
-                                                 params, child));
-    return map_chunks(
-        std::move(right),
-        [this, &graph](ContextChunk&& chunk) -> result<ContextChunk> {
-          return Join::pk_join(graph, std::move(chunk), labels_, tag_, alias_);
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
+          auto* child = right_timer.get();
+          if (timer) {
+            timer->add_child(std::move(right_timer));
+          }
+          auto right = right_pipeline_.ExecuteStream(graph, std::move(input),
+                                                     params, child);
+          return map_chunks(
+              std::move(right),
+              [this, &graph](ContextChunk&& chunk) -> result<ContextChunk> {
+                return Join::pk_join(graph, std::move(chunk), labels_, tag_,
+                                     alias_);
+              });
         });
   }
 

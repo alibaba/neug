@@ -40,10 +40,9 @@ class UpdateVertexOpr : public IOperator {
                                        const ParamsMap& params,
                                        ContextChunk&& chunk, OprTimer* timer);
 
-  neug::result<Stream<ContextChunk>> Eval(IStorageInterface& graph,
-                                          const ParamsMap& params,
-                                          Stream<ContextChunk>&& input,
-                                          OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   // No alias is produced in this operator.
@@ -116,17 +115,24 @@ neug::result<ContextChunk> UpdateVertexOpr::eval_impl(
   return chunk;
 }
 
-neug::result<Stream<ContextChunk>> UpdateVertexOpr::Eval(
-    IStorageInterface& graph_interface, const ParamsMap& params,
-    Stream<ContextChunk>&& input, OprTimer* timer) {
-  // Finish reading before mutation; downstream cancellation must not skip
-  // writes.
-  return reduce_stream(
+Stream<ContextChunk> UpdateVertexOpr::Eval(IStorageInterface& graph_interface,
+                                           const ParamsMap& params,
+                                           Stream<ContextChunk>&& input,
+                                           OprTimer* timer) {
+  return defer_stream(
       std::move(input),
       [this, &graph_interface, params,
-       timer](ContextChunk&& chunk) -> result<ContextChunk> {
-        auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-        { return eval_impl(graph, params, std::move(chunk), timer); }
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        // Finish reading before mutation; downstream cancellation must not skip
+        // writes.
+        return reduce_stream(
+            std::move(input),
+            [this, &graph_interface, params,
+             timer](ContextChunk&& chunk) -> result<ContextChunk> {
+              auto& graph =
+                  dynamic_cast<StorageUpdateInterface&>(graph_interface);
+              { return eval_impl(graph, params, std::move(chunk), timer); }
+            });
       });
 }
 
