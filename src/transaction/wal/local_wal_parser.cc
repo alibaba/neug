@@ -86,19 +86,54 @@ void LocalWalParser::open(const std::string& wal_uri) {
 
   try {
     insert_wal_list_.resize(4096);
+    auto add_wal = [this](const WalHeader& header, char* payload) {
+      const auto length = static_cast<size_t>(header.length);
+      if (header.type) {
+        UpdateWalUnit unit;
+        unit.timestamp = header.timestamp;
+        unit.ptr = payload;
+        unit.size = length;
+        update_wal_list_.push_back(unit);
+      } else {
+        if (header.timestamp >= insert_wal_list_.size()) {
+          insert_wal_list_.resize(header.timestamp + 1);
+        }
+        insert_wal_list_[header.timestamp].ptr = payload;
+        insert_wal_list_[header.timestamp].size = length;
+      }
+      last_ts_ = std::max(header.timestamp, last_ts_);
+    };
+
     for (size_t i = 0; i < mmapped_ptrs_.size(); ++i) {
       char* ptr = static_cast<char*>(mmapped_ptrs_[i]);
       const char* end = ptr + mmapped_size_[i];
+      WalHeader pending_header{};
+      char* pending_payload = nullptr;
+      bool has_pending = false;
+      auto add_pending = [&]() {
+        if (has_pending) {
+          add_wal(pending_header, pending_payload);
+          has_pending = false;
+        }
+      };
+
       while (true) {
         if (static_cast<size_t>(end - ptr) < sizeof(WalHeader)) {
-          THROW_IO_EXCEPTION("Corrupt WAL file " + mapped_paths[i] +
-                             ": truncated header or missing terminator");
+          // A non-zero partial header belongs to the next interrupted append,
+          // so the preceding complete record was already committed. A zero or
+          // absent tail can be an incomplete terminator for the pending record.
+          if (std::any_of(static_cast<const char*>(ptr), end,
+                          [](char byte) { return byte != 0; })) {
+            add_pending();
+          }
+          break;
         }
         WalHeader header{};
         std::memcpy(&header, ptr, sizeof(header));
         ptr += sizeof(WalHeader);
         const uint32_t ts = header.timestamp;
         if (ts == 0) {
+          add_pending();
           break;
         }
         if (header.length < 0) {
@@ -107,24 +142,16 @@ void LocalWalParser::open(const std::string& wal_uri) {
         }
         const auto length = static_cast<size_t>(header.length);
         if (length > static_cast<size_t>(end - ptr)) {
-          THROW_IO_EXCEPTION("Corrupt WAL file " + mapped_paths[i] +
-                             ": record payload exceeds file size");
+          // A complete next header proves the preceding record was committed,
+          // but this truncated record itself is not recoverable.
+          add_pending();
+          break;
         }
-        if (header.type) {
-          UpdateWalUnit unit;
-          unit.timestamp = ts;
-          unit.ptr = ptr;
-          unit.size = length;
-          update_wal_list_.push_back(unit);
-        } else {
-          if (ts >= insert_wal_list_.size()) {
-            insert_wal_list_.resize(ts + 1);
-          }
-          insert_wal_list_[ts].ptr = ptr;
-          insert_wal_list_[ts].size = length;
-        }
+        add_pending();
+        pending_header = header;
+        pending_payload = ptr;
+        has_pending = true;
         ptr += length;
-        last_ts_ = std::max(ts, last_ts_);
       }
     }
 

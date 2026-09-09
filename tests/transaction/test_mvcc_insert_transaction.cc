@@ -29,7 +29,9 @@
 #include <sys/stat.h>
 #ifndef _WIN32
 #include <sys/resource.h>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <csignal>
 #else
 #include <io.h>
 #include <process.h>
@@ -38,6 +40,7 @@
 #define open _open
 #define write _write
 #endif
+#include <array>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -346,19 +349,24 @@ TEST_F(LocalWalParserTest, WriterStoresExactLengthAndSingleTerminator) {
   EXPECT_EQ(parser.get_update_wals()[0].size, 6u);
 }
 
-TEST_F(LocalWalParserTest, RejectsTruncatedHeader) {
+TEST_F(LocalWalParserTest, IgnoresInterruptedHeaderTail) {
   WriteWalFile("truncated.wal",
                std::vector<char>(sizeof(neug::WalHeader) - 1, 1));
-  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
-               neug::exception::IOException);
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 0u);
 }
 
-TEST_F(LocalWalParserTest, RejectsMissingTerminator) {
+TEST_F(LocalWalParserTest, DropsUnterminatedLastRecord) {
   std::vector<char> buf;
-  AppendWalEntry(buf, /*ts=*/1, /*type=*/0, "payload");
+  AppendWalEntry(buf, /*ts=*/1, /*type=*/0, "committed");
+  AppendWalEntry(buf, /*ts=*/2, /*type=*/0, "interrupted");
   WriteWalFile("missing_terminator.wal", buf);
-  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
-               neug::exception::IOException);
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 1u);
+  EXPECT_EQ(
+      std::string(parser.get_insert_wal(1).ptr, parser.get_insert_wal(1).size),
+      "committed");
+  EXPECT_EQ(parser.get_insert_wal(2).ptr, nullptr);
 }
 
 TEST_F(LocalWalParserTest, RejectsNegativeRecordLength) {
@@ -373,17 +381,86 @@ TEST_F(LocalWalParserTest, RejectsNegativeRecordLength) {
                neug::exception::IOException);
 }
 
-TEST_F(LocalWalParserTest, RejectsPayloadPastEndOfFile) {
+TEST_F(LocalWalParserTest, RecoversBeforeInterruptedPayload) {
+  std::vector<char> buf;
+  AppendWalEntry(buf, /*ts=*/1, /*type=*/0, "committed");
   neug::WalHeader header{};
-  header.timestamp = 1;
+  header.timestamp = 2;
   header.length = 1024;
-  std::vector<char> oversized_payload(sizeof(header));
-  std::memcpy(oversized_payload.data(), &header, sizeof(header));
-  AppendWalTerminator(oversized_payload);
-  WriteWalFile("oversized_payload.wal", oversized_payload);
-  EXPECT_THROW({ neug::LocalWalParser parser(wal_dir_); },
-               neug::exception::IOException);
+  const auto* header_bytes = reinterpret_cast<const char*>(&header);
+  buf.insert(buf.end(), header_bytes, header_bytes + sizeof(header));
+  buf.insert(buf.end(), {'p', 'a', 'r', 't'});
+  WriteWalFile("interrupted_payload.wal", buf);
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 1u);
+  EXPECT_EQ(
+      std::string(parser.get_insert_wal(1).ptr, parser.get_insert_wal(1).size),
+      "committed");
+  EXPECT_EQ(parser.get_insert_wal(2).ptr, nullptr);
 }
+
+#ifndef _WIN32
+TEST_F(LocalWalParserTest, RecoversAfterAppendIsInterruptedInsideWriteLoop) {
+  std::vector<char> first_record;
+  std::vector<char> second_record;
+  AppendWalEntry(first_record, /*ts=*/1, /*type=*/0, "committed");
+  AppendWalEntry(second_record, /*ts=*/2, /*type=*/0, std::string(4096, 'x'));
+
+  const std::array<size_t, 3> allowed_second_bytes = {
+      second_record.size(), sizeof(neug::WalHeader) + 17,
+      sizeof(neug::WalHeader) + 17};
+  for (size_t i = 0; i < allowed_second_bytes.size(); ++i) {
+    const auto case_dir =
+        std::filesystem::path(wal_dir_) / ("case_" + std::to_string(i));
+    std::filesystem::create_directory(case_dir);
+    const pid_t child = ::fork();
+    ASSERT_NE(child, -1);
+    if (child == 0) {
+      std::signal(
+          SIGXFSZ, i == 2 ? SIG_IGN : +[](int) { ::_exit(73); });
+      neug::LocalWalWriter writer(case_dir.string(), 0);
+      writer.open(case_dir.string());
+      if (!writer.append(first_record.data(), first_record.size())) {
+        ::_exit(74);
+      }
+      const rlim_t file_limit =
+          static_cast<rlim_t>(first_record.size() + allowed_second_bytes[i]);
+      const struct rlimit limit = {file_limit, file_limit};
+      if (::setrlimit(RLIMIT_FSIZE, &limit) != 0) {
+        ::_exit(125);
+      }
+      if (i == 2) {
+        try {
+          writer.append(second_record.data(), second_record.size());
+          ::_exit(77);
+        } catch (const neug::exception::IOException&) {
+          if (writer.append(first_record.data(), first_record.size())) {
+            ::_exit(78);
+          }
+          ::_exit(73);
+        }
+      }
+      writer.append(second_record.data(), second_record.size());
+      ::_exit(76);
+    }
+
+    int status = 0;
+    ASSERT_EQ(::waitpid(child, &status, 0), child);
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 125) {
+      GTEST_SKIP() << "Cannot lower RLIMIT_FSIZE on this platform";
+    }
+    ASSERT_TRUE(WIFEXITED(status));
+    ASSERT_EQ(WEXITSTATUS(status), 73);
+
+    neug::LocalWalParser parser(case_dir.string());
+    EXPECT_EQ(parser.last_ts(), 1u);
+    EXPECT_EQ(std::string(parser.get_insert_wal(1).ptr,
+                          parser.get_insert_wal(1).size),
+              "committed");
+    EXPECT_EQ(parser.get_insert_wal(2).ptr, nullptr);
+  }
+}
+#endif
 
 TEST_F(LocalWalParserTest, WriterUsesNextVersionAndPreservesExistingFiles) {
   const std::vector<char> old_bytes{'o', 'l', 'd'};

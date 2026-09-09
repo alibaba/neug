@@ -161,6 +161,18 @@ void LocalWalWriter::create_file() {
     fd_ = ::open(wal_path.c_str(), O_RDWR | O_CREAT | O_EXCL, 0644);
 #endif
     if (fd_ != -1) {
+      // Make the directory entry durable before WAL contents can become
+      // recoverable. If this fails, append() must not write the transaction.
+      if (!file_utils::fsync_directory(prefix)) {
+        const int fd = fd_;
+        fd_ = -1;
+#ifdef _WIN32
+        _close(fd);
+#else
+        ::close(fd);
+#endif
+        THROW_IO_EXCEPTION("Failed to sync wal directory " + prefix);
+      }
       return;
     }
     if (errno != EEXIST) {
@@ -209,24 +221,25 @@ bool LocalWalWriter::append(const char* data, size_t length) {
     THROW_OVERFLOW_EXCEPTION("WAL file size overflow");
   }
 
-  const bool file_created = fd_ == -1;
-  if (file_created) {
-    create_file();
-  }
+  try {
+    if (fd_ == -1) {
+      create_file();
+    }
 
-  const std::array<char, sizeof(WalHeader)> terminator{};
-  // Preserve the legacy framing without the old zero-filled preallocation:
-  // each append overwrites the previous terminator, then writes a new one.
-  WriteAllAt(fd_, data, length, file_used_);
-  WriteAllAt(fd_, terminator.data(), terminator.size(), file_used_ + length);
-  SyncFile(fd_);
-  if (file_created &&
-      !file_utils::fsync_directory(get_wal_uri_path(wal_uri_))) {
-    THROW_IO_EXCEPTION("Failed to sync wal directory " +
-                       get_wal_uri_path(wal_uri_));
+    const std::array<char, sizeof(WalHeader)> terminator{};
+    // Preserve the legacy framing without the old zero-filled preallocation:
+    // each append overwrites the previous terminator, then writes a new one.
+    WriteAllAt(fd_, data, length, file_used_);
+    WriteAllAt(fd_, terminator.data(), terminator.size(), file_used_ + length);
+    SyncFile(fd_);
+    file_used_ += length;
+    return true;
+  } catch (...) {
+    // A failed append may leave an interrupted tail. Do not reuse its offset;
+    // recovery will retain only the previously committed prefix.
+    opened_ = false;
+    throw;
   }
-  file_used_ += length;
-  return true;
 }
 
 const bool LocalWalWriter::registered_ = WalWriterFactory::RegisterWalWriter(
