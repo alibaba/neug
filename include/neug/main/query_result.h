@@ -107,21 +107,203 @@ class NEUG_API QueryResult {
   bool IsNull(size_t column_index) const;
   bool IsNull(const std::string& column_name) const;
 
+  /**
+   * @brief Return the current cell as a signed 32-bit integer.
+   *
+   * The source column must have type int32 or bool. Any other source type
+   * causes an exception. An int32 value is returned unchanged; a bool value is
+   * converted to 1 or 0.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is neither int32 nor bool.
+   */
   int32_t GetInt32(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a signed 32-bit integer.
+   *
+   * The source column must have type int32 or bool. Any other source type
+   * causes an exception. An int32 value is returned unchanged; a bool value is
+   * converted to 1 or 0.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is neither int32 nor bool.
+   */
   int32_t GetInt32(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as an unsigned 32-bit integer.
+   *
+   * The source column must have type uint32 or bool. Any other source type
+   * causes an exception. A uint32 value is returned unchanged; a bool value is
+   * converted to 1 or 0.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is neither uint32 nor bool.
+   */
   uint32_t GetUInt32(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as an unsigned 32-bit integer.
+   *
+   * The source column must have type uint32 or bool. Any other source type
+   * causes an exception. A uint32 value is returned unchanged; a bool value is
+   * converted to 1 or 0.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is neither uint32 nor bool.
+   */
   uint32_t GetUInt32(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a signed 64-bit integer.
+   *
+   * The source column must have type int64, int32, uint32, bool, date, or
+   * timestamp. Any other source type causes an exception. Smaller integers are
+   * widened, bool is converted to 1 or 0, and date and timestamp values are
+   * returned as their raw stored epoch values.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is not supported by this getter.
+   */
   int64_t GetInt64(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a signed 64-bit integer.
+   *
+   * The source column must have type int64, int32, uint32, bool, date, or
+   * timestamp. Any other source type causes an exception. Smaller integers are
+   * widened, bool is converted to 1 or 0, and date and timestamp values are
+   * returned as their raw stored epoch values.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is not supported by this getter.
+   */
   int64_t GetInt64(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as an unsigned 64-bit integer.
+   *
+   * The source column must have type uint64, uint32, or bool. Any other source
+   * type causes an exception. A uint32 value is widened, and bool is converted
+   * to 1 or 0.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is not supported by this getter.
+   */
   uint64_t GetUInt64(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as an unsigned 64-bit integer.
+   *
+   * The source column must have type uint64, uint32, or bool. Any other source
+   * type causes an exception. A uint32 value is widened, and bool is converted
+   * to 1 or 0.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is not supported by this getter.
+   */
   uint64_t GetUInt64(const std::string& column_name) const;
+  /**
+   * @brief Return the current cell as a single-precision floating-point value.
+   *
+   * The source column must have type float, int32, uint32, or bool. Any other
+   * source type causes an exception. Integers are converted to float, and bool
+   * is converted to 1.0 or 0.0.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is not supported by this getter.
+   */
   float GetFloat(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a single-precision floating-point
+   * value.
+   *
+   * The source column must have type float, int32, uint32, or bool. Any other
+   * source type causes an exception. Integers are converted to float, and bool
+   * is converted to 1.0 or 0.0.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is not supported by this getter.
+   */
   float GetFloat(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a double-precision floating-point value.
+   *
+   * The source column must have type double, float, int32, uint32, int64,
+   * uint64, or bool. Any other source type causes an exception. Numeric values
+   * are converted to double, and bool is converted to 1.0 or 0.0. Large 64-bit
+   * integers may lose precision.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is not supported by this getter.
+   */
   double GetDouble(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a double-precision floating-point
+   * value.
+   *
+   * The source column must have type double, float, int32, uint32, int64,
+   * uint64, or bool. Any other source type causes an exception. Numeric values
+   * are converted to double, and bool is converted to 1.0 or 0.0. Large 64-bit
+   * integers may lose precision.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is not supported by this getter.
+   */
   double GetDouble(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a string.
+   *
+   * This getter supports every source column type. String values are returned
+   * directly; all other values use their human-readable representation.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid.
+   */
   std::string GetString(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a string.
+   *
+   * This getter supports every source column type. String values are returned
+   * directly; all other values use their human-readable representation.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid.
+   */
   std::string GetString(const std::string& column_name) const;
+
+  /**
+   * @brief Return the current cell as a boolean value.
+   *
+   * The source column must have type bool. Any other source type causes an
+   * exception. The bool value is returned unchanged.
+   *
+   * @param column_index Zero-based column index.
+   * @throws exception::RuntimeError If the cursor or column index is invalid,
+   * or the source column type is not bool.
+   */
   bool GetBool(size_t column_index) const;
+  /**
+   * @brief Return the named current cell as a boolean value.
+   *
+   * The source column must have type bool. Any other source type causes an
+   * exception. The bool value is returned unchanged.
+   *
+   * @param column_name Column name from the result schema.
+   * @throws exception::RuntimeError If the cursor or column name is invalid,
+   * or the source column type is not bool.
+   */
   bool GetBool(const std::string& column_name) const;
 
   /**

@@ -1227,7 +1227,9 @@ class CppAPIGenerator:
         """Generate index.rst for separate class files."""
         filename = OUTPUT_DIR / "index.rst"
         
-        content = """C++ API Reference
+        content = """.. _cpp_api_reference:
+
+C++ API Reference
 =================
 
 .. toctree::
@@ -1235,8 +1237,16 @@ class CppAPIGenerator:
    :caption: C++ API
 
 """
+        friendly_names = {
+            "neug_db": "Database",
+            "connection": "Connection",
+            "query_result": "Query Result",
+            "service": "Service",
+        }
         for file_info in generated_files:
-            content += f"   {file_info['filename']}\n"
+            page_name = file_info["filename"]
+            title = friendly_names.get(page_name, file_info["title"])
+            content += f"   {title} <{page_name}>\n"
         
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(content)
@@ -1331,9 +1341,18 @@ if (!result.has_value()) {
         
         content = "export default {\n"
         content += '  "index": "C++ API Overview",\n'
+
+        friendly_names = {
+            "neug_db": "Database",
+            "connection": "Connection",
+            "query_result": "Query Result",
+            "service": "Service",
+        }
         
         for file_info in generated_files:
-            content += f'  "{file_info["filename"]}": "{file_info["title"]}",\n'
+            page_name = file_info["filename"]
+            title = friendly_names.get(page_name, file_info["title"])
+            content += f'  "{page_name}": "{title}",\n'
         
         content += "}\n"
         
@@ -1888,10 +1907,10 @@ The C++ API is designed with the following principles:
         filename = reference_dir / "_meta.ts"
         
         content = """export default {
-  cpp_api: "C++ API",
   python_api: "Python API",
+  nodejs_api: "Node.js API",
   java_api: "Java API",
-  nodejs_api: "NodeJS API",
+  cpp_api: "C++ API",
 };
 """
         

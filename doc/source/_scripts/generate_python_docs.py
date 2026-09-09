@@ -380,10 +380,10 @@ def _generate_python_meta_file(output_dir: Path, modules: list):
     
     # Map module names to friendly names
     module_names = {
-        'neug.database': 'Main Database Interface',
-        'neug.connection': 'Database Connection',
-        'neug.session': 'Session Management',
-        'neug.query_result': 'Query Execution Results'
+        'neug.database': 'Database',
+        'neug.connection': 'Connection',
+        'neug.session': 'Session',
+        'neug.query_result': 'Query Result'
     }
     
     content = 'export default {\n'

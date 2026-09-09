@@ -23,6 +23,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -251,6 +252,11 @@ struct PhysicalTypeUtils {
 PhysicalTypeID getPhysicalType(DataTypeId typeId);
 
 struct NEUG_API LogicalTypeUtils {
+  static constexpr int64_t MIN_STRING_LENGTH = 1;
+  static constexpr int64_t MAX_STRING_LENGTH =
+      std::numeric_limits<uint16_t>::max();
+
+  static void validateStringLength(int64_t length);
   static std::string toString(DataTypeId dataTypeID);
   static std::string toString(const std::vector<DataType>& dataTypes);
   static std::string toString(const std::vector<DataTypeId>& dataTypeIDs);

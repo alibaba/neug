@@ -28,7 +28,12 @@ Value evaluate_regex(const Value& value, const Value& pattern) {
   }
   const auto value_str = value.GetValue<std::string>();
   const auto pattern_str = pattern.GetValue<std::string>();
-  return Value::BOOLEAN(std::regex_match(value_str, std::regex(pattern_str)));
+  try {
+    return Value::BOOLEAN(std::regex_match(value_str, std::regex(pattern_str)));
+  } catch (const std::regex_error& error) {
+    THROW_RUNTIME_ERROR("Invalid regular expression: " + pattern_str + ": " +
+                        error.what());
+  }
 }
 
 class BindedUnaryLogicalExpr : public VertexExprBase,
@@ -160,32 +165,38 @@ class BindedAndExpr : public VertexExprBase,
   const DataType& type() const override { return type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
-    if (!lhs_val.IsTrue()) {
-      return lhs_val;
-    }
-    return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    const auto lhs = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    });
   }
   Value eval_vertex(label_t v_label, vid_t v_id) const override {
-    const auto& lhs_val =
-        lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
-    if (!lhs_val.IsTrue()) {
-      return Value::BOOLEAN(false);
-    }
-    return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    const auto lhs = lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    });
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const void* data_ptr) const override {
-    const auto& lhs_val =
+    const auto lhs =
         lhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
-    if (!lhs_val.IsTrue()) {
-      return Value::BOOLEAN(false);
-    }
-    return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    });
   }
 
  private:
+  template <typename EvalRight>
+  static Value eval_impl(const Value& lhs, EvalRight evalRight) {
+    // Only FALSE determines AND without evaluating the right operand.
+    if (!lhs.IsNull() && !lhs.IsTrue()) {
+      return Value::BOOLEAN(false);
+    }
+    auto rhs = evalRight();
+    return lhs.IsNull() && rhs.IsTrue() ? Value(DataType::BOOLEAN) : rhs;
+  }
+
   std::unique_ptr<BindedExprBase> lhs_;
   std::unique_ptr<BindedExprBase> rhs_;
   DataType type_;
@@ -203,35 +214,38 @@ class BindedOrExpr : public VertexExprBase,
   const DataType& type() const override { return type_; }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
-    const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
-
-    if (lhs_val.IsTrue()) {
-      return Value::BOOLEAN(true);
-    }
-    return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    const auto lhs = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    });
   }
   Value eval_vertex(label_t v_label, vid_t v_id) const override {
-    const auto& lhs_val =
-        lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
-
-    if (lhs_val.IsTrue()) {
-      return Value::BOOLEAN(true);
-    }
-    return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    const auto lhs = lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    });
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const void* data_ptr) const override {
-    const auto& lhs_val =
+    const auto lhs =
         lhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
-
-    if (lhs_val.IsTrue()) {
-      return Value::BOOLEAN(true);
-    }
-    return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    return eval_impl(lhs, [&] {
+      return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    });
   }
 
  private:
+  template <typename EvalRight>
+  static Value eval_impl(const Value& lhs, EvalRight evalRight) {
+    // Only TRUE determines OR without evaluating the right operand.
+    if (lhs.IsTrue()) {
+      return Value::BOOLEAN(true);
+    }
+    auto rhs = evalRight();
+    return lhs.IsNull() && !rhs.IsTrue() ? Value(DataType::BOOLEAN) : rhs;
+  }
+
   std::unique_ptr<BindedExprBase> lhs_;
   std::unique_ptr<BindedExprBase> rhs_;
   DataType type_;
@@ -265,8 +279,13 @@ class BindedWithInExpr : public VertexExprBase,
     if (lhs_val.IsNull() || rhs_val.IsNull()) {
       return Value(DataType::BOOLEAN);
     }
-    // rhs is list
-    const auto& list_values = ListValue::GetChildren(rhs_val);
+    const auto rhs_type = rhs_val.type().id();
+    if (rhs_type != DataTypeId::kList && rhs_type != DataTypeId::kArray) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("IN requires a LIST or ARRAY operand");
+    }
+    const auto& list_values = rhs_type == DataTypeId::kArray
+                                  ? ArrayValue::GetChildren(rhs_val)
+                                  : ListValue::GetChildren(rhs_val);
     for (const auto& val : list_values) {
       if (lhs_val == val) {
         return Value::BOOLEAN(true);

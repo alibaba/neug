@@ -15,10 +15,418 @@
 
 #include "test_reader.h"
 
+#include <limits>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "neug/common/columns/array_columns.h"
+#include "neug/common/columns/list_columns.h"
+#include "neug/common/columns/value_columns.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/io/read/common/row_expression_filter.h"
+#include "neug/utils/io/read/common/type_converter.h"
 
 namespace neug {
 namespace test {
+
+namespace {
+
+class VectorChunkSupplier final : public IDataChunkSupplier {
+ public:
+  explicit VectorChunkSupplier(std::vector<DataChunk> chunks)
+      : chunks_(std::move(chunks)) {
+    for (const auto& chunk : chunks_) {
+      row_count_ += static_cast<int64_t>(chunk.row_num());
+    }
+  }
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    if (next_ == chunks_.size()) {
+      return nullptr;
+    }
+    return std::make_shared<DataChunk>(chunks_[next_++]);
+  }
+
+  int64_t RowNum() const override { return row_count_; }
+
+ private:
+  std::vector<DataChunk> chunks_;
+  size_t next_ = 0;
+  int64_t row_count_ = 0;
+};
+
+std::shared_ptr<::common::Expression> comparison(const std::string& column,
+                                                 ::common::Logical logical,
+                                                 int32_t value) {
+  auto expression = std::make_shared<::common::Expression>();
+  expression->add_operators()->mutable_var()->mutable_tag()->set_name(column);
+  expression->add_operators()->set_logical(logical);
+  expression->add_operators()->mutable_const_()->set_i32(value);
+  return expression;
+}
+
+std::shared_ptr<::common::Expression> isNull(const std::string& column) {
+  auto expression = std::make_shared<::common::Expression>();
+  expression->add_operators()->set_logical(::common::Logical::ISNULL);
+  expression->add_operators()->mutable_var()->mutable_tag()->set_name(column);
+  return expression;
+}
+
+void appendExpression(::common::Expression& output,
+                      const ::common::Expression& input) {
+  for (const auto& op : input.operators()) {
+    *output.add_operators() = op;
+  }
+}
+
+std::shared_ptr<::common::Expression> binaryExpression(
+    const ::common::Expression& left, ::common::Logical logical,
+    const ::common::Expression& right) {
+  auto expression = std::make_shared<::common::Expression>();
+  appendExpression(*expression, left);
+  expression->add_operators()->set_logical(logical);
+  appendExpression(*expression, right);
+  return expression;
+}
+
+std::shared_ptr<::common::Expression> negated(
+    const ::common::Expression& operand) {
+  auto expression = std::make_shared<::common::Expression>();
+  expression->add_operators()->set_logical(::common::Logical::NOT);
+  expression->add_operators()->set_brace(::common::ExprOpr::LEFT_BRACE);
+  appendExpression(*expression, operand);
+  expression->add_operators()->set_brace(::common::ExprOpr::RIGHT_BRACE);
+  return expression;
+}
+
+DataChunk nullableIntChunk() {
+  ValueColumnBuilder<int32_t> builder;
+  builder.push_back_opt(1);
+  builder.push_back_null();
+  builder.push_back_opt(-1);
+  DataChunk chunk;
+  chunk.set(0, builder.finish());
+  return chunk;
+}
+
+DataChunk nestedChunk(int32_t first) {
+  ValueColumnBuilder<int32_t> scalar_builder;
+  scalar_builder.push_back_opt(first);
+  scalar_builder.push_back_opt(first + 1);
+
+  const auto int_type = DataType::INT32;
+  ListColumnBuilder list_builder(int_type);
+  list_builder.push_back_elem(Value::LIST(int_type, {Value::INT32(first)}));
+  list_builder.push_back_null();
+
+  const auto array_type = DataType::Array(int_type, 2);
+  ContextArrayColumnBuilder array_builder(array_type);
+  array_builder.push_back_elem(Value::ARRAY(
+      array_type, {Value::INT32(first), Value::INT32(first + 10)}));
+  array_builder.push_back_null();
+
+  DataChunk chunk;
+  chunk.set(0, scalar_builder.finish());
+  chunk.set(1, list_builder.finish());
+  chunk.set(2, array_builder.finish());
+  return chunk;
+}
+
+DataChunk emptyNestedChunk() {
+  ValueColumnBuilder<int32_t> scalar_builder;
+  ListColumnBuilder list_builder(DataType::INT32);
+  ContextArrayColumnBuilder array_builder(DataType::Array(DataType::INT32, 2));
+  DataChunk chunk;
+  chunk.set(0, scalar_builder.finish());
+  chunk.set(1, list_builder.finish());
+  chunk.set(2, array_builder.finish());
+  return chunk;
+}
+
+}  // namespace
+
+TEST_F(ReaderTest, TestReadAllChunksMergesNestedValuesAndArrayNulls) {
+  auto first = std::make_shared<VectorChunkSupplier>(
+      std::vector<DataChunk>{DataChunk(), emptyNestedChunk(), nestedChunk(1)});
+  auto second = std::make_shared<VectorChunkSupplier>(
+      std::vector<DataChunk>{nestedChunk(3)});
+
+  auto merged = reader::read_all_chunks({first, second});
+  ASSERT_EQ(merged.col_num(), 3);
+  ASSERT_EQ(merged.row_num(), 4);
+  EXPECT_EQ(merged.get(0)->get_elem(0).GetValue<int32_t>(), 1);
+  EXPECT_EQ(merged.get(0)->get_elem(2).GetValue<int32_t>(), 3);
+
+  const auto first_list = ListValue::GetChildren(merged.get(1)->get_elem(0));
+  ASSERT_EQ(first_list.size(), 1);
+  EXPECT_EQ(first_list[0].GetValue<int32_t>(), 1);
+  EXPECT_TRUE(merged.get(1)->get_elem(1).IsNull());
+  EXPECT_TRUE(merged.get(1)->get_elem(3).IsNull());
+
+  const auto first_array = ArrayValue::GetChildren(merged.get(2)->get_elem(0));
+  ASSERT_EQ(first_array.size(), 2);
+  EXPECT_EQ(first_array[0].GetValue<int32_t>(), 1);
+  EXPECT_EQ(first_array[1].GetValue<int32_t>(), 11);
+  EXPECT_TRUE(merged.get(2)->get_elem(1).IsNull());
+  EXPECT_TRUE(merged.get(2)->get_elem(3).IsNull());
+}
+
+TEST_F(ReaderTest, TestReadAllChunksRejectsIncompatibleChunks) {
+  DataChunk one_column;
+  ValueColumnBuilder<int32_t> int_builder;
+  int_builder.push_back_opt(1);
+  one_column.set(0, int_builder.finish());
+
+  DataChunk two_columns;
+  ValueColumnBuilder<int32_t> first_builder;
+  ValueColumnBuilder<int32_t> second_builder;
+  first_builder.push_back_opt(1);
+  second_builder.push_back_opt(2);
+  two_columns.set(0, first_builder.finish());
+  two_columns.set(1, second_builder.finish());
+
+  auto supplier = std::make_shared<VectorChunkSupplier>(
+      std::vector<DataChunk>{one_column, two_columns});
+  EXPECT_THROW(reader::read_all_chunks({supplier}),
+               exception::InvalidArgumentException);
+  EXPECT_THROW(reader::read_all_chunks({nullptr}),
+               exception::InvalidArgumentException);
+}
+
+TEST_F(ReaderTest, TestCommonRowFilterUsesSqlNullSemantics) {
+  auto chunk = nullableIntChunk();
+
+  auto nonnegative = comparison("value", ::common::Logical::GE, 0);
+  auto filtered = reader::filter_chunk(chunk, nonnegative, {"value"});
+  ASSERT_EQ(filtered.row_num(), 1);
+  EXPECT_EQ(filtered.get(0)->get_elem(0).GetValue<int32_t>(), 1);
+
+  auto nulls = reader::filter_chunk(chunk, isNull("value"), {"value"});
+  ASSERT_EQ(nulls.row_num(), 1);
+  EXPECT_TRUE(nulls.get(0)->get_elem(0).IsNull());
+
+  auto present =
+      reader::filter_chunk(chunk, negated(*isNull("value")), {"value"});
+  ASSERT_EQ(present.row_num(), 2);
+  EXPECT_EQ(present.get(0)->get_elem(0).GetValue<int32_t>(), 1);
+  EXPECT_EQ(present.get(0)->get_elem(1).GetValue<int32_t>(), -1);
+
+  auto not_positive = reader::filter_chunk(
+      chunk, negated(*comparison("value", ::common::Logical::GT, 0)),
+      {"value"});
+  ASSERT_EQ(not_positive.row_num(), 1);
+  EXPECT_EQ(not_positive.get(0)->get_elem(0).GetValue<int32_t>(), -1);
+}
+
+TEST_F(ReaderTest, TestCommonRowFilterPreservesThreeValuedAndOr) {
+  auto chunk = nullableIntChunk();
+  auto positive = comparison("value", ::common::Logical::GT, 0);
+
+  ::common::Expression true_constant;
+  true_constant.add_operators()->mutable_const_()->set_boolean(true);
+  ::common::Expression false_constant;
+  false_constant.add_operators()->mutable_const_()->set_boolean(false);
+
+  auto or_true =
+      binaryExpression(*positive, ::common::Logical::OR, true_constant);
+  EXPECT_EQ(reader::filter_chunk(chunk, or_true, {"value"}).row_num(), 3);
+
+  auto and_false =
+      binaryExpression(*positive, ::common::Logical::AND, false_constant);
+  EXPECT_EQ(reader::filter_chunk(chunk, and_false, {"value"}).row_num(), 0);
+
+  auto or_false =
+      binaryExpression(*positive, ::common::Logical::OR, false_constant);
+  EXPECT_EQ(reader::filter_chunk(chunk, or_false, {"value"}).row_num(), 1);
+
+  auto and_true =
+      binaryExpression(*positive, ::common::Logical::AND, true_constant);
+  EXPECT_EQ(reader::filter_chunk(chunk, and_true, {"value"}).row_num(), 1);
+}
+
+TEST_F(ReaderTest, TestCommonRowFilterKeepsNanUnordered) {
+  ValueColumnBuilder<double> values;
+  values.push_back_opt(std::numeric_limits<double>::quiet_NaN());
+  values.push_back_opt(0.0);
+  values.push_back_null();
+  DataChunk chunk;
+  chunk.set(0, values.finish());
+  for (auto op : {::common::Logical::LE, ::common::Logical::GE}) {
+    auto predicate = comparison("value", op, 0);
+    predicate->mutable_operators(2)->mutable_const_()->set_f64(0.0);
+    auto filtered = reader::filter_chunk(chunk, predicate, {"value"});
+    ASSERT_EQ(filtered.row_num(), 1);
+    EXPECT_EQ(filtered.get(0)->get_elem(0).GetValue<double>(), 0.0);
+  }
+}
+
+TEST_F(ReaderTest, TestCommonFilterThenProjectionUsesSharedHelpers) {
+  auto chunk = nullableIntChunk();
+  ValueColumnBuilder<std::string> names;
+  names.push_back_opt("positive");
+  names.push_back_opt("null");
+  names.push_back_opt("negative");
+  chunk.set(1, names.finish());
+
+  auto filtered = reader::filter_chunk(
+      chunk, comparison("value", ::common::Logical::GT, 0), {"value", "name"});
+  auto projected = reader::project_chunk(filtered, {"value", "name"}, {"name"});
+  ASSERT_EQ(projected.col_num(), 1);
+  ASSERT_EQ(projected.row_num(), 1);
+  EXPECT_EQ(projected.get(0)->get_elem(0).GetValue<std::string>(), "positive");
+}
+
+TEST_F(ReaderTest,
+       TestCommonRowFilterValidatesBindingsWithoutMutatingPredicate) {
+  auto chunk = nullableIntChunk();
+  auto predicate = comparison("value", ::common::Logical::GT, 0);
+  auto* parameter = predicate->mutable_operators(2)->mutable_param();
+  parameter->set_name("minimum");
+  parameter->mutable_data_type()->mutable_data_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT32);
+  const auto original = predicate->SerializeAsString();
+  EXPECT_THROW(reader::filter_chunk(chunk, predicate, {"value"}),
+               exception::InvalidArgumentException);
+  for (const int32_t minimum : {0, 2, -2}) {
+    const auto filtered = reader::filter_chunk(
+        chunk, predicate, {"value"}, {{"minimum", Value::INT32(minimum)}});
+    EXPECT_EQ(filtered.row_num(), minimum == 0 ? 1 : (minimum == 2 ? 0 : 2));
+    EXPECT_EQ(predicate->SerializeAsString(), original);
+  }
+  EXPECT_THROW(reader::filter_chunk(chunk, predicate, {"other"},
+                                    {{"minimum", Value::INT32(0)}}),
+               exception::InvalidArgumentException);
+}
+
+TEST_F(ReaderTest, TestCommonRowFilterRebindsNestedPredicateWithoutMutation) {
+  // value IN [CASE WHEN value > 0 THEN value ELSE $fallback END]
+  // Exercise both list and fixed-size array representations of the RHS.
+  for (const bool as_array : {false, true}) {
+    auto predicate = std::make_shared<::common::Expression>();
+    predicate->add_operators()->mutable_var()->mutable_tag()->set_name("value");
+    predicate->add_operators()->set_logical(::common::Logical::WITHIN);
+    auto* container = predicate->add_operators();
+    auto* fields = as_array ? container->mutable_to_array()->mutable_fields()
+                            : container->mutable_to_list()->mutable_fields();
+    if (as_array) {
+      *container->mutable_node_type()->mutable_data_type() =
+          *reader::NeuGTypeConverter().convert(
+              DataType::Array(DataType::INT32, 1));
+    }
+    auto* cases = fields->Add()->add_operators()->mutable_case_();
+    auto* when = cases->add_when_then_expressions();
+    *when->mutable_when_expression() =
+        *comparison("value", ::common::Logical::GT, 0);
+    when->mutable_then_result_expression()
+        ->add_operators()
+        ->mutable_var()
+        ->mutable_tag()
+        ->set_name("value");
+    auto* parameter = cases->mutable_else_result_expression()
+                          ->add_operators()
+                          ->mutable_param();
+    parameter->set_name("fallback");
+    parameter->mutable_data_type()->mutable_data_type()->set_primitive_type(
+        ::common::DT_SIGNED_INT32);
+    const auto original = predicate->SerializeAsString();
+
+    auto values = nullableIntChunk();
+    ValueColumnBuilder<int32_t> other;
+    for (size_t row = 0; row < values.row_num(); ++row) {
+      other.push_back_opt(99);
+    }
+    values.set(1, other.finish());
+    for (const int value_index : {0, 1}) {
+      SCOPED_TRACE(as_array ? "array" : "list");
+      SCOPED_TRACE(value_index);
+      DataChunk input;
+      input.set(value_index, values.get(0));
+      input.set(1 - value_index, values.get(1));
+      std::vector<std::string> names{"other", "other"};
+      names[value_index] = "value";
+      EXPECT_THROW(reader::filter_chunk(input, predicate, names),
+                   exception::InvalidArgumentException);
+      EXPECT_EQ(predicate->SerializeAsString(), original);
+      for (const int32_t fallback : {-1, 0}) {
+        const auto filtered = reader::filter_chunk(
+            input, predicate, names, {{"fallback", Value::INT32(fallback)}});
+        ASSERT_EQ(filtered.row_num(), fallback == -1 ? 2 : 1);
+        EXPECT_EQ(filtered.get(value_index)->get_elem(0).GetValue<int32_t>(),
+                  1);
+        if (fallback == -1) {
+          EXPECT_EQ(filtered.get(value_index)->get_elem(1).GetValue<int32_t>(),
+                    -1);
+        }
+        EXPECT_EQ(predicate->SerializeAsString(), original);
+      }
+    }
+  }
+}
+
+TEST_F(ReaderTest, TestCommonRowFilterRetainsBoundInput) {
+  const auto filter = [] {
+    auto chunk = nullableIntChunk();
+    reader::RowExpressionFilter filter(
+        *comparison("value", ::common::Logical::GT, 0), {{"value", 0}}, chunk);
+    // Reusing the source chunk must not change the filter's bound columns.
+    ValueColumnBuilder<std::string> replacement;
+    replacement.push_back_opt("different layout");
+    chunk.clear();
+    chunk.set(0, replacement.finish());
+    return filter;
+  }();
+
+  // The source chunk and predicate have both gone out of scope.
+  EXPECT_TRUE(filter.eval(0));
+  EXPECT_FALSE(filter.eval(1));
+  EXPECT_FALSE(filter.eval(2));
+}
+
+TEST_F(ReaderTest, TestCommonRowFilterHandlesAdjacentUnaryOperators) {
+  const auto chunk = nullableIntChunk();
+  auto present = std::make_shared<::common::Expression>();
+  present->add_operators()->set_logical(::common::Logical::NOT);
+  appendExpression(*present, *isNull("value"));
+  auto filtered = reader::filter_chunk(chunk, present, {"value"});
+  EXPECT_EQ(filtered.row_num(), 2);
+
+  auto combined =
+      binaryExpression(*present, ::common::Logical::AND,
+                       *comparison("value", ::common::Logical::GT, 0));
+  filtered = reader::filter_chunk(chunk, combined, {"value"});
+  ASSERT_EQ(filtered.row_num(), 1);
+  EXPECT_EQ(filtered.get(0)->get_elem(0).GetValue<int32_t>(), 1);
+}
+
+TEST_F(ReaderTest, TestMergeChunksValidatesEmptySchemasTypesAndLengths) {
+  EXPECT_EQ(
+      reader::merge_chunks({nullptr, std::make_shared<DataChunk>()}).col_num(),
+      0);
+  auto empty = std::make_shared<DataChunk>(emptyNestedChunk());
+  auto merged = reader::merge_chunks({empty, empty});
+  ASSERT_EQ(merged.col_num(), 3);
+  EXPECT_EQ(merged.row_num(), 0);
+  EXPECT_EQ(merged.get(2)->elem_type(), DataType::Array(DataType::INT32, 2));
+
+  auto integers = std::make_shared<DataChunk>(nullableIntChunk());
+  auto strings = std::make_shared<DataChunk>();
+  ValueColumnBuilder<std::string> builder;
+  builder.push_back_opt("value");
+  strings->set(0, builder.finish());
+  EXPECT_THROW(reader::merge_chunks({integers, strings}),
+               exception::InvalidArgumentException);
+
+  auto uneven = std::make_shared<DataChunk>(*integers);
+  uneven->set(1, strings->get(0));
+  EXPECT_THROW(reader::merge_chunks({uneven}),
+               exception::InvalidArgumentException);
+  auto missing = std::make_shared<DataChunk>();
+  missing->set(1, integers->get(0));
+  EXPECT_THROW(reader::merge_chunks({missing}),
+               exception::InvalidArgumentException);
+}
 
 TEST_F(ReaderTest, TestCsvParallelOptionPropagation) {
   createCsvFile("parallel_options.csv", "id\n1\n");

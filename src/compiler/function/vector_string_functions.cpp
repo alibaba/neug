@@ -22,6 +22,8 @@
 
 #include "neug/compiler/function/string/vector_string_functions.h"
 
+#include <string_view>
+
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
 #include "neug/execution/expression/exprs/logical_expr.h"
@@ -34,6 +36,19 @@ namespace neug {
 namespace function {
 
 namespace {
+
+std::string escapeRegexLiteral(std::string_view value) {
+  constexpr std::string_view regexMetacharacters = R"(\.^$|()[]{}*+?)";
+  std::string escaped;
+  escaped.reserve(value.size());
+  for (const auto character : value) {
+    if (regexMetacharacters.find(character) != std::string_view::npos) {
+      escaped.push_back('\\');
+    }
+    escaped.push_back(character);
+  }
+  return escaped;
+}
 
 neug::Value evaluateStringPredicate(const std::vector<neug::Value>& args,
                                     const std::string& prefix,
@@ -50,7 +65,8 @@ neug::Value evaluateStringPredicate(const std::vector<neug::Value>& args,
       args[1].type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR(functionName + ": inputs must be strings");
   }
-  auto pattern = prefix + std::string(neug::StringValue::Get(args[1])) + suffix;
+  auto pattern =
+      prefix + escapeRegexLiteral(neug::StringValue::Get(args[1])) + suffix;
   return execution::evaluate_regex(args[0], neug::Value::STRING(pattern));
 }
 
@@ -106,6 +122,9 @@ neug::Value UpperFunction::Exec(const std::vector<neug::Value>& args) {
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
+  if (val.IsNull()) {
+    return neug::Value(DataType(DataTypeId::kVarchar));
+  }
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("UPPER: input value is not a string");
   }
@@ -128,6 +147,9 @@ neug::Value LowerFunction::Exec(const std::vector<neug::Value>& args) {
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
+  if (val.IsNull()) {
+    return neug::Value(DataType(DataTypeId::kVarchar));
+  }
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("LOWER: input value is not a string");
   }
@@ -150,6 +172,9 @@ neug::Value ReverseFunction::Exec(const std::vector<neug::Value>& args) {
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
+  if (val.IsNull()) {
+    return neug::Value(DataType(DataTypeId::kVarchar));
+  }
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
   }

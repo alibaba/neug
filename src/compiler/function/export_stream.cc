@@ -33,54 +33,68 @@ class RemoteOutputStreamAdapter : public io::OutputStream {
       : inner_(std::move(inner)) {}
 
   ~RemoteOutputStreamAdapter() override {
-    if (inner_ && !closed_) {
-      // A write failure means we must not finalize the object (that would
-      // publish partial data); abort instead. Best-effort either way.
-      if (failed_) {
-        (void) inner_->Abort();
-      } else {
-        (void) inner_->Close();
-      }
-    }
+    // Only an explicit successful Close publishes a remote object.
+    Abort();
   }
 
   neug::Status Write(const uint8_t* data, int64_t nbytes) override {
+    if (state_ != State::OPEN) {
+      return neug::Status(StatusCode::ERR_IO_ERROR,
+                          "Cannot write to a finalized remote output");
+    }
+    // Keep failures sticky even if a remote implementation throws.
+    const bool previouslyFailed = failed_;
+    failed_ = true;
     auto r = inner_->Write(data, nbytes);
     if (!r) {
       failed_ = true;
       return r.error();
     }
+    failed_ = previouslyFailed;
     return neug::Status::OK();
   }
 
   neug::Status Close() override {
-    if (closed_) {
+    if (state_ != State::OPEN) {
       return neug::Status::OK();
     }
-    closed_ = true;
     if (failed_) {
-      // Never publish a partial object after a write failure.
-      (void) inner_->Abort();
+      Abort();
+      return neug::Status(StatusCode::ERR_IO_ERROR,
+                          "Remote output discarded after a write failure");
+    }
+    try {
+      auto r = inner_->Close();
+      if (!r) {
+        Abort();
+        return r.error();
+      }
+      state_ = State::CLOSED;
       return neug::Status::OK();
+    } catch (...) {
+      Abort();
+      throw;
     }
-    auto r = inner_->Close();
-    if (!r) {
-      return r.error();
-    }
-    return neug::Status::OK();
   }
 
   void Abort() override {
-    if (closed_) {
+    if (state_ != State::OPEN) {
       return;
     }
-    closed_ = true;
-    (void) inner_->Abort();
+    state_ = State::ABORTED;
+    try {
+      (void) inner_->Abort();
+    } catch (...) {
+      // Abort is best effort, including during stack unwinding. Never retry a
+      // throwing backend from the destructor or replace the original error.
+    }
   }
 
  private:
+  enum class State { OPEN, CLOSED, ABORTED };
+
   std::shared_ptr<fsys::OutputStream> inner_;
-  bool closed_ = false;
+  State state_ = State::OPEN;
   bool failed_ = false;
 };
 

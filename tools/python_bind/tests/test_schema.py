@@ -140,6 +140,79 @@ def test_create_node_table_with_default_value(tmp_path):
     db.close()
 
 
+def test_string_type_length_boundaries(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    conn.execute(
+        "CREATE NODE TABLE StringLengths("
+        "id INT64 PRIMARY KEY,"
+        "string_value STRING,"
+        "min_value VARCHAR(1),"
+        "max_value VARCHAR(65535));"
+    )
+    conn.execute("ALTER TABLE StringLengths ADD altered_string STRING;")
+    conn.execute("ALTER TABLE StringLengths ADD altered_min VARCHAR(1);")
+    conn.execute("ALTER TABLE StringLengths ADD altered_max VARCHAR(65535);")
+    conn.execute(
+        "CREATE (:StringLengths {"
+        "id: 1, string_value: 'string', min_value: 'm', "
+        "max_value: 'sentinel', altered_string: 'altered', "
+        "altered_min: 'a', altered_max: 'persisted'});"
+    )
+    query = (
+        "MATCH (n:StringLengths {id: 1}) "
+        "RETURN n.string_value, n.min_value, n.max_value, "
+        "n.altered_string, n.altered_min, n.altered_max;"
+    )
+    expected = [["string", "m", "sentinel", "altered", "a", "persisted"]]
+    assert list(conn.execute(query)) == expected
+
+    conn.execute("CHECKPOINT;")
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(tmp_path), mode="r", checkpoint_on_close=False)
+    conn = db.connect()
+    assert list(conn.execute(query)) == expected
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        "VARCHAR(0)",
+        "VARCHAR(65536)",
+        "VARCHAR(65536)[]",
+        "VARCHAR(65536)[2]",
+    ],
+)
+def test_invalid_string_type_lengths(tmp_path, ddl_path, data_type):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        ddl = (
+            "CREATE NODE TABLE InvalidStringLength("
+            f"id INT64 PRIMARY KEY, value {data_type});"
+        )
+    else:
+        conn.execute("CREATE NODE TABLE InvalidStringLength(id INT64 PRIMARY KEY);")
+        ddl = f"ALTER TABLE InvalidStringLength ADD value {data_type};"
+
+    with pytest.raises(
+        RuntimeError,
+        match="length of VARCHAR/STRING must be between 1 and 65535",
+    ):
+        conn.execute(ddl)
+
+    conn.close()
+    db.close()
+
+
 def test_create_node_table_errors(tmp_path):
     db_dir = tmp_path / "create_node_errors"
     shutil.rmtree(db_dir, ignore_errors=True)

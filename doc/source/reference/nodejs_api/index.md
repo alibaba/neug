@@ -1,10 +1,10 @@
-# NodeJS API Reference
+# Node.js API Reference
 
-The NeuG NodeJS API provides a high-performance, native JavaScript interface for interacting with NeuG graph databases. Built with N-API for seamless integration with Node.js applications.
+The NeuG Node.js API provides a high-performance, native JavaScript interface for interacting with NeuG graph databases. Built with N-API for seamless integration with Node.js applications.
 
 ## Overview
 
-The NodeJS API offers a simple yet powerful way to:
+The Node.js API offers a simple yet powerful way to:
 
 - **Connect to databases**: Open local or in-memory NeuG databases
 - **Execute queries**: Run Cypher queries with automatic result parsing

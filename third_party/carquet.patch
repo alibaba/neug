@@ -2,9 +2,674 @@ Carquet 5c3532831090a934315abf66dddb13c3219cb4d2: fix multi-batch
 PLAIN BOOLEAN and BYTE_STREAM_SPLIT page encoding.
 Upstream issues: https://github.com/Vitruves/carquet/issues/24
                  https://github.com/Vitruves/carquet/issues/25
-Remove after updating the submodule to an equivalent upstream fix and passing
-parquet_carquet_multibatch_test without this patch.
+The callback additions route random-access reads and sequential writes through
+NeuG InputStream/OutputStream, with exactly-once close or abort ownership.
+Remove each change when the pinned upstream version provides its equivalent
+and the multibatch and I/O adapter regression tests pass without that change.
 
+diff --git a/include/carquet/carquet.h b/include/carquet/carquet.h
+index 8080d27..05eca3d 100644
+--- a/include/carquet/carquet.h
++++ b/include/carquet/carquet.h
+@@ -572,6 +572,30 @@ typedef struct carquet_row_batch carquet_row_batch_t;
+ /** @brief Batch reader for efficient columnar reading */
+ typedef struct carquet_batch_reader carquet_batch_reader_t;
+
++/* ============================================================================
++ * Callback I/O
++ * ============================================================================
++ *
++ * Callback streams let embedders route Parquet I/O through their own VFS.
++ * Carquet copies the callback table and takes ownership of the context once an
++ * open call is made. A reader invokes close exactly once, including when
++ * opening fails. Callbacks must not call back into the same reader.
++ */
++
++typedef carquet_status_t (*carquet_input_get_size_fn)(
++    void* context, int64_t* size);
++typedef carquet_status_t (*carquet_input_read_at_fn)(
++    void* context, int64_t offset, void* buffer, size_t size,
++    size_t* bytes_read);
++typedef void (*carquet_input_close_fn)(void* context);
++
++typedef struct carquet_input_stream {
++    void* context;
++    carquet_input_get_size_fn get_size;
++    carquet_input_read_at_fn read_at;
++    carquet_input_close_fn close;
++} carquet_input_stream_t;
++
+ /* ============================================================================
+  * Schema API
+  * ============================================================================
+@@ -1327,6 +1351,23 @@ carquet_reader_t* carquet_reader_open(
+     const carquet_reader_options_t* options,
+     carquet_error_t* error);
+
++/**
++ * @brief Open a Parquet file through random-access callbacks.
++ *
++ * The callback table is copied. Ownership of @p input.context transfers to
++ * Carquet when this function is called. The close callback is invoked exactly
++ * once when the reader is closed or when opening fails. read_at may return a
++ * short read by setting bytes_read smaller than size; Carquet reports a file
++ * read error when an internal exact read cannot be satisfied.
++ *
++ * Memory mapping is disabled for callback inputs.
++ */
++CARQUET_API CARQUET_WARN_UNUSED_RESULT CARQUET_NONNULL(1)
++carquet_reader_t* carquet_reader_open_input(
++    const carquet_input_stream_t* input,
++    const carquet_reader_options_t* options,
++    carquet_error_t* error);
++
+ /**
+  * @brief Open a Parquet file from a FILE handle.
+  *
+@@ -2311,6 +2352,18 @@ int32_t carquet_reader_filter_row_groups(
+  * closing or starting a new row group.
+  */
+
++typedef carquet_status_t (*carquet_output_write_fn)(
++    void* context, const void* data, size_t size);
++typedef carquet_status_t (*carquet_output_close_fn)(void* context);
++typedef void (*carquet_output_abort_fn)(void* context);
++
++typedef struct carquet_output_stream {
++    void* context;
++    carquet_output_write_fn write;
++    carquet_output_close_fn close;
++    carquet_output_abort_fn abort;
++} carquet_output_stream_t;
++
+ /**
+  * @brief Writer configuration options.
+  */
+@@ -2540,6 +2593,21 @@ carquet_writer_t* carquet_writer_create(
+     const carquet_writer_options_t* options,
+     carquet_error_t* error);
+
++/**
++ * @brief Create a sequential Parquet writer through output callbacks.
++ *
++ * The callback table is copied. Ownership of @p output.context transfers to
++ * Carquet when this function is called. Successful finalization invokes close
++ * exactly once. Any output or finalization failure invokes abort exactly once.
++ * Callback writers do not support append mode.
++ */
++CARQUET_API CARQUET_WARN_UNUSED_RESULT CARQUET_NONNULL(1, 2)
++carquet_writer_t* carquet_writer_create_output(
++    const carquet_output_stream_t* output,
++    const carquet_schema_t* schema,
++    const carquet_writer_options_t* options,
++    carquet_error_t* error);
++
+ /**
+  * @brief Create a writer to a FILE handle.
+  *
+diff --git a/src/reader/file_reader.c b/src/reader/file_reader.c
+index 93ca8c0..2d88cc1 100644
+--- a/src/reader/file_reader.c
++++ b/src/reader/file_reader.c
+@@ -286,25 +286,73 @@ void carquet_reader_options_init(carquet_reader_options_t* options) {
+     options->num_threads = 0;
+ }
+
+-/**
+- * Speculative footer read: read up to 64KB from end of file in a single I/O
+- * call. Most Parquet footers fit within this, eliminating the second seek+read.
+- * Falls back to a targeted read if the footer is larger than the initial read.
+- */
+-#define CARQUET_FOOTER_SPECULATIVE_SIZE (64 * 1024)
++static void close_input(carquet_reader_t* reader) {
++    if (reader->has_input && !reader->input_closed) {
++        reader->input_closed = true;
++        reader->input.close(reader->input.context);
++    }
++}
++
++static carquet_status_t reader_get_size(
++    carquet_reader_t* reader, int64_t* size, carquet_error_t* error) {
++    if (reader->has_input) {
++        carquet_status_t status = reader->input.get_size(
++            reader->input.context, size);
++        if (status != CARQUET_OK) {
++            CARQUET_SET_ERROR(error, status, "Input get_size callback failed");
++            return status;
++        }
++        if (*size < 0 || (uint64_t)*size > (uint64_t)SIZE_MAX) {
++            CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ,
++                              "Input returned an invalid file size");
++            return CARQUET_ERROR_FILE_READ;
++        }
++        return CARQUET_OK;
++    }
+
+-static carquet_status_t read_footer(carquet_reader_t* reader, carquet_error_t* error) {
+-    /* Seek to end to get file size (64-bit aware for files >2 GiB on Windows) */
+     if (carquet_fseek64(reader->file, 0, SEEK_END) != 0) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_SEEK, "Failed to seek to end");
+         return CARQUET_ERROR_FILE_SEEK;
+     }
+-
+-    int64_t file_size = carquet_ftell64(reader->file);
+-    if (file_size < 0) {
++    *size = carquet_ftell64(reader->file);
++    if (*size < 0) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ, "Failed to get file size");
+         return CARQUET_ERROR_FILE_READ;
+     }
++    return CARQUET_OK;
++}
++
++size_t carquet_reader_read_at(
++    carquet_reader_t* reader, int64_t offset, void* buffer, size_t size) {
++    if (!reader || offset < 0 || (size > 0 && !buffer)) {
++        return 0;
++    }
++    if (reader->has_input) {
++        size_t bytes_read = 0;
++        carquet_status_t status = reader->input.read_at(
++            reader->input.context, offset, buffer, size, &bytes_read);
++        if (status != CARQUET_OK || bytes_read > size) {
++            return 0;
++        }
++        return bytes_read;
++    }
++    if (!reader->file || carquet_fseek64(reader->file, offset, SEEK_SET) != 0) {
++        return 0;
++    }
++    return fread(buffer, 1, size, reader->file);
++}
++
++/**
++ * Speculative footer read: read up to 64KB from end of file in a single I/O
++ * call. Most Parquet footers fit within this, eliminating the second seek+read.
++ * Falls back to a targeted read if the footer is larger than the initial read.
++ */
++#define CARQUET_FOOTER_SPECULATIVE_SIZE (64 * 1024)
++
++static carquet_status_t read_footer(carquet_reader_t* reader, carquet_error_t* error) {
++    int64_t file_size = 0;
++    carquet_status_t size_status = reader_get_size(reader, &file_size, error);
++    if (size_status != CARQUET_OK) return size_status;
+     reader->file_size = (size_t)file_size;
+
+     /* Check minimum size */
+@@ -325,13 +373,7 @@ static carquet_status_t read_footer(carquet_reader_t* reader, carquet_error_t* e
+     }
+
+     int64_t spec_offset = (int64_t)(reader->file_size - spec_size);
+-    if (carquet_fseek64(reader->file, spec_offset, SEEK_SET) != 0) {
+-        carquet_mem_free(spec_buf);
+-        CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_SEEK, "Failed to seek to footer");
+-        return CARQUET_ERROR_FILE_SEEK;
+-    }
+-
+-    if (fread(spec_buf, 1, spec_size, reader->file) != spec_size) {
++    if (carquet_reader_read_at(reader, spec_offset, spec_buf, spec_size) != spec_size) {
+         carquet_mem_free(spec_buf);
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ, "Failed to read footer tail");
+         return CARQUET_ERROR_FILE_READ;
+@@ -372,14 +414,8 @@ static carquet_status_t read_footer(carquet_reader_t* reader, carquet_error_t* e
+         }
+
+         int64_t footer_offset = (int64_t)(reader->file_size - 8 - footer_size);
+-        if (carquet_fseek64(reader->file, footer_offset, SEEK_SET) != 0) {
+-            carquet_mem_free(fallback_buf);
+-            carquet_mem_free(spec_buf);
+-            CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_SEEK, "Failed to seek to footer data");
+-            return CARQUET_ERROR_FILE_SEEK;
+-        }
+-
+-        if (fread(fallback_buf, 1, footer_size, reader->file) != footer_size) {
++        if (carquet_reader_read_at(reader, footer_offset, fallback_buf,
++                                   footer_size) != footer_size) {
+             carquet_mem_free(fallback_buf);
+             carquet_mem_free(spec_buf);
+             CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ, "Failed to read footer data");
+@@ -581,6 +617,56 @@ carquet_reader_t* carquet_reader_open_file(
+     return reader;
+ }
+
++carquet_reader_t* carquet_reader_open_input(
++    const carquet_input_stream_t* input,
++    const carquet_reader_options_t* options,
++    carquet_error_t* error) {
++
++    if (!input->get_size || !input->read_at || !input->close) {
++        if (input->close) input->close(input->context);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                          "Input callback table is incomplete");
++        return NULL;
++    }
++
++    carquet_reader_t* reader = carquet_mem_calloc(1, sizeof(carquet_reader_t));
++    if (!reader) {
++        input->close(input->context);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY,
++                          "Failed to allocate reader");
++        return NULL;
++    }
++
++    reader->input = *input;
++    reader->has_input = true;
++    if (options) {
++        reader->options = *options;
++    } else {
++        carquet_reader_options_init(&reader->options);
++    }
++    reader->options.use_mmap = false;
++
++    if (carquet_arena_init(&reader->arena) != CARQUET_OK) {
++        close_input(reader);
++        carquet_mem_free(reader);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY,
++                          "Failed to initialize arena");
++        return NULL;
++    }
++
++    reader->prebuffer.row_group = -1;
++    carquet_status_t status = read_footer(reader, error);
++    if (status != CARQUET_OK) {
++        carquet_arena_destroy(&reader->arena);
++        close_input(reader);
++        carquet_mem_free(reader);
++        return NULL;
++    }
++
++    reader->is_open = true;
++    return reader;
++}
++
+ carquet_status_t carquet_get_file_info(
+     const char* path,
+     carquet_file_info_t* info,
+@@ -697,6 +783,7 @@ void carquet_reader_close(carquet_reader_t* reader) {
+     if (reader->owns_file && reader->file) {
+         fclose(reader->file);
+     }
++    close_input(reader);
+
+     carquet_arena_destroy(&reader->arena);
+     carquet_mem_free(reader);
+@@ -761,7 +848,7 @@ carquet_status_t carquet_reader_prebuffer(
+         return CARQUET_OK;
+     }
+
+-    if (!reader->file) {
++    if (!reader->file && !reader->has_input) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_STATE, "Reader has no file handle");
+         return CARQUET_ERROR_INVALID_STATE;
+     }
+@@ -831,13 +918,7 @@ carquet_status_t carquet_reader_prebuffer(
+         return CARQUET_ERROR_OUT_OF_MEMORY;
+     }
+
+-    if (carquet_fseek64(reader->file, (int64_t)min_offset, SEEK_SET) != 0) {
+-        carquet_mem_free(buf);
+-        CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_SEEK, "Failed to seek for prebuffer");
+-        return CARQUET_ERROR_FILE_SEEK;
+-    }
+-
+-    if (fread(buf, 1, total_size, reader->file) != total_size) {
++    if (carquet_reader_read_at(reader, min_offset, buf, total_size) != total_size) {
+         carquet_mem_free(buf);
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ, "Failed to read prebuffer data");
+         return CARQUET_ERROR_FILE_READ;
+@@ -1115,8 +1196,8 @@ static carquet_status_t reader_read_bytes(
+         return CARQUET_OK;
+     }
+
+-    /* fread path: allocate buffer and read */
+-    if (!reader->file) {
++    /* Stream path: allocate buffer and read */
++    if (!reader->file && !reader->has_input) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_STATE, "Reader has no file handle");
+         return CARQUET_ERROR_INVALID_STATE;
+     }
+@@ -1128,14 +1209,7 @@ static carquet_status_t reader_read_bytes(
+         return CARQUET_ERROR_OUT_OF_MEMORY;
+     }
+
+-    if (carquet_fseek64(reader->file, (int64_t)offset, SEEK_SET) != 0) {
+-        carquet_mem_free(buf);
+-        CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_SEEK,
+-            "Failed to seek to offset %lld", (long long)offset);
+-        return CARQUET_ERROR_FILE_SEEK;
+-    }
+-
+-    if (fread(buf, 1, (size_t)size, reader->file) != (size_t)size) {
++    if (carquet_reader_read_at(reader, offset, buf, (size_t)size) != (size_t)size) {
+         carquet_mem_free(buf);
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ,
+             "Failed to read %d bytes at offset %lld", size, (long long)offset);
+diff --git a/src/reader/page_reader.c b/src/reader/page_reader.c
+index c1a0199..ad1dddf 100644
+--- a/src/reader/page_reader.c
++++ b/src/reader/page_reader.c
+@@ -160,9 +160,7 @@ static size_t prebuf_read_at(carquet_reader_t* file_reader,
+         return size;
+     }
+
+-    /* Fall back to 64-bit aware seek + fread */
+-    if (carquet_fseek64(file_reader->file, (int64_t)offset, SEEK_SET) != 0) return 0;
+-    return fread(buf, 1, size, file_reader->file);
++    return carquet_reader_read_at(file_reader, offset, buf, size);
+ }
+
+ /* ============================================================================
+@@ -2570,7 +2568,7 @@ static carquet_status_t load_next_page(
+     }
+
+     /* Fall back to fread path (requires valid file handle) */
+-    if (file_reader->file == NULL) {
++    if (file_reader->file == NULL && !file_reader->has_input) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_STATE, "No data source available");
+         return CARQUET_ERROR_INVALID_STATE;
+     }
+@@ -2624,7 +2622,7 @@ carquet_status_t carquet_column_ensure_dictionary_loaded(
+     if (reader->file_reader->mmap_data != NULL) {
+         return load_dictionary_page_mmap(reader, error);
+     }
+-    if (reader->file_reader->file == NULL) {
++    if (reader->file_reader->file == NULL && !reader->file_reader->has_input) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_STATE, "No data source");
+         return CARQUET_ERROR_INVALID_STATE;
+     }
+@@ -2661,7 +2659,7 @@ static carquet_status_t parse_header_at_offset(
+         return parquet_parse_page_header(
+             file_reader->mmap_data + offset, max_hdr, hdr, hdr_size, error);
+     }
+-    if (file_reader->file == NULL) {
++    if (file_reader->file == NULL && !file_reader->has_input) {
+         CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_STATE, "No data source");
+         return CARQUET_ERROR_INVALID_STATE;
+     }
+diff --git a/src/reader/reader_internal.h b/src/reader/reader_internal.h
+index 22ad65f..977470b 100644
+--- a/src/reader/reader_internal.h
++++ b/src/reader/reader_internal.h
+@@ -87,6 +87,9 @@ typedef struct carquet_prebuffer {
+ struct carquet_reader {
+     FILE* file;
+     bool owns_file;
++    carquet_input_stream_t input;
++    bool has_input;
++    bool input_closed;
+
+     /* Memory-mapped data */
+     const uint8_t* mmap_data;
+@@ -210,6 +213,13 @@ bool carquet_reader_row_group_index_valid(
+     const carquet_reader_t* reader,
+     int32_t row_group_index);
+
++/**
++ * Read exactly size bytes at offset through the configured FILE or callback.
++ * Returns the number of bytes actually read; 0 represents an I/O error or EOF.
++ */
++size_t carquet_reader_read_at(
++    carquet_reader_t* reader, int64_t offset, void* buffer, size_t size);
++
+ /**
+  * Open file with memory mapping.
+  * Returns mmap_info on success, NULL on failure (fallback to fread).
+diff --git a/src/writer/file_writer.c b/src/writer/file_writer.c
+index 2ae7880..142e87a 100644
+--- a/src/writer/file_writer.c
++++ b/src/writer/file_writer.c
+@@ -129,6 +129,12 @@ extern carquet_status_t carquet_row_group_writer_write_to_file(
+     size_t* total_size,
+     int64_t num_rows);
+
++extern carquet_status_t carquet_row_group_writer_write_to_output(
++    carquet_row_group_writer_t* writer,
++    const carquet_output_stream_t* output,
++    size_t* total_size,
++    int64_t num_rows);
++
+ extern int carquet_row_group_writer_num_columns(const carquet_row_group_writer_t* writer);
+ extern int64_t carquet_row_group_writer_num_rows(const carquet_row_group_writer_t* writer);
+ extern int64_t carquet_row_group_writer_total_byte_size(const carquet_row_group_writer_t* writer);
+@@ -257,6 +263,9 @@ typedef struct row_group_info {
+ struct carquet_writer {
+     FILE* file;
+     bool owns_file;
++    carquet_output_stream_t output;
++    bool has_output;
++    bool output_finalized;
+     /* True when this writer was opened over an existing file via
+      * carquet_writer_open_append(). Such files must never be deleted on abort:
+      * remove() would destroy the user's pre-existing data. */
+@@ -380,13 +389,40 @@ void carquet_writer_options_init(carquet_writer_options_t* options) {
+  * ============================================================================
+  */
+
+-static carquet_status_t write_magic(FILE* file) {
+-    if (fwrite(PARQUET_MAGIC, 1, 4, file) != 4) {
++static carquet_status_t writer_write(
++    carquet_writer_t* writer, const void* data, size_t size) {
++    if (writer->has_output) {
++        return writer->output.write(writer->output.context, data, size);
++    }
++    if (!writer->file || fwrite(data, 1, size, writer->file) != size) {
+         return CARQUET_ERROR_FILE_WRITE;
+     }
+     return CARQUET_OK;
+ }
+
++static carquet_status_t write_magic(carquet_writer_t* writer) {
++    return writer_write(writer, PARQUET_MAGIC, 4);
++}
++
++static carquet_status_t finalize_output(
++    carquet_writer_t* writer, carquet_status_t status) {
++    if (!writer->has_output || writer->output_finalized) return status;
++
++    if (status == CARQUET_OK) {
++        carquet_status_t close_status =
++            writer->output.close(writer->output.context);
++        if (close_status == CARQUET_OK) {
++            writer->output_finalized = true;
++            return CARQUET_OK;
++        }
++        status = close_status;
++    }
++
++    writer->output.abort(writer->output.context);
++    writer->output_finalized = true;
++    return status;
++}
++
+ static int64_t saturating_add_i64(int64_t lhs, int64_t rhs) {
+     if (rhs <= 0 || lhs >= INT64_MAX - rhs) {
+         return INT64_MAX;
+@@ -498,7 +534,7 @@ static carquet_status_t ensure_header_written(carquet_writer_t* writer) {
+         return CARQUET_OK;
+     }
+
+-    carquet_status_t status = write_magic(writer->file);
++    carquet_status_t status = write_magic(writer);
+     if (status != CARQUET_OK) {
+         return status;
+     }
+@@ -1107,9 +1143,13 @@ static carquet_status_t flush_row_group(carquet_writer_t* writer) {
+     /* Finalize and write each column directly to file, avoiding
+      * an intermediate copy of the entire row group into one buffer */
+     size_t size;
+-    carquet_status_t status = carquet_row_group_writer_write_to_file(
+-        writer->current_row_group, writer->file, &size,
+-        writer->current_row_group_rows);
++    carquet_status_t status = writer->has_output
++        ? carquet_row_group_writer_write_to_output(
++              writer->current_row_group, &writer->output, &size,
++              writer->current_row_group_rows)
++        : carquet_row_group_writer_write_to_file(
++              writer->current_row_group, writer->file, &size,
++              writer->current_row_group_rows);
+
+     if (status != CARQUET_OK) {
+         return status;
+@@ -1339,14 +1379,14 @@ static carquet_status_t flush_row_group(carquet_writer_t* writer) {
+             chunk->bloom_filter_length = (int32_t)(bf_header.size + bf_size);
+
+             /* Write header + data */
+-            if (fwrite(bf_header.data, 1, bf_header.size, writer->file) != bf_header.size) {
++            if (writer_write(writer, bf_header.data, bf_header.size) != CARQUET_OK) {
+                 carquet_buffer_destroy(&bf_header);
+                 return CARQUET_ERROR_FILE_WRITE;
+             }
+             writer->file_offset += (int64_t)bf_header.size;
+             carquet_buffer_destroy(&bf_header);
+
+-            if (fwrite(bf_data, 1, bf_size, writer->file) != bf_size) {
++            if (writer_write(writer, bf_data, bf_size) != CARQUET_OK) {
+                 return CARQUET_ERROR_FILE_WRITE;
+             }
+             writer->file_offset += (int64_t)bf_size;
+@@ -1370,7 +1410,7 @@ static carquet_status_t flush_row_group(carquet_writer_t* writer) {
+                     chunk->column_index_offset = writer->file_offset;
+                     chunk->has_column_index_length = true;
+                     chunk->column_index_length = (int32_t)ci_buf.size;
+-                    if (fwrite(ci_buf.data, 1, ci_buf.size, writer->file) != ci_buf.size) {
++                    if (writer_write(writer, ci_buf.data, ci_buf.size) != CARQUET_OK) {
+                         carquet_buffer_destroy(&ci_buf);
+                         return CARQUET_ERROR_FILE_WRITE;
+                     }
+@@ -1391,7 +1431,7 @@ static carquet_status_t flush_row_group(carquet_writer_t* writer) {
+                     chunk->offset_index_offset = writer->file_offset;
+                     chunk->has_offset_index_length = true;
+                     chunk->offset_index_length = (int32_t)oi_buf.size;
+-                    if (fwrite(oi_buf.data, 1, oi_buf.size, writer->file) != oi_buf.size) {
++                    if (writer_write(writer, oi_buf.data, oi_buf.size) != CARQUET_OK) {
+                         carquet_buffer_destroy(&oi_buf);
+                         return CARQUET_ERROR_FILE_WRITE;
+                     }
+@@ -1878,6 +1918,79 @@ carquet_writer_t* carquet_writer_create_file(
+     return writer;
+ }
+
++carquet_writer_t* carquet_writer_create_output(
++    const carquet_output_stream_t* output,
++    const carquet_schema_t* schema,
++    const carquet_writer_options_t* options,
++    carquet_error_t* error) {
++
++    if (!output->write || !output->close || !output->abort) {
++        if (output->abort) output->abort(output->context);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                          "Output callback table is incomplete");
++        return NULL;
++    }
++
++    carquet_writer_t* writer = carquet_mem_calloc(1, sizeof(carquet_writer_t));
++    if (!writer) {
++        output->abort(output->context);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY,
++                          "Failed to allocate writer");
++        return NULL;
++    }
++    writer->output = *output;
++    writer->has_output = true;
++
++    if (carquet_arena_init_size(&writer->arena, 4096) != CARQUET_OK) {
++        finalize_output(writer, CARQUET_ERROR_OUT_OF_MEMORY);
++        carquet_mem_free(writer);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY,
++                          "Failed to allocate arena");
++        return NULL;
++    }
++
++    if (options) {
++        writer->options = *options;
++    } else {
++        carquet_writer_options_init(&writer->options);
++    }
++    writer->max_statistics_size = 32;
++
++    carquet_status_t status = store_schema_elements(writer, schema);
++    if (status != CARQUET_OK) {
++        carquet_writer_abort(writer);
++        CARQUET_SET_ERROR(error, status, "Failed to store schema elements");
++        return NULL;
++    }
++
++    status = build_column_metadata_cache(writer, schema);
++    if (status != CARQUET_OK) {
++        carquet_writer_abort(writer);
++        CARQUET_SET_ERROR(error, status, "Failed to build writer metadata cache");
++        return NULL;
++    }
++
++    for (int32_t i = 0; i < schema->num_leaves; i++) {
++        int32_t elem_idx = schema->leaf_indices[i];
++        parquet_schema_element_t* elem = &schema->elements[elem_idx];
++        carquet_logical_type_t* lt =
++            elem->has_logical_type ? &elem->logical_type : NULL;
++
++        status = add_column_internal(
++            writer, elem->name, elem->type, lt, elem->repetition_type,
++            elem->type_length, schema->max_def_levels[i],
++            schema->max_rep_levels[i],
++            leaf_statistics_sort_order_defined(schema, elem_idx));
++        if (status != CARQUET_OK) {
++            carquet_writer_abort(writer);
++            CARQUET_SET_ERROR(error, status, "Failed to add column from schema");
++            return NULL;
++        }
++    }
++
++    return writer;
++}
++
+ /* ============================================================================
+  * Append-mode helpers
+  * ============================================================================
+@@ -2699,7 +2812,7 @@ carquet_status_t carquet_writer_close(carquet_writer_t* writer) {
+     }
+
+     /* Write metadata */
+-    if (fwrite(metadata_buffer.data, 1, metadata_buffer.size, writer->file) != metadata_buffer.size) {
++    if (writer_write(writer, metadata_buffer.data, metadata_buffer.size) != CARQUET_OK) {
+         carquet_buffer_destroy(&metadata_buffer);
+         status = CARQUET_ERROR_FILE_WRITE;
+         goto cleanup;
+@@ -2713,7 +2826,7 @@ carquet_status_t carquet_writer_close(carquet_writer_t* writer) {
+     len_bytes[2] = (uint8_t)((metadata_len >> 16) & 0xFF);
+     len_bytes[3] = (uint8_t)((metadata_len >> 24) & 0xFF);
+
+-    if (fwrite(len_bytes, 1, 4, writer->file) != 4) {
++    if (writer_write(writer, len_bytes, 4) != CARQUET_OK) {
+         carquet_buffer_destroy(&metadata_buffer);
+         status = CARQUET_ERROR_FILE_WRITE;
+         goto cleanup;
+@@ -2722,7 +2835,7 @@ carquet_status_t carquet_writer_close(carquet_writer_t* writer) {
+     carquet_buffer_destroy(&metadata_buffer);
+
+     /* Write footer magic */
+-    status = write_magic(writer->file);
++    status = write_magic(writer);
+     if (status != CARQUET_OK) {
+         goto cleanup;
+     }
+@@ -2753,6 +2866,8 @@ carquet_status_t carquet_writer_close(carquet_writer_t* writer) {
+     }
+
+ cleanup:
++    status = finalize_output(writer, status);
++
+     /* Free resources */
+     if (writer->current_row_group) {
+         carquet_row_group_writer_destroy(writer->current_row_group);
+@@ -2830,6 +2945,8 @@ cleanup:
+ void carquet_writer_abort(carquet_writer_t* writer) {
+     if (!writer) return;
+
++    (void)finalize_output(writer, CARQUET_ERROR_FILE_WRITE);
++
+     /* Cleanup row group */
+     if (writer->current_row_group) {
+         carquet_row_group_writer_destroy(writer->current_row_group);
 diff --git a/src/writer/page_writer.c b/src/writer/page_writer.c
 index b95a66a..c90d2f6 100644
 --- a/src/writer/page_writer.c
@@ -320,3 +985,84 @@ index b95a66a..c90d2f6 100644
              } else if (writer->encoding == CARQUET_ENCODING_DELTA_BYTE_ARRAY) {
                  /* Spec allows DELTA_BYTE_ARRAY for FLBA: present each
                   * fixed-width value as a byte array of length type_length. */
+diff --git a/src/writer/row_group_writer.c b/src/writer/row_group_writer.c
+index 92c906a..b77aae9 100644
+--- a/src/writer/row_group_writer.c
++++ b/src/writer/row_group_writer.c
+@@ -604,13 +604,20 @@ carquet_status_t carquet_row_group_writer_finalize(
+     return CARQUET_OK;
+ }
+
+-carquet_status_t carquet_row_group_writer_write_to_file(
++static carquet_status_t write_file_sink(
++    void* context, const void* data, size_t size) {
++    return fwrite(data, 1, size, (FILE*)context) == size
++        ? CARQUET_OK : CARQUET_ERROR_FILE_WRITE;
++}
++
++static carquet_status_t carquet_row_group_writer_write_to_sink(
+     carquet_row_group_writer_t* writer,
+-    FILE* file,
++    carquet_output_write_fn write,
++    void* context,
+     size_t* total_size,
+     int64_t num_rows) {
+
+-    if (!writer || !file) {
++    if (!writer || !write) {
+         return CARQUET_ERROR_INVALID_ARGUMENT;
+     }
+
+@@ -640,9 +647,11 @@ carquet_status_t carquet_row_group_writer_write_to_file(
+             capture_dictionary_info(writer, i);
+
+             if (chunks[i].size > 0) {
+-                if (fwrite(chunks[i].data, 1, chunks[i].size, file) != chunks[i].size) {
++                carquet_status_t write_status =
++                    write(context, chunks[i].data, chunks[i].size);
++                if (write_status != CARQUET_OK) {
+                     carquet_mem_free(chunks);
+-                    return CARQUET_ERROR_FILE_WRITE;
++                    return write_status;
+                 }
+             }
+
+@@ -682,8 +691,9 @@ carquet_status_t carquet_row_group_writer_write_to_file(
+         capture_dictionary_info(writer, i);
+
+         if (col_size > 0) {
+-            if (fwrite(col_data, 1, col_size, file) != col_size) {
+-                return CARQUET_ERROR_FILE_WRITE;
++            carquet_status_t write_status = write(context, col_data, col_size);
++            if (write_status != CARQUET_OK) {
++                return write_status;
+             }
+         }
+
+@@ -696,6 +706,26 @@ carquet_status_t carquet_row_group_writer_write_to_file(
+     return CARQUET_OK;
+ }
+
++carquet_status_t carquet_row_group_writer_write_to_file(
++    carquet_row_group_writer_t* writer,
++    FILE* file,
++    size_t* total_size,
++    int64_t num_rows) {
++    if (!file) return CARQUET_ERROR_INVALID_ARGUMENT;
++    return carquet_row_group_writer_write_to_sink(
++        writer, write_file_sink, file, total_size, num_rows);
++}
++
++carquet_status_t carquet_row_group_writer_write_to_output(
++    carquet_row_group_writer_t* writer,
++    const carquet_output_stream_t* output,
++    size_t* total_size,
++    int64_t num_rows) {
++    if (!output || !output->write) return CARQUET_ERROR_INVALID_ARGUMENT;
++    return carquet_row_group_writer_write_to_sink(
++        writer, output->write, output->context, total_size, num_rows);
++}
++
+ int carquet_row_group_writer_num_columns(const carquet_row_group_writer_t* writer) {
+     return writer ? writer->num_columns : 0;
+ }

@@ -190,14 +190,10 @@ arrow::compute::Expression ArrowExpressionConverter::convert(
       op_stack.push(opr);  // Push current operator to stack (not applied yet)
       break;
     }
-    case ::common::ExprOpr::kScalarFunc: {
-      auto& scalar_func = opr.scalar_func();
-      auto funcName = scalar_func.unique_name();
-      if (funcName.starts_with("CAST") && scalar_func.parameters_size() > 0) {
-        value_stack.push(convert(scalar_func.parameters(0)));
-        break;
-      }
-    }
+    case ::common::ExprOpr::kScalarFunc:
+      // A CAST is an operation, not just its operand. Preserve its semantics
+      // through the reader's query-evaluator fallback instead of stripping it.
+      THROW_CONVERSION_EXCEPTION("Scalar function requires query evaluation");
     default:
       THROW_CONVERSION_EXCEPTION(
           "Unsupported ExprOpr item case: " +
