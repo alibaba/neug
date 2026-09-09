@@ -146,10 +146,9 @@ static std::unique_ptr<ExprBase> build_expr(
         exprs_vec.emplace_back(
             parse_expression(compisite_fields[i], ctx_meta, var_type));
       }
-      DataType struct_type =
-          opr.has_node_type()
-              ? parse_from_ir_data_type(opr.node_type())
-              : DataType(DataTypeId::kUnknown);
+      DataType struct_type = opr.has_node_type()
+                                 ? parse_from_ir_data_type(opr.node_type())
+                                 : DataType(DataTypeId::kUnknown);
       return std::make_unique<TupleExpr>(std::move(exprs_vec),
                                          std::move(struct_type));
     }
@@ -251,7 +250,8 @@ static std::unique_ptr<ExprBase> build_expr(
             op.parameters(1).operators(0).const_().str();
         const auto& struct_type = expr->type();
         size_t field_idx = StructType::GetFieldIdx(struct_type, field_name);
-        auto field_type = StructType::GetChildType(struct_type, field_idx).copy();
+        auto field_type =
+            StructType::GetChildType(struct_type, field_idx).copy();
         return std::make_unique<StructExtractExpr>(std::move(expr), field_idx,
                                                    std::move(field_type));
       } else {

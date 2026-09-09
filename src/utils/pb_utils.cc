@@ -272,8 +272,8 @@ bool data_type_to_property_type(const common::DataType& data_type,
       }
       child_types.push_back(std::move(child_type));
     }
-    out_type = StructType::FromFields(std::move(field_names),
-                                      std::move(child_types));
+    out_type =
+        StructType::FromFields(std::move(field_names), std::move(child_types));
     return true;
   }
   case common::DataType::kMap: {

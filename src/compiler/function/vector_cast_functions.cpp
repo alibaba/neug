@@ -65,6 +65,18 @@ struct CastChildFunctionExecutor {
   }
 };
 
+static void validateStructCast(const DataType& inputType,
+                               const DataType& resultType) {
+  auto errorMsg = stringFormat("Unsupported casting function from {} to {}.",
+                               inputType.ToString(), resultType.ToString());
+  if (inputType.id() != DataTypeId::kStruct ||
+      resultType.id() != DataTypeId::kStruct ||
+      StructType::GetFieldNames(inputType) !=
+          StructType::GetFieldNames(resultType)) {
+    THROW_CONVERSION_EXCEPTION(errorMsg);
+  }
+}
+
 static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
                                 ValueVector* resultVector,
                                 uint64_t numOfEntries,
@@ -91,25 +103,7 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
       resultType = &resultVector->dataType;
     } else if (inputType->id() == DataTypeId::kStruct &&
                getPhysicalType(resultType->id()) == PhysicalTypeID::STRUCT) {
-      // Check if struct type can be cast
-      auto errorMsg =
-          stringFormat("Unsupported casting function from {} to {}.",
-                       inputType->ToString(), resultType->ToString());
-      // Check if two structs have the same number of fields
-      if (::StructType::GetNumFields(*inputType) !=
-          ::StructType::GetNumFields(*resultType)) {
-        THROW_CONVERSION_EXCEPTION(errorMsg);
-      }
-
-      // Check if two structs have the same field names
-      auto inputTypeNames = ::StructType::GetFieldNames(*inputType);
-      auto resultTypeNames = ::StructType::GetFieldNames(*resultType);
-
-      for (auto i = 0u; i < inputTypeNames.size(); i++) {
-        if (inputTypeNames[i] != resultTypeNames[i]) {
-          THROW_CONVERSION_EXCEPTION(errorMsg);
-        }
-      }
+      validateStructCast(*inputType, *resultType);
 
       // copy data and nullmask from input
       memcpy(resultVector->getData(), inputVector->getData(),
@@ -757,6 +751,17 @@ static Value castValue(const Value& input, const DataType& targetType) {
       return Value::LIST(childType, std::move(children));
     }
     return Value::ARRAY(targetType, std::move(children));
+  }
+  if (targetType.id() == DataTypeId::kStruct) {
+    validateStructCast(input.type(), targetType);
+    const auto& sourceChildren = StructValue::GetChildren(input);
+    const auto& targetChildTypes = StructType::GetChildTypes(targetType);
+    std::vector<Value> children;
+    children.reserve(sourceChildren.size());
+    for (size_t i = 0; i < sourceChildren.size(); ++i) {
+      children.push_back(castValue(sourceChildren[i], targetChildTypes[i]));
+    }
+    return Value::STRUCT(targetType, std::move(children));
   }
   switch (targetType.id()) {
   case DataTypeId::kInt64:

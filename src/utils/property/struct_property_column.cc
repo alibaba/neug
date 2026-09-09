@@ -26,6 +26,12 @@
 
 namespace neug {
 
+namespace {
+
+std::string FieldRef(size_t index) { return "field_" + std::to_string(index); }
+
+}  // namespace
+
 StructPropertyColumn::StructPropertyColumn(const DataType& struct_type)
     : struct_type_(struct_type) {
   for (const auto& child_type : StructType::GetChildTypes(struct_type_)) {
@@ -87,11 +93,12 @@ void StructPropertyColumn::openInternal(Checkpoint& ckp,
   const auto& field_names = StructType::GetFieldNames(struct_type_);
   for (size_t f = 0; f < fields_.size(); ++f) {
     std::optional<ModuleDescriptor> field_desc;
-    fields_[f]->Open(ckp, resolver,
-                     column_module::ResolveChild(
-                         resolver, desc, field_names[f], field_desc,
-                         "StructPropertyColumn::Open"),
-                     level);
+    auto field_ref = FieldRef(f);
+    fields_[f]->Open(
+        ckp, resolver,
+        column_module::ResolveChild(resolver, desc, field_ref, field_desc,
+                                    "StructPropertyColumn::Open"),
+        level);
     if (fields_[f]->size() != expected_rows) {
       THROW_RUNTIME_ERROR("StructPropertyColumn::Open: field '" +
                           field_names[f] + "' row count mismatch");
@@ -115,14 +122,14 @@ void StructPropertyColumn::Dump(Checkpoint& ckp, CheckpointManifest& meta,
         "StructPropertyColumn::Dump: module key must not be empty");
   }
 
-  const auto& field_names = StructType::GetFieldNames(struct_type_);
   auto desc = dumpSelfDescriptor();
   for (size_t f = 0; f < fields_.size(); ++f) {
-    auto field_key = column_module::ChildModuleKey(key, field_names[f]);
+    auto field_ref = FieldRef(f);
+    auto field_key = column_module::ChildModuleKey(key, field_ref);
     fields_[f]->Dump(ckp, meta, field_key);
     column_module::MarkReferenced(meta, field_key,
                                   "StructPropertyColumn::Dump");
-    desc.set_ref(field_names[f], std::move(field_key));
+    desc.set_ref(field_ref, std::move(field_key));
   }
   meta.SetModule(key, std::move(desc));
 }
@@ -141,9 +148,9 @@ void StructPropertyColumn::resize(size_t size, const Value& default_value) {
     normalized = &fallback;
   }
   if (normalized->type() != struct_type_) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "StructPropertyColumn::resize: expected " + struct_type_.ToString() +
-        ", got " + normalized->type().ToString());
+    THROW_INVALID_ARGUMENT_EXCEPTION("StructPropertyColumn::resize: expected " +
+                                     struct_type_.ToString() + ", got " +
+                                     normalized->type().ToString());
   }
   const auto& children = StructValue::GetChildren(*normalized);
   CHECK(children.size() == fields_.size())

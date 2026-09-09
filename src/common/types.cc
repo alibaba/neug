@@ -22,6 +22,7 @@
 #include <assert.h>
 
 #include <glog/logging.h>
+#include <unordered_set>
 
 #include "neug/common/types.h"
 
@@ -119,9 +120,6 @@ DataType StructType::FromFields(std::vector<std::string> field_names,
     for (size_t i = 0; i < child_types.size(); ++i) {
       field_names.push_back("field_" + std::to_string(i));
     }
-  } else if (field_names.size() != child_types.size()) {
-    THROW_RUNTIME_ERROR(
-        "Struct field name count does not match child type count");
   }
   return DataType::Struct(std::move(field_names), std::move(child_types));
 }
@@ -166,6 +164,16 @@ DataType DataType::Struct(std::vector<DataType> children) {
 
 DataType DataType::Struct(std::vector<std::string> field_names,
                           std::vector<DataType> field_types) {
+  if (field_names.size() != field_types.size()) {
+    THROW_RUNTIME_ERROR(
+        "Struct field name count does not match child type count");
+  }
+  std::unordered_set<std::string> unique_names;
+  for (const auto& field_name : field_names) {
+    if (!field_name.empty() && !unique_names.insert(field_name).second) {
+      THROW_RUNTIME_ERROR("Duplicate struct field name: " + field_name);
+    }
+  }
   std::shared_ptr<ExtraTypeInfo> type_info = std::make_shared<StructTypeInfo>(
       std::move(field_names), std::move(field_types));
   return DataType(DataTypeId::kStruct, type_info);

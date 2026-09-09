@@ -362,7 +362,6 @@ def test_to_arrow_list_column(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="STRUCT support not implemented yet")
 def test_to_arrow_struct_column(tmp_path):
     """to_arrow() handles STRUCT columns with multiple fields."""
     db, conn = _make_db(tmp_path, "struct")
@@ -380,8 +379,35 @@ def test_to_arrow_struct_column(tmp_path):
         .to_pylist()
     )
 
-    assert structs[0].get("f0", structs[0].get("x")) == 10
-    assert structs[1].get("f0", structs[1].get("x")) == 20
+    assert structs[0].get("x", structs[0].get("f0")) == 10
+    assert structs[0].get("y", structs[0].get("f1")) == "hello"
+    assert structs[1].get("x", structs[1].get("f0")) == 20
+    assert structs[1].get("y", structs[1].get("f1")) == "world"
+
+    cast_structs = (
+        conn.execute(
+            "MATCH (n:ST) "
+            "RETURN CAST(n.info, 'STRUCT(x INT64, y STRING)') AS info "
+            "ORDER BY n.id;"
+        )
+        .to_arrow()
+        .column("info")
+        .to_pylist()
+    )
+    assert cast_structs == structs
+
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(tmp_path / "struct"), mode="w")
+    conn = db.connect()
+    reopened_structs = (
+        conn.execute("MATCH (n:ST) RETURN n.info AS info ORDER BY n.id;")
+        .to_arrow()
+        .column("info")
+        .to_pylist()
+    )
+    assert reopened_structs == structs
     conn.close()
     db.close()
 

@@ -22,6 +22,7 @@ The following table showcases all data types supported by NeuG and their differe
 | Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `RETURN duration('P1Y2M3D')` |
 | Composite | LIST | `[]` (empty list) | `RETURN [1, 2, 3]` | `RETURN [1, 2, 3]` |
 | Composite | ARRAY | fixed-size child defaults, for example `[0, 0, 0]` for `INT32[3]` | `readings INT32[3]` in a schema | unsupported as a separate fixed-size type |
+| Composite | STRUCT | per-field defaults | `address STRUCT(city STRING, zip INT64)` in a schema | `MAP` |
 | Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: Person, id: 1, name: marko, age: 29}` | `(:Person {name: 'Alice', age: 30})` |
 | Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: KNOWS, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:KNOWS {weight: 1.0}]` |
 | Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: Person}, {_ID: 4294967298, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: Person}, {_ID: 4297064449, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: Software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
@@ -185,6 +186,37 @@ CREATE (m:Matrix {id: 1, grid: [[1, 2], [3, 4], [5, 6]]});
 - `RETURN`, equality filters, zero-based indexing, `SET`, `MERGE`, `collect()`, and `UNWIND` support array-valued properties
 - `CAST` does not convert between `LIST` and `ARRAY`; array property values are typed by schema-aware compiler contexts
 - Setting an existing array property to `NULL` is not supported yet
+
+#### STRUCT
+- **Description**: A fixed set of uniquely named fields, where each field has its own declared type
+- **Syntax**: `STRUCT(field_name FIELD_TYPE, ...)`
+- **Query Example**: `CREATE NODE TABLE Person(id INT64, address STRUCT(city STRING, zip INT64), PRIMARY KEY(id));`
+
+Struct literals use `{field: value}` syntax. Their field names and order must
+match the declared type. Compatible child values are converted to the declared
+field types.
+
+```cypher
+CREATE NODE TABLE Person(
+    id INT64,
+    address STRUCT(city STRING, zip INT32),
+    PRIMARY KEY(id)
+);
+
+CREATE (p:Person {id: 1, address: {city: 'Hangzhou', zip: 310000}});
+MATCH (p:Person) RETURN p.address.city;
+```
+
+`CAST` can convert between compatible struct types when their field names and
+order are identical:
+
+```cypher
+MATCH (p:Person)
+RETURN CAST(p.address, 'STRUCT(city STRING, zip INT64)');
+```
+
+Struct field names must be unique. A declaration such as
+`STRUCT(value INT64, value STRING)` is rejected.
 
 ### Graph Types
 

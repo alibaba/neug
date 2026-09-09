@@ -631,10 +631,9 @@ TEST(StructPropertyColumnTest, SetGetNullAndContracts) {
   checkpoint_mgr.Open(temp_dir.string());
   auto ckp = make_checkpoint(checkpoint_mgr);
 
-  auto struct_type =
-      DataType::Struct({"name", "age", "score"},
-                       {DataType::Varchar(64), DataType::INT32,
-                        DataType::DOUBLE});
+  auto struct_type = DataType::Struct(
+      {"name", "age", "score"},
+      {DataType::Varchar(64), DataType::INT32, DataType::DOUBLE});
   auto person = [&](const std::string& name, int32_t age, double score) {
     std::vector<Value> children;
     children.push_back(Value::STRING(name));
@@ -676,10 +675,8 @@ TEST(StructPropertyColumnTest, SetGetNullAndContracts) {
   std::vector<Value> bad_children;
   bad_children.push_back(Value::STRING("x"));
   bad_children.push_back(Value::INT64(1));
-  EXPECT_THROW(column.set_any(2,
-                              Value::STRUCT(other_type,
-                                            std::move(bad_children)),
-                              true),
+  EXPECT_THROW(column.set_any(
+                   2, Value::STRUCT(other_type, std::move(bad_children)), true),
                exception::InvalidArgumentException);
 
   // insert_safe is forwarded to the field columns: the varchar(64) field
@@ -711,8 +708,8 @@ TEST(StructPropertyColumnTest, NestedListAndLifecycle) {
 
   // Nested struct, and LIST<STRUCT> field (ListPropertyColumn whose element
   // column is a StructPropertyColumn).
-  auto address_type = DataType::Struct({"city", "zip"},
-                                       {DataType::VARCHAR, DataType::INT32});
+  auto address_type =
+      DataType::Struct({"city", "zip"}, {DataType::VARCHAR, DataType::INT32});
   auto person_type = DataType::Struct(
       {"name", "address", "history"},
       {DataType::VARCHAR, address_type, DataType::List(address_type)});
@@ -726,8 +723,7 @@ TEST(StructPropertyColumnTest, NestedListAndLifecycle) {
     std::vector<Value> children;
     children.push_back(Value::STRING(name));
     children.push_back(std::move(addr));
-    children.push_back(
-        Value::LIST(address_type, std::move(history)));
+    children.push_back(Value::LIST(address_type, std::move(history)));
     return Value::STRUCT(person_type, std::move(children));
   };
 
@@ -755,9 +751,13 @@ TEST(StructPropertyColumnTest, NestedListAndLifecycle) {
   // nested values.
   CheckpointManifest manifest;
   clone->Dump(*ckp, manifest, "struct");
+  const auto* struct_desc = manifest.FindModule("struct");
+  ASSERT_NE(struct_desc, nullptr);
+  EXPECT_EQ(struct_desc->get_ref("field_0"), "struct/field_0");
+  EXPECT_EQ(struct_desc->get_ref("field_1"), "struct/field_1");
+  EXPECT_FALSE(struct_desc->get_ref("name").has_value());
   StructPropertyColumn reopened;
-  reopened.Open(*ckp, manifest, *manifest.FindModule("struct"),
-                MemoryLevel::kInMemory);
+  reopened.Open(*ckp, manifest, *struct_desc, MemoryLevel::kInMemory);
   EXPECT_EQ(reopened.struct_type(), person_type);
   EXPECT_EQ(reopened.size(), 2);
   EXPECT_EQ(reopened.get_any(0), v1);
@@ -778,8 +778,8 @@ TEST(StructPropertyColumnTest, ResizeWithDefault) {
   checkpoint_mgr.Open(temp_dir.string());
   auto ckp = make_checkpoint(checkpoint_mgr);
 
-  auto struct_type = DataType::Struct({"name", "age"},
-                                      {DataType::VARCHAR, DataType::INT32});
+  auto struct_type =
+      DataType::Struct({"name", "age"}, {DataType::VARCHAR, DataType::INT32});
   StructPropertyColumn column(struct_type);
   column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
   column.resize(1);
@@ -828,10 +828,10 @@ TEST(StructPropertyColumnTest, RefColumnFieldAccess) {
   checkpoint_mgr.Open(temp_dir.string());
   auto ckp = make_checkpoint(checkpoint_mgr);
 
-  auto address_type = DataType::Struct({"city", "zip"},
-                                       {DataType::VARCHAR, DataType::INT32});
-  auto person_type = DataType::Struct(
-      {"name", "address"}, {DataType::VARCHAR, address_type});
+  auto address_type =
+      DataType::Struct({"city", "zip"}, {DataType::VARCHAR, DataType::INT32});
+  auto person_type =
+      DataType::Struct({"name", "address"}, {DataType::VARCHAR, address_type});
 
   StructPropertyColumn column(person_type);
   column.Open(*ckp, ModuleDescriptor{}, MemoryLevel::kInMemory);
@@ -854,12 +854,14 @@ TEST(StructPropertyColumnTest, RefColumnFieldAccess) {
 
   // Field-level access binds the child ref column directly, recursively for
   // nested structs.
-  const auto& addr_ref = struct_ref->field_ref(struct_ref->field_idx("address"));
+  const auto& addr_ref =
+      struct_ref->field_ref(struct_ref->field_idx("address"));
   auto* nested = dynamic_cast<const StructPropertyRefColumn*>(&addr_ref);
   ASSERT_NE(nested, nullptr);
-  EXPECT_EQ(
-      nested->field_ref(nested->field_idx("zip")).get_any(0).GetValue<int32_t>(),
-      1000);
+  EXPECT_EQ(nested->field_ref(nested->field_idx("zip"))
+                .get_any(0)
+                .GetValue<int32_t>(),
+            1000);
   EXPECT_EQ(struct_ref->field_ref(struct_ref->field_idx("name"))
                 .get_any(0)
                 .GetValue<std::string>(),
@@ -868,9 +870,18 @@ TEST(StructPropertyColumnTest, RefColumnFieldAccess) {
   std::filesystem::remove_all(temp_dir);
 }
 
+TEST(StructPropertyColumnTest, TypeRejectsInvalidNamedFields) {
+  EXPECT_THROW(DataType::Struct({"x", "x"}, {DataType::INT32, DataType::INT64}),
+               exception::RuntimeError);
+  EXPECT_THROW(DataType::Struct({"x"}, {DataType::INT32, DataType::INT64}),
+               exception::RuntimeError);
+  EXPECT_NO_THROW(
+      DataType::Struct({"", ""}, {DataType::INT32, DataType::VARCHAR}));
+}
+
 TEST(StructPropertyColumnTest, FactoryRejectsEmptyStruct) {
-  auto empty_struct = DataType::Struct(std::vector<std::string>{},
-                                       std::vector<DataType>{});
+  auto empty_struct =
+      DataType::Struct(std::vector<std::string>{}, std::vector<DataType>{});
   EXPECT_THROW(CreateColumn(empty_struct), exception::NotSupportedException);
 }
 

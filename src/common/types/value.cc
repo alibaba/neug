@@ -990,10 +990,11 @@ InArchive& operator<<(InArchive& in_archive, const Value& value) {
   } else if (type_id == DataTypeId::kList || type_id == DataTypeId::kArray ||
              type_id == DataTypeId::kStruct) {
     in_archive << type_id << value.type();
-    const auto& children =
-        (type_id == DataTypeId::kList)    ? ListValue::GetChildren(value)
-        : (type_id == DataTypeId::kArray) ? ArrayValue::GetChildren(value)
-                                          : StructValue::GetChildren(value);
+    const auto& children = (type_id == DataTypeId::kList)
+                               ? ListValue::GetChildren(value)
+                               : (type_id == DataTypeId::kArray)
+                                     ? ArrayValue::GetChildren(value)
+                                     : StructValue::GetChildren(value);
     in_archive << static_cast<uint32_t>(children.size());
     for (const auto& child : children) {
       in_archive << child;
