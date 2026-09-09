@@ -39,21 +39,19 @@ Status operator_error(const Status& error, const std::string& name) {
 // to its producer, rather than counting it twice in PROFILE.
 class StreamTimerScope {
  public:
-  StreamTimerScope(OprTimer* timer, std::shared_ptr<double> charged)
-      : timer_(timer), charged_(std::move(charged)), before_(*charged_) {
+  StreamTimerScope(OprTimer& timer, double& charged)
+      : timer_(timer), charged_(charged), before_(charged) {
     clock_.start();
   }
   ~StreamTimerScope() {
-    if (timer_) {
-      double elapsed = std::max(0.0, clock_.elapsed() - (*charged_ - before_));
-      timer_->add_elapsed(elapsed);
-      *charged_ += elapsed;
-    }
+    double elapsed = std::max(0.0, clock_.elapsed() - (charged_ - before_));
+    timer_.add_elapsed(elapsed);
+    charged_ += elapsed;
   }
 
  private:
-  OprTimer* timer_;
-  std::shared_ptr<double> charged_;
+  OprTimer& timer_;
+  double& charged_;
   double before_;
   TimerUnit clock_;
 };
@@ -71,7 +69,7 @@ Stream<ContextChunk> Pipeline::ExecuteStream(IStorageInterface& graph,
                                              Stream<ContextChunk> stream,
                                              const ParamsMap& params,
                                              OprTimer* timer) {
-  auto charged = std::make_shared<double>(0.0);
+  auto charged = timer ? std::make_shared<double>(0.0) : nullptr;
   auto* current_timer = timer;
   for (size_t i = 0; i < operators_.size(); ++i) {
     const auto name = operators_[i]->get_operator_name();
@@ -82,22 +80,28 @@ Stream<ContextChunk> Pipeline::ExecuteStream(IStorageInterface& graph,
         operators_[i]->Eval(graph, params, std::move(stream), current_timer);
     auto tags = std::move(output.tag_ids);
     auto producer = std::make_shared<Stream<ContextChunk>>(std::move(output));
-    stream = Stream<ContextChunk>(
-        [producer, current_timer, charged,
-         name]() -> Stream<ContextChunk>::NextResult {
-          StreamTimerScope scope(current_timer, charged);
-          auto next = producer->Next();
-          if (!next) {
-            return tl::unexpected(operator_error(next.error(), name));
-          }
-          if (current_timer && *next) {
-            const auto& batch = **next;
-            auto rows = batch.row_num();
-            current_timer->add_num_tuples(rows);
-          }
-          return next;
-        },
-        std::move(tags));
+    auto pull = [producer, name]() -> Stream<ContextChunk>::NextResult {
+      auto next = producer->Next();
+      if (!next) {
+        return tl::unexpected(operator_error(next.error(), name));
+      }
+      return next;
+    };
+    if (current_timer) {
+      stream = Stream<ContextChunk>(
+          [pull = std::move(pull), current_timer,
+           charged]() -> Stream<ContextChunk>::NextResult {
+            StreamTimerScope scope(*current_timer, *charged);
+            auto next = pull();
+            if (next && *next) {
+              current_timer->add_num_tuples((**next).row_num());
+            }
+            return next;
+          },
+          std::move(tags));
+    } else {
+      stream = Stream<ContextChunk>(std::move(pull), std::move(tags));
+    }
     if (current_timer && i + 1 < operators_.size()) {
       current_timer->set_next(std::make_unique<OprTimer>());
       current_timer = current_timer->next();
