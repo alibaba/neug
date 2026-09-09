@@ -2,7 +2,7 @@
 
 This guide walks you through creating your first graph database, querying relationships, adding the indexes introduced in NeuG v0.2, and exploring both embedded and service modes. Examples are in **Python**.
 
-> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api/index) or [C++ API reference](../../reference/cpp_api/index) for equivalent examples in those languages.
+> **Using another language?** See the [Node.js API reference](../../reference/nodejs_api/index), [Java API reference](../../reference/java_api/index), or [C++ API reference](../../reference/cpp_api/index) for equivalent examples in those languages.
 
 ## Prerequisites
 

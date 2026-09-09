@@ -7,6 +7,10 @@ on:
         type: string
         required: false
         default: ''
+      target_platform:
+        type: string
+        required: false
+        default: 'all'
       mode:
         type: string
         required: false
@@ -71,6 +75,8 @@ jobs:
 
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             CIBW="cp313-*"
+          elif [[ "$INPUT" == "all" ]]; then
+            CIBW=""
           elif [[ -n "$INPUT" ]]; then
             SPEC="${INPUT//[[:space:]]/}"
 
@@ -108,7 +114,7 @@ jobs:
     needs:
       - determine_python_versions
     runs-on: [self-hosted, daily, linux, x64]
-    if: ${{
+    if: ${{ (inputs.target_platform == 'all' || inputs.target_platform == 'linux-x86_64') && (
           (
             inputs.mode == 'release' &&
             (
@@ -123,7 +129,7 @@ jobs:
             github.repository == 'alibaba/neug' &&
             (inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'pull_request' || (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main'))
           )
-        }}
+        ) }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
       NEUG_COMMIT_SHA: ${{ github.sha }}
@@ -171,7 +177,7 @@ jobs:
       - name: Upload wheel artifacts
         if: ${{
               (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
-              (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+              (inputs.mode == 'nightly' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'schedule') && github.repository == 'alibaba/neug')
             }}
         uses: actions/upload-artifact@v4
         with:
@@ -226,7 +232,7 @@ jobs:
     needs:
       - determine_python_versions
     runs-on: [self-hosted, daily, linux, arm64]
-    if: ${{
+    if: ${{ (inputs.target_platform == 'all' || inputs.target_platform == 'linux-arm64') && (
           (
             inputs.mode == 'release' &&
             (
@@ -240,7 +246,7 @@ jobs:
             github.repository == 'alibaba/neug' &&
             (inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'pull_request')
           )
-        }}
+        ) }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
       NEUG_COMMIT_SHA: ${{ github.sha }}
@@ -289,7 +295,7 @@ jobs:
       - name: Upload wheel artifacts
         if: ${{
               (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
-              (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+              (inputs.mode == 'nightly' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'schedule') && github.repository == 'alibaba/neug')
             }}
         uses: actions/upload-artifact@v4
         with:
@@ -460,7 +466,7 @@ jobs:
     needs:
       - determine_python_versions
     runs-on: macos-15
-    if: ${{
+    if: ${{ (inputs.target_platform == 'all' || inputs.target_platform == 'macos-arm64') && (
           (
             inputs.mode == 'release' &&
             (
@@ -478,7 +484,7 @@ jobs:
               (inputs.caller_event_name == 'pull_request' && github.repository == 'alibaba/neug')
             )
           )
-        }}
+        ) }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
       NEUG_COMMIT_SHA: ${{ github.sha }}
@@ -551,7 +557,7 @@ jobs:
       - name: Upload wheel artifacts
         if: ${{
               (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
-              (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+              (inputs.mode == 'nightly' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'schedule') && github.repository == 'alibaba/neug')
             }}
         uses: actions/upload-artifact@v4
         with:

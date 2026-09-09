@@ -14,8 +14,8 @@ The C++ API offers powerful capabilities for:
 
 - **[NeugDB](neug_db)** - The main entry point for database operations
 - **[Connection](connection)** - Execute Cypher queries against the database
-- **[QueryResult](query_result)** - Container for query results with iterator access
 - **[NeugDBService](service)** - HTTP service for high-throughput scenarios
+- **[QueryResult](query_result)** - Container for query results with iterator access
 
 ## Quick Start
 

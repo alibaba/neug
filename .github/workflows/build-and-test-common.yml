@@ -104,7 +104,7 @@ jobs:
     - name: Install dependencies (Linux)
       if: inputs.os-type == 'linux'
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache
+        sudo apt-get update && sudo apt-get install -y ccache libzstd-dev liblz4-dev zlib1g-dev
 
     - name: Install dependencies (macOS)
       if: inputs.os-type == 'macos'
