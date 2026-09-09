@@ -57,6 +57,7 @@ NeuG documentation
    cypher_manual/expression/index
    cypher_manual/query_clauses/index
    cypher_manual/explain_profile
+   cypher_manual/schema_introspection
 
 .. toctree::
    :maxdepth: 1

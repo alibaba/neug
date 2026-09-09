@@ -36,6 +36,7 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
+#include "neug/compiler/function/schema_introspection_function.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/function/show_indexes_function.h"
 #include "neug/compiler/function/show_loaded_extensions_function.h"
@@ -157,6 +158,9 @@ FunctionCollection* FunctionCollection::getFunctions() {
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
       TABLE_FUNCTION(ShowIndexesFunction),
+      TABLE_FUNCTION(ShowNodeTablesFunction),
+      TABLE_FUNCTION(ShowRelTableFunction),
+      TABLE_FUNCTION(ShowTableInfoFunction),
       TABLE_FUNCTION(ShowProjectedGraphsFunction),
       TABLE_FUNCTION(ProjectedGraphInfoFunction),
       TABLE_FUNCTION(ProjectGraphFunction),
