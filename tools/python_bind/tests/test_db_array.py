@@ -528,12 +528,17 @@ def test_compact_array_default_forms_in_ddl(tmp_path, ddl_path):
             "[count(*):4]",
             "Compact default only supports constant value/count pairs",
         ),
+        (
+            "['not-an-int':4]",
+            "Invalid compact default value for InvalidCompactDefault.values",
+        ),
         ("[1:3]", "ARRAY value length mismatch"),
     ],
     ids=[
         "negative-repeat-count",
         "non-integer-repeat-count",
         "non-constant-value",
+        "invalid-value-cast",
         "array-size-mismatch",
     ],
 )

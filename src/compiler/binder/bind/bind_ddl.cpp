@@ -567,7 +567,13 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
     boundDefault = expressionBinder.bindExpression(*defaultExpr);
     if (auto compact =
             dynamic_cast<CompactLiteralExpression*>(boundDefault.get())) {
-      compact->cast(type);
+      try {
+        compact->cast(type);
+      } catch (const std::exception& e) {
+        THROW_BINDER_EXCEPTION(
+            stringFormat("Invalid compact default value for {}.{}: {}",
+                         tableName, propertyName, e.what()));
+      }
     } else {
       boundDefault =
           expressionBinder.implicitCastIfNecessary(boundDefault, type);
