@@ -501,7 +501,8 @@ void JsonReader::full_read(
   }
 
   auto filtered =
-      filter_chunk(merged, sharedState_->skipRows, output_config.column_names);
+      filter_chunk(merged, sharedState_->skipRows, output_config.column_names,
+                   sharedState_->parameters);
   auto projected = project_chunk(filtered, output_config.column_names,
                                  sharedState_->projectColumns.empty()
                                      ? output_config.include_columns

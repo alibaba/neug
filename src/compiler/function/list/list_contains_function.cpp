@@ -59,7 +59,9 @@ static std::unique_ptr<FunctionBindData> bindFunc(
     listType = DataType::List(childType.copy());
   } else {
     listType = input.arguments[0]->getDataType().copy();
-    childType = ListType::GetChildType(listType).copy();
+    childType = listType.id() == DataTypeId::kArray
+                    ? ArrayType::GetChildType(listType).copy()
+                    : ListType::GetChildType(listType).copy();
   }
   paramTypes.push_back(listType.copy());
   paramTypes.push_back(childType.copy());
