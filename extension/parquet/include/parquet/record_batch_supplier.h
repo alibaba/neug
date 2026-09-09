@@ -14,7 +14,6 @@
  */
 #pragma once
 
-#include <arrow/dataset/scanner.h>
 #include <arrow/record_batch.h>
 #include <cstdint>
 #include <memory>
@@ -27,9 +26,8 @@ namespace neug {
 class RecordBatchChunkSupplier : public IDataChunkSupplier {
  public:
   RecordBatchChunkSupplier(
-      const std::shared_ptr<arrow::RecordBatchReader>& reader, int64_t row_num,
-      std::shared_ptr<arrow::dataset::Scanner> scanner = nullptr)
-      : row_num_(row_num), reader_(reader), scanner_(std::move(scanner)) {}
+      const std::shared_ptr<arrow::RecordBatchReader>& reader, int64_t row_num)
+      : row_num_(row_num), reader_(reader) {}
 
   std::shared_ptr<DataChunk> GetNextChunk() override;
 
@@ -38,7 +36,6 @@ class RecordBatchChunkSupplier : public IDataChunkSupplier {
  private:
   int64_t row_num_;
   std::shared_ptr<arrow::RecordBatchReader> reader_;
-  std::shared_ptr<arrow::dataset::Scanner> scanner_;
 };
 
 }  // namespace neug

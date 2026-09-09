@@ -46,8 +46,7 @@ std::shared_ptr<IDataChunkSupplier> ArrowReader::getDataChunkSupplier() {
   }
   // Row count is unknown until consumption. Never scan the dataset merely to
   // count rows before producing its first batch.
-  return std::make_shared<RecordBatchChunkSupplier>(batches.ValueOrDie(), -1,
-                                                    std::move(scanner));
+  return std::make_shared<RecordBatchChunkSupplier>(batches.ValueOrDie(), -1);
 }
 
 std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
