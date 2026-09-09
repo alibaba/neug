@@ -156,6 +156,7 @@ if(BUILD_TEST)
     add_library(neug_parquet_carquet_impl STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/input_adapter.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc)
+    add_dependencies(neug_parquet_carquet_impl neug_proto)
     target_include_directories(neug_parquet_carquet_impl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/include
