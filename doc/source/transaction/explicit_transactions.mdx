@@ -1,0 +1,210 @@
+# Explicit Transactions
+
+An explicit transaction groups several queries into one unit of work: begin it,
+run queries inside it, then commit or roll back. A read-only transaction pins
+one read view and rejects writes. A read-write transaction reads its own
+successful writes and publishes them only when the commit succeeds.
+
+By default, NeuG runs each query in its own auto-commit transaction; group
+statements into an explicit transaction only when they must succeed or fail
+together. For the transaction model, deployment modes, and auto-commit behavior,
+see [Transaction Management](transaction.mdx); for how these mechanisms are
+implemented internally, see [How It Works](how_it_works.md).
+
+import { Tabs } from 'nextra/components'
+
+## Client availability
+
+Explicit transactions are available in these clients:
+
+| Client | Embedded `Connection` (AP) | Service `Session` (TP) |
+|--------|----------------------------|------------------------|
+| C++ | Yes | — |
+| Python | Yes | Yes |
+| Node.js | Yes | — |
+| Java | — | Yes |
+
+## Run an explicit transaction
+
+### Embedded AP mode
+
+In embedded mode, an explicit transaction is owned by its `Connection`.
+
+<Tabs items={['Python', 'Node.js', 'C++']}>
+
+<Tab>
+
+```python
+conn.begin_transaction()
+created = conn.execute("CREATE (:Person {name: 'Alice'})", "insert")
+visible = conn.execute("MATCH (p:Person) RETURN p.name")
+conn.commit()
+```
+
+</Tab>
+
+<Tab>
+
+```javascript
+conn.beginTransaction();
+
+const created = conn.execute("CREATE (:Person {name: 'Alice'})", 'insert');
+const visible = conn.execute('MATCH (p:Person) RETURN p.name', 'read');
+
+conn.commit(); // Publishes all successful writes as one commit.
+```
+
+</Tab>
+
+<Tab>
+
+```cpp
+auto status = conn->BeginTransaction(neug::TransactionMode::kReadWrite);
+if (!status.ok()) {
+  // Handle the begin error.
+}
+
+auto created = conn->Query("CREATE (:Person {name: 'Alice'})", "insert");
+auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
+
+status = conn->Commit();  // Publishes all successful writes as one commit.
+```
+
+</Tab>
+
+</Tabs>
+
+Read-write is the default when a client does not specify a mode; every client
+also exposes a read-only variant of its begin call. For exact signatures, see the
+[Python](../reference/python_api/connection.md),
+[Node.js](../reference/nodejs_api/connection.md), and
+[C++](../reference/cpp_api/connection.md) connection references.
+
+### Service TP mode
+
+In service mode, an explicit transaction is owned by its `Session`, and one
+`Session` owns at most one transaction at a time.
+
+<Tabs items={['Python', 'Java']}>
+
+<Tab>
+
+```python
+from neug import Session
+
+session = Session.open("http://localhost:10000", num_threads=1)
+session.begin_transaction()
+session.execute("CREATE (:Person {name: 'Alice'})", "insert")
+assert list(session.execute("MATCH (p:Person) RETURN p.name")) == [["Alice"]]
+session.commit()
+session.close()
+```
+
+</Tab>
+
+<Tab>
+
+```java
+import com.alibaba.neug.driver.Driver;
+import com.alibaba.neug.driver.GraphDatabase;
+import com.alibaba.neug.driver.Session;
+import com.alibaba.neug.driver.Transaction;
+
+try (Driver driver = GraphDatabase.driver("http://localhost:10000");
+        Session session = driver.session();
+        Transaction txn = session.beginTransaction()) {
+    txn.run("CREATE (:Person {name: 'Alice'})").close();
+    txn.run("MATCH (p:Person) RETURN p.name").close();
+    txn.commit();
+}
+```
+
+</Tab>
+
+</Tabs>
+
+For service-mode transaction controls, see the
+[Python Session reference](../reference/python_api/session.md) and
+[Java session and transaction API](../reference/java_api/session.md).
+
+## Rules and restrictions
+
+Savepoints and partial rollback are not supported in either mode.
+
+### Statements rejected inside an explicit transaction
+
+Both modes reject the same statement classes while a transaction is active:
+
+| Rejected | Concretely |
+|----------|------------|
+| Bulk, file, and temporary loading | `COPY … FROM`, `COPY … TO`, `COPY TEMP`, `LOAD FROM` |
+| Administrative statements | `CHECKPOINT`, and `INSTALL` / `LOAD` / `UNINSTALL` of an extension |
+| Mutating procedure calls | `CALL` of a procedure that changes state, such as `project_graph` or `drop_projected_graph`; a read-only `CALL` is allowed |
+
+Everything else is allowed, including reads, inserts, updates, deletes, and
+ordinary DDL such as `CREATE NODE TABLE`, `ALTER`, `DROP`, and index creation.
+A rejected statement behaves like any other failed statement: it makes the
+transaction rollback-only.
+
+### Failure and rollback-only state
+
+A statement that fails after reaching the database makes its transaction
+**rollback-only**: it can no longer commit, and it must be ended before the
+client issues another query or begins another transaction. Failures in this
+class include:
+
+- semantic analysis, syntax, or compilation errors
+- execution failures
+- a write attempted inside a read-only transaction
+- any statement rejected by the table above
+- Cypher `BEGIN`, `COMMIT`, or `ROLLBACK` submitted as a query — these are
+  unsupported; use the client's transaction-control methods instead
+
+Errors that a client binding rejects *before* the statement reaches the database
+do not change the transaction. For example, Python rejects an invalid
+`access_mode` with `ValueError`, and the transaction stays usable. Nested begin
+calls and invalid programmatic control calls report a transaction-state error
+without changing an otherwise active transaction.
+
+### Embedded AP mode details
+
+- **Concurrency.** A read-write transaction holds exclusive AP admission for its
+  whole lifetime: every other AP operation waits until it commits, rolls back,
+  or its connection closes. Embedded READ_WRITE mode also allows only one public
+  `Connection` at a time.
+- **Lifetime.** There is no timeout. The transaction stays open until the
+  application ends it, and while it is open no other AP work proceeds, so end it
+  promptly.
+- **Ending a rollback-only transaction.** Roll it back, or close the connection.
+  Until then the connection still reports an active transaction.
+
+### Service TP mode details
+
+- **Using the session.** Python routes queries issued on an active `Session`
+  into its transaction. In Java, run every transactional statement through
+  `Transaction.run(...)`; direct `Session.run(...)` calls are rejected until
+  that transaction ends. Both clients allow at most one explicit transaction per
+  `Session`, and closing a session tries to roll it back. Never issue concurrent
+  requests through one `Session`; use one `Session` per client worker. Schema
+  lookups always show the service's committed schema, never a
+  transaction-private one.
+- **Concurrency.** A read-write transaction holds the TP update lease. While it
+  holds it, no other read-write transaction can begin, and ordinary inserts and
+  updates wait for it to finish; reads stay concurrent. A successful commit
+  appends and publishes one WAL commit.
+- **Lifetime.** The service rolls back and removes a transaction when its
+  absolute lifetime expires or during shutdown. Expiry is reported lazily: the
+  next transaction request returns `410 Gone`, and `Session` then clears its
+  local handle. After shutdown or a network failure, local state may be stale;
+  close the session. Ordinary statement failures leave the transaction
+  rollback-only.
+- **Ending a rollback-only transaction.** Call `rollback()` (or Java
+  `Transaction.rollback()`). If a Python transaction has already expired, the
+  call raises `RuntimeError` on `410 Gone` but clears the local handle. In Java,
+  a statement rejected by `Transaction.run(...)` makes the transaction
+  rollback-only, so only `rollback()` is allowed. If the network fails while
+  Java commits or rolls back, the final outcome is unknown; the driver does not
+  retry, and the owning session must be closed and replaced.
+- **Abandoned transactions.** A read-write transaction that is never finished
+  keeps the update lease and delays ordinary TP writes until the service
+  releases it. Always end one on both the success and the failure path.
