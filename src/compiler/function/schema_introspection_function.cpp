@@ -122,7 +122,8 @@ std::string EdgeOptionsToJson(const EdgeSchema& edge) {
 
 std::string DefaultValueToString(const Value& value) {
   if (value.IsNull()) {
-    return "NULL";
+    THROW_INTERNAL_EXCEPTION(
+        "Schema property default values must not be NULL.");
   }
   switch (value.type().id()) {
   case DataTypeId::kBoolean:
