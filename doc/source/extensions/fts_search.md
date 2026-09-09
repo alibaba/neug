@@ -435,7 +435,7 @@ MATCH (article:Article)
 RETURN article.id,
        bm25(article.title, 'graph database') AS score
 ORDER BY score ASC
-SKIP 10;
+SKIP $row_offset;
 ```
 
 For paginated ranked search, specify both bounds:
@@ -470,10 +470,6 @@ result = connection.execute(
     },
 )
 ```
-
-`LIMIT` and `SKIP` accept integer literals, constant integer expressions, and
-dynamic parameters. For range constraints and parameter rules, see the general
-[LIMIT and SKIP](../cypher_manual/query_clauses/limit_clause.md) documentation.
 
 When an explicit BM25 ordering has a finite upper bound, NeuG can ask the FTS
 index for at most `skip + limit` candidates and avoid a separate sort. A
