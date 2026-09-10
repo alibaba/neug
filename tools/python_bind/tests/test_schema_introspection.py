@@ -51,7 +51,7 @@ def test_show_tables_for_empty_graph(tmp_path):
     conn = db.connect()
 
     assert list(conn.execute("CALL SHOW_NODE_TABLES() RETURN *;")) == []
-    assert list(conn.execute("CALL SHOW_REL_TABLE() RETURN *;")) == []
+    assert list(conn.execute("CALL SHOW_REL_TABLES() RETURN *;")) == []
 
     conn.close()
     db.close()
@@ -77,8 +77,21 @@ def test_show_node_tables(schema_connection):
         ["TempPerson", "id", True],
     ]
 
+    assert list(
+        conn.execute(
+            "CALL SHOW_NODE_TABLES('Person') "
+            "RETURN vertex_label_name, primary_key, temporary;"
+        )
+    ) == [["Person", "id", False]]
+    assert list(
+        conn.execute(
+            "CALL SHOW_NODE_TABLES(['Person', 'Company']) "
+            "RETURN vertex_label_name, primary_key, temporary;"
+        )
+    ) == [["Company", "id", False], ["Person", "id", False]]
 
-def test_show_rel_table(schema_connection):
+
+def test_show_rel_tables(schema_connection):
     conn, tmp_path = schema_connection
     edges_csv = tmp_path / "temporary_edges.csv"
     edges_csv.write_text("src|dst|weight\n1|1|0.5\n")
@@ -90,7 +103,7 @@ def test_show_rel_table(schema_connection):
 
     rows = list(
         conn.execute(
-            "CALL SHOW_REL_TABLE() RETURN edge_label_name, src_label_name, "
+            "CALL SHOW_REL_TABLES() RETURN edge_label_name, src_label_name, "
             "dst_label_name, multiplicity, temporary, extra_options;"
         )
     )
@@ -111,12 +124,32 @@ def test_show_rel_table(schema_connection):
     ]
     assert json.loads(rows[1][5]) == {"sort_key_for_nbr": "since"}
 
+    columns = (
+        "edge_label_name, src_label_name, dst_label_name, multiplicity, "
+        "temporary, extra_options"
+    )
+    assert list(
+        conn.execute(
+            "CALL SHOW_REL_TABLES('[Person, WorksAt, Company]') " f"RETURN {columns};"
+        )
+    ) == [rows[1]]
+    assert (
+        list(
+            conn.execute(
+                "CALL SHOW_REL_TABLES(['[Person, WorksAt, Company]', "
+                "'[Company, TempPartner, Company]']) "
+                f"RETURN {columns};"
+            )
+        )
+        == rows
+    )
 
-def test_show_table_info_for_node(schema_connection):
+
+def test_show_node_table_info(schema_connection):
     conn, _ = schema_connection
     rows = list(
         conn.execute(
-            "CALL SHOW_TABLE_INFO('Person') RETURN property_name, "
+            "CALL SHOW_NODE_TABLE_INFO('Person') RETURN property_name, "
             "property_type, default_value, primary_key;"
         )
     )
@@ -128,17 +161,17 @@ def test_show_table_info_for_node(schema_connection):
     ]
 
 
-def test_show_table_info_for_edge_triplet(schema_connection):
+def test_show_rel_table_info(schema_connection):
     conn, _ = schema_connection
     rows = list(
         conn.execute(
-            "CALL SHOW_TABLE_INFO(' [ Person , WorksAt , Company ] ') "
-            "RETURN property_name, property_type, default_value, primary_key;"
+            "CALL SHOW_REL_TABLE_INFO(' [ Person , WorksAt , Company ] ') "
+            "RETURN property_name, property_type, default_value;"
         )
     )
     assert rows == [
-        ["since", "INT32", "2000", False],
-        ["role", "VARCHAR", "", False],
+        ["since", "INT32", "2000"],
+        ["role", "VARCHAR", ""],
     ]
 
 
@@ -146,20 +179,54 @@ def test_show_table_info_for_edge_triplet(schema_connection):
     "query, message",
     [
         (
-            "CALL SHOW_TABLE_INFO('Missing');",
+            "CALL SHOW_NODE_TABLE_INFO('Missing');",
             "Node table 'Missing' does not exist",
         ),
         (
-            "CALL SHOW_TABLE_INFO('[Person, WorksAt]');",
+            "CALL SHOW_REL_TABLE_INFO('[Person, WorksAt]');",
             "Invalid edge triplet",
         ),
         (
-            "CALL SHOW_TABLE_INFO('[Company, WorksAt, Person]');",
+            "CALL SHOW_REL_TABLE_INFO('[Company, WorksAt, Person]');",
             "Edge table .* does not exist",
         ),
     ],
 )
 def test_invalid_table_info_targets(schema_connection, query, message):
+    conn, _ = schema_connection
+    with pytest.raises(Exception, match=message):
+        list(conn.execute(query))
+
+
+def test_invalid_rel_table_filter(schema_connection):
+    conn, _ = schema_connection
+    with pytest.raises(Exception, match="Invalid edge triplet"):
+        list(conn.execute("CALL SHOW_REL_TABLES('[Person, WorksAt]');"))
+
+
+@pytest.mark.parametrize(
+    "query, message",
+    [
+        (
+            "CALL SHOW_NODE_TABLES('Missing') RETURN *;",
+            "Node table 'Missing' does not exist",
+        ),
+        (
+            "CALL SHOW_NODE_TABLES(['Person', 'Missing']) RETURN *;",
+            "Node table 'Missing' does not exist",
+        ),
+        (
+            "CALL SHOW_REL_TABLES('[Person, Missing, Company]') RETURN *;",
+            "Edge table .* does not exist",
+        ),
+        (
+            "CALL SHOW_REL_TABLES(['[Person, WorksAt, Company]', "
+            "'[Person, Missing, Company]']) RETURN *;",
+            "Edge table .* does not exist",
+        ),
+    ],
+)
+def test_missing_table_filters(schema_connection, query, message):
     conn, _ = schema_connection
     with pytest.raises(Exception, match=message):
         list(conn.execute(query))

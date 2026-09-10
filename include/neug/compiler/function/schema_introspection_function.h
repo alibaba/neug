@@ -25,14 +25,20 @@ struct ShowNodeTablesFunction {
   static function_set getFunctionSet();
 };
 
-struct ShowRelTableFunction {
-  static constexpr const char* name = "show_rel_table";
+struct ShowRelTablesFunction {
+  static constexpr const char* name = "show_rel_tables";
 
   static function_set getFunctionSet();
 };
 
-struct ShowTableInfoFunction {
-  static constexpr const char* name = "show_table_info";
+struct ShowNodeTableInfoFunction {
+  static constexpr const char* name = "show_node_table_info";
+
+  static function_set getFunctionSet();
+};
+
+struct ShowRelTableInfoFunction {
+  static constexpr const char* name = "show_rel_table_info";
 
   static function_set getFunctionSet();
 };

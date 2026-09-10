@@ -16,6 +16,7 @@
 #include "neug/compiler/function/schema_introspection_function.h"
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -34,7 +35,13 @@
 namespace neug::function {
 namespace {
 
-struct EmptySchemaIntrospectionInput : public CallFuncInputBase {};
+struct ShowTablesInput : public CallFuncInputBase {
+  ShowTablesInput(bool hasFilter, std::vector<std::string> tables)
+      : hasFilter(hasFilter), tables(std::move(tables)) {}
+
+  bool hasFilter;
+  std::vector<std::string> tables;
+};
 
 struct ShowTableInfoInput : public CallFuncInputBase {
   explicit ShowTableInfoInput(std::string table) : table(std::move(table)) {}
@@ -196,7 +203,7 @@ std::vector<PropertyInfoRow> GetEdgePropertyRows(const EdgeSchema& edge) {
   return rows;
 }
 
-execution::Context BuildPropertyInfoContext(
+execution::Context BuildNodePropertyInfoContext(
     const std::vector<PropertyInfoRow>& rows) {
   ValueColumnBuilder<std::string> nameBuilder;
   ValueColumnBuilder<std::string> typeBuilder;
@@ -224,10 +231,57 @@ execution::Context BuildPropertyInfoContext(
   return ctx;
 }
 
-std::unique_ptr<CallFuncInputBase> BindEmptyInput(
-    const Schema&, const execution::ContextMeta&,
-    const ::physical::PhysicalPlan&, int) {
-  return std::make_unique<EmptySchemaIntrospectionInput>();
+execution::Context BuildRelPropertyInfoContext(
+    const std::vector<PropertyInfoRow>& rows) {
+  ValueColumnBuilder<std::string> nameBuilder;
+  ValueColumnBuilder<std::string> typeBuilder;
+  ValueColumnBuilder<std::string> defaultBuilder;
+  nameBuilder.reserve(rows.size());
+  typeBuilder.reserve(rows.size());
+  defaultBuilder.reserve(rows.size());
+  for (const auto& row : rows) {
+    nameBuilder.push_back_opt(row.name);
+    typeBuilder.push_back_opt(row.type.ToString());
+    defaultBuilder.push_back_opt(DefaultValueToString(row.defaultValue));
+  }
+
+  execution::Context ctx;
+  DataChunk chunk;
+  chunk.set(0, nameBuilder.finish());
+  chunk.set(1, typeBuilder.finish());
+  chunk.set(2, defaultBuilder.finish());
+  ctx.append_chunk(std::move(chunk));
+  ctx.tag_ids = {0, 1, 2};
+  return ctx;
+}
+
+std::unique_ptr<CallFuncInputBase> BindShowTablesInput(
+    const std::string& functionName, const ::physical::PhysicalPlan& plan,
+    int opIdx) {
+  const auto& arguments =
+      plan.plan(opIdx).opr().procedure_call().query().arguments();
+  std::vector<std::string> tables;
+  if (arguments.empty()) {
+    return std::make_unique<ShowTablesInput>(false, std::move(tables));
+  }
+  if (arguments.size() != 1 || !arguments[0].has_const_()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        functionName +
+        " accepts no parameter, one string, or one list of strings");
+  }
+  const auto& value = arguments[0].const_();
+  if (value.has_str()) {
+    tables.push_back(value.str());
+  } else if (value.has_str_array()) {
+    tables.reserve(value.str_array().item_size());
+    for (const auto& table : value.str_array().item()) {
+      tables.push_back(table);
+    }
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION(functionName +
+                                     " requires a string or list of strings");
+  }
+  return std::make_unique<ShowTablesInput>(true, std::move(tables));
 }
 
 }  // namespace
@@ -235,17 +289,30 @@ std::unique_ptr<CallFuncInputBase> BindEmptyInput(
 function_set ShowNodeTablesFunction::getFunctionSet() {
   const auto varchar = common::DataType(common::DataTypeId::kVarchar);
   const auto boolean = common::DataType(common::DataTypeId::kBoolean);
-  auto function = std::make_unique<NeugCallFunction>(
-      name, call_input_types{},
-      call_output_columns{{"vertex_label_name", varchar},
-                          {"primary_key", varchar},
-                          {"temporary", boolean}});
-  function->bindFunc = BindEmptyInput;
-  function->execFunc = [](const CallFuncInputBase&, IStorageInterface& graph) {
+  const auto unknown = common::DataType(common::DataTypeId::kUnknown);
+  const call_output_columns outputColumns{{"vertex_label_name", varchar},
+                                          {"primary_key", varchar},
+                                          {"temporary", boolean}};
+  auto exec = [](const CallFuncInputBase& input, IStorageInterface& graph) {
+    const auto& showTablesInput = dynamic_cast<const ShowTablesInput&>(input);
+    const auto& filters = showTablesInput.tables;
     std::vector<std::shared_ptr<const VertexSchema>> vertices;
     const auto& schema = graph.schema();
+    std::set<std::string> filterSet;
+    for (const auto& filter : filters) {
+      const auto label = Trim(filter);
+      if (!schema.is_vertex_label_valid(label)) {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Node table '" + label +
+                                         "' does not exist");
+      }
+      filterSet.insert(label);
+    }
     for (const auto label : schema.get_vertex_label_ids()) {
-      vertices.push_back(schema.get_vertex_schema(label));
+      const auto vertex = schema.get_vertex_schema(label);
+      if (!showTablesInput.hasFilter ||
+          filterSet.contains(vertex->label_name)) {
+        vertices.push_back(vertex);
+      }
     }
     std::sort(vertices.begin(), vertices.end(),
               [](const auto& lhs, const auto& rhs) {
@@ -275,27 +342,48 @@ function_set ShowNodeTablesFunction::getFunctionSet() {
   };
 
   function_set functions;
-  functions.push_back(std::move(function));
+  for (auto inputTypes : {call_input_types{}, call_input_types{unknown}}) {
+    auto function = std::make_unique<NeugCallFunction>(
+        name, std::move(inputTypes), outputColumns);
+    function->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                            const ::physical::PhysicalPlan& plan, int opIdx) {
+      return BindShowTablesInput("SHOW_NODE_TABLES", plan, opIdx);
+    };
+    function->execFunc = exec;
+    functions.push_back(std::move(function));
+  }
   return functions;
 }
 
-function_set ShowRelTableFunction::getFunctionSet() {
+function_set ShowRelTablesFunction::getFunctionSet() {
   const auto varchar = common::DataType(common::DataTypeId::kVarchar);
   const auto boolean = common::DataType(common::DataTypeId::kBoolean);
-  auto function = std::make_unique<NeugCallFunction>(
-      name, call_input_types{},
-      call_output_columns{{"edge_label_name", varchar},
-                          {"src_label_name", varchar},
-                          {"dst_label_name", varchar},
-                          {"multiplicity", varchar},
-                          {"temporary", boolean},
-                          {"extra_options", varchar}});
-  function->bindFunc = BindEmptyInput;
-  function->execFunc = [](const CallFuncInputBase&, IStorageInterface& graph) {
-    std::vector<std::shared_ptr<const EdgeSchema>> edges;
+  const auto unknown = common::DataType(common::DataTypeId::kUnknown);
+  const call_output_columns outputColumns{
+      {"edge_label_name", varchar}, {"src_label_name", varchar},
+      {"dst_label_name", varchar},  {"multiplicity", varchar},
+      {"temporary", boolean},       {"extra_options", varchar}};
+  auto exec = [](const CallFuncInputBase& input, IStorageInterface& graph) {
+    const auto& showTablesInput = dynamic_cast<const ShowTablesInput&>(input);
+    const auto& filters = showTablesInput.tables;
+    std::set<std::tuple<std::string, std::string, std::string>> filterSet;
     const auto& schema = graph.schema();
+    for (const auto& filter : filters) {
+      const auto triplet = ParseEdgeTriplet(filter);
+      const auto& [src, edge, dst] = triplet;
+      if (!schema.is_edge_triplet_valid(src, dst, edge)) {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Edge table [" + src + ", " + edge +
+                                         ", " + dst + "] does not exist");
+      }
+      filterSet.insert(triplet);
+    }
+    std::vector<std::shared_ptr<const EdgeSchema>> edges;
     for (const auto& [_, edge] : schema.get_all_edge_schemas()) {
       if (edge &&
+          (!showTablesInput.hasFilter ||
+           filterSet.contains(std::tie(edge->src_label_name,
+                                       edge->edge_label_name,
+                                       edge->dst_label_name))) &&
           schema.is_edge_triplet_valid(edge->src_label_id, edge->dst_label_id,
                                        edge->edge_label_id)) {
         edges.push_back(edge);
@@ -344,11 +432,20 @@ function_set ShowRelTableFunction::getFunctionSet() {
   };
 
   function_set functions;
-  functions.push_back(std::move(function));
+  for (auto inputTypes : {call_input_types{}, call_input_types{unknown}}) {
+    auto function = std::make_unique<NeugCallFunction>(
+        name, std::move(inputTypes), outputColumns);
+    function->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                            const ::physical::PhysicalPlan& plan, int opIdx) {
+      return BindShowTablesInput("SHOW_REL_TABLES", plan, opIdx);
+    };
+    function->execFunc = exec;
+    functions.push_back(std::move(function));
+  }
   return functions;
 }
 
-function_set ShowTableInfoFunction::getFunctionSet() {
+function_set ShowNodeTableInfoFunction::getFunctionSet() {
   const auto varchar = common::DataType(common::DataTypeId::kVarchar);
   const auto boolean = common::DataType(common::DataTypeId::kBoolean);
   auto function = std::make_unique<NeugCallFunction>(
@@ -365,7 +462,7 @@ function_set ShowTableInfoFunction::getFunctionSet() {
     if (arguments.size() != 1 || !arguments[0].has_const_() ||
         !arguments[0].const_().has_str()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "SHOW_TABLE_INFO requires one string constant parameter");
+          "SHOW_NODE_TABLE_INFO requires one string constant parameter");
     }
     return std::make_unique<ShowTableInfoInput>(arguments[0].const_().str());
   };
@@ -374,23 +471,51 @@ function_set ShowTableInfoFunction::getFunctionSet() {
     const auto& tableInput = dynamic_cast<const ShowTableInfoInput&>(input);
     const auto table = Trim(tableInput.table);
     const auto& schema = graph.schema();
-    if (!table.empty() && table.front() == '[') {
-      const auto [src, edge, dst] = ParseEdgeTriplet(table);
-      if (!schema.is_edge_triplet_valid(src, dst, edge)) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Edge table [" + src + ", " + edge +
-                                         ", " + dst + "] does not exist");
-      }
-      const auto edgeSchema = schema.get_edge_schema(
-          schema.get_vertex_label_id(src), schema.get_vertex_label_id(dst),
-          schema.get_edge_label_id(edge));
-      return BuildPropertyInfoContext(GetEdgePropertyRows(*edgeSchema));
-    }
     if (!schema.is_vertex_label_valid(table)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Node table '" + table +
                                        "' does not exist");
     }
-    return BuildPropertyInfoContext(GetVertexPropertyRows(
+    return BuildNodePropertyInfoContext(GetVertexPropertyRows(
         *schema.get_vertex_schema(schema.get_vertex_label_id(table))));
+  };
+
+  function_set functions;
+  functions.push_back(std::move(function));
+  return functions;
+}
+
+function_set ShowRelTableInfoFunction::getFunctionSet() {
+  const auto varchar = common::DataType(common::DataTypeId::kVarchar);
+  auto function = std::make_unique<NeugCallFunction>(
+      name, call_input_types{varchar},
+      call_output_columns{{"property_name", varchar},
+                          {"property_type", varchar},
+                          {"default_value", varchar}});
+  function->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                          const ::physical::PhysicalPlan& plan,
+                          int opIdx) -> std::unique_ptr<CallFuncInputBase> {
+    const auto& arguments =
+        plan.plan(opIdx).opr().procedure_call().query().arguments();
+    if (arguments.size() != 1 || !arguments[0].has_const_() ||
+        !arguments[0].const_().has_str()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "SHOW_REL_TABLE_INFO requires one string constant parameter");
+    }
+    return std::make_unique<ShowTableInfoInput>(arguments[0].const_().str());
+  };
+  function->execFunc = [](const CallFuncInputBase& input,
+                          IStorageInterface& graph) {
+    const auto& tableInput = dynamic_cast<const ShowTableInfoInput&>(input);
+    const auto [src, edge, dst] = ParseEdgeTriplet(tableInput.table);
+    const auto& schema = graph.schema();
+    if (!schema.is_edge_triplet_valid(src, dst, edge)) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Edge table [" + src + ", " + edge +
+                                       ", " + dst + "] does not exist");
+    }
+    const auto edgeSchema = schema.get_edge_schema(
+        schema.get_vertex_label_id(src), schema.get_vertex_label_id(dst),
+        schema.get_edge_label_id(edge));
+    return BuildRelPropertyInfoContext(GetEdgePropertyRows(*edgeSchema));
   };
 
   function_set functions;
