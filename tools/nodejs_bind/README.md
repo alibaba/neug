@@ -142,8 +142,8 @@ db.close();
 ## Explicit Transactions
 
 Since v0.2, the embedded Node.js `Connection` API supports explicit AP
-transactions. Auto-commit remains the default; begin a transaction only when
-multiple ordinary queries must share one private view and one final commit.
+transactions. Auto-commit remains the default; begin a transaction when
+multiple queries must share one private view and one final commit.
 
 ```js
 const conn = db.connect();
@@ -163,5 +163,8 @@ conn.rollback();
 `hasActiveTransaction` remains true after a failed statement because the
 connection is rollback-only. Call `rollback()` before issuing another query.
 Nested transactions, read-to-write upgrades, Cypher `BEGIN`/`COMMIT`/`ROLLBACK`,
-and explicit-transaction COPY, batch, index, checkpoint, procedure, and
-temporary-schema operations are not supported.
+and explicit-transaction `COPY TO`, `COPY TEMP`, batch, checkpoint, procedure,
+and temporary-schema operations are not supported. Embedded read-write
+transactions may group persistent `COPY FROM` statements into one checkpoint;
+reads may be interleaved, but ordinary DML or DDL writes cannot be mixed with
+those COPY statements.

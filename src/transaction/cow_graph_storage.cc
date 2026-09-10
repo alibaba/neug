@@ -1203,18 +1203,32 @@ Status CowGraphStorage::BatchAddEdgesImpl(label_t, label_t, label_t,
                 "BatchAddEdges requires BulkCowGraphStorage");
 }
 
+Status BulkCowGraphStorage::validateTargetPersistence(bool is_temporary) const {
+  if (persistent_targets_only_ && is_temporary) {
+    return Status(StatusCode::ERR_NOT_SUPPORTED,
+                  "Only persistent COPY FROM is supported in an explicit "
+                  "transaction.");
+  }
+  return Status::OK();
+}
+
 Status BulkCowGraphStorage::CreateVertexTypeImpl(
     const CreateVertexTypeParam& config) {
+  RETURN_IF_NOT_OK(validateTargetPersistence(config.IsTemporary()));
   return applyCreateVertexType(config, PersistentSchemaCommitMode::kCheckpoint);
 }
 
 Status BulkCowGraphStorage::CreateEdgeTypeImpl(
     const CreateEdgeTypeParam& config) {
+  RETURN_IF_NOT_OK(validateTargetPersistence(config.IsTemporary()));
   return applyCreateEdgeType(config, PersistentSchemaCommitMode::kCheckpoint);
 }
 
 result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
     label_t v_label_id, std::shared_ptr<IDataChunkSupplier> supplier) {
+  const bool is_temporary =
+      graph_.schema().is_vertex_label_temporary(v_label_id);
+  RETURN_STATUS_ERROR_IF_NOT_OK(validateTargetPersistence(is_temporary));
   RETURN_STATUS_ERROR_IF_NOT_OK(detachVertexTableForInsert(v_label_id));
   const auto old_capacity = graph_.get_vertex_table(v_label_id).Capacity();
   GS_AUTO(indexes, graph_.mutable_index_manager().GetAllIndexes());
@@ -1236,7 +1250,7 @@ result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
   if (!status.ok()) {
     return tl::unexpected(std::move(status));
   }
-  if (graph_.schema().is_vertex_label_temporary(v_label_id)) {
+  if (is_temporary) {
     workspace_.MarkTransientMutation();
   } else {
     // Persistent COPY finalizes this detached target immediately before the
@@ -1249,13 +1263,15 @@ result<std::vector<vid_t>> BulkCowGraphStorage::BatchAddVerticesImpl(
 Status BulkCowGraphStorage::BatchAddEdgesImpl(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IDataChunkSupplier> supplier) {
+  const bool is_temporary = graph_.schema().is_edge_triplet_temporary(
+      src_label, dst_label, edge_label);
+  RETURN_IF_NOT_OK(validateTargetPersistence(is_temporary));
   const uint32_t edge_triplet_id =
       graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
   RETURN_IF_NOT_OK(detachEdgeTableForInsert(edge_triplet_id));
   RETURN_IF_NOT_OK(graph_.BatchAddEdges(src_label, dst_label, edge_label,
                                         std::move(supplier)));
-  if (graph_.schema().is_edge_triplet_temporary(src_label, dst_label,
-                                                edge_label)) {
+  if (is_temporary) {
     workspace_.MarkTransientMutation();
   } else {
     workspace_.MarkBulkEdgeTableForCheckpoint(edge_triplet_id);

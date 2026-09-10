@@ -209,7 +209,6 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
     analysis.admin = AdminRequest{AdminType::kCheckpoint, std::nullopt};
     return;
   }
-  analysis.is_copy_statement = isKeyword(statement, "COPY");
   if (analysis.explain_mode != ExplainMode::kNone) {
     return;
   }

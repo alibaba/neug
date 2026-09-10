@@ -82,6 +82,10 @@ Begin an explicit embedded AP transaction.
   - `read_only` (bool): Pin one read view and reject writes when true. The
     default starts a read-write transaction with a private COW view.
 
+    A read-write transaction may group persistent `COPY FROM` statements into
+    one checkpoint at commit. Reads may be interleaved, but `COPY FROM` cannot
+    currently be mixed with ordinary DML or DDL writes in the same transaction.
+
 - **Raises:**
   - **RuntimeError:** If the connection is closed or already has an active
     transaction.
@@ -94,8 +98,9 @@ Begin an explicit embedded AP transaction.
 def commit()
 ```
 
-Commit the active explicit transaction. A rollback-only transaction must be
-rolled back instead.
+Commit the active explicit transaction. Persistent `COPY FROM` statements are
+published through one checkpoint; other writes use the ordinary logical-WAL
+commit path. A rollback-only transaction must be rolled back instead.
 
 <a id="neug.connection.Connection.rollback"></a>
 
