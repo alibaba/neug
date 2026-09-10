@@ -53,14 +53,17 @@ data_dir/
 
 `CURRENT` is the sole publication selector. Its content is the selected
 manifest's decimal ID followed by a single trailing newline (for example `3\n`),
-written via an atomic rename; operators may inspect or rewrite it manually with
-a plain text editor. A published manifest has the required fields `v`,
-`base_ts`, `schema`, and `modules`; it may also contain `scalars`. Module
-descriptors persist object IDs, not absolute paths. The same ID names the
-manifest and its WAL epoch. `base_ts` is the highest transaction timestamp
-already represented by the manifest, so recovery replays the selected epoch from
-`base_ts + 1`. Full checkpoints use `base_ts=0` and reset the transaction
-timeline after reopening.
+written via an atomic rename; operators may inspect it directly. Rewriting it is
+an offline recovery operation: first stop every process using the database and
+back up `checkpoint/` and `wal/`, then select only a fully persisted manifest
+whose referenced objects and same-ID WAL epoch are complete and compatible.
+Selecting an inconsistent or older epoch can make recovery fail or discard later
+committed state. A published manifest has the required fields `v`, `base_ts`,
+`schema`, and `modules`; it may also contain `scalars`. Module descriptors persist
+object IDs, not absolute paths. The same ID names the manifest and its WAL epoch.
+`base_ts` is the highest transaction timestamp already represented by the
+manifest, so recovery replays the selected epoch from `base_ts + 1`. Full
+checkpoints use `base_ts=0` and reset the transaction timeline after reopening.
 
 Checkpoint objects are immutable and may be referenced by several manifests.
 Runtime files are not checkpoint data: each database open receives its own

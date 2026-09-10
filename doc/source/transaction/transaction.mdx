@@ -136,6 +136,10 @@ In **Service mode**, each access mode allows only certain operations:
 and `schema` use the general serialized update path and accept any operation
 (`update` also allows `CHECKPOINT`, while `schema` does not).
 
+`CHECKPOINT` may use `update` only as an auto-commit request. It is rejected
+while an explicit transaction is active; end the transaction first. See
+[Statements rejected inside an explicit transaction](explicit_transactions.mdx).
+
 In Embedded mode, modes other than `read` mainly select shared versus exclusive
 query locking rather than distinct transaction implementations. Explicit `read`
 still rejects writes. `CHECKPOINT` is a special administrative statement in both
