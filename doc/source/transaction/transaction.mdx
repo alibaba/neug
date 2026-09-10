@@ -1,10 +1,12 @@
 # Transaction Management
 
-NeuG provides the same transaction model in both deployment modes:
+NeuG provides the same transaction guarantees in both deployment modes:
 **Embedded mode** for in-process analytical workloads (AP) and **Service mode**
-for concurrent transactional workloads (TP).
+for concurrent transactional workloads (TP). The two modes use different
+transaction models to provide those guarantees.
 
-From an application's point of view, the core behavior is the same:
+At the application level, the following guarantees and basic usage rules are
+shared:
 
 - every query runs in a transaction;
 - auto-commit is the default;
@@ -12,9 +14,9 @@ From an application's point of view, the core behavior is the same:
 - a successful commit is atomic and isolated from other transactions;
 - committed changes in a persistent database survive restart.
 
-The main behavioral difference is file I/O: `LOAD FROM` and every `COPY`
-statement are available only in Embedded mode. Service mode does not support
-these statements.
+The main application-facing capability difference is file I/O: `LOAD FROM` and
+every `COPY` statement are available only in Embedded mode. Service mode does
+not support these statements.
 
 ## What ACID means in NeuG
 
@@ -27,10 +29,9 @@ Both deployment modes provide the same user-visible ACID guarantees:
 | **Isolation** | Transactions observe a consistent database view; concurrent execution does not expose partial changes. |
 | **Durability** | Once a transaction commits in a persistent database, NeuG can recover it after restart. In-memory databases are not durable. |
 
-The mechanisms used to provide these guarantees differ between AP and TP, but
-applications do not need to depend on those mechanisms. See
-[Transaction Model](transaction_model.md) for locking, MVCC, WAL, and
-checkpoint details.
+The concurrency and persistence mechanisms differ between AP and TP, but
+applications do not need to depend on them. See
+[Transaction Model](transaction_model.md) for details.
 
 ## Choose a deployment mode
 
@@ -46,9 +47,9 @@ or bulk operations:
 | **File and bulk statements** | Supports `LOAD FROM`, `COPY FROM`, `COPY TEMP`, and `COPY TO` | Not supported |
 | **Explicit transactions** | Supported | Supported |
 
-The same Cypher transaction semantics apply to regular queries in both modes.
-Moving an application between modes generally changes how it connects, not how
-it commits and rolls back regular work.
+The same commit and rollback semantics apply to regular Cypher queries in both
+modes. Moving an application between modes generally changes how it connects,
+not how it commits and rolls back regular work.
 
 ## Run transactions
 

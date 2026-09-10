@@ -1,9 +1,11 @@
 # Transaction Model
 
-This page explains the mechanisms NeuG uses to provide its transaction and
-durability guarantees. Applications can use the same transaction behavior in
-both deployment modes without depending on these details. For normal usage,
-start with [Transaction Management](transaction.mdx),
+NeuG provides the same user-visible transaction guarantees in both deployment
+modes, but it does not use the same transaction model to provide them. This page
+explains the different concurrency and persistence mechanisms used by Embedded
+(AP) and Service (TP) mode. Applications should rely on the guarantees rather
+than these implementation details. For normal usage, start with
+[Transaction Management](transaction.mdx),
 [Explicit Transactions](explicit_transactions.mdx), and
 [Checkpoints](checkpoint.md).
 

@@ -4,8 +4,10 @@ An explicit transaction groups several queries into one unit of work. Begin the
 transaction, run its queries, then commit all changes together or roll them all
 back.
 
-The transaction behavior is the same in Embedded (AP) and Service (TP) mode.
-What differs is the client object that owns the transaction.
+Both Embedded (AP) and Service (TP) mode provide the same explicit-transaction
+guarantees and use the same begin, commit, and rollback flow. Their transaction
+models differ, as do the owning client object and network-related failure
+conditions.
 
 import { Tabs } from 'nextra/components'
 
@@ -188,8 +190,8 @@ change the transaction. For example, Python raises `ValueError` for an invalid
 
 ## Client lifecycle differences
 
-The transaction semantics are shared, but local and network clients have
-different failure conditions.
+The commit and rollback guarantees are shared, but local and network clients
+have different lifecycle and failure conditions.
 
 ### Embedded clients
 
@@ -226,6 +228,6 @@ except Exception:
 Keep explicit transactions short, and use auto-commit when statements do not
 need to commit together.
 
-For the user-visible transaction model, see
-[Transaction Management](transaction.mdx). For locking, MVCC, and persistence
-implementation details, see [Transaction Model](transaction_model.md).
+For user-facing transaction guidance, see
+[Transaction Management](transaction.mdx). For the different concurrency and
+persistence mechanisms, see [Transaction Model](transaction_model.md).
