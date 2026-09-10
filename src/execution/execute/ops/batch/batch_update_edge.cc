@@ -63,7 +63,7 @@ Stream<ContextChunk> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
         // Edge property writes can invalidate pointers in later batches. Retain
         // and refresh every affected column before exposing the result
         // downstream.
-        auto tags = input.tag_ids;
+        auto metadata = input.metadata();
         auto chunks_result = collect_batches(std::move(input));
         if (!chunks_result) {
           return error_stream<ContextChunk>(chunks_result.error());
@@ -173,7 +173,7 @@ Stream<ContextChunk> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
             RefreshEdgeColumns(graph, snapshots);
           }
         }
-        return stream_from_batches(std::move(chunks), std::move(tags));
+        return stream_from_batches(std::move(chunks), std::move(metadata));
       });
 }
 

@@ -197,7 +197,7 @@ class MergeEdgeOpr : public IOperator {
           // Edge property writes can invalidate pointers in later batches.
           // Retain and refresh every affected column before exposing the result
           // downstream.
-          auto tags = input.tag_ids;
+          auto metadata = input.metadata();
           auto chunks_result = collect_batches(std::move(input));
           if (!chunks_result) {
             return error_stream<ContextChunk>(chunks_result.error());
@@ -414,7 +414,7 @@ class MergeEdgeOpr : public IOperator {
               chunk.set(plan.alias_id, builder.finish());
             }
           }
-          return stream_from_batches(std::move(chunks), std::move(tags));
+          return stream_from_batches(std::move(chunks), std::move(metadata));
         });
   }
 

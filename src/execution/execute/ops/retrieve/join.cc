@@ -53,20 +53,20 @@ class JoinOpr : public IOperator {
         std::move(input),
         [this, &graph, params,
          timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
-          auto tags = input.tag_ids;
+          auto metadata = input.metadata();
           auto upstream =
               std::make_shared<Stream<ContextChunk>>(std::move(input));
           return generate_chunk([this, &graph, params, timer, upstream,
-                                 tags]() -> result<ContextChunk> {
+                                 metadata]() -> result<ContextChunk> {
             GS_AUTO(seed, collect_batches(std::move(*upstream)));
             auto left_timer = timer ? std::make_unique<OprTimer>() : nullptr;
             auto right_timer = timer ? std::make_unique<OprTimer>() : nullptr;
             auto left_stream = left_pipeline_.ExecuteStream(
-                graph, stream_from_batches(seed, tags), params,
+                graph, stream_from_batches(seed, metadata), params,
                 left_timer.get());
             GS_AUTO(left, collect_chunk(std::move(left_stream)));
             auto right_stream = right_pipeline_.ExecuteStream(
-                graph, stream_from_batches(std::move(seed), tags), params,
+                graph, stream_from_batches(std::move(seed), metadata), params,
                 right_timer.get());
             GS_AUTO(right, collect_chunk(std::move(right_stream)));
             if (timer) {

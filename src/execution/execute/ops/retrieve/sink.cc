@@ -33,7 +33,7 @@ class SinkOpr : public IOperator {
   Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
                             Stream<ContextChunk>&& input,
                             OprTimer* timer) override {
-    input.tag_ids = tag_ids_;
+    input.set_metadata(StreamMetadata{tag_ids_});
     return std::move(input);
   }
 

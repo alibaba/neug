@@ -42,7 +42,7 @@ class LimitOpr : public IOperator {
   Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
                             Stream<ContextChunk>&& input,
                             neug::execution::OprTimer* timer) override {
-    auto tags = input.tag_ids;
+    auto metadata = input.metadata();
     auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
     return Stream<ContextChunk>(
         [upstream, skip = lower_,
@@ -68,7 +68,7 @@ class LimitOpr : public IOperator {
           }
           return std::optional<ContextChunk>(std::move(output));
         },
-        std::move(tags));
+        std::move(metadata));
   }
 
  private:

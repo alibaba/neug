@@ -17,6 +17,7 @@
 #include "neug/common/columns/value_columns.h"
 #include "neug/execution/common/stream.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/execution/execute/ops/retrieve/sink.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/storages/graph/property_graph.h"
 
@@ -101,7 +102,7 @@ TEST(StreamTest, BatchTransformPreservesColumnIdentityAndDoesNotReadAhead) {
         return std::optional<ContextChunk>(std::in_place, std::move(data),
                                            column);
       },
-      {3, -1});
+      StreamMetadata{{3, -1}});
   auto mapped = map_chunks(std::move(source),
                            [](ContextChunk&& batch) -> result<ContextChunk> {
                              return std::move(batch);
@@ -112,7 +113,7 @@ TEST(StreamTest, BatchTransformPreservesColumnIdentityAndDoesNotReadAhead) {
   ASSERT_TRUE(*first);
   EXPECT_EQ((**first).get(3), column);
   EXPECT_EQ((**first).head(), column);
-  EXPECT_EQ(mapped.tag_ids, (std::vector<int>{3, -1}));
+  EXPECT_EQ(mapped.metadata().output_columns, (std::vector<int>{3, -1}));
   EXPECT_EQ(pulls, 1);
 }
 
@@ -214,6 +215,35 @@ TEST(StreamTest, DeferredInitializationRunsOnceAndReportsErrorsOnNext) {
   ASSERT_FALSE(error);
   EXPECT_NE(error.error().ToString().find("opening source failed"),
             std::string::npos);
+}
+
+TEST(StreamTest, SinkMetadataPreservesOutputOrderAndEmptyResults) {
+  PropertyGraph graph;
+  GraphView view(graph);
+  StorageReadInterface storage(view, 0);
+  physical::PhysicalPlan plan;
+  auto* sink = plan.add_plan()->mutable_opr()->mutable_sink();
+  for (int alias : {3, 0, 3}) {
+    sink->add_tags()->mutable_tag()->set_value(alias);
+  }
+  ops::SinkOprBuilder builder;
+  auto built = builder.Build(Schema(), ContextMeta(), plan, 0);
+  ASSERT_TRUE(built);
+  std::vector<std::unique_ptr<IOperator>> operators;
+  operators.push_back(std::move(built->first));
+  Pipeline pipeline(std::move(operators));
+  for (bool empty : {false, true}) {
+    Context input;
+    if (!empty) {
+      auto data = chunk(7, 3);
+      data.set(0, chunk(9).get(0));
+      input.append_chunk(std::move(data));
+    }
+    auto result = pipeline.Execute(storage, std::move(input), {}, nullptr);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->tag_ids, (std::vector<int>{3, 0, 3}));
+    EXPECT_EQ(result->row_num(), empty ? 0 : 1);
+  }
 }
 
 TEST(StreamTest, PipelineReportsInitializationFailureOnlyWhenPulled) {

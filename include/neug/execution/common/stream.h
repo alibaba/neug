@@ -23,9 +23,15 @@
 
 namespace neug::execution {
 
+// Result layout, independent of batch contents and execution progress.
+// The aliases select output columns in result order, including empty results.
+struct StreamMetadata {
+  std::vector<int> output_columns;
+};
+
 // A single-consumer, synchronous pull stream. Construction does not read rows.
 // The stream yields T directly. Execution uses ContextChunk, which already
-// owns the DataChunk and anonymous head. Tags also describe empty streams.
+// owns the DataChunk and anonymous head. Metadata also describes empty streams.
 // EOF and errors are terminal; an empty batch is NOT EOF.
 template <typename T>
 class Stream {
@@ -34,8 +40,8 @@ class Stream {
   using Pull = std::function<NextResult()>;
 
   Stream() = default;
-  explicit Stream(Pull pull, std::vector<int> tags = {})
-      : tag_ids(std::move(tags)), pull_(std::move(pull)) {}
+  explicit Stream(Pull pull, StreamMetadata metadata = {})
+      : metadata_(std::move(metadata)), pull_(std::move(pull)) {}
   Stream(Stream&&) = default;
   Stream& operator=(Stream&&) = default;
   Stream(const Stream&) = delete;
@@ -58,7 +64,10 @@ class Stream {
     return output;
   }
 
-  std::vector<int> tag_ids;
+  const StreamMetadata& metadata() const { return metadata_; }
+  void set_metadata(StreamMetadata metadata) {
+    metadata_ = std::move(metadata);
+  }
 
  private:
   NextResult PullOne() {
@@ -70,6 +79,7 @@ class Stream {
     return output;
   }
 
+  StreamMetadata metadata_;
   Pull pull_;
   std::optional<Status> error_;
 };
@@ -87,7 +97,7 @@ Stream<T> error_stream(Status error) {
 template <typename Initialize>
 Stream<ContextChunk> defer_stream(Stream<ContextChunk> input,
                                   Initialize initialize) {
-  auto tags = input.tag_ids;
+  auto metadata = input.metadata();
   struct State {
     Stream<ContextChunk> input;
     std::optional<Stream<ContextChunk>> output;
@@ -101,7 +111,7 @@ Stream<ContextChunk> defer_stream(Stream<ContextChunk> input,
         }
         return state->output->Next();
       },
-      std::move(tags));
+      std::move(metadata));
 }
 
 // Put a batch pulled for initialization back in front of its remaining input.
@@ -110,7 +120,7 @@ inline Stream<ContextChunk> prepend_chunk(std::optional<ContextChunk> first,
   if (!first) {
     return std::move(input);
   }
-  auto tags = input.tag_ids;
+  auto metadata = input.metadata();
   auto pending =
       std::make_shared<std::optional<ContextChunk>>(std::move(first));
   auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
@@ -123,14 +133,14 @@ inline Stream<ContextChunk> prepend_chunk(std::optional<ContextChunk> first,
         }
         return upstream->Next();
       },
-      std::move(tags));
+      std::move(metadata));
 }
 
 // Exactly one upstream pull and one kernel invocation per downstream pull.
 template <typename Transform>
 Stream<ContextChunk> map_chunks(Stream<ContextChunk> input,
                                 Transform transform) {
-  auto tags = input.tag_ids;
+  auto metadata = input.metadata();
   auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
   return Stream<ContextChunk>(
       [upstream, transform = std::move(
@@ -142,13 +152,13 @@ Stream<ContextChunk> map_chunks(Stream<ContextChunk> input,
         GS_AUTO(output, transform(std::move(*next)));
         return std::optional<ContextChunk>(std::move(output));
       },
-      std::move(tags));
+      std::move(metadata));
 }
 
 // Invoke a producer on first demand, without an intermediate Context.
 template <typename Producer>
 Stream<ContextChunk> generate_chunk(Producer producer,
-                                    std::vector<int> tags = {}) {
+                                    StreamMetadata metadata = {}) {
   return Stream<ContextChunk>(
       [producer = std::move(producer),
        done = false]() mutable -> Stream<ContextChunk>::NextResult {
@@ -159,7 +169,7 @@ Stream<ContextChunk> generate_chunk(Producer producer,
         GS_AUTO(chunk, producer());
         return std::optional<ContextChunk>(std::move(chunk));
       },
-      std::move(tags));
+      std::move(metadata));
 }
 
 // Explicit global-input boundary. Row-local operators never collect input.
@@ -181,14 +191,14 @@ inline result<ContextChunk> collect_chunk(Stream<ContextChunk> input) {
 
 template <typename Reduce>
 Stream<ContextChunk> reduce_stream(Stream<ContextChunk> input, Reduce reduce) {
-  auto tags = input.tag_ids;
+  auto metadata = input.metadata();
   auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
   return generate_chunk(
       [upstream, reduce = std::move(reduce)]() mutable -> result<ContextChunk> {
         GS_AUTO(chunk, collect_chunk(std::move(*upstream)));
         return reduce(std::move(chunk));
       },
-      std::move(tags));
+      std::move(metadata));
 }
 
 // Buffer only when an operator must replay its input or stabilize it before
@@ -206,7 +216,7 @@ inline result<std::vector<ContextChunk>> collect_batches(
 }
 
 inline Stream<ContextChunk> stream_from_batches(
-    std::vector<ContextChunk> chunks, std::vector<int> tags = {}) {
+    std::vector<ContextChunk> chunks, StreamMetadata metadata = {}) {
   auto batches = std::make_shared<std::vector<ContextChunk>>(std::move(chunks));
   return Stream<ContextChunk>(
       [batches,
@@ -216,16 +226,17 @@ inline Stream<ContextChunk> stream_from_batches(
         }
         return std::optional<ContextChunk>(std::move((*batches)[index++]));
       },
-      std::move(tags));
+      std::move(metadata));
 }
 
 inline Stream<ContextChunk> stream_from_context(Context ctx) {
-  return stream_from_batches(std::move(ctx.chunks()), std::move(ctx.tag_ids));
+  return stream_from_batches(std::move(ctx.chunks()),
+                             StreamMetadata{std::move(ctx.tag_ids)});
 }
 
 inline result<Context> materialize(Stream<ContextChunk> stream) {
   Context ctx;
-  ctx.tag_ids = std::move(stream.tag_ids);
+  ctx.tag_ids = stream.metadata().output_columns;
   while (true) {
     auto next = stream.Next();
     if (!next) {

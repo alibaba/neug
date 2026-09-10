@@ -78,7 +78,7 @@ Stream<ContextChunk> Pipeline::ExecuteStream(IStorageInterface& graph,
     }
     auto output =
         operators_[i]->Eval(graph, params, std::move(stream), current_timer);
-    auto tags = std::move(output.tag_ids);
+    auto metadata = output.metadata();
     auto producer = std::make_shared<Stream<ContextChunk>>(std::move(output));
     auto pull = [producer, name]() -> Stream<ContextChunk>::NextResult {
       auto next = producer->Next();
@@ -98,9 +98,9 @@ Stream<ContextChunk> Pipeline::ExecuteStream(IStorageInterface& graph,
             }
             return next;
           },
-          std::move(tags));
+          std::move(metadata));
     } else {
-      stream = Stream<ContextChunk>(std::move(pull), std::move(tags));
+      stream = Stream<ContextChunk>(std::move(pull), std::move(metadata));
     }
     if (current_timer && i + 1 < operators_.size()) {
       current_timer->set_next(std::make_unique<OprTimer>());

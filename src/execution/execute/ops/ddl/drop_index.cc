@@ -37,12 +37,12 @@ class DropIndexOpr : public IOperator {
         std::move(input),
         [this, &graph, params,
          timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
-          auto tags = input.tag_ids;
+          auto metadata = input.metadata();
           auto before = collect_batches(std::move(input));
           if (!before) {
             return error_stream<ContextChunk>(before.error());
           }
-          input = stream_from_batches(std::move(*before), std::move(tags));
+          input = stream_from_batches(std::move(*before), std::move(metadata));
 
           auto* indexInterface =
               dynamic_cast<StorageIndexDDLInterface*>(&graph);

@@ -45,11 +45,11 @@ class UnionOpr : public IOperator {
       Stream<ContextChunk> branch;
       size_t index = 0;
     };
-    auto tags = input.tag_ids;
+    auto metadata = input.metadata();
     auto state = std::make_shared<State>();
     state->input = std::move(input);
     return Stream<ContextChunk>(
-        [this, &graph, params, timer, tags,
+        [this, &graph, params, timer, metadata,
          state]() mutable -> Stream<ContextChunk>::NextResult {
           if (!state->seed) {
             GS_AUTO(seed, collect_batches(std::move(state->input)));
@@ -71,7 +71,8 @@ class UnionOpr : public IOperator {
               timer->add_child(std::move(sub_timer));
             }
             auto branch = sub_plans_[state->index++].ExecuteStream(
-                graph, stream_from_batches(*state->seed, tags), params, child);
+                graph, stream_from_batches(*state->seed, metadata), params,
+                child);
             state->branch = std::move(branch);
           }
         });
