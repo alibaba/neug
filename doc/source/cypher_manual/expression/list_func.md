@@ -8,6 +8,8 @@ The currently supported list functions are summarized below.
 | --------------------------------- | -------------------------------------- | ------------------------------------ |
 | `list_append(list_like, element)` | Appends one element to a list or array | `RETURN list_append([1, 2], 3)`      |
 | `list_concat(left, right)`        | Concatenates two lists or arrays       | `RETURN list_concat([1, 2], [3, 4])` |
+| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`  |
+| `list_has(list, element)`         | Alias of `list_contains`               | `RETURN list_has([1, 2], 2)`         |
 
 The accepted argument types, return types, type inference rules, and behavior of each function are described in the corresponding sections below.
 
@@ -123,6 +125,22 @@ RETURN list_append([1, 2], NULL);
 ```
 
 In this example, the existing list determines the element type as `INT64`, and the returned list preserves the appended `NULL` value.
+
+Existing `NULL` elements are also preserved, and the new element is appended
+after them:
+
+```cypher
+RETURN list_append([NULL], NULL);
+// [NULL, NULL]
+```
+
+If the input list itself is `NULL`, the result is `NULL` regardless of the
+element being appended:
+
+```cypher
+RETURN list_append(CAST(NULL, 'INT64[]'), 3);
+// NULL
+```
 
 #### Append a compatible type
 
@@ -254,6 +272,33 @@ RETURN list_concat([], []);
 
 When one side has a known element type, that type can be used to infer the type of an untyped empty list.
 
+#### Concatenate lists containing `NULL`
+
+`NULL` elements inside a list are preserved in their original order. Empty
+lists contribute no elements:
+
+```cypher
+RETURN list_concat([], [NULL]);
+// [NULL]
+```
+
+```cypher
+RETURN list_concat([1, CAST(NULL, 'INT64')], [2]);
+// [1, NULL, 2]
+```
+
+If either input list itself is `NULL`, the entire result is `NULL`:
+
+```cypher
+RETURN list_concat(CAST(NULL, 'INT64[]'), []);
+// NULL
+```
+
+```cypher
+RETURN list_concat([], CAST(NULL, 'INT64[]'));
+// NULL
+```
+
 #### Concatenate compatible element types
 
 If the two inputs have different but compatible element types, NeuG promotes them to a common type:
@@ -285,6 +330,56 @@ For example, the following call is invalid because the second argument is a scal
 
 ```cypher
 RETURN list_concat([1], 2);
+```
+
+## `list_contains` and `list_has`
+
+`list_contains(list, element)` and `list_has(list, element)` are equivalent to
+the [`IN` operator](list_op). Both functions test whether `element` occurs in
+`list` and have identical behavior.
+
+### Syntax
+
+```cypher
+list_contains(list, element)
+list_has(list, element)
+```
+
+### Examples
+
+The functions return `TRUE` when the element occurs in the list and `FALSE`
+when it does not:
+
+```cypher
+RETURN list_contains([1, 2, 3], 2);
+// TRUE
+
+RETURN list_has([1, 2, 3], 4);
+// FALSE
+```
+
+### NULL Values
+
+Like the `IN` operator, `list_contains` and `list_has` use three-valued logic
+when the list, the searched element, or an element in the list is `NULL`:
+
+* A `NULL` list produces `NULL`.
+* An empty list produces `FALSE`, including when the searched element is
+  `NULL`.
+* A definite match produces `TRUE`, even if another list element is `NULL`.
+* If there is no match but the list contains `NULL`, the result is `NULL`.
+* If there is no match and the list contains no `NULL`, the result is `FALSE`.
+
+```cypher
+RETURN list_contains(NULL, 2);
+// NULL
+
+RETURN list_contains([], NULL);
+// FALSE
+
+RETURN list_has([1, NULL, 3], 1),
+       list_has([1, NULL, 3], 2);
+// TRUE, NULL
 ```
 
 ## Type Inference and Conversion
