@@ -142,6 +142,22 @@ def _create_advanced_data(conn):
             f"WITH (metric = '{metric}', m = 16, ef_construction = 200);"
         )
 
+    conn.execute("CREATE NODE TABLE Source(id STRING PRIMARY KEY);")
+    conn.execute("CREATE NODE TABLE Chunk(id STRING PRIMARY KEY, embedding FLOAT[4]);")
+    conn.execute("CREATE REL TABLE HAS_CHUNK(FROM Source TO Chunk);")
+    conn.execute("CREATE (:Source {id: 'source'});")
+    conn.execute(
+        "CREATE (:Chunk {id: 'chunk-a', embedding: [1.0, 0.0, 0.0, 0.0]}), "
+        "(:Chunk {id: 'chunk-b', embedding: [0.0, 1.0, 0.0, 0.0]});"
+    )
+    conn.execute(
+        "MATCH (source:Source), (chunk:Chunk) " "CREATE (source)-[:HAS_CHUNK]->(chunk);"
+    )
+    conn.execute(
+        "CREATE INDEX chunk_hnsw ON Chunk USING HNSW (embedding) "
+        "WITH (metric = 'cosine', m = 2, ef_construction = 10);"
+    )
+
 
 @pytest.fixture(scope="module")
 def advanced_database(tmp_path_factory):
@@ -282,15 +298,30 @@ def test_hnsw_limit_above_1024(advanced_connection):
 
 
 def test_graph_filtering_during_index_scan(advanced_connection):
-    rows = list(
-        advanced_connection.execute(
-            "MATCH (source:Item)-[:NEXT]->(n:Item) RETURN n.id, "
-            f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
-            "AS score ORDER BY score ASC LIMIT 3;"
-        )
+    result = advanced_connection.execute(
+        "PROFILE MATCH (source:Item)-[:NEXT]->(n:Item) RETURN n.id, n.name, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
     )
-    assert rows[0][0] == 500
-    assert {row[0] for row in rows[1:3]} == {499, 501}
+    rows = list(result)
+    assert rows[0][:2] == [500, "item_500"]
+    assert {(row[0], row[1]) for row in rows[1:3]} == {
+        (499, "item_499"),
+        (501, "item_501"),
+    }
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "JoinOpr" not in operators
+
+    node_result = advanced_connection.execute(
+        "PROFILE MATCH (source:Item)-[:NEXT]->(n:Item) RETURN n, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    assert len(list(node_result)) == 3
+    node_operators = _profile_operator_names(node_result)
+    assert "IndexScanOpr" in node_operators
+    assert "JoinOpr" not in node_operators
 
     empty_result = advanced_connection.execute(
         "PROFILE MATCH (n:Item) WHERE n.group_id = 99 RETURN n.id, "
@@ -299,6 +330,57 @@ def test_graph_filtering_during_index_scan(advanced_connection):
     )
     assert list(empty_result) == []
     assert "IndexScanOpr" in _profile_operator_names(empty_result)
+
+
+def test_correlated_pattern_outputs_use_hnsw_join(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item)-[:NEXT]->(e:Item) RETURN n.id, e.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    rows = list(result)
+    assert [(row[0], row[1]) for row in rows] == [
+        (500, 501),
+        (501, 502),
+        (499, 500),
+    ]
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "JoinOpr" in operators
+
+
+def test_correlated_hnsw_join_applies_final_limit_after_fanout(
+    advanced_connection,
+):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item)-[:NEXT]-(e:Item) RETURN n.id, e.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT 3;"
+    )
+    rows = list(result)
+    assert len(rows) == 3
+    assert [row[0] for row in rows[:2]] == [500, 500]
+    assert {row[1] for row in rows[:2]} == {499, 501}
+    assert rows[2][0] == 501
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "JoinOpr" in operators
+
+
+def test_issue_935_graph_constrained_topk_uses_hnsw_join(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (source:Source)-[:HAS_CHUNK]->(chunk:Chunk) "
+        "RETURN source.id, chunk.id, "
+        "vector_distance_cosine(chunk.embedding, $embedding) AS distance "
+        "ORDER BY distance ASC LIMIT 1;",
+        parameters={"embedding": [1.0, 0.0, 0.0, 0.0]},
+    )
+    rows = list(result)
+    assert [row[:2] for row in rows] == [["source", "chunk-a"]]
+    assert rows[0][2] == pytest.approx(0.0)
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "JoinOpr" in operators
 
 
 def test_update_and_delete_maintain_index(advanced_connection):
