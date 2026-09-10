@@ -1,13 +1,6 @@
 # Transaction Model
 
-NeuG provides the same user-visible transaction guarantees in both deployment
-modes, but it does not use the same transaction model to provide them. This page
-explains the different concurrency and persistence mechanisms used by Embedded
-(AP) and Service (TP) mode. Applications should rely on the guarantees rather
-than these implementation details. For normal usage, start with
-[Transaction Management](transaction.mdx),
-[Explicit Transactions](explicit_transactions.mdx), and
-[Checkpoints](checkpoint.md).
+Embedded (AP) and Service (TP) mode use different transaction models.
 
 ## Shared transaction contract
 

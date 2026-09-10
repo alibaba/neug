@@ -2,8 +2,7 @@
 
 NeuG provides the same transaction guarantees in both deployment modes:
 **Embedded mode** for in-process analytical workloads (AP) and **Service mode**
-for concurrent transactional workloads (TP). The two modes use different
-transaction models to provide those guarantees.
+for concurrent transactional workloads (TP).
 
 At the application level, the following guarantees and basic usage rules are
 shared:
@@ -29,9 +28,8 @@ Both deployment modes provide the same user-visible ACID guarantees:
 | **Isolation** | Transactions observe a consistent database view; concurrent execution does not expose partial changes. |
 | **Durability** | Once a transaction commits in a persistent database, NeuG can recover it after restart. In-memory databases are not durable. |
 
-The concurrency and persistence mechanisms differ between AP and TP, but
-applications do not need to depend on them. See
-[Transaction Model](transaction_model.md) for details.
+For the different transaction models behind these guarantees, see
+[Transaction Model](transaction_model.md).
 
 ## Choose a deployment mode
 
