@@ -1,20 +1,26 @@
 # Checkpoints
 
-A checkpoint saves the current database state to disk. Since v0.2, committed
-ordinary writes in both embedded and service mode are already durable through
-WAL, so they do not require a manual checkpoint. Persistent `COPY ... FROM` and
-batch inserts create a checkpoint before reporting success. `COPY TEMP` remains
-in memory and is lost when the database closes.
+A checkpoint writes a recoverable database snapshot to disk and limits how much
+write-ahead log (WAL) NeuG must replay during startup.
 
-| Question | Ordinary writes, including index changes | Persistent COPY/batch insert |
-|---|---|---|
-| Is a manual `CHECKPOINT` required for durability? | No; committed changes are already saved in WAL | No; a checkpoint is created before the statement reports success |
-| Why create one? | To reduce the amount of WAL replayed during recovery | To make the imported data durable |
-| What is restored after restart? | The latest checkpoint and later committed changes | The imported data from the latest checkpoint |
+Most applications do not need to create checkpoints manually:
 
-For transaction boundaries and concurrency outside checkpoint operations, see
-[Transaction Management](transaction.mdx). For how checkpoints are stored and
-applied internally, see [How It Works](how_it_works.md).
+- ordinary committed writes are already durable through the WAL in both
+  Embedded and Service mode;
+- a persistent `COPY ... FROM` in Embedded mode creates the checkpoint it needs
+  before reporting success;
+- Service mode does not support `LOAD FROM` or any `COPY` statement.
+
+## When to create a checkpoint
+
+Use a manual checkpoint when you want to:
+
+- reduce WAL replay time after restart;
+- consolidate persistent state before an operational milestone;
+- explicitly verify that checkpoint maintenance succeeds.
+
+A checkpoint is not required after each transaction. Creating checkpoints too
+frequently adds unnecessary maintenance work.
 
 ## Run a checkpoint
 
@@ -22,144 +28,127 @@ applied internally, see [How It Works](how_it_works.md).
 CHECKPOINT;
 ```
 
-`CHECKPOINT` takes no arguments and must run under the `update` access
-mode.
+`CHECKPOINT` takes no arguments and must run as an auto-commit statement under
+the `update` access mode.
 
-If `access_mode` is omitted, NeuG infers `update`. If it is specified
-explicitly, it must be `"update"` or `"u"`. Any other access mode
-(`"read"`/`"r"`, `"insert"`/`"i"`, or `"schema"`/`"s"`) is rejected, and
-a database opened read-only cannot create a checkpoint.
-
-Usage examples:
+If `access_mode` is omitted, NeuG infers `update`. If specified explicitly, use
+`"update"` or `"u"`. Other modes are rejected. A read-only database cannot
+create a checkpoint, and `CHECKPOINT` cannot run inside an explicit
+transaction.
 
 ```python
-conn.execute("CHECKPOINT")  # NeuG infers `update`
-conn.execute("CHECKPOINT", access_mode="update")  # or "u"; all other modes are rejected
+conn.execute("CHECKPOINT")
+conn.execute("CHECKPOINT", access_mode="update")
 ```
 
-`CHECKPOINT` can also be used with an
-[`EXPLAIN`/`PROFILE` clause](../cypher_manual/explain_profile.md):
+`CHECKPOINT` also supports
+[`EXPLAIN` and `PROFILE`](../cypher_manual/explain_profile.md):
 
 - `EXPLAIN CHECKPOINT` returns the execution plan without creating a
   checkpoint.
-- `PROFILE CHECKPOINT` creates the checkpoint and reports its execution time
-  as a single `CHECKPOINT` operator.
+- `PROFILE CHECKPOINT` creates the checkpoint and reports its execution time.
 
-### Embedded mode example
+## What applications observe
+
+Checkpoint maintenance waits for work already in progress and temporarily
+prevents new transactions from starting. A long-running query can therefore
+delay a checkpoint, and the checkpoint can briefly delay new work.
+
+After a successful checkpoint:
+
+- existing Service-mode sessions remain valid;
+- subsequent transactions continue normally;
+- restart recovery begins from the new checkpoint and replays only later WAL
+  records.
+
+Schedule operational checkpoints during a quieter period when predictable
+latency matters.
+
+## Embedded mode
+
+Ordinary writes do not require a manual checkpoint:
 
 ```python
 import neug
 
-# Ordinary writes remain recoverable from WAL when checkpoint-on-close is off.
 db = neug.Database("/path/to/database", checkpoint_on_close=False)
 conn = db.connect()
 
-conn.execute("COPY Person FROM 'people.csv'")
-# COPY returned only after publishing its private bulk checkpoint.
-conn.execute("CREATE (p:Person {id: 42})")  # Durable through logical WAL.
-
+conn.execute("CREATE (p:Person {id: 42})")  # durable after commit
 conn.close()
 db.close()
 ```
 
-### Service mode example
+Persistent bulk import is also automatic:
 
-This example assumes a NeuG service is already running. To start one, see
-[Service Mode](../getting_started/getting_started.md#service-mode)
-(`db.serve()`).
+```python
+conn.execute("COPY Person FROM 'people.csv'")
+# Success means the import has been published in a checkpoint.
+```
+
+The import is atomic. If reading, validation, or checkpoint publication fails,
+none of the imported data becomes visible and the previous database state
+remains usable.
+
+`COPY TEMP` is different: it updates only the connection's in-memory temporary
+graph and is lost when the connection or database closes.
+
+## Service mode
+
+Service-mode writes are durable when they commit. A manual checkpoint is
+optional maintenance:
 
 ```python
 from neug import Session
 
 session = Session("http://localhost:10000/")
-
-# This insert is durable as soon as it commits; CHECKPOINT is not required.
 session.execute(
     "CREATE (p:Person {name: 'Alice'})",
     access_mode="insert",
 )
-
-# Optional maintenance: publish a checkpoint that bounds future WAL replay.
-session.execute("CHECKPOINT")
+session.execute("CHECKPOINT")  # optional
 session.close()
 ```
 
-Closing a client `Session` only disconnects that client; it neither closes
-nor checkpoints the server database. When the server-side database is later
-closed with `checkpoint_on_close=True`, any outstanding WAL records are
-folded into the final checkpoint; if checkpointing is disabled, the WAL
-remains on disk for replay on the next startup.
+Closing a client `Session` only disconnects that client. It does not close or
+checkpoint the server-side database.
 
-## Concurrency
+Remember that Service mode rejects `LOAD FROM`, `COPY FROM`, `COPY TEMP`, and
+`COPY TO`. Perform file I/O in Embedded mode before starting the service.
 
-- **Embedded mode:** A checkpoint takes the exclusive query lock. It waits
-  for running operations to finish and blocks new operations until it
-  completes.
-- **Service mode:** A checkpoint waits for in-flight reads and writes to
-  finish without interrupting them, holds off new transactions while it
-  runs, and then executes with no concurrent transactions. The wait is
-  unbounded: a single long-running query can delay the entire checkpoint.
-  After a successful checkpoint, existing sessions remain valid and NeuG
-  starts a new empty WAL.
+## Automatic checkpoint on database close
 
-For Service mode, schedule checkpoints during a quiet period when possible.
+Persistent read-write databases default to `checkpoint_on_close=True`. Closing
+the database therefore attempts one final checkpoint.
 
-## Automatic checkpoint on close
+This setting applies when the database owner closes the database; closing a
+remote client session does not trigger it.
 
-In the Python API, persistent read-write databases default to
-`checkpoint_on_close=True`, so closing the database attempts a final
-checkpoint. If it fails, `close()` raises an exception. Depending on when the
-failure occurs, the database may remain open for another attempt or may already
-be closed.
+If the automatic checkpoint fails, `close()` reports an error. Depending on when
+the failure occurs, the database may remain open for another attempt or may
+already be closed. Use an explicit `CHECKPOINT` when the application must know
+the maintenance result before shutdown.
 
-Use an explicit `CHECKPOINT` when the application must know whether maintenance
-succeeded. If `checkpoint_on_close=False`, committed ordinary writes remain
-recoverable through WAL in both embedded and service mode. Successful persistent
-bulk writes have already created their own checkpoints.
+With `checkpoint_on_close=False`, ordinary committed writes are still
+recoverable from the WAL.
 
-## Failure and recovery
+## Recovery and failures
 
-On startup, NeuG loads the checkpoint selected by `CURRENT`. When `CURRENT`
-exists, NeuG does not fall back to an older database directory. Incomplete
-checkpoints from interrupted operations are ignored. If `CURRENT` is absent, a
-read-write open may perform a one-time v1 migration; see
-[How It Works](how_it_works.md#upgrading-legacy-checkpoint-directories).
-Persistent embedded and service databases then replay committed WAL records
-created after the selected checkpoint.
+On startup, NeuG restores the latest published checkpoint and replays committed
+WAL records created after it. Incomplete checkpoint work is ignored.
 
-A **manual** `CHECKPOINT` can fail in two ways:
+A manual checkpoint can fail in two ways:
 
-- If NeuG cannot start the checkpoint, the statement returns an error and the
+- If NeuG cannot begin the checkpoint, the statement returns an error and the
   database remains usable.
-- If it fails after NeuG starts replacing the current state, NeuG terminates the
-  process to avoid using an unsafe state. Restarting recovers from the checkpoint
-  selected by `CURRENT` and subsequent committed writes.
+- If failure occurs after replacement of the current state has begun, NeuG
+  stops rather than continue from an unsafe in-memory state. Restarting recovers
+  from the last published checkpoint and later committed WAL records.
 
-`checkpoint_on_recovery` optionally creates a checkpoint after WAL recovery
-when opening a read-write database. It is disabled by default. If it fails,
-the open returns an error without terminating the process. Fix the underlying
-cause (for example, disk space or permissions) and retry.
+`checkpoint_on_recovery` can request a new checkpoint after WAL recovery when a
+read-write database opens. It is disabled by default. If it fails, the open
+returns an error so the application can correct the cause and retry.
 
-### Persistent bulk load failure
-
-Persistent COPY and batch inserts are atomic. If the import or its checkpoint
-fails, none of the new data becomes visible and the previous database state
-remains usable.
-
-```python
-import neug
-
-db = neug.Database("/path/to/database", checkpoint_on_close=False)
-conn = db.connect()
-
-try:
-    conn.execute("COPY Person FROM 'large_batch.csv'")
-except Exception:
-    # The previous database state is still current and usable.
-    pass
-```
-
-Each successful persistent COPY creates one checkpoint. `COPY TEMP` is the
-exception: it updates only the in-memory database. Batch input at the application
-level when possible, and leave enough temporary disk space for the checkpoint
-and cleanup.
+For the on-disk layout, AP/TP coordination, checkpoint publication, garbage
+collection, and legacy-format migration, see
+[Transaction Model](transaction_model.md).

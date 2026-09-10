@@ -83,7 +83,7 @@ NeuG documentation
    transaction/transaction.mdx
    transaction/explicit_transactions.mdx
    transaction/checkpoint.md
-   transaction/how_it_works.md
+   transaction/transaction_model.md
 
 .. toctree::
    :maxdepth: 1

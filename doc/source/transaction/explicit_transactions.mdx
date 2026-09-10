@@ -1,24 +1,18 @@
 # Explicit Transactions
 
-An explicit transaction groups several queries into one unit of work: begin it,
-run queries inside it, then commit or roll back. A read-only transaction pins
-one read view and rejects writes. A read-write transaction reads its own
-successful writes and publishes them only when the commit succeeds.
+An explicit transaction groups several queries into one unit of work. Begin the
+transaction, run its queries, then commit all changes together or roll them all
+back.
 
-By default, NeuG runs each query in its own auto-commit transaction; group
-statements into an explicit transaction only when they must succeed or fail
-together. For the transaction model, deployment modes, and auto-commit behavior,
-see [Transaction Management](transaction.mdx); for how these mechanisms are
-implemented internally, see [How It Works](how_it_works.md).
+The transaction behavior is the same in Embedded (AP) and Service (TP) mode.
+What differs is the client object that owns the transaction.
 
 import { Tabs } from 'nextra/components'
 
 ## Client availability
 
-Explicit transactions are available in these clients:
-
-| Client | Embedded `Connection` (AP) | Service `Session` (TP) |
-|--------|----------------------------|------------------------|
+| Client | Embedded `Connection` | Service `Session` |
+|--------|-----------------------|-------------------|
 | C++ | Yes | — |
 | Python | Yes | Yes |
 | Node.js | Yes | — |
@@ -26,9 +20,9 @@ Explicit transactions are available in these clients:
 
 ## Run an explicit transaction
 
-### Embedded AP mode
+### Embedded mode
 
-In embedded mode, an explicit transaction is owned by its `Connection`.
+In Embedded mode, a `Connection` owns the transaction.
 
 <Tabs items={['Python', 'Node.js', 'C++']}>
 
@@ -36,9 +30,13 @@ In embedded mode, an explicit transaction is owned by its `Connection`.
 
 ```python
 conn.begin_transaction()
-created = conn.execute("CREATE (:Person {name: 'Alice'})", "insert")
-visible = conn.execute("MATCH (p:Person) RETURN p.name")
-conn.commit()
+try:
+    conn.execute("CREATE (:Person {name: 'Alice'})", access_mode="insert")
+    rows = conn.execute("MATCH (p:Person) RETURN p.name", access_mode="read")
+    conn.commit()
+except Exception:
+    conn.rollback()
+    raise
 ```
 
 </Tab>
@@ -47,11 +45,14 @@ conn.commit()
 
 ```javascript
 conn.beginTransaction();
-
-const created = conn.execute("CREATE (:Person {name: 'Alice'})", 'insert');
-const visible = conn.execute('MATCH (p:Person) RETURN p.name', 'read');
-
-conn.commit(); // Publishes all successful writes as one commit.
+try {
+  conn.execute("CREATE (:Person {name: 'Alice'})", 'insert');
+  const rows = conn.execute('MATCH (p:Person) RETURN p.name', 'read');
+  conn.commit();
+} catch (error) {
+  conn.rollback();
+  throw error;
+}
 ```
 
 </Tab>
@@ -65,25 +66,26 @@ if (!status.ok()) {
 }
 
 auto created = conn->Query("CREATE (:Person {name: 'Alice'})", "insert");
-auto visible = conn->Query("MATCH (p:Person) RETURN p.name", "read");
+auto rows = conn->Query("MATCH (p:Person) RETURN p.name", "read");
 
-status = conn->Commit();  // Publishes all successful writes as one commit.
+status = conn->Commit();
+if (!status.ok()) {
+  conn->Rollback();
+}
 ```
 
 </Tab>
 
 </Tabs>
 
-Read-write is the default when a client does not specify a mode; every client
-also exposes a read-only variant of its begin call. For exact signatures, see the
-[Python](../reference/python_api/connection.md),
+Read-write is the default. Each client also provides a read-only begin option.
+See the [Python](../reference/python_api/connection.md),
 [Node.js](../reference/nodejs_api/connection.md), and
-[C++](../reference/cpp_api/connection.md) connection references.
+[C++](../reference/cpp_api/connection.md) API references for exact signatures.
 
-### Service TP mode
+### Service mode
 
-In service mode, an explicit transaction is owned by its `Session`, and one
-`Session` owns at most one transaction at a time.
+In Service mode, a `Session` owns at most one transaction at a time.
 
 <Tabs items={['Python', 'Java']}>
 
@@ -93,11 +95,19 @@ In service mode, an explicit transaction is owned by its `Session`, and one
 from neug import Session
 
 session = Session.open("http://localhost:10000", num_threads=1)
-session.begin_transaction()
-session.execute("CREATE (:Person {name: 'Alice'})", "insert")
-assert list(session.execute("MATCH (p:Person) RETURN p.name")) == [["Alice"]]
-session.commit()
-session.close()
+try:
+    session.begin_transaction()
+    session.execute("CREATE (:Person {name: 'Alice'})", access_mode="insert")
+    rows = session.execute(
+        "MATCH (p:Person) RETURN p.name",
+        access_mode="read",
+    )
+    session.commit()
+except Exception:
+    session.rollback()
+    raise
+finally:
+    session.close()
 ```
 
 </Tab>
@@ -123,88 +133,99 @@ try (Driver driver = GraphDatabase.driver("http://localhost:10000");
 
 </Tabs>
 
-For service-mode transaction controls, see the
-[Python Session reference](../reference/python_api/session.md) and
-[Java session and transaction API](../reference/java_api/session.md).
+See the [Python Session](../reference/python_api/session.md) and
+[Java Session](../reference/java_api/session.md) references for exact
+transaction-control methods.
 
-## Rules and restrictions
+## Shared behavior
 
-Savepoints and partial rollback are not supported in either mode.
+Explicit transactions follow the same rules in both deployment modes:
 
-### Statements rejected inside an explicit transaction
+- Only one explicit transaction may be active on a `Connection` or `Session`.
+  Nested transactions are not supported.
+- A read-only transaction keeps a consistent read view and rejects writes.
+- A read-write transaction sees its own successful writes.
+- Changes become visible to other transactions only after commit.
+- Rollback discards all changes made by the transaction.
+- Savepoints and partial rollback are not supported.
+- Do not issue concurrent requests through the same `Connection` or `Session`.
 
-Both modes reject the same statement classes while a transaction is active:
+## Statements that cannot run in an explicit transaction
 
-| Rejected | Concretely |
-|----------|------------|
-| Bulk, file, and temporary loading | `COPY … FROM`, `COPY … TO`, `COPY TEMP`, `LOAD FROM` |
-| Administrative statements | `CHECKPOINT`, and `INSTALL` / `LOAD` / `UNINSTALL` of an extension |
-| Mutating procedure calls | `CALL` of a procedure that changes state, such as `project_graph` or `drop_projected_graph`; a read-only `CALL` is allowed |
+The following statements must not be issued while an explicit transaction is
+active:
 
-Everything else is allowed, including reads, inserts, updates, deletes, and
-ordinary DDL such as `CREATE NODE TABLE`, `ALTER`, `DROP`, and index creation.
-A rejected statement behaves like any other failed statement: it makes the
-transaction rollback-only.
+| Statement class | Examples |
+|-----------------|----------|
+| File and bulk operations | `LOAD FROM`, `COPY FROM`, `COPY TEMP`, `COPY TO` |
+| Database maintenance | `CHECKPOINT` |
+| Extension management | `INSTALL`, `LOAD`, `UNINSTALL` |
+| Mutating procedure calls | A `CALL` such as `project_graph` or `drop_projected_graph` that changes state |
+| Cypher transaction control | `BEGIN`, `COMMIT`, `ROLLBACK` submitted as query text |
 
-### Failure and rollback-only state
+Read-only procedure calls are allowed.
 
-A statement that fails after reaching the database makes its transaction
-**rollback-only**: it can no longer commit, and it must be ended before the
-client issues another query or begins another transaction. Failures in this
-class include:
+There is one important deployment-mode distinction:
 
-- semantic analysis, syntax, or compilation errors
-- execution failures
-- a write attempted inside a read-only transaction
-- any statement rejected by the table above
-- Cypher `BEGIN`, `COMMIT`, or `ROLLBACK` submitted as a query — these are
-  unsupported; use the client's transaction-control methods instead
+- **Embedded mode:** file and bulk statements are supported only as
+  auto-commit operations. End the explicit transaction before using them.
+- **Service mode:** `LOAD FROM` and all `COPY` statements are unsupported,
+  whether or not an explicit transaction is active.
 
-Errors that a client binding rejects *before* the statement reaches the database
-do not change the transaction. For example, Python rejects an invalid
-`access_mode` with `ValueError`, and the transaction stays usable. Nested begin
-calls and invalid programmatic control calls report a transaction-state error
-without changing an otherwise active transaction.
+## Failure and rollback-only state
 
-### Embedded AP mode details
+If a statement reaches NeuG and fails, its explicit transaction becomes
+**rollback-only**. The transaction cannot commit; call rollback before issuing
+another query or beginning another transaction.
 
-- **Concurrency.** A read-write transaction holds exclusive AP admission for its
-  whole lifetime: every other AP operation waits until it commits, rolls back,
-  or its connection closes. Embedded READ_WRITE mode also allows only one public
-  `Connection` at a time.
-- **Lifetime.** There is no timeout. The transaction stays open until the
-  application ends it, and while it is open no other AP work proceeds, so end it
-  promptly.
-- **Ending a rollback-only transaction.** Roll it back, or close the connection.
-  Until then the connection still reports an active transaction.
+This includes syntax, semantic-analysis, compilation, and execution errors,
+writes attempted in a read-only transaction, and statements rejected by the
+rules above.
 
-### Service TP mode details
+A validation error raised by the client before it sends the query does not
+change the transaction. For example, Python raises `ValueError` for an invalid
+`access_mode` and leaves the transaction usable.
 
-- **Using the session.** Python routes queries issued on an active `Session`
-  into its transaction. In Java, run every transactional statement through
-  `Transaction.run(...)`; direct `Session.run(...)` calls are rejected until
-  that transaction ends. Both clients allow at most one explicit transaction per
-  `Session`, and closing a session tries to roll it back. Never issue concurrent
-  requests through one `Session`; use one `Session` per client worker. Schema
-  lookups always show the service's committed schema, never a
-  transaction-private one.
-- **Concurrency.** A read-write transaction holds the TP update lease. While it
-  holds it, no other read-write transaction can begin, and ordinary inserts and
-  updates wait for it to finish; reads stay concurrent. A successful commit
-  appends and publishes one WAL commit.
-- **Lifetime.** The service rolls back and removes a transaction when its
-  absolute lifetime expires or during shutdown. Expiry is reported lazily: the
-  next transaction request returns `410 Gone`, and `Session` then clears its
-  local handle. After shutdown or a network failure, local state may be stale;
-  close the session. Ordinary statement failures leave the transaction
-  rollback-only.
-- **Ending a rollback-only transaction.** Call `rollback()` (or Java
-  `Transaction.rollback()`). If a Python transaction has already expired, the
-  call raises `RuntimeError` on `410 Gone` but clears the local handle. In Java,
-  a statement rejected by `Transaction.run(...)` makes the transaction
-  rollback-only, so only `rollback()` is allowed. If the network fails while
-  Java commits or rolls back, the final outcome is unknown; the driver does not
-  retry, and the owning session must be closed and replaced.
-- **Abandoned transactions.** A read-write transaction that is never finished
-  keeps the update lease and delays ordinary TP writes until the service
-  releases it. Always end one on both the success and the failure path.
+## Client lifecycle differences
+
+The transaction semantics are shared, but local and network clients have
+different failure conditions.
+
+### Embedded clients
+
+- The transaction remains active until the application commits, rolls back, or
+  closes its `Connection`.
+- There is no transaction timeout.
+- Closing the connection attempts to roll back an unfinished transaction.
+
+### Service clients
+
+- Closing a `Session` attempts to roll back its unfinished transaction.
+- The server may expire an abandoned transaction. The next request reports the
+  expiry, after which the client clears its local transaction handle.
+- After server shutdown or a network failure, local client state may be stale.
+  Close the session and create a new one.
+- If the network fails during commit or rollback, the final outcome may be
+  unknown. The driver does not retry because replaying the request could apply
+  it twice.
+
+## Recommended pattern
+
+Always end a transaction on both the success and failure paths:
+
+```python
+session.begin_transaction()
+try:
+    session.execute("CREATE (:Person {name: 'Alice'})", access_mode="insert")
+    session.commit()
+except Exception:
+    session.rollback()
+    raise
+```
+
+Keep explicit transactions short, and use auto-commit when statements do not
+need to commit together.
+
+For the user-visible transaction model, see
+[Transaction Management](transaction.mdx). For locking, MVCC, and persistence
+implementation details, see [Transaction Model](transaction_model.md).
