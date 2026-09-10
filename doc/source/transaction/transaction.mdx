@@ -112,71 +112,25 @@ sufficient unless an application wants to validate its intent explicitly.
 `update` mode and is rejected inside an explicit transaction. See
 [Checkpoints](checkpoint.md).
 
-## File I/O and bulk loading
+## Mode-specific restriction: file I/O
 
-All file-oriented statements are **Embedded-mode only**:
+`LOAD FROM` and all `COPY` statements are available only in Embedded mode and
+must run in auto-commit. Service mode does not support them. A persistent
+`COPY ... FROM` is atomic and returns success only after its checkpoint has
+been published.
 
-- `LOAD FROM`
-- `COPY ... FROM`
-- `COPY TEMP`
-- `COPY ... TO`
+See [Data I/O](../data_io/index.md) for supported statements and formats.
 
-Service mode rejects these statements, whether or not an explicit transaction
-is active. Use Embedded mode to prepare or import data, then open the resulting
-persistent database in Service mode for online workloads.
+## Durability and failures
 
-In Embedded mode:
+Ordinary committed writes in a persistent database are recoverable without a
+manual `CHECKPOINT`. A failed auto-commit statement publishes no partial
+changes. A database-side failure inside an explicit transaction makes it
+rollback-only; roll it back before issuing another query.
 
-- file statements run in auto-commit and cannot be placed inside an explicit
-  transaction;
-- a persistent `COPY ... FROM` is all-or-nothing and reports success only after
-  NeuG has published a checkpoint containing the imported data;
-- `COPY TEMP` is scoped to the connection and is lost when the connection or
-  database closes;
-- `LOAD FROM` reads external data without persisting it, and `COPY ... TO`
-  exports results without modifying the database.
-
-See [Data I/O](../data_io/index.md) for formats and usage.
-
-## Durability and checkpoints
-
-Applications do not need to run `CHECKPOINT` after ordinary committed writes.
-NeuG records those commits and recovers them automatically after a normal
-restart.
-
-A manual checkpoint is optional maintenance that consolidates recovery state
-and can reduce how much log data must be replayed during startup. Persistent
-Embedded-mode bulk imports create the checkpoint they require before returning
-success.
-
-See [Checkpoints](checkpoint.md) for when to create one, failure behavior, and
-configuration such as `checkpoint_on_close`.
-
-## Failure behavior
-
-- A failed auto-commit statement publishes no partial changes.
-- A database-side failure inside an explicit transaction makes that transaction
-  rollback-only. Roll it back before issuing another query.
-- Client-side validation errors that occur before a query reaches NeuG do not
-  change the transaction state.
-- If a Service-mode connection fails while committing or rolling back, the
-  outcome may be unknown. Close that session and create a new one rather than
-  retrying blindly.
-
-The complete rules are documented in
-[Explicit Transactions](explicit_transactions.mdx).
-
-## Recommended usage
-
-- Prefer auto-commit unless several statements must form one unit of work.
-- Keep explicit transactions short and always finish them with commit or
-  rollback.
-- Do not share one `Connection` or `Session` between concurrent client tasks.
-- Use Embedded mode for file import/export, ETL, and analytical batch work.
-- Use Service mode for concurrent application requests after data has been
-  prepared.
-- Let NeuG infer `access_mode`, or provide the narrowest correct mode when
-  Service-mode concurrency matters.
+See [Explicit Transactions](explicit_transactions.mdx) for transaction failure
+rules and [Checkpoints](checkpoint.md) for persistence maintenance and
+recovery.
 
 ## Learn more
 
