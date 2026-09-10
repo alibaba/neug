@@ -14,7 +14,10 @@
  */
 #include <gtest/gtest.h>
 
+#include "neug/common/columns/array_columns.h"
+#include "neug/common/columns/list_columns.h"
 #include "neug/common/columns/value_columns.h"
+#include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/common/stream.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/execution/execute/ops/retrieve/sink.h"
@@ -31,6 +34,72 @@ DataChunk chunk(int64_t value, int alias = 0) {
   DataChunk out;
   out.set(alias, builder.finish());
   return out;
+}
+
+TEST(StreamTest, NestedColumnsMergeAcrossBatchesAndSerialize) {
+  std::function<void(const Value&, const Value&)> expect_value;
+  expect_value = [&](const Value& actual, const Value& expected) {
+    ASSERT_EQ(actual.type(), expected.type());
+    ASSERT_EQ(actual.IsNull(), expected.IsNull());
+    if (expected.IsNull()) {
+      return;
+    }
+    if (expected.type().id() == DataTypeId::kList ||
+        expected.type().id() == DataTypeId::kArray) {
+      const auto& actual_children = expected.type().id() == DataTypeId::kList
+                                        ? ListValue::GetChildren(actual)
+                                        : ArrayValue::GetChildren(actual);
+      const auto& expected_children = expected.type().id() == DataTypeId::kList
+                                          ? ListValue::GetChildren(expected)
+                                          : ArrayValue::GetChildren(expected);
+      ASSERT_EQ(actual_children.size(), expected_children.size());
+      for (size_t i = 0; i < actual_children.size(); ++i) {
+        expect_value(actual_children[i], expected_children[i]);
+      }
+    } else {
+      EXPECT_EQ(actual, expected);
+    }
+  };
+  const auto list_type = DataType::List(DataType::INT32);
+  const auto array_type = DataType::Array(DataType::INT32, 2);
+  const auto nested_type = DataType::Array(array_type, 2);
+  const auto pair =
+      Value::ARRAY(array_type, {Value::INT32(1), Value(DataType::INT32)});
+  for (const auto& values : std::vector<std::vector<Value>>{
+           {Value::LIST(DataType::INT32,
+                        {Value::INT32(1), Value(DataType::INT32)}),
+            Value(list_type), Value::LIST(DataType::INT32, {}),
+            Value::LIST(DataType::INT32, {Value::INT32(4)})},
+           {pair, Value(array_type), pair, Value(array_type)},
+           {Value::ARRAY(nested_type, {pair, pair}), Value(nested_type),
+            Value::ARRAY(nested_type, {pair, pair}), Value(nested_type)}}) {
+    std::vector<ContextChunk> batches;
+    for (size_t begin = 0; begin < values.size(); begin += 2) {
+      auto builder = ColumnsUtils::create_builder(values.front().type());
+      builder->push_back_elem(values[begin]);
+      builder->push_back_elem(values[begin + 1]);
+      ContextChunk batch;
+      batch.set(0, builder->finish());
+      batches.push_back(std::move(batch));
+    }
+    auto merged = collect_chunk(stream_from_batches(batches));
+    ASSERT_TRUE(merged);
+    ASSERT_EQ(merged->row_num(), values.size());
+    for (size_t row = 0; row < values.size(); ++row) {
+      expect_value(merged->get(0)->get_elem(row), values[row]);
+    }
+    EXPECT_EQ(merged->head(), merged->get(0));
+    auto result = materialize(
+        stream_from_batches(std::move(batches), StreamMetadata{{0}}));
+    ASSERT_TRUE(result);
+    PropertyGraph graph;
+    GraphView view(graph);
+    StorageReadInterface storage(view, 0);
+    QueryResponse response;
+    Sink::sink_results(*result, storage, &response);
+    EXPECT_EQ(response.row_count(), values.size());
+    EXPECT_EQ(response.arrays_size(), 1);
+  }
 }
 
 TEST(StreamTest, IsLazyAndReleasesCursorOnCancellation) {

@@ -20,6 +20,23 @@
 
 namespace neug {
 
+std::shared_ptr<IContextColumn> ContextArrayColumn::union_col(
+    std::shared_ptr<IContextColumn> other) const {
+  if (!other || other->elem_type() != type_) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Cannot merge columns with different types");
+  }
+  ContextArrayColumnBuilder builder(type_);
+  builder.reserve(size() + other->size());
+  for (size_t row = 0; row < size(); ++row) {
+    builder.push_back_elem(get_elem(row));
+  }
+  for (size_t row = 0; row < other->size(); ++row) {
+    builder.push_back_elem(other->get_elem(row));
+  }
+  return builder.finish();
+}
+
 std::pair<std::shared_ptr<IContextColumn>, sel_vec_t>
 ContextArrayColumn::unfold() const {
   sel_vec_t offsets;
