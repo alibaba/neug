@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import datetime
 import logging
 import shutil
 
@@ -142,6 +143,127 @@ def test_aggregate_over_all_null_input(empty_db):
     )
 
     assert list(result) == [[None, None, None, 0, []]]
+
+
+def test_aggregation_function(empty_db):
+    _, conn = empty_db
+
+    # Normal input: count(*) and count(value) both count every row.
+    result = conn.execute(
+        "UNWIND [1, 1, 2] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result)[0] == [3, 3, pytest.approx(4 / 3), 2, 1, 4, [1, 1, 2]]
+
+    # Empty input: both counts are 0; sum and collect return their identity values.
+    result = conn.execute(
+        "UNWIND CAST([], 'INT64[]') AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result) == [[0, 0, None, None, None, 0, []]]
+
+    # Input containing NULL: count(*) counts every row; other aggregates ignore NULL.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), -1, -1, 1, 2] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result)[0] == [5, 4, pytest.approx(1 / 4), 2, -1, 1, [-1, -1, 1, 2]]
+
+    # All-NULL input: count(*) counts every row; count(value) and others see no values.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64')] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result) == [[2, 0, None, None, None, 0, []]]
+
+
+def test_aggregation_function_distinct(empty_db):
+    _, conn = empty_db
+
+    # Normal input: DISTINCT aggregates remove duplicate values.
+    result = conn.execute(
+        "UNWIND [1, 1, 2] AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[2, 2, 1, [1, 2]]]
+
+    # Empty input: count is 0; max, min, and collect return their empty values.
+    result = conn.execute(
+        "UNWIND CAST([], 'INT64[]') AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[0, None, None, []]]
+
+    # Input containing NULL: DISTINCT aggregates ignore NULL and remove duplicates.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+        "AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[3, 2, -1, [-1, 1, 2]]]
+
+    # RETURN DISTINCT preserves NULL as a separate single-column or multi-column row.
+    rows = list(
+        conn.execute(
+            "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+            "AS value RETURN DISTINCT value;"
+        )
+    )
+    assert len(rows) == 4
+    assert {row[0] for row in rows} == {None, -1, 1, 2}
+
+    rows = list(
+        conn.execute(
+            "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+            "AS value RETURN DISTINCT value, 5;"
+        )
+    )
+    assert len(rows) == 4
+    assert {tuple(row) for row in rows} == {(None, 5), (-1, 5), (1, 5), (2, 5)}
+
+    # All-NULL input: DISTINCT aggregates see no non-NULL values.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64')] AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[0, None, None, []]]
+
+    # SUM(DISTINCT ...) and AVG(DISTINCT ...) are not supported.
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("UNWIND [1, 1, 2] AS value RETURN sum(DISTINCT value);")
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "SUM(DISTINCT ...) is not supported" in message
+
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("UNWIND [1, 1, 2] AS value RETURN avg(DISTINCT value);")
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "AVG(DISTINCT ...) is not supported" in message
+
+
+def test_order_by_null_placement(empty_db):
+    """Null sorts last for ASC and first for DESC."""
+    _, conn = empty_db
+    asc_result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value ASC;"
+    )
+    assert list(asc_result) == [[1], [2], [3], [4], [None]]
+
+    desc_result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value DESC;"
+    )
+    assert list(desc_result) == [[None], [4], [3], [2], [1]]
 
 
 def test_result_getitem(modern_graph):
@@ -316,14 +438,27 @@ def test_builtin_scalar_function_with_dynamic_parameter(empty_db):
 @pytest.mark.parametrize(
     "expression, expected",
     [
-        ("false OR true", True),
-        ("true OR false", True),
-        ("true OR true", True),
-        ("false OR false", False),
         ("true AND true", True),
         ("true AND false", False),
+        ("true AND null", None),
+        ("false AND true", False),
+        ("false AND false", False),
+        ("false AND null", False),
+        ("null AND true", None),
+        ("null AND false", False),
+        ("null AND null", None),
+        ("true OR true", True),
+        ("true OR false", True),
+        ("true OR null", True),
+        ("false OR true", True),
+        ("false OR false", False),
+        ("false OR null", None),
+        ("null OR true", True),
+        ("null OR false", None),
+        ("null OR null", None),
         ("NOT false", True),
         ("NOT true", False),
+        ("NOT null", None),
         ("NULL IS NULL", True),
         ("1 IS NULL", False),
         ("NULL IS NOT NULL", False),
@@ -350,7 +485,6 @@ def test_no_existing_property(tinysnb):
 def test_return_date(tinysnb):
     conn = tinysnb
     query = "MATCH (n) return n.birthdate limit 1"
-    import datetime
 
     expected = [[datetime.date(1900, 1, 1)]]
     result = conn.execute(query)
@@ -589,6 +723,28 @@ def test_dummy_scan():
         assert record[0] == 1002, f"Expected value 1002, got {record[0]}"
     conn.close()
     db.close()
+
+
+def test_simple_case_when_null(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN CASE null WHEN null THEN 'null value' "
+        "ELSE 'not matched' END, "
+        "CASE 1 WHEN null THEN 'null value' ELSE 'not matched' END;"
+    )
+    assert list(result) == [["null value", "not matched"]]
+
+
+def test_searched_case_null_condition(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN CASE WHEN null = null THEN 'matched' "
+        "ELSE 'not matched' END, "
+        "CASE WHEN 1 = null THEN 'matched' ELSE 'not matched' END, "
+        "CASE WHEN null IS NULL THEN 'matched' ELSE 'not matched' END, "
+        "CASE WHEN null = null THEN 'matched' END;"
+    )
+    assert list(result) == [["not matched", "not matched", "matched", None]]
 
 
 @pytest.mark.skipif(not HAS_LDBC, reason="LDBC data not found")
@@ -925,6 +1081,28 @@ def test_reverse(modern_graph):
         ), f"Expected {expected} for {original}, got {reversed_str}"
 
 
+def test_string_functions_with_null(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN UPPER(null), LOWER(null), REVERSE(null);")) == [
+        [None, None, None]
+    ]
+
+
+def test_starts_with_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' STARTS WITH null;")) == [[None]]
+
+
+def test_ends_with_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' ENDS WITH null;")) == [[None]]
+
+
+def test_contains_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' CONTAINS null;")) == [[None]]
+
+
 def test_starts_with(modern_graph):
     conn = modern_graph
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
@@ -1033,6 +1211,71 @@ def test_create_interval(modern_graph):
     res = conn.execute("RETURN INTERVAL('5 DAY')")
     for record in res:
         assert record[0] == "5 days", f"Expected value '5 days', got {record[0]}"
+
+
+@pytest.mark.parametrize(
+    "left, right",
+    [
+        ("1 year", "12 months"),
+        ("1 month", "30 days"),
+        ("1 day", "24 hours"),
+        ("1 hour", "60 minutes"),
+        ("1 minute", "60 seconds"),
+        ("1 second", "1000 milliseconds"),
+        ("1 millisecond", "1000 us"),
+        ("1 year", "8640 hours"),
+    ],
+)
+def test_interval_fixed_base_unit_conversion(empty_db, left, right):
+    _, conn = empty_db
+
+    result = conn.execute(
+        f"RETURN interval('{left}') = interval('{right}');",
+        access_mode="read",
+    )
+
+    assert list(result) == [[True]]
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("interval('1 year') = interval('8640 hours')", True),
+        ("interval('1 year') > interval('8639 hours')", True),
+        ("interval('1 year') < interval('8641 hours')", True),
+        ("interval('1 month') > interval('29 days 23 hours')", True),
+        ("interval('1 day') < interval('1441 minutes')", True),
+    ],
+)
+def test_interval_comparison_uses_fixed_base_normalization(
+    empty_db, expression, expected
+):
+    _, conn = empty_db
+
+    result = conn.execute(f"RETURN {expression};", access_mode="read")
+
+    assert list(result) == [[expected]]
+
+
+def test_date_interval_arithmetic_uses_calendar_months(empty_db):
+    _, conn = empty_db
+
+    result = conn.execute(
+        "RETURN date('2024-02-01') + interval('1 month'), "
+        "date('2024-02-01') + interval('30 days'), "
+        "date('2024-03-31') - interval('1 month'), "
+        "date('2024-03-31') - interval('30 days');",
+        access_mode="read",
+    )
+
+    assert list(result) == [
+        [
+            datetime.date(2024, 3, 1),
+            datetime.date(2024, 3, 2),
+            datetime.date(2024, 2, 29),
+            datetime.date(2024, 3, 1),
+        ]
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1449,3 +1692,103 @@ def test_multi_label2(tinysnb):
     records = list(result)
     logger.info(f"records: {records}, len: {len(records)}")
     assert len(records) == 11
+
+
+@pytest.mark.parametrize(
+    "left,right,expected_and,expected_or",
+    [
+        ("true", "true", True, True),
+        ("true", "false", False, True),
+        ("true", "null", None, True),
+        ("false", "true", False, True),
+        ("false", "false", False, False),
+        ("false", "null", False, None),
+        ("null", "true", None, True),
+        ("null", "false", False, None),
+        ("null", "null", None, None),
+    ],
+)
+def test_boolean_three_valued_logic(
+    empty_db, tmp_path, left, right, expected_and, expected_or
+):
+    _, conn = empty_db
+    path = tmp_path / "logic.jsonl"
+    path.write_text(
+        '{"id":0,"a":true,"b":true}\n' + f'{{"id":1,"a":{left},"b":{right}}}\n',
+        encoding="utf-8",
+    )
+    assert list(
+        conn.execute(f"LOAD FROM '{path}' WHERE id = 1 RETURN a AND b, a OR b;")
+    ) == [[expected_and, expected_or]]
+
+
+@pytest.mark.parametrize("file_format", ["csv", "jsonl"])
+@pytest.mark.parametrize(
+    "predicate, expected",
+    [
+        ("id + 1 > 3", [3, 4]),
+        ("CAST(id, 'DOUBLE') > 2", [3, 4]),
+        ("CAST(id, 'STRING') = '3'", [3]),
+        ("CAST(score, 'INT64') = 1", [1]),
+        ("id >= 2 AND score * 2 > 3", [4]),
+        ("score IS NULL", [3]),
+        ("score IS NOT NULL", [1, 2, 4]),
+        ("NOT (score * 2 > 3)", [1, 2]),
+        ("NOT (score * 2 > 3 AND id > 999)", [1, 2, 3, 4]),
+        ("NOT (score * 2 > 3 OR id > 999)", [1, 2]),
+        ("CASE WHEN score IS NULL THEN 10 ELSE score END > 3", [3, 4]),
+        ("CAST(CAST(id, 'STRING'), 'INT64') + 1 > 3", [3, 4]),
+        ("upper(CAST(id, 'STRING')) = '3' AND score IS NULL", [3]),
+    ],
+)
+def test_load_preserves_execution_filters(
+    empty_db, tmp_path, file_format, predicate, expected
+):
+    _, conn = empty_db
+    path = tmp_path / f"filter.{file_format}"
+    content = (
+        "id|score\n1|1.25\n2|-2.5\n3|\n4|4.5\n"
+        if file_format == "csv"
+        else '{"id":1,"score":1.25}\n{"id":2,"score":-2.5}\n'
+        '{"id":3,"score":null}\n{"id":4,"score":4.5}\n'
+    )
+    path.write_text(content, encoding="utf-8")
+    assert list(
+        conn.execute(f"LOAD FROM '{path}' WHERE {predicate} RETURN id ORDER BY id;")
+    ) == [[value] for value in expected]
+
+
+@pytest.mark.parametrize("with_clause", [False, True])
+def test_load_preserves_parameterized_filters(empty_db, tmp_path, with_clause):
+    _, conn = empty_db
+    path = tmp_path / "parameter_filter.jsonl"
+    path.write_text('{"id":1}\n{"id":2}\n{"id":3}\n', encoding="utf-8")
+    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    query = f"{source} WHERE id + 1 > $minimum RETURN id ORDER BY id;"
+    for minimum, expected in [(3, [[3]]), (1, [[1], [2], [3]]), (4, [])]:
+        assert list(conn.execute(query, parameters={"minimum": minimum})) == expected
+
+
+@pytest.mark.parametrize("file_format", ["csv", "jsonl"])
+@pytest.mark.parametrize("with_clause", [False, True])
+@pytest.mark.parametrize("as_list", [False, True])
+def test_load_reader_binds_parameters_inside_list(
+    empty_db, tmp_path, file_format, with_clause, as_list
+):
+    _, conn = empty_db
+    path = tmp_path / f"parameter_list.{file_format}"
+    path.write_text(
+        "id\n1\n2\n3\n" if file_format == "csv" else '{"id":1}\n{"id":2}\n{"id":3}\n',
+        encoding="utf-8",
+    )
+    # Non-empty literals are fixed-size ARRAYs; also exercise a variable LIST.
+    values = "[CAST($first, 'INT64'), CAST($last, 'INT64')]"
+    if as_list:
+        values = f"CAST({values}, 'INT64[]')"
+    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    query = f"{source} WHERE id IN {values} RETURN id ORDER BY id"
+    for first, last, expected in [(1, 3, [[1], [3]]), (2, 4, [[2]])]:
+        assert (
+            list(conn.execute(query, parameters={"first": first, "last": last}))
+            == expected
+        )

@@ -408,6 +408,32 @@ static void expression_parse(const ::common::Expression& expr,
         expression_parse(parameter, params_type);
       }
     }
+    if (opr.has_udf_func()) {
+      for (const auto& parameter : opr.udf_func().parameters()) {
+        expression_parse(parameter, params_type);
+      }
+    }
+    if (opr.has_to_tuple()) {
+      for (const auto& field : opr.to_tuple().fields()) {
+        expression_parse(field, params_type);
+      }
+    }
+    if (opr.has_to_list()) {
+      for (const auto& field : opr.to_list().fields()) {
+        expression_parse(field, params_type);
+      }
+    }
+    if (opr.has_to_array()) {
+      for (const auto& field : opr.to_array().fields()) {
+        expression_parse(field, params_type);
+      }
+    }
+    if (opr.has_time_interval() && opr.time_interval().has_param()) {
+      const auto& param = opr.time_interval().param();
+      if (params_type.find(param.name()) == params_type.end()) {
+        params_type[param.name()] = parse_from_ir_data_type(param.data_type());
+      }
+    }
   }
 }
 
@@ -417,6 +443,13 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
   for (int i = 0; i < opr_num; ++i) {
     const auto& cur_op_kind = plan.plan(i).opr().op_kind_case();
     switch (cur_op_kind) {
+    case physical::PhysicalOpr_Operator::OpKindCase::kSource: {
+      const auto& source = plan.plan(i).opr().source();
+      if (source.has_skip_rows()) {
+        expression_parse(source.skip_rows(), params_type);
+      }
+      break;
+    }
     case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
       const auto& scan_opr = plan.plan(i).opr().scan();
       if (scan_opr.has_params() && scan_opr.params().has_predicate()) {

@@ -54,7 +54,10 @@ class DataSourceOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     NEUG_ASSERT(readFunction != nullptr);
-    return readFunction->execFunc(sharedState);
+    // Parameters belong to this evaluation, not to the cached physical plan.
+    auto state = std::make_shared<reader::ReadSharedState>(*sharedState);
+    state->parameters = params;
+    return readFunction->execFunc(state);
   }
 };
 
