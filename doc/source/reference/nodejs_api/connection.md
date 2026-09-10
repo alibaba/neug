@@ -65,6 +65,10 @@ Begin an explicit embedded transaction. By default, the transaction uses a
 private copy-on-write view. Pass `{ readOnly: true }` to pin a read-only view.
 Nested transactions and read-to-write upgrades are not supported.
 
+Persistent `COPY FROM` statements may be grouped into one checkpoint at
+commit. Reads may be interleaved, but `COPY FROM` cannot currently be mixed
+with ordinary DML or DDL writes in the same transaction.
+
 <a id="neug.connection.Connection.commit"></a>
 
 ### commit
@@ -73,7 +77,9 @@ Nested transactions and read-to-write upgrades are not supported.
 commit()
 ```
 
-Commit the active transaction. A rollback-only transaction must be rolled back.
+Commit the active transaction. Persistent `COPY FROM` statements are published
+through one checkpoint; other writes use the ordinary logical-WAL commit path.
+A rollback-only transaction must be rolled back.
 
 <a id="neug.connection.Connection.rollback"></a>
 

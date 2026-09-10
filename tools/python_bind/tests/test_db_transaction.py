@@ -18,7 +18,9 @@
 
 import os
 import shutil
+import subprocess
 import sys
+import textwrap
 import time
 
 import pytest
@@ -28,6 +30,7 @@ from neug.proto.error_pb2 import ERR_COMPILATION
 from neug.proto.error_pb2 import ERR_CONNECTION_CLOSED
 from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
+from neug.proto.error_pb2 import ERR_NOT_SUPPORTED
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
@@ -343,6 +346,332 @@ def test_embedded_explicit_transaction_preserves_python_api_contracts(
         with pytest.raises(RuntimeError) as excinfo:
             operation()
         assert str(ERR_CONNECTION_CLOSED) in str(excinfo.value)
+    db.close()
+
+
+def test_embedded_explicit_transaction_commits_multiple_copies(
+    tmp_path, transaction_control
+):
+    db_dir = tmp_path / "explicit_copy_transaction"
+    people_a = tmp_path / "people_a.csv"
+    people_b = tmp_path / "people_b.csv"
+    people_a.write_text("id,name\n1,Alice\n", encoding="utf-8")
+    people_b.write_text("id,name\n2,Bob\n", encoding="utf-8")
+
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    tx = transaction_control(conn)
+    conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));")
+
+    tx.begin()
+    conn.execute(
+        f'COPY Person FROM "{people_a.as_posix()}" (HEADER=true, DELIMITER=",");'
+    )
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == [[1]]
+    conn.execute(
+        f'COPY Person FROM "{people_b.as_posix()}" (HEADER=true, DELIMITER=",");'
+    )
+    tx.commit()
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == [
+        [1],
+        [2],
+    ]
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == [
+        [1],
+        [2],
+    ]
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("empty", [True, False])
+@pytest.mark.parametrize("target", ["vertex", "edge"])
+def test_embedded_copy_transaction_rejects_temporary_targets(tmp_path, empty, target):
+    people = tmp_path / "people.csv"
+    people.write_text("id,name\n1,Alice\n2,Bob\n", encoding="utf-8")
+    edges = tmp_path / "edges.csv"
+    edges.write_text("src,dst\n1,2\n", encoding="utf-8")
+    added = tmp_path / "added.csv"
+    header, row = (
+        ("id,name\n", "3,Carol\n") if target == "vertex" else ("src,dst\n", "2,1\n")
+    )
+    added.write_text(header + ("" if empty else row), encoding="utf-8")
+    options = "(HEADER=true, DELIMITER=',')"
+    edge_options = "(HEADER=true, DELIMITER=',', FROM='TempPerson', TO='TempPerson')"
+    table = "TempPerson" if target == "vertex" else "TempKnows"
+    copy_options = options if target == "vertex" else edge_options
+    db = Database(db_path=str(tmp_path / "db"), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        conn.execute(f"COPY TEMP TempPerson FROM '{people.as_posix()}' {options}")
+        conn.execute(f"COPY TEMP TempKnows FROM '{edges.as_posix()}' {edge_options}")
+        conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
+        conn.begin_transaction()
+        conn.execute(f"COPY Person FROM '{people.as_posix()}' {options}")
+        with pytest.raises(RuntimeError, match="Only persistent COPY FROM") as error:
+            conn.execute(f"COPY {table} FROM '{added.as_posix()}' {copy_options}")
+        assert str(ERR_NOT_SUPPORTED) in str(error.value)
+        for operation in (
+            lambda: conn.execute("MATCH (p:Person) RETURN count(p)"),
+            conn.commit,
+        ):
+            with pytest.raises(RuntimeError, match="rollback-only"):
+                operation()
+        conn.rollback()
+        assert list(conn.execute("MATCH (p:Person) RETURN count(p)")) == [[0]]
+        assert list(conn.execute("MATCH (p:TempPerson) RETURN count(p)")) == [[2]]
+        assert list(conn.execute("MATCH ()-[e:TempKnows]->() RETURN count(e)")) == [[1]]
+
+        # The restriction belongs to explicit transactions, not auto-commit COPY.
+        conn.execute(f"COPY {table} FROM '{added.as_posix()}' {copy_options}")
+        query = (
+            "MATCH (p:TempPerson) RETURN count(p)"
+            if target == "vertex"
+            else "MATCH ()-[e:TempKnows]->() RETURN count(e)"
+        )
+        expected = (2 if target == "vertex" else 1) + int(not empty)
+        assert list(conn.execute(query)) == [[expected]]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("commit", [True, False])
+def test_embedded_copy_transaction_inferred_schema(tmp_path, commit):
+    db_path = str(tmp_path / "inferred_db")
+    people = tmp_path / "people.csv"
+    people.write_text("id,name\n1,Alice\n2,Bob\n", encoding="utf-8")
+    edges = tmp_path / "edges.csv"
+    edges.write_text("src,dst\n1,2\n", encoding="utf-8")
+    node_query = "MATCH (p:InferredPerson) RETURN p.id, p.name ORDER BY p.id"
+    edge_query = "MATCH (a:InferredPerson)-[:InferredKnows]->(b) RETURN a.id, b.id"
+    db = Database(db_path=db_path, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        conn.begin_transaction()
+        conn.execute(
+            f"COPY InferredPerson FROM '{people.as_posix()}' (HEADER=true, DELIMITER=',')"
+        )
+        conn.execute(
+            f"COPY InferredKnows FROM '{edges.as_posix()}' "
+            "(HEADER=true, DELIMITER=',', FROM='InferredPerson', TO='InferredPerson')"
+        )
+        assert list(conn.execute(node_query)) == [[1, "Alice"], [2, "Bob"]]
+        assert list(conn.execute(edge_query)) == [[1, 2]]
+        if commit:
+            conn.commit()
+        else:
+            conn.rollback()
+        assert ("InferredPerson" in conn.get_schema()) == commit
+        assert ("InferredKnows" in conn.get_schema()) == commit
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=db_path, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        assert ("InferredPerson" in conn.get_schema()) == commit
+        assert ("InferredKnows" in conn.get_schema()) == commit
+        if commit:
+            assert list(conn.execute(node_query)) == [[1, "Alice"], [2, "Bob"]]
+            assert list(conn.execute(edge_query)) == [[1, 2]]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("bundled", [True, False], ids=["sorted", "multi-property"])
+def test_embedded_copy_transaction_repeated_edges_and_recovery(tmp_path, bundled):
+    db_dir = tmp_path / "copy_edges"
+    people_a = tmp_path / "people_a.csv"
+    people_b = tmp_path / "people_b.csv"
+    edges_a = tmp_path / "edges_a.csv"
+    edges_b = tmp_path / "edges_b.csv"
+    people_a.write_text("id\n1\n2\n", encoding="utf-8")
+    # Grow beyond the first COPY's reserved capacity after loading an edge.
+    people_b.write_text(
+        "id\n" + "".join(f"{i}\n" for i in range(3, 6001)), encoding="utf-8"
+    )
+    header = "from,to,since\n" if bundled else "from,to,since,name\n"
+    edges_a.write_text(
+        header + ("1,2,20\n" if bundled else "1,2,20,First\n"), encoding="utf-8"
+    )
+    edges_b.write_text(
+        header + ("1,6000,10\n" if bundled else "1,6000,10,Second\n"), encoding="utf-8"
+    )
+
+    def copy(conn, table, path):
+        conn.execute(
+            f"COPY {table} FROM '{path.as_posix()}' (HEADER=true, DELIMITER=',');"
+        )
+
+    edge_query = (
+        "MATCH (a:Person)-[e:Knows]->(b:Person) RETURN b.id, e.since"
+        + ("" if bundled else ", e.name")
+        + " ORDER BY b.id;"
+    )
+    first = [[2, 20]] if bundled else [[2, 20, "First"]]
+    expected = first + ([[6000, 10]] if bundled else [[6000, 10, "Second"]])
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE REL TABLE Knows(FROM Person TO Person, since INT64"
+        + (") WITH (sort_key_for_nbr='since');" if bundled else ", name STRING);")
+    )
+    conn.begin_transaction()
+    copy(conn, "Person", people_a)
+    copy(conn, "Knows", edges_a)
+    assert list(conn.execute(edge_query)) == first
+    copy(conn, "Person", people_b)
+    assert list(conn.execute(edge_query)) == first
+    copy(conn, "Knows", edges_b)
+    assert list(conn.execute(edge_query)) == expected
+    assert list(
+        conn.execute(
+            "MATCH (a:Person)-[e:Knows]->(b:Person) WHERE e.since < 15 RETURN b.id;"
+        )
+    ) == [[6000]]
+    conn.commit()
+
+    # Exercise logical-WAL commit in the epoch activated by COPY commit.
+    conn.begin_transaction()
+    conn.execute("CREATE (:Person {id: 7000});")
+    conn.commit()
+    conn.close()
+    db.close()
+
+    for cycle in range(2):
+        db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        # Check all previously durable rows before the next mutation.
+        expected_ids = list(range(1, 6001)) + [7000] + list(range(8000, 8000 + cycle))
+        assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == [
+            [i] for i in expected_ids
+        ]
+        assert list(conn.execute(edge_query)) == expected
+        if cycle == 0:
+            more_people = tmp_path / "more_people.csv"
+            more_people.write_text("id\n8000\n", encoding="utf-8")
+            conn.begin_transaction()
+            copy(conn, "Person", more_people)
+            conn.commit()
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("failure", ["copy", "checkpoint-preparation"])
+def test_embedded_copy_transaction_failure_preserves_committed_data(tmp_path, failure):
+    db_dir = tmp_path / "copy_failure"
+    base = tmp_path / "base.csv"
+    added = tmp_path / "added.csv"
+    base.write_text("id\n0\n", encoding="utf-8")
+    added.write_text("id\n1\n", encoding="utf-8")
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute(f"COPY Person FROM '{base.as_posix()}' (HEADER=true);")
+    current = db_dir / "checkpoint" / "CURRENT"
+    checkpoint_before = current.read_text()
+    conn.begin_transaction()
+    conn.execute(f"COPY Person FROM '{added.as_posix()}' (HEADER=true);")
+    if failure == "copy":
+        with pytest.raises(RuntimeError):
+            conn.execute(f"COPY Person FROM '{(tmp_path / 'missing.csv').as_posix()}';")
+    else:
+        # Force CreateStaging to fail before checkpoint consumes storage.
+        # Restore the real manifests even if the assertion fails.
+        manifests = db_dir / "checkpoint" / "manifests"
+        saved = db_dir / "checkpoint" / "saved_manifests"
+        manifests.rename(saved)
+        try:
+            manifests.write_text(
+                "block checkpoint directory creation", encoding="utf-8"
+            )
+            with pytest.raises(RuntimeError, match="failed to create"):
+                conn.commit()
+        finally:
+            manifests.unlink()
+            saved.rename(manifests)
+    with pytest.raises(RuntimeError, match="rollback-only"):
+        conn.commit()
+    conn.rollback()
+    assert current.read_text() == checkpoint_before
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id;")) == [[0]]
+    # The failed commit must not leave a stale staging handle or commit mode.
+    conn.begin_transaction()
+    conn.execute(f"COPY Person FROM '{added.as_posix()}' (HEADER=true);")
+    conn.commit()
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == [
+        [0],
+        [1],
+    ]
+    conn.close()
+    db.close()
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == [
+        [0],
+        [1],
+    ]
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("commit", [False, True], ids=["uncommitted", "committed"])
+def test_embedded_copy_transaction_survives_process_exit(tmp_path, commit):
+    db_dir = tmp_path / "copy_process_exit"
+    for name, value in [("base", 0), ("a", 1), ("b", 2)]:
+        (tmp_path / f"{name}.csv").write_text(f"id\n{value}\n", encoding="utf-8")
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        f"COPY Person FROM '{(tmp_path / 'base.csv').as_posix()}' (HEADER=true);"
+    )
+    conn.close()
+    db.close()
+    script = textwrap.dedent(
+        """
+        import os
+        import sys
+        from pathlib import Path
+        from neug import Database
+
+        root = Path(sys.argv[1])
+        db = Database(db_path=str(root / 'copy_process_exit'), mode='w',
+                      checkpoint_on_close=False)
+        conn = db.connect()
+        conn.begin_transaction()
+        for name in ['a', 'b']:
+            path = (root / (name + '.csv')).as_posix()
+            conn.execute(f"COPY Person FROM '{path}' (HEADER=true);")
+        if sys.argv[2] == 'commit':
+            conn.commit()
+        # Do not let Connection/Database destructors roll back or checkpoint.
+        os._exit(0)
+        """
+    )
+    subprocess.run(
+        [sys.executable, "-c", script, str(tmp_path), "commit" if commit else "abort"],
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    assert list(conn.execute("MATCH (n:Person) RETURN n.id ORDER BY n.id;")) == (
+        [[0], [1], [2]] if commit else [[0]]
+    )
+    conn.close()
     db.close()
 
 
