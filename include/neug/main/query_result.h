@@ -37,6 +37,38 @@ namespace neug {
  * - debugging output (`ToString()`),
  * - cursor-based row traversal via `hasNext()` / `next()`,
  * - typed cell access via `GetInt32()`, `GetString()`, etc.
+ *
+ * **Typed accessors:** Every getter reads from the current cursor row and has
+ * two overloads, by column index or by column name. Call `IsNull(...)` before
+ * reading a cell that may be NULL. Temporal columns (`date`, `timestamp`,
+ * `interval`) are not exposed as dedicated typed objects: use `GetString(...)`
+ * for their canonical string form (e.g. `"1970-01-01"`) and `GetInt64(...)` for
+ * the raw epoch value of `date` / `timestamp` columns.
+ *
+ * **Example:**
+ * @code{.cpp}
+ * auto result = QueryResult::From(serialized);
+ *
+ * // Access by column index
+ * while (result.hasNext()) {
+ *     if (!result.IsNull(0)) {
+ *         int32_t id = result.GetInt32(0);
+ *         std::string name = result.GetString(1);
+ *     }
+ *     result.next();
+ * }
+ *
+ * // Access by column name
+ * result.Reset();
+ * while (result.hasNext()) {
+ *     if (!result.IsNull("id")) {
+ *         int32_t id = result.GetInt32("id");
+ *         std::string name = result.GetString("name");
+ *         double score = result.GetDouble("score");
+ *     }
+ *     result.next();
+ * }
+ * @endcode
  */
 
 class NEUG_API QueryResult {

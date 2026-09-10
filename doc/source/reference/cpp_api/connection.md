@@ -4,9 +4,9 @@
 
 Database connection for executing Cypher queries.
 
-`Connection` is the primary interface for interacting with a NeuG database. It provides methods to execute Cypher queries, retrieve schema information, and manage the connection lifecycle.
+`Connection` is the primary embedded-mode interface for interacting with a NeuG database. It provides methods to execute Cypher queries, retrieve schema information, manage a programmatic AP explicit transaction, and manage the connection lifecycle.
 
-**Usage Example:**
+**Usage Example:** 
 ```cpp
 // Get connection from database
 auto conn = db.Connect();
@@ -29,9 +29,7 @@ conn->Close();
 - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
 - `"schema"` or `"s"`: `Schema` modification operations (CREATE/DROP labels)
 
-**Thread Safety:** This class is NOT thread-safe. Do not call `Query()`,
-`GetSchema()`, or `Close()` concurrently on the same connection. Use a separate
-connection per thread.
+**Thread Safety:** This class is NOT thread-safe. A `Connection` and its owned `ExecutionSlot` must be used by only one thread at a time. Use a separate `Connection` per thread.
 
 **Lifecycle:**
 - Created via `NeugDB::Connect()`
@@ -47,28 +45,28 @@ connection per thread.
 Query(
     const std::string &query_string,
     const std::string &access_mode="",
-    const execution::ParamsMap &parameters={}
+    const rapidjson::Value &parameters=rapidjson::Value{rapidjson::kObjectType}
 )
 ```
 
 Execute a Cypher query and return results.
 
-Compiles and executes a Cypher query string against the database. The query is processed through the planner for optimization, then executed by the query processor.
+Compiles and executes a Cypher query string against the database. The query is processed through the planner for optimization, then executed by the connection-owned execution slot.
 
-**Usage Example:**
+**Usage Example:** 
 ```cpp
 // Simple read query
 auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
 // Query with parameters
-neug::execution::ParamsMap params;
-params["min_age"] = neug::Value(18);
+rapidjson::Document params(rapidjson::kObjectType);
+params.AddMember("min_age", 18, params.GetAllocator());
 result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
 "read", params);
 // Process results
 if (result.has_value()) {
   auto& qr = result.value();
   while (qr.hasNext()) {
-    // Access columns via qr.GetString(0), qr.GetInt32(1), etc.
+    std::string name = qr.GetString("n.name");
     qr.next();
   }
 } else {
@@ -84,12 +82,13 @@ if (result.has_value()) {
 - `"insert"` or `"i"`: Insert-only operations (CREATE)
 - `"update"` or `"u"`: Update/delete operations
 - `"schema"` or `"s"`: `Schema` modification operations
-- Empty string: Infer the access mode from the query text
+- empty string: Infer access mode from query text
   - `parameters`: Named parameters for parameterized queries. Keys are parameter names (without `$`), values are parameter values.
 
 - **Notes:**
   - Use parameterized queries for dynamic values to prevent injection.
   - Specifying correct access_mode ensures proper transaction handling.
+  - Within an active explicit transaction, this query uses the connection-owned pinned read view or private COW write view. Cypher BEGIN/COMMIT/ROLLBACK statements are not supported; use the programmatic control methods below.
 
 - **Returns:** `result<QueryResult>` containing either:
 
@@ -98,69 +97,44 @@ if (result.has_value()) {
 
 - **Since:** v0.1.0
 
-#### `Query(...)`
+#### `BeginTransaction(TransactionMode mode=TransactionMode::kReadWrite)`
 
-```cpp
-Query(
-    const std::string &query_string,
-    const std::string &access_mode,
-    const rapidjson::Value &parameters_json
-)
-```
+Begin a Connection-owned embedded AP explicit transaction.
 
-Execute a Cypher query with JSON parameters.
-
-The parameter values are provided as a JSON object.
+A read-only transaction pins one published read view across `Query()` calls. A read-write transaction owns one private COW view; successful writes are visible to later queries on this `Connection` and are published together by `Commit()`. Read-write AP transactions hold exclusive AP admission until a terminal operation.
 
 - **Parameters:**
-  - `query_string`
-  - `access_mode`
-  - `parameters_json`
+  - `mode`
 
-#### `BeginTransaction(...)`
+- **Notes:**
+  - This API is not a Cypher BEGIN statement and does not support nested transactions or read-to-write upgrades.
 
-```cpp
-Status BeginTransaction(
-    TransactionMode mode = TransactionMode::kReadWrite
-)
-```
+- **Returns:** `Status::OK` on success. Otherwise:
 
-Begin an explicit embedded transaction owned by this connection. A read-only
-transaction pins one published view. A read-write transaction uses a private
-copy-on-write view and publishes all successful writes together on `Commit()`.
-Nested transactions and read-to-write upgrades are not supported.
-
-- **Parameters:**
-  - `mode`: `TransactionMode::kReadWrite` or `TransactionMode::kReadOnly`
-- **Returns:** `Status::OK` on success, otherwise a connection, state, argument,
-  or unsupported-mode error
+- ERR_CONNECTION_CLOSED if this `Connection` is closed
+- ERR_TX_STATE_CONFLICT if a transaction is already active
+- ERR_INVALID_ARGUMENT if the requested mode is invalid or a read-write transaction is requested on a read-only database
+- ERR_NOT_SUPPORTED if the execution mode does not support embedded explicit transactions
 
 #### `Commit()`
 
-```cpp
-Status Commit()
-```
+Commit the active explicit transaction.
 
-Commit the active explicit transaction. A failed commit leaves the connection
-rollback-only; call `Rollback()` before reusing it.
+A read-write transaction appends and publishes its accumulated logical redo once. A read-only transaction only releases its pinned read view.
+
+- **Returns:** A transaction-state error if no transaction is active or it is rollback-only. A failed commit leaves the `Connection` rollback-only; call `Rollback()` before reusing it.
 
 #### `Rollback()`
 
-```cpp
-Status Rollback()
-```
+Abort the active or rollback-only explicit transaction.
 
-Discard the active or rollback-only transaction and return the connection to
-auto-commit mode.
+Discards the private COW view, if any, and returns the `Connection` to idle.
 
-#### `HasActiveTransaction() const`
+#### `HasActiveTransaction() const noexcept`
 
-```cpp
-bool HasActiveTransaction() const noexcept
-```
+Return whether this `Connection` has an unfinished explicit transaction.
 
-Return whether this connection has an active or rollback-only explicit
-transaction.
+Returns `true` for both active and rollback-only states. Only a successful `Commit()` or `Rollback()` returns the `Connection` to idle.
 
 #### `GetSchema() const`
 
@@ -168,14 +142,18 @@ Get the database schema as a `YAML` string.
 
 Returns the complete graph schema definition in `YAML` format, including all vertex types, edge types, and their properties.
 
-**Usage Example:**
+**Usage Example:** 
 ```cpp
 std::string schema_yaml = conn->GetSchema();
 std::cout << "Schema:\n" << schema_yaml << std::endl;
 ```
 
+- **Notes:**
+  - During an active explicit transaction this returns that transaction's pinned read schema or private COW schema, rather than the published schema.
+
 - **Throws:**
   - `std::runtime_error`: if the connection is closed
+  - TxStateConflictException: if the active transaction is rollback-only
 
 - **Returns:** `std::string` YAML-formatted schema definition
 
@@ -187,16 +165,17 @@ Close the connection and release resources.
 
 Marks the connection as closed and releases any held resources. After closing, any `Query()` calls will fail.
 
-**Usage Example:**
+**Usage Example:** 
 ```cpp
 conn->Close();
 // conn->Query(...) will now return an error
 ```
 
 - **Notes:**
-  - Sequential repeated calls are idempotent; concurrent calls are not safe.
+  - Sequential repeated calls are idempotent. Concurrent calls are not safe.
   - Closing automatically unregisters this connection from its database.
   - The connection is also automatically closed in the destructor.
+  - An active or rollback-only explicit transaction is rolled back before temporary schema cleanup and execution-slot destruction.
 
 - **Since:** v0.1.0
 
@@ -207,3 +186,4 @@ Check if the connection is closed.
 - **Returns:** `true` if the connection has been closed, `false` if still active
 
 - **Since:** v0.1.0
+
