@@ -72,6 +72,7 @@ class DataSourceOpr : public IOperator {
           // Reader initialization may expand globs and normalize options. Never
           // mutate the state captured by the cached operator.
           auto state = std::make_shared<reader::ReadSharedState>(*sharedState);
+          state->parameters = params;
           auto function = readFunction;
           struct Cursor {
             bool initialized = false;

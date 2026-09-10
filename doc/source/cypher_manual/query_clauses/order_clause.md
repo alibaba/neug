@@ -120,3 +120,38 @@ output:
 |         29 | lop         |
 +------------+-------------+
 ```
+
+## Ordering NULL Values
+
+In general, comparing `NULL` with any number evaluates to `NULL`. But for
+clearer presentation when sorting, `ORDER BY` places `NULL` values last in
+ascending order and first in descending order.
+
+The following query sorts a list in ascending order. Replace `ASC` with `DESC`
+to sort the same values in descending order.
+
+```cypher
+UNWIND [3, 1, NULL, 4, 2] AS value
+RETURN value
+ORDER BY value ASC;
+```
+
+With `ASC`, the result is:
+
+| value |
+|-------|
+| 1     |
+| 2     |
+| 3     |
+| 4     |
+| NULL  |
+
+With `DESC`, the result is:
+
+| value |
+|-------|
+| NULL  |
+| 4     |
+| 3     |
+| 2     |
+| 1     |

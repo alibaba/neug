@@ -76,8 +76,10 @@ class ExtensionManager;
  * auto result = conn->Query("MATCH (n:Person) RETURN n LIMIT 10");
  *
  * // Process results
- * for (auto& record : result.value()) {
- *   std::cout << record.ToString() << std::endl;
+ * auto& qr = result.value();
+ * while (qr.hasNext()) {
+ *   std::cout << qr.GetCurrentRowAsString() << std::endl;
+ *   qr.next();
  * }
  *
  * // Close database (persists data)
@@ -99,7 +101,10 @@ class ExtensionManager;
  * Connection instances are not thread-safe.
  *
  * **Resource Management:**
- * - File locking prevents concurrent database access from multiple processes
+ * - File locking serializes write access across processes: a database opened
+ *   in read-write mode is exclusive, while multiple read-only processes (or
+ *   multiple read-only instances within one process) can share the same
+ *   database directory concurrently
  * - Automatic WAL (Write-Ahead Log) for crash recovery
  * - Configurable checkpoint on close
  *

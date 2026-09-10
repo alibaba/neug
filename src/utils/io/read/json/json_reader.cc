@@ -462,8 +462,8 @@ std::shared_ptr<IDataChunkSupplier> JsonReader::getDataChunkSupplier() {
         if (!state_->skipRows) {
           return chunk;
         }
-        auto filtered =
-            filter_chunk(*chunk, state_->skipRows, config_.column_names);
+        auto filtered = filter_chunk(*chunk, state_->skipRows,
+                                     config_.column_names, state_->parameters);
         auto projected = project_chunk(filtered, config_.column_names,
                                        config_.include_columns);
         return std::make_shared<DataChunk>(std::move(projected));

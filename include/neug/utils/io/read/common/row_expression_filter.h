@@ -21,30 +21,43 @@
 #include <vector>
 
 #include "neug/common/types/data_chunk.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
 namespace reader {
 
-/// Evaluates a common::Expression row-by-row against a DataChunk.
+/// Evaluates a file predicate using the same expressions as query execution.
+/// Readers may use this after decoding when native pushdown is unavailable.
+/// Retains a shallow copy of input, keeping its column layout and storage
+/// alive. Shared column values must not be mutated while the filter is in use.
 class RowExpressionFilter {
  public:
   RowExpressionFilter(const ::common::Expression& expr,
-                      const std::unordered_map<std::string, int>& column_index);
+                      const std::unordered_map<std::string, int>& column_index,
+                      const DataChunk& input,
+                      const execution::ParamsMap& parameters = {});
 
-  bool eval(const DataChunk& chunk, size_t row) const;
+  // row must be a valid row index in the input bound at construction.
+  bool eval(size_t row) const;
 
  private:
-  std::function<bool(const DataChunk&, size_t)> evaluator_;
+  std::function<bool(size_t)> evaluator_;
 };
 
 DataChunk filter_chunk(const DataChunk& input,
                        const std::shared_ptr<::common::Expression>& filter_expr,
-                       const std::vector<std::string>& column_names);
+                       const std::vector<std::string>& column_names,
+                       const execution::ParamsMap& parameters = {});
 
 DataChunk project_chunk(const DataChunk& input,
                         const std::vector<std::string>& column_names,
                         const std::vector<std::string>& project_columns);
+
+// Merge dense reader chunks in order, preserving column types and NULLs.
+// Ignore null/columnless chunks, retain empty schemas, and reject mismatched
+// column counts, types, or lengths before allocating output columns.
+DataChunk merge_chunks(std::vector<std::shared_ptr<DataChunk>> chunks);
 
 }  // namespace reader
 }  // namespace neug

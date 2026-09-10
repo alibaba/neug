@@ -315,7 +315,8 @@ bool ConstantExpressionVisitor::isConstant(const Expression& expr) {
   case ExpressionType::FUNCTION:
     return visitFunction(expr);
   case ExpressionType::CASE_ELSE:
-    return visitCase(expr);
+    // The constant evaluator does not support CASE yet.
+    return false;
   case ExpressionType::OR:
   case ExpressionType::XOR:
   case ExpressionType::AND:
