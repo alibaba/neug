@@ -31,30 +31,6 @@ class Expression;
 namespace neug {
 namespace reader {
 
-struct ReadLocalState {
-  virtual ~ReadLocalState() = default;
-
-  template <class TARGET>
-  TARGET& cast() {
-    return common::neug_dynamic_cast<TARGET&>(*this);
-  }
-
-  template <class TARGET>
-  TARGET* ptrCast() {
-    return common::neug_dynamic_cast<TARGET*>(this);
-  }
-
-  template <class TARGET>
-  const TARGET& constCast() const {
-    return common::neug_dynamic_cast<const TARGET&>(*this);
-  }
-
-  template <class TARGET>
-  const TARGET* constPtrCast() const {
-    return common::neug_dynamic_cast<const TARGET*>(this);
-  }
-};
-
 struct ReadSharedState {
   ExternalSchema schema;
   std::vector<std::string> projectColumns;

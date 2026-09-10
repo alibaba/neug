@@ -44,111 +44,137 @@ class UpdateEdgeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   edge_data_vec_t edge_data_;
 };
 
-neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
-                                          const ParamsMap& params,
-                                          Context&& ctx, OprTimer* timer) {
-  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
-           << " entries.";
-
-  struct PendingUpdate {
-    EdgeRecord record;
-    std::pair<int32_t, int32_t> offsets;
-    int32_t property_id;
-    Value value;
-  };
-
-  std::set<int32_t> edge_tags;
-  for (const auto& entry : edge_data_) {
-    edge_tags.insert(std::get<0>(entry));
-  }
-
-  std::set<LabelTriplet> affected_labels;
-  for (const auto tag_id : edge_tags) {
-    for (auto& chunk : ctx.chunks()) {
-      auto column = chunk.get(tag_id);
-      auto edge_column = std::dynamic_pointer_cast<IEdgeColumn>(column);
-      if (!edge_column) {
-        continue;
-      }
-      for (const auto& label : edge_column->get_labels()) {
-        const auto edge_schema = graph.schema().get_edge_schema(
-            label.src_label, label.dst_label, label.edge_label);
-        if (edge_schema->is_bundled()) {
-          affected_labels.insert(label);
+Stream<ContextChunk> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
+                                         const ParamsMap& params,
+                                         Stream<ContextChunk>&& input,
+                                         OprTimer* timer) {
+  return defer_stream(
+      std::move(input),
+      [this, &graph_interface, params,
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        // Edge property writes can invalidate pointers in later batches. Retain
+        // and refresh every affected column before exposing the result
+        // downstream.
+        auto metadata = input.metadata();
+        auto chunks_result = collect_batches(std::move(input));
+        if (!chunks_result) {
+          return error_stream<ContextChunk>(chunks_result.error());
         }
-      }
-    }
-  }
+        auto chunks = std::move(*chunks_result);
 
-  auto snapshots = CaptureEdgeColumnsForRefresh(graph, ctx, affected_labels);
-  for (const auto& [tag_id, property_name, expression] : edge_data_) {
-    auto bound_expression = expression->bind(&graph, params);
-    const auto& record_expression = bound_expression->Cast<RecordExprBase>();
-    std::vector<PendingUpdate> updates;
-    bool refresh_columns = false;
-    for (auto& chunk : ctx.chunks()) {
-      auto column = chunk.get(tag_id);
-      if (!column) {
-        THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
-                            " not found in context.");
-      }
-      auto edge_column = std::dynamic_pointer_cast<IEdgeColumn>(column);
-      if (!edge_column) {
-        THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
-                            " is not an edge column.");
-      }
+        auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+        VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
+                 << " entries.";
 
-      for (size_t row = 0; row < edge_column->size(); ++row) {
-        if (!edge_column->has_value(row)) {
-          continue;
+        struct PendingUpdate {
+          EdgeRecord record;
+          std::pair<int32_t, int32_t> offsets;
+          int32_t property_id;
+          Value value;
+        };
+
+        std::set<int32_t> edge_tags;
+        for (const auto& entry : edge_data_) {
+          edge_tags.insert(std::get<0>(entry));
         }
 
-        const auto record = edge_column->get_edge(row);
-        const auto edge_schema = graph.schema().get_edge_schema(
-            record.label.src_label, record.label.dst_label,
-            record.label.edge_label);
-        const auto property_id = edge_schema->get_property_index(property_name);
-        if (property_id < 0) {
-          THROW_RUNTIME_ERROR(
-              "Property " + property_name + " does not exist for edge label: " +
-              std::to_string(static_cast<int>(record.label.edge_label)));
+        std::set<LabelTriplet> affected_labels;
+        for (const auto tag_id : edge_tags) {
+          for (auto& chunk : chunks) {
+            auto column = chunk.get(tag_id);
+            auto edge_column = std::dynamic_pointer_cast<IEdgeColumn>(column);
+            if (!edge_column) {
+              continue;
+            }
+            for (const auto& label : edge_column->get_labels()) {
+              const auto edge_schema = graph.schema().get_edge_schema(
+                  label.src_label, label.dst_label, label.edge_label);
+              if (edge_schema->is_bundled()) {
+                affected_labels.insert(label);
+              }
+            }
+          }
         }
 
-        auto value = record_expression.eval_record(chunk.chunk(), row);
-        if (value.IsNull()) {
-          THROW_NOT_SUPPORTED_EXCEPTION("Setting NULL for property " +
-                                        property_name);
+        auto snapshots =
+            CaptureEdgeColumnsForRefresh(graph, chunks, affected_labels);
+        for (const auto& [tag_id, property_name, expression] : edge_data_) {
+          auto bound_expression = expression->bind(&graph, params);
+          const auto& record_expression =
+              bound_expression->Cast<RecordExprBase>();
+          std::vector<PendingUpdate> updates;
+          bool refresh_columns = false;
+          for (auto& chunk : chunks) {
+            auto column = chunk.get(tag_id);
+            if (!column) {
+              THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                                  " not found in context.");
+            }
+            auto edge_column = std::dynamic_pointer_cast<IEdgeColumn>(column);
+            if (!edge_column) {
+              THROW_RUNTIME_ERROR("Column " + std::to_string(tag_id) +
+                                  " is not an edge column.");
+            }
+
+            for (size_t row = 0; row < edge_column->size(); ++row) {
+              if (!edge_column->has_value(row)) {
+                continue;
+              }
+
+              const auto record = edge_column->get_edge(row);
+              const auto edge_schema = graph.schema().get_edge_schema(
+                  record.label.src_label, record.label.dst_label,
+                  record.label.edge_label);
+              const auto property_id =
+                  edge_schema->get_property_index(property_name);
+              if (property_id < 0) {
+                THROW_RUNTIME_ERROR(
+                    "Property " + property_name +
+                    " does not exist for edge label: " +
+                    std::to_string(static_cast<int>(record.label.edge_label)));
+              }
+
+              auto value = record_expression.eval_record(chunk.chunk(), row);
+              if (value.IsNull()) {
+                THROW_NOT_SUPPORTED_EXCEPTION("Setting NULL for property " +
+                                              property_name);
+              }
+              if (edge_schema->properties[property_id] != value.type()) {
+                THROW_RUNTIME_ERROR("Property type mismatch for property " +
+                                    property_name);
+              }
+              refresh_columns = refresh_columns || edge_schema->is_bundled();
+              updates.push_back(PendingUpdate{record,
+                                              ResolveEdgeOffsets(graph, record),
+                                              property_id, std::move(value)});
+            }
+          }
+          for (const auto& update : updates) {
+            {
+              auto status = graph.UpdateEdgeProperty(
+                  update.record.label.src_label, update.record.src,
+                  update.record.label.dst_label, update.record.dst,
+                  update.record.label.edge_label, update.offsets.first,
+                  update.offsets.second, update.property_id, update.value);
+              if (!status.ok()) {
+                return error_stream<ContextChunk>(status);
+              }
+            };
+          }
+          if (refresh_columns) {
+            RefreshEdgeColumns(graph, snapshots);
+          }
         }
-        if (edge_schema->properties[property_id] != value.type()) {
-          THROW_RUNTIME_ERROR("Property type mismatch for property " +
-                              property_name);
-        }
-        refresh_columns = refresh_columns || edge_schema->is_bundled();
-        updates.push_back(PendingUpdate{record,
-                                        ResolveEdgeOffsets(graph, record),
-                                        property_id, std::move(value)});
-      }
-    }
-    for (const auto& update : updates) {
-      RETURN_STATUS_ERROR_IF_NOT_OK(graph.UpdateEdgeProperty(
-          update.record.label.src_label, update.record.src,
-          update.record.label.dst_label, update.record.dst,
-          update.record.label.edge_label, update.offsets.first,
-          update.offsets.second, update.property_id, update.value));
-    }
-    if (refresh_columns) {
-      RefreshEdgeColumns(graph, snapshots);
-    }
-  }
-  return std::move(ctx);
+        return stream_from_batches(std::move(chunks), std::move(metadata));
+      });
 }
 
 neug::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(

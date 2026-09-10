@@ -39,25 +39,27 @@ class GetVFromEdgesOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    if (pred_ != nullptr) {
-      auto expr = pred_->bind(&graph, params);
-      GeneralPred pred(std::move(expr));
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return GetV::get_vertex_from_edges(graph, std::move(chunk),
-                                               v_params_, pred);
-          });
-    } else {
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            return GetV::get_vertex_from_edges(graph, std::move(chunk),
-                                               v_params_, DummyPred());
-          });
-    }
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return map_chunks(std::move(input),
+                      [this, &graph, params,
+                       timer](ContextChunk&& chunk) -> result<ContextChunk> {
+                        if (pred_ != nullptr) {
+                          auto expr = pred_->bind(&graph, params);
+                          GeneralPred pred(std::move(expr));
+                          {
+                            return GetV::get_vertex_from_edges(
+                                graph, std::move(chunk), v_params_, pred);
+                          }
+                        } else {
+                          {
+                            return GetV::get_vertex_from_edges(
+                                graph, std::move(chunk), v_params_,
+                                DummyPred());
+                          }
+                        }
+                      });
   }
 
  private:

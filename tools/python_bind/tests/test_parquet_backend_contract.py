@@ -111,17 +111,23 @@ def type_file(tmp_path):
     return path
 
 
-def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
+@pytest.mark.parametrize("batch_rows", [1, 2])
+@pytest.mark.parametrize("ordered", [False, True])
+def test_reader_preserves_types_nulls_and_nested_values(
+    connection, type_file, batch_rows, ordered
+):
     path = type_file
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path.as_posix()}" '
+            f'LOAD FROM "{path.as_posix()}" (PARQUET_BATCH_ROWS={batch_rows}) '
             "RETURN id, enabled, signed_value, unsigned_value, score, label, "
             "event_date, timestamp_s, timestamp_ms, items, fixed3, matrix2x2 "
-            "ORDER BY id"
+            + ("ORDER BY id" if ordered else "")
         )
     )
 
+    if not ordered:
+        rows.sort(key=lambda row: row[0])
     assert rows == [
         [
             1,
@@ -222,25 +228,25 @@ def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
         ),
     ],
 )
-@pytest.mark.parametrize("batch_read", [False, True])
+@pytest.mark.parametrize("batch_rows", [1, 2])
 def test_reader_preserves_complete_predicates(
-    connection, type_file, predicate, expected, batch_read
+    connection, type_file, predicate, expected, batch_rows
 ):
     rows = list(
         connection.execute(
             f'LOAD FROM "{type_file.as_posix()}" '
-            f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
+            f"(PARQUET_BATCH_ROWS={batch_rows}) "
             f"WHERE {predicate} RETURN id ORDER BY id"
         )
     )
     assert rows == [[value] for value in expected]
 
 
-@pytest.mark.parametrize("batch_read", [False, True])
-def test_reader_fallback_binds_current_parameters(connection, type_file, batch_read):
+@pytest.mark.parametrize("batch_rows", [1, 2])
+def test_reader_fallback_binds_current_parameters(connection, type_file, batch_rows):
     query = (
         f'LOAD FROM "{type_file.as_posix()}" '
-        f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
+        f"(PARQUET_BATCH_ROWS={batch_rows}) "
         "WHERE CASE WHEN score IS NULL THEN $missing ELSE score END > $minimum "
         "RETURN id ORDER BY id"
     )

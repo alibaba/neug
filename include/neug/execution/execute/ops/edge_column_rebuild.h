@@ -43,7 +43,7 @@ struct EdgeColumnSnapshots {
 };
 
 EdgeColumnSnapshots CaptureEdgeColumnsForRefresh(
-    StorageUpdateInterface& graph, Context& ctx,
+    StorageUpdateInterface& graph, std::vector<ContextChunk>& chunks,
     const std::set<LabelTriplet>& affected_labels);
 
 void RefreshEdgeColumns(StorageUpdateInterface& graph,

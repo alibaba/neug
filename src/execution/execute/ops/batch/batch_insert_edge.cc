@@ -106,8 +106,9 @@ class BatchInsertEdgeOpr : public IOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override;
 
  private:
   physical::EdgeType edge_type_;
@@ -115,39 +116,67 @@ class BatchInsertEdgeOpr : public IOperator {
       src_vertex_bindings_, dst_vertex_bindings_;
 };
 
-neug::result<Context> BatchInsertEdgeOpr::Eval(
-    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
-    OprTimer* timer) {
-  (void) params;
-  (void) timer;
-  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
-  label_t edge_label_id = 0;
-  label_t src_label_id = 0;
-  label_t dst_label_id = 0;
-  if (!resolve_edge_triplet(graph.schema(), edge_type_, edge_label_id,
-                            src_label_id, dst_label_id)) {
-    RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
-                        "Failed to resolve edge type or vertex endpoints for "
-                        "BatchInsertEdge");
-  }
+Stream<ContextChunk> BatchInsertEdgeOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params,
+    Stream<ContextChunk>&& input, OprTimer* timer) {
+  return defer_stream(
+      std::move(input),
+      [this, &graph_interface, params,
+       timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+        // Pull once so upstream schema creation completes before resolving
+        // the target label; retain the batch for the storage supplier.
+        auto first = input.Next();
+        if (!first) {
+          return error_stream<ContextChunk>(first.error());
+        }
+        input = prepend_chunk(std::move(*first), std::move(input));
 
-  std::vector<std::pair<int32_t, std::string>> total_mappings;
-  total_mappings.reserve(src_vertex_bindings_.size() +
-                         dst_vertex_bindings_.size() + prop_mappings_.size());
-  for (const auto& mapping : src_vertex_bindings_) {
-    total_mappings.emplace_back(mapping);
-  }
-  for (const auto& mapping : dst_vertex_bindings_) {
-    total_mappings.emplace_back(mapping);
-  }
-  for (const auto& mapping : prop_mappings_) {
-    total_mappings.emplace_back(mapping);
-  }
-  auto supplier = create_data_chunk_supplier(ctx, total_mappings);
+        (void) params;
+        (void) timer;
+        auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+        label_t edge_label_id = 0;
+        label_t src_label_id = 0;
+        label_t dst_label_id = 0;
+        if (!resolve_edge_triplet(graph.schema(), edge_type_, edge_label_id,
+                                  src_label_id, dst_label_id)) {
+          return error_stream<ContextChunk>(
+              Status(StatusCode::ERR_INVALID_ARGUMENT,
+                     "Failed to resolve edge type or vertex endpoints for "
+                     "BatchInsertEdge"));
+        }
 
-  RETURN_STATUS_ERROR_IF_NOT_OK(
-      graph.BatchAddEdges(src_label_id, dst_label_id, edge_label_id, supplier));
-  return neug::result<Context>(std::move(ctx));
+        std::vector<std::pair<int32_t, std::string>> total_mappings;
+        total_mappings.reserve(src_vertex_bindings_.size() +
+                               dst_vertex_bindings_.size() +
+                               prop_mappings_.size());
+        for (const auto& mapping : src_vertex_bindings_) {
+          total_mappings.emplace_back(mapping);
+        }
+        for (const auto& mapping : dst_vertex_bindings_) {
+          total_mappings.emplace_back(mapping);
+        }
+        for (const auto& mapping : prop_mappings_) {
+          total_mappings.emplace_back(mapping);
+        }
+        auto supplier = std::make_shared<StreamChunkSupplier>(std::move(input),
+                                                              total_mappings);
+
+        auto insert_status = graph.BatchAddEdges(src_label_id, dst_label_id,
+                                                 edge_label_id, supplier);
+        {
+          auto status = supplier->status();
+          if (!status.ok()) {
+            return error_stream<ContextChunk>(status);
+          }
+        };
+        {
+          auto status = insert_status;
+          if (!status.ok()) {
+            return error_stream<ContextChunk>(status);
+          }
+        };
+        return batch_insert_result(supplier->rows_read());
+      });
 }
 
 neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(

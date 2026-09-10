@@ -25,7 +25,6 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
-class IDataChunkSupplier;
 namespace reader {
 
 /// Evaluates a file predicate using the same expressions as query execution.
@@ -54,9 +53,6 @@ DataChunk filter_chunk(const DataChunk& input,
 DataChunk project_chunk(const DataChunk& input,
                         const std::vector<std::string>& column_names,
                         const std::vector<std::string>& project_columns);
-
-DataChunk read_all_chunks(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers);
 
 // Merge dense reader chunks in order, preserving column types and NULLs.
 // Ignore null/columnless chunks, retain empty schemas, and reject mismatched

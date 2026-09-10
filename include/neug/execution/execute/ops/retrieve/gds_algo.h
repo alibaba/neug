@@ -32,10 +32,9 @@ class GDSAlgoOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GDSAlgoOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override;
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override;
 
  private:
   std::unique_ptr<function::CallFuncInputBase> algo_input_;

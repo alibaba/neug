@@ -47,38 +47,40 @@ class ProjectOpr : public IOperator {
 
   ~ProjectOpr() {}
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    if (is_select_columns_) {
-      return ctx.apply_chunks(
-          [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-            ContextChunk ret;
-            for (auto& p : select_columns_mapping_) {
-              ret.set(p.second, chunk.get(p.first));
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return map_chunks(
+        std::move(input),
+        [this, &graph, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          if (is_select_columns_) {
+            {
+              ContextChunk ret;
+              for (auto& p : select_columns_mapping_) {
+                ret.set(p.second, chunk.get(p.first));
+              }
+              return ret;
             }
-            return ret;
-          });
-    }
+          }
 
-    std::vector<ProjectOp> exprs;
+          std::vector<ProjectOp> exprs;
 
-    for (size_t i = 0; i < expr_builders_.size(); ++i) {
-      if (!expr_builders_[i]) {
-        exprs.emplace_back(fallback_expr_builders_[i]->build(graph, params),
-                           nullptr, fallback_expr_builders_[i]->alias());
-        continue;
-      } else {
-        exprs.emplace_back(expr_builders_[i]->build(graph, params),
-                           fallback_expr_builders_[i]->build(graph, params),
-                           expr_builders_[i]->alias());
-      }
-    }
+          for (size_t i = 0; i < expr_builders_.size(); ++i) {
+            if (!expr_builders_[i]) {
+              exprs.emplace_back(
+                  fallback_expr_builders_[i]->build(graph, params), nullptr,
+                  fallback_expr_builders_[i]->alias());
+              continue;
+            } else {
+              exprs.emplace_back(
+                  expr_builders_[i]->build(graph, params),
+                  fallback_expr_builders_[i]->build(graph, params),
+                  expr_builders_[i]->alias());
+            }
+          }
 
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Project::project(std::move(chunk), exprs, is_append_);
+          { return Project::project(std::move(chunk), exprs, is_append_); }
         });
   }
 
@@ -179,41 +181,44 @@ class ProjectOrderByOprBeta : public IOperator {
     return "ProjectOrderByOprBeta";
   }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
+  Stream<ContextChunk> Eval(IStorageInterface& graph_interface,
+                            const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return reduce_stream(
+        std::move(input),
+        [this, &graph_interface, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          const auto& graph =
+              dynamic_cast<const StorageReadInterface&>(graph_interface);
 
-    auto cmp_func = [&](const DataChunk& chunk) -> GeneralComparer {
-      GeneralComparer cmp;
-      for (const auto& pair : order_by_pairs_) {
-        cmp.add_keys(chunk.get(pair.first), pair.second);
-      }
-      return cmp;
-    };
+          auto cmp_func = [&](const DataChunk& chunk) -> GeneralComparer {
+            GeneralComparer cmp;
+            for (const auto& pair : order_by_pairs_) {
+              cmp.add_keys(chunk.get(pair.first), pair.second);
+            }
+            return cmp;
+          };
 
-    std::vector<ProjectOp> exprs;
+          std::vector<ProjectOp> exprs;
 
-    for (size_t i = 0; i < expr_builders_.size(); ++i) {
-      if (!expr_builders_[i]) {
-        exprs.emplace_back(
-            ProjectOp(fallback_expr_builders_[i]->build(graph, params), nullptr,
-                      fallback_expr_builders_[i]->alias()));
-        continue;
-      }
-      exprs.emplace_back(
-          ProjectOp(expr_builders_[i]->build(graph, params),
-                    fallback_expr_builders_[i]->build(graph, params),
-                    expr_builders_[i]->alias()));
-    }
-    ctx.ensure_single_chunk("ProjectOrderByOprBeta");
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Project::project_order_by_fuse<GeneralComparer>(
-              graph, params, std::move(chunk), std::move(exprs), cmp_func,
-              lower_bound_, upper_bound_, order_by_keys_, first_pair_);
+          for (size_t i = 0; i < expr_builders_.size(); ++i) {
+            if (!expr_builders_[i]) {
+              exprs.emplace_back(
+                  ProjectOp(fallback_expr_builders_[i]->build(graph, params),
+                            nullptr, fallback_expr_builders_[i]->alias()));
+              continue;
+            }
+            exprs.emplace_back(
+                ProjectOp(expr_builders_[i]->build(graph, params),
+                          fallback_expr_builders_[i]->build(graph, params),
+                          expr_builders_[i]->alias()));
+          }
+          {
+            return Project::project_order_by_fuse<GeneralComparer>(
+                graph, params, std::move(chunk), std::move(exprs), cmp_func,
+                lower_bound_, upper_bound_, order_by_keys_, first_pair_);
+          }
         });
   }
 

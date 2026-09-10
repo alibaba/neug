@@ -38,20 +38,22 @@ class GroupByOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx.ensure_single_chunk("GroupByOpr");
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          auto key = create_key_func(mappings_, graph, chunk.chunk());
-          std::vector<ReduceOp> reducers;
-          for (auto& aggr : aggrs_) {
-            reducers.push_back(create_reduce_op(aggr, graph, chunk.chunk()));
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return reduce_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](ContextChunk&& chunk) -> result<ContextChunk> {
+          {
+            auto key = create_key_func(mappings_, graph, chunk.chunk());
+            std::vector<ReduceOp> reducers;
+            for (auto& aggr : aggrs_) {
+              reducers.push_back(create_reduce_op(aggr, graph, chunk.chunk()));
+            }
+            return GroupBy::group_by(std::move(chunk), std::move(key),
+                                     std::move(reducers));
           }
-          return GroupBy::group_by(std::move(chunk), std::move(key),
-                                   std::move(reducers));
         });
   }
 

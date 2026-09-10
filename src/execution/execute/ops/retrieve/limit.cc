@@ -39,15 +39,36 @@ class LimitOpr : public IOperator {
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx.ensure_single_chunk("LimitOpr");
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Limit::limit(std::move(chunk), lower_, upper_);
-        });
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    auto metadata = input.metadata();
+    auto upstream = std::make_shared<Stream<ContextChunk>>(std::move(input));
+    return Stream<ContextChunk>(
+        [upstream, skip = lower_,
+         remaining = upper_ > lower_ ? upper_ - lower_ : 0,
+         done = false]() mutable -> Stream<ContextChunk>::NextResult {
+          if (done) {
+            return std::optional<ContextChunk>{};
+          }
+          GS_AUTO(next, upstream->Next());
+          if (!next) {
+            return std::optional<ContextChunk>{};
+          }
+          ContextChunk chunk = std::move(*next);
+          auto rows = chunk.row_num();
+          auto begin = std::min(skip, rows);
+          skip -= begin;
+          auto count = std::min(remaining, rows - begin);
+          remaining -= count;
+          GS_AUTO(output, Limit::limit(std::move(chunk), begin, begin + count));
+          if (remaining == 0) {
+            done = true;
+            *upstream = Stream<ContextChunk>();
+          }
+          return std::optional<ContextChunk>(std::move(output));
+        },
+        std::move(metadata));
   }
 
  private:

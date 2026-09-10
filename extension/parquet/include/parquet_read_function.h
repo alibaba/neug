@@ -37,15 +37,15 @@ struct ParquetReadFunction {
   static function_set getFunctionSet() {
     auto typeIDs =
         std::vector<::neug::DataTypeId>{::neug::DataTypeId::kVarchar};
-    auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
-    readFunction->execFunc = execFunc;
+    auto readFunction =
+        std::make_unique<ReadFunction>(name, typeIDs, supplierFunc);
     readFunction->sniffFunc = sniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
     return functionSet;
   }
 
-  static execution::Context execFunc(
+  static std::shared_ptr<IDataChunkSupplier> supplierFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
     const auto& fs = vfs->Provide(state->schema.file);
@@ -64,10 +64,7 @@ struct ParquetReadFunction {
     auto reader = std::make_unique<reader::ArrowReader>(
         state, std::move(optionsBuilder), std::move(arrowFs));
 
-    execution::Context ctx;
-    auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
-    return ctx;
+    return reader->getDataChunkSupplier();
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(

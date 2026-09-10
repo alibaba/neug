@@ -38,27 +38,40 @@ class CreateVertexTypeOpr : public IOperator {
     return "CreateVertexTypeOpr";
   }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    CreateVertexTypeParamBuilder builder;
-    builder.VertexLabel(type_name_)
-        .PrimaryKeyNames(pks_)
-        .Temporary(is_temporary_);
-    for (const auto& [prop_name, prop_value] : properties_) {
-      builder.AddProperty(prop_name, prop_value);
-    }
-    auto res = storage.CreateVertexType(builder.Build());
-    if (!res.ok()) {
-      if (ignore_conflict_ && IsSchemaConflictError(res)) {
-        return neug::result<Context>(std::move(ctx));
-      }
-      LOG(ERROR) << "Fail to create vertex type: " << type_name_
-                 << ", reason: " << res.ToString();
-      RETURN_ERROR(res);
-    }
-    return neug::result<Context>(std::move(ctx));
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          auto metadata = input.metadata();
+          auto before = collect_batches(std::move(input));
+          if (!before) {
+            return error_stream<ContextChunk>(before.error());
+          }
+          input = stream_from_batches(std::move(*before), std::move(metadata));
+
+          StorageUpdateInterface& storage =
+              dynamic_cast<StorageUpdateInterface&>(graph);
+          CreateVertexTypeParamBuilder builder;
+          builder.VertexLabel(type_name_)
+              .PrimaryKeyNames(pks_)
+              .Temporary(is_temporary_);
+          for (const auto& [prop_name, prop_value] : properties_) {
+            builder.AddProperty(prop_name, prop_value);
+          }
+          auto res = storage.CreateVertexType(builder.Build());
+          if (!res.ok()) {
+            if (ignore_conflict_ && IsSchemaConflictError(res)) {
+              return std::move(input);
+            }
+            LOG(ERROR) << "Fail to create vertex type: " << type_name_
+                       << ", reason: " << res.ToString();
+            return error_stream<ContextChunk>(res);
+          }
+          return std::move(input);
+        });
   }
 
  private:

@@ -17,7 +17,8 @@
 #include <vector>
 
 #include "neug/common/types/graph_types.h"
-#include "neug/execution/common/context.h"
+#include "neug/execution/common/stream.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace physical {
@@ -46,9 +47,24 @@ std::string edge_to_json_string(const EdgeRecord& edge,
 
 std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
-std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
-    const Context& ctx,
-    const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+class StreamChunkSupplier final : public IDataChunkSupplier {
+ public:
+  StreamChunkSupplier(Stream<ContextChunk> stream,
+                      std::vector<std::pair<int32_t, std::string>> mappings);
+  std::shared_ptr<DataChunk> GetNextChunk() override;
+  int64_t RowNum() const override { return -1; }
+  const Status& status() const { return status_; }
+  size_t rows_read() const { return rows_read_; }
+
+ private:
+  Stream<ContextChunk> stream_;
+  std::vector<std::pair<int32_t, std::string>> mappings_;
+  Status status_ = Status::OK();
+  size_t rows_read_ = 0;
+};
+
+// Preserve COPY result cardinality without retaining its input payload.
+Stream<ContextChunk> batch_insert_result(size_t rows);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 

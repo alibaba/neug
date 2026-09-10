@@ -81,7 +81,7 @@ void RefreshEdgeRecord(StorageUpdateInterface& graph, EdgeRecord& record,
 }
 
 EdgeColumnSnapshots CaptureEdgeColumnsForRefresh(
-    StorageUpdateInterface& graph, Context& ctx,
+    StorageUpdateInterface& graph, std::vector<ContextChunk>& chunks,
     const std::set<LabelTriplet>& affected_labels) {
   EdgeColumnSnapshots snapshots;
   if (affected_labels.empty()) {
@@ -101,7 +101,7 @@ EdgeColumnSnapshots CaptureEdgeColumnsForRefresh(
     snapshots.columns[it->second].aliases.push_back(&column);
   };
 
-  for (auto& chunk : ctx.chunks()) {
+  for (auto& chunk : chunks) {
     for (auto& column : chunk.columns()) {
       capture(column);
     }

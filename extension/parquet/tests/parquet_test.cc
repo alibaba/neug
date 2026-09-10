@@ -31,6 +31,7 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
@@ -226,11 +227,13 @@ TEST_F(ParquetTest, ReaderPreservesNativeArithmeticFiltering) {
   ASSERT_TRUE(builder.skipRows(options));
   EXPECT_FALSE(
       options.scanOptions->filter.Equals(arrow::compute::literal(true)));
-  for (const auto* batch : {"false", "true"}) {
-    state->schema.file.options = {{"batch_read", batch},
-                                  {"row_batch_size", "1"}};
+  for (const auto* batch_size : {"1", "2"}) {
+    state->schema.file.options = {{"PARQUET_BATCH_ROWS", batch_size}};
     execution::Context output;
-    createParquetReader(state)->read(nullptr, output);
+    auto supplier = createParquetReader(state)->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      output.append_chunk(std::move(*chunk));
+    }
     ASSERT_EQ(output.row_num(), 2);
     ASSERT_EQ(output.col_num(), 1);
     std::vector<std::string> names;
@@ -264,9 +267,8 @@ TEST_F(ParquetTest, ReaderFallsBackBeforeProjectionAndRebindsParameters) {
   ASSERT_FALSE(builder.skipRows(options));
   EXPECT_TRUE(
       options.scanOptions->filter.Equals(arrow::compute::literal(true)));
-  for (const auto* batch : {"false", "true"}) {
-    state->schema.file.options = {{"batch_read", batch},
-                                  {"row_batch_size", "1"}};
+  for (const auto* batch_size : {"1", "2"}) {
+    state->schema.file.options = {{"PARQUET_BATCH_ROWS", batch_size}};
     auto reader = createParquetReader(state);
     auto scanner =
         reader->createScanner(std::make_shared<arrow::fs::LocalFileSystem>());
@@ -277,7 +279,10 @@ TEST_F(ParquetTest, ReaderFallsBackBeforeProjectionAndRebindsParameters) {
     for (int64_t minimum : {2, 3, 0}) {
       state->parameters = {{"minimum", Value::INT64(minimum)}};
       execution::Context output;
-      reader->read(nullptr, output);
+      auto supplier = reader->getDataChunkSupplier();
+      while (auto chunk = supplier->GetNextChunk()) {
+        output.append_chunk(std::move(*chunk));
+      }
       EXPECT_EQ(output.row_num(), 3 - minimum);
       ASSERT_EQ(output.col_num(), 1);
       for (const auto& chunk : output.chunks()) {
@@ -337,9 +342,8 @@ TEST_F(ParquetTest, ReaderPrunesColumnsReferencedInsideNestedPredicates) {
     state->parameters = {{"fallback", Value::STRING("no match")}};
     const auto original = predicate->SerializeAsString();
 
-    for (const auto* batch : {"false", "true"}) {
-      state->schema.file.options = {{"batch_read", batch},
-                                    {"row_batch_size", "1"}};
+    for (const auto* batch_size : {"1", "2"}) {
+      state->schema.file.options = {{"PARQUET_BATCH_ROWS", batch_size}};
       auto reader = createParquetReader(state);
       // Reuse the reader with reordered, duplicated and all-column outputs.
       for (const auto& projection : std::vector<std::vector<std::string>>{
@@ -359,7 +363,10 @@ TEST_F(ParquetTest, ReaderPrunesColumnsReferencedInsideNestedPredicates) {
         EXPECT_EQ((*scanned)->schema()->field_names(), expected_columns);
 
         execution::Context output;
-        reader->read(nullptr, output);
+        auto supplier = reader->getDataChunkSupplier();
+        while (auto chunk = supplier->GetNextChunk()) {
+          output.append_chunk(std::move(*chunk));
+        }
         ASSERT_EQ(output.row_num(), 2);
         const auto& output_columns =
             projection.empty() ? state->schema.entry->columnNames : projection;
@@ -403,9 +410,8 @@ TEST_F(ParquetTest, ReaderPrunesConstantFiltersAndValidatesHiddenColumns) {
   param->mutable_data_type()->mutable_data_type()->set_primitive_type(
       ::common::PrimitiveType::DT_BOOL);
   state->skipRows = predicate;
-  for (const auto* batch : {"false", "true"}) {
-    state->schema.file.options = {{"batch_read", batch},
-                                  {"row_batch_size", "1"}};
+  for (const auto* batch_size : {"1", "2"}) {
+    state->schema.file.options = {{"PARQUET_BATCH_ROWS", batch_size}};
     auto reader = createParquetReader(state);
     auto scanner =
         reader->createScanner(std::make_shared<arrow::fs::LocalFileSystem>());
@@ -414,7 +420,10 @@ TEST_F(ParquetTest, ReaderPrunesConstantFiltersAndValidatesHiddenColumns) {
     for (const bool keep : {false, true}) {
       state->parameters = {{"keep", Value::BOOLEAN(keep)}};
       execution::Context output;
-      reader->read(nullptr, output);
+      auto supplier = reader->getDataChunkSupplier();
+      while (auto chunk = supplier->GetNextChunk()) {
+        output.append_chunk(std::move(*chunk));
+      }
       EXPECT_EQ(output.row_num(), keep ? 3 : 0);
       EXPECT_EQ(output.col_num(), 1);
     }
@@ -745,13 +754,17 @@ TEST_F(ParquetTest, TestTypeMapping_StringToLargeUtf8) {
   // Extension should convert to large_utf8 for consistency
   auto sharedState = createSharedState(
       "test_string_type.parquet", {"id", "name", "value"},
-      {createInt64Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
+      {createInt64Type(), createStringType(), createDoubleType()}, {});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Verify string column type
   auto col1 = ctx.chunk(0).columns()[1];
@@ -798,12 +811,17 @@ TEST_F(ParquetTest, TestTypeMapping_PreserveNumericTypes) {
                         {"int32_col", "int64_col", "double_col", "bool_col"},
                         {createInt32Type(), createInt64Type(),
                          createDoubleType(), createBoolType()},
-                        {{"batch_read", "false"}});
+                        {});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 4);
   EXPECT_EQ(ctx.row_num(), 1);
@@ -862,7 +880,7 @@ TEST_F(ParquetTest, TestIntegration_ColumnPruning) {
   reader::FileSchema fileSchema;
   fileSchema.paths = {filepath};
   fileSchema.format = "parquet";
-  fileSchema.options = {{"batch_read", "false"}};
+  fileSchema.options = {};
 
   reader::ExternalSchema externalSchema;
   externalSchema.entry = entrySchema;
@@ -873,9 +891,14 @@ TEST_F(ParquetTest, TestIntegration_ColumnPruning) {
   sharedState->projectColumns = {"id", "score", "grade"};
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Verify extension translates projectColumns to Arrow projection
   // Should have 3 columns (id, score, grade - "name" is excluded)
@@ -935,7 +958,7 @@ TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
   reader::FileSchema fileSchema;
   fileSchema.paths = {filepath};
   fileSchema.format = "parquet";
-  fileSchema.options = {{"batch_read", "false"}};
+  fileSchema.options = {};
 
   reader::ExternalSchema externalSchema;
   externalSchema.entry = entrySchema;
@@ -944,9 +967,14 @@ TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
   sharedState->skipRows = filterExpr;  // Neug's filter expression
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Verify extension translates Neug filter to Arrow filter
   EXPECT_EQ(ctx.col_num(), 2);
@@ -967,38 +995,87 @@ TEST_F(ParquetTest, TestIntegration_FilterPushdown) {
   }
 }
 
-TEST_F(ParquetTest, TestIntegration_BatchReadMode) {
-  createSimpleParquetFile("test_batch_mode.parquet");
+TEST_F(ParquetTest, FilteredSuppliersOwnIndependentExecutionState) {
+  createSimpleParquetFile("independent_filtered.parquet");
+  auto state = createSharedState(
+      "independent_filtered.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()});
+  state->schema.file.options = {{"PARQUET_BATCH_ROWS", "1"}};
+  state->projectColumns = {"name"};
+  auto predicate = std::make_shared<::common::Expression>();
+  predicate->add_operators()->mutable_var()->mutable_tag()->set_name("id");
+  predicate->add_operators()->set_logical(::common::Logical::GT);
+  auto* parameter = predicate->add_operators()->mutable_param();
+  parameter->set_name("minimum");
+  *parameter->mutable_data_type()->mutable_data_type() = *createInt64Type();
+  state->skipRows = predicate;
+  auto reader = createParquetReader(state);
+  state->parameters = {{"minimum", Value::INT64(1)}};
+  auto first = reader->getDataChunkSupplier();
+  state->parameters = {{"minimum", Value::INT64(2)}};
+  auto second = reader->getDataChunkSupplier();
+  reader.reset();
+  state.reset();
+  std::vector<std::string> first_names;
+  std::vector<std::string> second_names;
+  for (size_t batch = 0; batch < 3; ++batch) {
+    for (auto entry : {std::make_pair(first, &first_names),
+                       std::make_pair(second, &second_names)}) {
+      auto chunk = entry.first->GetNextChunk();
+      ASSERT_NE(chunk, nullptr);
+      for (size_t row = 0; row < chunk->row_num(); ++row) {
+        entry.second->push_back(
+            chunk->get(0)->get_elem(row).GetValue<std::string>());
+      }
+    }
+  }
+  EXPECT_EQ(first->GetNextChunk(), nullptr);
+  EXPECT_EQ(second->GetNextChunk(), nullptr);
+  EXPECT_EQ(first_names, (std::vector<std::string>{"Bob", "Charlie"}));
+  EXPECT_EQ(second_names, (std::vector<std::string>{"Charlie"}));
+}
 
-  // Test with batch_read=true (streaming mode)
-  auto sharedState = createSharedState(
-      "test_batch_mode.parquet", {"id", "name", "value"},
+TEST_F(ParquetTest, SupplierOwnsReaderAndProducesIndividualBatches) {
+  createSimpleParquetFile("supplier.parquet");
+  auto state = createSharedState(
+      "supplier.parquet", {"id", "name", "value"},
       {createInt64Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "true"}});
+      {{"PARQUET_BATCH_ROWS", "1"}});
+  auto reader = createParquetReader(state);
+  auto supplier = reader->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), -1);
+  reader.reset();
+  size_t rows = 0;
+  size_t batches = 0;
+  while (auto chunk = supplier->GetNextChunk()) {
+    EXPECT_LE(chunk->row_num(), 1);
+    rows += chunk->row_num();
+    ++batches;
+  }
+  EXPECT_EQ(rows, 3);
+  EXPECT_EQ(batches, 3);
+}
 
-  auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
-  execution::Context ctx;
-  reader->read(localState, ctx);
-
-  EXPECT_GT(ctx.chunk_num(), 0);  // batch mode: data materialized into chunks
-  EXPECT_GT(ctx.col_num(), 0) << "Extension should materialize data into "
-                                 "Context chunks when batch_read=true";
-
-  // Test with batch_read=false (full read mode)
-  auto sharedState2 = createSharedState(
-      "test_batch_mode.parquet", {"id", "name", "value"},
+TEST_F(ParquetTest, TestIntegration_IndependentSuppliers) {
+  createSimpleParquetFile("independent_suppliers.parquet");
+  auto state = createSharedState(
+      "independent_suppliers.parquet", {"id", "name", "value"},
       {createInt64Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
-
-  auto reader2 = createParquetReader(sharedState2);
-  auto localState2 = std::make_shared<reader::ReadLocalState>();
-  execution::Context ctx2;
-  reader2->read(localState2, ctx2);
-
-  auto col0_2 = ctx2.chunk(0).columns()[0];
-  EXPECT_EQ(col0_2->column_type(), ContextColumnType::kValue)
-      << "Extension should use Value column type when batch_read=false";
+      {{"PARQUET_BATCH_ROWS", "1"}});
+  auto reader = createParquetReader(state);
+  auto first = reader->getDataChunkSupplier();
+  auto second = reader->getDataChunkSupplier();
+  for (int64_t id = 1; id <= 3; ++id) {
+    for (const auto& supplier : {first, second}) {
+      auto chunk = supplier->GetNextChunk();
+      ASSERT_NE(chunk, nullptr);
+      ASSERT_EQ(chunk->row_num(), 1);
+      ASSERT_EQ(chunk->col_num(), 3);
+      EXPECT_EQ(chunk->columns[0]->get_elem(0).GetValue<int64_t>(), id);
+    }
+  }
+  EXPECT_EQ(first->GetNextChunk(), nullptr);
+  EXPECT_EQ(second->GetNextChunk(), nullptr);
 }
 
 TEST_F(ParquetTest, TestIntegration_ParallelReadMultiRowGroup) {
@@ -1029,15 +1106,19 @@ TEST_F(ParquetTest, TestIntegration_ParallelReadMultiRowGroup) {
 
   // Read with parallel=true: fragments are split by row group and scanned
   // with the thread pool; all rows must still come back intact.
-  auto sharedState =
-      createSharedState("test_parallel_multi_rg.parquet", {"id", "value"},
-                        {createInt64Type(), createDoubleType()},
-                        {{"parallel", "true"}, {"batch_read", "true"}});
+  auto sharedState = createSharedState(
+      "test_parallel_multi_rg.parquet", {"id", "value"},
+      {createInt64Type(), createDoubleType()}, {{"parallel", "true"}});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   int64_t totalRows = 0;
   for (size_t i = 0; i < ctx.chunk_num(); ++i) {
@@ -1048,14 +1129,18 @@ TEST_F(ParquetTest, TestIntegration_ParallelReadMultiRowGroup) {
 
   // A row count alone cannot catch duplicated or dropped rows. Read again in
   // full (non-batch) mode and verify the aggregate of each value column.
-  auto sharedState2 =
-      createSharedState("test_parallel_multi_rg.parquet", {"id", "value"},
-                        {createInt64Type(), createDoubleType()},
-                        {{"parallel", "true"}, {"batch_read", "false"}});
+  auto sharedState2 = createSharedState(
+      "test_parallel_multi_rg.parquet", {"id", "value"},
+      {createInt64Type(), createDoubleType()}, {{"parallel", "true"}});
   auto reader2 = createParquetReader(sharedState2);
-  auto localState2 = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx2;
-  reader2->read(localState2, ctx2);
+  {
+    auto supplier = reader2->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx2.append_chunk(std::move(*chunk));
+    }
+  }
 
   int64_t id_sum = 0;
   double value_sum = 0.0;
@@ -1114,7 +1199,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
   auto const_opr = filterExpr->add_operators();
   const_opr->mutable_const_()->set_f64(90.0);
 
-  // batch_read=true + filter
+  // supplier batches + filter
   auto sharedState = std::make_shared<reader::ReadSharedState>();
   auto entrySchema = std::make_shared<reader::TableEntrySchema>();
   entrySchema->columnNames = {"id", "score"};
@@ -1123,7 +1208,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
   reader::FileSchema fileSchema;
   fileSchema.paths = {filepath};
   fileSchema.format = "parquet";
-  fileSchema.options = {{"batch_read", "true"}};
+  fileSchema.options = {};
 
   reader::ExternalSchema externalSchema;
   externalSchema.entry = entrySchema;
@@ -1132,9 +1217,14 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
   sharedState->skipRows = filterExpr;
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Arrow scanner applies filter in both batch and full modes
   EXPECT_EQ(ctx.col_num(), 2);
@@ -1143,8 +1233,8 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilter) {
   for (size_t i = 0; i < ctx.chunk_num(); ++i) {
     totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
   }
-  EXPECT_EQ(totalRows, 3)
-      << "batch_read=true with filter should still apply Arrow filter pushdown";
+  EXPECT_EQ(totalRows, 3) << "supplier batches with filter should still apply "
+                             "Arrow filter pushdown";
 }
 
 TEST_F(ParquetTest, TestIntegration_BatchReadWithFilterAndProjection) {
@@ -1196,7 +1286,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilterAndProjection) {
   auto const_opr = filterExpr->add_operators();
   const_opr->mutable_const_()->set_f64(90.0);
 
-  // batch_read=true + filter + projection
+  // supplier batches + filter + projection
   auto sharedState = std::make_shared<reader::ReadSharedState>();
   auto entrySchema = std::make_shared<reader::TableEntrySchema>();
   entrySchema->columnNames = {"id", "name", "score", "grade"};
@@ -1206,7 +1296,7 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilterAndProjection) {
   reader::FileSchema fileSchema;
   fileSchema.paths = {filepath};
   fileSchema.format = "parquet";
-  fileSchema.options = {{"batch_read", "true"}};
+  fileSchema.options = {};
 
   reader::ExternalSchema externalSchema;
   externalSchema.entry = entrySchema;
@@ -1216,20 +1306,25 @@ TEST_F(ParquetTest, TestIntegration_BatchReadWithFilterAndProjection) {
   sharedState->skipRows = filterExpr;
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Arrow scanner applies both filter and projection in batch mode
   EXPECT_EQ(ctx.col_num(), 2)
-      << "batch_read=true with projection should still apply column pruning";
+      << "supplier batches with projection should still apply column pruning";
 
   int64_t totalRows = 0;
   for (size_t i = 0; i < ctx.chunk_num(); ++i) {
     totalRows += static_cast<int64_t>(ctx.chunk(i).chunk().row_num());
   }
   EXPECT_EQ(totalRows, 2)
-      << "batch_read=true with filter+projection should filter to 2 rows";
+      << "supplier batches with filter+projection should filter to 2 rows";
   EXPECT_EQ(sharedState->columnNum(), 2);
 }
 
@@ -1292,7 +1387,7 @@ TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
   reader::FileSchema fileSchema;
   fileSchema.paths = {filepath};
   fileSchema.format = "parquet";
-  fileSchema.options = {{"batch_read", "false"}};
+  fileSchema.options = {};
 
   reader::ExternalSchema externalSchema;
   externalSchema.entry = entrySchema;
@@ -1302,9 +1397,14 @@ TEST_F(ParquetTest, TestIntegration_CombinedFilterAndProjection) {
   sharedState->skipRows = filterExpr;  // Filter score > 90.0
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Verify extension correctly combines filter and projection
   EXPECT_EQ(ctx.col_num(), 3)
@@ -1354,7 +1454,7 @@ TEST_F(ParquetTest, TestMultiFile_ExplicitPaths) {
                       std::string(PARQUET_TEST_DIR) + "/test_multi_1.parquet",
                       std::string(PARQUET_TEST_DIR) + "/test_multi_2.parquet"};
   fileSchema.format = "parquet";
-  fileSchema.options = {{"batch_read", "false"}};
+  fileSchema.options = {};
 
   reader::ExternalSchema externalSchema;
   externalSchema.entry = entrySchema;
@@ -1362,9 +1462,14 @@ TEST_F(ParquetTest, TestMultiFile_ExplicitPaths) {
   sharedState->schema = std::move(externalSchema);
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 1);
   EXPECT_EQ(ctx.row_num(), 30) << "Extension should correctly read and "
@@ -1436,13 +1541,17 @@ TEST_F(ParquetTest, TestParquetExportWriter) {
   // Read it back and verify
   auto sharedState = createSharedState(
       "export_writer_test.parquet", {"id", "name", "value"},
-      {createInt64Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
+      {createInt64Type(), createStringType(), createDoubleType()}, {});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -1495,14 +1604,19 @@ TEST_F(ParquetTest, TestParquetExportWithNulls) {
   ASSERT_TRUE(std::filesystem::exists(export_path));
 
   // Read back and verify
-  auto sharedState = createSharedState(
-      "export_nulls_test.parquet", {"id", "name"},
-      {createInt64Type(), createStringType()}, {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("export_nulls_test.parquet", {"id", "name"},
+                        {createInt64Type(), createStringType()}, {});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 2);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -1700,24 +1814,34 @@ TEST_F(ParquetTest, TestParquetExportWithCompressionOptions) {
       << "ZSTD compressed file should be smaller than uncompressed";
 
   // Verify both files are readable
-  auto sharedState_zstd = createSharedState(
-      "export_zstd.parquet", {"id", "name"},
-      {createInt64Type(), createStringType()}, {{"batch_read", "false"}});
+  auto sharedState_zstd =
+      createSharedState("export_zstd.parquet", {"id", "name"},
+                        {createInt64Type(), createStringType()}, {});
 
   auto reader_zstd = createParquetReader(sharedState_zstd);
-  auto localState_zstd = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx_zstd;
-  reader_zstd->read(localState_zstd, ctx_zstd);
+  {
+    auto supplier = reader_zstd->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx_zstd.append_chunk(std::move(*chunk));
+    }
+  }
   EXPECT_EQ(ctx_zstd.row_num(), 100);
 
-  auto sharedState_none = createSharedState(
-      "export_none.parquet", {"id", "name"},
-      {createInt64Type(), createStringType()}, {{"batch_read", "false"}});
+  auto sharedState_none =
+      createSharedState("export_none.parquet", {"id", "name"},
+                        {createInt64Type(), createStringType()}, {});
 
   auto reader_none = createParquetReader(sharedState_none);
-  auto localState_none = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx_none;
-  reader_none->read(localState_none, ctx_none);
+  {
+    auto supplier = reader_none->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx_none.append_chunk(std::move(*chunk));
+    }
+  }
   EXPECT_EQ(ctx_none.row_num(), 100);
 }
 
@@ -1793,14 +1917,18 @@ TEST_F(ParquetTest, TestParquetExportWithRowGroupSize) {
   ASSERT_TRUE(std::filesystem::exists(export_path));
 
   // Verify file is readable
-  auto sharedState =
-      createSharedState("export_rowgroup.parquet", {"id"}, {createInt64Type()},
-                        {{"batch_read", "false"}});
+  auto sharedState = createSharedState("export_rowgroup.parquet", {"id"},
+                                       {createInt64Type()}, {});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
   EXPECT_EQ(ctx.row_num(), 100);
 }
 
@@ -1891,24 +2019,34 @@ TEST_F(ParquetTest, TestParquetExportWithDictionaryEncoding) {
                                        "smaller for low-cardinality strings";
 
   // Verify both files are readable
-  auto sharedState_dict = createSharedState(
-      "export_dict_enabled.parquet", {"id", "category"},
-      {createInt64Type(), createStringType()}, {{"batch_read", "false"}});
+  auto sharedState_dict =
+      createSharedState("export_dict_enabled.parquet", {"id", "category"},
+                        {createInt64Type(), createStringType()}, {});
 
   auto reader_dict = createParquetReader(sharedState_dict);
-  auto localState_dict = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx_dict;
-  reader_dict->read(localState_dict, ctx_dict);
+  {
+    auto supplier = reader_dict->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx_dict.append_chunk(std::move(*chunk));
+    }
+  }
   EXPECT_EQ(ctx_dict.row_num(), num_rows);
 
-  auto sharedState_nodict = createSharedState(
-      "export_dict_disabled.parquet", {"id", "category"},
-      {createInt64Type(), createStringType()}, {{"batch_read", "false"}});
+  auto sharedState_nodict =
+      createSharedState("export_dict_disabled.parquet", {"id", "category"},
+                        {createInt64Type(), createStringType()}, {});
 
   auto reader_nodict = createParquetReader(sharedState_nodict);
-  auto localState_nodict = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx_nodict;
-  reader_nodict->read(localState_nodict, ctx_nodict);
+  {
+    auto supplier = reader_nodict->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx_nodict.append_chunk(std::move(*chunk));
+    }
+  }
   EXPECT_EQ(ctx_nodict.row_num(), num_rows);
 }
 
@@ -1974,13 +2112,17 @@ TEST_F(ParquetTest, TestParquetExportWithDateAndTimestamp) {
   // Verify file is readable
   auto sharedState = createSharedState(
       "export_datetime.parquet", {"id", "created_date", "updated_timestamp"},
-      {createInt64Type(), createDateType(), createTimestampType()},
-      {{"batch_read", "false"}});
+      {createInt64Type(), createDateType(), createTimestampType()}, {});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
   EXPECT_EQ(ctx.row_num(), num_rows);
 }
 
@@ -2370,15 +2512,20 @@ TEST_F(ParquetTest, TestParquetNonExistentColumnThrows) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test_nonexist.parquet", columnNames,
-                                       columnTypes, {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_nonexist.parquet", columnNames, columnTypes, {});
   auto reader = createParquetReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  EXPECT_THROW(reader->read(localState, ctx),
-               exception::SchemaMismatchException);
+  EXPECT_THROW(
+      [&] {
+        auto supplier = reader->getDataChunkSupplier();
+        while (auto chunk = supplier->GetNextChunk()) {
+          ctx.append_chunk(std::move(*chunk));
+        }
+      }(),
+      exception::SchemaMismatchException);
 }
 
 // =============================================================================
@@ -2477,13 +2624,17 @@ TEST_F(ParquetTest, TestIntegration_ReadZstdWithSmallBufferedStream) {
   auto sharedState = createSharedState(
       "test_zstd_small_buffer.parquet", {"id", "name", "value"},
       {createInt64Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "true"}, {"batch_size", "4096"}});
+      {{"batch_size", "4096"}});
 
   auto reader = createParquetReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
-  ASSERT_NO_THROW(reader->read(localState, ctx))
-      << "Reading ZSTD parquet with small buffered stream must not crash";
+  ASSERT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }()) << "Reading ZSTD parquet with small buffered stream must not crash";
 
   int64_t totalRows = 0;
   for (size_t i = 0; i < ctx.chunk_num(); ++i) {

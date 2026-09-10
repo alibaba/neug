@@ -31,6 +31,25 @@
 namespace neug {
 namespace test {
 
+TEST_F(ReaderTest, TestCsvSupplierOpensEachFileOnDemand) {
+  auto state = createSharedState("lazy_first.csv", {"id"}, {createInt64Type()},
+                                 {{"skip_rows", "1"}, {"batch_size", "1"}});
+  state->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
+                                     "/lazy_second.csv");
+  auto supplier = createCsvReader(state)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), -1);
+  // Neither file exists when the stream is constructed.
+  createCsvFile("lazy_first.csv", "id\n1\n");
+  auto first = supplier->GetNextChunk();
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->get(0)->get_elem(0).GetValue<int64_t>(), 1);
+  createCsvFile("lazy_second.csv", "id\n2\n");
+  auto second = supplier->GetNextChunk();
+  ASSERT_NE(second, nullptr);
+  EXPECT_EQ(second->get(0)->get_elem(0).GetValue<int64_t>(), 2);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
 namespace {
 
 class VectorChunkSupplier final : public IDataChunkSupplier {
@@ -56,6 +75,20 @@ class VectorChunkSupplier final : public IDataChunkSupplier {
   size_t next_ = 0;
   int64_t row_count_ = 0;
 };
+
+DataChunk readAllChunks(
+    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
+  std::vector<std::shared_ptr<DataChunk>> chunks;
+  for (const auto& supplier : suppliers) {
+    if (!supplier) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Data chunk supplier is null");
+    }
+    while (auto chunk = supplier->GetNextChunk()) {
+      chunks.push_back(std::move(chunk));
+    }
+  }
+  return reader::merge_chunks(std::move(chunks));
+}
 
 std::shared_ptr<::common::Expression> comparison(const std::string& column,
                                                  ::common::Logical logical,
@@ -153,7 +186,7 @@ TEST_F(ReaderTest, TestReadAllChunksMergesNestedValuesAndArrayNulls) {
   auto second = std::make_shared<VectorChunkSupplier>(
       std::vector<DataChunk>{nestedChunk(3)});
 
-  auto merged = reader::read_all_chunks({first, second});
+  auto merged = readAllChunks({first, second});
   ASSERT_EQ(merged.col_num(), 3);
   ASSERT_EQ(merged.row_num(), 4);
   EXPECT_EQ(merged.get(0)->get_elem(0).GetValue<int32_t>(), 1);
@@ -189,10 +222,8 @@ TEST_F(ReaderTest, TestReadAllChunksRejectsIncompatibleChunks) {
 
   auto supplier = std::make_shared<VectorChunkSupplier>(
       std::vector<DataChunk>{one_column, two_columns});
-  EXPECT_THROW(reader::read_all_chunks({supplier}),
-               exception::InvalidArgumentException);
-  EXPECT_THROW(reader::read_all_chunks({nullptr}),
-               exception::InvalidArgumentException);
+  EXPECT_THROW(readAllChunks({supplier}), exception::InvalidArgumentException);
+  EXPECT_THROW(readAllChunks({nullptr}), exception::InvalidArgumentException);
 }
 
 TEST_F(ReaderTest, TestCommonRowFilterUsesSqlNullSemantics) {
@@ -473,15 +504,18 @@ TEST_F(ReaderTest, TestBasicCsvRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createSharedState("test1.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto sharedState = createSharedState("test1.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}});
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Verify data: should have 3 columns
   EXPECT_EQ(ctx.col_num(), 3);
@@ -497,16 +531,19 @@ TEST_F(ReaderTest, TestCsvWithTabDelimiter) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState(
-      "test2.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"delim", "\t"}, {"batch_read", "false"}});
+  auto sharedState = createSharedState("test2.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}, {"delim", "\t"}});
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -521,17 +558,19 @@ TEST_F(ReaderTest, TestCsvWithCustomQuoting) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test3.csv", columnNames, columnTypes,
-                                       {{"quote", "'"},
-                                        {"delim", ","},
-                                        {"skip_rows", "1"},
-                                        {"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test3.csv", columnNames, columnTypes,
+                        {{"quote", "'"}, {"delim", ","}, {"skip_rows", "1"}});
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -545,14 +584,18 @@ TEST_F(ReaderTest, TestCsvWithNoHeader) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test4.csv", columnNames, columnTypes,
-                                       {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test4.csv", columnNames, columnTypes, {});
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -572,15 +615,19 @@ TEST_F(ReaderTest, TestBatchRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState(
-      "test5.csv", columnNames, columnTypes,
-      {{"batch_read", "true"}, {"batch_size", "1024"}, {"skip_rows", "1"}});
+  auto sharedState =
+      createSharedState("test5.csv", columnNames, columnTypes,
+                        {{"batch_size", "1024"}, {"skip_rows", "1"}});
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Batch mode: data is materialized into Context chunks
   EXPECT_GT(ctx.chunk_num(), 0);
@@ -602,16 +649,19 @@ TEST_F(ReaderTest, TestColumnPruning) {
 
   // Project only "id" and "score" columns (exclude "name")
   std::vector<std::string> projectColumns = {"id", "score"};
-  auto sharedState = createSharedState(
-      "test6.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "false"}}, projectColumns);
+  auto sharedState = createSharedState("test6.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}}, projectColumns);
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should only have 2 columns (id and score)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -632,16 +682,19 @@ TEST_F(ReaderTest, TestFilterPushdown) {
   // Filter: score > 90.0
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState = createSharedState(
-      "test7.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "false"}}, {}, filterExpr);
+  auto sharedState = createSharedState("test7.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}}, {}, filterExpr);
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should filter out rows with score <= 90.0
   // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
@@ -666,15 +719,18 @@ TEST_F(ReaderTest, TestColumnPruningAndFilterPushdown) {
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
   auto sharedState =
       createSharedState("test8.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}, {"batch_read", "false"}},
-                        projectColumns, filterExpr);
+                        {{"skip_rows", "1"}}, projectColumns, filterExpr);
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should have 2 columns (id, score) and filtered rows (score > 90.0)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -691,19 +747,22 @@ TEST_F(ReaderTest, TestMultipleFiles) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createSharedState("test9a.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto sharedState = createSharedState("test9a.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}});
   // Add second file
   sharedState->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
                                            "/test9b.csv");
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should read all rows from both files (4 rows total)
   EXPECT_EQ(ctx.col_num(), 3);
@@ -721,15 +780,18 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createInt64Type()};
 
-  auto sharedState =
-      createSharedState("test10.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto sharedState = createSharedState("test10.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}});
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -764,16 +826,19 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
   auto andExpr = createAndExpression(leftExpr, rightExpr);
 
-  auto sharedState = createSharedState(
-      "test11.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "false"}}, {}, andExpr);
+  auto sharedState = createSharedState("test11.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}}, {}, andExpr);
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should have 3 columns
   EXPECT_EQ(ctx.col_num(), 3);
@@ -782,7 +847,7 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   EXPECT_EQ(ctx.row_num(), 2);
 }
 
-// Test 12: batch_read=true with filter (skipRows) should fallback to full_read
+// Test 12: Supplier applies filter (skipRows) to batches
 TEST_F(ReaderTest, TestBatchReadWithFilter) {
   createCsvFile("test12.csv",
                 "id|name|score\n1|Alice|95.5\n2|Bob|87.0\n3|Charlie|92.5\n4|"
@@ -792,19 +857,22 @@ TEST_F(ReaderTest, TestBatchReadWithFilter) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  // Filter: score > 90.0 with batch_read=true
+  // Filter: score > 90.0 with supplier batches
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState = createSharedState(
-      "test12.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "true"}}, {}, filterExpr);
+  auto sharedState = createSharedState("test12.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}}, {}, filterExpr);
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should filter out rows with score <= 90.0
   // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
@@ -812,7 +880,7 @@ TEST_F(ReaderTest, TestBatchReadWithFilter) {
   EXPECT_EQ(ctx.row_num(), 2);
 }
 
-// Test 13: batch_read=true with filter AND column projection
+// Test 13: supplier batches with filter AND column projection
 TEST_F(ReaderTest, TestBatchReadWithFilterAndProjection) {
   createCsvFile("test13.csv",
                 "id|name|score\n1|Alice|95.5\n2|Bob|87.0\n3|Charlie|92.5\n4|"
@@ -823,20 +891,24 @@ TEST_F(ReaderTest, TestBatchReadWithFilterAndProjection) {
       createInt32Type(), createStringType(), createDoubleType()};
 
   // Project only "id" and "score" columns, filter: score > 90.0,
-  // batch_read=true
+  // supplier batches
   std::vector<std::string> projectColumns = {"id", "score"};
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState = createSharedState(
-      "test13.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "true"}}, projectColumns, filterExpr);
+  auto sharedState =
+      createSharedState("test13.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}}, projectColumns, filterExpr);
 
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should have 2 columns (id, score) and filtered rows (score > 90.0)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -855,15 +927,18 @@ TEST_F(ReaderTest, TestBasicJsonRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createJsonSharedState("test_json_basic.json", columnNames, columnTypes,
-                            {{"batch_read", "false"}});
+  auto sharedState = createJsonSharedState("test_json_basic.json", columnNames,
+                                           columnTypes, {});
   auto reader = createJsonReader(sharedState, false);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -877,19 +952,23 @@ TEST_F(ReaderTest, TestJsonNonExistentColumnThrows) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createJsonSharedState("test_json_nonexist.json", columnNames, columnTypes,
-                            {{"batch_read", "false"}});
+  auto sharedState = createJsonSharedState("test_json_nonexist.json",
+                                           columnNames, columnTypes, {});
   auto reader = createJsonReader(sharedState, false);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  EXPECT_THROW(reader->read(localState, ctx),
-               exception::SchemaMismatchException);
+  EXPECT_THROW(
+      [&] {
+        auto supplier = reader->getDataChunkSupplier();
+        while (auto chunk = supplier->GetNextChunk()) {
+          ctx.append_chunk(std::move(*chunk));
+        }
+      }(),
+      exception::SchemaMismatchException);
 }
 
-// Test: JSON batch_read=true with filter should fallback to full_read
+// Test: JSON supplier applies filters to batches
 TEST_F(ReaderTest, TestJsonBatchReadWithFilter) {
   createJsonFile("test_json_filter.json",
                  "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n"
@@ -901,20 +980,23 @@ TEST_F(ReaderTest, TestJsonBatchReadWithFilter) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  // Filter: score > 90.0 with batch_read=true
+  // Filter: score > 90.0 with supplier batches
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState =
-      createJsonSharedState("test_json_filter.json", columnNames, columnTypes,
-                            {{"batch_read", "true"}});
+  auto sharedState = createJsonSharedState("test_json_filter.json", columnNames,
+                                           columnTypes, {});
   sharedState->skipRows = filterExpr;
 
   auto reader = createJsonReader(sharedState, false);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should filter out rows with score <= 90.0
   // Expected: Alice (95.5) and Charlie (92.5) - 2 rows
@@ -922,7 +1004,7 @@ TEST_F(ReaderTest, TestJsonBatchReadWithFilter) {
   EXPECT_EQ(ctx.row_num(), 2);
 }
 
-// Test: JSON batch_read=true with filter AND column projection
+// Test: JSON supplier batches with filter AND column projection
 TEST_F(ReaderTest, TestJsonBatchReadWithFilterAndProjection) {
   createJsonFile("test_json_filter_proj.json",
                  "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n"
@@ -934,21 +1016,24 @@ TEST_F(ReaderTest, TestJsonBatchReadWithFilterAndProjection) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  // Project only "id" and "score", filter: score > 90.0, batch_read=true
+  // Project only "id" and "score", filter: score > 90.0, supplier batches
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState =
-      createJsonSharedState("test_json_filter_proj.json", columnNames,
-                            columnTypes, {{"batch_read", "true"}});
+  auto sharedState = createJsonSharedState("test_json_filter_proj.json",
+                                           columnNames, columnTypes, {});
   sharedState->skipRows = filterExpr;
   sharedState->projectColumns = {"id", "score"};
 
   auto reader = createJsonReader(sharedState, false);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   // Should have 2 columns (id, score) and filtered rows (score > 90.0)
   EXPECT_EQ(ctx.col_num(), 2);
@@ -969,16 +1054,19 @@ TEST_F(ReaderTest, TestCsvStreamingRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createSharedState("stream1.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto sharedState = createSharedState("stream1.csv", columnNames, columnTypes,
+                                       {{"skip_rows", "1"}});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -998,16 +1086,20 @@ TEST_F(ReaderTest, TestCsvStreamingBatchRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState(
-      "stream_batch.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "true"}, {"batch_size", "32"}});
+  auto sharedState =
+      createSharedState("stream_batch.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_size", "32"}});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(count_batch_row_num(ctx), 100);
@@ -1025,17 +1117,18 @@ TEST_F(ReaderTest, TestCsvStreamingReadWithQuoting) {
 
   auto sharedState =
       createSharedState("stream_quote.csv", columnNames, columnTypes,
-                        {{"quote", "'"},
-                         {"delim", ","},
-                         {"skip_rows", "1"},
-                         {"batch_read", "false"}});
+                        {{"quote", "'"}, {"delim", ","}, {"skip_rows", "1"}});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -1053,16 +1146,19 @@ TEST_F(ReaderTest, TestJsonStreamingRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt64Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createJsonSharedState("test_json_stream.json", columnNames, columnTypes,
-                            {{"batch_read", "false"}});
+  auto sharedState = createJsonSharedState("test_json_stream.json", columnNames,
+                                           columnTypes, {});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createJsonReader(sharedState, false);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
@@ -1078,15 +1174,18 @@ TEST_F(ReaderTest, TestCsvHeaderOnlyFileReturnsEmpty) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState =
-      createSharedState("header_only.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}, {"batch_read", "false"}});
+  auto sharedState = createSharedState("header_only.csv", columnNames,
+                                       columnTypes, {{"skip_rows", "1"}});
   auto reader = createCsvReader(sharedState);
 
-  auto localState = std::make_shared<reader::ReadLocalState>();
   execution::Context ctx;
 
-  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }());
   EXPECT_EQ(ctx.col_num(), 0);
   EXPECT_EQ(ctx.row_num(), 0);
 }

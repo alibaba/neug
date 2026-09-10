@@ -24,7 +24,6 @@
 #include "neug/common/types/value.h"
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/type_converter.h"
 
@@ -154,24 +153,6 @@ RowExpressionFilter::RowExpressionFilter(
 
 bool RowExpressionFilter::eval(size_t row) const {
   return !evaluator_ || evaluator_(row);
-}
-
-DataChunk read_all_chunks(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers) {
-  std::vector<std::shared_ptr<DataChunk>> chunks;
-  for (const auto& supplier : suppliers) {
-    if (!supplier) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Data chunk supplier is null");
-    }
-    while (true) {
-      auto chunk = supplier->GetNextChunk();
-      if (!chunk) {
-        break;
-      }
-      chunks.push_back(std::move(chunk));
-    }
-  }
-  return merge_chunks(std::move(chunks));
 }
 
 DataChunk merge_chunks(std::vector<std::shared_ptr<DataChunk>> chunks) {

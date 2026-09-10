@@ -103,7 +103,7 @@ std::vector<std::string> fallbackProjection(const ReadSharedState& state) {
     }
   }
 
-  // Keep a stable scan order; finishChunk restores the requested output order.
+  // Keep a stable scan order; the supplier restores the requested output order.
   std::vector<std::string> columns;
   for (const auto& name : all_columns) {
     if (required.erase(name)) {
@@ -119,27 +119,48 @@ std::vector<std::string> fallbackProjection(const ReadSharedState& state) {
 
 }  // namespace
 
-void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
-                       execution::Context& ctx) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-
-  if (!fileSystem) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("FileSystem is null");
-  }
-
+std::shared_ptr<IDataChunkSupplier> ArrowReader::getDataChunkSupplier() {
   auto scanner = createScanner(fileSystem);
-  NEUG_ASSERT(scanner != nullptr);
-
-  // Choose read mode: batch_read streams data, full_read loads entire dataset
-  const auto& fileSchema = sharedState->schema.file;
-  ReadOptions options;
-  if (options.batch_read.get(fileSchema.options)) {
-    batch_read(scanner, ctx);
-  } else {
-    full_read(scanner, ctx);
+  auto batches = scanner->ToRecordBatchReader();
+  if (!batches.ok()) {
+    THROW_IO_EXCEPTION("Failed to create RecordBatchReader: " +
+                       batches.status().message());
   }
+  // Row count is unknown until consumption. Never scan the dataset merely to
+  // count rows before producing its first batch.
+  auto supplier =
+      std::make_shared<RecordBatchChunkSupplier>(batches.ValueOrDie(), -1);
+  if (!filter_after_read_) {
+    return supplier;
+  }
+  class FilteredSupplier final : public IDataChunkSupplier {
+   public:
+    FilteredSupplier(std::shared_ptr<IDataChunkSupplier> input,
+                     ReadSharedState state, std::vector<std::string> columns)
+        : input_(std::move(input)),
+          state_(std::move(state)),
+          columns_(std::move(columns)) {}
+
+    int64_t RowNum() const override { return -1; }
+
+    std::shared_ptr<DataChunk> GetNextChunk() override {
+      auto chunk = input_->GetNextChunk();
+      if (!chunk || chunk->col_num() == 0) {
+        return chunk;
+      }
+      auto filtered =
+          filter_chunk(*chunk, state_.skipRows, columns_, state_.parameters);
+      return std::make_shared<DataChunk>(
+          project_chunk(filtered, columns_, state_.projectColumns));
+    }
+
+   private:
+    std::shared_ptr<IDataChunkSupplier> input_;
+    ReadSharedState state_;
+    std::vector<std::string> columns_;
+  };
+  return std::make_shared<FilteredSupplier>(supplier, *sharedState,
+                                            fallback_columns_);
 }
 
 std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
@@ -270,90 +291,6 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
                        scanner_result.status().message());
   }
   return scanner_result.ValueOrDie();
-}
-
-void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                            execution::Context& output) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-  if (!scanner) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Scanner is null");
-  }
-
-  auto table_result = scanner->ToTable();
-  if (!table_result.ok()) {
-    LOG(ERROR) << "Failed to read table via scanner: "
-               << table_result.status().message();
-    THROW_IO_EXCEPTION("Failed to read table via scanner: " +
-                       table_result.status().message());
-  }
-  auto table = table_result.ValueOrDie();
-
-  int num_cols =
-      filter_after_read_ ? fallback_columns_.size() : sharedState->columnNum();
-  if (num_cols != table->num_columns()) {
-    THROW_IO_EXCEPTION(
-        "Column number mismatch between schema and table, schema: " +
-        std::to_string(num_cols) +
-        ", table: " + std::to_string(table->num_columns()));
-  }
-
-  output.clear();
-  DataChunk chunk;
-  for (int i = 0; i < num_cols; ++i) {
-    auto table_column = table->column(i);
-    chunk.set(i, arrow_arrays_to_value_column(table_column->chunks()));
-  }
-  output.append_chunk(finishChunk(std::move(chunk)));
-}
-
-void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                             execution::Context& output) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-  if (!scanner) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Scanner is null");
-  }
-  auto row_num_result = scanner->CountRows();
-  int64_t row_num = 0;
-  if (!row_num_result.ok()) {
-    LOG(WARNING) << "Failed to count rows via scanner: "
-                 << row_num_result.status().message();
-    THROW_IO_EXCEPTION("Failed to count rows via scanner: " +
-                       row_num_result.status().message());
-  } else {
-    VLOG(10) << "Row count from scanner: " << row_num_result.ValueOrDie();
-    row_num = row_num_result.ValueOrDie();
-  }
-
-  auto batch_reader_result = scanner->ToRecordBatchReader();
-  if (!batch_reader_result.ok()) {
-    LOG(ERROR) << "Failed to create RecordBatchReader from scanner: "
-               << batch_reader_result.status().message();
-    THROW_IO_EXCEPTION("Failed to create RecordBatchReader from scanner: " +
-                       batch_reader_result.status().message());
-  }
-  auto batch_reader = batch_reader_result.ValueOrDie();
-
-  auto batch_supplier =
-      std::make_shared<RecordBatchChunkSupplier>(batch_reader, row_num);
-
-  output.clear();
-  while (auto chunk = batch_supplier->GetNextChunk()) {
-    output.append_chunk(finishChunk(std::move(*chunk)));
-  }
-}
-
-DataChunk ArrowReader::finishChunk(DataChunk chunk) const {
-  if (!filter_after_read_ || chunk.col_num() == 0) {
-    return chunk;
-  }
-  auto filtered = filter_chunk(chunk, sharedState->skipRows, fallback_columns_,
-                               sharedState->parameters);
-  return project_chunk(filtered, fallback_columns_,
-                       sharedState->projectColumns);
 }
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {

@@ -56,6 +56,9 @@ class ContextArrayColumn : public IContextColumn {
     return ContextColumnType::kValue;
   }
 
+  std::shared_ptr<IContextColumn> union_col(
+      std::shared_ptr<IContextColumn> other) const override;
+
   const DataType& elem_type() const override { return type_; }
 
   std::shared_ptr<IContextColumn> shuffle(

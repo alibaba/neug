@@ -24,6 +24,7 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
@@ -166,13 +167,17 @@ TEST_F(JsonTest, TestJsonArray) {
                  "\"name\": \"Bob\", \"age\": 30}]");
   auto sharedState = createSharedState(
       "test_json_array.json", {"id", "name", "age"},
-      {createUInt32Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
+      {createUInt32Type(), createStringType(), createDoubleType()}, {});
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -192,14 +197,19 @@ TEST_F(JsonTest, TestJsonArrayColumn) {
   createJsonFile("test_json_array_column.json",
                  "[{\"id\": 1, \"readings\": [1, 2, 3]}, "
                  "{\"id\": 2, \"readings\": [4, 5, 6]}]");
-  auto sharedState = createSharedState(
-      "test_json_array_column.json", {"id", "readings"},
-      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_json_array_column.json", {"id", "readings"},
+                        {createUInt32Type(), createInt64ArrayType(3)}, {});
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 2);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -219,13 +229,18 @@ TEST_F(JsonTest, TestJsonNullArrayColumnIsOptional) {
                  "[{\"id\":1,\"readings\":[1,2]},"
                  "{\"id\":2,\"readings\":null},"
                  "{\"id\":3,\"readings\":[3,4]}]");
-  auto sharedState = createSharedState(
-      "test_json_null_array_column.json", {"id", "readings"},
-      {createUInt32Type(), createInt32ArrayType(2)}, {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_json_null_array_column.json", {"id", "readings"},
+                        {createUInt32Type(), createInt32ArrayType(2)}, {});
   auto reader = createJsonReader(sharedState);
   execution::Context ctx;
 
-  reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   ASSERT_EQ(ctx.row_num(), 3);
   auto readings_col = ctx.chunk(0).columns()[1];
@@ -250,13 +265,18 @@ TEST_F(JsonTest, TestJsonArrayColumnLengthMismatch) {
                  "[{\"id\": 1, \"readings\": [1, 2]}]");
   auto sharedState = createSharedState(
       "test_json_array_length_mismatch.json", {"id", "readings"},
-      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+      {createUInt32Type(), createInt64ArrayType(3)}, {});
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
   try {
-    reader->read(localState, ctx);
+    {
+      auto supplier = reader->getDataChunkSupplier();
+      while (auto chunk = supplier->GetNextChunk()) {
+        ctx.append_chunk(std::move(*chunk));
+      }
+    }
     FAIL() << "Expected an ARRAY length mismatch";
   } catch (const std::exception& error) {
     EXPECT_NE(
@@ -269,15 +289,20 @@ TEST_F(JsonTest, TestJsonArrayColumnLengthMismatch) {
 
 TEST_F(JsonTest, TestJsonArrayColumnRejectsNonArray) {
   createJsonFile("test_json_non_array.json", "[{\"id\": 1, \"readings\": 42}]");
-  auto sharedState = createSharedState(
-      "test_json_non_array.json", {"id", "readings"},
-      {createUInt32Type(), createInt64ArrayType(3)}, {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_json_non_array.json", {"id", "readings"},
+                        {createUInt32Type(), createInt64ArrayType(3)}, {});
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
   try {
-    reader->read(localState, ctx);
+    {
+      auto supplier = reader->getDataChunkSupplier();
+      while (auto chunk = supplier->GetNextChunk()) {
+        ctx.append_chunk(std::move(*chunk));
+      }
+    }
     FAIL() << "Expected a non-array conversion error";
   } catch (const std::exception& error) {
     EXPECT_NE(std::string(error.what())
@@ -294,11 +319,15 @@ TEST_F(JsonTest, TestJsonRecursiveListColumn) {
       "{\"id\":4,\"nested\":[[null,[\"h\"]],null]}]");
   auto sharedState =
       createSharedState("test_json_recursive_list.json", {"id", "nested"},
-                        {createUInt32Type(), createNestedStringListType()},
-                        {{"batch_read", "false"}});
+                        {createUInt32Type(), createNestedStringListType()}, {});
   auto reader = createJsonReader(sharedState);
   execution::Context ctx;
-  reader->read(std::make_shared<reader::ReadLocalState>(), ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   ASSERT_EQ(ctx.row_num(), 4);
   auto nested = ctx.chunk(0).columns()[1];
@@ -337,14 +366,18 @@ TEST_F(JsonTest, TestJsonArrayStreaming) {
                  "\"name\": \"Bob\", \"age\": 30}]");
   auto sharedState = createSharedState(
       "test_json_array_stream.json", {"id", "name", "age"},
-      {createUInt32Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
+      {createUInt32Type(), createStringType(), createDoubleType()}, {});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  reader->read(localState, ctx);
+  {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 2);
@@ -366,13 +399,17 @@ TEST_F(JsonTest, TestEmptyJsonArrayReturnsEmpty) {
   createJsonFile("test_json_array_empty.json", "[]");
   auto sharedState = createSharedState(
       "test_json_array_empty.json", {"id", "name", "age"},
-      {createUInt32Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
+      {createUInt32Type(), createStringType(), createDoubleType()}, {});
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }());
   EXPECT_EQ(ctx.col_num(), 0);
   EXPECT_EQ(ctx.row_num(), 0);
 }
@@ -382,14 +419,18 @@ TEST_F(JsonTest, TestEmptyJsonArrayStreamingReturnsEmpty) {
   createJsonFile("test_json_array_empty_stream.json", "[]");
   auto sharedState = createSharedState(
       "test_json_array_empty_stream.json", {"id", "name", "age"},
-      {createUInt32Type(), createStringType(), createDoubleType()},
-      {{"batch_read", "false"}});
+      {createUInt32Type(), createStringType(), createDoubleType()}, {});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createJsonReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  EXPECT_NO_THROW(reader->read(localState, ctx));
+  EXPECT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }());
   EXPECT_EQ(ctx.col_num(), 0);
   EXPECT_EQ(ctx.row_num(), 0);
 }
@@ -403,14 +444,19 @@ TEST_F(JsonTest, TestJsonLinesCRLF) {
                  "{\"id\": 1, \"age\": 25}\r\n"
                  "\r\n"
                  "{\"id\": 2, \"age\": 30}\r");
-  auto sharedState = createSharedState("test_jsonl_crlf.json", {"id", "age"},
-                                       {createUInt32Type(), createDoubleType()},
-                                       {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_jsonl_crlf.json", {"id", "age"},
+                        {createUInt32Type(), createDoubleType()}, {});
   auto reader = createJsonLinesReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  ASSERT_NO_THROW(reader->read(localState, ctx));
+  ASSERT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }());
   ASSERT_EQ(ctx.row_num(), 2);
   auto col0 = ctx.chunk(0).columns()[0];
   EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
@@ -427,15 +473,20 @@ TEST_F(JsonTest, TestJsonLinesCRLFStreaming) {
                  "{\"id\": 1, \"age\": 25}\r\n"
                  "\r\n"
                  "{\"id\": 2, \"age\": 30}\r");
-  auto sharedState = createSharedState(
-      "test_jsonl_crlf_stream.json", {"id", "age"},
-      {createUInt32Type(), createDoubleType()}, {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_jsonl_crlf_stream.json", {"id", "age"},
+                        {createUInt32Type(), createDoubleType()}, {});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createJsonLinesReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  ASSERT_NO_THROW(reader->read(localState, ctx));
+  ASSERT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }());
   ASSERT_EQ(ctx.row_num(), 2);
   auto col0 = ctx.chunk(0).columns()[0];
   EXPECT_EQ(col0->get_elem(0).GetValue<uint32_t>(), 1u);
@@ -446,15 +497,20 @@ TEST_F(JsonTest, TestJsonLinesCRLFStreaming) {
 TEST_F(JsonTest, TestJsonLinesLFUnchanged) {
   createJsonFile("test_jsonl_lf.json",
                  "{\"id\": 1, \"age\": 25}\n{\"id\": 2, \"age\": 30}\n");
-  auto sharedState = createSharedState("test_jsonl_lf.json", {"id", "age"},
-                                       {createUInt32Type(), createDoubleType()},
-                                       {{"batch_read", "false"}});
+  auto sharedState =
+      createSharedState("test_jsonl_lf.json", {"id", "age"},
+                        {createUInt32Type(), createDoubleType()}, {});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createJsonLinesReader(sharedState);
-  auto localState = std::make_shared<reader::ReadLocalState>();
+
   execution::Context ctx;
 
-  ASSERT_NO_THROW(reader->read(localState, ctx));
+  ASSERT_NO_THROW([&] {
+    auto supplier = reader->getDataChunkSupplier();
+    while (auto chunk = supplier->GetNextChunk()) {
+      ctx.append_chunk(std::move(*chunk));
+    }
+  }());
   ASSERT_EQ(ctx.row_num(), 2);
   auto col0 = ctx.chunk(0).columns()[0];
   EXPECT_EQ(col0->get_elem(1).GetValue<uint32_t>(), 2u);

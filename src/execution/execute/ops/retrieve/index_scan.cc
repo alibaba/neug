@@ -28,26 +28,44 @@ class IndexScanOpr final : public IOperator {
                function::NeugCallFunction* function)
       : input{std::move(input)}, function{function} {}
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer*) override {
-    if (input == nullptr) {
-      THROW_RUNTIME_ERROR("IndexScanOpr: index scan input is null");
-    }
-    if (function == nullptr || function->execFunc == nullptr) {
-      THROW_RUNTIME_ERROR(
-          "IndexScanOpr: index scan function is not executable");
-    }
-    auto bound_input = input->bindParams(params);
-    if (bound_input == nullptr) {
-      THROW_RUNTIME_ERROR(
-          "IndexScanOpr: index scan input did not create a per-Eval instance");
-    }
-    auto context_bound_input = bound_input->bindContext(std::move(ctx));
-    if (context_bound_input == nullptr) {
-      THROW_RUNTIME_ERROR(
-          "IndexScanOpr: index scan input did not bind the input context");
-    }
-    return function->execFunc(*context_bound_input, graph);
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& upstream,
+                            OprTimer* timer) override {
+    return defer_stream(
+        std::move(upstream),
+        [this, &graph, params, timer](
+            Stream<ContextChunk>&& upstream) mutable -> Stream<ContextChunk> {
+          // Legacy extension ABI: Context conversion is confined to this
+          // boundary.
+
+          auto ctx_result = materialize(std::move(upstream));
+          if (!ctx_result) {
+            return error_stream<ContextChunk>(ctx_result.error());
+          }
+          auto ctx = std::move(*ctx_result);
+
+          if (input == nullptr) {
+            THROW_RUNTIME_ERROR("IndexScanOpr: index scan input is null");
+          }
+          if (function == nullptr || function->execFunc == nullptr) {
+            THROW_RUNTIME_ERROR(
+                "IndexScanOpr: index scan function is not executable");
+          }
+          auto bound_input = input->bindParams(params);
+          if (bound_input == nullptr) {
+            THROW_RUNTIME_ERROR(
+                "IndexScanOpr: index scan input did not create a per-Eval "
+                "instance");
+          }
+          auto context_bound_input = bound_input->bindContext(std::move(ctx));
+          if (context_bound_input == nullptr) {
+            THROW_RUNTIME_ERROR(
+                "IndexScanOpr: index scan input did not bind the input "
+                "context");
+          }
+          auto output = function->execFunc(*context_bound_input, graph);
+          return stream_from_context(std::move(output));
+        });
   }
 
   std::string get_operator_name() const override { return "IndexScanOpr"; }

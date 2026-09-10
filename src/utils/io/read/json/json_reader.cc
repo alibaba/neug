@@ -31,7 +31,6 @@
 
 #include "neug/common/columns/columns_utils.h"
 #include "neug/common/types/value.h"
-#include "neug/execution/common/context.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/options.h"
@@ -412,12 +411,6 @@ class JsonChunkSupplier : public IDataChunkSupplier {
   std::unique_ptr<StreamLineReader> line_reader_;  // remote JSONL mode
 };
 
-JsonReadConfig read_config_for_supplier(const JsonReadConfig& config) {
-  JsonReadConfig read_config = config;
-  read_config.include_columns = config.column_names;
-  return read_config;
-}
-
 }  // namespace
 
 JsonReader::JsonReader(std::shared_ptr<ReadSharedState> sharedState,
@@ -427,99 +420,63 @@ JsonReader::JsonReader(std::shared_ptr<ReadSharedState> sharedState,
 
 JsonReader::~JsonReader() = default;
 
-void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
-                      execution::Context& ctx) {
+std::shared_ptr<IDataChunkSupplier> JsonReader::getDataChunkSupplier() {
   if (!sharedState_ || !optionsBuilder_) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("JsonReader state or builder is null");
+    THROW_INVALID_ARGUMENT_EXCEPTION("JSON reader is not initialized");
   }
-
   auto config = optionsBuilder_->build();
-  if (!optionsBuilder_->projectColumns(config)) {
-    LOG(WARNING) << "Failed to set column projection, using all columns";
-  }
-
-  const auto& fileSchema = sharedState_->schema.file;
-  ReadOptions readOpts;
-  const bool use_batch_read = readOpts.batch_read.get(fileSchema.options);
-
-  auto read_config = read_config_for_supplier(config);
-  if (sharedState_->skipRows) {
-    // Need all columns to evaluate row-filter expression;
-    // full_read will project afterwards.
-    read_config.include_columns = config.column_names;
-  } else if (!sharedState_->projectColumns.empty()) {
-    if (use_batch_read) {
-      // batch_read streams chunks directly to the consumer without
-      // post-projection, so push column projection down to the supplier.
-      read_config.include_columns = config.include_columns;
-    } else {
-      // full_read handles projection via project_chunk().
-      read_config.include_columns = config.column_names;
-    }
-  }
-
-  const auto& paths = fileSchema.paths;
-  if (paths.empty()) {
+  optionsBuilder_->projectColumns(config);
+  if (sharedState_->schema.file.paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
   }
 
-  std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
-  suppliers.reserve(paths.size());
-  for (const auto& path : paths) {
-    suppliers.push_back(std::make_shared<JsonChunkSupplier>(
-        path, read_config,
-        io::bindInputStream(sharedState_->stream_opener, path)));
-  }
+  // Each execution owns this supplier. Files are initialized one at a time,
+  // only when requested, and filtering/projection happen before yielding.
+  class JsonStreamSupplier final : public IDataChunkSupplier {
+   public:
+    JsonStreamSupplier(std::shared_ptr<ReadSharedState> state,
+                       JsonReadConfig config)
+        : state_(std::move(state)), config_(std::move(config)) {}
 
-  if (use_batch_read && !sharedState_->skipRows) {
-    batch_read(suppliers, ctx);
-  } else {
-    full_read(suppliers, ctx, config);
-  }
-}
+    int64_t RowNum() const override { return -1; }
 
-void JsonReader::full_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output, const JsonReadConfig& output_config) {
-  auto merged = read_all_chunks(suppliers);
-
-  if (merged.col_num() == 0) {
-    // No data rows at all (e.g. an empty JSON array). Emit an empty result;
-    // there is nothing to validate, filter or project.
-    output.clear();
-    return;
-  }
-
-  int expected_cols = sharedState_->columnNum();
-  if (expected_cols > 0 &&
-      static_cast<int>(merged.col_num()) != expected_cols &&
-      sharedState_->projectColumns.empty()) {
-    THROW_IO_EXCEPTION(
-        "Column number mismatch between schema and JSON data, schema: " +
-        std::to_string(expected_cols) +
-        ", data: " + std::to_string(merged.col_num()));
-  }
-
-  auto filtered =
-      filter_chunk(merged, sharedState_->skipRows, output_config.column_names,
-                   sharedState_->parameters);
-  auto projected = project_chunk(filtered, output_config.column_names,
-                                 sharedState_->projectColumns.empty()
-                                     ? output_config.include_columns
-                                     : sharedState_->projectColumns);
-  output.clear();
-  output.append_chunk(std::move(projected));
-}
-
-void JsonReader::batch_read(
-    const std::vector<std::shared_ptr<IDataChunkSupplier>>& suppliers,
-    execution::Context& output) {
-  output.clear();
-  for (const auto& supplier : suppliers) {
-    while (auto chunk = supplier->GetNextChunk()) {
-      output.append_chunk(std::move(*chunk));
+    std::shared_ptr<DataChunk> GetNextChunk() override {
+      while (true) {
+        if (!current_) {
+          if (file_ == state_->schema.file.paths.size()) {
+            return nullptr;
+          }
+          const auto& path = state_->schema.file.paths[file_++];
+          auto read_config = config_;
+          read_config.include_columns =
+              state_->skipRows ? config_.column_names : config_.include_columns;
+          current_ = std::make_shared<JsonChunkSupplier>(
+              path, read_config,
+              io::bindInputStream(state_->stream_opener, path));
+        }
+        auto chunk = current_->GetNextChunk();
+        if (!chunk) {
+          current_.reset();
+          continue;
+        }
+        if (!state_->skipRows) {
+          return chunk;
+        }
+        auto filtered = filter_chunk(*chunk, state_->skipRows,
+                                     config_.column_names, state_->parameters);
+        auto projected = project_chunk(filtered, config_.column_names,
+                                       config_.include_columns);
+        return std::make_shared<DataChunk>(std::move(projected));
+      }
     }
-  }
+
+   private:
+    std::shared_ptr<ReadSharedState> state_;
+    JsonReadConfig config_;
+    size_t file_ = 0;
+    std::shared_ptr<IDataChunkSupplier> current_;
+  };
+  return std::make_shared<JsonStreamSupplier>(sharedState_, std::move(config));
 }
 
 result<std::shared_ptr<EntrySchema>> JsonReader::inferSchema() {

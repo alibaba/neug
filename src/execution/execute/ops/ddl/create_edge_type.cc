@@ -35,66 +35,82 @@ class CreateEdgeTypeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "CreateEdgeTypeOpr"; }
 
-  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                             Context&& ctx, OprTimer* timer) override {
-    StorageUpdateInterface& storage =
-        dynamic_cast<StorageUpdateInterface&>(graph);
-    int32_t defs_size = create_edge_types_.size();
-    // Track indices of edge types actually created by this operator,
-    // so rollback only reverts what we created (not pre-existing types).
-    std::vector<int32_t> created_indices;
-    Status status;
-    bool failed = false;
-    for (int32_t i = 0; i < defs_size; ++i) {
-      const auto& create_edge_def = create_edge_types_[i];
-      CreateEdgeTypeParamBuilder config_builder;
-      for (const auto& [prop_name, prop_value] : std::get<3>(create_edge_def)) {
-        config_builder.AddProperty(prop_name, prop_value);
-      }
-      config_builder.SrcLabel(std::get<0>(create_edge_def))
-          .DstLabel(std::get<1>(create_edge_def))
-          .EdgeLabel(std::get<2>(create_edge_def))
-          .OEEdgeStrategy(std::get<4>(create_edge_def))
-          .IEEdgeStrategy(std::get<5>(create_edge_def))
-          .SortKeyForNbr(std::get<6>(create_edge_def))
-          .Temporary(std::get<7>(create_edge_def));
-      status = storage.CreateEdgeType(config_builder.Build());
-      if (!status.ok()) {
-        if (ignore_conflict_ && IsSchemaConflictError(status)) {
-          continue;
-        }
-        LOG(ERROR) << "Fail to insert edge triplet: "
-                   << std::get<0>(create_edge_def) << ", "
-                   << std::get<1>(create_edge_def) << ", "
-                   << std::get<2>(create_edge_def)
-                   << ", reason: " << status.ToString();
-        failed = true;
-        break;
-      }
-      created_indices.push_back(i);
-    }
-    if (failed) {
-      // Rollback only the edge types we actually created.
-      for (auto it = created_indices.rbegin(); it != created_indices.rend();
-           ++it) {
-        const auto& create_edge_def = create_edge_types_[*it];
-        label_t src, dst, edge;
-        auto resolve =
-            ResolveEdgeTriplet(storage.schema(), std::get<0>(create_edge_def),
-                               std::get<1>(create_edge_def),
-                               std::get<2>(create_edge_def), src, dst, edge);
-        // Resolve may fail if this entry left nothing to revert; skip then.
-        if (!resolve.ok()) {
-          continue;
-        }
-        if (!storage.DeleteEdgeType(src, dst, edge).ok()) {
-          LOG(ERROR) << "Fail to revert created edge type in CreateEdgeSchema "
-                        "request";
-        }
-      }
-      RETURN_ERROR(status);
-    }
-    return neug::result<Context>(std::move(ctx));
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            OprTimer* timer) override {
+    return defer_stream(
+        std::move(input),
+        [this, &graph, params,
+         timer](Stream<ContextChunk>&& input) mutable -> Stream<ContextChunk> {
+          auto metadata = input.metadata();
+          auto before = collect_batches(std::move(input));
+          if (!before) {
+            return error_stream<ContextChunk>(before.error());
+          }
+          input = stream_from_batches(std::move(*before), std::move(metadata));
+
+          StorageUpdateInterface& storage =
+              dynamic_cast<StorageUpdateInterface&>(graph);
+          int32_t defs_size = create_edge_types_.size();
+          // Track indices of edge types actually created by this operator,
+          // so rollback only reverts what we created (not pre-existing types).
+          std::vector<int32_t> created_indices;
+          Status status;
+          bool failed = false;
+          for (int32_t i = 0; i < defs_size; ++i) {
+            const auto& create_edge_def = create_edge_types_[i];
+            CreateEdgeTypeParamBuilder config_builder;
+            for (const auto& [prop_name, prop_value] :
+                 std::get<3>(create_edge_def)) {
+              config_builder.AddProperty(prop_name, prop_value);
+            }
+            config_builder.SrcLabel(std::get<0>(create_edge_def))
+                .DstLabel(std::get<1>(create_edge_def))
+                .EdgeLabel(std::get<2>(create_edge_def))
+                .OEEdgeStrategy(std::get<4>(create_edge_def))
+                .IEEdgeStrategy(std::get<5>(create_edge_def))
+                .SortKeyForNbr(std::get<6>(create_edge_def))
+                .Temporary(std::get<7>(create_edge_def));
+            status = storage.CreateEdgeType(config_builder.Build());
+            if (!status.ok()) {
+              if (ignore_conflict_ && IsSchemaConflictError(status)) {
+                continue;
+              }
+              LOG(ERROR) << "Fail to insert edge triplet: "
+                         << std::get<0>(create_edge_def) << ", "
+                         << std::get<1>(create_edge_def) << ", "
+                         << std::get<2>(create_edge_def)
+                         << ", reason: " << status.ToString();
+              failed = true;
+              break;
+            }
+            created_indices.push_back(i);
+          }
+          if (failed) {
+            // Rollback only the edge types we actually created.
+            for (auto it = created_indices.rbegin();
+                 it != created_indices.rend(); ++it) {
+              const auto& create_edge_def = create_edge_types_[*it];
+              label_t src, dst, edge;
+              auto resolve = ResolveEdgeTriplet(
+                  storage.schema(), std::get<0>(create_edge_def),
+                  std::get<1>(create_edge_def), std::get<2>(create_edge_def),
+                  src, dst, edge);
+              // Resolve may fail if this entry left nothing to revert; skip
+              // then.
+              if (!resolve.ok()) {
+                continue;
+              }
+              if (!storage.DeleteEdgeType(src, dst, edge).ok()) {
+                LOG(ERROR)
+                    << "Fail to revert created edge type in CreateEdgeSchema "
+                       "request";
+              }
+            }
+            return error_stream<ContextChunk>(status);
+          }
+          return std::move(input);
+        });
   }
 
  private:

@@ -38,15 +38,14 @@ class DedupOpr : public IOperator {
   explicit DedupOpr(const std::vector<int32_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
-  neug::result<neug::execution::Context> Eval(
-      IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx,
-      neug::execution::OprTimer* timer) override {
-    ctx.ensure_single_chunk("DedupOpr");
-    return ctx.apply_chunks(
-        [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Dedup::dedup(std::move(chunk), tag_ids_);
-        });
+  Stream<ContextChunk> Eval(IStorageInterface& graph, const ParamsMap& params,
+                            Stream<ContextChunk>&& input,
+                            neug::execution::OprTimer* timer) override {
+    return reduce_stream(std::move(input),
+                         [this, &graph, params,
+                          timer](ContextChunk&& chunk) -> result<ContextChunk> {
+                           { return Dedup::dedup(std::move(chunk), tag_ids_); }
+                         });
   }
 
   std::vector<int32_t> tag_ids_;
