@@ -244,6 +244,8 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
       return DataType(DataTypeId::kBoolean);
     case ::common::PrimitiveType::DT_ANY:
       return DataType(DataTypeId::kUnknown);
+    case ::common::PrimitiveType::DT_NULL:
+      return DataType(DataTypeId::kNull);
     default:
       THROW_NOT_SUPPORTED_EXCEPTION("unrecognized primitive type - " +
                                     std::to_string(pt));

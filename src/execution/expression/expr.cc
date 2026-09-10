@@ -72,6 +72,10 @@ static std::unique_ptr<ExprBase> build_expr(
     opr_stack.pop();
     switch (opr.item_case()) {
     case ::common::ExprOpr::kConst: {
+      if (opr.const_().has_none() && opr.has_node_type()) {
+        return std::make_unique<ConstExpr>(
+            Value(parse_from_ir_data_type(opr.node_type())));
+      }
       return parse_const(opr.const_());
     }
     case ::common::ExprOpr::kParam: {

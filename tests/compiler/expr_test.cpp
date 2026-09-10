@@ -55,6 +55,34 @@ TEST_F(ExprTest, IS_NOT_NULL) {
                                       getExprResource("IS_NOT_NULL_physical"));
 }
 
+TEST_F(ExprTest, TYPED_NULL_LITERAL_PRESERVES_TYPE) {
+  auto logical =
+      planLogical("UNWIND CAST(NULL, 'INT64[]') AS value RETURN value;");
+  auto physical = planPhysical(*logical);
+
+  const ::physical::Unfold* unwind = nullptr;
+  for (int i = 0; i < physical->plan_size(); ++i) {
+    if (physical->plan(i).opr().has_unfold()) {
+      unwind = &physical->plan(i).opr().unfold();
+      break;
+    }
+  }
+  ASSERT_NE(unwind, nullptr);
+  ASSERT_EQ(unwind->input_expr().operators_size(), 1);
+  const auto& nullLiteral = unwind->input_expr().operators(0);
+  ASSERT_TRUE(nullLiteral.has_const_());
+  ASSERT_TRUE(nullLiteral.const_().has_none());
+  ASSERT_TRUE(nullLiteral.has_node_type());
+  ASSERT_TRUE(nullLiteral.node_type().has_data_type());
+  ASSERT_TRUE(nullLiteral.node_type().data_type().has_list());
+  EXPECT_EQ(nullLiteral.node_type()
+                .data_type()
+                .list()
+                .component_type()
+                .primitive_type(),
+            ::common::PrimitiveType::DT_SIGNED_INT64);
+}
+
 TEST_F(ExprTest, MULTI_EQUAL_1) {
   std::string query =
       "MATCH (a:person) WHERE a.gender * 2.1 = 2.1 * a.gender RETURN COUNT(*);";

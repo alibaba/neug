@@ -179,6 +179,15 @@ def test_list_cast_contract(tmp_path):
     db.close()
 
 
+def test_unwind_null_list_and_array_produce_no_rows(empty_db):
+    _, conn = empty_db
+    for data_type in ("INT64[]", "INT64[3]"):
+        rows = list(
+            conn.execute(f"UNWIND CAST(NULL, '{data_type}') AS value RETURN value;")
+        )
+        assert rows == []
+
+
 def test_list_preserves_null_elements_during_unwind(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()

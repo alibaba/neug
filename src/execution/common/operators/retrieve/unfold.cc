@@ -83,6 +83,9 @@ void unfold_list_like(ContextChunk& chunk, int alias,
   sel_vec_t offsets;
   for (size_t i = 0; i < row_num; ++i) {
     Value val = key.eval_record(chunk.chunk(), i);
+    if (val.IsNull()) {
+      continue;
+    }
     const auto& children = getListLikeChildren(val);
     for (const auto& elem : children) {
       builder->push_back_elem(elem);
@@ -95,7 +98,8 @@ void unfold_list_like(ContextChunk& chunk, int alias,
 neug::result<ContextChunk> Unfold::unfold(ContextChunk&& chunk,
                                           const RecordExprBase& key,
                                           int alias) {
-  if (!isListLikeType(key.type().id())) {
+  if (!isListLikeType(key.type().id()) &&
+      key.type().id() != DataTypeId::kNull) {
     LOG(ERROR) << "Unfold column type is not list or array";
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list or array");
   }
