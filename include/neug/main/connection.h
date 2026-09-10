@@ -47,8 +47,10 @@ class ExecutionSlot;
  *
  * // Execute a read query
  * auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
- * for (auto& record : result.value()) {
- *   // Process record...
+ * auto& qr = result.value();
+ * while (qr.hasNext()) {
+ *   std::cout << qr.GetCurrentRowAsString() << std::endl;
+ *   qr.next();
  * }
  *
  * // Execute an insert query
@@ -110,8 +112,10 @@ class NEUG_API Connection {
    *
    * // Process results
    * if (result.has_value()) {
-   *   for (auto& record : result.value()) {
-   *     // Access columns via record.entries()
+   *   auto& qr = result.value();
+   *   while (qr.hasNext()) {
+   *     std::string name = qr.GetString("n.name");
+   *     qr.next();
    *   }
    * } else {
    *   std::cerr << "Query failed: " << result.error().message() << std::endl;
