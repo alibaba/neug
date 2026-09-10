@@ -20,29 +20,23 @@ The guarantees each mode provides are summarized under
 
 ## ACID guarantees
 
-Both modes provide the full set of ACID guarantees; the table
-summarizes them and the notes below highlight where the modes differ.
+Both modes provide the full set of ACID guarantees. Atomicity, consistency, and
+durability carry the same guarantee in both modes; isolation is where the two
+modes genuinely differ. The table summarizes all four, and the sections that
+follow detail isolation and how each mode achieves durability.
 
 | Property | Embedded Mode (AP) | Service Mode (TP) |
 |----------|--------------------|-------------------|
-| **Atomicity** | All-or-nothing; failed statements roll back automatically | Same as Embedded mode |
-| **Consistency** | Schema constraints and referential integrity enforced | Same as Embedded mode |
+| **Atomicity** | All-or-nothing: a transaction's writes take effect only at commit; a failed statement rolls back with no partial state visible | Same as Embedded mode |
+| **Consistency** | Schema constraints and referential integrity enforced at the statement level (duplicate primary keys, violated edge constraints rejected) | Same as Embedded mode |
 | **Isolation** | Exclusive write locks; reads run concurrently | MVCC: concurrent reads/inserts; serialized updates/DDL; exclusive checkpoints |
-| **Durability** | WAL for committed writes; checkpoints for persistent bulk load | Automatic WAL persistence |
+| **Durability** | Committed writes are WAL-logged and replayed on restart | Same as Embedded mode |
 
-- **Atomicity.** Every statement is all-or-nothing. An Embedded read-write
-  transaction accumulates its writes in a private copy-on-write view and
-  publishes them only at commit. In Service mode, a failed statement is rolled
-  back automatically, with no partial state visible to other transactions.
-- **Consistency.** Schema constraints and referential integrity are enforced at
-  the statement level. Invalid operations, such as duplicate primary keys or
-  violated edge constraints, are rejected.
-- **Isolation.** Embedded mode uses exclusive write locks; Service mode uses
-  MVCC. See [Isolation and concurrency](#isolation-and-concurrency).
-- **Durability.** Committed writes are persisted through a write-ahead log (WAL)
-  and replayed on restart. See
-  [Durability and recovery](#durability-and-recovery) and
-  [Checkpoints](checkpoint.md).
+Isolation is the guarantee that differs; see
+[Isolation and concurrency](#isolation-and-concurrency). For how each mode
+persists and recovers committed writes, see
+[Durability and recovery](#durability-and-recovery) and
+[Checkpoints](checkpoint.md).
 
 ## Run transactions
 
@@ -161,12 +155,20 @@ Committed writes are persisted automatically and recovered on restart; no manual
 checkpoint is required for durability. In-memory databases are not durable, as
 their data lives only in volatile memory.
 
+*Ordinary writes* are non-bulk DML (insert, update, delete) and schema or index
+DDL that commit through the logical WAL; the term excludes persistent `COPY` and
+batch inserts, `COPY TEMP`, and maintenance operations such as compaction and
+checkpoints.
+
 **Embedded mode.** Committed ordinary writes append logical redo to the WAL and
-are replayed on a normal restart. A persistent `COPY ... FROM` publishes a
-checkpoint before reporting success; `COPY TEMP` stays in memory and is lost
-when the database closes. On startup, NeuG loads the checkpoint selected by
-`CURRENT` and replays committed WAL records after that checkpoint's `base_ts`;
-failed or uncommitted copy-on-write changes are never published.
+are replayed on a normal restart. A persistent `COPY ... FROM` instead publishes
+a checkpoint before reporting success, so a bulk import becomes durable as one
+atomic snapshot rather than a stream of per-row WAL redo; this keeps the load
+all-or-nothing and far cheaper than logging every row. `COPY TEMP` stays in
+memory and is lost when the database closes. On startup, NeuG loads the
+checkpoint selected by `CURRENT` and replays committed WAL records after that
+checkpoint's `base_ts`; failed or uncommitted copy-on-write changes are never
+published.
 
 **Service mode.** Every statement is logged to the WAL before it completes.
 Crash recovery replays the WAL automatically: uncommitted operations are rolled

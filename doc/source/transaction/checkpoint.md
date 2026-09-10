@@ -1,12 +1,12 @@
 # Checkpoints
 
-A checkpoint saves the current database state to disk. Since v0.2, regular
-committed writes in both embedded and service mode are already durable through
+A checkpoint saves the current database state to disk. Since v0.2, committed
+ordinary writes in both embedded and service mode are already durable through
 WAL, so they do not require a manual checkpoint. Persistent `COPY ... FROM` and
 batch inserts create a checkpoint before reporting success. `COPY TEMP` remains
 in memory and is lost when the database closes.
 
-| Question | Regular writes, including index changes | Persistent COPY/batch insert |
+| Question | Ordinary writes, including index changes | Persistent COPY/batch insert |
 |---|---|---|
 | Is a manual `CHECKPOINT` required for durability? | No; committed changes are already saved in WAL | No; a checkpoint is created before the statement reports success |
 | Why create one? | To reduce the amount of WAL replayed during recovery | To make the imported data durable |
@@ -113,7 +113,7 @@ failure occurs, the database may remain open for another attempt or may already
 be closed.
 
 Use an explicit `CHECKPOINT` when the application must know whether maintenance
-succeeded. If `checkpoint_on_close=False`, regular committed writes remain
+succeeded. If `checkpoint_on_close=False`, committed ordinary writes remain
 recoverable through WAL in both embedded and service mode. Successful persistent
 bulk writes have already created their own checkpoints.
 
