@@ -6,20 +6,29 @@
 
 #include "input_adapter.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <utility>
+#include <vector>
 
 namespace neug::parquet {
 namespace {
 
 struct InputContext {
-  explicit InputContext(std::unique_ptr<io::InputStream> value)
-      : input(std::move(value)) {}
+  InputContext(std::unique_ptr<io::InputStream> value, size_t bufferSize)
+      : input(std::move(value)), bufferSize(bufferSize) {}
 
   std::unique_ptr<io::InputStream> input;
+  size_t bufferSize;
+  std::vector<uint8_t> buffer;
+  int64_t bufferOffset = 0;
+  size_t bufferedBytes = 0;
+  std::mutex mutex;
 };
 
 carquet_status_t getSize(void* opaque, int64_t* size) noexcept {
@@ -44,12 +53,51 @@ carquet_status_t readAt(void* opaque, int64_t offset, void* buffer, size_t size,
   }
   *bytesRead = 0;
   try {
-    auto value = static_cast<InputContext*>(opaque)->input->ReadAt(
-        offset, static_cast<int64_t>(size), buffer);
-    if (!value || *value < 0 || *value > static_cast<int64_t>(size)) {
+    auto& context = *static_cast<InputContext*>(opaque);
+    // InputStream does not guarantee concurrent ReadAt calls: local streams
+    // seek/read a shared std::ifstream. Protect both the stream and the cache;
+    // parallel row-group tasks each open an independent stream.
+    std::lock_guard<std::mutex> guard(context.mutex);
+    if (size == 0) {
+      return CARQUET_OK;
+    }
+    if (context.buffer.empty() && context.bufferSize > 0) {
+      context.buffer.resize(context.bufferSize);
+    }
+    if (!context.buffer.empty() && offset >= context.bufferOffset) {
+      const uint64_t relative =
+          static_cast<uint64_t>(offset - context.bufferOffset);
+      if (relative <= context.bufferedBytes &&
+          size <= context.bufferedBytes - relative) {
+        std::memcpy(buffer, context.buffer.data() + relative, size);
+        *bytesRead = size;
+        return CARQUET_OK;
+      }
+    }
+
+    if (context.buffer.empty() || size >= context.buffer.size()) {
+      auto value =
+          context.input->ReadAt(offset, static_cast<int64_t>(size), buffer);
+      if (!value || *value < 0 || *value > static_cast<int64_t>(size)) {
+        return CARQUET_ERROR_FILE_READ;
+      }
+      *bytesRead = static_cast<size_t>(*value);
+      return CARQUET_OK;
+    }
+
+    auto value = context.input->ReadAt(
+        offset, static_cast<int64_t>(context.buffer.size()),
+        context.buffer.data());
+    if (!value || *value < 0 ||
+        *value > static_cast<int64_t>(context.buffer.size())) {
       return CARQUET_ERROR_FILE_READ;
     }
-    *bytesRead = static_cast<size_t>(*value);
+    context.bufferOffset = offset;
+    context.bufferedBytes = static_cast<size_t>(*value);
+    *bytesRead = std::min(size, context.bufferedBytes);
+    if (*bytesRead > 0) {
+      std::memcpy(buffer, context.buffer.data(), *bytesRead);
+    }
     return CARQUET_OK;
   } catch (...) { return CARQUET_ERROR_FILE_READ; }
 }
@@ -79,7 +127,8 @@ carquet_reader_t* openCarquetReader(std::unique_ptr<io::InputStream> input,
     return nullptr;
   }
 
-  auto* context = new (std::nothrow) InputContext(nullptr);
+  const size_t bufferSize = options ? options->buffer_size : 0;
+  auto* context = new (std::nothrow) InputContext(nullptr, bufferSize);
   if (!context) {
     try {
       input->Close();

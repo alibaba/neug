@@ -84,4 +84,8 @@ if(BUILD_TEST)
         EXTRA_LINK_LIBS ${CURL_LIBRARIES}
         EXTRA_INCLUDE_DIRS ${CURL_INCLUDE_DIRS}
     )
+    if(TARGET neug_parquet_carquet_impl)
+        target_link_libraries(httpfs_extension_test PRIVATE neug_parquet_carquet_impl)
+        target_compile_definitions(httpfs_extension_test PRIVATE NEUG_HTTPFS_CARQUET_TEST=1)
+    endif()
 endif()
