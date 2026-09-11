@@ -45,12 +45,16 @@ struct ContainsFunction : public VectorStringFunction {
   static constexpr const char* name = "CONTAINS";
 
   static function_set getFunctionSet();
+
+  static neug::Value Exec(const std::vector<neug::Value>& args);
 };
 
 struct EndsWithFunction : public VectorStringFunction {
   static constexpr const char* name = "ENDS_WITH";
 
   static function_set getFunctionSet();
+
+  static neug::Value Exec(const std::vector<neug::Value>& args);
 };
 
 struct SuffixFunction {
@@ -91,6 +95,8 @@ struct StartsWithFunction : public VectorStringFunction {
   static constexpr const char* name = "STARTS_WITH";
 
   static function_set getFunctionSet();
+
+  static neug::Value Exec(const std::vector<neug::Value>& args);
 };
 
 struct UpperFunction : public VectorStringFunction {
