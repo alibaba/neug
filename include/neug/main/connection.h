@@ -66,9 +66,9 @@ class ExecutionSlot;
  * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
  * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
  *
- * **Thread Safety:** This class is NOT thread-safe. A Connection and its owned
- * ExecutionSlot must be used by only one thread at a time. Use a separate
- * Connection per thread.
+ * **Thread Safety:** This class is NOT thread-safe; use one Connection per
+ * thread. Multiple concurrent connections are only allowed on a READ_ONLY
+ * database; a READ_WRITE database permits a single connection.
  *
  * **Lifecycle:**
  * - Created via NeugDB::Connect()
