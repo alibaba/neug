@@ -662,9 +662,15 @@ TEST_F(ConnectionTest,
        ExplicitTransactionRejectsMixedWritesAndRollsBackCopies) {
   const auto people =
       std::filesystem::path(DB_DIR) / "explicit-copy-rollback.csv";
+  const auto empty_people =
+      std::filesystem::path(DB_DIR) / "explicit-copy-empty.csv";
   {
     std::ofstream out(people);
     out << "id\n1\n";
+  }
+  {
+    std::ofstream out(empty_people);
+    out << "id\n";
   }
 
   NeugDB db;
@@ -684,6 +690,30 @@ TEST_F(ConnectionTest,
                           "' (HEADER=true, DELIMITER=',');"));
   ASSERT_TRUE(conn->Rollback().ok());
   EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before);
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query("COPY ExplicitCopyRollback FROM '" +
+                          empty_people.string() +
+                          "' (HEADER=true, DELIMITER=',');"));
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before)
+      << "An empty COPY must not publish a checkpoint.";
+
+  for (const auto* query :
+       {"CREATE (:ExplicitCopyRollback {id: 2});",
+        "CREATE NODE TABLE CopyMixedWrite(id INT64, PRIMARY KEY(id));"}) {
+    ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+    ASSERT_TRUE(conn->Query("COPY ExplicitCopyRollback FROM '" +
+                            empty_people.string() +
+                            "' (HEADER=true, DELIMITER=',');"));
+    auto write_after_empty_copy = conn->Query(query);
+    ASSERT_FALSE(write_after_empty_copy);
+    EXPECT_EQ(write_after_empty_copy.error().error_code(),
+              StatusCode::ERR_NOT_SUPPORTED);
+    EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+    ASSERT_TRUE(conn->Rollback().ok());
+    EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before);
+  }
 
   for (const auto* query :
        {"CREATE (:ExplicitCopyRollback {id: 2});",

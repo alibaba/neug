@@ -140,11 +140,10 @@ class EdgeTableTest : public ::testing::Test {
     if (inserted_edge_num == 0) {
       return 0;
     }
-    size_t new_cap = inserted_edge_num;
-    while (inserted_edge_num >= new_cap) {
-      new_cap = new_cap < 4096 ? 4096 : new_cap + (new_cap + 4) / 5;
-    }
-    return new_cap;
+    return inserted_edge_num < 4096
+               ? 4096
+               : inserted_edge_num + inserted_edge_num / 5 +
+                     (inserted_edge_num % 5 != 0);
   }
 
   void ExpectBundledStats(size_t expected_size) const {
@@ -705,7 +704,7 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   auto ckp = make_checkpoint(workspace());
   int64_t src_num = 100;
   int64_t dst_num = 100;
-  size_t edge_num = 1000;
+  size_t edge_num = 5001;
 
   auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
   auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
@@ -743,12 +742,44 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   // Insert more edges
 
   this->edge_table->BatchAddEdges(more_src_list, more_dst_list, edge_data);
-  this->ExpectUnbundledStats(edge_num + more_edge_num,
-                             ExpectedBatchInsertCapacity(edge_num));
+  this->ExpectUnbundledStats(
+      edge_num + more_edge_num,
+      ExpectedBatchInsertCapacity(edge_num + more_edge_num));
   std::vector<int64_t> srcs, dsts;
   this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num + more_edge_num);
   ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
+}
+
+TEST_F(EdgeTableTest, SupplierBatchInsertKeepsMinimumGrowthHeadroom) {
+  auto ckp = make_checkpoint(workspace());
+  constexpr int64_t vertex_num = 100;
+  this->InitIndexers(*ckp, vertex_num, vertex_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
+  this->OpenEdgeTableInMemory(ckp, neug::CheckpointManifest(), vertex_num,
+                              vertex_num);
+
+  auto generate_batches = [&](size_t edge_num) {
+    auto src_list = generate_random_vertices<int64_t>(vertex_num, edge_num);
+    auto dst_list = generate_random_vertices<int64_t>(vertex_num, edge_num);
+    auto string_data = generate_random_data<std::string>(edge_num);
+    auto int_data = generate_random_data<int>(edge_num);
+    return convert_to_data_chunks({split_column_to_chunks(src_list, 10),
+                                   split_column_to_chunks(dst_list, 10),
+                                   split_column_to_chunks(string_data, 10),
+                                   split_column_to_chunks(int_data, 10)});
+  };
+
+  constexpr size_t first_batch_size = 5001;
+  constexpr size_t second_batch_size = 50;
+  this->BatchInsert(generate_batches(first_batch_size));
+  this->ExpectUnbundledStats(first_batch_size,
+                             ExpectedBatchInsertCapacity(first_batch_size));
+
+  this->BatchInsert(generate_batches(second_batch_size));
+  const size_t total_size = first_batch_size + second_batch_size;
+  this->ExpectUnbundledStats(total_size,
+                             ExpectedBatchInsertCapacity(total_size));
 }
 
 TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {

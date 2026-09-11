@@ -119,12 +119,14 @@ std::vector<vid_t> VertexTable::insert_vertices(
     VLOG(10) << "Inserted " << chunk_rows
              << " vertices, current vertex num: " << VertexNum();
   }
-  // Keep the same post-load headroom as a full checkpoint when the batch
-  // exactly fills the current allocation. The pre-reserve checks above use
-  // `>` so an exact fit can be consumed safely before growing here.
-  if (indexer_->size() == indexer_->capacity()) {
-    const size_t capacity = indexer_->capacity();
-    EnsureCapacity(capacity < 4096 ? 4096 : capacity + capacity / 4);
+  // Keep the same post-load headroom as a full checkpoint without resizing
+  // after every chunk.
+  const size_t vertex_count = indexer_->size();
+  const size_t headroom = vertex_count / 4 + (vertex_count % 4 != 0);
+  const size_t target_capacity =
+      vertex_count < 4096 ? 4096 : vertex_count + headroom;
+  if (indexer_->capacity() < target_capacity) {
+    EnsureCapacity(target_capacity);
   }
   return new_vids;
 }

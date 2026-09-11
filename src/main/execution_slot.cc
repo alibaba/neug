@@ -522,7 +522,7 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
                                          query, prepared_query, response);
             }
 
-            if (!is_explain && transaction_context.NeedsCheckpointCommit() &&
+            if (!is_explain && transaction_context.HasPersistentCopy() &&
                 !IsReadOnlyExecutionFlag(prepared_query.flags)) {
               return Status(
                   StatusCode::ERR_NOT_SUPPORTED,
@@ -581,16 +581,14 @@ Status ExecutionSlot::executeExplicitCopy(
                   "Only persistent COPY FROM is supported in an explicit "
                   "transaction.");
   }
-  if (workspace.HasBulkMutation()) {
-    transaction_context.MarkForCheckpointCommit();
-  }
+  transaction_context.MarkPersistentCopy();
   return Status::OK();
 }
 
 Status ExecutionSlot::CommitExplicitTransaction(
     TransactionContext& transaction_context) {
   CHECK(transaction_context.IsActive());
-  if (!transaction_context.NeedsCheckpointCommit()) {
+  if (!transaction_context.HasPersistentCopy()) {
     return transaction_context.Commit();
   }
 
