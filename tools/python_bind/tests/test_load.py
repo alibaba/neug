@@ -1825,6 +1825,41 @@ class TestCopyFrom:
             )
         ) == [[4, 5, 1.5]]
 
+    def test_batch_read_false_disables_fused_stream_operators(self):
+        nodes_path = self.tmp_path / "fallback_nodes.csv"
+        nodes_path.write_text("id,name\n1,Alice\n2,Bob\n", encoding="utf-8")
+        edges_path = self.tmp_path / "fallback_edges.csv"
+        edges_path.write_text("from,to,weight\n1,2,1.5\n", encoding="utf-8")
+
+        self.conn.execute(
+            "CREATE NODE TABLE fallback_node ("
+            "id INT64, name STRING, PRIMARY KEY (id))"
+        )
+        node_result = self.conn.execute(
+            f'PROFILE COPY fallback_node FROM "{nodes_path.as_posix()}" '
+            '(header=true, delimiter=",", batch_read=false)'
+        )
+        node_operators = _operator_names(node_result)
+        assert "FusedStreamVertexInsertOpr" not in node_operators
+        assert "DataSourceOpr" in node_operators
+        assert "BatchInsertVertexOpr" in node_operators
+        assert len(node_result) == 2
+
+        self.conn.execute(
+            "CREATE REL TABLE fallback_edge ("
+            "FROM fallback_node TO fallback_node, weight DOUBLE)"
+        )
+        edge_result = self.conn.execute(
+            f'PROFILE COPY fallback_edge FROM "{edges_path.as_posix()}" '
+            '(from="fallback_node", to="fallback_node", header=true, '
+            'delimiter=",", batch_read=false)'
+        )
+        edge_operators = _operator_names(edge_result)
+        assert "FusedStreamEdgeInsertOpr" not in edge_operators
+        assert "DataSourceOpr" in edge_operators
+        assert "BatchInsertEdgeOpr" in edge_operators
+        assert len(edge_result) == 1
+
     def test_fused_copy_retry_reexpands_file_pattern(self):
         first_path = self.tmp_path / "retry_1.csv"
         first_path.write_text("id,value\n1,10\n2,bad\n", encoding="utf-8")

@@ -627,10 +627,8 @@ struct RowCounterState {
 /// parallelizes via speculative dual-state-machine scan for large files.
 class CsvRowCountCounter {
  public:
-  // rows_to_skip is intentionally NOT a parameter: the counter counts
-  // all non-empty rows.  The reader's skip_rows() handles skipping
-  // separately, and RowNum() is only a pre-allocation hint, so a slight
-  // overcount (by at most skip_rows, typically 1 for header) is safe.
+  // The counter reports all non-empty rows. CsvSupplierRuntime subtracts
+  // skipped rows before exposing the value as a pre-allocation hint.
   CsvRowCountCounter(std::string file_path, bool quoting, char quote_char,
                      bool double_quote, char delimiter, bool use_threads,
                      io::InputStreamFactory stream_factory = nullptr)
@@ -880,11 +878,13 @@ struct CsvSupplierRuntime {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    row_num_ = CsvRowCountCounter(file_path, config.quoting, config.quote_char,
-                                  config.double_quote, config.delimiter,
-                                  config.use_threads, stream_factory_)
-                   .count();
-    if (row_num_ > rows_to_skip_) {
+    const auto raw_row_num =
+        CsvRowCountCounter(file_path, config.quoting, config.quote_char,
+                           config.double_quote, config.delimiter,
+                           config.use_threads, stream_factory_)
+            .count();
+    row_num_ = std::max<int64_t>(0, raw_row_num - rows_to_skip_);
+    if (row_num_ > 0) {
       reset_reader();
     }
   }

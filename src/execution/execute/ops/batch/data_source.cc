@@ -24,6 +24,7 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/data_source.h"
+#include "neug/utils/io/read/common/options.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/reader.h"
 #include "neug/utils/result.h"
@@ -122,7 +123,11 @@ std::shared_ptr<IDataChunkSupplier> ReadSource::create_supplier() const {
 }
 
 bool ReadSource::supports_supplier() const {
-  return function != nullptr && function->supplierFunc != nullptr;
+  if (function == nullptr || function->supplierFunc == nullptr ||
+      state == nullptr) {
+    return false;
+  }
+  return ReadOptions().batch_read.get(state->schema.file.options);
 }
 
 // Build DataSourceOpr from PB, there are two key fields:

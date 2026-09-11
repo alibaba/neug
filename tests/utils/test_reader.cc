@@ -1113,8 +1113,7 @@ TEST_F(ReaderTest, TestCsvChunkSupplierStreamsFilesInOrder) {
                                            "/supplier_2.csv");
 
   auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
-  // RowNum is a pre-allocation hint and includes each skipped header row.
-  EXPECT_EQ(supplier->RowNum(), 7);
+  EXPECT_EQ(supplier->RowNum(), 5);
 
   std::vector<double> scores;
   std::vector<int32_t> ids;
@@ -1144,6 +1143,17 @@ TEST_F(ReaderTest, TestCsvChunkSupplierHandlesEmptyFile) {
   auto sharedState =
       createSharedState("supplier_empty.csv", {"id"}, {createInt64Type()},
                         {{"batch_size", "2"}, {"batch_read", "false"}});
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), 0);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierHandlesFullySkippedFile) {
+  createCsvFile("supplier_skipped.csv", "1\n2\n");
+  auto sharedState =
+      createSharedState("supplier_skipped.csv", {"id"}, {createInt64Type()},
+                        {{"skip_rows", "2"}, {"batch_read", "true"}});
 
   auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
   EXPECT_EQ(supplier->RowNum(), 0);
