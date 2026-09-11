@@ -383,6 +383,25 @@ def test_issue_935_graph_constrained_topk_uses_hnsw_join(advanced_connection):
     assert "JoinOpr" in operators
 
 
+def test_correlated_hnsw_join_passes_scan_predicate_to_index(
+    advanced_connection,
+):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (source:Source)-[:HAS_CHUNK]->(chunk:Chunk) "
+        "WHERE chunk.id = 'chunk-b' "
+        "RETURN source.id, chunk.id, "
+        "vector_distance_cosine(chunk.embedding, $embedding) AS distance "
+        "ORDER BY distance ASC LIMIT 1;",
+        parameters={"embedding": [1.0, 0.0, 0.0, 0.0]},
+    )
+    rows = list(result)
+    assert [row[:2] for row in rows] == [["source", "chunk-b"]]
+    assert rows[0][2] == pytest.approx(1.0)
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "JoinOpr" in operators
+
+
 def test_update_and_delete_maintain_index(advanced_connection):
     advanced_connection.execute(
         "MATCH (n:Item {id: 3}) "
