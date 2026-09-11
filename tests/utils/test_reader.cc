@@ -1160,6 +1160,20 @@ TEST_F(ReaderTest, TestCsvChunkSupplierHandlesFullySkippedFile) {
   EXPECT_EQ(supplier->GetNextChunk(), nullptr);
 }
 
+TEST_F(ReaderTest, TestCsvChunkSupplierReadsAfterSkippedEmptyRow) {
+  createCsvFile("supplier_leading_empty.csv", "\n42\n");
+  auto sharedState = createSharedState(
+      "supplier_leading_empty.csv", {"id"}, {createInt64Type()},
+      {{"skip_rows", "1"}, {"batch_read", "true"}});
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  auto chunk = supplier->GetNextChunk();
+  ASSERT_NE(chunk, nullptr);
+  ASSERT_EQ(chunk->row_num(), 1);
+  EXPECT_EQ(chunk->get(0)->get_elem(0).GetValue<int64_t>(), 42);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
 // A header-only CSV has no data rows: full_read must return an empty
 // result instead of failing the column-count validation ("Column number
 // mismatch between schema and CSV data").
