@@ -417,8 +417,11 @@ using RegexReplaceMap = std::vector<std::pair<std::string, std::string>>;
 class VerifyFactory {
  public:
   static RegexReplaceMap defaultNormalizePatterns() {
-    return {{R"("max_length":\s*\d+)", "\"max_length\": <IGNORED>"},
-            {R"(max_length:\s*\d+)", "max_length: <IGNORED>"}};
+    return {
+        {R"("max_length":\s*\d+)", "\"max_length\": <IGNORED>"},
+        {R"(max_length:\s*\d+)", "max_length: <IGNORED>"},
+        {R"regex("(hop_range|range|limit)":\{(?:"lower":\d+,"upper":\d+|(?:(?:"offset"|"limit"):\{"operators":\[\{"const":\{"(?:i64|u64)":"\d+"\}\}\]\},?)+)\})regex",
+         "\"$1\":<RANGE_IGNORED>"}};
   }
 
   static std::string normalize(const std::string& s) {

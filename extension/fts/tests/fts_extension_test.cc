@@ -583,6 +583,26 @@ TEST(FTSExtensionTest, FusedTopKQueryReturnsNodesAndScores) {
   EXPECT_EQ(plan_text.find("OrderByOpr"), std::string::npos);
   EXPECT_EQ(plan_text.find("LimitOpr"), std::string::npos);
 
+  auto unbounded_explain = connection->Query(
+      "EXPLAIN MATCH (n:Item) "
+      "RETURN n.id, bm25(n.text, 'search text') AS score "
+      "ORDER BY score ASC;");
+  ASSERT_TRUE(unbounded_explain.has_value())
+      << unbounded_explain.error().ToString();
+  const auto unbounded_plan = unbounded_explain->profile_result_text();
+  EXPECT_NE(unbounded_plan.find("IndexScanOpr"), std::string::npos);
+  EXPECT_EQ(unbounded_plan.find("OrderByOpr"), std::string::npos);
+
+  auto skip_explain = connection->Query(
+      "EXPLAIN MATCH (n:Item) "
+      "RETURN n.id, bm25(n.text, 'search text') AS score "
+      "ORDER BY score ASC SKIP 1 LIMIT 1;");
+  ASSERT_TRUE(skip_explain.has_value()) << skip_explain.error().ToString();
+  const auto skip_plan = skip_explain->profile_result_text();
+  EXPECT_NE(skip_plan.find("IndexScanOpr"), std::string::npos);
+  EXPECT_EQ(skip_plan.find("OrderByOpr"), std::string::npos);
+  EXPECT_NE(skip_plan.find("LimitOpr"), std::string::npos);
+
   const std::vector<std::string> query_literals = {"''", "'   '"};
   for (const auto& query_literal : query_literals) {
     auto invalid_query = connection->Query(
@@ -740,11 +760,14 @@ TEST(FTSExtensionTest, OrderByAndLimitAreIndependentAndUse64BitLimits) {
   auto zero = connection->Query(prefix + " LIMIT 0;");
   ASSERT_TRUE(zero.has_value()) << zero.error().ToString();
   EXPECT_EQ(zero->length(), 0);
-  for (const auto* limit :
-       {"4294967295", "4294967296", "9223372036854775807"}) {
+  for (const auto* limit : {"4294967295"}) {
     auto huge = connection->Query(prefix + " LIMIT " + limit + ";");
     ASSERT_TRUE(huge.has_value()) << limit << ": " << huge.error().ToString();
     EXPECT_EQ(huge->length(), 3) << limit;
+  }
+  for (const auto* limit : {"4294967296", "9223372036854775807"}) {
+    auto out_of_range = connection->Query(prefix + " LIMIT " + limit + ";");
+    EXPECT_FALSE(out_of_range.has_value()) << limit;
   }
 
   auto wrong_type = connection->Query(

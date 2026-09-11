@@ -79,12 +79,13 @@ def begin_transaction(read_only: bool = False)
 Begin an explicit embedded AP transaction.
 
 - **Parameters:**
-  - `read_only` (bool): Pin one read view and reject writes when true. The
-    default starts a read-write transaction with a private COW view.
+  - `read_only` (bool)
+    Pin one read view and reject writes when true. The default starts a
+    read-write transaction with a private COW view.
 
 - **Raises:**
-  - **RuntimeError:** If the connection is closed or already has an active
-    transaction.
+  - **RuntimeError**
+    If the connection is closed or already has an active transaction.
 
 <a id="neug.connection.Connection.commit"></a>
 
@@ -94,8 +95,9 @@ Begin an explicit embedded AP transaction.
 def commit()
 ```
 
-Commit the active explicit transaction. A rollback-only transaction must be
-rolled back instead.
+Commit the active explicit transaction.
+
+A rollback-only transaction must be rolled back instead.
 
 <a id="neug.connection.Connection.rollback"></a>
 
@@ -169,8 +171,8 @@ database will be changed accordingly.
   - `access_mode` (str)
     The access mode of the query. It could be `read(r)`, `insert(i)`, `update(u)` (include deletion),
     or `schema(s)` for schema modifications. User should specify the correct access mode for the query
-    to ensure the correctness of the database. If the access mode is not specified, NeuG infers it
-    from the query text. Supported access modes are:
+    to ensure the correctness of the database. If the access mode is not specified, it is inferred from
+    the query text. Supported access modes are:
     - `read`,`r`,`READ`,`R`: for read-only queries
     - `insert`,`i`,`INSERT`,`I`: for insert-only queries
     - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
@@ -196,3 +198,4 @@ Get the schema of the NeuG database.
 **Returns**:
 
 The schema of the NeuG database.
+

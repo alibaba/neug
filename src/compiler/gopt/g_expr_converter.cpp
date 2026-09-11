@@ -139,6 +139,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return ::physical::GroupBy_AggFunc::MAX;
   }
   if (func.name == "SUM") {
+    if (func.isDistinct) {
+      THROW_NOT_SUPPORTED_EXCEPTION("SUM(DISTINCT ...) is not supported");
+    }
     return ::physical::GroupBy_AggFunc::SUM;
   }
   if (func.name == "COLLECT") {
@@ -146,6 +149,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
                            : ::physical::GroupBy_AggFunc::TO_LIST;
   }
   if (func.name == "AVG") {
+    if (func.isDistinct) {
+      THROW_NOT_SUPPORTED_EXCEPTION("AVG(DISTINCT ...) is not supported");
+    }
     return ::physical::GroupBy_AggFunc::AVG;
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported aggregate function: " +
