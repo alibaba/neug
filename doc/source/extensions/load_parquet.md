@@ -87,6 +87,10 @@ by the filter, including references inside nested expressions. Filter-only colum
 are removed from the result after filtering. This applies to both batch and full
 reads. In this fallback path, the predicate does not prune Parquet row groups.
 
+For the upcoming backend's implementation status and supported read paths, see
+[Carquet reader implementation](carquet_reader.md). The current SQL backend is
+unchanged by that preparation work.
+
 ## Export to Parquet
 
 NeuG supports exporting query results to Parquet files using the `COPY TO` command. This is useful for:
