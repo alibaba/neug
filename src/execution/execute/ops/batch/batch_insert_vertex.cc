@@ -43,7 +43,7 @@ class BatchInsertVertexOpr : public IOperator {
         source_(std::move(source)) {}
 
   std::string get_operator_name() const override {
-    return source_.supports_supplier() ? "FusedCSVVertexInsertOpr"
+    return source_.supports_supplier() ? "FusedStreamVertexInsertOpr"
                                        : "BatchInsertVertexOpr";
   }
 
@@ -97,13 +97,14 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
   return neug::result<Context>(std::move(ctx));
 }
 
-neug::result<OpBuildResultT> FusedCSVVertexInsertOprBuilder::Build(
+neug::result<OpBuildResultT> FusedStreamVertexInsertOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   (void) schema;
   const auto& source_opr = plan.plan(op_idx).opr().source();
-  if (source_opr.file_schema().format() != "csv" ||
-      source_opr.has_skip_rows()) {
+  // Filtering requires the reader's full-read path. All unfiltered formats
+  // that expose a supplier can use the same stream-to-storage pipeline.
+  if (source_opr.has_skip_rows()) {
     return std::make_pair(nullptr, ContextMeta());
   }
 

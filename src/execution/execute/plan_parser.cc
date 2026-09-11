@@ -131,9 +131,9 @@ void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
 
   register_operator_builder(
-      std::make_unique<ops::FusedCSVVertexInsertOprBuilder>());
+      std::make_unique<ops::FusedStreamVertexInsertOprBuilder>());
   register_operator_builder(
-      std::make_unique<ops::FusedCSVEdgeInsertOprBuilder>());
+      std::make_unique<ops::FusedStreamEdgeInsertOprBuilder>());
   register_operator_builder(std::make_unique<ops::DataSourceOprBuilder>());
   register_operator_builder(
       std::make_unique<ops::BatchInsertVertexOprBuilder>());

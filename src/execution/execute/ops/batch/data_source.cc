@@ -47,7 +47,7 @@ class DataSourceOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
-    NEUG_ASSERT(ƒ.function != nullptr);
+    NEUG_ASSERT(source_.function != nullptr);
     auto state = std::make_shared<reader::ReadSharedState>(*source_.state);
     state->parameters = params;
     return source_.function->execFunc(state);

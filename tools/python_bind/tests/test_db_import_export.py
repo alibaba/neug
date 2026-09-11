@@ -555,7 +555,7 @@ def test_copy_from_projection_fallback_matches_load_from(tmp_path):
         operators = [
             op["operator_name"] for op in result.get_profile_metrics()["operators"]
         ]
-        assert "FusedCSVVertexInsertOpr" not in operators
+        assert "FusedStreamVertexInsertOpr" not in operators
         assert "DataSourceOpr" in operators
         assert "BatchInsertVertexOpr" in operators
         assert len(result) == 50
@@ -607,7 +607,7 @@ def test_copy_from_edge_projection_fallback_matches_load_from(tmp_path):
         operators = [
             op["operator_name"] for op in result.get_profile_metrics()["operators"]
         ]
-        assert "FusedCSVEdgeInsertOpr" not in operators
+        assert "FusedStreamEdgeInsertOpr" not in operators
         assert "DataSourceOpr" in operators
         assert "BatchInsertEdgeOpr" in operators
         assert len(result) == 9

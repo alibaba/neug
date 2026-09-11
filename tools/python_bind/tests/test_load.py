@@ -1668,8 +1668,8 @@ class TestCopyFrom:
         assert records[0][5] is not None, "Location should not be None"
 
     @pytest.mark.parametrize("profile", [False, True])
-    def test_direct_csv_copy_uses_fused_operators(self, profile):
-        """Direct CSV COPY streams into storage while subqueries retain the old path."""
+    def test_direct_copy_uses_fused_stream_operators(self, profile):
+        """Direct COPY streams supported formats while transformed inputs fall back."""
         (self.tmp_path / "nodes_1.csv").write_text(
             "id,name\n1,Alice\n2,Bob\n", encoding="utf-8"
         )
@@ -1693,7 +1693,7 @@ class TestCopyFrom:
         assert len(node_result) == 3
         if profile:
             assert _operator_names(node_result) == [
-                "FusedCSVVertexInsertOpr",
+                "FusedStreamVertexInsertOpr",
                 "SinkOpr",
             ]
             assert node_result.get_profile_metrics()["total_output_rows"] == 3
@@ -1716,7 +1716,10 @@ class TestCopyFrom:
         # Preserve input cardinality even when storage skips a dangling edge.
         assert len(edge_result) == 3
         if profile:
-            assert _operator_names(edge_result) == ["FusedCSVEdgeInsertOpr", "SinkOpr"]
+            assert _operator_names(edge_result) == [
+                "FusedStreamEdgeInsertOpr",
+                "SinkOpr",
+            ]
             assert edge_result.get_profile_metrics()["total_output_rows"] == 3
             assert [
                 op["output_rows"]
@@ -1730,12 +1733,12 @@ class TestCopyFrom:
         ) == [[1, 2, 1.5], [2, 3, 2.5]]
 
         for table, header, options, operator in [
-            ("person", "id,name\n", "", "FusedCSVVertexInsertOpr"),
+            ("person", "id,name\n", "", "FusedStreamVertexInsertOpr"),
             (
                 "knows",
                 "from,to,weight\n",
                 'from="person", to="person", ',
-                "FusedCSVEdgeInsertOpr",
+                "FusedStreamEdgeInsertOpr",
             ),
         ]:
             empty_path = self.tmp_path / f"{table}_empty.csv"
@@ -1761,22 +1764,66 @@ class TestCopyFrom:
             '(header=true, delimiter=",") RETURN id, name)'
         )
         fallback_operators = _operator_names(fallback_result)
-        assert "FusedCSVVertexInsertOpr" not in fallback_operators
+        assert "FusedStreamVertexInsertOpr" not in fallback_operators
         assert "DataSourceOpr" in fallback_operators
         assert "BatchInsertVertexOpr" in fallback_operators
 
-        json_path = self.tmp_path / "nodes.jsonl"
-        json_path.write_text('{"id": 4, "name": "Dora"}\n', encoding="utf-8")
+        json_path = self.tmp_path / "nodes.json"
+        json_path.write_text(
+            json.dumps([{"id": 4, "name": "Dora"}, {"id": 5, "name": "Eve"}]),
+            encoding="utf-8",
+        )
         self.conn.execute(
             "CREATE NODE TABLE json_person (" "id INT64, name STRING, PRIMARY KEY (id))"
         )
         json_result = self.conn.execute(
-            f'PROFILE COPY json_person FROM "{json_path.as_posix()}"'
+            f'{prefix}COPY json_person FROM "{json_path.as_posix()}"'
         )
-        json_operators = _operator_names(json_result)
-        assert "FusedCSVVertexInsertOpr" not in json_operators
-        assert "DataSourceOpr" in json_operators
-        assert "BatchInsertVertexOpr" in json_operators
+        assert len(json_result) == 2
+        if profile:
+            assert _operator_names(json_result) == [
+                "FusedStreamVertexInsertOpr",
+                "SinkOpr",
+            ]
+        assert list(
+            self.conn.execute("MATCH (p:json_person) RETURN p.id, p.name ORDER BY p.id")
+        ) == [[4, "Dora"], [5, "Eve"]]
+
+        self.conn.execute(
+            "CREATE NODE TABLE json_fallback ("
+            "id INT64, name STRING, PRIMARY KEY (id))"
+        )
+        json_fallback_result = self.conn.execute(
+            f'PROFILE COPY json_fallback FROM (LOAD FROM "{json_path.as_posix()}" '
+            "RETURN id, name)"
+        )
+        json_fallback_operators = _operator_names(json_fallback_result)
+        assert "FusedStreamVertexInsertOpr" not in json_fallback_operators
+        assert "DataSourceOpr" in json_fallback_operators
+        assert "BatchInsertVertexOpr" in json_fallback_operators
+
+        jsonl_path = self.tmp_path / "json_edges.jsonl"
+        jsonl_path.write_text('{"from": 4, "to": 5, "weight": 1.5}\n', encoding="utf-8")
+        self.conn.execute(
+            "CREATE REL TABLE json_knows (FROM json_person TO json_person, "
+            "weight DOUBLE)"
+        )
+        jsonl_result = self.conn.execute(
+            f'{prefix}COPY json_knows FROM "{jsonl_path.as_posix()}" '
+            '(from="json_person", to="json_person")'
+        )
+        assert len(jsonl_result) == 1
+        if profile:
+            assert _operator_names(jsonl_result) == [
+                "FusedStreamEdgeInsertOpr",
+                "SinkOpr",
+            ]
+        assert list(
+            self.conn.execute(
+                "MATCH (a:json_person)-[r:json_knows]->(b:json_person) "
+                "RETURN a.id, b.id, r.weight"
+            )
+        ) == [[4, 5, 1.5]]
 
     def test_create_edge_after_copy_from_edges(self):
         """Vertices created after edge COPY retain usable CSR slots."""
@@ -2044,7 +2091,11 @@ class TestCopyFrom:
             RETURN ID, age, fName, gender, eyeSight, isStudent
         )
         """
-        self.conn.execute(copy_query)
+        copy_result = self.conn.execute(f"PROFILE {copy_query}")
+        copy_operators = _operator_names(copy_result)
+        assert "FusedStreamVertexInsertOpr" not in copy_operators
+        assert "DataSourceOpr" in copy_operators
+        assert "BatchInsertVertexOpr" in copy_operators
 
         query = "MATCH (p:person_parquet_remap) RETURN p.ID, p.age, p.fName, p.gender, p.eyeSight ORDER BY p.ID LIMIT 3"
         result = self.conn.execute(query)
@@ -2395,10 +2446,21 @@ class TestCopyFrom:
         self.conn.execute(
             "CREATE REL TABLE Knows(FROM Person TO Person, weight DOUBLE);"
         )
-        self.conn.execute(f'COPY Person FROM "{Path(node_pq).as_posix()}";')
-        self.conn.execute(
-            f'COPY Knows FROM "{Path(edge_pq).as_posix()}" (from="Person", to="Person");'
+        node_result = self.conn.execute(
+            f'PROFILE COPY Person FROM "{Path(node_pq).as_posix()}";'
         )
+        assert _operator_names(node_result) == [
+            "FusedStreamVertexInsertOpr",
+            "SinkOpr",
+        ]
+        edge_result = self.conn.execute(
+            f'PROFILE COPY Knows FROM "{Path(edge_pq).as_posix()}" '
+            '(from="Person", to="Person");'
+        )
+        assert _operator_names(edge_result) == [
+            "FusedStreamEdgeInsertOpr",
+            "SinkOpr",
+        ]
 
         res = self.conn.execute("MATCH ()-[r:Knows]->() RETURN count(r);")
         count = next(res)[0]

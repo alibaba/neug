@@ -40,7 +40,10 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
   }
 };
 
-class FusedCSVEdgeInsertOprBuilder : public IOperatorBuilder {
+// Fuses a directly adjacent Source + LoadEdge pair when its reader exposes
+// an IDataChunkSupplier. Plans with projections, filters, or unsupported
+// readers use the regular pipeline; this path retains BatchAddEdges.
+class FusedStreamEdgeInsertOprBuilder : public IOperatorBuilder {
  public:
   neug::result<OpBuildResultT> Build(const Schema& schema,
                                      const ContextMeta& ctx_meta,

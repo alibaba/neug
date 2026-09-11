@@ -39,7 +39,10 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
   }
 };
 
-class FusedCSVVertexInsertOprBuilder : public IOperatorBuilder {
+// Fuses a directly adjacent Source + LoadVertex pair when its reader exposes
+// an IDataChunkSupplier. Plans with projections, filters, or unsupported
+// readers use the regular pipeline; this path retains BatchAddVertices.
+class FusedStreamVertexInsertOprBuilder : public IOperatorBuilder {
  public:
   neug::result<OpBuildResultT> Build(const Schema& schema,
                                      const ContextMeta& ctx_meta,
