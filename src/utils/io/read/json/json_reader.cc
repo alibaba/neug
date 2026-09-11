@@ -412,12 +412,6 @@ class JsonChunkSupplier : public IDataChunkSupplier {
   std::unique_ptr<StreamLineReader> line_reader_;  // remote JSONL mode
 };
 
-JsonReadConfig read_config_for_supplier(const JsonReadConfig& config) {
-  JsonReadConfig read_config = config;
-  read_config.include_columns = config.column_names;
-  return read_config;
-}
-
 class SequentialJsonChunkSupplier : public IDataChunkSupplier {
  public:
   explicit SequentialJsonChunkSupplier(
@@ -471,20 +465,11 @@ void JsonReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   ReadOptions readOpts;
   const bool use_batch_read = readOpts.batch_read.get(fileSchema.options);
 
-  auto read_config = read_config_for_supplier(config);
-  if (sharedState_->skipRows) {
-    // Need all columns to evaluate row-filter expression;
-    // full_read will project afterwards.
+  auto read_config = config;
+  if (sharedState_->skipRows ||
+      (!use_batch_read && !sharedState_->projectColumns.empty())) {
+    // Filters need all columns; full_read applies projection after merging.
     read_config.include_columns = config.column_names;
-  } else if (!sharedState_->projectColumns.empty()) {
-    if (use_batch_read) {
-      // batch_read streams chunks directly to the consumer without
-      // post-projection, so push column projection down to the supplier.
-      read_config.include_columns = config.include_columns;
-    } else {
-      // full_read handles projection via project_chunk().
-      read_config.include_columns = config.column_names;
-    }
   }
 
   const auto& paths = fileSchema.paths;
