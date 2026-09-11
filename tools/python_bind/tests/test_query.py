@@ -433,13 +433,169 @@ def test_return_literal(tinysnb):
     assert res[1] == [2, "person"]  # Assuming there are at
 
 
-def test_builtin_scalar_function_with_dynamic_parameter(empty_db):
+def _create_dynamic_parameter_read_fixture(conn):
+    conn.execute(
+        "CREATE NODE TABLE DynamicParam("
+        "id STRING PRIMARY KEY, name STRING, score INT64);"
+    )
+    conn.execute(
+        "CREATE REL TABLE DynamicParamRel("
+        "FROM DynamicParam TO DynamicParam, kind STRING);"
+    )
+    conn.execute(
+        "CREATE (:DynamicParam {id: 'a', name: 'AlphaBeta', score: 10}), "
+        "(:DynamicParam {id: 'b', name: 'Beta', score: 20}), "
+        "(:DynamicParam {id: 'c', name: 'Gamma', score: 30});"
+    )
+    conn.execute(
+        "MATCH (a:DynamicParam {id: 'a'}), (b:DynamicParam {id: 'b'}) "
+        "CREATE (a)-[:DynamicParamRel {kind: 'linked'}]->(b);"
+    )
+
+
+def test_dynamic_parameter_in_general_projection_and_predicate(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (a:DynamicParam)-[r:DynamicParamRel]->(b:DynamicParam) "
+        "WHERE a.score >= $minimum AND r.kind = $kind "
+        "RETURN a.name = $projected_name, b.name;",
+        parameters={
+            "minimum": 10,
+            "kind": "linked",
+            "projected_name": "AlphaBeta",
+        },
+    )
+    assert list(result) == [[True, "Beta"]]
+
+
+def test_dynamic_parameters_in_arithmetic_comparison_boolean_and_case(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (n:DynamicParam) "
+        "WHERE n.score >= $minimum AND n.id <> $excluded "
+        "RETURN n.id, n.score + $increment, "
+        "CASE WHEN n.name = $name THEN $matched ELSE n.name END "
+        "ORDER BY n.id;",
+        parameters={
+            "minimum": 10,
+            "excluded": "b",
+            "increment": 5,
+            "name": "AlphaBeta",
+            "matched": "matched",
+        },
+    )
+    assert list(result) == [["a", 15, "matched"], ["c", 35, "Gamma"]]
+
+
+def test_dynamic_parameter_in_neug_scalar_function(empty_db):
     _, conn = empty_db
     result = conn.execute(
         "RETURN lower($value);", parameters={"value": "NeuG"}, access_mode="read"
     )
-
     assert list(result) == [["neug"]]
+
+
+def test_dynamic_parameters_in_string_predicates(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (n:DynamicParam {id: 'a'}) RETURN "
+        "n.name STARTS WITH $prefix, "
+        "n.name ENDS WITH $suffix, "
+        "n.name CONTAINS $substring;",
+        parameters={
+            "prefix": "Alpha",
+            "suffix": "Beta",
+            "substring": "haBe",
+        },
+    )
+    assert list(result) == [[True, True, True]]
+
+    metacharacter_result = conn.execute(
+        "RETURN $value STARTS WITH $prefix, "
+        "$value ENDS WITH $suffix, "
+        "$value CONTAINS $substring;",
+        parameters={
+            "value": "a[b.c*",
+            "prefix": "a[",
+            "suffix": ".c*",
+            "substring": "[b.",
+        },
+    )
+    assert list(metacharacter_result) == [[True, True, True]]
+
+
+def test_dynamic_parameter_in_list_membership(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    primary_key_result = conn.execute(
+        "MATCH (n:DynamicParam) WHERE n.id IN $ids RETURN n.id ORDER BY n.id;",
+        parameters={"ids": ["b", "a"]},
+    )
+    assert list(primary_key_result) == [["a"], ["b"]]
+
+    filter_result = conn.execute(
+        "MATCH (n:DynamicParam) WHERE n.name IN $names RETURN n.id ORDER BY n.id;",
+        parameters={"names": ["Beta", "Gamma"]},
+    )
+    assert list(filter_result) == [["b"], ["c"]]
+
+
+def test_dynamic_parameter_in_primary_key_equality(empty_db):
+    _, conn = empty_db
+    _create_dynamic_parameter_read_fixture(conn)
+
+    result = conn.execute(
+        "MATCH (n:DynamicParam {id: $id}) RETURN n.name;",
+        parameters={"id": "a"},
+    )
+    assert list(result) == [["AlphaBeta"]]
+
+
+def test_dynamic_parameters_in_write_property_values(empty_db):
+    _, conn = empty_db
+    conn.execute(
+        "CREATE NODE TABLE DynamicParam("
+        "id STRING PRIMARY KEY, name STRING, score INT64);"
+    )
+    conn.execute(
+        "CREATE (:DynamicParam {id: $id, name: $name, score: $score});",
+        parameters={"id": "a", "name": "Alpha", "score": 10},
+    )
+    conn.execute(
+        "CREATE (:DynamicParam {id: $id, name: $name, score: $score});",
+        parameters={"id": "b", "name": "Beta", "score": 20},
+    )
+
+    conn.execute(
+        "MATCH (n:DynamicParam {id: $id}) SET n.score = $score;",
+        parameters={"id": "a", "score": 30},
+    )
+    on_match = conn.execute(
+        "MERGE (n:DynamicParam {id: $id}) "
+        "ON MATCH SET n.score = $score RETURN n.score;",
+        parameters={"id": "b", "score": 40},
+    )
+    assert list(on_match) == [[40]]
+
+    on_create = conn.execute(
+        "MERGE (n:DynamicParam {id: $id}) "
+        "ON CREATE SET n.name = $name, n.score = $score "
+        "RETURN n.name, n.score;",
+        parameters={"id": "c", "name": "Gamma", "score": 50},
+    )
+    assert list(on_create) == [["Gamma", 50]]
+
+    final_scores = conn.execute(
+        "MATCH (n:DynamicParam) RETURN n.id, n.score ORDER BY n.id;"
+    )
+    assert list(final_scores) == [["a", 30], ["b", 40], ["c", 50]]
 
 
 def test_dynamic_limit_without_order_by(modern_graph):

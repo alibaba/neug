@@ -69,6 +69,7 @@ NeuG documentation
    extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
+   extensions/carquet_writer
    extensions/pattern_match
 
 .. toctree::
