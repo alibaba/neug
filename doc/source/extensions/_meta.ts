@@ -6,6 +6,7 @@ export default {
   load_json: "JSON Extension",
   load_parquet: "Parquet Extension",
   carquet_reader: "Carquet Reader Implementation",
+  carquet_writer: "Carquet Writer Development",
   load_httpfs: "HTTPFS Extension",
   load_gds: "GDS Extension",
   pattern_match: "Pattern Match Extension",

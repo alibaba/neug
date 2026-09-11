@@ -166,7 +166,9 @@ if(BUILD_TEST)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/schema_converter.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/sniffer.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/input_adapter.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/export_writer.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/c_data_writer.cc)
     target_include_directories(neug_parquet_carquet_impl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -189,6 +191,27 @@ if(BUILD_TEST)
         ${GLOG_LIBRARIES}
         ${Protobuf_LIBRARIES})
     add_test(NAME parquet_carquet_test COMMAND parquet_carquet_test)
+
+    # Arrow is an independent reader for the migration-time export tests.
+    # The Carquet implementation itself has no Arrow includes or link dependency.
+    add_executable(parquet_carquet_export_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_export_writer_test.cc)
+    if(ARROW_INCLUDE_DIRS)
+        target_include_directories(parquet_carquet_export_test SYSTEM PRIVATE
+            ${ARROW_INCLUDE_DIRS})
+    endif()
+    target_link_libraries(parquet_carquet_export_test PRIVATE
+        neug::GTest
+        neug_parquet_carquet_impl
+        ${ARROW_PARQUET_LIB}
+        ${ARROW_BASE_LIB}
+        ${ARROW_BUNDLED_DEPS_LIB}
+        neug
+        ${GLOG_LIBRARIES}
+        ${Protobuf_LIBRARIES}
+        OpenSSL::SSL
+        OpenSSL::Crypto)
+    add_test(NAME parquet_carquet_export_test COMMAND parquet_carquet_export_test)
 
     add_executable(parquet_carquet_smoke_test
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_smoke_test.c)
