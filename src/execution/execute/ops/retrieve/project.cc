@@ -20,6 +20,7 @@
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/execute/ops/retrieve/project_utils.h"
+#include "neug/execution/execute/ops/retrieve/range_expression.h"
 #include "neug/execution/expression/special_predicates.h"
 
 namespace neug {
@@ -165,14 +166,14 @@ class ProjectOrderByOprBeta : public IOperator {
           fallback_expr_builders,
       const common::Expression& fst_expr, const std::set<int>& order_by_keys,
       const std::vector<std::pair<int32_t, bool>>& order_by_pairs,
-      int lower_bound, int upper_bound, const std::pair<int, bool>& first_pair)
+      std::unique_ptr<RangeExpression> range,
+      const std::pair<int, bool>& first_pair)
       : expr_builders_(std::move(expr_builders)),
         fallback_expr_builders_(std::move(fallback_expr_builders)),
         fst_expr_(fst_expr),
         order_by_keys_(order_by_keys),
         order_by_pairs_(order_by_pairs),
-        lower_bound_(lower_bound),
-        upper_bound_(upper_bound),
+        range_(std::move(range)),
         first_pair_(first_pair) {}
 
   std::string get_operator_name() const override {
@@ -185,6 +186,7 @@ class ProjectOrderByOprBeta : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
+    auto range = range_->bind(&graph_interface, params);
 
     auto cmp_func = [&](const DataChunk& chunk) -> GeneralComparer {
       GeneralComparer cmp;
@@ -213,7 +215,7 @@ class ProjectOrderByOprBeta : public IOperator {
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
           return Project::project_order_by_fuse<GeneralComparer>(
               graph, params, std::move(chunk), std::move(exprs), cmp_func,
-              lower_bound_, upper_bound_, order_by_keys_, first_pair_);
+              range.lower, range.upper, order_by_keys_, first_pair_);
         });
   }
 
@@ -223,7 +225,7 @@ class ProjectOrderByOprBeta : public IOperator {
   ::common::Expression fst_expr_;
   std::set<int> order_by_keys_;
   std::vector<std::pair<int32_t, bool>> order_by_pairs_;
-  int lower_bound_, upper_bound_;
+  std::unique_ptr<RangeExpression> range_;
   std::pair<int, bool> first_pair_;
 };
 
@@ -330,12 +332,8 @@ neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
         }
       }
     }
-    int lower = 0;
-    int upper = std::numeric_limits<int>::max();
-    if (order_by_opr.has_limit()) {
-      lower = order_by_opr.limit().lower();
-      upper = order_by_opr.limit().upper();
-    }
+    auto range =
+        std::make_unique<RangeExpression>(order_by_opr.limit(), ctx_meta);
     const auto& first_expr = std::get<0>(expr_infos[first_idx]);
     std::vector<std::unique_ptr<ProjectExprBuilderBase>> expr_builders;
     std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders;
@@ -344,7 +342,8 @@ neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     return std::make_pair(
         std::make_unique<ProjectOrderByOprBeta>(
             std::move(expr_builders), std::move(fallback_expr_builders),
-            first_expr, index_set, order_by_pairs, lower, upper, first_tuple),
+            first_expr, index_set, order_by_pairs, std::move(range),
+            first_tuple),
         ret_meta);
   } else {
     return std::make_pair(nullptr, ContextMeta());

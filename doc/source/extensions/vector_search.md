@@ -425,6 +425,72 @@ LIMIT 3;
 > all-zero vector and may therefore appear in similarity search results. See
 > [Create Vector Property](#create-vector-property) for details.
 
+#### Limit and Skip
+
+An HNSW index scan requires a nearest-neighbor query with both a compatible
+distance ordering and a finite upper bound supplied by `LIMIT`. Use ascending
+order for L2 and cosine distance, and descending order for inner product.
+
+`LIMIT` may be an integer literal, a constant integer expression, or a dynamic
+parameter. For range constraints and dynamic parameter rules, see the general
+[LIMIT and SKIP](../cypher_manual/query_clauses/limit_clause.md) documentation.
+The following query is eligible for HNSW index scan optimization:
+
+```cypher
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+LIMIT $result_limit;
+```
+
+`SKIP ... LIMIT ...` also has a finite upper bound. NeuG requests up to
+`skip + limit` candidates from HNSW and then returns the requested window:
+
+```cypher
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+SKIP $row_offset
+LIMIT $page_size;
+```
+
+For example, applications can bind all three parameters at execution time:
+
+```python
+statement = """
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+SKIP $row_offset
+LIMIT $page_size
+"""
+
+result = connection.execute(
+    statement,
+    parameters={
+        "query_vector": [0.1, 0.2, 0.3, 0.4],
+        "row_offset": 10,
+        "page_size": 10,
+    },
+)
+```
+
+An `ORDER BY ... SKIP` query without `LIMIT` has no finite upper bound and is
+therefore not eligible for HNSW index scan optimization. It remains valid and
+falls back to scanning vectors, calculating every distance, sorting the full
+result, and then applying `SKIP`:
+
+```cypher
+MATCH (n:vector_node)
+RETURN n.id,
+       vector_distance_l2(n.vec, $query_vector) AS distance
+ORDER BY distance ASC
+SKIP $row_offset;
+```
+
 ### Graph + Vector Hybrid Search
 
 NeuG combines graph traversal capabilities with vector similarity search.

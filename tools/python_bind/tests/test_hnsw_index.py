@@ -224,6 +224,81 @@ def test_hnsw_index_scan_with_dynamic_target(advanced_connection):
     assert "IndexScanOpr" in _profile_operator_names(result)
 
 
+def test_hnsw_index_scan_with_dynamic_limit(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC LIMIT $k;",
+        parameters={"k": 3},
+    )
+
+    assert [row[0] for row in result] == [500, 501, 499]
+    operator_names = _profile_operator_names(result)
+    assert "IndexScanOpr" in operator_names
+    assert "ProjectOrderByOprBeta" in operator_names
+
+
+def test_hnsw_index_scan_with_dynamic_skip_and_limit(advanced_connection):
+    query = (
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC SKIP $offset LIMIT $k;"
+    )
+    result = advanced_connection.execute(query, parameters={"offset": 1, "k": 2})
+
+    rows = list(result)
+    assert [row[0] for row in rows] == [501, 499]
+    assert "IndexScanOpr" in _profile_operator_names(result)
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+    result = advanced_connection.execute(query, parameters={"offset": 0, "k": 1})
+    assert [row[0] for row in result] == [500]
+    assert "IndexScanOpr" in _profile_operator_names(result)
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+    result = advanced_connection.execute(query, parameters={"offset": 10, "k": 0})
+    assert list(result) == []
+    assert "IndexScanOpr" in _profile_operator_names(result)
+    assert "ProjectOrderByOprBeta" in _profile_operator_names(result)
+
+
+def test_hnsw_dynamic_skip_without_limit_uses_brute_force(advanced_connection):
+    result = advanced_connection.execute(
+        "PROFILE MATCH (n:Item) RETURN n.id, "
+        f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+        "AS score ORDER BY score ASC SKIP $offset;",
+        parameters={"offset": 1},
+    )
+
+    rows = list(result)
+    assert len(rows) == NUM_VECTORS - 1
+    assert [row[0] for row in rows[:2]] == [501, 499]
+    operator_names = _profile_operator_names(result)
+    assert "IndexScanOpr" not in operator_names
+    assert "OrderByOpr" in operator_names
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("LIMIT 4294967296", None),
+        ("LIMIT $value", {"value": 2**32}),
+        ("SKIP 4294967296 LIMIT 1", None),
+        ("SKIP $value LIMIT 1", {"value": 2**32}),
+    ],
+)
+def test_hnsw_rejects_range_values_above_uint32_max(
+    advanced_connection, suffix, parameters
+):
+    with pytest.raises(Exception, match="exceeds maximum allowed value: 4294967295"):
+        advanced_connection.execute(
+            "MATCH (n:Item) RETURN n.id, "
+            f"vector_distance_l2(n.l2_vec, {_array_literal(_constant_vector(500.1))}) "
+            f"AS score ORDER BY score ASC {suffix}",
+            parameters=parameters,
+        )
+
+
 def test_scalar_function_with_dynamic_target(advanced_connection):
     node_vector = _constant_vector(500.0)
     target_vector = _constant_vector(500.1)

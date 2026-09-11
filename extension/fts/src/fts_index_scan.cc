@@ -16,7 +16,6 @@
 
 #include "fts_index_scan.h"
 
-#include <charconv>
 #include <cmath>
 #include <memory>
 #include <optional>
@@ -40,6 +39,7 @@
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/metadata_manager.h"
+#include "neug/compiler/planner/operator/logical_limit.h"
 #include "neug/compiler/planner/operator/logical_order_by.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
@@ -146,7 +146,10 @@ std::unique_ptr<function::CallFuncInputBase> FTSIndexScanFuncInput::bindParams(
       bound->weights[property_name] = 1.0;
     }
   }
-  bound->limit = limit;
+  if (range) {
+    const auto resolved = range->bind(nullptr, params);
+    bound->bound_range = resolved.upper <= resolved.lower ? 0 : resolved.upper;
+  }
   bound->ascending = ascending;
   bound->node_alias = node_alias;
   bound->score_alias = score_alias;
@@ -164,17 +167,13 @@ std::shared_ptr<binder::ScalarFunctionExpression> FindBM25Expression(
   }
 
   const auto& order_expression = order_expressions[0];
-  if (order_expression->expressionType == common::ExpressionType::FUNCTION) {
-    auto* function =
-        order_expression->ptrCast<binder::ScalarFunctionExpression>();
-    if (function->getFunction().name == FTSBM25Function::name) {
-      return std::static_pointer_cast<binder::ScalarFunctionExpression>(
-          order_expression);
-    }
-  }
   for (const auto& expression : projection.getExpressionsToProject()) {
     if (expression->expressionType != common::ExpressionType::FUNCTION ||
         expression->getUniqueName() != order_expression->getUniqueName()) {
+      continue;
+    }
+    const auto* input_schema = projection.getChild(0)->getSchema();
+    if (input_schema && input_schema->isExpressionInScope(*expression)) {
       continue;
     }
     auto* function = expression->ptrCast<binder::ScalarFunctionExpression>();
@@ -266,6 +265,10 @@ std::shared_ptr<binder::ScalarFunctionExpression> FindProjectedBM25Expression(
     if (!function || function->getFunction().name != FTSBM25Function::name) {
       continue;
     }
+    const auto* input_schema = projection.getChild(0)->getSchema();
+    if (input_schema && input_schema->isExpressionInScope(*expression)) {
+      continue;
+    }
     if (result) {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "FTS projection currently supports one BM25 expression");
@@ -273,17 +276,6 @@ std::shared_ptr<binder::ScalarFunctionExpression> FindProjectedBM25Expression(
     result = std::move(function);
   }
   return result;
-}
-
-uint64_t ParseUint64Option(const std::string& name, const std::string& value) {
-  uint64_t parsed = 0;
-  const auto* begin = value.data();
-  const auto* end = begin + value.size();
-  auto [position, error] = std::from_chars(begin, end, parsed);
-  if (error != std::errc{} || position != end) {
-    THROW_RUNTIME_ERROR("FTS_INDEX_SCAN has invalid " + name + ": " + value);
-  }
-  return parsed;
 }
 
 std::shared_ptr<binder::Expression> MakeScanColumn(
@@ -357,13 +349,10 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   const auto& scan = op.opr().index_scan();
   auto input = std::make_unique<FTSIndexScanFuncInput>();
   std::string label;
-  std::optional<std::string> limit;
   std::string order{"asc"};
   for (const auto& option : scan.options()) {
     if (option.first == "label_id") {
       label = option.second;
-    } else if (option.first == "limit") {
-      limit = option.second;
     } else if (option.first == "order") {
       order = option.second;
     }
@@ -387,8 +376,9 @@ std::unique_ptr<function::CallFuncInputBase> BindFTSIndexScan(
   }
   input->property_names.assign(scan.property_names().begin(),
                                scan.property_names().end());
-  if (limit) {
-    input->limit = ParseUint64Option("limit", *limit);
+  if (scan.has_limit()) {
+    input->range = std::make_unique<execution::ops::RangeExpression>(
+        scan.limit(), context_meta);
   }
   input->ascending = order == "asc";
   input->node_alias = op.meta_data(0).alias();
@@ -408,7 +398,7 @@ execution::Context ExecuteFTSIndexScan(
   params.query_string = input.bound_query_string.GetValue<std::string>();
   params.property_names = input.property_names;
   params.weights = input.weights;
-  params.limit = input.limit;
+  params.limit = input.bound_range;
   params.order =
       input.ascending ? FTSScoreOrder::kAscending : FTSScoreOrder::kDescending;
   for (const auto& context_chunk : input.context.chunks()) {
@@ -469,15 +459,15 @@ execution::Context ExecuteFTSIndexScan(
         continue;
       }
       for (auto row : rows->second) {
-        if (input.limit &&
-            static_cast<uint64_t>(offsets.size()) >= *input.limit) {
+        if (input.bound_range &&
+            static_cast<uint64_t>(offsets.size()) >= *input.bound_range) {
           break;
         }
         offsets.push_back(row);
         score_builder.push_back_opt(result.score);
       }
-      if (input.limit &&
-          static_cast<uint64_t>(offsets.size()) >= *input.limit) {
+      if (input.bound_range &&
+          static_cast<uint64_t>(offsets.size()) >= *input.bound_range) {
         break;
       }
     }
@@ -523,14 +513,27 @@ void FTSIndexScanOptimizer::rewrite(main::ClientContext* context,
 
 std::shared_ptr<planner::LogicalOperator> FTSIndexScanOptimizer::visitOperator(
     const std::shared_ptr<planner::LogicalOperator>& op) {
-  // Handle ORDER BY before its projection child. A bottom-up traversal would
-  // otherwise lose the opportunity to push the requested direction/limit into
-  // the FTS scan when the projection is rewritten first.
   if (op->getOperatorType() == planner::LogicalOperatorType::ORDER_BY) {
+    // Rewrite nested query parts first, but leave this ORDER BY's direct
+    // projection intact until its direction/range can be pushed into the scan.
+    // This also prevents an outer consumer of an already materialized score
+    // from being mistaken for a second FTS search.
+    auto child = op->getChild(0);
+    if (child->getOperatorType() == planner::LogicalOperatorType::PROJECTION) {
+      for (auto i = 0u; i < child->getNumChildren(); ++i) {
+        child->setChild(i, visitOperator(child->getChild(i)));
+      }
+    } else {
+      op->setChild(0, visitOperator(child));
+    }
     auto rewritten = visitOrderByReplace(op);
     if (rewritten != op) {
       return rewritten;
     }
+    if (child->getOperatorType() == planner::LogicalOperatorType::PROJECTION) {
+      op->setChild(0, visitProjectionReplace(child));
+    }
+    return op;
   }
   for (auto i = 0u; i < op->getNumChildren(); ++i) {
     op->setChild(i, visitOperator(op->getChild(i)));
@@ -548,7 +551,7 @@ FTSIndexScanOptimizer::visitOrderByReplace(
     return op;
   }
   auto order_by = op->ptrCast<planner::LogicalOrderBy>();
-  if (order_by->getSkipNum() != 0 || order_by->getNumChildren() != 1) {
+  if (order_by->getNumChildren() != 1) {
     return op;
   }
   auto child = order_by->getChild(0);
@@ -563,12 +566,22 @@ FTSIndexScanOptimizer::visitOrderByReplace(
   if (!bm25) {
     return op;
   }
-  std::optional<uint64_t> limit;
-  if (order_by->hasLimitNum()) {
-    limit = order_by->getLimitNum();
-  }
   RewriteProjection(projection, bm25, order_by->getIsAscOrders().front(),
-                    limit);
+                    order_by->getSkipNum(), order_by->getLimitNum());
+  // FTS already emits candidates in BM25 order and enforces the resolved
+  // upper bound. Retain only the offset operation needed to remove the first
+  // candidates; repeating the sort would add work without changing results.
+  if (order_by->getSkipNum()) {
+    auto skip = std::make_shared<planner::LogicalLimit>(order_by->getSkipNum(),
+                                                        nullptr, child);
+    const auto is_literal_zero = order_by->getSkipNum()->expressionType ==
+                                     common::ExpressionType::LITERAL &&
+                                 skip->evaluateSkipNum() == 0;
+    if (!is_literal_zero) {
+      skip->computeFlatSchema();
+      return skip;
+    }
+  }
   return child;
 }
 
@@ -586,14 +599,15 @@ FTSIndexScanOptimizer::visitProjectionReplace(
   if (!bm25) {
     return op;
   }
-  RewriteProjection(projection, bm25, true, std::nullopt);
+  RewriteProjection(projection, bm25, true, nullptr, nullptr);
   return op;
 }
 
 void FTSIndexScanOptimizer::RewriteProjection(
     planner::LogicalProjection* projection,
     const std::shared_ptr<binder::ScalarFunctionExpression>& bm25,
-    bool ascending, std::optional<uint64_t> limit) {
+    bool ascending, std::shared_ptr<binder::Expression> offset,
+    std::shared_ptr<binder::Expression> limit) {
   auto input_op = projection->getChild(0);
   BM25Arguments arguments;
   if (!ExtractBM25Arguments(*bm25, arguments) || arguments.properties.empty()) {
@@ -688,9 +702,8 @@ void FTSIndexScanOptimizer::RewriteProjection(
   }
   bind_data->options["label_id"] = std::to_string(property->getSingleTableID());
   bind_data->options["order"] = ascending ? "asc" : "desc";
-  if (limit) {
-    bind_data->options["limit"] = std::to_string(*limit);
-  }
+  bind_data->rangeOffset = std::move(offset);
+  bind_data->rangeLimit = std::move(limit);
   auto table_call = std::make_shared<planner::LogicalTableFunctionCall>(
       *function, std::move(bind_data));
   if (attach_input) {
@@ -698,6 +711,20 @@ void FTSIndexScanOptimizer::RewriteProjection(
   }
   table_call->computeFlatSchema();
   projection->setChild(0, std::move(table_call));
+  // The index scan materializes the BM25 score. Make the projection pass that
+  // column through instead of evaluating BM25 again as a scalar expression.
+  // This is required when the projected score is consumed by a later query
+  // part (for example, a WITH followed by graph traversal).
+  for (auto& expression : projection->getExpressionsToProjectRef()) {
+    if (expression->expressionType != common::ExpressionType::FUNCTION) {
+      continue;
+    }
+    auto* function = expression->ptrCast<binder::ScalarFunctionExpression>();
+    if (function && function->getFunction().name == FTSBM25Function::name) {
+      expression = score_column;
+    }
+  }
+  projection->computeFlatSchema();
 }
 
 function::TableFunction* FTSIndexScanOptimizer::GetIndexScanFunction(

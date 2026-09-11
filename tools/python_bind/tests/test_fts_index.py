@@ -60,6 +60,13 @@ def search(connection, query, limit=10):
     )
 
 
+def _profile_operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
+
+
 @pytest.fixture()
 def fts_database(tmp_path):
     db = Database(db_path=str(tmp_path / "fts_db"), mode="w")
@@ -351,8 +358,6 @@ def test_fts_topk_search(fts_database):
         pytest.param("n.id", "DESC", 2, id="column-desc-with-limit"),
         pytest.param(None, None, 0, id="zero-limit"),
         pytest.param(None, None, 4294967295, id="uint32-max-limit"),
-        pytest.param(None, None, 4294967296, id="uint32-overflow-limit"),
-        pytest.param(None, None, 9223372036854775807, id="int64-max-limit"),
     ],
 )
 def test_fts_order_by_limit(fts_database, order_by, direction, limit):
@@ -393,6 +398,92 @@ def test_fts_order_by_limit(fts_database, order_by, direction, limit):
     actual = list(fts_database.execute(query + ";"))
     assert [row[0] for row in actual] == [row[0] for row in expected]
     assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("LIMIT 4294967296", None),
+        ("LIMIT $value", {"value": 2**32}),
+        ("SKIP 4294967296", None),
+        ("SKIP $value", {"value": 2**32}),
+    ],
+)
+def test_fts_rejects_range_values_above_uint32_max(fts_database, suffix, parameters):
+    with pytest.raises(Exception, match="exceeds maximum allowed value: 4294967295"):
+        fts_database.execute(
+            "MATCH (n:Item) "
+            "RETURN n.id, bm25(n.text, 'search') AS score "
+            f"ORDER BY score ASC {suffix}",
+            parameters=parameters,
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters", "start", "stop", "expect_limit_operator"),
+    [
+        pytest.param("LIMIT $k", {"k": 2}, 0, 2, True, id="limit"),
+        pytest.param("SKIP $offset", {"offset": 1}, 1, None, True, id="skip"),
+        pytest.param(
+            "SKIP $offset LIMIT $k",
+            {"offset": 1, "k": 1},
+            1,
+            2,
+            True,
+            id="skip-limit",
+        ),
+        pytest.param(
+            "ORDER BY score ASC LIMIT $k",
+            {"k": 2},
+            0,
+            2,
+            False,
+            id="order-by-limit",
+        ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset",
+            {"offset": 1},
+            1,
+            None,
+            True,
+            id="order-by-skip",
+        ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset LIMIT $k",
+            {"offset": 1, "k": 1},
+            1,
+            2,
+            True,
+            id="order-by-skip-limit",
+        ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset LIMIT $k",
+            {"offset": 10, "k": 0},
+            10,
+            10,
+            True,
+            id="order-by-skip-zero-limit",
+        ),
+    ],
+)
+def test_fts_index_scan_with_dynamic_limit_and_skip(
+    fts_database, suffix, parameters, start, stop, expect_limit_operator
+):
+    query_prefix = "MATCH (n:Item) " "RETURN n.id, bm25(n.text, 'search') AS score"
+    exhaustive = list(fts_database.execute(query_prefix + " ORDER BY score ASC"))
+    result = fts_database.execute(
+        "PROFILE " + query_prefix + " " + suffix,
+        parameters=parameters,
+    )
+    actual = list(result)
+
+    expected = exhaustive[start:stop]
+    assert [row[0] for row in actual] == [row[0] for row in expected]
+    assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+    operator_names = _profile_operator_names(result)
+    assert "IndexScanOpr" in operator_names
+    assert "OrderByOpr" not in operator_names
+    assert ("LimitOpr" in operator_names) == expect_limit_operator
 
 
 @pytest.mark.parametrize(

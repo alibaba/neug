@@ -332,6 +332,7 @@ message IndexScan {
   map<string, string> options = 4;
   common.Expression weights = 5;
   repeated string property_names = 6;
+  algebra.Range limit = 7;
 }
 
 message ExtensionInstall {
