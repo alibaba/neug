@@ -17,16 +17,17 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "carquet/scan.h"
 #include "neug/compiler/function/function.h"
+#include "neug/compiler/function/import/import_stream.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/utils/io/read/common/schema.h"
-#include "neug/utils/io/read/common/sniffer.h"
-#include "parquet/arrow_fs_resolver.h"
-#include "parquet/arrow_reader.h"
-#include "parquet/arrow_sniffer.h"
-#include "parquet_options.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/io/stream/input_stream.h"
 
 namespace neug {
 namespace function {
@@ -47,66 +48,52 @@ struct ParquetReadFunction {
 
   static execution::Context execFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
-    const auto& vfs = neug::main::MetadataRegistry::getVFS();
-    const auto& fs = vfs->Provide(state->schema.file);
-    auto resolvedPaths = std::vector<std::string>();
-    for (const auto& path : state->schema.file.paths) {
-      const auto& resolved = fs->glob(path);
-      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
-                           resolved.end());
-    }
-    state->schema.file.paths = std::move(resolvedPaths);
-
-    auto optionsBuilder =
-        std::make_unique<reader::ArrowParquetOptionsBuilder>(state);
-
-    auto arrowFs = parquet::resolveArrowFileSystem(*fs);
-    auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), std::move(arrowFs));
-
+    resolvePathsAndStream(state);
     execution::Context ctx;
-    auto localState = std::make_shared<reader::ReadLocalState>();
-    reader->read(localState, ctx);
+    parquet::scanCarquet(state, ctx);
     return ctx;
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(
       const reader::FileSchema& schema) {
     auto state = std::make_shared<reader::ReadSharedState>();
-    auto& externalSchema = state->schema;
+    state->schema.file = schema;
+    resolvePathsAndStream(state);
 
-    externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
-    externalSchema.file = schema;
-    externalSchema.file.options["BATCH_SIZE"] =
-        std::to_string(reader::kSniffBlockSize);
-
-    const auto& vfs = neug::main::MetadataRegistry::getVFS();
-    const auto& fs = vfs->Provide(state->schema.file);
-    auto resolvedPaths = std::vector<std::string>();
-    for (const auto& path : state->schema.file.paths) {
-      const auto& resolved = fs->glob(path);
-      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
-                           resolved.end());
+    const std::string path = state->schema.file.paths.front();
+    io::InputStreamFactory inputFactory;
+    if (state->stream_opener) {
+      inputFactory = io::bindInputStream(state->stream_opener, path);
+    } else {
+      inputFactory = [path]() { return io::openLocalInputStream(path); };
     }
-    state->schema.file.paths = std::move(resolvedPaths);
-
-    auto optionsBuilder =
-        std::make_unique<reader::ArrowParquetOptionsBuilder>(state);
-
-    auto arrowFs = parquet::resolveArrowFileSystem(*fs);
-    auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), std::move(arrowFs));
-
-    auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
-    auto sniffResult = sniffer->sniff();
-
+    auto sniffResult = parquet::sniffCarquet(std::move(inputFactory));
     if (!sniffResult) {
-      LOG(ERROR) << "Failed to sniff Parquet schema: "
-                 << sniffResult.error().ToString();
       THROW_IO_EXCEPTION("Failed to sniff Parquet schema: " +
                          sniffResult.error().ToString());
     }
-    return sniffResult.value();
+    return std::move(*sniffResult);
+  }
+
+ private:
+  static void resolvePathsAndStream(
+      const std::shared_ptr<reader::ReadSharedState>& state) {
+    if (!state) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Parquet read state is null");
+    }
+    const auto& vfs = main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    std::vector<std::string> resolvedPaths;
+    for (const auto& path : state->schema.file.paths) {
+      const auto resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    if (resolvedPaths.empty()) {
+      THROW_IO_EXCEPTION("No Parquet files match the input paths");
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
+    state->stream_opener = makeImportStreamOpener(*fs);
   }
 };
 

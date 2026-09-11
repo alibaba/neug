@@ -28,7 +28,8 @@
 #include <rapidjson/writer.h>
 #include <algorithm>
 
-#include "neug/compiler/main/metadata_registry.h"
+#include "carquet/export_writer.h"
+#include "neug/compiler/function/export/export_stream.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/write/writer.h"
 #include "neug/utils/property/types.h"
@@ -471,12 +472,10 @@ static execution::Context parquetExecFunc(
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
 
-  const auto& vfs = neug::main::MetadataRegistry::getVFS();
-  const auto& fs = vfs->Provide(schema);
-
-  auto arrowFs = neug::parquet::resolveArrowFileSystem(*fs);
-  auto writer = std::make_shared<neug::writer::ArrowParquetExportWriter>(
-      schema, std::move(arrowFs), entry_schema);
+  auto writer = std::make_shared<neug::parquet::CarquetExportWriter>(
+      schema, entry_schema);
+  writer->setStreamOpener(
+      [&schema]() { return openExportOutputStream(schema); });
 
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
