@@ -279,6 +279,29 @@ def test_invalid_rel_table_filter(schema_connection):
     with pytest.raises(Exception, match="Invalid edge triplet"):
         list(conn.execute("CALL SHOW_REL_TABLES('[Person, WorksAt]');"))
 
+    with pytest.raises(
+        Exception,
+        match=r"SHOW_REL_TABLES does not support wildcard '\*' in the edge position",
+    ):
+        list(conn.execute("CALL SHOW_REL_TABLES('[Person, *, Company]');"))
+
+
+@pytest.mark.parametrize(
+    "triplet",
+    [
+        "[*, WorksAt, Company]",
+        "[Person, *, Company]",
+        "[Person, WorksAt, *]",
+        "[*, *, *]",
+    ],
+)
+def test_show_rel_table_info_rejects_wildcards(schema_connection, triplet):
+    conn, _ = schema_connection
+    with pytest.raises(
+        Exception, match=r"SHOW_REL_TABLE_INFO does not support wildcard '\*'"
+    ):
+        list(conn.execute(f"CALL SHOW_REL_TABLE_INFO('{triplet}');"))
+
 
 @pytest.mark.parametrize(
     "query, message",

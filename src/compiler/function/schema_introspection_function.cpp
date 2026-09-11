@@ -392,7 +392,13 @@ function_set ShowRelTablesFunction::getFunctionSet() {
     std::vector<EdgeTriplet> filterTriplets;
     const auto& schema = graph.schema();
     for (const auto& filter : filters) {
-      filterTriplets.push_back(ParseEdgeTriplet(filter));
+      auto triplet = ParseEdgeTriplet(filter);
+      if (std::get<1>(triplet) == "*") {
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "SHOW_REL_TABLES does not support wildcard '*' in the edge "
+            "position");
+      }
+      filterTriplets.push_back(std::move(triplet));
     }
     std::vector<std::shared_ptr<const EdgeSchema>> validEdges;
     for (const auto& [_, edge] : schema.get_all_edge_schemas()) {
@@ -540,6 +546,10 @@ function_set ShowRelTableInfoFunction::getFunctionSet() {
                           IStorageInterface& graph) {
     const auto& tableInput = dynamic_cast<const ShowTableInfoInput&>(input);
     const auto [src, edge, dst] = ParseEdgeTriplet(tableInput.table);
+    if (src == "*" || edge == "*" || dst == "*") {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "SHOW_REL_TABLE_INFO does not support wildcard '*'");
+    }
     const auto& schema = graph.schema();
     if (!schema.is_edge_triplet_valid(src, dst, edge)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Edge table [" + src + ", " + edge +
