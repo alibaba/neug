@@ -42,7 +42,9 @@ jobs:
       env:
         DOXYGEN_VERSION: '1.13.2'
       run: |
-        set -euo pipefail
+        # The container runs steps under sh (dash), which lacks `pipefail`;
+        # stick to POSIX `set -eu` so this works regardless of the shell.
+        set -eu
         sudo apt update
         sudo apt install -y curl graphviz
         INSTALL_DIR="${HOME}/doxygen-${DOXYGEN_VERSION}"
