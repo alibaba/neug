@@ -151,11 +151,6 @@ class GExprConverter {
   std::unique_ptr<::common::Expression> convertUDFFunc(
       const std::string& funcName, const binder::Expression& expr,
       size_t paramNum, const std::vector<std::string>& schemaAlias);
-  std::unique_ptr<::common::Expression> convertRegexFunc(
-      const binder::Expression& expr, const GScalarType& scalarType,
-      const std::vector<std::string>& schemaAlias);
-  std::string convertRegexValue(const std::string& regex,
-                                const GScalarType& scalarType);
   std::unique_ptr<::common::Expression> convertListContainsFunc(
       const binder::Expression& expr, const GScalarType& scalarType,
       const std::vector<std::string>& schemaAlias);
