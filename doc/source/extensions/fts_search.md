@@ -378,6 +378,105 @@ For `$weights`:
 - Every value must be numeric, positive, finite, and not `NULL`.
 - `$weights` and `$query` can be bound independently or used together.
 
+### Limit and Skip
+
+Unlike HNSW vector search, FTS index search does not require an explicit
+`ORDER BY ... LIMIT` clause. The FTS index returns matches in ascending BM25
+score order by default, so `LIMIT` and `SKIP` can be used either independently
+or together with `ORDER BY`.
+
+The following query returns the first ten matches in the default BM25 order:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+LIMIT 10;
+```
+
+Use `SKIP` without `LIMIT` to omit matches from the beginning of the result:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+SKIP 10;
+```
+
+`SKIP` and `LIMIT` can be combined to select a bounded result window. Both
+clauses accept integer literals, constant integer expressions, and dynamic
+parameters. For their value range and parameter rules, see
+[LIMIT and SKIP](../cypher_manual/query_clauses/limit_clause.md). The following
+example uses a literal offset and a dynamic page size:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+SKIP 10
+LIMIT $page_size;
+```
+
+An explicit `ORDER BY score ASC` documents the relevance order and allows the
+optimizer to push the finite upper bound into the FTS index scan:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+LIMIT $result_limit;
+```
+
+Explicit ordering can also be combined with `SKIP` alone:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+ORDER BY score ASC
+SKIP $row_offset;
+```
+
+For paginated ranked search, specify both bounds:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+SKIP $row_offset
+LIMIT $page_size;
+```
+
+For the last query, parameters can be supplied through the Python API:
+
+```python
+statement = """
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+SKIP $row_offset
+LIMIT $page_size
+"""
+
+result = connection.execute(
+    statement,
+    parameters={
+        "query": "graph database",
+        "row_offset": 20,
+        "page_size": 10,
+    },
+)
+```
+
+When an explicit BM25 ordering has a finite upper bound, NeuG can ask the FTS
+index for at most `skip + limit` candidates and avoid a separate sort. A
+residual skip operation still removes the first `skip` candidates. With
+`SKIP` but no `LIMIT`, there is no finite upper bound, so all matching
+candidates may need to be produced before the offset is applied.
+
 ## Filtering and Hybrid Search
 
 NeuG applies scalar or graph filters before selecting the final Top-K matches.

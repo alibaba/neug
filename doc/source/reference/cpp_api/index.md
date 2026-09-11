@@ -15,7 +15,7 @@ The C++ API offers powerful capabilities for:
 - **[NeugDB](neug_db)** - The main entry point for database operations
 - **[Connection](connection)** - Execute Cypher queries against the database
 - **[NeugDBService](service)** - HTTP service for high-throughput scenarios
-- **[QueryResult](query_result)** - Container for query results with iterator access
+- **[QueryResult](query_result)** - Container for query results with cursor-based access
 
 ## Quick Start
 
@@ -67,7 +67,7 @@ if (!result.has_value()) {
 
 ## Thread Safety
 
-- `NeugDB`: Connection/service registration is synchronized; lifecycle changes
-  require connections to be idle
+- `NeugDB`: Connection/service registration is synchronized; lifecycle changes require connections to be idle
 - `Connection`: NOT thread-safe; use one connection per thread
 - `QueryResult`: Thread-safe (read-only after creation)
+
