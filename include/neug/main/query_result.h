@@ -135,8 +135,15 @@ class NEUG_API QueryResult {
 
   /**
    * @brief Check whether the cell at current row is NULL.
+   *
+   * @param column_index Zero-based column index.
    */
   bool IsNull(size_t column_index) const;
+  /**
+   * @brief Check whether the named cell at current row is NULL.
+   *
+   * @param column_name Column name from the result schema.
+   */
   bool IsNull(const std::string& column_name) const;
 
   /**

@@ -98,7 +98,8 @@ class Database(object):
             Note that in memory mode, the database will not be persisted to disk, and all data will be
             lost when the program exits. In this case, the db_path should not contain any illegal characters.
         mode : str
-            Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'read-write'.
+            Mode to open the database. Read-only: 'r', 'read', 'read-only', 'read_only'.
+            Read-write: 'w', 'rw', 'write', 'readwrite', 'read-write', 'read_write'. Default is 'read-write'.
         max_thread_num : int
             Database query capacity; 0 selects hardware concurrency (fallback 1), while higher inputs warn and clamp to it.
 

@@ -63,7 +63,14 @@ Return the current cursor position (0-based row index).
 Check whether the cell at current row is NULL.
 
 - **Parameters:**
-  - `column_index`
+  - `column_index`: Zero-based column index.
+
+#### `IsNull(const std::string &column_name) const`
+
+Check whether the named cell at current row is NULL.
+
+- **Parameters:**
+  - `column_name`: Column name from the result schema.
 
 #### `GetInt32(size_t column_index) const`
 
