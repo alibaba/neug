@@ -91,7 +91,11 @@ void LimitPushDownOptimizer::visitOperator(planner::LogicalOperator* op) {
       // LCOV_EXCL_STOP
       auto& extend =
           op->getChild(0)->getChild(0)->cast<LogicalRecursiveExtend>();
-      extend.setLimitNum(skipNumber + limitNumber);
+      const auto upper = limitNumber == INVALID_LIMIT ||
+                                 skipNumber > INVALID_LIMIT - limitNumber
+                             ? INVALID_LIMIT
+                             : skipNumber + limitNumber;
+      extend.setLimitNum(upper);
     }
     return;
   }
