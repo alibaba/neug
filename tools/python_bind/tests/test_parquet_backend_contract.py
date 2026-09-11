@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
-"""Parquet contracts through NeuG SQL, independent of the active backend.
+"""Parquet contracts through NeuG SQL and the active backend wiring.
 
 Reuse example_dataset for regular reads. PyArrow only produces temporary
 boundary/encoding inputs; it is an optional test dependency, as in test_load_array.
 Expected query results remain explicit and independent of the file producer.
+Most cases are backend-neutral; focused option and metadata assertions verify
+that the registered reader and writer use Carquet after the production switch.
 """
 
 import os
+import shutil
 from datetime import date
 from datetime import datetime
 from pathlib import Path
@@ -109,6 +112,20 @@ def type_file(tmp_path):
     )
 
     return path
+
+
+@pytest.fixture
+def multi_file_dataset(tmp_path):
+    """Copy immutable fixtures for multi-path and schema-mismatch coverage."""
+    data_dir = tmp_path / "reader_parts"
+    data_dir.mkdir()
+    first = data_dir / "part-01.parquet"
+    second = data_dir / "part-02.parquet"
+    source = DATASET_DIR / "tinysnb" / "parquet" / "vPerson.parquet"
+    shutil.copyfile(source, first)
+    shutil.copyfile(source, second)
+    mismatch = DATASET_DIR / "comprehensive_graph" / "parquet" / "node_a.parquet"
+    return first, second, mismatch
 
 
 def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
@@ -229,7 +246,7 @@ def test_reader_preserves_complete_predicates(
     rows = list(
         connection.execute(
             f'LOAD FROM "{type_file.as_posix()}" '
-            f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
+            f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
             f"WHERE {predicate} RETURN id ORDER BY id"
         )
     )
@@ -240,7 +257,7 @@ def test_reader_preserves_complete_predicates(
 def test_reader_fallback_binds_current_parameters(connection, type_file, batch_read):
     query = (
         f'LOAD FROM "{type_file.as_posix()}" '
-        f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
+        f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
         "WHERE CASE WHEN score IS NULL THEN $missing ELSE score END > $minimum "
         "RETURN id ORDER BY id"
     )
@@ -256,6 +273,79 @@ def test_reader_fallback_propagates_conversion_errors(connection, type_file):
             f'LOAD FROM "{type_file.as_posix()}" '
             "WHERE CAST(label, 'INT64') > 0 RETURN id"
         )
+
+
+def test_reader_resolves_explicit_paths_and_globs(connection, multi_file_dataset):
+    first, second, _ = multi_file_dataset
+    expected = [
+        [0, "Alice"],
+        [0, "Alice"],
+        [2, "Bob"],
+        [2, "Bob"],
+        [3, "Carol"],
+        [3, "Carol"],
+        [5, "Dan"],
+        [5, "Dan"],
+        [7, "Elizabeth"],
+        [7, "Elizabeth"],
+        [8, "Farooq"],
+        [8, "Farooq"],
+        [9, "Greg"],
+        [9, "Greg"],
+        [10, "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff"],
+        [10, "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff"],
+    ]
+    explicit_paths = f'["{first.as_posix()}", "{second.as_posix()}"]'
+    rows = list(
+        connection.execute(
+            f"LOAD FROM {explicit_paths} "
+            "(parallel=false, batch_read=true, parquet_batch_rows=1) "
+            "RETURN ID, fName ORDER BY ID"
+        )
+    )
+    assert rows == expected
+
+    pattern = first.parent / "part-*.parquet"
+    rows = list(
+        connection.execute(
+            f'LOAD FROM GLOB("{pattern.as_posix()}") '
+            "(parallel=true, batch_read=false, parquet_batch_rows=1) "
+            "RETURN ID, fName ORDER BY ID"
+        )
+    )
+    assert rows == expected
+
+
+def test_reader_reports_path_and_cross_file_schema_errors(
+    connection, multi_file_dataset, tmp_path
+):
+    first, _, mismatch = multi_file_dataset
+    with pytest.raises(RuntimeError, match="schema"):
+        list(
+            connection.execute(
+                f'LOAD FROM ["{first.as_posix()}", "{mismatch.as_posix()}"] '
+                "RETURN ID"
+            )
+        )
+
+    with pytest.raises(RuntimeError, match="No Parquet files match"):
+        connection.execute(
+            f'LOAD FROM GLOB("{(tmp_path / "missing-*.parquet").as_posix()}") '
+            "RETURN *"
+        )
+
+
+@pytest.mark.parametrize(
+    "options,error",
+    [
+        ("parquet_batch_rows=0", "PARQUET_BATCH_ROWS must be between"),
+        ("batch_size=0", "BATCH_SIZE must be positive"),
+    ],
+)
+def test_registered_reader_enforces_carquet_option_bounds(connection, options, error):
+    path = DATASET_DIR / "tinysnb" / "parquet" / "vPerson.parquet"
+    with pytest.raises(RuntimeError, match=error):
+        connection.execute(f'LOAD FROM "{path}" ({options}) RETURN ID')
 
 
 @pytest.mark.parametrize(
@@ -398,3 +488,33 @@ def test_writer_preserves_options_and_nested_values(connection, tmp_path):
 
     rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"'))
     assert rows == [[1, "alpha", [1, 2]], [2, "中文", []]]
+
+
+def test_writer_applies_options_through_registered_function(connection, tmp_path):
+    connection.execute(
+        "CREATE NODE TABLE WriterOptionRow("
+        "id INT64, category STRING, PRIMARY KEY(id));"
+    )
+    # Repeat each category inside its row group so Carquet keeps dictionary
+    # encoding instead of intentionally falling back to PLAIN for unique data.
+    for row, category in [(1, "a"), (2, "a"), (3, "b"), (4, "b")]:
+        connection.execute(
+            f"CREATE (:WriterOptionRow {{id: {row}, category: '{category}'}});"
+        )
+
+    for dictionary in (True, False):
+        path = tmp_path / f"writer_options_{dictionary}.parquet"
+        connection.execute(
+            f"COPY (MATCH (r:WriterOptionRow) "
+            f"RETURN r.id, r.category ORDER BY r.id) TO '{path}' "
+            "(COMPRESSION='zstd', ROW_GROUP_SIZE=2, "
+            f"DICTIONARY_ENCODING={str(dictionary).lower()})"
+        )
+
+        contents = path.read_bytes()
+        assert contents[:4] == b"PAR1"
+        assert contents[-4:] == b"PAR1"
+        assert b"Carquet" in contents
+        assert list(
+            connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"')
+        ) == [[1, "a"], [2, "a"], [3, "b"], [4, "b"]]

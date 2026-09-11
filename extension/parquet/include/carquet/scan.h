@@ -12,10 +12,19 @@
 #include "neug/utils/io/stream/input_stream.h"
 #include "neug/utils/result.h"
 
+namespace neug {
+
+class IDataChunkSupplier;
+
+}  // namespace neug
+
 namespace neug::parquet {
 
 result<std::shared_ptr<reader::EntrySchema>> sniffCarquet(
     io::InputStreamFactory inputFactory);
+
+std::shared_ptr<IDataChunkSupplier> createCarquetChunkSupplier(
+    const std::shared_ptr<reader::ReadSharedState>& state);
 
 void scanCarquet(const std::shared_ptr<reader::ReadSharedState>& state,
                  execution::Context& output);
