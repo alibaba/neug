@@ -6,6 +6,8 @@ on:
         - main
       paths:
         - 'doc/**'
+        - 'include/neug/**'            # C++ API doc sources (parsed by Doxygen)
+        - 'tools/python_bind/neug/**'  # Python API doc sources (parsed by pydoc-markdown)
         - '.github/workflows/docs.yml'
 
 
@@ -32,14 +34,46 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Install pinned Doxygen
+      # Pinned to the exact version that generated the committed docs under
+      # doc/source/reference. Doxygen's XML output changes across versions, so an
+      # unpinned `apt install doxygen` would make the freshness guard below fail
+      # on version drift instead of on genuinely stale docs.
+      env:
+        DOXYGEN_VERSION: '1.13.2'
+      run: |
+        set -euo pipefail
+        sudo apt update
+        sudo apt install -y curl graphviz
+        INSTALL_DIR="${HOME}/doxygen-${DOXYGEN_VERSION}"
+        curl -fsSL -o /tmp/doxygen.tar.gz \
+          "https://sourceforge.net/projects/doxygen/files/rel-${DOXYGEN_VERSION}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz/download"
+        mkdir -p "${INSTALL_DIR}"
+        tar -xzf /tmp/doxygen.tar.gz -C "${INSTALL_DIR}" --strip-components=1
+        "${INSTALL_DIR}/bin/doxygen" --version
+        echo "DOXYGEN_BIN=${INSTALL_DIR}/bin/doxygen" >> "${GITHUB_ENV}"
+
     - name: Build Documentation
       run: |
-        sudo apt update
-        sudo apt install -y doxygen graphviz
         cd ${GITHUB_WORKSPACE}/tools/python_bind
         python3 -m pip  install -r requirements.txt
         python3 -m pip  install -r requirements_dev.txt
         cd ${GITHUB_WORKSPACE}/doc
         . /home/neug/.neug_env
         make dependencies
-        make html
+        make html DOXYGEN="${DOXYGEN_BIN}"
+
+    - name: Verify committed API docs are up to date
+      # Hard guard: `make html` above regenerated doc/source/reference from the
+      # current sources. If the committed docs differ (modified, added, or
+      # removed), the contributor changed API sources without committing the
+      # regenerated docs, so fail the check.
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        if [ -n "$(git status --porcelain -- doc/source/reference)" ]; then
+          echo "::error::Committed API reference docs are stale. Sources under include/neug or tools/python_bind/neug changed but doc/source/reference was not regenerated. Run 'cd doc && make api-docs' (Doxygen 1.13.2, pydoc-markdown 4.8.2) and commit the result."
+          git --no-pager status --porcelain -- doc/source/reference
+          git --no-pager diff --stat -- doc/source/reference
+          exit 1
+        fi
+        echo "Committed API reference docs match the sources."
