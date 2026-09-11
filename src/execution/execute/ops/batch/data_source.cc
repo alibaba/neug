@@ -114,7 +114,11 @@ ReadSource build_read_source(const ::physical::DataSource& data_source) {
 }
 
 std::shared_ptr<IDataChunkSupplier> ReadSource::create_supplier() const {
-  return function->supplierFunc(state);
+  // Reader setup resolves globs and installs execution-specific stream state.
+  // Keep the cached plan state immutable so every execution starts from the
+  // original paths, including a retry after a read failure.
+  auto execution_state = std::make_shared<ReadSharedState>(*state);
+  return function->supplierFunc(std::move(execution_state));
 }
 
 bool ReadSource::supports_supplier() const {

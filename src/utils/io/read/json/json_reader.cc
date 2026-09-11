@@ -527,11 +527,9 @@ std::shared_ptr<IDataChunkSupplier> JsonReader::getDataChunkSupplier() {
 
   std::vector<std::shared_ptr<IDataChunkSupplier>> suppliers;
   suppliers.reserve(paths.size());
-  auto read_config = read_config_for_supplier(config);
   for (const auto& path : paths) {
     suppliers.push_back(std::make_shared<JsonChunkSupplier>(
-        path, read_config,
-        io::bindInputStream(sharedState_->stream_opener, path)));
+        path, config, io::bindInputStream(sharedState_->stream_opener, path)));
   }
   return std::make_shared<SequentialJsonChunkSupplier>(std::move(suppliers));
 }

@@ -1825,6 +1825,30 @@ class TestCopyFrom:
             )
         ) == [[4, 5, 1.5]]
 
+    def test_fused_copy_retry_reexpands_file_pattern(self):
+        first_path = self.tmp_path / "retry_1.csv"
+        first_path.write_text("id,value\n1,10\n2,bad\n", encoding="utf-8")
+        file_pattern = (self.tmp_path / "retry_*.csv").as_posix()
+
+        self.conn.execute(
+            "CREATE NODE TABLE retry_node (" "id INT64, value INT64, PRIMARY KEY (id))"
+        )
+        copy_query = (
+            f'COPY retry_node FROM "{file_pattern}" '
+            '(header=true, delimiter=",", batch_size=1)'
+        )
+        with pytest.raises(Exception):
+            self.conn.execute(copy_query)
+
+        first_path.write_text("id,value\n1,10\n2,20\n", encoding="utf-8")
+        (self.tmp_path / "retry_2.csv").write_text("id,value\n3,30\n", encoding="utf-8")
+
+        result = self.conn.execute(copy_query)
+        assert len(result) == 3
+        assert list(
+            self.conn.execute("MATCH (n:retry_node) RETURN n.id, n.value ORDER BY n.id")
+        ) == [[1, 10], [2, 20], [3, 30]]
+
     def test_create_edge_after_copy_from_edges(self):
         """Vertices created after edge COPY retain usable CSR slots."""
         nodes_csv = self.tmp_path / "files.csv"

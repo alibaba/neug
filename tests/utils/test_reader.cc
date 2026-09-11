@@ -1068,6 +1068,35 @@ TEST_F(ReaderTest, TestJsonStreamingRead) {
   EXPECT_EQ(ctx.row_num(), 3);
 }
 
+TEST_F(ReaderTest, TestJsonChunkSupplierPreservesProjection) {
+  createJsonFile("supplier_projection.json",
+                 "[{\"id\":1,\"name\":\"Alice\",\"score\":95.5}]");
+  createJsonFile("supplier_projection.jsonl",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n");
+
+  std::vector<std::string> column_names = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> column_types = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  for (const auto& [file_name, json_array_input] :
+       std::vector<std::pair<std::string, bool>>{
+           {"supplier_projection.json", true},
+           {"supplier_projection.jsonl", false}}) {
+    auto shared_state =
+        createJsonSharedState(file_name, column_names, column_types);
+    shared_state->projectColumns = {"score", "id"};
+
+    auto supplier = createJsonReader(shared_state, json_array_input)
+                        ->getDataChunkSupplier();
+    auto chunk = supplier->GetNextChunk();
+    ASSERT_NE(chunk, nullptr);
+    ASSERT_EQ(chunk->col_num(), 2);
+    EXPECT_DOUBLE_EQ(chunk->get(0)->get_elem(0).GetValue<double>(), 95.5);
+    EXPECT_EQ(chunk->get(1)->get_elem(0).GetValue<int64_t>(), 1);
+    EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+  }
+}
+
 TEST_F(ReaderTest, TestCsvChunkSupplierStreamsFilesInOrder) {
   createCsvFile("supplier_1.csv",
                 "id|name|score\n1|Alice|91.5\n2|Bob|82.0\n3|Carol|73.5\n");
