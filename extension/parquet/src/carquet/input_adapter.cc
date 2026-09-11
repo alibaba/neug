@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the License.
  */
 
-#include "input_adapter.h"
+#include "carquet/input_adapter.h"
 
 #include <algorithm>
 #include <cstdint>
