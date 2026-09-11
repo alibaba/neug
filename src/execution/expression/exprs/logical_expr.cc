@@ -264,7 +264,7 @@ class BindedWithInExpr : public VertexExprBase,
   const DataType& type() const override { return type_; }
 
   static Value eval_impl(const Value& lhs_val, const Value& rhs_val) {
-    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+    if (rhs_val.IsNull()) {
       return Value(DataType::BOOLEAN);
     }
     const auto rhs_type = rhs_val.type().id();
@@ -274,12 +274,21 @@ class BindedWithInExpr : public VertexExprBase,
     const auto& list_values = rhs_type == DataTypeId::kArray
                                   ? ArrayValue::GetChildren(rhs_val)
                                   : ListValue::GetChildren(rhs_val);
+    if (list_values.empty()) {
+      return Value::BOOLEAN(false);
+    }
+    if (lhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    bool has_null = false;
     for (const auto& val : list_values) {
-      if (lhs_val == val) {
+      if (val.IsNull()) {
+        has_null = true;
+      } else if (lhs_val == val) {
         return Value::BOOLEAN(true);
       }
     }
-    return Value::BOOLEAN(false);
+    return has_null ? Value(DataType::BOOLEAN) : Value::BOOLEAN(false);
   }
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {

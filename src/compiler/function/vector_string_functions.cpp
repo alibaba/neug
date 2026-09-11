@@ -70,6 +70,9 @@ neug::Value UpperFunction::Exec(const std::vector<neug::Value>& args) {
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
+  if (val.IsNull()) {
+    return neug::Value(DataType(DataTypeId::kVarchar));
+  }
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("UPPER: input value is not a string");
   }
@@ -92,6 +95,9 @@ neug::Value LowerFunction::Exec(const std::vector<neug::Value>& args) {
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
+  if (val.IsNull()) {
+    return neug::Value(DataType(DataTypeId::kVarchar));
+  }
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("LOWER: input value is not a string");
   }
@@ -114,6 +120,9 @@ neug::Value ReverseFunction::Exec(const std::vector<neug::Value>& args) {
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
+  if (val.IsNull()) {
+    return neug::Value(DataType(DataTypeId::kVarchar));
+  }
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
   }

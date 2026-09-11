@@ -47,8 +47,10 @@ class ExecutionSlot;
  *
  * // Execute a read query
  * auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
- * for (auto& record : result.value()) {
- *   // Process record...
+ * auto& qr = result.value();
+ * while (qr.hasNext()) {
+ *   std::cout << qr.GetCurrentRowAsString() << std::endl;
+ *   qr.next();
  * }
  *
  * // Execute an insert query
@@ -64,9 +66,9 @@ class ExecutionSlot;
  * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
  * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
  *
- * **Thread Safety:** This class is NOT thread-safe. A Connection and its owned
- * ExecutionSlot must be used by only one thread at a time. Use a separate
- * Connection per thread.
+ * **Thread Safety:** This class is NOT thread-safe; use one Connection per
+ * thread. Multiple concurrent connections are only allowed on a READ_ONLY
+ * database; a READ_WRITE database permits a single connection.
  *
  * **Lifecycle:**
  * - Created via NeugDB::Connect()
@@ -110,8 +112,10 @@ class NEUG_API Connection {
    *
    * // Process results
    * if (result.has_value()) {
-   *   for (auto& record : result.value()) {
-   *     // Access columns via record.entries()
+   *   auto& qr = result.value();
+   *   while (qr.hasNext()) {
+   *     std::string name = qr.GetString("n.name");
+   *     qr.next();
    *   }
    * } else {
    *   std::cerr << "Query failed: " << result.error().message() << std::endl;
