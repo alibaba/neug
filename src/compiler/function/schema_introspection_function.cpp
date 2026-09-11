@@ -16,7 +16,10 @@
 #include "neug/compiler/function/schema_introspection_function.h"
 
 #include <algorithm>
+#include <iomanip>
+#include <limits>
 #include <set>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -57,14 +60,15 @@ struct PropertyInfoRow {
   bool primaryKey;
 };
 
+using EdgeTriplet = std::tuple<std::string, std::string, std::string>;
+
 std::string Trim(std::string value) {
   auto trimmed = common::StringUtils::ltrim(value);
   trimmed = common::StringUtils::rtrim(trimmed);
   return std::string(trimmed);
 }
 
-std::tuple<std::string, std::string, std::string> ParseEdgeTriplet(
-    const std::string& value) {
+EdgeTriplet ParseEdgeTriplet(const std::string& value) {
   auto text = Trim(value);
   if (text.size() < 2 || text.front() != '[' || text.back() != ']') {
     THROW_INVALID_ARGUMENT_EXCEPTION("Invalid edge triplet '" + value +
@@ -89,6 +93,13 @@ std::tuple<std::string, std::string, std::string> ParseEdgeTriplet(
                                      "'. Expected [src, edge, dst].");
   }
   return {std::move(parts[0]), std::move(parts[1]), std::move(parts[2])};
+}
+
+bool EdgeTripletMatches(const EdgeTriplet& filter, const EdgeSchema& edge) {
+  const auto& [src, edgeLabel, dst] = filter;
+  return (src == "*" || src == edge.src_label_name) &&
+         edgeLabel == edge.edge_label_name &&
+         (dst == "*" || dst == edge.dst_label_name);
 }
 
 std::string PrimaryKeyToString(const VertexSchema& vertex) {
@@ -137,6 +148,18 @@ std::string DefaultValueToString(const Value& value) {
     return value.GetValue<bool>() ? "true" : "false";
   case DataTypeId::kVarchar:
     return value.GetValue<std::string>();
+  case DataTypeId::kFloat: {
+    std::ostringstream output;
+    output << std::setprecision(std::numeric_limits<float>::max_digits10)
+           << value.GetValue<float>();
+    return output.str();
+  }
+  case DataTypeId::kDouble: {
+    std::ostringstream output;
+    output << std::setprecision(std::numeric_limits<double>::max_digits10)
+           << value.GetValue<double>();
+    return output.str();
+  }
   case DataTypeId::kList: {
     std::string result = "[";
     const auto& children = ListValue::GetChildren(value);
@@ -366,26 +389,36 @@ function_set ShowRelTablesFunction::getFunctionSet() {
   auto exec = [](const CallFuncInputBase& input, IStorageInterface& graph) {
     const auto& showTablesInput = dynamic_cast<const ShowTablesInput&>(input);
     const auto& filters = showTablesInput.tables;
-    std::set<std::tuple<std::string, std::string, std::string>> filterSet;
+    std::vector<EdgeTriplet> filterTriplets;
     const auto& schema = graph.schema();
     for (const auto& filter : filters) {
-      const auto triplet = ParseEdgeTriplet(filter);
-      const auto& [src, edge, dst] = triplet;
-      if (!schema.is_edge_triplet_valid(src, dst, edge)) {
+      filterTriplets.push_back(ParseEdgeTriplet(filter));
+    }
+    std::vector<std::shared_ptr<const EdgeSchema>> validEdges;
+    for (const auto& [_, edge] : schema.get_all_edge_schemas()) {
+      if (edge &&
+          schema.is_edge_triplet_valid(edge->src_label_id, edge->dst_label_id,
+                                       edge->edge_label_id)) {
+        validEdges.push_back(edge);
+      }
+    }
+    for (const auto& filter : filterTriplets) {
+      if (std::none_of(validEdges.begin(), validEdges.end(),
+                       [&filter](const auto& edge) {
+                         return EdgeTripletMatches(filter, *edge);
+                       })) {
+        const auto& [src, edge, dst] = filter;
         THROW_INVALID_ARGUMENT_EXCEPTION("Edge table [" + src + ", " + edge +
                                          ", " + dst + "] does not exist");
       }
-      filterSet.insert(triplet);
     }
     std::vector<std::shared_ptr<const EdgeSchema>> edges;
-    for (const auto& [_, edge] : schema.get_all_edge_schemas()) {
-      if (edge &&
-          (!showTablesInput.hasFilter ||
-           filterSet.contains(std::tie(edge->src_label_name,
-                                       edge->edge_label_name,
-                                       edge->dst_label_name))) &&
-          schema.is_edge_triplet_valid(edge->src_label_id, edge->dst_label_id,
-                                       edge->edge_label_id)) {
+    for (const auto& edge : validEdges) {
+      if (!showTablesInput.hasFilter ||
+          std::any_of(filterTriplets.begin(), filterTriplets.end(),
+                      [&edge](const auto& filter) {
+                        return EdgeTripletMatches(filter, *edge);
+                      })) {
         edges.push_back(edge);
       }
     }

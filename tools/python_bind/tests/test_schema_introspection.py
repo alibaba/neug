@@ -31,6 +31,8 @@ def schema_connection(tmp_path):
     company_ddl = "CREATE NODE TABLE Company("
     company_ddl += "id INT64 PRIMARY KEY, name STRING);"
     conn.execute(company_ddl)
+    conn.execute("CREATE NODE TABLE Comment(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE NODE TABLE Post(id INT64 PRIMARY KEY);")
     conn.execute(
         "CREATE NODE TABLE Person("
         "id INT64 PRIMARY KEY, name STRING DEFAULT 'anonymous', "
@@ -40,6 +42,11 @@ def schema_connection(tmp_path):
         "CREATE REL TABLE WorksAt("
         "FROM Person TO Company, since INT32 DEFAULT 2000, role STRING, "
         "MANY_TO_ONE) WITH (sort_key_for_nbr='since');"
+    )
+    conn.execute(
+        "CREATE REL TABLE Likes("
+        "FROM Person TO Comment, FROM Person TO Post, "
+        "weight DOUBLE DEFAULT 1.234567890123);"
     )
     yield conn, tmp_path
     conn.close()
@@ -72,8 +79,10 @@ def test_show_node_tables(schema_connection):
         )
     )
     assert rows == [
+        ["Comment", "id", False],
         ["Company", "id", False],
         ["Person", "id", False],
+        ["Post", "id", False],
         ["TempPerson", "id", True],
     ]
 
@@ -107,22 +116,30 @@ def test_show_rel_tables(schema_connection):
             "dst_label_name, multiplicity, temporary, extra_options;"
         )
     )
-    assert rows[0][:5] == [
+    assert [row[:5] for row in rows] == [
+        ["Likes", "Person", "Comment", "MANY_TO_MANY", False],
+        ["Likes", "Person", "Post", "MANY_TO_MANY", False],
+        ["TempPartner", "Company", "Company", "MANY_TO_MANY", True],
+        ["WorksAt", "Person", "Company", "MANY_TO_ONE", False],
+    ]
+    assert json.loads(rows[0][5]) == {}
+    assert json.loads(rows[1][5]) == {}
+    assert rows[2][:5] == [
         "TempPartner",
         "Company",
         "Company",
         "MANY_TO_MANY",
         True,
     ]
-    assert json.loads(rows[0][5]) == {}
-    assert rows[1][:5] == [
+    assert json.loads(rows[2][5]) == {}
+    assert rows[3][:5] == [
         "WorksAt",
         "Person",
         "Company",
         "MANY_TO_ONE",
         False,
     ]
-    assert json.loads(rows[1][5]) == {"sort_key_for_nbr": "since"}
+    assert json.loads(rows[3][5]) == {"sort_key_for_nbr": "since"}
 
     columns = (
         "edge_label_name, src_label_name, dst_label_name, multiplicity, "
@@ -132,16 +149,32 @@ def test_show_rel_tables(schema_connection):
         conn.execute(
             "CALL SHOW_REL_TABLES('[Person, WorksAt, Company]') " f"RETURN {columns};"
         )
-    ) == [rows[1]]
+    ) == [rows[3]]
+    assert list(
+        conn.execute(
+            "CALL SHOW_REL_TABLES(['[Person, WorksAt, Company]', "
+            "'[Company, TempPartner, Company]']) "
+            f"RETURN {columns};"
+        )
+    ) == [rows[2], rows[3]]
+    assert list(
+        conn.execute(
+            "CALL SHOW_REL_TABLES('[Person, Likes, Comment]') " f"RETURN {columns};"
+        )
+    ) == [rows[0]]
+    assert (
+        list(
+            conn.execute("CALL SHOW_REL_TABLES('[*, Likes, *]') " f"RETURN {columns};")
+        )
+        == rows[:2]
+    )
     assert (
         list(
             conn.execute(
-                "CALL SHOW_REL_TABLES(['[Person, WorksAt, Company]', "
-                "'[Company, TempPartner, Company]']) "
-                f"RETURN {columns};"
+                "CALL SHOW_REL_TABLES('[Person, Likes, *]') " f"RETURN {columns};"
             )
         )
-        == rows
+        == rows[:2]
     )
 
 
@@ -173,6 +206,49 @@ def test_show_rel_table_info(schema_connection):
         ["since", "INT32", "2000"],
         ["role", "VARCHAR", ""],
     ]
+
+    expected_likes = [["weight", "DOUBLE", "1.2345678901229999"]]
+    assert (
+        list(
+            conn.execute(
+                "CALL SHOW_REL_TABLE_INFO('[Person, Likes, Comment]') "
+                "RETURN property_name, property_type, default_value;"
+            )
+        )
+        == expected_likes
+    )
+    assert (
+        list(
+            conn.execute(
+                "CALL SHOW_REL_TABLE_INFO('[Person, Likes, Post]') "
+                "RETURN property_name, property_type, default_value;"
+            )
+        )
+        == expected_likes
+    )
+
+
+def test_show_node_table_info_preserves_order_after_drop(schema_connection):
+    conn, _ = schema_connection
+    conn.execute("CREATE NODE TABLE Ordered(a INT32, id INT64 PRIMARY KEY, b STRING);")
+    conn.execute("ALTER TABLE Ordered DROP a;")
+    rows = list(
+        conn.execute(
+            "CALL SHOW_NODE_TABLE_INFO('Ordered') " "RETURN property_name, primary_key;"
+        )
+    )
+    assert rows == [["id", True], ["b", False]]
+
+
+def test_primary_key_explicit_default_is_rejected(schema_connection):
+    conn, _ = schema_connection
+    with pytest.raises(
+        Exception, match="Primary key id cannot have an explicit default"
+    ):
+        conn.execute(
+            "CREATE NODE TABLE InvalidPrimaryDefault("
+            "id INT64 DEFAULT 42 PRIMARY KEY);"
+        )
 
 
 @pytest.mark.parametrize(

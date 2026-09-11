@@ -72,9 +72,19 @@ CALL SHOW_REL_TABLES([
 ]) RETURN *;
 ```
 
-Each filter uses the complete `[source label, relationship label, destination
-label]` syntax. NeuG reports an error if any triplet is malformed or does not
-exist. Duplicate triplets do not duplicate rows.
+Each filter uses the `[source label, relationship label, destination label]`
+syntax. Use `*` in the source or destination position to match all endpoint
+labels in that position. For example, these calls return every `WorksAt`
+endpoint pair and every `WorksAt` pair whose source is `Person`, respectively:
+
+```cypher
+CALL SHOW_REL_TABLES('[*, WorksAt, *]') RETURN *;
+CALL SHOW_REL_TABLES('[Person, WorksAt, *]') RETURN *;
+```
+
+Wildcard filters can also be combined in a list. NeuG reports an error if any
+triplet is malformed or matches no relationship table. Duplicate and
+overlapping filters do not duplicate rows.
 
 The result is ordered by relationship label, source label, and destination
 label.
@@ -145,7 +155,9 @@ CREATE NODE TABLE Person(
 | active | BOOLEAN | true | false |
 
 `SHOW_NODE_TABLE_INFO()` requires one constant node-label string. NeuG reports
-an error if the node label does not exist.
+an error if the node label does not exist. A primary key cannot declare an
+explicit default value; a `CREATE NODE TABLE` statement that does so is
+rejected instead of silently replacing that value with the type default.
 
 ## Inspect Relationship Table Properties
 
@@ -179,4 +191,5 @@ For the earlier `WorksAt` relationship table,
 
 `SHOW_REL_TABLE_INFO()` requires one constant triplet string. NeuG reports an
 error if the triplet is malformed or the exact relationship triplet is not
-present in the current schema.
+present in the current schema. Unlike `SHOW_REL_TABLES()`, this procedure does
+not accept `*` because the endpoint pair must identify one relationship table.
