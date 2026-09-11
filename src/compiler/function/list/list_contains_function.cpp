@@ -32,18 +32,53 @@ using namespace neug::binder;
 namespace neug {
 namespace function {
 
-struct ListContains {
-  template <typename T>
-  static void operation(common::list_entry_t& list, T& element, uint8_t& result,
-                        common::ValueVector& listVector,
-                        common::ValueVector& elementVector,
-                        common::ValueVector& resultVector) {
-    int64_t pos = 0;
-    ListPosition::operation(list, element, pos, listVector, elementVector,
-                            resultVector);
-    result = (pos != 0);
+template <typename T>
+static void execContains(
+    const std::vector<std::shared_ptr<ValueVector>>& parameters,
+    const std::vector<SelectionVector*>& parameterSelVectors,
+    ValueVector& result, SelectionVector* resultSelVector, void*) {
+  auto& lists = *parameters[0];
+  auto& needles = *parameters[1];
+  auto* elements = ListVector::getDataVector(&lists);
+  for (auto i = 0u; i < resultSelVector->getSelSize(); ++i) {
+    auto resultPos = (*resultSelVector)[i];
+    auto listPos = (*parameterSelVectors[0])[lists.state->isFlat() ? 0 : i];
+    auto needlePos = (*parameterSelVectors[1])[needles.state->isFlat() ? 0 : i];
+    result.setNull(resultPos, false);
+    result.setValue<uint8_t>(resultPos, false);
+    if (lists.isNull(listPos)) {
+      result.setNull(resultPos, true);
+      continue;
+    }
+    auto list = lists.getValue<list_entry_t>(listPos);
+    if (list.size == 0) {
+      continue;
+    }
+    if (needles.isNull(needlePos)) {
+      result.setNull(resultPos, true);
+      continue;
+    }
+    bool hasNull = false;
+    bool found = false;
+    auto& needle = needles.getValue<T>(needlePos);
+    for (auto j = 0u; j < list.size; ++j) {
+      auto pos = list.offset + j;
+      if (elements->isNull(pos)) {
+        hasNull = true;
+        continue;
+      }
+      uint8_t equal = 0;
+      Equals::operation(elements->getValue<T>(pos), needle, equal, elements,
+                        &needles);
+      if (equal) {
+        found = true;
+        break;
+      }
+    }
+    result.setValue<uint8_t>(resultPos, found);
+    result.setNull(resultPos, !found && hasNull);
   }
-};
+}
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
@@ -65,12 +100,10 @@ static std::unique_ptr<FunctionBindData> bindFunc(
   }
   paramTypes.push_back(listType.copy());
   paramTypes.push_back(childType.copy());
-  TypeUtils::visit(
-      getPhysicalType(childType.id()), [&scalarFunction]<typename T>(T) {
-        scalarFunction->execFunc =
-            ScalarFunction::BinaryExecListStructFunction<list_entry_t, T,
-                                                         uint8_t, ListContains>;
-      });
+  TypeUtils::visit(getPhysicalType(childType.id()),
+                   [&scalarFunction]<typename T>(T) {
+                     scalarFunction->execFunc = execContains<T>;
+                   });
   return std::make_unique<FunctionBindData>(std::move(paramTypes),
                                             DataType(DataTypeId::kBoolean));
 }
