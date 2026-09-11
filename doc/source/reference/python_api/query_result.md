@@ -19,7 +19,6 @@ It has the following methods to iterate over the results.
     - `getNext()`: Returns the next result as a list.
     - `length()`: Returns the total number of results.
     - `column_names()`: Returns the projected column names as strings.
-    - `get_profile_metrics()`: Returns structured PROFILE or EXPLAIN metrics.
 
 ```python
 
@@ -71,6 +70,39 @@ TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response
   - **str**
     The result in Bolt response format.
 
+<a id="neug.query_result.QueryResult.has_profile_result"></a>
+
+### has\_profile\_result
+
+```python
+def has_profile_result() -> bool
+```
+
+Check if profile result is available.
+
+- **Returns:**
+  - **bool**
+    True if the query was executed in PROFILE or EXPLAIN mode,
+    False for normal queries.
+
+<a id="neug.query_result.QueryResult.get_profile_text"></a>
+
+### get\_profile\_text
+
+```python
+def get_profile_text() -> str
+```
+
+Get human-readable PROFILE/EXPLAIN text output.
+
+Suitable for CLI output and debugging. Returns empty string if
+no profile result is available.
+
+- **Returns:**
+  - **str**
+    Formatted execution tree with operator timings and row counts.
+    Returns empty string if no profile result available.
+
 <a id="neug.query_result.QueryResult.get_profile_metrics"></a>
 
 ### get\_profile\_metrics
@@ -79,23 +111,29 @@ TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response
 def get_profile_metrics() -> dict
 ```
 
-Return detailed PROFILE or EXPLAIN metrics as a Python dictionary:
+Return detailed PROFILE or EXPLAIN metrics as a Python dictionary.
+
+The result contains complete execution plan metrics, including timing
+and output information for each operator in the query execution tree.
+Returns an empty dict if no profile result is available.
 
 ```python
-{
-    "total_elapsed_ms": float,
-    "total_output_rows": int,
-    "operators": [
-        {
-            "operator_id": int,
-            "parent_id": int,
-            "operator_name": str,
-            "elapsed_ms": float,
-            "output_rows": int,
-            "child_ids": [int],
-        }
-    ],
-}
+
+    {
+        "total_elapsed_ms": float,
+        "total_output_rows": int,
+        "operators": [
+            {
+                "operator_id": int,
+                "parent_id": int,
+                "operator_name": str,
+                "elapsed_ms": float,
+                "output_rows": int,
+                "child_ids": [int],
+            }
+        ],
+    }
+
 ```
 
 <a id="neug.query_result.QueryResult.to_arrow"></a>

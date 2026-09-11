@@ -26,7 +26,9 @@ read-only mode, inside the same process or in different processes.
 When the database is opened in read-write mode, no other databases could open the same database directory in
 either read-only or read-write mode, inside the same process or in different processes.
 
-Note that opening a database in read-only mode still requires a writable data directory: the lock file is created on demand if missing, and read-only processes create temporary working files in their own `runtime/open-<epoch>/` directory. Read-only mode cannot be used on a read-only file system or mount.
+Note that opening a database in read-only mode still requires a writable data directory: the lock file is
+created on demand if missing, and read-only processes create temporary working files in their own
+`runtime/open-<epoch>/` directory. Read-only mode cannot be used on a read-only file system or mount.
 
 When the database is closed, all the connections to the database will be closed automatically.
 
@@ -44,7 +46,7 @@ When the database is closed, all the connections to the database will be closed 
     >>> conn.execute('COPY Person FROM "person.csv"')
     >>> conn.execute('COPY KNOWS FROM "knows.csv" (from="Person", to="Person");')
 
-    >>> res = conn.execute('MATCH(n) return n.id;)
+    >>> res = conn.execute('MATCH(n) RETURN n.id')
     >>> for record in res:
     >>>     print(record)
 
@@ -70,7 +72,8 @@ Open a database.
     Note that in memory mode, the database will not be persisted to disk, and all data will be
     lost when the program exits. In this case, the db_path should not contain any illegal characters.
   - `mode` (str)
-    Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'read-write'.
+    Mode to open the database. Read-only: 'r', 'read', 'read-only', 'read_only'.
+    Read-write: 'w', 'rw', 'write', 'readwrite', 'read-write', 'read_write'. Default is 'read-write'.
   - `max_thread_num` (int)
     Database query capacity; 0 selects hardware concurrency (fallback 1), while higher inputs warn and clamp to it.
 
@@ -153,8 +156,8 @@ def serve(port: int = 10000,
 
 Start the database server for handling remote connections(TP mode).
 This method is used to start the database server for handling remote connections.
-When db.serve() is called, the database will switch to the TP mode, and all the connections to the local database
-will be closed. After that, no new connections to the local database will be allowed.
+Before db.serve() switches the database to TP mode, all local connections
+must be closed. After the switch, no new local connections are allowed.
 It will start a server that listens on a specific port, and clients can connect to the server to interact with the
 database. User could use Session to connect to the server. For detail usage, please refer to the
 documentation of Session.
@@ -167,14 +170,14 @@ documentation of Session.
   - `blocking` (bool)
     Whether to block the process after starting the database server.
   - `thread_num` (int)
-    Service thread count. 0 selects max_thread_num; explicit values cannot exceed it.
+    Service thread count. 0 selects max_thread_num; explicit values are clamped to it.
 
     Service threads run TP queries concurrently, but each query uses one execution context and one thread.
   - `auto_compaction` (bool)
     Enable background auto-compaction while serving. Default is `True`.
   - `explicit_transaction_timeout_ms` (int)
-    Absolute lifetime of an explicit transaction in milliseconds. Default is
-    `60000`.
+    Absolute lifetime of an explicit transaction in milliseconds.
+    Default is `60000`.
 
 - **Returns:**
   - `uri` (str)
@@ -182,8 +185,9 @@ documentation of Session.
 
 - **Raises:**
   - **ValueError**
-    If `thread_num` is negative, greater than the available CPU core count, or
-    greater than the database `max_thread_num`.
+    If `thread_num` is negative or `explicit_transaction_timeout_ms` is not
+    positive. A `thread_num` exceeding `max_thread_num` or the CPU count is
+    clamped with a warning, not rejected.
   - **RuntimeError**
     If there are open connections to the local database.
     If the database is already serving.
@@ -191,8 +195,7 @@ documentation of Session.
 - **Notes:**
   - **Make sure to close all connections before starting the server.**
   - **After starting the server, no new connections to the local database will be allowed.**
-  - **`thread_num` controls server-side service threads; client-side `Session(..., num_threads=...)` controls the HTTP connection pool used by that client.**
-  - **`auto_compaction` controls serve-time background compaction behavior.**
+  - **`thread_num` sizes server-side service threads; the client-side `Session(num_threads=...)` sizes its HTTP pool.**
 
 <a id="neug.database.Database.stop_serving"></a>
 
@@ -233,12 +236,17 @@ Connect to the database asynchronously.
 ### close
 
 ```python
-def close()
+def close(log=True)
 ```
 
 Close the database and all of its connections.
 
-For a read-write database with `checkpoint_on_close=True`, this method creates a checkpoint before closing. If the checkpoint fails, `close()` raises an exception. Depending on when the failure occurs, the database may remain open for another attempt or may already be closed. Calling this method again after a successful close has no effect.
+For a read-write database with `checkpoint_on_close=True`, this method
+creates a checkpoint before releasing database resources.
+The method is idempotent after a successful close. A checkpoint failure
+before its destructive dump raises an exception and leaves the database
+open so the caller can correct the problem and retry. A failure after
+the destructive dump completes teardown and is then raised.
 
 <a id="neug.database.Database.load_builtin_dataset"></a>
 
