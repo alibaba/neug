@@ -170,7 +170,6 @@ if(BUILD_TEST)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/export_writer.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/c_data_writer.cc)
     target_include_directories(neug_parquet_carquet_impl PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_BINARY_DIR})
     target_link_libraries(neug_parquet_carquet_impl PUBLIC neug::carquet)

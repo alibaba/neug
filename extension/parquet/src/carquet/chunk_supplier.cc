@@ -19,7 +19,7 @@
 #include "carquet/nested_converter.h"
 #include "carquet/row_group_pruner.h"
 #include "carquet/schema_converter.h"
-#include "input_adapter.h"
+#include "carquet/input_adapter.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug::parquet {
