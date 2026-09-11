@@ -37,6 +37,7 @@
 #include <vector>
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/parameter_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -1365,6 +1366,28 @@ void GQueryConvertor::convertProcedureCall(
               .release());
       queryArgPB->set_allocated_param(dynPB.release());
     } else {
+      if (param->expressionType == common::ExpressionType::LITERAL) {
+        const auto& value =
+            param->constCast<binder::LiteralExpression>().getValue();
+        if (value.getDataType().id() == common::DataTypeId::kList ||
+            value.getDataType().id() == common::DataTypeId::kArray) {
+          auto valuePB = std::make_unique<::common::Value>();
+          auto* strings = valuePB->mutable_str_array();
+          for (auto i = 0u; i < value.getChildrenSize(); ++i) {
+            const auto& child = *value.children[i];
+            if (child.isNull() ||
+                child.getDataType().id() != common::DataTypeId::kVarchar) {
+              THROW_EXCEPTION_WITH_FILE_LINE(
+                  "Only constant string lists are supported as CALL "
+                  "parameters");
+            }
+            strings->add_item(child.getValue<std::string>());
+          }
+          queryArgPB->set_allocated_const_(valuePB.release());
+          queryPB->mutable_arguments()->AddAllocated(queryArgPB.release());
+          continue;
+        }
+      }
       auto paramPB = exprConvertor->convert(*param, {});
       if (paramPB->operators_size() == 0) {
         THROW_EXCEPTION_WITH_FILE_LINE("Failed to convert parameter: " +
