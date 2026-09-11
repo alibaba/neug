@@ -24,6 +24,7 @@ import pytest
 from conftest import wait_for_server_ready
 
 from neug.database import Database
+from neug.proto.error_pb2 import ERR_NOT_SUPPORTED
 from neug.session import Session
 
 
@@ -175,6 +176,44 @@ def test_tp_explicit_transaction_read_only_failure_requires_rollback(tp_endpoint
         assert not transaction.has_active_transaction
     finally:
         setup.close()
+        transaction.close()
+
+
+def test_tp_explicit_transaction_copy_requires_rollback(tp_endpoint, tmp_path):
+    people = tmp_path / "people.csv"
+    people.write_text("id\n2\n", encoding="utf-8")
+    transaction = Session.open(tp_endpoint, num_threads=1)
+    try:
+        transaction.execute(
+            "CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));", "schema"
+        )
+        transaction.execute("CREATE (:Person {id: 1});", "insert")
+        transaction.begin_transaction()
+        with pytest.raises(
+            Exception, match="supported only in embedded read-write mode"
+        ) as error:
+            transaction.execute(
+                f"COPY Person FROM '{people.as_posix()}' (HEADER=true);", "update"
+            )
+        assert str(ERR_NOT_SUPPORTED) in str(error.value)
+        assert transaction.has_active_transaction
+        with pytest.raises(Exception, match="Http code: 409"):
+            transaction.execute("MATCH (p:Person) RETURN p.id;", "read")
+        with pytest.raises(RuntimeError, match="Http code: 409"):
+            transaction.commit()
+        transaction.rollback()
+        assert not transaction.has_active_transaction
+
+        transaction.begin_transaction()
+        assert list(transaction.execute("MATCH (p:Person) RETURN p.id;", "read")) == [
+            [1]
+        ]
+        transaction.execute("CREATE (:Person {id: 3});", "update")
+        transaction.commit()
+        assert list(
+            transaction.execute("MATCH (p:Person) RETURN p.id ORDER BY p.id;", "read")
+        ) == [[1], [3]]
+    finally:
         transaction.close()
 
 

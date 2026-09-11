@@ -92,12 +92,14 @@ class TransactionContext {
   void Begin(SnapshotReadTransaction transaction) {
     transaction_.emplace<SnapshotReadTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadOnly;
+    needs_checkpoint_commit_ = false;
     state_ = State::kActive;
   }
 
   void Begin(CurrentCowWriteTransaction transaction) {
     transaction_.emplace<CurrentCowWriteTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadWrite;
+    needs_checkpoint_commit_ = false;
     state_ = State::kActive;
   }
 
@@ -108,7 +110,16 @@ class TransactionContext {
   void Begin(SnapshotCowWriteTransaction transaction) {
     transaction_.emplace<SnapshotCowWriteTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadWrite;
+    needs_checkpoint_commit_ = false;
     state_ = State::kActive;
+  }
+
+  bool NeedsCheckpointCommit() const noexcept {
+    return needs_checkpoint_commit_;
+  }
+  void MarkForCheckpointCommit() noexcept {
+    CHECK(IsActive() && !IsReadOnly());
+    needs_checkpoint_commit_ = true;
   }
 
   SnapshotReadTransaction& ReadTransactionOwner() {
@@ -196,11 +207,15 @@ class TransactionContext {
 
   void ResetToIdle() noexcept {
     transaction_.emplace<std::monostate>();
+    needs_checkpoint_commit_ = false;
     state_ = State::kIdle;
   }
 
   State state_{State::kIdle};
   TransactionMode mode_{TransactionMode::kReadOnly};
+  // Set after successful persistent COPY, not for every HasBulkMutation():
+  // ordinary COW writes may also mark bulk mutations but still require WAL.
+  bool needs_checkpoint_commit_{false};
   std::variant<std::monostate, SnapshotReadTransaction,
                CurrentCowWriteTransaction, SnapshotCowWriteTransaction>
       transaction_;

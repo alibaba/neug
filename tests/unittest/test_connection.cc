@@ -389,10 +389,17 @@ TEST_F(ConnectionTest, ExplicitTransactionRestrictsReadOnlyAndPrivateSchema) {
   ASSERT_TRUE(
       conn->Query("MATCH (n:W5CommittedNode) RETURN count(n);", "read"));
 
-  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
-  auto copy = conn->Query("COPY person FROM \"does-not-run.csv\";");
+  const auto read_only_copy =
+      std::filesystem::path(DB_DIR) / "explicit-read-only-copy.csv";
+  {
+    std::ofstream out(read_only_copy);
+    out << "id|name|age\n100010|read-only-copy|30\n";
+  }
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadOnly).ok());
+  auto copy =
+      conn->Query("COPY person FROM \"" + read_only_copy.string() + "\";");
   ASSERT_FALSE(copy);
-  EXPECT_EQ(copy.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_EQ(copy.error().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
   ASSERT_TRUE(conn->Rollback().ok());
 
   ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
@@ -479,11 +486,12 @@ TEST_F(ConnectionTest,
     const char* access_mode;
   };
   const std::vector<UnsupportedCase> cases{
-      {"COPY FROM", "COPY person FROM \"" + person_csv + "\";", "update"},
       {"COPY TO",
        "COPY (MATCH (n:person) RETURN n.*) TO '" + export_path +
            "' (header=true);",
        "read"},
+      {"COPY TEMP", "COPY TEMP person_temp FROM \"" + person_csv + "\";",
+       "update"},
       {"batch data source", "LOAD FROM \"" + person_csv + "\" RETURN *;",
        "update"},
       {"procedure call",
@@ -514,6 +522,198 @@ TEST_F(ConnectionTest,
     ASSERT_TRUE(conn->Rollback().ok());
   }
   EXPECT_FALSE(std::filesystem::exists(export_path));
+}
+
+TEST_F(ConnectionTest,
+       ExplicitTransactionCommitsMultipleCopiesWithOneCheckpoint) {
+  const auto people_a =
+      std::filesystem::path(DB_DIR) / "explicit-copy-people-a.csv";
+  const auto people_b =
+      std::filesystem::path(DB_DIR) / "explicit-copy-people-b.csv";
+  {
+    std::ofstream out(people_a);
+    out << "id,name\n1,Alice\n";
+  }
+  {
+    std::ofstream out(people_b);
+    out << "id,name\n2,Bob\n";
+  }
+
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    auto conn = db.Connect();
+    ASSERT_TRUE(conn->Query(
+        "CREATE NODE TABLE ExplicitCopyPerson(id INT64, name STRING, PRIMARY "
+        "KEY(id));",
+        "schema"));
+    const auto checkpoint_before = db.graph().checkpoint().id();
+
+    ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+    auto first =
+        conn->Query("COPY ExplicitCopyPerson FROM '" + people_a.string() +
+                    "' (HEADER=true, DELIMITER=',');");
+    ASSERT_TRUE(first) << first.error().ToString();
+    auto first_visible = conn->Query(
+        "MATCH (n:ExplicitCopyPerson) RETURN n.id ORDER BY n.id;", "read");
+    ASSERT_TRUE(first_visible) << first_visible.error().ToString();
+    EXPECT_EQ(first_visible.value().response().row_count(), 1);
+
+    // EXPLAIN retains the underlying plan's write flags but must not execute
+    // it or invalidate a transaction that already contains COPY changes.
+    const std::vector<std::string> explanations{
+        "EXPLAIN CREATE (:ExplicitCopyPerson {id: 3, name: 'NotInserted'});",
+        "EXPLAIN CREATE NODE TABLE CopyExplainOnly(id INT64, PRIMARY KEY(id));",
+        "EXPLAIN COPY ExplicitCopyPerson FROM '" + people_b.string() +
+            "' (HEADER=true, DELIMITER=',');",
+        "EXPLAIN CHECKPOINT;"};
+    for (const auto& query : explanations) {
+      auto explained = conn->Query(query);
+      ASSERT_TRUE(explained) << explained.error().ToString();
+    }
+    auto after_explain =
+        conn->Query("MATCH (n:ExplicitCopyPerson) RETURN n.id;");
+    ASSERT_TRUE(after_explain) << after_explain.error().ToString();
+    EXPECT_EQ(after_explain.value().response().row_count(), 1);
+    EXPECT_EQ(conn->GetSchema().find("CopyExplainOnly"), std::string::npos);
+
+    auto second =
+        conn->Query("PROFILE COPY ExplicitCopyPerson FROM '" +
+                    people_b.string() + "' (HEADER=true, DELIMITER=',');");
+    ASSERT_TRUE(second) << second.error().ToString();
+    EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before)
+        << "COPY statements must not publish before transaction commit.";
+
+    ASSERT_TRUE(conn->Commit().ok());
+    EXPECT_FALSE(conn->HasActiveTransaction());
+    EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before + 1);
+    auto rows = conn->Query(
+        "MATCH (n:ExplicitCopyPerson) RETURN n.id ORDER BY n.id;", "read");
+    ASSERT_TRUE(rows) << rows.error().ToString();
+    EXPECT_EQ(rows.value().response().row_count(), 2);
+    conn->Close();
+    db.Close();
+  }
+
+  {
+    NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    auto conn = db.Connect();
+    auto rows = conn->Query(
+        "MATCH (n:ExplicitCopyPerson) RETURN n.id ORDER BY n.id;", "read");
+    ASSERT_TRUE(rows) << rows.error().ToString();
+    EXPECT_EQ(rows.value().response().row_count(), 2);
+  }
+}
+
+TEST_F(ConnectionTest, ExplicitTransactionCopiesVerticesBeforeEdges) {
+  const auto people = std::filesystem::path(DB_DIR) / "explicit-copy-nodes.csv";
+  const auto knows = std::filesystem::path(DB_DIR) / "explicit-copy-edges.csv";
+  {
+    std::ofstream out(people);
+    out << "id\n1\n2\n";
+  }
+  {
+    std::ofstream out(knows);
+    out << "from,to\n1,2\n";
+  }
+
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE ExplicitCopyNode(id INT64, PRIMARY KEY(id));",
+      "schema"));
+  ASSERT_TRUE(
+      conn->Query("CREATE REL TABLE ExplicitCopyKnows(FROM ExplicitCopyNode TO "
+                  "ExplicitCopyNode);",
+                  "schema"));
+
+  const auto checkpoint_before = db.graph().checkpoint().id();
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  auto nodes = conn->Query("COPY ExplicitCopyNode FROM '" + people.string() +
+                           "' (HEADER=true, DELIMITER=',');");
+  ASSERT_TRUE(nodes) << nodes.error().ToString();
+  auto edges = conn->Query(
+      "COPY ExplicitCopyKnows FROM '" + knows.string() +
+      "' (FROM='ExplicitCopyNode', TO='ExplicitCopyNode', HEADER=true, "
+      "DELIMITER=',');");
+  ASSERT_TRUE(edges) << edges.error().ToString();
+  ASSERT_TRUE(conn->Commit().ok());
+  EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before + 1);
+
+  auto rows = conn->Query(
+      "MATCH (a:ExplicitCopyNode)-[:ExplicitCopyKnows]->"
+      "(b:ExplicitCopyNode) RETURN a.id, b.id;",
+      "read");
+  ASSERT_TRUE(rows) << rows.error().ToString();
+  EXPECT_EQ(rows.value().response().row_count(), 1);
+}
+
+TEST_F(ConnectionTest,
+       ExplicitTransactionRejectsMixedWritesAndRollsBackCopies) {
+  const auto people =
+      std::filesystem::path(DB_DIR) / "explicit-copy-rollback.csv";
+  {
+    std::ofstream out(people);
+    out << "id\n1\n";
+  }
+
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  config.checkpoint_on_close = false;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE ExplicitCopyRollback(id INT64, PRIMARY KEY(id));",
+      "schema"));
+  const auto checkpoint_before = db.graph().checkpoint().id();
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query("COPY ExplicitCopyRollback FROM '" + people.string() +
+                          "' (HEADER=true, DELIMITER=',');"));
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before);
+
+  for (const auto* query :
+       {"CREATE (:ExplicitCopyRollback {id: 2});",
+        "PROFILE CREATE (:ExplicitCopyRollback {id: 2});"}) {
+    ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+    ASSERT_TRUE(conn->Query("COPY ExplicitCopyRollback FROM '" +
+                            people.string() +
+                            "' (HEADER=true, DELIMITER=',');"));
+    auto dml_after_copy = conn->Query(query, "insert");
+    ASSERT_FALSE(dml_after_copy);
+    EXPECT_EQ(dml_after_copy.error().error_code(),
+              StatusCode::ERR_NOT_SUPPORTED);
+    EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+    ASSERT_TRUE(conn->Rollback().ok());
+    EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before);
+  }
+
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query("CREATE (:ExplicitCopyRollback {id: 2});", "insert"));
+  auto copy_after_dml =
+      conn->Query("COPY ExplicitCopyRollback FROM '" + people.string() +
+                  "' (HEADER=true, DELIMITER=',');");
+  ASSERT_FALSE(copy_after_dml);
+  EXPECT_EQ(copy_after_dml.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  ASSERT_TRUE(conn->Rollback().ok());
+
+  auto rows =
+      conn->Query("MATCH (n:ExplicitCopyRollback) RETURN n.id;", "read");
+  ASSERT_TRUE(rows) << rows.error().ToString();
+  EXPECT_EQ(rows.value().response().row_count(), 0);
 }
 
 TEST_F(ConnectionTest, TestReadOnlyConnections) {

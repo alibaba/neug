@@ -62,7 +62,6 @@ struct QueryAnalysis {
   ExplainMode explain_mode = ExplainMode::kNone;
   QueryKind kind = QueryKind::kRegular;
   std::optional<AdminRequest> admin;
-  bool is_copy_statement{false};
 
   bool isAdmin() const {
     return kind == QueryKind::kAdmin && admin.has_value();

@@ -130,6 +130,11 @@ transaction pins one published view. A read-write transaction uses a private
 copy-on-write view and publishes all successful writes together on `Commit()`.
 Nested transactions and read-to-write upgrades are not supported.
 
+Persistent `COPY FROM` statements may be grouped in a read-write transaction
+and are published by one checkpoint on commit. Reads may be interleaved, but
+`COPY FROM` cannot currently be mixed with ordinary DML or DDL writes in the
+same transaction.
+
 - **Parameters:**
   - `mode`: `TransactionMode::kReadWrite` or `TransactionMode::kReadOnly`
 - **Returns:** `Status::OK` on success, otherwise a connection, state, argument,
@@ -141,8 +146,10 @@ Nested transactions and read-to-write upgrades are not supported.
 Status Commit()
 ```
 
-Commit the active explicit transaction. A failed commit leaves the connection
-rollback-only; call `Rollback()` before reusing it.
+Commit the active explicit transaction through one logical-WAL commit, or
+through one checkpoint when it contains persistent `COPY FROM` statements. A
+failed commit leaves the connection rollback-only; call `Rollback()` before
+reusing it.
 
 #### `Rollback()`
 
