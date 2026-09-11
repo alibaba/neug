@@ -30,6 +30,14 @@ namespace neug::parquet {
 const std::string& responseArrayValidity(const Array& array);
 
 /**
+ * Converts QueryResponse's millisecond DATE payload to an epoch day.
+ *
+ * Date::to_timestamp() can retain the hour after a DateTime-to-Date cast.
+ * Floor division preserves the calendar date for values before the epoch.
+ */
+int64_t dateMillisToEpochDays(int64_t millis);
+
+/**
  * Writes one QueryResponse slice through Carquet's standard C Data ABI.
  *
  * The temporary schema and array trees own every buffer until Carquet consumes

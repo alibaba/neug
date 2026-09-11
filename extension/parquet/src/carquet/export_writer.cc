@@ -36,7 +36,6 @@
 namespace neug::parquet {
 namespace {
 
-constexpr int64_t kMillisPerDay = 24 * 60 * 60 * 1000;
 constexpr int64_t kDefaultRowsPerGroup = 1 << 20;
 
 Status invalid(std::string message) {
@@ -247,10 +246,7 @@ Status validateColumn(const Array& array, int32_t rows, const std::string& name,
         continue;
       }
       const int64_t millis = array.date_array().values(row);
-      if (millis % kMillisPerDay != 0) {
-        return invalid("Parquet date is not aligned to a UTC day: " + name);
-      }
-      const int64_t days = millis / kMillisPerDay;
+      const int64_t days = dateMillisToEpochDays(millis);
       if (days < std::numeric_limits<int32_t>::min() ||
           days > std::numeric_limits<int32_t>::max()) {
         return invalid("Parquet date is outside the DATE range: " + name);
@@ -522,8 +518,8 @@ carquet_status_t writeColumn(carquet_writer_t* writer, int32_t column,
     values.reserve(static_cast<size_t>(count));
     for (int32_t row = begin; row < begin + count; ++row) {
       if (isValid(bitmap, row)) {
-        values.push_back(static_cast<int32_t>(array.date_array().values(row) /
-                                              kMillisPerDay));
+        values.push_back(static_cast<int32_t>(
+            dateMillisToEpochDays(array.date_array().values(row))));
       }
     }
     return carquet_writer_write_batch(writer, column, valuesData(values), count,

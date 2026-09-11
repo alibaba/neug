@@ -165,7 +165,9 @@ QueryResponse makeFlatResponse() {
   text->set_validity(validity);
 
   auto* day = response.add_arrays()->mutable_date_array();
-  for (const int64_t value : {-86400000, 0, 0, 86400000, 172800000}) {
+  // QueryExportWriter stores Date::to_timestamp(). A Date produced from a
+  // DateTime can retain its hour, so valid payloads need not be at midnight.
+  for (const int64_t value : {-43200000, 43200000, 1, 129600000, 216000000}) {
     day->add_values(value);
   }
   day->set_validity(validity);
@@ -427,7 +429,8 @@ TEST(CarquetExportWriterTest, HonorsCompressionDictionaryAndRowGroupOptions) {
   }
 }
 
-TEST(CarquetExportWriterTest, PreservesTimestampMillisecondsAndDateBoundaries) {
+TEST(CarquetExportWriterTest,
+     PreservesTimestampMillisecondsAndNormalizesDatePayloads) {
   QueryResponse response;
   response.set_row_count(5);
   auto* timestamps = response.add_arrays()->mutable_timestamp_array();
@@ -440,8 +443,18 @@ TEST(CarquetExportWriterTest, PreservesTimestampMillisecondsAndDateBoundaries) {
   }
   timestamps->set_values(3, millennium.milli_second);
   auto* dates = response.add_arrays()->mutable_date_array();
-  for (const int32_t days : {INT32_MIN, -1, 0, 1, INT32_MAX}) {
-    dates->add_values(static_cast<int64_t>(days) * 86400000);
+  constexpr int64_t kDayMillis = 86400000;
+  const std::vector<std::pair<int64_t, int32_t>> dateCases = {
+      {static_cast<int64_t>(INT32_MIN) * kDayMillis + kDayMillis / 2,
+       INT32_MIN},
+      {-kDayMillis / 2, -1},
+      {kDayMillis / 2, 0},
+      {millennium.milli_second + 7 * 60 * 60 * 1000,
+       static_cast<int32_t>(millennium.milli_second / kDayMillis)},
+      {static_cast<int64_t>(INT32_MAX) * kDayMillis + kDayMillis - 1,
+       INT32_MAX}};
+  for (const auto& dateCase : dateCases) {
+    dates->add_values(dateCase.first);
   }
   auto state = std::make_shared<OutputState>();
   ASSERT_TRUE(writeResponse(fileSchema("temporal"), &response, state).ok());
@@ -456,8 +469,10 @@ TEST(CarquetExportWriterTest, PreservesTimestampMillisecondsAndDateBoundaries) {
   }
   auto actualDates =
       std::static_pointer_cast<arrow::Date32Array>(table->column(1)->chunk(0));
-  EXPECT_EQ(actualDates->Value(0), INT32_MIN);
-  EXPECT_EQ(actualDates->Value(4), INT32_MAX);
+  for (int row = 0; row < response.row_count(); ++row) {
+    EXPECT_EQ(actualDates->Value(row),
+              dateCases[static_cast<size_t>(row)].second);
+  }
 }
 
 TEST(CarquetExportWriterTest, WritesAllNullScalarRowGroups) {
@@ -597,12 +612,12 @@ TEST(CarquetExportWriterTest, WritesMultiplePagesAcrossExplicitRowGroups) {
             static_cast<int64_t>(kRows - 1) * 17 - 5);
 }
 
-TEST(CarquetExportWriterTest, RejectsInvalidDatesAndNamesBeforeOpening) {
+TEST(CarquetExportWriterTest, RejectsOutOfRangeDatesAndNamesBeforeOpening) {
   auto response = makeFlatResponse();
   int openCalls = 0;
   for (const int64_t millis :
-       {int64_t{1}, (static_cast<int64_t>(INT32_MAX) + 1) * 86400000,
-        (static_cast<int64_t>(INT32_MIN) - 1) * 86400000}) {
+       {(static_cast<int64_t>(INT32_MAX) + 1) * 86400000,
+        static_cast<int64_t>(INT32_MIN) * 86400000 - 1}) {
     auto invalid = response;
     invalid.mutable_arrays(8)->mutable_date_array()->set_values(0, millis);
     auto status = writeResponse(fileSchema("bad-date"), &invalid,

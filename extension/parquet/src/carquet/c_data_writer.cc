@@ -26,6 +26,19 @@
 #include <vector>
 
 namespace neug::parquet {
+namespace {
+
+constexpr int64_t kMillisPerDay = 24 * 60 * 60 * 1000;
+
+}  // namespace
+
+int64_t dateMillisToEpochDays(int64_t millis) {
+  int64_t days = millis / kMillisPerDay;
+  if (millis < 0 && millis % kMillisPerDay != 0) {
+    --days;
+  }
+  return days;
+}
 
 const std::string& responseArrayValidity(const Array& array) {
   switch (array.typed_array_case()) {
@@ -69,8 +82,6 @@ const std::string& responseArrayValidity(const Array& array) {
 }
 
 namespace {
-
-constexpr int64_t kMillisPerDay = 24 * 60 * 60 * 1000;
 
 Status invalid(std::string message) {
   return Status(StatusCode::ERR_INVALID_ARGUMENT, std::move(message));
@@ -369,9 +380,12 @@ Status buildPrimitive(const Array& input, int32_t begin, int32_t count,
       return bytes.error();
     }
     auto* values = static_cast<int32_t*>(allocateBuffer(storage, *bytes));
+    const auto& validity = responseArrayValidity(input);
     for (int32_t offset = 0; offset < count; ++offset) {
-      values[offset] = static_cast<int32_t>(
-          input.date_array().values(begin + offset) / kMillisPerDay);
+      values[offset] = isValid(validity, begin + offset)
+                           ? static_cast<int32_t>(dateMillisToEpochDays(
+                                 input.date_array().values(begin + offset)))
+                           : 0;
     }
     storage.buffers[1] = values;
     return Status::OK();

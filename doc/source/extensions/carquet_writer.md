@@ -16,7 +16,7 @@ separate migration step.
 | Signed and unsigned 32/64-bit integers | INT32/INT64, with unsigned logical annotations where needed |
 | FLOAT, DOUBLE, BOOL | FLOAT, DOUBLE, BOOLEAN |
 | STRING | UTF-8 BYTE_ARRAY |
-| DATE | DATE in days since the Unix epoch |
+| DATE | DATE in days since the Unix epoch; millisecond payloads are normalized to their containing UTC day |
 | TIMESTAMP | UTC TIMESTAMP in milliseconds, matching NeuG's internal unit |
 | LIST and fixed ARRAY | Standard LIST, preserving empty lists, parent NULLs and child NULLs |
 | STRUCT | Optional group with `field_0`, `field_1`, … children |
