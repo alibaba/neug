@@ -43,6 +43,10 @@ class JsonReader {
   void read(std::shared_ptr<ReadLocalState> localState,
             execution::Context& ctx);
 
+  // Supplies unfiltered chunks for direct COPY fusion. Callers requiring a
+  // filter must use read(), which preserves the full-read filter semantics.
+  std::shared_ptr<IDataChunkSupplier> getDataChunkSupplier();
+
   result<std::shared_ptr<EntrySchema>> inferSchema();
 
  private:

@@ -37,6 +37,7 @@ struct CSVReadFunction {
         std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = execFunc;
+    readFunction->supplierFunc = supplierFunc;
     readFunction->sniffFunc = sniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -112,7 +113,7 @@ struct CSVReadFunction {
     }
   }
 
-  static execution::Context execFunc(
+  static std::unique_ptr<reader::CsvReader> createReader(
       std::shared_ptr<reader::ReadSharedState> state) {
     validateAndConvertExecOptions(state);
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
@@ -126,12 +127,22 @@ struct CSVReadFunction {
     state->schema.file.paths = std::move(resolvedPaths);
     state->stream_opener = makeImportStreamOpener(*fs);
     auto optionsBuilder = std::make_unique<reader::CsvOptionsBuilder>(state);
-    auto reader =
-        std::make_unique<reader::CsvReader>(state, std::move(optionsBuilder));
+    return std::make_unique<reader::CsvReader>(state,
+                                               std::move(optionsBuilder));
+  }
+
+  static execution::Context execFunc(
+      std::shared_ptr<reader::ReadSharedState> state) {
+    auto reader = createReader(std::move(state));
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
     return ctx;
+  }
+
+  static std::shared_ptr<IDataChunkSupplier> supplierFunc(
+      std::shared_ptr<reader::ReadSharedState> state) {
+    return createReader(std::move(state))->getDataChunkSupplier();
   }
 
   static std::shared_ptr<reader::EntrySchema> sniffFunc(
