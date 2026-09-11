@@ -8,8 +8,8 @@
 
 #include <string>
 
-#include "carquet/schema_converter.h"
 #include "carquet/input_adapter.h"
+#include "carquet/schema_converter.h"
 
 namespace neug::parquet {
 
