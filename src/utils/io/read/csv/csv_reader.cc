@@ -44,12 +44,6 @@ namespace neug {
 namespace reader {
 namespace {
 
-CsvReadConfig read_config_for_supplier(const CsvReadConfig& config) {
-  CsvReadConfig read_config = config;
-  read_config.include_columns = config.column_names;
-  return read_config;
-}
-
 std::vector<std::shared_ptr<IDataChunkSupplier>> create_chunk_suppliers(
     const std::shared_ptr<ReadSharedState>& state,
     const CsvReadConfig& config) {
