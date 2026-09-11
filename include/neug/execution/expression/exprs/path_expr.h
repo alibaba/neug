@@ -56,26 +56,61 @@ class PathRelationsExpr : public ExprBase {
   std::unique_ptr<ExprBase> path_expr_;
 };
 
+class SingleRelationshipPathExpr : public ExprBase {
+ public:
+  SingleRelationshipPathExpr(std::unique_ptr<ExprBase>&& start_expr,
+                             std::unique_ptr<ExprBase>&& rel_expr,
+                             std::unique_ptr<ExprBase>&& end_expr)
+      : start_expr_(std::move(start_expr)),
+        rel_expr_(std::move(rel_expr)),
+        end_expr_(std::move(end_expr)),
+        type_(DataType::PATH) {}
+
+  const DataType& type() const override { return type_; }
+
+  std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
+                                       const ParamsMap& params) const override;
+
+ private:
+  std::unique_ptr<ExprBase> start_expr_;
+  std::unique_ptr<ExprBase> rel_expr_;
+  std::unique_ptr<ExprBase> end_expr_;
+  DataType type_;
+};
+
+class PathConcatExpr : public ExprBase {
+ public:
+  explicit PathConcatExpr(std::vector<std::unique_ptr<ExprBase>> path_exprs)
+      : path_exprs_(std::move(path_exprs)), type_(DataType::PATH) {}
+
+  const DataType& type() const override { return type_; }
+
+  std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
+                                       const ParamsMap& params) const override;
+
+ private:
+  std::vector<std::unique_ptr<ExprBase>> path_exprs_;
+  DataType type_;
+};
+
 class PathPropsExpr : public ExprBase {
  public:
-  PathPropsExpr(int tag, const std::string& prop, const DataType& type,
-                bool extract_vertex_prop)
-      : tag_(tag),
-        prop_(prop),
-        elem_type_(type),
+  PathPropsExpr(std::unique_ptr<ExprBase>&& path_expr, const std::string& prop,
+                const DataType& type, bool extract_vertex_prop)
+      : prop_(prop),
         type_(DataType::List(type)),
-        extract_vertex_prop_(extract_vertex_prop) {}
+        extract_vertex_prop_(extract_vertex_prop),
+        path_expr_(std::move(path_expr)) {}
   ~PathPropsExpr() override = default;
   const DataType& type() const override { return type_; }
   std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
                                        const ParamsMap& params) const override;
 
  private:
-  int tag_;
   std::string prop_;
-  DataType elem_type_;
   DataType type_;
   bool extract_vertex_prop_;
+  std::unique_ptr<ExprBase> path_expr_;
 };
 
 class StartEndNodeExpr : public ExprBase {

@@ -267,6 +267,134 @@ MATCH (p:Person {name: 'marko'})-[k:KNOWS* SHORTEST 1..2]->(f:Person {name: 'jos
 RETURN k;
 ```
 
+## Match Named Path
+
+A path pattern can be bound to a variable with `p =`. The named path must be one connected, linear path, but it may contain a single-edge expand, a repeated expand, or multiple consecutive expands.
+
+The following example binds a single-edge expand:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->(b:Person {name: 'vadas'})
+RETURN p;
+```
+
+output:
+```
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| p                                                                                                                                                                                                    |
++======================================================================================================================================================================================================+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 1, _LABEL: person, id: 2, name: vadas, age: 27}, rels: {_ID: 1, _LABEL: knows, _SRC_ID: 0, _DST_ID: 1, weight: 0.5}, length: 1} |
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+A repeated expand can also be bound as a named path:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS*1..3]->(b:Person {name: 'josh'})
+RETURN p;
+```
+
+output:
+```
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| p                                                                                                                                                                                                   |
++=====================================================================================================================================================================================================+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 2, _LABEL: person, id: 4, name: josh, age: 32}, rels: {_ID: 2, _LABEL: knows, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}, length: 1} |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+Multiple consecutive single-edge and repeated expands can be combined into one named path:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS*1..2]->
+          (b:Person {name: 'josh'})-[:CREATED]->
+          (c:Software {name: 'ripple'})
+RETURN p;
+```
+
+output:
+```
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| p                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
++========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 2, _LABEL: person, id: 4, name: josh, age: 32}, {_ID: 72057594037927937, _LABEL: software, id: 5, name: ripple, lang: java}, rels: {_ID: 2, _LABEL: knows, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}, {_ID: 1103808692225, _LABEL: created, _SRC_ID: 2, _DST_ID: 72057594037927937, weight: 1.0, since: 2021}, length: 2} |
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+```
+
+A named path cannot represent an arbitrary graph pattern composed of multiple path patterns, such as branches or comma-separated paths. In the following query, `p` names only the first path; it does not include the second path:
+
+```cypher
+MATCH p = (a)-[:KNOWS]->(b),
+          (a)-[:CREATED]->(c)
+RETURN p;
+```
+
+Bind each path separately when more than one path pattern is needed:
+
+```cypher
+MATCH p1 = (a)-[:KNOWS]->(b),
+      p2 = (a)-[:CREATED]->(c)
+RETURN p1, p2;
+```
+
+Named paths can be passed to path functions. For example, `LENGTH` and `PROPERTIES` work with paths composed of multiple expands:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->
+          (b:Person {name: 'josh'})-[:CREATED]->
+          (c:Software {name: 'lop'})
+RETURN LENGTH(p) AS path_length,
+       PROPERTIES(NODES(p), 'name') AS node_names,
+       PROPERTIES(RELS(p), 'weight') AS rel_weights;
+```
+
+output:
+```
++-------------+------------------+-------------+
+| path_length | node_names       | rel_weights |
++=============+==================+=============+
+| 2           | marko, josh, lop | 1.0, 0.4    |
++-------------+------------------+-------------+
+```
+
+`COST` can only be applied to a path containing exactly one repeated expand that uses weighted shortest-path semantics. It is not supported for a regular repeated path, a single-edge path, or a path composed of multiple expands.
+
+```cypher
+MATCH p = (a:person {name: 'marko'})
+          -[:knows* WSHORTEST(weight)]->
+          (b:person {name: 'josh'})
+RETURN p, COST(p) AS path_cost;
+```
+
+output:
+```
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| p                                                                                                                                                                                                   | path_cost |
++=====================================================================================================================================================================================================+===========+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, {_ID: 2, _LABEL: person, id: 4, name: josh, age: 32}, rels: {_ID: 2, _LABEL: knows, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}, length: 1} | 1.0       |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+
+```
+
+Path semantic functions can check whether a materialized path repeats relationships or nodes:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})-[:KNOWS]->
+          (b:Person {name: 'josh'})-[:CREATED]->
+          (c:Software {name: 'lop'})<-[:CREATED]-(a)
+RETURN IS_TRAIL(p) AS is_trail, IS_ACYCLIC(p) AS is_acyclic;
+```
+
+output:
+```
++----------+------------+
+| is_trail | is_acyclic |
++==========+============+
+| true     | false      |
++----------+------------+
+```
+
+For the complete list of path functions and their usage, see [Repeated Path Function](../expression/graph_func.md#repeated-path-function).
+
 ## Match Patterns
 
 The `MATCH` clause supports complex pattern matching that combines nodes, edges, and conditions in various ways to express sophisticated graph queries.

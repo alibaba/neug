@@ -388,6 +388,13 @@ void ProjectionPushDownOptimizer::collectExpressionsInUse(
   }
   case ExpressionType::PATTERN: {
     nodeOrRelInUse.insert(expression);
+    // Anonymous relationships referenced through a named path still need a
+    // real physical alias. Record that requirement only when the path (or a
+    // rewritten path function) is actually consumed, preserving endpoint-only
+    // expansion for unused path aliases.
+    if (auto rel = std::dynamic_pointer_cast<RelExpression>(expression)) {
+      rel->requirePathMaterialization();
+    }
     for (auto& child :
          ExpressionChildrenCollector::collectChildren(*expression)) {
       collectExpressionsInUse(child);

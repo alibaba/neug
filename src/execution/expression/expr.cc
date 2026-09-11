@@ -21,6 +21,7 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/execution/expression/accessors/const_accessor.h"
+#include "neug/execution/expression/accessors/record_accessor.h"
 #include "neug/execution/expression/exprs/arith_expr.h"
 #include "neug/execution/expression/exprs/case_when.h"
 #include "neug/execution/expression/exprs/extract_expr.h"
@@ -234,6 +235,46 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<PathRelationsExpr>(std::move(expr));
       } else if (name == "gs.function.nodes") {
         return std::make_unique<PathNodesExpr>(std::move(expr));
+      } else if (name == "gs.function.singleRelationshipPath") {
+        if (op.parameters_size() != 3) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "singleRelationshipPath expects three parameters");
+        }
+        auto rel_expr = parse_expression(op.parameters(1), ctx_meta, var_type);
+        auto end_expr = parse_expression(op.parameters(2), ctx_meta, var_type);
+        return std::make_unique<SingleRelationshipPathExpr>(
+            std::move(expr), std::move(rel_expr), std::move(end_expr));
+      } else if (name == "gs.function.pathConcat") {
+        if (op.parameters_size() < 2) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "pathConcat expects at least two path parameters");
+        }
+        std::vector<std::unique_ptr<ExprBase>> path_exprs;
+        path_exprs.reserve(op.parameters_size());
+        path_exprs.emplace_back(std::move(expr));
+        for (int i = 1; i < op.parameters_size(); ++i) {
+          path_exprs.emplace_back(
+              parse_expression(op.parameters(i), ctx_meta, var_type));
+        }
+        return std::make_unique<PathConcatExpr>(std::move(path_exprs));
+      } else if (name == "gs.function.pathProperties") {
+        if (op.parameters_size() != 3 ||
+            op.parameters(1).operators_size() != 1 ||
+            !op.parameters(1).operators(0).has_const_() ||
+            !op.parameters(1).operators(0).const_().has_str() ||
+            op.parameters(2).operators_size() != 1 ||
+            !op.parameters(2).operators(0).has_const_() ||
+            !op.parameters(2).operators(0).const_().has_boolean()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "pathProperties expects a path expression, a literal property "
+              "name, and a literal vertex/edge selector");
+        }
+        const auto& prop = op.parameters(1).operators(0).const_().str();
+        auto extract_vertex_prop =
+            op.parameters(2).operators(0).const_().boolean();
+        auto type = parse_path_property_element_type(opr.node_type());
+        return std::make_unique<PathPropsExpr>(std::move(expr), prop, type,
+                                               extract_vertex_prop);
       } else if (name == "gs.function.startNode") {
         return std::make_unique<StartEndNodeExpr>(std::move(expr), true);
       } else if (name == "gs.function.endNode") {
@@ -245,14 +286,21 @@ static std::unique_ptr<ExprBase> build_expr(
     case ::common::ExprOpr::kPathFunc: {
       auto opt = opr.path_func().opt();
       const auto& name = opr.path_func().property().key().name();
-      int tag = opr.path_func().has_tag() ? opr.path_func().tag().id() : -1;
+      if (!opr.path_func().has_tag()) {
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            "legacy path function requires a materialized path tag");
+      }
+      int tag = opr.path_func().tag().id();
       auto type = parse_path_property_element_type(opr.node_type());
+      auto path_expr = std::make_unique<RecordAccessor>(tag, DataType::PATH);
 
       if (opt == ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
-        return std::make_unique<PathPropsExpr>(tag, name, type, true);
+        return std::make_unique<PathPropsExpr>(std::move(path_expr), name, type,
+                                               true);
       } else if (opt ==
                  ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
-        return std::make_unique<PathPropsExpr>(tag, name, type, false);
+        return std::make_unique<PathPropsExpr>(std::move(path_expr), name, type,
+                                               false);
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("unsupport path function opt" +
                                       opr.DebugString());

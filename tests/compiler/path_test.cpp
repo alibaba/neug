@@ -199,6 +199,36 @@ TEST_F(PathTest, Properties) {
                                       getPathResource("Properties_physical"));
 }
 
+TEST_F(PathTest, NamedPathUsesVariadicConcat) {
+  std::string query =
+      "MATCH p = (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-"
+      "[:knows]->(d:person) RETURN p";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+
+  const physical::Project* project = nullptr;
+  for (int i = 0; i < physical->plan_size(); ++i) {
+    if (physical->plan(i).opr().has_project()) {
+      project = &physical->plan(i).opr().project();
+    }
+  }
+  ASSERT_NE(project, nullptr);
+  ASSERT_EQ(project->mappings_size(), 1);
+
+  const auto& operators = project->mappings(0).expr().operators();
+  ASSERT_EQ(operators.size(), 1);
+  ASSERT_TRUE(operators.Get(0).has_udf_func());
+  const auto& concat = operators.Get(0).udf_func();
+  EXPECT_EQ(concat.name(), "gs.function.pathConcat");
+  ASSERT_EQ(concat.parameters_size(), 3);
+  for (const auto& parameter : concat.parameters()) {
+    ASSERT_EQ(parameter.operators_size(), 1);
+    ASSERT_TRUE(parameter.operators(0).has_udf_func());
+    EXPECT_EQ(parameter.operators(0).udf_func().name(),
+              "gs.function.singleRelationshipPath");
+  }
+}
+
 TEST_F(PathTest, WSHORTEST_PATH) {
   std::string query =
       "Match (p1:person {id: 123})-[knows:KNOWS* WSHORTEST(weight) "

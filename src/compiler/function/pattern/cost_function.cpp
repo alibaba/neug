@@ -20,6 +20,8 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
@@ -36,7 +38,24 @@ static std::shared_ptr<Expression> rewriteFunc(
   NEUG_ASSERT(input.arguments.size() == 1);
   auto param = input.arguments[0].get();
   NEUG_ASSERT(param->getDataType().id() == DataTypeId::kPath);
-  auto recursiveInfo = param->ptrCast<RelExpression>()->getRecursiveInfo();
+  const RelExpression* rel = nullptr;
+  if (param->expressionType == ExpressionType::PATTERN) {
+    rel = param->constPtrCast<RelExpression>();
+  } else if (param->expressionType == ExpressionType::PATH) {
+    const auto& children = param->getChildren();
+    if (children.size() != 3 ||
+        !ExpressionUtil::isRecursiveRelPattern(*children[1])) {
+      THROW_BINDER_EXCEPTION(stringFormat(
+          "Cost function is only defined for a path containing exactly one "
+          "weighted recursive relationship: {}",
+          param->toString()));
+    }
+    rel = children[1]->constPtrCast<RelExpression>();
+  } else {
+    THROW_BINDER_EXCEPTION(
+        stringFormat("Cost function is not defined for {}", param->toString()));
+  }
+  auto recursiveInfo = rel->getRecursiveInfo();
   if (recursiveInfo->bindData->weightOutputExpr == nullptr) {
     THROW_BINDER_EXCEPTION(
         stringFormat("Cost function is not defined for {}", param->toString()));

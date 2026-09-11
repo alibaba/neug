@@ -82,6 +82,11 @@ class RelExpression final : public NodeOrRelExpression {
     return dataType.id() == common::DataTypeId::kPath;
   }
 
+  void requirePathMaterialization() { requiresPathMaterialization = true; }
+  bool isPathMaterializationRequired() const {
+    return requiresPathMaterialization;
+  }
+
   bool isBoundByMultiLabeledNode() const {
     return srcNode->isMultiLabeled() || dstNode->isMultiLabeled();
   }
@@ -151,6 +156,9 @@ class RelExpression final : public NodeOrRelExpression {
   common::QueryRelType relType;
   // Null if relationship type is non-recursive.
   std::unique_ptr<RecursiveInfo> recursiveInfo;
+  // A named path may reference an anonymous relationship. In that case the
+  // relationship still has to produce a physical value for the path.
+  bool requiresPathMaterialization = false;
 };
 
 }  // namespace binder
