@@ -10,15 +10,13 @@ User documentation lives in
 
 ## Backend
 
-The production backend is currently based on **Apache Arrow** for both reading
-(`LOAD FROM`) and writing (`COPY TO`).
+The production backend uses **[Carquet](../../third_party/carquet)** for both
+reading (`LOAD FROM`) and writing (`COPY TO`). Carquet is a C-level Parquet
+library vendored as a submodule with NeuG-local patches in
+[third_party/carquet.patch](../../third_party/carquet.patch). Backend selection
+is internal and does not add a SQL option.
 
-The plan is to unify the backend on [Carquet](../../third_party/carquet), a
-C-level Parquet library vendored as a submodule with NeuG-local patches in
-[third_party/carquet.patch](../../third_party/carquet.patch). A Carquet-based
-reader and writer are already implemented and validated in the extension tests,
-but they are not selectable in production yet — there is no SQL option to
-switch backends.
+The previous Arrow implementation and dependencies remain during the migration.
 
 See [Carquet Parquet Backend](carquet_parquet_backend.md) for the design and
-implementation notes of the in-progress migration.
+implementation notes.
