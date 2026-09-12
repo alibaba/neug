@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/expression/accessors/vertex_accessor.h"
+#include "neug/execution/expression/exprs/struct_extract.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -43,6 +44,11 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
   }
 
   const DataType& type() const override { return type_; }
+
+  std::unique_ptr<BindedExprBase> bind_struct_field(
+      size_t field_idx, const DataType& field_type) const override {
+    return bind_vertex_struct_field(property_columns_, field_idx, field_type);
+  }
 
  private:
   DataType type_;

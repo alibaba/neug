@@ -48,6 +48,17 @@ class BindedExprBase {
   virtual ~BindedExprBase() = default;
   virtual const DataType& type() const = 0;
 
+  // Struct field projection pushdown. When this expression reads a
+  // struct-typed property column, returns a bound expression that reads only
+  // field `field_idx` of that column (recursively for nested structs), so the
+  // whole struct is never assembled. Returns nullptr when the expression is
+  // not backed by a struct column; the caller then evaluates the whole struct
+  // and extracts the field instead.
+  virtual std::unique_ptr<BindedExprBase> bind_struct_field(
+      size_t field_idx, const DataType& field_type) const {
+    return nullptr;
+  }
+
   template <typename TARGET>
   TARGET& Cast() {
     if constexpr (std::is_same_v<TARGET, VertexExprBase>) {

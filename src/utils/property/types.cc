@@ -677,6 +677,15 @@ std::string to_string(neug::DataTypeId type) {
   case neug::DataTypeId::kInterval: {
     return "Interval";
   }
+  case neug::DataTypeId::kList: {
+    return "List";
+  }
+  case neug::DataTypeId::kArray: {
+    return "Array";
+  }
+  case neug::DataTypeId::kStruct: {
+    return "Struct";
+  }
   default: {
     return "Unknown";
   }
