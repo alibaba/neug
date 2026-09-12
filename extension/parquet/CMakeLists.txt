@@ -70,37 +70,49 @@ function(build_carquet_as_third_party)
         endif()
     endif()
 
-    # Resolve system codecs without requiring pkg-config or .pc files.
-    # Absolute library paths also remain valid across reconfiguration.
-    foreach(_codec IN ITEMS ZSTD LZ4)
-        string(TOLOWER "${_codec}" _codec_name)
-        find_path(NEUG_CARQUET_${_codec}_INCLUDE_DIR
-            NAMES "${_codec_name}.h")
-        find_library(NEUG_CARQUET_${_codec}_LIBRARY
-            NAMES "${_codec_name}")
-        if(NOT NEUG_CARQUET_${_codec}_INCLUDE_DIR OR
-                NOT NEUG_CARQUET_${_codec}_LIBRARY)
-            message(FATAL_ERROR
-                "Carquet requires the ${_codec_name} development library. "
-                "Run scripts/install_deps.sh or set CMAKE_PREFIX_PATH.")
-        endif()
-        set(${_codec}_FOUND TRUE)
-        set(${_codec}_INCLUDE_DIRS "${NEUG_CARQUET_${_codec}_INCLUDE_DIR}")
-        set(${_codec}_LIBRARIES "${NEUG_CARQUET_${_codec}_LIBRARY}")
-        # Ignore discovery results inherited from the parent or its cache.
-        set(${_codec_name}_FOUND FALSE)
-        set(CMAKE_DISABLE_FIND_PACKAGE_${_codec_name} TRUE)
-    endforeach()
-    set(PkgConfig_FOUND FALSE)
-    set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig TRUE)
-    find_package(ZLIB REQUIRED)
+    if(NEUG_PACKAGE_BUILD)
+        # Wheels and other distributable artifacts must not depend on codec
+        # development packages installed on the build host. Let Carquet fetch
+        # and statically link its pinned zstd, zlib and lz4 versions.
+        set(CARQUET_BUNDLE_DEPS ON)
+    else()
+        # Resolve system codecs without requiring pkg-config or .pc files.
+        # Absolute library paths also remain valid across reconfiguration.
+        foreach(_codec IN ITEMS ZSTD LZ4)
+            string(TOLOWER "${_codec}" _codec_name)
+            find_path(NEUG_CARQUET_${_codec}_INCLUDE_DIR
+                NAMES "${_codec_name}.h")
+            find_library(NEUG_CARQUET_${_codec}_LIBRARY
+                NAMES "${_codec_name}")
+            if(NOT NEUG_CARQUET_${_codec}_INCLUDE_DIR OR
+                    NOT NEUG_CARQUET_${_codec}_LIBRARY)
+                message(FATAL_ERROR
+                    "Carquet requires the ${_codec_name} development library. "
+                    "Run scripts/install_deps.sh or set CMAKE_PREFIX_PATH.")
+            endif()
+            set(${_codec}_FOUND TRUE)
+            set(${_codec}_INCLUDE_DIRS
+                "${NEUG_CARQUET_${_codec}_INCLUDE_DIR}")
+            set(${_codec}_LIBRARIES
+                "${NEUG_CARQUET_${_codec}_LIBRARY}")
+            # Ignore discovery results inherited from the parent or its cache.
+            set(${_codec_name}_FOUND FALSE)
+            set(CMAKE_DISABLE_FIND_PACKAGE_${_codec_name} TRUE)
+        endforeach()
+        set(PkgConfig_FOUND FALSE)
+        set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig TRUE)
+        find_package(ZLIB REQUIRED)
+        set(CARQUET_BUNDLE_DEPS OFF)
+    endif()
     foreach(_option IN ITEMS BUILD_DEV BUILD_TESTS BUILD_EXAMPLES
             BUILD_BENCHMARKS BUILD_ARROW_CPP_BENCHMARK BUILD_INTEROP
-            BUILD_CLI BUILD_SHARED BUILD_FUZZ BUILD_DOCS BUNDLE_DEPS
-            NATIVE_ARCH)
+            BUILD_CLI BUILD_SHARED BUILD_FUZZ BUILD_DOCS NATIVE_ARCH)
         set(CARQUET_${_option} OFF)
     endforeach()
     set(CMAKE_DISABLE_FIND_PACKAGE_OpenMP TRUE)
+    # Carquet and any bundled static codec archives are linked into the
+    # extension shared library.
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     add_subdirectory("${_carquet_source}"
         "${CMAKE_BINARY_DIR}/third_party/carquet" EXCLUDE_FROM_ALL)
     set_target_properties(carquet PROPERTIES
