@@ -1,17 +1,16 @@
-# Carquet reader implementation
+# Carquet reader
 
 NeuG's Parquet extension includes a Carquet reader that implements the existing
-input-stream and data-chunk interfaces. This is a preparation step for replacing
-the Arrow backend. It is currently built with the extension tests; `LOAD PARQUET`
-and `LOAD FROM` continue to use the existing Arrow reader. There is no SQL option
-to select Carquet yet.
+input-stream and data-chunk interfaces. After `LOAD PARQUET`, `LOAD FROM` uses
+this reader for local files and for remote streams supplied by the HTTPFS
+extension. Backend selection is internal and does not add a SQL option.
 
 ## Reading and filtering
 
 `CarquetSniffer` obtains the schema through an `InputStreamFactory`.
 `CarquetChunkSupplier` implements `IDataChunkSupplier` and returns NeuG-owned
 `DataChunk` columns. Returned values remain valid after subsequent reads or
-supplier destruction. The private `scanCarquet` entry point coordinates these
+supplier destruction. The `scanCarquet` entry point coordinates these
 suppliers for one or more files with compatible schemas.
 
 The scan reads the union of requested output columns and all columns referenced
@@ -46,11 +45,12 @@ downstream conversion. Unsupported schemas or invalid layouts report errors.
 
 Carquet's `ArrowSchema` and `ArrowArray` structures are the C Data interchange
 ABI declared by Carquet; these adapters do not link against Arrow to convert
-values. The existing production backend still requires Arrow at this stage.
+values. The previous Arrow implementation remains in the source tree during the
+migration, but the registered Parquet read function uses Carquet.
 
 ## Batching, concurrency and memory
 
-The private scan accepts the existing `batch_read`, `parallel`, `BATCH_SIZE`,
+The scan accepts the existing `batch_read`, `parallel`, `BATCH_SIZE`,
 `BUFFERED_STREAM`, `PRE_BUFFER` and `ENABLE_IO_COALESCING` options.
 `PARQUET_BATCH_ROWS` controls the maximum rows returned in each supplier chunk
 (default 65,536). Full reads merge the resulting chunks with the shared helper.
@@ -70,7 +70,8 @@ bytes against the same projected read with pruning disabled.
 
 ## Building and testing
 
-Enable `BUILD_TEST=ON` and include `parquet` in `BUILD_EXTENSIONS`, then run:
+Include `parquet` in `BUILD_EXTENSIONS`. To build and run the focused tests,
+also enable `BUILD_TEST=ON`, then run:
 
 ```sh
 cmake --build build --target parquet_carquet_test -j2

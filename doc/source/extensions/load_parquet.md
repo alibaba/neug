@@ -5,9 +5,10 @@ Apache Parquet is a columnar storage format widely used in data engineering and 
 - **Import**: Load external Parquet files using `LOAD FROM` syntax
 - **Export**: Export query results to Parquet files using `COPY TO` syntax
 
-For the private replacement writer under development, see
-[Carquet Parquet writer](carquet_writer). The active import/export backend is
-unchanged by that implementation.
+The extension uses Carquet for both import and export through NeuG's existing
+stream, schema, `DataChunk`, and query-export interfaces. See the
+[Carquet reader](carquet_reader) and [Carquet writer](carquet_writer) pages for
+the supported types and execution details.
 
 ## Install Extension
 
@@ -33,8 +34,8 @@ The following options control how Parquet files are read:
 | ------------------------ | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance. The buffer size in bytes is controlled by the generic `batch_size` option (default 1 MiB). |
 | `pre_buffer`             | bool  | `false` | Pre-buffer column data before decoding. Recommended for high-latency filesystems such as S3.                                                |
-| `enable_io_coalescing`   | bool  | `true`  | Enable Arrow I/O read coalescing (hole-filling cache) to reduce I/O overhead when reading non-contiguous byte ranges. When `true`, uses lazy coalescing; when `false`, uses eager coalescing. |
-| `parquet_batch_rows`     | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches.                                            |
+| `enable_io_coalescing`   | bool  | `true`  | Coalesce non-contiguous byte ranges lazily. Setting this to `false` pre-buffers selected column data before decoding.                                      |
+| `parquet_batch_rows`     | int64 | `65536` | Maximum number of rows returned in each in-memory data chunk.                                                                                |
 
 ### Query Examples
 
@@ -85,15 +86,11 @@ RETURN fName AS name, age AS years;
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with Parquet files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
 
-When a `WHERE` expression requires filtering after decoding, the reader still
-prunes columns: it reads the requested output columns and all columns referenced
-by the filter, including references inside nested expressions. Filter-only columns
-are removed from the result after filtering. This applies to both batch and full
-reads. In this fallback path, the predicate does not prune Parquet row groups.
-
-For the upcoming backend's implementation status and supported read paths, see
-[Carquet reader implementation](carquet_reader.md). The current SQL backend is
-unchanged by that preparation work.
+The reader decodes the requested output columns and any additional columns used
+by `WHERE`, including references inside nested expressions. It removes
+filter-only columns after evaluating the complete predicate. Scalar statistics
+can prune row groups conservatively; unsupported parts of a predicate are
+evaluated after decoding and never cause matching rows to be skipped.
 
 ## Export to Parquet
 
