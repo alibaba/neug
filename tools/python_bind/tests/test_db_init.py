@@ -360,10 +360,12 @@ def test_disk_space_exhausted(monkeypatch, tmp_path):
 def test_file_header_corruption(tmp_path):
     db_dir = tmp_path / "corrupt_db"
     db_dir.mkdir()
-    Database(db_path=str(db_dir), mode="w")
-    # db_file such as "wal/thread_0_0.wal" should exist after db creation
-    db_file = db_dir / "wal/thread_0_0.wal"
-    assert db_file.exists(), "Database file should exist after creation"
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+    conn.close()
+    db.close()
+    db_file = next((db_dir / "wal").rglob("*.wal"))
     # simulate file corruption by writing a corrupt header
     with open(db_file, "wb") as f:
         f.write(b"corrupt-header")
