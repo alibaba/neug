@@ -38,9 +38,12 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/utils/property/property_definition.h"
 
 namespace neug {
+namespace binder {
+struct BoundPropertyDefinition;
+class CompactLiteralExpression;
+}  // namespace binder
 namespace gopt {
 
 class GExprConverter {
@@ -64,7 +67,7 @@ class GExprConverter {
       const planner::LogicalOperator& child);
   std::unique_ptr<::common::Variable> convertDefaultVar();
   std::unique_ptr<::common::Expression> convertDefaultValue(
-      const PropertyDefinition& propertyDef);
+      const binder::BoundPropertyDefinition& propertyDef);
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
 
@@ -75,6 +78,8 @@ class GExprConverter {
       const binder::ParameterExpression& expr);
   std::unique_ptr<::common::Expression> convertLiteral(
       const binder::LiteralExpression& expr);
+  std::unique_ptr<::common::Expression> convertCompactLiteral(
+      const binder::CompactLiteralExpression& expr);
   std::unique_ptr<::common::Expression> convertProperty(
       const binder::PropertyExpression& expr);
   std::unique_ptr<::common::Expression> convertVariable(

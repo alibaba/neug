@@ -94,7 +94,7 @@ std::string BoundCreateTableInfo::toString() const {
 
 BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
     common::table_id_t srcTableID, common::table_id_t dstTableID,
-    std::vector<PropertyDefinition> definitions)
+    std::vector<BoundPropertyDefinition> definitions)
     : BoundExtraCreateRelTableInfo{common::RelMultiplicity::MANY,
                                    common::RelMultiplicity::MANY,
                                    common::DEFAULT_EXTEND_DIRECTION,
@@ -106,7 +106,8 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
     common::RelMultiplicity srcMultiplicity,
     common::RelMultiplicity dstMultiplicity,
     common::ExtendDirection storageDirection, common::table_id_t srcTableID,
-    common::table_id_t dstTableID, std::vector<PropertyDefinition> definitions)
+    common::table_id_t dstTableID,
+    std::vector<BoundPropertyDefinition> definitions)
     : BoundExtraCreateTableInfo{std::move(definitions)},
       srcMultiplicity{srcMultiplicity},
       dstMultiplicity{dstMultiplicity},
@@ -119,7 +120,7 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
     common::RelMultiplicity dstMultiplicity,
     common::ExtendDirection storageDirection, const std::string& srcLabelName,
     const std::string& dstLabelName,
-    std::vector<PropertyDefinition> definitions)
+    std::vector<BoundPropertyDefinition> definitions)
     : BoundExtraCreateTableInfo{std::move(definitions)},
       srcMultiplicity{srcMultiplicity},
       dstMultiplicity{dstMultiplicity},

@@ -24,13 +24,11 @@
 
 #include <sstream>
 
-#include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/main/client_context.h"
 
-using namespace neug::binder;
 using namespace neug::common;
 
 namespace neug {
@@ -164,13 +162,6 @@ std::string RelTableCatalogEntry::toCypher(const ToCypherInfo& info) const {
 
 ExtendDirection RelTableCatalogEntry::getStorageDirection() const {
   return storageDirection;
-}
-
-std::unique_ptr<BoundExtraCreateCatalogEntryInfo>
-RelTableCatalogEntry::getBoundExtraCreateInfo(transaction::Transaction*) const {
-  return std::make_unique<BoundExtraCreateRelTableInfo>(
-      srcMultiplicity, dstMultiplicity, storageDirection, srcTableID,
-      dstTableID, copyVector(propertyCollection.getDefinitions()));
 }
 
 }  // namespace catalog

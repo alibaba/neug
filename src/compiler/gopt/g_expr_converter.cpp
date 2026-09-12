@@ -21,6 +21,9 @@
 #include <ostream>
 #include <string>
 #include <vector>
+
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
+#include "neug/compiler/binder/expression/compact_literal_expression.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -83,9 +86,14 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     }
   }
   switch (expr.expressionType) {
-  case common::ExpressionType::LITERAL:
+  case common::ExpressionType::LITERAL: {
+    if (auto compact =
+            dynamic_cast<const binder::CompactLiteralExpression*>(&expr)) {
+      return convertCompactLiteral(*compact);
+    }
     return convertLiteral(static_cast<const binder::LiteralExpression&>(
         expr));  // todo: add literal data type
+  }
   case common::ExpressionType::PROPERTY:
     return convertProperty(
         static_cast<const binder::PropertyExpression&>(expr));
@@ -275,14 +283,47 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const PropertyDefinition& propertyDef) {
-  const auto& defaultValue = propertyDef.getDefaultValue();
-  if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
+    const binder::BoundPropertyDefinition& propertyDef) {
+  if (!propertyDef.defaultExpr) {
     return convertValue(
-        compiler_impl::Value::createNullValue(defaultValue.type()));
+        compiler_impl::Value::createNullValue(propertyDef.getType()));
   }
-  return convertValue(
-      common::convertToCompilerValue(defaultValue, defaultValue.type()));
+  if (auto compact = dynamic_cast<const binder::CompactLiteralExpression*>(
+          propertyDef.defaultExpr.get())) {
+    return convertCompactLiteral(*compact);
+  }
+  return convert(*propertyDef.defaultExpr, {});
+}
+
+std::unique_ptr<::common::Expression> GExprConverter::convertCompactLiteral(
+    const binder::CompactLiteralExpression& expr) {
+  auto exprPB = std::make_unique<::common::Expression>();
+  auto oprPB = exprPB->add_operators();
+  const auto& type = expr.getDataType();
+  if (type.id() == common::DataTypeId::kArray) {
+    auto compactPB = std::make_unique<::common::ToArrayCompact>();
+    for (const auto& segment : expr.getSegments()) {
+      auto* fieldPB = compactPB->add_fields();
+      fieldPB->set_repeat_count(segment.repeatCount);
+      auto valuePB = convertValue(segment.value);
+      *fieldPB->mutable_value() = valuePB->operators(0).const_();
+    }
+    oprPB->set_allocated_to_array_compact(compactPB.release());
+  } else if (type.id() == common::DataTypeId::kList) {
+    auto compactPB = std::make_unique<::common::ToListCompact>();
+    for (const auto& segment : expr.getSegments()) {
+      auto* fieldPB = compactPB->add_fields();
+      fieldPB->set_repeat_count(segment.repeatCount);
+      auto valuePB = convertValue(segment.value);
+      *fieldPB->mutable_value() = valuePB->operators(0).const_();
+    }
+    oprPB->set_allocated_to_list_compact(compactPB.release());
+  } else {
+    THROW_EXCEPTION_WITH_FILE_LINE("Compact literal requires LIST/ARRAY type");
+  }
+  oprPB->set_allocated_node_type(
+      typeConverter.convertLogicalType(type).release());
+  return exprPB;
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(

@@ -229,6 +229,8 @@ class Transformer {
       CypherParser::OC_BooleanLiteralContext& ctx);
   std::unique_ptr<ParsedExpression> transformListLiteral(
       CypherParser::OC_ListLiteralContext& ctx);
+  std::unique_ptr<ParsedExpression> transformCompactListLiteral(
+      CypherParser::NEUG_CompactListLiteralContext& ctx);
   std::unique_ptr<ParsedExpression> transformStructLiteral(
       CypherParser::NEUG_StructLiteralContext& ctx);
   std::unique_ptr<ParsedExpression> transformParameterExpression(

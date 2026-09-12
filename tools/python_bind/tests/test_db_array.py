@@ -474,6 +474,103 @@ def test_array_ddl_operations(tmp_path):
     db.close()
 
 
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+def test_compact_array_default_forms_in_ddl(tmp_path, ddl_path):
+    """All documented compact forms work in CREATE and ALTER DDL paths."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        conn.execute(
+            "CREATE NODE TABLE CompactDefaults("
+            "  id INT64,"
+            "  single_fill FLOAT[4] DEFAULT [-1:4],"
+            "  segmented INT64[5] DEFAULT [-1:2; 0:3],"
+            "  mixed INT64[4] DEFAULT [7, 8, -1:2],"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+        conn.execute("CREATE (:CompactDefaults {id: 1});")
+    else:
+        conn.execute("CREATE NODE TABLE CompactDefaults(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE (:CompactDefaults {id: 1});")
+        conn.execute(
+            "ALTER TABLE CompactDefaults " "ADD single_fill FLOAT[4] DEFAULT [-1:4];"
+        )
+        conn.execute(
+            "ALTER TABLE CompactDefaults " "ADD segmented INT64[5] DEFAULT [-1:2; 0:3];"
+        )
+        conn.execute(
+            "ALTER TABLE CompactDefaults " "ADD mixed INT64[4] DEFAULT [7, 8, -1:2];"
+        )
+
+    row = list(
+        conn.execute(
+            "MATCH (n:CompactDefaults {id: 1}) "
+            "RETURN n.single_fill, n.segmented, n.mixed;"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [-1.0, -1.0, -1.0, -1.0]
+    assert _nested_list(row[1]) == [-1, -1, 0, 0, 0]
+    assert _nested_list(row[2]) == [7, 8, -1, -1]
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+@pytest.mark.parametrize(
+    "default_literal,error_pattern",
+    [
+        ("[1:-1]", "Parser exception"),
+        ("[1:1.5]", "Parser exception"),
+        (
+            "[count(*):4]",
+            "Compact default only supports constant value/count pairs",
+        ),
+        (
+            "['not-an-int':4]",
+            "Invalid compact default value for InvalidCompactDefault.values",
+        ),
+        ("[1:3]", "ARRAY value length mismatch"),
+    ],
+    ids=[
+        "negative-repeat-count",
+        "non-integer-repeat-count",
+        "non-constant-value",
+        "invalid-value-cast",
+        "array-size-mismatch",
+    ],
+)
+def test_invalid_compact_array_defaults(
+    tmp_path, ddl_path, default_literal, error_pattern
+):
+    """Compact defaults enforce count, constancy, and fixed ARRAY size."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        ddl = (
+            "CREATE NODE TABLE InvalidCompactDefault("
+            "id INT64, values INT64[4] DEFAULT "
+            f"{default_literal}, PRIMARY KEY(id));"
+        )
+    else:
+        conn.execute(
+            "CREATE NODE TABLE InvalidCompactDefault(" "id INT64, PRIMARY KEY(id));"
+        )
+        ddl = (
+            "ALTER TABLE InvalidCompactDefault ADD values INT64[4] DEFAULT "
+            f"{default_literal};"
+        )
+
+    with pytest.raises(RuntimeError, match=error_pattern):
+        conn.execute(ddl)
+
+    conn.close()
+    db.close()
+
+
 # ---------------------------------------------------------------------------
 # Filter & Query Operation tests
 # ---------------------------------------------------------------------------

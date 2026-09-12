@@ -23,6 +23,7 @@
 #include "neug/compiler/binder/binder.h"
 
 #include <optional>
+
 #include "neug/compiler/binder/ddl/bound_alter.h"
 #include "neug/compiler/binder/ddl/bound_create_index.h"
 #include "neug/compiler/binder/ddl/bound_create_sequence.h"
@@ -30,7 +31,8 @@
 #include "neug/compiler/binder/ddl/bound_create_type.h"
 #include "neug/compiler/binder/ddl/bound_drop.h"
 #include "neug/compiler/binder/ddl/bound_drop_index.h"
-#include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
+#include "neug/compiler/binder/expression/compact_literal_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
@@ -57,7 +59,6 @@
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
-#include "neug/utils/property/default_value.h"
 
 using namespace neug::common;
 using namespace neug::parser;
@@ -107,7 +108,7 @@ static std::optional<::neug::Value> tryConvertTemporalDefault(
 }
 
 static void validatePropertyName(
-    const std::vector<PropertyDefinition>& definitions) {
+    const std::vector<BoundPropertyDefinition>& definitions) {
   case_insensitve_set_t nameSet;
   for (auto& definition : definitions) {
     if (nameSet.contains(definition.getName())) {
@@ -123,36 +124,54 @@ static void validatePropertyName(
   }
 }
 
-std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
+std::vector<BoundPropertyDefinition> Binder::bindPropertyDefinitions(
     const std::vector<ParsedPropertyDefinition>& parsedDefinitions,
     const std::string& tableName) {
-  std::vector<PropertyDefinition> definitions;
+  std::vector<BoundPropertyDefinition> definitions;
   for (auto& def : parsedDefinitions) {
     auto type = convertFromString(def.getType(), clientContext);
-    auto defaultValue = get_default_value(type);
+    std::shared_ptr<Expression> boundDefault;
     if (def.defaultExpr != nullptr) {
       auto directDefault =
           tryConvertTemporalDefault(def.defaultExpr.get(), type);
       if (directDefault.has_value()) {
-        defaultValue = std::move(*directDefault);
+        boundDefault = expressionBinder.createLiteralExpression(
+            common::convertToCompilerValue(*directDefault, type));
       } else {
         auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
                                                   tableName, def.getName());
-        auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
-        if (boundExpr->dataType != type) {
-          boundExpr = expressionBinder.implicitCast(boundExpr, type);
+        boundDefault = expressionBinder.bindExpression(*defaultExpr);
+        if (auto compact =
+                dynamic_cast<CompactLiteralExpression*>(boundDefault.get())) {
+          try {
+            compact->cast(type);
+          } catch (const std::exception& e) {
+            THROW_BINDER_EXCEPTION(
+                stringFormat("Invalid compact default value for {}.{}: {}",
+                             tableName, def.getName(), e.what()));
+          }
+        } else if (type.id() == DataTypeId::kArray &&
+                   boundDefault->dataType.id() == DataTypeId::kArray &&
+                   ArrayType::GetNumElements(boundDefault->dataType) !=
+                       ArrayType::GetNumElements(type)) {
+          THROW_BINDER_EXCEPTION(stringFormat(
+              "ARRAY value length mismatch for default value of {}.{}: "
+              "expected {}, got {}.",
+              tableName, def.getName(), ArrayType::GetNumElements(type),
+              ArrayType::GetNumElements(boundDefault->dataType)));
+        } else {
+          if (boundDefault->dataType != type) {
+            boundDefault = expressionBinder.implicitCast(boundDefault, type);
+          }
+          if (ConstantExpressionVisitor::needFold(*boundDefault)) {
+            boundDefault = expressionBinder.foldExpression(boundDefault);
+          }
         }
-        if (ConstantExpressionVisitor::needFold(*boundExpr)) {
-          boundExpr = expressionBinder.foldExpression(boundExpr);
-        }
-        defaultValue = common::convertToExecutionValue(
-            boundExpr->constCast<LiteralExpression>().getValue(), type);
       }
     }
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));
     definitions.emplace_back(std::move(columnDefinition),
-                             std::move(defaultValue),
-                             def.defaultExpr != nullptr);
+                             std::move(boundDefault));
   }
   validatePropertyName(definitions);
   return definitions;
@@ -172,7 +191,7 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
 
 static void validatePrimaryKey(
     const std::string& pkColName,
-    const std::vector<PropertyDefinition>& definitions) {
+    const std::vector<BoundPropertyDefinition>& definitions) {
   uint32_t primaryKeyIdx = UINT32_MAX;
   for (auto i = 0u; i < definitions.size(); i++) {
     if (definitions[i].getName() == pkColName) {
@@ -285,9 +304,10 @@ BoundCreateTableInfo Binder::bindCreateRelTableInfo(
 
 BoundCreateTableInfo Binder::bindCreateRelTableInfo(
     const CreateTableInfo* info, const options_t& parsedOptions) {
-  std::vector<PropertyDefinition> propertyDefinitions;
+  std::vector<BoundPropertyDefinition> propertyDefinitions;
   propertyDefinitions.emplace_back(
-      ColumnDefinition(InternalKeyword::ID, DataType(DataTypeId::kInternalId)));
+      ColumnDefinition(InternalKeyword::ID, DataType(DataTypeId::kInternalId)),
+      nullptr);
   for (auto& definition :
        bindPropertyDefinitions(info->propertyDefinitions, info->tableName)) {
     propertyDefinitions.push_back(definition.copy());
@@ -544,23 +564,32 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
   auto propertyName = extraInfo->propertyName;
   auto type = convertFromString(extraInfo->dataType, clientContext);
   auto columnDefinition = ColumnDefinition(propertyName, type.copy());
-  auto defaultExpr = resolvePropertyDefault(extraInfo->defaultValue.get(), type,
-                                            tableName, propertyName);
-  auto boundDefault = expressionBinder.bindExpression(*defaultExpr);
-  boundDefault = expressionBinder.implicitCastIfNecessary(boundDefault, type);
-  if (ConstantExpressionVisitor::needFold(*boundDefault)) {
-    boundDefault = expressionBinder.foldExpression(boundDefault);
+  std::shared_ptr<Expression> boundDefault;
+  if (extraInfo->defaultValue != nullptr) {
+    auto defaultExpr = resolvePropertyDefault(extraInfo->defaultValue.get(),
+                                              type, tableName, propertyName);
+    boundDefault = expressionBinder.bindExpression(*defaultExpr);
+    if (auto compact =
+            dynamic_cast<CompactLiteralExpression*>(boundDefault.get())) {
+      try {
+        compact->cast(type);
+      } catch (const std::exception& e) {
+        THROW_BINDER_EXCEPTION(
+            stringFormat("Invalid compact default value for {}.{}: {}",
+                         tableName, propertyName, e.what()));
+      }
+    } else {
+      boundDefault =
+          expressionBinder.implicitCastIfNecessary(boundDefault, type);
+      if (ConstantExpressionVisitor::needFold(*boundDefault)) {
+        boundDefault = expressionBinder.foldExpression(boundDefault);
+      }
+    }
   }
-  auto defaultValue =
-      extraInfo->defaultValue == nullptr
-          ? ::neug::Value(type.copy())
-          : common::convertToExecutionValue(
-                boundDefault->constCast<LiteralExpression>().getValue(), type);
-  auto propertyDefinition =
-      PropertyDefinition(std::move(columnDefinition), std::move(defaultValue),
-                         extraInfo->defaultValue != nullptr);
-  auto boundExtraInfo = std::make_unique<BoundExtraAddPropertyInfo>(
-      std::move(propertyDefinition), std::move(boundDefault));
+  auto propertyDefinition = BoundPropertyDefinition(std::move(columnDefinition),
+                                                    std::move(boundDefault));
+  auto boundExtraInfo =
+      std::make_unique<BoundExtraAddPropertyInfo>(propertyDefinition);
   auto boundInfo = BoundAlterInfo(AlterType::ADD_PROPERTY, tableName,
                                   std::move(boundExtraInfo), info->onConflict);
   return std::make_unique<BoundAlter>(std::move(boundInfo));

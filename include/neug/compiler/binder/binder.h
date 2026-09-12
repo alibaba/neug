@@ -88,6 +88,7 @@ namespace binder {
 enum class NamespaceBindingMode : uint8_t { DISALLOW, ALLOW_FOR_MATCH };
 struct BoundBaseScanSource;
 struct BoundCreateTableInfo;
+struct BoundPropertyDefinition;
 struct BoundInsertInfo;
 struct BoundSetPropertyInfo;
 struct BoundDeleteInfo;
@@ -184,7 +185,7 @@ class Binder {
   std::unique_ptr<BoundStatement> bindCommentOn(
       const parser::Statement& statement) const;
 
-  std::vector<PropertyDefinition> bindPropertyDefinitions(
+  std::vector<BoundPropertyDefinition> bindPropertyDefinitions(
       const std::vector<parser::ParsedPropertyDefinition>& parsedDefinitions,
       const std::string& tableName);
 

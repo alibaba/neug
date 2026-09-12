@@ -571,6 +571,7 @@ oC_Literal
         | StringLiteral
         | oC_BooleanLiteral
         | NULL
+        | nEUG_CompactListLiteral
         | oC_ListLiteral
         | nEUG_StructLiteral
         ;
@@ -589,6 +590,19 @@ oC_ListLiteral
 
 nEUG_ListEntry
     : ',' SP? oC_Expression? ;
+
+// Run-length encoded LIST/ARRAY literal. At least one element must carry a
+// repeat count, while ordinary elements in a mixed literal implicitly use 1.
+// Examples: [-1:4], [-1:2; 0:3], [7, 8, -1:2].
+nEUG_CompactListLiteral
+    : '[' SP? ( oC_Expression SP? ',' SP? )* nEUG_CompactListSegment SP?
+      ( nEUG_CompactListEntry SP? )* ']' ;
+
+nEUG_CompactListSegment
+    : oC_Expression SP? COLON SP? oC_IntegerLiteral ;
+
+nEUG_CompactListEntry
+    : ( ',' | ';' ) SP? ( nEUG_CompactListSegment | oC_Expression ) ;
 
 nEUG_StructLiteral
     :  '{' SP? nEUG_StructField SP? ( ',' SP? nEUG_StructField SP? )* '}' ;

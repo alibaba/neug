@@ -22,58 +22,15 @@
 
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 
-#include "neug/compiler/binder/ddl/bound_alter_info.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/serializer/deserializer.h"
-
-using namespace neug::binder;
 using namespace neug::common;
 
 namespace neug {
 namespace catalog {
-
-std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
-    transaction_t timestamp, const BoundAlterInfo& alterInfo) const {
-  NEUG_ASSERT(!deleted);
-  auto newEntry = copy();
-  switch (alterInfo.alterType) {
-  case AlterType::RENAME: {
-    auto& renameTableInfo =
-        *alterInfo.extraInfo->constPtrCast<BoundExtraRenameTableInfo>();
-    newEntry->rename(renameTableInfo.newName);
-  } break;
-  case AlterType::RENAME_PROPERTY: {
-    auto& renamePropInfo =
-        *alterInfo.extraInfo->constPtrCast<BoundExtraRenamePropertyInfo>();
-    newEntry->renameProperty(renamePropInfo.oldName, renamePropInfo.newName);
-  } break;
-  case AlterType::ADD_PROPERTY: {
-    auto& addPropInfo =
-        *alterInfo.extraInfo->constPtrCast<BoundExtraAddPropertyInfo>();
-    newEntry->addProperty(addPropInfo.propertyDefinition);
-  } break;
-  case AlterType::DROP_PROPERTY: {
-    auto& dropPropInfo =
-        *alterInfo.extraInfo->constPtrCast<BoundExtraDropPropertyInfo>();
-    newEntry->dropProperty(dropPropInfo.propertyName);
-  } break;
-  case AlterType::COMMENT: {
-    auto& commentInfo =
-        *alterInfo.extraInfo->constPtrCast<BoundExtraCommentInfo>();
-    newEntry->setComment(commentInfo.comment);
-  } break;
-  default: {
-    NEUG_UNREACHABLE;
-  }
-  }
-  newEntry->setOID(oid);
-  newEntry->setTimestamp(timestamp);
-  return newEntry;
-}
-
 column_id_t TableCatalogEntry::getMaxColumnID() const {
   return propertyCollection.getMaxColumnID();
 }
@@ -170,13 +127,6 @@ void TableCatalogEntry::copyFrom(const CatalogEntry& other) {
   auto& otherTable = neug_dynamic_cast<const TableCatalogEntry&>(other);
   comment = otherTable.comment;
   propertyCollection = otherTable.propertyCollection.copy();
-}
-
-BoundCreateTableInfo TableCatalogEntry::getBoundCreateTableInfo(
-    transaction::Transaction* transaction, bool isInternal) const {
-  auto extraInfo = getBoundExtraCreateInfo(transaction);
-  return BoundCreateTableInfo(type, name, ConflictAction::ON_CONFLICT_THROW,
-                              std::move(extraInfo), isInternal, hasParent_);
 }
 
 }  // namespace catalog

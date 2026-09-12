@@ -1,6 +1,13 @@
 # DDL Clause
 
-DDL (Data Definition Language) is a set of operations specifically designed for schema management. NeuG supports operations for adding, deleting, and modifying schema nodes, edges, and properties. When creating property related schema, users can optionally specify default values for properties to prevent `NULL` fields during data ingestion. If a default value is not explicitly provided, the system will automatically assign the defined default value.
+DDL (Data Definition Language) is a set of operations specifically designed for schema management. NeuG supports operations for adding, deleting, and modifying schema nodes, edges, and properties.
+
+## Property Default Values
+
+When creating property-related schemas, users can optionally specify default
+values for properties to prevent `NULL` fields during data ingestion. If a
+default value is not explicitly provided, the system automatically assigns the
+defined system default value.
 
 The following table lists the recommended syntax for defining default values for each supported data type, along with the system-assigned default value used when no explicit default is provided.
 
@@ -19,7 +26,24 @@ The following table lists the recommended syntax for defining default values for
 | `ARRAY`           | `prop INT32[3] DEFAULT [1, 2, 3]` | child defaults repeated to the fixed length, for example `[0, 0, 0]` for `INT32[3]` |
 | `LIST`             | `prop INT64[] DEFAULT CAST([1, 2, 3], 'INT64[]')` | `[]` (empty list)                  |
 
-Please refer to the following examples for more usages.
+### Compact LIST and ARRAY Defaults
+
+For large LIST or ARRAY defaults, NeuG supports compact literals that encode
+repeated values without expanding every element while the query is compiled.
+The following forms are supported:
+
+| Form | Syntax | Example | Expanded Value |
+|------|--------|---------|----------------|
+| Single repeated value | `[value:count]` | `[-1:4]` | `[-1, -1, -1, -1]` |
+| Multiple repeated segments | `[value:count; value:count; ...]` | `[-1:2; 0:3]` | `[-1, -1, 0, 0, 0]` |
+| Ordinary and repeated values | `[value, value, ..., value:count]` | `[7, 8, -1:2]` | `[7, 8, -1, -1]` |
+
+Each `count` must be a non-negative integer literal. Values must be constant
+expressions and must be compatible with the declared element type. For a
+fixed-length ARRAY, the sum of all repeat counts and ordinary elements must
+equal the declared array length; otherwise, the DDL statement is rejected.
+Compact literals can also be used for variable-length LIST defaults, where the
+expanded length is determined by the literal itself.
 
 ## Create Node Type
 

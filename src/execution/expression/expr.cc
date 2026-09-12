@@ -62,6 +62,31 @@ DataType parse_path_property_element_type(const ::common::IrDataType& type) {
       "path function node_type is not list or array type");
 }
 
+Value parse_compact_const_value(const ::common::Value& value) {
+  auto expr = parse_const(value);
+  auto bound = expr->bind(nullptr, ParamsMap{});
+  DataChunk empty_chunk;
+  return bound->Cast<RecordExprBase>().eval_record(empty_chunk, 0);
+}
+
+std::vector<Value> parse_compact_fields(
+    const google::protobuf::RepeatedPtrField<::common::CompactConstField>&
+        fields) {
+  std::vector<Value> values;
+  uint64_t total_count = 0;
+  for (const auto& field : fields) {
+    total_count += field.repeat_count();
+  }
+  values.reserve(total_count);
+  for (const auto& field : fields) {
+    auto value = parse_compact_const_value(field.value());
+    for (uint64_t i = 0; i < field.repeat_count(); ++i) {
+      values.push_back(value);
+    }
+  }
+  return values;
+}
+
 }  // namespace
 
 static std::unique_ptr<ExprBase> build_expr(
@@ -176,6 +201,26 @@ static std::unique_ptr<ExprBase> build_expr(
       auto array_type = parse_from_ir_data_type(opr.node_type());
       return std::make_unique<ArrayExpr>(std::move(exprs_vec),
                                          std::move(array_type));
+    }
+
+    case ::common::ExprOpr::kToListCompact: {
+      auto list_type = parse_from_ir_data_type(opr.node_type());
+      if (list_type.id() != DataTypeId::kList) {
+        THROW_RUNTIME_ERROR("TO_LIST_COMPACT expression requires a LIST type");
+      }
+      return std::make_unique<ConstExpr>(
+          Value::LIST(ListType::GetChildType(list_type),
+                      parse_compact_fields(opr.to_list_compact().fields())));
+    }
+
+    case ::common::ExprOpr::kToArrayCompact: {
+      auto array_type = parse_from_ir_data_type(opr.node_type());
+      if (array_type.id() != DataTypeId::kArray) {
+        THROW_RUNTIME_ERROR(
+            "TO_ARRAY_COMPACT expression requires an ARRAY type");
+      }
+      return std::make_unique<ConstExpr>(Value::ARRAY(
+          array_type, parse_compact_fields(opr.to_array_compact().fields())));
     }
 
     case ::common::ExprOpr::kToDate: {
@@ -373,6 +418,8 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
     case ::common::ExprOpr::kToTuple:
     case ::common::ExprOpr::kToList:
     case ::common::ExprOpr::kToArray:
+    case ::common::ExprOpr::kToListCompact:
+    case ::common::ExprOpr::kToArrayCompact:
     case ::common::ExprOpr::kScalarFunc:
     case ::common::ExprOpr::kPathFunc: {
       opr_stack2.push(*it);
