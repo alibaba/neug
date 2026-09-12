@@ -20,13 +20,11 @@ jobs:
   package-test:
     runs-on: ${{ matrix.os }}
     env:
-      ARTIFACT_PLATFORM: ${{ matrix.os == 'ubuntu-latest' && 'linux-x86_64' || 'osx-arm64' }}
+      ARTIFACT_PLATFORM: ${{ matrix.os == 'ubuntu-latest' && 'linux-x86_64' || matrix.os == 'windows-2022' && 'windows-x86_64' || 'osx-arm64' }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-15
+        os: ${{ fromJSON(inputs.package_source == 'artifact' && '["ubuntu-latest", "macos-15", "windows-2022"]' || '["ubuntu-latest", "macos-15"]') }}
         node-version: ["20", "22", "24"]
 
     steps:
@@ -45,6 +43,7 @@ jobs:
           cache-dependency-path: tools/nodejs_bind/package-lock.json
 
       - name: Prepare test workspace
+        if: runner.os != 'Windows'
         run: |
           set -euo pipefail
 
@@ -52,6 +51,15 @@ jobs:
           rm -rf "${TEST_WORKSPACE}" && mkdir -p "${TEST_WORKSPACE}"
 
           cp -R "${GITHUB_WORKSPACE}/tools/nodejs_bind/tests" "${TEST_WORKSPACE}/tests"
+
+      - name: Prepare test workspace on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $testWorkspace = Join-Path $env:RUNNER_TEMP "neug-npm-package-test"
+          Remove-Item -Recurse -Force $testWorkspace -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $testWorkspace | Out-Null
+          Copy-Item -Recurse "$env:GITHUB_WORKSPACE\tools\nodejs_bind\tests" "$testWorkspace\tests"
 
       - name: Install NeuG package from npm
         if: inputs.package_source != 'artifact'
@@ -67,7 +75,7 @@ jobs:
           path: ${{ runner.temp }}/neug-npm-package-test
 
       - name: Install NeuG package from artifact
-        if: inputs.package_source == 'artifact'
+        if: inputs.package_source == 'artifact' && runner.os != 'Windows'
         run: |
           set -euo pipefail
 
@@ -79,7 +87,23 @@ jobs:
           # "neug" alias locally after installing the scoped artifact.
           ln -s "@graphscope-neug/${ARTIFACT_PLATFORM}" node_modules/neug
 
+      - name: Install NeuG package from artifact on Windows
+        if: inputs.package_source == 'artifact' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $testWorkspace = Join-Path $env:RUNNER_TEMP "neug-npm-package-test"
+          Set-Location $testWorkspace
+          $tarball = (Get-ChildItem "graphscope-neug-$env:ARTIFACT_PLATFORM-*.tgz").FullName
+          npm install $tarball
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $aliasDir = Join-Path $testWorkspace "node_modules\neug"
+          New-Item -ItemType Directory -Force $aliasDir | Out-Null
+          '{"name":"neug","main":"index.js"}' | Set-Content (Join-Path $aliasDir "package.json")
+          "module.exports = require('@graphscope-neug/windows-x86_64');" | Set-Content (Join-Path $aliasDir "index.js")
+
       - name: Prepare modern graph dataset
+        if: runner.os != 'Windows'
         env:
           FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
         run: |
@@ -95,7 +119,27 @@ jobs:
           prepareModernGraphDataset(Database);
           JS
 
+      - name: Prepare modern graph dataset on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          FLEX_DATA_DIR: ${{ github.workspace }}\example_dataset\modern_graph
+        run: |
+          $tmpRoot = Join-Path ([IO.Path]::GetPathRoot($env:RUNNER_TEMP)) "tmp"
+          New-Item -ItemType Directory -Force $tmpRoot | Out-Null
+          Remove-Item -Recurse -Force (Join-Path $tmpRoot "modern_graph") -ErrorAction SilentlyContinue
+          Set-Location (Join-Path $env:RUNNER_TEMP "neug-npm-package-test")
+          node -e "const { prepareModernGraphDataset } = require('./tests/test-shim'); const { Database } = require('neug'); prepareModernGraphDataset(Database);"
+
       - name: Run Node.js tests
+        if: runner.os != 'Windows'
         run: |
           cd "${RUNNER_TEMP}/neug-npm-package-test"
+          node tests/test-shim.js
+
+      - name: Run Node.js tests on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP "neug-npm-package-test")
           node tests/test-shim.js
