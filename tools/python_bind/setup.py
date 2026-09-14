@@ -31,9 +31,8 @@ if sys.version_info < (3, 12):
 
 from pathlib import Path
 
-from setuptools import Extension
 from setuptools import find_packages  # noqa: H301
-from setuptools import setup
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.install_lib import install_lib as _install_lib
@@ -99,23 +98,6 @@ def _on_off(name: str, default: str) -> str:
     return "ON" if os.environ.get(name, default).upper() == "ON" else "OFF"
 
 
-def _mimalloc_runtime_libraries(build_dir: Path) -> list[Path]:
-    """Return the macOS mimalloc file referenced by packaged extensions."""
-    lib_dir = build_dir / "third_party" / "mimalloc"
-    if sys.platform != "darwin":
-        return []
-    name_pattern = re.compile(r"libmimalloc\.\d+(?:\.\d+)+\.dylib")
-    return (
-        sorted(
-            path
-            for path in lib_dir.iterdir()
-            if path.is_file() and name_pattern.fullmatch(path.name)
-        )
-        if lib_dir.is_dir()
-        else []
-    )
-
-
 class CMakeBuild(build_ext):
     """Drive cmake against the root build tree, honoring env-var build options.
 
@@ -177,17 +159,6 @@ class CMakeBuild(build_ext):
         ]:
             shutil.copy2(src, extdir, follow_symlinks=True)
             print(f"[CMakeBuild] copied {src.name} -> {extdir}")
-
-        # macOS extensions refer to the mimalloc copy already shipped by the
-        # released NeuG wheel. Stage it at the same path so delocate can verify
-        # extension carrier wheels without relocating the dependency elsewhere.
-        mimalloc_libs = _mimalloc_runtime_libraries(build_dir)
-        if mimalloc_libs:
-            runtime_dir = extdir / "neug" / ".dylibs"
-            runtime_dir.mkdir(parents=True, exist_ok=True)
-            for src in mimalloc_libs:
-                shutil.copy2(src, runtime_dir, follow_symlinks=True)
-                print(f"[CMakeBuild] copied {src.name} -> {runtime_dir}")
 
         # Mirror <repo>/build/extension/<name>/* into <extdir>/extension/<name>/
         # so they get packaged into the wheel. Triggered by CI_INSTALL_EXTENSIONS

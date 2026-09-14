@@ -39,6 +39,12 @@ function(set_extension_properties target_name output_name extension_name)
             "@loader_path/../../neug/.dylibs"
             "@loader_path/../.."
             "@loader_path")
+        # Keep the build-time dependency discoverable by delocate. During wheel
+        # repair delocate copies mimalloc into neug/.dylibs, rewrites the load
+        # command, and removes this absolute build RPATH.
+        if(WITH_MIMALLOC AND TARGET mimalloc)
+            list(APPEND _ext_rpath "$<TARGET_FILE_DIR:mimalloc>")
+        endif()
     else()
         set(_ext_rpath "$ORIGIN/../..")
     endif()
@@ -84,18 +90,6 @@ function(build_extension_lib ext_name)
         # already-published core wheel.
         target_link_options(neug_${EXTENSION_LIB_NAME}_extension PRIVATE
             "LINKER:-dead_strip_dylibs")
-
-        if(WITH_MIMALLOC AND TARGET mimalloc)
-            # The released macOS wheel owns mimalloc under neug/.dylibs. Point
-            # extensions at that exact file so they remain standalone OSS
-            # artifacts and can be installed without rebuilding the core wheel.
-            add_custom_command(TARGET neug_${EXTENSION_LIB_NAME}_extension POST_BUILD
-                COMMAND "${CMAKE_INSTALL_NAME_TOOL}" -change
-                    "@rpath/$<TARGET_SONAME_FILE_NAME:mimalloc>"
-                    "@loader_path/../../neug/.dylibs/$<TARGET_FILE_NAME:mimalloc>"
-                    "$<TARGET_FILE:neug_${EXTENSION_LIB_NAME}_extension>"
-                VERBATIM)
-        endif()
     endif()
 endfunction()
 

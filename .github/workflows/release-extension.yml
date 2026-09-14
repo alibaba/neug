@@ -71,12 +71,6 @@ jobs:
             oss_platform: linux_arm64
             runner: '["self-hosted", "daily", "linux", "arm64"]'
             runner_os: linux
-          - artifact_platform: osx-x86_64
-            cibw_build: cp39-macosx_x86_64
-            deployment_target: '10.15'
-            oss_platform: osx_x86_64
-            runner: '["macos-15-intel"]'
-            runner_os: macos
           - artifact_platform: osx-arm64
             cibw_build: cp39-macosx_arm64
             deployment_target: '11.0'

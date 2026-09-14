@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import shutil
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -35,8 +36,44 @@ def parse_extensions(value: str) -> list[str]:
     return extensions
 
 
+def align_macos_mimalloc_dependency(
+    extension_file: Path, wheel_members: set[str]
+) -> None:
+    """Point an extracted extension at mimalloc shipped by the NeuG wheel."""
+    mimalloc_members = sorted(
+        member
+        for member in wheel_members
+        if re.fullmatch(r"neug/\.dylibs/libmimalloc\.\d+(?:\.\d+)+\.dylib", member)
+    )
+    if not mimalloc_members:
+        raise FileNotFoundError("Repaired wheel does not contain macOS mimalloc")
+
+    target = f"@loader_path/../../neug/.dylibs/{Path(mimalloc_members[-1]).name}"
+    output = subprocess.run(
+        ["otool", "-L", extension_file],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    dependencies = [
+        line.strip().split(" ", 1)[0]
+        for line in output.splitlines()[1:]
+        if "libmimalloc." in line
+    ]
+    if not dependencies:
+        return
+
+    for dependency in dependencies:
+        if dependency != target:
+            subprocess.run(
+                ["install_name_tool", "-change", dependency, target, extension_file],
+                check=True,
+            )
+    subprocess.run(["codesign", "--force", "--sign", "-", extension_file], check=True)
+
+
 def extract_extensions(
-    wheel: Path, extensions: list[str], output_dir: Path
+    wheel: Path, extensions: list[str], platform: str, output_dir: Path
 ) -> dict[str, tuple[Path, Path]]:
     """Extract repaired extension libraries and generate their checksums."""
     if not wheel.is_file():
@@ -61,6 +98,9 @@ def extract_extensions(
             target = extension_file.open("wb")
             with source, target:
                 shutil.copyfileobj(source, target)
+
+            if platform.startswith("osx"):
+                align_macos_mimalloc_dependency(extension_file, members)
 
             checksum_file = output_dir / f"{filename}.sha256"
             checksum_file.write_text(
@@ -111,7 +151,9 @@ def main() -> int:
     args = parse_args()
     try:
         extensions = parse_extensions(args.extensions)
-        artifacts = extract_extensions(args.wheel, extensions, args.output_dir)
+        artifacts = extract_extensions(
+            args.wheel, extensions, args.platform, args.output_dir
+        )
         if not args.skip_upload:
             upload_artifacts(artifacts, args.version, args.platform)
     except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as error:
