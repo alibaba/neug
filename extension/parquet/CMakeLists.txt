@@ -195,10 +195,12 @@ if(BUILD_TEST)
     add_executable(parquet_carquet_test
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_chunk_supplier_test.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_scan_test.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_golden_compatibility_test.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_input_adapter_test.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_output_adapter_test.cc)
     target_compile_definitions(parquet_carquet_test PRIVATE
-        NEUG_PARQUET_DATASET_DIR="${CMAKE_SOURCE_DIR}/example_dataset")
+        NEUG_PARQUET_DATASET_DIR="${CMAKE_SOURCE_DIR}/example_dataset"
+        NEUG_PARQUET_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     target_link_libraries(parquet_carquet_test PRIVATE
         neug::GTest
         neug_parquet_carquet_impl

@@ -2,13 +2,15 @@
 
 """Parquet contracts through NeuG SQL and the active backend wiring.
 
-Reuse example_dataset for regular reads. PyArrow only produces temporary
-boundary/encoding inputs; it is an optional test dependency, as in test_load_array.
-Expected query results remain explicit and independent of the file producer.
-Most cases are backend-neutral; focused option and metadata assertions verify
-that the registered reader and writer use Carquet after the production switch.
+Reuse example_dataset for regular reads. Immutable interoperability fixtures
+cover additional boundaries without loading Arrow; older cases still use
+PyArrow as an optional test-only producer, as in test_load_array. Expected query
+results remain explicit and independent of the file producer. Most cases are
+backend-neutral; focused assertions verify that the registered reader and writer
+use Carquet after the production switch.
 """
 
+import math
 import os
 import shutil
 from datetime import date
@@ -31,6 +33,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 DATASET_DIR = Path(__file__).resolve().parents[3] / "example_dataset"
+FIXTURE_DIR = (
+    Path(__file__).resolve().parents[3] / "extension" / "parquet" / "tests" / "fixtures"
+)
 
 
 @pytest.fixture
@@ -207,6 +212,100 @@ def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
     assert filtered == [[1, ""], [4, "中文"]]
 
 
+@pytest.mark.parametrize("batch_read", [False, True])
+def test_reader_preserves_remaining_physical_type_boundaries(connection, batch_read):
+    """Read recorded Arrow values without loading Arrow in the test."""
+    path = FIXTURE_DIR / "arrow_types.parquet"
+
+    rows = list(
+        connection.execute(
+            f'LOAD FROM "{path}" '
+            f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
+            "RETURN * ORDER BY row_id"
+        )
+    )
+
+    assert [row[:10] for row in rows] == [
+        [1, True, -128, -32768, -(2**31), -(2**63), 0, 0, 0, 0],
+        [
+            2,
+            False,
+            127,
+            32767,
+            2**31 - 1,
+            2**63 - 1,
+            255,
+            65535,
+            2**32 - 1,
+            2**64 - 1,
+        ],
+        [3, None, None, None, None, None, None, None, None, None],
+        [4, True, 0, 0, 0, 0, 1, 1, 1, 2**63],
+    ]
+    assert math.isnan(rows[0][10])
+    assert rows[1][10] == float("inf")
+    assert rows[2][10] == float("-inf")
+    assert rows[3][10] is None
+    assert math.copysign(1.0, rows[0][11]) == -1.0
+    assert math.copysign(1.0, rows[1][11]) == 1.0
+    assert rows[2][11] == 1.25
+    assert rows[3][11] is None
+    assert [row[12:] for row in rows] == [
+        [
+            "",
+            "large",
+            date(1969, 12, 31),
+            datetime(1969, 12, 31, 23, 59, 59),
+            datetime(1969, 12, 31, 23, 59, 59),
+            datetime(1969, 12, 31, 23, 59, 59),
+            datetime(1969, 12, 31, 23, 59, 59),
+            datetime(1969, 12, 31, 23, 59, 59),
+            [1, None, 3],
+            [1, None],
+            [1.0, None, 3.0],
+        ],
+        [
+            "a\0b",
+            "",
+            date(1970, 1, 1),
+            datetime(1970, 1, 1),
+            datetime(1970, 1, 1),
+            datetime(1970, 1, 1),
+            datetime(1970, 1, 1),
+            datetime(1970, 1, 1),
+            [],
+            [],
+            [4.0, 5.0, 6.0],
+        ],
+        [
+            "中文🙂",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            [0.0, 0.0, 0.0],
+        ],
+        [
+            None,
+            "终",
+            date(2024, 2, 29),
+            datetime(2023, 11, 14, 22, 13, 20),
+            datetime(2023, 11, 14, 22, 13, 20, 123000),
+            datetime(2023, 11, 14, 22, 13, 20, 123000),
+            datetime(2023, 11, 14, 22, 13, 20, 123000),
+            datetime(2023, 11, 14, 22, 13, 20, 123000),
+            [4, 5],
+            [3],
+            [-1.0, -2.0, -3.0],
+        ],
+    ]
+
+
 @pytest.mark.parametrize(
     "predicate, expected",
     [
@@ -350,7 +449,12 @@ def test_registered_reader_enforces_carquet_option_bounds(connection, options, e
 
 @pytest.mark.parametrize(
     "compression,page_version",
-    [("none", "1.0"), ("snappy", "1.0"), ("gzip", "2.0"), ("zstd", "2.0")],
+    [
+        ("none", "1.0"),
+        ("snappy", "1.0"),
+        ("gzip", "2.0"),
+        ("zstd", "2.0"),
+    ],
 )
 def test_reader_preserves_encodings_pages_and_row_groups(
     connection, tmp_path, compression, page_version
@@ -440,6 +544,52 @@ def test_reader_preserves_encodings_pages_and_row_groups(
         [11, False, 2.0, "b"],
         [12, False, 3.0, "c"],
     ]
+
+
+def test_reader_preserves_external_delta_encoding_fixture(connection):
+    """Exercise mixed codecs and delta encodings without loading Arrow."""
+    path = FIXTURE_DIR / "arrow_delta_encodings.parquet"
+    rows = list(
+        connection.execute(
+            f'LOAD FROM "{path}" WHERE id >= 3 AND id <= 7 '
+            "RETURN text_length, text_prefix, signed_value, id ORDER BY id"
+        )
+    )
+    assert rows == [
+        [
+            f"length-{row + 17}-" + "x" * ((row + 17) % 7),
+            f"shared-prefix-{(row + 17) // 4}-value-{row + 17}",
+            (row + 17) * 37 - 911,
+            row,
+        ]
+        for row in range(3, 8)
+    ]
+
+
+def test_reader_preserves_external_byte_stream_split_lz4_fixture(connection):
+    path = FIXTURE_DIR / "arrow_byte_stream_split.parquet"
+    rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY id'))
+    assert len(rows) == 12
+    assert math.isnan(rows[0][1])
+    assert rows[1][1] == float("inf")
+    assert rows[2][1] == float("-inf")
+    assert math.copysign(1.0, rows[3][1]) == -1.0
+    assert rows[4][1:] == [0.0, 3.75]
+    assert rows[-1] == [12, -200.25, float("-inf")]
+
+
+def test_reader_handles_empty_files_and_all_null_row_groups(connection):
+    empty_path = FIXTURE_DIR / "arrow_empty.parquet"
+    assert list(connection.execute(f'LOAD FROM "{empty_path}" RETURN *')) == []
+
+    null_path = FIXTURE_DIR / "arrow_all_null_groups.parquet"
+    rows = list(
+        connection.execute(
+            f'LOAD FROM "{null_path}" WHERE text IS NULL '
+            "RETURN id, text, numbers ORDER BY id"
+        )
+    )
+    assert rows == [[row, None, None] for row in range(1, 7)]
 
 
 @pytest.mark.parametrize(
