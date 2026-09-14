@@ -457,7 +457,11 @@ def test_disable_checkpoint_on_close_recovers_wal(tmp_path):
 
     wal_files = list((db_dir / "wal").rglob("*.wal"))
     assert wal_files
-    assert sum(path.stat().st_size for path in wal_files) < 1024 * 1024
+    # Each WAL file is preallocated to a fixed 64 MiB apparent size (a sparse
+    # hole), so st_size no longer tracks the committed payload. Measure the
+    # blocks actually allocated on disk to confirm the WAL only holds the small
+    # committed writes.
+    assert sum(path.stat().st_blocks * 512 for path in wal_files) < 1024 * 1024
 
     # 2. reopen database and recover committed writes from WAL
     db = Database(db_path=str(db_dir), mode="w")
