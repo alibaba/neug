@@ -212,6 +212,12 @@ that encounters this intentional backpressure first releases its inserter
 admission, so it cannot prevent an update or compact operation from draining
 existing inserts.
 
+Advancing the visibility frontier leaves completed tags in their slots, avoiding
+an atomic read-modify-write per completed timestamp. An old tag cannot match a
+later timestamp that reuses its slot. Capacity checks prevent reuse before the
+frontier passes the old timestamp, timestamp exhaustion prevents wraparound,
+and timeline initialization/reset clears the ring.
+
 ## Serializability
 
 For a `SnapshotReadTransaction`, it will be assigned a graph timestamp. All insert or update transactions with timestamp less than or equal to that timestamp have been committed and are visible through timestamp filtering and the pinned snapshot.

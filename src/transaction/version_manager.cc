@@ -209,8 +209,10 @@ void VersionManager::advance_read_ts_locked() {
       break;  // Next timestamp not completed
     }
 
-    // Clear the advanced bit
-    ts_window_.clear(next_ts);
+    // Keep the exact completion tag: it cannot match a later timestamp that
+    // reuses this slot. Capacity checks prevent reuse before read_ts advances,
+    // and timestamp exhaustion prevents wraparound. Avoid a clearing RMW in
+    // this serialized path; init_ts/reset clears tags for a new timeline.
     current = next_ts;
     read_ts_.store(current, std::memory_order_release);
   }
