@@ -326,19 +326,20 @@ TEST_F(LocalWalParserTest, WriterStoresExactLengthAndSingleTerminator) {
   const auto path = std::filesystem::path(wal_dir_) / "thread_0_0.wal";
   ASSERT_TRUE(std::filesystem::exists(path));
   EXPECT_EQ(std::filesystem::file_size(path),
-            first_record.size() + sizeof(neug::WalHeader));
+            neug::LocalWalWriter::kInitialFileSize);
 
   ASSERT_TRUE(writer.append(second_record.data(), second_record.size()));
   writer.close();
-  EXPECT_EQ(
-      std::filesystem::file_size(path),
-      first_record.size() + second_record.size() + sizeof(neug::WalHeader));
+  EXPECT_EQ(std::filesystem::file_size(path),
+            neug::LocalWalWriter::kInitialFileSize);
 
-  std::ifstream input(path, std::ios::binary);
-  std::vector<char> bytes((std::istreambuf_iterator<char>(input)), {});
   auto expected = first_record;
   expected.insert(expected.end(), second_record.begin(), second_record.end());
   expected.resize(expected.size() + sizeof(neug::WalHeader), 0);
+  std::ifstream input(path, std::ios::binary);
+  std::vector<char> bytes(expected.size());
+  input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  ASSERT_EQ(input.gcount(), static_cast<std::streamsize>(bytes.size()));
   EXPECT_EQ(bytes, expected);
 
   neug::LocalWalParser parser(wal_dir_);
@@ -418,7 +419,9 @@ TEST_F(LocalWalParserTest, RecoversAfterAppendIsInterruptedInsideWriteLoop) {
     if (child == 0) {
       std::signal(
           SIGXFSZ, i == 2 ? SIG_IGN : +[](int) { ::_exit(73); });
-      neug::LocalWalWriter writer(case_dir.string(), 0);
+      neug::LocalWalWriter writer(case_dir.string(), 0,
+                                  /*initial_file_size=*/0,
+                                  /*file_growth_size=*/1);
       writer.open(case_dir.string());
       if (!writer.append(first_record.data(), first_record.size())) {
         ::_exit(74);

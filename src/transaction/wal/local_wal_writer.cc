@@ -34,6 +34,7 @@
 #include <filesystem>
 #include <ostream>
 #include <string_view>
+#include <utility>
 
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/io/file/file_utils.h"
@@ -111,6 +112,25 @@ void SyncFile(int fd) {
 #endif
 }
 
+int CloseFd(int fd) noexcept {
+#ifdef _WIN32
+  return _close(fd);
+#else
+  return ::close(fd);
+#endif
+}
+
+void ResizeFile(int fd, size_t size) {
+#ifdef _WIN32
+  if (_chsize_s(fd, size) != 0) {
+#else
+  if (::ftruncate(fd, static_cast<off_t>(size)) != 0) {
+#endif
+    THROW_IO_EXCEPTION("Failed to resize WAL file: " +
+                       std::string(strerror(errno)));
+  }
+}  // namespace
+
 }  // namespace
 
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
@@ -131,7 +151,6 @@ LocalWalWriter::~LocalWalWriter() noexcept {
 void LocalWalWriter::open(const std::string& wal_uri) {
   close();
   wal_uri_ = wal_uri;
-  file_used_ = 0;
   opened_ = true;
 }
 
@@ -164,14 +183,14 @@ void LocalWalWriter::create_file() {
       // Make the directory entry durable before WAL contents can become
       // recoverable. If this fails, append() must not write the transaction.
       if (!file_utils::fsync_directory(prefix)) {
-        const int fd = fd_;
-        fd_ = -1;
-#ifdef _WIN32
-        _close(fd);
-#else
-        ::close(fd);
-#endif
+        (void) CloseFd(std::exchange(fd_, -1));
         THROW_IO_EXCEPTION("Failed to sync wal directory " + prefix);
+      }
+      try {
+        ensure_file_size(initial_file_size_);
+      } catch (...) {
+        (void) CloseFd(std::exchange(fd_, -1));
+        throw;
       }
       return;
     }
@@ -185,24 +204,38 @@ void LocalWalWriter::create_file() {
       std::to_string(slot_id_));
 }
 
+void LocalWalWriter::ensure_file_size(size_t required_size) {
+  if (required_size <= file_size_) {
+    return;
+  }
+
+  size_t next_size = file_size_;
+  while (next_size < required_size) {
+    if (file_growth_size_ == 0 ||
+        next_size > std::numeric_limits<size_t>::max() - file_growth_size_) {
+      next_size = required_size;
+      break;
+    }
+    next_size += file_growth_size_;
+  }
+  ResizeFile(fd_, next_size);
+  file_size_ = next_size;
+}
+
 void LocalWalWriter::close() {
   opened_ = false;
-  if (fd_ != -1) {
-    // Retire the descriptor before calling close(). Retrying close() after an
-    // error is unsafe because the descriptor may already have been released
-    // and reused by another thread.
-    const int fd = fd_;
-    fd_ = -1;
-    file_used_ = 0;
-#ifdef _WIN32
-    const int close_result = _close(fd);
-#else
-    const int close_result = ::close(fd);
-#endif
-    if (close_result != 0) {
-      THROW_IO_EXCEPTION("Failed to close WAL file: " +
-                         std::string(strerror(errno)));
-    }
+  file_size_ = 0;
+  file_used_ = 0;
+  if (fd_ == -1) {
+    return;
+  }
+
+  // Retire the descriptor before calling close(). Retrying close() after an
+  // error is unsafe because the descriptor may already have been released and
+  // reused by another thread.
+  if (CloseFd(std::exchange(fd_, -1)) != 0) {
+    THROW_IO_EXCEPTION("Failed to close WAL file: " +
+                       std::string(strerror(errno)));
   }
 }
 
@@ -227,8 +260,14 @@ bool LocalWalWriter::append(const char* data, size_t length) {
     }
 
     const std::array<char, sizeof(WalHeader)> terminator{};
-    // Preserve the legacy framing without the old zero-filled preallocation:
-    // each append overwrites the previous terminator, then writes a new one.
+    // The zero-filled tail remains the recovery terminator. Preallocation
+    // keeps ordinary commits from extending i_size and flushing inode metadata.
+    // TODO(W1): LocalWalParser currently uses EOF to identify an interrupted
+    // payload. A crash during the payload write can therefore be mistaken for
+    // a complete record when the preallocated zero-filled tail supplies the
+    // missing bytes. Replace this framing with a validated commit trailer
+    // before relying on preallocation for crash recovery.
+    ensure_file_size(file_used_ + length + terminator.size());
     WriteAllAt(fd_, data, length, file_used_);
     WriteAllAt(fd_, terminator.data(), terminator.size(), file_used_ + length);
     SyncFile(fd_);

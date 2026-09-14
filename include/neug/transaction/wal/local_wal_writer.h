@@ -24,14 +24,22 @@ namespace neug {
 
 class LocalWalWriter : public IWalWriter {
  public:
+  static constexpr size_t kInitialFileSize = 64ULL * 1024 * 1024;
+  static constexpr size_t kFileGrowthSize = 64ULL * 1024 * 1024;
+
   static std::unique_ptr<IWalWriter> Make(const std::string& wal_uri,
                                           int slot_id);
 
-  LocalWalWriter(const std::string& wal_uri, int slot_id)
+  LocalWalWriter(const std::string& wal_uri, int slot_id,
+                 size_t initial_file_size = kInitialFileSize,
+                 size_t file_growth_size = kFileGrowthSize)
       : wal_uri_(wal_uri),
         slot_id_(slot_id),
         fd_(-1),
+        file_size_(0),
         file_used_(0),
+        initial_file_size_(initial_file_size),
+        file_growth_size_(file_growth_size),
         opened_(false) {}
   ~LocalWalWriter() noexcept override;
 
@@ -42,11 +50,15 @@ class LocalWalWriter : public IWalWriter {
 
  private:
   void create_file();
+  void ensure_file_size(size_t required_size);
 
   std::string wal_uri_;
   int slot_id_;
   int fd_;
+  size_t file_size_;
   size_t file_used_;
+  size_t initial_file_size_;
+  size_t file_growth_size_;
   bool opened_;
 
   static const bool registered_;
