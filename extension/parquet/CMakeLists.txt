@@ -42,6 +42,7 @@ function(build_carquet_as_third_party)
         "${_carquet_source}/src/reader/arrow_c_export.c"
         "${_carquet_source}/src/reader/arrow_c_read.c"
         "${_carquet_source}/src/reader/arrow_schema_read.c"
+        "${_carquet_source}/src/reader/int96.h"
         "${_carquet_source}/src/thrift/parquet_types.h"
         "${_carquet_source}/src/reader/page_reader.c"
         "${_carquet_source}/src/reader/reader_internal.h"

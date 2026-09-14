@@ -4,8 +4,8 @@ These Parquet files are immutable interoperability fixtures. They were produced
 offline with Apache Arrow PyArrow 23.0.1 and are read by the tests without
 loading or linking Arrow. The expected NeuG schema and values are recorded in
 `carquet_golden_compatibility_test.cc`; changing a fixture requires updating
-both that contract and this manifest after checking the result with the legacy
-Arrow reader.
+both that contract and this manifest after checking the physical format and
+logical values with Apache Arrow.
 
 ## Recorded contracts
 
@@ -28,6 +28,11 @@ Arrow reader.
   float and double columns use BYTE_STREAM_SPLIT, LZ4, data page V2, page
   indexes, and page checksums. The golden arrays, including NaN, infinities, and
   signed zero, are recorded directly in the C++ test.
+- `arrow_int96.parquet` contains six rows in three row groups. Its timestamp is
+  physically encoded as deprecated INT96 and covers nanosecond values before,
+  at, and after the Unix epoch, a modern timestamp, and null. The recorded
+  Arrow behavior exposes `timestamp[ns]`; NeuG truncates it toward zero to
+  millisecond precision.
 - `arrow_empty.parquet` records the Arrow behavior for a schema-bearing file
   with zero rows.
 - `arrow_all_null_groups.parquet` contains six rows in three row groups; its
@@ -36,10 +41,11 @@ Arrow reader.
 The legacy NeuG Arrow reader cannot materialize Arrow INT8/INT16/UINT8/UINT16
 arrays even though its schema converter widens those types. Their golden values
 therefore come from Arrow's logical values plus NeuG's documented widening
-contract. All other recorded values were checked against the legacy Arrow
-reader. Negative timestamps use exact whole milliseconds here because NeuG's
-shared Python result conversion currently rejects negative millisecond
-remainders; the C++ Carquet conversion has separate coverage for that case.
+contract. Contracts supported by the legacy NeuG reader were also checked
+through that reader. Negative timestamps use exact whole milliseconds here
+because NeuG's shared Python result conversion currently rejects negative
+millisecond remainders; the C++ Carquet conversion has separate coverage for
+that case.
 
 ## Checksums
 
@@ -48,5 +54,6 @@ remainders; the C++ Carquet conversion has separate coverage for that case.
 20c666ffd6c57ab5dbde8ae93b4dd88376eddecab6415ab2d13bbc056a26fa5a  arrow_byte_stream_split.parquet
 7337f1a3ff555e19a3f97cdaf2990d5d3cf1c68c7acd35f347507e4963167c70  arrow_delta_encodings.parquet
 656ee03ae30dd57dea40b623bafc823499ac240260f42460a2e2c6ac85d035b4  arrow_empty.parquet
+671e49303eaa7acc5702cf71ab817a29967400abe060b2f45fe2bc328bf111d3  arrow_int96.parquet
 6bfaa4ce5c2b42d95a51a93172384d22fe6475f2bc0e93796e8f52a930bb0dd3  arrow_types.parquet
 ```
