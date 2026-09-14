@@ -102,6 +102,7 @@ if (result.has_value()) {
 Begin a Connection-owned embedded AP explicit transaction.
 
 A read-only transaction pins one published read view across `Query()` calls. A read-write transaction owns one private COW view; successful writes are visible to later queries on this `Connection` and are published together by `Commit()`. Read-write AP transactions hold exclusive AP admission until a terminal operation.
+Persistent COPY FROM statements may be grouped in a read-write transaction and are published by one checkpoint at `Commit()`. Reads may be interleaved, but COPY FROM cannot currently be mixed with ordinary DML or DDL writes in the same transaction.
 
 - **Parameters:**
   - `mode`
@@ -120,7 +121,7 @@ A read-only transaction pins one published read view across `Query()` calls. A r
 
 Commit the active explicit transaction.
 
-A read-write transaction appends and publishes its accumulated logical redo once. A read-only transaction only releases its pinned read view.
+A read-write transaction publishes its accumulated logical redo once, or publishes one checkpoint when it contains persistent COPY FROM statements. A read-only transaction only releases its pinned read view.
 
 - **Returns:** A transaction-state error if no transaction is active or it is rollback-only. A failed commit leaves the `Connection` rollback-only; call `Rollback()` before reusing it.
 
