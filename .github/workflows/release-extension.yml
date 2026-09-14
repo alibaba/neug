@@ -90,9 +90,9 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Clean the tool directory on self-hosted Linux runners
-        if: matrix.runner_os == 'linux'
-        run: sudo rm -rf /__w/_tool/Python
+      - name: Clean the tool directory before setup-python
+        if: matrix.runner_os == 'linux' && (matrix.oss_platform != 'linux_arm64' || runner.name != 'arm64-1')
+        run: rm -rf /__w/_tool/Python
 
       - name: Setup Python 3.13
         if: matrix.oss_platform != 'linux_arm64' || runner.name != 'arm64-1'
