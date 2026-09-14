@@ -182,7 +182,7 @@ class NEUG_API EdgeTable {
 
   bool NeedsCompaction(
       const std::optional<std::string>& sort_key_for_nbr) const noexcept {
-    return sort_key_for_nbr.has_value() || needs_csr_compaction_.load();
+    return sort_key_for_nbr.has_value() || needs_csr_normalization_.load();
   }
 
   void Compact(const std::optional<std::string>& sort_key_for_nbr);
@@ -213,11 +213,13 @@ class NEUG_API EdgeTable {
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};
-  // Batch COPY appends checkpoint-normalized CSR entries at timestamp zero.
-  // Ordinary writes and deletes require a later CSR scan to normalize
-  // timestamps or remove tombstones. Persist this bit across incremental
-  // checkpoint reopen so a later bulk load cannot skip required compaction.
-  std::atomic<bool> needs_csr_compaction_{false};
+  // DirtyTracker answers whether this table must be checkpointed; this bit
+  // answers whether its CSR contents need an O(E) normalization scan. The
+  // states are independent: timestamp-zero COPY is dirty but normalized, while
+  // an incremental checkpoint clears dirtiness without removing MVCC
+  // timestamps or tombstones. Keep this state EdgeTable-local and persist it
+  // across reopen so COPY can skip redundant compaction safely.
+  std::atomic<bool> needs_csr_normalization_{false};
 
   friend class PropertyGraph;
   friend class EdgeTableView;
