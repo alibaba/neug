@@ -5,6 +5,10 @@ Apache Parquet is a columnar storage format widely used in data engineering and 
 - **Import**: Load external Parquet files using `LOAD FROM` syntax
 - **Export**: Export query results to Parquet files using `COPY TO` syntax
 
+For the private replacement writer under development, see
+[Carquet Parquet writer](carquet_writer). The active import/export backend is
+unchanged by that implementation.
+
 ## Install Extension
 
 ```cypher
