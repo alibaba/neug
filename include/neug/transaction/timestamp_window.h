@@ -37,9 +37,6 @@ class TimestampWindow {
   // Check if a timestamp is completed
   bool is_completed(uint32_t ts) const;
 
-  // Clear a timestamp (called after read_ts advances past it)
-  void clear(uint32_t ts);
-
   static constexpr size_t kWindowSize = 65536;
 
  private:
