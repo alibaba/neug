@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <memory>
 #include <string>
@@ -105,6 +106,7 @@ class EdgeTableView {
   CsrBase* out_csr_{nullptr};
   CsrBase* in_csr_{nullptr};
   std::atomic<uint64_t>* table_idx_{nullptr};
+  std::atomic<bool>* needs_csr_normalization_{nullptr};
 
   TableView view_;
 };
