@@ -1089,6 +1089,51 @@ TEST_F(APIndexTest, BulkFinalizeSkipsCleanPlainEdgeCsrCompaction) {
   EXPECT_FALSE(edge_table.NeedsCompaction(std::nullopt));
 }
 
+TEST_F(APIndexTest, PropertyGraphCompactSkipsCleanPlainEdgeCsrCompaction) {
+  CreateItemTable();
+  const auto item = graph_->schema().get_vertex_label_id("Item");
+  auto vertices =
+      ap_->BatchAddVertices(item, MakeItemSupplier({{1, 10}, {2, 20}}));
+  ASSERT_TRUE(vertices) << vertices.error().ToString();
+
+  CreateEdgeTypeParamBuilder edge_builder;
+  auto create_edge = ap_->CreateEdgeType(edge_builder.SrcLabel("Item")
+                                             .DstLabel("Item")
+                                             .EdgeLabel("plain")
+                                             .Build());
+  ASSERT_TRUE(create_edge.ok()) << create_edge.ToString();
+  const auto plain = graph_->schema().get_edge_label_id("plain");
+  auto& edge_table = graph_->get_edge_table(item, item, plain);
+
+  auto compact_count = std::make_shared<size_t>(0);
+  const auto make_counting_csr = [&] {
+    auto csr = std::make_unique<CountingMutableCsr>(compact_count);
+    csr->Open(*checkpoint_mgr_.Current(), ModuleDescriptor{},
+              MemoryLevel::kInMemory);
+    csr->resize(2);
+    return csr;
+  };
+  edge_table.SetOutCsr(make_counting_csr());
+  edge_table.SetInCsr(make_counting_csr());
+  graph_->MarkEdgeTableDirty(item, item, plain);
+
+  graph_->Compact();
+  EXPECT_EQ(*compact_count, 0);
+
+  const void* property = nullptr;
+  int32_t offset = 0;
+  ASSERT_TRUE(graph_
+                  ->AddEdge(item, 0, item, 1, plain, {}, 7, allocator_, offset,
+                            property, false)
+                  .ok());
+  graph_->MarkEdgeTableDirty(item, item, plain);
+
+  graph_->Compact();
+  EXPECT_EQ(*compact_count, 2);
+  EXPECT_FALSE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+}
+
 TEST_F(APIndexTest, PartialBatchFailureIsDiscardedWithPrivateWorkspace) {
   CreateItemTable();
   ResetStorageAdapter();
