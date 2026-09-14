@@ -275,13 +275,14 @@ class EdgeExpand {
 
     flat_hash_set<vid_t> d0_set;
 
-    size_t idx = 0;
+    const auto& vertices = casted_input_vertex_list->vertices();
     if (csr0.type() == CsrViewType::kMultipleMutable &&
         ed_accessor0.is_bundled()) {
       auto typed_csr0 =
           csr0.template get_typed_view<T1, CsrViewType::kMultipleMutable>();
       if (LT) {
-        for (auto v : casted_input_vertex_list->vertices()) {
+        for (size_t idx = 0; idx < vertices.size(); ++idx) {
+          auto v = vertices[idx];
           typed_csr0.foreach_nbr_lt(
               v, param, [&](vid_t u, const T1& data) { d0_set.emplace(u); });
           if (d0_set.empty()) {
@@ -291,10 +292,10 @@ class EdgeExpand {
           tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
                               idx);
           d0_set.clear();
-          ++idx;
         }
       } else {
-        for (auto v : casted_input_vertex_list->vertices()) {
+        for (size_t idx = 0; idx < vertices.size(); ++idx) {
+          auto v = vertices[idx];
           typed_csr0.foreach_nbr_gt(
               v, param, [&](vid_t u, const T1& data) { d0_set.emplace(u); });
           if (d0_set.empty()) {
@@ -304,12 +305,12 @@ class EdgeExpand {
           tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
                               idx);
           d0_set.clear();
-          ++idx;
         }
       }
     } else {
       if (LT) {
-        for (auto v : casted_input_vertex_list->vertices()) {
+        for (size_t idx = 0; idx < vertices.size(); ++idx) {
+          auto v = vertices[idx];
           auto es0 = csr0.get_edges(v);
           for (auto it0 = es0.begin(); it0 != es0.end(); ++it0) {
             auto ed0 = ed_accessor0.get_typed_data<T1>(it0);
@@ -322,10 +323,10 @@ class EdgeExpand {
           tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
                               idx);
           d0_set.clear();
-          ++idx;
         }
       } else {
-        for (auto v : casted_input_vertex_list->vertices()) {
+        for (size_t idx = 0; idx < vertices.size(); ++idx) {
+          auto v = vertices[idx];
           auto es0 = csr0.get_edges(v);
           for (auto it0 = es0.begin(); it0 != es0.end(); ++it0) {
             auto ed0 = ed_accessor0.get_typed_data<T1>(it0);
@@ -338,7 +339,6 @@ class EdgeExpand {
           tc_match_second_hop(csr2, es1, d0_set, builder1, builder2, offsets,
                               idx);
           d0_set.clear();
-          ++idx;
         }
       }
     }
