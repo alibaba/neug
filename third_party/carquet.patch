@@ -19,6 +19,9 @@ INT96 additions expose the deprecated physical timestamp encoding as Arrow C
 timestamp[ns] with range checks. The immutable INT96 fixture covers both batch
 read paths, projection, nulls, epoch boundaries and millisecond truncation.
 
+Keep this patch limited to files tracked by the pinned submodule. CI reuses
+submodule worktrees, and checkout does not remove untracked files.
+
 diff --git a/include/carquet/carquet.h b/include/carquet/carquet.h
 index 8080d27..bf1b1db 100644
 --- a/include/carquet/carquet.h
@@ -159,18 +162,10 @@ index 8080d27..bf1b1db 100644
   * C++ Compatibility - End
   * ============================================================================ */
 diff --git a/src/reader/arrow_c_export.c b/src/reader/arrow_c_export.c
-index f651483..7c4b789 100644
+index f651483..4c8f953 100644
 --- a/src/reader/arrow_c_export.c
 +++ b/src/reader/arrow_c_export.c
-@@ -21,6 +21,7 @@
- #include <stdlib.h>
- #include <string.h>
-
-+#include "int96.h"
- #include "reader_internal.h"  /* struct carquet_schema (leaf_indices) */
-
- /* ============================================================================
-@@ -143,7 +144,7 @@ static carquet_status_t arrow_format_string(
+@@ -143,7 +143,7 @@ static carquet_status_t arrow_format_string(
          return CARQUET_OK;
 
      case CARQUET_PHYSICAL_INT96:
@@ -179,7 +174,7 @@ index f651483..7c4b789 100644
          return CARQUET_OK;
 
      case CARQUET_PHYSICAL_FLOAT:
-@@ -328,7 +329,8 @@ static carquet_status_t export_child_array(
+@@ -328,7 +328,8 @@ static carquet_status_t export_child_array(
      const uint8_t* validity,
      int64_t n,
      carquet_physical_type_t pt,
@@ -189,7 +184,7 @@ index f651483..7c4b789 100644
 
      memset(child, 0, sizeof(*child));
      child->length = n;
-@@ -390,12 +392,39 @@ static carquet_status_t export_child_array(
+@@ -390,12 +391,39 @@ static carquet_status_t export_child_array(
          for (int64_t i = 0; i < n; i++) {
              if (src[i]) out_data[i >> 3] |= (uint8_t)(1u << (i & 7));
          }
@@ -230,7 +225,7 @@ index f651483..7c4b789 100644
          case CARQUET_PHYSICAL_FLOAT:  stride = 4; break;
          case CARQUET_PHYSICAL_DOUBLE: stride = 8; break;
          case CARQUET_PHYSICAL_FIXED_LEN_BYTE_ARRAY:
-@@ -477,7 +506,9 @@ static carquet_status_t build_leaf_child(struct ArrowArray* child,
+@@ -477,7 +505,9 @@ static carquet_status_t build_leaf_child(struct ArrowArray* child,
                                           const void* values, const uint8_t* validity,
                                           int64_t n) {
      return export_child_array(child, values, validity, n,
@@ -242,18 +237,10 @@ index f651483..7c4b789 100644
 
  /* Export a single top-level field `e` (leaf / single-level LIST / MAP) into a
 diff --git a/src/reader/arrow_c_read.c b/src/reader/arrow_c_read.c
-index 1ceec37..66d4e8b 100644
+index 1ceec37..ca10c32 100644
 --- a/src/reader/arrow_c_read.c
 +++ b/src/reader/arrow_c_read.c
-@@ -29,6 +29,7 @@
- #include <stdlib.h>
- #include <string.h>
-
-+#include "int96.h"
- #include "reader_internal.h"  /* struct carquet_schema, struct carquet_reader */
-
- /* ============================================================================
-@@ -144,7 +145,7 @@ static carquet_status_t arrow_format_string(
+@@ -144,7 +144,7 @@ static carquet_status_t arrow_format_string(
              snprintf(buf, buf_size, lt->params.integer.is_signed ? "l" : "L");
          } else snprintf(buf, buf_size, "l");
          return CARQUET_OK;
@@ -262,7 +249,7 @@ index 1ceec37..66d4e8b 100644
      case CARQUET_PHYSICAL_FLOAT: snprintf(buf, buf_size, "f"); return CARQUET_OK;
      case CARQUET_PHYSICAL_DOUBLE: snprintf(buf, buf_size, "g"); return CARQUET_OK;
      case CARQUET_PHYSICAL_BYTE_ARRAY:
-@@ -218,7 +219,12 @@ static carquet_status_t schema_node(const carquet_schema_t* cs, int32_t e,
+@@ -218,7 +218,12 @@ static carquet_status_t schema_node(const carquet_schema_t* cs, int32_t e,
      }
      case K_LIST: {
          /* list group -> repeated "list" group -> element */
@@ -276,7 +263,7 @@ index 1ceec37..66d4e8b 100644
          if (!out->format) { release_schema(out); return CARQUET_ERROR_OUT_OF_MEMORY; }
          int32_t rep[4]; int32_t nr = elem_children(cs, e, rep, 4);
          if (nr != 1) { release_schema(out); return CARQUET_ERROR_INVALID_ARGUMENT; }
-@@ -265,8 +271,37 @@ static carquet_status_t schema_node(const carquet_schema_t* cs, int32_t e,
+@@ -265,8 +270,37 @@ static carquet_status_t schema_node(const carquet_schema_t* cs, int32_t e,
      return CARQUET_ERROR_INTERNAL;
  }
 
@@ -316,7 +303,7 @@ index 1ceec37..66d4e8b 100644
 
      memset(out, 0, sizeof(*out));
      out->format = c_strdup("+s");
-@@ -276,16 +311,25 @@ carquet_status_t carquet_arrow_build_schema_tree(
+@@ -276,16 +310,25 @@ carquet_status_t carquet_arrow_build_schema_tree(
 
      int32_t top[1024]; int32_t nt = elem_children(cs, 0, top, 1024);
      if (nt > 1024) { release_schema(out); CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT, "too many fields"); return CARQUET_ERROR_INVALID_ARGUMENT; }
@@ -346,7 +333,7 @@ index 1ceec37..66d4e8b 100644
  /* ============================================================================
   * Leaf reading
   * ============================================================================
-@@ -395,13 +439,40 @@ static carquet_status_t build_leaf(rctx_t* ctx, int32_t leaf_col, int16_t exist_
+@@ -395,13 +438,40 @@ static carquet_status_t build_leaf(rctx_t* ctx, int32_t leaf_col, int16_t exist_
          a->n_buffers = 2; a->buffers = bufs;
      } else {
          size_t stride = L->stride;
@@ -388,7 +375,7 @@ index 1ceec37..66d4e8b 100644
          }
          bufs[0] = validity; bufs[1] = data;
          a->n_buffers = 2; a->buffers = bufs;
-@@ -588,9 +659,11 @@ static carquet_status_t build_node(rctx_t* ctx, int32_t e, int16_t def_in,
+@@ -588,9 +658,11 @@ static carquet_status_t build_node(rctx_t* ctx, int32_t e, int16_t def_in,
   * Public entry point
   * ============================================================================
   */
@@ -401,7 +388,7 @@ index 1ceec37..66d4e8b 100644
      struct ArrowSchema* out_schema,
      struct ArrowArray* out_array,
      carquet_error_t* error) {
-@@ -606,15 +679,55 @@ carquet_status_t carquet_reader_read_arrow(
+@@ -606,15 +678,55 @@ carquet_status_t carquet_reader_read_arrow(
      }
      const carquet_schema_t* cs = reader->schema;
      int32_t num_leaves = cs->num_leaves;
@@ -461,7 +448,7 @@ index 1ceec37..66d4e8b 100644
          rleaf_t* L = &ctx.leaves[l];
          int32_t elem = cs->leaf_indices[l];
          const parquet_schema_element_t* el = &cs->elements[elem];
-@@ -686,8 +799,6 @@ carquet_status_t carquet_reader_read_arrow(
+@@ -686,8 +798,6 @@ carquet_status_t carquet_reader_read_arrow(
 
      /* Assemble the top-level struct array. */
      {
@@ -470,7 +457,7 @@ index 1ceec37..66d4e8b 100644
          int64_t num_rows = reader->metadata.row_groups[row_group_index].num_rows;
 
          memset(out_array, 0, sizeof(*out_array));
-@@ -696,20 +807,20 @@ carquet_status_t carquet_reader_read_arrow(
+@@ -696,20 +806,20 @@ carquet_status_t carquet_reader_read_arrow(
          out_array->offset = 0;
          out_array->n_buffers = 1;
          out_array->buffers = (const void**)calloc(1, sizeof(void*));  /* struct validity (absent) */
@@ -498,7 +485,7 @@ index 1ceec37..66d4e8b 100644
                  goto cleanup;
              }
              int64_t got_len = out_array->children[i]->length;
-@@ -717,15 +828,15 @@ carquet_status_t carquet_reader_read_arrow(
+@@ -717,15 +827,15 @@ carquet_status_t carquet_reader_read_arrow(
                  release_array(out_array);
                  CARQUET_SET_ERROR(error, CARQUET_ERROR_INTERNAL,
                      "Arrow read: field %d length %lld != %lld rows",
@@ -517,7 +504,7 @@ index 1ceec37..66d4e8b 100644
          if (rc != CARQUET_OK) { release_array(out_array); goto cleanup; }
      }
 
-@@ -737,5 +848,16 @@ cleanup:
+@@ -737,5 +847,16 @@ cleanup:
          if (ctx.leaves[l].cr) carquet_column_reader_free(ctx.leaves[l].cr);
      }
      free(ctx.leaves);
@@ -1039,64 +1026,6 @@ index 93ca8c0..2d88cc1 100644
          carquet_mem_free(buf);
          CARQUET_SET_ERROR(error, CARQUET_ERROR_FILE_READ,
              "Failed to read %d bytes at offset %lld", size, (long long)offset);
-diff --git a/src/reader/int96.h b/src/reader/int96.h
-new file mode 100644
-index 0000000..497f25d
---- /dev/null
-+++ b/src/reader/int96.h
-@@ -0,0 +1,52 @@
-+/**
-+ * @file int96.h
-+ * @brief Convert legacy Parquet INT96 timestamps to Unix nanoseconds.
-+ */
-+#ifndef CARQUET_READER_INT96_H
-+#define CARQUET_READER_INT96_H
-+
-+#include <carquet/carquet.h>
-+#include <limits.h>
-+
-+/* INT96 stores nanoseconds since midnight in the low 64 bits and the Julian
-+ * day in the high 32 bits. Arrow exposes it as timestamp[ns]. */
-+static inline carquet_status_t carquet_int96_to_timestamp_ns(
-+    const carquet_int96_t* value, int64_t* result) {
-+    const uint64_t nanos = (uint64_t)value->value[0] |
-+                           ((uint64_t)value->value[1] << 32);
-+    const int64_t days = (int64_t)value->value[2] - 2440588;
-+    const int64_t nanos_per_day = 86400000000000LL;
-+
-+    if (nanos >= (uint64_t)nanos_per_day) {
-+        return CARQUET_ERROR_DECODE;
-+    }
-+    if (days >= 0) {
-+        const uint64_t positive_days = (uint64_t)days;
-+        if (positive_days > (uint64_t)INT64_MAX /
-+                                (uint64_t)nanos_per_day) {
-+            return CARQUET_ERROR_DECODE;
-+        }
-+        const uint64_t base = positive_days * (uint64_t)nanos_per_day;
-+        if (nanos > (uint64_t)INT64_MAX - base) {
-+            return CARQUET_ERROR_DECODE;
-+        }
-+        *result = (int64_t)(base + nanos);
-+    } else {
-+        const uint64_t negative_limit = (uint64_t)INT64_MAX + 1;
-+        const uint64_t negative_days = (uint64_t)(-(days + 1)) + 1;
-+        if (negative_days > (negative_limit + nanos) /
-+                                (uint64_t)nanos_per_day) {
-+            return CARQUET_ERROR_DECODE;
-+        }
-+        const uint64_t magnitude =
-+            negative_days * (uint64_t)nanos_per_day - nanos;
-+        if (magnitude > negative_limit) {
-+            return CARQUET_ERROR_DECODE;
-+        }
-+        *result = magnitude == negative_limit
-+            ? INT64_MIN : -(int64_t)magnitude;
-+    }
-+    return CARQUET_OK;
-+}
-+
-+#endif /* CARQUET_READER_INT96_H */
 diff --git a/src/reader/page_reader.c b/src/reader/page_reader.c
 index c1a0199..ad1dddf 100644
 --- a/src/reader/page_reader.c
@@ -1140,10 +1069,66 @@ index c1a0199..ad1dddf 100644
          return CARQUET_ERROR_INVALID_STATE;
      }
 diff --git a/src/reader/reader_internal.h b/src/reader/reader_internal.h
-index 22ad65f..977470b 100644
+index 22ad65f..ec094e1 100644
 --- a/src/reader/reader_internal.h
 +++ b/src/reader/reader_internal.h
-@@ -87,6 +87,9 @@ typedef struct carquet_prebuffer {
+@@ -12,6 +12,7 @@
+ #include <carquet/carquet.h>
+ #include "thrift/parquet_types.h"
+ #include "core/arena.h"
++#include <limits.h>
+ #include <stdio.h>
+
+ #ifdef _WIN32
+@@ -22,6 +23,47 @@
+ extern "C" {
+ #endif
+
++/* INT96 stores nanoseconds since midnight in the low 64 bits and the Julian
++ * day in the high 32 bits. Arrow exposes it as timestamp[ns]. */
++static inline carquet_status_t carquet_int96_to_timestamp_ns(
++    const carquet_int96_t* value, int64_t* result) {
++    const uint64_t nanos = (uint64_t)value->value[0] |
++                           ((uint64_t)value->value[1] << 32);
++    const int64_t days = (int64_t)value->value[2] - 2440588;
++    const int64_t nanos_per_day = 86400000000000LL;
++
++    if (nanos >= (uint64_t)nanos_per_day) {
++        return CARQUET_ERROR_DECODE;
++    }
++    if (days >= 0) {
++        const uint64_t positive_days = (uint64_t)days;
++        if (positive_days > (uint64_t)INT64_MAX /
++                                (uint64_t)nanos_per_day) {
++            return CARQUET_ERROR_DECODE;
++        }
++        const uint64_t base = positive_days * (uint64_t)nanos_per_day;
++        if (nanos > (uint64_t)INT64_MAX - base) {
++            return CARQUET_ERROR_DECODE;
++        }
++        *result = (int64_t)(base + nanos);
++    } else {
++        const uint64_t negative_limit = (uint64_t)INT64_MAX + 1;
++        const uint64_t negative_days = (uint64_t)(-(days + 1)) + 1;
++        if (negative_days > (negative_limit + nanos) /
++                                (uint64_t)nanos_per_day) {
++            return CARQUET_ERROR_DECODE;
++        }
++        const uint64_t magnitude =
++            negative_days * (uint64_t)nanos_per_day - nanos;
++        if (magnitude > negative_limit) {
++            return CARQUET_ERROR_DECODE;
++        }
++        *result = magnitude == negative_limit
++            ? INT64_MIN : -(int64_t)magnitude;
++    }
++    return CARQUET_OK;
++}
++
+ /* ============================================================================
+  * Memory Mapping Types
+  * ============================================================================
+@@ -87,6 +129,9 @@ typedef struct carquet_prebuffer {
  struct carquet_reader {
      FILE* file;
      bool owns_file;
@@ -1153,7 +1138,7 @@ index 22ad65f..977470b 100644
 
      /* Memory-mapped data */
      const uint8_t* mmap_data;
-@@ -210,6 +213,13 @@ bool carquet_reader_row_group_index_valid(
+@@ -210,6 +255,13 @@ bool carquet_reader_row_group_index_valid(
      const carquet_reader_t* reader,
      int32_t row_group_index);
 

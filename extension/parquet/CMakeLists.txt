@@ -42,7 +42,6 @@ function(build_carquet_as_third_party)
         "${_carquet_source}/src/reader/arrow_c_export.c"
         "${_carquet_source}/src/reader/arrow_c_read.c"
         "${_carquet_source}/src/reader/arrow_schema_read.c"
-        "${_carquet_source}/src/reader/int96.h"
         "${_carquet_source}/src/thrift/parquet_types.h"
         "${_carquet_source}/src/reader/page_reader.c"
         "${_carquet_source}/src/reader/reader_internal.h"
@@ -52,7 +51,9 @@ function(build_carquet_as_third_party)
     execute_process(
         COMMAND git apply --check "${_carquet_patch}"
         WORKING_DIRECTORY "${_carquet_source}"
-        RESULT_VARIABLE _patch_check OUTPUT_QUIET ERROR_QUIET)
+        RESULT_VARIABLE _patch_check
+        OUTPUT_QUIET
+        ERROR_VARIABLE _patch_check_error)
     if(_patch_check EQUAL 0)
         execute_process(
             COMMAND git apply "${_carquet_patch}"
@@ -65,9 +66,14 @@ function(build_carquet_as_third_party)
         execute_process(
             COMMAND git apply --reverse --check "${_carquet_patch}"
             WORKING_DIRECTORY "${_carquet_source}"
-            RESULT_VARIABLE _patch_applied OUTPUT_QUIET ERROR_QUIET)
+            RESULT_VARIABLE _patch_applied
+            OUTPUT_QUIET
+            ERROR_VARIABLE _patch_applied_error)
         if(NOT _patch_applied EQUAL 0)
-            message(FATAL_ERROR "carquet.patch does not apply cleanly")
+            message(FATAL_ERROR
+                "carquet.patch does not apply cleanly.\n"
+                "Forward check: ${_patch_check_error}\n"
+                "Reverse check: ${_patch_applied_error}")
         endif()
     endif()
 
