@@ -37,6 +37,11 @@ The following options control how Parquet files are read:
 | `enable_io_coalescing`   | bool  | `true`  | Coalesce non-contiguous byte ranges lazily. Setting this to `false` pre-buffers selected column data before decoding.                                      |
 | `parquet_batch_rows`     | int64 | `65536` | Maximum number of rows returned in each in-memory data chunk.                                                                                |
 
+NeuG does not currently bundle the Brotli codec. Brotli-compressed Parquet
+files cannot be loaded, and `compression='brotli'` is not supported for
+export. Brotli support can be added later if interoperability requirements
+justify introducing the additional dependency.
+
 ### Query Examples
 
 #### Basic Parquet Loading
