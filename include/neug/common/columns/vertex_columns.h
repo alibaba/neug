@@ -104,7 +104,7 @@ class SLVertexColumn : public IVertexColumn {
   NEUG_ALWAYS_INLINE bool is_optional() const override { return is_optional_; }
 
   NEUG_ALWAYS_INLINE bool has_value(size_t idx) const override {
-    return vertices_[idx] != std::numeric_limits<vid_t>::max();
+    return vertices_[idx] != INVALID_VID;
   }
 
   std::shared_ptr<IContextColumn> union_col(
@@ -187,15 +187,14 @@ class MSVertexColumn : public IVertexColumn {
       idx -= pair.second.size();
     }
     LOG(FATAL) << "not found...";
-    return {std::numeric_limits<label_t>::max(),
-            std::numeric_limits<vid_t>::max()};
+    return {std::numeric_limits<label_t>::max(), INVALID_VID};
   }
 
   NEUG_ALWAYS_INLINE bool is_optional() const override { return is_optional_; }
 
   NEUG_ALWAYS_INLINE bool has_value(size_t idx) const override {
     auto v = get_vertex(idx);
-    return v.vid_ != std::numeric_limits<vid_t>::max();
+    return v.vid_ != INVALID_VID;
   }
 
   template <typename FUNC_T>
@@ -267,13 +266,13 @@ class MSVertexColumnBuilder : public IVertexColumnBuilder {
   }
 
   NEUG_ALWAYS_INLINE void push_back_opt(vid_t v) {
-    assert(v != std::numeric_limits<vid_t>::max());
+    assert(v != INVALID_VID);
     cur_list_.push_back(v);
   }
 
   inline void push_back_null() override {
     is_optional_ = true;
-    cur_list_.emplace_back(std::numeric_limits<vid_t>::max());
+    cur_list_.emplace_back(INVALID_VID);
   }
 
   std::shared_ptr<IContextColumn> finish() override;
@@ -329,7 +328,7 @@ class MLVertexColumn : public IVertexColumn {
   NEUG_ALWAYS_INLINE bool is_optional() const override { return is_optional_; }
 
   NEUG_ALWAYS_INLINE bool has_value(size_t idx) const override {
-    return vertices_[idx].vid_ != std::numeric_limits<vid_t>::max();
+    return vertices_[idx].vid_ != INVALID_VID;
   }
 
   template <typename FUNC_T>
@@ -364,7 +363,7 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
   // v should not be null
   NEUG_ALWAYS_INLINE void push_back_opt(VertexRecord v) {
     labels_.insert(v.label_);
-    assert(v.vid_ != std::numeric_limits<vid_t>::max());
+    assert(v.vid_ != INVALID_VID);
     vertices_.push_back(v);
   }
 
@@ -372,8 +371,8 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
 
   inline void push_back_null() override {
     is_optional_ = true;
-    vertices_.emplace_back(VertexRecord{std::numeric_limits<label_t>::max(),
-                                        std::numeric_limits<vid_t>::max()});
+    vertices_.emplace_back(
+        VertexRecord{std::numeric_limits<label_t>::max(), INVALID_VID});
   }
 
   std::shared_ptr<IContextColumn> finish() override;
@@ -397,7 +396,7 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
   // v should not be null
   NEUG_ALWAYS_INLINE void push_back_opt(VertexRecord v) {
     labels_bitmap_[v.label_] = true;
-    assert(v.vid_ != std::numeric_limits<vid_t>::max());
+    assert(v.vid_ != INVALID_VID);
     vertices_.push_back(v);
   }
 
@@ -408,8 +407,7 @@ class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
 
   NEUG_ALWAYS_INLINE void push_back_null() override {
     is_optional_ = true;
-    vertices_.emplace_back(std::numeric_limits<label_t>::max(),
-                           std::numeric_limits<vid_t>::max());
+    vertices_.emplace_back(std::numeric_limits<label_t>::max(), INVALID_VID);
   }
 
   NEUG_ALWAYS_INLINE std::shared_ptr<IContextColumn> finish() override {
