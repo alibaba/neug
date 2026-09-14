@@ -247,6 +247,61 @@ test('test_explicit_transaction_connection_api', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Explicit-transaction COPY FROM smoke test: begin -> two COPY -> commit ->
+// reopen. The Node binding inherits this capability by passing through to the
+// C++ core; this smoke test guards that passthrough so a binding-layer
+// regression does not only surface on the user side.
+// ---------------------------------------------------------------------------
+
+test('test_explicit_transaction_commits_multiple_copies', () => {
+  const dbDir = makeTmpDir('explicit_copy_tx');
+  const csvDir = makeTmpDir('explicit_copy_csv');
+  const peopleA = path.join(csvDir, 'people_a.csv');
+  const peopleB = path.join(csvDir, 'people_b.csv');
+  fs.writeFileSync(peopleA, 'id,name\n1,Alice\n');
+  fs.writeFileSync(peopleB, 'id,name\n2,Bob\n');
+
+  const db = new Database({
+    databasePath: dbDir,
+    mode: 'w',
+    checkpointOnClose: false,
+  });
+  const conn = db.connect();
+  conn.execute(
+    'CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));'
+  );
+
+  conn.beginTransaction();
+  conn.execute(`COPY Person FROM '${peopleA}' (HEADER=true, DELIMITER=',');`);
+  assert.deepEqual(
+    [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
+    [[1n]]
+  );
+  conn.execute(`COPY Person FROM '${peopleB}' (HEADER=true, DELIMITER=',');`);
+  conn.commit();
+  assert.deepEqual(
+    [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
+    [[1n], [2n]]
+  );
+  conn.close();
+  db.close();
+
+  // Reopen: the single-checkpoint COPY transaction must be durable.
+  const reopenedDb = new Database({
+    databasePath: dbDir,
+    mode: 'w',
+    checkpointOnClose: false,
+  });
+  const reopenedConn = reopenedDb.connect();
+  assert.deepEqual(
+    [...reopenedConn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
+    [[1n], [2n]]
+  );
+  reopenedConn.close();
+  reopenedDb.close();
+});
+
+// ---------------------------------------------------------------------------
 // DB-004-12
 // ---------------------------------------------------------------------------
 

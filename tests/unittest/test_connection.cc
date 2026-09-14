@@ -740,6 +740,22 @@ TEST_F(ConnectionTest,
   EXPECT_EQ(copy_after_dml.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
   ASSERT_TRUE(conn->Rollback().ok());
 
+  // DDL -> COPY must be rejected too: CREATE NODE TABLE writes logical_redo
+  // (op_num() > 0), so HasNonCopyMutation blocks the following COPY. This
+  // pins the documented "in either order" mixed-write rejection so a future
+  // change to the DDL accounting path cannot silently drop the guard.
+  ASSERT_TRUE(conn->BeginTransaction(TransactionMode::kReadWrite).ok());
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE CopyAfterDdl(id INT64, PRIMARY KEY(id));", "schema"));
+  auto copy_after_ddl =
+      conn->Query("COPY ExplicitCopyRollback FROM '" + people.string() +
+                  "' (HEADER=true, DELIMITER=',');");
+  ASSERT_FALSE(copy_after_ddl);
+  EXPECT_EQ(copy_after_ddl.error().error_code(), StatusCode::ERR_NOT_SUPPORTED);
+  EXPECT_EQ(conn->Commit().error_code(), StatusCode::ERR_TX_STATE_CONFLICT);
+  ASSERT_TRUE(conn->Rollback().ok());
+  EXPECT_EQ(db.graph().checkpoint().id(), checkpoint_before);
+
   auto rows =
       conn->Query("MATCH (n:ExplicitCopyRollback) RETURN n.id;", "read");
   ASSERT_TRUE(rows) << rows.error().ToString();
