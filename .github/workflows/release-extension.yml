@@ -153,7 +153,7 @@ jobs:
           export BUILD_TYPE=RELEASE
           python3 -m cibuildwheel ./tools/python_bind --output-dir extension_wheelhouse
 
-      - name: Extract and publish repaired extensions
+      - name: Extract repaired extensions and optionally publish to OSS
         shell: bash
         env:
           EXTENSIONS: ${{ needs.prepare.outputs.extensions }}
@@ -163,19 +163,24 @@ jobs:
           set -euo pipefail
           wheel=$(find extension_wheelhouse -maxdepth 1 -type f -name '*.whl' -print -quit)
           test -n "${wheel}"
+          publish_args=()
+          if [ "${OSS_PLATFORM}" != "linux_x86_64" ]; then
+            echo "Skipping OSS upload for ${OSS_PLATFORM}; artifacts will still be uploaded"
+            publish_args+=(--skip-upload)
+          fi
           python3 scripts/publish_extensions_from_wheel.py \
             --wheel "${wheel}" \
             --extensions "${EXTENSIONS}" \
             --version "${VERSION}" \
             --platform "${OSS_PLATFORM}" \
-            --output-dir extension_packages
+            --output-dir extension_packages \
+            "${publish_args[@]}"
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: extension-packages-${{ matrix.artifact_platform }}-${{ needs.prepare.outputs.version }}
           path: |
-            extension_wheelhouse/*.whl
             extension_packages/*.neug_extension
             extension_packages/*.sha256
           retention-days: 1
