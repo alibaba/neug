@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "carquet/chunk_supplier.h"
 #include "carquet/scan.h"
 #include "carquet/sniffer.h"
 #include "neug/common/types/value.h"
@@ -66,6 +67,22 @@ GoldenRead readFixture(const std::string& name, bool batchRead) {
   execution::Context context;
   scanCarquet(state, context);
   return {.schema = std::move(*schema), .context = std::move(context)};
+}
+
+GoldenRead readProjectedFixture(const std::string& name,
+                                std::vector<int32_t> topLevelFields) {
+  auto supplier = CarquetChunkSupplier::create(
+      io::openLocalInputStream(fixturePath(name).string()),
+      {.batchSize = 1, .topLevelFields = std::move(topLevelFields)});
+  if (!supplier) {
+    throw std::runtime_error(supplier.error().ToString());
+  }
+
+  execution::Context context;
+  while (auto chunk = (*supplier)->GetNextChunk()) {
+    context.append_chunk(std::move(*chunk));
+  }
+  return {.schema = (*supplier)->schema(), .context = std::move(context)};
 }
 
 std::vector<std::vector<Value>> materialize(const execution::Context& context) {
@@ -279,6 +296,34 @@ TEST(CarquetGoldenCompatibilityTest, ReadsRecordedByteStreamSplitAndLz4) {
       EXPECT_EQ(std::signbit(actualF64), std::signbit(f64[row]));
     }
   }
+}
+
+TEST(CarquetGoldenCompatibilityTest, ReadsRecordedInt96TimestampGroundTruth) {
+  for (const bool batchRead : {false, true}) {
+    SCOPED_TRACE(batchRead ? "batch" : "full");
+    const auto result = readFixture("arrow_int96.parquet", batchRead);
+    EXPECT_EQ(result.schema->columnNames,
+              (std::vector<std::string>{"id", "event_time"}));
+    const auto rows = materialize(result.context);
+    ASSERT_EQ(rows.size(), 6u);
+    expectTypeIds(rows.front(), {DataTypeId::kInt64, DataTypeId::kTimestampMs});
+    constexpr int64_t expectedMillis[] = {-1, 0, 0, 1, 1700000000123};
+    for (size_t row = 0; row < 5; ++row) {
+      expectValue(rows, row, 0, static_cast<int64_t>(row + 1));
+      EXPECT_EQ(rows[row][1].GetValue<DateTime>().milli_second,
+                expectedMillis[row]);
+    }
+    EXPECT_TRUE(rows[5][1].IsNull());
+  }
+
+  const auto projected = readProjectedFixture("arrow_int96.parquet", {1});
+  EXPECT_EQ(projected.schema->columnNames,
+            (std::vector<std::string>{"id", "event_time"}));
+  const auto rows = materialize(projected.context);
+  ASSERT_EQ(rows.size(), 6u);
+  EXPECT_EQ(rows[0][0].GetValue<DateTime>().milli_second, -1);
+  EXPECT_EQ(rows[4][0].GetValue<DateTime>().milli_second, 1700000000123);
+  EXPECT_TRUE(rows[5][0].IsNull());
 }
 
 TEST(CarquetGoldenCompatibilityTest, ReadsEmptyAndAllNullRowGroups) {

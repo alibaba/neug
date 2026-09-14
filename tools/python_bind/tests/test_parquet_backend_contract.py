@@ -578,6 +578,21 @@ def test_reader_preserves_external_byte_stream_split_lz4_fixture(connection):
     assert rows[-1] == [12, -200.25, float("-inf")]
 
 
+def test_reader_preserves_external_int96_timestamp_fixture(connection):
+    path = FIXTURE_DIR / "arrow_int96.parquet"
+    rows = list(
+        connection.execute(
+            f'LOAD FROM "{path}" WHERE id >= 3 ' "RETURN id, event_time ORDER BY id"
+        )
+    )
+    assert rows == [
+        [3, datetime(1970, 1, 1)],
+        [4, datetime(1970, 1, 1, 0, 0, 0, 1000)],
+        [5, datetime(2023, 11, 14, 22, 13, 20, 123000)],
+        [6, None],
+    ]
+
+
 def test_reader_handles_empty_files_and_all_null_row_groups(connection):
     empty_path = FIXTURE_DIR / "arrow_empty.parquet"
     assert list(connection.execute(f'LOAD FROM "{empty_path}" RETURN *')) == []
