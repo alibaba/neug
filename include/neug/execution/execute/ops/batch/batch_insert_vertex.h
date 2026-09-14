@@ -39,6 +39,23 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
   }
 };
 
+// Fuses a directly adjacent Source + LoadVertex pair when its reader exposes
+// an IDataChunkSupplier. Plans with projections, filters, or unsupported
+// readers use the regular pipeline; this path retains BatchAddVertices.
+class FusedStreamVertexInsertOprBuilder : public IOperatorBuilder {
+ public:
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
+
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kSource,
+            physical::PhysicalOpr_Operator::OpKindCase::kLoadVertex};
+  }
+};
+
 }  // namespace ops
 }  // namespace execution
 }  // namespace neug

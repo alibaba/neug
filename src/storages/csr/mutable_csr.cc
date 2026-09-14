@@ -345,8 +345,11 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     const nbr_t* read_end = write_ptr + deg;
     while (write_ptr != read_end) {
       if (pair.second.find(write_ptr->neighbor) != pair.second.end()) {
+        if (write_ptr->timestamp.load() !=
+            std::numeric_limits<timestamp_t>::max()) {
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
         write_ptr->timestamp.store(std::numeric_limits<timestamp_t>::max());
-        edge_num_.fetch_sub(1, std::memory_order_relaxed);
       }
       ++write_ptr;
     }
@@ -653,8 +656,10 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
     }
     auto& nbr = data[src];
     assert(edge.second == 0);
+    if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+      edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    }
     nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
-    edge_num_.fetch_sub(1, std::memory_order_relaxed);
   }
 }
 

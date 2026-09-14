@@ -730,6 +730,10 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdges) {
     }
   }
 
+  ASSERT_FALSE(edges_to_delete.empty());
+  edges_to_delete.push_back(edges_to_delete.front());
+  single_mutable_csr.batch_delete_edges(edges_to_delete);
+  EXPECT_EQ(single_mutable_csr.edge_num(), enum_after_delete_edge_single);
   single_mutable_csr.batch_delete_edges(edges_to_delete);
   EXPECT_EQ(single_mutable_csr.edge_num(), enum_after_delete_edge_single);
 
@@ -752,6 +756,8 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdgesById) {
       break;
     }
   }
+  mutable_csr.batch_delete_edges(src_ids, dst_ids);
+  EXPECT_EQ(mutable_csr.edge_num(), 10 - src_ids.size());
   mutable_csr.batch_delete_edges(src_ids, dst_ids);
   EXPECT_EQ(mutable_csr.edge_num(), 10 - src_ids.size());
 

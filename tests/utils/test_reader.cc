@@ -1068,6 +1068,112 @@ TEST_F(ReaderTest, TestJsonStreamingRead) {
   EXPECT_EQ(ctx.row_num(), 3);
 }
 
+TEST_F(ReaderTest, TestJsonChunkSupplierPreservesProjection) {
+  createJsonFile("supplier_projection.json",
+                 "[{\"id\":1,\"name\":\"Alice\",\"score\":95.5}]");
+  createJsonFile("supplier_projection.jsonl",
+                 "{\"id\":1,\"name\":\"Alice\",\"score\":95.5}\n");
+
+  std::vector<std::string> column_names = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> column_types = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  for (const auto& [file_name, json_array_input] :
+       std::vector<std::pair<std::string, bool>>{
+           {"supplier_projection.json", true},
+           {"supplier_projection.jsonl", false}}) {
+    auto shared_state =
+        createJsonSharedState(file_name, column_names, column_types);
+    shared_state->projectColumns = {"score", "id"};
+
+    auto supplier = createJsonReader(shared_state, json_array_input)
+                        ->getDataChunkSupplier();
+    auto chunk = supplier->GetNextChunk();
+    ASSERT_NE(chunk, nullptr);
+    ASSERT_EQ(chunk->col_num(), 2);
+    EXPECT_DOUBLE_EQ(chunk->get(0)->get_elem(0).GetValue<double>(), 95.5);
+    EXPECT_EQ(chunk->get(1)->get_elem(0).GetValue<int64_t>(), 1);
+    EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+  }
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierStreamsFilesInOrder) {
+  createCsvFile("supplier_1.csv",
+                "id|name|score\n1|Alice|91.5\n2|Bob|82.0\n3|Carol|73.5\n");
+  createCsvFile("supplier_2.csv", "id|name|score\n4|Dave|64.0\n5|Eve|55.5\n");
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+  auto sharedState = createSharedState(
+      "supplier_1.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_size", "2"}, {"batch_read", "false"}},
+      {"score", "id"});
+  sharedState->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
+                                           "/supplier_2.csv");
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), 5);
+
+  std::vector<double> scores;
+  std::vector<int32_t> ids;
+  size_t chunkCount = 0;
+  while (auto chunk = supplier->GetNextChunk()) {
+    ++chunkCount;
+    ASSERT_EQ(chunk->col_num(), 2);
+    auto scoreColumn =
+        std::dynamic_pointer_cast<ValueColumn<double>>(chunk->get(0));
+    auto idColumn =
+        std::dynamic_pointer_cast<ValueColumn<int32_t>>(chunk->get(1));
+    ASSERT_NE(scoreColumn, nullptr);
+    ASSERT_NE(idColumn, nullptr);
+    for (size_t row = 0; row < chunk->row_num(); ++row) {
+      scores.push_back(scoreColumn->get_value(row));
+      ids.push_back(idColumn->get_value(row));
+    }
+  }
+
+  EXPECT_EQ(chunkCount, 3);
+  EXPECT_EQ(ids, (std::vector<int32_t>{1, 2, 3, 4, 5}));
+  EXPECT_EQ(scores, (std::vector<double>{91.5, 82.0, 73.5, 64.0, 55.5}));
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierHandlesEmptyFile) {
+  createCsvFile("supplier_empty.csv", "");
+  auto sharedState =
+      createSharedState("supplier_empty.csv", {"id"}, {createInt64Type()},
+                        {{"batch_size", "2"}, {"batch_read", "false"}});
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), 0);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierHandlesFullySkippedFile) {
+  createCsvFile("supplier_skipped.csv", "1\n2\n");
+  auto sharedState =
+      createSharedState("supplier_skipped.csv", {"id"}, {createInt64Type()},
+                        {{"skip_rows", "2"}, {"batch_read", "true"}});
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  EXPECT_EQ(supplier->RowNum(), 0);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
+TEST_F(ReaderTest, TestCsvChunkSupplierReadsAfterSkippedEmptyRow) {
+  createCsvFile("supplier_leading_empty.csv", "\n42\n");
+  auto sharedState = createSharedState(
+      "supplier_leading_empty.csv", {"id"}, {createInt64Type()},
+      {{"skip_rows", "1"}, {"batch_read", "true"}});
+
+  auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
+  auto chunk = supplier->GetNextChunk();
+  ASSERT_NE(chunk, nullptr);
+  ASSERT_EQ(chunk->row_num(), 1);
+  EXPECT_EQ(chunk->get(0)->get_elem(0).GetValue<int64_t>(), 42);
+  EXPECT_EQ(supplier->GetNextChunk(), nullptr);
+}
+
 // A header-only CSV has no data rows: full_read must return an empty
 // result instead of failing the column-count validation ("Column number
 // mismatch between schema and CSV data").
