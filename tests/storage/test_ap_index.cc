@@ -29,6 +29,7 @@
 #include "neug/common/types/value.h"
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/container/i_container.h"
+#include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
@@ -74,6 +75,20 @@ class FailingIndex : public ExampleIndex {
 
  private:
   static inline FailurePoint failure_point_{FailurePoint::kNone};
+};
+
+class CountingMutableCsr : public MutableCsr<EmptyType> {
+ public:
+  explicit CountingMutableCsr(std::shared_ptr<size_t> compact_count)
+      : compact_count_(std::move(compact_count)) {}
+
+  void compact() override {
+    ++(*compact_count_);
+    MutableCsr<EmptyType>::compact();
+  }
+
+ private:
+  std::shared_ptr<size_t> compact_count_;
 };
 
 TEST(ModuleDescriptorTest, RequiredDefaultsTrueAndRoundTripsFalse) {
@@ -960,13 +975,118 @@ TEST_F(APIndexTest, BatchLoadFinalizesVertexTimestampAndEdgeOrder) {
   EXPECT_EQ(
       graph_->get_vertex_table(item).get_vertex_timestamp().InitVertexNum(), 0);
   EXPECT_EQ(plain_edge_count(0), 1);
+  EXPECT_TRUE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+  EXPECT_TRUE(graph_->get_edge_table(item, item, weighted)
+                  .NeedsCompaction(std::string("weight")));
 
   // CommitCowWrite finalizes the recorded COPY targets right before the
   // checkpoint consumes the private graph; drive the same code path here.
   workspace_->FinalizeBulkTablesForCheckpoint();
+  EXPECT_FALSE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
   expect_finalized();
   CheckpointDirtyAndReopen();
+  EXPECT_FALSE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
   expect_finalized();
+}
+
+TEST_F(APIndexTest, EdgeCompactionStateSurvivesCheckpointReopen) {
+  CreateItemTable();
+  const auto item = graph_->schema().get_vertex_label_id("Item");
+  auto vertices = ap_->BatchAddVertices(
+      item, MakeItemSupplier({{1, 10}, {2, 20}, {3, 30}}));
+  ASSERT_TRUE(vertices) << vertices.error().ToString();
+
+  CreateEdgeTypeParamBuilder edge_builder;
+  auto create_edge = ap_->CreateEdgeType(edge_builder.SrcLabel("Item")
+                                             .DstLabel("Item")
+                                             .EdgeLabel("plain")
+                                             .Build());
+  ASSERT_TRUE(create_edge.ok()) << create_edge.ToString();
+  const auto plain = graph_->schema().get_edge_label_id("plain");
+
+  vid_t source = 0;
+  vid_t destination = 0;
+  ASSERT_TRUE(ap_->GetVertexIndex(item, Value::INT32(1), source));
+  ASSERT_TRUE(ap_->GetVertexIndex(item, Value::INT32(2), destination));
+
+  CowGraphStorage dml(*workspace_, 0, 7, allocator_);
+  const void* property = nullptr;
+  ASSERT_TRUE(
+      dml.AddEdge(item, source, item, destination, plain, {}, property).ok());
+  EXPECT_TRUE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+
+  CheckpointDirtyAndReopen();
+  EXPECT_TRUE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+
+  graph_->get_edge_table(item, item, plain).Compact(std::nullopt);
+  EXPECT_FALSE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+
+  auto edges = std::make_shared<DataChunk>();
+  edges->set(0, MakeValueColumn(std::vector<int32_t>{1}));
+  edges->set(1, MakeValueColumn(std::vector<int32_t>{3}));
+  auto add_edges = ap_->BatchAddEdges(
+      item, item, plain,
+      std::make_shared<VectorChunkSupplier>(
+          std::vector<std::shared_ptr<DataChunk>>{std::move(edges)}));
+  ASSERT_TRUE(add_edges.ok()) << add_edges.ToString();
+  EXPECT_FALSE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+
+  CheckpointDirtyAndReopen();
+  EXPECT_FALSE(
+      graph_->get_edge_table(item, item, plain).NeedsCompaction(std::nullopt));
+}
+
+TEST_F(APIndexTest, BulkFinalizeSkipsCleanPlainEdgeCsrCompaction) {
+  CreateItemTable();
+  const auto item = graph_->schema().get_vertex_label_id("Item");
+  auto vertices =
+      ap_->BatchAddVertices(item, MakeItemSupplier({{1, 10}, {2, 20}}));
+  ASSERT_TRUE(vertices) << vertices.error().ToString();
+
+  CreateEdgeTypeParamBuilder edge_builder;
+  auto create_edge = ap_->CreateEdgeType(edge_builder.SrcLabel("Item")
+                                             .DstLabel("Item")
+                                             .EdgeLabel("plain")
+                                             .Build());
+  ASSERT_TRUE(create_edge.ok()) << create_edge.ToString();
+  const auto plain = graph_->schema().get_edge_label_id("plain");
+  const auto edge_triplet =
+      graph_->schema().generate_edge_label(item, item, plain);
+  auto& edge_table = graph_->get_edge_table(item, item, plain);
+
+  auto compact_count = std::make_shared<size_t>(0);
+  const auto make_counting_csr = [&] {
+    auto csr = std::make_unique<CountingMutableCsr>(compact_count);
+    csr->Open(*checkpoint_mgr_.Current(), ModuleDescriptor{},
+              MemoryLevel::kInMemory);
+    csr->resize(2);
+    return csr;
+  };
+  edge_table.SetOutCsr(make_counting_csr());
+  edge_table.SetInCsr(make_counting_csr());
+  workspace_->MarkBulkEdgeTableForCheckpoint(edge_triplet);
+
+  workspace_->FinalizeBulkTablesForCheckpoint();
+  EXPECT_EQ(*compact_count, 0);
+
+  const void* property = nullptr;
+  int32_t offset = 0;
+  ASSERT_TRUE(graph_
+                  ->AddEdge(item, 0, item, 1, plain, {}, 7, allocator_, offset,
+                            property, false)
+                  .ok());
+  EXPECT_TRUE(edge_table.NeedsCompaction(std::nullopt));
+
+  workspace_->FinalizeBulkTablesForCheckpoint();
+  EXPECT_EQ(*compact_count, 2);
+  EXPECT_FALSE(edge_table.NeedsCompaction(std::nullopt));
 }
 
 TEST_F(APIndexTest, PartialBatchFailureIsDiscardedWithPrivateWorkspace) {

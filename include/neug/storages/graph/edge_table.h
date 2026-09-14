@@ -180,6 +180,11 @@ class NEUG_API EdgeTable {
                           int32_t ie_offset, int32_t col_id,
                           const Value& new_prop, timestamp_t ts);
 
+  bool NeedsCompaction(
+      const std::optional<std::string>& sort_key_for_nbr) const noexcept {
+    return sort_key_for_nbr.has_value() || needs_csr_compaction_.load();
+  }
+
   void Compact(const std::optional<std::string>& sort_key_for_nbr);
 
   size_t PropTableSize() const;
@@ -208,6 +213,11 @@ class NEUG_API EdgeTable {
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};
+  // Batch COPY appends checkpoint-normalized CSR entries at timestamp zero.
+  // Ordinary writes and deletes require a later CSR scan to normalize
+  // timestamps or remove tombstones. Persist this bit across incremental
+  // checkpoint reopen so a later bulk load cannot skip required compaction.
+  std::atomic<bool> needs_csr_compaction_{false};
 
   friend class PropertyGraph;
   friend class EdgeTableView;
