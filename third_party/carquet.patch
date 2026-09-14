@@ -7,8 +7,16 @@ NeuG InputStream/OutputStream, with exactly-once close or abort ownership.
 Remove each change when the pinned upstream version provides its equivalent
 and the multibatch and I/O adapter regression tests pass without that change.
 
+Reader additions preserve fixed-size list metadata recursively and select
+top-level fields before decoding nested row groups. The scalar/nested reader
+and scan regression tests cover these changes.
+
+Both C Data export paths pack INT8/UINT8 and INT16/UINT16 values to their
+logical width instead of exposing physical INT32 buffers. Real-file narrow
+integer supplier regressions cover batch, projected and nested reads.
+
 diff --git a/include/carquet/carquet.h b/include/carquet/carquet.h
-index 8080d27..05eca3d 100644
+index 8080d27..bf1b1db 100644
 --- a/include/carquet/carquet.h
 +++ b/include/carquet/carquet.h
 @@ -572,6 +572,30 @@ typedef struct carquet_row_batch carquet_row_batch_t;
@@ -107,6 +115,627 @@ index 8080d27..05eca3d 100644
  /**
   * @brief Create a writer to a FILE handle.
   *
+@@ -3855,6 +3923,38 @@ carquet_status_t carquet_reader_read_arrow(
+     struct ArrowArray* out_array,
+     carquet_error_t* error);
+
++/**
++ * @brief Read selected top-level fields from one row group into Arrow C Data.
++ *
++ * This is the projected counterpart to @ref carquet_reader_read_arrow. The
++ * field indices address the top-level children of the file schema, and the
++ * output children follow the requested order. Every leaf below each selected
++ * field is read so arbitrarily nested fields remain intact. Unselected leaf
++ * column chunks are not read.
++ *
++ * Passing zero columns selects every top-level field. Duplicate or out-of-range
++ * indices are rejected.
++ *
++ * @param[in] reader Open reader.
++ * @param[in] row_group_index Row group to read (0-based).
++ * @param[in] field_indices Top-level field indices, or NULL when num_fields is
++ *                          zero.
++ * @param[in] num_fields Number of requested top-level fields, or zero for all.
++ * @param[out] out_schema Optional projected ArrowSchema (may be NULL).
++ * @param[out] out_array Projected ArrowArray; caller must release.
++ * @param[out] error Error details (may be NULL).
++ * @return CARQUET_OK or an error. On error nothing is left owned by the caller.
++ */
++CARQUET_API CARQUET_WARN_UNUSED_RESULT
++carquet_status_t carquet_reader_read_arrow_columns(
++    carquet_reader_t* reader,
++    int32_t row_group_index,
++    const int32_t* field_indices,
++    int32_t num_fields,
++    struct ArrowSchema* out_schema,
++    struct ArrowArray* out_array,
++    carquet_error_t* error);
++
+ /* ============================================================================
+  * C++ Compatibility - End
+  * ============================================================================ */
+diff --git a/src/reader/arrow_c_export.c b/src/reader/arrow_c_export.c
+index f651483..e76bcd0 100644
+--- a/src/reader/arrow_c_export.c
++++ b/src/reader/arrow_c_export.c
+@@ -328,7 +328,8 @@ static carquet_status_t export_child_array(
+     const uint8_t* validity,
+     int64_t n,
+     carquet_physical_type_t pt,
+-    int32_t type_length) {
++    int32_t type_length,
++    const carquet_logical_type_t* logical_type) {
+
+     memset(child, 0, sizeof(*child));
+     child->length = n;
+@@ -390,6 +391,21 @@ static carquet_status_t export_child_array(
+         for (int64_t i = 0; i < n; i++) {
+             if (src[i]) out_data[i >> 3] |= (uint8_t)(1u << (i & 7));
+         }
++    } else if (pt == CARQUET_PHYSICAL_INT32 && logical_type &&
++               logical_type->id == CARQUET_LOGICAL_INTEGER &&
++               (logical_type->params.integer.bit_width == 8 ||
++                logical_type->params.integer.bit_width == 16)) {
++        /* Parquet uses INT32 storage, but Arrow's c/C/s/S buffers are packed
++         * at the logical width. Preserve signed values as their bit pattern. */
++        size_t stride = (size_t)logical_type->params.integer.bit_width / 8;
++        out_data = (uint8_t*)calloc(n > 0 ? (size_t)n : 1, stride);
++        if (!out_data) { free(val); return CARQUET_ERROR_OUT_OF_MEMORY; }
++        const int32_t* src = (const int32_t*)data;
++        for (int64_t i = 0; i < n; i++) {
++            if (validity && !(validity[i >> 3] & (uint8_t)(1u << (i & 7)))) continue;
++            if (stride == 1) out_data[i] = (uint8_t)src[i];
++            else ((uint16_t*)out_data)[i] = (uint16_t)src[i];
++        }
+     } else {
+         size_t stride;
+         switch (pt) {
+@@ -477,7 +493,9 @@ static carquet_status_t build_leaf_child(struct ArrowArray* child,
+                                          const void* values, const uint8_t* validity,
+                                          int64_t n) {
+     return export_child_array(child, values, validity, n,
+-                              cs->elements[e].type, cs->elements[e].type_length);
++                              cs->elements[e].type, cs->elements[e].type_length,
++                              cs->elements[e].has_logical_type
++                                  ? &cs->elements[e].logical_type : NULL);
+ }
+
+ /* Export a single top-level field `e` (leaf / single-level LIST / MAP) into a
+diff --git a/src/reader/arrow_c_read.c b/src/reader/arrow_c_read.c
+index 1ceec37..1b46bf1 100644
+--- a/src/reader/arrow_c_read.c
++++ b/src/reader/arrow_c_read.c
+@@ -218,7 +218,12 @@ static carquet_status_t schema_node(const carquet_schema_t* cs, int32_t e,
+     }
+     case K_LIST: {
+         /* list group -> repeated "list" group -> element */
+-        out->format = c_strdup("+l");
++        char fmt[32];
++        if (el->arrow_fixed_size_list_length > 0)
++            snprintf(fmt, sizeof(fmt), "+w:%d", el->arrow_fixed_size_list_length);
++        else
++            snprintf(fmt, sizeof(fmt), "+l");
++        out->format = c_strdup(fmt);
+         if (!out->format) { release_schema(out); return CARQUET_ERROR_OUT_OF_MEMORY; }
+         int32_t rep[4]; int32_t nr = elem_children(cs, e, rep, 4);
+         if (nr != 1) { release_schema(out); return CARQUET_ERROR_INVALID_ARGUMENT; }
+@@ -265,8 +270,37 @@ static carquet_status_t schema_node(const carquet_schema_t* cs, int32_t e,
+     return CARQUET_ERROR_INTERNAL;
+ }
+
+-carquet_status_t carquet_arrow_build_schema_tree(
+-    const carquet_schema_t* cs, struct ArrowSchema* out, carquet_error_t* error) {
++static carquet_status_t validate_field_indices(
++    const int32_t* field_indices, int32_t num_fields, int32_t num_top,
++    carquet_error_t* error) {
++
++    if (num_fields < 0 || (num_fields > 0 && !field_indices)) {
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                          "field_indices is NULL or num_fields is negative");
++        return CARQUET_ERROR_INVALID_ARGUMENT;
++    }
++    for (int32_t i = 0; i < num_fields; i++) {
++        if (field_indices[i] < 0 || field_indices[i] >= num_top) {
++            CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                              "top-level field index %d is out of range",
++                              field_indices[i]);
++            return CARQUET_ERROR_INVALID_ARGUMENT;
++        }
++        for (int32_t j = 0; j < i; j++) {
++            if (field_indices[j] == field_indices[i]) {
++                CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                                  "duplicate top-level field index %d",
++                                  field_indices[i]);
++                return CARQUET_ERROR_INVALID_ARGUMENT;
++            }
++        }
++    }
++    return CARQUET_OK;
++}
++
++static carquet_status_t carquet_arrow_build_projected_schema_tree(
++    const carquet_schema_t* cs, const int32_t* field_indices,
++    int32_t num_fields, struct ArrowSchema* out, carquet_error_t* error) {
+
+     memset(out, 0, sizeof(*out));
+     out->format = c_strdup("+s");
+@@ -276,16 +310,25 @@ carquet_status_t carquet_arrow_build_schema_tree(
+
+     int32_t top[1024]; int32_t nt = elem_children(cs, 0, top, 1024);
+     if (nt > 1024) { release_schema(out); CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT, "too many fields"); return CARQUET_ERROR_INVALID_ARGUMENT; }
+-    if (schema_alloc_children(out, nt) != CARQUET_OK) { release_schema(out); CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY, "alloc"); return CARQUET_ERROR_OUT_OF_MEMORY; }
+-    for (int32_t i = 0; i < nt; i++) {
++    carquet_status_t valid = validate_field_indices(field_indices, num_fields, nt, error);
++    if (valid != CARQUET_OK) { release_schema(out); return valid; }
++    int32_t output_fields = num_fields > 0 ? num_fields : nt;
++    if (schema_alloc_children(out, output_fields) != CARQUET_OK) { release_schema(out); CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY, "alloc"); return CARQUET_ERROR_OUT_OF_MEMORY; }
++    for (int32_t i = 0; i < output_fields; i++) {
++        int32_t field = num_fields > 0 ? field_indices[i] : i;
+         out->children[i] = new_schema_child();
+         if (!out->children[i]) { release_schema(out); CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY, "alloc"); return CARQUET_ERROR_OUT_OF_MEMORY; }
+-        carquet_status_t st = schema_node(cs, top[i], NULL, false, out->children[i]);
+-        if (st != CARQUET_OK) { release_schema(out); CARQUET_SET_ERROR(error, st, "Arrow export: field %d", i); return st; }
++        carquet_status_t st = schema_node(cs, top[field], NULL, false, out->children[i]);
++        if (st != CARQUET_OK) { release_schema(out); CARQUET_SET_ERROR(error, st, "Arrow export: field %d", field); return st; }
+     }
+     return CARQUET_OK;
+ }
+
++carquet_status_t carquet_arrow_build_schema_tree(
++    const carquet_schema_t* cs, struct ArrowSchema* out, carquet_error_t* error) {
++    return carquet_arrow_build_projected_schema_tree(cs, NULL, 0, out, error);
++}
++
+ /* ============================================================================
+  * Leaf reading
+  * ============================================================================
+@@ -395,13 +438,31 @@ static carquet_status_t build_leaf(rctx_t* ctx, int32_t leaf_col, int16_t exist_
+         a->n_buffers = 2; a->buffers = bufs;
+     } else {
+         size_t stride = L->stride;
++        const parquet_schema_element_t* element =
++            &ctx->cs->elements[ctx->cs->leaf_indices[leaf_col]];
++        if (L->pt == CARQUET_PHYSICAL_INT32 && element->has_logical_type &&
++            element->logical_type.id == CARQUET_LOGICAL_INTEGER) {
++            int bits = element->logical_type.params.integer.bit_width;
++            if (bits == 8 || bits == 16) stride = (size_t)bits / 8;
++        }
+         uint8_t* data = (uint8_t*)calloc((size_t)(len > 0 ? len : 1) * stride, 1);
+         const void** bufs = (const void**)malloc(2 * sizeof(void*));
+         if (!data || !bufs) { free(data); free(bufs); rc = CARQUET_ERROR_OUT_OF_MEMORY; goto fail; }
+         const uint8_t* src = (const uint8_t*)L->values;
+         int64_t vc = 0;
+         for (int64_t i = 0; i < len; i++) {
+-            if (present[i]) { memcpy(data + (size_t)i * stride, src + (size_t)vc * stride, stride); vc++; }
++            if (!present[i]) continue;
++            /* Source values retain their physical width; Arrow output must
++             * match the logical c/C/s/S format declared by the schema. */
++            if (stride < L->stride) {
++                int32_t value;
++                memcpy(&value, src + (size_t)vc * L->stride, sizeof(value));
++                if (stride == 1) data[i] = (uint8_t)value;
++                else ((uint16_t*)data)[i] = (uint16_t)value;
++            } else {
++                memcpy(data + (size_t)i * stride, src + (size_t)vc * L->stride, stride);
++            }
++            vc++;
+         }
+         bufs[0] = validity; bufs[1] = data;
+         a->n_buffers = 2; a->buffers = bufs;
+@@ -588,9 +649,11 @@ static carquet_status_t build_node(rctx_t* ctx, int32_t e, int16_t def_in,
+  * Public entry point
+  * ============================================================================
+  */
+-carquet_status_t carquet_reader_read_arrow(
++carquet_status_t carquet_reader_read_arrow_columns(
+     carquet_reader_t* reader,
+     int32_t row_group_index,
++    const int32_t* field_indices,
++    int32_t num_fields,
+     struct ArrowSchema* out_schema,
+     struct ArrowArray* out_array,
+     carquet_error_t* error) {
+@@ -606,15 +669,55 @@ carquet_status_t carquet_reader_read_arrow(
+     }
+     const carquet_schema_t* cs = reader->schema;
+     int32_t num_leaves = cs->num_leaves;
++    int32_t top[1024]; int32_t nt = elem_children(cs, 0, top, 1024);
++    if (nt > 1024) {
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT, "too many fields");
++        return CARQUET_ERROR_INVALID_ARGUMENT;
++    }
++    carquet_status_t rc = validate_field_indices(
++        field_indices, num_fields, nt, error);
++    if (rc != CARQUET_OK) return rc;
++    int32_t output_fields = num_fields > 0 ? num_fields : nt;
++
++    bool* read_leaves = (bool*)calloc(
++        (size_t)(num_leaves > 0 ? num_leaves : 1), sizeof(bool));
++    if (!read_leaves) {
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY, "alloc");
++        return CARQUET_ERROR_OUT_OF_MEMORY;
++    }
++    int32_t top_base[1024];
++    int32_t next_base = 0;
++    for (int32_t i = 0; i < nt; i++) {
++        top_base[i] = next_base;
++        int32_t leaves = count_leaves(cs, top[i]);
++        if (leaves < 0 || next_base > num_leaves - leaves) {
++            free(read_leaves);
++            CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                              "invalid top-level field tree");
++            return CARQUET_ERROR_INVALID_ARGUMENT;
++        }
++        next_base += leaves;
++    }
++    if (next_base != num_leaves) {
++        free(read_leaves);
++        CARQUET_SET_ERROR(error, CARQUET_ERROR_INVALID_ARGUMENT,
++                          "top-level fields do not cover every leaf");
++        return CARQUET_ERROR_INVALID_ARGUMENT;
++    }
++    for (int32_t i = 0; i < output_fields; i++) {
++        int32_t field = num_fields > 0 ? field_indices[i] : i;
++        int32_t base = top_base[field];
++        int32_t leaves = count_leaves(cs, top[field]);
++        for (int32_t l = 0; l < leaves; l++) read_leaves[base + l] = true;
++    }
+
+     rctx_t ctx = { cs, NULL, num_leaves, error };
+     ctx.leaves = (rleaf_t*)calloc((size_t)(num_leaves > 0 ? num_leaves : 1), sizeof(rleaf_t));
+-    if (!ctx.leaves) { CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY, "alloc"); return CARQUET_ERROR_OUT_OF_MEMORY; }
++    if (!ctx.leaves) { free(read_leaves); CARQUET_SET_ERROR(error, CARQUET_ERROR_OUT_OF_MEMORY, "alloc"); return CARQUET_ERROR_OUT_OF_MEMORY; }
+
+-    carquet_status_t rc = CARQUET_OK;
+-
+-    /* Read every leaf column's full (rep, def, value) stream. */
++    /* Read every leaf below each selected top-level field. */
+     for (int32_t l = 0; l < num_leaves; l++) {
++        if (!read_leaves[l]) continue;
+         rleaf_t* L = &ctx.leaves[l];
+         int32_t elem = cs->leaf_indices[l];
+         const parquet_schema_element_t* el = &cs->elements[elem];
+@@ -686,8 +789,6 @@ carquet_status_t carquet_reader_read_arrow(
+
+     /* Assemble the top-level struct array. */
+     {
+-        int32_t top[1024]; int32_t nt = elem_children(cs, 0, top, 1024);
+-        if (nt > 1024) { rc = CARQUET_ERROR_INVALID_ARGUMENT; goto cleanup; }
+         int64_t num_rows = reader->metadata.row_groups[row_group_index].num_rows;
+
+         memset(out_array, 0, sizeof(*out_array));
+@@ -696,20 +797,20 @@ carquet_status_t carquet_reader_read_arrow(
+         out_array->offset = 0;
+         out_array->n_buffers = 1;
+         out_array->buffers = (const void**)calloc(1, sizeof(void*));  /* struct validity (absent) */
+-        out_array->n_children = nt;
+-        out_array->children = nt ? (struct ArrowArray**)calloc((size_t)nt, sizeof(void*)) : NULL;
++        out_array->n_children = output_fields;
++        out_array->children = output_fields ? (struct ArrowArray**)calloc((size_t)output_fields, sizeof(void*)) : NULL;
+         out_array->release = release_array;
+-        if (!out_array->buffers || (nt && !out_array->children)) {
++        if (!out_array->buffers || (output_fields && !out_array->children)) {
+             release_array(out_array); rc = CARQUET_ERROR_OUT_OF_MEMORY;
+             CARQUET_SET_ERROR(error, rc, "alloc"); goto cleanup;
+         }
+
+-        int32_t base = 0;
+-        for (int32_t i = 0; i < nt; i++) {
+-            rc = build_node(&ctx, top[i], 0, 0, 0, base, &out_array->children[i]);
++        for (int32_t i = 0; i < output_fields; i++) {
++            int32_t field = num_fields > 0 ? field_indices[i] : i;
++            rc = build_node(&ctx, top[field], 0, 0, 0, top_base[field], &out_array->children[i]);
+             if (rc != CARQUET_OK) {
+                 release_array(out_array);
+-                CARQUET_SET_ERROR(error, rc, "Arrow read: failed to assemble field %d", i);
++                CARQUET_SET_ERROR(error, rc, "Arrow read: failed to assemble field %d", field);
+                 goto cleanup;
+             }
+             int64_t got_len = out_array->children[i]->length;
+@@ -717,15 +818,15 @@ carquet_status_t carquet_reader_read_arrow(
+                 release_array(out_array);
+                 CARQUET_SET_ERROR(error, CARQUET_ERROR_INTERNAL,
+                     "Arrow read: field %d length %lld != %lld rows",
+-                    i, (long long)got_len, (long long)num_rows);
++                    field, (long long)got_len, (long long)num_rows);
+                 rc = CARQUET_ERROR_INTERNAL; goto cleanup;
+             }
+-            base += count_leaves(cs, top[i]);
+         }
+     }
+
+     if (out_schema) {
+-        rc = carquet_arrow_build_schema_tree(cs, out_schema, error);
++        rc = carquet_arrow_build_projected_schema_tree(
++            cs, field_indices, num_fields, out_schema, error);
+         if (rc != CARQUET_OK) { release_array(out_array); goto cleanup; }
+     }
+
+@@ -737,5 +838,16 @@ cleanup:
+         if (ctx.leaves[l].cr) carquet_column_reader_free(ctx.leaves[l].cr);
+     }
+     free(ctx.leaves);
++    free(read_leaves);
+     return rc;
+ }
++
++carquet_status_t carquet_reader_read_arrow(
++    carquet_reader_t* reader,
++    int32_t row_group_index,
++    struct ArrowSchema* out_schema,
++    struct ArrowArray* out_array,
++    carquet_error_t* error) {
++    return carquet_reader_read_arrow_columns(
++        reader, row_group_index, NULL, 0, out_schema, out_array, error);
++}
+diff --git a/src/reader/arrow_schema_read.c b/src/reader/arrow_schema_read.c
+index d0d225f..4b933b7 100644
+--- a/src/reader/arrow_schema_read.c
++++ b/src/reader/arrow_schema_read.c
+@@ -21,12 +21,17 @@ enum { MSG_HEADER_SLOT = 2 };      /* Message.header (union value) */
+ enum { SCHEMA_FIELDS_SLOT = 1 };   /* Schema.fields */
+ enum { FIELD_NAME_SLOT = 0 };      /* Field.name */
+ enum { FIELD_TYPETYPE_SLOT = 2 };  /* Field.type_type (union tag, u8) */
++enum { FIELD_TYPE_SLOT = 3 };      /* Field.type (union value table) */
++enum { FIELD_CHILDREN_SLOT = 5 };  /* Field.children */
+ enum { FIELD_META_SLOT = 6 };      /* Field.custom_metadata */
+ enum { KV_KEY_SLOT = 0, KV_VALUE_SLOT = 1 };
+
+ /* Arrow Type union tags for the 64-bit-offset variants Parquet can't express
+  * (format/Type.fbs). Kept in sync with carquet_arrow_type_refinement_t. */
+-enum { AT_LARGEBINARY = 19, AT_LARGEUTF8 = 20, AT_LARGELIST = 21 };
++enum {
++    AT_LIST = 12, AT_STRUCT = 13, AT_FIXED_SIZE_LIST = 16, AT_MAP = 17,
++    AT_LARGEBINARY = 19, AT_LARGEUTF8 = 20, AT_LARGELIST = 21
++};
+
+ /* Sanity cap on vector element counts from crafted input. */
+ enum { MAX_VECTOR_ELEMS = 1 << 20 };
+@@ -187,25 +192,186 @@ static int32_t field_type_refinement(const fbr* r, size_t field_tbl) {
+     }
+ }
+
+-/* ---- attach metadata to the matching top-level schema element ---- */
++/* ---- recursively attach Arrow-only information to the Parquet tree ---- */
+
+-static int32_t match_element(const char* name,
+-                             parquet_schema_element_t* elements,
+-                             int32_t num_elements,
+-                             const int32_t* parent_indices,
+-                             const uint8_t* used) {
++enum { ARROW_MAX_NEST_DEPTH = 100 };
++
++static int32_t match_child(const char* name, int32_t parquet_parent,
++                           parquet_schema_element_t* elements,
++                           int32_t num_elements,
++                           const int32_t* parent_indices,
++                           const uint8_t* used) {
+     if (!name) return -1;
+-    /* Match by name among direct children of the root that have no metadata
+-     * yet (used[] guards against duplicate names being over-written). */
+     for (int32_t i = 1; i < num_elements; i++) {
+-        int32_t parent = parent_indices ? parent_indices[i] : 0;
+-        if (parent != 0) continue;
+-        if (used[i]) continue;
++        if (parent_indices[i] != parquet_parent || used[i]) continue;
+         if (elements[i].name && strcmp(elements[i].name, name) == 0) return i;
+     }
+     return -1;
+ }
+
++static int32_t only_child(int32_t parquet_parent, int32_t num_elements,
++                          const int32_t* parent_indices) {
++    int32_t child = -1;
++    for (int32_t i = 1; i < num_elements; i++) {
++        if (parent_indices[i] != parquet_parent) continue;
++        if (child >= 0) return -1;
++        child = i;
++    }
++    return child;
++}
++
++static int element_is_list(const parquet_schema_element_t* e) {
++    return (e->has_logical_type &&
++            e->logical_type.id == CARQUET_LOGICAL_LIST) ||
++           (e->has_converted_type &&
++            e->converted_type == CARQUET_CONVERTED_LIST);
++}
++
++static int element_is_map(const parquet_schema_element_t* e) {
++    return (e->has_logical_type &&
++            e->logical_type.id == CARQUET_LOGICAL_MAP) ||
++           (e->has_converted_type &&
++            (e->converted_type == CARQUET_CONVERTED_MAP ||
++             e->converted_type == CARQUET_CONVERTED_MAP_KEY_VALUE));
++}
++
++static uint8_t field_type_tag(const fbr* r, size_t field_tbl) {
++    size_t f;
++    uint8_t tag = 0;
++    if (!fbr_field(r, field_tbl, FIELD_TYPETYPE_SLOT, &f) || f == 0 ||
++        !fbr_u8(r, f, &tag)) return 0;
++    return tag;
++}
++
++static int32_t fixed_size_list_length(const fbr* r, size_t field_tbl) {
++    if (field_type_tag(r, field_tbl) != AT_FIXED_SIZE_LIST) return 0;
++    size_t f, type_tbl, length_field;
++    int32_t length;
++    if (!fbr_field(r, field_tbl, FIELD_TYPE_SLOT, &f) || f == 0 ||
++        !fbr_indirect(r, f, &type_tbl) ||
++        !fbr_field(r, type_tbl, 0, &length_field) || length_field == 0 ||
++        !fbr_i32(r, length_field, &length) || length <= 0) return 0;
++    return length;
++}
++
++static void attach_custom_metadata(const fbr* r, size_t field_tbl,
++                                   parquet_schema_element_t* element,
++                                   carquet_arena_t* arena) {
++    size_t meta_data;
++    uint32_t nmeta;
++    if (!fbr_field_vector(r, field_tbl, FIELD_META_SLOT, 4,
++                          &meta_data, &nmeta) || nmeta == 0) return;
++
++    parquet_key_value_t* kvs = (parquet_key_value_t*)carquet_arena_calloc(
++        arena, nmeta, sizeof(parquet_key_value_t));
++    if (!kvs) return;
++
++    int32_t got = 0;
++    for (uint32_t k = 0; k < nmeta; k++) {
++        size_t kv_tbl;
++        if (!fbr_indirect(r, meta_data + (size_t)k * 4, &kv_tbl)) continue;
++        char* key = fbr_field_string(r, kv_tbl, KV_KEY_SLOT, arena);
++        if (!key) continue;
++        kvs[got].key = key;
++        kvs[got].value = fbr_field_string(r, kv_tbl, KV_VALUE_SLOT, arena);
++        got++;
++    }
++    if (got > 0) {
++        element->field_metadata = kvs;
++        element->num_field_metadata = got;
++    }
++}
++
++static void apply_field(const fbr* r, size_t field_tbl, int32_t element_index,
++                        parquet_schema_element_t* elements,
++                        int32_t num_elements, const int32_t* parent_indices,
++                        uint8_t* used, carquet_arena_t* arena, int depth);
++
++static void apply_children(const fbr* r, size_t field_tbl,
++                           int32_t parquet_parent,
++                           parquet_schema_element_t* elements,
++                           int32_t num_elements,
++                           const int32_t* parent_indices, uint8_t* used,
++                           carquet_arena_t* arena, int depth) {
++    size_t children_data;
++    uint32_t nchildren;
++    if (!fbr_field_vector(r, field_tbl, FIELD_CHILDREN_SLOT, 4,
++                          &children_data, &nchildren)) return;
++    for (uint32_t i = 0; i < nchildren; i++) {
++        size_t child_tbl;
++        if (!fbr_indirect(r, children_data + (size_t)i * 4, &child_tbl)) continue;
++        char* name = fbr_field_string(r, child_tbl, FIELD_NAME_SLOT, arena);
++        int32_t child = match_child(name, parquet_parent, elements,
++                                    num_elements, parent_indices, used);
++        if (child < 0) continue;
++        used[child] = 1;
++        apply_field(r, child_tbl, child, elements, num_elements,
++                    parent_indices, used, arena, depth + 1);
++    }
++}
++
++static void apply_field(const fbr* r, size_t field_tbl, int32_t element_index,
++                        parquet_schema_element_t* elements,
++                        int32_t num_elements, const int32_t* parent_indices,
++                        uint8_t* used, carquet_arena_t* arena, int depth) {
++    if (depth > ARROW_MAX_NEST_DEPTH || element_index <= 0 ||
++        element_index >= num_elements) return;
++
++    parquet_schema_element_t* element = &elements[element_index];
++    uint8_t tag = field_type_tag(r, field_tbl);
++    int32_t refine = field_type_refinement(r, field_tbl);
++    if (refine != 0) element->arrow_type_refinement = refine;
++    attach_custom_metadata(r, field_tbl, element, arena);
++
++    if (element_is_list(element)) {
++        if (tag != AT_LIST && tag != AT_LARGELIST &&
++            tag != AT_FIXED_SIZE_LIST) return;
++        size_t children_data;
++        uint32_t nchildren;
++        if (!fbr_field_vector(r, field_tbl, FIELD_CHILDREN_SLOT, 4,
++                              &children_data, &nchildren) || nchildren != 1)
++            return;
++        int32_t repeated_group = only_child(element_index, num_elements,
++                                            parent_indices);
++        int32_t parquet_element = repeated_group < 0 ? -1 :
++            only_child(repeated_group, num_elements, parent_indices);
++        size_t child_tbl;
++        if (parquet_element < 0 ||
++            !fbr_indirect(r, children_data, &child_tbl)) return;
++
++        int32_t fixed_length = fixed_size_list_length(r, field_tbl);
++        if (tag != AT_FIXED_SIZE_LIST || fixed_length > 0)
++            element->arrow_fixed_size_list_length = fixed_length;
++        used[parquet_element] = 1;
++        apply_field(r, child_tbl, parquet_element, elements, num_elements,
++                    parent_indices, used, arena, depth + 1);
++        return;
++    }
++
++    if (element_is_map(element)) {
++        if (tag != AT_MAP) return;
++        size_t children_data;
++        uint32_t nchildren;
++        if (!fbr_field_vector(r, field_tbl, FIELD_CHILDREN_SLOT, 4,
++                              &children_data, &nchildren) || nchildren != 1)
++            return;
++        size_t entries_tbl;
++        if (!fbr_indirect(r, children_data, &entries_tbl) ||
++            field_type_tag(r, entries_tbl) != AT_STRUCT) return;
++        int32_t kv_group = only_child(element_index, num_elements,
++                                      parent_indices);
++        if (kv_group < 0) return;
++        apply_children(r, entries_tbl, kv_group, elements, num_elements,
++                       parent_indices, used, arena, depth + 1);
++        return;
++    }
++
++    if (!element->has_type && tag == AT_STRUCT) {
++        apply_children(r, field_tbl, element_index, elements, num_elements,
++                       parent_indices, used, arena, depth + 1);
++    }
++}
++
+ void carquet_apply_arrow_field_metadata(
+     const char* b64_value,
+     parquet_schema_element_t* elements,
+@@ -251,42 +417,12 @@ void carquet_apply_arrow_field_metadata(
+
+         char* name = fbr_field_string(&r, field_tbl, FIELD_NAME_SLOT, arena);
+
+-        /* Match the Arrow field to its Parquet element up front so both the
+-         * type refinement and the custom_metadata can be attached, even when
+-         * the field carries no metadata. */
+-        int32_t idx = match_element(name, elements, num_elements,
+-                                    parent_indices, used);
++        int32_t idx = match_child(name, 0, elements, num_elements,
++                                  parent_indices, used);
+         if (idx < 0) continue;
+         used[idx] = 1;
+-
+-        /* Type refinement: a 64-bit-offset Arrow type Parquet can't express. */
+-        int32_t refine = field_type_refinement(&r, field_tbl);
+-        if (refine != 0) elements[idx].arrow_type_refinement = refine;
+-
+-        /* custom_metadata (variable labels/descriptions). */
+-        size_t meta_data;
+-        uint32_t nmeta;
+-        if (!fbr_field_vector(&r, field_tbl, FIELD_META_SLOT, 4,
+-                              &meta_data, &nmeta) || nmeta == 0) continue;
+-
+-        parquet_key_value_t* kvs = (parquet_key_value_t*)carquet_arena_calloc(
+-            arena, nmeta, sizeof(parquet_key_value_t));
+-        if (!kvs) continue;
+-
+-        int32_t got = 0;
+-        for (uint32_t k = 0; k < nmeta; k++) {
+-            size_t kv_tbl;
+-            if (!fbr_indirect(&r, meta_data + (size_t)k * 4, &kv_tbl)) continue;
+-            char* key = fbr_field_string(&r, kv_tbl, KV_KEY_SLOT, arena);
+-            if (!key) continue;  /* KeyValue.key is required to be useful */
+-            kvs[got].key = key;
+-            kvs[got].value = fbr_field_string(&r, kv_tbl, KV_VALUE_SLOT, arena);
+-            got++;
+-        }
+-        if (got == 0) continue;
+-
+-        elements[idx].field_metadata = kvs;
+-        elements[idx].num_field_metadata = got;
++        apply_field(&r, field_tbl, idx, elements, num_elements,
++                    parent_indices, used, arena, 0);
+     }
+
+ done:
 diff --git a/src/reader/file_reader.c b/src/reader/file_reader.c
 index 93ca8c0..2d88cc1 100644
 --- a/src/reader/file_reader.c
@@ -414,6 +1043,22 @@ index 22ad65f..977470b 100644
  /**
   * Open file with memory mapping.
   * Returns mmap_info on success, NULL on failure (fallback to fread).
+diff --git a/src/thrift/parquet_types.h b/src/thrift/parquet_types.h
+index 66b549c..45be575 100644
+--- a/src/thrift/parquet_types.h
++++ b/src/thrift/parquet_types.h
+@@ -97,6 +97,11 @@ struct parquet_schema_element {
+      * Values mirror carquet_arrow_type_refinement_t. Read-only: never written
+      * to the Parquet schema. */
+     int32_t arrow_type_refinement;
++
++    /* Carquet extension: FixedSizeList length recovered from, or to be
++     * emitted into, the "ARROW:schema" footer blob. Parquet's LIST logical
++     * type does not carry this value. Zero means a variable-length list. */
++    int32_t arrow_fixed_size_list_length;
+ };
+
+ /* ============================================================================
 diff --git a/src/writer/file_writer.c b/src/writer/file_writer.c
 index 2ae7880..142e87a 100644
 --- a/src/writer/file_writer.c

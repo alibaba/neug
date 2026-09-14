@@ -26,7 +26,7 @@ db.Close();
 
 **Key Components:**
 - `PropertyGraph`: Underlying graph data storage engine
-- `ExecutionSlot`: Shared AP/TP Cypher query compilation and execution
+- `ExecutionSlot`: Cypher query compilation and execution
 - `ConnectionManager`: Client connection pool management
 - `IGraphPlanner`: Query optimization (GOPT or Greedy planner)
 
@@ -34,15 +34,10 @@ db.Close();
 - `DBMode::READ_ONLY`: Read-only access for analytics workloads
 - `DBMode::READ_WRITE`: Full transactional read/write access
 
-**Thread Safety:** Connection creation and registration are synchronized, and
-separate connections can execute queries concurrently. Individual `Connection`
-instances are not thread-safe.
+**Thread Safety:** `Connection` creation and registration are synchronized, and separate connections can execute queries concurrently. Individual `Connection` instances are not thread-safe.
 
 **Resource Management:**
-- File locking serializes write access across processes: a database opened in
-  read-write mode is exclusive, while multiple read-only processes (or
-  multiple read-only instances within one process) can share the same
-  database directory concurrently
+- File locking serializes write access across processes: a database opened in read-write mode is exclusive, while multiple read-only processes (or multiple read-only instances within one process) can share the same database directory concurrently
 - Automatic WAL (Write-Ahead Log) for crash recovery
 - Configurable checkpoint on close
 
@@ -64,19 +59,12 @@ Open the database from persistent storage.
 
 Initializes and opens the NeuG database from the specified data directory. This method loads the graph schema, vertex/edge data, and initializes the query processor and planner.
 
-**Data Directory Structure:** Persistent state is selected by `checkpoint/CURRENT` and stored as immutable checkpoint objects, manifests, WAL epochs, and per-open runtime workspaces:
-
-```text
-data_dir/
-├── checkpoint/
-│   ├── CURRENT
-│   ├── manifests/<id>.manifest
-│   └── objects/<object-id>
-├── wal/<id>/
-└── runtime/open-<epoch>/
-```
-
-`CURRENT` atomically selects the manifest used at open. A manifest stores immutable object IDs and the `base_ts` that bounds replay of its matching WAL epoch. Unreachable staging objects or manifests are not selected. The legacy `checkpoint-N` directory format is unsupported and rejected without modification.
+**Data Directory Structure:** Checkpointed data is organized as:
+- `checkpoint/CURRENT`: atomically published manifest id
+- `checkpoint/manifests/`: immutable manifest files
+- `checkpoint/objects/`: immutable module objects
+- `wal/<id>/`: WAL epoch for each manifest
+- `runtime/open-<epoch>/`: mutable allocator workspace for an open process
 
 **Usage Example:** 
 ```cpp
@@ -88,15 +76,11 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 ```
 
 - **Parameters:**
-  - `data_dir`: Path to the graph data directory
-  - `max_thread_num`: Database query capacity; `0` selects hardware concurrency (fallback `1`), while higher inputs warn and clamp to it.
-
-    Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
-
-    In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
+  - `data_dir`: `Path` to the graph data directory
+  - `max_thread_num`: Database query capacity. 0 selects hardware concurrency (fallback 1); a positive value is honored as-is and a negative value is rejected. AP queries are single-threaded; intra-query parallelism is future work. In TP mode, it sizes the slot pool and caps service threads. Concurrent TP queries each use one slot and one thread.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
-  - `checkpoint_on_close`: Create a checkpoint (persist data) when closing
+  - `checkpoint_on_close`: Create checkpoint (persist data) when closing
 
 - **Notes:**
   - This overload is primarily designed for Python bindings.
@@ -148,12 +132,11 @@ db.Open("/path/to/data");
 // ... perform operations ...
 db.Close();  // Persist data and cleanup
 ```
+The caller must ensure no `Connection` operation is in progress.
 
 - **Notes:**
-  - This method is idempotent - calling it multiple times is safe.
-  - After closing, the same `NeugDB` instance can be opened again.
-  - Checkpoint-on-close is best effort. If it fails, `Close()` logs an error, suppresses the exception, and continues releasing resources.
-  - No connection operation may be in progress when this method is called.
+  - This method is idempotent after a successful close. If the optional shutdown checkpoint fails before consuming the live graph, `Close()` throws and leaves the database open so the caller can correct the failure and retry. A failure after consumption finishes teardown and is then rethrown; that instance cannot be reused.
+  - After closing, the database cannot be reopened. Create a new `NeugDB` instance to open the database again.
 
 - **Since:** v0.1.0
 
@@ -163,13 +146,25 @@ Check if the database is closed.
 
 - **Returns:** `true` if the database is closed.
 
+#### `HasActiveService() const`
+
+Check if a `NeugDBService` is currently associated with this database.
+
+At most one `NeugDBService` can be associated with a `NeugDB` instance at any given time. While a service is associated, local connections via `Connect()` are rejected and `Close()` fails.
+
+- **Returns:** `true` if a `NeugDBService` is associated with this database.
+
+#### `HasOpenConnections() const`
+
+Check whether the database has an open local AP connection.
+
+Used to prevent an AP-to-TP transition from invalidating a connection still held by a caller.
+
 #### `Connect()`
 
 Create a new connection to the database for query execution.
 
-Creates and returns a `Connection` object that can be used to execute Cypher
-queries against the database. Connections share the planner and global query
-cache, while each connection exclusively owns its execution slot.
+Creates and returns a `Connection` object that can be used to execute Cypher queries against the database. The connection shares the query planner and global cache with other connections from the same database, while exclusively owning its `ExecutionSlot`.
 
 **Usage Example:** 
 ```cpp
@@ -184,9 +179,9 @@ conn->Close();  // Optional: auto-closed on destruction
 - **Notes:**
   - In READ_ONLY mode, multiple connections can be created.
   - In READ_WRITE mode, only one write connection is allowed.
-  - Calling `Connection::Close()` automatically unregisters the connection.
+  - Calling `Connection::Close` automatically unregisters the connection.
   - Connections share the planner instance for efficiency.
-  - Each connection must be used by only one thread at a time.
+  - Each `Connection` must be used by only one thread at a time.
 
 - **Throws:**
   - `std::runtime_error`: if database is not open or closed
@@ -194,3 +189,12 @@ conn->Close();  // Optional: auto-closed on destruction
 - **Returns:** `std::shared_ptr`<Connection> A shared pointer to the new `Connection`
 
 - **Since:** v0.1.0
+
+#### `PrepareForServing()`
+
+Prepare an opened database for TP service without rebuilding planner.
+
+This requires local AP connections to be closed, persists and refreshes the live graph when needed, then rebuilds query runtime handles against the refreshed graph. The planner and its metadata registry are intentionally preserved so runtime extension registrations loaded in AP mode stay available in TP mode. The version manager is replaced only when a new durable checkpoint starts a fresh WAL timeline; otherwise the existing timeline is preserved.
+New connections receive slots borrowing the refreshed resources.
+The caller must close all local `Connection` objects first.
+

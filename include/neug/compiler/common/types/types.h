@@ -106,6 +106,7 @@ using relID_t = internalID_t;
 
 using cardinality_t = uint64_t;
 constexpr offset_t INVALID_LIMIT = UINT64_MAX;
+constexpr offset_t MAX_RANGE_BOUND = UINT32_MAX;
 using offset_vec_t = std::vector<offset_t>;
 struct NEUG_API internalID_t {
   offset_t offset;

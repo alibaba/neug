@@ -130,6 +130,10 @@ void PlanParser::init() {
 
   register_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
 
+  register_operator_builder(
+      std::make_unique<ops::FusedStreamVertexInsertOprBuilder>());
+  register_operator_builder(
+      std::make_unique<ops::FusedStreamEdgeInsertOprBuilder>());
   register_operator_builder(std::make_unique<ops::DataSourceOprBuilder>());
   register_operator_builder(
       std::make_unique<ops::BatchInsertVertexOprBuilder>());
@@ -408,6 +412,42 @@ static void expression_parse(const ::common::Expression& expr,
         expression_parse(parameter, params_type);
       }
     }
+    if (opr.has_udf_func()) {
+      for (const auto& parameter : opr.udf_func().parameters()) {
+        expression_parse(parameter, params_type);
+      }
+    }
+    if (opr.has_to_tuple()) {
+      for (const auto& field : opr.to_tuple().fields()) {
+        expression_parse(field, params_type);
+      }
+    }
+    if (opr.has_to_list()) {
+      for (const auto& field : opr.to_list().fields()) {
+        expression_parse(field, params_type);
+      }
+    }
+    if (opr.has_to_array()) {
+      for (const auto& field : opr.to_array().fields()) {
+        expression_parse(field, params_type);
+      }
+    }
+    if (opr.has_time_interval() && opr.time_interval().has_param()) {
+      const auto& param = opr.time_interval().param();
+      if (params_type.find(param.name()) == params_type.end()) {
+        params_type[param.name()] = parse_from_ir_data_type(param.data_type());
+      }
+    }
+  }
+}
+
+static void range_parse(const algebra::Range& range,
+                        ParamsMetaMap& params_type) {
+  if (range.has_offset()) {
+    expression_parse(range.offset(), params_type);
+  }
+  if (range.has_limit()) {
+    expression_parse(range.limit(), params_type);
   }
 }
 
@@ -417,10 +457,20 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
   for (int i = 0; i < opr_num; ++i) {
     const auto& cur_op_kind = plan.plan(i).opr().op_kind_case();
     switch (cur_op_kind) {
+    case physical::PhysicalOpr_Operator::OpKindCase::kSource: {
+      const auto& source = plan.plan(i).opr().source();
+      if (source.has_skip_rows()) {
+        expression_parse(source.skip_rows(), params_type);
+      }
+      break;
+    }
     case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
       const auto& scan_opr = plan.plan(i).opr().scan();
       if (scan_opr.has_params() && scan_opr.params().has_predicate()) {
         expression_parse(scan_opr.params().predicate(), params_type);
+      }
+      if (scan_opr.has_params() && scan_opr.params().has_limit()) {
+        range_parse(scan_opr.params().limit(), params_type);
       }
       if (scan_opr.has_idx_predicate()) {
         const auto& predicate = scan_opr.idx_predicate();
@@ -435,12 +485,28 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       if (index_scan.has_weights()) {
         expression_parse(index_scan.weights(), params_type);
       }
+      if (index_scan.has_limit()) {
+        range_parse(index_scan.limit(), params_type);
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kLimit:
+      range_parse(plan.plan(i).opr().limit().range(), params_type);
+      break;
+    case physical::PhysicalOpr_Operator::OpKindCase::kOrderBy: {
+      const auto& order_by = plan.plan(i).opr().order_by();
+      if (order_by.has_limit()) {
+        range_parse(order_by.limit(), params_type);
+      }
       break;
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
       const auto& edge_opr = plan.plan(i).opr().edge();
       if (edge_opr.has_params() && edge_opr.params().has_predicate()) {
         expression_parse(edge_opr.params().predicate(), params_type);
+      }
+      if (edge_opr.has_params() && edge_opr.params().has_limit()) {
+        range_parse(edge_opr.params().limit(), params_type);
       }
       break;
     }
@@ -457,6 +523,9 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
       if (vertex_opr.has_params() && vertex_opr.params().has_predicate()) {
         expression_parse(vertex_opr.params().predicate(), params_type);
       }
+      if (vertex_opr.has_params() && vertex_opr.params().has_limit()) {
+        range_parse(vertex_opr.params().limit(), params_type);
+      }
       break;
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kSelect: {
@@ -466,6 +535,9 @@ static void parse_params_type_impl(const physical::PhysicalPlan& plan,
     }
     case physical::PhysicalOpr_Operator::OpKindCase::kPath: {
       const auto& path_expand_opr = plan.plan(i).opr().path();
+      if (path_expand_opr.has_hop_range()) {
+        range_parse(path_expand_opr.hop_range(), params_type);
+      }
       if (path_expand_opr.base().edge_expand().has_params() &&
           path_expand_opr.base().edge_expand().params().has_predicate()) {
         expression_parse(

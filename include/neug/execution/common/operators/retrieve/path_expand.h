@@ -49,7 +49,8 @@ class PathExpand {
   static neug::result<ContextChunk>
   single_source_shortest_path_with_order_by_length_limit(
       const StorageReadInterface& graph, ContextChunk&& chunk,
-      const ShortestPathParams& params, const PRED_T& pred, int limit_upper) {
+      const ShortestPathParams& params, const PRED_T& pred,
+      size_t limit_upper) {
     sel_vec_t shuffle_offset;
     auto input_vertex_col =
         std::dynamic_pointer_cast<IVertexColumn>(chunk.get(params.start_tag));

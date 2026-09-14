@@ -5,6 +5,10 @@ Apache Parquet is a columnar storage format widely used in data engineering and 
 - **Import**: Load external Parquet files using `LOAD FROM` syntax
 - **Export**: Export query results to Parquet files using `COPY TO` syntax
 
+For the private replacement writer under development, see
+[Carquet Parquet writer](carquet_writer). The active import/export backend is
+unchanged by that implementation.
+
 ## Install Extension
 
 ```cypher
@@ -80,6 +84,16 @@ RETURN fName AS name, age AS years;
 ```
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with Parquet files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
+
+When a `WHERE` expression requires filtering after decoding, the reader still
+prunes columns: it reads the requested output columns and all columns referenced
+by the filter, including references inside nested expressions. Filter-only columns
+are removed from the result after filtering. This applies to both batch and full
+reads. In this fallback path, the predicate does not prune Parquet row groups.
+
+For the upcoming backend's implementation status and supported read paths, see
+[Carquet reader implementation](carquet_reader.md). The current SQL backend is
+unchanged by that preparation work.
 
 ## Export to Parquet
 

@@ -45,9 +45,6 @@ class OrderBy {
         queue.pop();
       }
     }
-    for (size_t k = 0; k < low; ++k) {
-      queue.pop();
-    }
     offsets.resize(queue.size());
     size_t idx = queue.size();
 
@@ -55,6 +52,8 @@ class OrderBy {
       offsets[--idx] = queue.top();
       queue.pop();
     }
+    offsets.erase(offsets.begin(),
+                  offsets.begin() + std::min(low, offsets.size()));
   }
 
   template <typename Comparer>
@@ -79,9 +78,6 @@ class OrderBy {
       }
     }
     sel_vec_t offsets;
-    for (size_t k = 0; k < low; ++k) {
-      queue.pop();
-    }
     offsets.resize(queue.size());
     size_t idx = queue.size();
 
@@ -89,6 +85,8 @@ class OrderBy {
       offsets[--idx] = queue.top();
       queue.pop();
     }
+    offsets.erase(offsets.begin(),
+                  offsets.begin() + std::min(low, offsets.size()));
 
     chunk.reshuffle(offsets);
     return chunk;

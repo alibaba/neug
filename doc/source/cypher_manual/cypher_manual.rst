@@ -13,4 +13,4 @@ Cypher Manual
    expression
    query_clauses
    explain_profile
-
+   schema_introspection

@@ -9,8 +9,7 @@
     "neug::ExecutionSlot",
     "neug::TpExecutionSlotPool",
     "neug::ExecutionSlotLease",
-    "neug::QueryResult",
-    "neug::RecordLine"
+    "neug::QueryResult"
   ],
   "class_files": {
     "neug::NeugDB": {
@@ -26,8 +25,7 @@
     "neug::QueryResult": {
       "filename": "query_result",
       "title": "QueryResult",
-      "description": "Container for query results with iterator access",
-      "include_classes": ["neug::RecordLine"]
+      "description": "Container for query results with cursor-based access"
     },
     "neug::NeugDBService": {
       "filename": "service",
