@@ -121,6 +121,10 @@ void CsvReader::read(std::shared_ptr<ReadLocalState> /*localState*/,
   const bool use_batch_read = readOpts.batch_read.get(fileSchema.options);
 
   auto read_config = config;
+  // The materializing path consumes every chunk and derives the exact row count
+  // from Context. Keep counting enabled in getDataChunkSupplier(), where COPY
+  // uses RowNum() as a storage pre-allocation hint.
+  read_config.count_rows = false;
   if (sharedState_->skipRows ||
       (!use_batch_read && !sharedState_->projectColumns.empty())) {
     // Filters need all columns; full_read applies projection after merging.
@@ -143,6 +147,8 @@ std::shared_ptr<IDataChunkSupplier> CsvReader::getDataChunkSupplier() {
         "Filtered CSV reads cannot be exposed as a chunk supplier");
   }
 
+  // COPY consumers use RowNum() to pre-allocate storage capacity.
+  config.count_rows = true;
   return std::make_shared<SequentialChunkSupplier>(
       create_chunk_suppliers(sharedState_, config));
 }
@@ -258,6 +264,8 @@ result<std::shared_ptr<EntrySchema>> CsvReader::inferSchema() {
   }
 
   CsvReadConfig sniff_config = config;
+  // Schema inference reads one sample chunk and does not use RowNum().
+  sniff_config.count_rows = false;
   sniff_config.include_columns = config.column_names;
   for (const auto& name : config.column_names) {
     sniff_config.column_types[name] = DataType(DataTypeId::kVarchar);
