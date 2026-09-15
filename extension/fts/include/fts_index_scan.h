@@ -26,6 +26,7 @@
 #include "neug/compiler/optimizer/logical_rule.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/execute/ops/retrieve/range_expression.h"
 #include "neug/execution/expression/expr.h"
 
 namespace neug::fts_ext {
@@ -38,7 +39,10 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
   std::vector<std::string> property_names;
   Value bound_query_string;
   std::unordered_map<std::string, double> weights;
-  std::optional<uint64_t> limit;
+  // Exclusive upper bound resolved from range. The index scan fetches at most
+  // this many candidates from the beginning of the ranked result set.
+  std::optional<uint64_t> bound_range;
+  std::unique_ptr<execution::ops::RangeExpression> range;
   bool ascending{true};
   int32_t node_alias;
   int32_t score_alias;
@@ -58,7 +62,7 @@ struct FTSIndexScanFuncInput final : function::CallFuncInputBase {
     bound->bound_query_string = bound_query_string;
     bound->weights = weights;
     bound->property_names = property_names;
-    bound->limit = limit;
+    bound->bound_range = bound_range;
     bound->ascending = ascending;
     bound->node_alias = node_alias;
     bound->score_alias = score_alias;
@@ -96,7 +100,8 @@ class FTSIndexScanOptimizer final : public optimizer::LogicalRule {
   void RewriteProjection(
       planner::LogicalProjection* projection,
       const std::shared_ptr<binder::ScalarFunctionExpression>& bm25,
-      bool ascending, std::optional<uint64_t> limit);
+      bool ascending, std::shared_ptr<binder::Expression> offset,
+      std::shared_ptr<binder::Expression> limit);
 
   main::ClientContext* context_{nullptr};
 };

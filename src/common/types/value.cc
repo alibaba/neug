@@ -729,6 +729,9 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     return Value::INT32(json_value.GetInt());
   }
   case DataTypeId::kInt64: {
+    if (!json_value.IsInt64()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Expected an int64 value");
+    }
     return Value::INT64(json_value.GetInt64());
   }
   case DataTypeId::kUInt32: {

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "neug/compiler/common/cast.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/utils/io/read/common/schema.h"
 #include "neug/utils/io/stream/input_stream.h"
 
@@ -57,7 +58,11 @@ struct ReadLocalState {
 struct ReadSharedState {
   ExternalSchema schema;
   std::vector<std::string> projectColumns;
+  // Complete predicate: each reader must enforce it before returning projected
+  // rows, either natively during IO or on decoded chunks. This is not merely a
+  // hint: unsupported native pushdown must not silently drop filtering.
   std::shared_ptr<::common::Expression> skipRows;
+  execution::ParamsMap parameters;
   /// Opens read streams for objects on a remote file system, keyed by
   /// (glob-resolved) path. Null for local files, which use plain file
   /// IO.

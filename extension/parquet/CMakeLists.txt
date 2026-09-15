@@ -66,6 +66,167 @@ target_link_libraries(neug_parquet_extension PRIVATE
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)
 if(BUILD_TEST)
+    # Follow the same submodule + adjacent patch convention as cppjieba.
+    # Keep upstream options local to this function and use its native target.
+    function(build_carquet_as_third_party)
+        set(_carquet_source "${CMAKE_SOURCE_DIR}/third_party/carquet")
+        set(_carquet_patch "${CMAKE_SOURCE_DIR}/third_party/carquet.patch")
+        if(NOT EXISTS "${_carquet_source}/CMakeLists.txt")
+            message(FATAL_ERROR
+                "Carquet submodule is missing. Run: git submodule update --init "
+                "--recursive third_party/carquet")
+        endif()
+        # Recheck after a patch edit or a checkout that restores the source.
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+            "${_carquet_patch}"
+            "${_carquet_source}/include/carquet/carquet.h"
+            "${_carquet_source}/src/reader/file_reader.c"
+            "${_carquet_source}/src/reader/arrow_c_export.c"
+            "${_carquet_source}/src/reader/arrow_c_read.c"
+            "${_carquet_source}/src/reader/arrow_schema_read.c"
+            "${_carquet_source}/src/thrift/parquet_types.h"
+            "${_carquet_source}/src/reader/page_reader.c"
+            "${_carquet_source}/src/reader/reader_internal.h"
+            "${_carquet_source}/src/writer/file_writer.c"
+            "${_carquet_source}/src/writer/page_writer.c"
+            "${_carquet_source}/src/writer/row_group_writer.c")
+        execute_process(
+            COMMAND git apply --check "${_carquet_patch}"
+            WORKING_DIRECTORY "${_carquet_source}"
+            RESULT_VARIABLE _patch_check OUTPUT_QUIET ERROR_QUIET)
+        if(_patch_check EQUAL 0)
+            execute_process(
+                COMMAND git apply "${_carquet_patch}"
+                WORKING_DIRECTORY "${_carquet_source}"
+                RESULT_VARIABLE _patch_result)
+            if(NOT _patch_result EQUAL 0)
+                message(FATAL_ERROR "Failed to apply carquet.patch")
+            endif()
+        else()
+            execute_process(
+                COMMAND git apply --reverse --check "${_carquet_patch}"
+                WORKING_DIRECTORY "${_carquet_source}"
+                RESULT_VARIABLE _patch_applied OUTPUT_QUIET ERROR_QUIET)
+            if(NOT _patch_applied EQUAL 0)
+                message(FATAL_ERROR "carquet.patch does not apply cleanly")
+            endif()
+        endif()
+
+        # Resolve system codecs without requiring pkg-config or .pc files.
+        # Absolute library paths also remain valid across reconfiguration.
+        foreach(_codec IN ITEMS ZSTD LZ4)
+            string(TOLOWER "${_codec}" _codec_name)
+            find_path(NEUG_CARQUET_${_codec}_INCLUDE_DIR
+                NAMES "${_codec_name}.h")
+            find_library(NEUG_CARQUET_${_codec}_LIBRARY
+                NAMES "${_codec_name}")
+            if(NOT NEUG_CARQUET_${_codec}_INCLUDE_DIR OR
+                    NOT NEUG_CARQUET_${_codec}_LIBRARY)
+                message(FATAL_ERROR
+                    "Carquet requires the ${_codec_name} development library. "
+                    "Run scripts/install_deps.sh or set CMAKE_PREFIX_PATH.")
+            endif()
+            set(${_codec}_FOUND TRUE)
+            set(${_codec}_INCLUDE_DIRS "${NEUG_CARQUET_${_codec}_INCLUDE_DIR}")
+            set(${_codec}_LIBRARIES "${NEUG_CARQUET_${_codec}_LIBRARY}")
+            # Ignore discovery results inherited from the parent or its cache.
+            set(${_codec_name}_FOUND FALSE)
+            set(CMAKE_DISABLE_FIND_PACKAGE_${_codec_name} TRUE)
+        endforeach()
+        set(PkgConfig_FOUND FALSE)
+        set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig TRUE)
+        find_package(ZLIB REQUIRED)
+        foreach(_option IN ITEMS BUILD_DEV BUILD_TESTS BUILD_EXAMPLES
+                BUILD_BENCHMARKS BUILD_ARROW_CPP_BENCHMARK BUILD_INTEROP
+                BUILD_CLI BUILD_SHARED BUILD_FUZZ BUILD_DOCS BUNDLE_DEPS
+                NATIVE_ARCH)
+            set(CARQUET_${_option} OFF)
+        endforeach()
+        set(CMAKE_DISABLE_FIND_PACKAGE_OpenMP TRUE)
+        add_subdirectory("${_carquet_source}"
+            "${CMAKE_BINARY_DIR}/third_party/carquet" EXCLUDE_FROM_ALL)
+        set_target_properties(carquet PROPERTIES
+            POSITION_INDEPENDENT_CODE ON COMPILE_WARNING_AS_ERROR OFF)
+        # NeuG's warning-as-error policy does not apply to upstream C sources.
+        if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+            target_compile_options(carquet PRIVATE -Wno-error)
+        elseif(MSVC)
+            target_compile_options(carquet PRIVATE /WX-)
+        endif()
+        add_library(neug::carquet ALIAS carquet)
+    endfunction()
+    build_carquet_as_third_party()
+
+    add_library(neug_parquet_carquet_impl STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/chunk_supplier.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/column_converter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/nested_converter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/row_group_pruner.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/scan.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/schema_converter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/sniffer.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/input_adapter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/output_adapter.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/export_writer.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/carquet/c_data_writer.cc)
+    target_include_directories(neug_parquet_carquet_impl PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_BINARY_DIR})
+    target_link_libraries(neug_parquet_carquet_impl PUBLIC neug::carquet)
+    # Stream interfaces include headers generated by neug_proto.
+    add_dependencies(neug_parquet_carquet_impl neug_proto)
+
+    add_executable(parquet_carquet_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_chunk_supplier_test.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_scan_test.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_input_adapter_test.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_output_adapter_test.cc)
+    target_compile_definitions(parquet_carquet_test PRIVATE
+        NEUG_PARQUET_DATASET_DIR="${CMAKE_SOURCE_DIR}/example_dataset")
+    target_link_libraries(parquet_carquet_test PRIVATE
+        neug::GTest
+        neug_parquet_carquet_impl
+        neug
+        ${GLOG_LIBRARIES}
+        ${Protobuf_LIBRARIES})
+    add_test(NAME parquet_carquet_test COMMAND parquet_carquet_test)
+
+    # Arrow is an independent reader for the migration-time export tests.
+    # The Carquet implementation itself has no Arrow includes or link dependency.
+    add_executable(parquet_carquet_export_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_export_writer_test.cc)
+    if(ARROW_INCLUDE_DIRS)
+        target_include_directories(parquet_carquet_export_test SYSTEM PRIVATE
+            ${ARROW_INCLUDE_DIRS})
+    endif()
+    target_link_libraries(parquet_carquet_export_test PRIVATE
+        neug::GTest
+        neug_parquet_carquet_impl
+        ${ARROW_PARQUET_LIB}
+        ${ARROW_BASE_LIB}
+        ${ARROW_BUNDLED_DEPS_LIB}
+        neug
+        ${GLOG_LIBRARIES}
+        ${Protobuf_LIBRARIES}
+        OpenSSL::SSL
+        OpenSSL::Crypto)
+    add_test(NAME parquet_carquet_export_test COMMAND parquet_carquet_export_test)
+
+    add_executable(parquet_carquet_smoke_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_smoke_test.c)
+    target_link_libraries(parquet_carquet_smoke_test PRIVATE neug::carquet)
+    add_test(NAME parquet_carquet_smoke_test COMMAND parquet_carquet_smoke_test)
+
+    add_executable(parquet_carquet_multibatch_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_multibatch_test.c)
+    target_link_libraries(parquet_carquet_multibatch_test PRIVATE neug::carquet)
+    add_test(NAME parquet_carquet_multibatch_test COMMAND parquet_carquet_multibatch_test)
+
+    add_executable(parquet_carquet_capabilities_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/carquet_capabilities_test.c)
+    target_link_libraries(parquet_carquet_capabilities_test PRIVATE neug::carquet)
+    add_test(NAME parquet_carquet_capabilities_test COMMAND parquet_carquet_capabilities_test)
+
     # arrow_dataset_objlib only exists when Arrow is built from source.
     # Under system Arrow (CI=ON), fall back to ARROW_DATASET_LIB instead.
     if(TARGET arrow_dataset_objlib)
@@ -81,4 +242,3 @@ if(BUILD_TEST)
         EXTRA_LINK_LIBS ${_parquet_test_dataset_lib} ${ARROW_PARQUET_LIB}
     )
 endif()
-

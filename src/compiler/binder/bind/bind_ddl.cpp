@@ -184,6 +184,10 @@ static void validatePrimaryKey(
         "Primary key " + pkColName +
         " does not match any of the predefined node properties.");
   }
+  if (definitions[primaryKeyIdx].hasDefaultValue()) {
+    THROW_BINDER_EXCEPTION("Primary key " + pkColName +
+                           " cannot have an explicit default value.");
+  }
   const auto& pkType = definitions[primaryKeyIdx].getType();
   if (!pkType.isInternalType()) {
     THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.ToString()));

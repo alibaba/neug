@@ -1,5 +1,17 @@
 # Third Party Licenses
 
+## Carquet
+
+The optional Parquet backend validation target builds the
+[`third_party/carquet`](third_party/carquet) submodule from
+[Carquet](https://github.com/Vitruves/carquet) under the MIT License. The
+upstream copyright and permission notice are retained in
+[`third_party/carquet/LICENSE`](third_party/carquet/LICENSE).
+
+NeuG applies [`third_party/carquet.patch`](third_party/carquet.patch) to fix
+multi-batch BOOLEAN and BYTE_STREAM_SPLIT page encoding and to add input/output
+callbacks for integration with NeuG streams in the pinned version.
+
 ## Kùzu
 
 This project incorporates source code from the [Kùzu](https://github.com/kuzudb/kuzu) project under the MIT License.
@@ -193,4 +205,3 @@ express Statement of Purpose.
  d. Affirmer understands and acknowledges that Creative Commons is not a
     party to this document and has no duty or obligation with respect to
     this CC0 or use of the Work.
-

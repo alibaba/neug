@@ -1,6 +1,6 @@
 # Data Pipeline Tutorial: Cloud Storage → Graph Query → Parquet Export
 
-This tutorial walks you through a complete data pipeline using NeuG (version >= v0.1.2):
+This tutorial walks you through a complete data pipeline using NeuG v0.1.3 or later:
 
 1. Read Parquet files directly from cloud storage (no download)
 2. Auto-create graph tables without writing DDL
@@ -8,7 +8,7 @@ This tutorial walks you through a complete data pipeline using NeuG (version >= 
 4. Export results back to Parquet (local or cloud)
 
 **Time**: ~10 minutes
-**Prerequisites**: `pip install neug==0.1.3`, internet access
+**Prerequisites**: `pip install neug==0.2.0`, internet access
 
 ---
 

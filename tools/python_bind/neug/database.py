@@ -55,6 +55,10 @@ class Database(object):
     When the database is opened in read-write mode, no other databases could open the same database directory in
     either read-only or read-write mode, inside the same process or in different processes.
 
+    Note that opening a database in read-only mode still requires a writable data directory: the lock file is
+    created on demand if missing, and read-only processes create temporary working files in their own
+    `runtime/open-<epoch>/` directory. Read-only mode cannot be used on a read-only file system or mount.
+
     When the database is closed, all the connections to the database will be closed automatically.
 
     .. code:: python
@@ -64,14 +68,14 @@ class Database(object):
         >>> conn = db.connect()
 
         >>> # Use the connection to interact with the database
-        >>> conn.execute('CREATE TABLE person(id INT64, name STRING);')
-        >>> conn.execute('CREATE TABLE knows(FROM person TO person, weight DOUBLE);')
+        >>> conn.execute('CREATE NODE TABLE Person(id INT64, name STRING);')
+        >>> conn.execute('CREATE REL TABLE KNOWS(FROM Person TO Person, weight DOUBLE);')
 
         >>> # Import data from csv file.
-        >>> conn.execute('COPY person FROM "person.csv"')
-        >>> conn.execute('COPY knows FROM "knows.csv" (from="person", to="person");')
+        >>> conn.execute('COPY Person FROM "person.csv"')
+        >>> conn.execute('COPY KNOWS FROM "knows.csv" (from="Person", to="Person");')
 
-        >>> res = conn.execute('MATCH(n) return n.id;)
+        >>> res = conn.execute('MATCH(n) RETURN n.id')
         >>> for record in res:
         >>>     print(record)
     """
@@ -94,7 +98,8 @@ class Database(object):
             Note that in memory mode, the database will not be persisted to disk, and all data will be
             lost when the program exits. In this case, the db_path should not contain any illegal characters.
         mode : str
-            Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'readwrite'.
+            Mode to open the database. Read-only: 'r', 'read', 'read-only', 'read_only'.
+            Read-write: 'w', 'rw', 'write', 'readwrite', 'read-write', 'read_write'. Default is 'read-write'.
         max_thread_num : int
             Database query capacity; 0 selects hardware concurrency (fallback 1), while higher inputs warn and clamp to it.
 
@@ -106,13 +111,11 @@ class Database(object):
             If False, no checkpoint is created automatically when close the database.
         buffer_strategy : str
             Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
-            or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'.
-            - 'InMemory' / 'M_FULL': The database will be opened fully in memory, and the changes will not be
-              persisted to disk until checkpoint is created.
-            - 'SyncToFile' / 'M_LAZY': The database will be opened in memory on demand, suitable for large databases
-              that cannot fit into memory. Also changes will not be persisted to disk until checkpoint is created.
-            - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but it will try to use huge pages for memory
-              allocation, which may improve performance for large databases.
+            or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'. This setting controls how graph data is
+            loaded into memory; it does not affect durability.
+            - 'InMemory' / 'M_FULL': Open the database fully in memory.
+            - 'SyncToFile' / 'M_LAZY': Load database pages on demand, suitable for databases that do not fit in memory.
+            - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but prefer huge pages when available.
 
         Raises
         ------
@@ -283,14 +286,14 @@ class Database(object):
         blocking : bool
             Whether to block the process after starting the database server.
         thread_num : int
-            Service thread count. 0 selects max_thread_num; explicit values cannot exceed it.
+            Service thread count. 0 selects max_thread_num; explicit values are clamped to it.
 
             Service threads run TP queries concurrently, but each query uses one execution context and one thread.
         auto_compaction : bool
-            Enable background auto-compaction while serving. Default is True.
+            Enable background auto-compaction while serving. Default is `True`.
         explicit_transaction_timeout_ms : int
             Absolute lifetime of an explicit transaction in milliseconds.
-            Default is 60000.
+            Default is `60000`.
 
         Returns
         -------
@@ -299,6 +302,10 @@ class Database(object):
 
         Raises
         ------
+        ValueError
+            If `thread_num` is negative or `explicit_transaction_timeout_ms` is not
+            positive. A `thread_num` exceeding `max_thread_num` or the CPU count is
+            clamped with a warning, not rejected.
         RuntimeError
             If there are open connections to the local database.
             If the database is already serving.
@@ -307,6 +314,7 @@ class Database(object):
         -----
         Make sure to close all connections before starting the server.
         After starting the server, no new connections to the local database will be allowed.
+        `thread_num` sizes server-side service threads; the client-side `Session(num_threads=...)` sizes its HTTP pool.
         """
         if thread_num < 0:
             raise ValueError(
@@ -416,7 +424,7 @@ class Database(object):
         """
         Close the database and all of its connections.
 
-        For a read-write database with ``checkpoint_on_close=True``, this method
+        For a read-write database with `checkpoint_on_close=True`, this method
         creates a checkpoint before releasing database resources.
         The method is idempotent after a successful close. A checkpoint failure
         before its destructive dump raises an exception and leaves the database

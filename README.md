@@ -16,17 +16,17 @@
 
 **NeuG** (pronounced "new-gee") is a high-performance, graph-native transactional database that runs embedded in your application or behind a service. It provides durable storage, explicit transactions, Cypher-native querying, and in-place graph analytics.
 
-Built on this data foundation, NeuG is **the one data index for your agentic applications**—indexing structure, semantics, and exact keywords over the same managed data. For more information, see the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
+Built on this data foundation, NeuG is **the one data index for your agentic applications**—indexing structure, semantics, and exact keywords over the same managed data. For more information, see the [NeuG documentation](https://neug.io/docs/overview/introduction/).
 
 ## News
 
-- **2026-09** — NeuG v0.2: [HNSW vector search](https://graphscope.io/neug/en/extensions/vector_search/), [BM25 full-text search](https://graphscope.io/neug/en/extensions/fts_search/) and [explicit transactions](https://graphscope.io/neug/en/transaction/transaction/)
+- **2026-09** — NeuG v0.2: [HNSW vector search](https://neug.io/docs/extensions/vector_search/), [BM25 full-text search](https://neug.io/docs/extensions/fts_search/) and [explicit transactions](https://neug.io/docs/transaction/transaction/)
 - **2026-07** — NeuG is listed in [Database of Databases](https://dbdb.io/db/neug)
 
 <details>
 <summary><b>Previous news</b></summary>
-- **2026-06** — NeuG v0.1.3: [GDS extensions](https://graphscope.io/neug/en/extensions/load_gds/), [`COPY TEMP`](https://graphscope.io/neug/en/data_io/import_data/), [Node.js client](https://graphscope.io/neug/en/reference/nodejs_api/)
-- **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://graphscope.io/neug/en/data_io/load_data/), [Parquet](https://graphscope.io/neug/en/extensions/load_parquet/) & [HTTPFS](https://graphscope.io/neug/en/extensions/load_httpfs/) extensions
+- **2026-06** — NeuG v0.1.3: [GDS extensions](https://neug.io/docs/extensions/load_gds/), [`COPY TEMP`](https://neug.io/docs/data_io/import_data/), [Node.js client](https://neug.io/docs/reference/nodejs_api/)
+- **2026-05** — NeuG v0.1.2: [`LOAD FROM`](https://neug.io/docs/data_io/load_data/), [Parquet](https://neug.io/docs/extensions/load_parquet/) & [HTTPFS](https://neug.io/docs/extensions/load_httpfs/) extensions
 - **2026-03** — NeuG v0.1 released
 - **2025-06** — GraphScope Flex, the engine foundation behind NeuG, set an [LDBC SNB Interactive Benchmark record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS
 
@@ -34,7 +34,7 @@ Built on this data foundation, NeuG is **the one data index for your agentic app
 
 ## Installation
 
-The packages support Linux and macOS on x86_64 and ARM64. Windows users can run NeuG through WSL2; native Windows support is on the roadmap. For more detailed instructions (including C++ from source), see the [installation guide](https://graphscope.io/neug/en/installation/installation).
+The packages support Linux and macOS on x86_64 and ARM64. Windows users can run NeuG through WSL2; native Windows support is on the roadmap. For more detailed instructions (including C++ from source), see the [installation guide](https://neug.io/docs/installation/installation/).
 
 <details open>
 <summary><b>Python</b> &nbsp;·&nbsp; requires Python 3.8+</summary>

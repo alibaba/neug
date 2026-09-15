@@ -9,7 +9,15 @@ on:
     paths:
       - '.github/workflows/neug-extension-test.yml'
       - 'CMakeLists.txt'
-      - 'cmake/neug_extension.cmake'
+      - 'cmake/**'
+      - '.gitmodules'
+      - 'third_party/carquet'
+      - 'third_party/carquet.patch'
+      - 'include/neug/common/**'
+      - 'src/common/**'
+      - 'tools/python_bind/tests/test_parquet_backend_contract.py'
+      - 'example_dataset/tinysnb/parquet/**'
+      - 'example_dataset/comprehensive_graph/parquet/**'
       - 'extension/**'
       - 'tools/python_bind/tests/test_hnsw_index.py'
       - 'tools/python_bind/tests/test_hnsw_index_tp.py'
@@ -77,7 +85,7 @@ jobs:
 
     - name: Setup CCache and build dependencies
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
         ccache --max-size=2G
         ccache --zero-stats
 
@@ -135,7 +143,7 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd ${GITHUB_WORKSPACE}/build
-        ctest -R parquet_extension_test -V
+        ctest --output-on-failure --no-tests=error -R '^(parquet_extension_test|parquet_carquet_.*)$'
         ctest -R httpfs_extension_test -V
         ctest -R pattern_matching_extension_test -V
         ctest -R fts_extension_test -V
@@ -152,6 +160,7 @@ jobs:
         GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         GLOG_v=10 ${GITHUB_WORKSPACE}/build/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_parquet_backend_contract.py
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet or httpfs"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load_array.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "parquet or httpfs"

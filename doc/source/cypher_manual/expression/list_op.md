@@ -28,3 +28,25 @@ ORDER BY reading;
 The result is one row per array element: `1`, `2`, `3`. Fixed-size `ARRAY`
 properties also support direct zero-based indexing, for example
 `s.readings[2]`.
+
+## `IN` and NULL Values
+
+`IN` uses three-valued logic when either operand or an element of the list is
+`NULL`:
+
+- A `NULL` list produces `NULL`.
+- An empty list produces `FALSE`, including when the searched value is `NULL`.
+- A definite match produces `TRUE`, even if another list element is `NULL`.
+- If there is no match but the list contains `NULL`, the result is `NULL`.
+- If there is no match and the list contains no `NULL`, the result is `FALSE`.
+
+| Expression | Result |
+|------------|--------|
+| `1 IN NULL` | `NULL` |
+| `NULL IN NULL` | `NULL` |
+| `1 IN []` | `FALSE` |
+| `NULL IN []` | `FALSE` |
+| `1 IN [1, 2]` | `TRUE` |
+| `1 IN [NULL, 1, 2]` | `TRUE` |
+| `2 IN [1, NULL, 3]` | `NULL` |
+| `2 IN [1, 3]` | `FALSE` |

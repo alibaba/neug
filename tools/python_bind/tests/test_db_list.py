@@ -38,6 +38,13 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_append([1, 2], 3.5);", [1.0, 2.0, 3.5]),
         ("RETURN list_append([], 1);", [1]),
         ("RETURN list_append([], NULL);", [None]),
+        ("RETURN list_append([NULL], NULL);", [None, None]),
+        ("RETURN list_append([CAST(NULL, 'INT64')], 1);", [None, 1]),
+        ("RETURN list_append(CAST(NULL, 'INT64[]'), 3);", None),
+        (
+            "RETURN list_append(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'));",
+            None,
+        ),
         ("RETURN list_append(CAST([1, 2], 'INT64[]'), 3);", [1, 2, 3]),
         ("RETURN list_concat([1, 2], [3, 4]);", [1, 2, 3, 4]),
         (
@@ -52,6 +59,24 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_concat([], [1, 2]);", [1, 2]),
         ("RETURN list_concat([1, 2], []);", [1, 2]),
         ("RETURN list_concat([], []);", []),
+        ("RETURN list_concat([], [NULL]);", [None]),
+        ("RETURN list_concat([NULL], []);", [None]),
+        ("RETURN list_concat([NULL], [NULL]);", [None, None]),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);", None),
+        (
+            "RETURN list_concat(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64[]'));",
+            None,
+        ),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), []);", None),
+        ("RETURN list_concat([], CAST(NULL, 'INT64[]'));", None),
+        (
+            "RETURN list_concat(CAST(NULL, 'INT64[]'), [CAST(NULL, 'INT64')]);",
+            None,
+        ),
+        (
+            "RETURN list_concat([CAST(NULL, 'INT64')], CAST(NULL, 'INT64[]'));",
+            None,
+        ),
         ("RETURN list_append([1, 2], NULL);", [1, 2, None]),
         (
             "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",
@@ -75,14 +100,6 @@ def test_list_append_and_concat(tmp_path):
     for query, expected in cases:
         value = list(conn.execute(query))[0][0]
         assert _nested_list(value) == expected
-
-    # A typed top-level NULL list propagates to a NULL result.
-    assert list(conn.execute("RETURN list_append(CAST(NULL, 'INT64[]'), 3);")) == [
-        [None]
-    ]
-    assert list(conn.execute("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);")) == [
-        [None]
-    ]
 
     with pytest.raises(Exception, match="first argument to be LIST or ARRAY"):
         conn.execute("RETURN list_append(1, 2);")
@@ -177,6 +194,73 @@ def test_list_cast_contract(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_in_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("1 IN NULL", None),
+        ("CAST(NULL, 'INT64') IN NULL", None),
+        ("1 IN []", False),
+        ("CAST(NULL, 'INT64') IN []", False),
+        ("1 IN [1, 2]", True),
+        ("1 IN [CAST(NULL, 'INT64'), 1, 2]", True),
+        ("2 IN [1, CAST(NULL, 'INT64'), 3]", None),
+        ("2 IN [1, 3]", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_list_contains_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("list_contains(NULL, 1)", None),
+        ("list_contains(NULL, CAST(NULL, 'INT64'))", None),
+        ("list_contains([], 1)", False),
+        ("list_contains([], CAST(NULL, 'INT64'))", False),
+        ("list_contains([1, 2], 1)", True),
+        ("list_contains([CAST(NULL, 'INT64'), 1, 2], 1)", True),
+        ("list_contains([1, CAST(NULL, 'INT64'), 3], 2)", None),
+        ("list_contains([1, 3], 2)", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_list_has_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("list_has(NULL, 1)", None),
+        ("list_has(NULL, CAST(NULL, 'INT64'))", None),
+        ("list_has([], 1)", False),
+        ("list_has([], CAST(NULL, 'INT64'))", False),
+        ("list_has([1, 2], 1)", True),
+        ("list_has([CAST(NULL, 'INT64'), 1, 2], 1)", True),
+        ("list_has([1, CAST(NULL, 'INT64'), 3], 2)", None),
+        ("list_has([1, 3], 2)", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_in_null_semantics_with_variables(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("1", "NULL", None),
+        ("CAST(NULL, 'INT64')", "NULL", None),
+        ("1", "[]", False),
+        ("CAST(NULL, 'INT64')", "[]", False),
+        ("1", "[1, 2]", True),
+        ("1", "[CAST(NULL, 'INT64'), 1, 2]", True),
+        ("2", "[1, CAST(NULL, 'INT64'), 3]", None),
+        ("2", "[1, 3]", False),
+    ]
+    for needle, values, expected in cases:
+        rows = list(
+            conn.execute(f"UNWIND [{needle}] AS needle RETURN needle IN {values};")
+        )
+        assert rows == [[expected]]
 
 
 def test_list_preserves_null_elements_during_unwind(tmp_path):

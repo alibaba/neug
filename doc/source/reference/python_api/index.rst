@@ -5,8 +5,9 @@ Python API Reference
 
 .. toctree::
    :maxdepth: 2
+   :caption: Python API
 
-   database
-   connection
-   session
-   query_result
+   Database <database>
+   Connection <connection>
+   Session <session>
+   Query Result <query_result>

@@ -27,8 +27,11 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
+#include "neug/compiler/function/export/export_stream.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/read/common/schema.h"
@@ -160,7 +163,137 @@ TEST_F(OutputStreamTest, OpenMissingDirectoryThrows) {
                exception::IOException);
 }
 
+TEST_F(OutputStreamTest, AbortAndUnclosedDestructionRemovePartialFiles) {
+  const auto abortedPath = pathOf("aborted.bin");
+  auto stream = io::openLocalOutputStream(abortedPath);
+  ASSERT_TRUE(
+      stream->Write(reinterpret_cast<const uint8_t*>("partial"), 7).ok());
+  ASSERT_TRUE(std::filesystem::exists(abortedPath));
+  stream->Abort();
+  EXPECT_FALSE(std::filesystem::exists(abortedPath));
+  EXPECT_TRUE(stream->Close().ok());
+  stream->Abort();
+
+  const auto abandonedPath = pathOf("abandoned.bin");
+  {
+    auto abandoned = io::openLocalOutputStream(abandonedPath);
+    ASSERT_TRUE(
+        abandoned->Write(reinterpret_cast<const uint8_t*>("partial"), 7).ok());
+  }
+  EXPECT_FALSE(std::filesystem::exists(abandonedPath));
+}
+
+TEST_F(OutputStreamTest, ClosedOutputCannotBeDeletedOrWrittenAgain) {
+  const auto path = pathOf("committed.bin");
+  auto stream = io::openLocalOutputStream(path);
+  ASSERT_TRUE(
+      stream->Write(reinterpret_cast<const uint8_t*>("complete"), 8).ok());
+  ASSERT_TRUE(stream->Close().ok());
+  EXPECT_TRUE(stream->Close().ok());
+  stream->Abort();
+
+  EXPECT_EQ(readBack(path), "complete");
+  auto status = stream->Write(reinterpret_cast<const uint8_t*>("x"), 1);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_IO_ERROR);
+}
+
+TEST_F(OutputStreamTest, RejectsNullNonEmptyWrite) {
+  const auto path = pathOf("null.bin");
+  auto stream = io::openLocalOutputStream(path);
+  auto status = stream->Write(nullptr, 1);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  stream->Abort();
+  EXPECT_FALSE(std::filesystem::exists(path));
+}
+
 // =============== CsvQueryExportWriter stream opening ===============
+
+class ThrowingRemoteOutput : public fsys::OutputStream {
+ public:
+  result<void> Write(const void*, int64_t) override {
+    throw std::runtime_error("injected write exception");
+  }
+  result<void> Close() override {
+    ++closeCalls;
+    if (throwOnClose) {
+      throw std::runtime_error("injected close exception");
+    }
+    return {};
+  }
+  result<void> Abort() override {
+    ++abortCalls;
+    throw std::runtime_error("injected abort exception");
+  }
+  int closeCalls = 0;
+  int abortCalls = 0;
+  bool throwOnClose = false;
+};
+
+class OutputTestFileSystem : public fsys::RemoteFileSystem {
+ public:
+  result<std::shared_ptr<fsys::RandomAccessStream>> openInputStream(
+      const std::string&) override {
+    return nullptr;
+  }
+  result<std::shared_ptr<fsys::OutputStream>> openOutputStream(
+      const std::string&) override {
+    return output;
+  }
+  result<bool> exists(const std::string&) override { return false; }
+  result<int64_t> getSize(const std::string&) override { return 0; }
+  std::shared_ptr<ThrowingRemoteOutput> output;
+};
+
+TEST_F(OutputStreamTest, RemoteAbortExceptionsNeverEscapeDestructionOrRetry) {
+  // The registry owns the factory beyond this test. Keep its state alive too.
+  static main::MetadataManager metadata;
+  main::MetadataRegistry::registerMetadata(&metadata);
+  auto remote = std::make_shared<OutputTestFileSystem>();
+  class FileSystemHandle : public fsys::FileSystem {
+   public:
+    explicit FileSystemHandle(std::shared_ptr<OutputTestFileSystem> remote)
+        : remote_(std::move(remote)) {}
+    std::vector<std::string> glob(const std::string& path) override {
+      return {path};
+    }
+    std::shared_ptr<fsys::RemoteFileSystem> getRemoteFileSystem()
+        const override {
+      return remote_;
+    }
+
+   private:
+    std::shared_ptr<OutputTestFileSystem> remote_;
+  };
+  metadata.getVFS()->Register(
+      "throwing-output", [remote](const reader::FileSchema&) {
+        return std::make_unique<FileSystemHandle>(remote);
+      });
+  reader::FileSchema schema;
+  schema.protocol = "throwing-output";
+  schema.paths = {"throwing-output://test"};
+  enum class Failure { NONE, WRITE, CLOSE };
+  for (const auto failure : {Failure::NONE, Failure::WRITE, Failure::CLOSE}) {
+    remote->output = std::make_shared<ThrowingRemoteOutput>();
+    remote->output->throwOnClose = failure == Failure::CLOSE;
+    auto stream = function::openExportOutputStream(schema);
+    if (failure == Failure::WRITE) {
+      const uint8_t value = 1;
+      EXPECT_THROW(stream->Write(&value, 1), std::runtime_error);
+      EXPECT_FALSE(stream->Close().ok());
+      EXPECT_NO_THROW(stream->Abort());
+    } else if (failure == Failure::CLOSE) {
+      EXPECT_THROW(stream->Close(), std::runtime_error);
+      EXPECT_EQ(remote->output->abortCalls, 1);
+      EXPECT_TRUE(stream->Close().ok());
+      EXPECT_NO_THROW(stream->Abort());
+    }
+    EXPECT_NO_THROW(stream.reset());
+    EXPECT_EQ(remote->output->abortCalls, 1);
+    EXPECT_EQ(remote->output->closeCalls, failure == Failure::CLOSE ? 1 : 0);
+  }
+}
 
 /// Where a RecordingOutputStream reports to; outlives the stream itself,
 /// which is destroyed when writeTable() returns.

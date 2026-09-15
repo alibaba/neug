@@ -278,7 +278,7 @@ void sssp_both_dir_with_order_by_length_limit(
     const StorageReadInterface::vertex_set_t& vertices, size_t idx, int lower,
     int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int64_t>& path_len_builder, sel_vec_t& offsets,
-    const PRED_T& pred, int limit_upper) {
+    const PRED_T& pred, size_t limit_upper) {
   vector_t<vid_t> cur;
   vector_t<vid_t> next;
   cur.push_back(v);
@@ -287,7 +287,7 @@ void sssp_both_dir_with_order_by_length_limit(
   vis[v] = 1;
 
   while (depth < upper && !cur.empty()) {
-    if (offsets.size() >= static_cast<size_t>(limit_upper)) {
+    if (offsets.size() >= limit_upper) {
       break;
     }
     if (depth >= lower) {
@@ -363,7 +363,7 @@ std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
 single_source_shortest_path_with_order_by_length_limit_impl(
     const StorageReadInterface& graph, const IVertexColumn& input,
     label_t e_label, Direction dir, int lower, int upper, const PRED_T& pred,
-    int limit_upper) {
+    size_t limit_upper) {
   label_t v_label = *input.get_labels_set().begin();
   auto vertices = graph.GetVertexSet(v_label);
   MSVertexColumnBuilder dest_col_builder(v_label);

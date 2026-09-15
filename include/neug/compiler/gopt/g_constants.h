@@ -22,7 +22,7 @@
 namespace neug {
 class Constants {
  public:
-  static inline uint64_t MAX_UPPER_BOUND = INT32_MAX;
+  static inline constexpr uint64_t MAX_UPPER_BOUND = common::MAX_RANGE_BOUND;
   static inline uint64_t ARRAY_MAX_LENGTH = 256;
   static inline neug::transaction::Transaction DEFAULT_TRANSACTION =
       neug::transaction::Transaction(
