@@ -972,7 +972,11 @@ TEST_F(ReaderTest, TestCsvStreamingRead) {
   auto sharedState =
       createSharedState("stream1.csv", columnNames, columnTypes,
                         {{"skip_rows", "1"}, {"batch_read", "false"}});
-  sharedState->stream_opener = localStreamOpener();
+  size_t stream_open_count = 0;
+  sharedState->stream_opener = [&stream_open_count](const std::string& path) {
+    ++stream_open_count;
+    return io::openLocalInputStream(path);
+  };
   auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -982,10 +986,76 @@ TEST_F(ReaderTest, TestCsvStreamingRead) {
 
   EXPECT_EQ(ctx.col_num(), 3);
   EXPECT_EQ(ctx.row_num(), 3);
+  EXPECT_EQ(stream_open_count, 1);
 }
 
-// Streaming batch read: drives the supplier's streamed row counting and
-// the istream-based CSV parser over multiple rows.
+TEST_F(ReaderTest,
+       TestCsvReadConfigPreservesPositionalAggregateInitialization) {
+  CsvReadConfig config{
+      '|',      false,   '\'',   false,
+      true,     '\\',    3,      64,
+      false,    {"id"},  {"id"}, {{"id", DataType(DataTypeId::kInt64)}},
+      {"NULL"}, {"yes"}, {"no"},
+  };
+
+  EXPECT_EQ(config.column_names, std::vector<std::string>{"id"});
+  EXPECT_EQ(config.false_values, std::vector<std::string>{"no"});
+  EXPECT_TRUE(config.count_rows);
+}
+
+TEST_F(ReaderTest, TestCsvSupplierOptionalRowCount) {
+  createCsvFile("optional_row_count.csv", "id|name\n1|Alice\n2|Bob\n");
+
+  CsvReadConfig config;
+  config.delimiter = '|';
+  config.quoting = false;
+  config.skip_rows = 1;
+  config.column_names = {"id", "name"};
+  config.include_columns = config.column_names;
+  config.column_types.emplace("id", DataType(DataTypeId::kInt32));
+  config.column_types.emplace("name", DataType(DataTypeId::kVarchar));
+  config.count_rows = true;
+
+  const auto path =
+      std::string(ARROW_READER_TEST_DIR) + "/optional_row_count.csv";
+  CSVChunkSupplier counted_supplier(path, config);
+  EXPECT_GT(counted_supplier.RowNum(), 0);
+
+  config.count_rows = false;
+  CSVChunkSupplier uncounted_supplier(path, std::move(config));
+  EXPECT_EQ(uncounted_supplier.RowNum(), -1);
+  auto chunk = uncounted_supplier.GetNextChunk();
+  ASSERT_NE(chunk, nullptr);
+  EXPECT_EQ(chunk->row_num(), 2);
+}
+
+TEST_F(ReaderTest, TestCsvSupplierWithoutRowCountHandlesEmptySources) {
+  createCsvFile("optional_row_count_empty.csv", "");
+
+  CsvReadConfig config;
+  config.count_rows = false;
+  config.column_names = {"id"};
+  config.include_columns = config.column_names;
+  config.column_types.emplace("id", DataType(DataTypeId::kInt32));
+
+  const auto path =
+      std::string(ARROW_READER_TEST_DIR) + "/optional_row_count_empty.csv";
+  CSVChunkSupplier local_supplier(path, config);
+  EXPECT_EQ(local_supplier.RowNum(), -1);
+  EXPECT_EQ(local_supplier.GetNextChunk(), nullptr);
+
+  size_t stream_open_count = 0;
+  CSVChunkSupplier stream_supplier(path, std::move(config),
+                                   [&stream_open_count, &path]() {
+                                     ++stream_open_count;
+                                     return io::openLocalInputStream(path);
+                                   });
+  EXPECT_EQ(stream_supplier.RowNum(), -1);
+  EXPECT_EQ(stream_supplier.GetNextChunk(), nullptr);
+  EXPECT_EQ(stream_open_count, 1);
+}
+
+// Streaming batch read drives the istream-based CSV parser over multiple rows.
 TEST_F(ReaderTest, TestCsvStreamingBatchRead) {
   std::string content = "id|name|score\n";
   for (int i = 0; i < 100; ++i) {

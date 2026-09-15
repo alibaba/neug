@@ -881,15 +881,18 @@ struct CsvSupplierRuntime {
     if (selected_column_indices_.empty()) {
       THROW_SCHEMA_MISMATCH("No columns selected for CSV file: " + file_path_);
     }
-    const auto [raw_row_num, has_bytes] =
-        CsvRowCountCounter(file_path, config.quoting, config.quote_char,
-                           config.double_quote, config.delimiter,
-                           config.use_threads, stream_factory_)
-            .count();
-    row_num_ = std::max<int64_t>(0, raw_row_num - rows_to_skip_);
-    if (has_bytes) {
-      reset_reader();
+    if (config.count_rows) {
+      const auto [raw_row_num, has_bytes] =
+          CsvRowCountCounter(file_path, config.quoting, config.quote_char,
+                             config.double_quote, config.delimiter,
+                             config.use_threads, stream_factory_)
+              .count();
+      row_num_ = std::max<int64_t>(0, raw_row_num - rows_to_skip_);
+      if (!has_bytes) {
+        return;
+      }
     }
+    reset_reader();
   }
 
   std::shared_ptr<DataChunk> get_next_chunk() {
@@ -962,9 +965,20 @@ struct CsvSupplierRuntime {
         // stream across worker threads.
         csv::CSVFormat stream_format = csv_format_;
         stream_format.threading(false);
-        reader_ = std::make_unique<csv::CSVReader>(
-            io::makeIoStream(stream_factory_()), stream_format);
+        auto stream = io::makeIoStream(stream_factory_());
+        if (stream->peek() == std::char_traits<char>::eof()) {
+          return;
+        }
+        reader_ =
+            std::make_unique<csv::CSVReader>(std::move(stream), stream_format);
       } else {
+        struct stat st;
+        if (stat(file_path_.c_str(), &st) != 0) {
+          THROW_IO_EXCEPTION("Failed to get file size: " + file_path_);
+        }
+        if (st.st_size == 0) {
+          return;
+        }
         reader_ = std::make_unique<csv::CSVReader>(file_path_, csv_format_);
       }
       skip_rows(*reader_);
@@ -998,7 +1012,7 @@ struct CsvSupplierRuntime {
   bool escaping_ = false;
   char escape_char_ = '\\';
   io::InputStreamFactory stream_factory_;
-  int64_t row_num_ = 0;
+  int64_t row_num_ = -1;
   int64_t current_row_number_ = 0;
   std::unique_ptr<csv::CSVReader> reader_;
 };
@@ -1246,6 +1260,9 @@ CsvReadConfig build_csv_read_config(
   options.insert(csv_options.begin(), csv_options.end());
 
   CsvReadConfig config;
+  // Batch COPY passes the supplier's RowNum() to the storage layer for
+  // pre-allocation, so it requires an exact count.
+  config.count_rows = true;
   put_boolean_option(config);
 
   if (options.count(reader_options::DELIMITER)) {
