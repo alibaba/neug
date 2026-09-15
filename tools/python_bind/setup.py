@@ -31,8 +31,9 @@ if sys.version_info < (3, 12):
 
 from pathlib import Path
 
+from setuptools import Extension
 from setuptools import find_packages  # noqa: H301
-from setuptools import Extension, setup
+from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.install_lib import install_lib as _install_lib
