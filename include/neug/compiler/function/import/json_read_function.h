@@ -39,6 +39,7 @@ struct JsonReadFunction {
         std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = jsonExecFunc;
+    readFunction->supplierFunc = jsonSupplierFunc;
     readFunction->sniffFunc = jsonSniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -65,6 +66,25 @@ struct JsonReadFunction {
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
     return ctx;
+  }
+
+  static std::shared_ptr<IDataChunkSupplier> jsonSupplierFunc(
+      std::shared_ptr<reader::ReadSharedState> state) {
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
+    state->stream_opener = makeImportStreamOpener(*fs);
+    auto optionsBuilder =
+        std::make_unique<reader::JsonOptionsBuilder>(state, true);
+    return std::make_unique<reader::JsonReader>(state,
+                                                std::move(optionsBuilder))
+        ->getDataChunkSupplier();
   }
 
   static std::shared_ptr<reader::EntrySchema> jsonSniffFunc(
@@ -107,6 +127,7 @@ struct JsonLReadFunction {
         std::vector<common::DataTypeId>{common::DataTypeId::kVarchar};
     auto readFunction = std::make_unique<ReadFunction>(name, typeIDs);
     readFunction->execFunc = jsonLExecFunc;
+    readFunction->supplierFunc = jsonLSupplierFunc;
     readFunction->sniffFunc = jsonLSniffFunc;
     function_set functionSet;
     functionSet.push_back(std::move(readFunction));
@@ -133,6 +154,25 @@ struct JsonLReadFunction {
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
     return ctx;
+  }
+
+  static std::shared_ptr<IDataChunkSupplier> jsonLSupplierFunc(
+      std::shared_ptr<reader::ReadSharedState> state) {
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
+    state->stream_opener = makeImportStreamOpener(*fs);
+    auto optionsBuilder =
+        std::make_unique<reader::JsonOptionsBuilder>(state, false);
+    return std::make_unique<reader::JsonReader>(state,
+                                                std::move(optionsBuilder))
+        ->getDataChunkSupplier();
   }
 
   static std::shared_ptr<reader::EntrySchema> jsonLSniffFunc(

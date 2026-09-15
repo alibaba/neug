@@ -142,6 +142,30 @@ void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
   }
 }
 
+std::shared_ptr<IDataChunkSupplier> ArrowReader::getDataChunkSupplier() {
+  if (!sharedState || !fileSystem) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("ArrowReader state or filesystem is null");
+  }
+  if (sharedState->skipRows) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Filtered Parquet reads cannot be exposed as a chunk supplier");
+  }
+
+  auto scanner = createScanner(fileSystem);
+  auto row_num_result = scanner->CountRows();
+  if (!row_num_result.ok()) {
+    THROW_IO_EXCEPTION("Failed to count rows via scanner: " +
+                       row_num_result.status().message());
+  }
+  auto batch_reader_result = scanner->ToRecordBatchReader();
+  if (!batch_reader_result.ok()) {
+    THROW_IO_EXCEPTION("Failed to create RecordBatchReader from scanner: " +
+                       batch_reader_result.status().message());
+  }
+  return std::make_shared<RecordBatchChunkSupplier>(
+      batch_reader_result.ValueOrDie(), row_num_result.ValueOrDie());
+}
+
 std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
     std::shared_ptr<arrow::fs::FileSystem> fs) {
   if (!fs) {
