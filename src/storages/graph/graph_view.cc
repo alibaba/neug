@@ -145,6 +145,7 @@ EdgeTableView::EdgeTableView(EdgeTable& table)
       out_csr_(table.out_csr_.get()),
       in_csr_(table.in_csr_.get()),
       table_idx_(&table.table_idx_),
+      needs_csr_normalization_(&table.needs_csr_normalization_),
       view_(*table.table()) {}
 
 CsrView EdgeTableView::GetOutgoingView(timestamp_t ts) const {
@@ -200,6 +201,9 @@ EdgeDataAccessor EdgeTableView::GetDataAccessor(
 std::pair<int32_t, const void*> EdgeTableView::AddEdge(
     vid_t src_lid, vid_t dst_lid, const std::vector<Value>& properties,
     timestamp_t ts, Allocator& alloc, bool insert_safe) {
+  if (ts != 0) {
+    needs_csr_normalization_->store(true);
+  }
   return internal::insert_edge_into_csr_internal(
       *out_csr_, *in_csr_, view_, *table_idx_, *meta_, src_lid, dst_lid,
       properties, ts, alloc, insert_safe);

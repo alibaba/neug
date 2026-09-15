@@ -27,6 +27,7 @@
 #include "neug/storages/csr/csr_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/storages/module_descriptor.h"
 #include "unittest/utils.h"
 
@@ -995,6 +996,8 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator, false);
   }
+  EXPECT_FALSE(this->edge_table->NeedsCompaction(std::nullopt));
+  EXPECT_TRUE(this->edge_table->NeedsCompaction(std::string("data")));
   this->ExpectBundledStats(edge_num);
   auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
   auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
@@ -1020,8 +1023,10 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
       delete_count++;
     }
   }
+  EXPECT_TRUE(this->edge_table->NeedsCompaction(std::nullopt));
   this->ExpectBundledStats(edge_num - delete_count);
   this->edge_table->Compact(std::nullopt);
+  EXPECT_FALSE(this->edge_table->NeedsCompaction(std::nullopt));
   this->ExpectBundledStats(edge_num - delete_count);
   size_t edge_count = 0;
   for (size_t i = 0; i < dst_lids.size(); ++i) {
@@ -1031,6 +1036,64 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     }
   }
   EXPECT_EQ(edge_count, edge_num - delete_count);
+}
+
+TEST_F(EdgeTableTest, LegacyCheckpointUsesConservativeCompactionFallback) {
+  auto ckp = make_checkpoint(workspace());
+  auto edge_schema =
+      schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_);
+
+  const auto needs_compaction_without_scalar = [&](uint64_t base_timestamp) {
+    EdgeTable table(edge_schema);
+    table.Init(ckp, MemoryLevel::kInMemory);
+
+    ModuleBroker store;
+    store.SetModule(EdgeTable::KeyOutCsr("person", "create0", "comment"),
+                    table.TakeOutCsr());
+    store.SetModule(EdgeTable::KeyInCsr("person", "create0", "comment"),
+                    table.TakeInCsr());
+
+    CheckpointManifest legacy_manifest(base_timestamp);
+    auto reopened = EdgeTable::OpenFrom(
+        ckp, edge_schema, store, legacy_manifest, MemoryLevel::kInMemory);
+    return reopened.NeedsCompaction(std::nullopt);
+  };
+
+  EXPECT_FALSE(needs_compaction_without_scalar(0));
+  EXPECT_TRUE(needs_compaction_without_scalar(7));
+}
+
+TEST_F(EdgeTableTest, CompactionStateTracksMutationEntrypoints) {
+  auto ckp = make_checkpoint(workspace());
+  this->InitIndexers(*ckp, 2, 2);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  this->OpenEdgeTableInMemory(ckp, CheckpointManifest(), 2, 2);
+  Allocator allocator(MemoryLevel::kInMemory, allocator_dir_);
+
+  auto inserted =
+      this->edge_table->AddEdge(0, 1, {Value::INT32(1)}, 0, allocator, false);
+  ASSERT_EQ(inserted.first, 0);
+  EXPECT_FALSE(this->edge_table->NeedsCompaction(std::nullopt));
+
+  this->edge_table->UpdateEdgeProperty(0, 1, 0, 0, 0, Value::INT32(2), 0);
+  EXPECT_FALSE(this->edge_table->NeedsCompaction(std::nullopt));
+  this->edge_table->UpdateEdgeProperty(0, 1, 0, 0, 0, Value::INT32(3), 7);
+  EXPECT_TRUE(this->edge_table->NeedsCompaction(std::nullopt));
+  this->edge_table->Compact(std::nullopt);
+
+  this->edge_table->BatchDeleteEdges(std::vector<vid_t>{0},
+                                     std::vector<vid_t>{1});
+  EXPECT_TRUE(this->edge_table->NeedsCompaction(std::nullopt));
+  this->edge_table->Compact(std::nullopt);
+
+  this->edge_table->BatchDeleteEdges(
+      std::vector<std::pair<vid_t, int32_t>>{{0, 0}},
+      std::vector<std::pair<vid_t, int32_t>>{{1, 0}});
+  EXPECT_TRUE(this->edge_table->NeedsCompaction(std::nullopt));
+  this->edge_table->Compact(std::nullopt);
+
+  this->edge_table->BatchDeleteVertices(std::set<vid_t>{0}, {});
+  EXPECT_TRUE(this->edge_table->NeedsCompaction(std::nullopt));
 }
 
 TEST_F(EdgeTableTest, TestUpdateEdgeData) {

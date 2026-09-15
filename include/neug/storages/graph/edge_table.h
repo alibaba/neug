@@ -180,6 +180,11 @@ class NEUG_API EdgeTable {
                           int32_t ie_offset, int32_t col_id,
                           const Value& new_prop, timestamp_t ts);
 
+  bool NeedsCompaction(
+      const std::optional<std::string>& sort_key_for_nbr) const noexcept {
+    return sort_key_for_nbr.has_value() || needs_csr_normalization_.load();
+  }
+
   void Compact(const std::optional<std::string>& sort_key_for_nbr);
 
   size_t PropTableSize() const;
@@ -208,6 +213,13 @@ class NEUG_API EdgeTable {
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};
+  // DirtyTracker answers whether this table must be checkpointed; this bit
+  // answers whether its CSR contents need an O(E) normalization scan. The
+  // states are independent: timestamp-zero COPY is dirty but normalized, while
+  // an incremental checkpoint clears dirtiness without removing MVCC
+  // timestamps or tombstones. Keep this state EdgeTable-local and persist it
+  // across reopen so COPY can skip redundant compaction safely.
+  std::atomic<bool> needs_csr_normalization_{false};
 
   friend class PropertyGraph;
   friend class EdgeTableView;

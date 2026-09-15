@@ -472,6 +472,34 @@ def test_copy_from_edge_finalizes_sort_key_before_checkpoint(tmp_path):
     db.close()
 
 
+def test_copy_from_plain_edge_survives_checkpoint_reopen(tmp_path):
+    db_dir = tmp_path / "copy_plain_edge"
+    people_csv = tmp_path / "plain_people.csv"
+    edges_csv = tmp_path / "plain_edges.csv"
+    people_csv.write_text("1\n2\n3\n4\n")
+    edges_csv.write_text("1,2\n1,3\n2,4\n")
+
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE follows(FROM person TO person, MANY_TO_MANY);")
+    conn.execute(f'COPY person FROM "{people_csv}" (header=false);')
+    conn.execute(f'COPY follows FROM "{edges_csv}" (header=false, delim=",");')
+    assert sorted(
+        list(conn.execute("MATCH (a:person)-[:follows]->(b:person) RETURN a.id, b.id;"))
+    ) == [[1, 2], [1, 3], [2, 4]]
+    conn.close()
+    db.close()
+
+    db = Database(db_path=str(db_dir), mode="r")
+    conn = db.connect()
+    assert sorted(
+        list(conn.execute("MATCH (a:person)-[:follows]->(b:person) RETURN a.id, b.id;"))
+    ) == [[1, 2], [1, 3], [2, 4]]
+    conn.close()
+    db.close()
+
+
 @pytest.mark.skip(reason="TODO(zhanglei,lexiao): get view from invalid vid")
 def test_join_queries(modern_graph):
     conn = modern_graph

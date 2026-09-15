@@ -276,6 +276,30 @@ TEST_F(GraphViewTest, EdgeIncomingMirrorsOutgoing) {
   EXPECT_EQ(out_count, 2u);
 }
 
+TEST_F(GraphViewTest, AddEdgeTracksCsrNormalizationState) {
+  GraphView view(*graph_);
+  label_t person_label = view.schema().get_vertex_label_id("person");
+  label_t knows_label = view.schema().get_edge_label_id("knows");
+  auto& edge_table =
+      graph_->get_edge_table(person_label, person_label, knows_label);
+
+  ASSERT_FALSE(edge_table.NeedsCompaction(std::nullopt));
+
+  int32_t edge_offset = 0;
+  const void* edge_property = nullptr;
+  ASSERT_TRUE(view.AddEdge(person_label, 2, person_label, 0, knows_label,
+                           {neug::Value::DOUBLE(0.8)}, 0, *alloc_, edge_offset,
+                           edge_property)
+                  .ok());
+  EXPECT_FALSE(edge_table.NeedsCompaction(std::nullopt));
+
+  ASSERT_TRUE(view.AddEdge(person_label, 0, person_label, 2, knows_label,
+                           {neug::Value::DOUBLE(0.9)}, 7, *alloc_, edge_offset,
+                           edge_property)
+                  .ok());
+  EXPECT_TRUE(edge_table.NeedsCompaction(std::nullopt));
+}
+
 TEST_F(GraphViewTest, EdgeDataAccessorByIdAndName) {
   GraphView view(*graph_);
   label_t person_label = view.schema().get_vertex_label_id("person");

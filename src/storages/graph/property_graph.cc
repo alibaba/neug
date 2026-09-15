@@ -1024,7 +1024,10 @@ void PropertyGraph::Compact() {
         }
         const auto& sort_key_for_nbr =
             schema_.get_sort_key_for_nbr(src_label_i, dst_label_i, e_label_i);
-        edge_tables_.at(index).Compact(sort_key_for_nbr);
+        auto& edge_table = edge_tables_.at(index);
+        if (edge_table.NeedsCompaction(sort_key_for_nbr)) {
+          edge_table.Compact(sort_key_for_nbr);
+        }
       }
     }
   }

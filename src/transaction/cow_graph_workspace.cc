@@ -58,7 +58,11 @@ void CowGraphWorkspace::FinalizeBulkTablesForCheckpoint() {
         graph.schema().parse_edge_label(edge_triplet_id);
     const auto& sort_key =
         graph.schema().get_sort_key_for_nbr(src_label, dst_label, edge_label);
-    graph.get_edge_table_by_index(edge_triplet_id).Compact(sort_key);
+    auto& edge_table = graph.get_edge_table_by_index(edge_triplet_id);
+    if (!edge_table.NeedsCompaction(sort_key)) {
+      continue;
+    }
+    edge_table.Compact(sort_key);
   }
 }
 
