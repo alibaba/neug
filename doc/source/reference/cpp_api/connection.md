@@ -102,7 +102,7 @@ if (result.has_value()) {
 Begin a Connection-owned embedded AP explicit transaction.
 
 A read-only transaction pins one published read view across `Query()` calls. A read-write transaction owns one private COW view; successful writes are visible to later queries on this `Connection` and are published together by `Commit()`. Read-write AP transactions hold exclusive AP admission until a terminal operation.
-Persistent COPY FROM statements may be grouped with ordinary DML and DDL in a read-write transaction and are published by one checkpoint at `Commit()`. `LOAD FROM` may drive ordinary DML in a read-write transaction; graph-read-only `LOAD FROM` and `COPY TO` statements may run in either transaction mode. `COPY TO` output is external and is not removed by rollback. `COPY TEMP` may be mixed with ordinary DML/DDL and persistent `COPY FROM` in a read-write transaction; only persistent changes are written to disk.
+Persistent COPY FROM statements may be grouped with ordinary DML and DDL in a read-write transaction and are published by one checkpoint at `Commit()` (since v0.2.1; earlier versions rejected COPY in an explicit transaction). `LOAD FROM` may drive ordinary DML in a read-write transaction; graph-read-only `LOAD FROM` and `COPY TO` statements may run in either transaction mode. `COPY TO` output is external and is not removed by rollback. `COPY TEMP` may be mixed with ordinary DML/DDL and persistent `COPY FROM` in a read-write transaction; only persistent changes are written to disk.
 
 - **Parameters:**
   - `mode`

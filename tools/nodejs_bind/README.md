@@ -163,8 +163,9 @@ conn.rollback();
 `hasActiveTransaction` remains true after a failed statement because the
 connection is rollback-only. Call `rollback()` before issuing another query.
 Nested transactions, read-to-write upgrades, Cypher `BEGIN`/`COMMIT`/`ROLLBACK`,
-and explicit-transaction `COPY TO`, `COPY TEMP`, batch, checkpoint, procedure,
-and temporary-schema operations are not supported. Embedded read-write
-transactions may group persistent `COPY FROM` statements into one checkpoint;
-reads may be interleaved, but ordinary DML or DDL writes cannot be mixed with
-those COPY statements.
+checkpoint/maintenance, and mutating procedure calls are not supported. Since
+v0.2.1, embedded read-write transactions may group persistent `COPY FROM`
+statements with ordinary DML and DDL into one checkpoint at `commit()`;
+graph-read-only `LOAD FROM`/`COPY TO` and `COPY TEMP` may run in either
+transaction mode, and `COPY TEMP` may be mixed with durable writes (only
+persistent changes reach disk).

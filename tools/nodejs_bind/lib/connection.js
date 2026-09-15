@@ -77,8 +77,8 @@ class Connection {
    * @param {{readOnly?: boolean}} [options={}] Transaction options.
    * @param {boolean} [options.readOnly=false] Pin one read view and reject
    *   writes. By default, the transaction uses a private COW write view.
-   *   Persistent COPY FROM statements may be grouped into one checkpoint at
-   *   commit, but cannot be mixed with ordinary DML or DDL writes.
+   *   Since v0.2.1, persistent COPY FROM statements may be grouped with
+   *   ordinary DML/DDL into one checkpoint at commit.
    * @throws {Error} If the connection is closed or already has an active
    *   transaction.
    */

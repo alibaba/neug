@@ -87,6 +87,8 @@ See the [Python](../reference/python_api/connection.md),
 
 ### Group persistent `COPY FROM` statements
 
+> **Version Note:** Since v0.2.1, an Embedded read-write explicit transaction can group persistent `COPY ... FROM` statements — and interleave them with reads, ordinary DML/DDL, and `COPY TEMP` — into a single checkpoint published at `commit()`. In earlier versions a persistent `COPY ... FROM` ran only as an auto-commit statement that published its own checkpoint, and explicit transactions rejected `COPY`.
+
 An Embedded read-write transaction can group multiple persistent
 `COPY ... FROM` statements. They share one private COW view, so a later COPY can
 use vertices loaded by an earlier COPY and reads on the same `Connection` see
