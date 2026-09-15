@@ -39,6 +39,12 @@ function(set_extension_properties target_name output_name extension_name)
             "@loader_path/../../neug/.dylibs"
             "@loader_path/../.."
             "@loader_path")
+        # Keep the build-time dependency discoverable by delocate. During wheel
+        # repair delocate copies mimalloc into neug/.dylibs, rewrites the load
+        # command, and removes this absolute build RPATH.
+        if(WITH_MIMALLOC AND TARGET mimalloc)
+            list(APPEND _ext_rpath "$<TARGET_FILE_DIR:mimalloc>")
+        endif()
     else()
         set(_ext_rpath "$ORIGIN/../..")
     endif()
@@ -76,6 +82,15 @@ function(build_extension_lib ext_name)
     SET(EXTENSION_LIB_NAME "${ext_name}" PARENT_SCOPE)
     SET(EXTENSION_LIB_NAME "${ext_name}")
     set_extension_properties(neug_${EXTENSION_LIB_NAME}_extension ${EXTENSION_LIB_NAME} ${ext_name})
+
+    if(APPLE)
+        # Extensions inherit NeuG's public link dependencies. Drop the ones
+        # they do not actually use (notably OpenSSL for fts/vector_search), so
+        # a downloaded extension does not require libraries absent from the
+        # already-published core wheel.
+        target_link_options(neug_${EXTENSION_LIB_NAME}_extension PRIVATE
+            "LINKER:-dead_strip_dylibs")
+    endif()
 endfunction()
 
 # Build test executable by compiling extension sources directly (no link to

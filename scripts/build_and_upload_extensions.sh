@@ -183,7 +183,19 @@ for ext_file in ${EXT_FILES}; do
     
     # Strip debug symbols to reduce file size
     if command -v strip &> /dev/null; then
-        strip ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
+        if [ "$(uname -s)" = "Darwin" ]; then
+            # Keep global and undefined symbols required by the host libneug.
+            strip -x ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
+        else
+            strip ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
+        fi
+    fi
+
+    # install_name_tool and strip invalidate an existing Mach-O signature.
+    # Ad-hoc sign the final standalone extension so macOS can load it from an
+    # already-installed NeuG wheel.
+    if [ "$(uname -s)" = "Darwin" ] && command -v codesign &> /dev/null; then
+        codesign --force --sign - ${PACKAGE_DIR}/${original_name}
     fi
     echo "Packaged and stripped: ${original_name}"
     

@@ -22,7 +22,6 @@ import json
 import os
 import shutil
 import sys
-from collections import Counter
 from datetime import date
 from datetime import datetime
 from pathlib import Path
@@ -753,10 +752,11 @@ class TestLoadArray:
 
         rows = list(
             self.conn.execute(
-                f'LOAD FROM "{list_path}" ' "UNWIND values AS value RETURN value"
+                f'LOAD FROM "{list_path}" '
+                "UNWIND values AS value RETURN value ORDER BY value"
             )
         )
-        assert Counter(row[0] for row in rows) == Counter([1, None, 3, 4, 5])
+        assert rows == [[1], [3], [4], [5], [None]]
 
         rows = list(
             self.conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id')
