@@ -43,7 +43,7 @@ Table::Table(const std::vector<std::string>& col_names,
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
     assert(i < property_types.size());
-    columns_[col_id] = CreateColumn(property_types[i]);
+    columns_[col_id] = CreatePropertyColumn(property_types[i]);
   }
   columns_.resize(col_id_map_.size());
 }
@@ -121,7 +121,8 @@ void Table::add_columns(Checkpoint& ckp,
     int col_id = col_names_.size();
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
-    columns_[col_id] = std::unique_ptr<ColumnBase>(CreateColumn(col_types[i]));
+    columns_[col_id] =
+        std::unique_ptr<ColumnBase>(CreatePropertyColumn(col_types[i]));
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
     columns_[i]->Open(ckp, ModuleDescriptor(), memory_level);
