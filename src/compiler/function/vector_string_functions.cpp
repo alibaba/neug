@@ -22,8 +22,11 @@
 
 #include "neug/compiler/function/string/vector_string_functions.h"
 
+#include <string_view>
+
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
+#include "neug/execution/expression/exprs/logical_expr.h"
 
 #include "neug/common/types/value.h"
 
@@ -32,28 +35,77 @@ using namespace neug::common;
 namespace neug {
 namespace function {
 
+namespace {
+
+std::string escapeRegexLiteral(std::string_view value) {
+  constexpr std::string_view regexMetacharacters = R"(\.^$|()[]{}*+?)";
+  std::string escaped;
+  escaped.reserve(value.size());
+  for (const auto character : value) {
+    if (regexMetacharacters.find(character) != std::string_view::npos) {
+      escaped.push_back('\\');
+    }
+    escaped.push_back(character);
+  }
+  return escaped;
+}
+
+neug::Value evaluateStringPredicate(const std::vector<neug::Value>& args,
+                                    const std::string& prefix,
+                                    const std::string& suffix,
+                                    const std::string& functionName) {
+  if (args.size() != 2) {
+    THROW_RUNTIME_ERROR(functionName + ": expect exactly 2 arguments, got " +
+                        std::to_string(args.size()));
+  }
+  if (args[0].IsNull() || args[1].IsNull()) {
+    return neug::Value(DataType::BOOLEAN);
+  }
+  if (args[0].type().id() != DataTypeId::kVarchar ||
+      args[1].type().id() != DataTypeId::kVarchar) {
+    THROW_RUNTIME_ERROR(functionName + ": inputs must be strings");
+  }
+  auto pattern =
+      prefix + escapeRegexLiteral(neug::StringValue::Get(args[1])) + suffix;
+  return execution::evaluate_regex(args[0], neug::Value::STRING(pattern));
+}
+
+}  // namespace
+
 function_set ContainsFunction::getFunctionSet() {
   function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
+  functionSet.emplace_back(make_unique<NeugScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
-      DataTypeId::kBoolean, nullptr, nullptr));
+      DataTypeId::kBoolean, ContainsFunction::Exec));
   return functionSet;
+}
+
+neug::Value ContainsFunction::Exec(const std::vector<neug::Value>& args) {
+  return evaluateStringPredicate(args, ".*", ".*", name);
 }
 
 function_set EndsWithFunction::getFunctionSet() {
   function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
+  functionSet.emplace_back(make_unique<NeugScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
-      DataTypeId::kBoolean, nullptr, nullptr));
+      DataTypeId::kBoolean, EndsWithFunction::Exec));
   return functionSet;
+}
+
+neug::Value EndsWithFunction::Exec(const std::vector<neug::Value>& args) {
+  return evaluateStringPredicate(args, ".*", "$", name);
 }
 
 function_set StartsWithFunction::getFunctionSet() {
   function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
+  functionSet.emplace_back(make_unique<NeugScalarFunction>(
       name, std::vector<DataTypeId>{DataTypeId::kVarchar, DataTypeId::kVarchar},
-      DataTypeId::kBoolean, nullptr, nullptr));
+      DataTypeId::kBoolean, StartsWithFunction::Exec));
   return functionSet;
+}
+
+neug::Value StartsWithFunction::Exec(const std::vector<neug::Value>& args) {
+  return evaluateStringPredicate(args, "^", ".*", name);
 }
 
 function_set UpperFunction::getFunctionSet() {

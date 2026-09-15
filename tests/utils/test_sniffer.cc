@@ -56,5 +56,26 @@ TEST_F(SnifferTest, TestSniffBasic) {
             ::common::PrimitiveType::DT_DOUBLE);
 }
 
+TEST_F(SnifferTest, TestSniffDoesNotCountRows) {
+  createCsvFile("test_sniff_without_row_count.csv",
+                "id|name\n"
+                "1|Alice\n"
+                "2|Bob\n");
+
+  auto sharedState =
+      createSharedState("test_sniff_without_row_count.csv", {}, {});
+  size_t stream_open_count = 0;
+  sharedState->stream_opener = [&stream_open_count](const std::string& path) {
+    ++stream_open_count;
+    return io::openLocalInputStream(path);
+  };
+
+  auto reader = createCsvReader(sharedState);
+  auto schema = reader::CsvSniffer(reader).sniff();
+
+  ASSERT_TRUE(schema.has_value());
+  EXPECT_EQ(stream_open_count, 2);
+}
+
 }  // namespace test
 }  // namespace neug

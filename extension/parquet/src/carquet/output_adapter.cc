@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the License.
  */
 
-#include "output_adapter.h"
+#include "carquet/output_adapter.h"
 
 #include <cstdint>
 #include <limits>

@@ -46,9 +46,18 @@ std::string edge_to_json_string(const EdgeRecord& edge,
 
 std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
+// Preserves COPY input cardinality with a head-only, constant-space result.
+Context create_copy_result(size_t rows_read);
+
 std::shared_ptr<IDataChunkSupplier> create_data_chunk_supplier(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings);
+
+// Accumulates consumed input rows; rows_read must outlive the supplier.
+std::shared_ptr<IDataChunkSupplier> create_mapped_data_chunk_supplier(
+    std::shared_ptr<IDataChunkSupplier> supplier,
+    const std::vector<std::pair<int32_t, std::string>>& prop_mappings,
+    size_t& rows_read);
 
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 

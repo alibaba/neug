@@ -35,6 +35,8 @@ CSVPropertyGraphLoader::createVertexChunkSupplier(
   auto vertex_property_types = schema_.get_vertex_properties(v_label);
 
   CsvReadConfig config;
+  // The graph loader uses RowNum() to reserve vertex storage up front.
+  config.count_rows = true;
   fillVertexReaderMeta(v_label, v_label_name, v_file, loading_config,
                        vertex_property_names, vertex_property_types, pk_type,
                        pk_name, pk_ind, config);
@@ -55,6 +57,8 @@ CSVPropertyGraphLoader::createEdgeChunkSupplier(
   auto dst_pk_type =
       std::get<0>(schema_.get_vertex_primary_key(dst_label_id)[0]);
   CsvReadConfig config;
+  // The graph loader uses RowNum() to reserve edge working buffers up front.
+  config.count_rows = true;
   fillEdgeReaderMeta(src_label_id, dst_label_id, e_label_id,
                      schema_.get_edge_label_name(e_label_id), e_file,
                      loading_config_, edge_property_names, edge_property_types,
