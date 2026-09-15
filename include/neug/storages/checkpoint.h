@@ -125,9 +125,7 @@ class Checkpoint {
 
   /// Object paths committed via object_writer(), indexed by
   /// ObjectSlice.object_id.
-  const std::vector<std::string>& object_table() const {
-    return object_table_;
-  }
+  const std::vector<std::string>& object_table() const { return object_table_; }
 
  private:
   friend class CheckpointManager;
