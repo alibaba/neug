@@ -605,6 +605,11 @@ using StringColumn = TypedColumn<std::string_view>;
 
 std::unique_ptr<ColumnBase> CreateColumn(DataType type);
 
+/// Create a property column: fixed-length types use the chunked layout
+/// (ChunkedColumn) for chunk-granular COW/checkpoint; variable-length and
+/// composite types (varchar/array/list) fall back to CreateColumn.
+std::unique_ptr<ColumnBase> CreatePropertyColumn(DataType type);
+
 class RefColumnBase {
  public:
   enum class ColType {

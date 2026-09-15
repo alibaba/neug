@@ -19,9 +19,11 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "neug/storages/checkpoint_file_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/chunk/object_writer.h"
 #include "neug/storages/module_descriptor.h"
 
 namespace neug {
@@ -111,6 +113,20 @@ class Checkpoint {
     return file_mgr_->MaterializeObject(abs_path);
   }
 
+  /// Checkpoint-scoped writer that packs chunk blocks into immutable objects.
+  /// Lazily created; meaningful only for a staging checkpoint. Each committed
+  /// object's path is appended to object_table_, and ObjectSlice.object_id is
+  /// the index into that table.
+  ObjectWriter& object_writer();
+
+  /// Seal any partial object accumulated by object_writer(). Call before the
+  /// manifest is persisted so every appended block has a committed object.
+  void SealObjects();
+
+  /// Object paths committed via object_writer(), indexed by
+  /// ObjectSlice.object_id.
+  const std::vector<std::string>& object_table() const { return object_table_; }
+
  private:
   friend class CheckpointManager;
   friend class LegacyCheckpointMigrator;
@@ -138,6 +154,8 @@ class Checkpoint {
   uint64_t id_;
   CheckpointManifest manifest_;
   std::unique_ptr<CheckpointFileManager> file_mgr_;
+  std::unique_ptr<ObjectWriter> object_writer_;
+  std::vector<std::string> object_table_;
 };
 
 /// File name prefix for the allocator with @p allocator_id under
