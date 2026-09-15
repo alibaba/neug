@@ -67,6 +67,17 @@ def _profile_operator_names(result):
     ]
 
 
+def add_fts_pattern_fanout(connection):
+    connection.execute(
+        "CREATE (:Article {id: 7, title: 'additional reference', "
+        "category: 'reference'});"
+    )
+    connection.execute(
+        "MATCH (article:Article {id: 1}), (cited:Article {id: 7}) "
+        "CREATE (article)-[:CITES]->(cited);"
+    )
+
+
 @pytest.fixture()
 def fts_database(tmp_path):
     db = Database(db_path=str(tmp_path / "fts_db"), mode="w")
@@ -578,6 +589,38 @@ def test_graph_candidates_receive_exact_fts_topk(fts_hybrid_database):
     )
     assert [row[0] for row in actual] == [row[0] for row in expected]
     assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+
+
+def test_fts_pattern_outputs_with_limit(fts_hybrid_database):
+    add_fts_pattern_fanout(fts_hybrid_database)
+    result = fts_hybrid_database.execute(
+        "PROFILE MATCH (article:Article)-[:CITES]->(cited:Article) "
+        "RETURN article.id, cited.id, "
+        "bm25(article.title, 'database') AS score LIMIT 2;"
+    )
+    rows = list(result)
+    assert {(row[0], row[1]) for row in rows} == {(1, 6), (1, 7)}
+    assert rows[0][2] == pytest.approx(rows[1][2])
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "LimitOpr" in operators
+
+
+def test_fts_pattern_outputs_with_order_by_limit(fts_hybrid_database):
+    add_fts_pattern_fanout(fts_hybrid_database)
+    result = fts_hybrid_database.execute(
+        "PROFILE MATCH (article:Article)-[:CITES]->(cited:Article) "
+        "RETURN article.id, cited.id, "
+        "bm25(article.title, 'database') AS score "
+        "ORDER BY score ASC LIMIT 2;"
+    )
+    rows = list(result)
+    assert {(row[0], row[1]) for row in rows} == {(1, 6), (1, 7)}
+    assert rows[0][2] == pytest.approx(rows[1][2])
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "OrderByOpr" not in operators
+    assert "LimitOpr" not in operators
 
 
 def test_show_and_drop_fts_index(fts_database):
