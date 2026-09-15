@@ -102,7 +102,7 @@ if (result.has_value()) {
 Begin a Connection-owned embedded AP explicit transaction.
 
 A read-only transaction pins one published read view across `Query()` calls. A read-write transaction owns one private COW view; successful writes are visible to later queries on this `Connection` and are published together by `Commit()`. Read-write AP transactions hold exclusive AP admission until a terminal operation.
-Persistent COPY FROM statements may be grouped with ordinary DML and DDL in a read-write transaction and are published by one checkpoint at `Commit()` (since v0.2.1; earlier versions rejected COPY in an explicit transaction). `LOAD FROM` may drive ordinary DML in a read-write transaction; graph-read-only `LOAD FROM` and `COPY TO` statements may run in either transaction mode. `COPY TO` output is external and is not removed by rollback. `COPY TEMP` may be mixed with ordinary DML/DDL and persistent `COPY FROM` in a read-write transaction; only persistent changes are written to disk.
+Persistent COPY FROM statements may be grouped with ordinary DML and DDL in a read-write transaction and are published by one checkpoint at `Commit()`. LOAD FROM may drive ordinary DML in a read-write transaction; graph-read-only LOAD FROM and COPY TO statements may run against either transaction mode. COPY TO output is external and is not removed by `Rollback()`. COPY TEMP may be mixed with durable graph mutations in a read-write transaction; only persistent changes are written to disk.
 
 - **Parameters:**
   - `mode`
@@ -121,7 +121,7 @@ Persistent COPY FROM statements may be grouped with ordinary DML and DDL in a re
 
 Commit the active explicit transaction.
 
-A read-write transaction publishes its accumulated logical redo once, or publishes one checkpoint when it contains persistent COPY FROM statements. A read-only transaction only releases its pinned read view.
+A read-write transaction publishes its accumulated logical redo once, publishes one checkpoint when persistent COPY FROM makes bulk mutations, or publishes a transient-only graph without durable output. A read-only transaction only releases its pinned read view.
 
 - **Returns:** A transaction-state error if no transaction is active or it is rollback-only. A failed commit leaves the `Connection` rollback-only; call `Rollback()` before reusing it.
 
@@ -187,3 +187,4 @@ Check if the connection is closed.
 - **Returns:** `true` if the connection has been closed, `false` if still active
 
 - **Since:** v0.1.0
+
