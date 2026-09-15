@@ -40,7 +40,9 @@ namespace reader {
  * uses eager coalescing (CacheOptions::Defaults).
  * - row_batch_size: Number of rows per Arrow batch when converting from Parquet
  *   (default: 65536). This is a ROW count, independent of the byte-based
- *   buffer options above.
+ *   buffer options above. The generic `batch_rows` option (shared with the
+ *   native CSV/JSON readers) is preferred; `PARQUET_BATCH_ROWS` is kept as a
+ *   deprecated alias.
  *
  */
 struct ParquetParseOptions {
@@ -50,6 +52,9 @@ struct ParquetParseOptions {
   Option<bool> enable_io_coalescing =
       Option<bool>::BoolOption("ENABLE_IO_COALESCING", true);
   Option<int64_t> row_batch_size =
+      Option<int64_t>::Int64Option("batch_rows", 65536);
+  // Deprecated alias of `batch_rows`, kept for backward compatibility.
+  Option<int64_t> legacy_row_batch_size =
       Option<int64_t>::Int64Option("PARQUET_BATCH_ROWS", 65536);
 };
 

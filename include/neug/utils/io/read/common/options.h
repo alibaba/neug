@@ -147,13 +147,15 @@ struct ReadOptions {
   Option<bool> use_threads = Option<bool>::BoolOption("parallel", false);
   Option<bool> batch_read = Option<bool>::BoolOption("batch_read", true);
   // I/O batch size in BYTES, e.g. the Parquet buffered-stream buffer size.
-  // The native CSV/JSON readers chunk by rows instead; see `chunk_size`.
+  // The native CSV/JSON readers chunk by rows instead; see `batch_rows`.
   Option<int64_t> batch_size =
       Option<int64_t>::Int64Option("batch_size", 1 << 20);
-  // Number of ROWS per chunk for the native CSV/JSON batch readers
-  // (clamped to [1, 65536] by the readers).
-  Option<int64_t> chunk_size =
-      Option<int64_t>::Int64Option("chunk_size", 65536);
+  // Number of ROWS per batch/chunk for all readers: the chunk row count of
+  // the native CSV/JSON readers (clamped to [1, 65536]) and the Arrow batch
+  // row count of the Parquet extension, which also honors the deprecated
+  // `PARQUET_BATCH_ROWS` alias.
+  Option<int64_t> batch_rows =
+      Option<int64_t>::Int64Option("batch_rows", 65536);
   Option<bool> autogenerate_column_names =
       Option<bool>::BoolOption("autogenerate_column_names", false);
   Option<int32_t> skip_rows = Option<int32_t>::Int32Option("skip_rows", 0);
