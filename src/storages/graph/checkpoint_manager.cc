@@ -26,6 +26,7 @@
 
 #include <glog/logging.h>
 
+#include "neug/storages/chunk/chunk_types.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/uuid.h"
@@ -403,6 +404,20 @@ void CheckpointManager::CollectGarbage() {
         if (!object_path.empty()) {
           retained_objects.insert(
               std::filesystem::path(object_path).filename().string());
+        }
+      }
+      // A chunked column references its chunk objects inside the directory
+      // blob, not in the descriptor's own paths. Parse the directory so GC
+      // retains those chunk objects instead of reclaiming them.
+      const auto dir_path = desc.get_path(kChunkDirPath);
+      if (dir_path.has_value() && !dir_path->empty()) {
+        auto dir = checkpoint->OpenFile(*dir_path, MemoryLevel::kInMemory);
+        for (const auto& chunk_path :
+             ExtractChunkDirObjectPaths(dir->GetData(), dir->GetDataSize())) {
+          if (!chunk_path.empty()) {
+            retained_objects.insert(
+                std::filesystem::path(chunk_path).filename().string());
+          }
         }
       }
     }

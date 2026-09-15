@@ -48,6 +48,7 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/utils/datetime_parsers.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/string_utils.h"
 
@@ -1587,7 +1588,8 @@ void set_column_from_value_column(
     ColumnBase* col, const std::shared_ptr<IContextColumn>& ctx_col,
     const std::vector<vid_t>& vids) {
   auto* typed = dynamic_cast<TypedColumn<COL_T>*>(col);
-  CHECK(typed != nullptr)
+  auto* chunked = dynamic_cast<ChunkedColumn<COL_T>*>(col);
+  CHECK(typed != nullptr || chunked != nullptr)
       << "Storage column type does not match expected type.";
 
   auto value_col = std::dynamic_pointer_cast<ValueColumn<SRC_T>>(ctx_col);
@@ -1611,15 +1613,24 @@ void set_column_from_value_column(
       }
     }
   } else {
+    // Fixed-length columns may be TypedColumn or ChunkedColumn; both expose
+    // set_value(row, value).
+    auto set = [&](vid_t vid, COL_T v) {
+      if (typed != nullptr) {
+        typed->set_value(vid, v);
+      } else {
+        chunked->set_value(vid, v);
+      }
+    };
     for (size_t k = 0; k < vids.size(); ++k) {
       if (vids[k] >= std::numeric_limits<vid_t>::max())
         continue;
       if (value_col) {
-        typed->set_value(vids[k], value_col->data()[k]);
+        set(vids[k], value_col->data()[k]);
       } else {
         auto val = ctx_col->get_elem(k);
         if (!val.IsNull())
-          typed->set_value(vids[k], val.GetValue<COL_T>());
+          set(vids[k], val.GetValue<COL_T>());
       }
     }
   }

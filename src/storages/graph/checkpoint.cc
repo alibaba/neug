@@ -15,7 +15,9 @@
 
 #include "neug/storages/checkpoint.h"
 
+#include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "neug/utils/exception/exception.h"
@@ -141,6 +143,9 @@ void Checkpoint::SetManifest(CheckpointManifest&& manifest) {
 }
 
 void Checkpoint::persist_manifest() {
+  // Commit any partial object accumulated by object_writer() so every appended
+  // chunk block has a durable object before the manifest references it.
+  SealObjects();
   if (!file_mgr_->SyncObjectDirectory()) {
     THROW_IO_EXCEPTION(
         "Checkpoint::persist_manifest: failed to fsync objects " + object_dir_);
@@ -165,6 +170,30 @@ void Checkpoint::persist_manifest() {
     persisted.SetModule(key, std::move(object_desc));
   }
   persisted.Save(manifest_path());
+}
+
+ObjectWriter& Checkpoint::object_writer() {
+  if (!object_writer_) {
+    object_writer_ = std::make_unique<ObjectWriter>(
+        [this](const void* data, size_t length) -> uint64_t {
+          // Publish the packed payload through the container Commit path so the
+          // object carries the standard FileHeader that OpenFile expects; a raw
+          // byte write would be misparsed (MMapContainer skips the header).
+          auto container =
+              file_mgr_->CreateRuntimeContainer(length, MemoryLevel::kInMemory);
+          std::memcpy(container->GetData(), data, length);
+          auto object_path = file_mgr_->Commit(*container);
+          object_table_.push_back(object_path);
+          return object_table_.size() - 1;
+        });
+  }
+  return *object_writer_;
+}
+
+void Checkpoint::SealObjects() {
+  if (object_writer_) {
+    object_writer_->Seal();
+  }
 }
 
 }  // namespace neug
