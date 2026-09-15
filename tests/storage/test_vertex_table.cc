@@ -26,7 +26,9 @@
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/transaction/transaction_utils.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/property/vec_column.h"
 #include "unittest/utils.h"
@@ -150,6 +152,42 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   EXPECT_TRUE(table.get_index(oid1, tmp_vid, 1));
 
   table.Close();
+}
+
+TEST_F(VertexTableTest, DisassembleMigratesLegacyFixedColumns) {
+  auto ckp = make_checkpoint(Workspace());
+  neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
+  table.EnsureCapacity(4);
+
+  auto legacy = std::make_unique<neug::TypedColumn<int32_t>>();
+  legacy->Open(*ckp, neug::ModuleDescriptor{}, memory_level_);
+  legacy->resize(4);
+  table.SetColumn(1, std::move(legacy));
+
+  neug::vid_t lid;
+  ASSERT_TRUE(
+      table.AddVertex(neug::Value::INT64(1), property_values_, lid, 1, false));
+
+  neug::ModuleBroker modules;
+  neug::CheckpointManifest manifest;
+  table.DisassembleTo(modules, manifest, *ckp);
+  modules.Dump(*ckp, manifest);
+
+  const auto* desc =
+      manifest.FindModule(neug::VertexTable::KeyProperty(v_label_name_, 1));
+  ASSERT_NE(desc, nullptr);
+  EXPECT_EQ(desc->module_type, neug::ChunkedColumn<int32_t>::type_name());
+
+  neug::ModuleBroker reopened_modules;
+  reopened_modules.Open(*ckp, manifest, memory_level_);
+  auto reopened =
+      neug::VertexTable::OpenFrom(ckp, schema_.get_vertex_schema(v_label_id_),
+                                  reopened_modules, manifest, memory_level_);
+  auto* chunked = dynamic_cast<neug::ChunkedColumn<int32_t>*>(
+      reopened.get_table().get_column_by_id(1));
+  ASSERT_NE(chunked, nullptr);
+  EXPECT_EQ(chunked->get_view(lid), 30);
 }
 
 TEST_F(VertexTableTest, VertexTableDumpAndReload) {

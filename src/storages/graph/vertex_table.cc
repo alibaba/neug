@@ -403,6 +403,7 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyIndices(lbl), std::move(indices_out));
 
   auto table = TakeTable();
+  table->MigrateLegacyPropertyColumns(ckp, memory_level_);
   for (size_t i = 0; i < table->col_num(); ++i) {
     table->get_column_by_id(i)->Dump(ckp, meta, KeyProperty(lbl, i));
   }

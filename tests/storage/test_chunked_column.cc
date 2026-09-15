@@ -26,6 +26,7 @@
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/utils/property/table.h"
 
 namespace neug {
 namespace {
@@ -369,6 +370,37 @@ TEST_F(ChunkedColumnTest, FromLegacyCopiesTypedColumnValues) {
   ChunkedColumn<int64_t> reopened(kRowsPerChunk);
   reopened.Open(*ckp_, *meta.FindModule("conv"), MemoryLevel::kInMemory);
   EXPECT_EQ(reopened.get_view(3), 999);
+}
+
+TEST_F(ChunkedColumnTest, TableMigratesLegacyFixedPropertyColumns) {
+  Table table({"value", "name"},
+              {DataType(DataTypeId::kInt64), DataType(DataTypeId::kVarchar)});
+  table.Init(*ckp_, MemoryLevel::kInMemory);
+
+  auto legacy = std::make_unique<TypedColumn<int64_t>>();
+  legacy->Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  legacy->resize(3);
+  legacy->set_value(0, 11);
+  legacy->set_value(1, 22);
+  legacy->set_value(2, 33);
+  table.SetColumn(0, std::move(legacy));
+
+  EXPECT_TRUE(table.HasLegacyPropertyColumns());
+  EXPECT_TRUE(
+      table.MigrateLegacyPropertyColumns(*ckp_, MemoryLevel::kInMemory));
+  EXPECT_FALSE(table.HasLegacyPropertyColumns());
+  EXPECT_FALSE(
+      table.MigrateLegacyPropertyColumns(*ckp_, MemoryLevel::kInMemory));
+
+  auto* chunked =
+      dynamic_cast<ChunkedColumn<int64_t>*>(table.get_column_by_id(0));
+  ASSERT_NE(chunked, nullptr);
+  EXPECT_EQ(chunked->get_view(0), 11);
+  EXPECT_EQ(chunked->get_view(1), 22);
+  EXPECT_EQ(chunked->get_view(2), 33);
+  EXPECT_EQ(
+      dynamic_cast<ChunkedColumn<std::string_view>*>(table.get_column_by_id(1)),
+      nullptr);
 }
 
 TEST(ChunkedColumnFactoryTest, RegisteredForReopen) {

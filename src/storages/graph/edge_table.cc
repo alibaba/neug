@@ -1250,6 +1250,7 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyInCsr(src, edge, dst), TakeInCsr());
   if (!meta_->is_bundled()) {
     auto table = TakeTable();
+    table->MigrateLegacyPropertyColumns(ckp, memory_level_);
     for (size_t i = 0; i < table->col_num(); ++i) {
       table->get_column_by_id(i)->Dump(ckp, meta,
                                        KeyProperty(src, edge, dst, i));

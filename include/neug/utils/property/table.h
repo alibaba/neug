@@ -53,6 +53,14 @@ class NEUG_API Table {
 
   void SetColumn(int idx, std::unique_ptr<ColumnBase> col);
 
+  /// Whether any fixed-length property still uses the legacy TypedColumn
+  /// layout from a checkpoint written before ChunkedColumn was introduced.
+  bool HasLegacyPropertyColumns() const;
+
+  /// Convert legacy fixed-length property columns to ChunkedColumn. Variable-
+  /// length properties retain their existing column implementations.
+  bool MigrateLegacyPropertyColumns(Checkpoint& ckp, MemoryLevel level);
+
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel memory_level, const std::vector<std::string>& col_name,
             const std::vector<DataType>& property_types);

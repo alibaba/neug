@@ -22,10 +22,30 @@
 #include <utility>
 
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
+namespace {
+
+template <typename T>
+bool IsLegacyColumn(const ColumnBase* column) {
+  return dynamic_cast<const TypedColumn<T>*>(column) != nullptr;
+}
+
+template <typename T>
+bool MigrateLegacyColumn(Checkpoint& ckp, MemoryLevel level,
+                         std::unique_ptr<ColumnBase>& column) {
+  auto* legacy = dynamic_cast<TypedColumn<T>*>(column.get());
+  if (legacy == nullptr) {
+    return false;
+  }
+  column = ChunkedColumn<T>::FromLegacy(ckp, level, *legacy);
+  return true;
+}
+
+}  // namespace
 
 Table::Table() {}
 Table::~Table() { close(); }
@@ -85,6 +105,29 @@ void Table::SetColumn(int idx, std::unique_ptr<ColumnBase> col) {
         " out of range (col_num=" + std::to_string(columns_.size()) + ")");
   }
   columns_[idx] = std::move(col);
+}
+
+bool Table::HasLegacyPropertyColumns() const {
+  for (const auto& column : columns_) {
+#define IS_LEGACY_COLUMN(enum_val, cpp_type)    \
+  if (IsLegacyColumn<cpp_type>(column.get())) { \
+    return true;                                \
+  }
+    FOR_EACH_DATA_TYPE_NO_STRING(IS_LEGACY_COLUMN)
+#undef IS_LEGACY_COLUMN
+  }
+  return false;
+}
+
+bool Table::MigrateLegacyPropertyColumns(Checkpoint& ckp, MemoryLevel level) {
+  bool migrated = false;
+  for (auto& column : columns_) {
+#define MIGRATE_LEGACY_COLUMN(enum_val, cpp_type) \
+  migrated = MigrateLegacyColumn<cpp_type>(ckp, level, column) || migrated;
+    FOR_EACH_DATA_TYPE_NO_STRING(MIGRATE_LEGACY_COLUMN)
+#undef MIGRATE_LEGACY_COLUMN
+  }
+  return migrated;
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {
