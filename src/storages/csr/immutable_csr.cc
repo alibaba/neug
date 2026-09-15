@@ -289,8 +289,10 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
     if (iter != src_offset_map.end()) {
       nbr_t* write_ptr = adj_arr[i];
       for (const auto& offset : iter->second) {
-        write_ptr[offset].neighbor = std::numeric_limits<vid_t>::max();
-        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        if (write_ptr[offset].neighbor != std::numeric_limits<vid_t>::max()) {
+          write_ptr[offset].neighbor = std::numeric_limits<vid_t>::max();
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
       }
     }
   }
