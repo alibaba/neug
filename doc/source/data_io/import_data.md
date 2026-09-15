@@ -353,8 +353,9 @@ For the full set of relational operations available in `LOAD FROM` subqueries, s
 
 | Option         | Type  | Default           | Description                                                       |
 | -------------- | ----- | ----------------- | ----------------------------------------------------------------- |
-| `batch_read` | bool  | `false`         | Read data incrementally in batches.                               |
-| `batch_size` | int64 | `1048576` (1MB) | Batch size in bytes when `batch_read` is enabled.               |
+| `batch_read` | bool  | `true`          | Read data incrementally in batches.                               |
+| `batch_size` | int64 | `1048576` (1 MiB) | I/O batch size in **bytes**; sets the Parquet buffered-stream buffer size. The native CSV/JSON readers chunk by rows via `chunk_size` instead. |
+| `chunk_size` | int64 | `65536`          | Number of **rows** per chunk for the native CSV/JSON batch readers (clamped to at most 65536). |
 | `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
 ```cypher

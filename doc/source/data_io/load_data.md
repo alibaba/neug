@@ -207,7 +207,7 @@ For large files, the following option can improve read performance:
 | ------------ | ----- | -------------- | ----------- |
 | `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
-> **Note:** Batch reading options (`batch_read`, `batch_size`) are currently supported in [`COPY FROM`](import_data#performance-options), not in `LOAD FROM`. 
+> **Note:** Batch reading options (`batch_read`, `batch_size`, `chunk_size`) are currently supported in [`COPY FROM`](import_data#performance-options), not in `LOAD FROM`. 
 
 Example:
 
