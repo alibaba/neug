@@ -124,11 +124,6 @@ class Binder {
     return expressionBinder.parameterMap;
   }
 
-  bool bindExportTableData(ExportedTableData& tableData,
-                           const catalog::TableCatalogEntry& entry,
-                           const catalog::Catalog& catalog,
-                           const transaction::Transaction* transaction);
-
   NEUG_API std::shared_ptr<Expression> createVariable(
       const std::string& name, const common::DataType& dataType);
   NEUG_API std::shared_ptr<Expression> createInvisibleVariable(

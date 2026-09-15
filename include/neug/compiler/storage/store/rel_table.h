@@ -52,8 +52,7 @@ class NEUG_API RelTable : public Table {
         toNodeTableID{relTableEntry->getDstTableID()},
         nextRelOffset{0} {}
 
-  virtual common::row_idx_t getNumTotalRows(
-      const transaction::Transaction* transaction) override = 0;
+  virtual common::row_idx_t getNumTotalRows() override = 0;
 
  private:
  private:

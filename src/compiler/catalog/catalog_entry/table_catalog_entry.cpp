@@ -36,8 +36,7 @@ namespace neug {
 namespace catalog {
 
 std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
-    transaction_t timestamp, const BoundAlterInfo& alterInfo) const {
-  NEUG_ASSERT(!deleted);
+    const BoundAlterInfo& alterInfo) const {
   auto newEntry = copy();
   switch (alterInfo.alterType) {
   case AlterType::RENAME: {
@@ -70,7 +69,6 @@ std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
   }
   }
   newEntry->setOID(oid);
-  newEntry->setTimestamp(timestamp);
   return newEntry;
 }
 
@@ -128,10 +126,7 @@ void TableCatalogEntry::renameProperty(const std::string& propertyName,
   propertyCollection.rename(propertyName, newName);
 }
 
-std::string TableCatalogEntry::getLabel(
-    const Catalog* catalog, const transaction::Transaction* transaction) {
-  return name;
-}
+std::string TableCatalogEntry::getLabel(const Catalog* catalog) { return name; }
 
 void TableCatalogEntry::serialize(Serializer& serializer) const {
   CatalogEntry::serialize(serializer);
@@ -173,8 +168,8 @@ void TableCatalogEntry::copyFrom(const CatalogEntry& other) {
 }
 
 BoundCreateTableInfo TableCatalogEntry::getBoundCreateTableInfo(
-    transaction::Transaction* transaction, bool isInternal) const {
-  auto extraInfo = getBoundExtraCreateInfo(transaction);
+    bool isInternal) const {
+  auto extraInfo = getBoundExtraCreateInfo();
   return BoundCreateTableInfo(type, name, ConflictAction::ON_CONFLICT_THROW,
                               std::move(extraInfo), isInternal, hasParent_);
 }

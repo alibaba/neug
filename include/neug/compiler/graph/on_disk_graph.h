@@ -125,14 +125,11 @@ class NEUG_API OnDiskGraph final : public Graph {
     return graphEntry.getRelTableIDs();
   }
 
-  common::table_id_map_t<common::offset_t> getMaxOffsetMap(
-      transaction::Transaction* transaction) const override;
+  common::table_id_map_t<common::offset_t> getMaxOffsetMap() const override;
 
-  common::offset_t getMaxOffset(transaction::Transaction* transaction,
-                                common::table_id_t id) const override;
+  common::offset_t getMaxOffset(common::table_id_t id) const override;
 
-  common::offset_t getNumNodes(
-      transaction::Transaction* transaction) const override;
+  common::offset_t getNumNodes() const override;
 
   std::vector<NbrTableInfo> getForwardNbrTableInfos(
       common::table_id_t srcNodeTableID) override;

@@ -36,7 +36,6 @@
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/metadata_registry.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/main/connection.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
@@ -72,8 +71,7 @@ struct PrepareForServingTestFunctionSet {
 
 bool HasPrepareForServingTestFunction() {
   return main::MetadataRegistry::getCatalog()->containsFunction(
-      &transaction::DUMMY_TRANSACTION, PrepareForServingTestFunctionSet::name,
-      false);
+      PrepareForServingTestFunctionSet::name, false);
 }
 
 }  // namespace

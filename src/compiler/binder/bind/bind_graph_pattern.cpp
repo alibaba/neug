@@ -471,11 +471,10 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
     std::shared_ptr<NodeExpression> srcNode,
     std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType) {
   auto catalog = clientContext->getCatalog();
-  auto transaction = clientContext->getTransaction();
   schema_entry_set_t entrySet;
   auto getMutableTableEntry = [&](common::table_id_t tableID) {
-    auto* entry = catalog->getTableCatalogEntry(transaction, tableID);
-    return catalog->getTableCatalogEntry(transaction, entry->get_label());
+    auto* entry = catalog->getTableCatalogEntry(tableID);
+    return catalog->getTableCatalogEntry(entry->get_label());
   };
   for (auto entry : entries) {
     auto* relTableEntry = dynamic_cast<EdgeSchema*>(entry);
@@ -967,7 +966,6 @@ const graph::GraphEntry& Binder::bindProjectedGraph(
 
 std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     const std::vector<std::string>& tableNames) const {
-  auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
   schema_entry_set_t entrySet;
@@ -1000,7 +998,7 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
     return sortEntries(entrySet);
   }
   if (tableNames.empty()) {
-    for (auto entry : catalog->getNodeTableEntries(transaction, useInternal)) {
+    for (auto entry : catalog->getNodeTableEntries(useInternal)) {
       entrySet.insert(entry);
     }
   } else {
@@ -1017,18 +1015,16 @@ std::vector<SchemaEntry*> Binder::bindNodeTableEntries(
 }
 
 SchemaEntry* Binder::bindNodeTableEntry(const std::string& name) const {
-  auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
-  if (!catalog->containsTable(transaction, name, useInternal)) {
+  if (!catalog->containsTable(name, useInternal)) {
     THROW_SCHEMA_MISMATCH(stringFormat("Table {} does not exist.", name));
   }
-  return catalog->getTableCatalogEntry(transaction, name, useInternal);
+  return catalog->getTableCatalogEntry(name, useInternal);
 }
 
 std::vector<SchemaEntry*> Binder::bindRelTableEntries(
     const std::vector<std::string>& tableNames) const {
-  auto transaction = clientContext->getTransaction();
   auto catalog = clientContext->getCatalog();
   auto useInternal = clientContext->useInternalCatalogEntry();
   schema_entry_set_t entrySet;
@@ -1061,19 +1057,18 @@ std::vector<SchemaEntry*> Binder::bindRelTableEntries(
     return sortEntries(entrySet);
   }
   if (tableNames.empty()) {
-    for (auto& entry : catalog->getRelTableEntries(transaction, useInternal)) {
+    for (auto& entry : catalog->getRelTableEntries(useInternal)) {
       entrySet.insert(entry);
     }
   } else {
     for (auto& name : tableNames) {
-      if (catalog->containsRelGroup(transaction, name)) {
-        auto groupEntry = catalog->getRelGroupEntry(transaction, name);
+      if (catalog->containsRelGroup(name)) {
+        auto groupEntry = catalog->getRelGroupEntry(name);
         for (auto& relEntry : groupEntry) {
           entrySet.insert(relEntry);
         }
-      } else if (catalog->containsTable(transaction, name)) {
-        auto entry =
-            catalog->getTableCatalogEntry(transaction, name, useInternal);
+      } else if (catalog->containsTable(name)) {
+        auto entry = catalog->getTableCatalogEntry(name, useInternal);
         if (entry->get_entry_type() != SchemaEntryType::REL) {
           THROW_BINDER_EXCEPTION(
               stringFormat("Cannot bind {} as a relationship pattern label.",

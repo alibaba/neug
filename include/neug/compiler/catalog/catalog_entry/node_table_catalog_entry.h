@@ -25,10 +25,6 @@
 #include "table_catalog_entry.h"
 
 namespace neug {
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace catalog {
 
 class Catalog;
@@ -64,7 +60,7 @@ class NEUG_API NodeTableCatalogEntry final : public TableCatalogEntry {
 
  private:
   std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
-  getBoundExtraCreateInfo(transaction::Transaction* transaction) const override;
+  getBoundExtraCreateInfo() const override;
 
  private:
   std::string primaryKeyName;

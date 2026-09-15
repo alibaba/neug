@@ -37,10 +37,6 @@ namespace binder {
 struct BoundExtraCreateCatalogEntryInfo;
 }  // namespace binder
 
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace catalog {
 
 class Catalog;
@@ -54,7 +50,6 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
   common::table_id_t getTableID() const { return oid; }
 
   virtual std::unique_ptr<TableCatalogEntry> alter(
-      common::transaction_t timestamp,
       const binder::BoundAlterInfo& alterInfo) const;
 
   virtual bool isParent(common::table_id_t /*tableID*/) { return false; };
@@ -84,23 +79,21 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
   void renameProperty(const std::string& propertyName,
                       const std::string& newName);
 
-  std::string getLabel(const Catalog* catalog,
-                       const transaction::Transaction* transaction);
+  std::string getLabel(const Catalog* catalog);
 
   void serialize(common::Serializer& serializer) const override;
   static std::unique_ptr<TableCatalogEntry> deserialize(
       common::Deserializer& deserializer, CatalogEntryType type);
   virtual std::unique_ptr<TableCatalogEntry> copy() const = 0;
 
-  binder::BoundCreateTableInfo getBoundCreateTableInfo(
-      transaction::Transaction* transaction, bool isInternal) const;
+  binder::BoundCreateTableInfo getBoundCreateTableInfo(bool isInternal) const;
 
   void setPropertyCollection(PropertyDefinitionCollection propertyCollection_);
 
  protected:
   void copyFrom(const CatalogEntry& other) override;
   virtual std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
-  getBoundExtraCreateInfo(transaction::Transaction* transaction) const = 0;
+  getBoundExtraCreateInfo() const = 0;
 
  protected:
   std::string comment;

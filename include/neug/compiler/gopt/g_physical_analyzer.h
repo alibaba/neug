@@ -68,8 +68,7 @@ class GPhysicalAnalyzer {
     auto tableIds = scan.getTableIDs();
     auto result = std::unordered_set<std::string>();
     for (auto& tableId : tableIds) {
-      auto tableEntry = catalog->getTableCatalogEntry(
-          &neug::Constants::DEFAULT_TRANSACTION, tableId);
+      auto tableEntry = catalog->getTableCatalogEntry(tableId);
       auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
       if (!nodeTableEntry) {
         THROW_EXCEPTION_WITH_FILE_LINE(
