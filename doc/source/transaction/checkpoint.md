@@ -152,3 +152,13 @@ returns an error so the application can correct the cause and retry.
 For the on-disk layout, AP/TP coordination, checkpoint publication, garbage
 collection, and legacy-format migration, see
 [Transaction Model](transaction_model.md).
+
+### Chunked property column storage
+
+Fixed-length vertex and edge property columns are stored as a chunked column: the column is split into power-of-two row chunks, each sized so its payload reaches a 256 KiB floor. Reads are an O(1) flat index (`chunk = row >> shift`, `slot = row & mask`), and mutation uses chunk-granular copy-on-write, so a sparse update copies one chunk rather than the whole column.
+
+Chunk payloads are packed into immutable objects of up to 64 MiB. Each column persists one self-contained directory object holding an object-path table plus one slice per chunk (object index, byte offset, length, and crc32c). On reopen, each unique object is opened once and every chunk is located at its slice offset; each chunk's crc32c is verified before use.
+
+Because the directory records each chunk's location, an incremental checkpoint re-commits only the chunks written since the last checkpoint and reuses the existing object slices for clean chunks. Repeated bulk loads into the same table therefore write proportionally to the changed chunks, not the whole column. Garbage collection parses chunk directories, so an object referenced only inside a directory (never in a module descriptor's own paths) is retained rather than reclaimed.
+
+Variable-length (`VARCHAR`) and composite (`ARRAY`, `LIST`) properties keep their existing column types, and a checkpoint written before this format reopens with its original `TypedColumn` modules; a legacy typed column is converted to the chunked layout through the `ChunkedColumn::FromLegacy` migration hook.
