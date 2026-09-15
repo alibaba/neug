@@ -258,6 +258,40 @@ def test_invalid_access_mode_in_session(tmp_path):
     db.close()
 
 
+def test_tp_inferred_read_mode_ignores_update_keywords_in_comments(
+    tmp_path, unused_tcp_port
+):
+    db_dir = str(tmp_path / "commented_read_query_db")
+    db_rw = Database(db_dir, "w")
+    conn_rw = db_rw.connect()
+    try:
+        conn_rw.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        conn_rw.execute("CREATE (:person {id: 1});")
+    finally:
+        conn_rw.close()
+        db_rw.close()
+
+    db_ro = Database(db_dir, "r")
+    endpoint = db_ro.serve(unused_tcp_port, "localhost", False)
+    wait_for_server_ready(endpoint)
+    session = Session.open(endpoint, timeout="10s")
+    try:
+        queries = [
+            "// SET n.id = 2\nMATCH (n:person) RETURN n.id;",
+            "/* SET n.id = 2 */ MATCH (n:person) RETURN n.id;",
+            "MATCH (n:person) // SET n.id = 2\nRETURN n.id;",
+            "MATCH (n:person) /* SET n.id = 2 */ RETURN n.id;",
+            "MATCH (n:person) RETURN n.id; // SET n.id = 2",
+            "MATCH (n:person) RETURN n.id; /* SET n.id = 2 */",
+        ]
+        for query in queries:
+            assert list(session.execute(query)) == [[1]], query
+    finally:
+        session.close()
+        db_ro.stop_serving()
+        db_ro.close()
+
+
 def test_delete_vertices(tmp_path):
     db_dir = str(tmp_path / "test_delete_vertices")
     shutil.rmtree(db_dir, ignore_errors=True)
