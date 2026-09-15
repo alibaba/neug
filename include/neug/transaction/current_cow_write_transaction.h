@@ -28,7 +28,8 @@ class CheckpointCoordinator;
  * @brief Exclusive current-graph private-COW write transaction.
  *
  * Mutations are isolated in a private CowGraphWorkspace. Ordinary commit makes
- * logical redo durable before replacing the already-pinned current slot;
+ * logical redo durable before replacing the already-pinned current slot, or
+ * publishes transient-only state without WAL;
  * checkpoint-backed bulk commit is coordinated by CheckpointCoordinator.
  */
 class CurrentCowWriteTransaction {

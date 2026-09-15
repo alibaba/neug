@@ -389,6 +389,110 @@ def test_embedded_explicit_transaction_commits_multiple_copies(
     db.close()
 
 
+def test_embedded_copy_transaction_skips_checkpoint_for_noop_edges(
+    tmp_path, transaction_control
+):
+    db_dir = tmp_path / "noop_copy_edges"
+    vertices = tmp_path / "vertices.csv"
+    empty_edges = tmp_path / "empty_edges.csv"
+    dangling_edges = tmp_path / "dangling_edges.csv"
+    valid_edges = tmp_path / "valid_edges.csv"
+    vertices.write_text("id\n1\n2\n", encoding="utf-8")
+    empty_edges.write_text("from,to\n", encoding="utf-8")
+    dangling_edges.write_text("from,to\n3,4\n", encoding="utf-8")
+    valid_edges.write_text("from,to\n1,2\n", encoding="utf-8")
+
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    tx = transaction_control(conn)
+    edge_options = "(HEADER=true, DELIMITER=',', FROM='Person', TO='Person');"
+    try:
+        conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE REL TABLE Knows(FROM Person TO Person);")
+        conn.execute(
+            f"COPY Person FROM '{vertices.as_posix()}' (HEADER=true, DELIMITER=',');"
+        )
+        current = db_dir / "checkpoint" / "CURRENT"
+        checkpoint_before = current.read_text()
+
+        for edges in (empty_edges, dangling_edges):
+            tx.begin()
+            conn.execute(f"COPY Knows FROM '{edges.as_posix()}' {edge_options}")
+            tx.commit()
+            assert current.read_text() == checkpoint_before
+
+        assert list(conn.execute("MATCH ()-[e:Knows]->() RETURN count(e);")) == [[0]]
+
+        tx.begin()
+        conn.execute(f"COPY Knows FROM '{valid_edges.as_posix()}' {edge_options}")
+        tx.commit()
+        assert current.read_text() != checkpoint_before
+        assert list(conn.execute("MATCH ()-[e:Knows]->() RETURN count(e);")) == [[1]]
+    finally:
+        conn.close()
+        db.close()
+
+
+@pytest.mark.parametrize("persistent_copy", [False, True], ids=["wal", "checkpoint"])
+@pytest.mark.parametrize("temp_first", [False, True])
+@pytest.mark.parametrize("commit", [False, True])
+def test_embedded_transaction_mixes_temporary_and_persistent_writes(
+    tmp_path, transaction_control, persistent_copy, temp_first, commit
+):
+    people = tmp_path / "people.csv"
+    people.write_text("id,name\n1,Alice\n2,Bob\n", encoding="utf-8")
+    db_path = str(tmp_path / "db")
+    db = Database(db_path=db_path, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    tx = transaction_control(conn)
+    copy_temp = (
+        f"COPY TEMP Stage FROM '{people.as_posix()}' (HEADER=true, DELIMITER=',')"
+    )
+    query = "MATCH (p:Person) RETURN p.id, p.name ORDER BY p.id"
+    try:
+        current = tmp_path / "db" / "checkpoint" / "CURRENT"
+        checkpoint_before = current.read_text()
+        tx.begin()
+        if temp_first:
+            conn.execute(copy_temp)
+        conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
+        if persistent_copy:
+            conn.execute(
+                f"COPY Person FROM '{people.as_posix()}' (HEADER=true, DELIMITER=',')"
+            )
+        if not temp_first:
+            conn.execute(copy_temp)
+        if not persistent_copy:
+            conn.execute("MATCH (s:Stage) CREATE (:Person {id: s.id, name: s.name})")
+        conn.execute("MATCH (s:Stage) SET s.name = 'temporary'")
+        assert list(conn.execute(query)) == [[1, "Alice"], [2, "Bob"]]
+        if commit:
+            tx.commit()
+            assert list(conn.execute("MATCH (s:Stage) RETURN count(s)")) == [[2]]
+        else:
+            tx.rollback()
+            assert "Stage" not in conn.get_schema()
+            assert "Person" not in conn.get_schema()
+        assert (current.read_text() != checkpoint_before) == (
+            commit and persistent_copy
+        )
+    finally:
+        conn.close()
+        db.close()
+
+    db = Database(db_path=db_path, mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    try:
+        assert "Stage" not in conn.get_schema()
+        if commit:
+            assert list(conn.execute(query)) == [[1, "Alice"], [2, "Bob"]]
+        else:
+            assert "Person" not in conn.get_schema()
+    finally:
+        conn.close()
+        db.close()
+
+
 @pytest.mark.parametrize("empty", [True, False])
 @pytest.mark.parametrize("target", ["vertex", "edge"])
 def test_embedded_copy_transaction_rejects_temporary_targets(tmp_path, empty, target):

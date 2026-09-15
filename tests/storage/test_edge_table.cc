@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <string_view>
+#include <utility>
 #ifdef _WIN32
 #include <process.h>
 #define getpid _getpid
@@ -254,6 +255,47 @@ class EdgeTableTest : public ::testing::Test {
     return std::string(test_info->name());
   }
 };
+
+TEST_F(EdgeTableTest, EdgeNumUsesStoredDirection) {
+  auto ckp = make_checkpoint(workspace());
+  InitIndexers(*ckp, 2, 2);
+  const std::vector<int64_t> sources{0, 1};
+  const std::vector<int64_t> destinations{1, 0};
+  for (const auto& [outgoing, incoming] :
+       {std::pair{EdgeStrategy::kNone, EdgeStrategy::kMultiple},
+        std::pair{EdgeStrategy::kMultiple, EdgeStrategy::kNone},
+        std::pair{EdgeStrategy::kMultiple, EdgeStrategy::kMultiple}}) {
+    SCOPED_TRACE(static_cast<int>(outgoing));
+    SCOPED_TRACE(static_cast<int>(incoming));
+    auto schema = std::make_shared<EdgeSchema>(
+        *schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
+    schema->oe_strategy = outgoing;
+    schema->ie_strategy = incoming;
+    EdgeTable table(schema);
+    table.Init(ckp, MemoryLevel::kInMemory);
+    EXPECT_EQ(table.EdgeNum(), 0);
+    auto chunks =
+        convert_to_data_chunks({split_column_to_chunks(sources, 1),
+                                split_column_to_chunks(destinations, 1)});
+    table.BatchAddEdges(
+        src_indexer, dst_indexer,
+        std::make_shared<GeneratedChunkSupplier>(std::move(chunks)));
+    EXPECT_EQ(table.EdgeNum(), 2);
+    auto dumped = make_checkpoint(workspace());
+    auto manifest = DumpEdgeTableLegacy(table, *dumped);
+    EdgeTable reopened(schema);
+    OpenEdgeTableLegacy(reopened, dumped, manifest, MemoryLevel::kInMemory);
+    EXPECT_EQ(reopened.EdgeNum(), 2);
+    auto view = outgoing == EdgeStrategy::kNone ? reopened.get_incoming_view(0)
+                                                : reopened.get_outgoing_view(0);
+    auto neighbors = view.get_edges(0);
+    auto neighbor = neighbors.begin();
+    ASSERT_TRUE(neighbor != neighbors.end());
+    EXPECT_EQ(neighbor.get_vertex(), 1);
+    ++neighbor;
+    EXPECT_TRUE(neighbor == neighbors.end());
+  }
+}
 
 TEST_F(EdgeTableTest, TestBundledInt32) {
   auto ckp = make_checkpoint(workspace());

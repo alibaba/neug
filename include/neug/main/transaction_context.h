@@ -92,14 +92,12 @@ class TransactionContext {
   void Begin(SnapshotReadTransaction transaction) {
     transaction_.emplace<SnapshotReadTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadOnly;
-    has_persistent_copy_ = false;
     state_ = State::kActive;
   }
 
   void Begin(CurrentCowWriteTransaction transaction) {
     transaction_.emplace<CurrentCowWriteTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadWrite;
-    has_persistent_copy_ = false;
     state_ = State::kActive;
   }
 
@@ -110,14 +108,7 @@ class TransactionContext {
   void Begin(SnapshotCowWriteTransaction transaction) {
     transaction_.emplace<SnapshotCowWriteTransaction>(std::move(transaction));
     mode_ = TransactionMode::kReadWrite;
-    has_persistent_copy_ = false;
     state_ = State::kActive;
-  }
-
-  bool HasPersistentCopy() const noexcept { return has_persistent_copy_; }
-  void MarkPersistentCopy() noexcept {
-    CHECK(IsActive() && !IsReadOnly());
-    has_persistent_copy_ = true;
   }
 
   SnapshotReadTransaction& ReadTransactionOwner() {
@@ -205,13 +196,11 @@ class TransactionContext {
 
   void ResetToIdle() noexcept {
     transaction_.emplace<std::monostate>();
-    has_persistent_copy_ = false;
     state_ = State::kIdle;
   }
 
   State state_{State::kIdle};
   TransactionMode mode_{TransactionMode::kReadOnly};
-  bool has_persistent_copy_{false};
   std::variant<std::monostate, SnapshotReadTransaction,
                CurrentCowWriteTransaction, SnapshotCowWriteTransaction>
       transaction_;

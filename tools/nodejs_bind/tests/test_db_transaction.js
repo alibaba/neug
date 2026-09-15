@@ -283,6 +283,14 @@ test('test_explicit_transaction_commits_multiple_copies', () => {
     [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
     [[1n], [2n]]
   );
+
+  conn.beginTransaction({ readOnly: true });
+  assert.throws(
+    () => conn.execute(`COPY Person FROM '${peopleA}' (HEADER=true, DELIMITER=',');`),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
+  assert.equal(conn.hasActiveTransaction, true);
+  conn.rollback();
   conn.close();
   db.close();
 
@@ -300,6 +308,54 @@ test('test_explicit_transaction_commits_multiple_copies', () => {
   reopenedConn.close();
   reopenedDb.close();
 });
+
+// ---------------------------------------------------------------------------
+// Temporary and persistent mutations share one explicit-transaction commit.
+// Both the logical-WAL and persistent-COPY checkpoint paths must retain the
+// temporary graph in memory without recovering it after reopen.
+// ---------------------------------------------------------------------------
+
+for (const persistentCopy of [false, true]) {
+  test(`test_explicit_transaction_mixes_copy_temp_${persistentCopy ? 'checkpoint' : 'wal'}`, () => {
+    const dbDir = makeTmpDir('mixed_temp_tx');
+    const csvDir = makeTmpDir('mixed_temp_csv');
+    const people = path.join(csvDir, 'people.csv');
+    fs.writeFileSync(people, 'id,name\n1,Alice\n2,Bob\n');
+    const config = { databasePath: dbDir, mode: 'w', checkpointOnClose: false };
+    const db = new Database(config);
+    const conn = db.connect();
+    const query = 'MATCH (p:Person) RETURN p.id, p.name ORDER BY p.id;';
+    try {
+      conn.beginTransaction();
+      conn.execute(`COPY TEMP Stage FROM '${people}' (HEADER=true, DELIMITER=',');`);
+      conn.execute('CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));');
+      if (persistentCopy) {
+        conn.execute(`COPY Person FROM '${people}' (HEADER=true, DELIMITER=',');`);
+      } else {
+        conn.execute('MATCH (s:Stage) CREATE (:Person {id: s.id, name: s.name});');
+      }
+      conn.execute("MATCH (s:Stage) SET s.name = 'temporary';");
+      conn.commit();
+      assert.deepEqual([...conn.execute(query)], [[1n, 'Alice'], [2n, 'Bob']]);
+      assert.deepEqual(
+        [...conn.execute("MATCH (s:Stage {name: 'temporary'}) RETURN count(s);")],
+        [[2n]]
+      );
+    } finally {
+      conn.close();
+      db.close();
+    }
+    const reopenedDb = new Database(config);
+    const reopenedConn = reopenedDb.connect();
+    try {
+      assert.equal(reopenedConn.getSchema().includes('Stage'), false);
+      assert.deepEqual([...reopenedConn.execute(query)], [[1n, 'Alice'], [2n, 'Bob']]);
+    } finally {
+      reopenedConn.close();
+      reopenedDb.close();
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // DB-004-12

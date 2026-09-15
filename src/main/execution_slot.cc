@@ -168,12 +168,6 @@ Status validateQueryAnalysis(const QueryAnalysis& analysis,
   return Status::OK();
 }
 
-bool HasNonCopyMutation(const CowGraphWorkspace& workspace) {
-  const auto& logical_redo = workspace.logical_redo();
-  return workspace.HasTransientMutation() || logical_redo.op_num() != 0 ||
-         logical_redo.content_size() != 0;
-}
-
 Status validateExplicitTransactionPlan(ExplainMode explain_mode,
                                        const physical::ExecutionFlag& flags,
                                        bool read_only) {
@@ -190,11 +184,24 @@ Status validateExplicitTransactionPlan(ExplainMode explain_mode,
                   "Write queries are not allowed in a read-only "
                   "transaction.");
   }
-  if (!read_only && ((flags.batch() && !flags.copy_from()) ||
-                     flags.create_temp_table() || flags.checkpoint())) {
+  const bool copy_temp = flags.copy_from() && flags.create_temp_table();
+  const bool graph_mutation =
+      flags.insert() || flags.update() || flags.schema();
+  // LOAD FROM may drive ordinary DML through the transaction's COW storage.
+  // Keep rejecting any future unclassified batch mutation until it receives an
+  // explicit transactional contract.
+  const bool unsupported_batch_mutation =
+      graph_mutation &&
+      (flags.copy_to() ||
+       (flags.batch() && !flags.copy_from() && !flags.load_from()));
+  const bool graph_mutating_copy_temp =
+      copy_temp && (flags.insert() || flags.update());
+  if (unsupported_batch_mutation || graph_mutating_copy_temp ||
+      (flags.create_temp_table() && !copy_temp) || flags.checkpoint()) {
     return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Bulk, temporary schema, and maintenance operations are "
-                  "not supported in an explicit transaction.");
+                  "Graph-mutating COPY TO, unclassified batch mutations, "
+                  "temporary schema operations, and maintenance operations "
+                  "are not supported in an explicit transaction.");
   }
   return Status::OK();
 }
@@ -505,8 +512,8 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
       }
     } else {
       status = transaction_context.VisitCowWriteOwner(
-          [this, is_explain, &prepare_query, &query, &response,
-           &transaction_context](auto& transaction) {
+          [this, is_explain, &prepare_query, &query,
+           &response](auto& transaction) {
             const auto cache_mode = transaction.PlanningChanged()
                                         ? QueryCacheMode::kBypassShared
                                         : QueryCacheMode::kShared;
@@ -518,16 +525,8 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
             auto& prepared_query = *prepared.value();
 
             if (!is_explain && prepared_query.flags.copy_from()) {
-              return executeExplicitCopy(transaction, transaction_context,
-                                         query, prepared_query, response);
-            }
-
-            if (!is_explain && transaction_context.HasPersistentCopy() &&
-                !IsReadOnlyExecutionFlag(prepared_query.flags)) {
-              return Status(
-                  StatusCode::ERR_NOT_SUPPORTED,
-                  "COPY FROM cannot be mixed with other write operations "
-                  "in the same explicit transaction.");
+              return executeExplicitCopy(transaction, query, prepared_query,
+                                         response);
             }
             auto storage = transaction.OpenStorage();
             return executePreparedQuery(storage, query, prepared_query,
@@ -551,7 +550,6 @@ result<QueryResult> ExecutionSlot::ExecuteQueryInTransaction(
 }
 
 Status ExecutionSlot::executeExplicitCopy(SnapshotCowWriteTransaction&,
-                                          TransactionContext&,
                                           const AnalyzedQuery&,
                                           execution::CacheValue&,
                                           QueryResponse&) {
@@ -561,34 +559,20 @@ Status ExecutionSlot::executeExplicitCopy(SnapshotCowWriteTransaction&,
 }
 
 Status ExecutionSlot::executeExplicitCopy(
-    CurrentCowWriteTransaction& transaction,
-    TransactionContext& transaction_context, const AnalyzedQuery& query,
+    CurrentCowWriteTransaction& transaction, const AnalyzedQuery& query,
     execution::CacheValue& prepared_query, QueryResponse& response) {
-  auto& workspace = transaction.workspace_;
-  if (HasNonCopyMutation(workspace)) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "COPY FROM cannot be mixed with other write operations "
-                  "in the same explicit transaction.");
-  }
-
+  const bool copy_temp = prepared_query.flags.create_temp_table();
   auto storage = transaction.OpenBulkStorage();
-  storage.RequirePersistentTargets();
-  RETURN_IF_NOT_OK(
-      executePreparedQuery(storage, query, prepared_query, response));
-  // Keep the workspace free of non-persistent-COPY side effects.
-  if (HasNonCopyMutation(workspace)) {
-    return Status(StatusCode::ERR_NOT_SUPPORTED,
-                  "Only persistent COPY FROM is supported in an explicit "
-                  "transaction.");
+  if (!copy_temp) {
+    storage.RequirePersistentTargets();
   }
-  transaction_context.MarkPersistentCopy();
-  return Status::OK();
+  return executePreparedQuery(storage, query, prepared_query, response);
 }
 
 Status ExecutionSlot::CommitExplicitTransaction(
     TransactionContext& transaction_context) {
   CHECK(transaction_context.IsActive());
-  if (!transaction_context.HasPersistentCopy()) {
+  if (transaction_context.IsReadOnly()) {
     return transaction_context.Commit();
   }
 
@@ -671,36 +655,23 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
         return classification.error();
       }
       auto prepared_query = std::move(classification).value();
-      const auto& flags = prepared_query->flags;
-      if (flags.copy_from()) {
-        auto transaction = CurrentCowWriteTransaction::Begin(
-            std::move(guard), alloc_, snapshot_store_, *wal_writer_);
+      auto transaction = CurrentCowWriteTransaction::Begin(
+          std::move(guard), alloc_, snapshot_store_, *wal_writer_);
+      if (prepared_query->flags.copy_from()) {
         auto storage = transaction.OpenBulkStorage();
         status = executePreparedQuery(storage, analyzed_query, *prepared_query,
                                       response);
-        if (status.ok()) {
-          // A normal COPY can target a table that is already temporary, so
-          // planner syntax alone cannot select the commit protocol. Storage
-          // marks the resolved target in the workspace.
-          status = transaction.workspace_.HasTransientMutation()
-                       ? transaction.CommitTransient()
-                       : checkpoint_coordinator_.CommitCowWrite(transaction);
-        } else {
-          transaction.Abort();
-        }
       } else {
-        auto transaction = CurrentCowWriteTransaction::Begin(
-            std::move(guard), alloc_, snapshot_store_, *wal_writer_);
         auto storage = transaction.OpenStorage();
         status = executePreparedQuery(storage, analyzed_query, *prepared_query,
                                       response);
-        if (status.ok()) {
-          status = transaction.workspace_.HasTransientMutation()
-                       ? transaction.CommitTransient()
-                       : transaction.Commit();
-        } else {
-          transaction.Abort();
-        }
+      }
+      if (status.ok()) {
+        // Resolved storage targets, not COPY syntax, select checkpoint,
+        // logical-WAL, or transient-only publication.
+        status = checkpoint_coordinator_.CommitCowWrite(transaction);
+      } else {
+        transaction.Abort();
       }
     } else {
       return Status(

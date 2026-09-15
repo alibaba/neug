@@ -702,7 +702,9 @@ void EdgeTable::EnsureCapacity(vid_t src_v_cap, vid_t dst_v_cap,
 }
 
 size_t EdgeTable::EdgeNum() const {
-  if (out_csr_) {
+  // ONLY_IN keeps an EmptyCsr object for the outgoing direction. Its pointer
+  // is non-null, but its zero count does not describe the stored edges.
+  if (out_csr_ && out_csr_->csr_type() != CsrType::kEmpty) {
     return out_csr_->edge_num();
   } else if (in_csr_) {
     return in_csr_->edge_num();

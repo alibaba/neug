@@ -18,9 +18,31 @@
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 #include "neug/compiler/planner/gopt_planner.h"
+#include "neug/utils/access_mode.h"
 
 namespace neug {
 namespace gopt {
+
+TEST(ExecutionFlagTest, ReadOnlyBatchRequiresKnownExternalPlan) {
+  physical::ExecutionFlag flag;
+  flag.set_batch(true);
+  EXPECT_FALSE(IsReadOnlyExecutionFlag(flag));
+
+  flag.set_load_from(true);
+  EXPECT_TRUE(IsReadOnlyExecutionFlag(flag));
+  flag.set_update(true);
+  EXPECT_FALSE(IsReadOnlyExecutionFlag(flag));
+  flag.set_update(false);
+  flag.set_load_from(false);
+  flag.set_copy_to(true);
+  EXPECT_TRUE(IsReadOnlyExecutionFlag(flag));
+  flag.set_insert(true);
+  EXPECT_FALSE(IsReadOnlyExecutionFlag(flag));
+  flag.set_insert(false);
+  flag.set_copy_to(false);
+  flag.set_copy_from(true);
+  EXPECT_FALSE(IsReadOnlyExecutionFlag(flag));
+}
 
 class FlagTest : public GOptTest {
  public:
@@ -163,6 +185,8 @@ TEST_F(FlagTest, CopyFrom) {
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
   EXPECT_TRUE(flag.copy_from);
+  EXPECT_FALSE(flag.load_from);
+  EXPECT_FALSE(flag.copy_to);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -180,6 +204,8 @@ TEST_F(FlagTest, CopyTo) {
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
   EXPECT_FALSE(flag.copy_from);
+  EXPECT_FALSE(flag.load_from);
+  EXPECT_TRUE(flag.copy_to);
   EXPECT_TRUE(flag.read);
   EXPECT_FALSE(flag.insert);
   EXPECT_FALSE(flag.update);
@@ -198,8 +224,29 @@ TEST_F(FlagTest, LoadFrom) {
   auto flag = analyzer.analyze(*logical);
   EXPECT_TRUE(flag.batch);
   EXPECT_FALSE(flag.copy_from);
+  EXPECT_TRUE(flag.load_from);
+  EXPECT_FALSE(flag.copy_to);
   EXPECT_FALSE(flag.read);
   EXPECT_FALSE(flag.insert);
+  EXPECT_FALSE(flag.update);
+  EXPECT_FALSE(flag.schema);
+  EXPECT_FALSE(flag.create_temp_table);
+  EXPECT_FALSE(flag.checkpoint);
+  EXPECT_FALSE(flag.procedure_call);
+}
+
+TEST_F(FlagTest, LoadFromCreate) {
+  std::string query = replaceResource(
+      "LOAD FROM 'DML_RESOURCE/person.csv' "
+      "CREATE (:person {id: id, name: name, age: age});");
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  GPhysicalAnalyzer analyzer(getMetadataManager());
+  auto flag = analyzer.analyze(*logical);
+  EXPECT_TRUE(flag.batch);
+  EXPECT_FALSE(flag.copy_from);
+  EXPECT_TRUE(flag.load_from);
+  EXPECT_FALSE(flag.copy_to);
+  EXPECT_TRUE(flag.insert);
   EXPECT_FALSE(flag.update);
   EXPECT_FALSE(flag.schema);
   EXPECT_FALSE(flag.create_temp_table);

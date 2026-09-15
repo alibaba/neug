@@ -300,12 +300,10 @@ class ExecutionSlot {
       TransactionContext& transaction_context);
   Status CommitExplicitTransaction(TransactionContext& transaction_context);
   Status executeExplicitCopy(SnapshotCowWriteTransaction& transaction,
-                             TransactionContext& transaction_context,
                              const AnalyzedQuery& query,
                              execution::CacheValue& prepared_query,
                              QueryResponse& response);
   Status executeExplicitCopy(CurrentCowWriteTransaction& transaction,
-                             TransactionContext& transaction_context,
                              const AnalyzedQuery& query,
                              execution::CacheValue& prepared_query,
                              QueryResponse& response);
