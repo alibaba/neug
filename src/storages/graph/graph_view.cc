@@ -243,6 +243,7 @@ result<std::vector<const PendingIndex*>> GraphView::GetAllPendingIndexes()
 }
 
 void GraphView::Rebuild(PropertyGraph& pg) {
+  pg.PrepareForInsert();
   dirty_ = &pg.dirty_tracker();
   schema_ = &pg.schema();
   index_manager_ = &pg.index_manager();

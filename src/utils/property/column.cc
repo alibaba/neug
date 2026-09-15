@@ -22,6 +22,7 @@
 #include "neug/storages/module/module_factory.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/array_column.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/list_property_column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -92,15 +93,31 @@ std::unique_ptr<ColumnBase> CreateColumn(DataType type) {
   }
 }
 
+std::unique_ptr<ColumnBase> CreatePropertyColumn(DataType type) {
+  switch (type.id()) {
+#define CHUNKED_DISPATCHER(enum_val, type)        \
+  case DataTypeId::enum_val:                      \
+    return std::make_unique<ChunkedColumn<type>>( \
+        ChunkedColumn<type>::ComputeRowsPerChunk(sizeof(type)));
+    FOR_EACH_DATA_TYPE_NO_STRING(CHUNKED_DISPATCHER)
+#undef CHUNKED_DISPATCHER
+  default:
+    return CreateColumn(type);
+  }
+}
+
 std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   if (auto* vec = dynamic_cast<const VecColumn*>(&column)) {
     return std::make_shared<VecRefColumn>(*vec);
   }
   auto type = column.type();
   switch (type) {
-#define TYPE_DISPATCHER(enum_val, type)            \
-  case DataTypeId::enum_val:                       \
-    return std::make_shared<TypedRefColumn<type>>( \
+#define TYPE_DISPATCHER(enum_val, type)                                      \
+  case DataTypeId::enum_val:                                                 \
+    if (auto* chunked = dynamic_cast<const ChunkedColumn<type>*>(&column)) { \
+      return std::make_shared<ChunkedRefColumn<type>>(*chunked);             \
+    }                                                                        \
+    return std::make_shared<TypedRefColumn<type>>(                           \
         dynamic_cast<const TypedColumn<type>&>(column));
     FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
@@ -135,5 +152,19 @@ NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, Date);
 NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, DateTime);
 NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, Interval);
 NEUG_REGISTER_TEMPLATE_MODULE(TypedColumn, std::string_view);
+
+// ChunkedColumn is the chunked-layout target for fixed-length property columns
+// (plan §5). Register the non-string fixed-length types so a checkpoint storing
+// chunked_column<T> modules can be reopened via the ModuleFactory.
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, bool);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, int32_t);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, uint32_t);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, int64_t);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, uint64_t);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, float);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, double);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, Date);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, DateTime);
+NEUG_REGISTER_TEMPLATE_MODULE(ChunkedColumn, Interval);
 
 }  // namespace neug

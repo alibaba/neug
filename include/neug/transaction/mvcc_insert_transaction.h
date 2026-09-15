@@ -168,6 +168,7 @@ class MvccInsertTransaction {
    *
    * @since v0.1.0
    */
+  bool RequiresCowRetry() const { return requires_cow_retry_; }
   bool Commit();
 
   void Abort();
@@ -217,6 +218,7 @@ class MvccInsertTransaction {
   std::vector<vid_t> added_vertices_base_;
   std::vector<vid_t> vertex_nums_;
 
+  bool requires_cow_retry_ = false;
   SnapshotGuard guard_;
   GraphView* view_;
 

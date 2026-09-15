@@ -40,6 +40,7 @@
 #include "neug/storages/module/type_name.h"
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -250,13 +251,15 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to
-/// TypedColumn<T>::set_value(dst_idx), bypassing get_elem() + set_any().
+/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to a
+/// fixed-length property column, bypassing get_elem() + set_any().
 struct TypedColumnInserter {
   const IContextColumn* src;
   ColumnBase* dst;
   void (*fn)(const TypedColumnInserter&, size_t dst_idx, size_t src_idx,
              bool insert_safe);
+
+  void* bound_dst = nullptr;
 
   inline void insert(size_t dst_idx, size_t src_idx, bool insert_safe) const {
     fn(*this, dst_idx, src_idx, insert_safe);
@@ -266,12 +269,22 @@ struct TypedColumnInserter {
 /// Fixed-length types: direct set_value, no Value, no virtual dispatch.
 /// Null entries already have T() in data_, so set_value writes the same
 /// default that set_any would write for null.
-template <typename T>
+template <typename T, typename COLUMN>
 void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
                        size_t src_idx, bool /*insert_safe*/) {
-  auto* typed_dst = static_cast<TypedColumn<T>*>(ins.dst);
-  auto vc = static_cast<const ValueColumn<T>*>(ins.src);
-  typed_dst->set_value(dst_idx, vc->get_value(src_idx));
+  auto* dst = static_cast<COLUMN*>(ins.bound_dst);
+  auto* src = static_cast<const ValueColumn<T>*>(ins.src);
+  dst->set_value(dst_idx, src->get_value(src_idx));
+}
+
+template <typename T>
+TypedColumnInserter bind_fixed_inserter(const IContextColumn* src,
+                                        ColumnBase* dst) {
+  if (auto* chunked = dynamic_cast<ChunkedColumn<T>*>(dst))
+    return {src, dst, &insert_typed_impl<T, ChunkedColumn<T>>, chunked};
+  if (auto* typed = dynamic_cast<TypedColumn<T>*>(dst))
+    return {src, dst, &insert_typed_impl<T, TypedColumn<T>>, typed};
+  THROW_INTERNAL_EXCEPTION("Invalid fixed-width insertion column layout");
 }
 
 /// Varchar: source is ValueColumn<std::string>, dest is
@@ -299,7 +312,7 @@ TypedColumnInserter make_inserter(const DataType& type,
   switch (type.id()) {
 #define MAKE_INSERTER(enum_val, cpp_type) \
   case DataTypeId::enum_val:              \
-    return {src, dst, &insert_typed_impl<cpp_type>};
+    return bind_fixed_inserter<cpp_type>(src, dst);
     FOR_EACH_DATA_TYPE_NO_STRING(MAKE_INSERTER)
 #undef MAKE_INSERTER
   case DataTypeId::kVarchar:
@@ -688,6 +701,9 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
   capacity = std::max(capacity, static_cast<size_t>(4096));
   table_->resize(capacity, meta_->get_default_property_values());
   capacity_.store(capacity);
+  for (size_t i = 0; i < table_->col_num(); ++i) {
+    table_->get_column_by_id(i)->PrepareForInsert(table_idx_.load());
+  }
 }
 
 void EdgeTable::EnsureCapacity(vid_t src_v_cap, vid_t dst_v_cap,
@@ -1223,6 +1239,10 @@ EdgeTable EdgeTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
   et.SetCapacity(
       meta.GetScalarAs<uint64_t>(ScalarKey(src, edge, dst, "capacity"))
           .value_or(0));
+  if (!es->is_bundled()) {
+    for (size_t i = 0; i < et.table()->col_num(); ++i)
+      et.table()->get_column_by_id(i)->PrepareForInsert(et.PropTableSize());
+  }
   return et;
 }
 
@@ -1239,6 +1259,7 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   store.SetModule(KeyInCsr(src, edge, dst), TakeInCsr());
   if (!meta_->is_bundled()) {
     auto table = TakeTable();
+    table->MigrateLegacyPropertyColumns(ckp, memory_level_);
     for (size_t i = 0; i < table->col_num(); ++i) {
       table->get_column_by_id(i)->Dump(ckp, meta,
                                        KeyProperty(src, edge, dst, i));

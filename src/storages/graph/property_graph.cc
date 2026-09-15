@@ -1073,10 +1073,11 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
         schema_.is_vertex_label_temporary(i)) {
       continue;
     }
-    if (IsVertexTableDirty(i)) {
-      vertex_tables_[i].DisassembleTo(store, meta, *ckp);
+    auto& table = vertex_tables_[i];
+    if (IsVertexTableDirty(i) || table.get_table().HasLegacyPropertyColumns()) {
+      table.DisassembleTo(store, meta, *ckp);
     } else if (prev != nullptr) {
-      vertex_tables_[i].ReuseCheckpointModules(*ckp, meta, *prev);
+      table.ReuseCheckpointModules(*ckp, meta, *prev);
     }
   }
 
@@ -1108,12 +1109,19 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
           continue;
         }
         auto& edge_table = edge_tables_.at(index);
-        if (IsEdgeTableDirty(src_label_i, dst_label_i, e_label_i)) {
+        const bool edge_dirty =
+            IsEdgeTableDirty(src_label_i, dst_label_i, e_label_i);
+        const bool migrate_legacy_columns =
+            !edge_table.get_edge_schema_ptr()->is_bundled() &&
+            edge_table.table()->HasLegacyPropertyColumns();
+        if (edge_dirty) {
           auto e_size = edge_table.PropTableSize();
           auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
                          vertex_capacity[src_label_i],
                          vertex_capacity[dst_label_i], new_cap);
+        }
+        if (edge_dirty || migrate_legacy_columns) {
           edge_table.DisassembleTo(store, meta, *ckp);
         } else if (prev != nullptr) {
           edge_table.ReuseCheckpointModules(*ckp, meta, *prev);
@@ -1125,6 +1133,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   index_manager_->Dump(store, meta);
 
   store.Dump(*ckp, meta);
+  ckp->FinalizeObjectWriter(meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
   // and must not appear in the checkpoint. StripTemporary() creates a clean
   // copy without any temporary vertex/edge labels.
@@ -1165,12 +1174,24 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
     }
     auto& table = vertex_tables_[i];
     const auto& label = table.get_vertex_schema_ptr()->label_name;
-    if (!IsVertexTableDirty(i)) {
+    const bool vertex_dirty = IsVertexTableDirty(i);
+    if (!vertex_dirty) {
       table.ReuseCheckpointModules(*ckp, meta, previous);
+      // A clean legacy table still belongs to retained snapshots. Migrate only
+      // its property payloads; disassembly would consume shared keys/indices.
+      auto& properties = table.get_table();
+      for (size_t property = 0; property < properties.col_num(); ++property) {
+        if (properties.MigrateLegacyPropertyColumn(property, *ckp,
+                                                   memory_level_)) {
+          properties.get_column_by_id(property)->Dump(
+              *ckp, meta, VertexTable::KeyProperty(label, property));
+        }
+      }
       continue;
     }
 
-    if (previous.HasModule(VertexTable::KeyVertexTimestamp(label))) {
+    if (vertex_dirty &&
+        previous.HasModule(VertexTable::KeyVertexTimestamp(label))) {
       LOG(WARNING)
           << "Incremental checkpoint rewrites vertex table '" << label
           << "' that already exists in checkpoint " << ckp_->id()
@@ -1201,12 +1222,25 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
     const auto& src = edge_schema->src_label_name;
     const auto& edge = edge_schema->edge_label_name;
     const auto& dst = edge_schema->dst_label_name;
-    if (!dirty_.IsEdgeDirty(index)) {
+    const bool edge_dirty = dirty_.IsEdgeDirty(index);
+    if (!edge_dirty) {
       table.ReuseCheckpointModules(*ckp, meta, previous);
+      // Preserve shared CSRs and all other clean columns during migration.
+      if (!edge_schema->is_bundled()) {
+        auto& properties = *table.table();
+        for (size_t property = 0; property < properties.col_num(); ++property) {
+          if (properties.MigrateLegacyPropertyColumn(property, *ckp,
+                                                     memory_level_)) {
+            properties.get_column_by_id(property)->Dump(
+                *ckp, meta, EdgeTable::KeyProperty(src, edge, dst, property));
+          }
+        }
+      }
       continue;
     }
 
-    if (previous.HasModule(EdgeTable::KeyOutCsr(src, edge, dst))) {
+    if (edge_dirty &&
+        previous.HasModule(EdgeTable::KeyOutCsr(src, edge, dst))) {
       LOG(WARNING)
           << "Incremental checkpoint rewrites edge table '" << src << "-"
           << edge << "->" << dst << "' that already exists in checkpoint "
@@ -1229,6 +1263,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   index_manager_->StageIncrementalModules(modules_to_dump, meta);
 
   modules_to_dump.Dump(*ckp, meta);
+  ckp->FinalizeObjectWriter(meta);
   auto index_reopen_manifest =
       index_manager_->BuildIncrementalReopenManifest(meta);
   auto checkpoint_schema = schema_.StripTemporary();
@@ -1258,14 +1293,38 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   uncompacted_modules_.MergeFrom(dirty_);
   for (auto& table : vertex_tables_) {
     table.ckp_ = ckp;
+    if (table.get_vertex_schema_ptr()) {
+      table.get_table().RebindCheckpoint(*ckp);
+    }
   }
   for (auto& [_, table] : edge_tables_) {
     table.ckp_ = ckp;
+    if (table.table()) {
+      table.table()->RebindCheckpoint(*ckp);
+    }
   }
   ckp_ = std::move(ckp);
   rebind_indexes();
   dirty_.ClearAll();
   return planning_changed;
+}
+
+void PropertyGraph::PrepareForInsert() {
+  for (auto& table : vertex_tables_) {
+    if (!table.get_vertex_schema_ptr())
+      continue;
+    auto& properties = table.get_table();
+    for (size_t i = 0; i < properties.col_num(); ++i)
+      properties.get_column_by_id(i)->PrepareForInsert(table.LidNum());
+  }
+  for (auto& [_, table] : edge_tables_) {
+    if (!table.get_edge_schema_ptr() ||
+        table.get_edge_schema_ptr()->is_bundled())
+      continue;
+    for (size_t i = 0; i < table.table()->col_num(); ++i)
+      table.table()->get_column_by_id(i)->PrepareForInsert(
+          table.PropTableSize());
+  }
 }
 
 void PropertyGraph::DetachDirtyModulesForCheckpoint(
