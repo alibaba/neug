@@ -40,6 +40,7 @@
 #include "neug/storages/module/type_name.h"
 #include "neug/storages/module_descriptor.h"
 #include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -239,8 +240,8 @@ void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
   in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
 }
 
-/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to
-/// TypedColumn<T>::set_value(dst_idx), bypassing get_elem() + set_any().
+/// Type-erased inserter: writes ValueColumn<T>::get_value(src_idx) to a
+/// fixed-length property column, bypassing get_elem() + set_any().
 struct TypedColumnInserter {
   const IContextColumn* src;
   ColumnBase* dst;
@@ -258,9 +259,18 @@ struct TypedColumnInserter {
 template <typename T>
 void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
                        size_t src_idx, bool /*insert_safe*/) {
-  auto* typed_dst = static_cast<TypedColumn<T>*>(ins.dst);
+  auto* typed_dst = dynamic_cast<TypedColumn<T>*>(ins.dst);
+  auto* chunked_dst = dynamic_cast<ChunkedColumn<T>*>(ins.dst);
+  if (!typed_dst && !chunked_dst) {
+    THROW_INTERNAL_EXCEPTION(
+        "Edge property column cannot be casted to TypedColumn/ChunkedColumn");
+  }
   auto vc = static_cast<const ValueColumn<T>*>(ins.src);
-  typed_dst->set_value(dst_idx, vc->get_value(src_idx));
+  if (typed_dst) {
+    typed_dst->set_value(dst_idx, vc->get_value(src_idx));
+  } else {
+    chunked_dst->set_value(dst_idx, vc->get_value(src_idx));
+  }
 }
 
 /// Varchar: source is ValueColumn<std::string>, dest is

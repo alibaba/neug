@@ -20,6 +20,7 @@
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/csr/prefetch_utils.h"
 #include "neug/utils/platform.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -367,7 +368,16 @@ struct EdgeDataAccessor {
 
   template <typename T>
   inline T get_column_data(size_t idx) const {
-    return reinterpret_cast<const TypedColumn<T>*>(data_column_)->get_view(idx);
+    // Unbundled edge data columns may be TypedColumn or ChunkedColumn.
+    if (auto* chunked = dynamic_cast<const ChunkedColumn<T>*>(data_column_)) {
+      return chunked->get_view(idx);
+    }
+    if (auto* typed = dynamic_cast<const TypedColumn<T>*>(data_column_)) {
+      return typed->get_view(idx);
+    }
+    THROW_INTERNAL_EXCEPTION(
+        "Edge property column cannot be casted to TypedColumn/ChunkedColumn");
+    return T();
   }
 
   inline Value get_generic_bundled_data_from_ptr(const void* data_ptr) const {
