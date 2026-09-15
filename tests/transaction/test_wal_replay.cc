@@ -433,6 +433,38 @@ TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
   EXPECT_EQ(read.published_view.visibility_ts, 0);
 }
 
+// The maintenance watermark must sit below the reserved sentinel encodings so
+// ordinary write timestamps can never collide with MAX_TIMESTAMP.
+TEST(WalReplayVersionManagerTest, WatermarkStaysBelowReservedEncodings) {
+  EXPECT_LT(neug::VersionManager::kWriteTimestampWatermark, neug::MAX_TIMESTAMP);
+  // The guard band must cover at least the in-flight reservation window.
+  EXPECT_GE(neug::VersionManager::kTimestampGuardBand,
+            neug::TimestampWindow::kWindowSize);
+}
+
+// The last reservable ordinary timestamp is watermark-1 (below MAX_TIMESTAMP);
+// the next reservation reaches the watermark and is rejected.
+TEST(WalReplayVersionManagerTest, OrdinaryTimestampsStopAtWatermark) {
+  neug::VersionManager version_manager;
+  version_manager.init_ts(
+      {neug::VersionManager::kWriteTimestampWatermark - 2, 0}, 1);
+  const auto ts = version_manager.acquire_insert_timestamp();
+  EXPECT_EQ(ts, neug::VersionManager::kWriteTimestampWatermark - 1);
+  EXPECT_LT(ts, neug::MAX_TIMESTAMP);
+  version_manager.release_insert_timestamp(ts);
+  // write_ts now equals the watermark; the next reservation must be rejected.
+  EXPECT_THROW(version_manager.acquire_insert_timestamp(), std::exception);
+}
+
+// A recovered timestamp at/above the watermark must be rejected at init so a
+// writable open cannot silently proceed into the reserved-encoding range.
+TEST(WalReplayVersionManagerTest, InitRejectsRecoveredTimestampAtWatermark) {
+  neug::VersionManager version_manager;
+  EXPECT_THROW(version_manager.init_ts(
+                   {neug::VersionManager::kWriteTimestampWatermark, 0}, 1),
+               std::exception);
+}
+
 TEST(WalReplayVersionManagerTest,
      UpdateLeaseReleaseCompletesWithoutResettingTimeline) {
   neug::VersionManager version_manager;
