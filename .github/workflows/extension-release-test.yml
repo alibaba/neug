@@ -58,8 +58,11 @@ jobs:
         pip install neug pytest
 
     - name: Run Python Test
+      env:
+        NEUG_RUN_EXTENSION_TESTS: "1"
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        python3 -m pytest tests/test_batch_loading.py tests/test_alter_property.py -v
+        python3 -m pytest tests/test_extension_install_load.py tests/test_alter_property.py -v
         python3 example/complex_test.py
+    
