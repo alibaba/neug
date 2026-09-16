@@ -1688,7 +1688,7 @@ class TestCopyFrom:
         prefix = "PROFILE " if profile else ""
         node_result = self.conn.execute(
             f'{prefix}COPY person FROM "{node_pattern}" '
-            '(header=true, delimiter=",", batch_size=1)'
+            '(header=true, delimiter=",", batch_rows=1)'
         )
         assert len(node_result) == 3
         if profile:
@@ -1711,7 +1711,7 @@ class TestCopyFrom:
         edge_result = self.conn.execute(
             f'{prefix}COPY knows FROM "{edges_path.as_posix()}" '
             '(from="person", to="person", header=true, delimiter=",", '
-            "batch_size=1)"
+            "batch_rows=1)"
         )
         # Preserve input cardinality even when storage skips a dangling edge.
         assert len(edge_result) == 3
@@ -1870,7 +1870,7 @@ class TestCopyFrom:
         )
         copy_query = (
             f'COPY retry_node FROM "{file_pattern}" '
-            '(header=true, delimiter=",", batch_size=1)'
+            '(header=true, delimiter=",", batch_rows=1)'
         )
         with pytest.raises(Exception):
             self.conn.execute(copy_query)
