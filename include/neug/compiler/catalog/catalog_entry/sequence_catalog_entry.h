@@ -38,16 +38,7 @@ struct BoundExtraCreateCatalogEntryInfo;
 struct BoundAlterInfo;
 }  // namespace binder
 
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace catalog {
-
-struct SequenceRollbackData {
-  uint64_t usageCount;
-  int64_t currVal;
-};
 
 struct SequenceData {
   SequenceData() = default;
@@ -91,11 +82,8 @@ class NEUG_API SequenceCatalogEntry final : public CatalogEntry {
   // sequence functions
   //===--------------------------------------------------------------------===//
   int64_t currVal();
-  void nextKVal(transaction::Transaction* transaction, const uint64_t& count);
-  void nextKVal(transaction::Transaction* transaction, const uint64_t& count,
-                common::ValueVector& resultVector);
-  void rollbackVal(const uint64_t& usageCount, const int64_t& currVal);
-
+  void nextKVal(const uint64_t& count);
+  void nextKVal(const uint64_t& count, common::ValueVector& resultVector);
   //===--------------------------------------------------------------------===//
   // serialization & deserialization
   //===--------------------------------------------------------------------===//

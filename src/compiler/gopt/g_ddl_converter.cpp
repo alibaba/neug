@@ -708,13 +708,12 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
                                   std::vector<EdgeLabel>& edgeLabels) {
   checkCatalogInitialized();
 
-  const auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   std::vector<EdgeSchema*> relTableEntries;
 
-  if (catalog->containsRelGroup(&transaction, labelName)) {
-    relTableEntries = catalog->getRelGroupEntry(&transaction, labelName);
+  if (catalog->containsRelGroup(labelName)) {
+    relTableEntries = catalog->getRelGroupEntry(labelName);
   } else {
-    auto* entry = catalog->getTableCatalogEntry(&transaction, labelName);
+    auto* entry = catalog->getTableCatalogEntry(labelName);
     auto* edgeTableEntry = dynamic_cast<EdgeSchema*>(entry);
     if (!edgeTableEntry) {
       THROW_RUNTIME_ERROR("Edge table entry not found: " + labelName);
@@ -735,8 +734,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
 std::string GDDLConverter::getVertexLabelName(neug::common::oid_t tableId) {
   checkCatalogInitialized();
 
-  auto* entry = catalog->getTableCatalogEntry(
-      &neug::Constants::DEFAULT_TRANSACTION, tableId);
+  auto* entry = catalog->getTableCatalogEntry(tableId);
   auto* vertexSchema = dynamic_cast<const VertexSchema*>(entry);
   if (!vertexSchema) {
     THROW_RUNTIME_ERROR("Node table entry not found for id: " +
@@ -749,8 +747,7 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
                                    catalog::CatalogEntryType expectedType) {
   checkCatalogInitialized();
 
-  auto* entry = catalog->getTableCatalogEntry(
-      &neug::Constants::DEFAULT_TRANSACTION, labelName);
+  auto* entry = catalog->getTableCatalogEntry(labelName);
   if (!entry) {
     THROW_RUNTIME_ERROR("Catalog entry not found for label: " + labelName);
   }

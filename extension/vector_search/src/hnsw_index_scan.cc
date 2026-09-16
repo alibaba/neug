@@ -561,12 +561,10 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
 
 function::TableFunction* HNSWIndexScanOptimizer::GetIndexScanFunction(
     catalog::Catalog& catalog) const {
-  auto* transaction = &transaction::DUMMY_TRANSACTION;
-  if (!catalog.containsFunction(transaction, HNSWIndexScanFunction::name)) {
+  if (!catalog.containsFunction(HNSWIndexScanFunction::name)) {
     return nullptr;
   }
-  auto* entry =
-      catalog.getFunctionEntry(transaction, HNSWIndexScanFunction::name);
+  auto* entry = catalog.getFunctionEntry(HNSWIndexScanFunction::name);
   if (entry == nullptr ||
       entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY) {
     return nullptr;

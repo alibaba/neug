@@ -2232,8 +2232,7 @@ void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
 
 std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
     common::table_id_t labelId) {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
-  auto table = catalog->getTableCatalogEntry(&transaction, labelId);
+  auto table = catalog->getTableCatalogEntry(labelId);
   if (!table) {
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table not found: " +
                                    std::to_string(labelId));

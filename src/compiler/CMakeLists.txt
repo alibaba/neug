@@ -32,7 +32,6 @@ add_subdirectory(parser)
 add_subdirectory(planner)
 #add_subdirectory(processor)
 #add_subdirectory(storage)
-add_subdirectory(transaction)
 add_subdirectory(extension)
 add_subdirectory(gopt)
 

@@ -755,8 +755,7 @@ DataType convertFromString(const std::string& str,
     if (tryGetIDFromString(upperDataTypeString, id)) {
       return DataType(id);
     } else if (context != nullptr) {
-      return context->getCatalog()->getType(context->getTransaction(),
-                                            upperDataTypeString);
+      return context->getCatalog()->getType(upperDataTypeString);
     } else {
       THROW_RUNTIME_ERROR("Invalid datatype string: " + str);
     }

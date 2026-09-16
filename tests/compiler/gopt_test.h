@@ -51,7 +51,6 @@
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/service_utils.h"

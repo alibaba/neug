@@ -25,8 +25,7 @@ LogicalPlan Planner::getNodeSemiMaskPlan(
     auto& propExpr = expr->constCast<PropertyExpression>();
     propertyExprCollection.addProperties(propExpr.getVariableName(), expr);
   }
-  cardinalityEstimator.addNodeIDDomAndStats(clientContext->getTransaction(),
-                                            *node.getInternalID(),
+  cardinalityEstimator.addNodeIDDomAndStats(*node.getInternalID(),
                                             node.getTableIDs());
   appendScanNodeTable(node.getInternalID(), node.getTableIDs(),
                       getProperties(node), plan);

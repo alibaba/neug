@@ -54,10 +54,7 @@ class NEUG_API CatalogEntry {
   //===--------------------------------------------------------------------===//
   CatalogEntry() : CatalogEntry{CatalogEntryType::DUMMY_ENTRY, ""} {}
   CatalogEntry(CatalogEntryType type, std::string name)
-      : type{type},
-        name{std::move(name)},
-        oid{common::INVALID_OID},
-        timestamp{common::INVALID_TRANSACTION} {}
+      : type{type}, name{std::move(name)}, oid{common::INVALID_OID} {}
   DELETE_COPY_DEFAULT_MOVE(CatalogEntry);
   virtual ~CatalogEntry() = default;
 
@@ -67,35 +64,10 @@ class NEUG_API CatalogEntry {
   CatalogEntryType getType() const { return type; }
   void rename(std::string name_) { this->name = std::move(name_); }
   std::string getName() const { return name; }
-  common::transaction_t getTimestamp() const { return timestamp; }
-  void setTimestamp(common::transaction_t timestamp_) {
-    this->timestamp = timestamp_;
-  }
-  bool isDeleted() const { return deleted; }
-  void setDeleted(bool deleted_) { this->deleted = deleted_; }
   bool hasParent() const { return hasParent_; }
   void setHasParent(bool hasParent) { hasParent_ = hasParent; }
   void setOID(common::oid_t oid) { this->oid = oid; }
   common::oid_t getOID() const { return oid; }
-  CatalogEntry* getPrev() const {
-    NEUG_ASSERT(prev);
-    return prev.get();
-  }
-  std::unique_ptr<CatalogEntry> movePrev() {
-    if (this->prev) {
-      this->prev->setNext(nullptr);
-    }
-    return std::move(prev);
-  }
-  void setPrev(std::unique_ptr<CatalogEntry> prev_) {
-    this->prev = std::move(prev_);
-    if (this->prev) {
-      this->prev->setNext(this);
-    }
-  }
-  CatalogEntry* getNext() const { return next; }
-  void setNext(CatalogEntry* next_) { this->next = next_; }
-
   //===--------------------------------------------------------------------===//
   // serialization & deserialization
   //===--------------------------------------------------------------------===//
@@ -131,13 +103,7 @@ class NEUG_API CatalogEntry {
   CatalogEntryType type;
   std::string name;
   common::oid_t oid;
-  common::transaction_t timestamp;
-  bool deleted = false;
   bool hasParent_ = false;
-  // Older versions.
-  std::unique_ptr<CatalogEntry> prev;
-  // Newer versions.
-  CatalogEntry* next = nullptr;
 };
 
 }  // namespace catalog

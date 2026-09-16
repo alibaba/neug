@@ -290,8 +290,7 @@ std::shared_ptr<binder::Expression> MakeScanColumn(
 DataType MakeScanNodeType(main::ClientContext& context,
                           common::table_id_t table_id) {
   DataType result{DataTypeId::kVertex};
-  const auto* entry = context.getCatalog()->getTableCatalogEntry(
-      context.getTransaction(), table_id);
+  const auto* entry = context.getCatalog()->getTableCatalogEntry(table_id);
   const auto* vertex_schema = dynamic_cast<const VertexSchema*>(entry);
   if (!vertex_schema) {
     return result;
@@ -729,12 +728,10 @@ void FTSIndexScanOptimizer::RewriteProjection(
 
 function::TableFunction* FTSIndexScanOptimizer::GetIndexScanFunction(
     catalog::Catalog& catalog) const {
-  auto* transaction = &transaction::DUMMY_TRANSACTION;
-  if (!catalog.containsFunction(transaction, FTSIndexScanFunction::name)) {
+  if (!catalog.containsFunction(FTSIndexScanFunction::name)) {
     return nullptr;
   }
-  auto* entry =
-      catalog.getFunctionEntry(transaction, FTSIndexScanFunction::name);
+  auto* entry = catalog.getFunctionEntry(FTSIndexScanFunction::name);
   if (!entry ||
       entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY) {
     return nullptr;
