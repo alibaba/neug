@@ -79,10 +79,6 @@ struct ExportFuncBindInput;
 struct ExportFuncBindData;
 }  // namespace function
 
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace binder {
 
 enum class NamespaceBindingMode : uint8_t { DISALLOW, ALLOW_FOR_MATCH };

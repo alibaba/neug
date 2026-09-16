@@ -82,8 +82,6 @@ class PhysicalPlan;
 }  // namespace processor
 
 namespace transaction {
-class Transaction;
-class TransactionManager;
 class TransactionContext;
 }  // namespace transaction
 

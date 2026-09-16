@@ -29,9 +29,6 @@ namespace neug {
 namespace evaluator {
 class ExpressionEvaluator;
 }
-namespace transaction {
-class Transaction;
-}
 namespace storage {
 class MemoryManager;
 

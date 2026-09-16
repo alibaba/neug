@@ -39,10 +39,6 @@ namespace catalog {
 class NodeTableCatalogEntry;
 }
 
-namespace transaction {
-class Transaction;
-}
-
 namespace storage {
 class NodeTable;
 
