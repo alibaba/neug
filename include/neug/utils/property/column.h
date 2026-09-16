@@ -63,6 +63,10 @@ class ColumnBase : public Module {
   virtual void resize(size_t size) = 0;
   virtual void resize(size_t size, const Value& default_value) = 0;
 
+  /// Called under exclusive preparation before concurrent insert admission.
+  /// Existing layouts already have writable reserved capacity.
+  virtual void PrepareForInsert(size_t first_row) { (void) first_row; }
+
   virtual DataTypeId type() const = 0;
 
   // insert_safe is true when the column needs to be resized to accommodate the
@@ -635,7 +639,7 @@ class TypedRefColumn : public RefColumnBase {
 
   inline T get_view(size_t index) const {
     assert(index < basic_size);
-    return basic_buffer[index];
+    return basic_buffer ? basic_buffer[index] : reader_(source_, index);
   }
 
   Value get_any(size_t index) const override {
@@ -646,9 +650,21 @@ class TypedRefColumn : public RefColumnBase {
 
   ColType col_type() const override { return ColType::kInternal; }
 
+ protected:
+  // Other fixed-width layouts bind one reader when the reference is created.
+  // Existing vertex_column_t<T> users can keep the same typed accessor.
+  TypedRefColumn(const void* source, size_t size,
+                 T (*reader)(const void*, size_t))
+      : basic_buffer(nullptr),
+        basic_size(size),
+        source_(source),
+        reader_(reader) {}
+
  private:
   const T* basic_buffer;
   size_t basic_size;
+  const void* source_ = nullptr;
+  T (*reader_)(const void*, size_t) = nullptr;
 };
 
 template <>

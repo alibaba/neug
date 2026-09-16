@@ -14,10 +14,14 @@
  */
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -80,6 +84,22 @@ class Checkpoint {
     return file_mgr_->OpenFile(file_path, level);
   }
 
+  /// Open an immutable object by its checkpoint-local ID. IDs are file names,
+  /// never absolute paths, so a checkpoint remains relocatable.
+  std::shared_ptr<IDataContainer> OpenObject(const std::string& object_id,
+                                             MemoryLevel level);
+
+  struct ChunkBuffer {
+    std::shared_ptr<IDataContainer> container;
+    size_t offset;
+  };
+  /// Mutable chunk/page storage comes from 2 MiB arenas. Allocation only runs
+  /// under maintenance or COW admission, never during concurrent insert apply.
+  ChunkBuffer AllocateChunkBuffer(size_t bytes, MemoryLevel level);
+
+  /// Convert an object-store path returned by Commit() into its persisted ID.
+  std::string ObjectIdForPath(const std::string& object_path) const;
+
   std::shared_ptr<IDataContainer> CreateRuntimeContainer(size_t size,
                                                          MemoryLevel level) {
     return file_mgr_->CreateRuntimeContainer(size, level);
@@ -119,9 +139,20 @@ class Checkpoint {
   /// the index into that table.
   ObjectWriter& object_writer();
 
-  /// Seal any partial object accumulated by object_writer(). Call before the
-  /// manifest is persisted so every appended block has a committed object.
+  /// Seal any partial object accumulated by object_writer().
   void SealObjects();
+
+  /// Register work that needs finalized ObjectWriter slices. Call
+  /// FinalizeObjectWriter(manifest) after all modules have appended their chunk
+  /// data.
+  void RegisterObjectFinalizer(
+      std::function<void(Checkpoint&, CheckpointManifest&)> finalizer);
+
+  /// Seal the shared object writer, then finish every pending chunk directory.
+  /// This is a checkpoint-level barrier: it lets chunks from different columns
+  /// share one packed object while keeping each column directory
+  /// self-contained.
+  void FinalizeObjectWriter(CheckpointManifest& manifest);
 
   /// Object paths committed via object_writer(), indexed by
   /// ObjectSlice.object_id.
@@ -144,6 +175,7 @@ class Checkpoint {
   void initialize(bool load_manifest);
   void create_dirs() const;
   void resolve_object_paths();
+  std::string ResolveObjectId(const std::string& object_id) const;
   void persist_manifest();
 
   std::string database_dir_;
@@ -156,6 +188,16 @@ class Checkpoint {
   std::unique_ptr<CheckpointFileManager> file_mgr_;
   std::unique_ptr<ObjectWriter> object_writer_;
   std::vector<std::string> object_table_;
+  std::vector<std::function<void(Checkpoint&, CheckpointManifest&)>>
+      object_finalizers_;
+  struct ChunkArena {
+    std::shared_ptr<IDataContainer> container;
+    size_t used = 0;
+  };
+  std::mutex chunk_mutex_;
+  std::array<ChunkArena, 4> chunk_arenas_;
+  std::unordered_map<std::string, std::weak_ptr<IDataContainer>>
+      immutable_objects_;
 };
 
 /// File name prefix for the allocator with @p allocator_id under

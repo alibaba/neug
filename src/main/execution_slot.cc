@@ -648,9 +648,21 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
       StorageReadInterface storage(transaction.view(), transaction.timestamp());
       status = execute_and_commit(transaction, storage);
     } else if (access_mode == AccessMode::kInsert) {
-      auto transaction = BeginMvccInsertTransaction();
-      StorageTPInsertInterface storage(transaction);
-      status = execute_and_commit(transaction, storage);
+      bool retry_cow = false;
+      {
+        auto transaction = BeginMvccInsertTransaction();
+        StorageTPInsertInterface storage(transaction);
+        status = execute_and_commit(transaction, storage);
+        retry_cow = transaction.RequiresCowRetry();
+        // Release the insert lease, snapshot and borrowed execution context
+        // before acquiring COW admission. No WAL was written by this attempt.
+      }
+      if (retry_cow) {
+        response.Clear();
+        auto transaction = BeginSnapshotCowWriteTransaction();
+        auto storage = transaction.OpenStorage();
+        status = execute_and_commit(transaction, storage);
+      }
     } else if (access_mode == AccessMode::kUpdate ||
                access_mode == AccessMode::kSchema) {
       auto transaction = BeginSnapshotCowWriteTransaction();

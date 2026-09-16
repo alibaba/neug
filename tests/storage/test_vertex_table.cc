@@ -173,6 +173,7 @@ TEST_F(VertexTableTest, DisassembleMigratesLegacyFixedColumns) {
   neug::CheckpointManifest manifest;
   table.DisassembleTo(modules, manifest, *ckp);
   modules.Dump(*ckp, manifest);
+  ckp->FinalizeObjectWriter(manifest);
 
   const auto* desc =
       manifest.FindModule(neug::VertexTable::KeyProperty(v_label_name_, 1));

@@ -32,19 +32,19 @@ inline constexpr const char* kChunkDirPath = "chunk_dir";
 uint32_t Crc32c(const void* data, size_t length);
 
 /// Parse a serialized chunk-directory blob (the format written by
-/// ChunkedColumn::Dump) and return the object path of every chunk it
+/// ChunkedColumn::Dump) and return the checkpoint-local object IDs it
 /// references. Checkpoint GC uses this to retain chunk objects, which live
 /// inside the directory blob and are therefore invisible in the module
-/// descriptor's own paths. Bounds-checked: a truncated/malformed blob yields
-/// only the paths fully present.
-std::vector<std::string> ExtractChunkDirObjectPaths(const void* data,
-                                                    size_t size);
+/// descriptor's own paths. Malformed blobs throw rather than returning a
+/// partial result that could make GC reclaim live objects.
+std::vector<std::string> ExtractChunkDirObjectIds(const void* data,
+                                                  size_t size);
 
 /// Location of a persisted chunk block within an immutable object.
 ///
-/// Fixed 24-byte POD; serialized little-endian into a chunk directory as a
-/// contiguous array. `object_id` is the stable object-store identity, so a
-/// slice never embeds an absolute path or an in-memory pointer.
+/// Fixed 24-byte POD. `object_id` is an in-memory index into the checkpoint's
+/// ObjectWriter table; persisted directories store a local table of stable
+/// object IDs and encode only its per-directory index, never an absolute path.
 struct ObjectSlice {
   uint64_t object_id = 0;  // stable object-store identity
   uint64_t offset = 0;     // payload byte offset within the object
@@ -52,16 +52,36 @@ struct ObjectSlice {
   uint32_t crc32c = 0;     // payload checksum
 };
 
-/// Stable identity of a chunk: a stable column uid plus the logical chunk
-/// index. Deliberately independent of the reorderable schema label ids.
+/// A physical page may have an immutable prefix and an appendable suffix.
+struct ChunkDirectoryPage {
+  uint32_t prefix_rows = 0;
+  ObjectSlice prefix;
+  ObjectSlice suffix;
+};
+
+struct ChunkDirectory {
+  uint32_t row_width = 0;  // zero only when decoding the legacy directory
+  uint64_t rows_per_chunk = 0;
+  uint64_t rows_per_page = 0;
+  uint64_t row_count = 0;
+  std::vector<std::string> object_ids;
+  std::vector<ChunkDirectoryPage> pages;
+};
+
+/// Versioned, checksummed encoding shared by column recovery and GC.
+std::vector<char> EncodeChunkDirectory(const ChunkDirectory& directory);
+ChunkDirectory DecodeChunkDirectory(const void* data, size_t size);
+
+/// Reserved for a future global chunk index. The current directory format uses
+/// the module key and local chunk ordinal, so this type is intentionally not
+/// part of the persisted checkpoint contract yet.
 struct ChunkKey {
   uint64_t column_uid = 0;
   uint32_t chunk_index = 0;
 };
 
-/// Allocates stable, monotonic, never-reused column uids, independent of schema
-/// label ids so that schema reorder/drop does not disturb chunk identity.
-/// Persisted as the manifest scalar `column_uid_next`.
+/// Reserved allocator for the future global chunk index. It is not persisted
+/// until that index becomes part of the storage format.
 class ColumnUidRegistry {
  public:
   explicit ColumnUidRegistry(uint64_t next = 1) : next_(next) {}

@@ -412,11 +412,15 @@ void CheckpointManager::CollectGarbage() {
       const auto dir_path = desc.get_path(kChunkDirPath);
       if (dir_path.has_value() && !dir_path->empty()) {
         auto dir = checkpoint->OpenFile(*dir_path, MemoryLevel::kInMemory);
-        for (const auto& chunk_path :
-             ExtractChunkDirObjectPaths(dir->GetData(), dir->GetDataSize())) {
-          if (!chunk_path.empty()) {
-            retained_objects.insert(
-                std::filesystem::path(chunk_path).filename().string());
+        for (const auto& object_id :
+             ExtractChunkDirObjectIds(dir->GetData(), dir->GetDataSize())) {
+          if (!object_id.empty()) {
+            const std::filesystem::path relative(object_id);
+            if (relative.is_absolute() || relative.has_parent_path()) {
+              THROW_CHECKPOINT_EXCEPTION(
+                  "Checkpoint GC: invalid chunk object ID: " + object_id);
+            }
+            retained_objects.insert(object_id);
           }
         }
       }

@@ -51,21 +51,21 @@ TEST(ObjectWriterTest, PacksBlocksAndAssignsSlicesOnSeal) {
   EXPECT_EQ(writer.AppendBlock(b2.data(), static_cast<uint32_t>(b2.size())),
             1u);
 
-  // 300 < 1024: nothing committed yet, object_id still pending.
+  // 312 < 1024 including alignment: object_id is still pending.
   EXPECT_TRUE(committed.empty());
   EXPECT_EQ(writer.slices()[0].object_id, 0u);
 
   writer.Seal();
   ASSERT_EQ(committed.size(), 1u);
-  EXPECT_EQ(committed[0],
-            b1 + b2);  // plain concatenation, no per-object header
+  EXPECT_EQ(committed[0], b1 + std::string(12, '\0') +
+                              b2);  // aligned payloads, no per-object header
 
   const auto& slices = writer.slices();
   EXPECT_EQ(slices[0].object_id, 100u);
   EXPECT_EQ(slices[1].object_id, 100u);
   EXPECT_EQ(slices[0].offset, 0u);
   EXPECT_EQ(slices[0].length, 100u);
-  EXPECT_EQ(slices[1].offset, 100u);
+  EXPECT_EQ(slices[1].offset, 112u);
   EXPECT_EQ(slices[1].length, 200u);
   EXPECT_EQ(slices[0].crc32c, Crc32c(b1.data(), b1.size()));
   EXPECT_EQ(slices[1].crc32c, Crc32c(b2.data(), b2.size()));
@@ -86,8 +86,8 @@ TEST(ObjectWriterTest, RollsToNewObjectAtTargetBytes) {
   EXPECT_TRUE(committed_sizes.empty());  // 200 < 256
 
   writer.AppendBlock(block.data(), static_cast<uint32_t>(block.size()));
-  ASSERT_EQ(committed_sizes.size(), 1u);  // 400 >= 256 -> rolled
-  EXPECT_EQ(committed_sizes[0], 400u);
+  ASSERT_EQ(committed_sizes.size(), 1u);  // 408 >= 256 -> rolled
+  EXPECT_EQ(committed_sizes[0], 408u);
   EXPECT_EQ(writer.slices()[0].object_id, 1u);
   EXPECT_EQ(writer.slices()[1].object_id, 1u);
 

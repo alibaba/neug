@@ -109,6 +109,13 @@ Status MvccInsertTransaction::AddVertex(label_t label, const Value& id,
   }
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
+    if (view_->ContainsVertexKey(label, id)) {
+      // Reusing a deleted VID overwrites a retained snapshot. Stop before WAL
+      // and let autocommit re-execute the whole statement in a COW transaction.
+      requires_cow_retry_ = true;
+      return Status(StatusCode::ERR_NOT_SUPPORTED,
+                    "Deleted vertex key requires COW re-execution");
+    }
     added_vertices_[label]->_add(id);
     vid = vertex_nums_[label] + added_vertices_base_[label];
     vertex_nums_[label]++;
@@ -158,6 +165,8 @@ Status MvccInsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
 }
 
 bool MvccInsertTransaction::Commit() {
+  if (requires_cow_retry_)
+    return false;
   if (timestamp_ == INVALID_TIMESTAMP) {
     return true;
   }

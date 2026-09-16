@@ -17,10 +17,12 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
@@ -73,6 +75,33 @@ class ChunkedColumnTest : public ::testing::Test {
   std::filesystem::path temp_dir_;
 };
 
+TEST_F(ChunkedColumnTest, FrozenPrefixAlsoIsolatesOriginalOwner) {
+  ChunkedColumn<int64_t> col(4);
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(4);
+  col.set_value(0, 11);
+  auto module = col.Clone();
+  auto& clone = dynamic_cast<ChunkedColumn<int64_t>&>(*module);
+  clone.PrepareForInsert(1);
+  col.set_value(0, 22);
+  EXPECT_EQ(clone.get_view(0), 11);
+  clone.set_any(1, Value::INT64(33), false);
+  EXPECT_EQ(clone.get_view(1), 33);
+}
+
+TEST_F(ChunkedColumnTest, LegacyTypedReferenceAcceptsChunkedProperties) {
+  ChunkedColumn<int64_t> col(4);
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(8);
+  col.set_value(5, 42);
+  auto ref = CreateRefColumn(col);
+  auto typed = std::dynamic_pointer_cast<TypedRefColumn<int64_t>>(ref);
+  ASSERT_NE(typed, nullptr);
+  EXPECT_EQ(typed->get_view(5), 42);
+  EXPECT_EQ(typed->get_any(5).GetValue<int64_t>(), 42);
+  EXPECT_EQ(typed->type(), DataTypeId::kInt64);
+}
+
 TEST_F(ChunkedColumnTest, ResizeSetGetAcrossChunkBoundary) {
   ChunkedColumn<int64_t> col(kRowsPerChunk);
   col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
@@ -123,7 +152,7 @@ TEST_F(ChunkedColumnTest, CloneSharesUntilWriteThenIsolatesPerChunk) {
   EXPECT_EQ(cow->get_view(1), 999);
 }
 
-TEST_F(ChunkedColumnTest, DetachForksAllChunks) {
+TEST_F(ChunkedColumnTest, DetachDefersChunkCopyUntilWrite) {
   ChunkedColumn<int64_t> original(kRowsPerChunk);
   original.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
   original.resize(8);
@@ -136,13 +165,41 @@ TEST_F(ChunkedColumnTest, DetachForksAllChunks) {
   ASSERT_NE(cow, nullptr);
   cow->Detach(*ckp_, MemoryLevel::kInMemory);
 
-  // After a full detach, writing any chunk is isolated from the original.
+  // Detach only rebinds the COW allocation context. The target chunk is copied
+  // on its first write, while untouched chunks stay shared.
   cow->set_value(5, 555);  // chunk 1
   EXPECT_EQ(cow->get_view(5), 555);
   EXPECT_EQ(original.get_view(5), 5);
   cow->set_value(0, 111);  // chunk 0
   EXPECT_EQ(cow->get_view(0), 111);
   EXPECT_EQ(original.get_view(0), 0);
+}
+
+TEST_F(ChunkedColumnTest, DetachDoesNotMakeCleanChunksDirty) {
+  ChunkedColumn<int64_t> original(kRowsPerChunk);
+  original.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  original.resize(8);
+  for (size_t i = 0; i < 8; ++i) {
+    original.set_value(i, static_cast<int64_t>(i));
+  }
+  CheckpointManifest original_meta;
+  original.Dump(*ckp_, original_meta, "original");
+  ckp_->FinalizeObjectWriter(original_meta);
+
+  auto cow_module = original.Clone();
+  auto* cow = dynamic_cast<ChunkedColumn<int64_t>*>(cow_module.get());
+  ASSERT_NE(cow, nullptr);
+  cow->Detach(*ckp_, MemoryLevel::kInMemory);
+
+  const size_t before = CountObjectFiles();
+  CheckpointManifest clean_meta;
+  cow->Dump(*ckp_, clean_meta, "clean_clone");
+  ckp_->FinalizeObjectWriter(clean_meta);
+  const size_t after = CountObjectFiles();
+
+  // A clean clone needs only its directory; copying every chunk would add a
+  // second payload object here.
+  EXPECT_EQ(after - before, 1u);
 }
 
 TEST_F(ChunkedColumnTest, ComputeRowsPerChunkMeetsPayloadFloor) {
@@ -164,6 +221,7 @@ TEST_F(ChunkedColumnTest, DumpOpenRoundtripPreservesValues) {
 
   CheckpointManifest meta;
   col.Dump(*ckp_, meta, "chunked_col");
+  ckp_->FinalizeObjectWriter(meta);
 
   // Reopen from the serialized chunk directory (crc32c verified on load).
   ChunkedColumn<int64_t> reopened(kRowsPerChunk);
@@ -172,6 +230,27 @@ TEST_F(ChunkedColumnTest, DumpOpenRoundtripPreservesValues) {
   EXPECT_EQ(reopened.rows_per_chunk(), kRowsPerChunk);
   for (size_t i = 0; i < 10; ++i) {
     EXPECT_EQ(reopened.get_view(i), static_cast<int64_t>(i * 7));
+  }
+}
+
+TEST_F(ChunkedColumnTest, ShrinkDropsUnreachableChunksBeforeDump) {
+  ChunkedColumn<int64_t> col(kRowsPerChunk);
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(8);
+  for (size_t i = 0; i < 8; ++i) {
+    col.set_value(i, static_cast<int64_t>(i));
+  }
+  col.resize(4);
+
+  CheckpointManifest meta;
+  col.Dump(*ckp_, meta, "shrunk");
+  ckp_->FinalizeObjectWriter(meta);
+
+  ChunkedColumn<int64_t> reopened(kRowsPerChunk);
+  reopened.Open(*ckp_, *meta.FindModule("shrunk"), MemoryLevel::kInMemory);
+  ASSERT_EQ(reopened.size(), 4u);
+  for (size_t i = 0; i < 4; ++i) {
+    EXPECT_EQ(reopened.get_view(i), static_cast<int64_t>(i));
   }
 }
 
@@ -213,6 +292,7 @@ TEST_F(ChunkedColumnTest, IncrementalDumpRewritesOnlyDirtyChunk) {
   }
   CheckpointManifest meta1;
   col.Dump(*ckp_, meta1, "col");
+  ckp_->FinalizeObjectWriter(meta1);
 
   // Reopen and modify only chunk 1 (rows 4..7); chunks 0 and 2 stay clean.
   ChunkedColumn<int64_t> col2(kRowsPerChunk);
@@ -226,6 +306,7 @@ TEST_F(ChunkedColumnTest, IncrementalDumpRewritesOnlyDirtyChunk) {
   const size_t before = CountObjectFiles();
   CheckpointManifest meta2;
   col2.Dump(*ckp_, meta2, "col");
+  ckp_->FinalizeObjectWriter(meta2);
   const size_t after = CountObjectFiles();
   EXPECT_LE(after - before, 2u)
       << "chunk-granular reuse failed: too many objects re-committed";
@@ -240,9 +321,9 @@ TEST_F(ChunkedColumnTest, IncrementalDumpRewritesOnlyDirtyChunk) {
   }
 }
 
-TEST(ChunkDirTest, ExtractChunkDirObjectPathsParsesAndIsBoundsChecked) {
+TEST(ChunkDirTest, ExtractChunkDirObjectIdsParsesAndRejectsCorruption) {
   // Build a directory blob in the ChunkedColumn::Dump format: header +
-  // object-path table + per-chunk ObjectSlice section.
+  // object-ID table + per-chunk ObjectSlice section.
   std::vector<char> blob;
   auto append_u64 = [&](uint64_t v) {
     for (int i = 0; i < 8; ++i) {
@@ -254,8 +335,8 @@ TEST(ChunkDirTest, ExtractChunkDirObjectPathsParsesAndIsBoundsChecked) {
       blob.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
     }
   };
-  const std::string p0 = "objects/aaa";
-  const std::string p1 = "objects/bbb";
+  const std::string p0 = "aaa";
+  const std::string p1 = "bbb";
   append_u64(4);  // rows_per_chunk
   append_u64(2);  // chunk_count
   append_u64(8);  // row_count
@@ -275,17 +356,28 @@ TEST(ChunkDirTest, ExtractChunkDirObjectPathsParsesAndIsBoundsChecked) {
   append_u32(32);
   append_u32(222);
 
-  auto paths = ExtractChunkDirObjectPaths(blob.data(), blob.size());
-  ASSERT_EQ(paths.size(), 2u);
-  EXPECT_EQ(paths[0], p0);
-  EXPECT_EQ(paths[1], p1);
+  auto object_ids = ExtractChunkDirObjectIds(blob.data(), blob.size());
+  ASSERT_EQ(object_ids.size(), 2u);
+  EXPECT_EQ(object_ids[0], p0);
+  EXPECT_EQ(object_ids[1], p1);
 
-  // Truncating so p1's declared length exceeds the remaining bytes yields only
-  // the first path (bounds-checked).
-  auto partial =
-      ExtractChunkDirObjectPaths(blob.data(), p1_bytes_at + p1.size() - 1);
-  EXPECT_EQ(partial.size(), 1u);
-  EXPECT_EQ(partial[0], p0);
+  // GC must reject rather than partially parse a corrupt directory; otherwise
+  // it could reclaim a live object missing from the partial retain set.
+  EXPECT_THROW(
+      ExtractChunkDirObjectIds(blob.data(), p1_bytes_at + p1.size() - 1),
+      exception::CheckpointException);
+}
+
+TEST_F(ChunkedColumnTest, OpenRejectsTruncatedDirectory) {
+  auto dir = ckp_->CreateRuntimeContainer(1, MemoryLevel::kInMemory);
+  static_cast<char*>(dir->GetData())[0] = '\0';
+  ModuleDescriptor desc;
+  desc.module_type = ChunkedColumn<int64_t>::type_name();
+  desc.set_path(kChunkDirPath, ckp_->Commit(*dir));
+
+  ChunkedColumn<int64_t> reopened(kRowsPerChunk);
+  EXPECT_THROW(reopened.Open(*ckp_, desc, MemoryLevel::kInMemory),
+               exception::CheckpointException);
 }
 
 TEST_F(ChunkedColumnTest, GarbageCollectionRetainsChunkObjects) {
@@ -334,6 +426,7 @@ TEST_F(ChunkedColumnTest, DumpPacksMultipleChunksIntoOneObject) {
   const size_t before = CountObjectFiles();
   CheckpointManifest meta;
   col.Dump(*ckp_, meta, "col");
+  ckp_->FinalizeObjectWriter(meta);
   const size_t after = CountObjectFiles();
   // 3 chunks pack into 1 object + 1 directory object = 2 (per-chunk would be
   // 4).
@@ -345,6 +438,65 @@ TEST_F(ChunkedColumnTest, DumpPacksMultipleChunksIntoOneObject) {
   for (size_t i = 0; i < 12; ++i) {
     EXPECT_EQ(reopened.get_view(i), static_cast<int64_t>(i));
   }
+}
+
+TEST_F(ChunkedColumnTest, DumpPacksDirtyChunksAcrossColumns) {
+  ChunkedColumn<int64_t> left(kRowsPerChunk);
+  ChunkedColumn<int64_t> right(kRowsPerChunk);
+  left.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  right.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  left.resize(4);
+  right.resize(4);
+  left.set_value(0, 11);
+  right.set_value(0, 22);
+
+  const size_t before = CountObjectFiles();
+  CheckpointManifest meta;
+  left.Dump(*ckp_, meta, "left");
+  right.Dump(*ckp_, meta, "right");
+  ckp_->FinalizeObjectWriter(meta);
+  const size_t after = CountObjectFiles();
+
+  // Both dirty chunks share one payload object; each column still owns a
+  // separate directory, for three new objects total.
+  EXPECT_EQ(after - before, 3u);
+}
+
+TEST_F(ChunkedColumnTest, PublishedCheckpointReopensAfterDirectoryMove) {
+  auto staging = mgr_.CreateStaging();
+  auto checkpoint = staging.checkpoint();
+  CheckpointManifest meta;
+  meta.SetSchema(Schema());
+  ChunkedColumn<int64_t> col(kRowsPerChunk);
+  col.Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(4);
+  col.set_value(0, 1234);
+  col.Dump(*checkpoint, meta, "col");
+  checkpoint->SetManifest(std::move(meta));
+  auto published = staging.Publish();
+
+  const auto moved_dir =
+      temp_dir_.parent_path() / (temp_dir_.filename().string() + "_moved");
+  std::filesystem::remove_all(moved_dir);
+  std::filesystem::copy(temp_dir_, moved_dir,
+                        std::filesystem::copy_options::recursive);
+  published.reset();
+  mgr_.Close();
+  ckp_.reset();
+  std::filesystem::remove_all(temp_dir_);
+
+  CheckpointManager reopened_manager;
+  reopened_manager.Open(moved_dir.string(), false);
+  auto reopened_checkpoint = reopened_manager.Current();
+  ASSERT_NE(reopened_checkpoint, nullptr);
+  const auto* desc = reopened_checkpoint->manifest().FindModule("col");
+  ASSERT_NE(desc, nullptr);
+  ChunkedColumn<int64_t> reopened(kRowsPerChunk);
+  reopened.Open(*reopened_checkpoint, *desc, MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.get_view(0), 1234);
+
+  reopened_manager.Close();
+  std::filesystem::remove_all(moved_dir);
 }
 
 TEST_F(ChunkedColumnTest, FromLegacyCopiesTypedColumnValues) {
@@ -367,6 +519,7 @@ TEST_F(ChunkedColumnTest, FromLegacyCopiesTypedColumnValues) {
   EXPECT_EQ(chunked->get_view(3), 999);
   CheckpointManifest meta;
   chunked->Dump(*ckp_, meta, "conv");
+  ckp_->FinalizeObjectWriter(meta);
   ChunkedColumn<int64_t> reopened(kRowsPerChunk);
   reopened.Open(*ckp_, *meta.FindModule("conv"), MemoryLevel::kInMemory);
   EXPECT_EQ(reopened.get_view(3), 999);
@@ -401,6 +554,239 @@ TEST_F(ChunkedColumnTest, TableMigratesLegacyFixedPropertyColumns) {
   EXPECT_EQ(
       dynamic_cast<ChunkedColumn<std::string_view>*>(table.get_column_by_id(1)),
       nullptr);
+}
+
+TEST_F(ChunkedColumnTest, CloneIsolatesOriginalWritesBeforeCloneWrites) {
+  ChunkedColumn<int64_t> original(4);
+  original.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  original.resize(8);
+  original.set_value(1, 11);
+  original.set_value(5, 55);
+  auto module = original.Clone();
+  auto* clone = dynamic_cast<ChunkedColumn<int64_t>*>(module.get());
+  original.set_value(1, 22);
+  EXPECT_EQ(clone->get_view(1), 11);
+  clone->set_value(5, 66);
+  EXPECT_EQ(original.get_view(5), 55);
+}
+
+TEST_F(ChunkedColumnTest, NullAndWriteBoundsMatchLegacyColumn) {
+  ChunkedColumn<int64_t> col(4);
+  TypedColumn<int64_t> legacy;
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  legacy.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(3);
+  legacy.resize(3);
+  const Value null{DataType(DataTypeId::kInt64)};
+  col.set_value(1, 42);
+  legacy.set_value(1, 42);
+  col.set_any(1, null, true);
+  legacy.set_any(1, null, true);
+  EXPECT_EQ(col.get_view(1), legacy.get_view(1));
+  EXPECT_EQ(col.get_view(1), 0);
+  EXPECT_THROW(col.set_value(3, 1), exception::RuntimeError);
+  EXPECT_THROW(col.set_any(3, Value::INT64(1), false), exception::RuntimeError);
+}
+
+TEST_F(ChunkedColumnTest, SparseUpdateCopiesAndPersistsOnePhysicalPage) {
+  ChunkedColumn<int64_t> original;
+  original.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  original.resize(original.rows_per_chunk());
+  original.set_value(0, 100);
+  CheckpointManifest first;
+  original.Dump(*ckp_, first, "col");
+  ckp_->FinalizeObjectWriter(first);
+  auto module = original.Clone();
+  auto* clone = dynamic_cast<ChunkedColumn<int64_t>*>(module.get());
+  clone->set_value(1, 200);
+  clone->set_value(2, 300);
+  EXPECT_EQ(clone->cow_bytes_copied(), 4096u);
+  EXPECT_EQ(original.get_view(1), 0);
+  CheckpointManifest second;
+  clone->Dump(*ckp_, second, "col");
+  ckp_->FinalizeObjectWriter(second);
+  auto decode = [&](const CheckpointManifest& meta) {
+    auto path = meta.FindModule("col")->get_path(kChunkDirPath);
+    auto file = ckp_->OpenFile(*path, MemoryLevel::kInMemory);
+    return DecodeChunkDirectory(file->GetData(), file->GetDataSize());
+  };
+  const auto before = decode(first), after = decode(second);
+  ASSERT_EQ(after.pages.size(), 64u);
+  EXPECT_NE(before.object_ids[before.pages[0].prefix.object_id],
+            after.object_ids[after.pages[0].prefix.object_id]);
+  for (size_t i = 1; i < after.pages.size(); ++i)
+    EXPECT_EQ(before.object_ids[before.pages[i].prefix.object_id],
+              after.object_ids[after.pages[i].prefix.object_id]);
+  auto payload =
+      ckp_->OpenObject(after.object_ids[after.pages[0].prefix.object_id],
+                       MemoryLevel::kInMemory);
+  EXPECT_EQ(payload->GetDataSize(), 4096u);
+}
+
+TEST_F(ChunkedColumnTest, PayloadChecksumIsCheckedOnFirstAccess) {
+  ChunkedColumn<int64_t> col(4);
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(4);
+  col.set_value(0, 99);
+  CheckpointManifest meta;
+  col.Dump(*ckp_, meta, "col");
+  ckp_->FinalizeObjectWriter(meta);
+  auto desc = *meta.FindModule("col");
+  auto file =
+      ckp_->OpenFile(*desc.get_path(kChunkDirPath), MemoryLevel::kInMemory);
+  auto dir = DecodeChunkDirectory(file->GetData(), file->GetDataSize());
+  auto object = ckp_->OpenObject(dir.object_ids[0], MemoryLevel::kInMemory);
+  // Corrupt only the test's private mapping, leaving directory metadata valid.
+  static_cast<char*>(object->GetData())[dir.pages[0].prefix.offset] ^= 1;
+  ChunkedColumn<int64_t> reopened;
+  EXPECT_NO_THROW(reopened.Open(*ckp_, desc, MemoryLevel::kSyncToFile));
+  EXPECT_THROW(reopened.get_view(0), exception::CheckpointException);
+}
+
+TEST_F(ChunkedColumnTest, BuilderOwnsSegmentsAfterColumnDestruction) {
+  CheckpointManifest meta;
+  {
+    ChunkedColumn<int64_t> col(4);
+    col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    col.resize(4);
+    col.set_value(0, 99);
+    col.Dump(*ckp_, meta, "col");
+  }
+  ckp_->FinalizeObjectWriter(meta);
+  ChunkedColumn<int64_t> reopened(4);
+  reopened.Open(*ckp_, *meta.FindModule("col"), MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.get_view(0), 99);
+}
+
+TEST_F(ChunkedColumnTest, ConcurrentAppendAfterReopenUsesStableSuffix) {
+  ChunkedColumn<int64_t> original;
+  original.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  original.resize(1024);
+  original.set_value(0, 123);
+  CheckpointManifest first;
+  original.Dump(*ckp_, first, "col");
+  ckp_->FinalizeObjectWriter(first);
+  ChunkedColumn<int64_t> col;
+  col.Open(*ckp_, *first.FindModule("col"), MemoryLevel::kInMemory);
+  col.PrepareForInsert(1);
+  const size_t copied = col.cow_bytes_copied();
+  std::atomic<bool> done{false};
+  std::atomic<bool> reader_ok{true};
+  std::thread reader([&] {
+    while (!done.load())
+      if (col.get_view(0) != 123)
+        reader_ok.store(false);
+  });
+  std::atomic<size_t> ready{0};
+  std::vector<std::thread> writers;
+  for (size_t thread = 0; thread < 8; ++thread)
+    writers.emplace_back([&, thread] {
+      ready.fetch_add(1);
+      while (ready.load() != 8)
+        std::this_thread::yield();
+      for (size_t row = thread + 1; row < 1024; row += 8)
+        col.set_any(row, Value::INT64(row * 10), false);
+    });
+  for (auto& writer : writers)
+    writer.join();
+  done.store(true);
+  reader.join();
+  EXPECT_TRUE(reader_ok.load());
+  EXPECT_EQ(col.cow_bytes_copied(), copied);
+  for (size_t row = 1; row < 1024; ++row)
+    EXPECT_EQ(col.get_view(row), row * 10);
+  CheckpointManifest second;
+  col.Dump(*ckp_, second, "col");
+  ckp_->FinalizeObjectWriter(second);
+  ChunkedColumn<int64_t> reopened;
+  reopened.Open(*ckp_, *second.FindModule("col"), MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.get_view(0), 123);
+  for (size_t row = 1; row < 1024; ++row)
+    EXPECT_EQ(reopened.get_view(row), row * 10);
+}
+
+TEST_F(ChunkedColumnTest, AppendFrontAdvancesAcrossCheckpointAndCow) {
+  ChunkedColumn<int64_t> col(4);
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(12);
+  col.set_value(0, 10);
+  col.PrepareForInsert(1);
+  col.set_any(1, Value::INT64(20), false);
+  auto snapshot = col.Clone();
+  col.PrepareForInsert(2);
+  col.set_any(2, Value::INT64(30), false);
+  col.PrepareForInsert(4);
+  col.set_any(4, Value::INT64(40), false);
+  EXPECT_EQ(dynamic_cast<ChunkedColumn<int64_t>*>(snapshot.get())->get_view(0),
+            10);
+  EXPECT_EQ(dynamic_cast<ChunkedColumn<int64_t>*>(snapshot.get())->get_view(1),
+            20);
+  CheckpointManifest meta;
+  col.Dump(*ckp_, meta, "col");
+  ckp_->FinalizeObjectWriter(meta);
+  ChunkedColumn<int64_t> reopened(4);
+  reopened.Open(*ckp_, *meta.FindModule("col"), MemoryLevel::kInMemory);
+  EXPECT_EQ(reopened.get_view(0), 10);
+  EXPECT_EQ(reopened.get_view(1), 20);
+  EXPECT_EQ(reopened.get_view(2), 30);
+  EXPECT_EQ(reopened.get_view(4), 40);
+}
+
+TEST_F(ChunkedColumnTest, SharedObjectsAreMappedOnceInDiskMode) {
+  ChunkedColumn<int32_t> left(4);
+  ChunkedColumn<int64_t> right(4);
+  left.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kSyncToFile);
+  right.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kSyncToFile);
+  left.resize(4);
+  right.resize(4);
+  left.set_value(0, 10);
+  right.set_value(0, 20);
+  CheckpointManifest meta;
+  left.Dump(*ckp_, meta, "left");
+  right.Dump(*ckp_, meta, "right");
+  ckp_->FinalizeObjectWriter(meta);
+  auto file = ckp_->OpenFile(*meta.FindModule("left")->get_path(kChunkDirPath),
+                             MemoryLevel::kInMemory);
+  auto d = DecodeChunkDirectory(file->GetData(), file->GetDataSize());
+  const auto& id = d.object_ids[0];
+  auto first = ckp_->OpenObject(id, MemoryLevel::kSyncToFile);
+  auto second = ckp_->OpenObject(id, MemoryLevel::kSyncToFile);
+  EXPECT_EQ(first.get(), second.get());
+  EXPECT_EQ(first->GetContainerType(), ContainerType::kFilePrivateMMap);
+  ChunkedColumn<int64_t> reopened(4);
+  reopened.Open(*ckp_, *meta.FindModule("right"), MemoryLevel::kSyncToFile);
+  EXPECT_EQ(reopened.get_view(0), 20);
+}
+
+TEST_F(ChunkedColumnTest, HugePageChunksShareOneArena) {
+  auto one =
+      ckp_->AllocateChunkBuffer(256 * 1024, MemoryLevel::kHugePagePreferred);
+  auto two =
+      ckp_->AllocateChunkBuffer(256 * 1024, MemoryLevel::kHugePagePreferred);
+  EXPECT_EQ(one.container.get(), two.container.get());
+  EXPECT_EQ(two.offset - one.offset, 256u * 1024);
+  EXPECT_EQ(one.container->GetDataSize(), 2u * 1024 * 1024);
+}
+
+TEST(ChunkDirTest, VersionedDirectoryRejectsMetadataCorruption) {
+  ChunkDirectory d;
+  d.row_width = 8;
+  d.rows_per_chunk = 4;
+  d.rows_per_page = 4;
+  d.row_count = 4;
+  d.object_ids = {"object"};
+  ChunkDirectoryPage page;
+  page.prefix_rows = 4;
+  page.prefix.length = 32;
+  d.pages = {page};
+  auto blob = EncodeChunkDirectory(d);
+  auto decoded = DecodeChunkDirectory(blob.data(), blob.size());
+  EXPECT_EQ(decoded.row_width, 8u);
+  blob[24] ^= 1;
+  EXPECT_THROW(DecodeChunkDirectory(blob.data(), blob.size()),
+               exception::CheckpointException);
+  EXPECT_THROW(ExtractChunkDirObjectIds(blob.data(), blob.size()),
+               exception::CheckpointException);
 }
 
 TEST(ChunkedColumnFactoryTest, RegisteredForReopen) {

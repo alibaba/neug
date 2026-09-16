@@ -60,6 +60,10 @@ class VertexTableView {
   explicit VertexTableView(VertexTable& table);
 
   bool get_lid(const Value& oid, vid_t& lid, timestamp_t ts) const;
+  bool ContainsKey(const Value& oid) const {
+    vid_t unused;
+    return indexer_->get_index(oid, unused);
+  }
   vid_t LidNum() const;
   // Returns the latest storage cardinality for statistics/planning, not the
   // number of vertices visible at a specific MVCC timestamp.
@@ -135,6 +139,9 @@ class GraphView {
   inline bool get_lid(label_t label, const Value& oid, vid_t& lid,
                       timestamp_t ts) const {
     return vertex_views_[label].get_lid(oid, lid, ts);
+  }
+  bool ContainsVertexKey(label_t label, const Value& oid) const {
+    return vertex_views_[label].ContainsKey(oid);
   }
   inline vid_t LidNum(label_t label) const {
     return vertex_views_[label].LidNum();

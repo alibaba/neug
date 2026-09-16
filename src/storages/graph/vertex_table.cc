@@ -251,6 +251,8 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
     table_->resize(capacity, vertex_schema_->get_default_property_values());
   }
   v_ts_->Reserve(capacity);
+  for (size_t i = 0; i < table_->col_num(); ++i)
+    table_->get_column_by_id(i)->PrepareForInsert(indexer_->size());
   return indexer_->capacity();
 }
 
@@ -384,6 +386,8 @@ VertexTable VertexTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(
       store.TakeModule<VertexTimestamp>(KeyVertexTimestamp(lbl)));
+  for (size_t i = 0; i < vt.get_table().col_num(); ++i)
+    vt.get_table().get_column_by_id(i)->PrepareForInsert(vt.LidNum());
   return vt;
 }
 

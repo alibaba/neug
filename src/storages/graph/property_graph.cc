@@ -1131,6 +1131,7 @@ void PropertyGraph::DumpAndClear(std::shared_ptr<Checkpoint> ckp) {
   index_manager_->Dump(store, meta);
 
   store.Dump(*ckp, meta);
+  ckp->FinalizeObjectWriter(meta);
   // Persist a temporary-stripped schema. Temporary labels are session-scoped
   // and must not appear in the checkpoint. StripTemporary() creates a clean
   // copy without any temporary vertex/edge labels.
@@ -1243,6 +1244,7 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   index_manager_->StageIncrementalModules(modules_to_dump, meta);
 
   modules_to_dump.Dump(*ckp, meta);
+  ckp->FinalizeObjectWriter(meta);
   auto index_reopen_manifest =
       index_manager_->BuildIncrementalReopenManifest(meta);
   auto checkpoint_schema = schema_.StripTemporary();
@@ -1280,6 +1282,24 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   rebind_indexes();
   dirty_.ClearAll();
   return planning_changed;
+}
+
+void PropertyGraph::PrepareForInsert() {
+  for (auto& table : vertex_tables_) {
+    if (!table.get_vertex_schema_ptr())
+      continue;
+    auto& properties = table.get_table();
+    for (size_t i = 0; i < properties.col_num(); ++i)
+      properties.get_column_by_id(i)->PrepareForInsert(table.LidNum());
+  }
+  for (auto& [_, table] : edge_tables_) {
+    if (!table.get_edge_schema_ptr() ||
+        table.get_edge_schema_ptr()->is_bundled())
+      continue;
+    for (size_t i = 0; i < table.table()->col_num(); ++i)
+      table.table()->get_column_by_id(i)->PrepareForInsert(
+          table.PropTableSize());
+  }
 }
 
 void PropertyGraph::DetachDirtyModulesForCheckpoint(

@@ -14,393 +14,502 @@
  */
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <algorithm>
+#include <atomic>
+#include <cassert>
 #include <cstring>
+#include <limits>
 #include <memory>
-#include <string>
+#include <mutex>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
-#include "neug/common/types/value.h"
 #include "neug/storages/checkpoint.h"
-#include "neug/storages/chunk/chunk_block.h"
-#include "neug/storages/module/module.h"
 #include "neug/storages/module/type_name.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/column.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 
-/// Fixed-length property column stored as power-of-two chunks.
-///
-/// Read is an O(1) flat index: chunk_id = row >> shift, local_slot = row & mask
-/// (see chunked_cow_checkpoint_plan.md §2 "读路径实测约束"). Mutation uses
-/// chunk-granular copy-on-write: after Clone(), only the chunks actually
-/// written are forked, so a sparse update copies one chunk rather than the
-/// whole column. Object-slice persistence (Dump/Open of a chunk directory) is
-/// added in a later step; this is the in-memory core.
+/// Stable logical chunks contain physical pages of at most 4 KiB. Covering
+/// writes fork one page; concurrent inserts write a prepared, stable suffix.
+/// Clone/resize/PrepareForInsert/Dump require COW or maintenance admission.
+/// Concurrent set_any(..., false) is permitted only for distinct reserved rows.
 template <typename T>
 class ChunkedColumn : public ColumnBase {
  public:
-  /// Production chunk payload floor (plan §2). Tests may use smaller values.
   static constexpr size_t kMinChunkPayloadBytes = 256 * 1024;
-  // The chunk-directory descriptor key (kChunkDirPath) is shared with
-  // checkpoint GC via chunk_types.h.
+  static constexpr size_t kCowPageBytes = 4096;
 
-  /// Default constructor for the module factory. rows_per_chunk defaults to the
-  /// production value for T; Open() overrides it from the persisted directory.
   ChunkedColumn() : ChunkedColumn(ComputeRowsPerChunk(sizeof(T))) {}
-
-  /// @p rows_per_chunk must be a power of two.
   explicit ChunkedColumn(size_t rows_per_chunk)
-      : rows_per_chunk_(rows_per_chunk),
-        shift_(ComputeShift(rows_per_chunk)),
-        mask_(rows_per_chunk - 1) {}
+      : rows_per_chunk_(ValidateRows(rows_per_chunk)),
+        rows_per_page_(std::min(rows_per_chunk, ComputePageRows())),
+        page_shift_(Shift(rows_per_page_)),
+        page_mask_(rows_per_page_ - 1) {}
 
-  /// Smallest power-of-two row count whose payload reaches the floor.
-  static size_t ComputeRowsPerChunk(size_t row_width) {
+  static size_t ComputeRowsPerChunk(size_t width) {
+    if (width == 0 || width > kMinChunkPayloadBytes)
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid fixed-width chunk row size");
     size_t rows = 1;
-    while (rows * row_width < kMinChunkPayloadBytes)
+    while (rows < (kMinChunkPayloadBytes + width - 1) / width)
       rows <<= 1;
     return rows;
   }
-
-  /// Migration hook (plan §7): build a ChunkedColumn copying the values of a
-  /// legacy TypedColumn. The result is a fresh, writable, in-memory column.
   static std::unique_ptr<ChunkedColumn<T>> FromLegacy(
       Checkpoint& ckp, MemoryLevel level, const TypedColumn<T>& legacy) {
-    auto col =
-        std::make_unique<ChunkedColumn<T>>(ComputeRowsPerChunk(sizeof(T)));
+    auto col = std::make_unique<ChunkedColumn<T>>();
     col->Open(ckp, ModuleDescriptor{}, level);
-    const size_t n = legacy.size();
-    col->resize(n);
-    for (size_t i = 0; i < n; ++i) {
+    col->resize(legacy.size());
+    for (size_t i = 0; i < legacy.size(); ++i)
       col->set_value(i, legacy.get_view(i));
-    }
     return col;
   }
 
-  /// Bind the checkpoint and, when @p desc references a chunk directory, load
-  /// the persisted chunks: open each unique packed object once and locate every
-  /// chunk at its slice offset, verifying crc32c. Loaded chunks are shared
-  /// (copy-on-write), so a later write copies just that chunk's region.
   void Open(Checkpoint& ckp, const ModuleDescriptor& desc,
             MemoryLevel level) override {
     ckp_ = &ckp;
     level_ = level;
-    const auto dir_path = desc.get_path(kChunkDirPath);
-    if (!dir_path.has_value()) {
-      return;  // fresh empty column
-    }
-    auto dir = ckp.OpenFile(*dir_path, level);
-    const char* cursor = static_cast<const char*>(dir->GetData());
-    rows_per_chunk_ = ReadU64(cursor);
-    shift_ = ComputeShift(rows_per_chunk_);
-    mask_ = rows_per_chunk_ - 1;
-    const uint64_t chunk_count = ReadU64(cursor);
-    size_ = ReadU64(cursor);
-    const uint64_t object_count = ReadU64(cursor);
-    // Open each unique object once; chunks index into this table.
+    pages_.clear();
+    size_ = 0;
+    append_prepared_ = false;
+    append_begin_ = 0;
+    auto path = desc.get_path(kChunkDirPath);
+    if (!path)
+      return;
+    auto file = ckp.OpenFile(*path, MemoryLevel::kInMemory);
+    auto d = DecodeChunkDirectory(file->GetData(), file->GetDataSize());
+    if (d.row_width && d.row_width != sizeof(T))
+      THROW_CHECKPOINT_EXCEPTION("Chunk directory row type mismatch");
+    rows_per_chunk_ = ValidateRows(d.rows_per_chunk);
+    rows_per_page_ = std::min(rows_per_chunk_, ComputePageRows());
+    if (d.row_count > std::numeric_limits<size_t>::max())
+      THROW_CHECKPOINT_EXCEPTION("Chunk row count overflow");
+    size_ = d.row_count;
+    page_shift_ = Shift(rows_per_page_);
+    page_mask_ = rows_per_page_ - 1;
     std::vector<std::shared_ptr<IDataContainer>> objects;
-    std::vector<std::string> object_paths;
-    objects.reserve(object_count);
-    object_paths.reserve(object_count);
-    for (uint64_t o = 0; o < object_count; ++o) {
-      const uint32_t path_len = ReadU32(cursor);
-      const std::string path(cursor, path_len);
-      cursor += path_len;
-      object_paths.push_back(path);
-      objects.push_back(ckp.OpenFile(path, level));
-    }
-    blocks_.clear();
-    chunk_owned_.clear();
-    for (uint64_t i = 0; i < chunk_count; ++i) {
-      const uint32_t obj_index = ReadU32(cursor);
-      const uint64_t offset = ReadU64(cursor);
-      const uint32_t length = ReadU32(cursor);
-      const uint32_t crc = ReadU32(cursor);
-      ChunkBlock block;
-      block.mem = objects[obj_index];
-      block.slice.offset = offset;
-      block.slice.length = length;
-      block.slice.crc32c = crc;
-      block.object_path = object_paths[obj_index];
-      block.read_offset = offset;
-      block.dirty = false;
-      if (Crc32c(BlockData(block), length) != crc) {
-        THROW_CHECKPOINT_EXCEPTION(
-            "ChunkedColumn::Open: crc32c mismatch for chunk " +
-            std::to_string(i));
+    for (const auto& id : d.object_ids)
+      objects.push_back(ckp.OpenObject(id, level));
+    auto load = [&](const ObjectSlice& slice, size_t rows) {
+      auto mem = objects.at(slice.object_id);
+      if (slice.length != rows * sizeof(T) ||
+          slice.offset > mem->GetDataSize() ||
+          slice.length > mem->GetDataSize() - slice.offset)
+        THROW_CHECKPOINT_EXCEPTION("Chunk slice is outside its object");
+      auto segment = std::make_shared<Segment>();
+      segment->mem = std::move(mem);
+      segment->data = reinterpret_cast<T*>(
+          static_cast<char*>(segment->mem->GetData()) + slice.offset);
+      // ObjectWriter packs typed payloads on their natural alignment.
+      if (slice.offset % alignof(T) != 0)
+        THROW_CHECKPOINT_EXCEPTION("Misaligned chunk slice");
+      segment->bytes = slice.length;
+      segment->slice = slice;
+      segment->object_id = d.object_ids[slice.object_id];
+      segment->frozen = true;
+      segment->verified.store(false);
+      segment->dirty.store(false);
+      return segment;
+    };
+    if (d.row_width != 0) {
+      if (d.rows_per_page != rows_per_page_)
+        THROW_CHECKPOINT_EXCEPTION("Unsupported physical chunk page size");
+      for (const auto& page : d.pages) {
+        Page entry{load(page.prefix, page.prefix_rows), nullptr,
+                   page.prefix_rows};
+        if (page.prefix_rows < rows_per_page_)
+          entry.suffix = load(page.suffix, rows_per_page_ - page.prefix_rows);
+        pages_.push_back(std::move(entry));
       }
-      blocks_.push_back(std::move(block));
-      chunk_owned_.push_back(false);  // shared object region; copy on write
+    } else {
+      // One-time conversion of the initial whole-chunk directory. Its payload
+      // CRC protects the old slice; new checkpoints encode physical page CRCs.
+      for (const auto& page : d.pages) {
+        auto source = load(page.prefix, rows_per_chunk_);
+        source->Verify();
+        for (size_t offset = 0;
+             offset < rows_per_chunk_ && pages_.size() < PageCount(size_);
+             offset += rows_per_page_) {
+          auto segment = Slice(source, offset, rows_per_page_, true);
+          pages_.push_back(Page{std::move(segment), nullptr,
+                                static_cast<uint32_t>(rows_per_page_)});
+        }
+      }
     }
   }
 
-  /// Pack dirty chunks into shared immutable objects via the checkpoint's
-  /// ObjectWriter (clean chunks reuse the object they already live in), then
-  /// serialize a self-contained directory: a local object-path table plus one
-  /// ObjectSlice (object index, offset, length, crc32c) per chunk.
   void Dump(Checkpoint& ckp, CheckpointManifest& meta,
             const std::string& key) override {
-    const size_t chunk_bytes = rows_per_chunk_ * sizeof(T);
-
-    // Phase 1: append dirty chunks to the object writer; clean chunks reuse
-    // their existing object. Record each chunk's resolved persist location.
-    std::vector<std::string> chunk_path(blocks_.size());
-    std::vector<uint64_t> chunk_offset(blocks_.size(), 0);
-    std::vector<uint32_t> chunk_length(blocks_.size(), 0);
-    std::vector<uint32_t> chunk_crc(blocks_.size(), 0);
-    std::vector<size_t> dirty_slice(blocks_.size(), 0);
-    std::vector<char> is_dirty(blocks_.size(), 0);
-    bool any_dirty = false;
-    for (size_t i = 0; i < blocks_.size(); ++i) {
-      const ChunkBlock& b = blocks_[i];
-      if (!b.object_path.empty()) {
-        chunk_path[i] = b.object_path;
-        chunk_offset[i] = b.slice.offset;
-        chunk_length[i] = b.slice.length;
-        chunk_crc[i] = b.slice.crc32c;
-      } else {
-        dirty_slice[i] = ckp.object_writer().AppendBlock(
-            BlockData(b), static_cast<uint32_t>(chunk_bytes));
-        is_dirty[i] = 1;
-        any_dirty = true;
-      }
+    // The builder owns every segment, so owners may disassemble/destroy columns
+    // before checkpoint-wide sealing. No callback borrows a column or manifest.
+    auto builder = std::make_shared<Builder>();
+    builder->rows_per_chunk = rows_per_chunk_;
+    builder->rows_per_page = rows_per_page_;
+    builder->row_count = size_;
+    builder->pages = pages_;
+    builder->key = key;
+    for (const auto& page : builder->pages) {
+      builder->Append(ckp, page.prefix);
+      if (page.suffix)
+        builder->Append(ckp, page.suffix);
     }
-    // Commit the packed objects so dirty slices get their final object_id.
-    if (any_dirty) {
-      ckp.SealObjects();
-      const auto& slices = ckp.object_writer().slices();
-      const auto& object_table = ckp.object_table();
-      for (size_t i = 0; i < blocks_.size(); ++i) {
-        if (!is_dirty[i]) {
-          continue;
-        }
-        const ObjectSlice& s = slices[dirty_slice[i]];
-        chunk_path[i] = object_table[s.object_id];
-        chunk_offset[i] = s.offset;
-        chunk_length[i] = s.length;
-        chunk_crc[i] = s.crc32c;
-        // The chunk now lives in a committed object. Reads keep using the
-        // private block (read_offset 0); slice records the persisted location
-        // so the next Dump reuses it without re-committing.
-        blocks_[i].object_path = chunk_path[i];
-        blocks_[i].slice.offset = s.offset;
-        blocks_[i].slice.length = s.length;
-        blocks_[i].slice.crc32c = s.crc32c;
-        blocks_[i].dirty = false;
-        chunk_owned_[i] = false;
-      }
-    }
-
-    // Phase 2: build the directory — a local object-path table (unique paths)
-    // plus one ObjectSlice per chunk indexing into it.
-    std::vector<std::string> object_paths;
-    std::unordered_map<std::string, uint32_t> path_to_index;
-    std::vector<char> chunk_section;
-    for (size_t i = 0; i < blocks_.size(); ++i) {
-      auto it = path_to_index.find(chunk_path[i]);
-      uint32_t obj_index;
-      if (it == path_to_index.end()) {
-        obj_index = static_cast<uint32_t>(object_paths.size());
-        path_to_index.emplace(chunk_path[i], obj_index);
-        object_paths.push_back(chunk_path[i]);
-      } else {
-        obj_index = it->second;
-      }
-      AppendU32(chunk_section, obj_index);
-      AppendU64(chunk_section, chunk_offset[i]);
-      AppendU32(chunk_section, chunk_length[i]);
-      AppendU32(chunk_section, chunk_crc[i]);
-    }
-    std::vector<char> blob;
-    AppendU64(blob, rows_per_chunk_);
-    AppendU64(blob, blocks_.size());
-    AppendU64(blob, size_);
-    AppendU64(blob, object_paths.size());
-    for (const auto& p : object_paths) {
-      AppendU32(blob, static_cast<uint32_t>(p.size()));
-      blob.insert(blob.end(), p.begin(), p.end());
-    }
-    blob.insert(blob.end(), chunk_section.begin(), chunk_section.end());
-
-    auto dir = ckp.CreateRuntimeContainer(blob.size(), level_);
-    std::memcpy(dir->GetData(), blob.data(), blob.size());
-    ModuleDescriptor desc;
-    desc.module_type = ModuleTypeName();
-    desc.set_path(kChunkDirPath, ckp.Commit(*dir));
-    meta.SetModule(key, std::move(desc));
+    if (builder->pending.empty())
+      builder->Commit(ckp, meta);
+    else
+      ckp.RegisterObjectFinalizer(
+          [builder](Checkpoint& checkpoint, CheckpointManifest& manifest) {
+            builder->Commit(checkpoint, manifest);
+          });
   }
 
   size_t size() const override { return size_; }
   size_t rows_per_chunk() const { return rows_per_chunk_; }
+  size_t rows_per_page() const { return rows_per_page_; }
+  size_t cow_bytes_copied() const { return cow_bytes_copied_; }
   DataTypeId type() const override { return ValueConverter<T>::type().id(); }
 
-  /// Grow to @p n rows, allocating chunk containers as needed.
   void resize(size_t n) override {
-    const size_t needed = (n + rows_per_chunk_ - 1) / rows_per_chunk_;
-    while (blocks_.size() < needed) {
-      ChunkBlock block;
-      block.mem =
-          ckp_->CreateRuntimeContainer(rows_per_chunk_ * sizeof(T), level_);
-      T* data = static_cast<T*>(block.mem->GetData());
-      for (size_t i = 0; i < rows_per_chunk_; ++i) {
-        data[i] = T();
+    const size_t count = PageCount(n);
+    if (count < pages_.size())
+      pages_.resize(count);
+    while (pages_.size() < count) {
+      const size_t allocation_pages =
+          std::min(rows_per_chunk_ / rows_per_page_, count - pages_.size());
+      auto allocation = ckp_->AllocateChunkBuffer(
+          allocation_pages * rows_per_page_ * sizeof(T), level_);
+      T* data = reinterpret_cast<T*>(
+          static_cast<char*>(allocation.container->GetData()) +
+          allocation.offset);
+      std::fill_n(data, allocation_pages * rows_per_page_, T());
+      for (size_t i = 0; i < allocation_pages; ++i) {
+        auto segment = std::make_shared<Segment>();
+        segment->mem = allocation.container;
+        segment->data = data + i * rows_per_page_;
+        segment->bytes = rows_per_page_ * sizeof(T);
+        pages_.push_back(Page{std::move(segment), nullptr,
+                              static_cast<uint32_t>(rows_per_page_)});
       }
-      block.dirty = true;
-      blocks_.push_back(std::move(block));
-      chunk_owned_.push_back(true);
     }
     size_ = n;
+    append_prepared_ = false;
   }
-
-  void resize(size_t size, const Value& default_value) override {
-    const size_t old = size_;
-    resize(size);
-    const T default_typed = default_value.GetValue<T>();
-    for (size_t i = old; i < size; ++i) {
-      set_value(i, default_typed);
-    }
+  void resize(size_t n, const Value& value) override {
+    if (!value.IsNull() && value.type().id() != type())
+      THROW_RUNTIME_ERROR("Default value type mismatch");
+    const auto old = size_;
+    resize(n);
+    const T typed = value.IsNull() ? T() : value.GetValue<T>();
+    for (size_t i = old; i < n; ++i)
+      set_value(i, typed);
   }
 
   T get_view(size_t row) const {
-    const ChunkBlock& block = blocks_[row >> shift_];
-    return static_cast<const T*>(BlockData(block))[row & mask_];
+    assert(row < size_);
+    const auto& page = pages_[row >> page_shift_];
+    const auto slot = row & page_mask_;
+    const auto& segment = slot < page.prefix_rows ? page.prefix : page.suffix;
+    segment->Verify();
+    return segment
+        ->data[slot < page.prefix_rows ? slot : slot - page.prefix_rows];
   }
-
+  std::span<const T> get_span(size_t row) const {
+    if (row >= size_)
+      THROW_RUNTIME_ERROR("Chunk row out of range");
+    const auto& page = pages_[row >> page_shift_];
+    const auto slot = row & page_mask_;
+    const bool prefix = slot < page.prefix_rows;
+    const auto& segment = prefix ? page.prefix : page.suffix;
+    segment->Verify();
+    const auto local = prefix ? slot : slot - page.prefix_rows;
+    return {segment->data + local,
+            std::min(size_ - row, segment->bytes / sizeof(T) - local)};
+  }
   Value get_any(size_t row) const override {
     return Value::CreateValue<T>(get_view(row));
   }
 
   void set_value(size_t row, const T& value) {
-    const size_t chunk = row >> shift_;
-    EnsureWritable(chunk);
-    static_cast<T*>(BlockData(blocks_[chunk]))[row & mask_] = value;
+    if (row >= size_)
+      THROW_RUNTIME_ERROR("Chunk row out of range");
+    auto& page = pages_[row >> page_shift_];
+    const auto slot = row & page_mask_;
+    auto& segment = slot < page.prefix_rows ? page.prefix : page.suffix;
+    if (segment->frozen || segment.use_count() > 1) {
+      segment->Verify();
+      const auto bytes = segment->bytes;
+      segment = Copy(segment->data, bytes);
+      cow_bytes_copied_ += bytes;
+    }
+    segment->data[slot < page.prefix_rows ? slot : slot - page.prefix_rows] =
+        value;
+    segment->MarkDirty();
+  }
+  void set_any(size_t row, const Value& value, bool insert_safe) override {
+    const T typed = value.IsNull() ? T() : value.GetValue<T>();
+    if (insert_safe)
+      set_value(row, typed);
+    else
+      InsertValue(row, typed);
   }
 
-  void set_any(size_t row, const Value& value, bool /*insert_safe*/) override {
-    set_value(row, value.GetValue<T>());
+  void PrepareForInsert(size_t begin) override {
+    if (begin > size_)
+      THROW_RUNTIME_ERROR("Invalid append high-water mark");
+    if (append_prepared_ && begin == append_begin_)
+      return;
+    for (size_t i = begin >> page_shift_; i < pages_.size(); ++i) {
+      auto& page = pages_[i];
+      const size_t local =
+          i == (begin >> page_shift_) ? (begin & page_mask_) : 0;
+      if (local == 0 && !page.suffix && !page.prefix->frozen)
+        continue;
+      if (page.suffix && page.prefix_rows != local) {
+        // At most one boundary page needs materialization as the append front
+        // advances. Other physical pages keep their immutable/mutable versions.
+        auto merged = Copy(nullptr, rows_per_page_ * sizeof(T));
+        page.prefix->Verify();
+        page.suffix->Verify();
+        std::copy_n(page.prefix->data, page.prefix_rows, merged->data);
+        std::copy_n(page.suffix->data, rows_per_page_ - page.prefix_rows,
+                    merged->data + page.prefix_rows);
+        page = Page{std::move(merged), nullptr,
+                    static_cast<uint32_t>(rows_per_page_)};
+      }
+      if (local != 0) {
+        if (!page.suffix) {
+          auto suffix =
+              Slice(page.prefix, local, rows_per_page_ - local, false);
+          page.prefix = Slice(page.prefix, 0, local, true);
+          page.prefix_rows = local;
+          page.suffix = std::move(suffix);
+        } else if (page.suffix->frozen) {
+          page.suffix = Slice(page.suffix, 0, rows_per_page_ - local, false);
+        }
+      } else {
+        page.prefix = Slice(page.prefix, 0, rows_per_page_, false);
+      }
+    }
+    append_begin_ = begin;
+    append_prepared_ = true;
   }
 
-  /// Zero-copy clone: chunk containers are shared until written.
   std::unique_ptr<Module> Clone() const override {
     auto clone = std::make_unique<ChunkedColumn<T>>(rows_per_chunk_);
-    clone->blocks_ = blocks_;
-    clone->chunk_owned_.assign(blocks_.size(), false);
+    clone->pages_ = pages_;
     clone->size_ = size_;
     clone->ckp_ = ckp_;
     clone->level_ = level_;
+    // Shared segment ownership makes both original and clone fork on covering
+    // writes. Prepared append slots are unreachable from retained snapshots.
     return clone;
   }
-
-  /// Eagerly fork every chunk so this instance owns all of its data.
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
     ckp_ = &ckp;
     level_ = level;
-    for (size_t i = 0; i < blocks_.size(); ++i) {
-      EnsureWritable(i);
-    }
   }
-
   static std::string type_name() {
     return "chunked_column<" + type_name_string<T>() + ">";
   }
-
   std::string ModuleTypeName() const override { return type_name(); }
 
  private:
-  static int ComputeShift(size_t rows_per_chunk) {
-    int shift = 0;
-    while ((static_cast<size_t>(1) << shift) < rows_per_chunk) {
-      ++shift;
+  struct Segment {
+    std::shared_ptr<IDataContainer> mem;
+    T* data = nullptr;
+    size_t bytes = 0;
+    std::string object_id;
+    ObjectSlice slice;
+    bool frozen = false;
+    mutable std::atomic<bool> verified{true};
+    mutable std::once_flag verify_once;
+    std::atomic<bool> dirty{true};
+    void Verify() const {
+      if (verified.load(std::memory_order_acquire))
+        return;
+      std::call_once(verify_once, [this] {
+        if (Crc32c(data, bytes) != slice.crc32c)
+          THROW_CHECKPOINT_EXCEPTION("Chunk payload checksum mismatch");
+        verified.store(true, std::memory_order_release);
+      });
     }
+    void MarkDirty() {
+      if (!dirty.load(std::memory_order_relaxed))
+        dirty.store(true, std::memory_order_relaxed);
+    }
+  };
+  struct Page {
+    std::shared_ptr<Segment> prefix, suffix;
+    uint32_t prefix_rows;
+  };
+  struct Builder {
+    size_t rows_per_chunk, rows_per_page, row_count;
+    std::string key;
+    std::vector<Page> pages;
+    std::vector<std::pair<std::shared_ptr<Segment>, size_t>> pending;
+    std::unordered_map<std::string, bool> reusable_objects;
+    void Append(Checkpoint& ckp, const std::shared_ptr<Segment>& s) {
+      // Failed staging/GC may remove an unpublished physical object. Retain
+      // the live bytes and rewrite it instead of trusting a stale object ID.
+      bool reusable = !s->dirty.load() && !s->object_id.empty();
+      if (reusable) {
+        auto [it, added] = reusable_objects.emplace(s->object_id, false);
+        if (added) {
+          try {
+            (void) ckp.OpenObject(s->object_id, MemoryLevel::kInMemory);
+            it->second = true;
+          } catch (const exception::CheckpointException&) {}
+        }
+        reusable = it->second;
+      }
+      if (!reusable) {
+        s->Verify();
+        pending.emplace_back(
+            s, ckp.object_writer().AppendBlock(s->data, s->bytes));
+      }
+    }
+    void Commit(Checkpoint& ckp, CheckpointManifest& meta) {
+      const auto& slices = ckp.object_writer().slices();
+      for (auto& [segment, index] : pending) {
+        const auto slice = slices.at(index);
+        segment->object_id =
+            ckp.ObjectIdForPath(ckp.object_table().at(slice.object_id));
+        segment->slice = slice;
+        segment->dirty.store(false);
+        segment->frozen = true;
+      }
+      ChunkDirectory d;
+      d.row_width = sizeof(T);
+      d.rows_per_chunk = rows_per_chunk;
+      d.rows_per_page = rows_per_page;
+      d.row_count = row_count;
+      std::unordered_map<std::string, uint32_t> indices;
+      auto slice_for = [&](const std::shared_ptr<Segment>& s) {
+        auto [it, added] = indices.emplace(s->object_id, d.object_ids.size());
+        if (added)
+          d.object_ids.push_back(s->object_id);
+        auto slice = s->slice;
+        slice.object_id = it->second;
+        return slice;
+      };
+      for (const auto& page : pages) {
+        ChunkDirectoryPage entry;
+        entry.prefix_rows = page.prefix_rows;
+        entry.prefix = slice_for(page.prefix);
+        if (page.suffix)
+          entry.suffix = slice_for(page.suffix);
+        d.pages.push_back(entry);
+      }
+      auto blob = EncodeChunkDirectory(d);
+      auto file =
+          ckp.CreateRuntimeContainer(blob.size(), MemoryLevel::kInMemory);
+      std::memcpy(file->GetData(), blob.data(), blob.size());
+      ModuleDescriptor desc;
+      desc.module_type = ChunkedColumn<T>::type_name();
+      desc.set_path(kChunkDirPath, ckp.Commit(*file));
+      meta.SetModule(key, std::move(desc));
+    }
+  };
+
+  static size_t ValidateRows(uint64_t rows) {
+    if (rows == 0 || (rows & (rows - 1)) != 0 ||
+        rows > std::numeric_limits<uint32_t>::max() / sizeof(T))
+      THROW_CHECKPOINT_EXCEPTION("Invalid logical chunk row count");
+    return rows;
+  }
+  static size_t ComputePageRows() {
+    size_t rows = 1;
+    while ((rows << 1) <= kCowPageBytes / sizeof(T))
+      rows <<= 1;
+    return rows;
+  }
+  static int Shift(size_t rows) {
+    int shift = 0;
+    while ((size_t{1} << shift) < rows)
+      ++shift;
     return shift;
   }
+  size_t PageCount(size_t rows) const {
+    return rows / rows_per_page_ + (rows % rows_per_page_ != 0);
+  }
+  std::shared_ptr<Segment> Copy(const T* source, size_t bytes) {
+    auto allocation = ckp_->AllocateChunkBuffer(bytes, level_);
+    auto result = std::make_shared<Segment>();
+    result->mem = allocation.container;
+    result->data = reinterpret_cast<T*>(
+        static_cast<char*>(result->mem->GetData()) + allocation.offset);
+    result->bytes = bytes;
+    if (source)
+      std::memcpy(result->data, source, bytes);
+    return result;
+  }
+  std::shared_ptr<Segment> Slice(const std::shared_ptr<Segment>& source,
+                                 size_t row, size_t rows, bool frozen) {
+    source->Verify();
+    const size_t bytes = rows * sizeof(T);
+    std::shared_ptr<Segment> result;
+    if (frozen) {
+      // A sliced view aliases the original segment's bytes even though it has
+      // its own descriptor. Covering writes through the original must fork too.
+      source->frozen = true;
+      result = std::make_shared<Segment>();
+      result->mem = source->mem;
+      result->data = source->data + row;
+      result->bytes = bytes;
+    } else
+      result = Copy(source->data + row, bytes);
+    result->frozen = frozen;
+    if (!source->dirty.load() && !source->object_id.empty()) {
+      result->object_id = source->object_id;
+      result->slice = source->slice;
+      result->slice.offset += row * sizeof(T);
+      result->slice.length = bytes;
+      result->slice.crc32c = Crc32c(result->data, bytes);
+      result->dirty.store(false);
+    }
+    return result;
+  }
+  void InsertValue(size_t row, const T& value) {
+    if (row >= size_ || (append_prepared_ && row < append_begin_))
+      THROW_RUNTIME_ERROR("Insert row was not reserved in the append area");
+    auto& page = pages_[row >> page_shift_];
+    const auto slot = row & page_mask_;
+    const auto& segment = slot < page.prefix_rows ? page.prefix : page.suffix;
+    if (segment->frozen)
+      THROW_STORAGE_EXCEPTION("Insert append area was not prepared before WAL");
+    if (!append_prepared_ && segment.use_count() > 1)
+      THROW_STORAGE_EXCEPTION("Shared insert append area was not prepared");
+    segment->data[slot < page.prefix_rows ? slot : slot - page.prefix_rows] =
+        value;
+    segment->MarkDirty();
+  }
 
-  // Little-endian serialization helpers for the chunk directory blob.
-  static void AppendU64(std::vector<char>& blob, uint64_t v) {
-    for (int i = 0; i < 8; ++i) {
-      blob.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
-    }
-  }
-  static void AppendU32(std::vector<char>& blob, uint32_t v) {
-    for (int i = 0; i < 4; ++i) {
-      blob.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
-    }
-  }
-  static uint64_t ReadU64(const char*& cursor) {
-    uint64_t v = 0;
-    for (int i = 0; i < 8; ++i) {
-      v |= static_cast<uint64_t>(static_cast<unsigned char>(*cursor++))
-           << (8 * i);
-    }
-    return v;
-  }
-  static uint32_t ReadU32(const char*& cursor) {
-    uint32_t v = 0;
-    for (int i = 0; i < 4; ++i) {
-      v |= static_cast<uint32_t>(static_cast<unsigned char>(*cursor++))
-           << (8 * i);
-    }
-    return v;
-  }
-
-  static void* BlockData(const ChunkBlock& block) {
-    // The chunk's payload lives at read_offset within its backing container
-    // (0 for a private writable block, the slice offset for a packed object).
-    return static_cast<char*>(block.mem->GetData()) + block.read_offset;
-  }
-
-  /// Make @p chunk_id privately writable if it is still shared (a packed object
-  /// region or a clone source). Copies just this chunk's region: the backing
-  /// object may pack several chunks, so it must not be forked whole.
-  void EnsureWritable(size_t chunk_id) {
-    if (!chunk_owned_[chunk_id]) {
-      ChunkBlock& b = blocks_[chunk_id];
-      const size_t chunk_bytes = rows_per_chunk_ * sizeof(T);
-      auto writable = ckp_->CreateRuntimeContainer(chunk_bytes, level_);
-      std::memcpy(writable->GetData(), BlockData(b), chunk_bytes);
-      b.mem = writable;
-      b.read_offset = 0;
-      b.slice.offset = 0;
-      b.object_path.clear();
-      chunk_owned_[chunk_id] = true;
-      b.dirty = true;
-    }
-  }
-
-  size_t rows_per_chunk_;
-  int shift_;
-  size_t mask_;
-  size_t size_ = 0;
-  std::vector<ChunkBlock> blocks_;
-  std::vector<bool> chunk_owned_;
+  size_t rows_per_chunk_, rows_per_page_;
+  int page_shift_;
+  size_t page_mask_;
+  size_t size_ = 0, append_begin_ = 0, cow_bytes_copied_ = 0;
+  bool append_prepared_ = false;
+  std::vector<Page> pages_;
   Checkpoint* ckp_ = nullptr;
   MemoryLevel level_ = MemoryLevel::kInMemory;
 };
 
-/// Read-only reference to a ChunkedColumn, mirroring TypedRefColumn but with
-/// chunk-localized access.
 template <typename T>
-class ChunkedRefColumn : public RefColumnBase {
+class ChunkedRefColumn : public TypedRefColumn<T> {
  public:
   using value_type = T;
-
-  explicit ChunkedRefColumn(const ChunkedColumn<T>& column) : column_(column) {}
-
-  T get_view(size_t index) const { return column_.get_view(index); }
-
-  Value get_any(size_t index) const override { return column_.get_any(index); }
-
-  DataTypeId type() const override { return ValueConverter<T>::type().id(); }
-
-  ColType col_type() const override { return ColType::kInternal; }
+  explicit ChunkedRefColumn(const ChunkedColumn<T>& column)
+      : TypedRefColumn<T>(
+            &column, column.size(),
+            [](const void* source, size_t row) {
+              return static_cast<const ChunkedColumn<T>*>(source)->get_view(
+                  row);
+            }),
+        column_(column) {}
+  T get_view(size_t row) const { return column_.get_view(row); }
 
  private:
   const ChunkedColumn<T>& column_;
 };
-
 }  // namespace neug

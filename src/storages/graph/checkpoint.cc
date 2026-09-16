@@ -15,6 +15,7 @@
 
 #include "neug/storages/checkpoint.h"
 
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -119,33 +120,81 @@ void Checkpoint::resolve_object_paths() {
       if (object_id.empty()) {
         continue;
       }
-      const std::filesystem::path relative(object_id);
-      if (relative.is_absolute() || relative.has_parent_path()) {
-        THROW_CHECKPOINT_EXCEPTION(
-            "Checkpoint manifest contains invalid "
-            "object id: " +
-            object_id);
-      }
-      object_id = (std::filesystem::path(object_dir_) / relative).string();
-      if (!std::filesystem::exists(object_id)) {
-        THROW_CHECKPOINT_EXCEPTION(
-            "Checkpoint manifest references missing "
-            "object: " +
-            object_id);
-      }
+      object_id = ResolveObjectId(object_id);
     }
     manifest_.SetModule(key, std::move(resolved));
   }
 }
 
+std::string Checkpoint::ResolveObjectId(const std::string& object_id) const {
+  const std::filesystem::path relative(object_id);
+  if (relative.empty() || relative.is_absolute() ||
+      relative.has_parent_path()) {
+    THROW_CHECKPOINT_EXCEPTION("Checkpoint contains invalid object id: " +
+                               object_id);
+  }
+  const auto path = (std::filesystem::path(object_dir_) / relative).string();
+  if (!std::filesystem::exists(path)) {
+    THROW_CHECKPOINT_EXCEPTION("Checkpoint references missing object: " + path);
+  }
+  return path;
+}
+
+std::shared_ptr<IDataContainer> Checkpoint::OpenObject(
+    const std::string& object_id, MemoryLevel level) {
+  // Immutable packed objects are mapped directly even in disk/hugepage modes.
+  // Their mutable successors use AllocateChunkBuffer with the requested mode.
+  (void) level;
+  std::lock_guard<std::mutex> lock(chunk_mutex_);
+  const auto path = ResolveObjectId(object_id);
+  auto& cached = immutable_objects_[object_id];
+  if (auto object = cached.lock())
+    return object;
+  auto object = file_mgr_->OpenFile(path, MemoryLevel::kInMemory);
+  cached = object;
+  return object;
+}
+
+Checkpoint::ChunkBuffer Checkpoint::AllocateChunkBuffer(size_t bytes,
+                                                        MemoryLevel level) {
+  constexpr size_t kArenaBytes = 2 * 1024 * 1024;
+  if (bytes == 0)
+    THROW_INVALID_ARGUMENT_EXCEPTION("Empty chunk allocation");
+  const auto index = static_cast<size_t>(level);
+  if (index == 0 || index >= chunk_arenas_.size())
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid chunk memory level");
+  std::lock_guard<std::mutex> lock(chunk_mutex_);
+  auto& arena = chunk_arenas_[index];
+  if (!arena.container || bytes > arena.container->GetDataSize() - arena.used) {
+    arena.container =
+        file_mgr_->CreateRuntimeContainer(std::max(bytes, kArenaBytes), level);
+    arena.used = 0;
+  }
+  ChunkBuffer result{arena.container, arena.used};
+  arena.used += (bytes + 63) & ~size_t{63};
+  // All callers request at most an arena; padding must remain in bounds.
+  if (arena.used > arena.container->GetDataSize())
+    arena.used = arena.container->GetDataSize();
+  return result;
+}
+
+std::string Checkpoint::ObjectIdForPath(const std::string& object_path) const {
+  const std::filesystem::path path(object_path);
+  if (path.parent_path() != std::filesystem::path(object_dir_) ||
+      path.filename().empty()) {
+    THROW_CHECKPOINT_EXCEPTION(
+        "Checkpoint object is outside the object store: " + object_path);
+  }
+  return path.filename().string();
+}
+
 void Checkpoint::SetManifest(CheckpointManifest&& manifest) {
+  FinalizeObjectWriter(manifest);
   manifest_ = std::move(manifest);
 }
 
 void Checkpoint::persist_manifest() {
-  // Commit any partial object accumulated by object_writer() so every appended
-  // chunk block has a durable object before the manifest references it.
-  SealObjects();
+  FinalizeObjectWriter(manifest_);
   if (!file_mgr_->SyncObjectDirectory()) {
     THROW_IO_EXCEPTION(
         "Checkpoint::persist_manifest: failed to fsync objects " + object_dir_);
@@ -158,14 +207,7 @@ void Checkpoint::persist_manifest() {
       if (path.empty()) {
         continue;
       }
-      if (std::filesystem::path(path).parent_path() !=
-          std::filesystem::path(object_dir_)) {
-        THROW_CHECKPOINT_EXCEPTION(
-            "Checkpoint manifest object is outside "
-            "the object store: " +
-            path);
-      }
-      path = std::filesystem::path(path).filename().string();
+      path = ObjectIdForPath(path);
     }
     persisted.SetModule(key, std::move(object_desc));
   }
@@ -193,6 +235,20 @@ ObjectWriter& Checkpoint::object_writer() {
 void Checkpoint::SealObjects() {
   if (object_writer_) {
     object_writer_->Seal();
+  }
+}
+
+void Checkpoint::RegisterObjectFinalizer(
+    std::function<void(Checkpoint&, CheckpointManifest&)> finalizer) {
+  object_finalizers_.push_back(std::move(finalizer));
+}
+
+void Checkpoint::FinalizeObjectWriter(CheckpointManifest& manifest) {
+  SealObjects();
+  auto finalizers = std::move(object_finalizers_);
+  object_finalizers_.clear();
+  for (auto& finalizer : finalizers) {
+    finalizer(*this, manifest);
   }
 }
 

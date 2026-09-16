@@ -37,9 +37,11 @@
 #define open _open
 #define write _write
 #endif
+#include <atomic>
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "glog/logging.h"
@@ -150,6 +152,120 @@ TEST_F(MvccInsertTransactionTest, AddVertex) {
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
   svc.reset();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, ConcurrentAppendAfterCheckpointReopen) {
+  neug::NeugDBConfig config(db_dir);
+  config.max_thread_num = 8;
+  config.memory_level = neug::MemoryLevel::kSyncToFile;
+  config.checkpoint_on_close = true;
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(config));
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  std::vector<std::thread> workers;
+  for (int worker = 0; worker < 4; ++worker) {
+    workers.emplace_back([&, worker] {
+      auto slot = svc->AcquireExecutionSlot();
+      for (int i = 0; i < 64; ++i) {
+        const int64_t id = 100 + worker * 64 + i;
+        auto txn = slot->BeginMvccInsertTransaction();
+        const auto label = txn.schema().get_vertex_label_id("person");
+        neug::vid_t vid;
+        EXPECT_TRUE(txn.AddVertex(
+            label, neug::Value::INT64(id),
+            {neug::Value::STRING("appended"), neug::Value::INT64(id)}, vid));
+        EXPECT_TRUE(txn.Commit());
+      }
+    });
+  }
+  for (auto& worker : workers)
+    worker.join();
+  svc.reset();
+  db.Close();
+  ASSERT_TRUE(db.Open(config));
+  svc = std::make_shared<neug::NeugDBService>(db);
+  {
+    auto slot = svc->AcquireExecutionSlot();
+    auto txn = slot->BeginSnapshotReadTransaction();
+    neug::StorageReadInterface reader(txn.view(), txn.timestamp());
+    const auto label = reader.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(reader, label), 258);
+    for (int64_t id = 100; id < 356; ++id) {
+      neug::vid_t vid;
+      ASSERT_TRUE(reader.GetVertexIndex(label, neug::Value::INT64(id), vid));
+      EXPECT_EQ(reader.GetVertexProperty(label, vid, 1).GetValue<int64_t>(),
+                id);
+    }
+  }
+  svc.reset();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, DeletedKeyAutocommitRetriesBeforeWal) {
+  neug::NeugDBConfig config(db_dir);
+  config.max_thread_num = 8;
+  neug::NeugDB db;
+  ASSERT_TRUE(db.Open(config));
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  {
+    auto read_slot = svc->AcquireExecutionSlot();
+    auto old = read_slot->BeginSnapshotReadTransaction();
+    neug::StorageReadInterface old_reader(old.view(), old.timestamp());
+    const auto label = old_reader.schema().get_vertex_label_id("person");
+    neug::vid_t original;
+    ASSERT_TRUE(
+        old_reader.GetVertexIndex(label, neug::Value::INT64(1), original));
+    auto slot = svc->AcquireExecutionSlot();
+    auto deleted = slot->ExecuteTransactionalRequest(
+        R"({"query":"MATCH (n:person {id:1}) DETACH DELETE n;","access_mode":"update","parameters":{}})");
+    ASSERT_TRUE(deleted) << deleted.error().ToString();
+    {
+      auto txn = slot->BeginMvccInsertTransaction();
+      neug::vid_t vid;
+      EXPECT_FALSE(txn.AddVertex(label, neug::Value::INT64(1),
+                                 {neug::Value::STRING("recreated"),
+                                  neug::Value::INT64(99)},
+                                 vid)
+                       .ok());
+      EXPECT_TRUE(txn.RequiresCowRetry());
+      EXPECT_FALSE(txn.Commit());
+    }
+    auto inserted = slot->ExecuteTransactionalRequest(
+        R"({"query":"CREATE (:person {id:1,name:'recreated',age:99});","access_mode":"insert","parameters":{}})");
+    ASSERT_TRUE(inserted) << inserted.error().ToString();
+    EXPECT_EQ(
+        old_reader.GetVertexProperty(label, original, 1).GetValue<int64_t>(),
+        30);
+    auto current = slot->BeginSnapshotReadTransaction();
+    neug::StorageReadInterface reader(current.view(), current.timestamp());
+    neug::vid_t vid;
+    ASSERT_TRUE(reader.GetVertexIndex(label, neug::Value::INT64(1), vid));
+    EXPECT_EQ(reader.GetVertexProperty(label, vid, 1).GetValue<int64_t>(), 99);
+    EXPECT_EQ(count_vertices(reader, label), 2);
+  }
+  svc.reset();
+  db.Close();
+}
+
+TEST_F(MvccInsertTransactionTest, NumericPropertyProjectionFilterAndSort) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  ASSERT_TRUE(db.Open(config));
+  {
+    neug::NeugDBService service(db);
+    auto slot = service.AcquireExecutionSlot();
+    auto result = slot->ExecuteTransactionalRequest(
+        R"({"query":"MATCH (n:person) WHERE n.age >= 25 RETURN n.age ORDER BY n.age DESC;","access_mode":"read","parameters":{}})");
+    ASSERT_TRUE(result) << result.error().ToString();
+    neug::QueryResponse response;
+    ASSERT_TRUE(response.ParseFromString(result.value()));
+    ASSERT_EQ(response.arrays_size(), 1);
+    const auto& values = response.arrays(0).int64_array();
+    ASSERT_EQ(values.values_size(), 2);
+    EXPECT_EQ(values.values(0), 30);
+    EXPECT_EQ(values.values(1), 25);
+  }
   db.Close();
 }
 

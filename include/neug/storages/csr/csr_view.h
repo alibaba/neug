@@ -277,9 +277,30 @@ struct EdgeDataAccessor {
    * @param data_column Pointer to column storage (nullptr for bundled data)
    */
   EdgeDataAccessor(DataTypeId data_type, ColumnBase* data_column)
-      : data_type_(data_type), data_column_(data_column) {}
+      : data_type_(data_type), data_column_(data_column) {
+    if (data_column_ == nullptr)
+      return;
+    switch (data_type_) {
+#define BIND_COLUMN(enum_val, type) \
+  case DataTypeId::enum_val:        \
+    BindColumn<type>();             \
+    break;
+      FOR_EACH_DATA_TYPE_NO_STRING(BIND_COLUMN)
+#undef BIND_COLUMN
+    case DataTypeId::kVarchar:
+      bound_column_ = dynamic_cast<const StringColumn*>(data_column_);
+      if (!bound_column_)
+        THROW_INTERNAL_EXCEPTION("Invalid string edge column layout");
+      break;
+    default:
+      break;  // variable-length data uses get_any()
+    }
+  }
   EdgeDataAccessor(const EdgeDataAccessor& other)
-      : data_type_(other.data_type_), data_column_(other.data_column_) {}
+      : data_type_(other.data_type_),
+        data_column_(other.data_column_),
+        bound_column_(other.bound_column_),
+        chunked_(other.chunked_) {}
 
   /** @brief Check if data is stored inline (bundled) vs column storage. */
   bool is_bundled() const { return data_column_ == nullptr; }
@@ -367,17 +388,32 @@ struct EdgeDataAccessor {
   }
 
   template <typename T>
-  inline T get_column_data(size_t idx) const {
-    // Unbundled edge data columns may be TypedColumn or ChunkedColumn.
+  void BindColumn() {
     if (auto* chunked = dynamic_cast<const ChunkedColumn<T>*>(data_column_)) {
-      return chunked->get_view(idx);
+      bound_column_ = chunked;
+      chunked_ = true;
+    } else if (auto* typed =
+                   dynamic_cast<const TypedColumn<T>*>(data_column_)) {
+      bound_column_ = typed;
+    } else
+      THROW_INTERNAL_EXCEPTION("Invalid fixed-width edge column layout");
+  }
+
+  template <typename T>
+  inline T get_column_data(size_t idx) const {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      if (!bound_column_ || data_type_ != DataTypeId::kVarchar)
+        THROW_INTERNAL_EXCEPTION("Edge string accessor type mismatch");
+      return static_cast<const StringColumn*>(bound_column_)->get_view(idx);
+    } else {
+      static const auto expected_type = ValueConverter<T>::type().id();
+      if (bound_column_ == nullptr || expected_type != data_type_)
+        THROW_INTERNAL_EXCEPTION("Edge property accessor type mismatch");
+      return chunked_ ? static_cast<const ChunkedColumn<T>*>(bound_column_)
+                            ->get_view(idx)
+                      : static_cast<const TypedColumn<T>*>(bound_column_)
+                            ->get_view(idx);
     }
-    if (auto* typed = dynamic_cast<const TypedColumn<T>*>(data_column_)) {
-      return typed->get_view(idx);
-    }
-    THROW_INTERNAL_EXCEPTION(
-        "Edge property column cannot be casted to TypedColumn/ChunkedColumn");
-    return T();
   }
 
   inline Value get_generic_bundled_data_from_ptr(const void* data_ptr) const {
@@ -401,6 +437,8 @@ struct EdgeDataAccessor {
 
   DataTypeId data_type_;
   ColumnBase* data_column_;
+  const void* bound_column_ = nullptr;
+  bool chunked_ = false;
 };
 
 enum class CsrViewType {

@@ -248,6 +248,8 @@ struct TypedColumnInserter {
   void (*fn)(const TypedColumnInserter&, size_t dst_idx, size_t src_idx,
              bool insert_safe);
 
+  void* bound_dst = nullptr;
+
   inline void insert(size_t dst_idx, size_t src_idx, bool insert_safe) const {
     fn(*this, dst_idx, src_idx, insert_safe);
   }
@@ -256,21 +258,22 @@ struct TypedColumnInserter {
 /// Fixed-length types: direct set_value, no Value, no virtual dispatch.
 /// Null entries already have T() in data_, so set_value writes the same
 /// default that set_any would write for null.
-template <typename T>
+template <typename T, typename COLUMN>
 void insert_typed_impl(const TypedColumnInserter& ins, size_t dst_idx,
                        size_t src_idx, bool /*insert_safe*/) {
-  auto* typed_dst = dynamic_cast<TypedColumn<T>*>(ins.dst);
-  auto* chunked_dst = dynamic_cast<ChunkedColumn<T>*>(ins.dst);
-  if (!typed_dst && !chunked_dst) {
-    THROW_INTERNAL_EXCEPTION(
-        "Edge property column cannot be casted to TypedColumn/ChunkedColumn");
-  }
-  auto vc = static_cast<const ValueColumn<T>*>(ins.src);
-  if (typed_dst) {
-    typed_dst->set_value(dst_idx, vc->get_value(src_idx));
-  } else {
-    chunked_dst->set_value(dst_idx, vc->get_value(src_idx));
-  }
+  auto* dst = static_cast<COLUMN*>(ins.bound_dst);
+  auto* src = static_cast<const ValueColumn<T>*>(ins.src);
+  dst->set_value(dst_idx, src->get_value(src_idx));
+}
+
+template <typename T>
+TypedColumnInserter bind_fixed_inserter(const IContextColumn* src,
+                                        ColumnBase* dst) {
+  if (auto* chunked = dynamic_cast<ChunkedColumn<T>*>(dst))
+    return {src, dst, &insert_typed_impl<T, ChunkedColumn<T>>, chunked};
+  if (auto* typed = dynamic_cast<TypedColumn<T>*>(dst))
+    return {src, dst, &insert_typed_impl<T, TypedColumn<T>>, typed};
+  THROW_INTERNAL_EXCEPTION("Invalid fixed-width insertion column layout");
 }
 
 /// Varchar: source is ValueColumn<std::string>, dest is
@@ -298,7 +301,7 @@ TypedColumnInserter make_inserter(const DataType& type,
   switch (type.id()) {
 #define MAKE_INSERTER(enum_val, cpp_type) \
   case DataTypeId::enum_val:              \
-    return {src, dst, &insert_typed_impl<cpp_type>};
+    return bind_fixed_inserter<cpp_type>(src, dst);
     FOR_EACH_DATA_TYPE_NO_STRING(MAKE_INSERTER)
 #undef MAKE_INSERTER
   case DataTypeId::kVarchar:
@@ -688,6 +691,8 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
     capacity = std::max(capacity, static_cast<size_t>(4096));
     table_->resize(capacity, meta_->get_default_property_values());
     capacity_.store(capacity);
+    for (size_t i = 0; i < table_->col_num(); ++i)
+      table_->get_column_by_id(i)->PrepareForInsert(table_idx_.load());
   }
 }
 
@@ -1234,6 +1239,10 @@ EdgeTable EdgeTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
   et.SetCapacity(
       meta.GetScalarAs<uint64_t>(ScalarKey(src, edge, dst, "capacity"))
           .value_or(0));
+  if (!es->is_bundled()) {
+    for (size_t i = 0; i < et.table()->col_num(); ++i)
+      et.table()->get_column_by_id(i)->PrepareForInsert(et.PropTableSize());
+  }
   return et;
 }
 

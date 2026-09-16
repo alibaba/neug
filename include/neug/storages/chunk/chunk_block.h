@@ -27,15 +27,14 @@ namespace neug {
 /// `mem` backs the chunk's bytes for reads at `read_offset`: either a private
 /// writable block (read_offset == 0) or a shared immutable object that may pack
 /// several chunks (read_offset locates this chunk within it). `slice` +
-/// `object_path` describe where the chunk was last persisted (object_path at
+/// `object_id` describe where the chunk was last persisted (object_id at
 /// slice.offset), letting a clean chunk be re-referenced by the next Dump
-/// without re-committing; object_path is empty for a chunk not yet persisted.
+/// without re-committing; object_id is empty for an unpersisted chunk.
 struct ChunkBlock {
   std::shared_ptr<IDataContainer> mem;
   ObjectSlice slice;
-  std::string object_path;
+  std::string object_id;
   uint64_t read_offset = 0;
-  bool dirty = false;  // rewritten in this checkpoint cycle
 };
 
 }  // namespace neug

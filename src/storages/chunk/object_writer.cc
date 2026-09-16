@@ -18,6 +18,8 @@
 #include <array>
 #include <cstring>
 
+#include "neug/utils/exception/exception.h"
+
 namespace neug {
 
 uint32_t Crc32c(const void* data, size_t length) {
@@ -42,59 +44,15 @@ uint32_t Crc32c(const void* data, size_t length) {
   return crc ^ 0xFFFFFFFFu;
 }
 
-std::vector<std::string> ExtractChunkDirObjectPaths(const void* data,
-                                                    size_t size) {
-  // Mirrors the little-endian layout written by ChunkedColumn::Dump:
-  //   [u64 rows_per_chunk][u64 chunk_count][u64 row_count][u64 object_count]
-  //   per object: [u32 path_len][path bytes]
-  //   per chunk:  [u32 obj_index][u64 offset][u32 length][u32 crc32c]
-  // Only the object-path table is needed to retain the referenced objects.
-  std::vector<std::string> paths;
-  const char* cursor = static_cast<const char*>(data);
-  const char* const end = cursor + size;
-  auto read_u64 = [&](uint64_t& out) -> bool {
-    if (cursor + 8 > end) {
-      return false;
-    }
-    out = 0;
-    for (int i = 0; i < 8; ++i) {
-      out |= static_cast<uint64_t>(static_cast<unsigned char>(*cursor++))
-             << (8 * i);
-    }
-    return true;
-  };
-  auto read_u32 = [&](uint32_t& out) -> bool {
-    if (cursor + 4 > end) {
-      return false;
-    }
-    out = 0;
-    for (int i = 0; i < 4; ++i) {
-      out |= static_cast<uint32_t>(static_cast<unsigned char>(*cursor++))
-             << (8 * i);
-    }
-    return true;
-  };
-
-  uint64_t rows_per_chunk = 0;
-  uint64_t chunk_count = 0;
-  uint64_t row_count = 0;
-  uint64_t object_count = 0;
-  if (!read_u64(rows_per_chunk) || !read_u64(chunk_count) ||
-      !read_u64(row_count) || !read_u64(object_count)) {
-    return paths;  // truncated header
-  }
-  for (uint64_t o = 0; o < object_count; ++o) {
-    uint32_t path_len = 0;
-    if (!read_u32(path_len) || cursor + path_len > end) {
-      break;  // truncated path entry
-    }
-    paths.emplace_back(cursor, path_len);
-    cursor += path_len;
-  }
-  return paths;
+std::vector<std::string> ExtractChunkDirObjectIds(const void* data,
+                                                  size_t size) {
+  return DecodeChunkDirectory(data, size).object_ids;
 }
 
 size_t ObjectWriter::AppendBlock(const void* data, uint32_t length) {
+  // Different columns/append suffixes have different widths. Every slice
+  // starts on a natural alignment suitable for all fixed-width property types.
+  buffer_.resize((buffer_.size() + 15) & ~size_t{15}, 0);
   ObjectSlice slice;
   slice.offset = buffer_.size();
   slice.length = length;

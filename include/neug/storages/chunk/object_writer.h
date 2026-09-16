@@ -32,9 +32,10 @@ namespace neug {
 /// buffer is published through the CommitSink, which returns the object's
 /// stable id. The slices belonging to that object then receive the id.
 ///
-/// The object file is the plain concatenation of block payloads (no per-object
-/// header); each block's offset/length/crc32c lives in the chunk directory, not
-/// in the object.
+/// The payload is the concatenation of block bytes and is committed through the
+/// checkpoint container path, which adds the standard file header. Each
+/// block's offset/length/crc32c is relative to the payload exposed by
+/// IDataContainer and lives in the chunk directory.
 class ObjectWriter {
  public:
   static constexpr size_t kObjectTargetBytes = 64ull * 1024 * 1024;
