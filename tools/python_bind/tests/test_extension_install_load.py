@@ -19,7 +19,6 @@ import pytest
 
 from neug import Database
 
-
 EXTENSIONS = [
     "parquet",
     "httpfs",
