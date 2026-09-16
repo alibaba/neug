@@ -33,7 +33,8 @@ class LocalWalWriter : public IWalWriter {
         slot_id_(slot_id),
         fd_(-1),
         file_size_(0),
-        file_used_(0) {}
+        file_used_(0),
+        opened_(false) {}
   ~LocalWalWriter() noexcept override;
 
   void open(const std::string& wal_uri) override;
@@ -42,11 +43,14 @@ class LocalWalWriter : public IWalWriter {
   std::string type() const override { return "file"; }
 
  private:
+  void create_file();
+
   std::string wal_uri_;
   int slot_id_;
   int fd_;
   size_t file_size_;
   size_t file_used_;
+  bool opened_;
 
   static const bool registered_;
 };

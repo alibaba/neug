@@ -21,6 +21,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/mvcc_insert_transaction.h"
 #include "neug/transaction/wal/local_wal_parser.h"
+#include "neug/transaction/wal/local_wal_writer.h"
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/exception/exception.h"
 
@@ -296,6 +297,17 @@ TEST_F(LocalWalParserTest, OpenAndParseValidWalFile) {
   // The ptr should point to the payload data within the mmap region.
   EXPECT_NE(unit.ptr, nullptr);
   EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
+}
+
+TEST_F(LocalWalParserTest, WriterOpenCloseWithoutAppendCreatesNoFile) {
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  static constexpr char kUnused = '\0';
+  for (size_t i = 0; i < 5; ++i) {
+    writer.open(wal_dir_);
+    EXPECT_TRUE(writer.append(&kUnused, 0));
+    writer.close();
+  }
+  EXPECT_TRUE(std::filesystem::is_empty(wal_dir_));
 }
 
 #ifndef _WIN32

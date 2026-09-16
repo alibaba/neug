@@ -896,6 +896,19 @@ def test_disable_checkpoint_on_close_recovers_wal(tmp_path):
     db.close()
 
 
+def test_read_write_reopen_without_mutation_does_not_create_wal(tmp_path):
+    db_dir = tmp_path / "no_mutation_wal"
+
+    for _ in range(5):
+        db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
+        conn = db.connect()
+        assert list(conn.execute("RETURN 1;")) == [[1]]
+        conn.close()
+        db.close()
+
+    assert list((db_dir / "wal").rglob("*.wal")) == []
+
+
 # DB-004-18
 def test_manual_checkpoint_command(tmp_path):
     db_dir = tmp_path / "test_checkpoint"

@@ -53,6 +53,10 @@ LocalWalWriter::~LocalWalWriter() noexcept {
 void LocalWalWriter::open(const std::string& wal_uri) {
   close();
   wal_uri_ = wal_uri;
+  opened_ = true;
+}
+
+void LocalWalWriter::create_file() {
   auto prefix = get_wal_uri_path(wal_uri_);
   if (!std::filesystem::exists(prefix)) {
     std::filesystem::create_directories(prefix);
@@ -93,6 +97,7 @@ void LocalWalWriter::open(const std::string& wal_uri) {
 }
 
 void LocalWalWriter::close() {
+  opened_ = false;
   if (fd_ != -1) {
     // Retire the descriptor before calling close(). Retrying close() after an
     // error is unsafe because the descriptor may already have been released
@@ -112,8 +117,14 @@ void LocalWalWriter::close() {
 }
 
 bool LocalWalWriter::append(const char* data, size_t length) {
-  if (NEUG_UNLIKELY(fd_ == -1)) {
+  if (NEUG_UNLIKELY(!opened_)) {
     return false;
+  }
+  if (length == 0) {
+    return true;
+  }
+  if (fd_ == -1) {
+    create_file();
   }
   size_t expected_size = file_used_ + length;
   if (expected_size > file_size_) {
