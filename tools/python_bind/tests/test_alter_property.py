@@ -201,7 +201,9 @@ class TestBachLoading(unittest.TestCase):
             conn.execute(
                 "CREATE REL TABLE person_knows_person(FROM Person TO Person, weight DOUBLE);"
             )
-            conn.execute("CREATE (:Person {id: 0, name: 'Alice', age: 20, city: 'NYC'});")
+            conn.execute(
+                "CREATE (:Person {id: 0, name: 'Alice', age: 20, city: 'NYC'});"
+            )
             conn.execute("CREATE (:Person {id: 1, name: 'Bob', age: 30, city: 'LA'});")
             conn.execute(
                 "MATCH (a:Person {id: 0}), (b:Person {id: 1}) "
@@ -233,9 +235,7 @@ class TestBachLoading(unittest.TestCase):
             self._load_extension(conn, "vector_search")
             self._assert_extension_loaded(conn, "vector_search")
 
-            conn.execute(
-                "CREATE NODE TABLE Item(id INT64 PRIMARY KEY, vec FLOAT[4]);"
-            )
+            conn.execute("CREATE NODE TABLE Item(id INT64 PRIMARY KEY, vec FLOAT[4]);")
             conn.execute("CREATE (:Item {id: 1, vec: [1.0, 0.0, 0.0, 0.0]});")
             conn.execute("CREATE (:Item {id: 2, vec: [0.0, 1.0, 0.0, 0.0]});")
             conn.execute(
@@ -297,9 +297,7 @@ class TestBachLoading(unittest.TestCase):
             self._load_extension(conn, "gds")
             self._assert_extension_loaded(conn, "gds")
 
-            conn.execute(
-                "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);"
-            )
+            conn.execute("CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING);")
             conn.execute(
                 "CREATE REL TABLE knows(FROM Person TO Person, weight DOUBLE);"
             )
