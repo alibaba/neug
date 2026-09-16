@@ -26,8 +26,11 @@
 
 #include "neug/storages/checkpoint_manager.h"
 #include "neug/storages/checkpoint_manifest.h"
+#include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/module/module_broker.h"
 #include "neug/storages/module/module_factory.h"
+#include "neug/transaction/cow_graph_workspace.h"
 #include "neug/utils/property/table.h"
 
 namespace neug {
@@ -643,6 +646,32 @@ TEST_F(ChunkedColumnTest, PayloadChecksumIsCheckedOnFirstAccess) {
   EXPECT_THROW(reopened.get_view(0), exception::CheckpointException);
 }
 
+TEST_F(ChunkedColumnTest, SpanReaderVerifiesEachNewPage) {
+  ChunkedColumn<int64_t> col(4);
+  col.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  col.resize(8);
+  col.set_value(0, 99);
+  CheckpointManifest meta;
+  col.Dump(*ckp_, meta, "col");
+  ckp_->FinalizeObjectWriter(meta);
+  auto desc = *meta.FindModule("col");
+  auto file =
+      ckp_->OpenFile(*desc.get_path(kChunkDirPath), MemoryLevel::kInMemory);
+  auto dir = DecodeChunkDirectory(file->GetData(), file->GetDataSize());
+  const auto& slice = dir.pages[1].prefix;
+  auto object =
+      ckp_->OpenObject(dir.object_ids[slice.object_id], MemoryLevel::kInMemory);
+  static_cast<char*>(object->GetData())[slice.offset] ^= 1;
+  ChunkedColumn<int64_t> reopened(4);
+  reopened.Open(*ckp_, desc, MemoryLevel::kInMemory);
+  auto ref = std::dynamic_pointer_cast<TypedRefColumn<int64_t>>(
+      CreateRefColumn(reopened));
+  PropertyColumnReader<int64_t> reader(*ref);
+  EXPECT_EQ(reader.get_view(0), 99);
+  EXPECT_EQ(reader.get_view(3), 0);
+  EXPECT_THROW(reader.get_view(4), exception::CheckpointException);
+}
+
 TEST_F(ChunkedColumnTest, BuilderOwnsSegmentsAfterColumnDestruction) {
   CheckpointManifest meta;
   {
@@ -797,6 +826,273 @@ TEST(ChunkedColumnFactoryTest, RegisteredForReopen) {
   auto module = factory.Create(probe.ModuleTypeName());
   ASSERT_NE(module, nullptr);
   EXPECT_NE(dynamic_cast<ChunkedColumn<int64_t>*>(module.get()), nullptr);
+}
+
+TEST_F(ChunkedColumnTest, AbortedCowKeepsLiveAppendWritable) {
+  ChunkedColumn<int64_t> live;
+  live.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  live.resize(1024);
+  live.PrepareForInsert(0);
+  live.set_any(0, Value::INT64(10), false);
+  {
+    auto private_copy = live.Clone();
+    auto& clone = dynamic_cast<ChunkedColumn<int64_t>&>(*private_copy);
+    clone.PrepareForInsert(1);
+    EXPECT_EQ(clone.cow_bytes_copied(), 4096u);
+  }
+  EXPECT_NO_THROW(live.set_any(1, Value::INT64(20), false));
+  EXPECT_EQ(live.get_view(0), 10);
+  EXPECT_EQ(live.get_view(1), 20);
+}
+
+TEST_F(ChunkedColumnTest, CleanLegacyMigrationPreservesPinnedVertexSnapshot) {
+  Schema schema;
+  schema.AddVertexLabel("v", {DataType::INT64}, {"val"},
+                        {std::make_tuple(DataType::INT64, "id", 0)}, 4096, "",
+                        {Value::INT64(0)});
+  VertexTable table(schema.get_vertex_schema(0));
+  table.Init(ckp_, MemoryLevel::kInMemory);
+  table.EnsureCapacity(16);
+  auto legacy = std::make_unique<TypedColumn<int64_t>>();
+  legacy->Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  legacy->resize(table.Capacity());
+  table.SetColumn(0, std::move(legacy));
+  vid_t vid;
+  ASSERT_TRUE(
+      table.AddVertex(Value::INT64(1), {Value::INT64(99)}, vid, 1, false));
+  auto first = mgr_.CreateStaging();
+  auto checkpoint = first.checkpoint();
+  CheckpointManifest meta(1);
+  meta.SetSchema(schema);
+  std::unique_ptr<ColumnBase> keys;
+  std::unique_ptr<TypedColumn<vid_t>> indices;
+  meta.SetModule(VertexTable::KeyIndexer("v"),
+                 table.get_indexer().Dump(*checkpoint, keys, indices));
+  keys->Dump(*checkpoint, meta, VertexTable::KeyKeys("v"));
+  indices->Dump(*checkpoint, meta, VertexTable::KeyIndices("v"));
+  table.TakeVertexTimestamp()->Dump(*checkpoint, meta,
+                                    VertexTable::KeyVertexTimestamp("v"));
+  table.TakeTable()->get_column_by_id(0)->Dump(
+      *checkpoint, meta, VertexTable::KeyProperty("v", 0));
+  checkpoint->SetManifest(std::move(meta));
+  first.Publish();
+  PropertyGraph base;
+  base.Open(checkpoint, MemoryLevel::kInMemory);
+  EXPECT_FALSE(base.dirty_tracker().IsVertexDirty(0));
+  auto& base_keys = dynamic_cast<const TypedColumn<int64_t>&>(
+      base.get_vertex_table(0).get_indexer().get_keys());
+  ASSERT_NE(base_keys.data(), nullptr);
+  auto private_graph = base.Clone();
+  auto detached = CowDetachState::FromSchema(private_graph->schema());
+  private_graph->DetachDirtyModulesForCheckpoint(detached);
+  auto second = mgr_.CreateStaging();
+  auto migrated = second.checkpoint();
+  private_graph->DumpDirtyAndReopen(migrated, 2);
+  ASSERT_NE(base_keys.data(), nullptr)
+      << "A clean legacy table migration closed the pinned base graph's keys";
+  second.Publish();
+  EXPECT_EQ(base_keys.get_view(0), 1);
+  EXPECT_EQ(base.GetVertexPropertyColumn(0, 0)->get_any(0).GetValue<int64_t>(),
+            99);
+  EXPECT_TRUE(base.get_vertex_table(0).get_table().HasLegacyPropertyColumns());
+  EXPECT_FALSE(private_graph->get_vertex_table(0)
+                   .get_table()
+                   .HasLegacyPropertyColumns());
+  const auto key = VertexTable::KeyKeys("v");
+  EXPECT_EQ(checkpoint->manifest().FindModule(key)->paths(),
+            migrated->manifest().FindModule(key)->paths());
+  PropertyGraph reopened;
+  reopened.Open(migrated, MemoryLevel::kInMemory);
+  EXPECT_EQ(
+      reopened.GetVertexPropertyColumn(0, 0)->get_any(0).GetValue<int64_t>(),
+      99);
+  EXPECT_TRUE(reopened.get_lid(0, Value::INT64(1), vid, 2));
+}
+
+TEST_F(ChunkedColumnTest, CleanColumnsRebindAfterCheckpointRotation) {
+  Schema schema;
+  schema.AddVertexLabel("v", {DataType::INT64}, {"val"},
+                        {std::make_tuple(DataType::INT64, "id", 0)}, 4096, "",
+                        {Value::INT64(0)});
+  schema.AddEdgeLabel("v", "v", "e", {DataType::INT64, DataType::INT64},
+                      {"a", "b"});
+  CheckpointManifest initial;
+  initial.SetSchema(schema);
+  ckp_->SetManifest(std::move(initial));
+  PropertyGraph graph;
+  graph.Open(ckp_, MemoryLevel::kInMemory);
+  ASSERT_TRUE(graph.EnsureCapacity(0, 16).ok());
+  vid_t vid;
+  ASSERT_TRUE(
+      graph.AddVertex(0, Value::INT64(1), {Value::INT64(99)}, vid, 1).ok());
+  Allocator alloc(MemoryLevel::kInMemory, temp_dir_.string());
+  int32_t offset;
+  const void* property;
+  ASSERT_TRUE(graph
+                  .AddEdge(0, vid, 0, vid, 0,
+                           {Value::INT64(11), Value::INT64(22)}, 1, alloc,
+                           offset, property, true)
+                  .ok());
+  // Low-level PropertyGraph writes leave dirty tracking to their caller.
+  graph.MarkVertexTableDirty(0);
+  graph.MarkEdgeTableDirty(0, 0, 0);
+  auto first = mgr_.CreateStaging();
+  graph.Compact();
+  graph.DumpAndClear(first.checkpoint());
+  auto old = first.Publish();
+  graph.Open(old, MemoryLevel::kInMemory);
+  auto* before = graph.get_vertex_table(0).get_table().get_column_by_id(0);
+  auto* edge_before =
+      graph.get_edge_table(0, 0, 0).table()->get_column_by_id(0);
+  std::weak_ptr<Checkpoint> old_weak = old;
+  auto second = mgr_.CreateStaging();
+  graph.DumpDirtyAndReopen(second.checkpoint(), 2);
+  second.Publish();
+  old.reset();
+  auto* after = graph.get_vertex_table(0).get_table().get_column_by_id(0);
+  ASSERT_EQ(before, after);
+  ASSERT_EQ(edge_before,
+            graph.get_edge_table(0, 0, 0).table()->get_column_by_id(0));
+  ASSERT_TRUE(old_weak.expired());
+  // Exercise the normal post-rotation Insert -> next COW preparation sequence.
+  ASSERT_TRUE(
+      graph.AddVertex(0, Value::INT64(2), {Value::INT64(100)}, vid, 3).ok());
+  ASSERT_TRUE(graph
+                  .AddEdge(0, vid, 0, vid, 0,
+                           {Value::INT64(33), Value::INT64(44)}, 3, alloc,
+                           offset, property)
+                  .ok());
+  graph.MarkVertexTableDirty(0);
+  graph.MarkEdgeTableDirty(0, 0, 0);
+  auto next = graph.Clone();
+  EXPECT_NO_THROW(next->PrepareForInsert());
+  EXPECT_EQ(
+      next->GetVertexPropertyColumn(0, 0)->get_any(vid).GetValue<int64_t>(),
+      100);
+  EXPECT_EQ(next->get_edge_table(0, 0, 0)
+                .table()
+                ->get_column_by_id(0)
+                ->get_any(1)
+                .GetValue<int64_t>(),
+            33);
+  next.reset();
+  auto third = mgr_.CreateStaging();
+  graph.DumpDirtyAndReopen(third.checkpoint(), 4);
+  auto latest = third.Publish();
+  PropertyGraph reopened;
+  reopened.Open(latest, MemoryLevel::kInMemory);
+  EXPECT_EQ(
+      reopened.GetVertexPropertyColumn(0, 0)->get_any(vid).GetValue<int64_t>(),
+      100);
+}
+
+TEST_F(ChunkedColumnTest, CleanLegacyMigrationPreservesPinnedEdgeSnapshot) {
+  Schema schema;
+  schema.AddVertexLabel("v", {}, {},
+                        {std::make_tuple(DataType::INT64, "id", 0)}, 4096);
+  schema.AddEdgeLabel("v", "v", "e", {DataType::INT64, DataType::INT64},
+                      {"a", "b"}, EdgeStrategy::kMultiple,
+                      EdgeStrategy::kMultiple, true, true);
+  VertexTable vertices(schema.get_vertex_schema(0));
+  vertices.Init(ckp_, MemoryLevel::kInMemory);
+  vertices.EnsureCapacity(16);
+  vid_t vid;
+  ASSERT_TRUE(vertices.AddVertex(Value::INT64(1), {}, vid, 1, false));
+  ASSERT_TRUE(vertices.AddVertex(Value::INT64(2), {}, vid, 1, false));
+  EdgeTable edges(schema.get_edge_schema(0, 0, 0));
+  edges.Init(ckp_, MemoryLevel::kInMemory);
+  edges.EnsureCapacity(16, 16, 16);
+  for (size_t i = 0; i < 2; ++i) {
+    auto legacy = std::make_unique<TypedColumn<int64_t>>();
+    legacy->Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    legacy->resize(edges.Capacity());
+    edges.table()->SetColumn(i, std::move(legacy));
+  }
+  Allocator alloc(MemoryLevel::kInMemory, temp_dir_.string());
+  edges.AddEdge(0, 1, {Value::INT64(11), Value::INT64(22)}, 1, alloc, false);
+  // Write the legacy format explicitly: DisassembleTo itself migrates columns.
+  auto first = mgr_.CreateStaging();
+  auto old = first.checkpoint();
+  CheckpointManifest meta(1);
+  meta.SetSchema(schema);
+  ModuleBroker modules;
+  vertices.DisassembleTo(modules, meta, *old);
+  modules.SetModule(EdgeTable::KeyOutCsr("v", "e", "v"), edges.TakeOutCsr());
+  modules.SetModule(EdgeTable::KeyInCsr("v", "e", "v"), edges.TakeInCsr());
+  for (size_t i = 0; i < 2; ++i)
+    edges.table()->get_column_by_id(i)->Dump(
+        *old, meta, EdgeTable::KeyProperty("v", "e", "v", i));
+  meta.SetScalar(EdgeTable::ScalarKey("v", "e", "v", "table_idx"), "1");
+  meta.SetScalar(EdgeTable::ScalarKey("v", "e", "v", "capacity"),
+                 std::to_string(edges.Capacity()));
+  modules.Dump(*old, meta);
+  old->SetManifest(std::move(meta));
+  first.Publish();
+  PropertyGraph base;
+  base.Open(old, MemoryLevel::kInMemory);
+  auto next = base.Clone();
+  auto detached = CowDetachState::FromSchema(next->schema());
+  next->DetachDirtyModulesForCheckpoint(detached);
+  auto second = mgr_.CreateStaging();
+  auto migrated = second.checkpoint();
+  next->DumpDirtyAndReopen(migrated, 2);
+  second.Publish();
+  for (const auto& key : {EdgeTable::KeyOutCsr("v", "e", "v"),
+                          EdgeTable::KeyInCsr("v", "e", "v")}) {
+    EXPECT_EQ(old->manifest().FindModule(key)->paths(),
+              migrated->manifest().FindModule(key)->paths());
+  }
+  EXPECT_TRUE(base.get_edge_table(0, 0, 0).table()->HasLegacyPropertyColumns());
+  EXPECT_FALSE(
+      next->get_edge_table(0, 0, 0).table()->HasLegacyPropertyColumns());
+  PropertyGraph reopened;
+  reopened.Open(migrated, MemoryLevel::kInMemory);
+  for (const auto* graph : {&base, next.get(), &reopened}) {
+    const auto& edge = graph->get_edge_table(0, 0, 0);
+    auto outgoing = edge.get_outgoing_view(MAX_TIMESTAMP).get_edges(0);
+    auto incoming = edge.get_incoming_view(MAX_TIMESTAMP).get_edges(1);
+    ASSERT_NE(outgoing.begin(), outgoing.end());
+    ASSERT_NE(incoming.begin(), incoming.end());
+    EXPECT_EQ(outgoing.begin().get_vertex(), 1);
+    EXPECT_EQ(incoming.begin().get_vertex(), 0);
+    EXPECT_EQ(edge.table()->get_column_by_id(0)->get_any(0).GetValue<int64_t>(),
+              11);
+    EXPECT_EQ(edge.table()->get_column_by_id(1)->get_any(0).GetValue<int64_t>(),
+              22);
+  }
+}
+
+TEST_F(ChunkedColumnTest, SpanReadersCoverSplitPagesAndIndependentTraversal) {
+  ChunkedColumn<int64_t> chunked(4);
+  chunked.Open(*ckp_, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  chunked.resize(11);
+  for (size_t row = 0; row < chunked.size(); ++row)
+    chunked.set_value(row, row * 10);
+  chunked.PrepareForInsert(2);  // First page contains a prefix and a suffix.
+  auto ref = std::dynamic_pointer_cast<TypedRefColumn<int64_t>>(
+      CreateRefColumn(chunked));
+  ASSERT_NE(ref, nullptr);
+  EXPECT_EQ(ref->get_span(0).size(), 2);
+  EXPECT_EQ(ref->get_span(2).size(), 2);
+  EXPECT_TRUE(ref->get_span(11).empty());
+  EXPECT_THROW(ref->get_span(12), exception::RuntimeError);
+  std::atomic<bool> correct{true};
+  auto scan = [&](bool reverse) {
+    PropertyColumnReader<int64_t> reader(*ref);
+    for (size_t repeat = 0; repeat < 100; ++repeat)
+      for (size_t i = 0; i < 11; ++i) {
+        size_t row = reverse ? 10 - i : i;
+        if (reader.get_view(row) != static_cast<int64_t>(row * 10))
+          correct.store(false);
+      }
+  };
+  std::thread forward(scan, false), backward(scan, true);
+  forward.join();
+  backward.join();
+  EXPECT_TRUE(correct.load());
+  PropertyColumnReader<int64_t> gathered(*ref);
+  for (size_t row : {3, 1, 9, 5, 8, 0, 10})
+    EXPECT_EQ(gathered.get_view(row), row * 10);
 }
 
 }  // namespace

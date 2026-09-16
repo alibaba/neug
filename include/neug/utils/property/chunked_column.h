@@ -240,7 +240,6 @@ class ChunkedColumn : public ColumnBase {
       segment->Verify();
       const auto bytes = segment->bytes;
       segment = Copy(segment->data, bytes);
-      cow_bytes_copied_ += bytes;
     }
     segment->data[slot < page.prefix_rows ? slot : slot - page.prefix_rows] =
         value;
@@ -274,6 +273,7 @@ class ChunkedColumn : public ColumnBase {
         std::copy_n(page.prefix->data, page.prefix_rows, merged->data);
         std::copy_n(page.suffix->data, rows_per_page_ - page.prefix_rows,
                     merged->data + page.prefix_rows);
+        cow_bytes_copied_ += rows_per_page_ * sizeof(T);
         page = Page{std::move(merged), nullptr,
                     static_cast<uint32_t>(rows_per_page_)};
       }
@@ -306,9 +306,10 @@ class ChunkedColumn : public ColumnBase {
     return clone;
   }
   void Detach(Checkpoint& ckp, MemoryLevel level) override {
-    ckp_ = &ckp;
+    RebindCheckpoint(ckp);
     level_ = level;
   }
+  void RebindCheckpoint(Checkpoint& ckp) override { ckp_ = &ckp; }
   static std::string type_name() {
     return "chunked_column<" + type_name_string<T>() + ">";
   }
@@ -440,8 +441,10 @@ class ChunkedColumn : public ColumnBase {
     result->data = reinterpret_cast<T*>(
         static_cast<char*>(result->mem->GetData()) + allocation.offset);
     result->bytes = bytes;
-    if (source)
+    if (source) {
       std::memcpy(result->data, source, bytes);
+      cow_bytes_copied_ += bytes;
+    }
     return result;
   }
   std::shared_ptr<Segment> Slice(const std::shared_ptr<Segment>& source,
@@ -449,10 +452,10 @@ class ChunkedColumn : public ColumnBase {
     source->Verify();
     const size_t bytes = rows * sizeof(T);
     std::shared_ptr<Segment> result;
-    if (frozen) {
-      // A sliced view aliases the original segment's bytes even though it has
-      // its own descriptor. Covering writes through the original must fork too.
-      source->frozen = true;
+    if (frozen && source->frozen) {
+      // Only already immutable segments can be aliased by a new descriptor.
+      // Freezing a shared mutable source here would disable inserts into the
+      // published graph if this private COW workspace is subsequently aborted.
       result = std::make_shared<Segment>();
       result->mem = source->mem;
       result->data = source->data + row;
@@ -504,6 +507,10 @@ class ChunkedRefColumn : public TypedRefColumn<T> {
             &column, column.size(),
             [](const void* source, size_t row) {
               return static_cast<const ChunkedColumn<T>*>(source)->get_view(
+                  row);
+            },
+            [](const void* source, size_t row) {
+              return static_cast<const ChunkedColumn<T>*>(source)->get_span(
                   row);
             }),
         column_(column) {}

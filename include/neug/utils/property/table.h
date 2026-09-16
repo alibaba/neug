@@ -61,6 +61,11 @@ class NEUG_API Table {
   /// length properties retain their existing column implementations.
   bool MigrateLegacyPropertyColumns(Checkpoint& ckp, MemoryLevel level);
 
+  bool MigrateLegacyPropertyColumn(size_t index, Checkpoint& ckp,
+                                   MemoryLevel level);
+
+  void RebindCheckpoint(Checkpoint& ckp);
+
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
             MemoryLevel memory_level, const std::vector<std::string>& col_name,
             const std::vector<DataType>& property_types);

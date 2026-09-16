@@ -1173,10 +1173,18 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
     auto& table = vertex_tables_[i];
     const auto& label = table.get_vertex_schema_ptr()->label_name;
     const bool vertex_dirty = IsVertexTableDirty(i);
-    const bool migrate_legacy_columns =
-        table.get_table().HasLegacyPropertyColumns();
-    if (!vertex_dirty && !migrate_legacy_columns) {
+    if (!vertex_dirty) {
       table.ReuseCheckpointModules(*ckp, meta, previous);
+      // A clean legacy table still belongs to retained snapshots. Migrate only
+      // its property payloads; disassembly would consume shared keys/indices.
+      auto& properties = table.get_table();
+      for (size_t property = 0; property < properties.col_num(); ++property) {
+        if (properties.MigrateLegacyPropertyColumn(property, *ckp,
+                                                   memory_level_)) {
+          properties.get_column_by_id(property)->Dump(
+              *ckp, meta, VertexTable::KeyProperty(label, property));
+        }
+      }
       continue;
     }
 
@@ -1213,10 +1221,19 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
     const auto& edge = edge_schema->edge_label_name;
     const auto& dst = edge_schema->dst_label_name;
     const bool edge_dirty = dirty_.IsEdgeDirty(index);
-    const bool migrate_legacy_columns =
-        !edge_schema->is_bundled() && table.table()->HasLegacyPropertyColumns();
-    if (!edge_dirty && !migrate_legacy_columns) {
+    if (!edge_dirty) {
       table.ReuseCheckpointModules(*ckp, meta, previous);
+      // Preserve shared CSRs and all other clean columns during migration.
+      if (!edge_schema->is_bundled()) {
+        auto& properties = *table.table();
+        for (size_t property = 0; property < properties.col_num(); ++property) {
+          if (properties.MigrateLegacyPropertyColumn(property, *ckp,
+                                                     memory_level_)) {
+            properties.get_column_by_id(property)->Dump(
+                *ckp, meta, EdgeTable::KeyProperty(src, edge, dst, property));
+          }
+        }
+      }
       continue;
     }
 
@@ -1274,9 +1291,15 @@ bool PropertyGraph::DumpDirtyAndReopen(std::shared_ptr<Checkpoint> ckp,
   uncompacted_modules_.MergeFrom(dirty_);
   for (auto& table : vertex_tables_) {
     table.ckp_ = ckp;
+    if (table.get_vertex_schema_ptr()) {
+      table.get_table().RebindCheckpoint(*ckp);
+    }
   }
   for (auto& [_, table] : edge_tables_) {
     table.ckp_ = ckp;
+    if (table.table()) {
+      table.table()->RebindCheckpoint(*ckp);
+    }
   }
   ckp_ = std::move(ckp);
   rebind_indexes();

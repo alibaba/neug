@@ -38,11 +38,17 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
             graph.GetVertexPropColumn(i, prop_name)));
   }
   bool success = true;
+  std::vector<PropertyColumnReader<T>> readers(property_columns.size());
+  for (size_t i = 0; i < property_columns.size(); ++i) {
+    if (property_columns[i]) {
+      readers[i] = PropertyColumnReader<T>(*property_columns[i]);
+    }
+  }
   if (asc) {
     TopNGenerator<T, TopNAscCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
       if (!(property_columns[label] == nullptr)) {
-        gen.push(property_columns[label]->get_view(v), idx);
+        gen.push(readers[label].get_view(v), idx);
       } else {
         success = false;
       }
@@ -54,7 +60,7 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
     TopNGenerator<T, TopNDescCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
       if (!(property_columns[label] == nullptr)) {
-        gen.push(property_columns[label]->get_view(v), idx);
+        gen.push(readers[label].get_view(v), idx);
       } else {
         success = false;
       }

@@ -121,13 +121,27 @@ bool Table::HasLegacyPropertyColumns() const {
 
 bool Table::MigrateLegacyPropertyColumns(Checkpoint& ckp, MemoryLevel level) {
   bool migrated = false;
-  for (auto& column : columns_) {
-#define MIGRATE_LEGACY_COLUMN(enum_val, cpp_type) \
-  migrated = MigrateLegacyColumn<cpp_type>(ckp, level, column) || migrated;
-    FOR_EACH_DATA_TYPE_NO_STRING(MIGRATE_LEGACY_COLUMN)
-#undef MIGRATE_LEGACY_COLUMN
+  for (size_t i = 0; i < columns_.size(); ++i) {
+    migrated = MigrateLegacyPropertyColumn(i, ckp, level) || migrated;
   }
   return migrated;
+}
+
+bool Table::MigrateLegacyPropertyColumn(size_t index, Checkpoint& ckp,
+                                        MemoryLevel level) {
+  auto& column = columns_.at(index);
+#define MIGRATE_LEGACY_COLUMN(enum_val, cpp_type)        \
+  if (MigrateLegacyColumn<cpp_type>(ckp, level, column)) \
+    return true;
+  FOR_EACH_DATA_TYPE_NO_STRING(MIGRATE_LEGACY_COLUMN)
+#undef MIGRATE_LEGACY_COLUMN
+  return false;
+}
+
+void Table::RebindCheckpoint(Checkpoint& ckp) {
+  for (auto& column : columns_) {
+    column->RebindCheckpoint(ckp);
+  }
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {

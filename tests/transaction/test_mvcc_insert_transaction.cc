@@ -509,3 +509,55 @@ TEST_F(LocalWalParserTest, OpenEmptyWalDirNoThrow) {
   neug::LocalWalParser parser(wal_dir_);
   EXPECT_EQ(parser.last_ts(), 0);
 }
+
+TEST_F(MvccInsertTransactionTest, AbortedAndNoopCowPreserveInsertAppendArea) {
+  // Fresh mutable pages and reopened frozen pages take different split paths.
+  for (bool checkpoint : {false, true}) {
+    SCOPED_TRACE(checkpoint);
+    const auto dir = db_dir + (checkpoint ? "/reopened" : "/fresh");
+    neug::NeugDBConfig config(dir);
+    config.checkpoint_on_close = false;
+    neug::NeugDB db;
+    ASSERT_TRUE(db.Open(config));
+    {
+      auto conn = db.Connect();
+      ASSERT_TRUE(conn->Query(
+          "CREATE NODE TABLE v(id INT64, val INT64, PRIMARY KEY(id));"));
+      if (checkpoint)
+        ASSERT_TRUE(conn->Query("CHECKPOINT;"));
+      conn->Close();
+    }
+    {
+      neug::NeugDBService service(db);
+      auto slot = service.AcquireExecutionSlot();
+      for (int64_t row = 1; row <= 4; ++row) {
+        auto txn = slot->BeginMvccInsertTransaction();
+        neug::vid_t id;
+        ASSERT_TRUE(txn.AddVertex(0, neug::Value::INT64(row),
+                                  {neug::Value::INT64(row * 10)}, id)
+                        .ok());
+        ASSERT_NO_THROW(ASSERT_TRUE(txn.Commit()));
+        auto cow = slot->BeginSnapshotCowWriteTransaction();
+        if (row % 2)
+          cow.Abort();
+        else
+          ASSERT_TRUE(cow.Commit());  // No mutation: workspace is discarded.
+      }
+    }
+    db.Close();
+    // Reopening replays the WAL, so an exception after WAL append cannot hide
+    // behind a test that checks only the transaction's return status.
+    ASSERT_TRUE(db.Open(config));
+    {
+      auto conn = db.Connect();
+      auto result = conn->Query("MATCH (n:v) RETURN n.val ORDER BY n.id;");
+      ASSERT_TRUE(result);
+      auto values = result.value().response().arrays(0).int64_array();
+      ASSERT_EQ(values.values_size(), 4);
+      for (int64_t row = 1; row <= 4; ++row)
+        EXPECT_EQ(values.values(row - 1), row * 10);
+      conn->Close();
+    }
+    db.Close();
+  }
+}

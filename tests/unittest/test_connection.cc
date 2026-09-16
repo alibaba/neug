@@ -1080,6 +1080,67 @@ TEST_F(ConnectionTest,
   }
 }
 
+TEST_F(ConnectionTest, RepeatedCopyProjectionAndTopNAcrossChunkPages) {
+  NeugDBConfig config(DB_DIR);
+  config.checkpoint_on_close = false;
+  NeugDB db;
+  ASSERT_TRUE(db.Open(config));
+  auto conn = db.Connect();
+  ASSERT_TRUE(conn->Query(
+      "CREATE NODE TABLE chunk_scan(id INT64, val INT64, PRIMARY KEY(id));"));
+  const auto csv = std::string(DB_DIR) + "/chunk_scan.csv";
+  constexpr int64_t batch_size = 513;
+  for (int64_t batch = 0; batch < 3; ++batch) {
+    {
+      std::ofstream out(csv);
+      out << "id,val\n";
+      for (int64_t row = batch * batch_size; row < (batch + 1) * batch_size;
+           ++row)
+        out << row << ',' << row * 3 << '\n';
+    }
+    auto copied = conn->Query("COPY chunk_scan FROM '" + csv +
+                              "' (HEADER=true, DELIM=',');");
+    ASSERT_TRUE(copied) << copied.error().ToString();
+    auto projected =
+        conn->Query("MATCH (n:chunk_scan) RETURN n.val ORDER BY n.id;");
+    ASSERT_TRUE(projected) << projected.error().ToString();
+    auto values = projected.value().response().arrays(0).int64_array();
+    ASSERT_EQ(values.values_size(), (batch + 1) * batch_size);
+    for (int64_t row = 0; row < values.values_size(); ++row)
+      EXPECT_EQ(values.values(row), row * 3);
+  }
+  // A hole, an overwritten prefix, and descending gathered reads exercise the
+  // span reader beyond a forward-only, single-page scan.
+  ASSERT_TRUE(conn->Query("MATCH (n:chunk_scan) WHERE n.id = 512 DELETE n;"));
+  ASSERT_TRUE(
+      conn->Query("MATCH (n:chunk_scan) WHERE n.id = 0 SET n.val = -1;"));
+  for (bool descending : {false, true}) {
+    auto top = conn->Query(
+        std::string("MATCH (n:chunk_scan) RETURN n.val ORDER BY n.val ") +
+        (descending ? "DESC" : "ASC") + " LIMIT 5;");
+    ASSERT_TRUE(top) << top.error().ToString();
+    auto values = top.value().response().arrays(0).int64_array();
+    ASSERT_EQ(values.values_size(), 5);
+    for (int64_t row = 0; row < 5; ++row)
+      EXPECT_EQ(values.values(row), descending ? (3 * batch_size - 1 - row) * 3
+                                               : (row == 0 ? -1 : row * 3));
+  }
+  ASSERT_TRUE(conn->Query("CHECKPOINT;"));
+  conn->Close();
+  db.Close();
+  ASSERT_TRUE(db.Open(config));
+  conn = db.Connect();
+  auto result = conn->Query("MATCH (n:chunk_scan) RETURN n.val ORDER BY n.id;");
+  ASSERT_TRUE(result) << result.error().ToString();
+  auto values = result.value().response().arrays(0).int64_array();
+  ASSERT_EQ(values.values_size(), 3 * batch_size - 1);
+  for (int64_t row = 0; row < values.values_size(); ++row)
+    EXPECT_EQ(values.values(row),
+              row == 0 ? -1 : (row < 512 ? row : row + 1) * 3);
+  conn->Close();
+  db.Close();
+}
+
 }  // namespace test
 
 }  // namespace neug
