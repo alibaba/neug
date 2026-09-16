@@ -30,6 +30,7 @@
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/io/file/file_utils.h"
 
 namespace neug {
 namespace test {
@@ -65,6 +66,34 @@ TEST(ExecutionSlotCoreTest, ExecutesWithoutServerRuntime) {
 
   db.Close();
   std::filesystem::remove_all(db_dir);
+}
+
+TEST(ExecutionSlotCoreTest, WalCreationFailureRollsBackAndAllowsRetry) {
+  NeugDBConfig config(":memory:", 1);
+  config.checkpoint_on_close = false;
+  NeugDB db;
+  ASSERT_TRUE(db.Open(config));
+  auto connection = db.Connect();
+  const std::filesystem::path wal_dir = db.graph().checkpoint().wal_dir();
+  ASSERT_TRUE(std::filesystem::is_empty(wal_dir));
+  ASSERT_TRUE(std::filesystem::remove(wal_dir));
+
+  const std::string query =
+      "CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));";
+  auto failed = connection->Query(query);
+  ASSERT_FALSE(failed);
+  EXPECT_NE(failed.error().ToString().find(
+                "WAL append failed before writing AP commit"),
+            std::string::npos);
+  EXPECT_FALSE(db.schema().is_vertex_label_valid("person"));
+  EXPECT_FALSE(std::filesystem::exists(wal_dir));
+
+  ASSERT_TRUE(std::filesystem::create_directory(wal_dir));
+  ASSERT_TRUE(file_utils::fsync_directory(wal_dir.parent_path().string()));
+  auto retry = connection->Query(query);
+  ASSERT_TRUE(retry) << retry.error().ToString();
+  EXPECT_TRUE(db.schema().is_vertex_label_valid("person"));
+  EXPECT_FALSE(std::filesystem::is_empty(wal_dir));
 }
 
 TEST(NeugDBLifecycleTest, SupportsRepeatedCloseAndReopen) {

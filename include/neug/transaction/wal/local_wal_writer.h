@@ -37,6 +37,8 @@ class LocalWalWriter : public IWalWriter {
         opened_(false) {}
   ~LocalWalWriter() noexcept override;
 
+  // The caller owns directory creation and durability (normally checkpoint
+  // publication). open() is logical; the first non-empty append creates a file.
   void open(const std::string& wal_uri) override;
   void close() override;
   bool append(const char* data, size_t length) override;
@@ -44,6 +46,7 @@ class LocalWalWriter : public IWalWriter {
 
  private:
   void create_file();
+  int close_file() noexcept;
 
   std::string wal_uri_;
   int slot_id_;

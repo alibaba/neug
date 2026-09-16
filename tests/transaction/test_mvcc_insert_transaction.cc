@@ -310,7 +310,80 @@ TEST_F(LocalWalParserTest, WriterOpenCloseWithoutAppendCreatesNoFile) {
   EXPECT_TRUE(std::filesystem::is_empty(wal_dir_));
 }
 
+TEST_F(LocalWalParserTest, WriterCreationFailureCanBeRetried) {
+  const auto invalid_wal_dir =
+      (std::filesystem::path(wal_dir_) / "not_a_directory").string();
+  const int fd =
+      ::open(invalid_wal_dir.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+  ASSERT_NE(fd, -1);
+  ASSERT_EQ(::close(fd), 0);
+
+  neug::LocalWalWriter writer(invalid_wal_dir, 0);
+  writer.open(invalid_wal_dir);
+  std::vector<char> record;
+  const std::string payload = "retry_after_creation_failure";
+  AppendWalEntry(record, 1, 0, payload);
+  EXPECT_FALSE(writer.append(record.data(), record.size()));
+
+  ASSERT_TRUE(std::filesystem::remove(invalid_wal_dir));
+  ASSERT_TRUE(std::filesystem::create_directory(invalid_wal_dir));
+  ASSERT_TRUE(writer.append(record.data(), record.size()));
+  EXPECT_NO_THROW(writer.close());
+
+  neug::LocalWalParser parser(invalid_wal_dir);
+  const auto& unit = parser.get_insert_wal(1);
+  EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
+}
+
+TEST_F(LocalWalParserTest, WriterDoesNotCreateMissingDirectory) {
+  const auto missing_wal_dir = wal_dir_ + "/missing/wal";
+  neug::LocalWalWriter writer(missing_wal_dir, 0);
+  writer.open(missing_wal_dir);
+  EXPECT_TRUE(writer.append(nullptr, 0));
+  const char record = '\0';
+  EXPECT_FALSE(writer.append(&record, 1));
+  EXPECT_FALSE(std::filesystem::exists(wal_dir_ + "/missing"));
+}
+
 #ifndef _WIN32
+TEST_F(LocalWalParserTest, WriterRetriesDirectorySyncBeforeWriting) {
+  if (::geteuid() == 0) {
+    GTEST_SKIP() << "Running as root; directory permissions are not enforced";
+  }
+  struct RestorePermissions {
+    const std::string& path;
+    ~RestorePermissions() { ::chmod(path.c_str(), 0700); }
+  } restore{wal_dir_};
+
+  // Allow creating a WAL file but deny opening its directory for fsync().
+  ASSERT_EQ(::chmod(wal_dir_.c_str(), 0300), 0);
+  const int probe_fd = ::open(wal_dir_.c_str(), O_RDONLY);
+  if (probe_fd != -1) {
+    ::close(probe_fd);
+    GTEST_SKIP() << "Directory permissions are not enforced on this filesystem";
+  }
+
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  writer.open(wal_dir_);
+  std::vector<char> record;
+  const std::string payload = "retry_after_directory_sync_failure";
+  AppendWalEntry(record, 1, 0, payload);
+
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    EXPECT_FALSE(writer.append(record.data(), record.size()));
+  }
+
+  ASSERT_EQ(::chmod(wal_dir_.c_str(), 0700), 0);
+  for (const auto& file : std::filesystem::directory_iterator(wal_dir_)) {
+    EXPECT_EQ(file.file_size(), 0u);
+  }
+  ASSERT_TRUE(writer.append(record.data(), record.size()));
+  writer.close();
+  neug::LocalWalParser parser(wal_dir_);
+  const auto& unit = parser.get_insert_wal(1);
+  EXPECT_EQ(std::string(unit.ptr, unit.size), payload);
+}
+
 // Test: LocalWalParser throws IOException when ::open() on a WAL file fails
 // (e.g. permission denied). This covers the fd == -1 check.
 // Note: running as root or on permission-ignoring filesystems bypasses

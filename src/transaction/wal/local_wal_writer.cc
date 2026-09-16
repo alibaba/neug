@@ -31,6 +31,7 @@
 #include <ostream>
 
 #include "neug/transaction/wal/wal.h"
+#include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
@@ -57,10 +58,7 @@ void LocalWalWriter::open(const std::string& wal_uri) {
 }
 
 void LocalWalWriter::create_file() {
-  auto prefix = get_wal_uri_path(wal_uri_);
-  if (!std::filesystem::exists(prefix)) {
-    std::filesystem::create_directories(prefix);
-  }
+  const auto prefix = get_wal_uri_path(wal_uri_);
   const int max_version = 65536;
   for (int version = 0; version != max_version; ++version) {
     // Keep the historical on-disk prefix for WAL replay compatibility. The
@@ -82,12 +80,19 @@ void LocalWalWriter::create_file() {
     THROW_IO_EXCEPTION("Failed to open wal file " +
                        std::string(strerror(errno)));
   }
+  // Persist the new file name before preallocation. Directory-sync failures
+  // then leave an empty file rather than an unused 1 GiB WAL.
+  if (!file_utils::fsync_directory(prefix)) {
+    THROW_IO_EXCEPTION("Failed to fsync WAL directory " + prefix);
+  }
 #ifdef _WIN32
   const errno_t trunc_err = _chsize_s(fd_, TRUNC_SIZE);
-  if (trunc_err != 0) {
-    errno = static_cast<int>(trunc_err);
 #else
-  if (ftruncate(fd_, TRUNC_SIZE) != 0) {
+  const int trunc_err = ftruncate(fd_, TRUNC_SIZE);
+#endif
+  if (trunc_err != 0) {
+#ifdef _WIN32
+    errno = static_cast<int>(trunc_err);
 #endif
     THROW_IO_EXCEPTION("Failed to truncate wal file " +
                        std::string(strerror(errno)));
@@ -96,23 +101,28 @@ void LocalWalWriter::create_file() {
   file_used_ = 0;
 }
 
+int LocalWalWriter::close_file() noexcept {
+  // Retire the descriptor before close(): an error does not mean it is safe
+  // to retry closing a descriptor that another thread may already have reused.
+  const int fd = fd_;
+  fd_ = -1;
+  file_size_ = 0;
+  file_used_ = 0;
+  if (fd == -1) {
+    return 0;
+  }
+#ifdef _WIN32
+  return _close(fd);
+#else
+  return ::close(fd);
+#endif
+}
+
 void LocalWalWriter::close() {
   opened_ = false;
-  if (fd_ != -1) {
-    // Retire the descriptor before calling close(). Retrying close() after an
-    // error is unsafe because the descriptor may already have been released
-    // and reused by another thread.
-    const int fd = fd_;
-    fd_ = -1;
-    file_size_ = 0;
-    file_used_ = 0;
-#ifdef _WIN32
-    if (_close(fd) != 0) {
-#else
-    if (::close(fd) != 0) {
-#endif
-      THROW_IO_EXCEPTION("Failed to close file" + std::string(strerror(errno)));
-    }
+  if (close_file() != 0) {
+    THROW_IO_EXCEPTION("Failed to close WAL file: " +
+                       std::string(strerror(errno)));
   }
 }
 
@@ -124,17 +134,28 @@ bool LocalWalWriter::append(const char* data, size_t length) {
     return true;
   }
   if (fd_ == -1) {
-    create_file();
+    try {
+      create_file();
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Failed to create WAL file before append: " << e.what();
+      if (close_file() != 0) {
+        LOG(ERROR) << "Failed to close WAL file after creation failure: "
+                   << strerror(errno);
+      }
+      return false;
+    }
   }
   size_t expected_size = file_used_ + length;
   if (expected_size > file_size_) {
     size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
 #ifdef _WIN32
     const errno_t resize_err = _chsize_s(fd_, new_file_size);
-    if (resize_err != 0) {
-      errno = static_cast<int>(resize_err);
 #else
-    if (ftruncate(fd_, new_file_size) != 0) {
+    const int resize_err = ftruncate(fd_, new_file_size);
+#endif
+    if (resize_err != 0) {
+#ifdef _WIN32
+      errno = static_cast<int>(resize_err);
 #endif
       THROW_IO_EXCEPTION("Failed to truncate wal file " +
                          std::string(strerror(errno)));
@@ -145,15 +166,15 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   file_used_ += length;
 
 #ifdef _WIN32
-  if (static_cast<size_t>(_write(fd_, data, length)) != length) {
+  const auto written = _write(fd_, data, length);
 #else
-  if (static_cast<size_t>(write(fd_, data, length)) != length) {
+  const auto written = write(fd_, data, length);
 #endif
+  if (static_cast<size_t>(written) != length) {
     THROW_IO_EXCEPTION("Failed to write wal file " +
                        std::string(strerror(errno)));
   }
 
-#if 1
 #ifdef _WIN32
   if (_commit(fd_) != 0) {
     THROW_IO_EXCEPTION("Failed to fsync wal file " +
@@ -161,21 +182,14 @@ bool LocalWalWriter::append(const char* data, size_t length) {
   }
 #elif defined(F_FULLFSYNC)
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
-#ifdef __APPLE__
     THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
                        std::string(strerror(errno)));
-#else
-    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strerror(errno)));
-#endif
   }
 #else
-  // if (fsync(fd_) != 0) {
   if (fdatasync(fd_) != 0) {
     THROW_IO_EXCEPTION("Failed to fsync wal file " +
                        std::string(strerror(errno)));
   }
-#endif
 #endif
   return true;
 }

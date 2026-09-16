@@ -77,6 +77,8 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
       (std::filesystem::path(test_dir) / "checkpoint-1" / "wal").string();
   constexpr uint32_t old_marker = 17;
   constexpr uint32_t new_marker = 29;
+  std::filesystem::create_directories(old_wal_dir);
+  std::filesystem::create_directories(new_wal_dir);
 
   {
     auto writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
@@ -112,6 +114,8 @@ TEST(WalWriterSetTest, DirectWriterStaysStableAcrossTpActivation) {
   const auto ap_wal_dir = (std::filesystem::path(test_dir) / "ap").string();
   const auto tp_wal_dir = (std::filesystem::path(test_dir) / "tp").string();
   constexpr uint32_t marker = 37;
+  std::filesystem::create_directories(ap_wal_dir);
+  std::filesystem::create_directories(tp_wal_dir);
 
   {
     neug::WalWriterSet writers(/*slot_num=*/3, neug::DBMode::READ_WRITE,
@@ -658,6 +662,7 @@ TEST(CheckpointCoordinatorTest,
   bool cache_invalidated = false;
   const auto old_wal_dir =
       (std::filesystem::path(test_dir) / "old-wal").string();
+  std::filesystem::create_directories(old_wal_dir);
   auto wal_writer = neug::WalWriterFactory::CreateWalWriter(old_wal_dir, 0);
   wal_writer->open(old_wal_dir);
   constexpr uint32_t before_marker = 17;
