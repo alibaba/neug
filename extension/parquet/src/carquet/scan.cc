@@ -260,6 +260,54 @@ std::shared_ptr<CarquetChunkSupplier> openSupplier(
   return std::move(*supplier);
 }
 
+class SequentialCarquetChunkSupplier final : public IDataChunkSupplier {
+ public:
+  SequentialCarquetChunkSupplier(
+      std::vector<std::shared_ptr<CarquetChunkSupplier>> suppliers,
+      std::vector<std::string> physicalColumns,
+      std::vector<std::string> projectedColumns)
+      : suppliers_(std::move(suppliers)),
+        physicalColumns_(std::move(physicalColumns)),
+        projectedColumns_(std::move(projectedColumns)) {
+    for (const auto& supplier : suppliers_) {
+      const int64_t rows = supplier->RowNum();
+      if (rows < 0 || rowNum_ < 0) {
+        rowNum_ = -1;
+      } else if (rows > std::numeric_limits<int64_t>::max() - rowNum_) {
+        THROW_IO_EXCEPTION("Parquet row count exceeds INT64_MAX");
+      } else {
+        rowNum_ += rows;
+      }
+    }
+  }
+
+  std::shared_ptr<DataChunk> GetNextChunk() override {
+    while (supplierIndex_ < suppliers_.size()) {
+      auto chunk = suppliers_[supplierIndex_]->GetNextChunk();
+      if (!chunk) {
+        ++supplierIndex_;
+        continue;
+      }
+      if (projectedColumns_.empty()) {
+        return chunk;
+      }
+      auto projected =
+          reader::project_chunk(*chunk, physicalColumns_, projectedColumns_);
+      return std::make_shared<DataChunk>(std::move(projected));
+    }
+    return nullptr;
+  }
+
+  int64_t RowNum() const override { return rowNum_; }
+
+ private:
+  std::vector<std::shared_ptr<CarquetChunkSupplier>> suppliers_;
+  std::vector<std::string> physicalColumns_;
+  std::vector<std::string> projectedColumns_;
+  size_t supplierIndex_ = 0;
+  int64_t rowNum_ = 0;
+};
+
 std::shared_ptr<DataChunk> transformChunk(
     const std::shared_ptr<DataChunk>& chunk,
     const reader::ReadSharedState& state, const PhysicalProjection& physical) {
@@ -356,6 +404,38 @@ void readParallel(const reader::ReadSharedState& state,
 result<std::shared_ptr<reader::EntrySchema>> sniffCarquet(
     io::InputStreamFactory inputFactory) {
   return CarquetSniffer(std::move(inputFactory)).sniff();
+}
+
+std::shared_ptr<IDataChunkSupplier> createCarquetChunkSupplier(
+    const std::shared_ptr<reader::ReadSharedState>& state) {
+  if (!state || !state->schema.entry) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Carquet supplier state and entry schema must be set");
+  }
+  if (state->schema.file.paths.empty()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("No Parquet input paths provided");
+  }
+  if (state->skipRows) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Filtered Parquet reads cannot be exposed as a chunk supplier");
+  }
+
+  const auto options = parseOptions(state->schema.file.options);
+  const auto physical = buildPhysicalProjection(*state->schema.entry,
+                                                state->projectColumns, nullptr);
+  std::vector<std::shared_ptr<CarquetChunkSupplier>> suppliers;
+  suppliers.reserve(state->schema.file.paths.size());
+  for (const auto& path : state->schema.file.paths) {
+    auto supplier =
+        openSupplier(*state, path, supplierOptions(options, physical));
+    if (!sameSchema(*state->schema.entry, *supplier->schema())) {
+      THROW_SCHEMA_MISMATCH("Parquet schema does not match declared schema: " +
+                            path);
+    }
+    suppliers.emplace_back(std::move(supplier));
+  }
+  return std::make_shared<SequentialCarquetChunkSupplier>(
+      std::move(suppliers), physical.columnNames, state->projectColumns);
 }
 
 void scanCarquet(const std::shared_ptr<reader::ReadSharedState>& state,

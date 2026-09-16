@@ -1,13 +1,9 @@
 # Carquet Parquet writer
 
-NeuG includes a private Carquet implementation of `QueryExportWriter` in the
-Parquet extension. It prepares a replacement Parquet backend using the existing
-query export and output stream interfaces.
-
-This implementation is currently built with `BUILD_TEST=ON` for validation.
-`LOAD PARQUET` and `COPY TO` continue to use the existing Arrow backend. There is
-no user-facing backend selector in this change. Production activation is a
-separate migration step.
+NeuG's Parquet extension uses a Carquet implementation of `QueryExportWriter`.
+`COPY TO` invokes it through the existing query export and
+output stream interfaces for both local and remote destinations. Backend
+selection is internal and does not add a query option.
 
 ## Supported values
 
@@ -63,7 +59,9 @@ materialized; this is not an end-to-end streaming export implementation.
 
 The writer uses the Carquet submodule and adjacent patch already present in
 NeuG. It does not depend on the Carquet reader implementation or alter public
-IO interfaces, production registrations, CSV/JSON writers or the Arrow writer.
+IO interfaces or CSV/JSON writers. The previous Arrow writer remains in the
+source tree during the migration, but the registered Parquet export function
+constructs the Carquet writer.
 
 ## Validation
 
@@ -79,5 +77,5 @@ Tests generate Parquet in memory and use the existing Arrow reader as an
 independent format oracle. They cover scalar and nested values, timestamp units,
 NULL bitmaps, row group and page boundaries, compression and dictionary options,
 malformed responses and output failures. No new binary fixtures are required.
-Arrow is used by the test oracle and the current production backend, not by the
-Carquet writer implementation.
+Arrow is used only as an independent format oracle in this focused test; the
+Carquet writer implementation itself does not use it.

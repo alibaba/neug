@@ -375,7 +375,6 @@ class TestLoadSniffer:
         assert isinstance(row[2], object)
 
     @extension_test
-    @pytest.mark.xfail(reason="TODO: support Parquet list arrow type in LOAD FROM.")
     def test_parquet_type_inference_list(self):
         self.conn.execute("LOAD PARQUET")
         parquet_path = self._get_comprehensive_parquet_path("parquet_list.parquet")
