@@ -39,10 +39,6 @@ namespace catalog {
 class NodeTableCatalogEntry;
 }
 
-namespace transaction {
-class Transaction;
-}
-
 namespace storage {
 class NodeTable;
 
@@ -62,11 +58,9 @@ class NEUG_API NodeTable : public Table {
 
   ~NodeTable() = default;
 
-  virtual common::row_idx_t getNumTotalRows(
-      const transaction::Transaction* transaction) override = 0;
+  virtual common::row_idx_t getNumTotalRows() override = 0;
 
-  virtual TableStats getStats(
-      const transaction::Transaction* transaction) const = 0;
+  virtual TableStats getStats() const = 0;
 
  private:
  private:

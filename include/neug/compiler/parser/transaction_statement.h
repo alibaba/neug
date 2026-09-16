@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "neug/compiler/transaction/transaction_action.h"
+#include "neug/compiler/common/enums/transaction_action.h"
 #include "statement.h"
 
 namespace neug {

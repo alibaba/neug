@@ -62,8 +62,7 @@ std::unique_ptr<TableCatalogEntry> NodeTableCatalogEntry::copy() const {
 }
 
 std::unique_ptr<BoundExtraCreateCatalogEntryInfo>
-NodeTableCatalogEntry::getBoundExtraCreateInfo(
-    transaction::Transaction*) const {
+NodeTableCatalogEntry::getBoundExtraCreateInfo() const {
   return std::make_unique<BoundExtraCreateNodeTableInfo>(
       primaryKeyName, copyVector(getProperties()));
 }

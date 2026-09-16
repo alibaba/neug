@@ -15,33 +15,29 @@
 
 using namespace neug::binder;
 using namespace neug::common;
-using namespace neug::transaction;
 
 namespace neug {
 namespace planner {
 
 static cardinality_t atLeastOne(uint64_t x) { return x == 0 ? 1 : x; }
 
-void CardinalityEstimator::initNodeIDDom(const Transaction* transaction,
-                                         const QueryGraph& queryGraph) {
+void CardinalityEstimator::initNodeIDDom(const QueryGraph& queryGraph) {
   perQueryGraphNodeIDName2dom.clear();
   for (uint64_t i = 0u; i < queryGraph.getNumQueryNodes(); ++i) {
     auto node = queryGraph.getQueryNode(i).get();
-    addNodeIDDomAndStats(transaction, *node->getInternalID(),
-                         node->getTableIDs());
+    addNodeIDDomAndStats(*node->getInternalID(), node->getTableIDs());
   }
   for (uint64_t i = 0u; i < queryGraph.getNumQueryRels(); ++i) {
     auto rel = queryGraph.getQueryRel(i);
     if (QueryRelTypeUtils::isRecursive(rel->getRelType())) {
       auto node = rel->getRecursiveInfo()->node.get();
-      addNodeIDDomAndStats(transaction, *node->getInternalID(),
-                           node->getTableIDs());
+      addNodeIDDomAndStats(*node->getInternalID(), node->getTableIDs());
     }
   }
 }
 
 void CardinalityEstimator::addNodeIDDomAndStats(
-    const Transaction* transaction, const binder::Expression& nodeID,
+    const binder::Expression& nodeID,
     const std::vector<common::table_id_t>& tableIDs) {
   auto key = nodeID.getUniqueName();
   cardinality_t numNodes = 0u;
@@ -211,9 +207,8 @@ uint64_t CardinalityEstimator::estimateFilter(
 // value here.
 cardinality_t CardinalityEstimator::estimateGetV(
     const planner::LogicalExtend& extend) const {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   double extensionRate =
-      getExtensionRate(*extend.getRel(), *extend.getBoundNode(), &transaction);
+      getExtensionRate(*extend.getRel(), *extend.getBoundNode());
   CHECK(extend.getNumChildren() > 0)
       << "extend operator should have at least child";
   auto childOp = extend.getChild(0);
@@ -223,9 +218,8 @@ cardinality_t CardinalityEstimator::estimateGetV(
 
 cardinality_t CardinalityEstimator::estimateGetV(
     const planner::LogicalRecursiveExtend& extend) const {
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   double extensionRate =
-      getExtensionRate(*extend.getRel(), *extend.getBoundNode(), &transaction);
+      getExtensionRate(*extend.getRel(), *extend.getBoundNode());
   CHECK(extend.getNumChildren() > 0)
       << "recursive extend operator should have at least child";
   auto childOp = extend.getChild(0);
@@ -234,7 +228,7 @@ cardinality_t CardinalityEstimator::estimateGetV(
 }
 
 uint64_t CardinalityEstimator::getNumNodes(
-    const Transaction*, const std::vector<table_id_t>& tableIDs) const {
+    const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numNodes = 0u;
   for (auto& tableID : tableIDs) {
     NEUG_ASSERT(nodeTableStats.contains(tableID));
@@ -244,7 +238,6 @@ uint64_t CardinalityEstimator::getNumNodes(
 }
 
 uint64_t CardinalityEstimator::getNumRels(
-    const Transaction* transaction,
     const std::vector<table_id_t>& tableIDs) const {
   cardinality_t numRels = 0u;
   for (auto tableID : tableIDs) {
@@ -255,17 +248,16 @@ uint64_t CardinalityEstimator::getNumRels(
 }
 
 double CardinalityEstimator::getExtensionRate(
-    const RelExpression& rel, const NodeExpression& boundNode,
-    const Transaction* transaction) const {
-  return getExtensionRate(rel, rel.getTableIDs(), boundNode, transaction);
+    const RelExpression& rel, const NodeExpression& boundNode) const {
+  return getExtensionRate(rel, rel.getTableIDs(), boundNode);
 }
 
 double CardinalityEstimator::getExtensionRate(
     const RelExpression& rel, const table_id_vector_t& tableIDs,
-    const NodeExpression& boundNode, const Transaction* transaction) const {
+    const NodeExpression& boundNode) const {
   auto numBoundNodes =
-      static_cast<double>(getNumNodes(transaction, boundNode.getTableIDs()));
-  auto numRels = static_cast<double>(getNumRels(transaction, tableIDs));
+      static_cast<double>(getNumNodes(boundNode.getTableIDs()));
+  auto numRels = static_cast<double>(getNumRels(tableIDs));
   NEUG_ASSERT(numBoundNodes > 0);
   auto oneHopExtensionRate = numRels / atLeastOne(numBoundNodes);
   switch (rel.getRelType()) {

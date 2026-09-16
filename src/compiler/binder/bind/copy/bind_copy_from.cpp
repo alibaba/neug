@@ -235,9 +235,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
 
   auto tableName = copyStatement.getTableName();
   auto catalog = clientContext->getCatalog();
-  auto transaction = clientContext->getTransaction();
-  if (catalog->containsRelGroup(transaction, tableName)) {
-    auto entry = catalog->getRelGroupEntry(transaction, tableName);
+  if (catalog->containsRelGroup(tableName)) {
+    auto entry = catalog->getRelGroupEntry(tableName);
     if (entry.size() == 1) {
       return bindCopyRelFrom(statement, entry[0]);
     } else {
@@ -264,8 +263,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyFromClause(
     }
     THROW_BINDER_EXCEPTION(
         stringFormat("REL GROUP {} does not exist.", tableName));
-  } else if (catalog->containsTable(transaction, tableName)) {
-    auto tableEntry = catalog->getTableCatalogEntry(transaction, tableName);
+  } else if (catalog->containsTable(tableName)) {
+    auto tableEntry = catalog->getTableCatalogEntry(tableName);
     switch (tableEntry->get_entry_type()) {
     case SchemaEntryType::NODE: {
       auto nodeTableEntry = dynamic_cast<VertexSchema*>(tableEntry);
@@ -565,13 +564,10 @@ void bindExpectedRelColumns(const EdgeSchema* relTableEntry,
                             const main::ClientContext* context) {
   NEUG_ASSERT(columnNames.empty() && columnTypes.empty());
   auto catalog = context->getCatalog();
-  auto transaction = context->getTransaction();
-  auto* srcTable =
-      dynamic_cast<const VertexSchema*>(catalog->getTableCatalogEntry(
-          transaction, relTableEntry->getSrcTableID()));
-  auto* dstTable =
-      dynamic_cast<const VertexSchema*>(catalog->getTableCatalogEntry(
-          transaction, relTableEntry->getDstTableID()));
+  auto* srcTable = dynamic_cast<const VertexSchema*>(
+      catalog->getTableCatalogEntry(relTableEntry->getSrcTableID()));
+  auto* dstTable = dynamic_cast<const VertexSchema*>(
+      catalog->getTableCatalogEntry(relTableEntry->getDstTableID()));
   NEUG_ASSERT(srcTable != nullptr);
   NEUG_ASSERT(dstTable != nullptr);
   columnNames.push_back("from");
