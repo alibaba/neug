@@ -535,6 +535,37 @@ TEST_F(ParquetTest, TestOptionsTranslation_ParquetBatchRows) {
   EXPECT_EQ(parquetFragmentOpts2->arrow_reader_properties->batch_size(), 65536)
       << "batch_size (bytes) must not affect rows per Arrow batch; the "
          "default PARQUET_BATCH_ROWS=65536 should be used";
+
+  // The generic batch_rows option is the preferred name.
+  auto sharedState3 = createSharedState(
+      "test_batch_rows.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"batch_rows", "2048"}});
+  reader::ArrowParquetOptionsBuilder optionsBuilder3(sharedState3);
+  auto options3 = optionsBuilder3.build();
+  auto parquetFragmentOpts3 =
+      std::dynamic_pointer_cast<arrow::dataset::ParquetFragmentScanOptions>(
+          options3.scanOptions->fragment_scan_options);
+  ASSERT_NE(parquetFragmentOpts3, nullptr);
+  ASSERT_NE(parquetFragmentOpts3->arrow_reader_properties, nullptr);
+  EXPECT_EQ(parquetFragmentOpts3->arrow_reader_properties->batch_size(), 2048)
+      << "batch_rows must be translated to Arrow batch_size";
+
+  // batch_rows wins over the deprecated PARQUET_BATCH_ROWS alias when both
+  // are provided.
+  auto sharedState4 = createSharedState(
+      "test_batch_rows.parquet", {"id", "name", "value"},
+      {createInt64Type(), createStringType(), createDoubleType()},
+      {{"batch_rows", "1024"}, {"PARQUET_BATCH_ROWS", "4096"}});
+  reader::ArrowParquetOptionsBuilder optionsBuilder4(sharedState4);
+  auto options4 = optionsBuilder4.build();
+  auto parquetFragmentOpts4 =
+      std::dynamic_pointer_cast<arrow::dataset::ParquetFragmentScanOptions>(
+          options4.scanOptions->fragment_scan_options);
+  ASSERT_NE(parquetFragmentOpts4, nullptr);
+  ASSERT_NE(parquetFragmentOpts4->arrow_reader_properties, nullptr);
+  EXPECT_EQ(parquetFragmentOpts4->arrow_reader_properties->batch_size(), 1024)
+      << "batch_rows must take precedence over PARQUET_BATCH_ROWS";
 }
 
 TEST_F(ParquetTest, TestOptionsTranslation_PreBuffer) {

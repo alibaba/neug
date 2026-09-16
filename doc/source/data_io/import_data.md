@@ -355,8 +355,8 @@ For the full set of relational operations available in `LOAD FROM` subqueries, s
 
 | Option         | Type  | Default           | Description                                                       |
 | -------------- | ----- | ----------------- | ----------------------------------------------------------------- |
-| `batch_read` | bool  | `false`         | Read data incrementally in batches.                               |
-| `batch_size` | int64 | `1048576` (1MB) | Batch size in bytes when `batch_read` is enabled.               |
+| `batch_read` | bool  | `true`          | Read data incrementally in batches.                               |
+| `batch_rows` | int64 | `65536`          | Number of **rows** per batch/chunk when `batch_read` is enabled. |
 | `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
 ```cypher

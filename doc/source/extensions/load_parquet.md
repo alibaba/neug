@@ -31,10 +31,11 @@ The following options control how Parquet files are read:
 
 | Option                   | Type  | Default | Description                                                                                                                                 |
 | ------------------------ | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance. The buffer size in bytes is controlled by the generic `batch_size` option (default 1 MiB). |
+| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance. The buffer size in bytes is controlled by `batch_size` below.         |
+| `batch_size`             | int64 | `1048576` (1 MiB) | I/O batch size in **bytes** for the buffered stream. Only the Parquet reader consumes this option. |
 | `pre_buffer`             | bool  | `false` | Pre-buffer column data before decoding. Recommended for high-latency filesystems such as S3.                                                |
 | `enable_io_coalescing`   | bool  | `true`  | Enable Arrow I/O read coalescing (hole-filling cache) to reduce I/O overhead when reading non-contiguous byte ranges. When `true`, uses lazy coalescing; when `false`, uses eager coalescing. |
-| `parquet_batch_rows`     | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches.                                            |
+| `batch_rows`             | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches. `PARQUET_BATCH_ROWS` is still accepted as a deprecated alias. |
 
 ### Query Examples
 
@@ -52,7 +53,7 @@ RETURN *;
 Tune memory usage by adjusting the number of rows read per batch:
 
 ```cypher
-LOAD FROM "person.parquet" (parquet_batch_rows=8192)
+LOAD FROM "person.parquet" (batch_rows=8192)
 RETURN *;
 ```
 

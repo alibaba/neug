@@ -574,7 +574,7 @@ TEST_F(ReaderTest, TestBatchRead) {
 
   auto sharedState = createSharedState(
       "test5.csv", columnNames, columnTypes,
-      {{"batch_read", "true"}, {"batch_size", "1024"}, {"skip_rows", "1"}});
+      {{"batch_read", "true"}, {"batch_rows", "1024"}, {"skip_rows", "1"}});
   auto reader = createCsvReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -589,6 +589,64 @@ TEST_F(ReaderTest, TestBatchRead) {
   // Count rows using helper function
   int64_t totalRows = count_batch_row_num(ctx);
   EXPECT_EQ(totalRows, 100);  // All 100 rows should be read
+}
+
+// batch_rows is the row-count option shared by all batch readers: it must
+// control how many rows each chunk carries.
+TEST_F(ReaderTest, TestCsvBatchRowsControlsChunkCount) {
+  std::string content = "id|name|score\n";
+  for (int i = 1; i <= 100; ++i) {
+    content += std::to_string(i) + "|User" + std::to_string(i) + "|" +
+               std::to_string(50.0 + i) + "\n";
+  }
+  createCsvFile("test5_chunk.csv", content);
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  auto sharedState = createSharedState(
+      "test5_chunk.csv", columnNames, columnTypes,
+      {{"batch_read", "true"}, {"batch_rows", "10"}, {"skip_rows", "1"}});
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.chunk_num(), 10);
+  EXPECT_EQ(count_batch_row_num(ctx), 100);
+}
+
+// batch_size is a BYTE count (Parquet I/O buffer); it must NOT change how
+// the native CSV reader chunks rows. Regression test for #846.
+TEST_F(ReaderTest, TestBatchSizeBytesDoesNotAffectCsvChunking) {
+  std::string content = "id|name|score\n";
+  for (int i = 1; i <= 100; ++i) {
+    content += std::to_string(i) + "|User" + std::to_string(i) + "|" +
+               std::to_string(50.0 + i) + "\n";
+  }
+  createCsvFile("test5_bytes.csv", content);
+
+  std::vector<std::string> columnNames = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
+      createInt32Type(), createStringType(), createDoubleType()};
+
+  // batch_size=1 would mean 1 row per chunk under the old row-count
+  // interpretation; as a byte count it must be ignored by the CSV reader.
+  auto sharedState = createSharedState(
+      "test5_bytes.csv", columnNames, columnTypes,
+      {{"batch_read", "true"}, {"batch_size", "1"}, {"skip_rows", "1"}});
+  auto reader = createCsvReader(sharedState);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.chunk_num(), 1);
+  EXPECT_EQ(count_batch_row_num(ctx), 100);
 }
 
 // Test 6: Column pruning (skip columns)
@@ -1070,7 +1128,7 @@ TEST_F(ReaderTest, TestCsvStreamingBatchRead) {
 
   auto sharedState = createSharedState(
       "stream_batch.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_read", "true"}, {"batch_size", "32"}});
+      {{"skip_rows", "1"}, {"batch_read", "true"}, {"batch_rows", "32"}});
   sharedState->stream_opener = localStreamOpener();
   auto reader = createCsvReader(sharedState);
 
@@ -1167,6 +1225,35 @@ TEST_F(ReaderTest, TestJsonChunkSupplierPreservesProjection) {
   }
 }
 
+// JSONL batch readers chunk by batch_rows (rows); batch_size (bytes) must
+// not influence the chunk count. Regression test for #846.
+TEST_F(ReaderTest, TestJsonBatchRowsControlsChunkCount) {
+  std::string content;
+  for (int i = 0; i < 100; ++i) {
+    content += "{\"id\":" + std::to_string(i) + ",\"name\":\"name" +
+               std::to_string(i) + "\",\"score\":" + std::to_string(i) +
+               ".5}\n";
+  }
+  createJsonFile("batch_rows.jsonl", content);
+
+  std::vector<std::string> column_names = {"id", "name", "score"};
+  std::vector<std::shared_ptr<::common::DataType>> column_types = {
+      createInt64Type(), createStringType(), createDoubleType()};
+
+  auto shared_state = createJsonSharedState(
+      "batch_rows.jsonl", column_names, column_types,
+      {{"batch_read", "true"}, {"batch_rows", "10"}, {"batch_size", "1"}});
+  auto reader = createJsonReader(shared_state, false);
+
+  auto localState = std::make_shared<reader::ReadLocalState>();
+  execution::Context ctx;
+
+  reader->read(localState, ctx);
+
+  EXPECT_EQ(ctx.chunk_num(), 10);
+  EXPECT_EQ(count_batch_row_num(ctx), 100);
+}
+
 TEST_F(ReaderTest, TestCsvChunkSupplierStreamsFilesInOrder) {
   createCsvFile("supplier_1.csv",
                 "id|name|score\n1|Alice|91.5\n2|Bob|82.0\n3|Carol|73.5\n");
@@ -1177,7 +1264,7 @@ TEST_F(ReaderTest, TestCsvChunkSupplierStreamsFilesInOrder) {
       createInt32Type(), createStringType(), createDoubleType()};
   auto sharedState = createSharedState(
       "supplier_1.csv", columnNames, columnTypes,
-      {{"skip_rows", "1"}, {"batch_size", "2"}, {"batch_read", "false"}},
+      {{"skip_rows", "1"}, {"batch_rows", "2"}, {"batch_read", "false"}},
       {"score", "id"});
   sharedState->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
                                            "/supplier_2.csv");
@@ -1212,7 +1299,7 @@ TEST_F(ReaderTest, TestCsvChunkSupplierHandlesEmptyFile) {
   createCsvFile("supplier_empty.csv", "");
   auto sharedState =
       createSharedState("supplier_empty.csv", {"id"}, {createInt64Type()},
-                        {{"batch_size", "2"}, {"batch_read", "false"}});
+                        {{"batch_rows", "2"}, {"batch_read", "false"}});
 
   auto supplier = createCsvReader(sharedState)->getDataChunkSupplier();
   EXPECT_EQ(supplier->RowNum(), 0);

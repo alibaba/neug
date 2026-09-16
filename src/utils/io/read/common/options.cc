@@ -46,11 +46,11 @@ CsvReadConfig CsvOptionsBuilder::build() const {
   config.skip_rows = readOpts.skip_rows.get(options);
   config.use_threads = parseOpts.use_threads.get(options);
 
-  int64_t batch_size = readOpts.batch_size.get(options);
-  if (batch_size <= 0) {
+  int64_t batch_rows = readOpts.batch_rows.get(options);
+  if (batch_rows <= 0) {
     config.chunk_size = 4096;
   } else {
-    config.chunk_size = std::min<int64_t>(batch_size, 65536);
+    config.chunk_size = std::min<int64_t>(batch_rows, 65536);
   }
 
   const EntrySchema* entrySchema = state->schema.entry.get();
@@ -113,11 +113,11 @@ JsonReadConfig JsonOptionsBuilder::build() const {
       Option<bool>::BoolOption("newlines_in_values", false).get(options);
   config.json_array_input = json_array_input_;
 
-  int64_t batch_size = readOpts.batch_size.get(options);
-  if (batch_size <= 0) {
+  int64_t batch_rows = readOpts.batch_rows.get(options);
+  if (batch_rows <= 0) {
     config.chunk_size = 4096;
   } else {
-    config.chunk_size = std::min<int64_t>(batch_size, 65536);
+    config.chunk_size = std::min<int64_t>(batch_rows, 65536);
   }
 
   const EntrySchema* entrySchema = state->schema.entry.get();
