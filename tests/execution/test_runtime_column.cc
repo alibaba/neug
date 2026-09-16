@@ -33,7 +33,7 @@ class VertexColumnTest : public ::testing::Test {
   static constexpr vid_t kVid0 = 100;
   static constexpr vid_t kVid1 = 101;
   static constexpr vid_t kVid2 = 102;
-  static constexpr vid_t kNullVid = std::numeric_limits<vid_t>::max();
+  static constexpr vid_t kNullVid = INVALID_VID;
   static constexpr label_t kNullLabel = std::numeric_limits<label_t>::max();
 
   std::shared_ptr<SLVertexColumn> build_sl_vertex_column(label_t label,
@@ -167,6 +167,69 @@ TEST_F(VertexColumnTest, SLVertexColumnUnionSameLabel) {
   EXPECT_EQ(sl_col->get_vertex(1), (VertexRecord{kLabel0, kVid1}));
   EXPECT_EQ(sl_col->get_vertex(2), (VertexRecord{kLabel0, kVid0}));
   EXPECT_EQ(sl_col->get_vertex(3), (VertexRecord{kLabel0, kVid1}));
+}
+
+TEST_F(VertexColumnTest, SLVertexColumnUnionSameLabelPreservesNulls) {
+  for (bool left_optional : {false, true}) {
+    for (bool right_optional : {false, true}) {
+      SCOPED_TRACE(::testing::Message()
+                   << "left_optional=" << left_optional
+                   << ", right_optional=" << right_optional);
+      auto left = build_sl_vertex_column(kLabel0, left_optional);
+      auto right = build_sl_vertex_column(kLabel0, right_optional);
+      auto unioned = left->union_col(right);
+      auto* result = dynamic_cast<SLVertexColumn*>(unioned.get());
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(result->size(), left->size() + right->size());
+      EXPECT_EQ(result->is_optional(), left_optional || right_optional);
+
+      size_t offset = 0;
+      for (const auto& input : {left, right}) {
+        for (size_t i = 0; i < input->size(); ++i, ++offset) {
+          EXPECT_EQ(result->has_value(offset), input->has_value(i));
+          EXPECT_EQ(result->get_vertex(offset), input->get_vertex(i));
+        }
+      }
+    }
+  }
+}
+
+TEST_F(VertexColumnTest, SLVertexColumnUnionMultipleLabelsPreservesNulls) {
+  for (bool left_optional : {false, true}) {
+    for (bool right_optional : {false, true}) {
+      auto left = build_sl_vertex_column(kLabel0, left_optional);
+      std::vector<std::shared_ptr<IVertexColumn>> right_columns = {
+          build_sl_vertex_column(kLabel1, right_optional),
+          build_ms_vertex_column(right_optional),
+          build_ml_vertex_column(right_optional)};
+      for (const auto& right : right_columns) {
+        SCOPED_TRACE(::testing::Message()
+                     << "left_optional=" << left_optional
+                     << ", right=" << right->column_info());
+        auto unioned = left->union_col(right);
+        auto* result = dynamic_cast<MLVertexColumn*>(unioned.get());
+        ASSERT_NE(result, nullptr);
+        ASSERT_EQ(result->size(), left->size() + right->size());
+        EXPECT_EQ(result->is_optional(), left_optional || right_optional);
+        EXPECT_EQ(result->get_labels_set(),
+                  (std::set<label_t>{kLabel0, kLabel1}));
+
+        size_t offset = 0;
+        for (const IVertexColumn* input :
+             {static_cast<const IVertexColumn*>(left.get()),
+              static_cast<const IVertexColumn*>(right.get())}) {
+          for (size_t i = 0; i < input->size(); ++i, ++offset) {
+            EXPECT_EQ(result->has_value(offset), input->has_value(i));
+            if (input->has_value(i)) {
+              EXPECT_EQ(result->get_vertex(offset), input->get_vertex(i));
+            } else {
+              EXPECT_EQ(result->get_vertex(offset).vid_, INVALID_VID);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 TEST_F(VertexColumnTest, SLVertexColumnUnionDiffLabel) {
@@ -346,7 +409,7 @@ class EdgeColumnTest : public ::testing::Test {
   static constexpr vid_t kVid0 = 100;
   static constexpr vid_t kVid1 = 101;
   static constexpr vid_t kVid2 = 102;
-  static constexpr vid_t kNullVid = std::numeric_limits<vid_t>::max();
+  static constexpr vid_t kNullVid = INVALID_VID;
 
   std::shared_ptr<SDSLEdgeColumn> build_sdsl_edge_column() { return nullptr; }
 };

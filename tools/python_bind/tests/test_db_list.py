@@ -196,6 +196,16 @@ def test_list_cast_contract(tmp_path):
     db.close()
 
 
+def test_unwind_null_raises_error(empty_db):
+    _, conn = empty_db
+    with pytest.raises(Exception):
+        list(conn.execute("UNWIND NULL AS value RETURN value;"))
+    with pytest.raises(Exception):
+        list(conn.execute("UNWIND CAST(NULL, 'INT64[]') AS value RETURN value;"))
+    with pytest.raises(Exception):
+        list(conn.execute("UNWIND CAST(NULL, 'INT64[3]') AS value RETURN value;"))
+
+
 def test_in_null_semantics(empty_db):
     _, conn = empty_db
     cases = [

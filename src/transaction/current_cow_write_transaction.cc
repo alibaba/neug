@@ -59,13 +59,16 @@ Status CurrentCowWriteTransaction::Commit() {
   if (!active()) {
     return Status::OK();
   }
-  if (workspace_.HasTransientMutation()) {
+  if (workspace_.HasBulkMutation()) {
     Abort();
     return Status::InternalError(
-        "Transient graph mutations require CommitTransient");
+        "Persistent bulk mutations require checkpoint commit");
   }
   auto& logical_redo = workspace_.logical_redo();
   if (logical_redo.op_num() == 0) {
+    if (workspace_.HasTransientMutation()) {
+      return CommitTransient();
+    }
     release(false);
     return Status::OK();
   }
@@ -78,6 +81,9 @@ Status CurrentCowWriteTransaction::Commit() {
   }
 
   logical_redo.finalize(timestamp());
+
+  // Redo contains only persistent mutations. Publish the whole workspace
+  // after WAL append so temporary and persistent changes become visible once.
 
   // The current WAL API cannot distinguish a pre-write failure from an
   // uncertain partial append. Until W1 framing supplies that decision, any
@@ -139,11 +145,10 @@ Status CurrentCowWriteTransaction::CommitTransient() {
     return Status::InternalError(
         "CommitTransient requires a transient graph mutation");
   }
-  const auto& logical_redo = workspace_.logical_redo();
-  if (logical_redo.op_num() != 0 || logical_redo.content_size() != 0) {
+  if (workspace_.HasDurableMutation()) {
     Abort();
     return Status::InternalError(
-        "Transient graph commit cannot contain logical WAL redo");
+        "Transient graph commit cannot contain durable graph mutations");
   }
   uint64_t committed_planning_generation = 0;
   auto status = PrepareCommit(committed_planning_generation);

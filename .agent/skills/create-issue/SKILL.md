@@ -29,6 +29,7 @@ You **MUST** consider the user input before proceeding (if not empty).
     - Then the issue content should be filled with the user input and context.
     - The error message should only contains important information, i.e., traceback and error log. Skip massive logs.
     - For Bug Report, must attach the context, i.e., the error message in the terminal.
+    - For Bug Report, provide a minimal reproduction scenario when possible: reduce the failure to the smallest set of commands, queries, or data that still triggers the bug, instead of copying the full original workload. When the repository is available locally, try to actually run the scenario to confirm it reproduces before filing. If a minimal scenario cannot be derived from the available context, state that explicitly in the issue.
 
 4. **User Revision**:
     - Open the temporary file and let the user review the issue content.

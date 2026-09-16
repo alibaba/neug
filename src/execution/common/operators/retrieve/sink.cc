@@ -128,7 +128,7 @@ static rapidjson::Value build_vertex_json_value(
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value obj(rapidjson::kObjectType);
   if (record.label_ == std::numeric_limits<label_t>::max() ||
-      record.vid_ == std::numeric_limits<vid_t>::max()) {
+      record.vid_ == INVALID_VID) {
     return obj;
   }
   auto label_name = graph.schema().get_vertex_label_name(record.label_);
@@ -162,8 +162,7 @@ static rapidjson::Value build_edge_json_value(
   if (record.label.src_label == std::numeric_limits<label_t>::max() ||
       record.label.dst_label == std::numeric_limits<label_t>::max() ||
       record.label.edge_label == std::numeric_limits<label_t>::max() ||
-      record.src == std::numeric_limits<vid_t>::max() ||
-      record.dst == std::numeric_limits<vid_t>::max()) {
+      record.src == INVALID_VID || record.dst == INVALID_VID) {
     return obj;
   }
   auto edge_label_name =
@@ -202,7 +201,7 @@ static rapidjson::Value build_edge_json_value(
 std::string convert_vertex_to_json(const StorageReadInterface& graph,
                                    const VertexRecord& record) {
   if (record.label_ == std::numeric_limits<label_t>::max() ||
-      record.vid_ == std::numeric_limits<vid_t>::max()) {
+      record.vid_ == INVALID_VID) {
     return "";
   }
   rapidjson::Document doc;
@@ -233,8 +232,7 @@ std::string convert_edge_to_json(const StorageReadInterface& graph,
   if (record.label.src_label == std::numeric_limits<label_t>::max() ||
       record.label.dst_label == std::numeric_limits<label_t>::max() ||
       record.label.edge_label == std::numeric_limits<label_t>::max() ||
-      record.src == std::numeric_limits<vid_t>::max() ||
-      record.dst == std::numeric_limits<vid_t>::max()) {
+      record.src == INVALID_VID || record.dst == INVALID_VID) {
     return "";
   }
   rapidjson::Document doc;

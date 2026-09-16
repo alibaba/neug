@@ -85,6 +85,83 @@ See the [Python](../reference/python_api/connection.md),
 [Node.js](../reference/nodejs_api/connection.md), and
 [C++](../reference/cpp_api/connection.md) API references for exact signatures.
 
+### Group persistent `COPY FROM` statements
+
+> **Version Note:** Since v0.2.1, an Embedded read-write explicit transaction can group persistent `COPY ... FROM` statements — and interleave them with reads, ordinary DML/DDL, and `COPY TEMP` — into a single checkpoint published at `commit()`. In earlier versions a persistent `COPY ... FROM` ran only as an auto-commit statement that published its own checkpoint, and explicit transactions rejected `COPY`.
+
+An Embedded read-write transaction can group multiple persistent
+`COPY ... FROM` statements. They share one private COW view, so a later COPY can
+use vertices loaded by an earlier COPY and reads on the same `Connection` see
+the accumulated data. Individual COPY statements do not publish checkpoints;
+`commit()` publishes all COPY changes with one checkpoint, while `rollback()`
+discards them all.
+
+Reads, ordinary DML, and DDL may be interleaved with persistent COPY statements.
+If any COPY changes persistent storage or creates inferred persistent schema,
+one checkpoint publishes the transaction's final combined graph at commit.
+COPY may infer and create its own target schema inside the transaction; that
+schema and its imported data are committed or rolled back together. See
+[Import without a predefined schema](../data_io/import_data.md) for usage.
+
+```python
+# Create the target schema outside the COPY transaction.
+conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
+
+conn.begin_transaction()
+try:
+    conn.execute("COPY Person FROM 'person_0.csv' (HEADER=true, DELIMITER=',')")
+    conn.execute("COPY Person FROM 'person_1.csv' (HEADER=true, DELIMITER=',')")
+    conn.commit()  # Publish both imports with one checkpoint.
+except Exception:
+    conn.rollback()
+    raise
+```
+
+A successful COPY makes its data available inside the transaction. The import
+is committed only after `commit()` succeeds. `EXPLAIN` can inspect write plans
+without changing data or ending the transaction. `PROFILE` executes its query,
+so the same restrictions as ordinary execution apply.
+
+Choose transaction size according to available memory and retry cost. Private
+changes remain in the workspace until the transaction ends, and a failed batch must
+be retried in full. For example, loading vertices in one transaction and edges
+in another reduces checkpoint frequency while keeping separate retry
+boundaries. Fewer checkpoints do not guarantee lower peak memory; measure both
+the COPY and commit phases when comparing batch sizes.
+
+Include `begin_transaction()` and `commit()` in end-to-end load timing. Summing
+only individual COPY durations omits the final checkpoint cost. Report COPY
+execution time, commit time, and peak memory through commit separately.
+
+### Read, transform, and export external data
+
+Graph-read-only `LOAD FROM` and `COPY TO` plans can run in either Embedded
+transaction mode. In a read-write transaction, `LOAD FROM` may also drive
+ordinary `CREATE`, `MERGE`, `SET`, or `DELETE` clauses. Those mutations use the
+private COW view and follow the same commit and rollback rules as ordinary DML.
+A read-write transaction also supplies its private graph view to `COPY TO`, so
+it can export changes made earlier in the same transaction.
+
+External files are not transactional resources. The graph snapshot does not
+freeze the contents of a file read by `LOAD FROM`, and a successful `COPY TO`
+output is not deleted if the graph transaction later rolls back. A `COPY TO`
+whose inner query updates the graph remains unsupported.
+
+### Work with temporary graph data
+
+`COPY TEMP` can run in an Embedded read-write transaction. Later statements in
+that transaction can read or modify the temporary graph. Rollback discards it;
+commit makes it available until the owning connection closes. A transaction
+containing only temporary mutations does not write WAL or publish a checkpoint.
+
+`COPY TEMP` may be mixed with durable DML, DDL, and persistent `COPY FROM` in
+either order. All changes use the same private graph and become visible at one
+commit; rollback discards both temporary and persistent changes. For example,
+rows loaded into a temporary table can drive `MATCH ... CREATE` into a persistent
+table. Commit writes only persistent changes to WAL, or publishes a checkpoint
+when persistent bulk mutations occurred. Temporary objects stay in memory and
+are excluded from WAL and checkpoints.
+
 ### Service mode
 
 In Service mode, a `Session` owns at most one transaction at a time.
@@ -159,7 +236,7 @@ active:
 
 | Statement class | Examples |
 |-----------------|----------|
-| File and bulk operations | `LOAD FROM`, `COPY FROM`, `COPY TEMP`, `COPY TO` |
+| Graph-mutating export | A `COPY TO` whose inner query updates the graph |
 | Database maintenance | `CHECKPOINT` |
 | Extension management | `INSTALL`, `LOAD`, `UNINSTALL` |
 | Mutating procedure calls | A `CALL` such as `project_graph` or `drop_projected_graph` that changes state |
@@ -169,10 +246,13 @@ Read-only procedure calls are allowed.
 
 There is one important deployment-mode distinction:
 
-- **Embedded mode:** file and bulk statements are supported only as
-  auto-commit operations. End the explicit transaction before using them.
+- **Embedded mode:** persistent `COPY FROM`, `LOAD FROM` reads and DML,
+  graph-read-only `COPY TO`, and `COPY TEMP` are supported under
+  the restrictions above.
 - **Service mode:** `LOAD FROM` and all `COPY` statements are unsupported,
-  whether or not an explicit transaction is active.
+  whether or not an explicit transaction is active. This is a
+  [file I/O restriction of Service mode](../data_io/index.md),
+  not an explicit-transaction restriction.
 
 ## Failure and rollback-only state
 
@@ -187,6 +267,15 @@ rules above.
 A validation error raised by the client before it sends the query does not
 change the transaction. For example, Python raises `ValueError` for an invalid
 `access_mode` and leaves the transaction usable.
+
+For embedded COPY transactions, a checkpoint preparation failure that returns
+an error leaves the connection rollback-only. Once checkpoint processing starts
+consuming storage buffers, an unrecoverable error terminates the process to
+prevent further access to potentially invalid in-memory storage. This existing
+checkpoint limitation also applies to explicit COPY commit: it cannot always
+return an exception that the application can handle with `rollback()`. After
+reopening the database, inspect recovered data before deciding whether to retry
+a commit whose outcome was not observed.
 
 ## Client lifecycle differences
 

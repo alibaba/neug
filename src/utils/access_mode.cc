@@ -21,8 +21,9 @@ namespace neug {
 
 bool IsReadOnlyExecutionFlag(const physical::ExecutionFlag& flags) {
   return !(flags.insert() || flags.update() || flags.schema() ||
-           flags.batch() || flags.create_temp_table() || flags.checkpoint() ||
-           flags.procedure_call());
+           flags.copy_from() || flags.create_temp_table() ||
+           flags.checkpoint() || flags.procedure_call() ||
+           (flags.batch() && !flags.load_from() && !flags.copy_to()));
 }
 
 bool IsInsertOnlyExecutionFlag(const physical::ExecutionFlag& flags) {

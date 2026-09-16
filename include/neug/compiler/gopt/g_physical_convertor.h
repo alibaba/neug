@@ -64,6 +64,8 @@ class GPhysicalConvertor {
     flagPB->set_checkpoint(flag.checkpoint);
     flagPB->set_procedure_call(flag.procedure_call);
     flagPB->set_copy_from(flag.copy_from);
+    flagPB->set_load_from(flag.load_from);
+    flagPB->set_copy_to(flag.copy_to);
     return flagPB;
   }
 
