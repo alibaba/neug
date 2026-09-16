@@ -40,6 +40,7 @@
 #endif
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -308,6 +309,38 @@ TEST_F(LocalWalParserTest, WriterOpenCloseWithoutAppendCreatesNoFile) {
     writer.close();
   }
   EXPECT_TRUE(std::filesystem::is_empty(wal_dir_));
+}
+
+TEST_F(LocalWalParserTest, WriterPersistsTerminatorAfterEachAppend) {
+  neug::LocalWalWriter writer(wal_dir_, 0);
+  writer.open(wal_dir_);
+
+  std::vector<char> first_record;
+  AppendWalEntry(first_record, 1, 0, "first");
+  ASSERT_TRUE(writer.append(first_record.data(), first_record.size()));
+
+  const auto wal_path = std::filesystem::directory_iterator(wal_dir_)->path();
+  const auto expect_terminator_at = [&](size_t offset) {
+    std::ifstream wal(wal_path, std::ios::binary);
+    ASSERT_TRUE(wal);
+    wal.seekg(static_cast<std::streamoff>(offset));
+    neug::WalHeader terminator;
+    wal.read(reinterpret_cast<char*>(&terminator), sizeof(terminator));
+    ASSERT_TRUE(wal);
+    EXPECT_EQ(terminator.timestamp, 0u);
+    EXPECT_EQ(terminator.type, 0u);
+    EXPECT_EQ(terminator.length, 0);
+  };
+  expect_terminator_at(first_record.size());
+
+  std::vector<char> second_record;
+  AppendWalEntry(second_record, 2, 0, "second");
+  ASSERT_TRUE(writer.append(second_record.data(), second_record.size()));
+  expect_terminator_at(first_record.size() + second_record.size());
+  writer.close();
+
+  neug::LocalWalParser parser(wal_dir_);
+  EXPECT_EQ(parser.last_ts(), 2u);
 }
 
 TEST_F(LocalWalParserTest, WriterCreationFailureCanBeRetried) {

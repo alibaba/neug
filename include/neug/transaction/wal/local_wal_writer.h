@@ -34,7 +34,8 @@ class LocalWalWriter : public IWalWriter {
         fd_(-1),
         file_size_(0),
         file_used_(0),
-        opened_(false) {}
+        opened_(false),
+        poisoned_(false) {}
   ~LocalWalWriter() noexcept override;
 
   // The caller owns directory creation and durability (normally checkpoint
@@ -46,6 +47,9 @@ class LocalWalWriter : public IWalWriter {
 
  private:
   void create_file();
+  void write_all_at(const char* data, size_t length, size_t offset);
+  [[noreturn]] void retire_after_append_failure(const std::string& operation,
+                                                int error_number);
   int close_file() noexcept;
 
   std::string wal_uri_;
@@ -54,6 +58,7 @@ class LocalWalWriter : public IWalWriter {
   size_t file_size_;
   size_t file_used_;
   bool opened_;
+  bool poisoned_;
 
   static const bool registered_;
 };

@@ -26,8 +26,11 @@
 #else
 #include <unistd.h>
 #endif
+#include <algorithm>
+#include <cerrno>
 #include <exception>
 #include <filesystem>
+#include <limits>
 #include <ostream>
 
 #include "neug/transaction/wal/wal.h"
@@ -52,6 +55,10 @@ LocalWalWriter::~LocalWalWriter() noexcept {
 }
 
 void LocalWalWriter::open(const std::string& wal_uri) {
+  if (poisoned_) {
+    THROW_IO_EXCEPTION(
+        "Cannot reopen WAL writer after an uncertain append failure");
+  }
   close();
   wal_uri_ = wal_uri;
   opened_ = true;
@@ -118,6 +125,46 @@ int LocalWalWriter::close_file() noexcept {
 #endif
 }
 
+[[noreturn]] void LocalWalWriter::retire_after_append_failure(
+    const std::string& operation, int error_number) {
+  poisoned_ = true;
+  const std::string message = operation + ": " + strerror(error_number);
+  if (close_file() != 0) {
+    LOG(ERROR) << "Failed to close WAL file after append failure: "
+               << strerror(errno);
+  }
+  THROW_IO_EXCEPTION(message);
+}
+
+void LocalWalWriter::write_all_at(const char* data, size_t length,
+                                  size_t offset) {
+  size_t total = 0;
+  while (total < length) {
+#ifdef _WIN32
+    if (_lseeki64(fd_, static_cast<__int64>(offset + total), SEEK_SET) == -1) {
+      retire_after_append_failure("Failed to seek WAL file", errno);
+    }
+    const auto remaining = length - total;
+    const auto chunk = static_cast<unsigned int>(
+        std::min<size_t>(remaining, std::numeric_limits<unsigned int>::max()));
+    const auto written = _write(fd_, data + total, chunk);
+#else
+    const auto written =
+        pwrite(fd_, data + total, length - total, offset + total);
+#endif
+    if (written < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      retire_after_append_failure("Failed to write WAL file", errno);
+    }
+    if (written == 0) {
+      retire_after_append_failure("Failed to write WAL file", EIO);
+    }
+    total += static_cast<size_t>(written);
+  }
+}
+
 void LocalWalWriter::close() {
   opened_ = false;
   if (close_file() != 0) {
@@ -127,6 +174,10 @@ void LocalWalWriter::close() {
 }
 
 bool LocalWalWriter::append(const char* data, size_t length) {
+  if (NEUG_UNLIKELY(poisoned_)) {
+    THROW_IO_EXCEPTION(
+        "WAL writer is disabled after an uncertain append failure");
+  }
   if (NEUG_UNLIKELY(!opened_)) {
     return false;
   }
@@ -145,7 +196,7 @@ bool LocalWalWriter::append(const char* data, size_t length) {
       return false;
     }
   }
-  size_t expected_size = file_used_ + length;
+  const size_t expected_size = file_used_ + length + sizeof(WalHeader);
   if (expected_size > file_size_) {
     size_t new_file_size = (expected_size / TRUNC_SIZE + 1) * TRUNC_SIZE;
 #ifdef _WIN32
@@ -157,40 +208,30 @@ bool LocalWalWriter::append(const char* data, size_t length) {
 #ifdef _WIN32
       errno = static_cast<int>(resize_err);
 #endif
-      THROW_IO_EXCEPTION("Failed to truncate wal file " +
-                         std::string(strerror(errno)));
+      retire_after_append_failure("Failed to resize WAL file", errno);
     }
     file_size_ = new_file_size;
   }
 
-  file_used_ += length;
-
-#ifdef _WIN32
-  const auto written = _write(fd_, data, length);
-#else
-  const auto written = write(fd_, data, length);
-#endif
-  if (static_cast<size_t>(written) != length) {
-    THROW_IO_EXCEPTION("Failed to write wal file " +
-                       std::string(strerror(errno)));
-  }
+  write_all_at(data, length, file_used_);
+  const WalHeader terminator{};
+  write_all_at(reinterpret_cast<const char*>(&terminator), sizeof(terminator),
+               file_used_ + length);
 
 #ifdef _WIN32
   if (_commit(fd_) != 0) {
-    THROW_IO_EXCEPTION("Failed to fsync wal file " +
-                       std::string(strerror(errno)));
+    retire_after_append_failure("Failed to sync WAL file", errno);
   }
 #elif defined(F_FULLFSYNC)
   if (fcntl(fd_, F_FULLFSYNC) != 0) {
-    THROW_IO_EXCEPTION("Failed to fcntl sync wal file " +
-                       std::string(strerror(errno)));
+    retire_after_append_failure("Failed to sync WAL file", errno);
   }
 #else
   if (fdatasync(fd_) != 0) {
-    THROW_IO_EXCEPTION("Failed to fsync wal file " +
-                       std::string(strerror(errno)));
+    retire_after_append_failure("Failed to sync WAL file", errno);
   }
 #endif
+  file_used_ += length;
   return true;
 }
 
