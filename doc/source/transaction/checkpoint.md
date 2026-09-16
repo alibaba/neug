@@ -79,16 +79,21 @@ conn.close()
 db.close()
 ```
 
-Persistent bulk import is also automatic:
+Persistent bulk import is also automatic in auto-commit mode:
 
 ```python
 conn.execute("COPY Person FROM 'people.csv'")
-# Success means the import has been published in a checkpoint.
+# In auto-commit mode, success means the import has been published in a checkpoint.
 ```
 
 The import is atomic. If reading, validation, or checkpoint publication fails,
 none of the imported data becomes visible and the previous database state
 remains usable.
+
+Inside an explicit read-write transaction (since v0.2.1), a successful
+`COPY ... FROM` does not publish on its own; the checkpoint is deferred to
+`commit()`, which may publish several COPY statements together. See
+[Explicit Transactions](explicit_transactions.mdx).
 
 `COPY TEMP` is different: it updates only the connection's in-memory temporary
 graph and is lost when the connection or database closes.

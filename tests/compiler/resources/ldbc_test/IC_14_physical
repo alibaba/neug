@@ -710,7 +710,9 @@
                             "create_temp_table": false,
                             "checkpoint": false,
                             "procedure_call": false,
-                            "copy_from": false
+                            "copy_from": false,
+                            "load_from": false,
+                            "copy_to": false
                         }
                     },
                     "right_plan": {
@@ -903,7 +905,9 @@
                             "create_temp_table": false,
                             "checkpoint": false,
                             "procedure_call": false,
-                            "copy_from": false
+                            "copy_from": false,
+                            "load_from": false,
+                            "copy_to": false
                         }
                     }
                 }
@@ -2712,6 +2716,9 @@
         "batch": false,
         "create_temp_table": false,
         "checkpoint": false,
-        "procedure_call": false
+        "procedure_call": false,
+        "copy_from": false,
+        "load_from": false,
+        "copy_to": false
     }
 }

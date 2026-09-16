@@ -725,6 +725,23 @@ TEST_F(VertexTableTest, BatchInsertExactFitKeepsGrowthHeadroom) {
   EXPECT_GE(new_vids.capacity(), 4096);
 }
 
+TEST_F(VertexTableTest, BatchInsertKeepsMinimumGrowthHeadroom) {
+  neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
+  auto ckp = make_checkpoint(Workspace());
+  OpenVertexTableLegacy(table, ckp, neug::CheckpointManifest(), memory_level_);
+
+  constexpr size_t vertex_count = 5001;
+  auto data_chunks = generate_data_chunks(vertex_count);
+  auto batch_supplier =
+      std::make_shared<GeneratedChunkSupplier>(std::move(data_chunks));
+  table.insert_vertices(std::move(batch_supplier));
+
+  const size_t minimum_capacity =
+      vertex_count + vertex_count / 4 + (vertex_count % 4 != 0);
+  EXPECT_EQ(table.LidNum(), vertex_count);
+  EXPECT_GE(table.Capacity(), minimum_capacity);
+}
+
 TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
   auto ckp = make_checkpoint(Workspace());
   neug::VertexTimestamp vts;
