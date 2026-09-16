@@ -23,7 +23,7 @@
 #pragma once
 
 #include "bound_statement.h"
-#include "neug/compiler/transaction/transaction_action.h"
+#include "neug/compiler/common/enums/transaction_action.h"
 
 namespace neug {
 namespace binder {

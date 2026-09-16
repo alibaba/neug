@@ -11,10 +11,6 @@ namespace main {
 class ClientContext;
 }  // namespace main
 
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace planner {
 
 class LogicalAggregate;
@@ -28,10 +24,8 @@ class CardinalityEstimator {
 
   // TODO(Xiyang): revisit this init at some point. Maybe we should init while
   // enumerating.
-  void initNodeIDDom(const transaction::Transaction* transaction,
-                     const binder::QueryGraph& queryGraph);
+  void initNodeIDDom(const binder::QueryGraph& queryGraph);
   NEUG_API void addNodeIDDomAndStats(
-      const transaction::Transaction* transaction,
       const binder::Expression& nodeID,
       const std::vector<common::table_id_t>& tableIDs);
   void addPerQueryGraphNodeIDDom(const binder::Expression& nodeID,
@@ -58,23 +52,19 @@ class CardinalityEstimator {
   cardinality_t estimateGetV(const planner::LogicalExtend& extend) const;
 
   double getExtensionRate(const binder::RelExpression& rel,
-                          const binder::NodeExpression& boundNode,
-                          const transaction::Transaction* transaction) const;
+                          const binder::NodeExpression& boundNode) const;
   double getExtensionRate(const binder::RelExpression& rel,
                           const common::table_id_vector_t& tableIDs,
-                          const binder::NodeExpression& boundNode,
-                          const transaction::Transaction* transaction) const;
+                          const binder::NodeExpression& boundNode) const;
 
   cardinality_t multiply(double extensionRate, cardinality_t card) const;
 
   cardinality_t getNumNodes(
-      const transaction::Transaction* transaction,
       const std::vector<common::table_id_t>& tableIDs) const;
 
  private:
   cardinality_t getNodeIDDom(const std::string& nodeIDName) const;
   cardinality_t getNumRels(
-      const transaction::Transaction* transaction,
       const std::vector<common::table_id_t>& tableIDs) const;
 
  private:

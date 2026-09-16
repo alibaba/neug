@@ -62,7 +62,6 @@ std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
 std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
     ExpressionType expressionType, const expression_vector& children) {
   auto catalog = context->getCatalog();
-  auto transaction = context->getTransaction();
   auto functionName = ExpressionTypeUtil::toString(expressionType);
   DataType combinedType(DataTypeId::kUnknown);
   if (!ExpressionUtil::tryCombineDataType(children, combinedType)) {
@@ -78,7 +77,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
   for (auto i = 0u; i < children.size(); i++) {
     childrenTypes.push_back(combinedType.copy());
   }
-  auto entry = catalog->getFunctionEntry(transaction, functionName);
+  auto entry = catalog->getFunctionEntry(functionName);
   auto function = BuiltInFunctionsUtils::matchFunction(
                       functionName, childrenTypes,
                       entry->ptrCast<catalog::FunctionCatalogEntry>())

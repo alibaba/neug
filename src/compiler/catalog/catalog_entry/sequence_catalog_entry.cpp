@@ -26,7 +26,6 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/arithmetic/add.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::binder;
@@ -53,43 +52,26 @@ int64_t SequenceCatalogEntry::currVal() {
 void SequenceCatalogEntry::nextValNoLock() {}
 
 // referenced from DuckDB
-void SequenceCatalogEntry::nextKVal(transaction::Transaction* transaction,
-                                    const uint64_t& count) {
+void SequenceCatalogEntry::nextKVal(const uint64_t& count) {
   NEUG_ASSERT(count > 0);
-  SequenceRollbackData rollbackData{};
   {
     std::lock_guard lck(mtx);
-    rollbackData =
-        SequenceRollbackData{sequenceData.usageCount, sequenceData.currVal};
     for (auto i = 0ul; i < count; i++) {
       nextValNoLock();
     }
   }
-  transaction->pushSequenceChange(this, count, rollbackData);
 }
 
-void SequenceCatalogEntry::nextKVal(transaction::Transaction* transaction,
-                                    const uint64_t& count,
+void SequenceCatalogEntry::nextKVal(const uint64_t& count,
                                     ValueVector& resultVector) {
   NEUG_ASSERT(count > 0);
-  SequenceRollbackData rollbackData{};
   {
     std::lock_guard lck(mtx);
-    rollbackData =
-        SequenceRollbackData{sequenceData.usageCount, sequenceData.currVal};
     for (auto i = 0ul; i < count; i++) {
       nextValNoLock();
       resultVector.setValue(i, sequenceData.currVal);
     }
   }
-  transaction->pushSequenceChange(this, count, rollbackData);
-}
-
-void SequenceCatalogEntry::rollbackVal(const uint64_t& usageCount,
-                                       const int64_t& currVal) {
-  std::lock_guard lck(mtx);
-  sequenceData.usageCount = usageCount;
-  sequenceData.currVal = currVal;
 }
 
 void SequenceCatalogEntry::serialize(Serializer& serializer) const {

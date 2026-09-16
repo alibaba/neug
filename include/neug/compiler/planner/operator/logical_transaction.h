@@ -1,7 +1,7 @@
 #pragma once
 
+#include "neug/compiler/common/enums/transaction_action.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
-#include "neug/compiler/transaction/transaction_action.h"
 
 namespace neug {
 namespace planner {

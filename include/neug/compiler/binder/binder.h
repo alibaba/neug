@@ -79,10 +79,6 @@ struct ExportFuncBindInput;
 struct ExportFuncBindData;
 }  // namespace function
 
-namespace transaction {
-class Transaction;
-}  // namespace transaction
-
 namespace binder {
 
 enum class NamespaceBindingMode : uint8_t { DISALLOW, ALLOW_FOR_MATCH };
@@ -123,11 +119,6 @@ class Binder {
   getParameterMap() {
     return expressionBinder.parameterMap;
   }
-
-  bool bindExportTableData(ExportedTableData& tableData,
-                           const catalog::TableCatalogEntry& entry,
-                           const catalog::Catalog& catalog,
-                           const transaction::Transaction* transaction);
 
   NEUG_API std::shared_ptr<Expression> createVariable(
       const std::string& name, const common::DataType& dataType);

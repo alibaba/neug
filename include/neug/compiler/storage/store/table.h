@@ -57,8 +57,7 @@ class NEUG_API Table {
   common::table_id_t getTableID() const { return tableID; }
   std::string getTableName() const { return tableName; }
 
-  virtual common::row_idx_t getNumTotalRows(
-      const transaction::Transaction* transaction) = 0;
+  virtual common::row_idx_t getNumTotalRows() = 0;
 
   template <class TARGET>
   TARGET& cast() {

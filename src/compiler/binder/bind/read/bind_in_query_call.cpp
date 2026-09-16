@@ -44,8 +44,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindInQueryCall(
   auto functionExpr = expr->constPtrCast<ParsedFunctionExpression>();
   auto functionName = functionExpr->getFunctionName();
   std::unique_ptr<BoundReadingClause> boundReadingClause;
-  auto entry = clientContext->getCatalog()->getFunctionEntry(
-      clientContext->getTransaction(), functionName);
+  auto entry = clientContext->getCatalog()->getFunctionEntry(functionName);
   switch (entry->getType()) {
   case CatalogEntryType::TABLE_FUNCTION_ENTRY: {
     // todo: support yield variables by pushing down to table function

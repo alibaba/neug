@@ -40,8 +40,7 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCallFunction(
                        ->constCast<parser::ParsedFunctionExpression>();
   auto funcName = funcExpr.getFunctionName();
   auto entry = clientContext->getCatalog()->getFunctionEntry(
-      clientContext->getTransaction(), funcName,
-      clientContext->useInternalCatalogEntry());
+      funcName, clientContext->useInternalCatalogEntry());
   NEUG_ASSERT(entry);
   auto boundTableFunction =
       bindTableFunc(funcName, funcExpr, {} /* yieldVariables */);
