@@ -153,15 +153,15 @@ std::string maskComments(std::string_view query) {
       continue;
     }
     if (query[offset + 1] == '*') {
-      const auto commentEnd = query.find("*/", offset + 2);
-      if (commentEnd == std::string_view::npos) {
+      const auto comment_end = query.find("*/", offset + 2);
+      if (comment_end == std::string_view::npos) {
         // Keep malformed comments intact so prefix analysis cannot turn an
         // invalid query into a valid administrative statement. The parser
         // will report the syntax error later.
         break;
       }
-      std::fill(result.begin() + offset, result.begin() + commentEnd + 2, ' ');
-      offset = commentEnd + 2;
+      std::fill(result.begin() + offset, result.begin() + comment_end + 2, ' ');
+      offset = comment_end + 2;
       continue;
     }
     ++offset;
@@ -291,25 +291,30 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
 
 QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
   QueryAnalysis analysis;
-  const auto queryWithoutComments = maskComments(query);
-  analyzeQueryPrefix(queryWithoutComments, analysis);
+  std::string masked_query;
+  std::string_view query_to_analyze = query;
+  if (query.find('/') != std::string::npos) {
+    masked_query = maskComments(query);
+    query_to_analyze = masked_query;
+  }
+  analyzeQueryPrefix(query_to_analyze, analysis);
   if (analysis.isAdmin()) {
     analysis.access_mode = AccessMode::kUpdate;
     return analysis;
   }
 
   size_t i = 0;
-  const size_t n = queryWithoutComments.size();
+  const size_t n = query_to_analyze.size();
 
   while (i < n) {
-    while (i < n && isTokenEnd(queryWithoutComments[i]))
+    while (i < n && isTokenEnd(query_to_analyze[i]))
       ++i;
     if (i >= n)
       break;
 
-    if (queryWithoutComments[i] == '\'' || queryWithoutComments[i] == '"' ||
-        queryWithoutComments[i] == '`') {
-      skipQuotedToken(queryWithoutComments, i);
+    if (query_to_analyze[i] == '\'' || query_to_analyze[i] == '"' ||
+        query_to_analyze[i] == '`') {
+      skipQuotedToken(query_to_analyze, i);
       continue;
     }
 
@@ -319,7 +324,7 @@ QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
 
     // scan the token until a non-alphabetic character or an end character
     while (i < n) {
-      char c = queryWithoutComments[i];
+      char c = query_to_analyze[i];
       if (std::isalpha(static_cast<unsigned char>(c))) {
         ++i;
       } else if (isTokenEnd(c)) {
@@ -333,10 +338,10 @@ QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
 
     // if the token is invalid, skip to the next valid token
     if (invalid_token) {
-      while (i < n && !isTokenEnd(queryWithoutComments[i])) {
-        if (queryWithoutComments[i] == '\'' || queryWithoutComments[i] == '"' ||
-            queryWithoutComments[i] == '`') {
-          skipQuotedToken(queryWithoutComments, i);
+      while (i < n && !isTokenEnd(query_to_analyze[i])) {
+        if (query_to_analyze[i] == '\'' || query_to_analyze[i] == '"' ||
+            query_to_analyze[i] == '`') {
+          skipQuotedToken(query_to_analyze, i);
         } else {
           ++i;
         }
@@ -347,8 +352,7 @@ QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
       continue;
     }
 
-    std::string token(queryWithoutComments.data() + token_start,
-                      i - token_start);
+    std::string token(query_to_analyze.data() + token_start, i - token_start);
 
     if (getSchemaOpTokens().contains(token)) {
       analysis.access_mode = AccessMode::kSchema;
