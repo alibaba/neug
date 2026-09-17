@@ -52,8 +52,9 @@ values. The existing production backend still requires Arrow at this stage.
 
 The private scan accepts the existing `batch_read`, `parallel`, `BATCH_SIZE`,
 `BUFFERED_STREAM`, `PRE_BUFFER` and `ENABLE_IO_COALESCING` options.
-`PARQUET_BATCH_ROWS` controls the maximum rows returned in each supplier chunk
-(default 65,536). Full reads merge the resulting chunks with the shared helper.
+`batch_rows` controls the maximum rows returned in each supplier chunk
+(default 65,536); `PARQUET_BATCH_ROWS` is still honored as a deprecated alias.
+Full reads merge the resulting chunks with the shared helper.
 Parallel scans use independent streams for row-group tasks and preserve file and
 row-group order when collecting results.
 

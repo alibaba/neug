@@ -1412,6 +1412,24 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
+    def test_httpfs_appears_in_show_loaded_extensions(self):
+        """Regression test for #1094.
+
+        `LOAD httpfs` must register the extension with the ExtensionAPI so it
+        shows up in `SHOW_LOADED_EXTENSIONS()`. Previously httpfs only
+        registered its s3/oss/http/https VFS providers and never called
+        ExtensionAPI::registerExtension, so it was missing from the output
+        (while fts/parquet/gds/vector_search appeared).
+        """
+        self.conn.execute("load httpfs")
+        rows = list(self.conn.execute("CALL SHOW_LOADED_EXTENSIONS() RETURN *;"))
+        # Each row is a (name, description) pair.
+        names = {str(row[0]).lower() for row in rows}
+        assert (
+            "httpfs" in names
+        ), f"httpfs missing from SHOW_LOADED_EXTENSIONS(); got {sorted(names)}"
+
+    @extension_test
     def test_load_from_parquet_on_public_httpfs_aws(self):
         """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
 
@@ -1688,7 +1706,7 @@ class TestCopyFrom:
         prefix = "PROFILE " if profile else ""
         node_result = self.conn.execute(
             f'{prefix}COPY person FROM "{node_pattern}" '
-            '(header=true, delimiter=",", batch_size=1)'
+            '(header=true, delimiter=",", batch_rows=1)'
         )
         assert len(node_result) == 3
         if profile:
@@ -1711,7 +1729,7 @@ class TestCopyFrom:
         edge_result = self.conn.execute(
             f'{prefix}COPY knows FROM "{edges_path.as_posix()}" '
             '(from="person", to="person", header=true, delimiter=",", '
-            "batch_size=1)"
+            "batch_rows=1)"
         )
         # Preserve input cardinality even when storage skips a dangling edge.
         assert len(edge_result) == 3
@@ -1870,7 +1888,7 @@ class TestCopyFrom:
         )
         copy_query = (
             f'COPY retry_node FROM "{file_pattern}" '
-            '(header=true, delimiter=",", batch_size=1)'
+            '(header=true, delimiter=",", batch_rows=1)'
         )
         with pytest.raises(Exception):
             self.conn.execute(copy_query)

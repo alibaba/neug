@@ -78,9 +78,14 @@ class CheckpointCoordinator {
   /// phase and must not hold an ordinary snapshot pin.
   Status PublishManualCheckpoint(UpdateTimestampLease timestamp_lease);
 
-  /// Commit a private bulk COW transaction through a checkpoint. Unlike a
-  /// manual checkpoint, this does not maintain or reopen the live graph: it
-  /// publishes the transaction's private graph, then installs it as current.
+  /// Commit a private COW transaction containing persistent bulk mutations
+  /// through a checkpoint. Any ordinary DDL/DML in the same workspace is
+  /// captured by that checkpoint instead of being appended as logical WAL.
+  /// Without persistent bulk mutations, delegate to the owner's WAL or
+  /// transient-only commit.
+  /// Unlike a manual checkpoint, this does not maintain or reopen the live
+  /// graph: it publishes the transaction's private graph, then installs it as
+  /// current.
   /// Validation and staging failures abort the private workspace. Once the
   /// consuming dirty-module dump starts, failures are fail-stop because some
   /// payload containers may still be shared with the published base graph.

@@ -24,7 +24,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
   if (is_optional_) {
     for (auto offset : offsets) {
       auto v = vertices_[offset];
-      if (v == std::numeric_limits<vid_t>::max()) {
+      if (v == INVALID_VID) {
         builder.push_back_null();
       } else {
         builder.push_back_opt(v);
@@ -45,7 +45,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
   for (auto offset : offsets) {
     if (offset == std::numeric_limits<sel_t>::max()) {
       builder.push_back_null();
-    } else if (vertices_[offset] == std::numeric_limits<vid_t>::max()) {
+    } else if (vertices_[offset] == INVALID_VID) {
       builder.push_back_null();
     } else {
       builder.push_back_opt(vertices_[offset]);
@@ -65,7 +65,7 @@ bool SLVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   size_t idx = 0;
   for (size_t i = 0; i < vnum; ++i) {
     vid_t v = vertices_[i];
-    if (v == std::numeric_limits<vid_t>::max()) {
+    if (v == INVALID_VID) {
       if (!flag) {
         flag = true;
         idx = i;
@@ -125,14 +125,14 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
       MSVertexColumnBuilder builder(label());
       if (is_optional_ || other->is_optional()) {
         for (auto v : vertices_) {
-          if (v == std::numeric_limits<vid_t>::max()) {
+          if (v != INVALID_VID) {
             builder.push_back_opt(v);
           } else {
             builder.push_back_null();
           }
         }
         for (auto v : col.vertices_) {
-          if (v != std::numeric_limits<vid_t>::max()) {
+          if (v != INVALID_VID) {
             builder.push_back_opt(v);
           } else {
             builder.push_back_null();
@@ -154,10 +154,19 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
   labels_set.insert(label_);
   MLVertexColumnBuilderOpt builder(labels_set);
   for (auto v : vertices_) {
-    builder.push_back_vertex({label_, v});
+    if (v == INVALID_VID) {
+      builder.push_back_null();
+    } else {
+      builder.push_back_vertex({label_, v});
+    }
   }
   for (size_t i = 0; i < col->size(); ++i) {
-    builder.push_back_vertex(col->get_vertex(i));
+    auto v = col->get_vertex(i);
+    if (v.vid_ == INVALID_VID) {
+      builder.push_back_null();
+    } else {
+      builder.push_back_vertex(v);
+    }
   }
   return builder.finish();
 }
@@ -168,7 +177,7 @@ std::shared_ptr<IContextColumn> MSVertexColumn::shuffle(
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     auto v = get_vertex(offset);
-    if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+    if (v.vid_ != INVALID_VID) {
       builder.push_back_vertex(v);
     } else {
       builder.push_back_null();
@@ -186,7 +195,7 @@ std::shared_ptr<IContextColumn> MSVertexColumn::optional_shuffle(
       builder.push_back_null();
     } else {
       auto v = get_vertex(offset);
-      if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+      if (v.vid_ != INVALID_VID) {
         builder.push_back_vertex(v);
       } else {
         builder.push_back_null();
@@ -228,7 +237,7 @@ bool MSVertexColumn::generate_dedup_offset(sel_vec_t& offsets) const {
   size_t len = size();
   for (size_t i = 0; i != len; ++i) {
     auto cur = get_vertex(i);
-    if (cur.vid_ == std::numeric_limits<vid_t>::max()) {
+    if (cur.vid_ == INVALID_VID) {
       if (!null_seen) {
         null_seen = true;
         offsets.push_back(i);
@@ -246,7 +255,7 @@ std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
   builder.reserve(offsets.size());
   for (auto offset : offsets) {
     auto& v = vertices_[offset];
-    if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+    if (v.vid_ != INVALID_VID) {
       builder.push_back_vertex(v);
     } else {
       builder.push_back_null();
@@ -264,7 +273,7 @@ std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
       builder.push_back_null();
     } else {
       auto& v = vertices_[offset];
-      if (v.vid_ != std::numeric_limits<vid_t>::max()) {
+      if (v.vid_ != INVALID_VID) {
         builder.push_back_vertex(v);
       } else {
         builder.push_back_null();

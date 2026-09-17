@@ -35,13 +35,9 @@ class GNodeTable : public NodeTable {
 
   ~GNodeTable() override = default;
 
-  common::row_idx_t getNumTotalRows(
-      const transaction::Transaction* transaction) override {
-    return numRows;
-  }
+  common::row_idx_t getNumTotalRows() override { return numRows; }
 
-  TableStats getStats(
-      const transaction::Transaction* transaction) const override {
+  TableStats getStats() const override {
     std::vector<common::DataType> types;
     auto stats = TableStats{std::span<common::DataType>(types)};
     stats.incrementCardinality(numRows);

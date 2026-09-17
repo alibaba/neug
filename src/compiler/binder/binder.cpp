@@ -290,8 +290,7 @@ function::TableFunction* Binder::getScanFunction(
   std::vector<DataType> inputTypes;
   inputTypes.push_back(DataType::Varchar());
   auto catalog = clientContext->getCatalog();
-  auto transaction = clientContext->getTransaction();
-  auto entry = catalog->getFunctionEntry(transaction, name);
+  auto entry = catalog->getFunctionEntry(name);
   auto func = BuiltInFunctionsUtils::matchFunction(
       name, inputTypes, entry->ptrCast<FunctionCatalogEntry>());
   return func->ptrCast<function::TableFunction>();

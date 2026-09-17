@@ -44,6 +44,17 @@
 
 namespace neug {
 
+namespace {
+
+size_t edge_capacity_with_headroom(size_t edge_count) {
+  if (edge_count < 4096) {
+    return 4096;
+  }
+  return edge_count + edge_count / 5 + (edge_count % 5 != 0);
+}
+
+}  // namespace
+
 void filterInvalidEdges(std::vector<vid_t>& src_lid,
                         std::vector<vid_t>& dst_lid,
                         std::vector<bool>& valid_flags) {
@@ -671,14 +682,12 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
 }
 
 void EdgeTable::EnsureCapacity(size_t capacity) {
-  if (!meta_->is_bundled()) {
-    if (capacity <= capacity_.load()) {
-      return;
-    }
-    capacity = std::max(capacity, static_cast<size_t>(4096));
-    table_->resize(capacity, meta_->get_default_property_values());
-    capacity_.store(capacity);
+  if (meta_->is_bundled() || capacity <= capacity_.load()) {
+    return;
   }
+  capacity = std::max(capacity, static_cast<size_t>(4096));
+  table_->resize(capacity, meta_->get_default_property_values());
+  capacity_.store(capacity);
 }
 
 void EdgeTable::EnsureCapacity(vid_t src_v_cap, vid_t dst_v_cap,
@@ -693,7 +702,9 @@ void EdgeTable::EnsureCapacity(vid_t src_v_cap, vid_t dst_v_cap,
 }
 
 size_t EdgeTable::EdgeNum() const {
-  if (out_csr_) {
+  // ONLY_IN keeps an EmptyCsr object for the outgoing direction. Its pointer
+  // is non-null, but its zero count does not describe the stored edges.
+  if (out_csr_ && out_csr_->csr_type() != CsrType::kEmpty) {
     return out_csr_->edge_num();
   } else if (in_csr_) {
     return in_csr_->edge_num();
@@ -926,14 +937,8 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     }
     LOG(WARNING) << oss.str();
   }
-  size_t new_size = table_idx_.load() + src_lid.size();
-  if (new_size >= Capacity()) {
-    auto new_cap = new_size;
-    while (new_size >= new_cap) {
-      new_cap = new_cap < 4096 ? 4096 : new_cap + (new_cap + 4) / 5;
-    }
-    EnsureCapacity(new_cap);
-  }
+  EnsureCapacity(
+      edge_capacity_with_headroom(table_idx_.load() + src_lid.size()));
   if (meta_->is_bundled()) {
     batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(), meta_, src_lid,
                                  dst_lid, bundled_data_cols, valid_flags);
@@ -951,14 +956,8 @@ void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
     const std::vector<std::vector<Value>>& edge_data_list) {
-  size_t new_size = table_idx_.load() + src_lid_list.size();
-  if (new_size >= Capacity()) {
-    auto new_cap = new_size;
-    while (new_size >= new_cap) {
-      new_cap = new_cap < 4096 ? 4096 : new_cap + (new_cap + 4) / 5;
-    }
-    EnsureCapacity(new_cap);
-  }
+  EnsureCapacity(
+      edge_capacity_with_headroom(table_idx_.load() + src_lid_list.size()));
   if (meta_->is_bundled()) {
     std::vector<Value> flat_edge_data;
     assert(meta_->properties.size() == 1);

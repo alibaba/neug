@@ -161,6 +161,14 @@ class NEUG_API Connection {
    * Commit(). Read-write AP transactions hold exclusive AP admission until a
    * terminal operation.
    *
+   * Persistent COPY FROM statements may be grouped with ordinary DML and DDL
+   * in a read-write transaction and are published by one checkpoint at
+   * Commit(). LOAD FROM may drive ordinary DML in a read-write transaction;
+   * graph-read-only LOAD FROM and COPY TO statements may run against either
+   * transaction mode. COPY TO output is external and is not removed by
+   * Rollback(). COPY TEMP may be mixed with durable graph mutations in a
+   * read-write transaction; only persistent changes are written to disk.
+   *
    * @return Status::OK on success. Otherwise:
    *         - ERR_CONNECTION_CLOSED if this Connection is closed
    *         - ERR_TX_STATE_CONFLICT if a transaction is already active
@@ -176,8 +184,10 @@ class NEUG_API Connection {
   /**
    * @brief Commit the active explicit transaction.
    *
-   * A read-write transaction appends and publishes its accumulated logical
-   * redo once. A read-only transaction only releases its pinned read view.
+   * A read-write transaction publishes its accumulated logical redo once,
+   * publishes one checkpoint when persistent COPY FROM makes bulk mutations,
+   * or publishes a transient-only graph without durable output. A read-only
+   * transaction only releases its pinned read view.
    *
    * @return A transaction-state error if no transaction is active or it is
    * rollback-only. A failed commit leaves the Connection rollback-only; call

@@ -57,14 +57,20 @@ ScanOptions parseOptions(const reader::options_t& values) {
       reader::Option<bool>::BoolOption("PRE_BUFFER", false);
   reader::Option<bool> coalescing =
       reader::Option<bool>::BoolOption("ENABLE_IO_COALESCING", true);
+  // Prefer the generic `batch_rows` option; `PARQUET_BATCH_ROWS` is kept
+  // as a deprecated alias.
   reader::Option<int64_t> rowBatch =
+      reader::Option<int64_t>::Int64Option("batch_rows", 65536);
+  reader::Option<int64_t> legacyRowBatch =
       reader::Option<int64_t>::Int64Option("PARQUET_BATCH_ROWS", 65536);
 
-  const int64_t rowBatchSize = rowBatch.get(values);
+  const int64_t rowBatchSize = values.count("batch_rows")
+                                   ? rowBatch.get(values)
+                                   : legacyRowBatch.get(values);
   const int64_t bufferSize = common.batch_size.get(values);
   if (rowBatchSize <= 0 || rowBatchSize > std::numeric_limits<int32_t>::max()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "PARQUET_BATCH_ROWS must be between 1 and INT32_MAX");
+        "batch_rows must be between 1 and INT32_MAX");
   }
   if (bufferSize <= 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION("BATCH_SIZE must be positive");

@@ -247,6 +247,117 @@ test('test_explicit_transaction_connection_api', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Explicit-transaction COPY FROM smoke test: begin -> two COPY -> commit ->
+// reopen. The Node binding inherits this capability by passing through to the
+// C++ core; this smoke test guards that passthrough so a binding-layer
+// regression does not only surface on the user side.
+// ---------------------------------------------------------------------------
+
+test('test_explicit_transaction_commits_multiple_copies', () => {
+  const dbDir = makeTmpDir('explicit_copy_tx');
+  const csvDir = makeTmpDir('explicit_copy_csv');
+  const peopleA = path.join(csvDir, 'people_a.csv');
+  const peopleB = path.join(csvDir, 'people_b.csv');
+  fs.writeFileSync(peopleA, 'id,name\n1,Alice\n');
+  fs.writeFileSync(peopleB, 'id,name\n2,Bob\n');
+
+  const db = new Database({
+    databasePath: dbDir,
+    mode: 'w',
+    checkpointOnClose: false,
+  });
+  const conn = db.connect();
+  conn.execute(
+    'CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));'
+  );
+
+  conn.beginTransaction();
+  conn.execute(`COPY Person FROM '${peopleA}' (HEADER=true, DELIMITER=',');`);
+  assert.deepEqual(
+    [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
+    [[1n]]
+  );
+  conn.execute(`COPY Person FROM '${peopleB}' (HEADER=true, DELIMITER=',');`);
+  conn.commit();
+  assert.deepEqual(
+    [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
+    [[1n], [2n]]
+  );
+
+  conn.beginTransaction({ readOnly: true });
+  assert.throws(
+    () => conn.execute(`COPY Person FROM '${peopleA}' (HEADER=true, DELIMITER=',');`),
+    (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
+  );
+  assert.equal(conn.hasActiveTransaction, true);
+  conn.rollback();
+  conn.close();
+  db.close();
+
+  // Reopen: the single-checkpoint COPY transaction must be durable.
+  const reopenedDb = new Database({
+    databasePath: dbDir,
+    mode: 'w',
+    checkpointOnClose: false,
+  });
+  const reopenedConn = reopenedDb.connect();
+  assert.deepEqual(
+    [...reopenedConn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
+    [[1n], [2n]]
+  );
+  reopenedConn.close();
+  reopenedDb.close();
+});
+
+// ---------------------------------------------------------------------------
+// Temporary and persistent mutations share one explicit-transaction commit.
+// Both the logical-WAL and persistent-COPY checkpoint paths must retain the
+// temporary graph in memory without recovering it after reopen.
+// ---------------------------------------------------------------------------
+
+for (const persistentCopy of [false, true]) {
+  test(`test_explicit_transaction_mixes_copy_temp_${persistentCopy ? 'checkpoint' : 'wal'}`, () => {
+    const dbDir = makeTmpDir('mixed_temp_tx');
+    const csvDir = makeTmpDir('mixed_temp_csv');
+    const people = path.join(csvDir, 'people.csv');
+    fs.writeFileSync(people, 'id,name\n1,Alice\n2,Bob\n');
+    const config = { databasePath: dbDir, mode: 'w', checkpointOnClose: false };
+    const db = new Database(config);
+    const conn = db.connect();
+    const query = 'MATCH (p:Person) RETURN p.id, p.name ORDER BY p.id;';
+    try {
+      conn.beginTransaction();
+      conn.execute(`COPY TEMP Stage FROM '${people}' (HEADER=true, DELIMITER=',');`);
+      conn.execute('CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));');
+      if (persistentCopy) {
+        conn.execute(`COPY Person FROM '${people}' (HEADER=true, DELIMITER=',');`);
+      } else {
+        conn.execute('MATCH (s:Stage) CREATE (:Person {id: s.id, name: s.name});');
+      }
+      conn.execute("MATCH (s:Stage) SET s.name = 'temporary';");
+      conn.commit();
+      assert.deepEqual([...conn.execute(query)], [[1n, 'Alice'], [2n, 'Bob']]);
+      assert.deepEqual(
+        [...conn.execute("MATCH (s:Stage {name: 'temporary'}) RETURN count(s);")],
+        [[2n]]
+      );
+    } finally {
+      conn.close();
+      db.close();
+    }
+    const reopenedDb = new Database(config);
+    const reopenedConn = reopenedDb.connect();
+    try {
+      assert.equal(reopenedConn.getSchema().includes('Stage'), false);
+      assert.deepEqual([...reopenedConn.execute(query)], [[1n, 'Alice'], [2n, 'Bob']]);
+    } finally {
+      reopenedConn.close();
+      reopenedDb.close();
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // DB-004-12
 // ---------------------------------------------------------------------------
 
