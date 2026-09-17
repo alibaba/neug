@@ -85,14 +85,13 @@ Status CurrentCowWriteTransaction::Commit() {
   // Redo contains only persistent mutations. Publish the whole workspace
   // after WAL append so temporary and persistent changes become visible once.
 
-  // The current WAL API cannot distinguish a pre-write failure from an
-  // uncertain partial append. Until W1 framing supplies that decision, any
-  // append failure must fail-stop instead of reopening the AP gate and
-  // reporting an ordinary rollback.
+  // Abort only if no record bytes were written. An uncertain append must
+  // fail-stop because recovery cannot safely discard partial WAL records.
   try {
     if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
-      LOG(FATAL) << "AP WAL append failed after commit append began; "
-                    "terminating with the current slot unchanged";
+      Abort();
+      return Status::InternalError(
+          "WAL append failed before writing AP commit");
     }
   } catch (const std::exception& e) {
     LOG(FATAL) << "AP WAL append failed after commit append began: " << e.what()
