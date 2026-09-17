@@ -120,6 +120,14 @@ class RelExpression final : public NodeOrRelExpression {
     recursiveInfo = std::move(recursiveInfo_);
   }
   const RecursiveInfo* getRecursiveInfo() const { return recursiveInfo.get(); }
+  void setRecursiveNodePredicate(std::shared_ptr<Expression> predicate) {
+    NEUG_ASSERT(recursiveInfo != nullptr);
+    recursiveInfo->nodePredicate = std::move(predicate);
+  }
+  void setRecursiveRelPredicate(std::shared_ptr<Expression> predicate) {
+    NEUG_ASSERT(recursiveInfo != nullptr);
+    recursiveInfo->relPredicate = std::move(predicate);
+  }
   std::shared_ptr<Expression> getLengthExpression() const {
     NEUG_ASSERT(recursiveInfo != nullptr);
     return recursiveInfo->bindData->lengthExpr;
