@@ -1412,6 +1412,24 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
+    def test_httpfs_appears_in_show_loaded_extensions(self):
+        """Regression test for #1094.
+
+        `LOAD httpfs` must register the extension with the ExtensionAPI so it
+        shows up in `SHOW_LOADED_EXTENSIONS()`. Previously httpfs only
+        registered its s3/oss/http/https VFS providers and never called
+        ExtensionAPI::registerExtension, so it was missing from the output
+        (while fts/parquet/gds/vector_search appeared).
+        """
+        self.conn.execute("load httpfs")
+        rows = list(self.conn.execute("CALL SHOW_LOADED_EXTENSIONS() RETURN *;"))
+        # Each row is a (name, description) pair.
+        names = {str(row[0]).lower() for row in rows}
+        assert (
+            "httpfs" in names
+        ), f"httpfs missing from SHOW_LOADED_EXTENSIONS(); got {sorted(names)}"
+
+    @extension_test
     def test_load_from_parquet_on_public_httpfs_aws(self):
         """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
 
