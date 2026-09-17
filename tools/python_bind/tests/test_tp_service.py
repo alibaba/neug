@@ -258,7 +258,7 @@ def test_invalid_access_mode_in_session(tmp_path):
     db.close()
 
 
-def test_tp_inferred_read_mode_ignores_update_keywords_in_comments(
+def test_tp_inferred_read_mode_ignores_comments_and_quoted_contents(
     tmp_path, unused_tcp_port
 ):
     db_dir = str(tmp_path / "commented_read_query_db")
@@ -276,16 +276,20 @@ def test_tp_inferred_read_mode_ignores_update_keywords_in_comments(
     wait_for_server_ready(endpoint)
     session = Session.open(endpoint, timeout="10s")
     try:
-        queries = [
-            "// SET n.id = 2\nMATCH (n:person) RETURN n.id;",
-            "/* SET n.id = 2 */ MATCH (n:person) RETURN n.id;",
-            "MATCH (n:person) // SET n.id = 2\nRETURN n.id;",
-            "MATCH (n:person) /* SET n.id = 2 */ RETURN n.id;",
-            "MATCH (n:person) RETURN n.id; // SET n.id = 2",
-            "MATCH (n:person) RETURN n.id; /* SET n.id = 2 */",
+        cases = [
+            ("// SET n.id = 2\nMATCH (n:person) RETURN n.id;", [[1]]),
+            ("/* SET n.id = 2 */ MATCH (n:person) RETURN n.id;", [[1]]),
+            ("MATCH (n:person) // SET n.id = 2\nRETURN n.id;", [[1]]),
+            ("MATCH (n:person) /* SET n.id = 2 */ RETURN n.id;", [[1]]),
+            ("MATCH (n:person) RETURN n.id; // SET n.id = 2", [[1]]),
+            ("MATCH (n:person) RETURN n.id; /* SET n.id = 2 */", [[1]]),
+            ('RETURN "delete";', [["delete"]]),
+            ("RETURN 'delete';", [["delete"]]),
+            ('RETURN "// delete";', [["// delete"]]),
+            ('RETURN "/* delete */";', [["/* delete */"]]),
         ]
-        for query in queries:
-            assert list(session.execute(query)) == [[1]], query
+        for query, expected in cases:
+            assert list(session.execute(query)) == expected, query
     finally:
         session.close()
         db_ro.stop_serving()
