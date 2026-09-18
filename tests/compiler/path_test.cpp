@@ -199,6 +199,30 @@ TEST_F(PathTest, Properties) {
                                       getPathResource("Properties_physical"));
 }
 
+TEST_F(PathTest, NamedPathWithSingleNode) {
+  std::string query = "MATCH p = (a:person) RETURN p";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+
+  const physical::Project* project = nullptr;
+  for (int i = 0; i < physical->plan_size(); ++i) {
+    if (physical->plan(i).opr().has_project()) {
+      project = &physical->plan(i).opr().project();
+    }
+  }
+  ASSERT_NE(project, nullptr);
+  ASSERT_EQ(project->mappings_size(), 1);
+
+  const auto& operators = project->mappings(0).expr().operators();
+  ASSERT_EQ(operators.size(), 1);
+  ASSERT_TRUE(operators.Get(0).has_udf_func());
+  const auto& single_node_path = operators.Get(0).udf_func();
+  EXPECT_EQ(single_node_path.name(), "gs.function.singleNodePath");
+  ASSERT_EQ(single_node_path.parameters_size(), 1);
+  ASSERT_EQ(single_node_path.parameters(0).operators_size(), 1);
+  EXPECT_TRUE(single_node_path.parameters(0).operators(0).has_var());
+}
+
 TEST_F(PathTest, NamedPathUsesVariadicConcat) {
   std::string query =
       "MATCH p = (a:person)-[:knows]->(b:person)-[:knows]->(c:person)-"

@@ -427,11 +427,24 @@ def test_consecutive_recursive_relationships_named_path(modern_graph):
         assert length >= 2
 
 
-def test_zero_length_named_path_is_rejected(modern_graph):
-    with pytest.raises(
-        RuntimeError, match="Named path must contain at least one relationship"
-    ):
-        modern_graph.execute("MATCH p = (a:person) RETURN p;")
+def test_zero_length_named_path(modern_graph):
+    result = modern_graph.execute(
+        """
+        MATCH p = (a:person {name: 'marko'})
+        RETURN p, length(p), nodes(p), rels(p),
+               properties(nodes(p), 'name')
+        """
+    )
+
+    records = list(result)
+    assert len(records) == 1
+    path, length, nodes, rels, node_names = records[0]
+    assert path["length"] == length == 0
+    assert path["nodes"] == nodes
+    assert path["rels"] == rels == []
+    assert len(nodes) == 1
+    assert nodes[0]["name"] == "marko"
+    assert node_names == ["marko"]
 
 
 def test_named_path_with_explicit_relationship_alias(modern_graph):

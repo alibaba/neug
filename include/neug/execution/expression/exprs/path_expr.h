@@ -56,6 +56,21 @@ class PathRelationsExpr : public ExprBase {
   std::unique_ptr<ExprBase> path_expr_;
 };
 
+class SingleNodePathExpr : public ExprBase {
+ public:
+  explicit SingleNodePathExpr(std::unique_ptr<ExprBase>&& node_expr)
+      : node_expr_(std::move(node_expr)), type_(DataType::PATH) {}
+
+  const DataType& type() const override { return type_; }
+
+  std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
+                                       const ParamsMap& params) const override;
+
+ private:
+  std::unique_ptr<ExprBase> node_expr_;
+  DataType type_;
+};
+
 class SingleRelationshipPathExpr : public ExprBase {
  public:
   SingleRelationshipPathExpr(std::unique_ptr<ExprBase>&& start_expr,

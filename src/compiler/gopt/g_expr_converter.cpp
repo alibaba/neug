@@ -135,9 +135,22 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPath(
     const binder::PathExpression& expr,
     const std::vector<std::string>& schemaAlias) {
   const auto& children = expr.getChildren();
-  if (children.size() < 3 || children.size() % 2 == 0) {
+  if (children.empty() || children.size() % 2 == 0) {
     THROW_NOT_SUPPORTED_EXCEPTION("Invalid named path expression: " +
                                   expr.toString());
+  }
+
+  if (children.size() == 1) {
+    auto pathFunc = std::make_unique<::common::UserDefinedFunction>();
+    pathFunc->set_name("gs.function.singleNodePath");
+    auto node = convert(*children.front(), schemaAlias);
+    pathFunc->mutable_parameters()->AddAllocated(node.release());
+    auto result = std::make_unique<::common::Expression>();
+    auto pathOpr = result->add_operators();
+    pathOpr->set_allocated_udf_func(pathFunc.release());
+    pathOpr->set_allocated_node_type(
+        typeConverter.convertLogicalType(expr.getDataType()).release());
+    return result;
   }
 
   std::vector<std::unique_ptr<::common::Expression>> segments;

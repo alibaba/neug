@@ -81,6 +81,33 @@ std::unique_ptr<BindedExprBase> PathRelationsExpr::bind(
       path_expr_->bind(storage, params));
 }
 
+class BindedSingleNodePathExpr : public RecordExprBase {
+ public:
+  explicit BindedSingleNodePathExpr(std::unique_ptr<BindedExprBase>&& node_expr)
+      : node_expr_(std::move(node_expr)), type_(DataType::PATH) {}
+
+  const DataType& type() const override { return type_; }
+
+  Value eval_record(const DataChunk& chunk, size_t idx) const override {
+    auto node_val = node_expr_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (node_val.IsNull()) {
+      return Value(type_);
+    }
+    const auto& node = node_val.GetValue<vertex_t>();
+    return Value::PATH(Path(node.label(), node.vid()));
+  }
+
+ private:
+  std::unique_ptr<BindedExprBase> node_expr_;
+  DataType type_;
+};
+
+std::unique_ptr<BindedExprBase> SingleNodePathExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  return std::make_unique<BindedSingleNodePathExpr>(
+      node_expr_->bind(storage, params));
+}
+
 class BindedSingleRelationshipPathExpr : public RecordExprBase {
  public:
   BindedSingleRelationshipPathExpr(std::unique_ptr<BindedExprBase>&& start_expr,

@@ -235,6 +235,12 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<PathRelationsExpr>(std::move(expr));
       } else if (name == "gs.function.nodes") {
         return std::make_unique<PathNodesExpr>(std::move(expr));
+      } else if (name == "gs.function.singleNodePath") {
+        if (op.parameters_size() != 1) {
+          THROW_INVALID_ARGUMENT_EXCEPTION(
+              "singleNodePath expects one parameter");
+        }
+        return std::make_unique<SingleNodePathExpr>(std::move(expr));
       } else if (name == "gs.function.singleRelationshipPath") {
         if (op.parameters_size() != 3) {
           THROW_INVALID_ARGUMENT_EXCEPTION(
