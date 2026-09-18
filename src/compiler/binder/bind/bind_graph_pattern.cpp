@@ -838,101 +838,133 @@ static std::shared_ptr<Expression> copyPredicateForVariable(
   return result;
 }
 
+static void collectBooleanTerms(ExpressionType expressionType,
+                                const std::shared_ptr<Expression>& expression,
+                                expression_vector& terms,
+                                std::unordered_set<std::string>& seen) {
+  if (!expression) {
+    return;
+  }
+  if (expression->expressionType == expressionType) {
+    for (const auto& child : expression->getChildren()) {
+      collectBooleanTerms(expressionType, child, terms, seen);
+    }
+    return;
+  }
+  if (seen.insert(expression->getUniqueName()).second) {
+    terms.push_back(expression);
+  }
+}
+
+static std::shared_ptr<Expression> combineBooleanExpressionsDeduplicated(
+    ExpressionBinder& expressionBinder, ExpressionType expressionType,
+    std::shared_ptr<Expression> left, std::shared_ptr<Expression> right) {
+  expression_vector terms;
+  std::unordered_set<std::string> seen;
+  collectBooleanTerms(expressionType, left, terms, seen);
+  collectBooleanTerms(expressionType, right, terms, seen);
+  std::shared_ptr<Expression> result;
+  for (auto& term : terms) {
+    result = expressionBinder.combineBooleanExpressions(
+        expressionType, std::move(result), term);
+  }
+  return result;
+}
+
+static bool containsEntry(const NodeOrRelExpression& pattern,
+                          common::table_id_t tableID) {
+  const auto& entries = pattern.getEntries();
+  return std::any_of(entries.begin(), entries.end(),
+                     [tableID](const SchemaEntry* entry) {
+                       return entry->get_entry_id() == tableID;
+                     });
+}
+
+static std::shared_ptr<Expression> buildNamespacePatternPredicate(
+    ExpressionBinder& expressionBinder, const NodeOrRelExpression& pattern,
+    const std::vector<graph::BoundGraphEntryTableInfo>& infos) {
+  std::vector<const graph::BoundGraphEntryTableInfo*> matchingInfos;
+  bool hasPredicate = false;
+  for (const auto& info : infos) {
+    if (!containsEntry(pattern, info.entry->get_entry_id())) {
+      continue;
+    }
+    matchingInfos.push_back(&info);
+    hasPredicate = hasPredicate || info.predicate != nullptr;
+  }
+  // Table IDs on Scan/GetV/EdgeExpand already enforce membership in the
+  // projected graph. A label expression is needed only to select different
+  // predicates for multiple candidate labels.
+  if (!hasPredicate) {
+    return nullptr;
+  }
+  const bool needsLabelDiscriminator = matchingInfos.size() > 1;
+  std::shared_ptr<Expression> combined;
+  for (const auto* info : matchingInfos) {
+    auto branch =
+        copyPredicateForVariable(info->predicate, pattern.getUniqueName());
+    if (needsLabelDiscriminator) {
+      auto label = expressionBinder.createLiteralExpression(
+          compiler_impl::Value(info->entry->get_label()));
+      auto labelPredicate = expressionBinder.createEqualityComparisonExpression(
+          pattern.getLabelExpression(), std::move(label));
+      branch = combineBooleanExpressionsDeduplicated(
+          expressionBinder, ExpressionType::AND, std::move(labelPredicate),
+          std::move(branch));
+    }
+    combined = combineBooleanExpressionsDeduplicated(
+        expressionBinder, ExpressionType::OR, std::move(combined),
+        std::move(branch));
+  }
+  return combined;
+}
+
 void Binder::collectNamespaceNodePredicate(
-    const NodePattern& nodePattern, const std::shared_ptr<NodeExpression>& node,
+    const NodePattern& /*nodePattern*/,
+    const std::shared_ptr<NodeExpression>& node,
     expression_vector& namespacePredicates) {
   if (!activeNamespaceName) {
     return;
   }
   const auto& bound = bindProjectedGraph(*activeNamespaceName);
-  const auto& names = nodePattern.getTableNames();
-  std::shared_ptr<Expression> combined;
-  for (const auto& info : bound.nodeInfos) {
-    if (!names.empty() && std::find(names.begin(), names.end(),
-                                    info.entry->get_label()) == names.end()) {
-      continue;
-    }
-    auto label = expressionBinder.createLiteralExpression(
-        compiler_impl::Value(info.entry->get_label()));
-    auto branch = expressionBinder.createEqualityComparisonExpression(
-        node->getLabelExpression(), label);
-    auto predicate =
-        copyPredicateForVariable(info.predicate, node->getUniqueName());
-    if (predicate) {
-      branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
-                                                          branch, predicate);
-    }
-    combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
-                                                          combined, branch);
-  }
+  auto combined =
+      buildNamespacePatternPredicate(expressionBinder, *node, bound.nodeInfos);
   if (combined) {
     namespacePredicates.push_back(std::move(combined));
   }
 }
 
 void Binder::collectNamespaceRelPredicate(
-    const RelPattern& relPattern, const std::shared_ptr<RelExpression>& rel,
+    const RelPattern& /*relPattern*/, const std::shared_ptr<RelExpression>& rel,
     expression_vector& namespacePredicates) {
   if (!activeNamespaceName) {
     return;
   }
   const auto& bound = bindProjectedGraph(*activeNamespaceName);
-  const auto& names = relPattern.getTableNames();
-  // Index the already-bound node predicates once. Relationship endpoint
-  // predicate lookup is then O(1) per endpoint instead of rebinding every
-  // node predicate for every relationship (O(E * V)).
-  std::unordered_map<common::table_id_t, std::shared_ptr<Expression>>
-      nodePredicates;
-  nodePredicates.reserve(bound.nodeInfos.size());
-  for (const auto& nodeInfo : bound.nodeInfos) {
-    const auto insertResult = nodePredicates.emplace(
-        nodeInfo.entry->get_entry_id(), nodeInfo.predicate);
-    if (!insertResult.second) {
-      THROW_BINDER_EXCEPTION(stringFormat(
-          "Namespace '{}' contains duplicate predicates for node label '{}'.",
-          *activeNamespaceName, nodeInfo.entry->get_label()));
+  for (const auto& endpoint : {rel->getSrcNode(), rel->getDstNode()}) {
+    auto endpointPredicate = buildNamespacePatternPredicate(
+        expressionBinder, *endpoint, bound.nodeInfos);
+    if (endpointPredicate) {
+      namespacePredicates.push_back(std::move(endpointPredicate));
     }
   }
-  std::shared_ptr<Expression> combined;
-  for (const auto& info : bound.relInfos) {
-    if (!names.empty() && std::find(names.begin(), names.end(),
-                                    info.entry->get_label()) == names.end()) {
-      continue;
-    }
-    auto label = expressionBinder.createLiteralExpression(
-        compiler_impl::Value(info.entry->get_label()));
-    auto branch = expressionBinder.createEqualityComparisonExpression(
-        rel->getLabelExpression(), label);
-    auto predicate =
-        copyPredicateForVariable(info.predicate, rel->getUniqueName());
-    if (predicate) {
-      branch = expressionBinder.combineBooleanExpressions(ExpressionType::AND,
-                                                          branch, predicate);
-    }
-    auto* edge = dynamic_cast<EdgeSchema*>(info.entry);
-    NEUG_ASSERT(edge != nullptr);
-    auto addEndpointPredicate =
-        [&](common::table_id_t tableID,
-            const std::shared_ptr<NodeExpression>& endpoint) {
-          const auto it = nodePredicates.find(tableID);
-          if (it == nodePredicates.end()) {
-            THROW_BINDER_EXCEPTION(stringFormat(
-                "Namespace '{}' relationship '{}' references node table ID "
-                "{}, but the corresponding node predicate is missing.",
-                *activeNamespaceName, info.entry->get_label(), tableID));
-          }
-          auto endpointPredicate =
-              copyPredicateForVariable(it->second, endpoint->getUniqueName());
-          if (endpointPredicate) {
-            branch = expressionBinder.combineBooleanExpressions(
-                ExpressionType::AND, branch, endpointPredicate);
-          }
-        };
-    addEndpointPredicate(edge->getSrcTableID(), rel->getSrcNode());
-    addEndpointPredicate(edge->getDstTableID(), rel->getDstNode());
-    combined = expressionBinder.combineBooleanExpressions(ExpressionType::OR,
-                                                          combined, branch);
+  if (rel->isRecursive()) {
+    auto recursiveInfo = rel->getRecursiveInfo();
+    NEUG_ASSERT(recursiveInfo != nullptr);
+    auto relPredicate = buildNamespacePatternPredicate(
+        expressionBinder, *recursiveInfo->rel, bound.relInfos);
+    rel->setRecursiveRelPredicate(combineBooleanExpressionsDeduplicated(
+        expressionBinder, ExpressionType::AND, recursiveInfo->relPredicate,
+        std::move(relPredicate)));
+    auto nodePredicate = buildNamespacePatternPredicate(
+        expressionBinder, *recursiveInfo->node, bound.nodeInfos);
+    rel->setRecursiveNodePredicate(combineBooleanExpressionsDeduplicated(
+        expressionBinder, ExpressionType::AND, recursiveInfo->nodePredicate,
+        std::move(nodePredicate)));
+    return;
   }
+  auto combined =
+      buildNamespacePatternPredicate(expressionBinder, *rel, bound.relInfos);
   if (combined) {
     namespacePredicates.push_back(std::move(combined));
   }
