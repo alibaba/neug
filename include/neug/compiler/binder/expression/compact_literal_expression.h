@@ -40,7 +40,7 @@ class CompactLiteralExpression final : public Expression {
   CompactLiteralExpression(common::DataType dataType,
                            std::vector<CompactLiteralSegment> segments,
                            std::string uniqueName)
-      : Expression{common::ExpressionType::LITERAL, std::move(dataType),
+      : Expression{common::ExpressionType::COMPACT_LITERAL, std::move(dataType),
                    std::move(uniqueName)},
         segments_{std::move(segments)} {}
 
@@ -51,8 +51,6 @@ class CompactLiteralExpression final : public Expression {
   }
 
   uint64_t getElementCount() const;
-
-  compiler_impl::Value materialize() const;
 
   std::string toStringInternal() const override;
 

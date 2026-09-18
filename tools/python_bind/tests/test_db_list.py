@@ -45,6 +45,37 @@ def test_compact_list_literal_expression(tmp_path):
     db.close()
 
 
+def test_compact_list_literal_consumers(tmp_path):
+    """Compact literals stay type-safe through casts and comparisons."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(conn.execute("RETURN CAST([1:2], 'FLOAT[]'), [1:2] = [1:2];"))[0]
+    assert _nested_list(row[0]) == [1.0, 1.0]
+    assert row[1] is True
+
+    conn.execute(
+        "CREATE NODE TABLE CompactConsumer("
+        "id INT64, embedding FLOAT[4], PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE (:CompactConsumer " "{id: 1, embedding: CAST([-1:4], 'FLOAT[4]')});"
+    )
+    assert list(
+        conn.execute(
+            "MATCH (n:CompactConsumer) " "WHERE n.embedding = [-1:4] RETURN n.id;"
+        )
+    ) == [[1]]
+
+    with pytest.raises(
+        RuntimeError, match="number of rows to skip/limit must be a parameter/literal"
+    ):
+        list(conn.execute("RETURN 1 SKIP [1:2];"))
+
+    conn.close()
+    db.close()
+
+
 @pytest.mark.parametrize("ddl_path", ["create", "alter"])
 def test_compact_list_default_forms_in_ddl(tmp_path, ddl_path):
     """All documented compact forms work for LIST defaults in DDL."""

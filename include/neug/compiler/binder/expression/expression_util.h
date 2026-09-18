@@ -65,6 +65,9 @@ struct NEUG_API ExpressionUtil {
   static bool isBoolLiteral(const Expression& expression);
   static bool isFalseLiteral(const Expression& expression);
   static bool isEmptyList(const Expression& expression);
+  // True for regular and compact literals. This does not imply that expression
+  // can be cast to LiteralExpression.
+  static bool isLiteralLike(const Expression& expression);
 
   static void validateExpressionType(const Expression& expr,
                                      common::ExpressionType expectedType);

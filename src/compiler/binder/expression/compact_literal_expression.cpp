@@ -111,17 +111,6 @@ uint64_t CompactLiteralExpression::getElementCount() const {
   return count;
 }
 
-compiler_impl::Value CompactLiteralExpression::materialize() const {
-  std::vector<std::unique_ptr<compiler_impl::Value>> children;
-  children.reserve(getElementCount());
-  for (const auto& segment : segments_) {
-    for (uint64_t i = 0; i < segment.repeatCount; ++i) {
-      children.push_back(segment.value.copy());
-    }
-  }
-  return compiler_impl::Value(dataType.copy(), std::move(children));
-}
-
 std::string CompactLiteralExpression::toStringInternal() const {
   std::ostringstream ss;
   ss << "[";

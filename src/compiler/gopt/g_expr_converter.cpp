@@ -86,11 +86,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     }
   }
   switch (expr.expressionType) {
+  case common::ExpressionType::COMPACT_LITERAL:
+    return convertCompactLiteral(
+        static_cast<const binder::CompactLiteralExpression&>(expr));
   case common::ExpressionType::LITERAL: {
-    if (auto compact =
-            dynamic_cast<const binder::CompactLiteralExpression*>(&expr)) {
-      return convertCompactLiteral(*compact);
-    }
     return convertLiteral(static_cast<const binder::LiteralExpression&>(
         expr));  // todo: add literal data type
   }
