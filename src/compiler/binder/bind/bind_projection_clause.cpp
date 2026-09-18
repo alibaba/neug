@@ -337,7 +337,8 @@ bool Binder::isOrderByKeyTypeSupported(const DataType& dataType) {
 std::shared_ptr<Expression> Binder::bindSkipLimitExpression(
     const ParsedExpression& expression) {
   auto boundExpression = expressionBinder.bindExpression(expression);
-  if (!ExpressionUtil::canEvaluateAsLiteral(*boundExpression)) {
+  if (boundExpression->expressionType != ExpressionType::LITERAL &&
+      boundExpression->expressionType != ExpressionType::PARAMETER) {
     THROW_BINDER_EXCEPTION(
         "The number of rows to skip/limit must be a parameter/literal "
         "expression.");
