@@ -72,6 +72,8 @@ void ExpressionVisitor::visitSwitch(std::shared_ptr<Expression> expr) {
   case ExpressionType::LITERAL: {
     visitLiteralExpr(expr);
   } break;
+  case ExpressionType::COMPACT_LITERAL:
+    break;
   case ExpressionType::VARIABLE: {
     visitVariableExpr(expr);
   } break;
@@ -300,9 +302,24 @@ void RenameDependentVar::visitFunctionExpr(std::shared_ptr<Expression> expr) {
       functionExpr->getFunction().name, expr->getChildren()));
 }
 
+static bool containsCompactLiteral(const Expression& expr) {
+  if (expr.expressionType == ExpressionType::COMPACT_LITERAL) {
+    return true;
+  }
+  for (const auto& child : ExpressionChildrenCollector::collectChildren(expr)) {
+    if (containsCompactLiteral(*child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool ConstantExpressionVisitor::needFold(const Expression& expr) {
-  if (expr.expressionType == common::ExpressionType::LITERAL) {
+  if (ExpressionUtil::isLiteralLike(expr)) {
     return false;  // No need to fold a literal.
+  }
+  if (containsCompactLiteral(expr)) {
+    return false;  // Compact literals are expanded by the execution engine.
   }
   return isConstant(expr);
 }
@@ -310,6 +327,7 @@ bool ConstantExpressionVisitor::needFold(const Expression& expr) {
 bool ConstantExpressionVisitor::isConstant(const Expression& expr) {
   switch (expr.expressionType) {
   case ExpressionType::LITERAL:
+  case ExpressionType::COMPACT_LITERAL:
     return true;
   case ExpressionType::AGGREGATE_FUNCTION:
   case ExpressionType::PROPERTY:

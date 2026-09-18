@@ -22,6 +22,8 @@
 
 #include "neug/compiler/binder/expression/expression_util.h"
 
+#include "neug/compiler/binder/expression/compact_literal_expression.h"
+
 #include <algorithm>
 
 #include "neug/compiler/binder/expression/literal_expression.h"
@@ -224,6 +226,9 @@ bool ExpressionUtil::isEmptyList(const Expression& expression) {
   case ExpressionType::LITERAL: {
     val = expression.constCast<LiteralExpression>().getValue();
   } break;
+  case ExpressionType::COMPACT_LITERAL:
+    return expression.constCast<CompactLiteralExpression>().getElementCount() ==
+           0;
   case ExpressionType::PARAMETER: {
     val = expression.constCast<ParameterExpression>().getValue();
   } break;
@@ -234,6 +239,11 @@ bool ExpressionUtil::isEmptyList(const Expression& expression) {
     return false;
   }
   return val.getChildrenSize() == 0;
+}
+
+bool ExpressionUtil::isLiteralLike(const Expression& expression) {
+  return expression.expressionType == ExpressionType::LITERAL ||
+         expression.expressionType == ExpressionType::COMPACT_LITERAL;
 }
 
 void ExpressionUtil::validateExpressionType(const Expression& expr,
@@ -448,14 +458,14 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
   std::vector<DataType> primaryTypes;
   bool propKeyValues = false;
   if (expressions.size() == 2 &&
-          expressions.at(0)->expressionType == ExpressionType::PROPERTY &&
-          expressions.at(1)->expressionType == ExpressionType::LITERAL ||
-      expressions.at(0)->expressionType == ExpressionType::LITERAL &&
-          expressions.at(1)->expressionType == ExpressionType::PROPERTY) {
+      ((expressions.at(0)->expressionType == ExpressionType::PROPERTY &&
+        isLiteralLike(*expressions.at(1))) ||
+       (isLiteralLike(*expressions.at(0)) &&
+        expressions.at(1)->expressionType == ExpressionType::PROPERTY))) {
     propKeyValues = true;
   }
   for (auto& expr : expressions) {
-    if (expr->expressionType != ExpressionType::LITERAL) {
+    if (!isLiteralLike(*expr)) {
       primaryTypes.push_back(expr->getDataType().copy());
       continue;
     }
@@ -466,6 +476,10 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
     // int32 in schema, even though the literal expression '12345' is int64,
     // which has a wider range.
     if (!propKeyValues) {
+      if (expr->expressionType == ExpressionType::COMPACT_LITERAL) {
+        primaryTypes.push_back(expr->getDataType().copy());
+        continue;
+      }
       auto literalExpr = expr->constPtrCast<LiteralExpression>();
       if (literalExpr->getValue().allowTypeChange()) {
         secondaryValues.push_back(literalExpr->getValue());
@@ -497,6 +511,26 @@ bool ExpressionUtil::canCastStatically(const Expression& expr,
   case ExpressionType::LITERAL: {
     auto value = expr.constPtrCast<LiteralExpression>()->getValue();
     return compatible(value, targetType);
+  }
+  case ExpressionType::COMPACT_LITERAL: {
+    if (targetType.id() != DataTypeId::kList &&
+        targetType.id() != DataTypeId::kArray) {
+      return false;
+    }
+    const auto& compact = expr.constCast<CompactLiteralExpression>();
+    if (targetType.id() == DataTypeId::kArray &&
+        compact.getElementCount() != ArrayType::GetNumElements(targetType)) {
+      return false;
+    }
+    const auto& childType = targetType.id() == DataTypeId::kArray
+                                ? ArrayType::GetChildType(targetType)
+                                : ListType::GetChildType(targetType);
+    for (const auto& segment : compact.getSegments()) {
+      if (!compatible(segment.value, childType)) {
+        return false;
+      }
+    }
+    return true;
   }
   case ExpressionType::PARAMETER: {
     auto value = expr.constPtrCast<ParameterExpression>()->getValue();

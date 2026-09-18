@@ -111,7 +111,7 @@ expression_vector Schema::getExpressionsInScope(f_group_pos pos) const {
 
 bool Schema::evaluable(const Expression& expression) const {
   auto inScope = isExpressionInScope(expression);
-  if (expression.expressionType == ExpressionType::LITERAL || inScope) {
+  if (ExpressionUtil::isLiteralLike(expression) || inScope) {
     return true;
   }
   auto children = ExpressionChildrenCollector::collectChildren(expression);

@@ -162,6 +162,7 @@ FilterPushDownOptimizer::visitCrossProductReplace(
 static bool isConstantExpression(const std::shared_ptr<Expression> expression) {
   switch (expression->expressionType) {
   case ExpressionType::LITERAL:
+  case ExpressionType::COMPACT_LITERAL:
   case ExpressionType::PARAMETER: {
     return true;
   }
@@ -206,7 +207,7 @@ static bool tryRewriteNodePKIn(PredicateSet& predicates,
     // dynamic parameter. Computed and upstream expressions fall back.
     auto collection = candidate->getChild(0);
     if (!function::ListFunctionUtils::isListLike(collection->getDataType()) ||
-        (collection->expressionType != ExpressionType::LITERAL &&
+        (!ExpressionUtil::isLiteralLike(*collection) &&
          collection->expressionType != ExpressionType::PARAMETER)) {
       continue;
     }

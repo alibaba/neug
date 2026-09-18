@@ -98,6 +98,11 @@ def test_show_node_tables(schema_connection):
             "RETURN vertex_label_name, primary_key, temporary;"
         )
     ) == [["Company", "id", False], ["Person", "id", False]]
+    with pytest.raises(
+        RuntimeError,
+        match="Compact literals are not supported as table function parameters",
+    ):
+        list(conn.execute("CALL SHOW_NODE_TABLES(['Person':2]) RETURN *;"))
 
 
 def test_show_rel_tables(schema_connection):

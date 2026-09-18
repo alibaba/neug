@@ -52,6 +52,7 @@ enum class ExpressionType : uint8_t {
   PROPERTY = 60,
 
   LITERAL = 70,
+  COMPACT_LITERAL = 71,
 
   STAR = 80,
 

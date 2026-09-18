@@ -172,6 +172,27 @@ message ToArray {
   repeated Expression fields = 1;
 }
 
+// Compact representation for constant list/array literals.
+// A plain element uses repeat_count = 1; a compact fill segment uses
+// repeat_count > 1. For example:
+//   [-1:4]        -> [{value: -1, repeat_count: 4}]
+//   [-1:2; 0:3]  -> [{value: -1, repeat_count: 2}, {value: 0, repeat_count: 3}]
+//   [7, 8, -1:2] -> [{value: 7, repeat_count: 1},
+//                    {value: 8, repeat_count: 1},
+//                    {value: -1, repeat_count: 2}]
+message CompactConstField {
+  common.Value value = 1;
+  uint64 repeat_count = 2;
+}
+
+message ToListCompact {
+  repeated CompactConstField fields = 1;
+}
+
+message ToArrayCompact {
+  repeated CompactConstField fields = 1;
+}
+
 message VariableKeyValue {
   common.Value key = 1;
   oneof value {
@@ -315,6 +336,8 @@ message ExprOpr {
     ScalarFunction scalar_func = 23;
     ToList to_list = 24;
     ToArray to_array = 25;
+    ToListCompact to_list_compact = 26;
+    ToArrayCompact to_array_compact = 27;
   }
   // The data of type of ExprOpr
   common.IrDataType node_type = 12;

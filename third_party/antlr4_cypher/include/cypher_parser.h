@@ -101,16 +101,17 @@ public:
     RuleOC_NullOperatorExpression = 143, RuleOC_PropertyOrLabelsExpression = 144,
     RuleOC_Atom = 145, RuleOC_Quantifier = 146, RuleOC_FilterExpression = 147,
     RuleOC_IdInColl = 148, RuleOC_Literal = 149, RuleOC_BooleanLiteral = 150,
-    RuleOC_ListLiteral = 151, RuleNEUG_ListEntry = 152, RuleNEUG_StructLiteral = 153,
-    RuleNEUG_StructField = 154, RuleOC_ParenthesizedExpression = 155, RuleOC_FunctionInvocation = 156,
-    RuleOC_FunctionName = 157, RuleNEUG_FunctionParameter = 158, RuleNEUG_LambdaParameter = 159,
-    RuleNEUG_LambdaVars = 160, RuleOC_PathPatterns = 161, RuleOC_ExistCountSubquery = 162,
-    RuleOC_PropertyLookup = 163, RuleOC_CaseExpression = 164, RuleOC_CaseAlternative = 165,
-    RuleOC_Variable = 166, RuleOC_NumberLiteral = 167, RuleOC_Parameter = 168,
-    RuleOC_PropertyExpression = 169, RuleOC_PropertyKeyName = 170, RuleOC_IntegerLiteral = 171,
-    RuleOC_DoubleLiteral = 172, RuleOC_SchemaName = 173, RuleOC_SymbolicName = 174,
-    RuleNEUG_NonReservedKeywords = 175, RuleOC_LeftArrowHead = 176, RuleOC_RightArrowHead = 177,
-    RuleOC_Dash = 178
+    RuleOC_ListLiteral = 151, RuleNEUG_ListEntry = 152, RuleNEUG_CompactListLiteral = 153,
+    RuleNEUG_CompactListSegment = 154, RuleNEUG_CompactListEntry = 155,
+    RuleNEUG_StructLiteral = 156, RuleNEUG_StructField = 157, RuleOC_ParenthesizedExpression = 158,
+    RuleOC_FunctionInvocation = 159, RuleOC_FunctionName = 160, RuleNEUG_FunctionParameter = 161,
+    RuleNEUG_LambdaParameter = 162, RuleNEUG_LambdaVars = 163, RuleOC_PathPatterns = 164,
+    RuleOC_ExistCountSubquery = 165, RuleOC_PropertyLookup = 166, RuleOC_CaseExpression = 167,
+    RuleOC_CaseAlternative = 168, RuleOC_Variable = 169, RuleOC_NumberLiteral = 170,
+    RuleOC_Parameter = 171, RuleOC_PropertyExpression = 172, RuleOC_PropertyKeyName = 173,
+    RuleOC_IntegerLiteral = 174, RuleOC_DoubleLiteral = 175, RuleOC_SchemaName = 176,
+    RuleOC_SymbolicName = 177, RuleNEUG_NonReservedKeywords = 178, RuleOC_LeftArrowHead = 179,
+    RuleOC_RightArrowHead = 180, RuleOC_Dash = 181
   };
 
   explicit CypherParser(antlr4::TokenStream *input);
@@ -283,6 +284,9 @@ public:
   class OC_BooleanLiteralContext;
   class OC_ListLiteralContext;
   class NEUG_ListEntryContext;
+  class NEUG_CompactListLiteralContext;
+  class NEUG_CompactListSegmentContext;
+  class NEUG_CompactListEntryContext;
   class NEUG_StructLiteralContext;
   class NEUG_StructFieldContext;
   class OC_ParenthesizedExpressionContext;
@@ -2591,6 +2595,7 @@ public:
     antlr4::tree::TerminalNode *StringLiteral();
     OC_BooleanLiteralContext *oC_BooleanLiteral();
     antlr4::tree::TerminalNode *NULL_();
+    NEUG_CompactListLiteralContext *nEUG_CompactListLiteral();
     OC_ListLiteralContext *oC_ListLiteral();
     NEUG_StructLiteralContext *nEUG_StructLiteral();
 
@@ -2637,6 +2642,51 @@ public:
   };
 
   NEUG_ListEntryContext* nEUG_ListEntry();
+
+  class  NEUG_CompactListLiteralContext : public antlr4::ParserRuleContext {
+  public:
+    NEUG_CompactListLiteralContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    NEUG_CompactListSegmentContext *nEUG_CompactListSegment();
+    std::vector<antlr4::tree::TerminalNode *> SP();
+    antlr4::tree::TerminalNode* SP(size_t i);
+    std::vector<OC_ExpressionContext *> oC_Expression();
+    OC_ExpressionContext* oC_Expression(size_t i);
+    std::vector<NEUG_CompactListEntryContext *> nEUG_CompactListEntry();
+    NEUG_CompactListEntryContext* nEUG_CompactListEntry(size_t i);
+
+
+  };
+
+  NEUG_CompactListLiteralContext* nEUG_CompactListLiteral();
+
+  class  NEUG_CompactListSegmentContext : public antlr4::ParserRuleContext {
+  public:
+    NEUG_CompactListSegmentContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    OC_ExpressionContext *oC_Expression();
+    antlr4::tree::TerminalNode *COLON();
+    OC_IntegerLiteralContext *oC_IntegerLiteral();
+    std::vector<antlr4::tree::TerminalNode *> SP();
+    antlr4::tree::TerminalNode* SP(size_t i);
+
+
+  };
+
+  NEUG_CompactListSegmentContext* nEUG_CompactListSegment();
+
+  class  NEUG_CompactListEntryContext : public antlr4::ParserRuleContext {
+  public:
+    NEUG_CompactListEntryContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    NEUG_CompactListSegmentContext *nEUG_CompactListSegment();
+    OC_ExpressionContext *oC_Expression();
+    antlr4::tree::TerminalNode *SP();
+
+
+  };
+
+  NEUG_CompactListEntryContext* nEUG_CompactListEntry();
 
   class  NEUG_StructLiteralContext : public antlr4::ParserRuleContext {
   public:

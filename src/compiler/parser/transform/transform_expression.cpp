@@ -20,6 +20,9 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <cstdint>
+#include <exception>
+
 #include "neug/compiler/function/aggregate/count_star.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
@@ -456,10 +459,49 @@ std::unique_ptr<ParsedExpression> Transformer::transformLiteral(
         compiler_impl::Value::createNullValue(), ctx.getText());
   } else if (ctx.nEUG_StructLiteral()) {
     return transformStructLiteral(*ctx.nEUG_StructLiteral());
+  } else if (ctx.nEUG_CompactListLiteral()) {
+    return transformCompactListLiteral(*ctx.nEUG_CompactListLiteral());
   } else {
     NEUG_ASSERT(ctx.oC_ListLiteral());
     return transformListLiteral(*ctx.oC_ListLiteral());
   }
+}
+
+std::unique_ptr<ParsedExpression> Transformer::transformCompactListLiteral(
+    CypherParser::NEUG_CompactListLiteralContext& ctx) {
+  static constexpr std::string_view compactDefaultFunction =
+      "NEUG_COMPACT_DEFAULT";
+  auto compact = std::make_unique<ParsedFunctionExpression>(
+      std::string(compactDefaultFunction), ctx.getText());
+  for (auto* expression : ctx.oC_Expression()) {
+    compact->addChild(transformExpression(*expression));
+    compact->addChild(
+        std::make_unique<ParsedLiteralExpression>(compiler_impl::Value(1)));
+  }
+  auto addSegment = [this, &compact](auto& segment) {
+    compact->addChild(transformExpression(*segment.oC_Expression()));
+    const auto countText = segment.oC_IntegerLiteral()->getText();
+    uint64_t repeatCount;
+    try {
+      repeatCount = std::stoull(countText);
+    } catch (const std::exception&) {
+      THROW_PARSER_EXCEPTION(
+          "Invalid compact literal repeat count: " + countText + ".");
+    }
+    compact->addChild(std::make_unique<ParsedLiteralExpression>(
+        compiler_impl::Value(repeatCount)));
+  };
+  addSegment(*ctx.nEUG_CompactListSegment());
+  for (auto* entry : ctx.nEUG_CompactListEntry()) {
+    if (entry->nEUG_CompactListSegment()) {
+      addSegment(*entry->nEUG_CompactListSegment());
+    } else {
+      compact->addChild(transformExpression(*entry->oC_Expression()));
+      compact->addChild(
+          std::make_unique<ParsedLiteralExpression>(compiler_impl::Value(1)));
+    }
+  }
+  return compact;
 }
 
 std::unique_ptr<ParsedExpression> Transformer::transformBooleanLiteral(

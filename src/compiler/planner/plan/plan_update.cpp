@@ -69,7 +69,7 @@ void Planner::planMergeClause(const BoundUpdatingClause* updatingClause,
   // Collect merge hash keys. See LogicalMerge for details.
   expression_vector keys;
   for (auto& expr : mergeClause.getColumnDataExprs()) {
-    if (expr->expressionType == ExpressionType::LITERAL ||
+    if (ExpressionUtil::isLiteralLike(*expr) ||
         expr->expressionType == ExpressionType::PARAMETER) {
       continue;
     }
