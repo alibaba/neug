@@ -89,7 +89,7 @@ LOAD FROM "person.parquet"
 RETURN *;
 ```
 
-See the [Parquet Extension](../extensions/load_parquet) page for format-specific options (`buffered_stream`, `pre_buffer`, `enable_io_coalescing`, `parquet_batch_rows`) and examples, including how to export query results to Parquet via `COPY TO`.
+See the [Parquet Extension](../extensions/load_parquet) page for format-specific options (`batch_size`, `buffered_stream`, `pre_buffer`, `enable_io_coalescing`, `batch_rows`) and examples, including how to export query results to Parquet via `COPY TO`.
 
 ## Relational Operations
 
@@ -140,6 +140,30 @@ RETURN name, CAST(age, 'DOUBLE') AS double_age;
 
 ### WHERE Filtering
 
+Only rows whose predicate evaluates to `true` are returned. Comparisons with
+`NULL` produce an unknown result; use `IS NULL` or `IS NOT NULL` to test for
+missing values. Boolean expressions preserve that unknown result unless the
+other operand determines the answer: `NULL AND false` is `false`, while
+`NULL OR true` is `true`.
+
+Predicates can include arithmetic, casts, and parameters. For example:
+
+```cypher
+LOAD FROM "person.jsonl"
+WHERE CAST(age, 'DOUBLE') + 1 > 30
+RETURN name;
+```
+
+Each file reader receives the complete predicate. It can filter during IO
+when its backend supports the expression; otherwise it evaluates the predicate
+on decoded data using NeuG's query expressions, before returning the requested
+columns. Filtering still applies when the predicate uses columns omitted from
+`RETURN`. Parameters use the values supplied for each query execution.
+
+This choice belongs to the reader: changing the file format does not require
+changing the query or discarding an unsupported filter. Decoded-data filtering
+may read more rows than native pushdown.
+
 Filter rows using the `WHERE` clause. Multiple conditions can be combined using `AND`, `OR`, and `NOT`:
 
 ```cypher
@@ -183,7 +207,7 @@ For large files, the following option can improve read performance:
 | ------------ | ----- | -------------- | ----------- |
 | `parallel`   | bool  | `false` | Enable parallel reading using multiple threads (max core number). When enabled for Parquet files, row groups are scanned concurrently and row order is **not** preserved. |
 
-> **Note:** Batch reading options (`batch_read`, `batch_size`) are currently supported in [`COPY FROM`](import_data#performance-options), not in `LOAD FROM`. 
+> **Note:** Batch reading options (`batch_read`, `batch_rows`) are currently supported in [`COPY FROM`](import_data#performance-options), not in `LOAD FROM`. 
 
 Example:
 

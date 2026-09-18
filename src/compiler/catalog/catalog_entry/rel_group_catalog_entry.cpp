@@ -65,32 +65,27 @@ std::unique_ptr<RelGroupCatalogEntry> RelGroupCatalogEntry::deserialize(
   return relGroupEntry;
 }
 
-static std::string getFromToStr(table_id_t tableID, Catalog* catalog,
-                                const transaction::Transaction* transaction) {
-  auto& entry = catalog->getTableCatalogEntry(transaction, tableID)
-                    ->constCast<RelTableCatalogEntry>();
+static std::string getFromToStr(table_id_t tableID, Catalog* catalog) {
+  auto& entry =
+      catalog->getTableCatalogEntry(tableID)->constCast<RelTableCatalogEntry>();
   auto srcTableName =
-      catalog->getTableCatalogEntry(transaction, entry.getSrcTableID())
-          ->getName();
+      catalog->getTableCatalogEntry(entry.getSrcTableID())->getName();
   auto dstTableName =
-      catalog->getTableCatalogEntry(transaction, entry.getDstTableID())
-          ->getName();
+      catalog->getTableCatalogEntry(entry.getDstTableID())->getName();
   return stringFormat("FROM `{}` TO `{}`", srcTableName, dstTableName);
 }
 
 std::string RelGroupCatalogEntry::toCypher(const ToCypherInfo& info) const {
   auto relGroupInfo = info.constCast<RelGroupToCypherInfo>();
   auto catalog = relGroupInfo.context->getCatalog();
-  auto transaction = relGroupInfo.context->getTransaction();
   std::stringstream ss;
   ss << stringFormat("CREATE REL TABLE `{}` (", getName());
   NEUG_ASSERT(!relTableIDs.empty());
-  ss << getFromToStr(relTableIDs[0], catalog, transaction);
+  ss << getFromToStr(relTableIDs[0], catalog);
   for (auto i = 1u; i < relTableIDs.size(); ++i) {
-    ss << stringFormat(", {}",
-                       getFromToStr(relTableIDs[i], catalog, transaction));
+    ss << stringFormat(", {}", getFromToStr(relTableIDs[i], catalog));
   }
-  auto childEntry = catalog->getTableCatalogEntry(transaction, relTableIDs[0])
+  auto childEntry = catalog->getTableCatalogEntry(relTableIDs[0])
                         ->ptrCast<RelTableCatalogEntry>();
   ss << ", " << childEntry->propertiesToCypher()
      << childEntry->getMultiplicityStr() << ");";

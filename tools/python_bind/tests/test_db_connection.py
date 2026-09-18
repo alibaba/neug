@@ -313,6 +313,40 @@ def test_default_access_mode_is_inferred(tmp_path):
         db_ro.close()
 
 
+def test_inferred_read_mode_ignores_comments_and_quoted_contents(tmp_path):
+    db_dir = tmp_path / "commented_read_query_db"
+    db_rw = Database(db_path=str(db_dir), mode="w")
+    conn_rw = db_rw.connect()
+    try:
+        conn_rw.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        conn_rw.execute("CREATE (:person {id: 1});")
+    finally:
+        conn_rw.close()
+        db_rw.close()
+
+    cases = [
+        ("// SET n.id = 2\nMATCH (n:person) RETURN n.id;", [[1]]),
+        ("/* SET n.id = 2 */ MATCH (n:person) RETURN n.id;", [[1]]),
+        ("MATCH (n:person) // SET n.id = 2\nRETURN n.id;", [[1]]),
+        ("MATCH (n:person) /* SET n.id = 2 */ RETURN n.id;", [[1]]),
+        ("MATCH (n:person) RETURN n.id; // SET n.id = 2", [[1]]),
+        ("MATCH (n:person) RETURN n.id; /* SET n.id = 2 */", [[1]]),
+        ('RETURN "delete";', [["delete"]]),
+        ("RETURN 'delete';", [["delete"]]),
+        ('RETURN "// delete";', [["// delete"]]),
+        ('RETURN "/* delete */";', [["/* delete */"]]),
+    ]
+
+    db_ro = Database(db_path=str(db_dir), mode="r")
+    conn_ro = db_ro.connect()
+    try:
+        for query, expected in cases:
+            assert list(conn_ro.execute(query)) == expected, query
+    finally:
+        conn_ro.close()
+        db_ro.close()
+
+
 def test_parallel_query_executions(tmp_path):
     db_dir = tmp_path / "parallel_query_db"
     shutil.rmtree(db_dir, ignore_errors=True)

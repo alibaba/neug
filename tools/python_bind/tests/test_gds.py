@@ -60,6 +60,89 @@ def tinysnb_connection(tmp_path):
         db.close()
 
 
+@contextmanager
+def namespace_operator_connection(tmp_path):
+    """A small graph that makes node and relationship filtering observable."""
+    db_dir = tmp_path / "namespace_operator_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    setup = [
+        "CREATE NODE TABLE person(id INT64 PRIMARY KEY, score INT64);",
+        "CREATE NODE TABLE organisation(id INT64 PRIMARY KEY, score INT64);",
+        (
+            "CREATE REL TABLE connects(FROM person TO person, "
+            "FROM person TO organisation, weight INT64);"
+        ),
+        "CREATE REL TABLE follows(FROM person TO person, weight INT64);",
+        "CREATE (:person {id: 1, score: 20});",
+        "CREATE (:person {id: 2, score: 15});",
+        "CREATE (:person {id: 3, score: 5});",
+        "CREATE (:person {id: 4, score: 30});",
+        "CREATE (:organisation {id: 10, score: 20});",
+        "CREATE (:organisation {id: 11, score: 5});",
+    ]
+    edges = [
+        (1, "person", 2, 10),
+        (2, "person", 4, 7),
+        (1, "person", 3, 10),
+        (1, "organisation", 10, 9),
+        (2, "organisation", 11, 9),
+        (4, "person", 1, 2),
+    ]
+    setup.extend(
+        "MATCH (a:person), (b:{}) WHERE a.id = {} AND b.id = {} "
+        "CREATE (a)-[:connects {{weight: {}}}]->(b);".format(
+            dst_label, src, dst, weight
+        )
+        for src, dst_label, dst, weight in edges
+    )
+    setup.extend(
+        "MATCH (a:person), (b:person) WHERE a.id = {} AND b.id = {} "
+        "CREATE (a)-[:follows {{weight: {}}}]->(b);".format(src, dst, weight)
+        for src, dst, weight in [
+            (1, 2, 10),
+            (2, 4, 7),
+            (1, 3, 10),
+            (4, 1, 2),
+        ]
+    )
+    try:
+        for statement in setup:
+            conn.execute(statement)
+        conn.execute(
+            "CALL project_graph('all_graph', ['person', 'organisation'], "
+            "{'[person, connects, person]': '', "
+            "'[person, connects, organisation]': ''});"
+        )
+        conn.execute(
+            "CALL project_graph('filtered_graph', "
+            "{'person': 'n.score >= 10', "
+            "'organisation': 'n.score >= 10'}, "
+            "{'[person, connects, person]': 'r.weight >= 5', "
+            "'[person, connects, organisation]': 'r.weight >= 5'});"
+        )
+        conn.execute(
+            "CALL project_graph('all_path_graph', ['person'], "
+            "{'[person, follows, person]': ''});"
+        )
+        conn.execute(
+            "CALL project_graph('filtered_path_graph', "
+            "{'person': 'n.score >= 10'}, "
+            "{'[person, follows, person]': 'r.weight >= 5'});"
+        )
+        yield conn
+    finally:
+        conn.close()
+        db.close()
+
+
+def _physical_operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
+
+
 def test_project_graph_and_drop_roundtrip(tmp_path):
     """Register a projected graph alias, then drop it (happy path)."""
     with tinysnb_connection(tmp_path) as conn:
@@ -292,6 +375,326 @@ def test_namespace_match_isolation_and_clause_scope(tmp_path):
             "{'[person, knows, person]': ''});"
         )
         assert _shown_projected_graph_names(conn) == ["adult_graph", "z_graph"]
+
+
+def test_namespace_variable_length_paths_and_predicate_planning(tmp_path):
+    """Namespace predicates target recursive edge/node variables, not PATH."""
+    with tinysnb_connection(tmp_path) as conn:
+        conn.execute(
+            "CALL project_graph('all_people', ['person'], "
+            "{'[person, knows, person]': ''});"
+        )
+
+        fixed_explain = conn.execute(
+            "EXPLAIN USE NAMESPACE all_people "
+            "MATCH (a:person)-[:knows]->(:person) RETURN a.id;"
+        )
+        fixed_operators = [
+            op["operator_name"]
+            for op in fixed_explain.get_profile_metrics()["operators"]
+        ]
+        base_explain = conn.execute(
+            "EXPLAIN MATCH (a:person)-[:knows]->(:person) RETURN a.id;"
+        )
+        base_operators = [
+            op["operator_name"]
+            for op in base_explain.get_profile_metrics()["operators"]
+        ]
+        assert fixed_operators == base_operators
+        assert "FilterOpr" not in fixed_operators
+
+        namespace_rows = list(
+            conn.execute(
+                "USE NAMESPACE all_people "
+                "MATCH (a:person)-[:knows*1..2]->(b:person) "
+                "RETURN DISTINCT a.id, b.id ORDER BY a.id, b.id;"
+            )
+        )
+        base_rows = list(
+            conn.execute(
+                "MATCH (a:person)-[:knows*1..2]->(b:person) "
+                "RETURN DISTINCT a.id, b.id ORDER BY a.id, b.id;"
+            )
+        )
+        assert namespace_rows == base_rows
+
+        conn.execute(
+            "CALL project_graph('adult_paths', {'person': 'n.age > 20'}, "
+            "{'[person, knows, person]': ''});"
+        )
+        namespace_adult_rows = list(
+            conn.execute(
+                "USE NAMESPACE adult_paths "
+                "MATCH (a:person)-[:knows*1..2]->(b:person) "
+                "RETURN DISTINCT a.id, b.id ORDER BY a.id, b.id;"
+            )
+        )
+        explicit_adult_rows = list(
+            conn.execute(
+                "MATCH (a:person)-[:knows*1..2 (r, n | WHERE n.age > 20)]->"
+                "(b:person) WHERE a.age > 20 AND b.age > 20 "
+                "RETURN DISTINCT a.id, b.id ORDER BY a.id, b.id;"
+            )
+        )
+        assert namespace_adult_rows == explicit_adult_rows
+
+        conn.execute(
+            "CALL project_graph('recent_paths', ['person'], "
+            "{'[person, knows, person]': "
+            "'r.date > Date(\"2021-01-01\")'});"
+        )
+        namespace_recent_rows = list(
+            conn.execute(
+                "USE NAMESPACE recent_paths "
+                "MATCH (a:person)-[:knows*1..2]->(b:person) "
+                "RETURN DISTINCT a.id, b.id ORDER BY a.id, b.id;"
+            )
+        )
+        explicit_recent_rows = list(
+            conn.execute(
+                "MATCH (a:person)-[:knows*1..2 "
+                '(r, n | WHERE r.date > Date("2021-01-01"))]->(b:person) '
+                "RETURN DISTINCT a.id, b.id ORDER BY a.id, b.id;"
+            )
+        )
+        assert namespace_recent_rows == explicit_recent_rows
+
+
+def test_issue_1093_namespace_variable_length_path_regression(tmp_path):
+    """Reproduce #1093: a namespaced variable-length path must not crash."""
+    db = Database(db_path=str(tmp_path / "issue_1093_db"), mode="w")
+    conn = db.connect()
+    try:
+        conn.execute("CREATE NODE TABLE onto(uri STRING PRIMARY KEY, scope_id STRING)")
+        conn.execute("CREATE REL TABLE relate(FROM onto TO onto)")
+
+        for i in range(6):
+            scope = "s0" if i < 4 else "s1"
+            conn.execute(
+                "CREATE (:onto {uri:$uri, scope_id:$scope})",
+                parameters={"uri": "u{}".format(i), "scope": scope},
+            )
+
+        for i in range(5):
+            conn.execute(
+                "MATCH (a:onto {uri:$a}), (b:onto {uri:$b}) "
+                "CREATE (a)-[:relate]->(b)",
+                parameters={
+                    "a": "u{}".format(i),
+                    "b": "u{}".format(i + 1),
+                },
+            )
+
+        conn.execute(
+            "CALL project_graph("
+            "'ns0', {'onto': 'n.scope_id = \"s0\"'}, "
+            "['[onto, relate, onto]'])"
+        )
+        query = (
+            "USE NAMESPACE ns0 "
+            "MATCH (a:onto {uri:'u0'})-[:relate*1..2]-(x) "
+            "RETURN DISTINCT x.uri"
+        )
+
+        assert sorted(row[0] for row in conn.execute(query)) == ["u0", "u1", "u2"]
+
+        profile = conn.execute("PROFILE " + query)
+        assert sorted(row[0] for row in profile) == ["u0", "u1", "u2"]
+        operators = _physical_operator_names(profile)
+        assert "PathExpandOpr" in operators
+        assert "GetVFromEdgesOpr" in operators
+        assert "FilterOpr" not in operators
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_namespace_without_predicates_has_no_filtering_operators(tmp_path):
+    """An unfiltered project_graph must plan exactly like the base graph."""
+    queries = [
+        ("all_graph", "MATCH (n:person) RETURN n.id"),
+        (
+            "all_graph",
+            "MATCH (a:person)-[r:connects]->(b:person) " "RETURN a.id, r.weight",
+        ),
+        (
+            "all_graph",
+            "MATCH (a:person)-[r:connects]->(b:person) "
+            "RETURN a.id, r.weight, b.score",
+        ),
+        (
+            "all_path_graph",
+            "MATCH (a:person)-[:follows*1..2]->(b:person) " "RETURN a.id, b.id",
+        ),
+    ]
+    with namespace_operator_connection(tmp_path) as conn:
+        for namespace, query in queries:
+            base_plan = _physical_operator_names(conn.execute("EXPLAIN " + query))
+            namespace_plan = _physical_operator_names(
+                conn.execute("EXPLAIN USE NAMESPACE {} ".format(namespace) + query)
+            )
+            assert namespace_plan == base_plan, query
+            assert "FilterOpr" not in namespace_plan, query
+            base_rows = sorted(tuple(row) for row in conn.execute(query))
+            namespace_rows = sorted(
+                tuple(row)
+                for row in conn.execute("USE NAMESPACE {} ".format(namespace) + query)
+            )
+            assert namespace_rows == base_rows, query
+
+        # Wildcard patterns cannot be compared with the base graph because the
+        # namespace intentionally hides non-projected tables. They must still
+        # avoid manufacturing label filters when every projected predicate is
+        # empty.
+        wildcard_queries = [
+            ("all_graph", "MATCH (n) RETURN n.id"),
+            ("all_graph", "MATCH (a)-[r]->(b) RETURN a.id, r.weight, b.id"),
+            ("all_path_graph", "MATCH (a)-[*1..2]->(b) RETURN a.id, b.id"),
+        ]
+        for namespace, query in wildcard_queries:
+            operators = _physical_operator_names(
+                conn.execute("EXPLAIN USE NAMESPACE {} ".format(namespace) + query)
+            )
+            assert "FilterOpr" not in operators, query
+
+
+@pytest.mark.parametrize(
+    "pattern, expected",
+    [
+        (
+            "(a:person)-[r:connects]->(b:person)",
+            {(1, 10, 2, 15), (2, 7, 4, 30)},
+        ),
+        (
+            "(a)-[r]->(b)",
+            {(1, 10, 2, 15), (2, 7, 4, 30), (1, 9, 10, 20)},
+        ),
+        (
+            "(a:person)-[r]->(b)",
+            {(1, 10, 2, 15), (2, 7, 4, 30), (1, 9, 10, 20)},
+        ),
+    ],
+    ids=["specified_labels", "no_labels", "partial_labels"],
+)
+def test_namespace_node_and_edge_predicates_reach_expand_and_get_v(
+    tmp_path, pattern, expected
+):
+    """Both predicates apply for fully, partially and unlabelled patterns."""
+    with namespace_operator_connection(tmp_path) as conn:
+        query = (
+            "PROFILE USE NAMESPACE filtered_graph MATCH {} "
+            "RETURN a.id, r.weight, b.id, b.score".format(pattern)
+        )
+        result = conn.execute(query)
+        assert {tuple(row) for row in result} == expected
+        operators = _physical_operator_names(result)
+        assert any("EdgeExpand" in operator for operator in operators)
+        assert any("GetV" in operator for operator in operators)
+        assert "FilterOpr" not in operators
+
+
+@pytest.mark.parametrize(
+    "pattern, expected",
+    [
+        (
+            "(a:person)-[:follows*1..2]->(b:person)",
+            {(1, 2), (1, 4), (2, 4)},
+        ),
+        (
+            "(a)-[*1..2]->(b)",
+            {(1, 2), (1, 4), (2, 4)},
+        ),
+        (
+            "(a:person)-[*1..2]->(b)",
+            {(1, 2), (1, 4), (2, 4)},
+        ),
+    ],
+    ids=["specified_labels", "no_labels", "partial_labels"],
+)
+def test_namespace_node_and_edge_predicates_reach_path_expand(
+    tmp_path, pattern, expected
+):
+    """PathExpand applies edge and every visited-node predicate recursively."""
+    with namespace_operator_connection(tmp_path) as conn:
+        result = conn.execute(
+            "PROFILE USE NAMESPACE filtered_path_graph "
+            "MATCH {} RETURN a.id, b.id".format(pattern)
+        )
+        assert {tuple(row) for row in result} == expected
+        operators = _physical_operator_names(result)
+        assert "PathExpandOprWithPred" in operators
+        assert "GetVFromEdgesOpr" in operators
+        assert "FilterOpr" not in operators
+
+
+@pytest.mark.parametrize(
+    "pattern, expected",
+    [
+        ("(n:person)", {1, 2, 4}),
+        ("(n)", {1, 2, 4, 10}),
+    ],
+    ids=["specified_label", "unspecified_label"],
+)
+def test_namespace_node_predicates_reach_scan(tmp_path, pattern, expected):
+    with namespace_operator_connection(tmp_path) as conn:
+        result = conn.execute(
+            "PROFILE USE NAMESPACE filtered_graph MATCH {} RETURN n.id".format(pattern)
+        )
+        assert {row[0] for row in result} == expected
+        operators = _physical_operator_names(result)
+        assert any("Scan" in operator for operator in operators)
+        assert "FilterOpr" not in operators
+
+
+def test_namespace_predicates_in_optional_match(tmp_path):
+    """OPTIONAL MATCH preserves rows while filtering its expand/GetV branch."""
+    with namespace_operator_connection(tmp_path) as conn:
+        result = conn.execute(
+            "PROFILE USE NAMESPACE filtered_graph MATCH (a) "
+            "OPTIONAL MATCH (a)-[r]->(b) "
+            "RETURN a.id, r.weight, b.id"
+        )
+        assert {tuple(row) for row in result} == {
+            (1, 10, 2),
+            (1, 9, 10),
+            (2, 7, 4),
+            (4, None, None),
+            (10, None, None),
+        }
+        operators = _physical_operator_names(result)
+        assert any("GetV" in operator for operator in operators)
+        assert "FilterOpr" not in operators
+
+        path_result = conn.execute(
+            "PROFILE USE NAMESPACE filtered_path_graph MATCH (a:person) "
+            "OPTIONAL MATCH (a)-[:follows*1..2]->(b:person) "
+            "RETURN a.id, b.id"
+        )
+        assert {tuple(row) for row in path_result} == {
+            (1, 2),
+            (1, 4),
+            (2, 4),
+            (4, None),
+        }
+        path_operators = _physical_operator_names(path_result)
+        assert "PathExpandOprWithPred" in path_operators
+        assert "FilterOpr" not in path_operators
+
+        unlabeled_path_result = conn.execute(
+            "PROFILE USE NAMESPACE filtered_path_graph MATCH (a) "
+            "OPTIONAL MATCH (a)-[b*1..2]->(c) "
+            "RETURN a.id, c.id"
+        )
+        assert {tuple(row) for row in unlabeled_path_result} == {
+            (1, 2),
+            (1, 4),
+            (2, 4),
+            (4, None),
+        }
+        unlabeled_path_operators = _physical_operator_names(unlabeled_path_result)
+        assert "PathExpandOprWithPred" in unlabeled_path_operators
+        assert "GetVFromEdgesOpr" in unlabeled_path_operators
+        assert "FilterOpr" not in unlabeled_path_operators
 
 
 def test_namespace_query_scope_for_union_subquery_and_gds(tmp_path):

@@ -19,6 +19,8 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include <cppjieba/DictTrie.hpp>
 #include <cppjieba/HMMModel.hpp>
@@ -41,24 +43,31 @@ class FTSTokenizer {
   virtual ~FTSTokenizer() = default;
 
   static std::shared_ptr<const FTSTokenizer> Create(FTSTokenizerConfig config);
+  void LoadStopwords(std::string_view stopwords);
 
   virtual std::string_view Name() const noexcept = 0;
   virtual void Register(SQLiteConnection& connection) const = 0;
   virtual int Tokenize(void* context, const char* text, int text_size,
                        int flags, FTS5TokenCallback emit) const = 0;
+
+ protected:
+  std::unordered_set<std::string> stopwords_;
 };
 
 class BuiltinFTSTokenizer final : public FTSTokenizer {
  public:
-  explicit BuiltinFTSTokenizer(std::string name);
+  static constexpr std::string_view kName{"builtin_stopwords"};
 
-  std::string_view Name() const noexcept override { return name_; }
+  explicit BuiltinFTSTokenizer(std::string builtin_name);
+
+  std::string_view Name() const noexcept override { return full_name_; }
   void Register(SQLiteConnection& connection) const override;
   int Tokenize(void* context, const char* text, int text_size, int flags,
                FTS5TokenCallback emit) const override;
 
  private:
-  std::string name_;
+  std::string builtin_name_;
+  std::string full_name_;
 };
 
 class JiebaFTSTokenizer final : public FTSTokenizer {
@@ -74,7 +83,6 @@ class JiebaFTSTokenizer final : public FTSTokenizer {
 
   std::string_view Name() const noexcept override { return kName; }
   void Register(SQLiteConnection& connection) const override;
-
   int Tokenize(void* context, const char* text, int text_size, int flags,
                FTS5TokenCallback emit) const override;
 

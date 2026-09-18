@@ -20,6 +20,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -30,10 +31,12 @@
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
+#include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/main/metadata_manager.h"
+#include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_order_by.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
@@ -227,7 +230,7 @@ std::shared_ptr<binder::Expression> MakeScoreColumn(
   return output;
 }
 
-const binder::PropertyExpression* GetVertexOnlyOutput(
+const binder::PropertyExpression* FindIndexVertexOutput(
     const planner::LogicalOperator& input,
     const binder::PropertyExpression& distance_property) {
   const auto* schema = input.getSchema();
@@ -239,27 +242,52 @@ const binder::PropertyExpression* GetVertexOnlyOutput(
     const binder::PropertyExpression* property = nullptr;
     if (expression->expressionType == common::ExpressionType::PATTERN) {
       const auto* node = expression->constPtrCast<binder::NodeExpression>();
-      if (node == nullptr || node->getTableIDs().size() != 1 ||
-          node->getTableIDs()[0] != distance_property.getSingleTableID()) {
-        return nullptr;
+      if (node == nullptr || node->getTableIDs().size() != 1) {
+        continue;
       }
       property =
           node->getInternalIDRef()->constPtrCast<binder::PropertyExpression>();
     } else if (expression->expressionType == common::ExpressionType::PROPERTY) {
       property = expression->constPtrCast<binder::PropertyExpression>();
     } else {
-      return nullptr;
+      continue;
     }
     if (property == nullptr || !property->isInternalID() ||
         !property->isSingleLabel() ||
         property->getSingleTableID() != distance_property.getSingleTableID()) {
-      return nullptr;
+      continue;
     }
     if (property->getVariableName() == distance_property.getVariableName()) {
+      if (vertex != nullptr &&
+          vertex->getUniqueName() != property->getUniqueName()) {
+        return nullptr;
+      }
       vertex = property;
     }
   }
   return vertex;
+}
+
+bool ProjectionNeedsCorrelatedInput(
+    const planner::LogicalProjection& projection,
+    const binder::PropertyExpression& distance_property,
+    const binder::ScalarFunctionExpression& distance) {
+  std::unordered_set<std::string> direct_output_variables{
+      distance_property.getVariableName(),
+      static_cast<const binder::Expression&>(distance).getUniqueName()};
+  if (distance.hasAlias()) {
+    direct_output_variables.insert(distance.getAlias());
+  }
+  for (const auto& expression : projection.getExpressionsToProject()) {
+    binder::DependentVarNameCollector collector;
+    collector.visit(expression);
+    for (const auto& variable_name : collector.getVarNames()) {
+      if (!direct_output_variables.contains(variable_name)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
@@ -269,20 +297,18 @@ std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
   const auto& scan = op.opr().index_scan();
   auto input = std::make_unique<HNSWIndexScanFuncInput>();
   std::string label;
-  std::string topk;
   for (const auto& option : scan.options()) {
     if (option.first == "label_id") {
       label = option.second;
-    } else if (option.first == "topk") {
-      topk = option.second;
     }
   }
-  if (label.empty() || scan.unique_index_name().empty() || topk.empty()) {
+  if (label.empty() || scan.unique_index_name().empty() || !scan.has_limit()) {
     THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN is missing required options");
   }
   input->label_id = ParseUnsignedOption<label_t>(label, "label_id");
   input->unique_index_name = scan.unique_index_name();
-  input->topk = ParseUnsignedOption<uint32_t>(topk, "topk");
+  input->range = std::make_unique<execution::ops::RangeExpression>(
+      scan.limit(), context_meta);
   input->target_value = execution::parse_expression(
       scan.target_value(), context_meta, execution::VarType::kRecord);
   if (op.meta_data_size() != 2) {
@@ -296,6 +322,16 @@ std::unique_ptr<function::CallFuncInputBase> BindHNSWIndexScan(
 execution::Context ExecuteHNSWIndexScan(
     const function::CallFuncInputBase& base_input, IStorageInterface& graph) {
   const auto& input = dynamic_cast<const HNSWIndexScanFuncInput&>(base_input);
+  if (input.bound_range == 0) {
+    execution::Context context;
+    execution::ContextChunk chunk;
+    MSVertexColumnBuilder vertex_builder(input.label_id);
+    ValueColumnBuilder<double> score_builder;
+    chunk.set(input.vertex_alias, vertex_builder.finish());
+    chunk.set(input.score_alias, score_builder.finish());
+    context.append_chunk(std::move(chunk));
+    return context;
+  }
   auto* reader = dynamic_cast<StorageReadInterface*>(&graph);
   if (reader == nullptr) {
     THROW_RUNTIME_ERROR("HNSW_INDEX_SCAN requires a readable graph");
@@ -303,13 +339,13 @@ execution::Context ExecuteHNSWIndexScan(
 
   HNSWIndexQueryParams params;
   params.target_value = input.bound_target_value;
-  params.topk = input.topk;
+  params.topk = input.bound_range;
   constexpr uint32_t kMinEfSearch = 100;
   constexpr uint32_t kMaxEfSearch = 2048;
   const auto doubled_topk =
-      input.topk > std::numeric_limits<uint32_t>::max() / 2
+      input.bound_range > std::numeric_limits<uint32_t>::max() / 2
           ? std::numeric_limits<uint32_t>::max()
-          : input.topk * 2;
+          : input.bound_range * 2;
   params.ef_search =
       std::min(std::max(doubled_topk, kMinEfSearch), kMaxEfSearch);
 
@@ -380,7 +416,8 @@ std::unique_ptr<function::CallFuncInputBase> HNSWIndexScanFuncInput::bindParams(
   auto bound = std::make_unique<HNSWIndexScanFuncInput>();
   bound->label_id = label_id;
   bound->unique_index_name = unique_index_name;
-  bound->topk = topk;
+  const auto resolved = range->bind(nullptr, params);
+  bound->bound_range = resolved.upper <= resolved.lower ? 0 : resolved.upper;
   bound->vertex_alias = vertex_alias;
   bound->score_alias = score_alias;
   bound->bound_target_value =
@@ -413,9 +450,7 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
     return op;
   }
   auto order_by = op->ptrCast<planner::LogicalOrderBy>();
-  if (!order_by->isTopK() ||
-      (order_by->getSkipNum() != 0 && order_by->getSkipNum() != UINT64_MAX) ||
-      order_by->getLimitNum() == 0 || order_by->getNumChildren() != 1) {
+  if (!order_by->isTopK() || order_by->getNumChildren() != 1) {
     return op;
   }
   auto child = order_by->getChild(0);
@@ -480,7 +515,7 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
     attach_input = scan->getPredicates() != nullptr ||
                    !scan->getPropertyPredicates().empty();
   } else {
-    vertex_output = GetVertexOnlyOutput(*input_op, *property);
+    vertex_output = FindIndexVertexOutput(*input_op, *property);
     if (vertex_output == nullptr) {
       return op;
     }
@@ -490,31 +525,46 @@ HNSWIndexScanOptimizer::visitOrderByReplace(
   if (function == nullptr) {
     return op;
   }
-  binder::expression_vector columns{MakeScanColumn(*vertex_output),
-                                    MakeScoreColumn(*distance)};
+  auto index_vertex = MakeScanColumn(*vertex_output);
+  binder::expression_vector columns{index_vertex, MakeScoreColumn(*distance)};
   auto bind_data = std::make_unique<function::IndexScanBindData>(
       columns, hnsw_index->GetMeta().name, target);
   bind_data->options["label_id"] = std::to_string(property->getSingleTableID());
-  bind_data->options["topk"] = std::to_string(order_by->getLimitNum());
+  bind_data->rangeOffset = order_by->getSkipNum();
+  bind_data->rangeLimit = order_by->getLimitNum();
 
   auto table_call = std::make_shared<planner::LogicalTableFunctionCall>(
       *function, std::move(bind_data));
-  if (attach_input) {
-    table_call->addChild(std::move(input_op));
+  if (ProjectionNeedsCorrelatedInput(*projection, *property, *distance)) {
+    table_call->computeFlatSchema();
+    auto left_key =
+        std::shared_ptr<binder::Expression>(vertex_output->copy().release());
+    std::vector<planner::join_condition_t> join_conditions{
+        {std::move(left_key), index_vertex}};
+    auto join = std::make_shared<planner::LogicalHashJoin>(
+        std::move(join_conditions), common::JoinType::INNER, nullptr, input_op,
+        table_call);
+    join->setPreQuery(true);
+    join->computeFlatSchema();
+    projection->setChild(0, std::move(join));
+  } else {
+    if (attach_input) {
+      table_call->addChild(std::move(input_op));
+    }
+    table_call->computeFlatSchema();
+    projection->setChild(0, std::move(table_call));
   }
-  table_call->computeFlatSchema();
-  projection->setChild(0, std::move(table_call));
+  // Keep OrderBy after the index scan so it applies the final skip/limit slice
+  // to the candidate set returned by HNSW.
   return op;
 }
 
 function::TableFunction* HNSWIndexScanOptimizer::GetIndexScanFunction(
     catalog::Catalog& catalog) const {
-  auto* transaction = &transaction::DUMMY_TRANSACTION;
-  if (!catalog.containsFunction(transaction, HNSWIndexScanFunction::name)) {
+  if (!catalog.containsFunction(HNSWIndexScanFunction::name)) {
     return nullptr;
   }
-  auto* entry =
-      catalog.getFunctionEntry(transaction, HNSWIndexScanFunction::name);
+  auto* entry = catalog.getFunctionEntry(HNSWIndexScanFunction::name);
   if (entry == nullptr ||
       entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY) {
     return nullptr;

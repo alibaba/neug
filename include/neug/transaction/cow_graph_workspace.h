@@ -57,31 +57,37 @@ class CowGraphWorkspace {
   }
   WalBuilder& logical_redo() { return logical_redo_; }
   const WalBuilder& logical_redo() const { return logical_redo_; }
+  // Sticky checkpoint requirement for mutations that cannot be recovered from
+  // logical_redo_ alone. Removing their final storage target does not clear it.
   void MarkBulkMutation() noexcept { bulk_mutation_changed_ = true; }
   // Persistent vertex COPY finalizes timestamp-zero rows immediately before
   // the private graph is consumed by its checkpoint. Keep the target set
   // transaction-local so unrelated dirty vertex tables are not compacted.
   void MarkBulkVertexTableForCheckpoint(label_t vertex_label);
-  const std::vector<label_t>& bulk_vertex_tables_for_checkpoint() const {
-    return bulk_vertex_tables_for_checkpoint_;
-  }
   // Persistent edge COPY compacts edge MVCC state and restores configured
   // neighbor ordering immediately before its checkpoint is consumed. Keep the
   // target set transaction-local so unrelated dirty edge tables are untouched.
   void MarkBulkEdgeTableForCheckpoint(uint32_t edge_triplet_id);
-  const std::vector<uint32_t>& bulk_edge_tables_for_checkpoint() const {
-    return bulk_edge_tables_for_checkpoint_;
-  }
+  // DROP removes a table from the live finalization set, but intentionally
+  // does not clear bulk_mutation_changed_: once a checkpoint-only mutation has
+  // occurred, the final workspace must still be committed by checkpoint.
+  void RemoveBulkVertexFinalizationTarget(label_t vertex_label) noexcept;
+  void RemoveBulkEdgeFinalizationTarget(uint32_t edge_triplet_id) noexcept;
   // Finalize persistent COPY targets recorded in this workspace: compact the
   // timestamp-zero tail of bulk-loaded vertex tables, compact edge MVCC state,
   // and restore configured neighbor ordering. CommitCowWrite invokes this
   // immediately before the checkpoint consumes the private graph, while normal
-  // rollback is still safe.
-  void FinalizeBulkTablesForCheckpoint();
+  // rollback is still safe. Returns an error if a destructive schema path left
+  // a stale target behind instead of unregistering it.
+  Status FinalizeBulkTablesForCheckpoint();
   bool HasBulkMutation() const noexcept { return bulk_mutation_changed_; }
   void MarkTransientMutation() noexcept { transient_mutation_changed_ = true; }
   bool HasTransientMutation() const noexcept {
     return transient_mutation_changed_;
+  }
+  bool HasDurableMutation() const noexcept {
+    return bulk_mutation_changed_ || logical_redo_.op_num() != 0 ||
+           logical_redo_.content_size() != 0;
   }
   bool PlanningChanged() const noexcept {
     return logical_redo_.schema_changed() || bulk_mutation_changed_ ||

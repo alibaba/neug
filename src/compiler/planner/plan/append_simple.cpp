@@ -83,8 +83,7 @@ void Planner::appendDropIndex(const BoundStatement& statement,
 bool Planner::tryGetTableEntry(const std::string& labelName) {
   try {
     auto catalog = clientContext->getCatalog();
-    auto transaction = clientContext->getTransaction();
-    auto* entry = catalog->getTableCatalogEntry(transaction, labelName);
+    auto* entry = catalog->getTableCatalogEntry(labelName);
     if (!entry) {
       return false;
     }

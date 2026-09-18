@@ -30,8 +30,81 @@
 #include "../include/http_options.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/utils/exception/exception.h"
+#ifdef NEUG_HTTPFS_CARQUET_TEST
+#include "carquet/chunk_supplier.h"
+#include "carquet/output_adapter.h"
+#include "neug/compiler/function/import/import_stream.h"
+#endif
 
 using namespace neug::extension::http;
+
+#ifdef NEUG_HTTPFS_CARQUET_TEST
+class HttpMemoryOutput final : public neug::io::OutputStream {
+ public:
+  explicit HttpMemoryOutput(std::shared_ptr<std::string> bytes)
+      : bytes_(std::move(bytes)) {}
+
+  neug::Status Write(const uint8_t* data, int64_t nbytes) override {
+    bytes_->append(reinterpret_cast<const char*>(data),
+                   static_cast<size_t>(nbytes));
+    return neug::Status::OK();
+  }
+  neug::Status Close() override { return neug::Status::OK(); }
+  void Abort() override { bytes_->clear(); }
+
+ private:
+  std::shared_ptr<std::string> bytes_;
+};
+
+std::string makeHttpPruningFixture() {
+  constexpr int64_t kRowsPerGroup = 300000;
+  carquet_error_t error = CARQUET_ERROR_INIT;
+  std::unique_ptr<carquet_schema_t, decltype(&carquet_schema_free)> schema(
+      carquet_schema_create(&error), carquet_schema_free);
+  EXPECT_NE(schema, nullptr) << error.message;
+  for (const char* name : {"selected", "unselected"}) {
+    EXPECT_EQ(
+        carquet_schema_add_column(schema.get(), name, CARQUET_PHYSICAL_INT64,
+                                  nullptr, CARQUET_REPETITION_REQUIRED, 0, 0),
+        CARQUET_OK);
+  }
+  carquet_writer_options_t options;
+  carquet_writer_options_init(&options);
+  options.compression = CARQUET_COMPRESSION_UNCOMPRESSED;
+  options.dictionary_encoding = CARQUET_ENCODING_PLAIN;
+  options.page_size = 64 * 1024;
+
+  auto bytes = std::make_shared<std::string>();
+  auto* writer = neug::parquet::createCarquetWriter(
+      std::make_unique<HttpMemoryOutput>(bytes), schema.get(), &options,
+      &error);
+  EXPECT_NE(writer, nullptr) << error.message;
+  std::vector<int64_t> values(static_cast<size_t>(kRowsPerGroup));
+  for (int64_t i = 0; i < kRowsPerGroup; ++i) {
+    values[static_cast<size_t>(i)] = i * 23 + 5;
+  }
+  for (int group = 0; writer && group < 2; ++group) {
+    if (group == 1) {
+      for (auto& value : values) {
+        value += 10000000;
+      }
+    }
+    for (int column = 0; column < 2; ++column) {
+      EXPECT_EQ(carquet_writer_write_batch(writer, column, values.data(),
+                                           kRowsPerGroup, nullptr, nullptr),
+                CARQUET_OK);
+    }
+    if (group == 0) {
+      EXPECT_EQ(carquet_writer_new_row_group(writer), CARQUET_OK);
+    }
+  }
+  if (writer) {
+    EXPECT_EQ(carquet_writer_close(writer), CARQUET_OK);
+  }
+  EXPECT_GT(bytes->size(), 8u * 1024u * 1024u);
+  return std::move(*bytes);
+}
+#endif
 
 class HTTPFileSystemTest : public ::testing::Test {
  protected:
@@ -743,6 +816,7 @@ class RangeKeepAliveHTTPServer {
   int port() const { return port_; }
   int connections() const { return connections_.load(); }
   int requests() const { return requests_.load(); }
+  int64_t bodyBytesSent() const { return body_bytes_sent_.load(); }
 
  private:
   void serve() {
@@ -813,6 +887,7 @@ class RangeKeepAliveHTTPServer {
                                       static_cast<size_t>(slice_len)))) {
           return;
         }
+        body_bytes_sent_.fetch_add(slice_len);
         continue;
       } else {
         response = "HTTP/1.1 200 OK\r\nContent-Length: " +
@@ -844,7 +919,56 @@ class RangeKeepAliveHTTPServer {
   std::atomic<int> connections_{0};
   std::atomic<int> requests_{0};
   std::atomic<int> active_fd_{-1};
+  std::atomic<int64_t> body_bytes_sent_{0};
 };
+
+#ifdef NEUG_HTTPFS_CARQUET_TEST
+TEST_F(HTTPFileSystemTest, CarquetPrunesRowGroupOverActualRangeTransport) {
+  const std::string body = makeHttpPruningFixture();
+  RangeKeepAliveHTTPServer server(body);
+  ASSERT_TRUE(server.start());
+
+  neug::common::case_insensitive_map_t<std::string> httpOptions;
+  HTTPFileSystem fs(httpOptions);
+  const std::string url =
+      "http://127.0.0.1:" + std::to_string(server.port()) + "/types.parquet";
+  auto opener = neug::function::makeImportStreamOpener(fs);
+  ASSERT_TRUE(opener);
+
+  auto filter = std::make_shared<::common::Expression>();
+  filter->add_operators()->mutable_var()->mutable_tag()->set_name("selected");
+  filter->add_operators()->set_logical(::common::Logical::GT);
+  filter->add_operators()->mutable_const_()->set_i64(8000000);
+  neug::parquet::CarquetReaderOptions readerOptions;
+  readerOptions.bufferedStream = false;
+  readerOptions.preBuffer = true;
+  readerOptions.topLevelFields = {0};
+  readerOptions.rowGroupFilter = std::move(filter);
+  auto supplier =
+      neug::parquet::CarquetChunkSupplier::create(opener(url), readerOptions);
+  ASSERT_TRUE(supplier) << supplier.error().ToString();
+  while ((*supplier)->GetNextChunk()) {}
+
+  EXPECT_EQ((*supplier)->selectedRowGroups(), (std::vector<int32_t>{1}));
+  EXPECT_EQ((*supplier)->rowGroupsRead(), 1u);
+  EXPECT_EQ((*supplier)->rowGroupsSkipped(), 1u);
+  EXPECT_GT(server.bodyBytesSent(), 0);
+  server.stop();
+
+  RangeKeepAliveHTTPServer fullServer(body);
+  ASSERT_TRUE(fullServer.start());
+  const std::string fullUrl =
+      "http://127.0.0.1:" + std::to_string(fullServer.port()) +
+      "/types.parquet";
+  readerOptions.rowGroupFilter.reset();
+  auto full = neug::parquet::CarquetChunkSupplier::create(opener(fullUrl),
+                                                          readerOptions);
+  ASSERT_TRUE(full) << full.error().ToString();
+  while ((*full)->GetNextChunk()) {}
+  EXPECT_LT(server.bodyBytesSent(), fullServer.bodyBytesSent());
+  fullServer.stop();
+}
+#endif
 
 TEST_F(HTTPFileSystemTest, ReadaheadAndConnectionReuse) {
   // 8 MiB body with a verifiable repeating pattern.

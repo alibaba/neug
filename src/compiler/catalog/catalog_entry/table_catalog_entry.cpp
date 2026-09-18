@@ -85,10 +85,7 @@ void TableCatalogEntry::renameProperty(const std::string& propertyName,
   propertyCollection.rename(propertyName, newName);
 }
 
-std::string TableCatalogEntry::getLabel(
-    const Catalog* catalog, const transaction::Transaction* transaction) {
-  return name;
-}
+std::string TableCatalogEntry::getLabel(const Catalog* catalog) { return name; }
 
 void TableCatalogEntry::serialize(Serializer& serializer) const {
   CatalogEntry::serialize(serializer);

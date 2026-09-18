@@ -60,6 +60,24 @@ def search(connection, query, limit=10):
     )
 
 
+def _profile_operator_names(result):
+    return [
+        operator["operator_name"]
+        for operator in result.get_profile_metrics()["operators"]
+    ]
+
+
+def add_fts_pattern_fanout(connection):
+    connection.execute(
+        "CREATE (:Article {id: 7, title: 'additional reference', "
+        "category: 'reference'});"
+    )
+    connection.execute(
+        "MATCH (article:Article {id: 1}), (cited:Article {id: 7}) "
+        "CREATE (article)-[:CITES]->(cited);"
+    )
+
+
 @pytest.fixture()
 def fts_database(tmp_path):
     db = Database(db_path=str(tmp_path / "fts_db"), mode="w")
@@ -351,8 +369,6 @@ def test_fts_topk_search(fts_database):
         pytest.param("n.id", "DESC", 2, id="column-desc-with-limit"),
         pytest.param(None, None, 0, id="zero-limit"),
         pytest.param(None, None, 4294967295, id="uint32-max-limit"),
-        pytest.param(None, None, 4294967296, id="uint32-overflow-limit"),
-        pytest.param(None, None, 9223372036854775807, id="int64-max-limit"),
     ],
 )
 def test_fts_order_by_limit(fts_database, order_by, direction, limit):
@@ -393,6 +409,92 @@ def test_fts_order_by_limit(fts_database, order_by, direction, limit):
     actual = list(fts_database.execute(query + ";"))
     assert [row[0] for row in actual] == [row[0] for row in expected]
     assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters"),
+    [
+        ("LIMIT 4294967296", None),
+        ("LIMIT $value", {"value": 2**32}),
+        ("SKIP 4294967296", None),
+        ("SKIP $value", {"value": 2**32}),
+    ],
+)
+def test_fts_rejects_range_values_above_uint32_max(fts_database, suffix, parameters):
+    with pytest.raises(Exception, match="exceeds maximum allowed value: 4294967295"):
+        fts_database.execute(
+            "MATCH (n:Item) "
+            "RETURN n.id, bm25(n.text, 'search') AS score "
+            f"ORDER BY score ASC {suffix}",
+            parameters=parameters,
+        )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "parameters", "start", "stop", "expect_limit_operator"),
+    [
+        pytest.param("LIMIT $k", {"k": 2}, 0, 2, True, id="limit"),
+        pytest.param("SKIP $offset", {"offset": 1}, 1, None, True, id="skip"),
+        pytest.param(
+            "SKIP $offset LIMIT $k",
+            {"offset": 1, "k": 1},
+            1,
+            2,
+            True,
+            id="skip-limit",
+        ),
+        pytest.param(
+            "ORDER BY score ASC LIMIT $k",
+            {"k": 2},
+            0,
+            2,
+            False,
+            id="order-by-limit",
+        ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset",
+            {"offset": 1},
+            1,
+            None,
+            True,
+            id="order-by-skip",
+        ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset LIMIT $k",
+            {"offset": 1, "k": 1},
+            1,
+            2,
+            True,
+            id="order-by-skip-limit",
+        ),
+        pytest.param(
+            "ORDER BY score ASC SKIP $offset LIMIT $k",
+            {"offset": 10, "k": 0},
+            10,
+            10,
+            True,
+            id="order-by-skip-zero-limit",
+        ),
+    ],
+)
+def test_fts_index_scan_with_dynamic_limit_and_skip(
+    fts_database, suffix, parameters, start, stop, expect_limit_operator
+):
+    query_prefix = "MATCH (n:Item) " "RETURN n.id, bm25(n.text, 'search') AS score"
+    exhaustive = list(fts_database.execute(query_prefix + " ORDER BY score ASC"))
+    result = fts_database.execute(
+        "PROFILE " + query_prefix + " " + suffix,
+        parameters=parameters,
+    )
+    actual = list(result)
+
+    expected = exhaustive[start:stop]
+    assert [row[0] for row in actual] == [row[0] for row in expected]
+    assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+    operator_names = _profile_operator_names(result)
+    assert "IndexScanOpr" in operator_names
+    assert "OrderByOpr" not in operator_names
+    assert ("LimitOpr" in operator_names) == expect_limit_operator
 
 
 @pytest.mark.parametrize(
@@ -487,6 +589,38 @@ def test_graph_candidates_receive_exact_fts_topk(fts_hybrid_database):
     )
     assert [row[0] for row in actual] == [row[0] for row in expected]
     assert [row[1] for row in actual] == pytest.approx([row[1] for row in expected])
+
+
+def test_fts_pattern_outputs_with_limit(fts_hybrid_database):
+    add_fts_pattern_fanout(fts_hybrid_database)
+    result = fts_hybrid_database.execute(
+        "PROFILE MATCH (article:Article)-[:CITES]->(cited:Article) "
+        "RETURN article.id, cited.id, "
+        "bm25(article.title, 'database') AS score LIMIT 2;"
+    )
+    rows = list(result)
+    assert {(row[0], row[1]) for row in rows} == {(1, 6), (1, 7)}
+    assert rows[0][2] == pytest.approx(rows[1][2])
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "LimitOpr" in operators
+
+
+def test_fts_pattern_outputs_with_order_by_limit(fts_hybrid_database):
+    add_fts_pattern_fanout(fts_hybrid_database)
+    result = fts_hybrid_database.execute(
+        "PROFILE MATCH (article:Article)-[:CITES]->(cited:Article) "
+        "RETURN article.id, cited.id, "
+        "bm25(article.title, 'database') AS score "
+        "ORDER BY score ASC LIMIT 2;"
+    )
+    rows = list(result)
+    assert {(row[0], row[1]) for row in rows} == {(1, 6), (1, 7)}
+    assert rows[0][2] == pytest.approx(rows[1][2])
+    operators = _profile_operator_names(result)
+    assert "IndexScanOpr" in operators
+    assert "OrderByOpr" not in operators
+    assert "LimitOpr" not in operators
 
 
 def test_show_and_drop_fts_index(fts_database):
@@ -702,6 +836,161 @@ def test_multiple_fts_indexes_for_same_property_are_ambiguous(fts_database):
         search(fts_database, "search")
 
 
+def test_fts_stopwords_default_english_and_none(tmp_path):
+    db = Database(db_path=str(tmp_path / "stopwords_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        for label in ("DefaultItem", "EnglishItem", "NoneItem", "CustomItem"):
+            connection.execute(
+                f"CREATE NODE TABLE {label}(id INT64 PRIMARY KEY, text STRING);"
+            )
+            connection.execute(
+                f"CREATE (:{label} {{id: 1, text: 'the alpha don\\'t'}}), "
+                f"(:{label} {{id: 2, text: 'alpha'}});"
+            )
+
+        connection.execute(
+            "CREATE INDEX default_item_fts ON DefaultItem USING FTS (text);"
+        )
+        connection.execute(
+            "CREATE INDEX english_item_fts ON EnglishItem USING FTS (text) "
+            "WITH (stopwords = 'english');"
+        )
+        connection.execute(
+            "CREATE INDEX none_item_fts ON NoneItem USING FTS (text) "
+            "WITH (stopwords = 'none');"
+        )
+        connection.execute(
+            "CREATE INDEX custom_item_fts ON CustomItem USING FTS (text) "
+            "WITH (stopwords = ['custom', 'don\\'t']);"
+        )
+
+        def search_label(label, query):
+            return [
+                row[0]
+                for row in connection.execute(
+                    f"MATCH (n:{label}) "
+                    "RETURN n.id, bm25(n.text, $query) AS score "
+                    "ORDER BY score ASC;",
+                    parameters={"query": query},
+                )
+            ]
+
+        for label in ("DefaultItem", "EnglishItem"):
+            assert search_label(label, "the") == []
+            assert set(search_label(label, "the alpha")) == {1, 2}
+            assert search_label(label, '"don\'t"') == [1]
+
+        assert search_label("NoneItem", "the") == [1]
+        assert search_label("NoneItem", "the alpha") == [1]
+        assert search_label("NoneItem", '"don\'t"') == [1]
+        assert search_label("CustomItem", "custom") == []
+        assert set(search_label("CustomItem", "custom alpha")) == {1, 2}
+        # unicode61 tokenizes "don't" as "don" and "t". The escaped list
+        # element is accepted, but custom stopwords match tokenizer output.
+        assert search_label("CustomItem", '"don\'t"') == [1]
+    finally:
+        connection.close()
+        db.close()
+
+
+def test_jieba_stopwords(tmp_path):
+    db = Database(db_path=str(tmp_path / "jieba_stopwords_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        for label in ("JiebaItem", "NoneItem"):
+            connection.execute(
+                f"CREATE NODE TABLE {label}(id INT64 PRIMARY KEY, text STRING);"
+            )
+            connection.execute(f"CREATE (:{label} {{id: 1, text: '我们是图数据库'}});")
+
+        connection.execute(
+            "CREATE INDEX jieba_item_fts ON JiebaItem USING FTS (text) "
+            "WITH (tokenizer = 'jieba', stopwords = 'jieba');"
+        )
+        connection.execute(
+            "CREATE INDEX none_item_fts ON NoneItem USING FTS (text) "
+            "WITH (tokenizer = 'jieba', stopwords = 'none');"
+        )
+
+        def search_label(label, query):
+            return [
+                row[0]
+                for row in connection.execute(
+                    f"MATCH (n:{label}) "
+                    "RETURN n.id, bm25(n.text, $query) AS score "
+                    "ORDER BY score ASC;",
+                    parameters={"query": query},
+                )
+            ]
+
+        assert search_label("JiebaItem", "我们") == []
+        assert search_label("NoneItem", "我们") == [1]
+        assert search_label("JiebaItem", "数据库") == [1]
+        assert search_label("NoneItem", "数据库") == [1]
+    finally:
+        connection.close()
+        db.close()
+
+
+def test_fts_stopwords_crlf_file(tmp_path):
+    stopwords_file = tmp_path / "stop_words.txt"
+    stopwords_file.write_bytes(b"custom\r\ndon't\r\n")
+    db = Database(db_path=str(tmp_path / "stopwords_file_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        connection.execute(
+            "CREATE (:Item {id: 1, text: 'custom alpha'}), "
+            "(:Item {id: 2, text: 'alpha'});"
+        )
+        connection.execute(
+            "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+            f"WITH (stopwords = '{stopwords_file}');"
+        )
+        assert search(connection, "custom") == []
+        assert {row[0] for row in search(connection, "alpha")} == {1, 2}
+    finally:
+        connection.close()
+        db.close()
+
+
+@pytest.mark.parametrize("from_file", [False, True])
+def test_fts_stopwords_persist_across_checkpoint(tmp_path, from_file):
+    stopwords_file = tmp_path / "stop_words.txt"
+    if from_file:
+        stopwords_file.write_text("custom\n", encoding="utf-8")
+    stopwords = f"'{stopwords_file}'" if from_file else "['custom']"
+    database_path = str(tmp_path / f"stopwords_{from_file}_fts_db")
+
+    db = Database(db_path=database_path, mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    create_item_table(connection)
+    connection.execute("CREATE (:Item {id: 1, text: 'custom alpha'});")
+    connection.execute(
+        "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+        f"WITH (stopwords = {stopwords});"
+    )
+    connection.close()
+    db.close()
+
+    if from_file:
+        stopwords_file.unlink()
+    reopened_db = Database(db_path=database_path, mode="w")
+    reopened_connection = reopened_db.connect()
+    try:
+        load_fts(reopened_connection)
+        assert search(reopened_connection, "custom") == []
+        assert [row[0] for row in search(reopened_connection, "alpha")] == [1]
+    finally:
+        reopened_connection.close()
+        reopened_db.close()
+
+
 @pytest.mark.parametrize(
     ("tokenizer", "jieba_mode", "expected_ids"),
     [
@@ -787,6 +1076,7 @@ def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
     [
         ("tokenizer", "unknown", "tokenizer"),
         ("jieba_mode", "mix", "jieba_mode"),
+        ("stopwords", "spanish", "stopwords"),
         ("prefix", "2 bad", "prefix"),
         ("detail", "full", "detail"),
     ],
@@ -800,9 +1090,26 @@ def test_create_fts_index_rejects_invalid_options(
         load_fts(connection, skip_if_unavailable=True)
         create_item_table(connection)
         with pytest.raises(RuntimeError, match=error_pattern):
+            escaped_value = value.replace("'", "\\'")
             connection.execute(
                 "CREATE INDEX item_text_fts ON Item USING FTS (text) "
-                f"WITH ({option} = '{value}');"
+                f"WITH ({option} = '{escaped_value}');"
+            )
+    finally:
+        connection.close()
+        db.close()
+
+
+def test_create_fts_index_rejects_non_string_custom_stopwords(tmp_path):
+    db = Database(db_path=str(tmp_path / "invalid_custom_stopwords_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        with pytest.raises(RuntimeError, match="stopwords"):
+            connection.execute(
+                "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+                "WITH (stopwords = ['valid', 42]);"
             )
     finally:
         connection.close()

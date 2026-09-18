@@ -356,8 +356,9 @@ install_curl() {
   rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
 }
 
-INTERACTIVE_MACOS=("xsimd" "cmake")
-INTERACTIVE_UBUNTU=("cmake" "libssl-dev") # levedb for brpc
+INTERACTIVE_MACOS=("xsimd" "cmake" "zstd" "lz4" "zlib")
+INTERACTIVE_UBUNTU=("cmake" "libssl-dev" "libzstd-dev" "liblz4-dev" "zlib1g-dev") # levedb for brpc
+INTERACTIVE_CENTOS=("libzstd-devel" "lz4-devel" "zlib-devel")
 
 install_neug_dependencies() {
   # dependencies package
@@ -370,6 +371,7 @@ install_neug_dependencies() {
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
     ${SUDO} sysctl -p /etc/sysctl.conf
   else
+    ${SUDO} yum install -y ${INTERACTIVE_CENTOS[*]}
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/lib/:/lib64${install_prefix}/lib:${install_prefix}/lib64
     if [[ "${OS_VERSION}" -eq "7" ]]; then
       source /opt/rh/devtoolset-10/enable
@@ -390,9 +392,10 @@ write_env_config() {
     echo "export NEUG_HOME=${install_prefix}"
     echo "export CMAKE_PREFIX_PATH=/opt/neug/"
     echo "export PATH=${install_prefix}/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH"
-    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}"
-    echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64:\${LIBRARY_PATH}"
-    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH}"
+    # The generated file may be sourced by shells using `set -u` in CI.
+    echo "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH:-}"
+    echo "export LIBRARY_PATH=${install_prefix}/lib:${install_prefix}/lib64:\${LIBRARY_PATH:-}"
+    echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH:-}"
   } >> "${OUTPUT_ENV_FILE}"
   {
     if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then

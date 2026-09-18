@@ -17,6 +17,7 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/limit.h"
+#include "neug/execution/execute/ops/retrieve/range_expression.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
@@ -28,14 +29,8 @@ class OprTimer;
 namespace ops {
 class LimitOpr : public IOperator {
  public:
-  explicit LimitOpr(const algebra::Limit& opr) {
-    lower_ = 0;
-    upper_ = std::numeric_limits<size_t>::max();
-    if (opr.has_range()) {
-      lower_ = std::max(lower_, static_cast<size_t>(opr.range().lower()));
-      upper_ = std::min(upper_, static_cast<size_t>(opr.range().upper()));
-    }
-  }
+  LimitOpr(const algebra::Limit& opr, const ContextMeta& ctx_meta)
+      : range_(opr.range(), ctx_meta) {}
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
@@ -43,23 +38,24 @@ class LimitOpr : public IOperator {
       IStorageInterface& graph, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
+    auto range = range_.bind(&graph, params);
     ctx.ensure_single_chunk("LimitOpr");
     return ctx.apply_chunks(
         [&](ContextChunk&& chunk) -> neug::result<ContextChunk> {
-          return Limit::limit(std::move(chunk), lower_, upper_);
+          return Limit::limit(std::move(chunk), range.lower, range.upper);
         });
   }
 
  private:
-  size_t lower_;
-  size_t upper_;
+  RangeExpression range_;
 };
 
 neug::result<OpBuildResultT> LimitOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(
-      std::make_unique<LimitOpr>(plan.plan(op_idx).opr().limit()), ctx_meta);
+      std::make_unique<LimitOpr>(plan.plan(op_idx).opr().limit(), ctx_meta),
+      ctx_meta);
 }
 
 }  // namespace ops

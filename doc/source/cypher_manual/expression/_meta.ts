@@ -5,6 +5,7 @@ export default {
   null_op: "Null Operators",
   list_op: "List Operators",
   list_func: "List Functions",
+  string_func: "String Functions",
   cast_func: "Cast Functions",
   agg_func: "Aggregate Functions",
   graph_func: "Graph Functions",

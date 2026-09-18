@@ -76,6 +76,8 @@ def test_list_append_documentation_examples(item_connection):
     # executed as a zero-child ToList expression at runtime.
     assert _scalar(conn, "MATCH (item:Item) RETURN list_append([], item.id);") == [1]
     assert _scalar(conn, "RETURN list_append([1, 2], NULL);") == [1, 2, None]
+    assert _scalar(conn, "RETURN list_append([NULL], NULL);") == [None, None]
+    assert _scalar(conn, "RETURN list_append(CAST(NULL, 'INT64[]'), 3);") is None
     assert _scalar(conn, "RETURN list_append([1, 2], 3.5);") == [1.0, 2.0, 3.5]
     assert _scalar(
         conn,
@@ -112,6 +114,14 @@ def test_list_concat_documentation_examples(item_connection):
     ]
     assert _scalar(conn, "RETURN list_concat([1, 2], []);") == [1, 2]
     assert _scalar(conn, "RETURN list_concat([], []);") == []
+    assert _scalar(conn, "RETURN list_concat([], [NULL]);") == [None]
+    assert _scalar(conn, "RETURN list_concat([1, CAST(NULL, 'INT64')], [2]);") == [
+        1,
+        None,
+        2,
+    ]
+    assert _scalar(conn, "RETURN list_concat(CAST(NULL, 'INT64[]'), []);") is None
+    assert _scalar(conn, "RETURN list_concat([], CAST(NULL, 'INT64[]'));") is None
     assert _scalar(conn, "RETURN list_concat([1, 2], [3.5, 4.5]);") == [
         1.0,
         2.0,

@@ -31,9 +31,6 @@
 #include "neug/storages/graph/schema.h"
 
 namespace neug {
-namespace transaction {
-class Transaction;
-}  // namespace transaction
 
 namespace catalog {
 
@@ -74,8 +71,7 @@ class NEUG_API TableCatalogEntry : public CatalogEntry {
   void renameProperty(const std::string& propertyName,
                       const std::string& newName);
 
-  std::string getLabel(const Catalog* catalog,
-                       const transaction::Transaction* transaction);
+  std::string getLabel(const Catalog* catalog);
 
   void serialize(common::Serializer& serializer) const override;
   static std::unique_ptr<TableCatalogEntry> deserialize(

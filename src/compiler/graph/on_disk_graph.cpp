@@ -97,29 +97,27 @@ OnDiskGraphNbrScanState::OnDiskGraphNbrScanState(
 OnDiskGraph::OnDiskGraph(ClientContext* context, GraphEntry entry)
     : context{context}, graphEntry{std::move(entry)} {}
 
-table_id_map_t<offset_t> OnDiskGraph::getMaxOffsetMap(
-    transaction::Transaction* transaction) const {
+table_id_map_t<offset_t> OnDiskGraph::getMaxOffsetMap() const {
   table_id_map_t<offset_t> result;
   for (auto tableID : getNodeTableIDs()) {
-    result[tableID] = getMaxOffset(transaction, tableID);
+    result[tableID] = getMaxOffset(tableID);
   }
   return result;
 }
 
-offset_t OnDiskGraph::getMaxOffset(transaction::Transaction* transaction,
-                                   table_id_t id) const {
+offset_t OnDiskGraph::getMaxOffset(table_id_t id) const {
   NEUG_ASSERT(nodeIDToNodeTable.contains(id));
-  return nodeIDToNodeTable.at(id)->getNumTotalRows(transaction);
+  return nodeIDToNodeTable.at(id)->getNumTotalRows();
 }
 
-offset_t OnDiskGraph::getNumNodes(transaction::Transaction* transaction) const {
+offset_t OnDiskGraph::getNumNodes() const {
   offset_t numNodes = 0u;
   for (auto id : getNodeTableIDs()) {
     if (nodeOffsetMaskMap != nullptr &&
         nodeOffsetMaskMap->containsTableID(id)) {
       numNodes += nodeOffsetMaskMap->getOffsetMask(id)->getNumMaskedNodes();
     } else {
-      numNodes += getMaxOffset(transaction, id);
+      numNodes += getMaxOffset(id);
     }
   }
   return numNodes;

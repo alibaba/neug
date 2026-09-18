@@ -51,6 +51,8 @@ struct ExecutionFlag {
   bool checkpoint = false;
   bool procedure_call = false;
   bool copy_from = false;
+  bool load_from = false;
+  bool copy_to = false;
 };
 
 class GPhysicalAnalyzer {
@@ -60,6 +62,11 @@ class GPhysicalAnalyzer {
   ExecutionFlag analyze(const planner::LogicalPlan& plan) {
     auto skipScanNames = std::vector<std::string>();
     analyzeOperator(*plan.getLastOperator(), skipScanNames);
+    // A file scan nested under COPY is part of that COPY statement, not a
+    // top-level LOAD FROM plan. Keep the statement classifications disjoint.
+    if (flag.copy_from || flag.copy_to) {
+      flag.load_from = false;
+    }
     return flag;
   }
 
@@ -68,8 +75,7 @@ class GPhysicalAnalyzer {
     auto tableIds = scan.getTableIDs();
     auto result = std::unordered_set<std::string>();
     for (auto& tableId : tableIds) {
-      auto tableEntry = catalog->getTableCatalogEntry(
-          &neug::Constants::DEFAULT_TRANSACTION, tableId);
+      auto tableEntry = catalog->getTableCatalogEntry(tableId);
       auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
       if (!nodeTableEntry) {
         THROW_EXCEPTION_WITH_FILE_LINE(
@@ -258,6 +264,7 @@ class GPhysicalAnalyzer {
     }
     case planner::LogicalOperatorType::COPY_TO: {
       flag.batch = true;
+      flag.copy_to = true;
       break;
     }
     case planner::LogicalOperatorType::CREATE_TABLE: {
@@ -281,6 +288,7 @@ class GPhysicalAnalyzer {
     case planner::LogicalOperatorType::TABLE_FUNCTION_CALL: {
       if (isDataSource(op)) {
         flag.batch = true;
+        flag.load_from = true;
       } else {
         auto& call = op.constCast<planner::LogicalTableFunctionCall>();
         // Read-only CALL/GDS procedures can run on the read path; mutating

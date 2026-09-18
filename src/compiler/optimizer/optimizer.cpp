@@ -121,16 +121,14 @@ void Optimizer::optimize(
     auto removeSubqueryAsJoin = RemoveSubqueryAsJoin();
     removeSubqueryAsJoin.rewrite(plan);
 
-    auto cardinalityUpdater =
-        CardinalityUpdater(cardinalityEstimator, context->getTransaction());
+    auto cardinalityUpdater = CardinalityUpdater(cardinalityEstimator);
     cardinalityUpdater.rewrite(plan);
 
     auto projectJoinConditionOptimizer = ProjectJoinConditionOptimizer(context);
     projectJoinConditionOptimizer.rewrite(plan);
 
     auto catalog = context->getCatalog();
-    for (auto& rule_entry :
-         catalog->getRuleEntries(context->getTransaction())) {
+    for (auto& rule_entry : catalog->getRuleEntries()) {
       auto rule = rule_entry->createRule();
       if (rule) {
         rule->rewrite(context, plan);

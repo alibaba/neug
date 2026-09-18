@@ -756,7 +756,7 @@ class TestLoadArray:
                 "UNWIND values AS value RETURN value ORDER BY value"
             )
         )
-        assert rows == [[1], [None], [3], [4], [5]]
+        assert rows == [[1], [3], [4], [5], [None]]
 
         rows = list(
             self.conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id')

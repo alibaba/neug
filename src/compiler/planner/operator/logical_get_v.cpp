@@ -72,9 +72,8 @@ std::unique_ptr<gopt::GNodeType> LogicalGetV::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
   std::vector<const VertexSchema*> nodeTables;
-  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
-    auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
+    auto tableEntry = catalog->getTableCatalogEntry(tableId);
     auto nodeTableEntry = dynamic_cast<const VertexSchema*>(tableEntry);
     if (!nodeTableEntry) {
       THROW_EXCEPTION_WITH_FILE_LINE("Table with ID " +
