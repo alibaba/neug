@@ -96,6 +96,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindFunctionExpression(
     }
     std::vector<CompactLiteralSegment> segments;
     std::vector<DataType> valueTypes;
+    uint64_t totalElementCount = 0;
     for (auto i = 0u; i < expr.getNumChildren(); i += 2) {
       auto valueExpr = bindExpression(*expr.getChild(i));
       if (ConstantExpressionVisitor::needFold(*valueExpr)) {
@@ -113,9 +114,16 @@ std::shared_ptr<Expression> ExpressionBinder::bindFunctionExpression(
         THROW_BINDER_EXCEPTION(
             "Compact default only supports constant value/count pairs.");
       }
+      const auto repeatCount = getRepeatCount(*countLiteral);
+      if (repeatCount > MAX_COMPACT_LITERAL_ELEMENTS - totalElementCount) {
+        THROW_BINDER_EXCEPTION(
+            "Compact literal expanded length exceeds maximum supported "
+            "length of " +
+            std::to_string(MAX_COMPACT_LITERAL_ELEMENTS) + ".");
+      }
+      totalElementCount += repeatCount;
       valueTypes.push_back(valueLiteral->getDataType().copy());
-      segments.emplace_back(valueLiteral->getValue(),
-                            getRepeatCount(*countLiteral));
+      segments.emplace_back(valueLiteral->getValue(), repeatCount);
     }
     DataType childType;
     if (!LogicalTypeUtils::tryGetMaxLogicalType(valueTypes, childType)) {

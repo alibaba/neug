@@ -38,6 +38,11 @@ class IrDataType;
 namespace neug {
 class InArchive;
 class OutArchive;
+
+// Compact literals share the persisted LIST length limit. Their expanded
+// element count must fit in the 16-bit per-row length field.
+inline constexpr uint64_t MAX_COMPACT_LITERAL_ELEMENTS = (1ULL << 16) - 1;
+
 enum class DataTypeId : uint8_t {
   kInvalid = 0,
   kNull = 1,

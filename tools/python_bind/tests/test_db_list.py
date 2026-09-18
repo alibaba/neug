@@ -33,12 +33,17 @@ def test_compact_list_literal_expression(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
 
-    row = list(conn.execute("RETURN [-1:3], [-1:2; 0:3], [7, 8, -1:2], [1, 2, 3];"))[0]
+    row = list(
+        conn.execute(
+            "RETURN CAST([-1:3], 'INT32[]'), "
+            "CAST([-1:2; 0:3], 'INT32[]'), "
+            "CAST([7, 8, -1:2], 'INT32[]');"
+        )
+    )[0]
     assert [_nested_list(value) for value in row] == [
         [-1, -1, -1],
         [-1, -1, 0, 0, 0],
         [7, 8, -1, -1],
-        [1, 2, 3],
     ]
 
     conn.close()
@@ -71,6 +76,25 @@ def test_compact_list_literal_consumers(tmp_path):
         RuntimeError, match="number of rows to skip/limit must be a parameter/literal"
     ):
         list(conn.execute("RETURN 1 SKIP [1:2];"))
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize(
+    "literal",
+    ["[1:65536]", "[1:32768; 2:32768]"],
+    ids=["single-segment", "segment-total"],
+)
+def test_compact_list_literal_rejects_excessive_expanded_length(tmp_path, literal):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    with pytest.raises(
+        RuntimeError,
+        match="expanded length exceeds maximum supported length of 65535",
+    ):
+        list(conn.execute(f"RETURN {literal};"))
 
     conn.close()
     db.close()

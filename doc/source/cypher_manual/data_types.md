@@ -20,8 +20,8 @@ The following table showcases all data types supported by NeuG and their differe
 | Temporal | DATE | `1970-01-01` | `RETURN date('2022-06-06')` | `RETURN date('2022-06-06')` |
 | Temporal | DATETIME | `1970-01-01 00:00:00` | `RETURN timestamp('2022-06-06 12:00:00')` | `RETURN datetime('2022-06-06T12:00:00')` |
 | Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `RETURN duration('P1Y2M3D')` |
-| Composite | LIST | `[]` (empty list) | `RETURN [1, 2, 3]` | `RETURN [1, 2, 3]` |
-| Composite | ARRAY | fixed-size child defaults, for example `[0, 0, 0]` for `INT32[3]` | `readings INT32[3]` in a schema | unsupported as a separate fixed-size type |
+| Composite | LIST | `[]` (empty list) | `RETURN [1, 2, 3]`<br>Compact: `RETURN CAST([-1:4], 'INT32[]')` | `RETURN [1, 2, 3]` |
+| Composite | ARRAY | fixed-size child defaults, for example `[0, 0, 0]` for `INT32[3]` | `readings INT32[3]` in a schema<br>Compact: `RETURN CAST([-1:4], 'INT32[4]')` | unsupported as a separate fixed-size type |
 | Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: Person, id: 1, name: marko, age: 29}` | `(:Person {name: 'Alice', age: 30})` |
 | Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: KNOWS, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:KNOWS {weight: 1.0}]` |
 | Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: Person}, {_ID: 4294967298, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: Person}, {_ID: 4297064449, _LABEL: CREATED, _SRC_LABEL: Person, _DST_LABEL: Software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: Software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
@@ -129,6 +129,7 @@ RETURN date('2024-02-01') + interval('1 month'),
 #### LIST
 - **Description**: Ordered collection of values with heterogeneous types
 - **Query Example**: `RETURN [1, 2, 3] AS list_value;`
+- **Compact Literal Example**: `RETURN CAST([-1:4], 'INT32[]') AS list_value;`
 
 The following table shows all Component Types that LIST can support:
 
@@ -141,6 +142,17 @@ The following table shows all Component Types that LIST can support:
 | Composite | LIST | `RETURN [[1, 2], [4, 5]];` |
 
 **Important Note on LIST Component Types**: 
+
+Since NeuG v0.2.1, repeated values can be written as compact LIST literals and
+cast to a concrete LIST type without expanding them during compilation:
+
+```cypher
+RETURN CAST([-1:2; 0:3], 'INT32[]') AS list_value;
+// [-1, -1, 0, 0, 0]
+```
+
+For the supported compact forms, constraints, and use in property defaults,
+see [Compact LIST and ARRAY Defaults](ddl_clause.md#compact-list-and-array-defaults).
 
 NeuG supports lists through tuple data types, meaning composite types can be heterogeneous. Here are some examples:
 
@@ -170,6 +182,7 @@ MATCH (n:Person) RETURN [["name", n.name], ["age", n.age]];
 - **Description**: Fixed-size ordered collection whose elements share the declared child type
 - **Syntax**: Use `T[N]`, where `T` is the child type and `N` is a positive fixed length
 - **Query Example**: `CREATE NODE TABLE Sensor(id INT64, readings INT64[3], PRIMARY KEY(id));`
+- **Compact Literal Example**: `RETURN CAST([-1:4], 'INT32[4]') AS array_value;`
 
 `ARRAY` is NeuG's fixed-size counterpart to `LIST`. `T[]` declares a variable-length list, while `T[N]` declares an array with exactly `N` elements. Array literals use the same bracket syntax as lists; the declared schema or another typed context determines whether the value is stored as a `LIST` or an `ARRAY`. `CAST` is not a general `LIST`/`ARRAY` compatibility mechanism.
 
@@ -192,6 +205,17 @@ CREATE REL TABLE Knows(
     weights DOUBLE[2]
 );
 ```
+
+Since NeuG v0.2.1, compact literals can also be cast to a fixed-size ARRAY. The
+expanded length must match the ARRAY length:
+
+```cypher
+RETURN CAST([7, 8, -1:2], 'INT32[4]') AS array_value;
+// [7, 8, -1, -1]
+```
+
+For the supported compact forms, constraints, and use in property defaults,
+see [Compact LIST and ARRAY Defaults](ddl_clause.md#compact-list-and-array-defaults).
 
 Multi-dimensional arrays are written by chaining fixed lengths. `INT32[2][3]` means an outer array with 3 elements, where each element is an `INT32[2]` array:
 

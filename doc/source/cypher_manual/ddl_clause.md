@@ -28,6 +28,9 @@ The following table lists the recommended syntax for defining default values for
 
 ### Compact LIST and ARRAY Defaults
 
+> **Since v0.2.1:** Compact LIST and ARRAY literals are supported in property
+> defaults.
+
 For large LIST or ARRAY defaults, NeuG supports compact literals that encode
 repeated values without expanding every element while the query is compiled.
 The following forms are supported:
@@ -39,11 +42,12 @@ The following forms are supported:
 | Ordinary and repeated values | `[value, value, ..., value:count]` | `[7, 8, -1:2]` | `[7, 8, -1, -1]` |
 
 Each `count` must be a non-negative integer literal. Values must be constant
-expressions and must be compatible with the declared element type. For a
-fixed-length ARRAY, the sum of all repeat counts and ordinary elements must
-equal the declared array length; otherwise, the DDL statement is rejected.
-Compact literals can also be used for variable-length LIST defaults, where the
-expanded length is determined by the literal itself.
+expressions and must be compatible with the declared element type. The sum of
+all repeat counts and ordinary elements must not exceed 65,535 (that is, it
+must be less than 65,536). For a fixed-length ARRAY, this sum must also equal
+the declared array length; otherwise, the DDL statement is rejected. Compact
+literals can also be used for variable-length LIST defaults, where the expanded
+length is determined by the literal itself.
 
 ## Create Node Type
 

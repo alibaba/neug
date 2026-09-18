@@ -74,6 +74,12 @@ std::vector<Value> parse_compact_fields(
   std::vector<Value> values;
   uint64_t total_count = 0;
   for (const auto& field : fields) {
+    if (field.repeat_count() > MAX_COMPACT_LITERAL_ELEMENTS - total_count) {
+      THROW_RUNTIME_ERROR(
+          "Compact literal expanded length exceeds maximum supported length "
+          "of " +
+          std::to_string(MAX_COMPACT_LITERAL_ELEMENTS) + ".");
+    }
     total_count += field.repeat_count();
   }
   values.reserve(total_count);

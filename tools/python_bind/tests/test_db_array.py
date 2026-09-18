@@ -46,6 +46,27 @@ def _approx_eq(actual, expected, tol=1e-5):
         assert actual == expected
 
 
+def test_compact_array_literal_expression(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(
+        conn.execute(
+            "RETURN CAST([-1:3], 'INT32[3]'), "
+            "CAST([-1:2; 0:3], 'INT32[5]'), "
+            "CAST([7, 8, -1:2], 'INT32[4]');"
+        )
+    )[0]
+    assert [_nested_list(value) for value in row] == [
+        [-1, -1, -1],
+        [-1, -1, 0, 0, 0],
+        [7, 8, -1, -1],
+    ]
+
+    conn.close()
+    db.close()
+
+
 # ---------------------------------------------------------------------------
 # Basic Create & Query (parametrized by element type)
 # ---------------------------------------------------------------------------
@@ -532,6 +553,10 @@ def test_compact_array_default_forms_in_ddl(tmp_path, ddl_path):
             "['not-an-int':4]",
             "Invalid compact default value for InvalidCompactDefault.values",
         ),
+        (
+            "[1:32768; 2:32768]",
+            "expanded length exceeds maximum supported length of 65535",
+        ),
         ("[1:3]", "ARRAY value length mismatch"),
     ],
     ids=[
@@ -539,6 +564,7 @@ def test_compact_array_default_forms_in_ddl(tmp_path, ddl_path):
         "non-integer-repeat-count",
         "non-constant-value",
         "invalid-value-cast",
+        "expanded-length-limit",
         "array-size-mismatch",
     ],
 )

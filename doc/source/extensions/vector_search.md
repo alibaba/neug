@@ -103,6 +103,9 @@ that is appropriate for the application. NeuG supports compact literals for
 high-dimensional LIST and ARRAY defaults, so repeated values do not need to be
 written or expanded individually while the query is compiled.
 
+> **Since v0.2.1:** Compact LIST and ARRAY literals can be used for vector
+> property defaults.
+
 The following forms are supported:
 
 | Form | Syntax | Example | Expanded Value |
