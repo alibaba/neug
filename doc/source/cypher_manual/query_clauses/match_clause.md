@@ -269,7 +269,7 @@ RETURN k;
 
 ## Match Named Path
 
-A path pattern can be bound to a variable with `p =`. The named path must be one connected, linear path, but it may contain a single-edge expand, a repeated expand, or multiple consecutive expands.
+Since v0.2.1, a path pattern can be named using `p =`. The named path must be one connected, linear path, but it may contain a single-edge expand, a repeated expand, or multiple consecutive expands.
 
 The following example binds a single-edge expand:
 

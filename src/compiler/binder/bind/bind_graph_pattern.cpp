@@ -162,6 +162,10 @@ static void extraFieldFromStructType(const DataType& structType,
 
 std::shared_ptr<Expression> Binder::createPath(
     const std::string& pathName, const expression_vector& children) {
+  if (children.size() < 3) {
+    THROW_BINDER_EXCEPTION(
+        "Named path must contain at least one relationship: " + pathName);
+  }
   std::unordered_set<std::string> nodeFieldNameSet;
   std::vector<std::string> nodeFieldNames;
   std::vector<DataType> nodeFieldTypes;
