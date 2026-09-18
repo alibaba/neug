@@ -275,7 +275,19 @@ A single node forms a zero-length named path. Its node list contains the matched
 
 ```cypher
 MATCH p = (a:Person {name: 'marko'})
-RETURN p, LENGTH(p), NODES(p), RELS(p);
+RETURN p AS path,
+       LENGTH(p) AS path_length,
+       NODES(p) AS path_nodes,
+       RELS(p) AS path_rels;
+```
+
+output:
+```
++-----------------------------------------------------------------------------------+---------------+-------------------------------------------------------+-------------+
+| path                                                                              |   path_length | path_nodes                                            | path_rels   |
++===================================================================================+===============+=======================================================+=============+
+| {nodes: {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}, rels: , length: 0} |             0 | {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29} |             |
++-----------------------------------------------------------------------------------+---------------+-------------------------------------------------------+-------------+
 ```
 
 The following example binds a single-edge expand:
