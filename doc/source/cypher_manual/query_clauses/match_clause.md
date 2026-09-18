@@ -269,7 +269,14 @@ RETURN k;
 
 ## Match Named Path
 
-Since v0.2.1, a path pattern can be named using `p =`. The named path must be one connected, linear path, but it may contain a single-edge expand, a repeated expand, or multiple consecutive expands.
+Since v0.2.1, a path pattern can be named using `p =`. The named path must be one connected, linear path. It may contain only a single node, a single-edge expand, a repeated expand, or multiple consecutive expands.
+
+A single node forms a zero-length named path. Its node list contains the matched node, and its relationship list is empty:
+
+```cypher
+MATCH p = (a:Person {name: 'marko'})
+RETURN p, LENGTH(p), NODES(p), RELS(p);
+```
 
 The following example binds a single-edge expand:
 
