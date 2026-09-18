@@ -38,6 +38,7 @@ ON <node_table>
 USING FTS (<string_property> [, <string_property> ...])
 [WITH (
     tokenizer = '<tokenizer>',
+    stopwords = 'english' | 'jieba' | 'none' | ['<stopword>', ...] | '<file_path>',
     jieba_mode = '<jieba_mode>',
     jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>'
@@ -115,9 +116,42 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
+| `stopwords` | Stopword list: `english`, `jieba`, `none`, a custom list of strings, or a file path | `english` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
+
+### Stopwords (supported since v0.2.1)
+
+FTS indexes remove English stopwords by default. Set `stopwords` to `english`
+to select the built-in 670-word English stopword list explicitly, to `jieba`
+to use cppjieba's stopword list, to `none` to disable filtering, or to a list
+of strings to use a custom stopword list:
+
+```cypher
+CREATE INDEX english_item_fts ON Item USING FTS (text)
+WITH (stopwords = 'english');
+
+CREATE INDEX jieba_item_fts ON Item USING FTS (text)
+WITH (tokenizer = 'jieba', stopwords = 'jieba');
+
+CREATE INDEX item_text_fts ON Item USING FTS (text)
+WITH (stopwords = 'none');
+
+CREATE INDEX custom_item_fts ON Item USING FTS (text)
+WITH (stopwords = ['a', 'custom']);
+
+CREATE INDEX file_item_fts ON Item USING FTS (text)
+WITH (stopwords = '/path/to/stop_words.txt');
+```
+
+A stopword file must be UTF-8 encoded and contain one word per line. The file
+is read only when the index is created. Its contents are stored in the index
+checkpoint, so the original file is not required when reopening the database.
+
+Stopwords are applied consistently while indexing documents and parsing
+queries. Index checkpoints created by earlier versions remain compatible and
+are treated as `stopwords = 'none'`.
 
 ### Tokenizers
 
@@ -132,6 +166,8 @@ Supported tokenizers are:
   enabling substring matching.
 - `jieba` performs Chinese word segmentation using cppjieba and loads the
   built-in small dictionary and HMM model.
+
+All tokenizers are case-insensitive, and all tokens are converted to lowercase.
 
 The Jieba tokenizer supports three modes:
 
@@ -377,6 +413,105 @@ For `$weights`:
 - It must contain one value for each property, in the same order.
 - Every value must be numeric, positive, finite, and not `NULL`.
 - `$weights` and `$query` can be bound independently or used together.
+
+### Limit and Skip
+
+Unlike HNSW vector search, FTS index search does not require an explicit
+`ORDER BY ... LIMIT` clause. The FTS index returns matches in ascending BM25
+score order by default, so `LIMIT` and `SKIP` can be used either independently
+or together with `ORDER BY`.
+
+The following query returns the first ten matches in the default BM25 order:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+LIMIT 10;
+```
+
+Use `SKIP` without `LIMIT` to omit matches from the beginning of the result:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+SKIP 10;
+```
+
+`SKIP` and `LIMIT` can be combined to select a bounded result window. Both
+clauses accept integer literals, constant integer expressions, and dynamic
+parameters. For their value range and parameter rules, see
+[LIMIT and SKIP](../cypher_manual/query_clauses/limit_clause.md). The following
+example uses a literal offset and a dynamic page size:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+SKIP 10
+LIMIT $page_size;
+```
+
+An explicit `ORDER BY score ASC` documents the relevance order and allows the
+optimizer to push the finite upper bound into the FTS index scan:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+LIMIT $result_limit;
+```
+
+Explicit ordering can also be combined with `SKIP` alone:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, 'graph database') AS score
+ORDER BY score ASC
+SKIP $row_offset;
+```
+
+For paginated ranked search, specify both bounds:
+
+```cypher
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+SKIP $row_offset
+LIMIT $page_size;
+```
+
+For the last query, parameters can be supplied through the Python API:
+
+```python
+statement = """
+MATCH (article:Article)
+RETURN article.id,
+       bm25(article.title, $query) AS score
+ORDER BY score ASC
+SKIP $row_offset
+LIMIT $page_size
+"""
+
+result = connection.execute(
+    statement,
+    parameters={
+        "query": "graph database",
+        "row_offset": 20,
+        "page_size": 10,
+    },
+)
+```
+
+When an explicit BM25 ordering has a finite upper bound, NeuG can ask the FTS
+index for at most `skip + limit` candidates and avoid a separate sort. A
+residual skip operation still removes the first `skip` candidates. With
+`SKIP` but no `LIMIT`, there is no finite upper bound, so all matching
+candidates may need to be produced before the offset is applied.
 
 ## Filtering and Hybrid Search
 

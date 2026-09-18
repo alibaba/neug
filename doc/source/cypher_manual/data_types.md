@@ -71,7 +71,7 @@ The following table showcases all data types supported by NeuG and their differe
 
 ### String Types
 
-We currently support only the VARCHAR type for strings. You can specify a maximum character length using the `VARCHAR(max_length)` syntax. The default value of `max_length` is 256, and the maximum limit is 65536.
+We currently support only the VARCHAR type for strings. You can specify a maximum character length using the `VARCHAR(max_length)` syntax. The valid range of `max_length` is from 1 to 65535, and the default value is 256.
 Alternatively, you can use STRING to specify the character type directly; STRING is equivalent to VARCHAR(256), i.e., a varchar type with a default maximum length of 256 characters.
 
 #### VARCHAR
@@ -96,6 +96,33 @@ Alternatively, you can use STRING to specify the character type directly; STRING
     - Date-based components (year, month, day): Specified using a natural language format. Example: `1 year 2 month 3 day`.
     - Time-based components (hour, minute, second, millisecond, microsecond): Specified using a natural language format. Example: `12 hour 12 minute 2 second` - represents 12 hours, 12 minutes, and 2 seconds.
 - **Query Example**: `RETURN interval('1 year 2 month 3 day 12 hour 12 minute 2 second') AS interval_value;`
+
+NeuG uses fixed-base normalization when comparing `INTERVAL` values:
+
+- 1 year = 12 months
+- 1 month = 30 days
+- 1 day = 24 hours
+- 1 hour = 60 minutes
+- 1 minute = 60 seconds
+- 1 second = 1,000 milliseconds
+- 1 millisecond = 1,000 microseconds
+
+For example, 1 year = 12 * 30 * 24 hours:
+
+```cypher
+RETURN interval('1 year') = interval('8640 hours') AS same_interval;
+// true
+```
+
+Fixed normalization ensures consistent calculations within the `INTERVAL` type,
+but calculations involving both `DATE` and `INTERVAL` can produce different
+results for otherwise equivalent intervals:
+
+```cypher
+RETURN date('2024-02-01') + interval('1 month'),
+       date('2024-02-01') + interval('30 days');
+// 2024-03-01, 2024-03-02
+```
 
 ### Composite Types
 

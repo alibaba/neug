@@ -184,6 +184,10 @@ static void validatePrimaryKey(
         "Primary key " + pkColName +
         " does not match any of the predefined node properties.");
   }
+  if (definitions[primaryKeyIdx].hasDefaultValue()) {
+    THROW_BINDER_EXCEPTION("Primary key " + pkColName +
+                           " cannot have an explicit default value.");
+  }
   const auto& pkType = definitions[primaryKeyIdx].getType();
   if (!pkType.isInternalType()) {
     THROW_BINDER_EXCEPTION(ExceptionMessage::invalidPKType(pkType.ToString()));
@@ -249,8 +253,7 @@ void Binder::validateNodeTableType(SchemaEntry* entry) {
 
 void Binder::validateTableExistence(const main::ClientContext& context,
                                     const std::string& tableName) {
-  if (!context.getCatalog()->containsTable(context.getTransaction(),
-                                           tableName)) {
+  if (!context.getCatalog()->containsTable(tableName)) {
     THROW_BINDER_EXCEPTION(stringFormat("Table {} does not exist.", tableName));
   }
 }
@@ -361,8 +364,7 @@ std::unique_ptr<BoundStatement> Binder::bindCreateType(
   auto createType = statement.constPtrCast<CreateType>();
   auto name = createType->getName();
   DataType type = convertFromString(createType->getDataType(), clientContext);
-  if (clientContext->getCatalog()->containsType(clientContext->getTransaction(),
-                                                name)) {
+  if (clientContext->getCatalog()->containsType(name)) {
     THROW_BINDER_EXCEPTION(stringFormat("Duplicated type name: {}.", name));
   }
   return std::make_unique<BoundCreateType>(std::move(name), std::move(type));
@@ -438,8 +440,8 @@ std::unique_ptr<BoundStatement> Binder::bindCreateIndex(
   validateTableExistence(*clientContext, parsedInfo.tableName);
 
   // 2. Get table entry and validate that it is a node table.
-  auto* tableEntry = clientContext->getCatalog()->getTableCatalogEntry(
-      clientContext->getTransaction(), parsedInfo.tableName);
+  auto* tableEntry =
+      clientContext->getCatalog()->getTableCatalogEntry(parsedInfo.tableName);
   if (tableEntry->get_entry_type() != SchemaEntryType::NODE) {
     THROW_BINDER_EXCEPTION(
         "Index can only be created on node tables, but " +

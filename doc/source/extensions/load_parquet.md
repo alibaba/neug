@@ -5,6 +5,10 @@ Apache Parquet is a columnar storage format widely used in data engineering and 
 - **Import**: Load external Parquet files using `LOAD FROM` syntax
 - **Export**: Export query results to Parquet files using `COPY TO` syntax
 
+For the private replacement writer under development, see
+[Carquet Parquet writer](carquet_writer). The active import/export backend is
+unchanged by that implementation.
+
 ## Install Extension
 
 ```cypher
@@ -27,10 +31,11 @@ The following options control how Parquet files are read:
 
 | Option                   | Type  | Default | Description                                                                                                                                 |
 | ------------------------ | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance. The buffer size in bytes is controlled by the generic `batch_size` option (default 1 MiB). |
+| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance. The buffer size in bytes is controlled by `batch_size` below.         |
+| `batch_size`             | int64 | `1048576` (1 MiB) | I/O batch size in **bytes** for the buffered stream. Only the Parquet reader consumes this option. |
 | `pre_buffer`             | bool  | `false` | Pre-buffer column data before decoding. Recommended for high-latency filesystems such as S3.                                                |
 | `enable_io_coalescing`   | bool  | `true`  | Enable Arrow I/O read coalescing (hole-filling cache) to reduce I/O overhead when reading non-contiguous byte ranges. When `true`, uses lazy coalescing; when `false`, uses eager coalescing. |
-| `parquet_batch_rows`     | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches.                                            |
+| `batch_rows`             | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches. `PARQUET_BATCH_ROWS` is still accepted as a deprecated alias. |
 
 ### Query Examples
 
@@ -48,7 +53,7 @@ RETURN *;
 Tune memory usage by adjusting the number of rows read per batch:
 
 ```cypher
-LOAD FROM "person.parquet" (parquet_batch_rows=8192)
+LOAD FROM "person.parquet" (batch_rows=8192)
 RETURN *;
 ```
 
@@ -80,6 +85,16 @@ RETURN fName AS name, age AS years;
 ```
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with Parquet files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
+
+When a `WHERE` expression requires filtering after decoding, the reader still
+prunes columns: it reads the requested output columns and all columns referenced
+by the filter, including references inside nested expressions. Filter-only columns
+are removed from the result after filtering. This applies to both batch and full
+reads. In this fallback path, the predicate does not prune Parquet row groups.
+
+For the upcoming backend's implementation status and supported read paths, see
+[Carquet reader implementation](carquet_reader.md). The current SQL backend is
+unchanged by that preparation work.
 
 ## Export to Parquet
 

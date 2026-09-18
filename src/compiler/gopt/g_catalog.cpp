@@ -19,8 +19,6 @@
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/function/function_collection.h"
 #include "neug/compiler/function/function_signature_util.h"
-#include "neug/compiler/gopt/g_constants.h"
-#include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -40,35 +38,26 @@ void GCatalog::registerBuiltInFunctions() {
   for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
     auto& f = functionCollection[i];
     auto functionSet = f.getFunctionSetFunc();
-    addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
-                             f.catalogEntryType, f.name, std::move(functionSet),
+    addFunctionWithSignature(f.catalogEntryType, f.name, std::move(functionSet),
                              false);
   }
 }
 
-void GCatalog::addFunctionWithSignature(transaction::Transaction* transaction,
-                                        CatalogEntryType entryType,
+void GCatalog::addFunctionWithSignature(CatalogEntryType entryType,
                                         std::string name,
                                         function::function_set functionSet,
                                         bool isInternal) {
   for (auto& func : functionSet) {
     func->computeSignature();
   }
-  addFunction(transaction, entryType, std::move(name), std::move(functionSet),
-              isInternal);
+  addFunction(entryType, std::move(name), std::move(functionSet), isInternal);
 }
 
 function::Function* GCatalog::getFunctionWithSignature(
     const std::string& signatureName) {
-  return getFunctionWithSignature(&neug::Constants::DEFAULT_TRANSACTION,
-                                  signatureName);
-}
-
-function::Function* GCatalog::getFunctionWithSignature(
-    transaction::Transaction* transaction, const std::string& signatureName) {
   auto funcName =
       function::FunctionSignatureUtil::getFunctionName(signatureName);
-  auto entry = getFunctionEntry(transaction, funcName);
+  auto entry = getFunctionEntry(funcName);
   if (!entry) {
     THROW_CATALOG_EXCEPTION("cannot find function entry with name " + funcName);
   }

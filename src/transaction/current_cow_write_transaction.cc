@@ -59,13 +59,16 @@ Status CurrentCowWriteTransaction::Commit() {
   if (!active()) {
     return Status::OK();
   }
-  if (workspace_.HasTransientMutation()) {
+  if (workspace_.HasBulkMutation()) {
     Abort();
     return Status::InternalError(
-        "Transient graph mutations require CommitTransient");
+        "Persistent bulk mutations require checkpoint commit");
   }
   auto& logical_redo = workspace_.logical_redo();
   if (logical_redo.op_num() == 0) {
+    if (workspace_.HasTransientMutation()) {
+      return CommitTransient();
+    }
     release(false);
     return Status::OK();
   }
@@ -79,14 +82,16 @@ Status CurrentCowWriteTransaction::Commit() {
 
   logical_redo.finalize(timestamp());
 
-  // The current WAL API cannot distinguish a pre-write failure from an
-  // uncertain partial append. Until W1 framing supplies that decision, any
-  // append failure must fail-stop instead of reopening the AP gate and
-  // reporting an ordinary rollback.
+  // Redo contains only persistent mutations. Publish the whole workspace
+  // after WAL append so temporary and persistent changes become visible once.
+
+  // Abort only if no record bytes were written. An uncertain append must
+  // fail-stop because recovery cannot safely discard partial WAL records.
   try {
     if (!wal_writer_.append(logical_redo.data(), logical_redo.size())) {
-      LOG(FATAL) << "AP WAL append failed after commit append began; "
-                    "terminating with the current slot unchanged";
+      Abort();
+      return Status::InternalError(
+          "WAL append failed before writing AP commit");
     }
   } catch (const std::exception& e) {
     LOG(FATAL) << "AP WAL append failed after commit append began: " << e.what()
@@ -139,11 +144,10 @@ Status CurrentCowWriteTransaction::CommitTransient() {
     return Status::InternalError(
         "CommitTransient requires a transient graph mutation");
   }
-  const auto& logical_redo = workspace_.logical_redo();
-  if (logical_redo.op_num() != 0 || logical_redo.content_size() != 0) {
+  if (workspace_.HasDurableMutation()) {
     Abort();
     return Status::InternalError(
-        "Transient graph commit cannot contain logical WAL redo");
+        "Transient graph commit cannot contain durable graph mutations");
   }
   uint64_t committed_planning_generation = 0;
   auto status = PrepareCommit(committed_planning_generation);

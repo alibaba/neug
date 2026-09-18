@@ -191,6 +191,74 @@ def test_reader_preserves_types_nulls_and_nested_values(connection, type_file):
 
 
 @pytest.mark.parametrize(
+    "predicate, expected",
+    [
+        ("id + 1 > 3", [3, 4]),
+        ("score * 2 > 3", [4]),
+        ("CAST(id, 'DOUBLE') > 2", [3, 4]),
+        ("CAST(id, 'STRING') = '3'", [3]),
+        ("CAST(score, 'INT64') = 1", [1]),
+        ("id >= 2 AND score * 2 > 3", [4]),
+        ("score IS NULL", [3]),
+        ("score IS NOT NULL", [1, 2, 4]),
+        ("id > 999", []),
+        ("NOT (score * 2 > 3)", [1, 2]),
+        ("NOT (score * 2 > 3 AND id > 999)", [1, 2, 3, 4]),
+        ("NOT (score * 2 > 3 OR id > 999)", [1, 2]),
+        ("NOT (id > 999 AND score * 2 > 3)", [1, 2, 3, 4]),
+        ("NOT (id > 999 OR score * 2 > 3)", [1, 2]),
+        ("CASE WHEN score IS NULL THEN 10 ELSE score END > 3", [3, 4]),
+        ("CAST(CAST(id, 'STRING'), 'INT64') + 1 > 3", [3, 4]),
+        ("upper(CAST(id, 'STRING')) = '3' AND score IS NULL", [3]),
+        (
+            "CASE WHEN enabled THEN CAST(score, 'INT64') "
+            "ELSE CAST(signed_value, 'INT64') END > 0",
+            [1, 3, 4],
+        ),
+        (
+            "id IN [CASE WHEN score IS NULL THEN 3 ELSE 0 END, "
+            "CAST(signed_value, 'INT64')]",
+            [3],
+        ),
+    ],
+)
+@pytest.mark.parametrize("batch_read", [False, True])
+def test_reader_preserves_complete_predicates(
+    connection, type_file, predicate, expected, batch_read
+):
+    rows = list(
+        connection.execute(
+            f'LOAD FROM "{type_file.as_posix()}" '
+            f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
+            f"WHERE {predicate} RETURN id ORDER BY id"
+        )
+    )
+    assert rows == [[value] for value in expected]
+
+
+@pytest.mark.parametrize("batch_read", [False, True])
+def test_reader_fallback_binds_current_parameters(connection, type_file, batch_read):
+    query = (
+        f'LOAD FROM "{type_file.as_posix()}" '
+        f"(batch_read={str(batch_read).lower()}, row_batch_size=1) "
+        "WHERE CASE WHEN score IS NULL THEN $missing ELSE score END > $minimum "
+        "RETURN id ORDER BY id"
+    )
+    for minimum, expected in [(3, [3, 4]), (10, []), (0, [1, 3, 4])]:
+        assert list(
+            connection.execute(query, parameters={"missing": 10.0, "minimum": minimum})
+        ) == [[value] for value in expected]
+
+
+def test_reader_fallback_propagates_conversion_errors(connection, type_file):
+    with pytest.raises(RuntimeError):
+        connection.execute(
+            f'LOAD FROM "{type_file.as_posix()}" '
+            "WHERE CAST(label, 'INT64') > 0 RETURN id"
+        )
+
+
+@pytest.mark.parametrize(
     "compression,page_version",
     [("none", "1.0"), ("snappy", "1.0"), ("gzip", "2.0"), ("zstd", "2.0")],
 )

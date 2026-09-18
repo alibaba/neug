@@ -343,6 +343,9 @@ std::shared_ptr<Expression> Binder::bindSkipLimitExpression(
         "The number of rows to skip/limit must be a parameter/literal "
         "expression.");
   }
+  if (boundExpression->expressionType == ExpressionType::PARAMETER) {
+    boundExpression->cast(DataType::INT64);
+  }
   return boundExpression;
 }
 

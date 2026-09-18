@@ -66,7 +66,6 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
     std::unordered_set<std::string> candidateNamesSet;
     auto isSrcConnect = *queryRel->getSrcNode() == node;
     auto isDstConnect = *queryRel->getDstNode() == node;
-    auto tx = clientContext.getTransaction();
     if (queryRel->getDirectionType() == RelDirectionType::BOTH) {
       if (isSrcConnect || isDstConnect) {
         for (auto entry : queryRel->getEntries()) {
@@ -75,8 +74,8 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto dstTableID = relEntry->getDstTableID();
           candidates.insert(srcTableID);
           candidates.insert(dstTableID);
-          auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
-          auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
+          auto srcEntry = catalog->getTableCatalogEntry(srcTableID);
+          auto dstEntry = catalog->getTableCatalogEntry(dstTableID);
           candidateNamesSet.insert(srcEntry->get_label());
           candidateNamesSet.insert(dstEntry->get_label());
         }
@@ -87,7 +86,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto* relEntry = getRelSchema(entry);
           auto srcTableID = relEntry->getSrcTableID();
           candidates.insert(srcTableID);
-          auto srcEntry = catalog->getTableCatalogEntry(tx, srcTableID);
+          auto srcEntry = catalog->getTableCatalogEntry(srcTableID);
           candidateNamesSet.insert(srcEntry->get_label());
         }
       } else if (isDstConnect) {
@@ -95,7 +94,7 @@ void QueryGraphLabelAnalyzer::pruneNode(const QueryGraph& graph,
           auto* relEntry = getRelSchema(entry);
           auto dstTableID = relEntry->getDstTableID();
           candidates.insert(dstTableID);
-          auto dstEntry = catalog->getTableCatalogEntry(tx, dstTableID);
+          auto dstEntry = catalog->getTableCatalogEntry(dstTableID);
           candidateNamesSet.insert(dstEntry->get_label());
         }
       }

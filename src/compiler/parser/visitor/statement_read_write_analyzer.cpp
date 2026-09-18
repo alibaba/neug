@@ -49,13 +49,11 @@ bool isCallFunctionReadOnly(main::ClientContext* context,
   auto funcName = functionExpression->constCast<ParsedFunctionExpression>()
                       .getFunctionName();
   auto* catalog = context->getCatalog();
-  auto* transaction = context->getTransaction();
-  if (transaction == nullptr ||
-      !catalog->containsFunction(transaction, funcName)) {
+  if (!catalog->containsFunction(funcName)) {
     // Unknown CALL — treat as non-read-only to be safe.
     return false;
   }
-  auto* entry = catalog->getFunctionEntry(transaction, funcName);
+  auto* entry = catalog->getFunctionEntry(funcName);
   if (entry->getType() != catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY &&
       entry->getType() !=
           catalog::CatalogEntryType::STANDALONE_TABLE_FUNCTION_ENTRY) {

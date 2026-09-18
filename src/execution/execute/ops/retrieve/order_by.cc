@@ -15,9 +15,11 @@
 
 #include "neug/execution/execute/ops/retrieve/order_by.h"
 
+#include "neug/compiler/common/types/types.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
+#include "neug/execution/execute/ops/retrieve/range_expression.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
@@ -28,8 +30,9 @@ namespace ops {
 
 class OrderByOpr : public IOperator {
  public:
-  OrderByOpr(std::vector<std::pair<int32_t, bool>> keys, int lower, int upper)
-      : keys_(std::move(keys)), lower_(lower), upper_(upper) {}
+  OrderByOpr(std::vector<std::pair<int32_t, bool>> keys,
+             std::unique_ptr<RangeExpression> range)
+      : keys_(std::move(keys)), range_(std::move(range)) {}
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
@@ -37,6 +40,8 @@ class OrderByOpr : public IOperator {
       IStorageInterface& graph_interface, const ParamsMap& params,
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
+    auto range = range_ ? range_->bind(&graph_interface, params)
+                        : ResolvedRange{0, common::MAX_RANGE_BOUND};
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx.ensure_single_chunk("OrderByOpr");
@@ -50,21 +55,21 @@ class OrderByOpr : public IOperator {
           sel_vec_t indices;
           int32_t tag = keys_[0].first;
           bool order = keys_[0].second;
-          if (chunk.get(tag)->order_by_limit(order, upper_, indices)) {
+          if (chunk.get(tag)->order_by_limit(order, range.upper, indices)) {
             return OrderBy::staged_order_by_with_limit<GeneralComparer>(
-                graph, std::move(chunk), cmp, lower_, upper_, indices);
+                graph, std::move(chunk), cmp, range.lower, range.upper,
+                indices);
           }
 
           return OrderBy::order_by_with_limit<GeneralComparer>(
-              graph, std::move(chunk), cmp, lower_, upper_);
+              graph, std::move(chunk), cmp, range.lower, range.upper);
         });
   }
 
  private:
   std::vector<std::pair<int32_t, bool>> keys_;
 
-  int lower_;
-  int upper_;
+  std::unique_ptr<RangeExpression> range_;
 };
 
 neug::result<OpBuildResultT> OrderByOprBuilder::Build(
@@ -72,11 +77,10 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto opr = plan.plan(op_idx).opr().order_by();
-  int lower = 0;
-  int upper = std::numeric_limits<int>::max();
+  std::unique_ptr<RangeExpression> range;
+
   if (opr.has_limit()) {
-    lower = std::max(lower, static_cast<int>(opr.limit().lower()));
-    upper = std::min(upper, static_cast<int>(opr.limit().upper()));
+    range = std::make_unique<RangeExpression>(opr.limit(), ctx_meta);
   }
   int keys_num = opr.pairs_size();
   if (keys_num == 0) {
@@ -102,7 +106,8 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
   }
 
   return std::make_pair(
-      std::make_unique<OrderByOpr>(std::move(keys), lower, upper), ret_meta);
+      std::make_unique<OrderByOpr>(std::move(keys), std::move(range)),
+      ret_meta);
 }
 
 }  // namespace ops

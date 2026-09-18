@@ -209,6 +209,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPath(
     return ::physical::GroupBy_AggFunc::MAX;
   }
   if (func.name == "SUM") {
+    if (func.isDistinct) {
+      THROW_NOT_SUPPORTED_EXCEPTION("SUM(DISTINCT ...) is not supported");
+    }
     return ::physical::GroupBy_AggFunc::SUM;
   }
   if (func.name == "COLLECT") {
@@ -216,6 +219,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPath(
                            : ::physical::GroupBy_AggFunc::TO_LIST;
   }
   if (func.name == "AVG") {
+    if (func.isDistinct) {
+      THROW_NOT_SUPPORTED_EXCEPTION("AVG(DISTINCT ...) is not supported");
+    }
     return ::physical::GroupBy_AggFunc::AVG;
   }
   THROW_EXCEPTION_WITH_FILE_LINE("Unsupported aggregate function: " +
@@ -467,22 +473,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
   return exprPB;
 }
 
-std::string GExprConverter::convertRegexValue(const std::string& regex,
-                                              const GScalarType& scalarType) {
-  std::string updateRegex;
-  switch (scalarType.getType()) {
-  case ScalarType::STARTS_WITH:
-    return "^" + regex + ".*";
-  case ScalarType::ENDS_WITH:
-    return ".*" + regex + "$";
-  case ScalarType::CONTAINS:
-    return ".*" + regex + ".*";
-  default:
-    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported regex type " +
-                                   scalarType.getType());
-  }
-}
-
 std::unique_ptr<::common::Expression> GExprConverter::convertListContainsFunc(
     const binder::Expression& expr, const GScalarType& scalarType,
     const std::vector<std::string>& schemaAlias) {
@@ -494,24 +484,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertListContainsFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "List Contains function should have at least two children");
   }
-  return convertChildren(expr, schemaAlias);
-}
-
-std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
-    const binder::Expression& expr, const GScalarType& scalarType,
-    const std::vector<std::string>& schemaAlias) {
-  if (expr.getNumChildren() != 2) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Regex function should have two children");
-  }
-  auto right = expr.getChild(1);
-  if (right->expressionType != common::ExpressionType::LITERAL) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Right child of regex function should be a literal");
-  }
-  auto* literalExpr = right->ptrCast<binder::LiteralExpression>();
-  std::string pattern = literalExpr->getValue().getValue<std::string>();
-  std::string regexPattern = convertRegexValue(pattern, scalarType);
-  literalExpr->value = compiler_impl::Value(regexPattern);
   return convertChildren(expr, schemaAlias);
 }
 
@@ -848,10 +820,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertToArrayFunc(expr, schemaAlias);
   } else if (scalarType.getType() == TO_TUPLE) {
     return convertToTupleFunc(expr, schemaAlias);
-  } else if (scalarType.getType() == STARTS_WITH ||
-             scalarType.getType() == ENDS_WITH ||
-             scalarType.getType() == CONTAINS) {
-    return convertRegexFunc(expr, scalarType, schemaAlias);
   } else if (scalarType.getType() == LIST_CONTAINS) {
     return convertListContainsFunc(expr, scalarType, schemaAlias);
   }

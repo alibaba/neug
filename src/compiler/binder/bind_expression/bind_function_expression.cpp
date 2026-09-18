@@ -53,8 +53,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindFunctionExpression(
     const ParsedExpression& expr) {
   auto funcExpr = expr.constPtrCast<ParsedFunctionExpression>();
   auto functionName = funcExpr->getNormalizedFunctionName();
-  auto entry = context->getCatalog()->getFunctionEntry(
-      context->getTransaction(), functionName);
+  auto entry = context->getCatalog()->getFunctionEntry(functionName);
   switch (entry->getType()) {
   case CatalogEntryType::SCALAR_FUNCTION_ENTRY:
     return bindScalarFunctionExpression(expr, functionName);
@@ -114,10 +113,9 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
     const expression_vector& children, const std::string& functionName,
     std::vector<std::string> optionalArguments) {
   auto catalog = context->getCatalog();
-  auto transaction = context->getTransaction();
   auto childrenTypes = getTypes(children);
 
-  auto entry = catalog->getFunctionEntry(transaction, functionName);
+  auto entry = catalog->getFunctionEntry(functionName);
 
   auto function =
       BuiltInFunctionsUtils::matchFunction(
@@ -203,8 +201,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindRewriteFunctionExpression(
   }
   auto childrenTypes = getTypes(children);
   auto functionName = funcExpr.getNormalizedFunctionName();
-  auto entry = context->getCatalog()->getFunctionEntry(
-      context->getTransaction(), functionName);
+  auto entry = context->getCatalog()->getFunctionEntry(functionName);
   auto match = BuiltInFunctionsUtils::matchFunction(
       functionName, childrenTypes, entry->ptrCast<FunctionCatalogEntry>());
   auto function = match->constPtrCast<RewriteFunction>();
@@ -223,8 +220,7 @@ std::shared_ptr<Expression> ExpressionBinder::bindAggregateFunctionExpression(
     childrenTypes.push_back(child->dataType.copy());
     children.push_back(std::move(child));
   }
-  auto entry = context->getCatalog()->getFunctionEntry(
-      context->getTransaction(), functionName);
+  auto entry = context->getCatalog()->getFunctionEntry(functionName);
   auto function = BuiltInFunctionsUtils::matchAggregateFunction(
                       functionName, childrenTypes, isDistinct,
                       entry->ptrCast<FunctionCatalogEntry>())
@@ -258,11 +254,10 @@ std::shared_ptr<Expression> ExpressionBinder::bindAggregateFunctionExpression(
 
 std::shared_ptr<Expression> ExpressionBinder::bindMacroExpression(
     const ParsedExpression& parsedExpression, const std::string& macroName) {
-  auto scalarMacroFunction =
-      context->getCatalog()
-          ->getFunctionEntry(context->getTransaction(), macroName)
-          ->constCast<ScalarMacroCatalogEntry>()
-          .getMacroFunction();
+  auto scalarMacroFunction = context->getCatalog()
+                                 ->getFunctionEntry(macroName)
+                                 ->constCast<ScalarMacroCatalogEntry>()
+                                 .getMacroFunction();
   auto macroExpr = scalarMacroFunction->expression->copy();
   auto parameterVals = scalarMacroFunction->getDefaultParameterVals();
   auto& parsedFuncExpr = parsedExpression.constCast<ParsedFunctionExpression>();

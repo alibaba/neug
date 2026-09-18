@@ -42,6 +42,12 @@ class GeneralComparer {
       auto asc = order_[k];
       Value lhs_val = v->get_elem(lhs);
       Value rhs_val = v->get_elem(rhs);
+      if (lhs_val.IsNull() || rhs_val.IsNull()) {
+        if (lhs_val.IsNull() != rhs_val.IsNull()) {
+          return asc ? !lhs_val.IsNull() : lhs_val.IsNull();
+        }
+        continue;
+      }
       if (lhs_val < rhs_val) {
         return asc;
       } else if (rhs_val < lhs_val) {

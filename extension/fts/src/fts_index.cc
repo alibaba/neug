@@ -19,9 +19,12 @@
 #include <sqlite3.h>
 
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -86,6 +89,44 @@ std::string QuoteSQLiteIdentifier(const std::string& value) {
 
 std::string FTSPhysicalColumnName(size_t column_index) {
   return "c" + std::to_string(column_index);
+}
+
+bool IsStopwordList(std::string_view value) {
+  const auto first = value.find_first_not_of(" \t\n\r\f\v");
+  return first != std::string_view::npos && value[first] == '[';
+}
+
+std::string ReadStopwordFile(const std::string& path) {
+  if (!std::filesystem::is_regular_file(path)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid stopwords option: expected 'english', 'jieba', 'none', a "
+        "list of strings, or a readable file path.");
+  }
+
+  std::ifstream file(path);
+  if (!file) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid stopwords option: expected 'english', 'jieba', 'none', a "
+        "list of strings, or a readable file path.");
+  }
+  std::ostringstream list;
+  list << '[';
+  bool first = true;
+  for (std::string stopword; std::getline(file, stopword);) {
+    if (!stopword.empty() && stopword.back() == '\r') {
+      stopword.pop_back();
+    }
+    if (!first) {
+      list << ", ";
+    }
+    first = false;
+    list << std::quoted(stopword, '\'');
+  }
+  if (file.bad()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("failed to read stopwords file: " + path);
+  }
+  list << ']';
+  return list.str();
 }
 
 std::string AddFTS5ColumnFilter(const std::vector<std::string>& column_names,
@@ -175,11 +216,18 @@ void FTSIndex::ParseOptions() {
   }
 
   static const std::unordered_set<std::string> kKnownOptions = {
-      "tokenizer", "prefix", "jieba_mode", "jieba_dict"};
+      "tokenizer", "prefix", "jieba_mode", "jieba_dict", "stopwords"};
   for (const auto& [name, value] : meta_->options) {
     if (!kKnownOptions.contains(name)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported FTSIndex option: " + name);
     }
+  }
+
+  if (auto option = meta_->options.find("stopwords");
+      option != meta_->options.end() && option->second != "english" &&
+      option->second != "jieba" && option->second != "none" &&
+      !IsStopwordList(option->second)) {
+    option->second = ReadStopwordFile(option->second);
   }
 
   if (auto option = meta_->options.find("prefix");

@@ -103,10 +103,9 @@ void Planner::appendNonRecursiveExtend(
   // Update cost & cardinality. Note that extend does not change factorized
   // cardinality.
   // const auto extensionRate = cardinalityEstimator.getExtensionRate(
-  //     *rel, transformRelTableIds(*rel), *boundNode,
-  //     clientContext->getTransaction());
-  const auto extensionRate = cardinalityEstimator.getExtensionRate(
-      *rel, *boundNode, clientContext->getTransaction());
+  //     *rel, transformRelTableIds(*rel), *boundNode);
+  const auto extensionRate =
+      cardinalityEstimator.getExtensionRate(*rel, *boundNode);
   auto extendCard = cardinalityEstimator.multiply(
       extensionRate, plan.getLastOperator()->getCardinality());
   extend->setCardinality(extendCard);
@@ -145,11 +144,9 @@ void Planner::appendRecursiveExtend(
 
   recursiveExtend->computeFactorizedSchema();
 
-  auto extensionRate = cardinalityEstimator.getExtensionRate(
-      *rel, *boundNode, clientContext->getTransaction());
+  auto extensionRate = cardinalityEstimator.getExtensionRate(*rel, *boundNode);
   // auto extensionRate = cardinalityEstimator.getExtensionRate(
-  //     *rel, transformRelTableIds(*rel), *boundNode,
-  //     clientContext->getTransaction());
+  //     *rel, transformRelTableIds(*rel), *boundNode);
   auto resultCard = cardinalityEstimator.multiply(
       extensionRate, plan.getLastOperator()->getCardinality());
 

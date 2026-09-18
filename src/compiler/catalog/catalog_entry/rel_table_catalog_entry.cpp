@@ -40,13 +40,12 @@ bool RelTableCatalogEntry::isParent(table_id_t tableID) {
   return srcTableID == tableID || dstTableID == tableID;
 }
 
-bool RelTableCatalogEntry::hasParentRelGroup(
-    const Catalog* catalog, const transaction::Transaction* transaction) const {
-  return getParentRelGroup(catalog, transaction) != nullptr;
+bool RelTableCatalogEntry::hasParentRelGroup(const Catalog* catalog) const {
+  return getParentRelGroup(catalog) != nullptr;
 }
 
 RelGroupCatalogEntry* RelTableCatalogEntry::getParentRelGroup(
-    const Catalog* catalog, const transaction::Transaction* transaction) const {
+    const Catalog* catalog) const {
   return nullptr;
 }
 
@@ -150,9 +149,8 @@ std::string RelTableCatalogEntry::toCypher(const ToCypherInfo& info) const {
   auto clientContext = relTableToCypherInfo.context;
   std::stringstream ss;
   auto catalog = clientContext->getCatalog();
-  auto transaction = clientContext->getTransaction();
-  auto srcEntry = catalog->getTableCatalogEntry(transaction, srcTableID);
-  auto dstEntry = catalog->getTableCatalogEntry(transaction, dstTableID);
+  auto srcEntry = catalog->getTableCatalogEntry(srcTableID);
+  auto dstEntry = catalog->getTableCatalogEntry(dstTableID);
   auto srcTableName = srcEntry->get_label();
   auto dstTableName = dstEntry->get_label();
   std::string tableInfo =
@@ -167,7 +165,7 @@ ExtendDirection RelTableCatalogEntry::getStorageDirection() const {
 }
 
 std::unique_ptr<BoundExtraCreateCatalogEntryInfo>
-RelTableCatalogEntry::getBoundExtraCreateInfo(transaction::Transaction*) const {
+RelTableCatalogEntry::getBoundExtraCreateInfo() const {
   return std::make_unique<BoundExtraCreateRelTableInfo>(
       srcMultiplicity, dstMultiplicity, storageDirection, srcTableID,
       dstTableID, copyVector(propertyCollection.getDefinitions()));

@@ -6,9 +6,29 @@ on:
   workflow_dispatch:
     inputs:
       python_versions:
-        description: 'Python version (e.g. 3.9) or range (e.g. 3.8-3.14) to build'
-        required: false
-        default: ''
+        description: 'Python version to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - '3.8'
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+          - '3.14'
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - macos-arm64
   schedule:
     # Trigger the workflow at 22:00(CST) every Monday (14:00 UTC)
     - cron: '0 14 * * 1'
@@ -27,6 +47,7 @@ jobs:
     uses: ./.github/workflows/wheels-common.yml
     with:
       python_versions: ${{ inputs.python_versions }}
+      target_platform: ${{ inputs.platform || 'all' }}
       mode: nightly
       set_nightly_version: true
       pybind11_findpython_off: true
