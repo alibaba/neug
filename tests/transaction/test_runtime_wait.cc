@@ -512,6 +512,38 @@ TEST(VersionManagerTimestampWindowTest,
   waiter.join();
 }
 
+TEST(VersionManagerTimestampWindowTest,
+     ReusedSlotsDoNotPublishUnfinishedTimestamps) {
+  VersionManager manager;
+  manager.init_ts({0, 0}, 2);
+  auto visibility = [&] {
+    auto read = manager.acquire_read_operation();
+    return read.published_view.visibility_ts;
+  };
+
+  // Cross the ring boundary repeatedly with a hole at the start of each lap.
+  // Old completion tags must not publish the hole or the next unreserved slot.
+  for (uint32_t lap = 0; lap < 3; ++lap) {
+    const auto oldest = manager.acquire_insert_timestamp();
+    const uint32_t frontier = lap * TimestampWindow::kWindowSize;
+    ASSERT_EQ(oldest, frontier + 1);
+    for (size_t i = 1; i < TimestampWindow::kWindowSize; ++i) {
+      const auto ts = manager.acquire_insert_timestamp();
+      manager.release_insert_timestamp(ts);
+    }
+    EXPECT_EQ(visibility(), frontier);
+    manager.release_insert_timestamp(oldest);
+    EXPECT_EQ(visibility(), frontier + TimestampWindow::kWindowSize);
+  }
+
+  // Reinitializing at an earlier frontier must discard matching retained tags.
+  const uint32_t restart = 2 * TimestampWindow::kWindowSize;
+  manager.init_ts({restart, 0}, 2);
+  const auto first = manager.acquire_insert_timestamp();
+  manager.release_insert_timestamp(first);
+  EXPECT_EQ(visibility(), restart + 1);
+}
+
 TEST(VersionManagerTimestampWindowTest, TimestampExhaustionRestoresAdmission) {
   VersionManager manager;
   manager.init_ts({std::numeric_limits<uint32_t>::max() - 1, 0}, 1);

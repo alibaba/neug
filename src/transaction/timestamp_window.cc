@@ -43,10 +43,4 @@ bool TimestampWindow::is_completed(uint32_t ts) const {
   return completed_ts_[ts_index(ts)].load(std::memory_order_acquire) == ts;
 }
 
-void TimestampWindow::clear(uint32_t ts) {
-  uint32_t expected = ts;
-  (void) completed_ts_[ts_index(ts)].compare_exchange_strong(
-      expected, 0, std::memory_order_relaxed, std::memory_order_relaxed);
-}
-
 }  // namespace neug
