@@ -243,22 +243,21 @@ long long string
 [[142,51],[short,long,123],[long long long string,short short short short short]]
 
 -LOG AddListOfStructPropertyToPersonTableWithDefaultValueNormalExecution
--SKIP: STRUCT is not supported yet.
--STATEMENT ALTER TABLE person ADD random STRUCT(revenue int64, ages double[])[]
-            DEFAULT [{revenue: 23, ages: [1.300000,2.500000]},
-            {revenue: 33, ages: [2.700000]},
-            {revenue: -4, ages: [22.500000,11.300000,33.200000]}]
+-STATEMENT ALTER TABLE person ADD random_struct_list STRUCT(revenue int64, ages double[])[]
+            DEFAULT CAST([{revenue: 23, ages: CAST([1.300000,2.500000], 'DOUBLE[]')},
+            {revenue: 33, ages: CAST([2.700000], 'DOUBLE[]')},
+            {revenue: -4, ages: CAST([22.500000,11.300000,33.200000], 'DOUBLE[]')}], 'STRUCT(revenue INT64, ages DOUBLE[])[]')
 ---- ok
--STATEMENT MATCH (p:person) return p.random
+-STATEMENT MATCH (p:person) return p.random_struct_list
 ---- 8
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
-[{revenue: 23, ages: [1.300000,2.500000]},{revenue: 33, ages: [2.700000]},{revenue: -4, ages: [22.500000,11.300000,33.200000]}]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
+[[23, [1.3, 2.5]], [33, [2.7]], [-4, [22.5, 11.3, 33.2]]]
 
 -LOG AddMapPropertyToPersonTableWithDefaultValueNormalExecution
 -SKIP: map is not supported
@@ -276,20 +275,19 @@ long long string
 {key1=400, key2=250}
 
 -LOG AddStructPropertyToPersonTableWithDefaultValueNormalExecution
--SKIP: STRUCT is not supported yet.
--STATEMENT ALTER TABLE person ADD random STRUCT(revenue int64, ages double[])
-            DEFAULT {revenue: 123, ages: [1.200000,3.400000,5.600000]}
+-STATEMENT ALTER TABLE person ADD random_struct STRUCT(revenue int64, ages double[])
+            DEFAULT CAST({revenue: 123, ages: [1.200000,3.400000,5.600000]}, 'STRUCT(revenue INT64, ages DOUBLE[])')
 ---- ok
--STATEMENT MATCH (p:person) return p.random
+-STATEMENT MATCH (p:person) return p.random_struct
 ---- 8
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
-{revenue: 123, ages: [1.200000,3.400000,5.600000]}
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
+[123, [1.2, 3.4, 5.6]]
 
 -DEFINE_STATEMENT_BLOCK STUDY_AT_TABLE_NULL_CHECK [
 -STATEMENT MATCH (:person)-[e:studyAt]->(:organisation) return e.random

@@ -148,6 +148,13 @@ def parse_test_file(
             test_index = 0
         elif line.startswith("-SKIP"):
             is_skip = True
+        elif line.startswith("-DEFINE_STATEMENT_BLOCK"):
+            # Statement blocks are not supported by the runner; consume the
+            # whole block so its statements are not attributed to the
+            # current test case.
+            for block_line in lines:
+                if block_line.strip() == "]":
+                    break
         elif line.startswith(NAME):
             if not case_name:
                 query_name_prefix = line.split()[1]
