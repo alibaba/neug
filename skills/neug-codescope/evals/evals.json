@@ -1,0 +1,23 @@
+{
+  "skill_name": "neug-codescope-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Audit this small C project for memory-safety vulnerabilities. I'm particularly worried about places where external input influences allocation sizes or copy lengths.",
+      "expected_output": "Should run file_audit in tool mode: build tier1 with `audit --build-only --skip-cpg`, use overview/query to shortlist suspicious functions (callers of strcpy/memcpy/malloc, external-input entry points), `build` tier2 for the containing files, verify source-to-sink reachability with `paths --pair`, and write audit_findings.json (with verbatim evidence chains) plus audit_coverage.json",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I don't need a vulnerability report. Just show me how the parameter `buf` flows through the function parse_token in src/auth.c — where it gets defined, every place it's used, and which callees it escapes into.",
+      "expected_output": "Should use Workflow C (dataflow analysis mode): locate the function via tier1 name query, `build` the containing file, map definitions/uses with CONTAINS + bidirectional REACHING_DEF queries, rebuild interesting pairs with `paths --pair`, and write dataflow_analysis.json with flows/cross_function/unresolved — no findings, no confidence ratings",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Someone reported that deserializing a crafted packet crashes our server in handle_packet(). The project is medium-sized C++. Confirm whether an untrusted size field can reach an allocation or memcpy without validation, and give me the evidence chain.",
+      "expected_output": "Should drive the B1/B2 taxonomy: tier1 query to locate handle_packet and callers, `build` its file, anchor source (deserialization field) and sink (alloc/memcpy ARGUMENT) node ids via tier2 queries, check for intervening validation with ControlStructure/lessThan lookups, then `paths --pair <src>:<sink>` to attach the full REACHING_DEF chain as evidence, with confidence graded per the false-positive checklist",
+      "files": []
+    }
+  ]
+}

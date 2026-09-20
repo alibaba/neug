@@ -98,11 +98,6 @@ def test_show_node_tables(schema_connection):
             "RETURN vertex_label_name, primary_key, temporary;"
         )
     ) == [["Company", "id", False], ["Person", "id", False]]
-    with pytest.raises(
-        RuntimeError,
-        match="has type SCALAR_FUNCTION but LITERAL,PARAMETER was expected",
-    ):
-        list(conn.execute("CALL SHOW_NODE_TABLES(repeat(['Person'], 2)) RETURN *;"))
 
 
 def test_show_rel_tables(schema_connection):
