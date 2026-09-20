@@ -63,6 +63,23 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        # Temporary workaround: force extension home to the pip-installed wheel
+        # directory. Without this the source checkout / build tree shadows the
+        # wheel and extensions are installed where @loader_path/../../libneug
+        # cannot resolve on macOS.
+        export NEUG_EXTENSION_HOME_PYENV="$(python3 - <<'PY'
+        import glob
+        import os
+        import sysconfig
+        sp = sysconfig.get_path("platlib")
+        for pattern in ("neug_py_bind*.so", "neug_py_bind*.pyd", "neug_py_bind*.dll"):
+            if glob.glob(os.path.join(sp, pattern)):
+                print(sp)
+                break
+        else:
+            raise RuntimeError("neug_py_bind not found in %s" % sp)
+        PY
+        )"
         python3 -m pytest tests/test_extension_install_load.py tests/test_extension_functions.py -v
         python3 example/complex_test.py
     
