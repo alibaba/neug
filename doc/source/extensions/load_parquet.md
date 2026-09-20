@@ -1,4 +1,4 @@
-# Parquet Extension
+# Parquet
 
 Apache Parquet is a columnar storage format widely used in data engineering and analytics workloads. NeuG supports both Parquet file import and export functionality through the Extension framework.
 

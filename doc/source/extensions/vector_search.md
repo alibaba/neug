@@ -1,4 +1,4 @@
-# Vector Search Extension
+# Vector Search
 
 Since NeuG v0.2.0, NeuG provides vector search capabilities through the dedicated `vector_search` extension.
 
