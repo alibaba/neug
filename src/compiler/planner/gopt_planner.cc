@@ -14,8 +14,12 @@ limitations under the License.
 */
 
 #include "neug/compiler/planner/gopt_planner.h"
-#include <yaml-cpp/node/emit.h>
+
+#include <algorithm>
 #include <cctype>
+
+#include <yaml-cpp/node/emit.h>
+
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/gopt/g_catalog.h"
@@ -108,36 +112,65 @@ bool isTokenEnd(char ch) {
          ch == '(';
 }
 
-void skipQueryWhitespace(std::string_view query, size_t& offset) {
-  while (offset < query.size()) {
-    while (offset < query.size() &&
-           common::StringUtils::isSpace(query[offset])) {
-      ++offset;
-    }
-    if (offset + 1 >= query.size() || query[offset] != '/') {
-      return;
-    }
-    if (query[offset + 1] == '/') {
-      offset += 2;
-      while (offset < query.size() && query[offset] != '\n' &&
-             query[offset] != '\r') {
-        ++offset;
-      }
-      continue;
-    }
-    if (query[offset + 1] != '*') {
-      return;
-    }
-    const auto comment_end = query.find("*/", offset + 2);
-    if (comment_end == std::string_view::npos) {
-      return;
-    }
-    offset = comment_end + 2;
+void skipWhitespace(std::string_view query, size_t& offset) {
+  while (offset < query.size() && common::StringUtils::isSpace(query[offset])) {
+    ++offset;
   }
 }
 
+void skipQuotedToken(std::string_view query, size_t& offset) {
+  const auto quote = query[offset++];
+  while (offset < query.size()) {
+    if (quote != '`' && query[offset] == '\\') {
+      offset += std::min<size_t>(2, query.size() - offset);
+      continue;
+    }
+    if (query[offset++] == quote) {
+      return;
+    }
+  }
+}
+
+std::string maskComments(std::string_view query) {
+  std::string result{query};
+  size_t offset = 0;
+  while (offset < query.size()) {
+    if (query[offset] == '\'' || query[offset] == '"' || query[offset] == '`') {
+      skipQuotedToken(query, offset);
+      continue;
+    }
+    if (offset + 1 >= query.size() || query[offset] != '/') {
+      ++offset;
+      continue;
+    }
+    if (query[offset + 1] == '/') {
+      result[offset++] = ' ';
+      result[offset++] = ' ';
+      while (offset < query.size() && query[offset] != '\n' &&
+             query[offset] != '\r') {
+        result[offset++] = ' ';
+      }
+      continue;
+    }
+    if (query[offset + 1] == '*') {
+      const auto comment_end = query.find("*/", offset + 2);
+      if (comment_end == std::string_view::npos) {
+        // Keep malformed comments intact so prefix analysis cannot turn an
+        // invalid query into a valid administrative statement. The parser
+        // will report the syntax error later.
+        break;
+      }
+      std::fill(result.begin() + offset, result.begin() + comment_end + 2, ' ');
+      offset = comment_end + 2;
+      continue;
+    }
+    ++offset;
+  }
+  return result;
+}
+
 std::string_view nextKeyword(std::string_view query, size_t& offset) {
-  skipQueryWhitespace(query, offset);
+  skipWhitespace(query, offset);
   const auto begin = offset;
   while (offset < query.size() &&
          std::isalpha(static_cast<unsigned char>(query[offset]))) {
@@ -151,17 +184,17 @@ bool isKeyword(std::string_view token, std::string_view keyword) {
 }
 
 bool isStatementEnd(std::string_view query, size_t offset) {
-  skipQueryWhitespace(query, offset);
+  skipWhitespace(query, offset);
   if (offset < query.size() && query[offset] == ';') {
     ++offset;
-    skipQueryWhitespace(query, offset);
+    skipWhitespace(query, offset);
   }
   return offset == query.size();
 }
 
 bool nextAdminValue(std::string_view query, size_t& offset,
                     std::string& value) {
-  skipQueryWhitespace(query, offset);
+  skipWhitespace(query, offset);
   if (offset >= query.size())
     return false;
   const char quote = query[offset];
@@ -257,20 +290,32 @@ void analyzeQueryPrefix(std::string_view query, QueryAnalysis& analysis) {
 
 QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
   QueryAnalysis analysis;
-  analyzeQueryPrefix(query, analysis);
+  std::string masked_query;
+  std::string_view query_to_analyze = query;
+  if (query.find('/') != std::string::npos) {
+    masked_query = maskComments(query);
+    query_to_analyze = masked_query;
+  }
+  analyzeQueryPrefix(query_to_analyze, analysis);
   if (analysis.isAdmin()) {
     analysis.access_mode = AccessMode::kUpdate;
     return analysis;
   }
 
   size_t i = 0;
-  const size_t n = query.size();
+  const size_t n = query_to_analyze.size();
 
   while (i < n) {
-    while (i < n && isTokenEnd(query[i]))
+    while (i < n && isTokenEnd(query_to_analyze[i]))
       ++i;
     if (i >= n)
       break;
+
+    if (query_to_analyze[i] == '\'' || query_to_analyze[i] == '"' ||
+        query_to_analyze[i] == '`') {
+      skipQuotedToken(query_to_analyze, i);
+      continue;
+    }
 
     // mark the start pos of current token
     size_t token_start = i;
@@ -278,7 +323,7 @@ QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
 
     // scan the token until a non-alphabetic character or an end character
     while (i < n) {
-      char c = query[i];
+      char c = query_to_analyze[i];
       if (std::isalpha(static_cast<unsigned char>(c))) {
         ++i;
       } else if (isTokenEnd(c)) {
@@ -292,13 +337,21 @@ QueryAnalysis GOptPlanner::analyzeQuery(const std::string& query) const {
 
     // if the token is invalid, skip to the next valid token
     if (invalid_token) {
-      while (i < n && !isTokenEnd(query[i]))
+      while (i < n && !isTokenEnd(query_to_analyze[i])) {
+        if (query_to_analyze[i] == '\'' || query_to_analyze[i] == '"' ||
+            query_to_analyze[i] == '`') {
+          skipQuotedToken(query_to_analyze, i);
+        } else {
+          ++i;
+        }
+      }
+      if (i < n) {
         ++i;
-      ++i;
+      }
       continue;
     }
 
-    std::string token(query.data() + token_start, i - token_start);
+    std::string token(query_to_analyze.data() + token_start, i - token_start);
 
     if (getSchemaOpTokens().contains(token)) {
       analysis.access_mode = AccessMode::kSchema;

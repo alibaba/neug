@@ -38,6 +38,7 @@ ON <node_table>
 USING FTS (<string_property> [, <string_property> ...])
 [WITH (
     tokenizer = '<tokenizer>',
+    stopwords = 'english' | 'jieba' | 'none' | ['<stopword>', ...] | '<file_path>',
     jieba_mode = '<jieba_mode>',
     jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>'
@@ -115,9 +116,42 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
+| `stopwords` | Stopword list: `english`, `jieba`, `none`, a custom list of strings, or a file path | `english` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
+
+### Stopwords (supported since v0.2.1)
+
+FTS indexes remove English stopwords by default. Set `stopwords` to `english`
+to select the built-in 670-word English stopword list explicitly, to `jieba`
+to use cppjieba's stopword list, to `none` to disable filtering, or to a list
+of strings to use a custom stopword list:
+
+```cypher
+CREATE INDEX english_item_fts ON Item USING FTS (text)
+WITH (stopwords = 'english');
+
+CREATE INDEX jieba_item_fts ON Item USING FTS (text)
+WITH (tokenizer = 'jieba', stopwords = 'jieba');
+
+CREATE INDEX item_text_fts ON Item USING FTS (text)
+WITH (stopwords = 'none');
+
+CREATE INDEX custom_item_fts ON Item USING FTS (text)
+WITH (stopwords = ['a', 'custom']);
+
+CREATE INDEX file_item_fts ON Item USING FTS (text)
+WITH (stopwords = '/path/to/stop_words.txt');
+```
+
+A stopword file must be UTF-8 encoded and contain one word per line. The file
+is read only when the index is created. Its contents are stored in the index
+checkpoint, so the original file is not required when reopening the database.
+
+Stopwords are applied consistently while indexing documents and parsing
+queries. Index checkpoints created by earlier versions remain compatible and
+are treated as `stopwords = 'none'`.
 
 ### Tokenizers
 
@@ -132,6 +166,8 @@ Supported tokenizers are:
   enabling substring matching.
 - `jieba` performs Chinese word segmentation using cppjieba and loads the
   built-in small dictionary and HMM model.
+
+All tokenizers are case-insensitive, and all tokens are converted to lowercase.
 
 The Jieba tokenizer supports three modes:
 

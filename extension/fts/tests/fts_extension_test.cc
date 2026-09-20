@@ -217,6 +217,54 @@ TEST(FTSExtensionTest, JiebaOptionSupportsChineseSearch) {
   EXPECT_EQ(result->response().arrays(0).int64_array().values(0), 1);
 }
 
+TEST(FTSExtensionTest, StopwordsSupportEnglishAndNone) {
+  const auto build_root = FindBuildRoot();
+  ASSERT_FALSE(build_root.empty());
+  ASSERT_EQ(setenv("NEUG_EXTENSION_HOME_PYENV", build_root.c_str(), 1), 0);
+
+  TemporaryDatabaseDirectory database_directory;
+  NeugDB database;
+  ASSERT_TRUE(database.Open(database_directory.path()));
+  auto connection = database.Connect();
+  ASSERT_NE(connection, nullptr);
+  ASSERT_TRUE(connection->Query("LOAD fts;").has_value());
+
+  const auto create_table = [&](const std::string& name) {
+    auto result = connection->Query("CREATE NODE TABLE " + name +
+                                    "(id INT64 PRIMARY KEY, text STRING);");
+    ASSERT_TRUE(result.has_value()) << result.error().ToString();
+    result = connection->Query("CREATE (:" + name +
+                               " {id: 1, text: 'the custom alpha don\\'t'}), "
+                               "(:" +
+                               name + " {id: 2, text: 'alpha'});");
+    ASSERT_TRUE(result.has_value()) << result.error().ToString();
+  };
+  create_table("DefaultItem");
+  create_table("NoneItem");
+
+  auto create = connection->Query(
+      "CREATE INDEX default_item_fts ON DefaultItem USING FTS (text);");
+  ASSERT_TRUE(create.has_value()) << create.error().ToString();
+  create = connection->Query(
+      "CREATE INDEX none_item_fts ON NoneItem USING FTS (text) "
+      "WITH (stopwords = 'none');");
+  ASSERT_TRUE(create.has_value()) << create.error().ToString();
+
+  const auto search_count = [&](const std::string& label,
+                                const std::string& query) {
+    auto result = connection->Query("MATCH (n:" + label +
+                                    ") RETURN n.id, bm25(n.text, '" + query +
+                                    "') AS score ORDER BY score ASC LIMIT 10;");
+    EXPECT_TRUE(result.has_value())
+        << label << ": " << (result ? "" : result.error().ToString());
+    return result ? result->length() : 0;
+  };
+
+  EXPECT_EQ(search_count("DefaultItem", "the alpha"), 2);
+  EXPECT_EQ(search_count("DefaultItem", "the"), 0);
+  EXPECT_EQ(search_count("NoneItem", "the alpha"), 1);
+}
+
 TEST(FTSIndexScanInputTest, BindsConstantQueryExpression) {
   FTSIndexScanFuncInput input;
   input.property_names = {"text"};
@@ -404,6 +452,43 @@ TEST(JiebaFTSTokenizerTest, RejectsUserDictPathSeparators) {
                  std::invalid_argument)
         << separator;
   }
+}
+
+TEST(FTSTokenizerTest, ValidatesStopwordOptions) {
+  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "english"}}));
+  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "jieba"}}));
+  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "none"}}));
+  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "[]"}}));
+  EXPECT_NO_THROW(
+      FTSTokenizer::Create({{"stopwords", "['custom', 'don\\'t']"}}));
+
+  for (const auto& value : {"spanish", "[custom]", "['']", "['custom', 1]"}) {
+    EXPECT_THROW(FTSTokenizer::Create({{"stopwords", value}}),
+                 std::invalid_argument)
+        << value;
+  }
+}
+
+TEST(JiebaFTSTokenizerTest, LoadsJiebaStopwords) {
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  tokenizer.LoadStopwords("jieba");
+  const std::string input = "我们是图数据库";
+  std::vector<CollectedToken> tokens;
+  ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
+                               FTS5_TOKENIZE_DOCUMENT, CollectToken),
+            SQLITE_OK);
+  std::vector<std::string> actual;
+  for (const auto& token : tokens) {
+    actual.push_back(token.text);
+  }
+  EXPECT_EQ(actual, (std::vector<std::string>{"图", "数据库"}));
+}
+
+TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
+  auto tokenizer =
+      FTSTokenizer::Create({{"tokenizer", "unicode61 remove_diacritics 0"}});
+  EXPECT_EQ(tokenizer->Name(),
+            "builtin_stopwords unicode61 remove_diacritics 0");
 }
 
 TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
@@ -1085,6 +1170,63 @@ TEST(FTSIndexTest, JiebaModePersistsAcrossDumpAndReopen) {
   ASSERT_TRUE(result.has_value()) << result.error().ToString();
   ASSERT_EQ(result->size(), 1u);
   EXPECT_EQ(result->front().vid, 7u);
+}
+
+TEST(FTSIndexTest, LoadsStopwordsFromCRLFFile) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+  const auto stopwords_path = directory.path() / "stop_words.txt";
+  std::ofstream(stopwords_path, std::ios::binary) << "custom\r\ndon't\r\n";
+
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeUnopenedIndex("stopword_file_fts");
+  auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+  options["stopwords"] = stopwords_path.string();
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("custom alpha"))).ok());
+  auto filtered = index->Search(MakeQuery("custom"));
+  ASSERT_TRUE(filtered.has_value()) << filtered.error().ToString();
+  EXPECT_TRUE(filtered->empty());
+  auto retained = index->Search(MakeQuery("alpha"));
+  ASSERT_TRUE(retained.has_value()) << retained.error().ToString();
+  ASSERT_EQ(retained->size(), 1u);
+  EXPECT_EQ(retained->front().vid, 7u);
+}
+
+TEST(FTSIndexTest, StopwordsPersistAcrossDumpAndReopen) {
+  for (const bool from_file : {false, true}) {
+    TemporaryDatabaseDirectory directory;
+    std::filesystem::create_directories(directory.path());
+    const auto stopwords_path = directory.path() / "stop_words.txt";
+    if (from_file) {
+      std::ofstream(stopwords_path) << "custom\n";
+    }
+
+    TestCheckpoint checkpoint(directory.path().string());
+    auto index = MakeUnopenedIndex(from_file ? "file_fts" : "literal_fts");
+    auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+    options["stopwords"] = from_file ? stopwords_path.string() : "['custom']";
+    index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    ASSERT_TRUE(
+        index->Upsert(7, MakeTextIndexValue(Value::STRING("custom alpha")))
+            .ok());
+
+    CheckpointManifest manifest;
+    index->Dump(*checkpoint, manifest, "index_stopwords_fts");
+    const auto* descriptor = manifest.FindModule("index_stopwords_fts");
+    ASSERT_NE(descriptor, nullptr);
+    if (from_file) {
+      std::filesystem::remove(stopwords_path);
+    }
+
+    FTSIndex restored;
+    restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+    EXPECT_EQ(restored.GetMeta().options.at("stopwords"), "['custom']");
+    auto filtered = restored.Search(MakeQuery("custom"));
+    ASSERT_TRUE(filtered.has_value()) << filtered.error().ToString();
+    EXPECT_TRUE(filtered->empty());
+  }
 }
 
 TEST(FTSIndexTest, JiebaDictPathPersistsAsAbsolutePath) {

@@ -108,7 +108,7 @@ class LogicalRecursiveExtend final : public LogicalOperator {
   ResultOpt getResultOpt() const {
     if (relExpr) {
       std::string relVarName = relExpr->getVariableName();
-      if (relVarName.empty()) {
+      if (relVarName.empty() && !relExpr->isPathMaterializationRequired()) {
         return ResultOpt::END_V;  // optimize the ResultOpt to 'END_V' if no
                                   // query given alias
       }

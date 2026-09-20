@@ -24,6 +24,7 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/parameter_expression.h"
+#include "neug/compiler/binder/expression/path_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
@@ -138,6 +139,9 @@ class GExprConverter {
   ::common::Logical convertCompare(common::ExpressionType type);
   std::unique_ptr<::common::Expression> convertPattern(
       const binder::NodeOrRelExpression& expr);
+  std::unique_ptr<::common::Expression> convertPath(
+      const binder::PathExpression& expr,
+      const std::vector<std::string>& schemaAlias);
   std::unique_ptr<::common::Expression> convertScalarFunc(
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);

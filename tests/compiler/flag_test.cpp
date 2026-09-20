@@ -325,6 +325,35 @@ TEST_F(FlagTest, ExplainUpdateAnalyzeQuery) {
   EXPECT_FALSE(analysis.checkpoint());
 }
 
+TEST_F(FlagTest, AnalyzeQueryIgnoresCommentsAndQuotedContents) {
+  GOptPlanner planner;
+  const std::vector<std::string> readQueries = {
+      "// delete obsolete data\nMATCH (n) RETURN n;",
+      "/* set n.value = 1 */ MATCH (n) RETURN n;",
+      "MATCH (n) /* create replacement */ RETURN n;",
+      "MATCH (n) RETURN n; // drop old data",
+      "MATCH (n) RETURN 'text containing delete keyword';",
+      "MATCH (n) RETURN ['text containing create keyword'];",
+      "MATCH (`create`) RETURN `create`;",
+  };
+  for (const auto& query : readQueries) {
+    const auto analysis = planner.analyzeQuery(query);
+    EXPECT_EQ(analysis.access_mode, AccessMode::kRead) << query;
+  }
+
+  auto analysis = planner.analyzeQuery(
+      "/* delete */ EXPLAIN /* set */ MATCH (n) RETURN n;");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kRead);
+  EXPECT_EQ(analysis.explain_mode, ExplainMode::kExplain);
+
+  analysis = planner.analyzeQuery(
+      "MATCH (n) // delete is ignored\nSET n.value = 1 RETURN n;");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kUpdate);
+
+  analysis = planner.analyzeQuery("MATCH (n) /* set is ignored */ DELETE n;");
+  EXPECT_EQ(analysis.access_mode, AccessMode::kSchema);
+}
+
 // Test 11: MATCH with RETURN (read operation)
 TEST_F(FlagTest, MatchReturn) {
   std::string query = "Match (a:person {id:1})-[:knows]->(p1) Return count(*);";

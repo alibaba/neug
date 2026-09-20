@@ -90,6 +90,11 @@ FusionType ExpandGetVFusion::analyze(
     std::shared_ptr<planner::LogicalOperator> expand) {
   auto getVOp = getV->constPtrCast<planner::LogicalGetV>();
   auto expandOp = expand->constPtrCast<planner::LogicalExtend>();
+  // A named single-segment path is constructed from the relationship value.
+  // Keep the edge-producing expand even when that relationship is anonymous.
+  if (expandOp->getRel()->isPathMaterializationRequired()) {
+    return FusionType::EXPANDE_GETV;
+  }
   auto alias = expandOp->getGAliasName();
   // expand has a query given alias, cannot be fused;
   if (alias.queryName.has_value()) {
