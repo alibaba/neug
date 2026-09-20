@@ -105,8 +105,6 @@ std::string ExpressionTypeUtil::toString(ExpressionType type) {
     return "PROPERTY";
   case ExpressionType::LITERAL:
     return "LITERAL";
-  case ExpressionType::COMPACT_LITERAL:
-    return "COMPACT_LITERAL";
   case ExpressionType::STAR:
     return "STAR";
   case ExpressionType::VARIABLE:

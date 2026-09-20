@@ -32,7 +32,6 @@
 #include "neug/compiler/binder/ddl/bound_drop.h"
 #include "neug/compiler/binder/ddl/bound_drop_index.h"
 #include "neug/compiler/binder/ddl/bound_property_definition.h"
-#include "neug/compiler/binder/expression/compact_literal_expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
@@ -45,6 +44,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/ddl/alter.h"
@@ -124,6 +124,25 @@ static void validatePropertyName(
   }
 }
 
+static void validateStaticArrayDefaultSize(const Expression& expression,
+                                           const DataType& targetType,
+                                           const std::string& tableName,
+                                           const std::string& propertyName) {
+  if (targetType.id() != DataTypeId::kArray) {
+    return;
+  }
+  const auto resultSize =
+      function::RepeatFunction::tryGetResultSize(expression);
+  if (resultSize.has_value() &&
+      *resultSize != ArrayType::GetNumElements(targetType)) {
+    THROW_BINDER_EXCEPTION(stringFormat(
+        "ARRAY value length mismatch for default value of {}.{}: expected {}, "
+        "got {}.",
+        tableName, propertyName, ArrayType::GetNumElements(targetType),
+        *resultSize));
+  }
+}
+
 std::vector<BoundPropertyDefinition> Binder::bindPropertyDefinitions(
     const std::vector<ParsedPropertyDefinition>& parsedDefinitions,
     const std::string& tableName) {
@@ -141,19 +160,12 @@ std::vector<BoundPropertyDefinition> Binder::bindPropertyDefinitions(
         auto defaultExpr = resolvePropertyDefault(def.defaultExpr.get(), type,
                                                   tableName, def.getName());
         boundDefault = expressionBinder.bindExpression(*defaultExpr);
-        if (auto compact =
-                dynamic_cast<CompactLiteralExpression*>(boundDefault.get())) {
-          try {
-            compact->cast(type);
-          } catch (const std::exception& e) {
-            THROW_BINDER_EXCEPTION(
-                stringFormat("Invalid compact default value for {}.{}: {}",
-                             tableName, def.getName(), e.what()));
-          }
-        } else if (type.id() == DataTypeId::kArray &&
-                   boundDefault->dataType.id() == DataTypeId::kArray &&
-                   ArrayType::GetNumElements(boundDefault->dataType) !=
-                       ArrayType::GetNumElements(type)) {
+        validateStaticArrayDefaultSize(*boundDefault, type, tableName,
+                                       def.getName());
+        if (type.id() == DataTypeId::kArray &&
+            boundDefault->dataType.id() == DataTypeId::kArray &&
+            ArrayType::GetNumElements(boundDefault->dataType) !=
+                ArrayType::GetNumElements(type)) {
           THROW_BINDER_EXCEPTION(stringFormat(
               "ARRAY value length mismatch for default value of {}.{}: "
               "expected {}, got {}.",
@@ -161,7 +173,15 @@ std::vector<BoundPropertyDefinition> Binder::bindPropertyDefinitions(
               ArrayType::GetNumElements(boundDefault->dataType)));
         } else {
           if (boundDefault->dataType != type) {
-            boundDefault = expressionBinder.implicitCast(boundDefault, type);
+            // LIST-to-ARRAY is an explicit cast in regular expressions. A
+            // property default, however, already has a declared target type,
+            // so preserve the expression and perform that cast in the engine.
+            // This is required for non-foldable functions such as REPEAT.
+            boundDefault =
+                type.id() == DataTypeId::kArray &&
+                        boundDefault->dataType.id() == DataTypeId::kList
+                    ? expressionBinder.forceCast(boundDefault, type)
+                    : expressionBinder.implicitCast(boundDefault, type);
           }
           if (ConstantExpressionVisitor::needFold(*boundDefault)) {
             boundDefault = expressionBinder.foldExpression(boundDefault);
@@ -567,21 +587,15 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
     auto defaultExpr = resolvePropertyDefault(extraInfo->defaultValue.get(),
                                               type, tableName, propertyName);
     boundDefault = expressionBinder.bindExpression(*defaultExpr);
-    if (auto compact =
-            dynamic_cast<CompactLiteralExpression*>(boundDefault.get())) {
-      try {
-        compact->cast(type);
-      } catch (const std::exception& e) {
-        THROW_BINDER_EXCEPTION(
-            stringFormat("Invalid compact default value for {}.{}: {}",
-                         tableName, propertyName, e.what()));
-      }
-    } else {
-      boundDefault =
-          expressionBinder.implicitCastIfNecessary(boundDefault, type);
-      if (ConstantExpressionVisitor::needFold(*boundDefault)) {
-        boundDefault = expressionBinder.foldExpression(boundDefault);
-      }
+    validateStaticArrayDefaultSize(*boundDefault, type, tableName,
+                                   propertyName);
+    boundDefault =
+        type.id() == DataTypeId::kArray &&
+                boundDefault->dataType.id() == DataTypeId::kList
+            ? expressionBinder.forceCast(boundDefault, type)
+            : expressionBinder.implicitCastIfNecessary(boundDefault, type);
+    if (ConstantExpressionVisitor::needFold(*boundDefault)) {
+      boundDefault = expressionBinder.foldExpression(boundDefault);
     }
   }
   auto propertyDefinition = BoundPropertyDefinition(std::move(columnDefinition),

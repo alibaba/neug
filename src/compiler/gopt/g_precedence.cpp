@@ -72,7 +72,6 @@ int GPrecedence::getPrecedence(const binder::Expression& expr) {
   //     return 10;  // Unary minus/plus (-, +) - similar precedence as NOT
   case common::ExpressionType::PROPERTY:
   case common::ExpressionType::LITERAL:
-  case common::ExpressionType::COMPACT_LITERAL:
   case common::ExpressionType::PARAMETER:
   case common::ExpressionType::VARIABLE:
   case common::ExpressionType::AGGREGATE_FUNCTION:

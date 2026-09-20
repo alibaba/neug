@@ -28,12 +28,7 @@ namespace binder {
 /**
  * Compiler representation of a property definition in a bound DDL statement.
  *
- * CompactLiteralExpression represents the folded form of a high-dimensional
- * LIST or ARRAY as value/repeat-count segments. Keeping that expression here
- * avoids expanding a large vector during compilation and keeps the generated
- * physical plan compact; the execution engine expands it only when a concrete
- * default Value is required. A null defaultExpr means that no explicit DEFAULT
- * clause was specified.
+ * A null defaultExpr means that no explicit DEFAULT clause was specified.
  */
 struct BoundPropertyDefinition {
   ColumnDefinition columnDefinition;

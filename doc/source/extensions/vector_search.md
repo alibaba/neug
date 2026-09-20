@@ -99,22 +99,14 @@ may cause nodes containing the default vector to appear in vector similarity
 query results.
 
 To avoid relying on the implicit zero vector, explicitly declare a default
-that is appropriate for the application. NeuG supports compact literals for
-high-dimensional LIST and ARRAY defaults, so repeated values do not need to be
-written or expanded individually while the query is compiled.
+that is appropriate for the application. NeuG supports `repeat(unit, count)`
+for high-dimensional LIST and ARRAY defaults, so repeated values do not need
+to be written or expanded individually while the query is compiled.
 
-> **Since v0.2.1:** Compact LIST and ARRAY literals can be used for vector
-> property defaults.
+Since v0.2.1, `repeat(unit, count)` can be used for vector property defaults.
 
-The following forms are supported:
-
-| Form | Syntax | Example | Expanded Value |
-|------|--------|---------|----------------|
-| Single repeated value | `[value:count]` | `[-1:4]` | `[-1, -1, -1, -1]` |
-| Multiple repeated segments | `[value:count; value:count; ...]` | `[-1:2; 0:3]` | `[-1, -1, 0, 0, 0]` |
-| Ordinary and repeated values | `[value, value, ..., value:count]` | `[7, 8, -1:2]` | `[7, 8, -1, -1]` |
-
-For syntax constraints and more usage details, see
+The first argument is the LIST or ARRAY unit to repeat, and the second argument
+is its repeat count. For constraints and more usage details, see
 [Property Default Values](../cypher_manual/ddl_clause.md#property-default-values)
 in the DDL documentation.
 
@@ -124,7 +116,7 @@ four-dimensional vector `[-1.0, -1.0, -1.0, -1.0]`:
 ```cypher
 CREATE NODE TABLE vector_node_with_default (
     id INT64,
-    vec FLOAT[4] DEFAULT [-1.0:4],
+    vec FLOAT[4] DEFAULT repeat([-1.0], 4),
     PRIMARY KEY (id)
 );
 ```
@@ -157,12 +149,12 @@ ALTER TABLE vector_node
 ADD IF NOT EXISTS vec2 FLOAT[4];
 ```
 
-An added vector property can also use a compact default. Existing nodes receive
-the expanded default value when the property is added:
+An added vector property can also use a repeated default. Existing nodes
+receive the expanded default value when the property is added:
 
 ```cypher
 ALTER TABLE vector_node
-ADD IF NOT EXISTS vec2 FLOAT[4] DEFAULT [-1.0:2; 0.0:2];
+ADD IF NOT EXISTS vec2 FLOAT[4] DEFAULT repeat([-1.0, 0.0], 2);
 ```
 
 ---

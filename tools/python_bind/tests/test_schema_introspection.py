@@ -100,9 +100,9 @@ def test_show_node_tables(schema_connection):
     ) == [["Company", "id", False], ["Person", "id", False]]
     with pytest.raises(
         RuntimeError,
-        match="Compact literals are not supported as table function parameters",
+        match="has type SCALAR_FUNCTION but LITERAL,PARAMETER was expected",
     ):
-        list(conn.execute("CALL SHOW_NODE_TABLES(['Person':2]) RETURN *;"))
+        list(conn.execute("CALL SHOW_NODE_TABLES(repeat(['Person'], 2)) RETURN *;"))
 
 
 def test_show_rel_tables(schema_connection):

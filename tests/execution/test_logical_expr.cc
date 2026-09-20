@@ -74,21 +74,6 @@ TEST(LogicalExprTest, InvalidRegexRaisesNeugRuntimeError) {
                exception::RuntimeError);
 }
 
-TEST(LogicalExprTest, RejectsOversizedCompactLiteralPhysicalExpression) {
-  ::common::Expression expression;
-  auto* op = expression.add_operators();
-  auto* list_type =
-      op->mutable_node_type()->mutable_data_type()->mutable_list();
-  list_type->mutable_component_type()->set_primitive_type(
-      ::common::PrimitiveType::DT_SIGNED_INT64);
-  auto* compact = op->mutable_to_list_compact();
-  compact->add_fields()->set_repeat_count(32768);
-  compact->add_fields()->set_repeat_count(32768);
-
-  EXPECT_THROW(parse_expression(expression, ContextMeta{}, VarType::kRecord),
-               exception::RuntimeError);
-}
-
 TEST(LogicalExprTest, PreservesThreeValuedLogicInEveryEvaluationMode) {
   struct TruthRow {
     std::optional<bool> left;

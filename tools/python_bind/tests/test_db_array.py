@@ -46,15 +46,15 @@ def _approx_eq(actual, expected, tol=1e-5):
         assert actual == expected
 
 
-def test_compact_array_literal_expression(tmp_path):
+def test_repeat_array_expression(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
 
     row = list(
         conn.execute(
-            "RETURN CAST([-1:3], 'INT32[3]'), "
-            "CAST([-1:2; 0:3], 'INT32[5]'), "
-            "CAST([7, 8, -1:2], 'INT32[4]');"
+            "RETURN CAST(repeat([-1], 3), 'INT32[3]'), "
+            "CAST(list_concat(repeat([-1], 2), repeat([0], 3)), 'INT32[5]'), "
+            "CAST(list_concat([7, 8], repeat([-1], 2)), 'INT32[4]');"
         )
     )[0]
     assert [_nested_list(value) for value in row] == [
@@ -496,43 +496,46 @@ def test_array_ddl_operations(tmp_path):
 
 
 @pytest.mark.parametrize("ddl_path", ["create", "alter"])
-def test_compact_array_default_forms_in_ddl(tmp_path, ddl_path):
-    """All documented compact forms work in CREATE and ALTER DDL paths."""
+def test_repeat_array_defaults_in_ddl(tmp_path, ddl_path):
+    """REPEAT expressions work in CREATE and ALTER DDL paths."""
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
 
     if ddl_path == "create":
         conn.execute(
-            "CREATE NODE TABLE CompactDefaults("
+            "CREATE NODE TABLE RepeatDefaults("
             "  id INT64,"
-            "  single_fill FLOAT[4] DEFAULT [-1:4],"
-            "  segmented INT64[5] DEFAULT [-1:2; 0:3],"
-            "  mixed INT64[4] DEFAULT [7, 8, -1:2],"
+            "  single_fill FLOAT[4] DEFAULT repeat([-1], 4),"
+            "  repeated_unit INT64[4] DEFAULT repeat([-1, 0], 2),"
+            "  mixed INT64[4] DEFAULT list_concat([7, 8], repeat([-1], 2)),"
             "  PRIMARY KEY(id)"
             ");"
         )
-        conn.execute("CREATE (:CompactDefaults {id: 1});")
+        conn.execute("CREATE (:RepeatDefaults {id: 1});")
     else:
-        conn.execute("CREATE NODE TABLE CompactDefaults(id INT64, PRIMARY KEY(id));")
-        conn.execute("CREATE (:CompactDefaults {id: 1});")
+        conn.execute("CREATE NODE TABLE RepeatDefaults(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE (:RepeatDefaults {id: 1});")
         conn.execute(
-            "ALTER TABLE CompactDefaults " "ADD single_fill FLOAT[4] DEFAULT [-1:4];"
+            "ALTER TABLE RepeatDefaults "
+            "ADD single_fill FLOAT[4] DEFAULT repeat([-1], 4);"
         )
         conn.execute(
-            "ALTER TABLE CompactDefaults " "ADD segmented INT64[5] DEFAULT [-1:2; 0:3];"
+            "ALTER TABLE RepeatDefaults "
+            "ADD repeated_unit INT64[4] DEFAULT repeat([-1, 0], 2);"
         )
         conn.execute(
-            "ALTER TABLE CompactDefaults " "ADD mixed INT64[4] DEFAULT [7, 8, -1:2];"
+            "ALTER TABLE RepeatDefaults "
+            "ADD mixed INT64[4] DEFAULT list_concat([7, 8], repeat([-1], 2));"
         )
 
     row = list(
         conn.execute(
-            "MATCH (n:CompactDefaults {id: 1}) "
-            "RETURN n.single_fill, n.segmented, n.mixed;"
+            "MATCH (n:RepeatDefaults {id: 1}) "
+            "RETURN n.single_fill, n.repeated_unit, n.mixed;"
         )
     )[0]
     assert _nested_list(row[0]) == [-1.0, -1.0, -1.0, -1.0]
-    assert _nested_list(row[1]) == [-1, -1, 0, 0, 0]
+    assert _nested_list(row[1]) == [-1, 0, -1, 0]
     assert _nested_list(row[2]) == [7, 8, -1, -1]
 
     conn.close()
@@ -541,53 +544,54 @@ def test_compact_array_default_forms_in_ddl(tmp_path, ddl_path):
 
 @pytest.mark.parametrize("ddl_path", ["create", "alter"])
 @pytest.mark.parametrize(
-    "default_literal,error_pattern",
+    "default_expression,error_pattern",
     [
-        ("[1:-1]", "Parser exception"),
-        ("[1:1.5]", "Parser exception"),
+        ("repeat([1], -1)", "REPEAT count cannot be negative"),
+        ("repeat([1], 1.5)", "second argument to be an integer"),
+        ("repeat(1, 4)", "first argument to be LIST or ARRAY"),
         (
-            "[count(*):4]",
-            "Compact default only supports constant value/count pairs",
+            "repeat(['not-an-int'], 4)",
+            "Invalid default value for property 'values': .*Failed to cast value",
         ),
         (
-            "['not-an-int':4]",
-            "Invalid compact default value for InvalidCompactDefault.values",
+            "repeat(list_concat([1], [2]), 32768)",
+            "Invalid default value for property 'values': .*REPEAT result length "
+            "exceeds maximum supported length of 65535",
         ),
         (
-            "[1:32768; 2:32768]",
-            "expanded length exceeds maximum supported length of 65535",
+            "repeat([1], 3)",
+            "ARRAY value length mismatch.*expected 4, got 3",
         ),
-        ("[1:3]", "ARRAY value length mismatch"),
     ],
     ids=[
         "negative-repeat-count",
         "non-integer-repeat-count",
-        "non-constant-value",
+        "non-list-input",
         "invalid-value-cast",
         "expanded-length-limit",
         "array-size-mismatch",
     ],
 )
-def test_invalid_compact_array_defaults(
-    tmp_path, ddl_path, default_literal, error_pattern
+def test_invalid_repeat_array_defaults(
+    tmp_path, ddl_path, default_expression, error_pattern
 ):
-    """Compact defaults enforce count, constancy, and fixed ARRAY size."""
+    """REPEAT defaults enforce input, count, length, and ARRAY size."""
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
 
     if ddl_path == "create":
         ddl = (
-            "CREATE NODE TABLE InvalidCompactDefault("
+            "CREATE NODE TABLE InvalidRepeatDefault("
             "id INT64, values INT64[4] DEFAULT "
-            f"{default_literal}, PRIMARY KEY(id));"
+            f"{default_expression}, PRIMARY KEY(id));"
         )
     else:
         conn.execute(
-            "CREATE NODE TABLE InvalidCompactDefault(" "id INT64, PRIMARY KEY(id));"
+            "CREATE NODE TABLE InvalidRepeatDefault(id INT64, PRIMARY KEY(id));"
         )
         ddl = (
-            "ALTER TABLE InvalidCompactDefault ADD values INT64[4] DEFAULT "
-            f"{default_literal};"
+            "ALTER TABLE InvalidRepeatDefault ADD values INT64[4] DEFAULT "
+            f"{default_expression};"
         )
 
     with pytest.raises(RuntimeError, match=error_pattern):

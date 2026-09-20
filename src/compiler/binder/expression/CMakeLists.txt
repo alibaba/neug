@@ -3,7 +3,6 @@ add_library(
         OBJECT
         aggregate_function_expression.cpp
         case_expression.cpp
-        compact_literal_expression.cpp
         expression.cpp
         expression_util.cpp
         literal_expression.cpp

@@ -42,7 +42,6 @@
 namespace neug {
 namespace binder {
 struct BoundPropertyDefinition;
-class CompactLiteralExpression;
 }  // namespace binder
 namespace gopt {
 
@@ -78,8 +77,6 @@ class GExprConverter {
       const binder::ParameterExpression& expr);
   std::unique_ptr<::common::Expression> convertLiteral(
       const binder::LiteralExpression& expr);
-  std::unique_ptr<::common::Expression> convertCompactLiteral(
-      const binder::CompactLiteralExpression& expr);
   std::unique_ptr<::common::Expression> convertProperty(
       const binder::PropertyExpression& expr);
   std::unique_ptr<::common::Expression> convertVariable(

@@ -77,10 +77,6 @@ BoundTableScanInfo Binder::bindTableFunc(
     auto& childExpr = *expr.getChild(i);
     auto param = expressionBinder.bindExpression(childExpr);
     param = convertParam(param);
-    if (param->expressionType == ExpressionType::COMPACT_LITERAL) {
-      THROW_BINDER_EXCEPTION(
-          "Compact literals are not supported as table function parameters.");
-    }
     if (!childExpr.hasAlias()) {
       ExpressionUtil::validateExpressionType(
           *param, {ExpressionType::LITERAL, ExpressionType::PARAMETER});

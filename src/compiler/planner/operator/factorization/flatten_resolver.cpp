@@ -136,7 +136,6 @@ void GroupDependencyAnalyzer::visit(std::shared_ptr<binder::Expression> expr) {
     visit(expr->constCast<LambdaExpression>().getFunctionExpr());
   } break;
   case ExpressionType::LITERAL:
-  case ExpressionType::COMPACT_LITERAL:
   case ExpressionType::AGGREGATE_FUNCTION:
   case ExpressionType::PROPERTY:
   case ExpressionType::VARIABLE:

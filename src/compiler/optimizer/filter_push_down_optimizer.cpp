@@ -162,7 +162,6 @@ FilterPushDownOptimizer::visitCrossProductReplace(
 static bool isConstantExpression(const std::shared_ptr<Expression> expression) {
   switch (expression->expressionType) {
   case ExpressionType::LITERAL:
-  case ExpressionType::COMPACT_LITERAL:
   case ExpressionType::PARAMETER: {
     return true;
   }

@@ -5,6 +5,7 @@ add_library(neug_list_function
         list_contains_function.cpp
         list_creation.cpp
         list_extract_function.cpp
+        repeat_function.cpp
         list_unique_function.cpp)
 add_dependencies(neug_list_function neug_proto)
 
