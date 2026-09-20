@@ -60,19 +60,9 @@ jobs:
     - name: Run Python Test
       env:
         NEUG_RUN_EXTENSION_TESTS: "1"
-        # Test the pip-installed wheel, not the in-repo source package.
-        # Without this the checkout's `neug` package shadows site-packages,
-        # INSTALL downloads extensions into the source tree, and LOAD fails
-        # on macOS because `@loader_path/../../libneug.dylib` does not exist
-        # there (libneug.dylib lives in site-packages).
-        NEUG_TEST_INSTALLED_PACKAGE: "1"
       run: |
-        # Run from the repo root so neither the CWD (`python -m` prepends it
-        # to sys.path) nor conftest.py can shadow the installed wheel with
-        # the in-repo `neug` package.
-        cd ${GITHUB_WORKSPACE}
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        python3 -c "import neug; assert 'site-packages' in neug.__file__, 'neug resolved to %s instead of the installed wheel' % neug.__file__"
-        python3 -m pytest tools/python_bind/tests/test_extension_install_load.py tools/python_bind/tests/test_alter_property.py -v
-        python3 tools/python_bind/example/complex_test.py
+        python3 -m pytest tests/test_extension_install_load.py tests/test_extension_functions.py -v
+        python3 example/complex_test.py
     

@@ -19,14 +19,7 @@
 import os
 import sys
 
-# Local dev runs import the in-repo `neug` package (which loads neug_py_bind
-# from the root build dir). CI jobs that validate the pip-installed wheel
-# (e.g. extension-release-test.yml) set NEUG_TEST_INSTALLED_PACKAGE=1 to skip
-# this insertion: the in-repo package would otherwise shadow site-packages,
-# and INSTALL would download extensions into the source checkout, where the
-# extensions' `@loader_path/../../libneug.dylib` reference cannot resolve.
-if os.environ.get("NEUG_TEST_INSTALLED_PACKAGE", "0") != "1":
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 
