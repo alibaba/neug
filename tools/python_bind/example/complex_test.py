@@ -334,9 +334,6 @@ def run_parquet_export_tests(conn_parquet, export_dir):
 
 def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
     statements = [
-        # The PyPI wheel does not bundle extension binaries; INSTALL downloads
-        # libparquet.neug_extension from the official OSS repository first.
-        ("INSTALL PARQUET succeeded", "INSTALL PARQUET;"),
         ("LOAD PARQUET succeeded", "LOAD PARQUET;"),
     ]
 
@@ -440,11 +437,6 @@ HTTP_EDGE_PATH = os.environ.get(
 
 
 def run_httpfs_extension_suite(db_httpfs, conn_httpfs, db_path_httpfs):
-    # The PyPI wheel does not bundle extension binaries; INSTALL downloads
-    # them from the official OSS repository first (idempotent if the parquet
-    # extension was already installed by the earlier suite).
-    run_statement(conn_httpfs, "INSTALL HTTPFS succeeded", "INSTALL HTTPFS;")
-    run_statement(conn_httpfs, "INSTALL PARQUET succeeded", "INSTALL PARQUET;")
     run_statement(conn_httpfs, "LOAD HTTPFS succeeded", "LOAD HTTPFS;")
     run_statement(
         conn_httpfs, "LOAD PARQUET succeeded (for HTTPFS tests)", "LOAD PARQUET;"
