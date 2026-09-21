@@ -1,16 +1,16 @@
 # List Functions
 
-Since v0.2.0, NeuG provides built-in functions for working with list-like values. These functions provide common operations for constructing, combining, and manipulating collection values in Cypher queries.
+NeuG provides built-in functions for working with list-like values. These functions provide common operations for constructing, combining, and manipulating collection values in Cypher queries.
 
 The currently supported list functions are summarized below.
 
-| Function                          | Description                            | Example                              |
-| --------------------------------- | -------------------------------------- | ------------------------------------ |
-| `list_append(list_like, element)` | Appends one element to a list or array | `RETURN list_append([1, 2], 3)`      |
-| `list_concat(left, right)`        | Concatenates two lists or arrays       | `RETURN list_concat([1, 2], [3, 4])` |
-| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`  |
-| `list_has(list, element)`         | Alias of `list_contains`               | `RETURN list_has([1, 2], 2)`         |
-| `repeat(unit, count)`             | Repeats an entire list or array unit   | Since v0.2.1: `RETURN repeat([1, 2], 2)` |
+| Function                          | Description                              | Example                              | Version      |
+| --------------------------------- | ---------------------------------------- | ------------------------------------ | ------------ |
+| `list_append(list_like, element)` | Appends one element to a list or array   | `RETURN list_append([1, 2], 3)`      | Since v0.2.0 |
+| `list_concat(left, right)`        | Concatenates two lists or arrays         | `RETURN list_concat([1, 2], [3, 4])` | Since v0.2.0 |
+| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`    | Since v0.2.0 |
+| `list_has(list, element)`         | Alias of `list_contains`                 | `RETURN list_has([1, 2], 2)`         | Since v0.2.0 |
+| `repeat(unit, count)`             | Repeats an entire list or array unit     | `RETURN repeat([1, 2], 2)`           | Since v0.2.1 |
 
 The accepted argument types, return types, type inference rules, and behavior of each function are described in the corresponding sections below.
 
