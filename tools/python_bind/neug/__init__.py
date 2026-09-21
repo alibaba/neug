@@ -241,12 +241,18 @@ except ImportError as e:
 #    root, not in the neug/ package). CI copies extensions to
 #    <site-packages>/extension/<name>/, matching parent-of-__init__.
 #  - legacy lib.<plat>-* fallback: extensions used to be colocated with the .so.
-_norm_bind = os.path.normpath(_bind_dir) if _bind_dir else ""
-if _norm_bind.endswith(os.sep + os.path.join("tools", "python_bind")):
-    _extension_home = os.path.abspath(os.path.join(_norm_bind, "..", ".."))
+#  - caller override: if NEUG_EXTENSION_HOME_PYENV is already set, keep it.
+#    This lets release tests force extensions to install next to the pip
+#    shipped libneug even when the source checkout shadows the wheel.
+if os.environ.get("NEUG_EXTENSION_HOME_PYENV"):
+    _extension_home = os.environ["NEUG_EXTENSION_HOME_PYENV"]
 else:
-    _extension_home = _bind_dir or os.path.join(os.path.dirname(__file__), "..")
-os.environ["NEUG_EXTENSION_HOME_PYENV"] = _extension_home
+    _norm_bind = os.path.normpath(_bind_dir) if _bind_dir else ""
+    if _norm_bind.endswith(os.sep + os.path.join("tools", "python_bind")):
+        _extension_home = os.path.abspath(os.path.join(_norm_bind, "..", ".."))
+    else:
+        _extension_home = _bind_dir or os.path.join(os.path.dirname(__file__), "..")
+    os.environ["NEUG_EXTENSION_HOME_PYENV"] = _extension_home
 logger.info("Extension home: %s", os.environ["NEUG_EXTENSION_HOME_PYENV"])
 
 from neug.async_connection import AsyncConnection
