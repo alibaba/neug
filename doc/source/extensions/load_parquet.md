@@ -5,9 +5,10 @@ Apache Parquet is a columnar storage format widely used in data engineering and 
 - **Import**: Load external Parquet files using `LOAD FROM` syntax
 - **Export**: Export query results to Parquet files using `COPY TO` syntax
 
-For the private replacement writer under development, see
-[Carquet Parquet writer](carquet_writer). The active import/export backend is
-unchanged by that implementation.
+The active import/export backend is based on Apache Arrow. For the
+next-generation Carquet-based backend under development, see the
+[Carquet backend notes](https://github.com/alibaba/neug/blob/main/extension/parquet/carquet_parquet_backend.md)
+in the source tree.
 
 ## Install Extension
 
@@ -92,9 +93,22 @@ by the filter, including references inside nested expressions. Filter-only colum
 are removed from the result after filtering. This applies to both batch and full
 reads. In this fallback path, the predicate does not prune Parquet row groups.
 
-For the upcoming backend's implementation status and supported read paths, see
-[Carquet reader implementation](carquet_reader.md). The current SQL backend is
-unchanged by that preparation work.
+### Supported Data Types
+
+`LOAD FROM` maps Parquet values to NeuG types as follows:
+
+| Parquet values | NeuG representation |
+| -------------- | ------------------- |
+| Boolean, signed/unsigned integers, float and double | Corresponding scalar type; narrow integers widen to INT32/UINT32 |
+| UTF-8 strings, including large strings | VARCHAR |
+| Dates and timestamps | DATE and millisecond TIMESTAMP, with unit and overflow checks |
+| LIST and LARGE_LIST | LIST, preserving NULL lists, empty lists and NULL elements |
+| Fixed-size lists with Arrow schema metadata | ARRAY with the recorded length |
+| Supported lists and arrays nested inside one another | Nested LIST/ARRAY values |
+
+MAP schemas can be inspected, but MAP and general STRUCT value columns are not
+supported. INTERVAL values retain their textual storage for downstream
+conversion. Unsupported schemas or invalid layouts report errors.
 
 ## Export to Parquet
 
@@ -164,19 +178,19 @@ COPY (
 
 ### Supported Data Types
 
-Parquet export supports all NeuG data types:
+Parquet export supports all NeuG data types, with the following Parquet representations:
 
-**Primitive Types:**
-- INT32, INT64, UINT32, UINT64
-- FLOAT, DOUBLE, BOOLEAN
-- STRING, DATE, TIMESTAMP, INTERVAL
-
-**Complex Types:**
-- **List<T>**: Variable-length arrays (e.g., `list<string>`, `list<int64>`)
-- **Struct**: Nested structures with named fields
-- **Vertex**: Graph vertices exported as JSON string (due to mixed-type schema conflicts)
-- **Edge**: Graph edges exported as JSON string (due to mixed-type schema conflicts)
-- **Path**: Graph paths exported as JSON string (due to mixed-type schema conflicts)
+| NeuG type | Parquet representation |
+| --------- | ---------------------- |
+| INT32, INT64, UINT32, UINT64 | INT32/INT64, with unsigned logical annotations where needed |
+| FLOAT, DOUBLE, BOOL | FLOAT, DOUBLE, BOOLEAN |
+| STRING | UTF-8 BYTE_ARRAY |
+| DATE | DATE in days since the Unix epoch; millisecond payloads are normalized to their containing UTC day |
+| TIMESTAMP | UTC TIMESTAMP in milliseconds, matching NeuG's internal unit |
+| List\<T\> (variable-length) and fixed ARRAY | Standard LIST, preserving empty lists and NULLs at any level; fixed arrays are validated against the schema dimensions |
+| Struct | Nested group with named fields |
+| INTERVAL | String value |
+| Vertex, Edge, Path | JSON string (see note below) |
 
 > **Note on Vertex/Edge/Path export:** These graph types are exported as JSON strings rather than Parquet StructArrays. This design choice is necessary because Parquet StructArrays require all rows to have the same schema, but mixed-type vertices/edges (e.g., person vs. organisation) have different properties, which would cause schema conflicts and sparse data.
 
