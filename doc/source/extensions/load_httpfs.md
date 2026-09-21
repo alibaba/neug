@@ -1,4 +1,4 @@
-# HTTPFS Extension
+# HTTPFS
 
 The HTTPFS Extension enables NeuG to access files stored on S3-compatible object storage services (AWS S3, Alibaba Cloud OSS, MinIO, etc.) and over HTTP/HTTPS URLs. After loading the HTTPFS Extension, NeuG can resolve `s3://`, `oss://`, and `http://`/`https://` paths transparently in both `LOAD FROM` (read) and `COPY TO` (write) queries.
 

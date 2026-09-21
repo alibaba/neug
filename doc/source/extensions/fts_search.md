@@ -1,4 +1,4 @@
-# Full-Text Search Extension
+# Full-Text Search
 
 Since NeuG **v0.2.0**, the `fts` extension provides full-text indexes and
 BM25-ranked search over node string properties, with automatic index

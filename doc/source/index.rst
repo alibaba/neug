@@ -66,7 +66,6 @@ NeuG documentation
    extensions/index
    extensions/vector_search
    extensions/fts_search
-   extensions/develop_extension
    extensions/load_json
    extensions/load_parquet
    extensions/pattern_match
@@ -106,6 +105,7 @@ NeuG documentation
    :caption: Developer Guide
 
    development/dev_guide
+   development/develop_extension
    development/code_style_guide
    development/error_code.md
 
