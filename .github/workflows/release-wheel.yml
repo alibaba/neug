@@ -7,6 +7,17 @@ on:
         description: 'Python version (e.g. 3.9) or range (e.g. 3.8-3.14) to build'
         required: false
         default: ''
+      target_platform:
+        description: 'Platform to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - linux-x86_64
+          - linux-arm64
+          - macos-arm64
+          - windows-x86_64
       publish_to_pypi:
         description: 'Publish the built wheels to PyPI'
         type: boolean
@@ -43,12 +54,14 @@ jobs:
     uses: ./.github/workflows/wheels-common.yml
     with:
       python_versions: ${{ inputs.python_versions }}
+      target_platform: ${{ inputs.target_platform || 'all' }}
       mode: release
       set_nightly_version: false
       pybind11_findpython_off: true
       linux_x86_python: '3.13'
       linux_arm_python: '3.13'
       mac_python: '3.13'
+      windows_python: '3.11'
       cibuildwheel_version: '3.4.0'
       enable_macos_x86: false
       caller_event_name: ${{ github.event_name }}

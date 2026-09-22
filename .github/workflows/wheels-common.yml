@@ -35,6 +35,10 @@ on:
         type: string
         required: false
         default: '3.14'
+      windows_python:
+        type: string
+        required: false
+        default: '3.11'
       cibuildwheel_version:
         type: string
         required: false
@@ -581,6 +585,144 @@ jobs:
           done
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+      - name: Run NeuG-Cli test
+        if: inputs.mode == 'release'
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+  build_wheels_windows_x86_64:
+    needs:
+      - determine_python_versions
+    runs-on: windows-2022
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: pwsh
+    if: ${{ (inputs.target_platform == 'all' || inputs.target_platform == 'windows-x86_64') && (
+          (
+            inputs.mode == 'release' &&
+            (
+              startsWith(github.ref, 'refs/tags/v') ||
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              inputs.caller_event_name == 'pull_request' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
+            )
+          ) ||
+          (
+            inputs.mode == 'nightly' &&
+            (
+              inputs.caller_event_name == 'schedule' ||
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              (inputs.caller_event_name == 'pull_request' && github.repository == 'alibaba/neug')
+            )
+          )
+        ) }}
+    env:
+      CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+      NEUG_COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # cibuildwheel builds C extensions in subprocesses that inherit this
+      # MSVC environment (cl.exe on PATH), required for the Ninja generator.
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup Python for windows
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.windows_python }}
+
+      # The runner's vcpkg (classic mode) ships with no pre-built packages;
+      # without a static-MD OpenSSL CMake falls back to the system dynamic
+      # DLLs, which Python 3.8+ cannot load from an installed wheel.
+      - name: Setup vcpkg
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+          Write-Host "Using vcpkg at: $env:VCPKG_INSTALLATION_ROOT"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-wheels-x64-windows-static-md-openssl-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-wheels-x64-windows-static-md-openssl-
+
+      - name: Install OpenSSL via vcpkg
+        run: |
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+          $triplet = "x64-windows-static-md"
+          $installDir = Join-Path $env:VCPKG_ROOT "installed\$triplet"
+          if (Test-Path (Join-Path $installDir "lib\libssl.lib")) {
+            Write-Host "OpenSSL already installed in $installDir (cache hit)"
+          } else {
+            Write-Host "Installing openssl:$triplet via vcpkg"
+            & $vcpkgExe install "openssl:$triplet"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "vcpkg failed to install openssl:$triplet"
+              exit 1
+            }
+          }
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==${{ inputs.cibuildwheel_version }}
+
+      - name: Set nightly wheel version
+        if: inputs.set_nightly_version
+        run: |
+          $version = (Get-Content "$env:GITHUB_WORKSPACE/NEUG_VERSION" -Raw).Trim()
+          $shortSha = (git rev-parse --short HEAD).Trim()
+          Set-Content -Path "$env:GITHUB_WORKSPACE/NEUG_VERSION" -Value "$version+$shortSha"
+          Write-Host "Set nightly wheel version to $version+$shortSha"
+
+      # Build subprocesses on Windows inherit the parent environment, so
+      # CMAKE_GENERATOR/CMAKE_ARGS reach setup.py inside cibuildwheel. Ninja
+      # (preinstalled on windows-2022) is a single-config generator, which
+      # makes setup.py's msvc branch skip the -A/--config VS flags.
+      - name: Build wheels
+        env:
+          CMAKE_GENERATOR: Ninja
+          CMAKE_ARGS: -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DOPENSSL_ROOT_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows-static-md
+        run: |
+          $env:CMAKE_BUILD_PARALLEL_LEVEL = "$env:NUMBER_OF_PROCESSORS"
+          $env:BUILD_TYPE = "RELEASE"
+          python -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Upload wheel artifacts
+        if: ${{
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'release' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'nightly' && (inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'schedule') && github.repository == 'alibaba/neug')
+            }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-windows-x86_64-{0}', github.sha) || format('wheels-windows-x86_64-{0}', github.run_id) }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+      - name: Run simple test
+        if: inputs.mode == 'release'
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || Write-Host "Uninstalled neug if it was installed"
+          Get-ChildItem wheelhouse -Filter *.whl | ForEach-Object {
+            python -m pip install $_.FullName || Write-Host "Failed to install $($_.Name)"
+          }
+          if (Test-Path "$env:TMP_DIR/test_example") {
+            Remove-Item -Recurse -Force "$env:TMP_DIR/test_example"
+          }
+          $env:GLOG_v = "10"
+          python tools/python_bind/example/simple_example.py example_dataset/modern_graph "$env:TMP_DIR/test_example"
 
       - name: Run NeuG-Cli test
         if: inputs.mode == 'release'
