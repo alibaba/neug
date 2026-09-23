@@ -28,7 +28,11 @@ const {
 // Load the native binding (unified loader handles prebuilds/ and build/)
 const nativeBinding = require('./binding');
 
-const ILLEGAL_CHARS = ['?', '*', '"', '<', '>', '|', ':', '\\'];
+// On Windows, ':' (drive letter) and '\' (path separator) are valid, matching
+// the Python binding's platform-aware validation.
+const ILLEGAL_CHARS = process.platform === 'win32'
+  ? ['?', '*', '"', '<', '>', '|']
+  : ['?', '*', '"', '<', '>', '|', ':', '\\'];
 const PURE_MEMORY_PATHS = [':memory', ':memory:'];
 const VALID_MODES = [
   'r', 'read', 'w', 'rw', 'write',
