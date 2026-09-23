@@ -21,7 +21,9 @@
 #include <string>
 
 struct sqlite3;
+struct sqlite3_context;
 struct sqlite3_stmt;
+struct sqlite3_value;
 struct fts5_api;
 
 namespace neug::fts_ext {
@@ -41,6 +43,8 @@ class SQLiteStatement {
   void BindNull(int parameter);
   void BindInt64(int parameter, int64_t value);
   void BindDouble(int parameter, double value);
+  void BindPointer(int parameter, void* value, const char* type,
+                   void (*destroy)(void*));
   void Reset();
   int Step();
   int64_t ColumnInt64(int column) const;
@@ -65,6 +69,9 @@ class SQLiteConnection {
   void Close();
   void Execute(const std::string& sql);
   SQLiteStatement Prepare(const std::string& sql);
+  void RegisterScalarFunction(const std::string& name, int argument_count,
+                              void (*function)(sqlite3_context*, int,
+                                               sqlite3_value**));
   void Flush();
 
   bool IsOpen() const { return connection_ != nullptr; }
