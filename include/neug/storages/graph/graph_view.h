@@ -117,9 +117,12 @@ class GraphView {
   ~GraphView() = default;
 
   GraphView(const GraphView&) = default;
-  GraphView(GraphView&&) = default;
+  // Explicit noexcept: MSVC does not deduce the exception specification of
+  // defaulted move operations, which would otherwise fail the
+  // is_nothrow_swappable_v<GraphView> static_assert in graph_snapshot_store.
+  GraphView(GraphView&&) noexcept = default;
   GraphView& operator=(const GraphView&) = default;
-  GraphView& operator=(GraphView&&) = default;
+  GraphView& operator=(GraphView&&) noexcept = default;
 
   // MSVC's std::unordered_map move operations are not noexcept, so the
   // implicitly-declared swap would not satisfy std::is_nothrow_swappable_v.
