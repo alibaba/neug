@@ -621,6 +621,11 @@ jobs:
         ) }}
     env:
       CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+      # NeuG's Windows toolchain is x64-only (msvc-dev-cmd arch: x64, vcpkg
+      # x64-windows-static-md). cibuildwheel's default Windows arch list also
+      # contains x86, whose 32-bit python313.lib is architecture-incompatible
+      # with the /machine:x64 link (LNK4272 -> LNK2001 __imp_Py* unresolved).
+      CIBW_ARCHS_WINDOWS: AMD64
       NEUG_COMMIT_SHA: ${{ github.sha }}
     steps:
       - name: checkout
