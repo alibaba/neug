@@ -251,7 +251,10 @@ void FTSIndex::ParseOptions() {
       tokenizer_config.emplace(name, value);
     }
   }
-  tokenizer_ = FTSTokenizer::Create(std::move(tokenizer_config));
+  tokenizer_config.try_emplace("stopwords", "english");
+  full_tokenizer_name_.clear();
+  tokenizer_ =
+      FTSTokenizer::Create(std::move(tokenizer_config), full_tokenizer_name_);
   table_name_ = "neug_fts_" + meta_->name;
 }
 
@@ -262,8 +265,7 @@ void FTSIndex::CreateTable() {
       sql += ", ";
     sql += QuoteSQLiteIdentifier(FTSPhysicalColumnName(i));
   }
-  sql += ", content='', tokenize=" +
-         QuoteSQLiteLiteral(std::string(tokenizer_->Name()));
+  sql += ", content='', tokenize=" + QuoteSQLiteLiteral(full_tokenizer_name_);
   if (!prefix_.empty()) {
     sql += ", prefix=" + QuoteSQLiteLiteral(prefix_);
   }
@@ -462,6 +464,7 @@ std::unique_ptr<Module> FTSIndex::Clone() const {
   cloned->runtime_path_ = runtime_path_;
   cloned->table_name_ = table_name_;
   cloned->tokenizer_ = tokenizer_;
+  cloned->full_tokenizer_name_ = full_tokenizer_name_;
   cloned->prefix_ = prefix_;
   cloned->bound_columns_ = bound_columns_;
   return cloned;

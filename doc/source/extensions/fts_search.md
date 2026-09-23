@@ -150,8 +150,8 @@ is read only when the index is created. Its contents are stored in the index
 checkpoint, so the original file is not required when reopening the database.
 
 Stopwords are applied consistently while indexing documents and parsing
-queries. Index checkpoints created by earlier versions remain compatible and
-are treated as `stopwords = 'none'`.
+queries. Index checkpoints created with NeuG v0.2.0 remain compatible and are
+treated as `stopwords = 'none'`.
 
 ### Tokenizers
 
@@ -166,6 +166,11 @@ Supported tokenizers are:
   enabling substring matching.
 - `jieba` performs Chinese word segmentation using cppjieba and loads the
   built-in small dictionary and HMM model.
+
+`porter` is a tokenizer wrapper and supports nesting another tokenizer. It uses
+`porter unicode61` by default. It can also be configured as `porter jieba`, in
+which case Jieba segments the Chinese and English text before the Porter
+algorithm is applied to the English tokens.
 
 All tokenizers are case-insensitive, and all tokens are converted to lowercase.
 

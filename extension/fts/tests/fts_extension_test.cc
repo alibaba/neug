@@ -129,6 +129,11 @@ class TestCheckpoint {
   std::shared_ptr<Checkpoint> checkpoint_;
 };
 
+std::shared_ptr<const FTSTokenizer> CreateTokenizer(FTSTokenizerConfig config) {
+  std::string full_name;
+  return FTSTokenizer::Create(std::move(config), full_name);
+}
+
 std::filesystem::path GetExecutablePath() {
 #if defined(__APPLE__)
   uint32_t size = 0;
@@ -164,7 +169,8 @@ TEST(JiebaFTSTokenizerTest, LoadsBuiltInDictsFromMemory) {
   const ScopedEnvironmentVariable temp_root(
       "NEUG_DB_TMP_DIR", temporary_directory.path().string());
 
-  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  std::string full_name;
+  JiebaFTSTokenizer tokenizer({}, full_name);
 
   EXPECT_FALSE(std::filesystem::exists(temporary_directory.path()));
 }
@@ -309,7 +315,8 @@ TEST(FTSIndexScanInputTest, BindsAndValidatesDynamicQueryParameter) {
 
 std::unique_ptr<FTSIndex> MakeOpenedIndex(
     Checkpoint& checkpoint, const std::string& tokenizer = "unicode61",
-    const std::optional<std::string>& jieba_mode = std::nullopt) {
+    const std::optional<std::string>& jieba_mode = std::nullopt,
+    const std::optional<std::string>& stopwords = std::nullopt) {
   auto meta = std::make_unique<IndexMeta>();
   meta->name = "item_text_fts";
   meta->type = "FTS";
@@ -320,6 +327,9 @@ std::unique_ptr<FTSIndex> MakeOpenedIndex(
   }
   if (jieba_mode) {
     meta->options["jieba_mode"] = *jieba_mode;
+  }
+  if (stopwords) {
+    meta->options["stopwords"] = *stopwords;
   }
   auto index = std::make_unique<FTSIndex>();
   auto status =
@@ -376,18 +386,19 @@ FTSQueryParams MakeQuery(std::string query,
 
 TEST(JiebaFTSTokenizerTest, SupportsMpHmmAndMixModes) {
   struct ModeExpectation {
-    JiebaMode mode;
+    std::string mode;
     std::vector<std::string> expected;
   };
   const std::vector<ModeExpectation> cases = {
-      {JiebaMode::kMp, {"他", "来到", "了", "网易", "杭", "研", "大厦"}},
-      {JiebaMode::kHmm, {"他来", "到", "了", "网易", "杭", "研大厦"}},
-      {JiebaMode::kMix, {"他", "来到", "了", "网易", "杭研", "大厦"}},
+      {"mp", {"他", "来到", "了", "网易", "杭", "研", "大厦"}},
+      {"hmm", {"他来", "到", "了", "网易", "杭", "研大厦"}},
+      {"mix", {"他", "来到", "了", "网易", "杭研", "大厦"}},
   };
 
   const std::string input = "他来到了网易杭研大厦";
   for (const auto& test_case : cases) {
-    JiebaFTSTokenizer tokenizer(test_case.mode);
+    std::string full_name;
+    JiebaFTSTokenizer tokenizer({{"jieba_mode", test_case.mode}}, full_name);
     std::vector<CollectedToken> tokens;
     ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
                                  FTS5_TOKENIZE_DOCUMENT, CollectToken),
@@ -407,9 +418,9 @@ TEST(JiebaFTSTokenizerTest, AddsCustomDictToBuiltInDict) {
   const auto dict_path = directory.path() / "user.dict.utf8";
   std::ofstream(dict_path) << "棉花糖星球\n";
 
-  auto tokenizer = FTSTokenizer::Create({{"tokenizer", "jieba"},
-                                         {"jieba_mode", "mp"},
-                                         {"jieba_dict", dict_path.string()}});
+  auto tokenizer = CreateTokenizer({{"tokenizer", "jieba"},
+                                    {"jieba_mode", "mp"},
+                                    {"jieba_dict", dict_path.string()}});
   const std::string custom_word = "棉花糖星球";
   std::vector<CollectedToken> custom_tokens;
   ASSERT_EQ(tokenizer->Tokenize(&custom_tokens, custom_word.data(),
@@ -433,8 +444,8 @@ TEST(JiebaFTSTokenizerTest, RejectsInvalidCustomDictPath) {
   TemporaryDatabaseDirectory directory;
   const auto dict_path = directory.path() / "missing.dict.utf8";
 
-  EXPECT_THROW(FTSTokenizer::Create({{"tokenizer", "jieba"},
-                                     {"jieba_dict", dict_path.string()}}),
+  EXPECT_THROW(CreateTokenizer({{"tokenizer", "jieba"},
+                                {"jieba_dict", dict_path.string()}}),
                std::invalid_argument);
 }
 
@@ -447,52 +458,86 @@ TEST(JiebaFTSTokenizerTest, RejectsUserDictPathSeparators) {
         directory.path() / ("user" + std::string(1, separator) + "dict.utf8");
     std::ofstream(dict_path) << "棉花糖星球\n";
 
-    EXPECT_THROW(FTSTokenizer::Create({{"tokenizer", "jieba"},
-                                       {"jieba_dict", dict_path.string()}}),
+    EXPECT_THROW(CreateTokenizer({{"tokenizer", "jieba"},
+                                  {"jieba_dict", dict_path.string()}}),
                  std::invalid_argument)
         << separator;
   }
 }
 
 TEST(FTSTokenizerTest, ValidatesStopwordOptions) {
-  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "english"}}));
-  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "jieba"}}));
-  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "none"}}));
-  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "[]"}}));
-  EXPECT_NO_THROW(
-      FTSTokenizer::Create({{"stopwords", "['custom', 'don\\'t']"}}));
+  EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "english"}}));
+  EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "jieba"}}));
+  EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "none"}}));
+  EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "[]"}}));
+  EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "['custom', 'don\\'t']"}}));
 
   for (const auto& value : {"spanish", "[custom]", "['']", "['custom', 1]"}) {
-    EXPECT_THROW(FTSTokenizer::Create({{"stopwords", value}}),
-                 std::invalid_argument)
+    EXPECT_THROW(CreateTokenizer({{"stopwords", value}}), std::invalid_argument)
         << value;
   }
 }
 
-TEST(JiebaFTSTokenizerTest, LoadsJiebaStopwords) {
-  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
-  tokenizer.LoadStopwords("jieba");
-  const std::string input = "我们是图数据库";
-  std::vector<CollectedToken> tokens;
-  ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
-                               FTS5_TOKENIZE_DOCUMENT, CollectToken),
-            SQLITE_OK);
-  std::vector<std::string> actual;
-  for (const auto& token : tokens) {
-    actual.push_back(token.text);
-  }
-  EXPECT_EQ(actual, (std::vector<std::string>{"图", "数据库"}));
+TEST(FTSIndexTest, AppliesJiebaStopwordWrapper) {
+  TemporaryDatabaseDirectory directory;
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeOpenedIndex(*checkpoint, "jieba", "mix", "jieba");
+  ASSERT_TRUE(
+      index->Upsert(1, MakeTextIndexValue(Value::STRING("我们是图数据库")))
+          .ok());
+
+  auto stopword = index->Search(MakeQuery("我们"));
+  ASSERT_TRUE(stopword.has_value()) << stopword.error().ToString();
+  EXPECT_TRUE(stopword->empty());
+
+  auto content = index->Search(MakeQuery("数据库"));
+  ASSERT_TRUE(content.has_value()) << content.error().ToString();
+  ASSERT_EQ(content->size(), 1u);
+  EXPECT_EQ(content->front().vid, 1u);
 }
 
 TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
-  auto tokenizer =
-      FTSTokenizer::Create({{"tokenizer", "unicode61 remove_diacritics 0"}});
-  EXPECT_EQ(tokenizer->Name(),
-            "builtin_stopwords unicode61 remove_diacritics 0");
+  std::string full_name;
+  auto tokenizer = FTSTokenizer::Create({{"stopwords", "none"}}, full_name);
+  EXPECT_EQ(full_name, "unicode61");
+
+  full_name.clear();
+  tokenizer =
+      FTSTokenizer::Create({{"tokenizer", "unicode61 remove_diacritics 0"},
+                            {"stopwords", "english"}},
+                           full_name);
+  EXPECT_EQ(full_name, "stopwords unicode61 remove_diacritics 0");
+
+  full_name.clear();
+  tokenizer = FTSTokenizer::Create(
+      {{"tokenizer", "porter"}, {"stopwords", "english"}}, full_name);
+  EXPECT_EQ(full_name, "stopwords porter unicode61");
+
+  full_name.clear();
+  tokenizer = FTSTokenizer::Create(
+      {{"tokenizer", "porter jieba"}, {"stopwords", "english"}}, full_name);
+  EXPECT_EQ(full_name, "stopwords porter jieba");
+}
+
+TEST(FTSTokenizerTest, IgnoresTokenizerSpecWhitespace) {
+  std::string full_name;
+  static_cast<void>(
+      FTSTokenizer::Create({{"tokenizer", "  porter   jieba  "}}, full_name));
+  EXPECT_EQ(full_name, "porter jieba");
+}
+
+TEST(FTSTokenizerTest, RejectsJiebaAsTokenizerWrapper) {
+  try {
+    static_cast<void>(CreateTokenizer({{"tokenizer", "jieba porter"}}));
+    FAIL() << "Expected an invalid_argument exception";
+  } catch (const std::invalid_argument& error) {
+    EXPECT_STREQ(error.what(), "Unsupported FTS tokenizer wrapper: jieba");
+  }
 }
 
 TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
-  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  std::string full_name;
+  JiebaFTSTokenizer tokenizer({}, full_name);
   const std::string input = "NeuG，是图数据库！";
   std::vector<CollectedToken> tokens;
   ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
@@ -506,7 +551,8 @@ TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {
 }
 
 TEST(JiebaFTSTokenizerTest, PreservesFullwidthLettersAndDigits) {
-  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  std::string full_name;
+  JiebaFTSTokenizer tokenizer({}, full_name);
   const std::string input = "ＡＢＣ１２３，。！？";
   std::vector<CollectedToken> tokens;
   ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
@@ -521,7 +567,9 @@ TEST(JiebaFTSTokenizerTest, PreservesFullwidthLettersAndDigits) {
 }
 
 TEST(JiebaFTSTokenizerTest, SupportsConcurrentReadOnlyTokenization) {
-  auto tokenizer = std::make_shared<const JiebaFTSTokenizer>(JiebaMode::kMix);
+  std::string full_name;
+  auto tokenizer = std::make_shared<const JiebaFTSTokenizer>(
+      FTSTokenizerConfig{}, full_name);
   std::atomic<int> failures{0};
   std::vector<std::thread> threads;
   for (int thread = 0; thread < 8; ++thread) {
@@ -997,6 +1045,26 @@ TEST(FTSIndexTest, FiltersSupersededAndDeletedRowsWithScores) {
   ASSERT_EQ(current->size(), 1);
   EXPECT_EQ(current->front().vid, 7u);
   EXPECT_LE(current->front().score, 0.0);
+}
+
+TEST(FTSIndexTest, PorterUsesJiebaAsBaseTokenizer) {
+  TemporaryDatabaseDirectory directory;
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeOpenedIndex(*checkpoint, "porter jieba", "mix");
+  ASSERT_TRUE(index
+                  ->Upsert(1, MakeTextIndexValue(
+                                  Value::STRING("向量 embeddings database")))
+                  .ok());
+
+  auto english = index->Search(MakeQuery("embedding"));
+  ASSERT_TRUE(english.has_value()) << english.error().ToString();
+  ASSERT_EQ(english->size(), 1u);
+  EXPECT_EQ(english->front().vid, 1u);
+
+  auto chinese = index->Search(MakeQuery("向量"));
+  ASSERT_TRUE(chinese.has_value()) << chinese.error().ToString();
+  ASSERT_EQ(chinese->size(), 1u);
+  EXPECT_EQ(chinese->front().vid, 1u);
 }
 
 TEST(FTSIndexTest, SearchesPastAnyNumberOfSupersededCandidates) {
