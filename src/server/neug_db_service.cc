@@ -97,9 +97,7 @@ class NeugDBService::Impl {
     runtime_.StopCompaction();
   }
 
-  bool IsRunning() const {
-    return running_.load(std::memory_order_relaxed);
-  }
+  bool IsRunning() const { return running_.load(std::memory_order_relaxed); }
 
   NeugDB& db() const { return db_; }
 
