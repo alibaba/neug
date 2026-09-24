@@ -275,10 +275,7 @@ Pool of database slots for concurrent query execution.
 - Stable WAL (Write-Ahead Log) writer per logical slot
 - 4096-byte-aligned per-slot Entry storage
 
-**Pool Size:** The resolved service concurrency determines the pool size. It
-defaults to `NeugDBConfig::max_thread_num`, while an explicit smaller
-`ServiceConfig::thread_num` reduces the pool for that service instance. Each TP
-query leases one slot for its duration.
+**Pool Size:** The service resolves its concurrency from ``ServiceConfig::thread_num`` and `NeugDBConfig::max_thread_num`, then passes that value to the pool. Each TP query leases one slot for its duration.
 
 ### Public Methods
 
@@ -308,3 +305,4 @@ Expect lock held by caller.
 Move-only RAII handle for exclusive use of a TP `ExecutionSlot`.
 
 `TpExecutionSlotPool` injects a noexcept release operation so this handle can return the slot without exposing bthread synchronization to `ExecutionSlot`.
+

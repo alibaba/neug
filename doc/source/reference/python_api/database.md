@@ -79,8 +79,8 @@ Open a database.
 
     Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
 
-    In TP mode, it is the default service execution-slot capacity. An explicit
-    smaller `serve(thread_num=...)` reduces the service-local pool.
+    In TP mode, it is the default service execution-slot capacity. An explicit smaller
+    ``serve(thread_num=...)`` reduces the service-local pool.
   - `checkpoint_on_close` (bool)
     Whether to automatically create a checkpoint when the database is closed. Default is True.
     If False, no checkpoint is created automatically when close the database.
@@ -197,7 +197,8 @@ documentation of Session.
 - **Notes:**
   - **Make sure to close all connections before starting the server.**
   - **After starting the server, no new connections to the local database will be allowed.**
-  - **`thread_num` limits server-side concurrent query execution; the client-side `Session(num_threads=...)` sizes its HTTP pool.**
+  - **`thread_num` limits server-side concurrent query execution; the client-side**
+  - **`Session(num_threads=...)` sizes its HTTP pool.**
 
 <a id="neug.database.Database.stop_serving"></a>
 
