@@ -660,7 +660,11 @@ DataType parseStructType(const std::string& trimmedStr,
   auto structFieldStrs = parseStructFields(structFieldsStr);
   for (auto& structFieldStr : structFieldStrs) {
     auto pos = structFieldStr.find(' ');
-    fieldNames.push_back(structFieldStr.substr(0, pos));
+    auto fieldName = structFieldStr.substr(0, pos);
+    if (!fieldName.empty() && fieldName.back() == ':') {
+      fieldName.pop_back();
+    }
+    fieldNames.push_back(std::move(fieldName));
     fieldTypes.push_back(
         convertFromString(structFieldStr.substr(pos + 1), context));
   }

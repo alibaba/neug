@@ -20,13 +20,19 @@ namespace neug {
 namespace execution {
 class TupleExpr : public ExprBase {
  public:
-  TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs)
+  TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs,
+            DataType struct_type)
       : exprs_(std::move(exprs)) {
-    std::vector<DataType> child_types;
-    for (const auto& expr : exprs_) {
-      child_types.push_back(expr->type());
+    if (struct_type.id() == DataTypeId::kStruct) {
+      // Prefer the bound struct type: it carries the field names.
+      type_ = std::move(struct_type);
+    } else {
+      std::vector<DataType> child_types;
+      for (const auto& expr : exprs_) {
+        child_types.push_back(expr->type());
+      }
+      type_ = DataType::Struct(child_types);
     }
-    type_ = DataType::Struct(child_types);
   }
   ~TupleExpr() override = default;
   const DataType& type() const override { return type_; }

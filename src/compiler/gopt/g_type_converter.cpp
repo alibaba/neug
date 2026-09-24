@@ -131,6 +131,7 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
     }
     // Otherwise, we can directly set the data type
     tupleType->add_component_types()->CopyFrom(childType->data_type());
+    tupleType->add_field_names(fieldNames[i]);
   }
   auto result = std::make_unique<::common::IrDataType>();
   result->mutable_data_type()->set_allocated_tuple(tupleType.release());
@@ -514,16 +515,15 @@ neug::DataType GLogicalTypeConverter::convertDataType(
   case ::common::DataType::kTuple: {
     // Handle tuple type - convert to STRUCT
     const auto& tuple = type.tuple();
-    std::vector<std::string> fieldNames;
+    std::vector<std::string> fieldNames(tuple.field_names().begin(),
+                                        tuple.field_names().end());
     std::vector<neug::DataType> fieldTypes;
-    fieldNames.reserve(tuple.component_types_size());
     fieldTypes.reserve(tuple.component_types_size());
     for (int i = 0; i < tuple.component_types_size(); ++i) {
-      auto componentType = convertDataType(tuple.component_types(i));
-      fieldNames.push_back("field_" + std::to_string(i));
-      fieldTypes.push_back(std::move(componentType));
+      fieldTypes.push_back(convertDataType(tuple.component_types(i)));
     }
-    return neug::DataType::Struct(std::move(fieldNames), std::move(fieldTypes));
+    return neug::StructType::FromFields(std::move(fieldNames),
+                                        std::move(fieldTypes));
   }
   case ::common::DataType::ITEM_NOT_SET:
   default:

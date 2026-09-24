@@ -506,8 +506,11 @@ bool ExpressionUtil::canCastStatically(const Expression& expr,
     auto value = expr.constPtrCast<ParameterExpression>()->getValue();
     return compatible(value, targetType);
   }
-  default:
+  case ExpressionType::VARIABLE:
+  case ExpressionType::LAMBDA:
     return compatible(expr.getDataType(), targetType);
+  default:
+    return false;
   }
 }
 
