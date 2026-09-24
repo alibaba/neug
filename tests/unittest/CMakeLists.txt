@@ -32,7 +32,7 @@ add_neug_test(test_explain_profile test_explain_profile.cpp)
 
 if (BUILD_HTTP_SERVER)
     if (NOT WIN32)
-        add_neug_test(brpc_http_server brpc_http_server.cc)
+        add_neug_test(brpc_http_server test_brpc_http_server.cc)
     else()
         add_neug_test(httplib_http_server httplib_http_server.cc)
     endif()
