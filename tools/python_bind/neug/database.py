@@ -105,7 +105,8 @@ class Database(object):
 
             Embedded (AP) queries are currently single-threaded; using this setting for intra-query parallelism is future work.
 
-            In TP mode, it sizes the slot pool and caps service threads. Queries run concurrently; each uses one slot/thread.
+            In TP mode, it is the default service execution-slot capacity. An explicit smaller
+            ``serve(thread_num=...)`` reduces the service-local pool.
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
@@ -286,9 +287,10 @@ class Database(object):
         blocking : bool
             Whether to block the process after starting the database server.
         thread_num : int
-            Service thread count. 0 selects max_thread_num; explicit values are clamped to it.
+            Maximum number of concurrently executing service queries. 0 follows
+            max_thread_num; explicit values are clamped to it.
 
-            Service threads run TP queries concurrently, but each query uses one execution context and one thread.
+            Each concurrently executing TP query uses one service execution slot.
         auto_compaction : bool
             Enable background auto-compaction while serving. Default is `True`.
         explicit_transaction_timeout_ms : int
@@ -314,7 +316,8 @@ class Database(object):
         -----
         Make sure to close all connections before starting the server.
         After starting the server, no new connections to the local database will be allowed.
-        `thread_num` sizes server-side service threads; the client-side `Session(num_threads=...)` sizes its HTTP pool.
+        `thread_num` limits server-side concurrent query execution; the client-side
+        `Session(num_threads=...)` sizes its HTTP pool.
         """
         if thread_num < 0:
             raise ValueError(

@@ -69,7 +69,8 @@ For local source builds via `setup.py build_ext`, override with
 
 ## Python service API
 
-`Database.serve()` starts the database in service mode and can configure the service thread count:
+`Database.serve()` starts the database in service mode and can configure the
+maximum number of concurrently executing service queries:
 
 ```python
 from neug import Database
@@ -84,11 +85,11 @@ endpoint = db.serve(
 )
 ```
 
-`thread_num=0` is the default and auto-selects from the database
+`thread_num=0` is the default and follows the database
 `max_thread_num`. If set explicitly, it must be less than or equal to that
 value. With the default database thread setting, `max_thread_num` is resolved
 from hardware concurrency and falls back to `1` if the runtime cannot detect it.
-Service threads run TP queries concurrently, but each query uses one execution context and one thread.
+Each concurrently executing TP query uses one service execution slot.
 
 Embedded (AP) queries are currently single-threaded; using `max_thread_num` for intra-query parallelism is future work.
 This is separate from client-side `Session(..., num_threads=...)`, which

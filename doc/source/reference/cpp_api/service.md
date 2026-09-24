@@ -275,7 +275,7 @@ Pool of database slots for concurrent query execution.
 - Stable WAL (Write-Ahead Log) writer per logical slot
 - 4096-byte-aligned per-slot Entry storage
 
-**Pool Size:** `NeugDBConfig::max_thread_num` determines the pool size. Each TP query leases one slot and one thread for its duration.
+**Pool Size:** The service resolves its concurrency from ``ServiceConfig::thread_num`` and `NeugDBConfig::max_thread_num`, then passes that value to the pool. Each TP query leases one slot for its duration.
 
 ### Public Methods
 

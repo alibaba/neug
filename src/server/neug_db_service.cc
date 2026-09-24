@@ -97,14 +97,22 @@ void NeugDBService::init(const ServiceConfig& config) {
     effective_config.thread_num =
         static_cast<uint32_t>(db_config_.max_thread_num);
   }
+  const size_t service_slot_num =
+      effective_config.thread_num == 0
+          ? static_cast<size_t>(db_config_.max_thread_num)
+          : static_cast<size_t>(effective_config.thread_num);
 
+  // bthread concurrency is process-wide and cannot be reduced after runtime
+  // initialization. Keep it sized for the database capacity; service-local
+  // concurrency is enforced by the execution slot pool below.
   bthread_setconcurrency(
       std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
 
   execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
       db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
       *db_.version_manager_, *db_.checkpoint_coordinator_,
-      db_.extension_manager(), db_.allocators_, *db_.wal_writers_, db_config_);
+      db_.extension_manager(), db_.allocators_, *db_.wal_writers_, db_config_,
+      service_slot_num);
 
   transaction_manager_ = std::make_unique<ServiceTransactionManager>(
       *execution_slot_pool_, effective_config.max_explicit_transactions,

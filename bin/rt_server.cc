@@ -28,7 +28,8 @@ int main(int argc, char** argv) {
   options.add_options()("h,help", "Display help message")("v,version",
                                                           "Display version")(
       "t,thread-num",
-      "Database max_thread_num and service thread_num. 0 means auto-select",
+      "Database max_thread_num and maximum service query concurrency. 0 "
+      "means auto-select",
       cxxopts::value<uint32_t>()->default_value("0"))(
       "p,http-port", "HTTP port of query handler",
       cxxopts::value<uint16_t>()->default_value("10000"))(
