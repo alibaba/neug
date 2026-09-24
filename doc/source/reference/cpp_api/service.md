@@ -19,13 +19,10 @@ int main() {
   neug::ServiceConfig config;
   config.query_port = 10000;
   config.host_str = "0.0.0.0";
-  // 3. Start HTTP service
+  // 3. Start HTTP service and block until shutdown
   neug::NeugDBService service(db, config);
-  std::string url = service.Start();
-  std::cout << "Service running at: " << url << std::endl;
-  // 4. Block until shutdown signal (Ctrl+C)
   service.run_and_wait_for_exit();
-  // 5. Cleanup
+  // 4. Cleanup
   db.Close();
   return 0;
 }
@@ -34,11 +31,11 @@ int main() {
 **HTTP Endpoints:**
 - `POST /cypher` - Execute Cypher queries
 - `GET /schema` - Retrieve graph schema
-- `GET /status` - Check service status
+- `GET /service_status` - Check service status
 - `POST /transactions` - Begin an explicit TP transaction session
 - `POST /transactions/{id}/query|commit|rollback` - Operate on a session
 
-**Thread Safety:** All public methods are thread-safe. The service uses a `TpExecutionSlotPool` internally to handle concurrent requests efficiently.
+**Thread Safety:** Lifecycle transitions are synchronized, and concurrent requests use an internal `TpExecutionSlotPool`. Destruction requires all callers and acquired `ExecutionSlotLease` objects to have finished.
 
 ### Constructors & Destructors
 
@@ -80,7 +77,6 @@ Starts the HTTP server.
 Binds to the configured host and port and begins accepting HTTP requests. Returns the full URL where the service is accessible.
 
 - **Throws:**
-  - `std::runtime_error`: If service is not initialized
   - `std::runtime_error`: If service is already running
   - `std::runtime_error`: If unable to bind to configured address
 
@@ -90,18 +86,14 @@ Binds to the configured host and port and begins accepting HTTP requests. Return
 
 Stops the HTTP server gracefully.
 
-Stops accepting new connections and shuts down the BRPC server. This method is thread-safe and can be called from signal handlers.
-
-- **Notes:**
-  - Prints status messages to stderr if service is not properly initialized
-  - Protected by mutex to ensure thread-safe shutdown
+Stops accepting new connections and shuts down the BRPC server. This method is thread-safe. It is not async-signal-safe and must not be called directly from a signal handler.
 
 #### `GetServiceConfig() const`
 
 Retrieves the current service configuration.
 
 - **Notes:**
-  - Returns the configuration passed to init(), not runtime settings
+  - Returns the effective configuration after validation and clamping
 
 - **Returns:** Const reference to the `ServiceConfig` used during initialization
 
@@ -132,8 +124,7 @@ auto result = lease->ExecuteTransactionalRequest(
 Checks if the HTTP server is currently running.
 
 - **Notes:**
-  - This delegates to the HTTP handler manager's `IsRunning()` method
-  - Thread-safe query of server state
+  - Thread-safe query of the service lifecycle state
 
 - **Returns:** `true` if the underlying BRPC server is accepting connections
 
@@ -142,8 +133,7 @@ Checks if the HTTP server is currently running.
 Gets current service status information.
 
 Returns status messages indicating the current state:
-- "NeugDB service has not been inited!" if not initialized
-- "NeugDB service has not been started!" if initialized but not running
+- "NeugDB service has not been started!" if not running
 - "NeugDB service is running ..." if actively serving requests
 
 - **Notes:**
@@ -161,9 +151,7 @@ Convenience method that starts the HTTP server and blocks the calling thread unt
   - This is the typical way to run the service in production
 
 - **Throws:**
-  - `std::runtime_error`: If service is not initialized
   - `std::runtime_error`: If service is already running
-  - `std::runtime_error`: If HTTP handler manager is not available
 
 
 ---
