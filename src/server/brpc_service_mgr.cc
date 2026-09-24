@@ -457,11 +457,15 @@ void HttpServiceImpl::ExecuteTransactionQuery(
     protocol_.send_query_response(cntl, error);
     return;
   }
-  auto response = ParseAndExecuteQuery(
-      cntl->request_attachment().to_string(),
-      [this, transaction_id = transaction_id.value()](const auto& request) {
-        return tp_service_.ExecuteInTransaction(transaction_id, request);
-      });
+  auto request =
+      RequestParser::ParseFromString(cntl->request_attachment().to_string());
+  if (!request) {
+    result<std::string> error = tl::unexpected(request.error());
+    protocol_.send_query_response(cntl, error);
+    return;
+  }
+  auto response =
+      tp_service_.ExecuteInTransaction(transaction_id.value(), request.value());
   protocol_.send_query_response(cntl, response);
 }
 

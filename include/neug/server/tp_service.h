@@ -46,7 +46,7 @@ class ITpService {
 
   virtual result<BeginTransactionResult> BeginTransaction(
       TransactionMode mode) = 0;
-  virtual result<QueryResult> ExecuteInTransaction(
+  virtual result<std::string> ExecuteInTransaction(
       std::string_view transaction_id, const QueryRequest& request) = 0;
   virtual Status CommitTransaction(std::string_view transaction_id) = 0;
   virtual Status RollbackTransaction(std::string_view transaction_id) = 0;

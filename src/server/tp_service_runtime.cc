@@ -144,7 +144,7 @@ result<BeginTransactionResult> TpServiceRuntime::BeginTransaction(
                                 std::move(begin.expires_at)};
 }
 
-result<QueryResult> TpServiceRuntime::ExecuteInTransaction(
+result<std::string> TpServiceRuntime::ExecuteInTransaction(
     std::string_view transaction_id, const QueryRequest& request) {
   return transaction_manager_->Execute(transaction_id, request);
 }

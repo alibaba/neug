@@ -53,7 +53,7 @@ class ServiceTransactionManager {
       delete;
 
   result<BeginResult> Begin(TransactionMode mode);
-  result<QueryResult> Execute(std::string_view transaction_id,
+  result<std::string> Execute(std::string_view transaction_id,
                               const QueryRequest& request);
   Status Commit(std::string_view transaction_id);
   Status Rollback(std::string_view transaction_id);
