@@ -124,6 +124,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
             -DBUILD_PYTHON=ON `
+            -DBUILD_HTTP_SERVER=ON `
             -DBUILD_TEST=ON `
             -DPython_EXECUTABLE="$pythonExe" `
             -DPYTHON_EXECUTABLE="$pythonExe" `
