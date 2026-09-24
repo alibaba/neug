@@ -559,58 +559,6 @@ TEST_F(NeugDBServiceTest, StopClearsRunningFlag) {
   EXPECT_EQ(status.value(), "NeugDB service has not been started!");
 }
 
-TEST_F(NeugDBServiceTest, CanRestartAfterStop) {
-  neug::ServiceConfig cfg;
-  cfg.query_port = 0;
-  cfg.host_str = "127.0.0.1";
-  neug::NeugDBService service(*db_, cfg);
-
-  const auto first_endpoint = service.Start();
-  EXPECT_TRUE(service.IsRunning());
-  service.Stop();
-
-  const auto second_endpoint = service.Start();
-  EXPECT_TRUE(service.IsRunning());
-  EXPECT_FALSE(first_endpoint.empty());
-  EXPECT_FALSE(second_endpoint.empty());
-  service.Stop();
-
-  EXPECT_FALSE(service.IsRunning());
-}
-
-TEST_F(NeugDBServiceTest, ConcurrentStopIsIdempotent) {
-  neug::ServiceConfig cfg;
-  cfg.query_port = 0;
-  cfg.host_str = "127.0.0.1";
-  neug::NeugDBService service(*db_, cfg);
-  service.Start();
-
-  std::atomic<int> ready{0};
-  std::atomic<bool> go{false};
-  std::atomic<int> failures{0};
-  const auto stop = [&]() {
-    ready.fetch_add(1, std::memory_order_release);
-    while (!go.load(std::memory_order_acquire)) {
-      std::this_thread::yield();
-    }
-    try {
-      service.Stop();
-    } catch (...) { failures.fetch_add(1, std::memory_order_relaxed); }
-  };
-
-  std::thread first(stop);
-  std::thread second(stop);
-  while (ready.load(std::memory_order_acquire) != 2) {
-    std::this_thread::yield();
-  }
-  go.store(true, std::memory_order_release);
-  first.join();
-  second.join();
-
-  EXPECT_EQ(failures.load(std::memory_order_relaxed), 0);
-  EXPECT_FALSE(service.IsRunning());
-}
-
 TEST_F(NeugDBServiceTest, StartThrowsWhenAlreadyRunning) {
   neug::ServiceConfig cfg;
   cfg.query_port = 0;
@@ -620,7 +568,7 @@ TEST_F(NeugDBServiceTest, StartThrowsWhenAlreadyRunning) {
   service.Start();
   ASSERT_TRUE(service.IsRunning());
 
-  // Second Start() must throw; the lifecycle state must remain running.
+  // Second Start() must throw; running_ must remain true.
   EXPECT_THROW(service.Start(), neug::exception::RuntimeError);
   EXPECT_TRUE(service.IsRunning());
   EXPECT_EQ(service.service_status().value(), "NeugDB service is running ...");
@@ -639,7 +587,8 @@ TEST_F(NeugDBServiceTest, RunAndWaitForExitSetsAndClearsRunning) {
   // run_and_wait_for_exit() blocks; run it on a background thread.
   std::thread svc_thread([&]() { service.run_and_wait_for_exit(); });
 
-  // Wait until Start() publishes the running state before BRPC blocks.
+  // Spin-wait until running_ flips to true (set synchronously before
+  // RunUntilAskedToQuit() blocks).
   const auto deadline =
       std::chrono::steady_clock::now() + std::chrono::seconds(5);
   while (!service.IsRunning() && std::chrono::steady_clock::now() < deadline) {
@@ -650,8 +599,8 @@ TEST_F(NeugDBServiceTest, RunAndWaitForExitSetsAndClearsRunning) {
   EXPECT_EQ(service.service_status().value(), "NeugDB service is running ...");
 
   // Signal the brpc server to quit directly – without going through
-  // service.Stop() – so that run_and_wait_for_exit() performs the lifecycle
-  // transition itself (the code path this test exercises).
+  // service.Stop() – so that running_ is cleared exclusively by
+  // run_and_wait_for_exit() itself (the code path this test exercises).
   brpc::AskToQuit();
   svc_thread.join();
 

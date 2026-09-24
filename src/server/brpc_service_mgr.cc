@@ -496,6 +496,8 @@ BrpcServiceManager::BrpcServiceManager(ITpService& tp_service,
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
+BrpcServiceManager::~BrpcServiceManager() {}
+
 void BrpcServiceManager::Init(const ServiceConfig& config) {
   // Initialize Brpc service protocols
   if (pthread_once(&brpc_service_protocol_init_once,
@@ -517,13 +519,13 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
       "/transactions/*/rollback => RollbackTransaction";
 
 #ifdef ENABLE_HTTP_PROTOCOL
-  http_service_ = std::make_unique<HttpServiceImpl>(tp_service_);
-  if (brpc_server_->AddService(http_service_.get(), svc_options) == -1) {
-    http_service_.reset();
-    THROW_RUNTIME_ERROR("Failed to add HTTP service to brpc server");
+  auto http_svc = std::make_unique<HttpServiceImpl>(tp_service_);
+  if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
+    LOG(ERROR) << "Failed to add http service to brpc server";
   }
+  services_.emplace_back(std::move(http_svc));
 #endif
-  if (!http_service_) {
+  if (services_.empty()) {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "No brpc protocols are enabled. Please enable at least one protocol.");
   }
@@ -550,10 +552,6 @@ std::string BrpcServiceManager::Start() {
 
 void BrpcServiceManager::RunAndWaitForExit() {
   Start();
-  WaitForExit();
-}
-
-void BrpcServiceManager::WaitForExit() {
   LOG(INFO) << "Brpc server is running, waiting for exit...";
   brpc_server_->RunUntilAskedToQuit();
 }

@@ -35,25 +35,38 @@ int32_t status_code_to_http_code(neug::StatusCode code);
  * for parsing query requests and sending query responses.
  */
 struct BrpcServiceProtocol {
-  using ParseQueryRequestFunc = bool (*)(brpc::Controller* cntl, void* request,
-                                         std::string& query_request);
-  using SendQueryResponseFunc = void (*)(brpc::Controller* cntl,
-                                         neug::result<std::string>& response);
-  using SendSchemaResponseFunc = void (*)(brpc::Controller* cntl,
-                                          neug::result<std::string>& response);
-  using SendServiceStatusResponseFunc =
-      void (*)(brpc::Controller* cntl, neug::result<std::string>& response);
+  BrpcServiceProtocol()
+      : parse_query_request(nullptr),
+        send_query_response(nullptr),
+        name("unknown") {}
 
-  ParseQueryRequestFunc parse_query_request{nullptr};
-  SendQueryResponseFunc send_query_response{nullptr};
-  SendSchemaResponseFunc send_schema_response{nullptr};
-  SendServiceStatusResponseFunc send_service_status_response{nullptr};
-  const char* name{"unknown"};
+  BrpcServiceProtocol(const BrpcServiceProtocol& other)
+      : parse_query_request(other.parse_query_request),
+        send_query_response(other.send_query_response),
+        name(other.name) {}
+
+  typedef bool (*ParseQueryRequestFunc)(brpc::Controller* cntl, void* request,
+                                        std::string& query_request);
+  ParseQueryRequestFunc parse_query_request;
+
+  typedef void (*SendQueryResponseFunc)(brpc::Controller* cntl,
+                                        neug::result<std::string>& response);
+  SendQueryResponseFunc send_query_response;
+
+  typedef void (*SendSchemaResponseFunc)(brpc::Controller* cntl,
+                                         neug::result<std::string>& response);
+  SendSchemaResponseFunc send_schema_response;
+
+  typedef void (*SendServiceStatusResponseFunc)(
+      brpc::Controller* cntl, neug::result<std::string>& response);
+  SendServiceStatusResponseFunc send_service_status_response;
+
+  const char* name;
 };
 
 struct BrpcServiceProtocolEntry {
   BrpcServiceProtocol protocol;
-  bool valid{false};
+  bool valid;
 };
 
 /**
@@ -104,33 +117,33 @@ class HttpServiceImpl : public neug::HttpService {
   explicit HttpServiceImpl(ITpService& tp_service)
       : tp_service_(tp_service),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
-  ~HttpServiceImpl() override = default;
+  virtual ~HttpServiceImpl() {}
 
   void PostCypherQuery(google::protobuf::RpcController* cntl_base,
                        const HttpRequest* request, HttpResponse* response,
-                       google::protobuf::Closure* done) override;
+                       google::protobuf::Closure* done);
 
   void GetSchema(google::protobuf::RpcController* cntl_base,
                  const google::protobuf::Empty*, HttpResponse* response,
-                 google::protobuf::Closure* done) override;
+                 google::protobuf::Closure* done);
 
   void GetServiceStatus(google::protobuf::RpcController* cntl_base,
                         const google::protobuf::Empty*, HttpResponse* response,
-                        google::protobuf::Closure* done) override;
+                        google::protobuf::Closure* done);
 
   void BeginTransaction(google::protobuf::RpcController* cntl_base,
                         const HttpRequest* request, HttpResponse* response,
-                        google::protobuf::Closure* done) override;
+                        google::protobuf::Closure* done);
   void ExecuteTransactionQuery(google::protobuf::RpcController* cntl_base,
                                const HttpRequest* request,
                                HttpResponse* response,
-                               google::protobuf::Closure* done) override;
+                               google::protobuf::Closure* done);
   void CommitTransaction(google::protobuf::RpcController* cntl_base,
                          const HttpRequest* request, HttpResponse* response,
-                         google::protobuf::Closure* done) override;
+                         google::protobuf::Closure* done);
   void RollbackTransaction(google::protobuf::RpcController* cntl_base,
                            const HttpRequest* request, HttpResponse* response,
-                           google::protobuf::Closure* done) override;
+                           google::protobuf::Closure* done);
 
  private:
   ITpService& tp_service_;
@@ -142,11 +155,10 @@ class BrpcServiceManager : public IServiceManager {
   explicit BrpcServiceManager(ITpService& tp_service,
                               uint32_t database_max_thread_num);
 
-  ~BrpcServiceManager() override = default;
+  ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
   std::string Start() override;
   void Stop() override;
-  void WaitForExit();
   void RunAndWaitForExit() override;
   bool IsRunning() const override { return brpc_server_->IsRunning(); }
 
@@ -157,7 +169,7 @@ class BrpcServiceManager : public IServiceManager {
   brpc::ServerOptions get_server_options() const;
 
   ServiceConfig service_config_;
-  std::unique_ptr<HttpServiceImpl> http_service_;
+  std::vector<std::unique_ptr<HttpServiceImpl>> services_;
   std::unique_ptr<brpc::Server> brpc_server_;
 };
 

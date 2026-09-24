@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * 	http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,10 +15,9 @@
 
 #include "neug/server/neug_db_service.h"
 
-#include <condition_variable>
-#include <exception>
+#include <atomic>
+#include <iostream>
 #include <mutex>
-#include <utility>
 
 #include "../main/service_mode_lease.h"
 #include "neug/main/neug_db.h"
@@ -39,77 +38,67 @@ class NeugDBService::Impl {
   }
 
   ~Impl() {
-    try {
-      StopImpl();
-    } catch (const std::exception& e) {
-      LOG(ERROR) << "Failed to stop NeugDB service during destruction: "
-                 << e.what();
-    } catch (...) {
-      LOG(ERROR) << "Failed to stop NeugDB service during destruction";
-    }
+    runtime_.CloseAdmission();
+    handler_.Stop();
+    runtime_.Drain();
+    runtime_.StopCompaction();
   }
 
   std::string Start() {
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      if (state_ != State::kIdle) {
-        THROW_RUNTIME_ERROR("NeugDB service has already been started!");
-      }
-      state_ = State::kStarting;
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (IsRunning()) {
+      THROW_RUNTIME_ERROR("NeugDB service has already been started!");
     }
-
+    runtime_.StartCompaction();
     try {
-      runtime_.StartCompaction();
       runtime_.OpenAdmission();
-      auto endpoint = handler_.Start();
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-        state_ = State::kRunning;
-      }
-      state_changed_.notify_all();
-      return endpoint;
+      auto ret = handler_.Start();
+      running_.store(true, std::memory_order_relaxed);
+      return ret;
     } catch (...) {
-      auto start_error = std::current_exception();
-      try {
-        cleanupRuntime();
-      } catch (const std::exception& e) {
-        LOG(ERROR) << "Failed to clean up a failed service start: " << e.what();
-      } catch (...) {
-        LOG(ERROR) << "Failed to clean up a failed service start";
-      }
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-        state_ = State::kIdle;
-      }
-      state_changed_.notify_all();
-      std::rethrow_exception(start_error);
+      runtime_.CloseAdmission();
+      runtime_.StopCompaction();
+      throw;
     }
   }
 
-  void Stop() { StopImpl(); }
+  void Stop() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!IsRunning()) {
+      std::cerr << "NeugDB service has not been started!" << std::endl;
+      return;
+    }
+    runtime_.CloseAdmission();
+    handler_.Stop();
+    runtime_.Drain();
+    running_.store(false, std::memory_order_relaxed);
+    runtime_.StopCompaction();
+  }
 
   void RunAndWaitForExit() {
-    Start();
-    try {
-      handler_.WaitForExit();
-    } catch (...) {
-      auto wait_error = std::current_exception();
-      try {
-        StopImpl();
-      } catch (const std::exception& e) {
-        LOG(ERROR) << "Failed to clean up service after wait failure: "
-                   << e.what();
-      } catch (...) {
-        LOG(ERROR) << "Failed to clean up service after wait failure";
-      }
-      std::rethrow_exception(wait_error);
+    if (IsRunning()) {
+      THROW_RUNTIME_ERROR("NeugDB service has already been started!");
     }
-    StopImpl();
+    runtime_.StartCompaction();
+    running_.store(true, std::memory_order_relaxed);
+    try {
+      runtime_.OpenAdmission();
+      handler_.RunAndWaitForExit();
+      runtime_.Drain();
+      running_.store(false, std::memory_order_relaxed);
+    } catch (...) {
+      runtime_.CloseAdmission();
+      handler_.Stop();
+      runtime_.Drain();
+      running_.store(false, std::memory_order_relaxed);
+      runtime_.StopCompaction();
+      throw;
+    }
+    runtime_.StopCompaction();
   }
 
   bool IsRunning() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return state_ == State::kRunning;
+    return running_.load(std::memory_order_relaxed);
   }
 
   NeugDB& db() const { return db_; }
@@ -119,60 +108,6 @@ class NeugDBService::Impl {
   const TpServiceRuntime& runtime() const { return runtime_; }
 
  private:
-  enum class State { kIdle, kStarting, kRunning, kStopping };
-
-  template <typename Operation>
-  static void TryCleanup(std::exception_ptr& first_error,
-                         Operation&& operation) noexcept {
-    try {
-      operation();
-    } catch (...) {
-      if (!first_error) {
-        first_error = std::current_exception();
-      }
-    }
-  }
-
-  void cleanupRuntime() {
-    std::exception_ptr first_error;
-    TryCleanup(first_error, [this] { runtime_.CloseAdmission(); });
-    TryCleanup(first_error, [this] { handler_.Stop(); });
-    TryCleanup(first_error, [this] { runtime_.Drain(); });
-    TryCleanup(first_error, [this] { runtime_.StopCompaction(); });
-    if (first_error) {
-      std::rethrow_exception(first_error);
-    }
-  }
-
-  void StopImpl() {
-    {
-      std::unique_lock<std::mutex> lock(mutex_);
-      state_changed_.wait(lock,
-                          [this]() { return state_ != State::kStarting; });
-      if (state_ == State::kIdle) {
-        return;
-      }
-      if (state_ == State::kStopping) {
-        state_changed_.wait(lock, [this]() { return state_ == State::kIdle; });
-        return;
-      }
-      state_ = State::kStopping;
-    }
-
-    std::exception_ptr cleanup_error;
-    try {
-      cleanupRuntime();
-    } catch (...) { cleanup_error = std::current_exception(); }
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      state_ = State::kIdle;
-    }
-    state_changed_.notify_all();
-    if (cleanup_error) {
-      std::rethrow_exception(cleanup_error);
-    }
-  }
-
   // Declaration order is intentional: the lease is acquired first and
   // released last, after every runtime resource has been destroyed.
   NeugDB::ServiceModeLease mode_lease_;
@@ -180,9 +115,8 @@ class NeugDBService::Impl {
   TpServiceRuntime runtime_;
   BrpcServiceManager handler_;
 
-  mutable std::mutex mutex_;
-  std::condition_variable state_changed_;
-  State state_{State::kIdle};
+  std::atomic<bool> running_{false};
+  std::mutex mutex_;
 };
 
 NeugDBService::NeugDBService(NeugDB& db, const ServiceConfig& config)

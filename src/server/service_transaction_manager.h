@@ -26,7 +26,6 @@
 #include <thread>
 #include <unordered_map>
 
-#include "neug/main/query_result.h"
 #include "neug/main/transaction_context.h"
 #include "neug/utils/result.h"
 
