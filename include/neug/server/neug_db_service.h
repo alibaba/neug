@@ -14,34 +14,16 @@
  */
 #pragma once
 
-#include <yaml-cpp/yaml.h>
-#include <cctype>
-
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
-#include <utility>
-#include <vector>
 
-#include "neug/compiler/planner/gopt_planner.h"
-#include "neug/compiler/planner/graph_planner.h"
-#include "neug/config.h"
-#include "neug/main/neug_db.h"
-#include "neug/server/tp_execution_slot_pool.h"
-#include "neug/transaction/in_place_compaction_transaction.h"
-#include "neug/transaction/mvcc_insert_transaction.h"
-#include "neug/transaction/snapshot_read_transaction.h"
+#include "neug/main/execution_slot.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
-#include "neug/utils/service_utils.h"
 
 namespace neug {
 
-class ServiceTransactionManager;
+class NeugDB;
 
 /**
  * @brief NeuG database HTTP service for high-throughput scenarios.
@@ -70,15 +52,11 @@ class ServiceTransactionManager;
  *   config.query_port = 10000;
  *   config.host_str = "0.0.0.0";
  *
- *   // 3. Start HTTP service
+ *   // 3. Start HTTP service and block until shutdown
  *   neug::NeugDBService service(db, config);
- *   std::string url = service.Start();
- *   std::cout << "Service running at: " << url << std::endl;
- *
- *   // 4. Block until shutdown signal (Ctrl+C)
  *   service.run_and_wait_for_exit();
  *
- *   // 5. Cleanup
+ *   // 4. Cleanup
  *   db.Close();
  *   return 0;
  * }
@@ -87,12 +65,13 @@ class ServiceTransactionManager;
  * **HTTP Endpoints:**
  * - `POST /cypher` - Execute Cypher queries
  * - `GET /schema` - Retrieve graph schema
- * - `GET /status` - Check service status
+ * - `GET /service_status` - Check service status
  * - `POST /transactions` - Begin an explicit TP transaction session
  * - `POST /transactions/{id}/query|commit|rollback` - Operate on a session
  *
- * **Thread Safety:** All public methods are thread-safe. The service uses
- * a TpExecutionSlotPool internally to handle concurrent requests efficiently.
+ * **Thread Safety:** Lifecycle transitions are synchronized, and concurrent
+ * requests use an internal TpExecutionSlotPool. Destruction requires all
+ * callers and acquired ExecutionSlotLease objects to have finished.
  *
  * @see ExecutionSlot for execution slot-based query execution
  * @see TpExecutionSlotPool for execution slot management
@@ -125,7 +104,7 @@ class NeugDBService {
    *
    * @warning Direct database access bypasses the service layer
    */
-  neug::NeugDB& db() { return db_; }
+  neug::NeugDB& db();
 
   /**
    * @brief Destructor that ensures proper cleanup
@@ -146,7 +125,6 @@ class NeugDBService {
    *
    * @return URL string in format "http://host:port" where service is running
    *
-   * @throws std::runtime_error If service is not initialized
    * @throws std::runtime_error If service is already running
    * @throws std::runtime_error If unable to bind to configured address
    */
@@ -156,11 +134,9 @@ class NeugDBService {
    * @brief Stops the HTTP server gracefully
    *
    * Stops accepting new connections and shuts down the BRPC server.
-   * This method is thread-safe and can be called from signal handlers.
+   * This method is thread-safe. It is not async-signal-safe and must not be
+   * called directly from a signal handler.
    *
-   * @note Prints status messages to stderr if service is not properly
-   * initialized
-   * @note Protected by mutex to ensure thread-safe shutdown
    */
   void Stop();
 
@@ -169,7 +145,7 @@ class NeugDBService {
    *
    * @return Const reference to the ServiceConfig used during initialization
    *
-   * @note Returns the configuration passed to init(), not runtime settings
+   * @note Returns the effective configuration after validation and clamping
    */
   const ServiceConfig& GetServiceConfig() const;
 
@@ -202,8 +178,7 @@ class NeugDBService {
    *
    * @return true if the underlying BRPC server is accepting connections
    *
-   * @note This delegates to the HTTP handler manager's IsRunning() method
-   * @note Thread-safe query of server state
+   * @note Thread-safe query of the service lifecycle state
    */
   bool IsRunning() const;
 
@@ -211,8 +186,7 @@ class NeugDBService {
    * @brief Gets current service status information
    *
    * Returns status messages indicating the current state:
-   * - "NeugDB service has not been inited!" if not initialized
-   * - "NeugDB service has not been started!" if initialized but not running
+   * - "NeugDB service has not been started!" if not running
    * - "NeugDB service is running ..." if actively serving requests
    *
    * @return Result containing status message with OK status code
@@ -228,9 +202,7 @@ class NeugDBService {
    * thread until the server is asked to quit (via Stop() or signal).
    * Uses the underlying BRPC server's RunUntilAskedToQuit() mechanism.
    *
-   * @throws std::runtime_error If service is not initialized
    * @throws std::runtime_error If service is already running
-   * @throws std::runtime_error If HTTP handler manager is not available
    *
    * @note This is the typical way to run the service in production
    */
@@ -238,51 +210,12 @@ class NeugDBService {
 
   size_t getExecutedQueryNum() const;
 
-  size_t ExecutionSlotNum() const {
-    return execution_slot_pool_->ExecutionSlotNum();
-  }
+  size_t ExecutionSlotNum() const;
 
  private:
-  NeugDBService() = delete;
-  void startCompactThread();
-  void stopCompactThread();
-  void installBthreadRuntimeWait();
-  void restoreNativeRuntimeWait() noexcept;
+  class Impl;
 
-  /**
-   * @brief Initializes the service with configuration settings
-   *
-   * Creates a service manager and configures it with the provided settings.
-   * Sets up HTTP endpoints for:
-   * - /cypher (Cypher query execution)
-   * - /schema (schema information)
-   *
-   * @param config Service configuration containing host, port, thread settings,
-   * etc.
-   *
-   * @note This method can be called only once. Subsequent calls are ignored.
-   * @note Must be called before Start() or run_and_wait_for_exit()
-   */
-  void init(const ServiceConfig& config);
-
-  neug::NeugDB& db_;
-  neug::NeugDBConfig db_config_;
-  std::unique_ptr<neug::TpExecutionSlotPool> execution_slot_pool_;
-  std::unique_ptr<ServiceTransactionManager> transaction_manager_;
-  std::unique_ptr<IServiceManager> hdl_mgr_;
-
-  std::thread compact_thread_;
-  std::atomic<bool> compact_thread_running_{false};
-  std::mutex compact_mtx_;
-  std::condition_variable compact_cv_;
-
-  std::atomic<bool> running_{false};
-  std::mutex mtx_;
-
-  ServiceConfig service_config_;
-  bool bthread_runtime_wait_installed_{false};
-
-  friend class neug::NeugDB;
+  std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace neug

@@ -730,18 +730,24 @@ Status ExecutionSlot::executeAutoCommitQuery(const std::string& query,
 
 result<std::string> ExecutionSlot::ExecuteTransactionalRequest(
     const std::string& request) {
-  std::string query;
-  AccessMode requested_mode = AccessMode::kUnKnown;
-  rapidjson::Document parameters_json;
-  RETURN_STATUS_ERROR_IF_NOT_OK(RequestParser::ParseFromString(
-      request, query, requested_mode, parameters_json));
+  auto parsed = RequestParser::ParseFromString(request);
+  if (!parsed) {
+    RETURN_ERROR(parsed.error());
+  }
+  auto result = ExecuteTransactionalQuery(parsed.value());
+  if (!result) {
+    RETURN_ERROR(result.error());
+  }
+  return result.value().Serialize();
+}
 
-  google::protobuf::Arena arena;
-  auto* response =
-      google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
+result<QueryResult> ExecutionSlot::ExecuteTransactionalQuery(
+    const QueryRequest& request) {
+  neug::QueryResponse response;
   RETURN_STATUS_ERROR_IF_NOT_OK(executeAutoCommitQuery(
-      query, requested_mode, parameters_json, /*num_threads=*/0, *response));
-  return response->SerializeAsString();
+      request.query, request.access_mode, request.parameters,
+      /*num_threads=*/0, response));
+  return QueryResult(std::move(response));
 }
 
 std::string ExecutionSlot::GetSchema() const {

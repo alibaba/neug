@@ -57,6 +57,7 @@ class WalWriterSet;
 class Schema;
 class ExecutionSlot;
 class ExtensionManager;
+class TpServiceRuntime;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -345,6 +346,8 @@ class NEUG_API NeugDB {
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
  private:
+  class ServiceModeLease;
+
   void preprocessConfig();
   void initAllocators(const std::string& allocator_dir);
   void reopenAllocators(const std::string& allocator_dir);
@@ -378,40 +381,18 @@ class NEUG_API NeugDB {
   void createCheckpointOnClose(bool& live_graph_consumption_started);
 
   /**
-   * @brief Register a NeugDBService as the active service of this database.
+   * @brief Enter exclusive TP service mode and return its ownership token.
    *
-   * Only one service can be registered at any given time. Called by the
-   * NeugDBService constructor.
-   *
-   * Registration is serialized with Close() via service_mutex_: either the
-   * service registers first (and Close() fails fast), or the database is
-   * closed first (and registration is rejected). A service can therefore
-   * never be registered onto a closed or closing database.
-   *
-   * Registration closes embedded connections before the service constructs
-   * its TP execution-slot pool. The caller must ensure those connections are
-   * not in use.
-   *
-   * @param svc The service instance to register.
-   *
-   * @throws neug::exception::RuntimeError if another service is already
-   * associated with this database, or if the database is closed or being
-   * closed.
+   * The returned lease must outlive every service runtime resource. Releasing
+   * it deactivates transactional WAL writers and permits embedded connections
+   * again.
    */
-  void registerService(NeugDBService* svc);
-
-  /**
-   * @brief Unregister the active NeugDBService from this database.
-   *
-   * Called after the service pool has released and destroyed all execution
-   * slots. Never throws; a mismatching pointer only triggers a warning log.
-   *
-   * @param svc The service instance to unregister.
-   */
-  void unregisterService(NeugDBService* svc) noexcept;
+  ServiceModeLease enterServiceMode();
+  void leaveServiceMode() noexcept;
 
   friend class ConnectionManager;
   friend class NeugDBService;
+  friend class TpServiceRuntime;
 
   // Configuration and settings
   std::atomic<bool> closed_;
@@ -441,14 +422,14 @@ class NEUG_API NeugDB {
   std::vector<std::shared_ptr<Allocator>>
       allocators_;  // Allocators for logical execution slots
 
-  // Serializes the check-and-set sections of Close() and registerService()
-  // so that closing the database and registering a service can never
+  // Serializes the check-and-set sections of Close() and enterServiceMode()
+  // so that closing the database and entering service mode can never
   // interleave.
   mutable std::mutex service_mutex_;
 
-  // The NeugDBService currently associated with this database, nullptr if
-  // none. All access is protected by service_mutex_.
-  NeugDBService* active_service_{nullptr};
+  // True while a ServiceModeLease owns exclusive TP service mode. All access
+  // is protected by service_mutex_.
+  bool service_mode_active_{false};
 };
 
 }  // namespace neug
