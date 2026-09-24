@@ -32,6 +32,7 @@
 namespace neug {
 
 class TpExecutionSlotPool;
+struct QueryRequest;
 
 /** Owns service-local explicit transactions without retaining execution slots.
  */
@@ -39,10 +40,6 @@ class ServiceTransactionManager {
  public:
   struct BeginResult {
     std::string transaction_id;
-    // Advisory expiry time derived from the system clock for client display;
-    // the authoritative deadline is tracked with the steady clock, so this
-    // value may drift under system clock adjustments. Nullopt when session
-    // expiry is disabled.
     std::optional<std::chrono::system_clock::time_point> expires_at;
   };
 
@@ -56,7 +53,7 @@ class ServiceTransactionManager {
 
   result<BeginResult> Begin(TransactionMode mode);
   result<std::string> Execute(std::string_view transaction_id,
-                              const std::string& request);
+                              const QueryRequest& request);
   Status Commit(std::string_view transaction_id);
   Status Rollback(std::string_view transaction_id);
 

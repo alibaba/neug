@@ -14,12 +14,14 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -29,6 +31,7 @@
 
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include <brpc/server.h>
 #include <rapidjson/document.h>
 #include "bthread/bthread.h"
 #include "neug/common/types/value.h"
@@ -42,6 +45,14 @@
 #include "utils.h"
 
 namespace neug {
+
+class NeugDBServiceTestPeer {
+ public:
+  static void RunWithHook(NeugDBService& service,
+                          const std::function<void()>& before_wait) {
+    service.runAndWaitForExitWithHook(before_wait);
+  }
+};
 
 namespace test {
 
@@ -601,37 +612,152 @@ TEST_F(NeugDBServiceTest, StartThrowsWhenAlreadyRunning) {
   service.Stop();
 }
 
-TEST_F(NeugDBServiceTest, RunAndWaitForExitSetsAndClearsRunning) {
+// Run quit requests and timeout recovery in a fresh process: BRPC's quit flag
+// cannot be reset. The alarm also bounds Stop()/join() if shutdown deadlocks.
+void CheckBlockingServiceLifecycle(bool request_quit,
+                                   bool pause_waiter = false) {
+  alarm(30);
+  const auto path = std::filesystem::temp_directory_path() /
+                    ("neug_service_lifecycle_" + std::to_string(getpid()));
+  {
+    neug::NeugDB db;
+    db.Open(path.string(), 4);
+    neug::ServiceConfig cfg;
+    cfg.query_port = 0;
+    cfg.host_str = "127.0.0.1";
+    neug::NeugDBService service(db, cfg);
+    // Register BRPC's signal handler before any timeout recovery can use it.
+    EXPECT_FALSE(brpc::IsAskedToQuit());
+    for (int round = 0; round < (request_quit ? 1 : 2); ++round) {
+      std::promise<void> waiter_paused;
+      auto paused = waiter_paused.get_future();
+      std::promise<void> resume_waiter;
+      auto resume = resume_waiter.get_future();
+      std::promise<void> completion;
+      auto completed = completion.get_future();
+      std::thread runner([&]() {
+        try {
+          if (pause_waiter) {
+            NeugDBServiceTestPeer::RunWithHook(service, [&]() {
+              waiter_paused.set_value();
+              resume.wait();
+            });
+          } else {
+            service.run_and_wait_for_exit();
+          }
+          completion.set_value();
+        } catch (...) { completion.set_exception(std::current_exception()); }
+      });
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      while (!service.IsRunning() &&
+             completed.wait_for(std::chrono::milliseconds(0)) !=
+                 std::future_status::ready &&
+             std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+      // Nonfatal checks ensure the thread is joined even on startup failure.
+      const bool started = service.IsRunning();
+      EXPECT_TRUE(started);
+      if (started) {
+        EXPECT_THROW(service.Start(), neug::exception::RuntimeError);
+        EXPECT_THROW(service.run_and_wait_for_exit(),
+                     neug::exception::RuntimeError);
+      }
+      if (pause_waiter && started) {
+        EXPECT_EQ(paused.wait_for(std::chrono::seconds(5)),
+                  std::future_status::ready);
+      }
+      if (request_quit || !started) {
+        brpc::AskToQuit();
+      } else {
+        service.Stop();
+      }
+      if (pause_waiter) {
+        // Stop has completed, but the original caller is held before
+        // WaitForExit. running_ alone cannot reject a new start in this window.
+        EXPECT_FALSE(service.IsRunning());
+        EXPECT_THROW(service.Start(), neug::exception::RuntimeError);
+        EXPECT_THROW(service.run_and_wait_for_exit(),
+                     neug::exception::RuntimeError);
+        resume_waiter.set_value();
+      }
+      const bool returned_on_time =
+          completed.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready;
+      EXPECT_TRUE(returned_on_time);
+      if (!returned_on_time) {
+        brpc::AskToQuit();
+      }
+      runner.join();
+      EXPECT_NO_THROW(completed.get());
+      EXPECT_FALSE(service.IsRunning());
+      EXPECT_EQ(service.service_status().value(),
+                "NeugDB service has not been started!");
+      if (!started || !returned_on_time) {
+        break;
+      }
+      if (!request_quit) {
+        // Both start APIs must be reusable once the waiting caller has
+        // returned.
+        EXPECT_NO_THROW(service.Start());
+        EXPECT_TRUE(service.IsRunning());
+        service.Stop();
+      }
+    }
+  }
+  std::filesystem::remove_all(path);
+  alarm(0);
+}
+
+TEST(NeugDBServiceDeathTest, BlockingWaitCanBeStoppedAndRestarted) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(false);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(NeugDBServiceDeathTest, RestartRejectedUntilBlockingCallerReturns) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(false, true);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(NeugDBServiceDeathTest, QuitRequestStopsBlockingService) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(true);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST_F(NeugDBServiceTest, BlockingStartFailureAllowsRetry) {
+  brpc::Server blocker;
+  brpc::ServerOptions options;
+  options.num_threads = 0;
+  ASSERT_EQ(blocker.Start("127.0.0.1:0", &options), 0);
+
   neug::ServiceConfig cfg;
-  cfg.query_port = 0;
+  cfg.query_port = blocker.listen_address().port;
   cfg.host_str = "127.0.0.1";
   neug::NeugDBService service(*db_, cfg);
-
-  ASSERT_FALSE(service.IsRunning());
-
-  // run_and_wait_for_exit() blocks; run it on a background thread.
-  std::thread svc_thread([&]() { service.run_and_wait_for_exit(); });
-
-  // Spin-wait until running_ flips to true (set synchronously before
-  // RunUntilAskedToQuit() blocks).
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (!service.IsRunning() && std::chrono::steady_clock::now() < deadline) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  ASSERT_TRUE(service.IsRunning())
-      << "Service did not become running within 5 s";
-  EXPECT_EQ(service.service_status().value(), "NeugDB service is running ...");
-
-  // Signal the brpc server to quit directly – without going through
-  // service.Stop() – so that running_ is cleared exclusively by
-  // run_and_wait_for_exit() itself (the code path this test exercises).
-  brpc::AskToQuit();
-  svc_thread.join();
-
+  EXPECT_THROW(service.run_and_wait_for_exit(), neug::exception::RuntimeError);
   EXPECT_FALSE(service.IsRunning());
-  EXPECT_EQ(service.service_status().value(),
-            "NeugDB service has not been started!");
+
+  blocker.Stop(0);
+  blocker.Join();
+  EXPECT_NO_THROW(service.Start());
+  EXPECT_TRUE(service.IsRunning());
+  service.Stop();
 }
 
 TEST_F(NeugDBServiceTest, SecondServiceOnSameDbThrows) {

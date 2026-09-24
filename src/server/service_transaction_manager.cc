@@ -169,17 +169,7 @@ result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
 }
 
 result<std::string> ServiceTransactionManager::Execute(
-    std::string_view transaction_id, const std::string& request) {
-  std::string query;
-  AccessMode mode = AccessMode::kUnKnown;
-  rapidjson::Document parameters;
-  try {
-    RETURN_STATUS_ERROR_IF_NOT_OK(
-        RequestParser::ParseFromString(request, query, mode, parameters));
-  } catch (const std::exception& e) {
-    RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT, e.what()));
-  }
-
+    std::string_view transaction_id, const QueryRequest& request) {
   auto locked_result = LockEntry(transaction_id);
   if (!locked_result) {
     RETURN_ERROR(locked_result.error());
@@ -198,11 +188,14 @@ result<std::string> ServiceTransactionManager::Execute(
         RETURN_ERROR(ServiceUnavailable("No TP execution slot is available."));
       }
       auto query_result = slot->ExecuteQueryInTransaction(
-          query, mode, parameters, /*num_threads=*/0, entry->context);
+          request.query, request.access_mode, request.parameters,
+          /*num_threads=*/0, entry->context);
       if (!query_result) {
         RETURN_ERROR(query_result.error());
       }
       try {
+        // Serialization is part of explicit transaction execution: failure
+        // poisons the session before the protocol adapter sees the response.
         return query_result.value().Serialize();
       } catch (const std::exception& e) {
         entry->context.AbortAndMarkRollbackOnly();

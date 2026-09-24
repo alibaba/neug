@@ -25,6 +25,17 @@
 
 namespace neug {
 
+result<QueryRequest> RequestParser::ParseFromString(
+    const std::string& req_string) {
+  QueryRequest request;
+  auto status = ParseFromString(req_string, request.query, request.access_mode,
+                                request.parameters);
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
+  return request;
+}
+
 neug::Status RequestParser::ParseFromString(const std::string& req,
                                             std::string& query,
                                             AccessMode& mode,

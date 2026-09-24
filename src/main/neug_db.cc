@@ -56,6 +56,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/io/file/file_utils.h"
 #include "neug/utils/result.h"
+#include "service_mode_lease.h"
 
 namespace neug {
 
@@ -248,10 +249,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 void NeugDB::Close() {
   // Serialize the complete lifecycle transition. A mandatory checkpoint can be
   // retried only when it fails before consuming the live graph;
-  // Connect()/registerService() cannot race with either the failed attempt or
+  // Connect()/enterServiceMode() cannot race with either the failed attempt or
   // the final resource teardown.
   std::lock_guard<std::mutex> lock(service_mutex_);
-  if (active_service_ != nullptr) {
+  if (service_mode_active_) {
     THROW_RUNTIME_ERROR(
         "Cannot close NeugDB while a NeugDBService is still associated "
         "with it. Stop and destroy the service first.");
@@ -310,7 +311,7 @@ std::shared_ptr<Connection> NeugDB::Connect() {
     THROW_RUNTIME_ERROR(
         "Cannot create connection on a closed NeugDB instance.");
   }
-  if (active_service_ != nullptr) {
+  if (service_mode_active_) {
     THROW_RUNTIME_ERROR(
         "Cannot create connection while the database is being served by a "
         "NeugDBService.");
@@ -325,7 +326,7 @@ std::shared_ptr<Connection> NeugDB::Connect() {
 
 bool NeugDB::HasActiveService() const {
   std::lock_guard<std::mutex> lock(service_mutex_);
-  return active_service_ != nullptr;
+  return service_mode_active_;
 }
 
 bool NeugDB::HasOpenConnections() const {
@@ -333,17 +334,17 @@ bool NeugDB::HasOpenConnections() const {
   return connection_manager_ && connection_manager_->HasOpenConnections();
 }
 
-void NeugDB::registerService(NeugDBService* svc) {
+NeugDB::ServiceModeLease NeugDB::enterServiceMode() {
   // Serialized with Close(): either the database is closed first (and this
-  // registration is rejected), or the service registers first (and Close()
-  // fails fast). A service can therefore never be registered onto a closed
-  // or closing database.
+  // transition is rejected), or service mode is entered first (and Close()
+  // fails fast). A service lease can therefore never be acquired from a
+  // closed or closing database.
   std::lock_guard<std::mutex> lock(service_mutex_);
   if (IsClosed()) {
     THROW_RUNTIME_ERROR(
-        "Cannot register a NeugDBService on a closed NeugDB instance.");
+        "Cannot enter service mode on a closed NeugDB instance.");
   }
-  if (active_service_ != nullptr) {
+  if (service_mode_active_) {
     THROW_RUNTIME_ERROR(
         "NeugDB instance is already associated with a NeugDBService. Only "
         "one service instance is allowed per database.");
@@ -357,27 +358,27 @@ void NeugDB::registerService(NeugDBService* svc) {
     closeAllConnections();
     CHECK(wal_writers_ != nullptr);
     wal_writers_->ActivateTransactional(graph().checkpoint().wal_dir());
-    active_service_ = svc;
+    service_mode_active_ = true;
   } catch (...) {
     if (wal_writers_) {
       wal_writers_->DeactivateTransactional();
     }
-    active_service_ = nullptr;
+    service_mode_active_ = false;
     throw;
   }
+  return ServiceModeLease(*this);
 }
 
-void NeugDB::unregisterService(NeugDBService* svc) noexcept {
+void NeugDB::leaveServiceMode() noexcept {
   std::lock_guard<std::mutex> lock(service_mutex_);
-  if (active_service_ != svc) {
-    LOG(WARNING) << "unregisterService: the given service is not the active "
-                    "service of this database.";
+  if (!service_mode_active_) {
+    LOG(WARNING) << "leaveServiceMode: the database is not in service mode.";
     return;
   }
   if (wal_writers_) {
     wal_writers_->DeactivateTransactional();
   }
-  active_service_ = nullptr;
+  service_mode_active_ = false;
 }
 
 void NeugDB::closeAllConnections() {
@@ -391,7 +392,7 @@ void NeugDB::PrepareForServing() {
   if (IsClosed()) {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
   }
-  if (active_service_ != nullptr) {
+  if (service_mode_active_) {
     THROW_RUNTIME_ERROR(
         "Cannot prepare NeugDB for serving while a NeugDBService is already "
         "associated with it.");

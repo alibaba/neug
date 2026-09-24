@@ -155,7 +155,7 @@ Returns status messages indicating the current state:
 
 Starts service and blocks until shutdown signal.
 
-Convenience method that starts the HTTP server and blocks the calling thread until the server is asked to quit (via `Stop()` or signal). Uses the underlying BRPC server's RunUntilAskedToQuit() mechanism.
+Convenience method that starts the HTTP server and blocks the calling thread until the server is asked to quit (via `Stop()` or signal).
 
 - **Notes:**
   - This is the typical way to run the service in production
