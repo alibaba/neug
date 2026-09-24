@@ -212,7 +212,9 @@ static bool is_file_in_dir(const std::string& path, const std::string& dir) {
 
 std::string CheckpointFileManager::Commit(IDataContainer& buffer) {
   auto original_path = buffer.GetPath();
-  if (!buffer.IsDirty() && is_file_in_dir(original_path, object_dir_)) {
+  // Only existing objects can be reused; other paths must be dumped anyway.
+  // Check the path first to avoid an unnecessary full-payload dirty checksum.
+  if (is_file_in_dir(original_path, object_dir_) && !buffer.IsDirty()) {
     buffer.Close();
     return original_path;
   }
