@@ -77,7 +77,7 @@ db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
 
 - **Parameters:**
   - `data_dir`: `Path` to the graph data directory
-  - `max_thread_num`: Database query capacity. 0 selects hardware concurrency (fallback 1); a positive value is honored as-is and a negative value is rejected. AP queries are single-threaded; intra-query parallelism is future work. In TP mode, it sizes the slot pool and caps service threads. Concurrent TP queries each use one slot and one thread.
+  - `max_thread_num`: Database query capacity. 0 selects hardware concurrency (fallback 1); a positive value is honored as-is and a negative value is rejected. AP queries are single-threaded; intra-query parallelism is future work. In TP mode, it caps the service execution-slot pool; an explicit smaller `ServiceConfig::thread_num` reduces that pool for the service instance.
   - `mode`: Database access mode (READ_ONLY or READ_WRITE)
   - `planner_kind`: Query planner type: "gopt" (Graph Optimizer) or "greedy"
   - `checkpoint_on_close`: Create checkpoint (persist data) when closing
@@ -197,4 +197,3 @@ Prepare an opened database for TP service without rebuilding planner.
 This requires local AP connections to be closed, persists and refreshes the live graph when needed, then rebuilds query runtime handles against the refreshed graph. The planner and its metadata registry are intentionally preserved so runtime extension registrations loaded in AP mode stay available in TP mode. The version manager is replaced only when a new durable checkpoint starts a fresh WAL timeline; otherwise the existing timeline is preserved.
 New connections receive slots borrowing the refreshed resources.
 The caller must close all local `Connection` objects first.
-

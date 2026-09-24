@@ -206,7 +206,6 @@ class BrpcServiceManager : public IServiceManager {
   neug::NeugDB& neug_db_;
   TpExecutionSlotPool& execution_slot_pool_;
   ServiceTransactionManager& transaction_manager_;
-  uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 
   ServiceConfig service_config_;

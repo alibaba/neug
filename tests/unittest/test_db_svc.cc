@@ -415,6 +415,21 @@ TEST_F(NeugDBServiceTest, DefaultServiceThreadsFollowDatabaseMaxThreadNum) {
             static_cast<size_t>(db_->config().max_thread_num));
 }
 
+TEST_F(NeugDBServiceTest, ExplicitServiceConcurrencyLimitsExecutionSlots) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  cfg.thread_num = 2;
+
+  neug::NeugDBService service(*db_, cfg);
+
+  EXPECT_EQ(service.GetServiceConfig().thread_num, 2U);
+  EXPECT_EQ(service.ExecutionSlotNum(), 2U);
+  EXPECT_NO_THROW(service.Start());
+  EXPECT_TRUE(service.IsRunning());
+  service.Stop();
+}
+
 TEST_F(NeugDBServiceTest, AutoDatabaseMaxThreadNumFeedsServiceDefaults) {
   const auto db_path = (test_dir_ / "auto_thread_graph").string();
   neug::NeugDB db;

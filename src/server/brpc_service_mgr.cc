@@ -542,7 +542,7 @@ std::string BrpcServiceManager::Start() {
   LOG(INFO) << "Service config: db_max_thread_num="
             << neug_db_.config().max_thread_num
             << ", configured_thread_num=" << service_config_.thread_num
-            << ", resolved_num_threads=" << options.num_threads;
+            << ", execution_slots=" << execution_slot_pool_.ExecutionSlotNum();
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
     THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
   }
@@ -569,21 +569,13 @@ void BrpcServiceManager::Stop() {
   LOG(INFO) << "Brpc server stopped";
 }
 
-uint32_t BrpcServiceManager::resolve_num_threads() const {
-  if (service_config_.thread_num != 0) {
-    return service_config_.thread_num;
-  }
-  const auto max_thread_num = neug_db_.config().max_thread_num;
-  if (max_thread_num <= 0) {
-    return 1;
-  }
-  return static_cast<uint32_t>(max_thread_num);
-}
-
 brpc::ServerOptions BrpcServiceManager::get_server_options() const {
   brpc::ServerOptions options;
   options.idle_timeout_sec = 60;  // 1 minute
-  options.num_threads = resolve_num_threads();
+  // NeugDBService initializes the process-wide bthread runtime for database
+  // capacity. A value of 0 keeps BRPC from trying to resize that global pool;
+  // service-local concurrency is enforced by TpExecutionSlotPool.
+  options.num_threads = 0;
 
   return options;
 }
