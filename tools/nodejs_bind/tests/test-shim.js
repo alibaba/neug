@@ -86,13 +86,14 @@ function prepareModernGraphDataset(Database, dbDir = '/tmp/modern_graph') {
     'CREATE REL TABLE created(FROM person TO software, weight DOUBLE, since INT64);'
   );
 
-  conn.execute(`COPY person from "${path.join(dataDir, 'person.csv')}"`);
-  conn.execute(`COPY software from "${path.join(dataDir, 'software.csv')}"`);
+  const dataPath = (file) => path.join(dataDir, file).replaceAll('\\', '/');
+  conn.execute(`COPY person from "${dataPath('person.csv')}"`);
+  conn.execute(`COPY software from "${dataPath('software.csv')}"`);
   conn.execute(
-    `COPY knows from "${path.join(dataDir, 'person_knows_person.csv')}" (from="person", to="person")`
+    `COPY knows from "${dataPath('person_knows_person.csv')}" (from="person", to="person")`
   );
   conn.execute(
-    `COPY created from "${path.join(dataDir, 'person_created_software.csv')}" (from="person", to="software")`
+    `COPY created from "${dataPath('person_created_software.csv')}" (from="person", to="software")`
   );
 
   conn.close();

@@ -14,7 +14,8 @@
   "publishConfig": { "access": "public" },
   "optionalDependencies": {
     "@graphscope-neug/linux-x86_64": "0.2.0",
-    "@graphscope-neug/osx-arm64": "0.2.0"
+    "@graphscope-neug/osx-arm64": "0.2.0",
+    "@graphscope-neug/windows-x86_64": "0.2.0"
   },
   "files": ["index.js"]
 }

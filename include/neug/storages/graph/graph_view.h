@@ -124,6 +124,19 @@ class GraphView {
   GraphView& operator=(const GraphView&) = default;
   GraphView& operator=(GraphView&&) noexcept = default;
 
+  // MSVC's std::unordered_map move operations are not noexcept, so the
+  // implicitly-declared swap would not satisfy std::is_nothrow_swappable_v.
+  // Provide an explicit noexcept swap so callers (e.g. GraphSnapshotStore)
+  // can rely on the noexcept guarantee declared by upstream code.
+  friend void swap(GraphView& lhs, GraphView& rhs) noexcept {
+    using std::swap;
+    swap(lhs.dirty_, rhs.dirty_);
+    swap(lhs.schema_, rhs.schema_);
+    swap(lhs.index_manager_, rhs.index_manager_);
+    swap(lhs.vertex_views_, rhs.vertex_views_);
+    swap(lhs.edge_views_, rhs.edge_views_);
+  }
+
   const Schema& schema() const { return *schema_; }
   result<StorageIndex*> GetIndexByName(const std::string& name) const;
   // Used by index-scan optimization to match an exact property set.
