@@ -177,8 +177,8 @@ std::string HttplibServiceManager::Start() {
     if (listen_thread_.joinable()) {
       listen_thread_.join();
     }
-    THROW_RUNTIME_ERROR(
-        "Httplib server failed to start listening on " + ip_port);
+    THROW_RUNTIME_ERROR("Httplib server failed to start listening on " +
+                        ip_port);
   }
 
   running_.store(true, std::memory_order_relaxed);
