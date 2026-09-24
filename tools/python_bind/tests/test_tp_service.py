@@ -296,6 +296,35 @@ def test_tp_inferred_read_mode_ignores_comments_and_quoted_contents(
         db_ro.close()
 
 
+def test_serve_thread_num_limits_execution_slots(tmp_path, unused_tcp_port, capfd):
+    db = Database(
+        db_path=str(tmp_path / "service_thread_num_db"),
+        mode="w",
+        max_thread_num=4,
+    )
+    session = None
+    try:
+        endpoint = db.serve(
+            port=unused_tcp_port,
+            host="localhost",
+            blocking=False,
+            thread_num=2,
+            auto_compaction=False,
+        )
+        wait_for_server_ready(endpoint)
+        session = Session.open(endpoint, timeout="10s")
+        assert list(session.execute("RETURN 1;")) == [[1]]
+    finally:
+        if session is not None:
+            session.close()
+        db.stop_serving()
+        db.close()
+
+    captured = capfd.readouterr()
+    assert "Initializing TpExecutionSlotPool with 2 slots." in captured.err
+    assert "Fail to set concurrency by tag" not in captured.err
+
+
 def test_delete_vertices(tmp_path):
     db_dir = str(tmp_path / "test_delete_vertices")
     shutil.rmtree(db_dir, ignore_errors=True)
