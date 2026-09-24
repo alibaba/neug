@@ -96,7 +96,7 @@ def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path, db_dir):
 
     _create_issue_651_schema(executor)
     executor.execute(
-        f'COPY File FROM "{file_csv}" ' '(header=true, delim=",", escaping=false);'
+        f'COPY File FROM "{file_csv.as_posix()}" ' '(header=true, delim=",", escaping=false);'
     )
     executor.execute("CHECKPOINT;")
     _assert_single_published_checkpoint(db_dir, 2)
@@ -110,7 +110,7 @@ def _run_issue_651_checkpoint_copy_scenario(executor, tmp_path, db_dir):
     )
 
     executor.execute(
-        f'COPY Function FROM "{function_csv}" '
+        f'COPY Function FROM "{function_csv.as_posix()}" '
         '(header=true, delim=",", escaping=false);'
     )
     executor.execute("CHECKPOINT;")
@@ -455,8 +455,8 @@ def test_copy_from_edge_finalizes_sort_key_before_checkpoint(tmp_path):
         "CREATE REL TABLE follows(FROM person TO person, since INT64, MANY_TO_MANY) "
         "WITH (sort_key_for_nbr='since');"
     )
-    conn.execute(f'COPY person FROM "{people_csv}" (header=false);')
-    conn.execute(f'COPY follows FROM "{edges_csv}" (header=false, delim=",");')
+    conn.execute(f'COPY person FROM "{people_csv.as_posix()}" (header=false);')
+    conn.execute(f'COPY follows FROM "{edges_csv.as_posix()}" (header=false, delim=",");')
     assert list(
         conn.execute("MATCH (:person {id: 1})-[f:follows]->() RETURN f.since;")
     ) == [[2], [3], [4]]

@@ -57,8 +57,8 @@ class TestBachLoading(unittest.TestCase):
         flex_data_dir = os.environ.get("FLEX_DATA_DIR")
         if not flex_data_dir:
             raise Exception("FLEX_DATA_DIR is not set")
-        person_csv = os.path.join(flex_data_dir, "person.csv")
-        person_knows_person_csv = os.path.join(flex_data_dir, "person_knows_person.csv")
+        person_csv = os.path.join(flex_data_dir, "person.csv").replace(os.sep, "/")
+        person_knows_person_csv = os.path.join(flex_data_dir, "person_knows_person.csv").replace(os.sep, "/")
 
         db = Database(db_dir, "w")
         conn = db.connect()
