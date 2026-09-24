@@ -23,10 +23,9 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
-#include "service_transaction_manager.h"
-
-#include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/error.pb.h"
+#include "neug/main/query_request.h"
+#include "neug/utils/likely.h"
 
 namespace neug {
 
@@ -157,9 +156,8 @@ std::string FormatExpiresAt(std::chrono::system_clock::time_point expires_at) {
   return buffer;
 }
 
-std::string SerializeBeginResponse(
-    const ServiceTransactionManager::BeginResult& transaction,
-    TransactionMode mode) {
+std::string SerializeBeginResponse(const BeginTransactionResult& transaction,
+                                   TransactionMode mode) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   writer.StartObject();
@@ -213,6 +211,27 @@ Status RequireEmptyBody(brpc::Controller* cntl) {
 
 void MarkTransactionResponse(brpc::Controller* cntl) {
   cntl->http_response().SetHeader("Cache-Control", "no-store");
+}
+
+result<std::string> SerializeQueryResult(result<QueryResult>&& query_result) {
+  if (!query_result) {
+    RETURN_ERROR(query_result.error());
+  }
+  try {
+    return query_result.value().Serialize();
+  } catch (const std::exception& e) {
+    RETURN_ERROR(Status::RuntimeError(e.what()));
+  }
+}
+
+template <typename Execute>
+result<std::string> ParseAndExecuteQuery(const std::string& request,
+                                         Execute&& execute) {
+  auto parsed = RequestParser::ParseFromString(request);
+  if (!parsed) {
+    RETURN_ERROR(parsed.error());
+  }
+  return SerializeQueryResult(execute(parsed.value()));
 }
 
 bool RequireHttpMethod(brpc::Controller* cntl, brpc::HttpMethod expected,
@@ -337,33 +356,6 @@ void InitializeBrpcServiceProtocols() {
   SealProtocolRegistration();
 }
 
-neug::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
-    brpc::Controller* cntl) {
-  (void) cntl;
-  auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
-  auto read_txn = slot_lease->BeginSnapshotReadTransaction();
-  auto yaml = read_txn.schema().to_yaml();
-  if (!yaml) {
-    read_txn.Abort();
-    RETURN_ERROR(yaml.error());
-  }
-  auto json = get_json_string_from_yaml(yaml.value());
-  if (!json) {
-    read_txn.Abort();
-    RETURN_ERROR(json.error());
-  }
-  read_txn.Commit();
-  return json;
-}
-
-neug::result<std::string> UnifiedServiceImpl::GetServiceStatusImpl(
-    brpc::Controller* cntl) {
-  (void) cntl;
-  // Implement the logic to get service status here
-  // For now, return a placeholder string
-  return std::string("{\"status\": \"OK\", \"version\": \"" NEUG_VERSION "\"}");
-}
-
 void HttpServiceImpl::PostCypherQuery(
     google::protobuf::RpcController* cntl_base, const HttpRequest* request,
     HttpResponse* response, google::protobuf::Closure* done) {
@@ -383,9 +375,10 @@ void HttpServiceImpl::PostCypherQuery(
     return;
   }
 
-  // 2. Execute query
-  auto slot_lease = execution_slot_pool_.AcquireExecutionSlot();
-  auto result = slot_lease->ExecuteTransactionalRequest(query_request);
+  auto result =
+      ParseAndExecuteQuery(query_request, [this](const auto& request) {
+        return tp_service_.ExecuteQuery(request);
+      });
 
   // 3. Send Query Response
   protocol_.send_query_response(cntl, result);
@@ -401,7 +394,7 @@ void HttpServiceImpl::GetSchema(google::protobuf::RpcController* cntl_base,
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
   // No need to parse request for Schema
-  auto ret = GetSchemaImpl(cntl);
+  auto ret = tp_service_.GetSchema();
 
   protocol_.send_schema_response(cntl, ret);
   return;
@@ -413,7 +406,7 @@ void HttpServiceImpl::GetServiceStatus(
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
   // No need to parse request for ServiceStatus
-  auto ret = GetServiceStatusImpl(cntl);
+  auto ret = tp_service_.GetServiceStatus();
 
   protocol_.send_service_status_response(cntl, ret);
   return;
@@ -434,7 +427,7 @@ void HttpServiceImpl::BeginTransaction(
     protocol_.send_query_response(cntl, error);
     return;
   }
-  auto transaction = transaction_manager_.Begin(mode.value());
+  auto transaction = tp_service_.BeginTransaction(mode.value());
   if (!transaction) {
     result<std::string> error = tl::unexpected(transaction.error());
     protocol_.send_query_response(cntl, error);
@@ -464,8 +457,15 @@ void HttpServiceImpl::ExecuteTransactionQuery(
     protocol_.send_query_response(cntl, error);
     return;
   }
-  auto response = transaction_manager_.Execute(
-      transaction_id.value(), cntl->request_attachment().to_string());
+  auto request =
+      RequestParser::ParseFromString(cntl->request_attachment().to_string());
+  if (!request) {
+    result<std::string> error = tl::unexpected(request.error());
+    protocol_.send_query_response(cntl, error);
+    return;
+  }
+  auto response =
+      tp_service_.ExecuteInTransaction(transaction_id.value(), request.value());
   protocol_.send_query_response(cntl, response);
 }
 
@@ -475,7 +475,7 @@ void HttpServiceImpl::CommitTransaction(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   FinishTransaction(cntl, protocol_, [this](std::string_view transaction_id) {
-    return transaction_manager_.Commit(transaction_id);
+    return tp_service_.CommitTransaction(transaction_id);
   });
 }
 
@@ -485,16 +485,14 @@ void HttpServiceImpl::RollbackTransaction(
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
   FinishTransaction(cntl, protocol_, [this](std::string_view transaction_id) {
-    return transaction_manager_.Rollback(transaction_id);
+    return tp_service_.RollbackTransaction(transaction_id);
   });
 }
 
-BrpcServiceManager::BrpcServiceManager(
-    neug::NeugDB& neug_db, TpExecutionSlotPool& execution_slot_pool,
-    ServiceTransactionManager& transaction_manager)
-    : neug_db_(neug_db),
-      execution_slot_pool_(execution_slot_pool),
-      transaction_manager_(transaction_manager) {
+BrpcServiceManager::BrpcServiceManager(ITpService& tp_service,
+                                       uint32_t database_max_thread_num)
+    : tp_service_(tp_service),
+      database_max_thread_num_(database_max_thread_num) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 
@@ -521,8 +519,7 @@ void BrpcServiceManager::Init(const ServiceConfig& config) {
       "/transactions/*/rollback => RollbackTransaction";
 
 #ifdef ENABLE_HTTP_PROTOCOL
-  auto http_svc = std::make_unique<HttpServiceImpl>(
-      neug_db_, execution_slot_pool_, transaction_manager_);
+  auto http_svc = std::make_unique<HttpServiceImpl>(tp_service_);
   if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
     LOG(ERROR) << "Failed to add http service to brpc server";
   }
@@ -539,8 +536,7 @@ std::string BrpcServiceManager::Start() {
   std::string ip_port = service_config_.host_str + ":" +
                         std::to_string(service_config_.query_port);
   brpc::ServerOptions options = get_server_options();
-  LOG(INFO) << "Service config: db_max_thread_num="
-            << neug_db_.config().max_thread_num
+  LOG(INFO) << "Service config: db_max_thread_num=" << database_max_thread_num_
             << ", configured_thread_num=" << service_config_.thread_num
             << ", resolved_num_threads=" << options.num_threads;
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
@@ -573,11 +569,10 @@ uint32_t BrpcServiceManager::resolve_num_threads() const {
   if (service_config_.thread_num != 0) {
     return service_config_.thread_num;
   }
-  const auto max_thread_num = neug_db_.config().max_thread_num;
-  if (max_thread_num <= 0) {
+  if (database_max_thread_num_ == 0) {
     return 1;
   }
-  return static_cast<uint32_t>(max_thread_num);
+  return database_max_thread_num_;
 }
 
 brpc::ServerOptions BrpcServiceManager::get_server_options() const {

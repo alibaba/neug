@@ -15,31 +15,18 @@
 #pragma once
 
 #include <brpc/server.h>
-#include <json2pb/pb_to_json.h>
-#include <rapidjson/document.h>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <string_view>
+#include <vector>
 
-#include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/http_service/http_svc.pb.h"
-#include "neug/main/execution_slot.h"
-#include "neug/main/neug_db.h"
-#include "neug/server/neug_db_service.h"
-#include "neug/storages/graph/schema.h"
-#include "neug/utils/encoder.h"
-#include "neug/utils/likely.h"
-#include "neug/utils/pb_utils.h"
+#include "neug/server/tp_service.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
-#include "neug/utils/yaml_utils.h"
-
-#include "bthread/bthread.h"
 
 namespace neug {
-
-class ServiceTransactionManager;
 
 int32_t status_code_to_http_code(neug::StatusCode code);
 
@@ -125,36 +112,10 @@ inline const BrpcServiceProtocol& GetServiceProtocol(brpc::ProtocolType type) {
 
 void InitializeBrpcServiceProtocols();
 
-/**
- * @brief The unified service implementation for BRPC server.
- */
-class UnifiedServiceImpl {
+class HttpServiceImpl : public neug::HttpService {
  public:
-  explicit UnifiedServiceImpl(neug::NeugDB& neug_db,
-                              TpExecutionSlotPool& execution_slot_pool)
-      : neug_db_(neug_db),
-        execution_slot_pool_(execution_slot_pool),
-        planner_(neug_db_.GetPlanner()) {}
-
-  virtual ~UnifiedServiceImpl() {}
-
-  neug::result<std::string> GetSchemaImpl(brpc::Controller* cntl_base);
-
-  neug::result<std::string> GetServiceStatusImpl(brpc::Controller* cntl_base);
-
- protected:
-  neug::NeugDB& neug_db_;
-  TpExecutionSlotPool& execution_slot_pool_;
-  std::shared_ptr<neug::IGraphPlanner> planner_;
-};
-
-class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
- public:
-  explicit HttpServiceImpl(neug::NeugDB& neug_db,
-                           TpExecutionSlotPool& execution_slot_pool,
-                           ServiceTransactionManager& transaction_manager)
-      : UnifiedServiceImpl(neug_db, execution_slot_pool),
-        transaction_manager_(transaction_manager),
+  explicit HttpServiceImpl(ITpService& tp_service)
+      : tp_service_(tp_service),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
   virtual ~HttpServiceImpl() {}
 
@@ -185,15 +146,14 @@ class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
                            google::protobuf::Closure* done);
 
  private:
-  ServiceTransactionManager& transaction_manager_;
+  ITpService& tp_service_;
   const BrpcServiceProtocol& protocol_;
 };
 
 class BrpcServiceManager : public IServiceManager {
  public:
-  explicit BrpcServiceManager(neug::NeugDB& neug_db,
-                              TpExecutionSlotPool& execution_slot_pool,
-                              ServiceTransactionManager& transaction_manager);
+  explicit BrpcServiceManager(ITpService& tp_service,
+                              uint32_t database_max_thread_num);
 
   ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
@@ -203,14 +163,13 @@ class BrpcServiceManager : public IServiceManager {
   bool IsRunning() const override { return brpc_server_->IsRunning(); }
 
  private:
-  neug::NeugDB& neug_db_;
-  TpExecutionSlotPool& execution_slot_pool_;
-  ServiceTransactionManager& transaction_manager_;
+  ITpService& tp_service_;
+  const uint32_t database_max_thread_num_;
   uint32_t resolve_num_threads() const;
   brpc::ServerOptions get_server_options() const;
 
   ServiceConfig service_config_;
-  std::vector<std::unique_ptr<UnifiedServiceImpl>> services_;
+  std::vector<std::unique_ptr<HttpServiceImpl>> services_;
   std::unique_ptr<brpc::Server> brpc_server_;
 };
 

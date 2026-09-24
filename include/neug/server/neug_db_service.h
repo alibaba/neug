@@ -14,34 +14,16 @@
  */
 #pragma once
 
-#include <yaml-cpp/yaml.h>
-#include <cctype>
-
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
-#include <utility>
-#include <vector>
 
-#include "neug/compiler/planner/gopt_planner.h"
-#include "neug/compiler/planner/graph_planner.h"
-#include "neug/config.h"
-#include "neug/main/neug_db.h"
-#include "neug/server/tp_execution_slot_pool.h"
-#include "neug/transaction/in_place_compaction_transaction.h"
-#include "neug/transaction/mvcc_insert_transaction.h"
-#include "neug/transaction/snapshot_read_transaction.h"
+#include "neug/main/execution_slot.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
-#include "neug/utils/service_utils.h"
 
 namespace neug {
 
-class ServiceTransactionManager;
+class NeugDB;
 
 /**
  * @brief NeuG database HTTP service for high-throughput scenarios.
@@ -125,7 +107,7 @@ class NeugDBService {
    *
    * @warning Direct database access bypasses the service layer
    */
-  neug::NeugDB& db() { return db_; }
+  neug::NeugDB& db();
 
   /**
    * @brief Destructor that ensures proper cleanup
@@ -238,51 +220,12 @@ class NeugDBService {
 
   size_t getExecutedQueryNum() const;
 
-  size_t ExecutionSlotNum() const {
-    return execution_slot_pool_->ExecutionSlotNum();
-  }
+  size_t ExecutionSlotNum() const;
 
  private:
-  NeugDBService() = delete;
-  void startCompactThread();
-  void stopCompactThread();
-  void installBthreadRuntimeWait();
-  void restoreNativeRuntimeWait() noexcept;
+  class Impl;
 
-  /**
-   * @brief Initializes the service with configuration settings
-   *
-   * Creates a service manager and configures it with the provided settings.
-   * Sets up HTTP endpoints for:
-   * - /cypher (Cypher query execution)
-   * - /schema (schema information)
-   *
-   * @param config Service configuration containing host, port, thread settings,
-   * etc.
-   *
-   * @note This method can be called only once. Subsequent calls are ignored.
-   * @note Must be called before Start() or run_and_wait_for_exit()
-   */
-  void init(const ServiceConfig& config);
-
-  neug::NeugDB& db_;
-  neug::NeugDBConfig db_config_;
-  std::unique_ptr<neug::TpExecutionSlotPool> execution_slot_pool_;
-  std::unique_ptr<ServiceTransactionManager> transaction_manager_;
-  std::unique_ptr<IServiceManager> hdl_mgr_;
-
-  std::thread compact_thread_;
-  std::atomic<bool> compact_thread_running_{false};
-  std::mutex compact_mtx_;
-  std::condition_variable compact_cv_;
-
-  std::atomic<bool> running_{false};
-  std::mutex mtx_;
-
-  ServiceConfig service_config_;
-  bool bthread_runtime_wait_installed_{false};
-
-  friend class neug::NeugDB;
+  std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace neug
