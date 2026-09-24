@@ -25,7 +25,12 @@
 #include "neug/main/execution_slot.h"
 #include "neug/main/wal_writer_set.h"
 
+#ifndef _WIN32
 #include "bthread/bthread.h"
+#else
+#include <condition_variable>
+#include <mutex>
+#endif
 
 namespace neug {
 class CheckpointCoordinator;
@@ -125,8 +130,12 @@ class TpExecutionSlotPool {
       entries_ = nullptr;
       throw;
     }
+#ifndef _WIN32
     bthread_mutex_init(&mutex_, nullptr);
     bthread_cond_init(&cond_, nullptr);
+#else
+    // std::mutex and std::condition_variable are default-constructed.
+#endif
     for (size_t i = 0; i < slot_num_; ++i) {
       available_slot_ids_.push_back(i);
     }
@@ -145,8 +154,12 @@ class TpExecutionSlotPool {
       free(entries_);
       entries_ = nullptr;
     }
+#ifndef _WIN32
     bthread_cond_destroy(&cond_);
     bthread_mutex_destroy(&mutex_);
+#else
+    // std::mutex and std::condition_variable are destroyed automatically.
+#endif
   }
 
   /**
@@ -182,8 +195,13 @@ class TpExecutionSlotPool {
   Entry* entries_;
   size_t slot_num_;
   std::vector<size_t> available_slot_ids_;
+#ifndef _WIN32
   bthread_mutex_t mutex_;
   bthread_cond_t cond_;
+#else
+  std::mutex mutex_;
+  std::condition_variable cond_;
+#endif
 };
 
 }  // namespace neug

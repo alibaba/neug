@@ -18,11 +18,16 @@
 
 #include <algorithm>
 
+#ifndef _WIN32
 #include <bthread/bthread.h>
 
 #include "neug/main/checkpoint_coordinator.h"
 #include "neug/server/brpc_service_mgr.h"
 #include "neug/server/bthread_runtime_wait.h"
+#else
+#include "neug/server/httplib_service_mgr.h"
+#endif
+
 #include "neug/transaction/version_manager.h"
 #include "service_transaction_manager.h"
 
@@ -40,7 +45,9 @@ NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
     : db_(db), db_config_(db_.config()) {
   db_.registerService(this);
   try {
+#ifndef _WIN32
     installBthreadRuntimeWait();
+#endif
     init(config);
   } catch (...) {
     hdl_mgr_.reset();
@@ -52,6 +59,7 @@ NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
   }
 }
 
+#ifndef _WIN32
 void NeugDBService::installBthreadRuntimeWait() {
   CHECK(!bthread_runtime_wait_installed_);
   if (!db_.version_manager_->try_set_runtime_wait_if_quiescent(
@@ -73,6 +81,7 @@ void NeugDBService::restoreNativeRuntimeWait() noexcept {
          "runtime wait";
   bthread_runtime_wait_installed_ = false;
 }
+#endif
 
 void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
@@ -98,8 +107,10 @@ void NeugDBService::init(const ServiceConfig& config) {
         static_cast<uint32_t>(db_config_.max_thread_num);
   }
 
+#ifndef _WIN32
   bthread_setconcurrency(
       std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
+#endif
 
   execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
       db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
@@ -109,9 +120,15 @@ void NeugDBService::init(const ServiceConfig& config) {
   transaction_manager_ = std::make_unique<ServiceTransactionManager>(
       *execution_slot_pool_, effective_config.max_explicit_transactions,
       effective_config.explicit_transaction_timeout_ms);
+#ifndef _WIN32
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_,
                                                   *transaction_manager_);
   hdl_mgr_->Init(effective_config);
+#else
+  hdl_mgr_ =
+      std::make_unique<HttplibServiceManager>(db_, *execution_slot_pool_);
+  hdl_mgr_->Init(effective_config);
+#endif
   service_config_ = effective_config;
 }
 
@@ -131,7 +148,9 @@ NeugDBService::~NeugDBService() {
   hdl_mgr_.reset();
   transaction_manager_.reset();
   execution_slot_pool_.reset();
+#ifndef _WIN32
   restoreNativeRuntimeWait();
+#endif
   db_.unregisterService(this);
 }
 
