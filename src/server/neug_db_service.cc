@@ -45,7 +45,9 @@ NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
     : db_(db), db_config_(db_.config()) {
   db_.registerService(this);
   try {
+#ifndef _WIN32
     installBthreadRuntimeWait();
+#endif
     init(config);
   } catch (...) {
     hdl_mgr_.reset();
@@ -57,6 +59,7 @@ NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
   }
 }
 
+#ifndef _WIN32
 void NeugDBService::installBthreadRuntimeWait() {
   CHECK(!bthread_runtime_wait_installed_);
   if (!db_.version_manager_->try_set_runtime_wait_if_quiescent(
@@ -78,6 +81,7 @@ void NeugDBService::restoreNativeRuntimeWait() noexcept {
          "runtime wait";
   bthread_runtime_wait_installed_ = false;
 }
+#endif
 
 void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
@@ -144,7 +148,9 @@ NeugDBService::~NeugDBService() {
   hdl_mgr_.reset();
   transaction_manager_.reset();
   execution_slot_pool_.reset();
+#ifndef _WIN32
   restoreNativeRuntimeWait();
+#endif
   db_.unregisterService(this);
 }
 
