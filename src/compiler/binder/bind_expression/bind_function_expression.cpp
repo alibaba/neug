@@ -48,7 +48,6 @@ using namespace neug::catalog;
 
 namespace neug {
 namespace binder {
-
 std::shared_ptr<Expression> ExpressionBinder::bindFunctionExpression(
     const ParsedExpression& expr) {
   auto funcExpr = expr.constPtrCast<ParsedFunctionExpression>();

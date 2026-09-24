@@ -21,6 +21,8 @@
 #include <ostream>
 #include <string>
 #include <vector>
+
+#include "neug/compiler/binder/ddl/bound_property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
@@ -85,9 +87,10 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     }
   }
   switch (expr.expressionType) {
-  case common::ExpressionType::LITERAL:
+  case common::ExpressionType::LITERAL: {
     return convertLiteral(static_cast<const binder::LiteralExpression&>(
         expr));  // todo: add literal data type
+  }
   case common::ExpressionType::PROPERTY:
     return convertProperty(
         static_cast<const binder::PropertyExpression&>(expr));
@@ -345,14 +348,12 @@ std::unique_ptr<::common::Expression> GExprConverter::castLiteral(
 
 // set default value for property definition
 std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
-    const PropertyDefinition& propertyDef) {
-  const auto& defaultValue = propertyDef.getDefaultValue();
-  if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
+    const binder::BoundPropertyDefinition& propertyDef) {
+  if (!propertyDef.defaultExpr) {
     return convertValue(
-        compiler_impl::Value::createNullValue(defaultValue.type()));
+        compiler_impl::Value::createNullValue(propertyDef.getType()));
   }
-  return convertValue(
-      common::convertToCompilerValue(defaultValue, defaultValue.type()));
+  return convert(*propertyDef.defaultExpr, {});
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertValue(

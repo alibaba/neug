@@ -100,6 +100,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION_ALIAS(ListHasFunction),
       SCALAR_FUNCTION(ListAppendFunction),
       SCALAR_FUNCTION(ListConcatFunction),
+      SCALAR_FUNCTION(RepeatFunction),
 
       SCALAR_FUNCTION(CastToDateFunction),
       SCALAR_FUNCTION_ALIAS(DateFunction),

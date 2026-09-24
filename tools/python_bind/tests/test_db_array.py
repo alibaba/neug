@@ -46,6 +46,27 @@ def _approx_eq(actual, expected, tol=1e-5):
         assert actual == expected
 
 
+def test_repeat_array_expression(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(
+        conn.execute(
+            "RETURN CAST(repeat([-1], 3), 'INT32[3]'), "
+            "CAST(list_concat(repeat([-1], 2), repeat([0], 3)), 'INT32[5]'), "
+            "CAST(list_concat([7, 8], repeat([-1], 2)), 'INT32[4]');"
+        )
+    )[0]
+    assert [_nested_list(value) for value in row] == [
+        [-1, -1, -1],
+        [-1, -1, 0, 0, 0],
+        [7, 8, -1, -1],
+    ]
+
+    conn.close()
+    db.close()
+
+
 # ---------------------------------------------------------------------------
 # Basic Create & Query (parametrized by element type)
 # ---------------------------------------------------------------------------
@@ -469,6 +490,112 @@ def test_array_ddl_operations(tmp_path):
     conn.execute("CREATE (s:Sensor {id: 1});")
     rows = list(conn.execute("MATCH (s:Sensor {id: 1}) RETURN s.readings;"))
     assert _nested_list(rows[0][0]) == [0, 1, 0]
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+def test_repeat_array_defaults_in_ddl(tmp_path, ddl_path):
+    """REPEAT expressions work in CREATE and ALTER DDL paths."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        conn.execute(
+            "CREATE NODE TABLE RepeatDefaults("
+            "  id INT64,"
+            "  single_fill FLOAT[4] DEFAULT repeat([-1], 4),"
+            "  repeated_unit INT64[4] DEFAULT repeat([-1, 0], 2),"
+            "  mixed INT64[4] DEFAULT list_concat([7, 8], repeat([-1], 2)),"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+        conn.execute("CREATE (:RepeatDefaults {id: 1});")
+    else:
+        conn.execute("CREATE NODE TABLE RepeatDefaults(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE (:RepeatDefaults {id: 1});")
+        conn.execute(
+            "ALTER TABLE RepeatDefaults "
+            "ADD single_fill FLOAT[4] DEFAULT repeat([-1], 4);"
+        )
+        conn.execute(
+            "ALTER TABLE RepeatDefaults "
+            "ADD repeated_unit INT64[4] DEFAULT repeat([-1, 0], 2);"
+        )
+        conn.execute(
+            "ALTER TABLE RepeatDefaults "
+            "ADD mixed INT64[4] DEFAULT list_concat([7, 8], repeat([-1], 2));"
+        )
+
+    row = list(
+        conn.execute(
+            "MATCH (n:RepeatDefaults {id: 1}) "
+            "RETURN n.single_fill, n.repeated_unit, n.mixed;"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [-1.0, -1.0, -1.0, -1.0]
+    assert _nested_list(row[1]) == [-1, 0, -1, 0]
+    assert _nested_list(row[2]) == [7, 8, -1, -1]
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+@pytest.mark.parametrize(
+    "default_expression,error_pattern",
+    [
+        ("repeat([1], -1)", "REPEAT count cannot be negative"),
+        ("repeat([1], 1.5)", "second argument to be an integer"),
+        ("repeat(1, 4)", "first argument to be LIST or ARRAY"),
+        (
+            "repeat(['not-an-int'], 4)",
+            "Invalid default value for property 'values': .*Failed to cast value",
+        ),
+        (
+            "repeat(list_concat([1], [2]), 32768)",
+            "Invalid default value for property 'values': .*REPEAT result length "
+            "exceeds maximum supported length of 65535",
+        ),
+        (
+            "repeat([1], 3)",
+            "ARRAY value length mismatch.*expected 4, got 3",
+        ),
+    ],
+    ids=[
+        "negative-repeat-count",
+        "non-integer-repeat-count",
+        "non-list-input",
+        "invalid-value-cast",
+        "expanded-length-limit",
+        "array-size-mismatch",
+    ],
+)
+def test_invalid_repeat_array_defaults(
+    tmp_path, ddl_path, default_expression, error_pattern
+):
+    """REPEAT defaults enforce input, count, length, and ARRAY size."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        ddl = (
+            "CREATE NODE TABLE InvalidRepeatDefault("
+            "id INT64, values INT64[4] DEFAULT "
+            f"{default_expression}, PRIMARY KEY(id));"
+        )
+    else:
+        conn.execute(
+            "CREATE NODE TABLE InvalidRepeatDefault(id INT64, PRIMARY KEY(id));"
+        )
+        ddl = (
+            "ALTER TABLE InvalidRepeatDefault ADD values INT64[4] DEFAULT "
+            f"{default_expression};"
+        )
+
+    with pytest.raises(RuntimeError, match=error_pattern):
+        conn.execute(ddl)
 
     conn.close()
     db.close()

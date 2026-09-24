@@ -281,7 +281,7 @@ void ListPropertyColumn::set_any(size_t index, const Value& value,
                                      normalized->type().ToString());
   }
   const auto& children = ListValue::GetChildren(*normalized);
-  if (children.size() > ((1ULL << 16) - 1)) {
+  if (children.size() > MAX_LIST_ELEMENTS) {
     THROW_RUNTIME_ERROR("ListPropertyColumn::set_any: list length " +
                         std::to_string(children.size()) +
                         " exceeds maximum supported length of 65535");

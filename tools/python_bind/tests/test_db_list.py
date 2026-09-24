@@ -29,6 +29,135 @@ def _nested_list(value):
         return value
 
 
+def test_repeat_list_expression(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(
+        conn.execute(
+            "RETURN CAST(repeat([-1], 3), 'INT32[]'), "
+            "list_concat(repeat([-1], 2), repeat([0], 3)), "
+            "list_concat([7, 8], repeat([-1], 2)), "
+            "repeat([1, 2], 0), "
+            "repeat(CAST([1, 2], 'INT32[2]'), 2);"
+        )
+    )[0]
+    assert [_nested_list(value) for value in row] == [
+        [-1, -1, -1],
+        [-1, -1, 0, 0, 0],
+        [7, 8, -1, -1],
+        [],
+        [1, 2, 1, 2],
+    ]
+
+    conn.close()
+    db.close()
+
+
+def test_repeat_list_consumers(tmp_path):
+    """Repeated lists stay type-safe through casts and comparisons."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    row = list(
+        conn.execute(
+            "RETURN CAST(repeat([1], 2), 'FLOAT[]'), "
+            "repeat([1], 2) = repeat([1], 2);"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [1.0, 1.0]
+    assert row[1] is True
+
+    conn.execute(
+        "CREATE NODE TABLE RepeatConsumer("
+        "id INT64, embedding FLOAT[4], PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE (:RepeatConsumer "
+        "{id: 1, embedding: CAST(repeat([-1], 4), 'FLOAT[4]')});"
+    )
+    assert list(
+        conn.execute(
+            "MATCH (n:RepeatConsumer) WHERE n.embedding = "
+            "CAST(repeat([-1], 4), 'FLOAT[4]') RETURN n.id;"
+        )
+    ) == [[1]]
+
+    with pytest.raises(
+        RuntimeError, match="number of rows to skip/limit must be a parameter/literal"
+    ):
+        list(conn.execute("RETURN 1 SKIP repeat([1], 2);"))
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize(
+    "expression",
+    ["repeat([1], 65536)", "repeat([1, 2], 32768)"],
+    ids=["single-value", "multi-value-unit"],
+)
+def test_repeat_rejects_excessive_result_length(tmp_path, expression):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    with pytest.raises(
+        RuntimeError,
+        match="REPEAT result length exceeds maximum supported length of 65535",
+    ):
+        list(conn.execute(f"RETURN {expression};"))
+
+    conn.close()
+    db.close()
+
+
+@pytest.mark.parametrize("ddl_path", ["create", "alter"])
+def test_repeat_list_defaults_in_ddl(tmp_path, ddl_path):
+    """REPEAT expressions work for LIST defaults in both DDL paths."""
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    if ddl_path == "create":
+        conn.execute(
+            "CREATE NODE TABLE RepeatListDefaults("
+            "  id INT64,"
+            "  single_fill FLOAT[] DEFAULT repeat([-1], 4),"
+            "  repeated_unit INT64[] DEFAULT repeat([-1, 0], 2),"
+            "  mixed INT64[] DEFAULT list_concat([7, 8], repeat([-1], 2)),"
+            "  PRIMARY KEY(id)"
+            ");"
+        )
+        conn.execute("CREATE (:RepeatListDefaults {id: 1});")
+    else:
+        conn.execute("CREATE NODE TABLE RepeatListDefaults(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE (:RepeatListDefaults {id: 1});")
+        conn.execute(
+            "ALTER TABLE RepeatListDefaults "
+            "ADD single_fill FLOAT[] DEFAULT repeat([-1], 4);"
+        )
+        conn.execute(
+            "ALTER TABLE RepeatListDefaults "
+            "ADD repeated_unit INT64[] DEFAULT repeat([-1, 0], 2);"
+        )
+        conn.execute(
+            "ALTER TABLE RepeatListDefaults "
+            "ADD mixed INT64[] DEFAULT list_concat([7, 8], repeat([-1], 2));"
+        )
+
+    row = list(
+        conn.execute(
+            "MATCH (n:RepeatListDefaults {id: 1}) "
+            "RETURN n.single_fill, n.repeated_unit, n.mixed;"
+        )
+    )[0]
+    assert _nested_list(row[0]) == [-1.0, -1.0, -1.0, -1.0]
+    assert _nested_list(row[1]) == [-1, 0, -1, 0]
+    assert _nested_list(row[2]) == [7, 8, -1, -1]
+
+    conn.close()
+    db.close()
+
+
 def test_list_append_and_concat(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()

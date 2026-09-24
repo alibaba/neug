@@ -38,6 +38,10 @@ class IrDataType;
 namespace neug {
 class InArchive;
 class OutArchive;
+
+// LIST values must fit in the persisted 16-bit per-row length field.
+inline constexpr uint64_t MAX_LIST_ELEMENTS = (1ULL << 16) - 1;
+
 enum class DataTypeId : uint8_t {
   kInvalid = 0,
   kNull = 1,

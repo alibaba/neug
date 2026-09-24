@@ -206,7 +206,7 @@ static bool tryRewriteNodePKIn(PredicateSet& predicates,
     // dynamic parameter. Computed and upstream expressions fall back.
     auto collection = candidate->getChild(0);
     if (!function::ListFunctionUtils::isListLike(collection->getDataType()) ||
-        (collection->expressionType != ExpressionType::LITERAL &&
+        (!ExpressionUtil::isLiteralLike(*collection) &&
          collection->expressionType != ExpressionType::PARAMETER)) {
       continue;
     }

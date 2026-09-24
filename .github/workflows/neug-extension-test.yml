@@ -29,6 +29,7 @@ on:
       - 'tools/python_bind/tests/test_fts_index.py'
       - 'tools/python_bind/tests/test_fts_index_tp.py'
       - 'tools/python_bind/tests/resources/graphalytics/**'
+      - 'tools/python_bind/example/complex_test.py'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
       branch:

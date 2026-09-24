@@ -1,4 +1,4 @@
-# Developer Guide
+# Developing NeuG
 
 ### Building from Source
 

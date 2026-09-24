@@ -1,15 +1,16 @@
 # List Functions
 
-Since v0.2.0, NeuG provides built-in functions for working with list-like values. These functions provide common operations for constructing, combining, and manipulating collection values in Cypher queries.
+NeuG provides built-in functions for working with list-like values. These functions provide common operations for constructing, combining, and manipulating collection values in Cypher queries.
 
 The currently supported list functions are summarized below.
 
-| Function                          | Description                            | Example                              |
-| --------------------------------- | -------------------------------------- | ------------------------------------ |
-| `list_append(list_like, element)` | Appends one element to a list or array | `RETURN list_append([1, 2], 3)`      |
-| `list_concat(left, right)`        | Concatenates two lists or arrays       | `RETURN list_concat([1, 2], [3, 4])` |
-| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`  |
-| `list_has(list, element)`         | Alias of `list_contains`               | `RETURN list_has([1, 2], 2)`         |
+| Function                          | Description                              | Example                              | Version      |
+| --------------------------------- | ---------------------------------------- | ------------------------------------ | ------------ |
+| `list_append(list_like, element)` | Appends one element to a list or array   | `RETURN list_append([1, 2], 3)`      | Since v0.2.0 |
+| `list_concat(left, right)`        | Concatenates two lists or arrays         | `RETURN list_concat([1, 2], [3, 4])` | Since v0.2.0 |
+| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`    | Since v0.2.0 |
+| `list_has(list, element)`         | Alias of `list_contains`                 | `RETURN list_has([1, 2], 2)`         | Since v0.2.0 |
+| `repeat(unit, count)`             | Repeats an entire list or array unit     | `RETURN repeat([1, 2], 2)`           | Since v0.2.1 |
 
 The accepted argument types, return types, type inference rules, and behavior of each function are described in the corresponding sections below.
 
@@ -381,6 +382,36 @@ RETURN list_has([1, NULL, 3], 1),
        list_has([1, NULL, 3], 2);
 // TRUE, NULL
 ```
+
+## `repeat`
+
+Since v0.2.1, `repeat` repeats an entire `LIST` or `ARRAY` unit a specified
+number of times. Expansion happens in the execution engine rather than during
+query compilation.
+
+```cypher
+repeat(unit, count)
+```
+
+`unit` must be a `LIST` or `ARRAY`, and `count` must be a non-negative integer.
+The result is always a `LIST`. If `count` is `0`, the result is an empty
+`LIST`. The result size is `size(unit) * count` and must be in the range
+`[0, 65,536)`.
+
+```cypher
+RETURN repeat([1, 2], 3);
+// [1, 2, 1, 2, 1, 2]
+
+RETURN repeat([1, 2], 0);
+// []
+
+RETURN CAST(repeat([1], 4), 'INT32[4]');
+// [1, 1, 1, 1]
+```
+
+When casting the result to an `ARRAY`, the repeated result length must match the
+declared fixed length. Invalid argument types, negative counts, oversized
+results, and incompatible result types produce an error.
 
 ## Type Inference and Conversion
 

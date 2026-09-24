@@ -59,10 +59,6 @@ class NEUG_API NodeTableCatalogEntry final : public TableCatalogEntry {
   std::string toCypher(const ToCypherInfo& info) const override;
 
  private:
-  std::unique_ptr<binder::BoundExtraCreateCatalogEntryInfo>
-  getBoundExtraCreateInfo() const override;
-
- private:
   std::string primaryKeyName;
 };
 
