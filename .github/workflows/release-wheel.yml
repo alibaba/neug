@@ -61,7 +61,10 @@ jobs:
       linux_x86_python: '3.13'
       linux_arm_python: '3.13'
       mac_python: '3.13'
-      windows_python: '3.11'
+      # Keep the test Python in sync with the default CIBW_BUILD (cp313-*).
+      # Using 3.11 here caused pip to reject cp313-cp313-win_amd64.whl with
+      # "not a supported wheel on this platform" during Run simple test.
+      windows_python: '3.13'
       cibuildwheel_version: '3.4.0'
       enable_macos_x86: false
       caller_event_name: ${{ github.event_name }}
