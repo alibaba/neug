@@ -1,6 +1,6 @@
 'use strict';
 
-const OS_MAP = { linux: 'linux', darwin: 'osx' };
+const OS_MAP = { linux: 'linux', darwin: 'osx', win32: 'windows' };
 const ARCH_MAP = { x64: 'x86_64', arm64: 'arm64' };
 
 const os = OS_MAP[process.platform];

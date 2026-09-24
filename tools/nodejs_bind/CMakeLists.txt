@@ -62,13 +62,34 @@ add_dependencies(neug_node_bind neug_proto)
 set(NEUG_LIBRARIES neug)
 
 find_package(OpenSSL REQUIRED)
-target_link_libraries(neug_node_bind PRIVATE
-  ${NEUG_LIBRARIES}
-  ${GLOG_LIBRARIES}
-  ${Protobuf_LIBRARIES}
-  OpenSSL::SSL
-  OpenSSL::Crypto
-)
+if (WIN32)
+  set(NODE_IMPORT_LIB "" CACHE FILEPATH
+    "Path to the Node.js import library (node.lib)")
+  if (NOT NODE_IMPORT_LIB OR NOT EXISTS "${NODE_IMPORT_LIB}")
+    message(FATAL_ERROR
+      "Cannot find the Node.js import library. Set NODE_IMPORT_LIB to node.lib.")
+  endif()
+
+  # Protobuf namespace-scope default instances are not exported from neug.dll.
+  # Link the generated objects into the addon, matching the Windows Python binding.
+  target_link_libraries(neug_node_bind PRIVATE
+    ${NEUG_LIBRARIES}
+    ${GLOG_LIBRARIES}
+    ${Protobuf_LIBRARIES}
+    $<TARGET_OBJECTS:neug_proto>
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    "${NODE_IMPORT_LIB}"
+  )
+else()
+  target_link_libraries(neug_node_bind PRIVATE
+    ${NEUG_LIBRARIES}
+    ${GLOG_LIBRARIES}
+    ${Protobuf_LIBRARIES}
+    OpenSSL::SSL
+    OpenSSL::Crypto
+  )
+endif()
 
 target_compile_definitions(neug_node_bind PRIVATE
   NAPI_VERSION=8
@@ -99,13 +120,20 @@ endif()
 # into the package and replaces non-portable RPATHs before npm pack runs.
 if(APPLE)
   set(_neug_node_rpath "@loader_path")
-else()
+elseif(NOT WIN32)
   set(_neug_node_rpath "$ORIGIN")
 endif()
 
-set_target_properties(neug_node_bind PROPERTIES
-  BUILD_RPATH "${_neug_node_rpath}"
-  INSTALL_RPATH "${_neug_node_rpath}"
-  BUILD_WITH_INSTALL_RPATH FALSE
-)
-set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "${_neug_node_rpath}")
+if(NOT WIN32)
+  set_target_properties(neug_node_bind PROPERTIES
+    BUILD_RPATH "${_neug_node_rpath}"
+    INSTALL_RPATH "${_neug_node_rpath}"
+    BUILD_WITH_INSTALL_RPATH FALSE
+  )
+  set_property(TARGET neug APPEND PROPERTY BUILD_RPATH "${_neug_node_rpath}")
+else()
+  # Windows has no RPATH. Keep neug.dll beside the addon so the loader can find it.
+  add_custom_command(TARGET neug_node_bind POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:neug> $<TARGET_FILE_DIR:neug_node_bind>)
+endif()

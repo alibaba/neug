@@ -28,7 +28,11 @@ const {
 // Load the native binding (unified loader handles prebuilds/ and build/)
 const nativeBinding = require('./binding');
 
-const ILLEGAL_CHARS = ['?', '*', '"', '<', '>', '|', ':', '\\'];
+// On Windows, ':' (drive letter) and '\' (path separator) are valid, matching
+// the Python binding's platform-aware validation.
+const ILLEGAL_CHARS = process.platform === 'win32'
+  ? ['?', '*', '"', '<', '>', '|']
+  : ['?', '*', '"', '<', '>', '|', ':', '\\'];
 const PURE_MEMORY_PATHS = [':memory', ':memory:'];
 const VALID_MODES = [
   'r', 'read', 'w', 'rw', 'write',
@@ -58,9 +62,12 @@ const VALID_MODES = [
  */
 class Database {
   /**
-   * Return the number of online CPUs, using the same system call as
-   * Python's os.cpu_count() (sysconf(_SC_NPROCESSORS_ONLN)).
-   * This is more reliable than os.cpus().length on arm64 Linux.
+   * Return the number of CPUs usable by the process, via the portable
+   * std::thread::hardware_concurrency() in the native binding
+   * (sysconf(_SC_NPROCESSORS_ONLN) on POSIX, GetSystemInfo on Windows).
+   * Typically matches Python's os.cpu_count() on mainstream platforms;
+   * returns 1 when the count is not detectable. This is more reliable
+   * than os.cpus().length on arm64 Linux.
    * @returns {number}
    */
   static cpuCount() {
@@ -121,8 +128,9 @@ class Database {
       );
     }
 
-    // Use sysconf(_SC_NPROCESSORS_ONLN) via native binding to match
-    // Python's os.cpu_count() behaviour (especially on arm64 Linux).
+    // Use std::thread::hardware_concurrency() via native binding (with a
+    // minimum of 1) to match Python's os.cpu_count() behaviour on
+    // mainstream platforms (especially on arm64 Linux).
     const cpuCount = Database.cpuCount();
     if (maxThreadNum > cpuCount) {
       throw new Error(
