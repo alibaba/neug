@@ -18,7 +18,9 @@
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <chrono>
 #include <sstream>
+#include <thread>
 
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/error.pb.h"
@@ -155,6 +157,30 @@ std::string HttplibServiceManager::Start() {
     return new httplib::ThreadPool(num_threads);
   };
 
+  if (!server_->bind_to_port(service_config_.host_str,
+                             static_cast<int>(service_config_.query_port))) {
+    THROW_RUNTIME_ERROR("Failed to bind httplib server on " + ip_port);
+  }
+
+  listen_thread_ = std::thread([this]() { server_->listen_after_bind(); });
+
+  // Wait until the server has actually started listening. listen_after_bind()
+  // sets is_running() to true once the listening loop is active.
+  constexpr int kMaxWaitRetries = 200;
+  constexpr auto kWaitInterval = std::chrono::milliseconds(10);
+  for (int i = 0; i < kMaxWaitRetries && !server_->is_running(); ++i) {
+    std::this_thread::sleep_for(kWaitInterval);
+  }
+
+  if (!server_->is_running()) {
+    server_->stop();
+    if (listen_thread_.joinable()) {
+      listen_thread_.join();
+    }
+    THROW_RUNTIME_ERROR(
+        "Httplib server failed to start listening on " + ip_port);
+  }
+
   running_.store(true, std::memory_order_relaxed);
 
   std::stringstream ss;
@@ -167,6 +193,9 @@ void HttplibServiceManager::Stop() {
   LOG(INFO) << "Stopping httplib server";
   if (server_) {
     server_->stop();
+  }
+  if (listen_thread_.joinable()) {
+    listen_thread_.join();
   }
   running_.store(false, std::memory_order_relaxed);
   LOG(INFO) << "Httplib server stopped";

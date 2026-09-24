@@ -29,6 +29,8 @@
 
 #include "httplib.h"
 
+#include <thread>
+
 namespace neug {
 
 int32_t status_code_to_http_code(neug::StatusCode code);
@@ -57,6 +59,7 @@ class HttplibServiceManager : public IServiceManager {
   ServiceConfig service_config_;
   std::unique_ptr<httplib::Server> server_;
   std::atomic<bool> running_{false};
+  std::thread listen_thread_;
 };
 
 }  // namespace neug
