@@ -29,7 +29,7 @@
 // native ARM64 Windows has no <xmmintrin.h>, so prefetch is a no-op there.
 // ARM64EC supports SSE intrinsics, so keep the x86 path for it.
 #if (defined(_M_ARM64) || defined(__aarch64__)) && !defined(_M_ARM64EC)
-#define __builtin_prefetch(ptr, rw, loc) ((void)0)
+#define __builtin_prefetch(ptr, rw, loc) ((void) 0)
 #else
 #include <xmmintrin.h>
 #define __builtin_prefetch(ptr, rw, loc) \
