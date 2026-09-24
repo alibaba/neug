@@ -112,6 +112,10 @@ class FTSIndex final : public StorageIndex {
       std::make_shared<SQLiteStatement>()};
   std::shared_ptr<SQLiteStatement> search_desc_statement_{
       std::make_shared<SQLiteStatement>()};
+  std::shared_ptr<SQLiteStatement> unfiltered_search_asc_statement_{
+      std::make_shared<SQLiteStatement>()};
+  std::shared_ptr<SQLiteStatement> unfiltered_search_desc_statement_{
+      std::make_shared<SQLiteStatement>()};
   std::shared_ptr<SQLiteStatement> append_statements_{
       std::make_shared<SQLiteStatement>()};
   std::string runtime_path_;
