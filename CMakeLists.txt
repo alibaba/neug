@@ -117,10 +117,10 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 # Windows port: disable features that are not yet supported or unnecessary for the core library.
 if(WIN32)
     message(STATUS "Windows detected: disabling non-core features for core library build")
-    # BUILD_PYTHON and BUILD_HTTP_SERVER are no longer forced off; pass
-    # -DBUILD_PYTHON=ON / -DBUILD_HTTP_SERVER=ON to enable. On Windows
-    # BUILD_HTTP_SERVER selects the cpp-httplib implementation instead of brpc.
-    set(BUILD_NODEJS OFF CACHE BOOL "Node.js binding is not supported on Windows yet" FORCE)
+    # BUILD_PYTHON, BUILD_HTTP_SERVER and BUILD_NODEJS are no longer forced
+    # off; pass -DBUILD_PYTHON=ON / -DBUILD_HTTP_SERVER=ON / -DBUILD_NODEJS=ON
+    # to enable. On Windows BUILD_HTTP_SERVER selects the cpp-httplib
+    # implementation instead of brpc.
     set(BUILD_EXTENSIONS "" CACHE STRING "Extensions are not supported on Windows yet" FORCE)
     set(BUILD_EXECUTABLES OFF CACHE BOOL "Executables are disabled on Windows core build" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "Examples are disabled on Windows core build" FORCE)
