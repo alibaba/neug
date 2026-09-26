@@ -1919,9 +1919,11 @@ class TestCopyFrom:
             "CREATE NODE TABLE file(id STRING, label STRING, PRIMARY KEY(id))"
         )
         self.conn.execute("CREATE REL TABLE depends(FROM file TO file, weight INT64)")
-        self.conn.execute(f'COPY file FROM "{nodes_csv}" (header=true, delimiter=",")')
         self.conn.execute(
-            f'COPY depends FROM "{edges_csv}" (header=true, delimiter=",")'
+            f'COPY file FROM "{nodes_csv.as_posix()}" (header=true, delimiter=",")'
+        )
+        self.conn.execute(
+            f'COPY depends FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
         )
 
         self.conn.execute("CREATE (n:file {id: 'd.py', label: 'd'})")
@@ -1953,11 +1955,13 @@ class TestCopyFrom:
         self.conn.execute("CREATE NODE TABLE node(id INT64, PRIMARY KEY(id))")
         self.conn.execute("CREATE REL TABLE rel(FROM node TO node)")
         self.conn.execute(
-            f'COPY node FROM "{initial_nodes_csv}" (header=true, delimiter=",")'
+            f'COPY node FROM "{initial_nodes_csv.as_posix()}" (header=true, delimiter=",")'
         )
-        self.conn.execute(f'COPY rel FROM "{edges_csv}" (header=true, delimiter=",")')
         self.conn.execute(
-            f'COPY node FROM "{appended_nodes_csv}" (header=true, delimiter=",")'
+            f'COPY rel FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
+        )
+        self.conn.execute(
+            f'COPY node FROM "{appended_nodes_csv.as_posix()}" (header=true, delimiter=",")'
         )
         self.conn.execute("CHECKPOINT")
         self.conn.close()
@@ -1994,7 +1998,7 @@ class TestCopyFrom:
         self.conn.execute("CREATE NODE TABLE person (ID INT64, PRIMARY KEY(ID))")
         self.conn.execute("CREATE REL TABLE knows (FROM person TO person)")
         self.conn.execute(
-            f'COPY person FROM "{nodes_csv}" (header=true, delimiter=",")'
+            f'COPY person FROM "{nodes_csv.as_posix()}" (header=true, delimiter=",")'
         )
 
         # glog writes directly to fd 2, so capture at the fd level instead of
@@ -2007,7 +2011,7 @@ class TestCopyFrom:
         try:
             os.dup2(capture_fd, 2)
             self.conn.execute(
-                f'COPY knows FROM "{edges_csv}" (header=true, delimiter=",")'
+                f'COPY knows FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
             )
         finally:
             os.dup2(saved_fd, 2)

@@ -408,7 +408,9 @@ setup(
     url="https://github.com/alibaba/neug",
     ext_modules=[CMakeExtension(name="neug_py_bind", sourcedir=repo_root)],
     description="GraphScope NeuG.",
-    long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
+    long_description=open(
+        os.path.join(base_dir, "README.md"), "r", encoding="utf-8"
+    ).read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
     package_data={"neug": ["resources/*"]},
