@@ -1919,7 +1919,9 @@ class TestCopyFrom:
             "CREATE NODE TABLE file(id STRING, label STRING, PRIMARY KEY(id))"
         )
         self.conn.execute("CREATE REL TABLE depends(FROM file TO file, weight INT64)")
-        self.conn.execute(f'COPY file FROM "{nodes_csv.as_posix()}" (header=true, delimiter=",")')
+        self.conn.execute(
+            f'COPY file FROM "{nodes_csv.as_posix()}" (header=true, delimiter=",")'
+        )
         self.conn.execute(
             f'COPY depends FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
         )
@@ -1955,7 +1957,9 @@ class TestCopyFrom:
         self.conn.execute(
             f'COPY node FROM "{initial_nodes_csv.as_posix()}" (header=true, delimiter=",")'
         )
-        self.conn.execute(f'COPY rel FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")')
+        self.conn.execute(
+            f'COPY rel FROM "{edges_csv.as_posix()}" (header=true, delimiter=",")'
+        )
         self.conn.execute(
             f'COPY node FROM "{appended_nodes_csv.as_posix()}" (header=true, delimiter=",")'
         )
