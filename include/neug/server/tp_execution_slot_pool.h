@@ -24,6 +24,7 @@
 
 #include "neug/main/execution_slot.h"
 #include "neug/main/wal_writer_set.h"
+#include "neug/utils/bitset.h"
 
 #ifndef _WIN32
 #include "bthread/bthread.h"
@@ -106,7 +107,7 @@ class TpExecutionSlotPool {
       : entries_(nullptr), slot_num_(allocators.size()) {
     available_slot_ids_.reserve(slot_num_);
     entries_ = static_cast<Entry*>(
-        aligned_alloc(kEntryAlignment, sizeof(Entry) * slot_num_));
+        neug::detail::AlignedAlloc(kEntryAlignment, sizeof(Entry) * slot_num_));
     if (entries_ == nullptr) {
       throw std::bad_alloc();
     }
@@ -126,7 +127,7 @@ class TpExecutionSlotPool {
         auto& entry = entries_[--constructed_entries];
         entry.~Entry();
       }
-      free(entries_);
+      neug::detail::AlignedFree(entries_);
       entries_ = nullptr;
       throw;
     }
@@ -151,7 +152,7 @@ class TpExecutionSlotPool {
       for (size_t slot_id = 0; slot_id < slot_num_; ++slot_id) {
         entries_[slot_id].~Entry();
       }
-      free(entries_);
+      neug::detail::AlignedFree(entries_);
       entries_ = nullptr;
     }
 #ifndef _WIN32
