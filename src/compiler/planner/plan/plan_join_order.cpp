@@ -171,7 +171,7 @@ Planner::enumerateQueryGraphCollection(
     auto queryGraph = queryGraphCollection.getQueryGraph(i);
     std::unordered_set<uint32_t> predicateToEvaluateIndices;
     for (auto j = 0u; j < info.predicates.size(); ++j) {
-      if (info.predicates[j]->expressionType == ExpressionType::LITERAL) {
+      if (ExpressionUtil::isLiteralLike(*info.predicates[j])) {
         continue;
       }
       if (evaluatedPredicatesIndices.contains(j)) {

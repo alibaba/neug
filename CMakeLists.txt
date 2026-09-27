@@ -118,7 +118,6 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 if(WIN32)
     message(STATUS "Windows detected: disabling non-core features for core library build")
     # BUILD_PYTHON is no longer forced off; pass -DBUILD_PYTHON=ON to enable.
-    set(BUILD_NODEJS OFF CACHE BOOL "Node.js binding is not supported on Windows yet" FORCE)
     set(BUILD_HTTP_SERVER OFF CACHE BOOL "HTTP server (brpc) is not supported on Windows yet" FORCE)
     set(BUILD_EXTENSIONS "" CACHE STRING "Extensions are not supported on Windows yet" FORCE)
     set(BUILD_EXECUTABLES OFF CACHE BOOL "Executables are disabled on Windows core build" FORCE)

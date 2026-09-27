@@ -274,19 +274,19 @@ bool data_type_to_property_type(const common::DataType& data_type,
 
 bool default_expression_to_value(const DataType& type,
                                  const common::Expression& expression,
-                                 Value& out_value) {
+                                 Value& out_value, std::string& error_message) {
   try {
     auto expr = execution::parse_expression(
         expression, execution::ContextMeta{}, execution::VarType::kRecord);
     if (!expr) {
-      LOG(ERROR) << "Failed to parse default expression: "
-                 << expression.DebugString();
+      error_message = "Failed to parse default expression.";
+      LOG(ERROR) << error_message << " " << expression.DebugString();
       return false;
     }
     auto bound_expr = expr->bind(nullptr, execution::ParamsMap{});
     if (!bound_expr) {
-      LOG(ERROR) << "Failed to bind default expression: "
-                 << expression.DebugString();
+      error_message = "Failed to bind default expression.";
+      LOG(ERROR) << error_message << " " << expression.DebugString();
       return false;
     }
 
@@ -294,10 +294,12 @@ bool default_expression_to_value(const DataType& type,
     out_value = bound_expr->Cast<execution::RecordExprBase>().eval_record(
         empty_chunk, 0);
   } catch (const std::exception& e) {
+    error_message = e.what();
     LOG(ERROR) << "Failed to evaluate default expression: "
-               << expression.DebugString() << ", reason: " << e.what();
+               << expression.DebugString() << ", reason: " << error_message;
     return false;
   } catch (...) {
+    error_message = "Unknown error while evaluating default expression.";
     LOG(ERROR) << "Failed to evaluate default expression: "
                << expression.DebugString();
     return false;
@@ -308,9 +310,10 @@ bool default_expression_to_value(const DataType& type,
     return true;
   }
   if (out_value.type() != type) {
-    LOG(ERROR) << "Default expression type mismatch, expected "
-               << type.ToString() << ", got " << out_value.type().ToString()
-               << ": " << expression.DebugString();
+    error_message = "Default expression type mismatch: expected " +
+                    type.ToString() + ", got " + out_value.type().ToString() +
+                    ".";
+    LOG(ERROR) << error_message << " " << expression.DebugString();
     return false;
   }
   if (type.id() == DataTypeId::kVarchar) {
@@ -340,11 +343,12 @@ neug::result<std::vector<std::pair<std::string, Value>>> property_defs_to_value(
     }
 
     if (property.has_default_expr()) {
+      std::string error_message;
       if (!default_expression_to_value(type, property.default_expr(),
-                                       default_value)) {
-        RETURN_ERROR(
-            Status(StatusCode::ERR_INVALID_ARGUMENT,
-                   "Invalid default value: " + property.DebugString()));
+                                       default_value, error_message)) {
+        RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
+                            "Invalid default value for property '" + name +
+                                "': " + error_message));
       } else {
         VLOG(10) << "Default value convert to any success:"
                  << property.default_expr().DebugString();

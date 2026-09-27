@@ -236,6 +236,10 @@ bool ExpressionUtil::isEmptyList(const Expression& expression) {
   return val.getChildrenSize() == 0;
 }
 
+bool ExpressionUtil::isLiteralLike(const Expression& expression) {
+  return expression.expressionType == ExpressionType::LITERAL;
+}
+
 void ExpressionUtil::validateExpressionType(const Expression& expr,
                                             ExpressionType expectedType) {
   if (expr.expressionType == expectedType) {
@@ -448,14 +452,14 @@ bool ExpressionUtil::tryCombineDataType(const expression_vector& expressions,
   std::vector<DataType> primaryTypes;
   bool propKeyValues = false;
   if (expressions.size() == 2 &&
-          expressions.at(0)->expressionType == ExpressionType::PROPERTY &&
-          expressions.at(1)->expressionType == ExpressionType::LITERAL ||
-      expressions.at(0)->expressionType == ExpressionType::LITERAL &&
-          expressions.at(1)->expressionType == ExpressionType::PROPERTY) {
+      ((expressions.at(0)->expressionType == ExpressionType::PROPERTY &&
+        isLiteralLike(*expressions.at(1))) ||
+       (isLiteralLike(*expressions.at(0)) &&
+        expressions.at(1)->expressionType == ExpressionType::PROPERTY))) {
     propKeyValues = true;
   }
   for (auto& expr : expressions) {
-    if (expr->expressionType != ExpressionType::LITERAL) {
+    if (!isLiteralLike(*expr)) {
       primaryTypes.push_back(expr->getDataType().copy());
       continue;
     }

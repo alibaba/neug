@@ -24,6 +24,7 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
@@ -95,8 +96,8 @@ case_insensitive_map_t<compiler_impl::Value> Binder::bindParsingOptions(
     auto name = option.first;
     StringUtils::toUpper(name);
     auto expr = expressionBinder.bindExpression(*option.second);
-    NEUG_ASSERT(expr->expressionType == ExpressionType::LITERAL);
-    auto literalExpr = neug_dynamic_cast<LiteralExpression*>(expr.get());
+    ExpressionUtil::validateExpressionType(*expr, ExpressionType::LITERAL);
+    auto literalExpr = expr->constPtrCast<LiteralExpression>();
     options.insert({name, literalExpr->getValue()});
   }
   return options;

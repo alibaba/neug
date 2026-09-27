@@ -88,6 +88,15 @@ void SQLiteStatement::BindDouble(int parameter, double value) {
   }
 }
 
+void SQLiteStatement::BindPointer(int parameter, void* value, const char* type,
+                                  void (*destroy)(void*)) {
+  auto code = sqlite3_bind_pointer(statement_, parameter, value, type, destroy);
+  if (code != SQLITE_OK) {
+    THROW_RUNTIME_ERROR(SQLiteError(sqlite3_db_handle(statement_),
+                                    "SQLite bind pointer failed", code));
+  }
+}
+
 void SQLiteStatement::Reset() {
   // sqlite3_reset() resets the statement even when it returns the error code
   // from the previous sqlite3_step() call.
@@ -163,6 +172,19 @@ SQLiteStatement SQLiteConnection::Prepare(const std::string& sql) {
         SQLiteError(connection_, "SQLite statement prepare failed", code));
   }
   return SQLiteStatement(statement);
+}
+
+void SQLiteConnection::RegisterScalarFunction(
+    const std::string& name, int argument_count,
+    void (*function)(sqlite3_context*, int, sqlite3_value**)) {
+  auto code =
+      sqlite3_create_function_v2(connection_, name.c_str(), argument_count,
+                                 SQLITE_UTF8 | SQLITE_DIRECTONLY, nullptr,
+                                 function, nullptr, nullptr, nullptr);
+  if (code != SQLITE_OK) {
+    THROW_RUNTIME_ERROR(SQLiteError(
+        connection_, "SQLite scalar function registration failed", code));
+  }
 }
 
 void SQLiteConnection::Flush() {

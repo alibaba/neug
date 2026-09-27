@@ -15,7 +15,7 @@
 
 #include "node_database.h"
 
-#include <unistd.h>
+#include <thread>
 
 #include <string>
 
@@ -156,7 +156,7 @@ Napi::Value NodeDatabase::Close(const Napi::CallbackInfo& info) {
 }
 
 Napi::Value NodeDatabase::GetCpuCount(const Napi::CallbackInfo& info) {
-  long n = sysconf(_SC_NPROCESSORS_ONLN);
+  unsigned int n = std::thread::hardware_concurrency();
   if (n < 1) {
     n = 1;
   }

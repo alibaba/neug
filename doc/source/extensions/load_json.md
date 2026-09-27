@@ -1,4 +1,4 @@
-# JSON Extension
+# JSON
 
 > **Version Note:** Since version v0.1.2, we made JSON support a built-in functionality, so you do not need to install the JSON extension before using it. For NeuG version < 0.1.2, JSON support was provided via extension and required `INSTALL json; LOAD json;` before use. See the [LOAD FROM reference](../data_io/load_data) for details.
 

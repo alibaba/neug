@@ -1,4 +1,4 @@
-# Developing Out-of-Tree Extensions
+# Developing Extensions
 
 NeuG can build extensions that live **outside** the NeuG source tree. This is the recommended layout when NeuG is a git submodule (or sibling checkout) of your extension repository.
 

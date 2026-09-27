@@ -43,6 +43,13 @@ function makeTmpDir(prefix = 'neug_tx_test_') {
   return dir;
 }
 
+// Match the Python binding's Path.as_posix() convention: backslashes are
+// escape characters inside Cypher string literals, so paths embedded in
+// queries must always use forward slashes (a no-op on POSIX platforms).
+function toPosixPath(p) {
+  return p.split(path.sep).join('/');
+}
+
 after(() => {
   for (const dir of _tmpDirs) {
     try {
@@ -272,12 +279,16 @@ test('test_explicit_transaction_commits_multiple_copies', () => {
   );
 
   conn.beginTransaction();
-  conn.execute(`COPY Person FROM '${peopleA}' (HEADER=true, DELIMITER=',');`);
+  conn.execute(
+    `COPY Person FROM '${toPosixPath(peopleA)}' (HEADER=true, DELIMITER=',');`
+  );
   assert.deepEqual(
     [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
     [[1n]]
   );
-  conn.execute(`COPY Person FROM '${peopleB}' (HEADER=true, DELIMITER=',');`);
+  conn.execute(
+    `COPY Person FROM '${toPosixPath(peopleB)}' (HEADER=true, DELIMITER=',');`
+  );
   conn.commit();
   assert.deepEqual(
     [...conn.execute('MATCH (n:Person) RETURN n.id ORDER BY n.id;')],
@@ -286,7 +297,10 @@ test('test_explicit_transaction_commits_multiple_copies', () => {
 
   conn.beginTransaction({ readOnly: true });
   assert.throws(
-    () => conn.execute(`COPY Person FROM '${peopleA}' (HEADER=true, DELIMITER=',');`),
+    () =>
+      conn.execute(
+        `COPY Person FROM '${toPosixPath(peopleA)}' (HEADER=true, DELIMITER=',');`
+      ),
     (err) => err.message.includes(String(ERR_TX_STATE_CONFLICT))
   );
   assert.equal(conn.hasActiveTransaction, true);
@@ -327,10 +341,14 @@ for (const persistentCopy of [false, true]) {
     const query = 'MATCH (p:Person) RETURN p.id, p.name ORDER BY p.id;';
     try {
       conn.beginTransaction();
-      conn.execute(`COPY TEMP Stage FROM '${people}' (HEADER=true, DELIMITER=',');`);
+      conn.execute(
+        `COPY TEMP Stage FROM '${toPosixPath(people)}' (HEADER=true, DELIMITER=',');`
+      );
       conn.execute('CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));');
       if (persistentCopy) {
-        conn.execute(`COPY Person FROM '${people}' (HEADER=true, DELIMITER=',');`);
+        conn.execute(
+          `COPY Person FROM '${toPosixPath(people)}' (HEADER=true, DELIMITER=',');`
+        );
       } else {
         conn.execute('MATCH (s:Stage) CREATE (:Person {id: s.id, name: s.name});');
       }

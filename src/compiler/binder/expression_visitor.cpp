@@ -301,7 +301,7 @@ void RenameDependentVar::visitFunctionExpr(std::shared_ptr<Expression> expr) {
 }
 
 bool ConstantExpressionVisitor::needFold(const Expression& expr) {
-  if (expr.expressionType == common::ExpressionType::LITERAL) {
+  if (ExpressionUtil::isLiteralLike(expr)) {
     return false;  // No need to fold a literal.
   }
   return isConstant(expr);

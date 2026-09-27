@@ -223,6 +223,127 @@ jobs:
           path: ./tools/nodejs_bind/graphscope-neug-linux-arm64-*.tgz
           if-no-files-found: error
 
+  build_npm_windows_x86_64:
+    needs: format_check
+    runs-on: windows-2022
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Keep the Windows build ABI baseline aligned with Linux package builds.
+          node-version: '20.0.0'
+          cache: 'npm'
+          cache-dependency-path: tools/nodejs_bind/package-lock.json
+
+      - name: Install OpenSSL via vcpkg
+        shell: pwsh
+        run: |
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          & "$vcpkgRoot\vcpkg.exe" install openssl:x64-windows-static-md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install Node.js build dependencies
+        shell: pwsh
+        run: |
+          npm ci --prefix tools/nodejs_bind
+
+          $nodeVersion = node -p "process.versions.node"
+          $nodeDevDir = Join-Path $env:RUNNER_TEMP "node-v$nodeVersion-dev"
+          $headersArchive = Join-Path $env:RUNNER_TEMP "node-headers.tar.gz"
+          $headersUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-headers.tar.gz"
+          $nodeLibUrl = "https://nodejs.org/dist/v$nodeVersion/win-x64/node.lib"
+
+          Invoke-WebRequest $headersUrl -OutFile $headersArchive
+          New-Item -ItemType Directory -Force $nodeDevDir | Out-Null
+          tar -xzf $headersArchive -C $nodeDevDir --strip-components=1
+          Invoke-WebRequest $nodeLibUrl -OutFile (Join-Path $nodeDevDir "node.lib")
+
+          "NODE_INCLUDE_DIR=$nodeDevDir\include\node" >> $env:GITHUB_ENV
+          "NODE_IMPORT_LIB=$nodeDevDir\node.lib" >> $env:GITHUB_ENV
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          $vcpkgToolchain = Join-Path $env:VCPKG_INSTALLATION_ROOT "scripts\buildsystems\vcpkg.cmake"
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+            -DBUILD_NODEJS=ON `
+            -DBUILD_PYTHON=OFF `
+            -DWITH_MIMALLOC=OFF `
+            -DNEUG_NATIVE_ARCH=OFF `
+            -DNODE_INCLUDE_DIR="$env:NODE_INCLUDE_DIR" `
+            -DNODE_IMPORT_LIB="$env:NODE_IMPORT_LIB" `
+            .
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $jobs = [Math]::Min([Environment]::ProcessorCount, 8)
+          cmake --build build --target neug_node_bind -j $jobs
+
+      - name: Stage native artifacts
+        shell: pwsh
+        run: |
+          $stageDir = "tools/nodejs_bind/build/Release/windows_x86_64"
+          New-Item -ItemType Directory -Force $stageDir | Out-Null
+          Copy-Item "build/tools/nodejs_bind/neug_node_bind.node" $stageDir
+          Copy-Item "build/tools/nodejs_bind/neug.dll" $stageDir
+
+      - name: Prepare test data
+        shell: pwsh
+        env:
+          FLEX_DATA_DIR: ${{ github.workspace }}\example_dataset\modern_graph
+        run: |
+          $tmpRoot = Join-Path ([IO.Path]::GetPathRoot($env:RUNNER_TEMP)) "tmp"
+          New-Item -ItemType Directory -Force $tmpRoot | Out-Null
+          Remove-Item -Recurse -Force (Join-Path $tmpRoot "modern_graph") -ErrorAction SilentlyContinue
+          Set-Location tools/nodejs_bind
+          node -e "const { prepareModernGraphDataset } = require('./tests/test-shim'); const { Database } = require('./lib'); prepareModernGraphDataset(Database);"
+
+      - name: Test
+        shell: pwsh
+        env:
+          FLEX_DATA_DIR: ${{ github.workspace }}\example_dataset\modern_graph
+        run: |
+          Set-Location tools/nodejs_bind
+          node tests/test-shim.js
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          Set-Location tools/nodejs_bind
+          Copy-Item package.json package.json.ci
+          try {
+            $package = Get-Content package.json -Raw | ConvertFrom-Json
+            $package.name = "@graphscope-neug/windows-x86_64"
+            $package | Add-Member -NotePropertyName os -NotePropertyValue @("win32") -Force
+            $package | Add-Member -NotePropertyName cpu -NotePropertyValue @("x64") -Force
+            $package | ConvertTo-Json -Depth 100 | Set-Content package.json
+            npm pack
+            if ($LASTEXITCODE -ne 0) { throw "npm pack failed with exit code $LASTEXITCODE" }
+          } finally {
+            Move-Item -Force package.json.ci package.json
+          }
+
+      - name: Upload npm tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodejs-windows-x86_64-${{ github.run_id }}
+          path: ./tools/nodejs_bind/graphscope-neug-windows-x86_64-*.tgz
+          if-no-files-found: error
+
   build_npm_macos_aarch64:
     needs: format_check
     if: github.event_name == 'workflow_call' || github.event_name == 'release' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -300,4 +421,5 @@ jobs:
       - build_npm_linux_x86_64
       - build_npm_linux_arm64
       - build_npm_macos_aarch64
+      - build_npm_windows_x86_64
     uses: ./.github/workflows/npm-package-test.yml
