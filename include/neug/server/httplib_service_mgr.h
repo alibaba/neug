@@ -14,6 +14,12 @@
  */
 #pragma once
 
+// Include httplib.h before any project headers on Windows. httplib.h pulls in
+// winsock2.h; if a project header (e.g. neug/main/neug_db.h) includes windows.h
+// first, the older winsock.h gets loaded and causes redefinition errors with
+// winsock2.h.
+#include "httplib.h"
+
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/http_service/http_svc.pb.h"
 #include "neug/main/execution_slot.h"
@@ -26,8 +32,6 @@
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
 #include "neug/utils/yaml_utils.h"
-
-#include "httplib.h"
 
 #include <thread>
 
