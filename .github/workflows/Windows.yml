@@ -162,6 +162,8 @@ jobs:
           ctest -R schema_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'schema_test' }
           ctest -R test_connection -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_connection' }
           ctest -R test_indexer -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_indexer' }
+          ctest -R ap_index_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'ap_index_test' }
+          ctest -R httplib_http_server -V; if ($LASTEXITCODE -ne 0) { $failed += 'httplib_http_server' }
           ctest -R temporary_graph_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'temporary_graph_test' }
           ctest -R copy_temp_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'copy_temp_test' }
           ctest -R graph_snapshot_store_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'graph_snapshot_store_test' }
