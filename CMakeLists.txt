@@ -137,6 +137,10 @@ if(WIN32)
     # Windows headers define GetObject as GetObjectA/GetObjectW (in wingdi.h),
     # which conflicts with rapidjson::Value::GetObject(). Exclude GDI headers.
     add_compile_definitions(NOGDI)
+    # windows.h includes the legacy winsock.h by default, which conflicts with
+    # winsock2.h used by cpp-httplib. Define _WINSOCKAPI_ so windows.h skips
+    # winsock.h and winsock2.h remains the authoritative socket header.
+    add_compile_definitions(_WINSOCKAPI_)
     # yaml-cpp is built as a static third-party library; tell its headers not to
     # use __declspec(dllimport) on MSVC.
     add_compile_definitions(YAML_CPP_STATIC_DEFINE)
