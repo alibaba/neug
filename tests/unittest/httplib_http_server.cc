@@ -13,6 +13,12 @@
  * limitations under the License.
  */
 
+// Include httplib.h before any project header on Windows. httplib.h pulls in
+// winsock2.h; if a project header (e.g. neug/main/neug_db.h) includes windows.h
+// first, the older winsock.h gets loaded and causes redefinition errors with
+// winsock2.h.
+#include "httplib.h"
+
 #include "neug/main/neug_db.h"
 
 #include <glog/logging.h>
@@ -23,7 +29,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "httplib.h"
 
 int submit_query(const std::string& base_url, int thread_id, int query_num,
                  const std::vector<std::string>& queries) {
