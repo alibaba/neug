@@ -277,6 +277,39 @@ Pool of database slots for concurrent query execution.
 
 **Pool Size:** The service resolves its concurrency from ``ServiceConfig::thread_num`` and `NeugDBConfig::max_thread_num`, then passes that value to the pool. Each TP query leases one slot for its duration.
 
+### Constructors & Destructors
+
+#### `TpExecutionSlotPool(...)`
+
+```cpp
+TpExecutionSlotPool(
+    GraphSnapshotStore &snapshot_store,
+    std::shared_ptr< IGraphPlanner > planner,
+    std::shared_ptr< execution::GlobalQueryCache > global_query_cache,
+    IVersionManager &version_manager,
+    CheckpointCoordinator &checkpoint_coordinator,
+    ExtensionManager &extension_manager,
+    const std::vector< std::shared_ptr< Allocator > > &allocators,
+    WalWriterSet &wal_writers,
+    const NeugDBConfig &config
+)
+```
+
+Constructs a pool using all database-owned allocators.
+
+This overload preserves the original source-compatible behavior. Service code that needs a smaller execution limit should use the overload that accepts an explicit slot count.
+
+- **Parameters:**
+  - `snapshot_store`
+  - `planner`
+  - `global_query_cache`
+  - `version_manager`
+  - `checkpoint_coordinator`
+  - `extension_manager`
+  - `allocators`
+  - `wal_writers`
+  - `config`
+
 ### Public Methods
 
 #### `AcquireExecutionSlot()`

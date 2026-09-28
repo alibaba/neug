@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -36,6 +37,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/server/tp_execution_slot_pool.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
 
@@ -46,6 +48,14 @@ namespace test {
 namespace {
 
 constexpr auto kBthreadTestTimeout = std::chrono::seconds(10);
+
+static_assert(std::is_constructible_v<
+              TpExecutionSlotPool, GraphSnapshotStore&,
+              std::shared_ptr<IGraphPlanner>,
+              std::shared_ptr<execution::GlobalQueryCache>, IVersionManager&,
+              CheckpointCoordinator&, ExtensionManager&,
+              const std::vector<std::shared_ptr<Allocator>>&, WalWriterSet&,
+              const NeugDBConfig&>);
 
 uint64_t ReadPlanningGeneration(GraphSnapshotStore& store) {
   SnapshotGuard current(store);

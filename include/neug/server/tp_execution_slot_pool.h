@@ -90,6 +90,27 @@ class TpExecutionSlotPool {
   static_assert(sizeof(Entry) == kEntryAlignment);
 
  public:
+  /**
+   * @brief Constructs a pool using all database-owned allocators.
+   *
+   * This overload preserves the original source-compatible behavior. Service
+   * code that needs a smaller execution limit should use the overload that
+   * accepts an explicit slot count.
+   */
+  explicit TpExecutionSlotPool(
+      GraphSnapshotStore& snapshot_store,
+      std::shared_ptr<IGraphPlanner> planner,
+      std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
+      IVersionManager& version_manager,
+      CheckpointCoordinator& checkpoint_coordinator,
+      ExtensionManager& extension_manager,
+      const std::vector<std::shared_ptr<Allocator>>& allocators,
+      WalWriterSet& wal_writers, const NeugDBConfig& config)
+      : TpExecutionSlotPool(
+            snapshot_store, std::move(planner), std::move(global_query_cache),
+            version_manager, checkpoint_coordinator, extension_manager,
+            allocators, wal_writers, config, allocators.size()) {}
+
   explicit TpExecutionSlotPool(
       GraphSnapshotStore& snapshot_store,
       std::shared_ptr<IGraphPlanner> planner,
