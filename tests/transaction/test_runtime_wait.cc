@@ -28,7 +28,10 @@
 #include <utility>
 #include <vector>
 
-#ifdef BUILD_HTTP_SERVER
+// The bthread-based runtime wait is part of the brpc HTTP server, which is
+// only built on non-Windows platforms. On Windows BUILD_HTTP_SERVER selects
+// the cpp-httplib implementation instead, so guard with !_WIN32 as well.
+#if defined(BUILD_HTTP_SERVER) && !defined(_WIN32)
 #include "bthread/bthread.h"
 #include "neug/server/bthread_runtime_wait.h"
 #endif
@@ -676,7 +679,7 @@ TEST(NativeRuntimeWaitTest, SleepPhaseCompletesContendedWait) {
   EXPECT_TRUE(completed.load(std::memory_order_acquire));
 }
 
-#ifdef BUILD_HTTP_SERVER
+#if defined(BUILD_HTTP_SERVER) && !defined(_WIN32)
 
 void CountingBthreadRuntimeWait(RuntimeWaitAction action) noexcept {
   RecordRuntimeWait(action);
