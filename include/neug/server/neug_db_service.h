@@ -35,6 +35,7 @@
 #include "neug/transaction/in_place_compaction_transaction.h"
 #include "neug/transaction/mvcc_insert_transaction.h"
 #include "neug/transaction/snapshot_read_transaction.h"
+#include "neug/utils/api.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
@@ -98,7 +99,7 @@ class ServiceTransactionManager;
  * @see TpExecutionSlotPool for execution slot management
  * @since v0.1.0
  */
-class NeugDBService {
+class NEUG_API NeugDBService {
  public:
   /**
    * @brief Constructs a service around an existing database instance
