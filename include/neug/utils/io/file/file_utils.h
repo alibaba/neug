@@ -23,6 +23,11 @@
 #include <fcntl.h>
 #include <io.h>
 #include <sys/types.h>
+// Prevent windows.h from dragging in the legacy winsock.h, which conflicts
+// with winsock2.h used by cpp-httplib and other socket code.
+#ifndef _WINSOCKAPI_
+#define _WINSOCKAPI_
+#endif
 #include <windows.h>
 #include <cstdint>
 

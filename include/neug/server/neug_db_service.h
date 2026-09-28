@@ -246,8 +246,10 @@ class NeugDBService {
   NeugDBService() = delete;
   void startCompactThread();
   void stopCompactThread();
+#ifndef _WIN32
   void installBthreadRuntimeWait();
   void restoreNativeRuntimeWait() noexcept;
+#endif
 
   /**
    * @brief Initializes the service with configuration settings
@@ -280,7 +282,9 @@ class NeugDBService {
   std::mutex mtx_;
 
   ServiceConfig service_config_;
+#ifndef _WIN32
   bool bthread_runtime_wait_installed_{false};
+#endif
 
   friend class neug::NeugDB;
 };
