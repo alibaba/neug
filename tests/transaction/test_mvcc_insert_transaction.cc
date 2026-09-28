@@ -33,10 +33,7 @@
 #else
 #include <io.h>
 #include <process.h>
-#define close _close
 #define getpid _getpid
-#define open _open
-#define write _write
 #endif
 #include <cstring>
 #include <filesystem>
@@ -46,6 +43,40 @@
 
 #include "glog/logging.h"
 #include "gtest/gtest.h"
+
+namespace {
+
+// MSVC's POSIX-compat I/O functions carry an underscore prefix. Object-like
+// macros (#define open _open) would also rewrite LocalWalWriter::open() and
+// LocalWalWriter::close() member calls, so route raw fd I/O through these
+// platform wrappers instead.
+#ifdef _WIN32
+int OsOpen(const char* path, int flags, int mode) {
+  return _open(path, flags, mode);
+}
+
+int OsClose(int fd) {
+  return _close(fd);
+}
+
+int OsWrite(int fd, const void* buf, size_t count) {
+  return _write(fd, buf, static_cast<unsigned int>(count));
+}
+#else
+int OsOpen(const char* path, int flags, int mode) {
+  return ::open(path, flags, mode);
+}
+
+int OsClose(int fd) {
+  return ::close(fd);
+}
+
+ssize_t OsWrite(int fd, const void* buf, size_t count) {
+  return ::write(fd, buf, count);
+}
+#endif
+
+}  // namespace
 
 class MvccInsertTransactionTest : public ::testing::Test {
  protected:
@@ -274,12 +305,12 @@ class LocalWalParserTest : public ::testing::Test {
   // Write buffer contents to a .wal file in the WAL directory.
   void WriteWalFile(const std::string& filename, const std::vector<char>& buf) {
     auto path = wal_dir_ + "/" + filename;
-    int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int fd = OsOpen(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
     ASSERT_NE(fd, -1);
-    auto bytes_written = ::write(fd, buf.data(), buf.size());
+    auto bytes_written = OsWrite(fd, buf.data(), buf.size());
     ASSERT_NE(bytes_written, -1);
     ASSERT_EQ(static_cast<size_t>(bytes_written), buf.size());
-    ::close(fd);
+    OsClose(fd);
   }
 };
 
@@ -347,9 +378,9 @@ TEST_F(LocalWalParserTest, WriterCreationFailureCanBeRetried) {
   const auto invalid_wal_dir =
       (std::filesystem::path(wal_dir_) / "not_a_directory").string();
   const int fd =
-      ::open(invalid_wal_dir.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+      OsOpen(invalid_wal_dir.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
   ASSERT_NE(fd, -1);
-  ASSERT_EQ(::close(fd), 0);
+  ASSERT_EQ(OsClose(fd), 0);
 
   neug::LocalWalWriter writer(invalid_wal_dir, 0);
   writer.open(invalid_wal_dir);
