@@ -14,6 +14,7 @@
  */
 #pragma once
 
+#include <bit>
 #include <cassert>
 #include <cstdlib>
 #include <istream>
@@ -81,10 +82,14 @@ inline uint64_t AtomicFetchAnd(uint64_t* ptr, uint64_t value) {
 }
 
 inline int PopCountLL(uint64_t value) {
-#ifdef _WIN32
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+  // __popcnt64 is only available on x86/x64 MSVC; ARM64 Windows has no
+  // direct equivalent, so fall through to std::popcount.
   return static_cast<int>(__popcnt64(value));
-#else
+#elif defined(__GNUC__) || defined(__clang__)
   return __builtin_popcountll(value);
+#else
+  return static_cast<int>(std::popcount(value));
 #endif
 }
 

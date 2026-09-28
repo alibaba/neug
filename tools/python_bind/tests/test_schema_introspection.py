@@ -68,7 +68,7 @@ def test_show_node_tables(schema_connection):
     conn, tmp_path = schema_connection
     people_csv = tmp_path / "temporary_people.csv"
     people_csv.write_text("id|nickname\n1|alice\n")
-    copy_query = f'COPY TEMP TempPerson FROM "{people_csv}" '
+    copy_query = f'COPY TEMP TempPerson FROM "{people_csv.as_posix()}" '
     copy_query += "(primary_key='id', header=true);"
     conn.execute(copy_query)
 
@@ -106,7 +106,7 @@ def test_show_rel_tables(schema_connection):
     edges_csv.write_text("src|dst|weight\n1|1|0.5\n")
     conn.execute("CREATE (:Company {id: 1, name: 'NeuG'});")
     conn.execute(
-        f'COPY TEMP TempPartner FROM "{edges_csv}" '
+        f'COPY TEMP TempPartner FROM "{edges_csv.as_posix()}" '
         "(header=true, from='Company', to='Company');"
     )
 
