@@ -53,7 +53,9 @@ NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
     hdl_mgr_.reset();
     transaction_manager_.reset();
     execution_slot_pool_.reset();
+#ifndef _WIN32
     restoreNativeRuntimeWait();
+#endif
     db_.unregisterService(this);
     throw;
   }
