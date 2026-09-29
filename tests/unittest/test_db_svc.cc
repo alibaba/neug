@@ -1520,6 +1520,70 @@ TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {
   service.Stop();
 }
 
+TEST(RequestParserTest, InvalidAccessModeReturnsError) {
+  const std::string input = R"({"query":"RETURN 1","access_mode":"bogus"})";
+  ASSERT_NO_THROW({
+    auto parsed = RequestParser::ParseFromString(input);
+    ASSERT_FALSE(parsed);
+    EXPECT_EQ(parsed.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  });
+  std::string query;
+  AccessMode mode = AccessMode::kUnKnown;
+  rapidjson::Document parameters;
+  ASSERT_NO_THROW({
+    auto status =
+        RequestParser::ParseFromString(input, query, mode, parameters);
+    EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  });
+}
+
+TEST_F(NeugDBServiceTest, InvalidAccessModePreservesExplicitTransaction) {
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  brpc::Controller begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})", begin);
+  ASSERT_FALSE(begin.Failed()) << begin.ErrorText();
+  const auto id = ReadTransactionId(begin);
+  ASSERT_FALSE(id.empty());
+  const auto query_path = TransactionPath(id, "query");
+  const auto create = RequestSerializer::SerializeRequest(
+      "CREATE (:person {id: 90003, name: 'invalid-mode-test', age: 1});",
+      "update", {});
+  brpc::Controller write;
+  PostHttp(channel, uri, query_path, create, write);
+  ASSERT_FALSE(write.Failed()) << write.ErrorText();
+
+  for (const auto& endpoint : {std::string("/cypher"), query_path}) {
+    brpc::Controller invalid;
+    PostHttp(channel, uri, endpoint,
+             R"({"query":"RETURN 1","access_mode":"bogus"})", invalid);
+    EXPECT_EQ(invalid.http_response().status_code(),
+              brpc::HTTP_STATUS_BAD_REQUEST);
+  }
+
+  const auto read = RequestSerializer::SerializeRequest(
+      "MATCH (n:person {id: 90003}) RETURN n;", "read", {});
+  brpc::Controller private_read;
+  PostHttp(channel, uri, query_path, read, private_read);
+  ASSERT_FALSE(private_read.Failed()) << private_read.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(private_read).row_count(), 1);
+
+  brpc::Controller commit;
+  PostHttp(channel, uri, TransactionPath(id, "commit"), "", commit);
+  ASSERT_FALSE(commit.Failed()) << commit.ErrorText();
+  brpc::Controller committed_read;
+  PostHttp(channel, uri, "/cypher", read, committed_read);
+  ASSERT_FALSE(committed_read.Failed()) << committed_read.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(committed_read).row_count(), 1);
+}
+
 TEST_F(NeugDBServiceTest, ExplicitTransactionUsesDedicatedHttpSession) {
   config_.query_port = 19998;
   neug::NeugDBService service(*db_, config_);

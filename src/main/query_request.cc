@@ -14,6 +14,7 @@
  */
 
 #include "neug/main/query_request.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
@@ -54,7 +55,11 @@ neug::Status RequestParser::ParseFromString(const std::string& req,
   std::string access_mode_str;
   if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
     access_mode_str = document["access_mode"].GetString();
-    mode = neug::ParseAccessMode(access_mode_str);
+    try {
+      mode = neug::ParseAccessMode(access_mode_str);
+    } catch (const exception::InvalidArgumentException& e) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
+    }
   }
   if (document.HasMember("parameters")) {
     if (!document["parameters"].IsObject()) {
