@@ -14,12 +14,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -29,7 +32,10 @@
 
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include <brpc/errno.pb.h>
+#include <brpc/server.h>
 #include <rapidjson/document.h>
+#include "../../src/server/brpc_transport.h"
 #include "bthread/bthread.h"
 #include "neug/common/types/value.h"
 #include "neug/generated/proto/response/response.pb.h"
@@ -37,15 +43,73 @@
 #include "neug/main/neug_db.h"
 #include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/server/service_transport.h"
 #include "neug/server/tp_execution_slot_pool.h"
+#include "neug/server/tp_service.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "utils.h"
 
 namespace neug {
 
+class NeugDBServiceTestPeer {
+ public:
+  static std::unique_ptr<NeugDBService> Create(
+      NeugDB& db, const ServiceConfig& config,
+      const std::function<std::unique_ptr<IServiceTransport>(ITpService&)>&
+          factory) {
+    return std::unique_ptr<NeugDBService>(
+        new NeugDBService(db, config, factory));
+  }
+
+  static void RunWithHook(NeugDBService& service,
+                          const std::function<void()>& before_wait) {
+    service.runAndWaitForExitWithHook(before_wait);
+  }
+};
+
 namespace test {
 
 namespace {
+
+struct TransportProbe {
+  ITpService* service = nullptr;
+  int starts = 0;
+  int stops = 0;
+  bool fail_start = false;
+  std::function<void()> on_start;
+  std::function<void()> on_stop;
+};
+
+// Deliberately has no server, signal handling, or waiting API. The facade must
+// implement the same lifecycle contract for this transport as for BRPC.
+class ProbeTransport final : public IServiceTransport {
+ public:
+  explicit ProbeTransport(TransportProbe& probe) : probe_(probe) {}
+  std::string Start() override {
+    ++probe_.starts;
+    if (probe_.fail_start) {
+      throw std::runtime_error("Injected transport start failure");
+    }
+    active_ = true;
+    if (probe_.on_start) {
+      probe_.on_start();
+    }
+    return "probe://service";
+  }
+  void StopAndJoin() noexcept override {
+    if (active_) {
+      ++probe_.stops;
+      if (probe_.on_stop) {
+        probe_.on_stop();
+      }
+      active_ = false;
+    }
+  }
+
+ private:
+  TransportProbe& probe_;
+  bool active_ = false;
+};
 
 constexpr auto kBthreadTestTimeout = std::chrono::seconds(10);
 
@@ -206,6 +270,126 @@ class NeugDBServiceTest : public ::testing::Test {
   neug::ServiceConfig config_;
   std::filesystem::path test_dir_;
 };
+
+TEST_F(NeugDBServiceTest, TransactionDrainPrecedesTransportJoin) {
+  TransportProbe probe;
+  auto service =
+      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
+        probe.service = &runtime;
+        return std::make_unique<ProbeTransport>(probe);
+      });
+  std::string transaction_id;
+  probe.on_start = [&]() {
+    auto transaction =
+        probe.service->BeginTransaction(TransactionMode::kReadOnly);
+    ASSERT_TRUE(transaction);
+    transaction_id = transaction->transaction_id;
+  };
+  probe.on_stop = [&]() {
+    // Admission must close before the transport drains its callbacks.
+    EXPECT_FALSE(probe.service->BeginTransaction(TransactionMode::kReadOnly));
+    QueryRequest request;
+    request.query = "RETURN 1;";
+    request.access_mode = AccessMode::kRead;
+    // Queued callbacks can no longer enter a drained transaction.
+    EXPECT_FALSE(probe.service->ExecuteInTransaction(transaction_id, request));
+  };
+  for (int round = 0; round < 2; ++round) {
+    EXPECT_EQ(service->Start(), "probe://service");
+    service->Stop();
+    EXPECT_FALSE(service->IsRunning());
+    EXPECT_FALSE(probe.service->CommitTransaction(transaction_id).ok());
+    service->Stop();
+    EXPECT_EQ(probe.stops, round + 1);
+  }
+  EXPECT_EQ(probe.starts, 2);
+}
+
+TEST_F(NeugDBServiceTest, TransportStartFailureClosesAdmissionAndAllowsRetry) {
+  TransportProbe probe;
+  auto service =
+      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
+        probe.service = &runtime;
+        return std::make_unique<ProbeTransport>(probe);
+      });
+  probe.fail_start = true;
+  EXPECT_THROW(service->run_and_wait_for_exit(), std::runtime_error);
+  EXPECT_FALSE(service->IsRunning());
+  EXPECT_FALSE(probe.service->BeginTransaction(TransactionMode::kReadOnly));
+  probe.fail_start = false;
+  EXPECT_EQ(service->Start(), "probe://service");
+  EXPECT_TRUE(service->IsRunning());
+  service->Stop();
+  EXPECT_EQ(probe.starts, 2);
+  EXPECT_EQ(probe.stops, 1);
+}
+
+TEST_F(NeugDBServiceTest, FailedStartDrainsTransactionsCreatedDuringStartup) {
+  TransportProbe probe;
+  auto service =
+      NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
+        probe.service = &runtime;
+        return std::make_unique<ProbeTransport>(probe);
+      });
+  std::string transaction_id;
+  probe.on_start = [&]() {
+    auto transaction =
+        probe.service->BeginTransaction(TransactionMode::kReadWrite);
+    if (!transaction) {
+      throw std::runtime_error("Could not create startup transaction");
+    }
+    transaction_id = transaction->transaction_id;
+    throw std::runtime_error("Failure after creating startup resources");
+  };
+  probe.on_stop = [&]() {
+    EXPECT_FALSE(probe.service->BeginTransaction(TransactionMode::kReadOnly));
+  };
+  EXPECT_THROW(service->Start(), std::runtime_error);
+  EXPECT_FALSE(transaction_id.empty());
+  EXPECT_FALSE(service->IsRunning());
+  EXPECT_EQ(probe.stops, 1);
+  EXPECT_FALSE(probe.service->CommitTransaction(transaction_id).ok());
+  probe.on_start = {};
+  EXPECT_NO_THROW(service->Start());
+  // Drain must have released the old write transaction's exclusive resources.
+  auto next = probe.service->BeginTransaction(TransactionMode::kReadWrite);
+  EXPECT_TRUE(next);
+  if (next) {
+    EXPECT_TRUE(probe.service->RollbackTransaction(next->transaction_id).ok());
+  }
+  service->Stop();
+}
+
+TEST_F(NeugDBServiceTest, HttpSchemaAndStatusReturnJson) {
+  auto config = config_;
+  config.query_port = 0;
+  NeugDBService service(*db_, config);
+  const auto endpoint = service.Start();
+  brpc::Channel channel;
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  ASSERT_EQ(channel.Init(endpoint.c_str(), &options), 0);
+  for (const auto* path : {"/schema", "/service_status"}) {
+    brpc::Controller response;
+    GetHttp(channel, endpoint, path, response);
+    ASSERT_FALSE(response.Failed()) << response.ErrorText();
+    EXPECT_EQ(response.http_response().status_code(), 200);
+    rapidjson::Document document;
+    document.Parse(response.response_attachment().to_string().c_str());
+    ASSERT_FALSE(document.HasParseError());
+    ASSERT_TRUE(document.IsObject());
+    if (std::string_view(path) == "/service_status") {
+      ASSERT_TRUE(document.HasMember("status"));
+      ASSERT_TRUE(document["status"].IsString());
+      EXPECT_STREQ(document["status"].GetString(), "OK");
+    }
+  }
+  brpc::Controller empty_query;
+  PostHttp(channel, endpoint, "/cypher", "", empty_query);
+  EXPECT_EQ(empty_query.http_response().status_code(), 400);
+  service.Stop();
+}
 
 TEST_F(NeugDBServiceTest, ConcurrentExecutionSlots) {
   neug::NeugDBService service(*db_, config_);
@@ -601,37 +785,249 @@ TEST_F(NeugDBServiceTest, StartThrowsWhenAlreadyRunning) {
   service.Stop();
 }
 
-TEST_F(NeugDBServiceTest, RunAndWaitForExitSetsAndClearsRunning) {
+// Run quit requests and timeout recovery in a fresh process: BRPC's quit flag
+// cannot be reset. The alarm also bounds Stop()/join() if shutdown deadlocks.
+void CheckBlockingServiceLifecycle(bool request_quit, bool pause_waiter = false,
+                                   bool use_probe_transport = false) {
+  alarm(30);
+  const auto path = std::filesystem::temp_directory_path() /
+                    ("neug_service_lifecycle_" + std::to_string(getpid()));
+  {
+    neug::NeugDB db;
+    db.Open(path.string(), 4);
+    neug::ServiceConfig cfg;
+    cfg.query_port = 0;
+    cfg.host_str = "127.0.0.1";
+    TransportProbe probe;
+    auto owned_service =
+        use_probe_transport
+            ? NeugDBServiceTestPeer::Create(
+                  db, cfg,
+                  [&](ITpService& runtime) {
+                    probe.service = &runtime;
+                    return std::make_unique<ProbeTransport>(probe);
+                  })
+            : std::make_unique<NeugDBService>(db, cfg);
+    auto& service = *owned_service;
+    // Register BRPC's signal handler before any timeout recovery can use it.
+    EXPECT_FALSE(brpc::IsAskedToQuit());
+    for (int round = 0; round < (request_quit ? 1 : 2); ++round) {
+      std::promise<void> waiter_paused;
+      auto paused = waiter_paused.get_future();
+      std::promise<void> resume_waiter;
+      auto resume = resume_waiter.get_future();
+      std::promise<void> completion;
+      auto completed = completion.get_future();
+      std::thread runner([&]() {
+        try {
+          if (pause_waiter) {
+            NeugDBServiceTestPeer::RunWithHook(service, [&]() {
+              waiter_paused.set_value();
+              resume.wait();
+            });
+          } else {
+            service.run_and_wait_for_exit();
+          }
+          completion.set_value();
+        } catch (...) { completion.set_exception(std::current_exception()); }
+      });
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      while (!service.IsRunning() &&
+             completed.wait_for(std::chrono::milliseconds(0)) !=
+                 std::future_status::ready &&
+             std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+      // Nonfatal checks ensure the thread is joined even on startup failure.
+      const bool started = service.IsRunning();
+      EXPECT_TRUE(started);
+      if (started) {
+        EXPECT_THROW(service.Start(), neug::exception::RuntimeError);
+        EXPECT_THROW(service.run_and_wait_for_exit(),
+                     neug::exception::RuntimeError);
+      }
+      if (pause_waiter && started) {
+        EXPECT_EQ(paused.wait_for(std::chrono::seconds(5)),
+                  std::future_status::ready);
+      }
+      if (request_quit || !started) {
+        brpc::AskToQuit();
+      } else {
+        service.Stop();
+      }
+      if (pause_waiter) {
+        // Stop has completed, but the original caller is held before
+        // WaitForExit. running_ alone cannot reject a new start in this window.
+        EXPECT_FALSE(service.IsRunning());
+        EXPECT_THROW(service.Start(), neug::exception::RuntimeError);
+        EXPECT_THROW(service.run_and_wait_for_exit(),
+                     neug::exception::RuntimeError);
+        resume_waiter.set_value();
+      }
+      const bool returned_on_time =
+          completed.wait_for(std::chrono::seconds(5)) ==
+          std::future_status::ready;
+      EXPECT_TRUE(returned_on_time);
+      if (!returned_on_time) {
+        brpc::AskToQuit();
+      }
+      runner.join();
+      EXPECT_NO_THROW(completed.get());
+      EXPECT_FALSE(service.IsRunning());
+      EXPECT_EQ(service.service_status().value(),
+                "NeugDB service has not been started!");
+      if (!started || !returned_on_time) {
+        break;
+      }
+      if (!request_quit) {
+        // Both start APIs must be reusable once the waiting caller has
+        // returned.
+        EXPECT_NO_THROW(service.Start());
+        EXPECT_TRUE(service.IsRunning());
+        service.Stop();
+      }
+    }
+  }
+  std::filesystem::remove_all(path);
+  alarm(0);
+}
+
+TEST(NeugDBServiceDeathTest, BlockingWaitCanBeStoppedAndRestarted) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(false);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(NeugDBServiceDeathTest, RestartRejectedUntilBlockingCallerReturns) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(false, true);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(NeugDBServiceDeathTest, BlockingLifecycleDoesNotDependOnTransportWait) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(false, true, true);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+// A real HTTP callback remains blocked until the test explicitly releases it.
+class BlockingSchemaService final : public ITpService {
+ public:
+  std::promise<void> entered;
+  std::promise<void> release;
+  result<std::string> GetSchema() override {
+    auto ready = release.get_future();
+    entered.set_value();
+    ready.wait();
+    return std::string("{}");
+  }
+  result<QueryResult> ExecuteQuery(const QueryRequest&) override {
+    return tl::unexpected(Status::RuntimeError("Unused operation"));
+  }
+  result<std::string> GetServiceStatus() override { return std::string("{}"); }
+  result<ServiceTransactionInfo> BeginTransaction(TransactionMode) override {
+    return tl::unexpected(Status::RuntimeError("Unused operation"));
+  }
+  result<std::string> ExecuteInTransaction(std::string_view,
+                                           const QueryRequest&) override {
+    return tl::unexpected(Status::RuntimeError("Unused operation"));
+  }
+  Status CommitTransaction(std::string_view) override { return Status::OK(); }
+  Status RollbackTransaction(std::string_view) override { return Status::OK(); }
+};
+
+void CheckRealHttpRequestDrain() {
+  alarm(20);
+  BlockingSchemaService business;
+  BrpcTransport transport(business, "127.0.0.1", 0);
+  const auto endpoint = transport.Start();
+  brpc::Channel channel;
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 10000;
+  options.max_retry = 0;
+  ASSERT_EQ(channel.Init(endpoint.c_str(), &options), 0);
+  auto entered = business.entered.get_future();
+  brpc::Controller response;
+  std::thread request(
+      [&]() { GetHttp(channel, endpoint, "/schema", response); });
+  const bool callback_entered =
+      entered.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+  EXPECT_TRUE(callback_entered);
+  std::promise<void> stopping;
+  auto stop_started = stopping.get_future();
+  std::promise<void> stopped;
+  auto stop_finished = stopped.get_future();
+  std::thread stopper([&]() {
+    stopping.set_value();
+    transport.StopAndJoin();
+    stopped.set_value();
+  });
+  stop_started.wait();
+  EXPECT_EQ(stop_finished.wait_for(std::chrono::milliseconds(200)),
+            std::future_status::timeout);
+  business.release.set_value();
+  request.join();
+  EXPECT_EQ(stop_finished.wait_for(std::chrono::seconds(5)),
+            std::future_status::ready);
+  stopper.join();
+  EXPECT_FALSE(response.Failed()) << response.ErrorText();
+  EXPECT_EQ(response.response_attachment().to_string(), "{}");
+  transport.StopAndJoin();
+  alarm(0);
+}
+
+TEST(NeugDBServiceDeathTest, TransportStopJoinsRealHttpCallbacks) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckRealHttpRequestDrain();
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(NeugDBServiceDeathTest, QuitRequestStopsBlockingService) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  EXPECT_EXIT(
+      {
+        CheckBlockingServiceLifecycle(true);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST_F(NeugDBServiceTest, BlockingStartFailureAllowsRetry) {
+  brpc::Server blocker;
+  brpc::ServerOptions options;
+  options.num_threads = 0;
+  ASSERT_EQ(blocker.Start("127.0.0.1:0", &options), 0);
+
   neug::ServiceConfig cfg;
-  cfg.query_port = 0;
+  cfg.query_port = blocker.listen_address().port;
   cfg.host_str = "127.0.0.1";
   neug::NeugDBService service(*db_, cfg);
-
-  ASSERT_FALSE(service.IsRunning());
-
-  // run_and_wait_for_exit() blocks; run it on a background thread.
-  std::thread svc_thread([&]() { service.run_and_wait_for_exit(); });
-
-  // Spin-wait until running_ flips to true (set synchronously before
-  // RunUntilAskedToQuit() blocks).
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (!service.IsRunning() && std::chrono::steady_clock::now() < deadline) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  ASSERT_TRUE(service.IsRunning())
-      << "Service did not become running within 5 s";
-  EXPECT_EQ(service.service_status().value(), "NeugDB service is running ...");
-
-  // Signal the brpc server to quit directly – without going through
-  // service.Stop() – so that running_ is cleared exclusively by
-  // run_and_wait_for_exit() itself (the code path this test exercises).
-  brpc::AskToQuit();
-  svc_thread.join();
-
+  EXPECT_THROW(service.run_and_wait_for_exit(), neug::exception::RuntimeError);
   EXPECT_FALSE(service.IsRunning());
-  EXPECT_EQ(service.service_status().value(),
-            "NeugDB service has not been started!");
+
+  blocker.Stop(0);
+  blocker.Join();
+  EXPECT_NO_THROW(service.Start());
+  EXPECT_TRUE(service.IsRunning());
+  service.Stop();
 }
 
 TEST_F(NeugDBServiceTest, SecondServiceOnSameDbThrows) {
@@ -1123,6 +1519,143 @@ TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {
   EXPECT_EQ(controller.http_response().status_code(),
             brpc::HTTP_STATUS_NOT_IMPLEMENTED);
   service.Stop();
+}
+
+TEST(RequestParserTest, RejectsMalformedRequestShapes) {
+  for (const std::string input :
+       {"[]", "[1]", "null", "42", R"("text")", "{}", R"({"query":null})",
+        R"({"query":1})", R"({"query":""})",
+        R"({"query":"RETURN 1","access_mode":false})",
+        R"({"query":"RETURN 1","access_mode":"read\u0000bogus"})"}) {
+    SCOPED_TRACE(input);
+    auto parsed = RequestParser::ParseFromString(input);
+    ASSERT_FALSE(parsed);
+    EXPECT_EQ(parsed.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  }
+}
+
+TEST(NeugDBServiceDeathTest,
+     StopReleasesExplicitTransactionBlockingAutoCommit) {
+  // Re-exec instead of inheriting BRPC's worker threads and sockets via fork.
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  ASSERT_EXIT(
+      {
+        alarm(10);
+        const auto path =
+            std::filesystem::temp_directory_path() /
+            ("neug_stop_blocked_writer_" + std::to_string(getpid()));
+        NeugDB db;
+        db.Open(path.string(), 4);
+        auto connection = db.Connect();
+        load_modern_graph(connection);
+        connection->Close();
+        ServiceConfig config;
+        config.query_port = 0;
+        config.auto_compaction = false;
+        config.explicit_transaction_timeout_ms = 0;
+        {
+          NeugDBService service(db, config);
+          auto uri = service.Start();
+          brpc::ChannelOptions options;
+          options.protocol = "http";
+          options.timeout_ms = 300;
+          options.max_retry = 0;
+          brpc::Channel channel;
+          if (channel.Init(uri.c_str(), "", &options) != 0) {
+            _exit(10);
+          }
+          brpc::Controller begin;
+          PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})",
+                   begin);
+          if (begin.Failed()) {
+            _exit(11);
+          }
+          brpc::Controller blocked;
+          PostHttp(
+              channel, uri, "/cypher",
+              R"({"query":"CREATE (:person {id: 99999, name: 'blocked', age: 1});","access_mode":"update"})",
+              blocked);
+          // The HTTP client times out, but the server callback still waits for
+          // the explicit transaction's write lease. Stop must release that
+          // lease.
+          if (blocked.ErrorCode() != brpc::ERPCTIMEDOUT) {
+            _exit(12);
+          }
+          service.Stop();
+        }
+        db.Close();
+        std::filesystem::remove_all(path);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(RequestParserTest, InvalidAccessModeReturnsError) {
+  const std::string input = R"({"query":"RETURN 1","access_mode":"bogus"})";
+  ASSERT_NO_THROW({
+    auto parsed = RequestParser::ParseFromString(input);
+    ASSERT_FALSE(parsed);
+    EXPECT_EQ(parsed.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  });
+  std::string query;
+  AccessMode mode = AccessMode::kUnKnown;
+  rapidjson::Document parameters;
+  ASSERT_NO_THROW({
+    auto status =
+        RequestParser::ParseFromString(input, query, mode, parameters);
+    EXPECT_EQ(status.error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  });
+}
+
+TEST_F(NeugDBServiceTest, InvalidRequestsPreserveExplicitTransaction) {
+  neug::NeugDBService service(*db_, config_);
+  const auto uri = service.Start();
+  brpc::ChannelOptions options;
+  options.protocol = "http";
+  options.timeout_ms = 5000;
+  options.max_retry = 0;
+  brpc::Channel channel;
+  ASSERT_EQ(channel.Init(uri.c_str(), "", &options), 0);
+
+  brpc::Controller begin;
+  PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})", begin);
+  ASSERT_FALSE(begin.Failed()) << begin.ErrorText();
+  const auto id = ReadTransactionId(begin);
+  ASSERT_FALSE(id.empty());
+  const auto query_path = TransactionPath(id, "query");
+  const auto create = RequestSerializer::SerializeRequest(
+      "CREATE (:person {id: 90003, name: 'invalid-mode-test', age: 1});",
+      "update", {});
+  brpc::Controller write;
+  PostHttp(channel, uri, query_path, create, write);
+  ASSERT_FALSE(write.Failed()) << write.ErrorText();
+
+  for (const auto& endpoint : {std::string("/cypher"), query_path}) {
+    for (const std::string input :
+         {R"({"query":"RETURN 1","access_mode":"bogus"})", "[1]", "null", "{}",
+          R"({"query":42})", R"({"query":"RETURN 1","access_mode":false})"}) {
+      SCOPED_TRACE(input);
+      brpc::Controller invalid;
+      PostHttp(channel, uri, endpoint, input, invalid);
+      EXPECT_EQ(invalid.http_response().status_code(),
+                brpc::HTTP_STATUS_BAD_REQUEST);
+    }
+  }
+
+  const auto read = RequestSerializer::SerializeRequest(
+      "MATCH (n:person {id: 90003}) RETURN n;", "read", {});
+  brpc::Controller private_read;
+  PostHttp(channel, uri, query_path, read, private_read);
+  ASSERT_FALSE(private_read.Failed()) << private_read.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(private_read).row_count(), 1);
+
+  brpc::Controller commit;
+  PostHttp(channel, uri, TransactionPath(id, "commit"), "", commit);
+  ASSERT_FALSE(commit.Failed()) << commit.ErrorText();
+  brpc::Controller committed_read;
+  PostHttp(channel, uri, "/cypher", read, committed_read);
+  ASSERT_FALSE(committed_read.Failed()) << committed_read.ErrorText();
+  EXPECT_EQ(ReadHttpQueryResponse(committed_read).row_count(), 1);
 }
 
 TEST_F(NeugDBServiceTest, ExplicitTransactionUsesDedicatedHttpSession) {

@@ -54,8 +54,10 @@ class Connection;
 class ExecutionSlot;
 class ServiceTransactionManager;
 class TpExecutionSlotPool;
+class TpServiceRuntime;
 class TransactionContext;
 class ExtensionManager;
+struct QueryRequest;
 
 enum class QueryExecutionStrategy : uint8_t {
   kDirect,
@@ -242,6 +244,9 @@ class ExecutionSlot {
   friend class Connection;
   friend class ServiceTransactionManager;
   friend class TpExecutionSlotPool;
+  friend class TpServiceRuntime;
+
+  result<QueryResult> ExecuteTransactionalQuery(const QueryRequest& request);
 
   ExecutionSlot(GraphSnapshotStore& snapshot_store,
                 std::shared_ptr<IGraphPlanner> planner,

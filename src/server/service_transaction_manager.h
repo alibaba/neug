@@ -20,32 +20,24 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
 
 #include "neug/main/transaction_context.h"
+#include "neug/server/service_transaction.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 class TpExecutionSlotPool;
+struct QueryRequest;
 
 /** Owns service-local explicit transactions without retaining execution slots.
  */
 class ServiceTransactionManager {
  public:
-  struct BeginResult {
-    std::string transaction_id;
-    // Advisory expiry time derived from the system clock for client display;
-    // the authoritative deadline is tracked with the steady clock, so this
-    // value may drift under system clock adjustments. Nullopt when session
-    // expiry is disabled.
-    std::optional<std::chrono::system_clock::time_point> expires_at;
-  };
-
   ServiceTransactionManager(TpExecutionSlotPool& execution_slot_pool,
                             size_t max_transactions, uint64_t timeout_ms);
   ~ServiceTransactionManager();
@@ -54,9 +46,9 @@ class ServiceTransactionManager {
   ServiceTransactionManager& operator=(const ServiceTransactionManager&) =
       delete;
 
-  result<BeginResult> Begin(TransactionMode mode);
+  result<ServiceTransactionInfo> Begin(TransactionMode mode);
   result<std::string> Execute(std::string_view transaction_id,
-                              const std::string& request);
+                              const QueryRequest& request);
   Status Commit(std::string_view transaction_id);
   Status Rollback(std::string_view transaction_id);
 

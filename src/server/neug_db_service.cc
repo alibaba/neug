@@ -12,282 +12,191 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "neug/server/neug_db_service.h"
 
-#include <glog/logging.h>
+#include <brpc/controller.h>
 
-#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <iostream>
+#include <mutex>
 
-#include <bthread/bthread.h>
-
-#include "neug/main/checkpoint_coordinator.h"
-#include "neug/server/brpc_service_mgr.h"
-#include "neug/server/bthread_runtime_wait.h"
-#include "neug/transaction/version_manager.h"
-#include "service_transaction_manager.h"
-
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+#include "../main/service_mode_lease.h"
+#include "brpc_transport.h"
+#include "neug/main/neug_db.h"
+#include "neug/server/service_transport.h"
+#include "neug/utils/exception/exception.h"
+#include "tp_service_runtime.h"
 
 namespace neug {
 
-namespace {
-constexpr auto kCompactInterval = std::chrono::seconds(30);
-constexpr size_t kCompactQueryThreshold = 100000;
-}  // namespace
+class NeugDBService::Impl {
+ public:
+  Impl(NeugDB& db, const ServiceConfig& config, const TransportFactory& factory)
+      : mode_lease_(db.enterServiceMode()),
+        db_(db),
+        runtime_(db_, config),
+        transport_(factory ? factory(runtime_)
+                           : std::make_unique<BrpcTransport>(
+                                 runtime_, runtime_.config().host_str,
+                                 runtime_.config().query_port)) {
+    if (!transport_) {
+      THROW_RUNTIME_ERROR("Service transport factory returned null");
+    }
+  }
 
-NeugDBService::NeugDBService(neug::NeugDB& db, const ServiceConfig& config)
-    : db_(db), db_config_(db_.config()) {
-  db_.registerService(this);
-  try {
-    installBthreadRuntimeWait();
-    init(config);
-  } catch (...) {
-    hdl_mgr_.reset();
-    transaction_manager_.reset();
-    execution_slot_pool_.reset();
-    restoreNativeRuntimeWait();
-    db_.unregisterService(this);
-    throw;
-  }
-}
+  ~Impl() { StopResources(); }
 
-void NeugDBService::installBthreadRuntimeWait() {
-  CHECK(!bthread_runtime_wait_installed_);
-  if (!db_.version_manager_->try_set_runtime_wait_if_quiescent(
-          &BthreadRuntimeWait)) {
-    THROW_RUNTIME_ERROR(
-        "Cannot install bthread runtime wait while transactions are "
-        "active.");
+  std::string Start() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return StartLocked();
   }
-  bthread_runtime_wait_installed_ = true;
-}
 
-void NeugDBService::restoreNativeRuntimeWait() noexcept {
-  if (!bthread_runtime_wait_installed_) {
-    return;
-  }
-  CHECK(db_.version_manager_->try_set_runtime_wait_if_quiescent(
-      &NativeRuntimeWait))
-      << "All service transactions must be quiescent before restoring native "
-         "runtime wait";
-  bthread_runtime_wait_installed_ = false;
-}
+  void Stop() { StopImpl(/*report_not_running=*/true); }
 
-void NeugDBService::init(const ServiceConfig& config) {
-  if (db_.IsClosed()) {
-    THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
-  }
-  if (hdl_mgr_) {
-    LOG(ERROR) << "NeugDB service has already been initialized!";
-    return;
-  }
-  if (running_.load(std::memory_order_relaxed)) {
-    LOG(ERROR) << "NeugDB service is already running!";
-    return;
-  }
-  ServiceConfig effective_config = config;
-  if (effective_config.thread_num > 0 &&
-      effective_config.thread_num >
-          static_cast<uint32_t>(db_config_.max_thread_num)) {
-    LOG(WARNING) << "Service thread_num (" << effective_config.thread_num
-                 << ") exceeds database max_thread_num ("
-                 << db_config_.max_thread_num << "); clamping to "
-                 << db_config_.max_thread_num << ".";
-    effective_config.thread_num =
-        static_cast<uint32_t>(db_config_.max_thread_num);
-  }
-  const size_t service_slot_num =
-      effective_config.thread_num == 0
-          ? static_cast<size_t>(db_config_.max_thread_num)
-          : static_cast<size_t>(effective_config.thread_num);
+  void RunAndWaitForExit(const std::function<void()>& before_wait) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      StartLocked();
+      run_and_wait_active_ = true;
+    }
 
-  // bthread concurrency is process-wide and cannot be reduced after runtime
-  // initialization. Keep it sized for the database capacity; service-local
-  // concurrency is enforced by the execution slot pool below.
-  bthread_setconcurrency(
-      std::max(db_config_.max_thread_num, BTHREAD_MIN_CONCURRENCY));
+    struct WaitGuard {
+      std::mutex& mutex;
+      bool& active;
+      ~WaitGuard() {
+        std::lock_guard<std::mutex> lock(mutex);
+        active = false;
+      }
+    } guard{mutex_, run_and_wait_active_};
 
-  execution_slot_pool_ = std::make_unique<neug::TpExecutionSlotPool>(
-      db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
-      *db_.version_manager_, *db_.checkpoint_coordinator_,
-      db_.extension_manager(), db_.allocators_, *db_.wal_writers_, db_config_,
-      service_slot_num);
-
-  transaction_manager_ = std::make_unique<ServiceTransactionManager>(
-      *execution_slot_pool_, effective_config.max_explicit_transactions,
-      effective_config.explicit_transaction_timeout_ms);
-  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *execution_slot_pool_,
-                                                  *transaction_manager_);
-  hdl_mgr_->Init(effective_config);
-  service_config_ = effective_config;
-}
-
-NeugDBService::~NeugDBService() {
-  if (transaction_manager_) {
-    transaction_manager_->CloseAdmission();
-  }
-  if (hdl_mgr_) {
-    hdl_mgr_->Stop();
-  }
-  if (transaction_manager_) {
-    transaction_manager_->Close();
-  }
-  // An auto-compaction task can be waiting for an explicit write session's
-  // update lease. Roll back those sessions before joining the compact thread.
-  stopCompactThread();
-  hdl_mgr_.reset();
-  transaction_manager_.reset();
-  execution_slot_pool_.reset();
-  restoreNativeRuntimeWait();
-  db_.unregisterService(this);
-}
-
-const ServiceConfig& NeugDBService::GetServiceConfig() const {
-  return service_config_;
-}
-
-neug::ExecutionSlotLease NeugDBService::AcquireExecutionSlot() {
-  return execution_slot_pool_->AcquireExecutionSlot();
-}
-
-bool NeugDBService::IsRunning() const {
-  return running_.load(std::memory_order_relaxed);
-}
-
-neug::result<std::string> NeugDBService::service_status() {
-  if (!hdl_mgr_ || !execution_slot_pool_) {
-    return neug::result<std::string>(
-        "NeugDB service has not been initialized!");
-  }
-  if (!IsRunning()) {
-    return neug::result<std::string>("NeugDB service has not been started!");
-  }
-  return neug::result<std::string>("NeugDB service is running ...");
-}
-
-void NeugDBService::run_and_wait_for_exit() {
-  if (IsRunning()) {
-    THROW_RUNTIME_ERROR("NeugDB service has already been started!");
-  }
-  if (!hdl_mgr_) {
-    THROW_RUNTIME_ERROR("Query handler has not been inited!");
-  }
-  startCompactThread();
-  running_.store(true, std::memory_order_relaxed);
-  try {
-    transaction_manager_->Open();
-    hdl_mgr_->RunAndWaitForExit();
-    transaction_manager_->Close();
-    running_.store(false, std::memory_order_relaxed);
-  } catch (...) {
-    transaction_manager_->CloseAdmission();
-    hdl_mgr_->Stop();
-    transaction_manager_->Close();
-    running_.store(false, std::memory_order_relaxed);
-    stopCompactThread();
-    throw;
-  }
-  stopCompactThread();
-}
-
-void NeugDBService::Stop() {
-  std::unique_lock<std::mutex> lock(mtx_);
-  if (!IsRunning()) {
-    std::cerr << "NeugDB service has not been started!" << std::endl;
-    return;
-  }
-  if (hdl_mgr_) {
-    transaction_manager_->CloseAdmission();
-    hdl_mgr_->Stop();
-    transaction_manager_->Close();
-    running_.store(false, std::memory_order_relaxed);
-    stopCompactThread();
-    return;
-  } else {
-    THROW_RUNTIME_ERROR("Query handler has not been inited!");
-  }
-}
-
-std::string NeugDBService::Start() {
-  std::unique_lock<std::mutex> lock(mtx_);
-  if (IsRunning()) {
-    THROW_RUNTIME_ERROR("NeugDB service has already been started!");
-  }
-  if (hdl_mgr_) {
-    startCompactThread();
     try {
-      transaction_manager_->Open();
-      auto ret = hdl_mgr_->Start();
+      if (before_wait) {
+        before_wait();
+      }
+      std::unique_lock<std::mutex> lock(mutex_);
+      // Preserve BRPC's process-wide quit-signal handling.
+      while (IsRunning() && !brpc::IsAskedToQuit()) {
+        stopped_cv_.wait_for(lock, std::chrono::milliseconds(100));
+      }
+    } catch (...) {
+      StopImpl(/*report_not_running=*/false);
+      throw;
+    }
+    StopImpl(/*report_not_running=*/false);
+  }
+
+  bool IsRunning() const { return running_.load(std::memory_order_relaxed); }
+
+  NeugDB& db() const { return db_; }
+
+  TpServiceRuntime& runtime() { return runtime_; }
+
+  const TpServiceRuntime& runtime() const { return runtime_; }
+
+ private:
+  // Caller holds mutex_, except during destruction when no callers remain.
+  // Unconditional cleanup also covers startup failure and resources acquired
+  // before the service was started.
+  void StopResources() {
+    runtime_.CloseAdmission();
+    // Release session locks before joining callbacks: an auto-commit request
+    // may be waiting for a write lease held by an idle explicit transaction.
+    runtime_.Drain();
+    transport_->StopAndJoin();
+    runtime_.StopCompaction();
+  }
+
+  std::string StartLocked() {
+    if (IsRunning() || run_and_wait_active_) {
+      THROW_RUNTIME_ERROR("NeugDB service has already been started!");
+    }
+    runtime_.StartCompaction();
+    try {
+      runtime_.OpenAdmission();
+      auto ret = transport_->Start();
       running_.store(true, std::memory_order_relaxed);
       return ret;
     } catch (...) {
-      transaction_manager_->CloseAdmission();
-      stopCompactThread();
+      StopResources();
       throw;
     }
-  } else {
-    THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
+
+  void StopImpl(bool report_not_running) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!IsRunning()) {
+      if (report_not_running) {
+        std::cerr << "NeugDB service has not been started!" << std::endl;
+      }
+      return;
+    }
+    StopResources();
+    running_.store(false, std::memory_order_relaxed);
+    stopped_cv_.notify_all();
+  }
+  // Declaration order is intentional: the lease is acquired first and
+  // released last, after every runtime resource has been destroyed.
+  NeugDB::ServiceModeLease mode_lease_;
+  NeugDB& db_;
+  TpServiceRuntime runtime_;
+  std::unique_ptr<IServiceTransport> transport_;
+
+  std::atomic<bool> running_{false};
+  std::mutex mutex_;
+  std::condition_variable stopped_cv_;
+  // Prevents a new start from attaching to the server generation owned by an
+  // in-flight RunAndWaitForExit call after another thread has stopped it.
+  bool run_and_wait_active_{false};
+};
+
+NeugDBService::NeugDBService(NeugDB& db, const ServiceConfig& config)
+    : NeugDBService(db, config, {}) {}
+
+NeugDBService::NeugDBService(NeugDB& db, const ServiceConfig& config,
+                             const TransportFactory& factory)
+    : impl_(std::make_unique<Impl>(db, config, factory)) {}
+
+NeugDBService::~NeugDBService() = default;
+
+NeugDB& NeugDBService::db() { return impl_->db(); }
+
+std::string NeugDBService::Start() { return impl_->Start(); }
+
+void NeugDBService::Stop() { impl_->Stop(); }
+
+const ServiceConfig& NeugDBService::GetServiceConfig() const {
+  return impl_->runtime().config();
+}
+
+ExecutionSlotLease NeugDBService::AcquireExecutionSlot() {
+  return impl_->runtime().AcquireExecutionSlot();
+}
+
+bool NeugDBService::IsRunning() const { return impl_->IsRunning(); }
+
+result<std::string> NeugDBService::service_status() {
+  if (!IsRunning()) {
+    return result<std::string>("NeugDB service has not been started!");
+  }
+  return result<std::string>("NeugDB service is running ...");
+}
+
+void NeugDBService::run_and_wait_for_exit() { runAndWaitForExitWithHook({}); }
+
+void NeugDBService::runAndWaitForExitWithHook(
+    const std::function<void()>& before_wait) {
+  impl_->RunAndWaitForExit(before_wait);
 }
 
 size_t NeugDBService::getExecutedQueryNum() const {
-  return execution_slot_pool_->getExecutedQueryNum();
+  return impl_->runtime().getExecutedQueryNum();
 }
 
-void NeugDBService::stopCompactThread() {
-  compact_thread_running_.store(false, std::memory_order_relaxed);
-  compact_cv_.notify_all();
-  if (compact_thread_.joinable()) {
-    compact_thread_.join();
-  }
-}
-
-void NeugDBService::startCompactThread() {
-  if (!service_config_.auto_compaction) {
-    return;
-  }
-  stopCompactThread();
-  compact_thread_running_.store(true, std::memory_order_relaxed);
-  try {
-    compact_thread_ = std::thread([this]() {
-      size_t last_compaction_at = 0;
-      while (compact_thread_running_.load(std::memory_order_relaxed)) {
-        size_t query_num_before = getExecutedQueryNum();
-        {
-          std::unique_lock<std::mutex> lock(compact_mtx_);
-          if (compact_cv_.wait_for(lock, kCompactInterval, [this] {
-                return !compact_thread_running_.load(std::memory_order_relaxed);
-              })) {
-            break;
-          }
-        }
-        if (!compact_thread_running_.load(std::memory_order_relaxed)) {
-          break;
-        }
-        try {
-          size_t query_num_after = getExecutedQueryNum();
-          if (query_num_before == query_num_after &&
-              (query_num_after >
-               (last_compaction_at + kCompactQueryThreshold))) {
-            VLOG(10) << "Trigger auto compaction";
-            last_compaction_at = query_num_after;
-            auto slot_lease = AcquireExecutionSlot();
-            auto txn = slot_lease->BeginInPlaceCompactionTransaction();
-            txn.Commit();
-            VLOG(10) << "Finish compaction";
-          }
-        } catch (const std::exception& e) {
-          LOG(WARNING) << "Auto compaction failed: " << e.what();
-        } catch (...) {
-          LOG(WARNING) << "Auto compaction failed with unknown error";
-        }
-      }
-    });
-  } catch (...) {
-    compact_thread_running_.store(false, std::memory_order_relaxed);
-    throw;
-  }
+size_t NeugDBService::ExecutionSlotNum() const {
+  return impl_->runtime().ExecutionSlotNum();
 }
 
 }  // namespace neug
