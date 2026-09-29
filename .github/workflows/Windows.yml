@@ -39,15 +39,16 @@ jobs:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
 
   # ============================================================
-  # Windows x64 Job: Build NeuG + run C++ and Python tests
+  # Windows x64 Job: Build NeuG + run Python tests
   # Uses GitHub-hosted windows-2022 runner with pre-installed
   # MSVC 2022, vcpkg, Python, CMake, and Ninja.
   # ============================================================
   build_and_test_windows:
     needs: format_check
-    # Temporarily disabled: the Windows build/test pipeline is not ready yet
-    # and will be re-enabled once the remaining issues are resolved.
-    if: false
+    # Enabled for manual (workflow_dispatch) runs only, so the Windows
+    # build/test pipeline can be exercised on demand. Other triggers
+    # (push/release) stay disabled.
+    if: ${{ (needs.format_check.result == 'success' || needs.format_check.result == 'skipped') && github.event_name == 'workflow_dispatch' }}
     runs-on: windows-2022
     timeout-minutes: 120
     defaults:
@@ -122,7 +123,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
             -DBUILD_PYTHON=ON `
-            -DBUILD_TEST=ON `
+            -DBUILD_TEST=OFF `
             -DPython_EXECUTABLE="$pythonExe" `
             -DPYTHON_EXECUTABLE="$pythonExe" `
             .
@@ -135,46 +136,7 @@ jobs:
           cmake --build build -j $jobs
 
       # ========================================
-      # Phase 1: C++ Tests (ctest)
-      # Mirrors build-and-test-common.yml Phase 1.
-      # The following suites are skipped on Windows because they depend on
-      # features not yet ported (WAL file parser, pread shim / O_BINARY text
-      # mode issue), contain pre-existing plan-difference failures unrelated
-      # to the Windows port, or are concurrency/race tests that time out on
-      # Windows CI:
-      #   storage_test, csr_test, edge_table_test, utils_test, gopt_test,
-      #   schema_test, test_connection, test_indexer, temporary_graph_test,
-      #   copy_temp_test, graph_snapshot_store_test
-      # test_db_svc is skipped (BRPC not available on Windows).
-      # ========================================
-      - name: Run C++ tests
-        id: cpp-tests
-        continue-on-error: true
-        env:
-          MODERN_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
-          COMPREHENSIVE_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/comprehensive_graph
-          FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
-          TEST_PATH: ${{ github.workspace }}/tests
-          TEST_RESOURCE: ${{ github.workspace }}/tests/compiler
-        run: |
-          cd build
-          $failed = @()
-          ctest -R transaction_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'transaction_test' }
-          ctest -R graph_view_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'graph_view_test' }
-          ctest -R execution_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'execution_test' }
-          ctest -R test_vertex_table -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_vertex_table' }
-          ctest -R test_mmap_container -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_mmap_container' }
-          ctest -R logical_delete_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'logical_delete_test' }
-          ctest -R test_request -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_request' }
-          ctest -R sink_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'sink_test' }
-          if ($failed.Count -gt 0) {
-            Write-Error "The following C++ test suites failed: $($failed -join ', ')"
-            exit 1
-          }
-          Write-Host "All C++ test suites passed."
-
-      # ========================================
-      # Phase 2: Python Tests
+      # Python Tests
       # Mirrors build-and-test-common.yml Phase 3.
       # Tests depending on bulk-loaded /tmp data are skipped
       # (bulk_loader executable is not built on Windows).
@@ -274,7 +236,6 @@ jobs:
         if: always()
         run: |
           $failed = @()
-          if ('${{ steps.cpp-tests.outcome }}' -eq 'failure') { $failed += 'cpp-tests' }
           if ('${{ steps.python-schema-tests.outcome }}' -eq 'failure') { $failed += 'python-schema-tests' }
           if ('${{ steps.python-dml-tests.outcome }}' -eq 'failure') { $failed += 'python-dml-tests' }
           if ('${{ steps.python-query-tests.outcome }}' -eq 'failure') { $failed += 'python-query-tests' }
