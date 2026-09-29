@@ -125,7 +125,7 @@ std::string FormatExpiresAt(std::chrono::system_clock::time_point expires_at) {
   return buffer;
 }
 
-std::string SerializeBeginResponse(const BeginTransactionResult& transaction,
+std::string SerializeBeginResponse(const ServiceTransactionInfo& transaction,
                                    TransactionMode mode) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

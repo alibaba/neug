@@ -142,15 +142,9 @@ result<std::string> TpServiceRuntime::GetServiceStatus() {
   return std::string("{\"status\": \"OK\", \"version\": \"" NEUG_VERSION "\"}");
 }
 
-result<BeginTransactionResult> TpServiceRuntime::BeginTransaction(
+result<ServiceTransactionInfo> TpServiceRuntime::BeginTransaction(
     TransactionMode mode) {
-  auto transaction = transaction_manager_->Begin(mode);
-  if (!transaction) {
-    RETURN_ERROR(transaction.error());
-  }
-  auto begin = std::move(transaction).value();
-  return BeginTransactionResult{std::move(begin.transaction_id),
-                                std::move(begin.expires_at)};
+  return transaction_manager_->Begin(mode);
 }
 
 result<std::string> TpServiceRuntime::ExecuteInTransaction(

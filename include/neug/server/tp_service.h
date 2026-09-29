@@ -14,30 +14,17 @@
  */
 #pragma once
 
-#include <chrono>
-#include <optional>
 #include <string>
 #include <string_view>
 
 #include "neug/main/query_result.h"
 #include "neug/main/transaction_mode.h"
+#include "neug/server/service_transaction.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 struct QueryRequest;
-
-/** @brief Identifies a newly opened explicit service transaction. */
-struct BeginTransactionResult {
-  /** Opaque identifier used by subsequent transaction operations. */
-  std::string transaction_id;
-  /**
-   * Advisory expiry time for client display; nullopt means expiry is disabled.
-   * The runtime enforces expiry with a steady clock, so this value may drift
-   * when the system clock changes.
-   */
-  std::optional<std::chrono::system_clock::time_point> expires_at;
-};
 
 /**
  * @brief Application boundary between TP operations and transport adapters.
@@ -67,7 +54,7 @@ class ITpService {
    * @param mode Read-only snapshot or read-write private COW transaction.
    * @return Transaction identifier and optional expiry, or an admission error.
    */
-  virtual result<BeginTransactionResult> BeginTransaction(
+  virtual result<ServiceTransactionInfo> BeginTransaction(
       TransactionMode mode) = 0;
 
   /**

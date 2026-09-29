@@ -44,7 +44,7 @@ class TpServiceRuntime final : public ITpService {
   result<QueryResult> ExecuteQuery(const QueryRequest& request) override;
   result<std::string> GetSchema() override;
   result<std::string> GetServiceStatus() override;
-  result<BeginTransactionResult> BeginTransaction(
+  result<ServiceTransactionInfo> BeginTransaction(
       TransactionMode mode) override;
   result<std::string> ExecuteInTransaction(
       std::string_view transaction_id, const QueryRequest& request) override;

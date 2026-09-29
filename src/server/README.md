@@ -35,6 +35,15 @@ no RPC endpoint or alternative networking library is implemented here.
 count. The transport receives only host and port, while the runtime owns database
 capacity, transaction limits, timeouts, and compaction settings.
 
+## Service contract types
+
+`ITpService` defines request-facing business operations. `QueryRequest`,
+`QueryResult`, and `TransactionMode` remain shared execution types in `main/`.
+`ServiceTransactionInfo` in `server/service_transaction.h` contains the opaque
+service transaction identifier and optional client-visible expiry. Both the
+business interface and the internal transaction manager use this value type.
+Admission, draining, and compaction controls remain on `TpServiceRuntime`.
+
 ## Lifecycle contract
 
 The facade serializes transport lifecycle calls. `Start()` returns only after

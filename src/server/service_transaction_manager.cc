@@ -87,7 +87,7 @@ ServiceTransactionManager::~ServiceTransactionManager() {
   }
 }
 
-result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
+result<ServiceTransactionInfo> ServiceTransactionManager::Begin(
     TransactionMode mode) {
   {
     std::lock_guard lock(mutex_);
@@ -158,7 +158,7 @@ result<ServiceTransactionManager::BeginResult> ServiceTransactionManager::Begin(
       entry->context.Rollback();
       RETURN_ERROR(ServiceUnavailable("Transaction service is stopping."));
     }
-    return BeginResult{std::move(transaction_id), expires_at};
+    return ServiceTransactionInfo{std::move(transaction_id), expires_at};
   } catch (const std::exception& e) {
     finish_pending_begin();
     RETURN_ERROR(Status::RuntimeError(e.what()));

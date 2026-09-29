@@ -937,7 +937,7 @@ class BlockingSchemaService final : public ITpService {
     return tl::unexpected(Status::RuntimeError("Unused operation"));
   }
   result<std::string> GetServiceStatus() override { return std::string("{}"); }
-  result<BeginTransactionResult> BeginTransaction(TransactionMode) override {
+  result<ServiceTransactionInfo> BeginTransaction(TransactionMode) override {
     return tl::unexpected(Status::RuntimeError("Unused operation"));
   }
   result<std::string> ExecuteInTransaction(std::string_view,
