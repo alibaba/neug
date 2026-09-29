@@ -19,7 +19,7 @@ jobs:
   docs:
     runs-on: [ubuntu-22.04]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.2.1
       # options: --user root
 
     steps:

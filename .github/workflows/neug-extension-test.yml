@@ -49,7 +49,7 @@ jobs:
   extension_tests_default:
     runs-on: [self-hosted, daily, linux]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.3
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.2.1
     env:
       OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
       OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
@@ -107,7 +107,7 @@ jobs:
         cp -R "${GITHUB_WORKSPACE}/extension/test_out_of_tree" "${fixture_dir}"
         echo "CMAKE_ARGS=-DNEUG_EXTENSION_CONFIGS=${fixture_dir}/extension_config.cmake" >> "${GITHUB_ENV}"
 
-    # TODO: After unifying wheel build (neug-manylinux:v0.1.3-x86_64) and dev images (neug-dev:v0.1.3), 
+    # TODO: After unifying wheel build (neug-manylinux:v0.2.1-x86_64) and dev images (neug-dev:v0.2.1), 
     # skip the build process and use `pip3 install neug` to test the locally built json extension 
     # with the released wheel package.
     - name: Build NeuG with extensions
