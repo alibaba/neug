@@ -19,20 +19,21 @@
 #include <string>
 
 #include "neug/main/execution_slot.h"
+#include "neug/server/service_config.h"
 #include "neug/utils/result.h"
-#include "neug/utils/service_manager.h"
 
 namespace neug {
 
 class NeugDB;
+class ITpService;
+class IServiceTransport;
 
 /**
- * @brief NeuG database HTTP service for high-throughput scenarios.
+ * @brief NeuG database service facade for remote TP workloads.
  *
- * NeugDBService provides an HTTP interface layer for the NeuG graph database,
- * enabling remote query execution over HTTP. It manages the lifecycle of a
- * BRPC-based HTTP server that handles Cypher queries, service status requests,
- * and schema queries through RESTful endpoints.
+ * NeugDBService coordinates a TP runtime and an IServiceTransport. The default
+ * transport uses BRPC to expose HTTP endpoints; query execution and transaction
+ * ownership remain in the runtime, independently of the network handlers.
  *
  * This is the C++ equivalent of Python's `Database.serve()` functionality,
  * designed for high-throughput Transaction Processing (TP) scenarios where
@@ -53,15 +54,13 @@ class NeugDB;
  *   config.query_port = 10000;
  *   config.host_str = "0.0.0.0";
  *
- *   // 3. Start HTTP service
- *   neug::NeugDBService service(db, config);
- *   std::string url = service.Start();
- *   std::cout << "Service running at: " << url << std::endl;
+ *   // 3. Start and block until shutdown (Ctrl+C or Stop from another thread).
+ *   {
+ *     neug::NeugDBService service(db, config);
+ *     service.run_and_wait_for_exit();
+ *   }
  *
- *   // 4. Block until shutdown signal (Ctrl+C)
- *   service.run_and_wait_for_exit();
- *
- *   // 5. Cleanup
+ *   // 4. Close after service resources have been released.
  *   db.Close();
  *   return 0;
  * }
@@ -70,7 +69,7 @@ class NeugDB;
  * **HTTP Endpoints:**
  * - `POST /cypher` - Execute Cypher queries
  * - `GET /schema` - Retrieve graph schema
- * - `GET /status` - Check service status
+ * - `GET /service_status` - Check service status
  * - `POST /transactions` - Begin an explicit TP transaction session
  * - `POST /transactions/{id}/query|commit|rollback` - Operate on a session
  *
@@ -122,7 +121,7 @@ class NeugDBService {
   ~NeugDBService();
 
   /**
-   * @brief Starts the HTTP server
+   * @brief Starts the service transport
    *
    * Binds to the configured host and port and begins accepting HTTP requests.
    * Returns the full URL where the service is accessible.
@@ -136,10 +135,11 @@ class NeugDBService {
   std::string Start();
 
   /**
-   * @brief Stops the HTTP server gracefully
+   * @brief Stops the service and drains its requests and transactions
    *
-   * Stops accepting new connections and shuts down the BRPC server.
-   * This method is thread-safe and can be called from signal handlers.
+   * Stops accepting new connections, joins active transport callbacks, drains
+   * transactions, and stops background compaction. Thread-safe, but not safe
+   * to call directly from an asynchronous signal handler.
    *
    * @note Prints status messages to stderr if service is not properly
    * initialized
@@ -207,12 +207,12 @@ class NeugDBService {
   /**
    * @brief Starts service and blocks until shutdown signal
    *
-   * Convenience method that starts the HTTP server and blocks the calling
+   * Convenience method that starts the service transport and blocks the calling
    * thread until the server is asked to quit (via Stop() or signal).
    *
    * @throws std::runtime_error If service is not initialized
    * @throws std::runtime_error If service is already running
-   * @throws std::runtime_error If HTTP handler manager is not available
+   * @throws std::runtime_error If the service transport cannot start
    *
    * @note This is the typical way to run the service in production
    */
@@ -224,6 +224,10 @@ class NeugDBService {
 
  private:
   friend class NeugDBServiceTestPeer;
+  using TransportFactory =
+      std::function<std::unique_ptr<IServiceTransport>(ITpService&)>;
+  NeugDBService(NeugDB& db, const ServiceConfig& config,
+                const TransportFactory& factory);
   // A per-call test seam for pausing after startup, outside the lifecycle lock.
   void runAndWaitForExitWithHook(const std::function<void()>& before_wait);
   class Impl;

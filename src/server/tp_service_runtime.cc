@@ -186,10 +186,6 @@ size_t TpServiceRuntime::getExecutedQueryNum() const {
   return execution_slot_pool_->getExecutedQueryNum();
 }
 
-uint32_t TpServiceRuntime::max_thread_num() const {
-  return static_cast<uint32_t>(db_.config().max_thread_num);
-}
-
 void TpServiceRuntime::StopCompaction() {
   compact_thread_running_.store(false, std::memory_order_relaxed);
   compact_cv_.notify_all();

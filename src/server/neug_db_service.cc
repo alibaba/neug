@@ -15,13 +15,18 @@
 
 #include "neug/server/neug_db_service.h"
 
+#include <brpc/controller.h>
+
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <iostream>
 #include <mutex>
 
 #include "../main/service_mode_lease.h"
+#include "brpc_transport.h"
 #include "neug/main/neug_db.h"
-#include "neug/server/brpc_service_mgr.h"
+#include "neug/server/service_transport.h"
 #include "neug/utils/exception/exception.h"
 #include "tp_service_runtime.h"
 
@@ -29,20 +34,20 @@ namespace neug {
 
 class NeugDBService::Impl {
  public:
-  Impl(NeugDB& db, const ServiceConfig& config)
+  Impl(NeugDB& db, const ServiceConfig& config, const TransportFactory& factory)
       : mode_lease_(db.enterServiceMode()),
         db_(db),
         runtime_(db_, config),
-        handler_(runtime_, runtime_.max_thread_num()) {
-    handler_.Init(runtime_.config());
+        transport_(factory ? factory(runtime_)
+                           : std::make_unique<BrpcTransport>(
+                                 runtime_, runtime_.config().host_str,
+                                 runtime_.config().query_port)) {
+    if (!transport_) {
+      THROW_RUNTIME_ERROR("Service transport factory returned null");
+    }
   }
 
-  ~Impl() {
-    runtime_.CloseAdmission();
-    handler_.Stop();
-    runtime_.Drain();
-    runtime_.StopCompaction();
-  }
+  ~Impl() { StopResources(); }
 
   std::string Start() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -71,7 +76,11 @@ class NeugDBService::Impl {
       if (before_wait) {
         before_wait();
       }
-      handler_.WaitForExit();
+      std::unique_lock<std::mutex> lock(mutex_);
+      // Preserve BRPC's process-wide quit-signal handling.
+      while (IsRunning() && !brpc::IsAskedToQuit()) {
+        stopped_cv_.wait_for(lock, std::chrono::milliseconds(100));
+      }
     } catch (...) {
       StopImpl(/*report_not_running=*/false);
       throw;
@@ -88,6 +97,16 @@ class NeugDBService::Impl {
   const TpServiceRuntime& runtime() const { return runtime_; }
 
  private:
+  // Caller holds mutex_, except during destruction when no callers remain.
+  // Unconditional cleanup also covers startup failure and resources acquired
+  // before the service was started.
+  void StopResources() {
+    runtime_.CloseAdmission();
+    transport_->StopAndJoin();
+    runtime_.Drain();
+    runtime_.StopCompaction();
+  }
+
   std::string StartLocked() {
     if (IsRunning() || run_and_wait_active_) {
       THROW_RUNTIME_ERROR("NeugDB service has already been started!");
@@ -95,12 +114,11 @@ class NeugDBService::Impl {
     runtime_.StartCompaction();
     try {
       runtime_.OpenAdmission();
-      auto ret = handler_.Start();
+      auto ret = transport_->Start();
       running_.store(true, std::memory_order_relaxed);
       return ret;
     } catch (...) {
-      runtime_.CloseAdmission();
-      runtime_.StopCompaction();
+      StopResources();
       throw;
     }
   }
@@ -113,28 +131,31 @@ class NeugDBService::Impl {
       }
       return;
     }
-    runtime_.CloseAdmission();
-    handler_.Stop();
-    runtime_.Drain();
-    runtime_.StopCompaction();
+    StopResources();
     running_.store(false, std::memory_order_relaxed);
+    stopped_cv_.notify_all();
   }
   // Declaration order is intentional: the lease is acquired first and
   // released last, after every runtime resource has been destroyed.
   NeugDB::ServiceModeLease mode_lease_;
   NeugDB& db_;
   TpServiceRuntime runtime_;
-  BrpcServiceManager handler_;
+  std::unique_ptr<IServiceTransport> transport_;
 
   std::atomic<bool> running_{false};
   std::mutex mutex_;
+  std::condition_variable stopped_cv_;
   // Prevents a new start from attaching to the server generation owned by an
   // in-flight RunAndWaitForExit call after another thread has stopped it.
   bool run_and_wait_active_{false};
 };
 
 NeugDBService::NeugDBService(NeugDB& db, const ServiceConfig& config)
-    : impl_(std::make_unique<Impl>(db, config)) {}
+    : NeugDBService(db, config, {}) {}
+
+NeugDBService::NeugDBService(NeugDB& db, const ServiceConfig& config,
+                             const TransportFactory& factory)
+    : impl_(std::make_unique<Impl>(db, config, factory)) {}
 
 NeugDBService::~NeugDBService() = default;
 

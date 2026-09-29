@@ -22,8 +22,8 @@
 #include <mutex>
 #include <thread>
 
+#include "neug/server/service_config.h"
 #include "neug/server/tp_service.h"
-#include "neug/utils/service_manager.h"
 
 namespace neug {
 
@@ -61,7 +61,6 @@ class TpServiceRuntime final : public ITpService {
   size_t ExecutionSlotNum() const;
   size_t getExecutedQueryNum() const;
   const ServiceConfig& config() const { return service_config_; }
-  uint32_t max_thread_num() const;
 
  private:
   void installBthreadRuntimeWait();

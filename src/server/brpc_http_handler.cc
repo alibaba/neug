@@ -13,7 +13,12 @@
  * limitations under the License.
  */
 
-#include "neug/server/brpc_service_mgr.h"
+#include "brpc_http_handler.h"
+
+#include <brpc/closure_guard.h>
+#include <brpc/controller.h>
+#include <brpc/http_status_code.h>
+#include <glog/logging.h>
 
 #include <chrono>
 #include <cstdio>
@@ -25,11 +30,11 @@
 
 #include "neug/generated/proto/plan/error.pb.h"
 #include "neug/main/query_request.h"
-#include "neug/utils/likely.h"
+#include "neug/server/tp_service.h"
 
 namespace neug {
 
-static pthread_once_t brpc_service_protocol_init_once = PTHREAD_ONCE_INIT;
+namespace {
 
 int32_t status_code_to_http_code(neug::StatusCode code) {
   switch (code) {
@@ -71,26 +76,8 @@ int32_t status_code_to_http_code(neug::StatusCode code) {
   }
 }
 
-BrpcServiceProtocolManager& BrpcServiceProtocolManager::Get() {
-  static BrpcServiceProtocolManager instance;
-  return instance;
-}
-//////////////////Http Protocol Implementation///////////////////////////
-bool ParseHttpQueryRequest(brpc::Controller* cntl, void* request,
-                           std::string& query_request) {
-  auto req = cntl->request_attachment().to_string();
-  if (req.empty()) {
-    LOG(ERROR) << "Query request is empty";
-    cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
-                    "Query request is empty");
-    return false;
-  }
-  query_request = req;
-  return true;
-}
-
-void SendHttpQueryResponse(brpc::Controller* cntl,
-                           neug::result<std::string>& response) {
+void SendHttpResponse(brpc::Controller* cntl,
+                      const neug::result<std::string>& response) {
   if (response) {
     cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
     const auto& results = response.value();
@@ -105,25 +92,7 @@ void SendHttpQueryResponse(brpc::Controller* cntl,
     // SetFailed, as required by brpc::Controller's contract.
     cntl->http_response().set_status_code(http_code);
   }
-  return;
 }
-
-void SendHttpStringResponse(brpc::Controller* cntl,
-                            neug::result<std::string>& schema) {
-  if (schema) {
-    cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
-    cntl->response_attachment().append(schema.value().data(),
-                                       schema.value().size());
-  } else {
-    const auto& error = schema.error();
-    LOG(ERROR) << "Error " << error.ToString();
-    auto http_code = status_code_to_http_code(error.error_code());
-    cntl->SetFailed(http_code, "%s", error.ToString().c_str());
-    cntl->http_response().set_status_code(http_code);
-  }
-}
-
-namespace {
 
 result<std::string_view> TransactionIdFromPath(brpc::Controller* cntl) {
   const auto& transaction_id = cntl->http_request().unresolved_path();
@@ -247,9 +216,7 @@ bool RequireHttpMethod(brpc::Controller* cntl, brpc::HttpMethod expected,
 }
 
 template <typename Operation>
-void FinishTransaction(brpc::Controller* cntl,
-                       const BrpcServiceProtocol& protocol,
-                       Operation&& operation) {
+void FinishTransaction(brpc::Controller* cntl, Operation&& operation) {
   MarkTransactionResponse(cntl);
   if (!RequireHttpMethod(cntl, brpc::HTTP_METHOD_POST, "POST")) {
     return;
@@ -262,157 +229,52 @@ void FinishTransaction(brpc::Controller* cntl,
   }
   result<std::string> response =
       status.ok() ? result<std::string>("") : tl::unexpected(status);
-  protocol.send_query_response(cntl, response);
+  SendHttpResponse(cntl, response);
 }
 
 }  // namespace
 
-bool BrpcServiceProtocolManager::RegisterProtocol(
-    brpc::ProtocolType type, const BrpcServiceProtocol& protocol) {
-  // Check if sealed first (lock-free fast path)
-  if (NEUG_UNLIKELY(sealed_.load(std::memory_order_acquire))) {
-    LOG(ERROR) << "Cannot register protocol after sealing. Protocol "
-               << static_cast<int>(type) << " registration rejected.";
-    return false;
-  }
-
-  std::lock_guard<std::mutex> lock(mutex_);
-  // Double-check after acquiring lock
-  if (sealed_.load(std::memory_order_relaxed)) {
-    LOG(ERROR) << "Cannot register protocol after sealing. Protocol "
-               << static_cast<int>(type) << " registration rejected.";
-    return false;
-  }
-
-  if (static_cast<size_t>(type) >= protocols_.size()) {
-    protocols_.resize(static_cast<size_t>(type) + 1);
-  }
-  if (protocols_[static_cast<size_t>(type)].valid) {
-    LOG(WARNING) << "Brpc service protocol " << static_cast<int>(type)
-                 << " already registered";
-    return false;
-  }
-  protocols_[static_cast<size_t>(type)].protocol = protocol;
-  protocols_[static_cast<size_t>(type)].valid = true;
-  return true;
-}
-
-const BrpcServiceProtocol& BrpcServiceProtocolManager::GetProtocol(
-    brpc::ProtocolType type) {
-  // Fast path: after sealing, no locking needed (lock-free read)
-  // The acquire memory order ensures we see all writes from RegisterProtocol
-  if (NEUG_LIKELY(sealed_.load(std::memory_order_acquire))) {
-    if (static_cast<size_t>(type) >= protocols_.size() ||
-        !protocols_[static_cast<size_t>(type)].valid) {
-      THROW_NOT_FOUND_EXCEPTION("Brpc service protocol " +
-                                std::to_string(static_cast<int>(type)) +
-                                " not found");
-    }
-    assert(protocols_[static_cast<size_t>(type)].valid);
-    return protocols_[static_cast<size_t>(type)].protocol;
-  }
-
-  // Slow path: before sealing, need to acquire lock to prevent races with
-  // resize
-  std::unique_lock<std::mutex> lock(mutex_);
-  if (static_cast<size_t>(type) >= protocols_.size() ||
-      !protocols_[static_cast<size_t>(type)].valid) {
-    THROW_NOT_FOUND_EXCEPTION("Brpc service protocol " +
-                              std::to_string(static_cast<int>(type)) +
-                              " not found");
-  }
-  return protocols_[static_cast<size_t>(type)].protocol;
-}
-
-void SealProtocolRegistration() {
-  auto& mgr = BrpcServiceProtocolManager::Get();
-  std::lock_guard<std::mutex> lock(mgr.mutex_);
-
-  if (mgr.sealed_.load(std::memory_order_relaxed)) {
-    LOG(WARNING) << "Protocol registration already sealed";
-    return;
-  }
-
-  // Use release memory order to ensure all protocol registrations
-  // are visible to other threads when they see sealed_ == true
-  mgr.sealed_.store(true, std::memory_order_release);
-  LOG(INFO) << "Protocol registration sealed.";
-}
-
-// Should only be called once
-void InitializeBrpcServiceProtocols() {
-  // Register HTTP protocol
-#ifdef ENABLE_HTTP_PROTOCOL
-  BrpcServiceProtocol http_protocol;
-  http_protocol.name = "http";
-  http_protocol.parse_query_request = ParseHttpQueryRequest;
-  http_protocol.send_query_response = SendHttpQueryResponse;
-  http_protocol.send_schema_response = SendHttpStringResponse;
-  http_protocol.send_service_status_response = SendHttpStringResponse;
-  RegisterServiceProtocol(brpc::PROTOCOL_HTTP, http_protocol);
-#endif
-
-  // Seal the registration to prevent further modifications
-  SealProtocolRegistration();
-}
-
-void HttpServiceImpl::PostCypherQuery(
-    google::protobuf::RpcController* cntl_base, const HttpRequest* request,
-    HttpResponse* response, google::protobuf::Closure* done) {
+void BrpcHttpHandler::PostCypherQuery(
+    google::protobuf::RpcController* cntl_base, const HttpRequest*,
+    HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  std::string query_request;
-  // 1. Parse query request
-  if (!protocol_.parse_query_request(cntl, (void*) request, query_request)) {
-    cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
-                    "Failed to parse query request");
-    return;
-  }
+  auto* cntl = static_cast<brpc::Controller*>(cntl_base);
+  const auto query_request = cntl->request_attachment().to_string();
   if (query_request.empty()) {
-    LOG(ERROR) << "Cypher query is empty";
-    cntl->SetFailed(brpc::HTTP_STATUS_BAD_REQUEST, "%s",
-                    "Cypher query is empty");
+    result<std::string> error = tl::unexpected(
+        Status(StatusCode::ERR_INVALID_ARGUMENT, "Query request is empty"));
+    SendHttpResponse(cntl, error);
     return;
   }
-
-  auto result =
+  auto response =
       ParseAndExecuteQuery(query_request, [this](const auto& request) {
         return tp_service_.ExecuteQuery(request);
       });
-
-  // 3. Send Query Response
-  protocol_.send_query_response(cntl, result);
-  VLOG(10) << "Query executed successfully, updating planner's schema and "
-              "statistics";
-  return;
+  SendHttpResponse(cntl, response);
 }
 
-void HttpServiceImpl::GetSchema(google::protobuf::RpcController* cntl_base,
+void BrpcHttpHandler::GetSchema(google::protobuf::RpcController* cntl_base,
                                 const google::protobuf::Empty*,
                                 HttpResponse* response,
                                 google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  // No need to parse request for Schema
   auto ret = tp_service_.GetSchema();
 
-  protocol_.send_schema_response(cntl, ret);
-  return;
+  SendHttpResponse(cntl, ret);
 }
 
-void HttpServiceImpl::GetServiceStatus(
+void BrpcHttpHandler::GetServiceStatus(
     google::protobuf::RpcController* cntl_base, const google::protobuf::Empty*,
     HttpResponse* response, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
-  // No need to parse request for ServiceStatus
   auto ret = tp_service_.GetServiceStatus();
 
-  protocol_.send_service_status_response(cntl, ret);
-  return;
+  SendHttpResponse(cntl, ret);
 }
 
-void HttpServiceImpl::BeginTransaction(
+void BrpcHttpHandler::BeginTransaction(
     google::protobuf::RpcController* cntl_base, const HttpRequest*,
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
@@ -424,25 +286,25 @@ void HttpServiceImpl::BeginTransaction(
   auto mode = ParseTransactionMode(cntl);
   if (!mode) {
     result<std::string> error = tl::unexpected(mode.error());
-    protocol_.send_query_response(cntl, error);
+    SendHttpResponse(cntl, error);
     return;
   }
   auto transaction = tp_service_.BeginTransaction(mode.value());
   if (!transaction) {
     result<std::string> error = tl::unexpected(transaction.error());
-    protocol_.send_query_response(cntl, error);
+    SendHttpResponse(cntl, error);
     return;
   }
   result<std::string> response =
       SerializeBeginResponse(transaction.value(), mode.value());
-  protocol_.send_query_response(cntl, response);
+  SendHttpResponse(cntl, response);
   cntl->http_response().set_status_code(brpc::HTTP_STATUS_CREATED);
   cntl->http_response().set_content_type("application/json");
   cntl->http_response().SetHeader(
       "Location", "/transactions/" + transaction->transaction_id);
 }
 
-void HttpServiceImpl::ExecuteTransactionQuery(
+void BrpcHttpHandler::ExecuteTransactionQuery(
     google::protobuf::RpcController* cntl_base, const HttpRequest*,
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
@@ -454,141 +316,49 @@ void HttpServiceImpl::ExecuteTransactionQuery(
   auto transaction_id = TransactionIdFromPath(cntl);
   if (!transaction_id) {
     result<std::string> error = tl::unexpected(transaction_id.error());
-    protocol_.send_query_response(cntl, error);
+    SendHttpResponse(cntl, error);
     return;
   }
   auto request =
       RequestParser::ParseFromString(cntl->request_attachment().to_string());
   if (!request) {
     result<std::string> error = tl::unexpected(request.error());
-    protocol_.send_query_response(cntl, error);
+    SendHttpResponse(cntl, error);
     return;
   }
   auto response =
       tp_service_.ExecuteInTransaction(transaction_id.value(), request.value());
-  protocol_.send_query_response(cntl, response);
+  SendHttpResponse(cntl, response);
 }
 
-void HttpServiceImpl::CommitTransaction(
+void BrpcHttpHandler::CommitTransaction(
     google::protobuf::RpcController* cntl_base, const HttpRequest*,
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  FinishTransaction(cntl, protocol_, [this](std::string_view transaction_id) {
+  FinishTransaction(cntl, [this](std::string_view transaction_id) {
     return tp_service_.CommitTransaction(transaction_id);
   });
 }
 
-void HttpServiceImpl::RollbackTransaction(
+void BrpcHttpHandler::RollbackTransaction(
     google::protobuf::RpcController* cntl_base, const HttpRequest*,
     HttpResponse*, google::protobuf::Closure* done) {
   brpc::ClosureGuard done_guard(done);
   auto* cntl = static_cast<brpc::Controller*>(cntl_base);
-  FinishTransaction(cntl, protocol_, [this](std::string_view transaction_id) {
+  FinishTransaction(cntl, [this](std::string_view transaction_id) {
     return tp_service_.RollbackTransaction(transaction_id);
   });
 }
 
-BrpcServiceManager::BrpcServiceManager(ITpService& tp_service,
-                                       uint32_t database_max_thread_num)
-    : tp_service_(tp_service),
-      database_max_thread_num_(database_max_thread_num) {
-  brpc_server_ = std::make_unique<brpc::Server>();
+const char* BrpcHttpHandler::Routes() {
+  return "/cypher => PostCypherQuery,"
+         "/service_status => GetServiceStatus,"
+         "/schema => GetSchema,"
+         "/transactions => BeginTransaction,"
+         "/transactions/*/query => ExecuteTransactionQuery,"
+         "/transactions/*/commit => CommitTransaction,"
+         "/transactions/*/rollback => RollbackTransaction";
 }
 
-BrpcServiceManager::~BrpcServiceManager() {}
-
-void BrpcServiceManager::Init(const ServiceConfig& config) {
-  // Initialize Brpc service protocols
-  if (pthread_once(&brpc_service_protocol_init_once,
-                   InitializeBrpcServiceProtocols) != 0) {
-    THROW_RUNTIME_ERROR("Failed to initialize BRPC service protocols");
-  }
-  service_config_ = config;
-
-  // Enable progressive read to avoid blocking IO bthreads
-  brpc::ServiceOptions svc_options;
-  svc_options.ownership = brpc::SERVER_DOESNT_OWN_SERVICE;
-  svc_options.restful_mappings =
-      "/cypher => PostCypherQuery,"
-      "/service_status => GetServiceStatus,"
-      "/schema => GetSchema,"
-      "/transactions => BeginTransaction,"
-      "/transactions/*/query => ExecuteTransactionQuery,"
-      "/transactions/*/commit => CommitTransaction,"
-      "/transactions/*/rollback => RollbackTransaction";
-
-#ifdef ENABLE_HTTP_PROTOCOL
-  auto http_svc = std::make_unique<HttpServiceImpl>(tp_service_);
-  if (brpc_server_->AddService(http_svc.get(), svc_options) == -1) {
-    LOG(ERROR) << "Failed to add http service to brpc server";
-  }
-  services_.emplace_back(std::move(http_svc));
-#endif
-  if (services_.empty()) {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "No brpc protocols are enabled. Please enable at least one protocol.");
-  }
-}
-
-std::string BrpcServiceManager::Start() {
-  std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-  LOG(INFO) << "Starting brpc server";
-  std::string ip_port = service_config_.host_str + ":" +
-                        std::to_string(service_config_.query_port);
-  brpc::ServerOptions options = get_server_options();
-  LOG(INFO) << "Service config: db_max_thread_num=" << database_max_thread_num_
-            << ", configured_thread_num=" << service_config_.thread_num;
-  if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
-    THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
-  }
-  const auto actual_port = brpc_server_->listen_address().port;
-  LOG(INFO) << "Brpc server started on : " << service_config_.host_str << ":"
-            << actual_port;
-  std::stringstream ss;
-  ss << "http://" << service_config_.host_str << ":" << actual_port;
-  return ss.str();
-}
-
-void BrpcServiceManager::RunAndWaitForExit() {
-  Start();
-  WaitForExit();
-  Stop();
-}
-
-void BrpcServiceManager::WaitForExit() {
-  LOG(INFO) << "Brpc server is running, waiting for exit...";
-  std::unique_lock<std::mutex> lock(lifecycle_mutex_);
-  while (brpc_server_->IsRunning() && !brpc::IsAskedToQuit()) {
-    lifecycle_cv_.wait_for(lock, std::chrono::milliseconds(100));
-  }
-}
-
-void BrpcServiceManager::Stop() {
-  std::unique_lock<std::mutex> lock(lifecycle_mutex_);
-  LOG(INFO) << "Stopping brpc server";
-  if (brpc_server_->IsRunning()) {
-    brpc_server_->Stop(0);
-    brpc_server_->Join();
-  }
-  lock.unlock();
-  lifecycle_cv_.notify_all();
-  LOG(INFO) << "Brpc server stopped";
-}
-
-bool BrpcServiceManager::IsRunning() const {
-  std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-  return brpc_server_->IsRunning();
-}
-
-brpc::ServerOptions BrpcServiceManager::get_server_options() const {
-  brpc::ServerOptions options;
-  options.idle_timeout_sec = 60;  // 1 minute
-  // TpServiceRuntime initializes the process-wide bthread runtime for database
-  // capacity. A value of 0 keeps BRPC from trying to resize that global pool;
-  // service-local concurrency is enforced by TpExecutionSlotPool.
-  options.num_threads = 0;
-
-  return options;
-}
 }  // namespace neug
