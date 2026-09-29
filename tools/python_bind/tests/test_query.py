@@ -2105,7 +2105,9 @@ def test_boolean_three_valued_logic(
         encoding="utf-8",
     )
     assert list(
-        conn.execute(f"LOAD FROM '{path}' WHERE id = 1 RETURN a AND b, a OR b;")
+        conn.execute(
+            f"LOAD FROM '{path.as_posix()}' WHERE id = 1 RETURN a AND b, a OR b;"
+        )
     ) == [[expected_and, expected_or]]
 
 
@@ -2141,7 +2143,9 @@ def test_load_preserves_execution_filters(
     )
     path.write_text(content, encoding="utf-8")
     assert list(
-        conn.execute(f"LOAD FROM '{path}' WHERE {predicate} RETURN id ORDER BY id;")
+        conn.execute(
+            f"LOAD FROM '{path.as_posix()}' WHERE {predicate} RETURN id ORDER BY id;"
+        )
     ) == [[value] for value in expected]
 
 
@@ -2150,7 +2154,7 @@ def test_load_preserves_parameterized_filters(empty_db, tmp_path, with_clause):
     _, conn = empty_db
     path = tmp_path / "parameter_filter.jsonl"
     path.write_text('{"id":1}\n{"id":2}\n{"id":3}\n', encoding="utf-8")
-    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    source = f"LOAD FROM '{path.as_posix()}'" + (" WITH id" if with_clause else "")
     query = f"{source} WHERE id + 1 > $minimum RETURN id ORDER BY id;"
     for minimum, expected in [(3, [[3]]), (1, [[1], [2], [3]]), (4, [])]:
         assert list(conn.execute(query, parameters={"minimum": minimum})) == expected
@@ -2172,7 +2176,7 @@ def test_load_reader_binds_parameters_inside_list(
     values = "[CAST($first, 'INT64'), CAST($last, 'INT64')]"
     if as_list:
         values = f"CAST({values}, 'INT64[]')"
-    source = f"LOAD FROM '{path}'" + (" WITH id" if with_clause else "")
+    source = f"LOAD FROM '{path.as_posix()}'" + (" WITH id" if with_clause else "")
     query = f"{source} WHERE id IN {values} RETURN id ORDER BY id"
     for first, last, expected in [(1, 3, [[1], [3]]), (2, 4, [[2]])]:
         assert (

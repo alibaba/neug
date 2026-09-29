@@ -208,6 +208,24 @@ class CMakeBuild(build_ext):
         cmake_args = [
             f"-DPython_EXECUTABLE={sys.executable}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
+            # Pin the FindPython search root to the interpreter we build for.
+            # cibuildwheel reuses <repo>/build across CPython versions; without
+            # this, the Python_ROOT_DIR cached by the previous version's
+            # configure keeps FindPython looking for pythonXY.lib under the
+            # old installation, failing with "missing: Development.Module".
+            f"-DPython_ROOT_DIR={sys.base_prefix}",
+            # pybind11 sets Python_ARTIFACTS_INTERACTIVE, so a successful
+            # configure persists Python_LIBRARY / Python_INCLUDE_DIR /
+            # Python_SABI_LIBRARY as public cache entries. On the next
+            # CPython version's configure, FindPython treats those absolute
+            # paths as user-specified locations, adopts them verbatim and
+            # skips the search - then fails the interpreter/artifact version
+            # consistency check with "missing: Development.Module".
+            # Drop them so each configure re-locates the artifacts for the
+            # interpreter passed above (-U is a no-op on a fresh build dir).
+            "-UPython_LIBRARY",
+            "-UPython_INCLUDE_DIR",
+            "-UPython_SABI_LIBRARY",
             f"-DCMAKE_BUILD_TYPE={build_type}",
             "-DBUILD_PYTHON=ON",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
