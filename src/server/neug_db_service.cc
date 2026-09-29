@@ -36,10 +36,6 @@ class NeugDBService::Impl {
         handler_(runtime_, runtime_.max_thread_num()) {
     handler_.Init(runtime_.config());
   }
-  const size_t service_slot_num =
-      effective_config.thread_num == 0
-          ? static_cast<size_t>(db_config_.max_thread_num)
-          : static_cast<size_t>(effective_config.thread_num);
 
   ~Impl() {
     runtime_.CloseAdmission();

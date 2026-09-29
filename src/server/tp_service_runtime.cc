@@ -54,15 +54,24 @@ TpServiceRuntime::TpServiceRuntime(NeugDB& db, const ServiceConfig& config)
         static_cast<uint32_t>(db_.config().max_thread_num);
   }
 
+  const size_t service_slot_num =
+      service_config_.thread_num == 0
+          ? static_cast<size_t>(db_.config().max_thread_num)
+          : static_cast<size_t>(service_config_.thread_num);
+
   installBthreadRuntimeWait();
   try {
+    // Keep the process-wide worker capacity sized for the database. The slot
+    // pool below enforces the service-local query concurrency limit.
     bthread_setconcurrency(
         std::max(db_.config().max_thread_num, BTHREAD_MIN_CONCURRENCY));
     execution_slot_pool_ = std::make_unique<TpExecutionSlotPool>(
         db_.graph_snapshot_store(), db_.GetPlanner(), db_.GetQueryCache(),
         *db_.version_manager_, *db_.checkpoint_coordinator_,
         db_.extension_manager(), db_.allocators_, *db_.wal_writers_,
-        db_.config());
+        db_.config(), service_slot_num);
+    LOG(INFO) << "TP runtime execution_slots="
+              << execution_slot_pool_->ExecutionSlotNum();
     transaction_manager_ = std::make_unique<ServiceTransactionManager>(
         *execution_slot_pool_, service_config_.max_explicit_transactions,
         service_config_.explicit_transaction_timeout_ms);

@@ -538,8 +538,7 @@ std::string BrpcServiceManager::Start() {
                         std::to_string(service_config_.query_port);
   brpc::ServerOptions options = get_server_options();
   LOG(INFO) << "Service config: db_max_thread_num=" << database_max_thread_num_
-            << ", configured_thread_num=" << service_config_.thread_num
-            << ", execution_slots=" << execution_slot_pool_.ExecutionSlotNum();
+            << ", configured_thread_num=" << service_config_.thread_num;
   if (brpc_server_->Start(ip_port.c_str(), &options) != 0) {
     THROW_RUNTIME_ERROR("Failed to start brpc server on " + ip_port);
   }
@@ -585,7 +584,7 @@ bool BrpcServiceManager::IsRunning() const {
 brpc::ServerOptions BrpcServiceManager::get_server_options() const {
   brpc::ServerOptions options;
   options.idle_timeout_sec = 60;  // 1 minute
-  // NeugDBService initializes the process-wide bthread runtime for database
+  // TpServiceRuntime initializes the process-wide bthread runtime for database
   // capacity. A value of 0 keeps BRPC from trying to resize that global pool;
   // service-local concurrency is enforced by TpExecutionSlotPool.
   options.num_threads = 0;
