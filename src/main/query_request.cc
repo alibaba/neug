@@ -44,17 +44,27 @@ neug::Status RequestParser::ParseFromString(const std::string& req,
   parameters.SetObject();
   rapidjson::Document document;
   document.Parse(req.c_str(), req.size());
-  if (document.HasParseError()) {
+  if (document.HasParseError() || !document.IsObject()) {
     LOG(ERROR) << "The format of eval request is incorrect.";
     return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                         "The format of eval request is incorrect.");
   }
-  if (document.HasMember("query") && document["query"].IsString()) {
-    query = document["query"].GetString();
+  if (!document.HasMember("query") || !document["query"].IsString() ||
+      document["query"].GetStringLength() == 0) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Query must be a non-empty string.");
   }
-  std::string access_mode_str;
-  if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
-    access_mode_str = document["access_mode"].GetString();
+  query.assign(document["query"].GetString(),
+               document["query"].GetStringLength());
+  mode = AccessMode::kUnKnown;
+  if (document.HasMember("access_mode")) {
+    if (!document["access_mode"].IsString()) {
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Query access_mode must be a string.");
+    }
+    const std::string access_mode_str(
+        document["access_mode"].GetString(),
+        document["access_mode"].GetStringLength());
     try {
       mode = neug::ParseAccessMode(access_mode_str);
     } catch (const exception::InvalidArgumentException& e) {

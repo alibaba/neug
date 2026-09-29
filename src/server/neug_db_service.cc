@@ -102,8 +102,10 @@ class NeugDBService::Impl {
   // before the service was started.
   void StopResources() {
     runtime_.CloseAdmission();
-    transport_->StopAndJoin();
+    // Release session locks before joining callbacks: an auto-commit request
+    // may be waiting for a write lease held by an idle explicit transaction.
     runtime_.Drain();
+    transport_->StopAndJoin();
     runtime_.StopCompaction();
   }
 

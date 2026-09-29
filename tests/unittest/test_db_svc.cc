@@ -32,6 +32,7 @@
 
 #include <brpc/channel.h>
 #include <brpc/controller.h>
+#include <brpc/errno.pb.h>
 #include <brpc/server.h>
 #include <rapidjson/document.h>
 #include "../../src/server/brpc_transport.h"
@@ -270,7 +271,7 @@ class NeugDBServiceTest : public ::testing::Test {
   std::filesystem::path test_dir_;
 };
 
-TEST_F(NeugDBServiceTest, TransportShutdownPrecedesTransactionDrain) {
+TEST_F(NeugDBServiceTest, TransactionDrainPrecedesTransportJoin) {
   TransportProbe probe;
   auto service =
       NeugDBServiceTestPeer::Create(*db_, config_, [&](ITpService& runtime) {
@@ -290,8 +291,8 @@ TEST_F(NeugDBServiceTest, TransportShutdownPrecedesTransactionDrain) {
     QueryRequest request;
     request.query = "RETURN 1;";
     request.access_mode = AccessMode::kRead;
-    // Already accepted requests still have a live transaction during drain.
-    EXPECT_TRUE(probe.service->ExecuteInTransaction(transaction_id, request));
+    // Queued callbacks can no longer enter a drained transaction.
+    EXPECT_FALSE(probe.service->ExecuteInTransaction(transaction_id, request));
   };
   for (int round = 0; round < 2; ++round) {
     EXPECT_EQ(service->Start(), "probe://service");
@@ -1520,6 +1521,75 @@ TEST_F(NeugDBServiceTest, UnsupportedCapabilityMapsToHttp501) {
   service.Stop();
 }
 
+TEST(RequestParserTest, RejectsMalformedRequestShapes) {
+  for (const std::string input :
+       {"[]", "[1]", "null", "42", R"("text")", "{}", R"({"query":null})",
+        R"({"query":1})", R"({"query":""})",
+        R"({"query":"RETURN 1","access_mode":false})",
+        R"({"query":"RETURN 1","access_mode":"read\u0000bogus"})"}) {
+    SCOPED_TRACE(input);
+    auto parsed = RequestParser::ParseFromString(input);
+    ASSERT_FALSE(parsed);
+    EXPECT_EQ(parsed.error().error_code(), StatusCode::ERR_INVALID_ARGUMENT);
+  }
+}
+
+TEST(NeugDBServiceDeathTest,
+     StopReleasesExplicitTransactionBlockingAutoCommit) {
+  // Re-exec instead of inheriting BRPC's worker threads and sockets via fork.
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  ASSERT_EXIT(
+      {
+        alarm(10);
+        const auto path =
+            std::filesystem::temp_directory_path() /
+            ("neug_stop_blocked_writer_" + std::to_string(getpid()));
+        NeugDB db;
+        db.Open(path.string(), 4);
+        auto connection = db.Connect();
+        load_modern_graph(connection);
+        connection->Close();
+        ServiceConfig config;
+        config.query_port = 0;
+        config.auto_compaction = false;
+        config.explicit_transaction_timeout_ms = 0;
+        {
+          NeugDBService service(db, config);
+          auto uri = service.Start();
+          brpc::ChannelOptions options;
+          options.protocol = "http";
+          options.timeout_ms = 300;
+          options.max_retry = 0;
+          brpc::Channel channel;
+          if (channel.Init(uri.c_str(), "", &options) != 0) {
+            _exit(10);
+          }
+          brpc::Controller begin;
+          PostHttp(channel, uri, "/transactions", R"({"mode":"read_write"})",
+                   begin);
+          if (begin.Failed()) {
+            _exit(11);
+          }
+          brpc::Controller blocked;
+          PostHttp(
+              channel, uri, "/cypher",
+              R"({"query":"CREATE (:person {id: 99999, name: 'blocked', age: 1});","access_mode":"update"})",
+              blocked);
+          // The HTTP client times out, but the server callback still waits for
+          // the explicit transaction's write lease. Stop must release that
+          // lease.
+          if (blocked.ErrorCode() != brpc::ERPCTIMEDOUT) {
+            _exit(12);
+          }
+          service.Stop();
+        }
+        db.Close();
+        std::filesystem::remove_all(path);
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
 TEST(RequestParserTest, InvalidAccessModeReturnsError) {
   const std::string input = R"({"query":"RETURN 1","access_mode":"bogus"})";
   ASSERT_NO_THROW({
@@ -1537,7 +1607,7 @@ TEST(RequestParserTest, InvalidAccessModeReturnsError) {
   });
 }
 
-TEST_F(NeugDBServiceTest, InvalidAccessModePreservesExplicitTransaction) {
+TEST_F(NeugDBServiceTest, InvalidRequestsPreserveExplicitTransaction) {
   neug::NeugDBService service(*db_, config_);
   const auto uri = service.Start();
   brpc::ChannelOptions options;
@@ -1561,11 +1631,15 @@ TEST_F(NeugDBServiceTest, InvalidAccessModePreservesExplicitTransaction) {
   ASSERT_FALSE(write.Failed()) << write.ErrorText();
 
   for (const auto& endpoint : {std::string("/cypher"), query_path}) {
-    brpc::Controller invalid;
-    PostHttp(channel, uri, endpoint,
-             R"({"query":"RETURN 1","access_mode":"bogus"})", invalid);
-    EXPECT_EQ(invalid.http_response().status_code(),
-              brpc::HTTP_STATUS_BAD_REQUEST);
+    for (const std::string input :
+         {R"({"query":"RETURN 1","access_mode":"bogus"})", "[1]", "null", "{}",
+          R"({"query":42})", R"({"query":"RETURN 1","access_mode":false})"}) {
+      SCOPED_TRACE(input);
+      brpc::Controller invalid;
+      PostHttp(channel, uri, endpoint, input, invalid);
+      EXPECT_EQ(invalid.http_response().status_code(),
+                brpc::HTTP_STATUS_BAD_REQUEST);
+    }
   }
 
   const auto read = RequestSerializer::SerializeRequest(

@@ -54,8 +54,10 @@ handlers can no longer call `ITpService`. Restart is supported.
 The facade stops in this order:
 
 1. Close admission for new explicit transactions.
-2. Stop accepting network requests and join active callbacks.
-3. Drain explicit transactions.
+2. Drain explicit transactions, waiting for their active operations and releasing
+   locks needed by blocked auto-commit requests. Queued transaction operations
+   may fail because their session has been closed.
+3. Stop accepting network requests and join active callbacks.
 4. Stop compaction.
 5. Publish the stopped state and notify blocking callers.
 

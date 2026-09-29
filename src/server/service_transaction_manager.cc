@@ -266,15 +266,19 @@ Status ServiceTransactionManager::Rollback(std::string_view transaction_id) {
 void ServiceTransactionManager::Close() {
   decltype(entries_) entries;
   {
-    std::unique_lock lock(mutex_);
+    std::lock_guard lock(mutex_);
     accepting_ = false;
-    changed_.wait(lock, [this] { return pending_begins_ == 0; });
     entries.swap(entries_);
   }
   for (const auto& [_, entry] : entries) {
     std::lock_guard lock(entry->mutex);
     entry->context.Rollback();
   }
+  // A pending begin may wait for compaction, which itself needs the sessions
+  // above to release their snapshots. Do not wait before rolling them back.
+  // Admission is closed, so pending begins cannot publish another session.
+  std::unique_lock lock(mutex_);
+  changed_.wait(lock, [this] { return pending_begins_ == 0; });
 }
 
 void ServiceTransactionManager::CloseAdmission() {
