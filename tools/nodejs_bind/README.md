@@ -86,7 +86,7 @@ For local source builds, use `NEUG_NATIVE_ARCH=ON make dev`.
 The resulting tarball can be installed without a C++ build environment:
 
 ```bash
-npm install ./neug-0.2.0.tgz
+npm install ./neug-0.2.1.tgz
 ```
 
  

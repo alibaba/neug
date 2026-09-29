@@ -68,7 +68,7 @@ def get_version(file):
                         __version__ = line.split("Version: ", 1)[1].strip()
                         break
         if not __version__:
-            __version__ = "0.2.0"
+            __version__ = "0.2.1"
 
     return __version__
 
