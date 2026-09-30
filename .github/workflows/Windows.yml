@@ -349,7 +349,15 @@ jobs:
       # ========================================
       - name: Install Python dev requirements
         run: |
-          python -m pip install -r tools/python_bind/requirements_dev.txt
+          # clang-format==10.0.1 ships no win-arm64 wheel, so pip falls back to
+          # building it from source, which clones llvm and blows past the
+          # Windows MAX_PATH limit ("Filename too long"). It is a formatting
+          # tool unused by the tests, so drop it from the resolved set on
+          # this runner. The x64 job keeps the full requirements file.
+          Get-Content tools/python_bind/requirements_dev.txt |
+            Where-Object { $_ -notmatch '^\s*clang-format\s*==' } |
+            Set-Content -Path "$env:RUNNER_TEMP\requirements_dev_arm64.txt"
+          python -m pip install -r "$env:RUNNER_TEMP\requirements_dev_arm64.txt"
 
       - name: Run Python schema tests
         id: arm64-python-schema-tests
@@ -415,14 +423,9 @@ jobs:
           python -m pytest -sv tests/test_db_list.py --exitfirst
           python -m pytest -sv tests/test_db_array.py --exitfirst
 
-      - name: Run Python PyArrow related tests
-        id: arm64-python-pyarrow-tests
-        continue-on-error: true
-        run: |
-          cd tools/python_bind
-          python -m pip install pyarrow==18.0.0
-          python -m pytest -sv tests/test_to_arrow.py --exitfirst
-          python -m pip uninstall -y pyarrow
+      # PyArrow tests are skipped on ARM64: pyarrow==18.0.0 ships no
+      # win-arm64 wheel, so pip would fall back to a full source build
+      # of Arrow. Re-enable once the pinned pyarrow gains arm64 wheels.
 
       - name: Run Python CLI tool tests
         id: arm64-python-cli-tests
@@ -448,7 +451,6 @@ jobs:
           if ('${{ steps.arm64-python-sniffer-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-sniffer-tests' }
           if ('${{ steps.arm64-python-complex-query-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-complex-query-tests' }
           if ('${{ steps.arm64-python-list-array-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-list-array-tests' }
-          if ('${{ steps.arm64-python-pyarrow-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-pyarrow-tests' }
           if ('${{ steps.arm64-python-cli-tests.outcome }}' -eq 'failure') { $failed += 'arm64-python-cli-tests' }
           if ($failed.Count -gt 0) {
             Write-Error "The following test steps failed: $($failed -join ', ')"
