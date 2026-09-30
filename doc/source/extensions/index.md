@@ -30,6 +30,8 @@ The following sections detail how to install and use the extensions listed above
 
 The `INSTALL` command downloads official extensions from the NeuG Official Repository to your local machine. NeuG automatically downloads the appropriate platform-specific dynamic library based on your current operating system.
 
+> **Note:** Official extensions are currently published for Linux and macOS only. The extension framework is disabled in Windows builds, so `INSTALL` and `LOAD` are unavailable on Windows. Built-in JSON support is not affected.
+
 Regarding the local download path, please note the following:
 
 - By default, extensions are downloaded to `<python_wheel_install_home>/extension/<extension_name>`.

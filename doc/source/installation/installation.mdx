@@ -1,6 +1,6 @@
 # Installation
 
-NeuG runs on modern Linux and macOS systems with support for both x86 and ARM architectures. For Windows users, we recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+NeuG runs on modern Linux, macOS, and Windows systems. Linux and macOS packages are available for both x86_64 and ARM64 architectures; Windows packages are available for x86_64 and ARM64 (since v0.2.1) — note that native Python support on Windows ARM64 requires Python 3.11 or later.
 
 NeuG supports multiple language bindings. Choose your preferred language below to get started.
 
@@ -163,6 +163,14 @@ cmake .. -DCMAKE_PREFIX_PATH=/opt/neug
 </Tab>
 
 </Tabs>
+
+## Windows Notes
+
+Windows wheels (x86_64 and ARM64, since v0.2.1) currently ship without the HTTP server and without dynamically loadable extensions:
+
+- **Service mode is unavailable.** `Database.serve()` raises `RuntimeError: HTTP server is not enabled in this build.` A [`Session`](../../reference/python_api/session) on Windows can still connect to a remote NeuG service running on Linux or macOS.
+- **Extensions are unavailable.** `INSTALL`/`LOAD` do not work for extensions such as `vector_search`, `fts`, `parquet`, `httpfs`, and `gds`, so vector indexes, full-text indexes, Parquet I/O, and GDS algorithms are unavailable on Windows (see [Extensions](../../extensions/index)). Built-in CSV and JSON import/export are not affected.
+- If you need these features on a Windows machine, run NeuG under [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
 
 ## Troubleshooting
 

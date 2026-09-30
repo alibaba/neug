@@ -199,6 +199,9 @@ documentation of Session.
   - **After starting the server, no new connections to the local database will be allowed.**
   - **`thread_num` limits server-side concurrent query execution; the client-side**
   - **`Session(num_threads=...)` sizes its HTTP pool.**
+  - **Service mode is not available on Windows:** calling `serve()` raises
+    `RuntimeError: HTTP server is not enabled in this build.` Use a Linux or
+    macOS host (or WSL) to run the service.
 
 <a id="neug.database.Database.stop_serving"></a>
 

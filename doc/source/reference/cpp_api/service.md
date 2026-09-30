@@ -7,6 +7,8 @@ NeuG database HTTP service for high-throughput scenarios.
 `NeugDBService` provides an HTTP interface layer for the NeuG graph database, enabling remote query execution over HTTP. It manages the lifecycle of a BRPC-based HTTP server that handles Cypher queries, service status requests, and schema queries through RESTful endpoints.
 This is the C++ equivalent of Python's `Database.serve()` functionality, designed for high-throughput Transaction Processing (TP) scenarios where multiple clients need concurrent access to the database.
 
+> **Platform note:** The HTTP server component is not built on Windows (`BUILD_HTTP_SERVER` is disabled for Windows builds), so `NeugDBService` is unavailable there. Run the service on Linux or macOS (or under WSL) instead.
+
 **Usage Example:** 
 ```cpp
 #include <neug/main/neug_db.h>

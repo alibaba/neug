@@ -34,7 +34,7 @@ Built on this data foundation, NeuG is **the one data index for your agentic app
 
 ## Installation
 
-The packages support Linux and macOS on x86_64 and ARM64. Windows users can run NeuG through WSL2; native Windows support is on the roadmap. For more detailed instructions (including C++ from source), see the [installation guide](https://neug.io/docs/installation/installation/).
+The packages support Linux and macOS on x86_64 and ARM64, and Windows on x86_64 and ARM64 (since v0.2.1). For more detailed instructions (including C++ from source), see the [installation guide](https://neug.io/docs/installation/installation/).
 
 <details open>
 <summary><b>Python</b> &nbsp;·&nbsp; requires Python 3.8+</summary>
@@ -89,6 +89,8 @@ conn.execute("""
 ```
 
 [Create an HNSW index](./doc/source/extensions/vector_search.md#create-hnsw-index) · [Create a full-text index](./doc/source/extensions/fts_search.md#create-an-fts-index)
+
+> **Note:** The vector and full-text examples require the `vector_search` and `fts` extensions, which are not available in Windows wheels yet. On Windows, run NeuG under WSL2 to use extensions or service mode.
 
 ## One Data, Indexed Three Ways
 

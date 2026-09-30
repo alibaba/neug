@@ -58,6 +58,8 @@ interleaved ordinary writes at once; see
 
 ## Service mode (TP)
 
+> **Note:** Service mode requires the HTTP server component, which is not built on Windows yet. Run the service on a Linux or macOS host (or under WSL).
+
 Service mode is designed for concurrent application requests. It uses
 multi-version concurrency control (MVCC) so reads can continue on a consistent
 snapshot while other transactions commit.

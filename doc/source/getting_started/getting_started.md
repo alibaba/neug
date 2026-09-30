@@ -54,6 +54,8 @@ db.close()
 ### Service Mode
 Network-based access - ideal for multi-user applications:
 
+> **Note:** Service mode is not available in Windows wheels yet — `db.serve()` raises `RuntimeError: HTTP server is not enabled in this build.` On Windows, you can still use `Session` to connect to a remote NeuG service running on Linux or macOS.
+
 **Start the service:**
 ```python
 import neug
@@ -264,6 +266,8 @@ print(list(semantic_results))
 print(list(keyword_results))
 print(list(conn.execute("CALL SHOW_INDEXES() RETURN *;")))
 ```
+
+> **Note:** HNSW and FTS indexes require the `vector_search` and `fts` extensions, which are not available in Windows wheels yet. See [Extensions](../../extensions/index).
 
 The graph structure and both storage indexes are maintained over the same data. Inserts, updates, and deletes update the indexes as part of the same transaction. For index lifecycle and recovery guarantees, see [Storage Indexes](../../storage_index/index). For complete search options, see [Vector Search](../../extensions/vector_search) and [Full-Text Search](../../extensions/fts_search).
 
