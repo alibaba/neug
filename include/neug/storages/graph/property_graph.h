@@ -166,6 +166,9 @@ class NEUG_API PropertyGraph {
   /// before DumpDirtyAndReopen() consumes and reopens its module wrappers.
   /// @p detach_state records prior work, making repeated preparation
   /// idempotent.
+  /// Prepare stable append ranges while insert admission is closed.
+  void PrepareForInsert();
+
   void DetachDirtyModulesForCheckpoint(CowDetachState& detach_state);
 
   DirtyTracker& dirty_tracker() { return dirty_; }

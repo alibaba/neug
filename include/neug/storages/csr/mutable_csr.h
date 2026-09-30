@@ -38,6 +38,7 @@
 #include "neug/storages/csr/nbr.h"
 #include "neug/storages/module/type_name.h"
 #include "neug/utils/io/file/file_utils.h"
+#include "neug/utils/property/chunked_column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
@@ -172,14 +173,19 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
-      if (!casted) {
+      auto* typed = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
+      auto* chunked = dynamic_cast<ChunkedColumn<EDATA_T>*>(prev_data_col);
+      if (!typed && !chunked) {
         THROW_INTERNAL_EXCEPTION(
-            "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
+            "prev_data_col cannot be casted to TypedColumn/ChunkedColumn");
       }
-      casted->resize(data_list.size());
+      prev_data_col->resize(data_list.size());
       for (size_t i = 0; i < data_list.size(); ++i) {
-        casted->set_value(i, data_list[i]);
+        if (typed != nullptr) {
+          typed->set_value(i, data_list[i]);
+        } else {
+          chunked->set_value(i, data_list[i]);
+        }
       }
     }
     return std::make_tuple(std::move(src_list), std::move(dst_list));
@@ -348,14 +354,19 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
       }
     }
     if (prev_data_col) {
-      auto casted = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
-      if (!casted) {
+      auto* typed = dynamic_cast<TypedColumn<EDATA_T>*>(prev_data_col);
+      auto* chunked = dynamic_cast<ChunkedColumn<EDATA_T>*>(prev_data_col);
+      if (!typed && !chunked) {
         THROW_INTERNAL_EXCEPTION(
-            "prev_data_col cannot be casted to TypedColumn<EDATA_T>");
+            "prev_data_col cannot be casted to TypedColumn/ChunkedColumn");
       }
-      casted->resize(data_list.size());
+      prev_data_col->resize(data_list.size());
       for (size_t i = 0; i < data_list.size(); ++i) {
-        casted->set_value(i, data_list[i]);
+        if (typed != nullptr) {
+          typed->set_value(i, data_list[i]);
+        } else {
+          chunked->set_value(i, data_list[i]);
+        }
       }
     }
     return std::make_tuple(std::move(src_list), std::move(dst_list));
