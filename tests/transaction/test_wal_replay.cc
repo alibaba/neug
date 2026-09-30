@@ -440,7 +440,8 @@ TEST(WalReplayVersionManagerTest, ResetTimelineAfterMakeUpdateExclusive) {
 // The maintenance watermark must sit below the reserved sentinel encodings so
 // ordinary write timestamps can never collide with MAX_TIMESTAMP.
 TEST(WalReplayVersionManagerTest, WatermarkStaysBelowReservedEncodings) {
-  EXPECT_LT(neug::VersionManager::kWriteTimestampWatermark, neug::MAX_TIMESTAMP);
+  EXPECT_LT(neug::VersionManager::kWriteTimestampWatermark,
+            neug::MAX_TIMESTAMP);
   // The guard band must cover at least the in-flight reservation window.
   EXPECT_GE(neug::VersionManager::kTimestampGuardBand,
             neug::TimestampWindow::kWindowSize);
