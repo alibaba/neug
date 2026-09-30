@@ -97,6 +97,20 @@ def test_create_schema_float_types(tmp_path):
     db.close()
 
 
+def test_struct_field_names_must_be_unique(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w")
+    conn = db.connect()
+
+    with pytest.raises(RuntimeError, match="Duplicate struct field name: x"):
+        conn.execute(
+            "CREATE NODE TABLE T(id INT64, value STRUCT(x INT64, x STRING), "
+            "PRIMARY KEY(id));"
+        )
+
+    conn.close()
+    db.close()
+
+
 # `List` and `Map` are not supported yet
 def test_create_schema_complex_types(tmp_path):
     db_dir = tmp_path / "schema_types"
